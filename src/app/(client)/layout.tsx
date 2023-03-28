@@ -1,14 +1,9 @@
-export default function DashboardLayout({
-  children, // will be a page or nested layout
+import Layout from "@/components/ClientLayout";
+
+export default function ClientLayout({
+  children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <section>
-      <h1>I am Client</h1>
-      <nav></nav>
-
-      {children}
-    </section>
-  );
+  return <Layout>{children}</Layout>;
 }

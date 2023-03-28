@@ -1,4 +1,5 @@
 import "../styles/global.css";
+import Provider from "./provider";
 
 export const metadata = {
   title: {
@@ -14,7 +15,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-TW">
-      <body>{children}</body>
+      <body>
+        <Provider>{children}</Provider>
+      </body>
     </html>
   );
 }

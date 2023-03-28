@@ -1,5 +1,11 @@
-const page = () => {
-  return <div className="text-3xl text-red-600">DashBoard</div>;
+import { FC } from "react";
+
+const Dashboard: FC = () => {
+  return (
+    <div className="container mx-auto">
+      <div className="text-3xl text-red-600">DashBoard</div>
+    </div>
+  );
 };
 
-export default page;
+export default Dashboard;
