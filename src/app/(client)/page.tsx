@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signIn, signOut, useSession } from 'next-auth/react';
 
 const Home = () => {
   const { status, data: session } = useSession();
 
   const userInfo = session?.user;
 
-  if (status === "loading") {
+  if (status === 'loading') {
     return (
       <div>
         <p>Loading ...</p>
@@ -16,18 +16,18 @@ const Home = () => {
   }
 
   return (
-    <div className="flex flex-col justify-center items-center">
-      <h1 className="text-xl text-red-400 mb-4">Landing Page</h1>
+    <div className="flex flex-col items-center justify-center">
+      <h1 className="mb-4 text-xl text-red-400">Landing Page</h1>
 
       {userInfo ? (
-        <div className="flex flex-col justify-center items-center gap-4">
-          <p>Signed in as {userInfo?.email || "-"}</p>
-          <button className="px-4 py-2 bg-amber-300" onClick={() => signOut()}>
+        <div className="flex flex-col items-center justify-center gap-4">
+          <p>Signed in as {userInfo?.email || '-'}</p>
+          <button className="bg-amber-300 px-4 py-2" onClick={() => signOut()}>
             Sign Out
           </button>
         </div>
       ) : (
-        <button className="px-4 py-2 bg-slate-300" onClick={() => signIn()}>
+        <button className="bg-slate-300 px-4 py-2" onClick={() => signIn()}>
           SignIn
         </button>
       )}

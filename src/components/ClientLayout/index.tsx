@@ -1,4 +1,4 @@
-import { FC, ReactNode } from "react";
+import { FC, ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -6,10 +6,10 @@ interface Props {
 
 const Layout: FC<Props> = ({ children }) => {
   return (
-    <div className="flex flex-col min-h-screen">
-      <header className="text-2xl text-center bg-sky-400">Client Header</header>
+    <div className="flex min-h-screen flex-col">
+      <header className="bg-sky-400 text-center text-2xl">Client Header</header>
       <main className="grow">{children}</main>
-      <footer className="text-xl text-center bg-orange-200">
+      <footer className="bg-orange-200 text-center text-xl">
         Client Footer
       </footer>
     </div>

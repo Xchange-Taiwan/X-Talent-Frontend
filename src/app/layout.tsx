@@ -1,10 +1,10 @@
-import "../styles/global.css";
-import Provider from "./provider";
+import '../styles/global.css';
+import Provider from './provider';
 
 export const metadata = {
   title: {
-    default: "XChange Talent Pool",
-    template: "%s | XChange Talent Pool",
+    default: 'XChange Talent Pool',
+    template: '%s | XChange Talent Pool',
   },
 };
 

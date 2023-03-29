@@ -1,4 +1,4 @@
-import Layout from "@/components/ClientLayout";
+import Layout from '@/components/ClientLayout';
 
 export default function ClientLayout({
   children,
