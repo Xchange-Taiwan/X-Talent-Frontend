@@ -1,6 +1,24 @@
 # XChange 人才庫
 
-##### `updated: 2023/03/29`
+##### `updated: 2023/04/06`
+
+## How to Start
+
+1.  Install Packages
+
+    ```shell
+    npm install
+    ```
+
+2.  Create `.env` file from `.env.example` and Set the Env Variable
+
+    ![env_from_example](./docs//README//env_from_example.png)
+
+3.  Development
+
+    ```shell
+    npm run dev
+    ```
 
 ## Tech Stack
 
