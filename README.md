@@ -1,6 +1,6 @@
 # XChange 人才庫
 
-##### `updated: 2023/04/06`
+##### `updated: 2023/05/05`
 
 ## How to Start
 
@@ -24,7 +24,7 @@
 
 | Package                                                              | Description    |
 | -------------------------------------------------------------------- | -------------- |
-| [Next.js (App Router)](https://beta.nextjs.org/docs/getting-started) | Base           |
+| [Next.js (App Routing)](https://nextjs.org/docs/app/building-your-application/routing) | Base           |
 | [Tailwind CSS](https://tailwindcss.com/)                             | Styling        |
 | [NextAuth](https://next-auth.js.org/)                                | Authentication |
 | [FORMIK](https://formik.org/)                                        | Handle Form    |
