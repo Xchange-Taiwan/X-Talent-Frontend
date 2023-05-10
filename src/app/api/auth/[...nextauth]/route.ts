@@ -2,7 +2,10 @@ import NextAuth, { AuthOptions } from 'next-auth';
 import GithubProvider from 'next-auth/providers/github';
 import LinkedInProvider from 'next-auth/providers/linkedin';
 
-export const authOptions: AuthOptions = {
+export const handler: AuthOptions = NextAuth({
+  //   pages: {
+  //     signIn: '/login',
+  //   },
   providers: [
     GithubProvider({
       clientId: process.env.GITHUB_ID,
@@ -13,6 +16,6 @@ export const authOptions: AuthOptions = {
       clientSecret: process.env.LINKEDIN_CLIENT_SECRET,
     }),
   ],
-};
+});
 
-export default NextAuth(authOptions);
+export { handler as GET, handler as POST };
