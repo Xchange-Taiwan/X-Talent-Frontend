@@ -1,5 +1,6 @@
 'use client';
 import { ErrorMessage, Form, Formik, Field } from 'formik';
+import { signIn } from 'next-auth/react';
 
 const SignInPage = () => {
   return (
@@ -67,6 +68,7 @@ const SignInPage = () => {
           <button
             type="button"
             className="mb-4 flex w-full justify-center rounded-md bg-gray-500 px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-gray-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            onClick={() => signIn('github', { callbackUrl: '/' })}
           >
             Sign in with Github
           </button>
@@ -74,6 +76,7 @@ const SignInPage = () => {
           <button
             type="button"
             className="mb-4 flex w-full justify-center rounded-md bg-sky-500 px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-sky-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            onClick={() => signIn('linkedin', { callbackUrl: '/Dashboard' })}
           >
             Sign in with LinkedIn
           </button>
