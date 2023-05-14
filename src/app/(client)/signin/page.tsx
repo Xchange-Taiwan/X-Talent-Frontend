@@ -22,7 +22,10 @@ const LogInPage = () => {
             password: '',
           }}
           onSubmit={async (params, { setSubmitting }) => {
-            await signIn('credentials', { callbackUrl: '/signin', ...params });
+            await signIn('credentials', {
+              callbackUrl: '/Dashboard',
+              ...params,
+            });
             setSubmitting(false);
           }}
         >
@@ -68,7 +71,7 @@ const LogInPage = () => {
           <button
             type="button"
             className="mb-4 flex w-full justify-center rounded-md bg-gray-500 px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-gray-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-            onClick={() => signIn('github', { callbackUrl: '/' })}
+            onClick={() => signIn('github', { callbackUrl: '/Dashboard' })}
           >
             Sign in with Github
           </button>
