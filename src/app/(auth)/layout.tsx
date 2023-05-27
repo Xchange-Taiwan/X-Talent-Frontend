@@ -1,7 +1,8 @@
-import { redirect } from 'next/navigation';
-import Layout from '@/components/AuthLayout';
-import { getServerSession } from 'next-auth/next';
 import { handler } from '@api/auth/[...nextauth]/route';
+import { redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth/next';
+
+import Layout from '@/components/AuthLayout';
 
 export default async function AuthLayout({
   children,

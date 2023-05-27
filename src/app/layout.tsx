@@ -1,4 +1,5 @@
 import '../styles/global.css';
+
 import Provider from './provider';
 
 export const metadata = {

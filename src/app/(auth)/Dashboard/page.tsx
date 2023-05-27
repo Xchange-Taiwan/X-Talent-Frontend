@@ -1,6 +1,6 @@
 'use client';
-import { FC } from 'react';
 import { signOut, useSession } from 'next-auth/react';
+import { FC } from 'react';
 
 const Dashboard: FC = () => {
   const { data } = useSession();
