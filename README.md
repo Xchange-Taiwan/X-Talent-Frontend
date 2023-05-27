@@ -1,6 +1,6 @@
 # XChange 人才庫
 
-##### `updated: 2023/05/05`
+##### `updated: 2023/05/27`
 
 ## How to Start
 
@@ -22,12 +22,14 @@
 
 ## Tech Stack
 
-| Package                                                              | Description    |
-| -------------------------------------------------------------------- | -------------- |
-| [Next.js (App Routing)](https://nextjs.org/docs/app/building-your-application/routing) | Base           |
-| [Tailwind CSS](https://tailwindcss.com/)                             | Styling        |
-| [NextAuth](https://next-auth.js.org/)                                | Authentication |
-| [FORMIK](https://formik.org/)                                        | Handle Form    |
+| Package                                          | Description                            |
+| ------------------------------------------------ | -------------------------------------- |
+| [Next.js (App Routing)](https://nextjs.org/docs) | Base                                   |
+| [Tailwind CSS](https://tailwindcss.com/)         | Styling                                |
+| [NextAuth](https://next-auth.js.org/)            | Authentication                         |
+| [FORMIK](https://formik.org/)                    | Form Handling                          |
+| [yup](https://github.com/jquense/yup)            | Schema Validation with FORMIK          |
+| [clsx](https://github.com/lukeed/clsx)           | Conditionally joining classes together |
 
 ## VSCode Recommend Extensions
 
