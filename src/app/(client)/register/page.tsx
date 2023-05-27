@@ -3,17 +3,17 @@ import { Form, Formik } from 'formik';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 
-import Button from './components/Button';
-import CheckBoxField from './components/CheckBoxField';
-import DivideLine from './components/DivideLine';
-import TextField from './components/TextField';
+import Button from '../signIn/components/Button';
+import CheckBoxField from '../signIn/components/CheckBoxField';
+import DivideLine from '../signIn/components/DivideLine';
+import TextField from '../signIn/components/TextField';
 
 const LogInPage = () => {
   return (
     <div className="flex min-h-full flex-col justify-center px-6 py-12 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-sm">
         <h2 className="mt-6 text-2xl font-bold leading-9 tracking-tight text-gray-900">
-          登入
+          註冊
         </h2>
       </div>
 
@@ -48,20 +48,27 @@ const LogInPage = () => {
               placeholder="請輸入密碼"
             />
             <CheckBoxField
-              fieldName="toggle"
-              labelText="記住我"
               id="rememberMe"
+              fieldName="toggle"
+              labelText={
+                <>
+                  我了解並同意{' '}
+                  <span className="cursor-pointer  font-bold underline underline-offset-4">
+                    X-talent 服務條款
+                  </span>
+                </>
+              }
             />
             <div className="py-4">
-              <Button type="submit" buttonText="登入" />
+              <Button type="submit" buttonText="註冊" />
 
               <p className="pt-6 text-center text-slate-500">
-                還不是會員嗎 ?{' '}
+                已經有帳號了 ?{' '}
                 <Link
-                  href="/register"
+                  href="/signIn"
                   className="font-bold text-slate-800 underline underline-offset-4 hover:text-slate-700"
                 >
-                  註冊
+                  登入
                 </Link>
               </p>
             </div>
