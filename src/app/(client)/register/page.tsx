@@ -3,10 +3,10 @@ import { Form, Formik } from 'formik';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 
-import Button from '../signIn/components/Button';
-import CheckBoxField from '../signIn/components/CheckBoxField';
-import DivideLine from '../signIn/components/DivideLine';
-import TextField from '../signIn/components/TextField';
+import Button from '../login/components/Button';
+import CheckBoxField from '../login/components/CheckBoxField';
+import DivideLine from '../login/components/DivideLine';
+import TextField from '../login/components/TextField';
 
 const LogInPage = () => {
   return (
@@ -65,7 +65,7 @@ const LogInPage = () => {
               <p className="pt-6 text-center text-slate-500">
                 已經有帳號了 ?{' '}
                 <Link
-                  href="/signIn"
+                  href="/login"
                   className="font-bold text-slate-800 underline underline-offset-4 hover:text-slate-700"
                 >
                   登入
