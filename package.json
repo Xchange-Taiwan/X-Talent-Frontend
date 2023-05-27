@@ -10,6 +10,7 @@
     "prettier": "prettier --write --ignore-unknown ."
   },
   "dependencies": {
+    "clsx": "^1.2.1",
     "formik": "^2.3.2",
     "next": "13.4.4",
     "next-auth": "^4.22.1",
