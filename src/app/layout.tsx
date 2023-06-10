@@ -1,5 +1,6 @@
 import '../styles/global.css';
 
+import { notoSans } from './font';
 import Provider from './provider';
 
 export const metadata = {
@@ -15,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="zh-TW">
+    <html lang="zh-TW" className={notoSans.className}>
       <body>
         <Provider>{children}</Provider>
       </body>
