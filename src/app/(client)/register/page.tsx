@@ -60,7 +60,7 @@ const LogInPage = () => {
               }
             />
             <div className="py-4">
-              <Button type="submit" buttonText="註冊" />
+              <Button>註冊</Button>
 
               <p className="pt-6 text-center text-slate-500">
                 已經有帳號了 ?{' '}
@@ -78,16 +78,8 @@ const LogInPage = () => {
         <DivideLine />
 
         <div className="mt-6 flex flex-col gap-6">
-          <Button
-            variant="GOOGLE"
-            type="button"
-            buttonText="使用 Google 繼續"
-          />
-          <Button
-            variant="LINKEDIN"
-            type="button"
-            buttonText="使用 LinkedIn 繼續"
-          />
+          <Button color="secondary">使用 Google 繼續</Button>
+          <Button color="secondary">使用 LinkedIn 繼續</Button>
         </div>
       </div>
     </div>
