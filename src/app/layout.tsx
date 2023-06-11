@@ -17,7 +17,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-TW" className={notoSans.className}>
-      <body>
+      <body id="app">
         <Provider>{children}</Provider>
       </body>
     </html>
