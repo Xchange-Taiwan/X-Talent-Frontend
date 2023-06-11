@@ -1,37 +1,55 @@
-import clsx from 'clsx';
-import { FC } from 'react';
+import Button, { ButtonProps } from '@mui/material/Button';
+import { createTheme, styled, ThemeProvider } from '@mui/material/styles';
+import { FC, ReactNode } from 'react';
 
-type ButtonVariant = 'DEFAULT' | 'LINKEDIN' | 'GOOGLE';
+export const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#2E3646',
+      contrastText: '#F8F9FB',
+    },
+    secondary: {
+      main: '#E6E9EC',
+      contrastText: '#5F6D7E',
+    },
+  },
+});
+
+const ThemeButton = styled(Button)<ButtonProps>(({ color }) => {
+  return {
+    fontWeight: 'bold',
+    boxShadow: 'none',
+
+    '&:hover': {
+      boxShadow: 'none',
+      backgroundColor: `${color === 'secondary' && 'rgb(219, 219, 219)'}`,
+    },
+  };
+});
 
 interface Props {
-  buttonText: string;
-  variant?: ButtonVariant;
+  children?: string | ReactNode;
+  color?: 'primary' | 'secondary';
   type?: 'button' | 'submit';
-  style?: string;
 }
 
-const Button: FC<Props> = ({
-  type,
-  buttonText,
-  style,
-  variant = 'DEFAULT',
+const CustomButton: FC<Props> = ({
+  children,
+  color = 'primary',
+  type = 'button',
 }) => {
   return (
-    <button
-      type={type || 'button'}
-      className={clsx([
-        'flex w-full justify-center rounded-md  px-3 py-1.5 text-sm font-semibold leading-6 text-white',
-        style,
-        { 'bg-rose-500 hover:bg-rose-600': variant === 'GOOGLE' },
-        { 'bg-blue-500 hover:bg-blue-600': variant === 'LINKEDIN' },
-        {
-          'bg-slate-700 hover:bg-slate-800': variant === 'DEFAULT',
-        },
-      ])}
-    >
-      {buttonText}
-    </button>
+    <ThemeProvider theme={theme}>
+      <ThemeButton
+        fullWidth={true}
+        variant="contained"
+        color={color}
+        type={type}
+      >
+        {children}
+      </ThemeButton>
+    </ThemeProvider>
   );
 };
 
-export default Button;
+export default CustomButton;
