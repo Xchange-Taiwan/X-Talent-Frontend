@@ -1,7 +1,8 @@
-import { FC, ReactNode } from 'react';
 import Image from 'next/image'
-import logo from '../../../public/logo.svg';
+import { FC, ReactNode } from 'react';
+
 import footerLogo from '../../../public/logo.png';
+import logo from '../../../public/logo.svg';
 import logoName from '../../../public/logoName.svg';
 
 interface Props {
@@ -17,13 +18,13 @@ const Layout: FC<Props> = ({ children }) => {
           <Image src={logoName} alt="logoName" />
         </div>
         <div>
-          <span className="text-[#1D1D1D] hidden md:inline text-base mr-7 font-['Open_Sans']">關於 X-Talent</span>
-          <button className="bg-white hidden md:inline rounded-md w-20 h-10 text-base font-bold text-[#00678C] border-solid border-2 border-[#00678C] mr-7">註冊</button>
-          <button className="bg-[#00678C] hidden md:inline rounded-md w-20 h-10 text-base font-bold text-white">登入</button>
+          <span className="text-black hidden md:inline text-base mr-7 font-['Open_Sans']">關於 X-Talent</span>
+          <button className="bg-white hidden md:inline rounded-md w-20 h-10 text-base font-bold text-teal-blue border-solid border-2 border-teal-blue mr-7">註冊</button>
+          <button className="bg-teal-blue hidden md:inline rounded-md w-20 h-10 text-base font-bold text-white">登入</button>
         </div>
       </header>
       <main className="grow">{children}</main>
-      <footer className="bg-[#1D1D1D] h-[730px] md:h-[534px] xl:h-[290px] flex w-full">
+      <footer className="bg-black h-[730px] md:h-[534px] xl:h-[290px] flex w-full">
         <div className="w-full h-full pt-[50px] px-[70px] flex flex-col xl:justify-between xl:flex-row">
           <Image src={footerLogo} className="w-[146px] h-[39px]" alt="logo" />
           <div className="text-[#FFFFFF] mt-[60px] md:gap-x-4 md:grid md:grid-cols-2 md:grid-rows-2 xl:mt-0 xl:flex">
