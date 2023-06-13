@@ -24,9 +24,30 @@ import landingPage_icon_7 from '../../../public/landingPage_icon_7.svg';
 import landingPage_icon_8 from '../../../public/landingPage_icon_8.svg';
 import landingPage_icon_9 from '../../../public/landingPage_icon_9.png';
 import landingPage_icon_10 from '../../../public/landingPage_icon_10.svg';
+import { FeatureItem } from "./components/home";
+
 
 
 const Home = () => {
+
+  const featureData = [
+    {
+      icon: landingPage_icon_7,
+      text: '產業洞見線上分享'
+    },
+    {
+      icon: landingPage_icon_8,
+      text: '職涯心法座談會'
+    },
+    {
+      icon: landingPage_icon_9,
+      text: '填寫問卷尋找導師'
+    },
+    {
+      icon: landingPage_icon_10,
+      text: '一對一深度交流'
+    }
+  ];
   return (
     <>
       <div className="m-auto h-[670px] md:h-[735px] relative w-full flex items-center justify-center xl:max-w-screen-2xl">
@@ -52,27 +73,14 @@ const Home = () => {
         <div className="flex flex-col w-full justify-center items-center">
           <p className="text-[#003C5A] text-2xl font-bold mb-[30px] md:mb-[70px] tracking-[0.04em] text-center">透過 X -Talent 創造你<br className="md:hidden" />的職涯可能性</p>
           <div className="flex flex-col md:flex-row text-[#1D1D1D] flex-wrap font-bold justify-center">
-            <div className="flex mb-[50px] md:flex-col items-center md:w-2/4 xl:w-auto xl:mx-[60px]">
-              <Image className="w-[70px] h-[70px]" src={landingPage_icon_7} alt="1" />
-              <p className="ml-[20px] md:mt-8 text-xl tracking-[0.085em]">產業洞見線上分享</p>
-            </div>
-            <div className="flex mb-[50px] md:flex-col items-center md:w-2/4 xl:w-auto xl:mx-[60px]">
-              <Image className="w-[70px] h-[70px]" src={landingPage_icon_8} alt="1" />
-              <p className="ml-[20px] md:mt-8 text-xl tracking-[0.085em]">職涯心法座談會</p>
-            </div>
-            <div className="flex mb-[50px] md:flex-col items-center md:mt-16 md:w-2/4 xl:w-auto xl:mt-0 xl:mx-[60px]">
-              <Image className="w-[70px] h-[70px]" src={landingPage_icon_9} alt="1" />
-              <p className="ml-[20px] md:mt-8 text-xl tracking-[0.085em]">填寫問卷尋找導師</p>
-            </div>
-            <div className="flex mb-[50px] md:flex-col items-center md:mt-16 md:w-2/4 xl:w-auto xl:mt-0 xl:mx-[60px]">
-              <Image className="w-[70px] h-[70px]" src={landingPage_icon_10} alt="1" />
-              <p className="ml-[20px] md:mt-8 text-xl tracking-[0.085em]">一對一深度交流</p>
-            </div>
+            {featureData.map((item, index) => (
+              <FeatureItem key={index} icon={item.icon} text={item.text} />
+            ))}
           </div>
           <button className="bg-[#00678C] w-[262px] h-[80px] mt-[20px] xl:mt-[121px] md:w-[415px] md:h-[51px] rounded-md text-white text-xl font-bold tracking-[0.09em]">加入排隊名單，<br className="md:hidden" />搶先成為 X-Talent →</button>
         </div>
       </div>
-      <div className="md:m-auto md:w-[930px] md:h-[1100px] xl:h-[790px] relative">
+      <div className="contents md:block md:m-auto md:w-[930px] md:h-[1100px] xl:h-[790px] relative">
         <div className="flex mt-[70px] mb-[50px] xl:mt-7 xl:mb-[130px] items-center flex-col xl:flex-row">
           <Image src={landingPage_4} className="w-[420px]" alt="1" />
           <div className="flex flex-wrap md:mt-10 w-[420px] p-[30px] md:p-0 flex-row xl:w-full xl:flex-col xl:pl-[62px] m-auto">
@@ -89,8 +97,12 @@ const Home = () => {
         </div>
       </div>
       <div className="bg-[#172E59] flex h-[907px] md:h-[425px] xl:h-[557px] w-full">
-        <div className="relative m-auto h-full w-[420px] md:w-[767px] flex flex-col justify-center md:items-center md:flex-wrap md:flex-row xl:w-[1280px]">
+        <div className="relative m-auto h-full md:w-[767px] flex flex-col justify-center md:items-center md:flex-wrap md:flex-row xl:w-[1280px]">
+<<<<<<< Updated upstream
           <div className="text-white leading-[58px] my-[15px] md:col-span-2 md:mt-[40px] xl:absolute xl:mt-0 xl:left-[60px] xl:top-[176px] text-4xl font-bold ">
+=======
+          <div className="text-white w-auto leading-[58px] my-[15px] md:col-span-2 md:mt-[40px] xl:absolute xl:mt-0 xl:left-[60px] xl:top-[176px] text-4xl font-bold ">
+>>>>>>> Stashed changes
             <p>9000+ XChangers</p>
             <p>for you to <br className="md:hidden" />connect with</p>
           </div>
