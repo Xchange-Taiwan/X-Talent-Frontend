@@ -10,3 +10,7 @@
   border-style: solid;
   border-color: theme('borderColor.DEFAULT', currentColor);
 }
+
+.swiper-slide {
+  display: flex !important;
+}
