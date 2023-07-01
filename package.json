@@ -11,16 +11,13 @@
     "prettier": "prettier --write --ignore-unknown ."
   },
   "dependencies": {
-    "@emotion/react": "^11.11.1",
-    "@emotion/styled": "^11.11.0",
-    "@mui/material": "^5.13.4",
     "clsx": "^1.2.1",
     "formik": "^2.4.1",
-    "formik-mui": "^5.0.0-alpha.0",
     "next": "13.4.4",
     "next-auth": "^4.22.1",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "swiper": "^9.3.0",
     "yup": "^1.2.0"
   },
   "devDependencies": {
@@ -31,6 +28,7 @@
     "@typescript-eslint/eslint-plugin": "^5.59.7",
     "@typescript-eslint/parser": "^5.59.7",
     "autoprefixer": "^10.4.14",
+    "daisyui": "^3.1.7",
     "eslint": "^8.41.0",
     "eslint-config-next": "13.4.4",
     "eslint-config-prettier": "^8.8.0",
@@ -39,7 +37,6 @@
     "prettier": "^2.8.8",
     "prettier-plugin-tailwindcss": "^0.3.0",
     "tailwindcss": "^3.3.2",
-    "swiper": "^9.3.0",
     "typescript": "^5.0.4"
   }
 }
