@@ -18,7 +18,8 @@ const Layout: FC<Props> = ({ children }) => {
           <Image src={logoName} alt="logoName" />
         </div>
         <div>
-          <span className="text-black hidden md:inline text-base mr-7 font-['Open_Sans']">關於 X-Talent</span>
+          <a href="/" className="text-black hidden md:inline text-base mr-7 font-['Open_Sans']">首頁</a>
+          <a href="about" className="text-black hidden md:inline text-base mr-7 font-['Open_Sans']">關於 X-Talent</a>
           <button className="bg-white hidden md:inline rounded-md w-20 h-10 text-base font-bold text-teal-blue border-solid border-2 border-teal-blue mr-7">註冊</button>
           <button className="bg-teal-blue hidden md:inline rounded-md w-20 h-10 text-base font-bold text-white">登入</button>
         </div>
