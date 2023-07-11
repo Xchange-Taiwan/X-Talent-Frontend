@@ -1,3 +1,4 @@
+'use client';
 import Image from 'next/image'
 import { FC, ReactNode } from 'react';
 
@@ -22,6 +23,24 @@ const Layout: FC<Props> = ({ children }) => {
           <a href="about" className="text-black hidden md:inline text-base mr-7 font-['Open_Sans']">關於 X-Talent</a>
           <button className="bg-white hidden md:inline rounded-md w-20 h-10 text-base font-bold text-teal-blue border-solid border-2 border-teal-blue mr-7">註冊</button>
           <button className="bg-teal-blue hidden md:inline rounded-md w-20 h-10 text-base font-bold text-white">登入</button>
+          <div className="flex-none md:hidden">
+            <button onClick={() => window.modal.showModal()} className="btn btn-square btn-ghost">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="inline-block w-8 h-8 stroke-current"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
+          </div>
+          <dialog id="modal" className="modal modal-bottom sm:modal-middle">
+            <form method="dialog" className="modal-box rounded-none	h-full max-h-full flex flex-col items-center justify-center">
+              <a href="/" className="text-black md:hidden md:inline text-xl font-['Open_Sans']">首頁</a>
+              <a href="about" className="text-black my-[30px] md:hidden md:inline text-xl font-['Open_Sans']">關於 X-Talent</a>
+              <button className="bg-teal-blue md:hidden rounded-md w-40 my-10 h-10 text-base font-bold text-white">登入</button>
+              <button className="bg-white md:hidden rounded-md w-40 h-10 text-base font-bold text-teal-blue border-solid border-2 border-teal-blue">註冊</button>
+              <div className="modal-action">
+                <button className="btn btn-circle absolute top-5 right-5">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            </form>
+          </dialog>
         </div>
       </header>
       <main className="grow">{children}</main>

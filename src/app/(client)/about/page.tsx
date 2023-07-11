@@ -52,10 +52,10 @@ const About = () => {
         <div className="bg-coral-pink w-24 h-[452px] rotate-45 rounded-[124px] absolute top-[-100px] left-[-500px] xl:left-[-250px] overflow-hidden z-10"></div>
         <div className="bg-purple w-24 h-[452px] rotate-45 rounded-[124px] absolute top-[250px] left-[-500px] xl:left-[-280px] overflow-hidden z-10"></div>
       </div>
-      <div className="flex flex-col justify-center items-center md:m-auto h-[790px] xl:w-[1280px] relative">
+      <div className="flex flex-col justify-center items-center md:m-auto h-[550px] xl:w-[1280px] relative">
         <p className="text-midnight-blue text-2xl mb-5 font-bold">和 X-Talent 一起拓展職涯的選擇性</p>
         <Image src={aboutPage_1} className="w-[500px] my-8" alt="1" />
-        <p className="text-black text-xl mt-5 p-10">X-Talent 源自於台灣最大的互聯網工作者社群 XChange ，有許多想要轉換跑道與資深的工作者，持續在平台中與各領域人才諮詢與交流，不僅僅精進專業技能，也在人脈拓展的同時，釐清職涯道路，甚至獲得內部推薦，產生改變與持續成長。</p>
+        <p className="text-black text-xl mt-5 mb-[100px] p-10">X-Talent 源自於台灣最大的互聯網工作者社群 XChange ，有許多想要轉換跑道與資深的工作者，持續在平台中與各領域人才諮詢與交流，不僅僅精進專業技能，也在人脈拓展的同時，釐清職涯道路，甚至獲得內部推薦，產生改變與持續成長。</p>
       </div>
       <div className="bg-dark-blue flex h-[557px] w-full">
         <div className="relative m-auto h-full w-[767px] flex flex-col justify-center items-center xl:w-[1280px]">

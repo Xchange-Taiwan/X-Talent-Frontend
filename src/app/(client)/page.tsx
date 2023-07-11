@@ -14,6 +14,8 @@ import landingPage_4 from '../../../public/landingPage_4.png';
 import landingPage_5 from '../../../public/landingPage_5.png';
 import landingPage_6 from '../../../public/landingPage_6.png';
 import landingPage_7 from '../../../public/landingPage_7.png';
+import landingPage_8 from '../../../public/landingPage_8.png';
+import landingPage_9 from '../../../public/landingPage_9.png';
 import landingPage_icon_1 from '../../../public/landingPage_icon_1.svg';
 import landingPage_icon_2 from '../../../public/landingPage_icon_2.svg';
 import landingPage_icon_3 from '../../../public/landingPage_icon_3.svg';
@@ -210,19 +212,19 @@ const Home = () => {
           <SwiperSlide>
             <div className="m-auto flex flex-col md:flex-row items-center w-[520px] h-full">
               <div className="mt-[30px] mb-[10px] md:mr-10 flex md:flex-col items-center">
-                <Image src={landingPage_2} className="w-[114px!important] h-[114px!important] rounded-full max-w-[unset] mb-4" alt="1" />
-                <p className="text-midnight-blue ml-3 w-max text-xl font-bold mb-1">Carolina</p>
+                <Image src={landingPage_8} className="w-[114px!important] h-[114px!important] rounded-full max-w-[unset] mb-4" alt="1" />
+                <p className="text-midnight-blue w-max text-xl font-bold mb-1">Carolina</p>
               </div>
-              <p className="text-black bg-[#F8F8F8] text-left text-base font-medium">
+              <p className="text-black bg-[#F8F8F8] p-5 text-left text-base font-medium">
                 剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過 XChange 與兩位厲害的前輩進行 coffee chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange 帶來的互聯網連結！
               </p>
             </div>
             <div className="hidden m-auto xl:flex flex-col md:flex-row items-center ml-[150px] w-[520px] h-full">
               <div className="mt-[30px] mb-[10px] md:mr-10 flex md:flex-col items-center">
-                <Image src={landingPage_2} className="w-[114px!important] h-[114px!important] rounded-full max-w-[unset] mb-4" alt="1" />
-                <p className="text-midnight-blue ml-3 w-max text-xl font-bold mb-1">Carolina</p>
+                <Image src={landingPage_9} className="w-[114px!important] h-[114px!important] rounded-full max-w-[unset] mb-4" alt="1" />
+                <p className="text-midnight-blue w-max text-xl font-bold mb-1">Pin-Hua Chen</p>
               </div>
-              <p className="text-black bg-[#F8F8F8] text-left text-base font-medium">
+              <p className="text-black bg-[#F8F8F8] p-5 text-left text-base font-medium">
                 剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過 XChange 與兩位厲害的前輩進行 coffee chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange 帶來的互聯網連結！
               </p>
             </div>
@@ -230,19 +232,19 @@ const Home = () => {
           <SwiperSlide>
             <div className="m-auto flex flex-col md:flex-row items-center w-[520px] h-full">
               <div className="mt-[30px] mb-[10px] md:mr-10 flex md:flex-col items-center">
-                <Image src={landingPage_2} className="w-[114px!important] h-[114px!important] rounded-full max-w-[unset] mb-4" alt="1" />
-                <p className="text-midnight-blue ml-3 w-max text-xl font-bold mb-1">Carolina</p>
+                <Image src={landingPage_8} className="w-[114px!important] h-[114px!important] rounded-full max-w-[unset] mb-4" alt="1" />
+                <p className="text-midnight-blue w-max text-xl font-bold mb-1">Carolina</p>
               </div>
-              <p className="text-black bg-[#F8F8F8] text-left text-base font-medium">
+              <p className="text-black bg-[#F8F8F8] p-5 text-left text-base font-medium">
                 剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過 XChange 與兩位厲害的前輩進行 coffee chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange 帶來的互聯網連結！
               </p>
             </div>
             <div className="hidden m-auto xl:flex flex-col md:flex-row items-center ml-[150px] w-[520px] h-full">
               <div className="mt-[30px] mb-[10px] md:mr-10 flex md:flex-col items-center">
-                <Image src={landingPage_2} className="w-[114px!important] h-[114px!important] rounded-full max-w-[unset] mb-4" alt="1" />
-                <p className="text-midnight-blue ml-3 w-max text-xl font-bold mb-1">Carolina</p>
+                <Image src={landingPage_9} className="w-[114px!important] h-[114px!important] rounded-full max-w-[unset] mb-4" alt="1" />
+                <p className="text-midnight-blue w-max text-xl font-bold mb-1">Pin-Hua Chen</p>
               </div>
-              <p className="text-black bg-[#F8F8F8] text-left text-base font-medium">
+              <p className="text-black bg-[#F8F8F8] p-5 text-left text-base font-medium">
                 剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過 XChange 與兩位厲害的前輩進行 coffee chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange 帶來的互聯網連結！
               </p>
             </div>
@@ -250,19 +252,19 @@ const Home = () => {
           <SwiperSlide>
             <div className="m-auto flex flex-col md:flex-row items-center w-[520px] h-full">
               <div className="mt-[30px] mb-[10px] md:mr-10 flex md:flex-col items-center">
-                <Image src={landingPage_2} className="w-[114px!important] h-[114px!important] rounded-full max-w-[unset] mb-4" alt="1" />
-                <p className="text-midnight-blue ml-3 w-max text-xl font-bold mb-1">Carolina</p>
+                <Image src={landingPage_8} className="w-[114px!important] h-[114px!important] rounded-full max-w-[unset] mb-4" alt="1" />
+                <p className="text-midnight-blue w-max text-xl font-bold mb-1">Carolina</p>
               </div>
-              <p className="text-black bg-[#F8F8F8] text-left text-base font-medium">
+              <p className="text-black bg-[#F8F8F8] p-5 text-left text-base font-medium">
                 剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過 XChange 與兩位厲害的前輩進行 coffee chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange 帶來的互聯網連結！
               </p>
             </div>
             <div className="hidden m-auto xl:flex flex-col md:flex-row items-center ml-[150px] w-[520px] h-full">
               <div className="mt-[30px] mb-[10px] md:mr-10 flex md:flex-col items-center">
-                <Image src={landingPage_2} className="w-[114px!important] h-[114px!important] rounded-full max-w-[unset] mb-4" alt="1" />
-                <p className="text-midnight-blue ml-3 w-max text-xl font-bold mb-1">Carolina</p>
+                <Image src={landingPage_9} className="w-[114px!important] h-[114px!important] rounded-full max-w-[unset] mb-4" alt="1" />
+                <p className="text-midnight-blue w-max text-xl font-bold mb-1">Pin-Hua Chen</p>
               </div>
-              <p className="text-black bg-[#F8F8F8] text-left text-base font-medium">
+              <p className="text-black bg-[#F8F8F8] p-5 text-left text-base font-medium">
                 剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過 XChange 與兩位厲害的前輩進行 coffee chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange 帶來的互聯網連結！
               </p>
             </div>
