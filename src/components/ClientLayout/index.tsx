@@ -10,6 +10,14 @@ interface Props {
   children: ReactNode;
 }
 
+declare global {
+  interface Window {
+    "modal": {
+      showModal(): void;
+    }
+  }
+}
+
 const Layout: FC<Props> = ({ children }) => {
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden">
