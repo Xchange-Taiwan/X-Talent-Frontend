@@ -8,8 +8,6 @@ interface Props {
 
 const CustomButton: FC<Props> = ({
   children,
-  color = 'primary',
-  type = 'button',
 }) => {
   return <button className="btn">{children}</button>;
 };
