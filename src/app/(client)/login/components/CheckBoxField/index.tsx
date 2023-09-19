@@ -12,7 +12,7 @@ const CheckBoxField: FC<Props> = ({ labelText, fieldName, id }) => {
     <div className="flex items-center">
       <Field
         type="checkbox"
-        className="h-4 w-4 rounded text-blue-500 checked:bg-blue-500 hover:checked:bg-blue-500 focus:ring-0 focus:ring-offset-0"
+        className="text-blue-500 checked:bg-blue-500 hover:checked:bg-blue-500 h-4 w-4 rounded focus:ring-0 focus:ring-offset-0"
         id={id}
         name={fieldName}
       />

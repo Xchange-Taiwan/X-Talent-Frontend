@@ -2,13 +2,21 @@
   "name": "xchange-talent-pool",
   "version": "0.1.0",
   "private": true,
+  "prettier": {
+    "semi": true,
+    "tabWidth": 2,
+    "singleQuote": true,
+    "plugins": [
+      "prettier-plugin-tailwindcss"
+    ]
+  },
   "scripts": {
     "dev": "next dev",
     "dev-turbo": "next dev --turbo",
     "build": "next build",
     "start": "next start",
     "lint": "next lint --fix",
-    "prettier": "prettier --write --ignore-unknown ."
+    "eslint": "prettier --write . && eslint --fix"
   },
   "dependencies": {
     "clsx": "^2.0.0",

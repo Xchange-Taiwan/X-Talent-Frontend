@@ -12,7 +12,7 @@ const LogInPage = () => {
   return (
     <div className="flex min-h-full flex-col justify-center px-6 py-12 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-sm">
-        <h2 className="mt-6 text-2xl font-bold leading-9 tracking-tight text-gray-900">
+        <h2 className="text-gray-900 mt-6 text-2xl font-bold leading-9 tracking-tight">
           註冊
         </h2>
       </div>
@@ -62,11 +62,11 @@ const LogInPage = () => {
             <div className="py-4">
               <Button>註冊</Button>
 
-              <p className="pt-6 text-center text-slate-500">
+              <p className="text-slate-500 pt-6 text-center">
                 已經有帳號了 ?{' '}
                 <Link
                   href="/login"
-                  className="font-bold text-slate-800 underline underline-offset-4 hover:text-slate-700"
+                  className="text-slate-800 hover:text-slate-700 font-bold underline underline-offset-4"
                 >
                   登入
                 </Link>

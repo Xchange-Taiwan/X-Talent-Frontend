@@ -6,9 +6,7 @@ interface Props {
   type?: 'button' | 'submit';
 }
 
-const CustomButton: FC<Props> = ({
-  children,
-}) => {
+const CustomButton: FC<Props> = ({ children }) => {
   return <button className="btn">{children}</button>;
 };
 
