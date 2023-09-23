@@ -1,13 +1,20 @@
-import type { FC } from 'react';
+'use client';
+
+import type { FC, ReactNode } from 'react';
 
 import { Button } from '../ui/button';
 
-export const JoinWaitingList: FC = () => (
-  <Button className="bg-sky-700 hover:bg-sky-800 h-auto px-6 py-3">
-    <p className="text-xl">
-      加入排隊名單，
-      <br className="md:hidden" />
-      搶先成為 X-Talent
-    </p>
-  </Button>
-);
+export const JoinWaitingList: FC<{ children: ReactNode }> = ({ children }) => {
+  const handleJoinWaitingList = () => {
+    console.log('Join Waiting List');
+  };
+
+  return (
+    <Button
+      className="h-auto bg-sky-700 px-6 py-3 hover:bg-sky-800"
+      onClick={handleJoinWaitingList}
+    >
+      {children}
+    </Button>
+  );
+};

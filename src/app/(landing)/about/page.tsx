@@ -46,7 +46,7 @@ const featureData = [
 export default function Page() {
   return (
     <Fragment>
-      <section className="relative  flex h-[532px] w-full items-center justify-center overflow-hidden bg-[url('/landing/hero-background-sm.svg')] bg-cover bg-center sm:bg-[url('/landing/hero-background.svg')]">
+      <section className="relative  flex h-[532px] w-full items-center justify-center overflow-hidden bg-[url('/landing/about-page-hero-sm.svg')] bg-cover bg-center sm:bg-[url('/landing/about-page-hero.svg')]">
         <h1 className="text-center text-5xl font-bold leading-normal tracking-widest text-blue-950">
           關於 <br className="md:hidden" />
           X-Talent
@@ -113,7 +113,13 @@ export default function Page() {
       </section>
 
       <section className="pb-24 pt-10 text-center">
-        <JoinWaitingList />
+        <JoinWaitingList>
+          <p className="text-xl">
+            加入排隊名單，
+            <br className="md:hidden" />
+            搶先成為 X-Talent
+          </p>
+        </JoinWaitingList>
       </section>
     </Fragment>
   );

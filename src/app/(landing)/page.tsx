@@ -1,21 +1,11 @@
 'use client';
-import 'swiper/swiper.min.css';
-import 'swiper/css/pagination';
-
 import Image from 'next/image';
-import React from 'react';
-import { Autoplay, Pagination } from 'swiper';
-import { Swiper, SwiperSlide } from 'swiper/react';
 
-import landingPage_1 from '@/assets/landing/landingPage_1.png';
-import landingPage_2 from '@/assets/landing/landingPage_2.png';
-import landingPage_3 from '@/assets/landing/landingPage_3.png';
+import HomePageHeroImgUrl from '@/assets/landing/home-page-hero.png';
 import landingPage_4 from '@/assets/landing/landingPage_4.png';
 import landingPage_5 from '@/assets/landing/landingPage_5.png';
 import landingPage_6 from '@/assets/landing/landingPage_6.png';
 import landingPage_7 from '@/assets/landing/landingPage_7.png';
-import landingPage_8 from '@/assets/landing/landingPage_8.png';
-import landingPage_9 from '@/assets/landing/landingPage_9.png';
 import landingPage_icon_1 from '@/assets/landing/landingPage_icon_1.svg';
 import landingPage_icon_2 from '@/assets/landing/landingPage_icon_2.svg';
 import landingPage_icon_3 from '@/assets/landing/landingPage_icon_3.svg';
@@ -26,7 +16,29 @@ import landingPage_icon_7 from '@/assets/landing/landingPage_icon_7.svg';
 import landingPage_icon_8 from '@/assets/landing/landingPage_icon_8.svg';
 import landingPage_icon_9 from '@/assets/landing/landingPage_icon_9.png';
 import landingPage_icon_10 from '@/assets/landing/landingPage_icon_10.svg';
+import { HomePageSlider } from '@/components/landing/HomePageSlider';
 import { JoinWaitingList } from '@/components/landing/JoinWaitingList';
+import { SCREEN_SIZE } from '@/constant/theme';
+import useWindowSize from '@/hooks/useWindowSize';
+
+const featureData = [
+  {
+    icon: landingPage_icon_7,
+    text: '產業洞見線上分享',
+  },
+  {
+    icon: landingPage_icon_8,
+    text: '職涯心法座談會',
+  },
+  {
+    icon: landingPage_icon_9,
+    text: '填寫問卷尋找導師',
+  },
+  {
+    icon: landingPage_icon_10,
+    text: '一對一深度交流',
+  },
+];
 
 const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
   return (
@@ -38,67 +50,33 @@ const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
 };
 
 const Home = () => {
-  const featureData = [
-    {
-      icon: landingPage_icon_7,
-      text: '產業洞見線上分享',
-    },
-    {
-      icon: landingPage_icon_8,
-      text: '職涯心法座談會',
-    },
-    {
-      icon: landingPage_icon_9,
-      text: '填寫問卷尋找導師',
-    },
-    {
-      icon: landingPage_icon_10,
-      text: '一對一深度交流',
-    },
-  ];
+  const { width } = useWindowSize();
+
   return (
     <>
-      <div className="relative m-auto flex h-[670px] w-full items-center justify-center md:h-[735px] xl:max-w-screen-2xl">
-        <div className="flex flex-col items-center md:w-[440px] xl:w-[600px]">
-          <p className="text-midnight-blue mb-5 text-center text-5xl font-bold tracking-[0.17em]">
+      <section className="flex h-[532px] items-center justify-center bg-[url('/landing/home-page-hero-sm.svg')] bg-cover bg-no-repeat px-4 sm:bg-[url('/landing/home-page-hero-md.svg')] sm:px-0 lg:h-[640px] lg:bg-none">
+        <h1 className="text-center">
+          <p className="mb-8 text-5xl font-bold leading-normal text-blue-950">
             交流讓
             <br className="md:hidden" />
             改變發生
           </p>
-          <p className="text-center text-2xl font-bold text-black">
-            Find your Mentor/Mentee to
-            <br className="md:hidden" /> build up connections, break up{' '}
-            <br className="md:hidden" />
-            limits.
+          <p className="max-w-[516px] text-2xl text-black lg:max-w-[630px]">
+            Find your Mentor/Mentee to build up connections, break up limits.
           </p>
-        </div>
-        <div className="bg-coral-pink absolute right-[-100px] top-[-150px] z-10 h-[452px] w-24 rotate-45 overflow-hidden rounded-[124px] xl:right-[10px]"></div>
-        <Image
-          src={landingPage_1}
-          className="absolute right-[-500px] w-52 rounded-full md:right-[-80px] md:top-[300px] xl:right-[50px] xl:top-[230px]"
-          alt="1"
-        />
-        <div className="bg-purple absolute right-[-40px] top-[380px] z-10 h-[261px] w-24 rotate-45 overflow-hidden rounded-[124px] md:right-[-80px] md:top-[450px] xl:right-[80px] xl:top-[370px]"></div>
-        <div className="bg-orange absolute right-[-500px] top-[530px] z-10 h-[181px] w-24 rotate-45 overflow-hidden rounded-[124px] xl:right-[-80px]"></div>
-        <div className="bg-blue absolute right-[-500px] top-[-30px] z-10 h-[460px] w-24 rotate-45 overflow-hidden rounded-[124px] xl:right-[-210px]"></div>
-        <div className="bg-turquoise absolute right-[-500px] top-[300px] z-10 h-[257px] w-24 rotate-45 overflow-hidden rounded-[124px] xl:right-[-260px]"></div>
-        <Image
-          src={landingPage_2}
-          className="absolute left-[-300px] w-52 rounded-full md:left-[-70px] md:top-[500px] xl:left-[110px] xl:top-[440px]"
-          alt="1"
-        />
-        <div className="bg-blue md:bg-orange absolute left-[-140px] top-[130px] z-10 h-[452px] w-24 rotate-45 overflow-hidden rounded-[124px] md:top-[235px] xl:left-[-20px]"></div>
-        <Image
-          src={landingPage_3}
-          className="absolute left-[-300px] top-[140px] w-36 rounded-full xl:left-[-70px]"
-          alt="1"
-        />
-        <div className="bg-yellow absolute left-[-500px] top-[600px] z-10 h-[181px] w-24 rotate-45 overflow-hidden rounded-[124px] xl:left-[50px]"></div>
-        <div className="bg-blue absolute left-[-500px] top-[720px] z-10 h-[439px] w-24 rotate-45 overflow-hidden rounded-[124px] xl:left-[-200px]"></div>
-        <div className="bg-coral-pink absolute left-[-500px] top-[250px] z-10 h-[452px] w-24 rotate-45 overflow-hidden rounded-[124px] xl:left-[-300px]"></div>
-        <div className="bg-purple absolute left-[-500px] top-[580px] z-10 h-[452px] w-24 rotate-45 overflow-hidden rounded-[124px] xl:left-[-380px]"></div>
-      </div>
-      <div className="flex h-[661px] w-full">
+        </h1>
+
+        {width > SCREEN_SIZE.lg && (
+          <Image
+            src={HomePageHeroImgUrl}
+            alt="Hero Section"
+            fill
+            className="-z-10 w-[1800px] object-cover object-top"
+          />
+        )}
+      </section>
+
+      <section className="flex py-10  sm:py-20">
         <div className="flex w-full flex-col items-center justify-center">
           <p className="text-midnight-blue mb-[30px] text-center text-2xl font-bold tracking-[0.04em] md:mb-[70px]">
             透過 X -Talent 創造你
@@ -110,17 +88,22 @@ const Home = () => {
               <FeatureItem key={index} icon={item.icon} text={item.text} />
             ))}
           </div>
-          <button className="bg-teal-blue mt-[20px] h-[80px] w-[262px] rounded-md text-xl font-bold tracking-[0.09em] text-white md:h-[51px] md:w-[415px] xl:mt-[121px]">
-            加入排隊名單，
-            <br className="md:hidden" />
-            搶先成為 X-Talent →
-          </button>
         </div>
-      </div>
-      <div className="relative contents md:m-auto md:h-[1100px] md:w-[930px] xl:block xl:h-[790px]">
+      </section>
+
+      <section className="py-6 text-center sm:py-10">
+        <JoinWaitingList>
+          <p className="text-xl">
+            加入排隊名單， <br className="md:hidden" />
+            搶先成為 X-Talent →
+          </p>
+        </JoinWaitingList>
+      </section>
+
+      <section className="relative contents md:m-auto md:h-[1100px] md:w-[930px] xl:block xl:h-[790px] ">
         <div className="mb-[50px] mt-[70px] flex flex-col items-center xl:mb-[130px] xl:mt-7 xl:flex-row">
-          <Image src={landingPage_4} className="w-[420px]" alt="1" />
-          <div className="m-auto flex w-[420px] flex-row flex-wrap p-[30px] md:mt-10 md:p-0 xl:w-full xl:flex-col xl:pl-[62px]">
+          <Image src={landingPage_4} width={420} height={270} alt="1" />
+          <div className="m-auto flex flex-row flex-wrap p-[30px] px-4 sm:px-0 md:mt-10 md:p-0 xl:w-full xl:flex-col xl:pl-[62px]">
             <p className="text-midnight-blue mb-5 text-2xl font-bold">
               和 X-Talent 一起拓展職涯的選擇性
             </p>
@@ -130,7 +113,7 @@ const Home = () => {
           </div>
         </div>
         <div className="mb-[50px] mt-7 flex flex-col-reverse items-center md:mb-[130px] xl:flex-row">
-          <div className="m-auto flex w-[420px] flex-row flex-wrap p-[30px] md:mt-10 xl:w-full xl:flex-col xl:pr-[62px]">
+          <div className="m-auto flex flex-row flex-wrap p-[30px] px-4 sm:px-0 md:mt-10 xl:w-full xl:flex-col xl:pr-[62px]">
             <p className="text-midnight-blue mb-5 text-2xl font-bold">
               透過 X-Talent 展開深度交流
             </p>
@@ -141,8 +124,9 @@ const Home = () => {
           </div>
           <Image src={landingPage_5} className="w-[420px]" alt="1" />
         </div>
-      </div>
-      <div className="bg-dark-blue flex h-[907px] w-full md:h-[425px] xl:h-[557px]">
+      </section>
+
+      <section className="flex h-[907px] w-full bg-blue-950 md:h-[425px] xl:h-[557px]">
         <div className="relative m-auto flex h-full flex-col justify-center md:w-[767px] md:flex-row md:flex-wrap md:items-center xl:w-[1280px]">
           <div className="my-[15px] w-auto text-4xl font-bold leading-[58px] text-white md:col-span-2 md:mt-[40px] xl:absolute xl:left-[60px] xl:top-[176px] xl:mt-0 ">
             <p>9000+ XChangers</p>
@@ -153,49 +137,29 @@ const Home = () => {
           </div>
           <div className="my-[15px] flex h-[53px] w-[162px] flex-col items-center justify-center rounded-[124px] bg-[#48EFBD] md:ml-[50px] md:mt-[40px] xl:absolute xl:right-[176px] xl:top-[83px] xl:mt-0 xl:h-[100px] xl:w-[227px]">
             <p className="font-bold text-[#1D1D11]">UI/UX Design</p>
-            <p className="hidden font-light text-[#1D1D11] xl:block">
-              103 Mentors
-            </p>
           </div>
           <div className="my-[15px] flex h-[53px] w-[256px] flex-col items-center justify-center rounded-[124px] bg-[#7CB8FF] xl:absolute xl:right-[475px] xl:top-[236px] xl:h-[100px] xl:w-[300px]">
             <p className="font-bold text-[#1D1D11]">Business Development</p>
-            <p className="hidden font-light text-[#1D1D11] xl:block">
-              103 Mentors
-            </p>
           </div>
           <div className="my-[15px] flex h-[53px] w-[132px] flex-col items-center justify-center rounded-[124px] bg-[#FFBF82] md:mx-[30px] xl:absolute xl:right-[107px] xl:top-[386px] xl:mx-0 xl:h-[99px] xl:w-[214px]">
             <p className="font-bold text-[#1D1D11]">Marketing</p>
-            <p className="hidden font-light text-[#1D1D11] xl:block">
-              103 Mentors
-            </p>
           </div>
-          <div className="bg-yellow my-[15px] flex h-[53px] w-[223px] flex-col items-center justify-center rounded-[124px] xl:absolute xl:left-[521px] xl:top-[86px] xl:h-[100px] xl:w-[292px]">
+          <div className="my-[15px] flex h-[53px] w-[223px] flex-col items-center justify-center rounded-[124px] bg-[#FFDE4E] xl:absolute xl:left-[521px] xl:top-[86px] xl:h-[100px] xl:w-[292px]">
             <p className="font-bold text-[#1D1D11]">Product Management</p>
-            <p className="hidden font-light text-[#1D1D11] xl:block">
-              103 Mentors
-            </p>
           </div>
-          <div className="bg-pink my-[15px] flex h-[53px] w-[157px] flex-col items-center justify-center rounded-[124px] md:mb-[50px] xl:absolute xl:left-[250px] xl:top-[386px] xl:h-[100px] xl:w-[224px]">
+          <div className="my-[15px] flex h-[53px] w-[157px] flex-col items-center justify-center rounded-[124px] bg-[#FF6397] md:mb-[50px] xl:absolute xl:left-[250px] xl:top-[386px] xl:h-[100px] xl:w-[224px]">
             <p className="font-bold text-[#1D1D11]">Data Science</p>
-            <p className="hidden font-light text-[#1D1D11] xl:block">
-              103 Mentors
-            </p>
           </div>
-          <div className="bg-blue my-[15px] flex h-[53px] w-[256px] flex-col items-center justify-center rounded-[124px] md:mx-[30px] md:mb-[50px] xl:absolute xl:right-[404px] xl:top-[386px] xl:mx-0 xl:h-[100px] xl:w-[313px]">
+          <div className="my-[15px] flex h-[53px] w-[256px] flex-col items-center justify-center rounded-[124px] bg-[#5EE5FF] md:mx-[30px] md:mb-[50px] xl:absolute xl:right-[404px] xl:top-[386px] xl:mx-0 xl:h-[100px] xl:w-[313px]">
             <p className="font-bold text-[#1D1D11]">Software Development</p>
-            <p className="hidden font-light text-[#1D1D11] xl:block">
-              103 Mentors
-            </p>
           </div>
-          <div className="bg-purple my-[15px] flex h-[53px] w-[203px] flex-col items-center justify-center rounded-[124px] md:mb-[50px] xl:absolute xl:right-[144px] xl:top-[236px] xl:h-[99px] xl:w-[270px]">
+          <div className="my-[15px] flex h-[53px] w-[203px] flex-col items-center justify-center rounded-[124px] bg-[#CE8FFF] md:mb-[50px] xl:absolute xl:right-[144px] xl:top-[236px] xl:h-[99px] xl:w-[270px]">
             <p className="font-bold text-[#1D1D11]">MarTech</p>
-            <p className="hidden font-light text-[#1D1D11] xl:block">
-              103 Mentors
-            </p>
           </div>
         </div>
-      </div>
-      <div className="flex h-[987px] w-full md:h-[780px] xl:h-[820px]">
+      </section>
+
+      <section className="flex h-[987px] w-full md:h-[780px] xl:h-[820px]">
         <div className="m-auto flex h-full w-[1280px] flex-col items-center justify-center">
           <div className="flex">
             <Image
@@ -297,140 +261,21 @@ const Home = () => {
             </div>
           </div>
         </div>
-      </div>
-      <div className="flex h-[359px] w-full bg-[#F8F8F8] md:h-[380px]">
-        <Swiper
-          slidesPerView={1}
-          spaceBetween={30}
-          loop={true}
-          autoplay={{
-            delay: 5000,
-            disableOnInteraction: false,
-          }}
-          pagination={{
-            clickable: true,
-          }}
-          modules={[Autoplay, Pagination]}
-        >
-          <SwiperSlide>
-            <div className="m-auto flex h-full w-[520px] flex-col items-center md:flex-row">
-              <div className="mb-[10px] mt-[30px] flex items-center md:mr-10 md:flex-col">
-                <Image
-                  src={landingPage_8}
-                  className="mb-4 h-[114px!important] w-[114px!important] max-w-[unset] rounded-full"
-                  alt="1"
-                />
-                <p className="text-midnight-blue mb-1 w-max text-xl font-bold">
-                  Carolina
-                </p>
-              </div>
-              <p className="bg-[#F8F8F8] p-5 text-left text-base font-medium text-black">
-                剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過
-                XChange 與兩位厲害的前輩進行 coffee
-                chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange
-                帶來的互聯網連結！
-              </p>
-            </div>
-            <div className="m-auto ml-[150px] hidden h-full w-[520px] flex-col items-center md:flex-row xl:flex">
-              <div className="mb-[10px] mt-[30px] flex items-center md:mr-10 md:flex-col">
-                <Image
-                  src={landingPage_9}
-                  className="mb-4 h-[114px!important] w-[114px!important] max-w-[unset] rounded-full"
-                  alt="1"
-                />
-                <p className="text-midnight-blue mb-1 w-max text-xl font-bold">
-                  Pin-Hua Chen
-                </p>
-              </div>
-              <p className="bg-[#F8F8F8] p-5 text-left text-base font-medium text-black">
-                剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過
-                XChange 與兩位厲害的前輩進行 coffee
-                chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange
-                帶來的互聯網連結！
-              </p>
-            </div>
-          </SwiperSlide>
-          <SwiperSlide>
-            <div className="m-auto flex h-full w-[520px] flex-col items-center md:flex-row">
-              <div className="mb-[10px] mt-[30px] flex items-center md:mr-10 md:flex-col">
-                <Image
-                  src={landingPage_8}
-                  className="mb-4 h-[114px!important] w-[114px!important] max-w-[unset] rounded-full"
-                  alt="1"
-                />
-                <p className="text-midnight-blue mb-1 w-max text-xl font-bold">
-                  Carolina
-                </p>
-              </div>
-              <p className="bg-[#F8F8F8] p-5 text-left text-base font-medium text-black">
-                剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過
-                XChange 與兩位厲害的前輩進行 coffee
-                chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange
-                帶來的互聯網連結！
-              </p>
-            </div>
-            <div className="m-auto ml-[150px] hidden h-full w-[520px] flex-col items-center md:flex-row xl:flex">
-              <div className="mb-[10px] mt-[30px] flex items-center md:mr-10 md:flex-col">
-                <Image
-                  src={landingPage_9}
-                  className="mb-4 h-[114px!important] w-[114px!important] max-w-[unset] rounded-full"
-                  alt="1"
-                />
-                <p className="text-midnight-blue mb-1 w-max text-xl font-bold">
-                  Pin-Hua Chen
-                </p>
-              </div>
-              <p className="bg-[#F8F8F8] p-5 text-left text-base font-medium text-black">
-                剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過
-                XChange 與兩位厲害的前輩進行 coffee
-                chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange
-                帶來的互聯網連結！
-              </p>
-            </div>
-          </SwiperSlide>
-          <SwiperSlide>
-            <div className="m-auto flex h-full w-[520px] flex-col items-center md:flex-row">
-              <div className="mb-[10px] mt-[30px] flex items-center md:mr-10 md:flex-col">
-                <Image
-                  src={landingPage_8}
-                  className="mb-4 h-[114px!important] w-[114px!important] max-w-[unset] rounded-full"
-                  alt="1"
-                />
-                <p className="text-midnight-blue mb-1 w-max text-xl font-bold">
-                  Carolina
-                </p>
-              </div>
-              <p className="bg-[#F8F8F8] p-5 text-left text-base font-medium text-black">
-                剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過
-                XChange 與兩位厲害的前輩進行 coffee
-                chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange
-                帶來的互聯網連結！
-              </p>
-            </div>
-            <div className="m-auto ml-[150px] hidden h-full w-[520px] flex-col items-center md:flex-row xl:flex">
-              <div className="mb-[10px] mt-[30px] flex items-center md:mr-10 md:flex-col">
-                <Image
-                  src={landingPage_9}
-                  className="mb-4 h-[114px!important] w-[114px!important] max-w-[unset] rounded-full"
-                  alt="1"
-                />
-                <p className="text-midnight-blue mb-1 w-max text-xl font-bold">
-                  Pin-Hua Chen
-                </p>
-              </div>
-              <p className="bg-[#F8F8F8] p-5 text-left text-base font-medium text-black">
-                剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過
-                XChange 與兩位厲害的前輩進行 coffee
-                chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange
-                帶來的互聯網連結！
-              </p>
-            </div>
-          </SwiperSlide>
-        </Swiper>
-      </div>
+      </section>
 
-      <section className="pb-24 pt-10 text-center">
-        <JoinWaitingList />
+      <section className="flex items-center justify-center bg-slate-100">
+        <div className="w-full max-w-[600px] py-10 lg:max-w-6xl">
+          <HomePageSlider />
+        </div>
+      </section>
+
+      <section className="py-24 text-center">
+        <JoinWaitingList>
+          <p className="text-xl">
+            加入排隊名單， <br className="md:hidden" />
+            搶先成為 X-Talent →
+          </p>
+        </JoinWaitingList>
       </section>
     </>
   );
