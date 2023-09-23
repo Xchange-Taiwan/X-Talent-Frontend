@@ -3,15 +3,23 @@
 import Image from 'next/image';
 import React from 'react';
 
-import aboutPage_1 from '../../../../public/aboutPage_1.png';
-import aboutPage_icon_1 from '../../../../public/aboutPage_icon_1.svg';
-import aboutPage_icon_2 from '../../../../public/aboutPage_icon_2.svg';
-import aboutPage_icon_3 from '../../../../public/aboutPage_icon_3.svg';
-import landingPage_icon_7 from '../../../../public/landingPage_icon_7.svg';
-import landingPage_icon_8 from '../../../../public/landingPage_icon_8.svg';
-import landingPage_icon_9 from '../../../../public/landingPage_icon_9.png';
-import landingPage_icon_10 from '../../../../public/landingPage_icon_10.svg';
-import { FeatureItem } from '.././components/home';
+import aboutPage_1 from '../../../public/aboutPage_1.png';
+import aboutPage_icon_1 from '../../../public/aboutPage_icon_1.svg';
+import aboutPage_icon_2 from '../../../public/aboutPage_icon_2.svg';
+import aboutPage_icon_3 from '../../../public/aboutPage_icon_3.svg';
+import landingPage_icon_7 from '../../../public/landingPage_icon_7.svg';
+import landingPage_icon_8 from '../../../public/landingPage_icon_8.svg';
+import landingPage_icon_9 from '../../../public/landingPage_icon_9.png';
+import landingPage_icon_10 from '../../../public/landingPage_icon_10.svg';
+
+const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
+  return (
+    <div className="mb-[50px] flex items-center md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto">
+      <Image className="h-[70px] w-[70px]" src={icon} alt="1" />
+      <p className="ml-[20px] text-xl tracking-[0.085em] md:mt-8">{text}</p>
+    </div>
+  );
+};
 
 const About = () => {
   const featureData = [

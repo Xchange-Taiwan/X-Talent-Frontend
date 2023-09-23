@@ -7,26 +7,34 @@ import React from 'react';
 import { Autoplay, Pagination } from 'swiper';
 import { Swiper, SwiperSlide } from 'swiper/react';
 
-import landingPage_1 from '../../../public/landingPage_1.png';
-import landingPage_2 from '../../../public/landingPage_2.png';
-import landingPage_3 from '../../../public/landingPage_3.png';
-import landingPage_4 from '../../../public/landingPage_4.png';
-import landingPage_5 from '../../../public/landingPage_5.png';
-import landingPage_6 from '../../../public/landingPage_6.png';
-import landingPage_7 from '../../../public/landingPage_7.png';
-import landingPage_8 from '../../../public/landingPage_8.png';
-import landingPage_9 from '../../../public/landingPage_9.png';
-import landingPage_icon_1 from '../../../public/landingPage_icon_1.svg';
-import landingPage_icon_2 from '../../../public/landingPage_icon_2.svg';
-import landingPage_icon_3 from '../../../public/landingPage_icon_3.svg';
-import landingPage_icon_4 from '../../../public/landingPage_icon_4.svg';
-import landingPage_icon_5 from '../../../public/landingPage_icon_5.svg';
-import landingPage_icon_6 from '../../../public/landingPage_icon_6.svg';
-import landingPage_icon_7 from '../../../public/landingPage_icon_7.svg';
-import landingPage_icon_8 from '../../../public/landingPage_icon_8.svg';
-import landingPage_icon_9 from '../../../public/landingPage_icon_9.png';
-import landingPage_icon_10 from '../../../public/landingPage_icon_10.svg';
-import { FeatureItem } from './components/home';
+import landingPage_1 from '../../public/landingPage_1.png';
+import landingPage_2 from '../../public/landingPage_2.png';
+import landingPage_3 from '../../public/landingPage_3.png';
+import landingPage_4 from '../../public/landingPage_4.png';
+import landingPage_5 from '../../public/landingPage_5.png';
+import landingPage_6 from '../../public/landingPage_6.png';
+import landingPage_7 from '../../public/landingPage_7.png';
+import landingPage_8 from '../../public/landingPage_8.png';
+import landingPage_9 from '../../public/landingPage_9.png';
+import landingPage_icon_1 from '../../public/landingPage_icon_1.svg';
+import landingPage_icon_2 from '../../public/landingPage_icon_2.svg';
+import landingPage_icon_3 from '../../public/landingPage_icon_3.svg';
+import landingPage_icon_4 from '../../public/landingPage_icon_4.svg';
+import landingPage_icon_5 from '../../public/landingPage_icon_5.svg';
+import landingPage_icon_6 from '../../public/landingPage_icon_6.svg';
+import landingPage_icon_7 from '../../public/landingPage_icon_7.svg';
+import landingPage_icon_8 from '../../public/landingPage_icon_8.svg';
+import landingPage_icon_9 from '../../public/landingPage_icon_9.png';
+import landingPage_icon_10 from '../../public/landingPage_icon_10.svg';
+
+const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
+  return (
+    <div className="mb-[50px] flex items-center md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto">
+      <Image className="h-[70px] w-[70px]" src={icon} alt="1" />
+      <p className="ml-[20px] text-xl tracking-[0.085em] md:mt-8">{text}</p>
+    </div>
+  );
+};
 
 const Home = () => {
   const featureData = [
