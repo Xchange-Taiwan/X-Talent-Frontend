@@ -19,5 +19,5 @@ module.exports = {
       black: '#1D1D1D',
     },
   },
-  plugins: [require('@tailwindcss/forms'), require('daisyui')],
+  plugins: [require('@tailwindcss/forms')],
 };
