@@ -1,16 +1,15 @@
 'use client';
 
+import aboutPage_1 from '@public/aboutPage_1.png';
+import aboutPage_icon_1 from '@public/aboutPage_icon_1.svg';
+import aboutPage_icon_2 from '@public/aboutPage_icon_2.svg';
+import aboutPage_icon_3 from '@public/aboutPage_icon_3.svg';
+import landingPage_icon_7 from '@public/landingPage_icon_7.svg';
+import landingPage_icon_8 from '@public/landingPage_icon_8.svg';
+import landingPage_icon_9 from '@public/landingPage_icon_9.png';
+import landingPage_icon_10 from '@public/landingPage_icon_10.svg';
 import Image from 'next/image';
 import React from 'react';
-
-import aboutPage_1 from '../../../public/aboutPage_1.png';
-import aboutPage_icon_1 from '../../../public/aboutPage_icon_1.svg';
-import aboutPage_icon_2 from '../../../public/aboutPage_icon_2.svg';
-import aboutPage_icon_3 from '../../../public/aboutPage_icon_3.svg';
-import landingPage_icon_7 from '../../../public/landingPage_icon_7.svg';
-import landingPage_icon_8 from '../../../public/landingPage_icon_8.svg';
-import landingPage_icon_9 from '../../../public/landingPage_icon_9.png';
-import landingPage_icon_10 from '../../../public/landingPage_icon_10.svg';
 
 const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
   return (
