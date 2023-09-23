@@ -7,9 +7,9 @@ export default function LandingPageLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col overflow-x-hidden">
+    <div className="flex min-h-screen flex-col">
       <Header />
-      <main className="grow">{children}</main>
+      <main className="grow pt-[70px]">{children}</main>
       <Footer />
     </div>
   );
