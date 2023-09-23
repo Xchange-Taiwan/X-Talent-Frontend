@@ -1,0 +1,69 @@
+'use client';
+
+import { Cross2Icon, HamburgerMenuIcon } from '@radix-ui/react-icons';
+import Link from 'next/link';
+import { FC, useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+
+export const HamburgerMenu: FC = () => {
+  const [open, setOpen] = useState(false);
+
+  const handleClose = () => {
+    setOpen(false);
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button variant="ghost">
+          <HamburgerMenuIcon className="h-6 w-6" />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="right" className="h-screen w-screen">
+        <div className="flex h-full flex-col justify-between">
+          <SheetClose asChild className="ml-auto">
+            <Cross2Icon className="h-8 w-8 text-blue-900" />
+          </SheetClose>
+
+          <div className="flex flex-col items-center gap-12 text-2xl">
+            <Link
+              href="/"
+              className="font-['Open_Sans'] text-black"
+              onClick={handleClose}
+            >
+              首頁
+            </Link>
+            <Link
+              href="/about"
+              className="font-['Open_Sans'] text-black"
+              onClick={handleClose}
+            >
+              關於 X-Talent
+            </Link>
+          </div>
+
+          <div className="mb-12 flex flex-col items-center gap-12">
+            <Link href="/login">
+              <Button className="w-40 bg-sky-600 hover:bg-sky-700">登入</Button>
+            </Link>
+            <Link href="/signup">
+              <Button
+                variant="outline"
+                className="w-40 border-sky-600 text-sky-600	hover:text-sky-700"
+              >
+                註冊
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+};
