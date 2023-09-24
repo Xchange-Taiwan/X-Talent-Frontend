@@ -52,16 +52,18 @@ export default function Page() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[400px]">
-      <div className="mb-6 flex flex-col items-center gap-6">
-        <div className="rounded-full bg-[#EBFBFB] p-4">
-          <EmailSolid className="text-2xl" />
+    <div className="mx-auto flex h-screen max-w-[400px] flex-col gap-6 px-5 py-10 sm:px-0 sm:py-[120px]">
+      <main className="flex flex-auto flex-col justify-center gap-6 sm:flex-none ">
+        <div className="mb-6 flex flex-col items-center gap-6">
+          <div className="rounded-full bg-[#EBFBFB] p-4">
+            <EmailSolid className="text-2xl" />
+          </div>
+          <h1 className="text-[32px] font-bold leading-10">{title}</h1>
+          <p className="text-center text-neutral-600">{subTitle}</p>
         </div>
-        <h1 className="text-[32px] font-bold leading-10">{title}</h1>
-        <p className="text-center text-neutral-600">{subTitle}</p>
-      </div>
+      </main>
 
-      <div className="flex flex-col gap-4">
+      <footer className="flex flex-col gap-4">
         <Button className="rounded-full" onClick={() => router.push('/')}>
           回首頁
         </Button>
@@ -76,7 +78,7 @@ export default function Page() {
             重新發送
           </Button>
         </p>
-      </div>
+      </footer>
     </div>
   );
 }
