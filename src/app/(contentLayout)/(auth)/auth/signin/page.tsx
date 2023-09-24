@@ -32,7 +32,7 @@ export default function Page() {
             <Input id="password" type="password" placeholder="請輸入密碼" />
           </div>
 
-          <Link className={linkStyle} href="/password/forget">
+          <Link className={linkStyle} href="/auth/passwordForget">
             忘記密碼
           </Link>
 
