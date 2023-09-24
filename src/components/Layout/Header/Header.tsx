@@ -33,7 +33,7 @@ export const Header: FC = () => {
               註冊
             </Button>
           </Link>
-          <Link href="/login">
+          <Link href="/signin">
             <Button className="bg-sky-600 hover:bg-sky-700">登入</Button>
           </Link>
         </div>

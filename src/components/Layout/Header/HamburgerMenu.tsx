@@ -50,7 +50,7 @@ export const HamburgerMenu: FC = () => {
           </div>
 
           <div className="mb-12 flex flex-col items-center gap-12">
-            <Link href="/login">
+            <Link href="/signin">
               <Button className="w-40 bg-sky-600 hover:bg-sky-700">登入</Button>
             </Link>
             <Link href="/signup">
