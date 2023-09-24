@@ -37,7 +37,7 @@ export default function Page() {
         <Button className="rounded-full">更改密碼</Button>
 
         <Link
-          href="/signin"
+          href="/auth/signin"
           className="text-center underline underline-offset-2"
         >
           返回登入頁

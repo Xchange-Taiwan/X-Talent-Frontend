@@ -50,7 +50,7 @@ export default function Page() {
 
           <p className="text-neutral-600">
             已經有帳號了?{' '}
-            <Link href="/signin" className={linkStyle}>
+            <Link href="/auth/signin" className={linkStyle}>
               登入X-Talent
             </Link>
           </p>

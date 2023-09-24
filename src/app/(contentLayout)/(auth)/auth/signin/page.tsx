@@ -40,7 +40,7 @@ export default function Page() {
 
           <p className="text-neutral-600">
             還不是會員?{' '}
-            <Link href="/signup" className={linkStyle}>
+            <Link href="/auth/signup" className={linkStyle}>
               註冊X-Talent
             </Link>
           </p>

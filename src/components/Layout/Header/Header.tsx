@@ -25,7 +25,7 @@ export const Header: FC = () => {
           >
             關於 X-Talent
           </Link>
-          <Link href="/signup">
+          <Link href="/auth/signup">
             <Button
               variant="outline"
               className="border-sky-600 text-sky-600 hover:text-sky-700	"
@@ -33,7 +33,7 @@ export const Header: FC = () => {
               註冊
             </Button>
           </Link>
-          <Link href="/signin">
+          <Link href="/auth/signin">
             <Button className="bg-sky-600 hover:bg-sky-700">登入</Button>
           </Link>
         </div>

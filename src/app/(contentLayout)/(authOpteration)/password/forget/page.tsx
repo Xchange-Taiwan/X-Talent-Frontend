@@ -28,7 +28,7 @@ export default function Page() {
         <Button className="rounded-full">送出</Button>
 
         <Link
-          href="/signin"
+          href="/auth/signin"
           className="text-center underline underline-offset-2"
         >
           返回登入頁
