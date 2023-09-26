@@ -9,5 +9,5 @@
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "cSpell.words": ["daisyui", "NEXTAUTH"]
+  "cSpell.words": ["NEXTAUTH", "signup"]
 }
