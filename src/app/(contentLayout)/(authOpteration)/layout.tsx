@@ -1,4 +1,4 @@
-import CubeImgUrl from '@/assets/auth/Cube.png';
+import CubeImgUrl from '@/assets/auth/cube.png';
 
 export default function AuthOperationLayout({
   children,
