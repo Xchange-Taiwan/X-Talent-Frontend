@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { WarnSolid } from '@/components/Icon';
 import { Button } from '@/components/ui/button';
 
-export enum EmailConfirmEnum {
+enum EmailConfirmEnum {
   VALIDATE_EMAIL = 'VALIDATE_EMAIL',
   RESET_PASSWORD = 'RESET_PASSWORD',
 }
