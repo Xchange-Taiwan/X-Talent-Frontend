@@ -2,7 +2,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -31,8 +30,6 @@ const formSchema = z.object({
 const linkStyle = 'text-sm font-medium text-black underline underline-offset-2';
 
 export default function Page() {
-  const router = useRouter();
-
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -44,9 +41,6 @@ export default function Page() {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     console.log(values);
-
-    // TODO: Demo 使用 待移除
-    router.push('/auth/profile');
   }
 
   return (

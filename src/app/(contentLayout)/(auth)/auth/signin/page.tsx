@@ -42,9 +42,6 @@ export default function Page() {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     console.log(values);
-
-    // TODO: Demo 使用 待移除
-    router.push('/auth/profile');
   }
 
   return (
