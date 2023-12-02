@@ -1,45 +1,81 @@
 'use client';
-import Image from 'next/image';
-import { FC, Fragment } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
 
 import OnboardingCoverImgUrl from '@/assets/auth/onboarding-cover.png';
+import {
+  formSchema,
+  Step1,
+  Step2,
+  Step3,
+  Step4,
+} from '@/components/onboarding/Steps';
+import { Button } from '@/components/ui/button';
+import { Form } from '@/components/ui/form';
 import { Progress } from '@/components/ui/progress';
 import { useMultiStepForm } from '@/hooks/useMultiStepForm';
 
-const Step1: FC = () => <div>Step1</div>;
-const Step2: FC = () => <div>Step2</div>;
-const Step3: FC = () => <div>Step3</div>;
-const Step4: FC = () => <div>Step4</div>;
-
 export default function Page() {
-  const { currentStep, stepElement, progress, goToNext, goToBack } =
-    useMultiStepForm([
-      <Step1 key="Step1" />,
-      <Step2 key="Step2" />,
-      <Step3 key="Step3" />,
-      <Step4 key="Step4" />,
-    ]);
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: '',
+      region: undefined,
+      totalWorkSpan: undefined,
+      industry: undefined,
+      jobTitle: '',
+      company: '',
+      school: '',
+      linkedin: '',
+    },
+  });
+
+  const { stepElement, progress, goToNext } = useMultiStepForm([
+    <Step1 key="Step1" form={form} />,
+    <Step2 key="Step2" />,
+    <Step3 key="Step3" />,
+    <Step4 key="Step4" />,
+  ]);
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    console.log(values);
+
+    goToNext();
+  };
 
   return (
-    <Fragment>
-      <Progress className="h-2 rounded-none bg-white" value={progress * 100} />
+    <div className="relative">
+      <Progress
+        className="fixed inset-x-0 top-[70px] z-10 h-2 rounded-none bg-white text-zinc-100"
+        value={progress * 100}
+      />
+
       <div className="flex">
-        <div className="relative min-h-[calc(100vh-70px-8px)] flex-1">
-          <Image
-            src={OnboardingCoverImgUrl}
-            fill={true}
-            alt="onboarding-cover"
-            className="object-cover object-center"
+        <div className="hidden flex-1 md:block">
+          <div
+            className="fixed top-[70px] h-[calc(100vh-70px)] w-1/2 bg-cover bg-center bg-no-repeat"
+            style={{ backgroundImage: `url(${OnboardingCoverImgUrl.src})` }}
           />
-          P
         </div>
-        <div className="mx-1 flex-1 p-20">
-          <p>{currentStep}</p>
-          <button onClick={goToNext}>Next</button>
-          <button onClick={goToBack}>Back</button>
-          {stepElement}
+        <div className="flex-1">
+          <div className="px-20 py-20">
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-8"
+              >
+                {stepElement}
+                <div className="mt-10 flex justify-end">
+                  <Button className="rounded-xl px-12" type="submit">
+                    下一步
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </div>
         </div>
       </div>
-    </Fragment>
+    </div>
   );
 }
