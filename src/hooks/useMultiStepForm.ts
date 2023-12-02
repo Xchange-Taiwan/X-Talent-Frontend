@@ -1,7 +1,7 @@
 import { ReactElement, useEffect, useState } from 'react';
 
 export const useMultiStepForm = (steps: ReactElement[]) => {
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(0);
 
   useEffect(() => {
     if (steps.length === 0) {
@@ -22,6 +22,7 @@ export const useMultiStepForm = (steps: ReactElement[]) => {
   return {
     currentStep,
     stepElement: steps[currentStep > 0 ? currentStep - 1 : 0],
+    progress: steps.length > 0 ? currentStep / steps.length : 0,
     goToNext,
     goToBack,
   };
