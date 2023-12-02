@@ -156,3 +156,42 @@ export const interestedRoleOptions = [
   },
   { value: InterestedRoleEnum.OTHER, text: '其他' },
 ] as const;
+
+/**
+ * 想精進的能力
+ */
+export enum SkillEnhancementTargetEnum {
+  PRODUCT_PLANNING = 'PRODUCT_PLANNING',
+  PROJECT_MANAGEMENT = 'PROJECT_MANAGEMENT',
+  STRATEGY_PLANNING = 'STRATEGY_PLANNING',
+  USER_EXPERIENCE_DESIGN = 'USER_EXPERIENCE_DESIGN',
+  INTERDEPARTMENTAL_COMMUNICATION = 'INTERDEPARTMENTAL_COMMUNICATION',
+  BUSINESS_ANALYSIS = 'BUSINESS_ANALYSIS',
+  FRONTEND_DEVELOPMENT = 'FRONTEND_DEVELOPMENT',
+  PRESENTATION_CREATION = 'PRESENTATION_CREATION',
+  PYTHON = 'PYTHON',
+  JAVASCRIPT = 'JAVASCRIPT',
+  SQL = 'SQL',
+  OTHER = 'OTHER',
+}
+
+export const skillEnhancementTargetOptions = [
+  { value: SkillEnhancementTargetEnum.PRODUCT_PLANNING, text: '產品企劃' },
+  { value: SkillEnhancementTargetEnum.PROJECT_MANAGEMENT, text: '專案管理' },
+  { value: SkillEnhancementTargetEnum.STRATEGY_PLANNING, text: '策略規劃' },
+  {
+    value: SkillEnhancementTargetEnum.USER_EXPERIENCE_DESIGN,
+    text: '用戶體驗設計',
+  },
+  {
+    value: SkillEnhancementTargetEnum.INTERDEPARTMENTAL_COMMUNICATION,
+    text: '跨部門溝通',
+  },
+  { value: SkillEnhancementTargetEnum.BUSINESS_ANALYSIS, text: '商業分析' },
+  { value: SkillEnhancementTargetEnum.FRONTEND_DEVELOPMENT, text: '陌生開發' },
+  { value: SkillEnhancementTargetEnum.PRESENTATION_CREATION, text: '簡報製作' },
+  { value: SkillEnhancementTargetEnum.PYTHON, text: 'Python' },
+  { value: SkillEnhancementTargetEnum.JAVASCRIPT, text: 'Javascript' },
+  { value: SkillEnhancementTargetEnum.SQL, text: 'SQL' },
+  { value: SkillEnhancementTargetEnum.OTHER, text: '其他' },
+] as const;

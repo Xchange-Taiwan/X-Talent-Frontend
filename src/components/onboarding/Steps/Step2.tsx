@@ -22,7 +22,7 @@ interface Props {
 
 export const Step2: FC<Props> = ({ form }) => {
   return (
-    <div>
+    <div className="min-h-[calc(60vh)]">
       <p className="mb-10 text-center text-xl font-bold">
         你有興趣的職位或領域？
       </p>

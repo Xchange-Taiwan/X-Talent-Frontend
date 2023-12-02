@@ -29,14 +29,15 @@ export default function Page() {
       school: '',
       linkedin: '',
       interestedRole: [],
+      skillEnhancementTarget: [],
     },
   });
 
   const { stepElement, progress, goToNext } = useMultiStepForm([
     <Step1 key="Step1" form={form} />,
     <Step2 key="Step2" form={form} />,
-    <Step3 key="Step3" />,
     <Step4 key="Step4" />,
+    <Step3 key="Step3" form={form} />,
   ]);
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
@@ -53,14 +54,14 @@ export default function Page() {
       />
 
       <div className="flex">
-        <div className="hidden flex-1 md:block">
+        <div className="hidden flex-1 lg:block">
           <div
             className="fixed top-[70px] h-[calc(100vh-70px)] w-1/2 bg-cover bg-center bg-no-repeat"
             style={{ backgroundImage: `url(${OnboardingCoverImgUrl.src})` }}
           />
         </div>
         <div className="flex-1">
-          <div className="px-20 py-20">
+          <div className="mx-auto max-w-[600px] px-5 py-20">
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
