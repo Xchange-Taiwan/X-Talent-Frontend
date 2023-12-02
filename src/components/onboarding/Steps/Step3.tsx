@@ -25,7 +25,7 @@ export const Step3: FC<Props> = ({ form }) => {
     <div className="min-h-[calc(60vh)]">
       <p className="mb-10 text-center text-xl font-bold">你想精進的能力？</p>
 
-      <div className="flex flex-wrap gap-4">
+      <div className="grid grid-cols-2 gap-4">
         {skillEnhancementTargetOptions.map((option) => (
           <FormField
             key={option.value}
@@ -33,7 +33,7 @@ export const Step3: FC<Props> = ({ form }) => {
             name="skillEnhancementTarget"
             render={({ field }) => {
               return (
-                <FormItem key={option.value} className="basis-[calc(50%-16px)]">
+                <FormItem key={option.value}>
                   <FormControl className="hidden">
                     <Checkbox
                       checked={field.value?.includes(option.value)}

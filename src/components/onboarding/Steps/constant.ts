@@ -195,3 +195,33 @@ export const skillEnhancementTargetOptions = [
   { value: SkillEnhancementTargetEnum.SQL, text: 'SQL' },
   { value: SkillEnhancementTargetEnum.OTHER, text: '其他' },
 ] as const;
+
+/**
+ * 想聊聊的主題？
+ */
+export enum talkTopicEnum {
+  INDUSTRY_KNOWLEDGE = 'INDUSTRY_KNOWLEDGE',
+  COMPANY_CULTURE_OPPORTUNITIES = 'COMPANY_CULTURE_OPPORTUNITIES',
+  RESUME_CHECKUP = 'RESUME_CHECKUP',
+  JOB_SEEKING_EXPERIENCE_SHARING = 'JOB_SEEKING_EXPERIENCE_SHARING',
+  MOCK_INTERVIEW = 'MOCK_INTERVIEW',
+  JOB_POSITION_EXPERTISE = 'JOB_POSITION_EXPERTISE',
+}
+
+export const talkTopicOptions = [
+  { value: talkTopicEnum.INDUSTRY_KNOWLEDGE, text: '產業知識' },
+  {
+    value: talkTopicEnum.COMPANY_CULTURE_OPPORTUNITIES,
+    text: '公司文化/機會',
+  },
+  { value: talkTopicEnum.RESUME_CHECKUP, text: '履歷健檢' },
+  {
+    value: talkTopicEnum.JOB_SEEKING_EXPERIENCE_SHARING,
+    text: '求職經驗分享',
+  },
+  { value: talkTopicEnum.MOCK_INTERVIEW, text: '模擬面試' },
+  {
+    value: talkTopicEnum.JOB_POSITION_EXPERTISE,
+    text: '職位專業知識',
+  },
+] as const;

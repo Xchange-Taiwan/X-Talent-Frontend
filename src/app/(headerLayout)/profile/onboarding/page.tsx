@@ -30,14 +30,15 @@ export default function Page() {
       linkedin: '',
       interestedRole: [],
       skillEnhancementTarget: [],
+      talkTopic: [],
     },
   });
 
   const { stepElement, progress, goToNext } = useMultiStepForm([
     <Step1 key="Step1" form={form} />,
     <Step2 key="Step2" form={form} />,
-    <Step4 key="Step4" />,
     <Step3 key="Step3" form={form} />,
+    <Step4 key="Step4" form={form} />,
   ]);
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {

@@ -11,6 +11,7 @@ export const formSchema = z.object({
   linkedin: z.string().optional(),
   interestedRole: z.array(z.string()),
   skillEnhancementTarget: z.array(z.string()),
+  talkTopic: z.array(z.string()),
 });
 
 export { Step1 } from './Step1';
