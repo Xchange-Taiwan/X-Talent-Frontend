@@ -183,7 +183,7 @@ export const Step1: FC<Props> = ({ form }) => {
 
         <FormField
           control={form.control}
-          name="jobTitle"
+          name="linkedinUrl"
           render={({ field }) => (
             <FormItem>
               <FormLabel showErrorStyle={false}>LinkedIn 個人檔案</FormLabel>

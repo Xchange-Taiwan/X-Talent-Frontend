@@ -27,7 +27,7 @@ export default function Page() {
       jobTitle: '',
       company: '',
       school: '',
-      linkedin: '',
+      linkedinUrl: '',
       interestedRole: [],
       skillEnhancementTarget: [],
       talkTopic: [],
