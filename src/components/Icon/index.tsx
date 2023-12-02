@@ -1,25 +1,16 @@
-import Google from './color/google';
-import ApartmentSolid from './solid/apartment';
-import Biotech from './solid/biotech';
-import EmailSolid from './solid/email';
-import FilePresentSolid from './solid/file_present';
-import Groups2Solid from './solid/groups_2';
-import HandShakeSolid from './solid/handShake';
-import KeySolid from './solid/key';
-import LockSolid from './solid/lock';
-import VectorSolid from './solid/vector';
-import WarnSolid from './solid/warn';
-
-export {
-  ApartmentSolid,
-  Biotech,
-  EmailSolid,
-  FilePresentSolid,
-  Google,
-  Groups2Solid,
-  HandShakeSolid,
-  KeySolid,
-  LockSolid,
-  VectorSolid,
-  WarnSolid,
-};
+export { default as GoogleColor } from './color/google';
+export { default as LinkedinColor } from './color/linkedin';
+export { default as ApartmentSolid } from './solid/apartment';
+export { default as BiotechSolid } from './solid/biotech';
+export { default as CorporateFareSolid } from './solid/corporate_fare';
+export { default as EmailSolid } from './solid/email';
+export { default as FilePresentSolid } from './solid/file_present';
+export { default as Groups2Solid } from './solid/groups_2';
+export { default as HandShakeSolid } from './solid/handShake';
+export { default as KeySolid } from './solid/key';
+export { default as LockSolid } from './solid/lock';
+export { default as PlaceSolid } from './solid/place';
+export { default as SchoolSolid } from './solid/school';
+export { default as ShareSolid } from './solid/share';
+export { default as VectorSolid } from './solid/vector';
+export { default as WarnSolid } from './solid/warn';

@@ -6,7 +6,7 @@ import * as z from 'zod';
 
 import {
   ApartmentSolid,
-  Biotech,
+  BiotechSolid,
   FilePresentSolid,
   Groups2Solid,
   HandShakeSolid,
@@ -26,12 +26,12 @@ import { formSchema } from './index';
 const mapForTalkTopicAndIcon: {
   [key in talkTopicEnum]: ReactElement;
 } = {
-  [talkTopicEnum.INDUSTRY_KNOWLEDGE]: <Biotech />,
+  [talkTopicEnum.INDUSTRY_KNOWLEDGE]: <BiotechSolid />,
   [talkTopicEnum.COMPANY_CULTURE_OPPORTUNITIES]: <ApartmentSolid />,
   [talkTopicEnum.RESUME_CHECKUP]: <FilePresentSolid />,
   [talkTopicEnum.JOB_SEEKING_EXPERIENCE_SHARING]: <HandShakeSolid />,
   [talkTopicEnum.MOCK_INTERVIEW]: <Groups2Solid />,
-  [talkTopicEnum.JOB_POSITION_EXPERTISE]: <Biotech />,
+  [talkTopicEnum.JOB_POSITION_EXPERTISE]: <BiotechSolid />,
 };
 
 interface Props {
