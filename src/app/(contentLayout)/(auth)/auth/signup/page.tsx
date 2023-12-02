@@ -46,7 +46,7 @@ export default function Page() {
     console.log(values);
 
     // TODO: 待處理登入登出邏輯
-    router.push('/profile/onboarding');
+    router.push('/auth/onboarding');
   }
 
   return (
