@@ -99,14 +99,14 @@ export enum IndustryEnum {}
  * 產業類別
  */
 export enum IndustryEnum {
-  SOFTWARE_AND_NETWORK = '軟體及網路相關',
-  TELECOMUNICATION = '電信及通訊相關',
-  COMPUTER_AND_CONSUMER_ELECTRONICS = '電腦及消費性電子製造業',
-  SEMICONDUCTOR = '半導體業',
-  FINANCE = '金融業',
-  CONSULTING = '顧問業',
-  STUDENT = '學生',
-  OTHER = '其他',
+  SOFTWARE_AND_NETWORK = 'SOFTWARE_AND_NETWORK',
+  TELECOMUNICATION = 'TELECOMUNICATION',
+  COMPUTER_AND_CONSUMER_ELECTRONICS = 'COMPUTER_AND_CONSUMER_ELECTRONICS',
+  SEMICONDUCTOR = 'SEMICONDUCTOR',
+  FINANCE = 'FINANCE',
+  CONSULTING = 'CONSULTING',
+  STUDENT = 'STUDENT',
+  OTHER = 'OTHER',
 }
 
 export const industryOptions = [
@@ -121,4 +121,38 @@ export const industryOptions = [
   { value: IndustryEnum.CONSULTING, text: '顧問業' },
   { value: IndustryEnum.STUDENT, text: '學生' },
   { value: IndustryEnum.OTHER, text: '其他' },
+] as const;
+
+/**
+ * 有興趣的職位或領域
+ */
+export enum InterestedRoleEnum {
+  PRODUCT_MANAGER = 'PRODUCT_MANAGER',
+  UI_UX_DESIGNER = 'UI_UX_DESIGNER/UX設計',
+  PRODUCT_MARKETING = 'PRODUCT_MARKETING',
+  BUSINESS_ANALYST = 'BUSINESS_ANALYST',
+  BUSINESS_DEVELOPMENT = 'BUSINESS_DEVELOPMENT',
+  DATA_SCIENCE = 'DATA_SCIENCE',
+  FRONTEND_ENGINEER = 'FRONTEND_ENGINEER',
+  BACKEND_ENGINEER = 'BACKEND_ENGINEER',
+  TEST_ENGINEER = 'TEST_ENGINEER',
+  INFORMATION_ARCHITECTURE_ENGINEER = 'INFORMATION_ARCHITECTURE_ENGINEER',
+  OTHER = 'OTHER',
+}
+
+export const interestedRoleOptions = [
+  { value: InterestedRoleEnum.PRODUCT_MANAGER, text: '產品經理' },
+  { value: InterestedRoleEnum.UI_UX_DESIGNER, text: '💎 UX/UI 設計師' },
+  { value: InterestedRoleEnum.PRODUCT_MARKETING, text: '產品行銷' },
+  { value: InterestedRoleEnum.BUSINESS_ANALYST, text: '商業分析' },
+  { value: InterestedRoleEnum.BUSINESS_DEVELOPMENT, text: '商業開發' },
+  { value: InterestedRoleEnum.DATA_SCIENCE, text: '資料科學' },
+  { value: InterestedRoleEnum.FRONTEND_ENGINEER, text: '💻 前端工程師' },
+  { value: InterestedRoleEnum.BACKEND_ENGINEER, text: '後端工程師' },
+  { value: InterestedRoleEnum.TEST_ENGINEER, text: '測試工程師' },
+  {
+    value: InterestedRoleEnum.INFORMATION_ARCHITECTURE_ENGINEER,
+    text: '資訊架構工程師',
+  },
+  { value: InterestedRoleEnum.OTHER, text: '其他' },
 ] as const;

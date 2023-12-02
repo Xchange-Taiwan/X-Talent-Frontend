@@ -28,12 +28,13 @@ export default function Page() {
       company: '',
       school: '',
       linkedin: '',
+      interestedRole: [],
     },
   });
 
   const { stepElement, progress, goToNext } = useMultiStepForm([
     <Step1 key="Step1" form={form} />,
-    <Step2 key="Step2" />,
+    <Step2 key="Step2" form={form} />,
     <Step3 key="Step3" />,
     <Step4 key="Step4" />,
   ]);

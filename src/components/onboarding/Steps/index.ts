@@ -9,6 +9,7 @@ export const formSchema = z.object({
   company: z.string().optional(),
   school: z.string().min(1, '請輸入學校名稱'),
   linkedin: z.string().optional(),
+  interestedRole: z.array(z.string()),
 });
 
 export { Step1 } from './Step1';
