@@ -24,14 +24,14 @@ import { talkTopicEnum, talkTopicOptions } from './constant';
 import { formSchema } from './index';
 
 const mapForTalkTopicAndIcon: {
-  [key in talkTopicEnum]: ReactElement;
+  [key in keyof typeof talkTopicEnum]: ReactElement;
 } = {
-  [talkTopicEnum.INDUSTRY_KNOWLEDGE]: <BiotechSolid />,
-  [talkTopicEnum.COMPANY_CULTURE_OPPORTUNITIES]: <ApartmentSolid />,
-  [talkTopicEnum.RESUME_CHECKUP]: <FilePresentSolid />,
-  [talkTopicEnum.JOB_SEEKING_EXPERIENCE_SHARING]: <HandShakeSolid />,
-  [talkTopicEnum.MOCK_INTERVIEW]: <Groups2Solid />,
-  [talkTopicEnum.JOB_POSITION_EXPERTISE]: <BiotechSolid />,
+  INDUSTRY_KNOWLEDGE: <BiotechSolid />,
+  COMPANY_CULTURE_OPPORTUNITIES: <ApartmentSolid />,
+  RESUME_CHECKUP: <FilePresentSolid />,
+  JOB_SEEKING_EXPERIENCE_SHARING: <HandShakeSolid />,
+  MOCK_INTERVIEW: <Groups2Solid />,
+  JOB_POSITION_EXPERTISE: <BiotechSolid />,
 };
 
 interface Props {
@@ -78,7 +78,11 @@ export const Step4: FC<Props> = ({ form }) => {
                       )}
                     >
                       <div className="rounded-full bg-[#EBFBFB] p-4">
-                        {mapForTalkTopicAndIcon[option.value]}
+                        {
+                          mapForTalkTopicAndIcon[
+                            option.value as keyof typeof talkTopicEnum
+                          ]
+                        }
                       </div>
 
                       {option.text}
