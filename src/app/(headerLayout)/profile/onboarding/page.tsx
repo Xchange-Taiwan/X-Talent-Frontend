@@ -34,17 +34,23 @@ export default function Page() {
     },
   });
 
-  const { stepElement, progress, goToNext } = useMultiStepForm([
+  const { stepElement, progress, goToNext, isLastStep } = useMultiStepForm([
     <Step1 key="Step1" form={form} />,
     <Step2 key="Step2" form={form} />,
     <Step3 key="Step3" form={form} />,
     <Step4 key="Step4" form={form} />,
   ]);
 
+  // TODO: 待處理串接 API
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     console.log(values);
 
     goToNext();
+
+    if (isLastStep) {
+      console.log('Fire Submit API');
+      console.log(values);
+    }
   };
 
   return (
