@@ -90,7 +90,7 @@ const FormLabel = React.forwardRef<
     /** 是否要在錯誤的時候標紅顯示 */
     showErrorStyle?: boolean;
   }
->(({ className, showErrorStyle = true, ...props }, ref) => {
+>(({ className, showErrorStyle = false, ...props }, ref) => {
   const { error, formItemId } = useFormField();
 
   return (

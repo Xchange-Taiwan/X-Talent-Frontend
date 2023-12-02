@@ -43,12 +43,12 @@ export default function Page() {
   function onSubmit(values: z.infer<typeof formSchema>) {
     console.log(values);
 
-    // TODO: Demo 使用 待移除
-    router.push('/auth/profile');
+    // TODO: 待處理登入登出邏輯
+    router.push('/profile/onboarding');
   }
 
   return (
-    <div className="flex h-full flex-col items-center justify-center">
+    <div className="flex h-full flex-col items-center justify-center px-5">
       <div className="mb-10">
         <Image src={LogoImgUrl} width={180} height={64} alt="Logo" />
       </div>

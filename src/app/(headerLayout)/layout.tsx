@@ -6,7 +6,7 @@ export default function LandingPageLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className=" overflow-auto ">
+    <div className="min-h-screen">
       <Header />
       <main className="pt-[70px]">{children}</main>
     </div>
