@@ -1,7 +1,8 @@
 import '../styles/global.css';
 
-import { notoSans } from './font';
+import { Toaster } from '@/components/ui/toaster';
 
+import { notoSans } from './font';
 export const metadata = {
   title: {
     default: 'XChange Talent Pool',
@@ -16,7 +17,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-TW" className={notoSans.className}>
-      <body id="app">{children}</body>
+      <body id="app">
+        {children}
+        <Toaster />
+      </body>
     </html>
   );
 }
