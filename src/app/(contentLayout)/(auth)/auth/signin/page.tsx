@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import LogoImgUrl from '@/assets/logo.svg';
-import { Google } from '@/components/Icon';
+import { GoogleColor } from '@/components/Icon';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -44,7 +44,7 @@ export default function Page() {
     console.log(values);
 
     // TODO: 待處理登入登出邏輯
-    router.push('/profile/onboarding');
+    router.push('/auth/onboarding');
   }
 
   return (
@@ -120,7 +120,7 @@ export default function Page() {
 
         <div>
           <Button variant="outline" className="h-12 w-full rounded-full">
-            <Google className="mr-3 text-xl" />
+            <GoogleColor className="mr-3 text-xl" />
             <span className="text-base">使用 Google 繼續</span>
           </Button>
         </div>

@@ -1,5 +1,6 @@
 'use client';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -17,6 +18,8 @@ import { Progress } from '@/components/ui/progress';
 import { useMultiStepForm } from '@/hooks/useMultiStepForm';
 
 export default function Page() {
+  const router = useRouter();
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -50,6 +53,8 @@ export default function Page() {
     if (isLastStep) {
       console.log('Fire Submit API');
       console.log(values);
+
+      router.push('/profile/card');
     }
   };
 
