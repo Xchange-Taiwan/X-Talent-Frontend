@@ -9,10 +9,5 @@
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "cSpell.words": [
-    "Formik",
-    "NEXTAUTH",
-    "signin",
-    "signup"
-  ]
+  "cSpell.words": ["Formik", "NEXTAUTH", "signin", "signup"]
 }
