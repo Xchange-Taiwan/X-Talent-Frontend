@@ -15,5 +15,10 @@ const config: StorybookConfig = {
   docs: {
     autodocs: 'tag',
   },
+  build: {
+    test: {
+      disableBlocks: true,
+    },
+  },
 };
 export default config;
