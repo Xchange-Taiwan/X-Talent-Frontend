@@ -2,7 +2,7 @@ name: Design System Deployment
 
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  VERCEL_PROJECT_ID: ${{ secrets.DS_VERCEL_PROJECT_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_DS_PROJECT_ID }}
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
       - 'storybook' # Change this to your main branch name
 
 jobs:
-  Deploy-To-Vercel:
+  Deploy-To-Storybook:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
