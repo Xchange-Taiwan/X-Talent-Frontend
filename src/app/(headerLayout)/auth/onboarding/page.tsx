@@ -61,7 +61,7 @@ export default function Page() {
   return (
     <div className="relative">
       <Progress
-        className="fixed inset-x-0 top-[70px] z-10 h-2 rounded-none bg-white text-zinc-100"
+        className="bg-light fixed inset-x-0 top-[70px] z-10 h-2 rounded-none text-zinc-100"
         value={progress * 100}
       />
 

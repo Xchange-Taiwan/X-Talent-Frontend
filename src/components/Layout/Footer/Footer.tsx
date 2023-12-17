@@ -5,7 +5,7 @@ import logoImgUrl from './assets/logo.png';
 
 export const Footer: FC = () => {
   return (
-    <footer className="flex h-[730px] w-full bg-black md:h-[534px] xl:h-[290px]">
+    <footer className="bg-dark flex h-[730px] w-full md:h-[534px] xl:h-[290px]">
       <div className="flex h-full w-full flex-col px-[70px] pt-[50px] xl:flex-row xl:justify-between">
         <Image src={logoImgUrl} className="h-[39px] w-[146px]" alt="logo" />
         <div className="mt-[60px] text-[#FFFFFF] md:grid md:grid-cols-2 md:grid-rows-2 md:gap-x-4 xl:mt-0 xl:flex">

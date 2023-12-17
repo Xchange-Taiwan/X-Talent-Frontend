@@ -7,6 +7,7 @@ module.exports = {
     white: '#FFFFFF',
   },
   background: {
+    DEFAULT: 'hsl(var(--background))',
     bottom: '#F5F5F5',
     'bottom-secondary': '#FAFAFA',
     white: '#FFFFFF',
