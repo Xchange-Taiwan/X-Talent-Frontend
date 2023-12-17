@@ -47,7 +47,7 @@ export default function Page() {
   return (
     <Fragment>
       <section className="relative  flex h-[532px] w-full items-center justify-center overflow-hidden bg-[url('/landing/about-page-hero-sm.svg')] bg-cover bg-center sm:bg-[url('/landing/about-page-hero.svg')]">
-        <h1 className="text-center text-5xl font-bold leading-normal tracking-widest text-blue-950">
+        <h1 className="text-center text-5xl font-bold leading-normal tracking-widest text-[#172E59]">
           關於 <br className="md:hidden" />
           X-Talent
         </h1>
@@ -71,7 +71,7 @@ export default function Page() {
         </div>
       </section>
 
-      <section className="bg-blue-950 py-20 text-center text-white">
+      <section className="text-light bg-[#172E59] py-20 text-center">
         <SectionTitle>X-Talent 的核心價值</SectionTitle>
 
         <div className="mx-auto mb-20 flex max-w-xl justify-between px-12 sm:px-0">

@@ -59,8 +59,8 @@ const SelectOptions = React.forwardRef<HTMLDivElement, SelectOptionsProps>(
           </Select.Icon>
         </Select.Trigger>
         <Select.Portal>
-          <Select.Content className="z-[60] overflow-hidden rounded-md bg-white shadow-[0px_10px_38px_-10px_rgba(22,_23,_24,_0.35),0px_10px_20px_-15px_rgba(22,_23,_24,_0.2)]">
-            <Select.ScrollUpButton className="text-violet11 flex h-[25px] cursor-default items-center justify-center bg-white">
+          <Select.Content className="bg-light z-[60] overflow-hidden rounded-md shadow-[0px_10px_38px_-10px_rgba(22,_23,_24,_0.35),0px_10px_20px_-15px_rgba(22,_23,_24,_0.2)]">
+            <Select.ScrollUpButton className="text-violet11 bg-light flex h-[25px] cursor-default items-center justify-center">
               <ChevronUpIcon />
             </Select.ScrollUpButton>
             <Select.Viewport className="p-[5px]">
@@ -77,7 +77,7 @@ const SelectOptions = React.forwardRef<HTMLDivElement, SelectOptionsProps>(
                 })}
               </Select.Group>
             </Select.Viewport>
-            <Select.ScrollDownButton className="text-violet11 flex h-[25px] cursor-default items-center justify-center bg-white">
+            <Select.ScrollDownButton className="text-violet11 bg-light flex h-[25px] cursor-default items-center justify-center">
               <ChevronDownIcon />
             </Select.ScrollDownButton>
           </Select.Content>

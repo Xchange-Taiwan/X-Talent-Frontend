@@ -11,7 +11,7 @@ export const JoinWaitingList: FC<{ children: ReactNode }> = ({ children }) => {
 
   return (
     <Button
-      className="h-auto bg-sky-700 px-6 py-3 hover:bg-sky-800"
+      className="h-auto bg-[#00678C] px-6 py-3 hover:bg-[#154b5f]"
       onClick={handleJoinWaitingList}
     >
       {children}

@@ -10,7 +10,7 @@ interface Props {
 export const Avatar: FC<Props> = ({ imgUrl }) => {
   if (!imgUrl) {
     return (
-      <div className="relative h-full w-full cursor-pointer overflow-clip rounded-full bg-white">
+      <div className="bg-light relative h-full w-full cursor-pointer overflow-clip rounded-full">
         <Image
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
           src={CameraImageUrl}

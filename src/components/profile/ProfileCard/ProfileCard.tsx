@@ -89,7 +89,7 @@ export const ProfileCard: FC<Props> = ({
           <Avatar imgUrl={avatarImgUrl} />
         </div>
       </div>
-      <div className="flex flex-col gap-10 bg-white px-5 pb-6 pt-12 sm:px-10">
+      <div className="bg-light flex flex-col gap-10 px-5 pb-6 pt-12 sm:px-10">
         <div className="border-b border-gray-200">
           <div className="text-center">
             <h1 className="pb-1 text-2xl font-bold">{name}</h1>

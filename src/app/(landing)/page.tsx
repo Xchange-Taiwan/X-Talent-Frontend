@@ -126,9 +126,9 @@ const Home = () => {
         </div>
       </section>
 
-      <section className="flex h-[907px] w-full bg-blue-950 md:h-[425px] xl:h-[557px]">
+      <section className="flex h-[907px] w-full bg-[#172E59] md:h-[425px] xl:h-[557px]">
         <div className="relative m-auto flex h-full flex-col justify-center md:w-[767px] md:flex-row md:flex-wrap md:items-center xl:w-[1280px]">
-          <div className="my-[15px] w-auto text-4xl font-bold leading-[58px] text-white md:col-span-2 md:mt-[40px] xl:absolute xl:left-[60px] xl:top-[176px] xl:mt-0 ">
+          <div className="text-light my-[15px] w-auto text-4xl font-bold leading-[58px] md:col-span-2 md:mt-[40px] xl:absolute xl:left-[60px] xl:top-[176px] xl:mt-0 ">
             <p>9000+ XChangers</p>
             <p>
               for you to <br className="md:hidden" />
@@ -263,7 +263,7 @@ const Home = () => {
         </div>
       </section>
 
-      <section className="flex items-center justify-center bg-slate-100">
+      <section className="flex items-center justify-center bg-gray-50">
         <div className="w-full max-w-[600px] py-10 lg:max-w-6xl">
           <HomePageSlider />
         </div>
