@@ -19,22 +19,15 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-
-const formSchema = z.object({
-  email: z.string().email('請輸入電子郵件'),
-  password: z.string().min(8, { message: '密碼至少需為 8 個字' }),
-  hasReadTermsOfService: z.boolean().refine((hasRead) => hasRead, {
-    message: '請確認並同意服務條款',
-  }),
-});
+import { SignUpSchema } from '@/schemas/auth';
 
 const linkStyle = 'text-sm font-medium text-black underline underline-offset-2';
 
 export default function Page() {
   const router = useRouter();
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<z.infer<typeof SignUpSchema>>({
+    resolver: zodResolver(SignUpSchema),
     defaultValues: {
       email: '',
       password: '',
@@ -42,7 +35,7 @@ export default function Page() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  function onSubmit(values: z.infer<typeof SignUpSchema>) {
     console.log(values);
 
     // TODO: 待處理登入登出邏輯
@@ -105,7 +98,7 @@ export default function Page() {
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
-                    <FormLabel className="text-sm font-medium leading-none text-neutral-600">
+                    <FormLabel className="text-neutral-600 text-sm font-medium leading-none">
                       我同意{' '}
                       <Link className={linkStyle} href="/password/forget">
                         X-Talent服務條款
@@ -133,9 +126,9 @@ export default function Page() {
         </div>
 
         <div className="flex items-center px-6">
-          <div className="h-[1px] flex-1 bg-neutral-200" />
-          <p className="flex-0 px-2 text-neutral-600">或</p>
-          <div className="h-[1px] flex-1 bg-neutral-200" />
+          <div className="bg-neutral-200 h-[1px] flex-1" />
+          <p className="flex-0 text-neutral-600 px-2">或</p>
+          <div className="bg-neutral-200 h-[1px] flex-1" />
         </div>
 
         <div>

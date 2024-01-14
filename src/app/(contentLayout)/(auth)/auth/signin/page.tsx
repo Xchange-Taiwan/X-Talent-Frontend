@@ -20,11 +20,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-
-const formSchema = z.object({
-  email: z.string().email('請輸入電子郵件'),
-  password: z.string().min(8, { message: '密碼至少需為 8 個字' }),
-});
+import { SignInSchema } from '@/schemas/auth';
 
 const linkStyle =
   'text-sm font-medium text-black underline underline-offset-2 cursor-pointer';
@@ -32,15 +28,15 @@ const linkStyle =
 export default function Page() {
   const router = useRouter();
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<z.infer<typeof SignInSchema>>({
+    resolver: zodResolver(SignInSchema),
     defaultValues: {
       email: '',
       password: '',
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  function onSubmit(values: z.infer<typeof SignInSchema>) {
     console.log(values);
 
     // TODO: 待處理登入登出邏輯
@@ -113,9 +109,9 @@ export default function Page() {
         </div>
 
         <div className="flex items-center px-6">
-          <div className="h-[1px] flex-1 bg-neutral-200" />
-          <p className="flex-0 px-2 text-neutral-600">或</p>
-          <div className="h-[1px] flex-1 bg-neutral-200" />
+          <div className="bg-neutral-200 h-[1px] flex-1" />
+          <p className="flex-0 text-neutral-600 px-2">或</p>
+          <div className="bg-neutral-200 h-[1px] flex-1" />
         </div>
 
         <div>
