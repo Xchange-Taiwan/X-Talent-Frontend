@@ -30,7 +30,7 @@ const Tag: FC<{
   if (!displayText) return null;
 
   return (
-    <div className="rounded-xl border border-neutral-300 px-4 py-2">
+    <div className="border-neutral-300 rounded-xl border px-4 py-2">
       {displayText}
     </div>
   );
@@ -69,7 +69,7 @@ export const ProfileCard: FC<Props> = ({
     try {
       await navigator.clipboard.writeText(pageLink);
       toast({
-        variant: 'success',
+        variant: 'default',
         description: '複製網址成功，分享給朋友吧！',
         duration: 1000,
       });
@@ -85,11 +85,11 @@ export const ProfileCard: FC<Props> = ({
   return (
     <div className="mx-auto w-11/12 max-w-[550px] overflow-hidden rounded-2xl shadow-xl">
       <div className="relative h-[120px] bg-gradient-to-br from-[#92e7e7] to-[#e7a0d4]">
-        <div className="absolute -bottom-10 left-1/2 h-[120px] w-[120px] -translate-x-1/2 rounded-full border-4 border-white">
+        <div className="border-white absolute -bottom-10 left-1/2 h-[120px] w-[120px] -translate-x-1/2 rounded-full border-4">
           <Avatar imgUrl={avatarImgUrl} />
         </div>
       </div>
-      <div className="bg-light flex flex-col gap-10 px-5 pb-6 pt-12 sm:px-10">
+      <div className="flex flex-col gap-10 bg-light px-5 pb-6 pt-12 sm:px-10">
         <div className="border-b border-gray-200">
           <div className="text-center">
             <h1 className="pb-1 text-2xl font-bold">{name}</h1>

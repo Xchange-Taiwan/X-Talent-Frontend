@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -19,22 +20,19 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-
-const formSchema = z.object({
-  email: z.string().email('請輸入電子郵件'),
-  password: z.string().min(8, { message: '密碼至少需為 8 個字' }),
-  hasReadTermsOfService: z.boolean().refine((hasRead) => hasRead, {
-    message: '請確認並同意服務條款',
-  }),
-});
+import { useToast } from '@/components/ui/use-toast';
+import { SignUpSchema } from '@/schemas/auth';
 
 const linkStyle = 'text-sm font-medium text-black underline underline-offset-2';
 
 export default function Page() {
-  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const form = useForm<z.infer<typeof SignUpSchema>>({
+    resolver: zodResolver(SignUpSchema),
     defaultValues: {
       email: '',
       password: '',
@@ -42,11 +40,51 @@ export default function Page() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values);
+  async function onSubmit(values: z.infer<typeof SignUpSchema>) {
+    setIsSubmitting(true);
 
-    // TODO: 待處理登入登出邏輯
-    router.push('/auth/onboarding');
+    // TODO: 待使用 TanStack Query 來處理
+    try {
+      const test = (await fetch('/api/auth/signUp', {
+        method: 'POST',
+        body: JSON.stringify(values),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }).then((res) => res.json())) as unknown as {
+        code: number;
+        data: { message: string };
+      };
+
+      console.log(test);
+
+      const { code, data } = test;
+
+      if (code !== 200) {
+        console.log(data?.message);
+        throw new Error(data?.message ?? '註冊失敗');
+      } else {
+        toast({
+          variant: 'default',
+          title: '註冊成功',
+          description: '請前往您的電子郵件信箱驗證您的帳號',
+        });
+
+        router.push('/auth/signin');
+      }
+    } catch (error: unknown) {
+      console.log('----In Error -----');
+      console.error(error);
+      if (error instanceof Error && error.message) {
+        toast({
+          variant: 'destructive',
+          title: '註冊失敗',
+          description: error.message,
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -105,7 +143,7 @@ export default function Page() {
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
-                    <FormLabel className="text-sm font-medium leading-none text-neutral-600">
+                    <FormLabel className="text-neutral-600 text-sm font-medium leading-none">
                       我同意{' '}
                       <Link className={linkStyle} href="/password/forget">
                         X-Talent服務條款
@@ -117,7 +155,11 @@ export default function Page() {
               )}
             />
 
-            <Button className="h-12 w-full rounded-full" type="submit">
+            <Button
+              className="h-12 w-full rounded-full"
+              type="submit"
+              disabled={isSubmitting}
+            >
               註冊
             </Button>
           </form>
@@ -133,13 +175,24 @@ export default function Page() {
         </div>
 
         <div className="flex items-center px-6">
-          <div className="h-[1px] flex-1 bg-neutral-200" />
-          <p className="flex-0 px-2 text-neutral-600">或</p>
-          <div className="h-[1px] flex-1 bg-neutral-200" />
+          <div className="bg-neutral-200 h-[1px] flex-1" />
+          <p className="flex-0 text-neutral-600 px-2">或</p>
+          <div className="bg-neutral-200 h-[1px] flex-1" />
         </div>
 
         <div>
-          <Button variant="outline" className="h-12 w-full rounded-full">
+          <Button
+            variant="outline"
+            className="h-12 w-full rounded-full"
+            disabled={isSubmitting}
+            onClick={() => {
+              toast({
+                variant: 'default',
+                title: '註冊成功',
+                description: '請前往您的電子郵件信箱驗證您的帳號',
+              });
+            }}
+          >
             <GoogleColor className="mr-3 text-xl" />
             <span className="text-base">使用 Google 繼續</span>
           </Button>
