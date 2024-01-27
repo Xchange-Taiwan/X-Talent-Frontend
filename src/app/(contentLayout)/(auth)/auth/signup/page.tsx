@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -19,12 +20,16 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/ui/use-toast';
 import { SignUpSchema } from '@/schemas/auth';
 
 const linkStyle = 'text-sm font-medium text-black underline underline-offset-2';
 
 export default function Page() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const router = useRouter();
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof SignUpSchema>>({
     resolver: zodResolver(SignUpSchema),
@@ -35,11 +40,51 @@ export default function Page() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof SignUpSchema>) {
-    console.log(values);
+  async function onSubmit(values: z.infer<typeof SignUpSchema>) {
+    setIsSubmitting(true);
 
-    // TODO: 待處理登入登出邏輯
-    router.push('/auth/onboarding');
+    // TODO: 待使用 TanStack Query 來處理
+    try {
+      const test = (await fetch('/api/auth/signUp', {
+        method: 'POST',
+        body: JSON.stringify(values),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }).then((res) => res.json())) as unknown as {
+        code: number;
+        data: { message: string };
+      };
+
+      console.log(test);
+
+      const { code, data } = test;
+
+      if (code !== 200) {
+        console.log(data?.message);
+        throw new Error(data?.message ?? '註冊失敗');
+      } else {
+        toast({
+          variant: 'default',
+          title: '註冊成功',
+          description: '請前往您的電子郵件信箱驗證您的帳號',
+        });
+
+        router.push('/auth/signin');
+      }
+    } catch (error: unknown) {
+      console.log('----In Error -----');
+      console.error(error);
+      if (error instanceof Error && error.message) {
+        toast({
+          variant: 'destructive',
+          title: '註冊失敗',
+          description: error.message,
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -110,7 +155,11 @@ export default function Page() {
               )}
             />
 
-            <Button className="h-12 w-full rounded-full" type="submit">
+            <Button
+              className="h-12 w-full rounded-full"
+              type="submit"
+              disabled={isSubmitting}
+            >
               註冊
             </Button>
           </form>
@@ -132,7 +181,18 @@ export default function Page() {
         </div>
 
         <div>
-          <Button variant="outline" className="h-12 w-full rounded-full">
+          <Button
+            variant="outline"
+            className="h-12 w-full rounded-full"
+            disabled={isSubmitting}
+            onClick={() => {
+              toast({
+                variant: 'default',
+                title: '註冊成功',
+                description: '請前往您的電子郵件信箱驗證您的帳號',
+              });
+            }}
+          >
             <GoogleColor className="mr-3 text-xl" />
             <span className="text-base">使用 Google 繼續</span>
           </Button>
