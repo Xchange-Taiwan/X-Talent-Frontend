@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
 import { EmailSolid } from '@/components/Icon';
 import { Button } from '@/components/ui/button';
@@ -33,10 +34,10 @@ const EMAIL_CONFIRM_MAP = {
   },
 };
 
-export default function Page() {
+function PageTitle() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
+  const searchParams = useSearchParams();
   const type = searchParams.get('type') || '';
 
   if (!Object.keys(EMAIL_CONFIRM_MAP).includes(type)) {
@@ -46,6 +47,17 @@ export default function Page() {
 
   const { title, subTitle } =
     EMAIL_CONFIRM_MAP[type as keyof typeof EMAIL_CONFIRM_MAP];
+
+  return (
+    <>
+      <h1 className="text-[32px] font-bold leading-10">{title}</h1>
+      <p className="text-neutral-600 text-center">{subTitle}</p>
+    </>
+  );
+}
+
+export default function Page() {
+  const router = useRouter();
 
   const handleResendEmail = () => {
     console.log('Resend Email');
@@ -58,8 +70,9 @@ export default function Page() {
           <div className="rounded-full bg-[#EBFBFB] p-4">
             <EmailSolid className="text-2xl" />
           </div>
-          <h1 className="text-[32px] font-bold leading-10">{title}</h1>
-          <p className="text-center text-neutral-600">{subTitle}</p>
+          <Suspense>
+            <PageTitle />
+          </Suspense>
         </div>
       </main>
 
@@ -68,11 +81,11 @@ export default function Page() {
           回首頁
         </Button>
 
-        <p className="text-center text-neutral-600">
+        <p className="text-neutral-600 text-center">
           沒有收到驗證信?
           <Button
             variant="link"
-            className="font-medium text-black underline"
+            className="text-black font-medium underline"
             onClick={handleResendEmail}
           >
             重新發送

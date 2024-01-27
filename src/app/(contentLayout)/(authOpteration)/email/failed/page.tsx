@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 
 import { WarnSolid } from '@/components/Icon';
 import { Button } from '@/components/ui/button';
@@ -34,10 +35,10 @@ const EMAIL_CONFIRM_MAP = {
   },
 };
 
-export default function Page() {
+function PageTitle() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
+  const searchParams = useSearchParams();
   const type = searchParams.get('type') || '';
 
   if (!Object.keys(EMAIL_CONFIRM_MAP).includes(type)) {
@@ -48,6 +49,15 @@ export default function Page() {
   const { title, subTitle } =
     EMAIL_CONFIRM_MAP[type as keyof typeof EMAIL_CONFIRM_MAP];
 
+  return (
+    <>
+      <h1 className="text-[32px] font-bold leading-10">{title}</h1>
+      <p className="text-neutral-600 text-center">{subTitle}</p>
+    </>
+  );
+}
+
+export default function Page() {
   const handleResendEmail = () => {
     console.log('Resend Email');
   };
@@ -59,8 +69,9 @@ export default function Page() {
           <div className="rounded-full bg-[#EB5757]/[0.1] p-4">
             <WarnSolid className="text-2xl text-[#EB5757]" />
           </div>
-          <h1 className="text-[32px] font-bold leading-10">{title}</h1>
-          <p className="text-center text-neutral-600">{subTitle}</p>
+          <Suspense>
+            <PageTitle />
+          </Suspense>
         </div>
       </main>
       <footer className="flex flex-col gap-4">
