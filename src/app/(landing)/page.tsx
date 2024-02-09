@@ -56,12 +56,12 @@ const Home = () => {
     <>
       <section className="flex h-[532px] items-center justify-center bg-[url('/landing/home-page-hero-sm.svg')] bg-cover bg-no-repeat px-4 sm:bg-[url('/landing/home-page-hero-md.svg')] sm:px-0 lg:h-[640px] lg:bg-none">
         <h1 className="text-center">
-          <p className="mb-8 text-5xl font-bold leading-normal text-blue-950">
+          <p className="text-blue-950 mb-8 text-5xl font-bold leading-normal">
             交流讓
             <br className="md:hidden" />
             改變發生
           </p>
-          <p className="max-w-[516px] text-2xl text-black lg:max-w-[630px]">
+          <p className="text-black max-w-[516px] text-2xl lg:max-w-[630px]">
             Find your Mentor/Mentee to build up connections, break up limits.
           </p>
         </h1>
@@ -83,7 +83,7 @@ const Home = () => {
             <br className="md:hidden" />
             的職涯可能性
           </p>
-          <div className="flex flex-col flex-wrap justify-center font-bold text-black md:flex-row">
+          <div className="text-black flex flex-col flex-wrap justify-center font-bold md:flex-row">
             {featureData.map((item, index) => (
               <FeatureItem key={index} icon={item.icon} text={item.text} />
             ))}
@@ -107,7 +107,7 @@ const Home = () => {
             <p className="text-midnight-blue mb-5 text-2xl font-bold">
               和 X-Talent 一起拓展職涯的選擇性
             </p>
-            <p className="text-xl text-black">
+            <p className="text-black text-xl">
               聚集多種專業職能的資深前輩，分享產業洞見、職涯心法，協助建構更多元的角度與觀點。不論你是剛開始、還未開始，一起陪你把職涯走得更遠更寬闊。
             </p>
           </div>
@@ -117,7 +117,7 @@ const Home = () => {
             <p className="text-midnight-blue mb-5 text-2xl font-bold">
               透過 X-Talent 展開深度交流
             </p>
-            <p className="text-xl text-black">
+            <p className="text-black text-xl">
               透過 X-Talent 立即安排與 Mentor
               一對一的深度交流，讓你在尋求職涯建議、建立人脈上得到最直接的回饋。
             </p>
@@ -128,7 +128,7 @@ const Home = () => {
 
       <section className="flex h-[907px] w-full bg-[#172E59] md:h-[425px] xl:h-[557px]">
         <div className="relative m-auto flex h-full flex-col justify-center md:w-[767px] md:flex-row md:flex-wrap md:items-center xl:w-[1280px]">
-          <div className="text-light my-[15px] w-auto text-4xl font-bold leading-[58px] md:col-span-2 md:mt-[40px] xl:absolute xl:left-[60px] xl:top-[176px] xl:mt-0 ">
+          <div className="my-[15px] w-auto text-4xl font-bold leading-[58px] text-light md:col-span-2 md:mt-[40px] xl:absolute xl:left-[60px] xl:top-[176px] xl:mt-0 ">
             <p>9000+ XChangers</p>
             <p>
               for you to <br className="md:hidden" />
@@ -179,8 +179,8 @@ const Home = () => {
                     alt="1"
                   />
                   <div className="ml-[30px] flex flex-col md:ml-0 md:mt-[34px] md:items-center">
-                    <p className="font-medium text-black">分享經驗</p>
-                    <p className="font-medium text-black">讓知識傳承延續</p>
+                    <p className="text-black font-medium">分享經驗</p>
+                    <p className="text-black font-medium">讓知識傳承延續</p>
                   </div>
                 </div>
                 <div className="mb-[60px] flex items-center md:m-0 md:ml-[80px] md:flex-col xl:w-[180px]">
@@ -190,7 +190,7 @@ const Home = () => {
                     alt="1"
                   />
                   <div className="ml-[30px] flex h-[43px] flex-col justify-center md:ml-0 md:mt-[34px] md:items-center">
-                    <p className="font-medium text-black">建立專屬人脈網絡</p>
+                    <p className="text-black font-medium">建立專屬人脈網絡</p>
                   </div>
                 </div>
                 <div className="flex items-center md:ml-[80px] md:flex-col xl:w-[180px]">
@@ -200,8 +200,8 @@ const Home = () => {
                     alt="1"
                   />
                   <div className="ml-[30px] flex flex-col md:ml-0 md:mt-[34px] md:items-center">
-                    <p className="font-medium text-black">增加社會影響力</p>
-                    <p className="font-medium text-black">與他人共創美好價值</p>
+                    <p className="text-black font-medium">增加社會影響力</p>
+                    <p className="text-black font-medium">與他人共創美好價值</p>
                   </div>
                 </div>
               </div>
@@ -225,8 +225,8 @@ const Home = () => {
                     alt="1"
                   />
                   <div className="ml-[30px] flex flex-col md:ml-0 md:mt-[34px] md:items-center">
-                    <p className="font-medium text-black">探索產業與</p>
-                    <p className="font-medium text-black">職涯發展方向</p>
+                    <p className="text-black font-medium">探索產業與</p>
+                    <p className="text-black font-medium">職涯發展方向</p>
                   </div>
                 </div>
                 <div className="mb-[60px] flex items-center md:m-0 md:ml-[80px] md:flex-col xl:w-[180px]">
@@ -236,10 +236,10 @@ const Home = () => {
                     alt="1"
                   />
                   <div className="ml-[35px] flex flex-col justify-center md:ml-0 md:mt-[34px] md:items-center">
-                    <p className="font-medium text-black">
+                    <p className="text-black font-medium">
                       與經驗豐富的 Mentor
                     </p>
-                    <p className="font-medium text-black">
+                    <p className="text-black font-medium">
                       互動獲取第一手職涯秘笈
                     </p>
                   </div>
@@ -251,10 +251,10 @@ const Home = () => {
                     alt="1"
                   />
                   <div className="ml-[30px] flex flex-col md:ml-0 md:mt-[34px] md:items-center">
-                    <p className="font-medium text-black">
+                    <p className="text-black font-medium">
                       學習更多學校沒教的事
                     </p>
-                    <p className="font-medium text-black">讓你快速成長</p>
+                    <p className="text-black font-medium">讓你快速成長</p>
                   </div>
                 </div>
               </div>

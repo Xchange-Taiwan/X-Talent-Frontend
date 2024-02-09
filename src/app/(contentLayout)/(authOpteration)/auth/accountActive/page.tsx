@@ -17,7 +17,7 @@ export default function Page() {
             <VectorSolid className="text-2xl" />
           </div>
           <h1 className="text-[32px] font-bold leading-10">帳號啟用成功</h1>
-          <p className="text-center text-neutral-600">
+          <p className="text-neutral-600 text-center">
             恭喜您已完成帳號開通！
             <br />
             在開始這趟交流之旅前，讓我們更了解你的需求...

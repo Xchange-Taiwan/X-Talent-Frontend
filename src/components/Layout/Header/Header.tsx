@@ -9,19 +9,19 @@ import { HamburgerMenu } from './HamburgerMenu';
 
 export const Header: FC = () => {
   return (
-    <header className="bg-light fixed inset-x-0 z-50 px-5 text-2xl">
+    <header className="fixed inset-x-0 z-50 bg-light px-5 text-2xl">
       <div className="flex h-[70px] items-center justify-between">
         <Link href="/">
           <Image src={LogoImgUrl} alt="logo" />
         </Link>
 
         <div className="hidden gap-7 md:flex md:items-center">
-          <Link href="/" className="font-['Open_Sans'] text-base text-black">
+          <Link href="/" className="text-black font-['Open_Sans'] text-base">
             首頁
           </Link>
           <Link
             href="/about"
-            className="font-['Open_Sans'] text-base text-black"
+            className="text-black font-['Open_Sans'] text-base"
           >
             關於 X-Talent
           </Link>

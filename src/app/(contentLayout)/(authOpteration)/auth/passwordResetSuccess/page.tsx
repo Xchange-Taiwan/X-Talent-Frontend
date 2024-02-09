@@ -17,7 +17,7 @@ export default function Page() {
             <VectorSolid className="text-2xl" />
           </div>
           <h1 className="text-[32px] font-bold leading-10">密碼更改成功</h1>
-          <p className="text-center text-neutral-600">
+          <p className="text-neutral-600 text-center">
             您的密碼已成功更改，請使用新的密碼進行登入。
           </p>
         </div>

@@ -71,7 +71,7 @@ export default function Page() {
         </div>
       </section>
 
-      <section className="text-light bg-[#172E59] py-20 text-center">
+      <section className="bg-[#172E59] py-20 text-center text-light">
         <SectionTitle>X-Talent 的核心價值</SectionTitle>
 
         <div className="mx-auto mb-20 flex max-w-xl justify-between px-12 sm:px-0">
@@ -104,7 +104,7 @@ export default function Page() {
           的職涯可能性
         </SectionTitle>
         <div className="flex w-full flex-col items-center justify-center">
-          <div className="flex flex-col flex-wrap justify-center font-bold text-black md:flex-row">
+          <div className="text-black flex flex-col flex-wrap justify-center font-bold md:flex-row">
             {featureData.map((item, index) => (
               <FeatureItem key={index} icon={item.icon} text={item.text} />
             ))}
