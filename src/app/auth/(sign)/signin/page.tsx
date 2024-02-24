@@ -17,6 +17,8 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/ui/use-toast';
+import { signIn } from '@/lib/actions/signIn';
 import { cn } from '@/lib/utils';
 import { SignInSchema } from '@/schemas/auth';
 
@@ -25,6 +27,7 @@ const linkStyle =
 
 export default function Page() {
   const router = useRouter();
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof SignInSchema>>({
     resolver: zodResolver(SignInSchema),
@@ -34,12 +37,27 @@ export default function Page() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof SignInSchema>) {
-    console.log(values);
+  const onSubmit = async (values: z.infer<typeof SignInSchema>) => {
+    try {
+      const error = await signIn(values);
 
-    // TODO: 待處理登入登出邏輯
-    router.push('/auth/onboarding');
-  }
+      if (error) {
+        toast({
+          variant: 'destructive',
+          description: error.message,
+          duration: 1000,
+        });
+      }
+    } catch (error) {
+      console.error(error);
+
+      toast({
+        variant: 'destructive',
+        description: 'Something went wrong!',
+        duration: 1000,
+      });
+    }
+  };
 
   return (
     <div className="flex h-full flex-col items-center justify-center px-5">
