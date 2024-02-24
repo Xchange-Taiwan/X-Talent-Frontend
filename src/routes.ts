@@ -8,11 +8,10 @@ export const publicRoutes: string[] = [
   '/auth/signin',
   '/auth/signup',
   '/auth/passwordForget',
-  '/auth/accountActive',
   '/auth/passwordReset',
   '/auth/passwordResetSuccess',
-  '/email/confirm',
-  '/email/failed',
+  '/auth/emailVerify',
+  '/auth/emailVerified',
 ];
 
 /**
