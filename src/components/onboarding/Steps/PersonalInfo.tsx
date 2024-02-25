@@ -31,32 +31,16 @@ interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
 }
 
-export const Step1: FC<Props> = ({ form }) => {
+export const PersonalInfo: FC<Props> = ({ form }) => {
   return (
-    <div>
-      <p className="mb-10 text-xl font-bold">我的個人資訊</p>
-
+    <>
       <div className="flex flex-col gap-4">
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel showErrorStyle={false}>姓名*</FormLabel>
-              <FormControl>
-                <Input placeholder="請填入您的姓名" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
         <FormField
           control={form.control}
           name="region"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>地區*</FormLabel>
+              <FormLabel>地區</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
@@ -81,10 +65,10 @@ export const Step1: FC<Props> = ({ form }) => {
 
         <FormField
           control={form.control}
-          name="totalWorkSpan"
+          name="experience"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>總年資</FormLabel>
+              <FormLabel>經驗</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
@@ -109,7 +93,7 @@ export const Step1: FC<Props> = ({ form }) => {
 
         <FormField
           control={form.control}
-          name="totalWorkSpan"
+          name="industry"
           render={({ field }) => (
             <FormItem>
               <FormLabel>產業</FormLabel>
@@ -140,9 +124,7 @@ export const Step1: FC<Props> = ({ form }) => {
           name="jobTitle"
           render={({ field }) => (
             <FormItem>
-              <FormLabel showErrorStyle={false}>
-                職稱（正職、實習皆可）
-              </FormLabel>
+              <FormLabel showErrorStyle={false}>職稱 (選填)</FormLabel>
               <FormControl>
                 <Input placeholder="請填入您的職稱" {...field} />
               </FormControl>
@@ -156,25 +138,9 @@ export const Step1: FC<Props> = ({ form }) => {
           name="company"
           render={({ field }) => (
             <FormItem>
-              <FormLabel showErrorStyle={false}>
-                公司（正職、實習皆可）
-              </FormLabel>
+              <FormLabel showErrorStyle={false}>公司名稱 (選填) </FormLabel>
               <FormControl>
                 <Input placeholder="請填入您的公司名稱" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="school"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel showErrorStyle={false}>學校*</FormLabel>
-              <FormControl>
-                <Input placeholder="請填入您的學校名稱" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -186,7 +152,9 @@ export const Step1: FC<Props> = ({ form }) => {
           name="linkedinUrl"
           render={({ field }) => (
             <FormItem>
-              <FormLabel showErrorStyle={false}>LinkedIn 個人檔案</FormLabel>
+              <FormLabel showErrorStyle={false}>
+                你的 LinkedIn 連結 (選填)
+              </FormLabel>
               <FormControl>
                 <Input placeholder="請提供您的個人檔案連結" {...field} />
               </FormControl>
@@ -195,6 +163,6 @@ export const Step1: FC<Props> = ({ form }) => {
           )}
         />
       </div>
-    </div>
+    </>
   );
 };

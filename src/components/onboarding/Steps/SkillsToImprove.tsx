@@ -13,33 +13,33 @@ import {
 } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
 
-import { interestedRoleOptions } from './constant';
+import { skillEnhancementTargetOptions } from './constant';
 import { formSchema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
 }
 
-export const Step2: FC<Props> = ({ form }) => {
+export const SkillsToImprove: FC<Props> = ({ form }) => {
   return (
-    <div className="min-h-[calc(60vh)]">
-      <p className="mb-10 text-center text-xl font-bold">
-        你有興趣的職位或領域？
-      </p>
-
-      <div className="flex flex-wrap gap-4">
-        {interestedRoleOptions.map((option) => (
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        {skillEnhancementTargetOptions.map((option) => (
           <FormField
             key={option.value}
             control={form.control}
-            name="interestedRole"
+            name="skillEnhancementTarget"
             render={({ field }) => {
               return (
                 <FormItem
                   key={option.value}
-                  className="flex flex-row items-start space-x-3 space-y-0"
+                  className={cn(
+                    'flex items-center space-y-0 rounded-xl border border-gray-200 pl-3',
+                    field.value.includes(option.value) &&
+                      'border-primary bg-secondary',
+                  )}
                 >
-                  <FormControl className="hidden">
+                  <FormControl>
                     <Checkbox
                       checked={field.value?.includes(option.value)}
                       onCheckedChange={(checked) => {
@@ -53,17 +53,8 @@ export const Step2: FC<Props> = ({ form }) => {
                       }}
                     />
                   </FormControl>
-                  <FormLabel className="text-sm font-normal">
-                    <div
-                      key={`interestedRole ${option.value}`}
-                      className={cn(
-                        'cursor-pointer rounded-xl border border-gray-200 px-3 py-2',
-                        field.value.includes(option.value) &&
-                          'border-primary bg-secondary',
-                      )}
-                    >
-                      {option.text}
-                    </div>
+                  <FormLabel className="grow cursor-pointer px-4 py-3 text-base font-normal">
+                    {option.text}
                   </FormLabel>
                 </FormItem>
               );
@@ -71,6 +62,6 @@ export const Step2: FC<Props> = ({ form }) => {
           />
         ))}
       </div>
-    </div>
+    </>
   );
 };

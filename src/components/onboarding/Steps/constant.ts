@@ -80,12 +80,12 @@ export const industryOptions = enumToOptionsArray(IndustryEnum);
  */
 export enum InterestedRoleEnum {
   PRODUCT_MANAGER = '產品經理',
-  UI_UX_DESIGNER = '💎 UX/UI 設計師',
+  UI_UX_DESIGNER = 'UX/UI 設計師',
   PRODUCT_MARKETING = '產品行銷',
   BUSINESS_ANALYST = '商業分析',
   BUSINESS_DEVELOPMENT = '商業開發',
   DATA_SCIENCE = '資料科學',
-  FRONTEND_ENGINEER = '💻 前端工程師',
+  FRONTEND_ENGINEER = '前端工程師',
   BACKEND_ENGINEER = '後端工程師',
   TEST_ENGINEER = '測試工程師',
   INFORMATION_ARCHITECTURE_ENGINEER = '資訊架構工程師',
