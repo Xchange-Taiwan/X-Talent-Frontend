@@ -1,5 +1,7 @@
 import '../styles/global.css';
 
+import { Footer } from '@/components/Layout/Footer';
+import { Header } from '@/components/Layout/Header';
 import { Toaster } from '@/components/ui/toaster';
 
 import { notoSans } from './font';
@@ -18,7 +20,11 @@ export default function RootLayout({
   return (
     <html lang="zh-TW" className={notoSans.className}>
       <body id="app">
-        {children}
+        <div className="flex min-h-screen flex-col">
+          <Header />
+          <main className="grow pt-[70px]">{children}</main>
+          <Footer />
+        </div>
         <Toaster />
       </body>
     </html>

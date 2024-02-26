@@ -1,13 +1,11 @@
 'use client';
 import { zodResolver } from '@hookform/resolvers/zod';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
-import LogoImgUrl from '@/assets/logo.svg';
 import { GoogleColor } from '@/components/Icon';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -89,12 +87,9 @@ export default function Page() {
 
   return (
     <div className="flex h-full flex-col items-center justify-center px-5">
-      <div className="mb-10">
-        <Image src={LogoImgUrl} width={180} height={64} alt="Logo" />
-      </div>
       <div className="flex w-full max-w-[400px] flex-col gap-6">
         <h1 className="text-center text-[32px] font-bold leading-tight">
-          註冊帳號
+          註冊 Talents 帳戶
         </h1>
 
         <Form {...form}>
@@ -104,7 +99,7 @@ export default function Page() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel showErrorStyle={false}>電子郵件地址</FormLabel>
+                  <FormLabel showErrorStyle={false}>輸入電子郵件</FormLabel>
                   <FormControl>
                     <Input placeholder="請填入您的 E-mail" {...field} />
                   </FormControl>
@@ -165,19 +160,17 @@ export default function Page() {
           </form>
         </Form>
 
-        <div className="flex flex-col gap-4">
-          <p className="text-neutral-600">
-            已經有帳號了?{' '}
-            <Link href="/auth/signin" className={linkStyle}>
-              登入X-Talent
-            </Link>
-          </p>
-        </div>
+        <p className="text-neutral-600 text-center">
+          已經有帳號了?{' '}
+          <Link href="/auth/signin" className={linkStyle}>
+            登入X-Talent
+          </Link>
+        </p>
 
-        <div className="flex items-center px-6">
-          <div className="bg-neutral-200 h-[1px] flex-1" />
+        <div className="flex items-center">
+          <div className="h-[1px] flex-1 bg-background-border" />
           <p className="flex-0 text-neutral-600 px-2">或</p>
-          <div className="bg-neutral-200 h-[1px] flex-1" />
+          <div className="h-[1px] flex-1 bg-background-border" />
         </div>
 
         <div>
@@ -194,7 +187,7 @@ export default function Page() {
             }}
           >
             <GoogleColor className="mr-3 text-xl" />
-            <span className="text-base">使用 Google 繼續</span>
+            <span className="text-base">使用 Google 帳號註冊</span>
           </Button>
         </div>
       </div>

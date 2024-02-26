@@ -1,21 +1,13 @@
 'use Client';
+import Image from 'next/image';
 import type { FC, ReactNode } from 'react';
 
-import {
-  CorporateFareSolid,
-  LinkedinColor,
-  PlaceSolid,
-  SchoolSolid,
-  ShareSolid,
-} from '@/components/Icon';
+import { LinkedinColor } from '@/components/Icon';
 import {
   InterestedRoleEnum,
   SkillEnhancementTargetEnum,
   talkTopicEnum,
 } from '@/components/onboarding/Steps/constant';
-import { useToast } from '@/components/ui/use-toast';
-
-import { Avatar } from '../Avatar';
 
 const SubTitle: FC<{ children: ReactNode }> = ({ children }) => {
   return <h2 className="mb-3 text-base font-bold">{children}</h2>;
@@ -38,11 +30,9 @@ const Tag: FC<{
 
 interface Props {
   name: string;
-  region: string;
   avatarImgUrl?: string;
   jobTitle?: string;
   company?: string;
-  school?: string;
   linkedinUrl?: string;
   interestedRole?: string[];
   skillEnhancementTarget?: string[];
@@ -51,82 +41,54 @@ interface Props {
 
 export const ProfileCard: FC<Props> = ({
   name,
-  region,
   avatarImgUrl,
   company,
   jobTitle,
-  school,
   linkedinUrl,
   interestedRole,
   skillEnhancementTarget,
   talkTopic,
 }) => {
-  const { toast } = useToast();
-
-  const handleCopyCurrentLink = async () => {
-    const pageLink = window.location.href;
-
-    try {
-      await navigator.clipboard.writeText(pageLink);
-      toast({
-        variant: 'default',
-        description: '複製網址成功，分享給朋友吧！',
-        duration: 1000,
-      });
-    } catch (err) {
-      toast({
-        variant: 'destructive',
-        description: '複製網址失敗',
-        duration: 1000,
-      });
-    }
+  const handleNavigateToLinkedin = () => {
+    window.open(linkedinUrl, '_blank');
   };
 
   return (
-    <div className="mx-auto w-11/12 max-w-[550px] overflow-hidden rounded-2xl shadow-xl">
-      <div className="relative h-[120px] bg-gradient-to-br from-[#92e7e7] to-[#e7a0d4]">
-        <div className="border-white absolute -bottom-10 left-1/2 h-[120px] w-[120px] -translate-x-1/2 rounded-full border-4">
-          <Avatar imgUrl={avatarImgUrl} />
+    <div className="overflow-hidden rounded-2xl shadow-xl">
+      <div className="relative h-[111px] bg-gradient-to-br from-[#92e7e7] to-[#e7a0d4] sm:h-[100px]">
+        <div className="absolute -bottom-56 left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-6 sm:-bottom-40 sm:left-[180px] sm:flex-row">
+          <div className="relative h-[120px] w-[120px] overflow-hidden rounded-full bg-brand-200">
+            <Image
+              src={avatarImgUrl || '/default-avatar.jpeg'}
+              alt={'Avatar of ' + name}
+              fill
+              style={{
+                objectFit: 'contain',
+              }}
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-center gap-2 sm:justify-start">
+              <h1 className="text-base font-bold sm:text-2xl">{name}</h1>
+
+              <LinkedinColor
+                className="h-5 w-5 cursor-pointer sm:h-6 sm:w-6"
+                onClick={handleNavigateToLinkedin}
+              />
+            </div>
+            <p className="text-sm">
+              {jobTitle} <span className="text-text-tertiary">at</span>{' '}
+              {company}
+            </p>
+          </div>
         </div>
       </div>
-      <div className="flex flex-col gap-10 bg-light px-5 pb-6 pt-12 sm:px-10">
-        <div className="border-b border-gray-200">
-          <div className="text-center">
-            <h1 className="pb-1 text-2xl font-bold">{name}</h1>
 
-            {region && (
-              <p className="flex items-center justify-center gap-1 text-base text-gray-500">
-                <PlaceSolid />
-                {region}
-              </p>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-4 py-5 text-sm sm:flex-row">
-            {(company || jobTitle) && (
-              <div className="flex flex-1 items-center gap-2">
-                <div className="rounded-md bg-[#EBFBFB] p-1.5">
-                  <CorporateFareSolid />
-                </div>
-                {company && <span>{company}</span>}
-                {jobTitle && <span className="font-bold">{jobTitle}</span>}
-              </div>
-            )}
-
-            {school && (
-              <div className="flex flex-1 items-center gap-2">
-                <div className="rounded-md bg-[#EBFBFB] p-1.5">
-                  <SchoolSolid />
-                </div>
-                <span>{school}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
+      <div className="bg-bright flex flex-col gap-10 px-4 pb-10 pt-[165px] sm:px-10 sm:pt-[132px]">
         {Array.isArray(interestedRole) && interestedRole.length > 0 && (
           <div>
-            <SubTitle>有興趣的職位及領域</SubTitle>
+            <SubTitle>有興趣多了解的職位</SubTitle>
             <div className="flex flex-wrap gap-2">
               {interestedRole.map((role) => (
                 <Tag
@@ -142,7 +104,7 @@ export const ProfileCard: FC<Props> = ({
         {Array.isArray(skillEnhancementTarget) &&
           skillEnhancementTarget.length > 0 && (
             <div>
-              <SubTitle>想精進的能力</SubTitle>
+              <SubTitle>想多了解、加強的技能</SubTitle>
               <div className="flex flex-wrap gap-2">
                 {skillEnhancementTarget.map((target) => (
                   <Tag
@@ -157,7 +119,7 @@ export const ProfileCard: FC<Props> = ({
 
         {Array.isArray(talkTopic) && talkTopic.length > 0 && (
           <div>
-            <SubTitle>想聊聊的主題</SubTitle>
+            <SubTitle>想多了解的主題</SubTitle>
             <div className="flex flex-wrap gap-2">
               {talkTopic.map((topic) => (
                 <Tag
@@ -169,28 +131,6 @@ export const ProfileCard: FC<Props> = ({
             </div>
           </div>
         )}
-
-        <div className="flex justify-center gap-6">
-          {linkedinUrl && (
-            <a
-              className="flex cursor-pointer gap-1 text-sm font-medium text-[#0A66C2]"
-              href={linkedinUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <LinkedinColor />
-              <span>LinkedIn個人檔案</span>
-            </a>
-          )}
-
-          <p
-            className="flex cursor-pointer gap-1 text-sm  font-medium text-[#0A66C2]"
-            onClick={handleCopyCurrentLink}
-          >
-            <ShareSolid />
-            <span>分享個人名片</span>
-          </p>
-        </div>
       </div>
     </div>
   );

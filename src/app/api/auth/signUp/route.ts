@@ -19,12 +19,11 @@ export async function POST(request: Request) {
   if (!hasReadTermsOfService) {
     return NextResponse.json(
       {
-        code: 400,
         data: {
           message: 'Please read the terms of service',
         },
       },
-      { status: 200 },
+      { status: 400 },
     );
   }
 
@@ -32,12 +31,11 @@ export async function POST(request: Request) {
   if (existingUser) {
     return NextResponse.json(
       {
-        code: 400,
         data: {
           message: 'Email already in use!',
         },
       },
-      { status: 200 },
+      { status: 400 },
     );
   }
 
