@@ -175,6 +175,9 @@ devDependencies:
   tailwindcss:
     specifier: ^3.4.1
     version: 3.4.1
+  tsconfig-paths-webpack-plugin:
+    specifier: ^4.1.0
+    version: 4.1.0
   typescript:
     specifier: ^5.3.3
     version: 5.3.3
