@@ -1,28 +1,59 @@
 'use client';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
 
 import { ExpertiseSelectItem } from '@/components/profile/ExpertiseSelectItem';
+import { formSchema } from '@/components/profile/ExpertiseSelectItem';
 import { Button } from '@/components/ui/button';
+import { Form } from '@/components/ui/form';
 
-const EXPERTISE_SELECTION = ['UI', 'UX', 'SEO', 'Graphic'] as const;
+const EXPERTISE_SELECTION = [
+  'UI Design',
+  'UX Design',
+  'SEO Writing',
+  'Graphic Design',
+] as const;
+
+const onSubmit = (values: z.infer<typeof formSchema>) => {
+  console.log(values);
+};
 
 export default function Page() {
-  // TODO: 需實作儲存邏輯，之後再來串 API，可以先在 LocalStorage 開一個欄位叫 expertise 來去存目前選到的 EXPERTISE_SELECTION 值
-
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      expertise: [],
+    },
+  });
   return (
-    <div>
-      <h1>你的專長頁</h1>
-
-      <div>
-        {/* TODO: 依據 Array 來去 Render 選項，這邊先寫死，但之後會是 fetch 後端資料來，先保留彈性。 */}
-        {EXPERTISE_SELECTION.map((type) => (
-          <ExpertiseSelectItem key={type} type={type} />
-        ))}
-      </div>
-
-      <div className="flex gap-4">
-        <Button variant="outline">取消</Button>
-        <Button variant="default">儲存</Button>
-      </div>
+    <div className="mx-auto w-11/12 max-w-[630px] pb-20 pt-10">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-10">
+          <p className="mb-3 text-4xl font-bold">你的專長領域</p>
+          <div>
+            <div className="grid max-h-[600px] grid-cols-1 gap-4 overflow-scroll">
+              {EXPERTISE_SELECTION.map((type) => (
+                <ExpertiseSelectItem form={form} key={type} type={type} />
+              ))}
+            </div>
+          </div>
+          <div className="flex justify-center gap-4">
+            <Button
+              variant="outline"
+              className="grow rounded-full px-6  py-3 sm:grow-0"
+            >
+              之後再成為 Mentor
+            </Button>
+            <Button
+              variant="default"
+              className="grow rounded-full px-6 py-3 sm:grow-0"
+            >
+              建立我的 Mentor 頁面
+            </Button>
+          </div>
+        </form>
+      </Form>
     </div>
   );
 }
