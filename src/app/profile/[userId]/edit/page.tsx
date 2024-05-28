@@ -1,7 +1,8 @@
 'use client';
 import { zodResolver } from '@hookform/resolvers/zod';
+import ArrowBackIcon from '@mui/icons-material/ArrowBackIosNew';
 import ImageIcon from '@mui/icons-material/ImageOutlined';
-import { PlusIcon } from '@radix-ui/react-icons';
+import { Pencil1Icon, PlusIcon } from '@radix-ui/react-icons';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -86,14 +87,21 @@ export default function Page() {
   const handleUploadAvatar = () => {
     alert('TODO: upload avatar');
   };
+  const handleGoToPrev = () => {};
   return (
     <div className="mx-auto w-11/12 max-w-[1064px] pb-20 pt-10">
       <div className="mb-10 flex justify-between">
-        <p className="mb-3 text-4xl font-bold">編輯個人頁面</p>
+        <div className="flex items-center gap-3">
+          <ArrowBackIcon
+            className="cursor-pointer sm:hidden"
+            onClick={handleGoToPrev}
+          />
+          <p className="text-4xl font-bold">編輯個人頁面</p>
+        </div>
         <div className="flex items-center gap-4">
           <Button
             variant="outline"
-            className="grow rounded-full px-6  py-3 sm:grow-0"
+            className="hidden grow rounded-full  px-6 py-3 sm:inline-flex sm:grow-0"
           >
             取消
           </Button>
@@ -107,22 +115,25 @@ export default function Page() {
       </div>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-10">
-          <div className="flex border-t-2 border-solid border-background-border pt-10">
-            <div className="w-2/5 max-w-80">
-              <p className="text-xl font-bold">個人頭像</p>
+          <div className="flex flex-col border-t-2 border-solid border-background-border pt-10 lg:flex-row">
+            <div className="max-w-80 grow">
+              <p className="mb-4 text-xl font-bold">個人頭像</p>
             </div>
             <div>
               <div
-                className="cursor-pointer rounded-full border-2 border-[#B7CBCB] bg-[#F4FCFC] p-5"
+                className="relative flex h-32 w-32 cursor-pointer items-center justify-center rounded-full border-2 border-[#B7CBCB] bg-[#F4FCFC] p-5"
                 onClick={handleUploadAvatar}
               >
                 <ImageIcon sx={{ fontSize: 80, color: '#B7CBCB' }} />
+                <div className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full border border-solid border-background-border bg-background-white">
+                  <Pencil1Icon />
+                </div>
               </div>
             </div>
           </div>
-          <div className="flex border-t-2 border-solid border-background-border pt-10">
-            <div className="w-2/5 max-w-80">
-              <p className="text-xl font-bold">姓名</p>
+          <div className="flex flex-col border-t-2 border-solid border-background-border pt-10 lg:flex-row">
+            <div className="max-w-80 grow">
+              <p className="mb-4 text-xl font-bold">姓名</p>
             </div>
             <div className="grow">
               <FormField
@@ -139,9 +150,9 @@ export default function Page() {
               />
             </div>
           </div>
-          <div className="flex border-t-2 border-solid border-background-border pt-10">
-            <div className="w-2/5 max-w-80">
-              <p className="text-xl font-bold">Personal Statement</p>
+          <div className="flex flex-col border-t-2 border-solid border-background-border pt-10 lg:flex-row">
+            <div className="max-w-80 grow">
+              <p className="mb-4 text-xl font-bold">Personal Statement</p>
             </div>
             <div className="grow">
               <FormField
@@ -158,9 +169,9 @@ export default function Page() {
               />
             </div>
           </div>
-          <div className="flex border-t-2 border-solid border-background-border pt-10">
-            <div className="w-2/5 max-w-80">
-              <p className="text-xl font-bold">關於我</p>
+          <div className="flex flex-col border-t-2 border-solid border-background-border pt-10 lg:flex-row">
+            <div className="max-w-80 grow">
+              <p className="mb-4 text-xl font-bold">關於我</p>
             </div>
             <div className="grow">
               <FormField
@@ -177,9 +188,9 @@ export default function Page() {
               />
             </div>
           </div>
-          <div className="flex border-t-2 border-solid border-background-border pt-10">
-            <div className="w-2/5 max-w-80">
-              <p className="text-xl font-bold">職務級別</p>
+          <div className="flex flex-col border-t-2 border-solid border-background-border pt-10 lg:flex-row">
+            <div className="max-w-80 grow">
+              <p className="mb-4 text-xl font-bold">職務級別</p>
             </div>
             <div className="grow">
               <FormField
@@ -206,9 +217,9 @@ export default function Page() {
               />
             </div>
           </div>
-          <div className="flex border-t-2 border-solid border-background-border pt-10">
-            <div className="w-2/5 max-w-80">
-              <p className="text-xl font-bold">工作經驗</p>
+          <div className="flex flex-col border-t-2 border-solid border-background-border pt-10 lg:flex-row">
+            <div className="max-w-80 grow">
+              <p className="mb-4 text-xl font-bold">工作經驗</p>
             </div>
             <div className="grow">
               <div className="block grow gap-6 md:flex">
@@ -244,7 +255,7 @@ export default function Page() {
                   control={form.control}
                   name="jobPeriodStart"
                   render={({ field }) => (
-                    <FormItem className="mb-4 grow basis-1/2">
+                    <FormItem className="mb-0 grow basis-1/2 md:mb-4">
                       <FormLabel>Period</FormLabel>
                       <Select
                         onValueChange={field.onChange}
@@ -263,15 +274,20 @@ export default function Page() {
                     </FormItem>
                   )}
                 />
-                <p className="relative bottom-[-8px] mx-2 my-auto text-center">
+                <p className="relative bottom-[-8px] mx-2 my-auto hidden text-center md:block">
                   ~
+                </p>
+                <p className="relative bottom-[-8px] mx-2 my-auto text-center text-sm md:hidden">
+                  to
                 </p>
                 <FormField
                   control={form.control}
                   name="jobPeriodEnd"
                   render={({ field }) => (
-                    <FormItem className="mb-4 grow basis-1/2">
-                      <FormLabel>&nbsp;</FormLabel>
+                    <FormItem className="my-4 grow basis-1/2 md:mb-4 md:mt-0">
+                      <FormLabel className="hidden md:inline-block">
+                        &nbsp;
+                      </FormLabel>
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
@@ -362,9 +378,9 @@ export default function Page() {
               </Button>
             </div>
           </div>
-          <div className="flex border-t-2 border-solid border-background-border pt-10">
-            <div className="w-2/5 max-w-80">
-              <p className="text-xl font-bold">教育</p>
+          <div className="flex flex-col border-t-2 border-solid border-background-border pt-10 lg:flex-row">
+            <div className="max-w-80 grow">
+              <p className="mb-4 text-xl font-bold">教育</p>
             </div>
             <div className="grow">
               <div className="block grow gap-6 md:flex">
@@ -401,7 +417,7 @@ export default function Page() {
                     control={form.control}
                     name="educationPeriodStart"
                     render={({ field }) => (
-                      <FormItem className="mb-4 grow basis-1/4">
+                      <FormItem className="mb-0 grow basis-1/2 sm:mb-4">
                         <FormLabel>Period</FormLabel>
                         <Select
                           onValueChange={field.onChange}
@@ -420,15 +436,20 @@ export default function Page() {
                       </FormItem>
                     )}
                   />
-                  <p className="relative bottom-[-8px] mx-2 my-auto text-center">
+                  <p className="relative bottom-[-8px] mx-2 my-auto hidden text-center md:block">
                     ~
+                  </p>
+                  <p className="relative bottom-[-8px] mx-2 my-auto text-center text-sm md:hidden">
+                    to
                   </p>
                   <FormField
                     control={form.control}
                     name="educationPeriodEnd"
                     render={({ field }) => (
-                      <FormItem className="mb-4 grow basis-1/4">
-                        <FormLabel>&nbsp;</FormLabel>
+                      <FormItem className="my-4 grow basis-1/2 sm:mb-4 sm:mt-0">
+                        <FormLabel className="hidden sm:inline-block">
+                          &nbsp;
+                        </FormLabel>
                         <Select
                           onValueChange={field.onChange}
                           defaultValue={field.value}
@@ -480,9 +501,9 @@ export default function Page() {
               </Button>
             </div>
           </div>
-          <div className="flex border-t-2 border-solid border-background-border pt-10">
-            <div className="w-2/5 max-w-80">
-              <p className="text-xl font-bold">個人連結</p>
+          <div className="flex flex-col border-t-2 border-solid border-background-border pt-10 lg:flex-row">
+            <div className="max-w-80 grow">
+              <p className="mb-4 text-xl font-bold">個人連結</p>
             </div>
             <div className="grow">
               <FormField
