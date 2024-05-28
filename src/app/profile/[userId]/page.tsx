@@ -39,7 +39,7 @@ export default function Page({
     <div>
       <div className="relative h-[111px] bg-gradient-to-br from-[#92e7e7] to-[#e7a0d4] sm:h-[100px]" />
 
-      <div className="container mb-20">
+      <div className="container mb-20 max-w-[1024px]">
         <div className="flex h-auto -translate-y-10 flex-col justify-between sm:relative sm:h-[160px] sm:flex-row lg:static">
           <div className="flex flex-col items-center gap-6 sm:flex-row">
             <div className="relative h-[160px] w-[160px] flex-shrink-0 overflow-hidden rounded-full bg-background-white">
