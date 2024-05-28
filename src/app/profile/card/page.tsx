@@ -1,8 +1,12 @@
 'use client';
+import { useRouter } from 'next/navigation';
+
 import { ProfileCard } from '@/components/profile/ProfileCard';
 import { Button } from '@/components/ui/button';
 
 export default function Page() {
+  const router = useRouter();
+
   return (
     <div className="mx-auto w-11/12 max-w-[630px] pb-20 pt-10">
       <div className="text-center">
@@ -36,6 +40,7 @@ export default function Page() {
         <Button
           variant="outline"
           className="grow rounded-full px-6  py-3 sm:grow-0"
+          onClick={() => router.push('/profile/expertise')}
         >
           成為 Mentor
         </Button>
