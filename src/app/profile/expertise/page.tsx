@@ -1,5 +1,6 @@
 'use client';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useRouter } from 'next/router';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -20,12 +21,15 @@ const onSubmit = (values: z.infer<typeof formSchema>) => {
 };
 
 export default function Page() {
+  const router = useRouter();
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       expertise: [],
     },
   });
+
   return (
     <div className="mx-auto w-11/12 max-w-[630px] pb-20 pt-10">
       <Form {...form}>
@@ -48,6 +52,7 @@ export default function Page() {
             <Button
               variant="default"
               className="grow rounded-full px-6 py-3 sm:grow-0"
+              onClick={() => router.push('/profile/kai')}
             >
               建立我的 Mentor 頁面
             </Button>
