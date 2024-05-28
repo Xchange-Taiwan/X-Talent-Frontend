@@ -32,12 +32,16 @@ const formSchema = z.object({
   seniority: z.string({ required_error: '請選擇職務級別' }),
   job: z.string(),
   company: z.string(),
-  periodStart: z.string(),
-  periodEnd: z.string(),
+  jobPeriodStart: z.string(),
+  jobPeriodEnd: z.string(),
   industry: z.string(),
-  location: z.string(),
+  jobLocation: z.string(),
+  description: z.string(),
   subject: z.string(),
   school: z.string(),
+  educationPeriodStart: z.string(),
+  educationPeriodEnd: z.string(),
+  educationLocation: z.string(),
   linkedin: z.string(),
   facebook: z.string(),
   instagram: z.string(),
@@ -61,12 +65,16 @@ export default function Page() {
       seniority: '',
       job: '',
       company: '',
-      periodStart: '',
-      periodEnd: '',
+      jobPeriodStart: '',
+      jobPeriodEnd: '',
       industry: '',
-      location: '',
+      jobLocation: '',
+      description: '',
       subject: '',
       school: '',
+      educationPeriodStart: '',
+      educationPeriodEnd: '',
+      educationLocation: '',
       linkedin: '',
       facebook: '',
       instagram: '',
@@ -161,7 +169,7 @@ export default function Page() {
                 render={({ field }) => (
                   <FormItem>
                     <FormControl>
-                      <Textarea {...field} className="!min-h-48" />
+                      <Textarea {...field} className="h-48" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -234,7 +242,7 @@ export default function Page() {
               <div className="block grow md:flex">
                 <FormField
                   control={form.control}
-                  name="periodStart"
+                  name="jobPeriodStart"
                   render={({ field }) => (
                     <FormItem className="mb-4 grow basis-1/2">
                       <FormLabel>Period</FormLabel>
@@ -260,7 +268,7 @@ export default function Page() {
                 </p>
                 <FormField
                   control={form.control}
-                  name="periodEnd"
+                  name="jobPeriodEnd"
                   render={({ field }) => (
                     <FormItem className="mb-4 grow basis-1/2">
                       <FormLabel>&nbsp;</FormLabel>
@@ -308,7 +316,7 @@ export default function Page() {
                 />
                 <FormField
                   control={form.control}
-                  name="location"
+                  name="jobLocation"
                   render={({ field }) => (
                     <FormItem className="mb-4 grow basis-1/2">
                       <FormLabel>地點</FormLabel>
@@ -333,12 +341,12 @@ export default function Page() {
               <div className="grow">
                 <FormField
                   control={form.control}
-                  name="about"
+                  name="description"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>描述</FormLabel>
                       <FormControl>
-                        <Textarea {...field} className="!min-h-24" />
+                        <Textarea {...field} className="h-24" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -391,7 +399,7 @@ export default function Page() {
                 <div className="block grow basis-1/2 md:flex">
                   <FormField
                     control={form.control}
-                    name="periodStart"
+                    name="educationPeriodStart"
                     render={({ field }) => (
                       <FormItem className="mb-4 grow basis-1/4">
                         <FormLabel>Period</FormLabel>
@@ -417,7 +425,7 @@ export default function Page() {
                   </p>
                   <FormField
                     control={form.control}
-                    name="periodEnd"
+                    name="educationPeriodEnd"
                     render={({ field }) => (
                       <FormItem className="mb-4 grow basis-1/4">
                         <FormLabel>&nbsp;</FormLabel>
@@ -441,7 +449,7 @@ export default function Page() {
                 </div>
                 <FormField
                   control={form.control}
-                  name="location"
+                  name="educationLocation"
                   render={({ field }) => (
                     <FormItem className="mb-4 grow basis-1/2">
                       <FormLabel>地點</FormLabel>
@@ -502,7 +510,7 @@ export default function Page() {
                 name="facebook"
                 render={({ field }) => (
                   <FormItem className="mb-4">
-                    <FormLabel>facebook</FormLabel>
+                    <FormLabel>Facebook</FormLabel>
                     <div className="flex items-center">
                       <div className="mr-3 h-5 w-5 bg-[url('/profile/edit/linkedin-logo.svg')] bg-contain bg-no-repeat"></div>
                       <FormControl>
