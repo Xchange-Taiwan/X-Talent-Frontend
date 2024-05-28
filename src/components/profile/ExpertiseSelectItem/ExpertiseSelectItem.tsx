@@ -24,7 +24,7 @@ type ExpertiseType =
   | 'Graphic Design';
 interface Props {
   type: ExpertiseType;
-  form: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
+  form?: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
 }
 
 export const ExpertiseSelectItem: FC<Props> = ({ form, type }) => {
@@ -40,6 +40,18 @@ export const ExpertiseSelectItem: FC<Props> = ({ form, type }) => {
         return "bg-[url('/profile/graphic-design.svg')]";
     }
   };
+
+  if (!form) {
+    return (
+      <div className="flex items-start gap-4 rounded-xl border border-gray-200 px-4 py-3">
+        <div className={`h-10 w-10 ${getIconClassName(type)}`}></div>
+        <div>
+          <p className="text-base font-normal text-text-primary">{type}</p>
+          <p className="text-sm text-text-tertiary">文案待 PM 補上</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <FormField
