@@ -6,7 +6,11 @@ import { Button } from '../ui/button';
 
 export const JoinWaitingList: FC<{ children: ReactNode }> = ({ children }) => {
   const handleJoinWaitingList = () => {
-    console.log('Join Waiting List');
+    window.open(
+      'https://www.surveycake.com/s/2O4aw',
+      '_blank',
+      'noreferrer noopener',
+    );
   };
 
   return (
