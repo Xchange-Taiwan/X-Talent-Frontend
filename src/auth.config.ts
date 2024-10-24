@@ -1,8 +1,6 @@
-import md5 from 'crypto-js/md5';
 import type { NextAuthConfig } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
-import { getUserByEmail } from './data/user';
 import { SignInSchema } from './schemas/auth';
 
 export default {
@@ -10,18 +8,26 @@ export default {
     CredentialsProvider({
       async authorize(credentials) {
         const validatedFields = SignInSchema.safeParse(credentials);
-
         if (validatedFields.success) {
           const { email, password } = validatedFields.data;
 
-          const user = await getUserByEmail(email);
-          if (!user || !user.password) return null;
+          // TODO : 待處理串接 API
+          const res = await fetch('http://localhost:3000/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: email,
+              password: password,
+            }),
+          });
 
-          const passwordsMatch = md5(password).toString() === user.password;
-
-          if (passwordsMatch) return user;
+          // TODO : 待處理 user 資訊
+          const user = await res.json();
+          if (res.ok && user.token) {
+            return { id: user.id, email: user.email, token: user.token };
+          }
+          return null;
         }
-
         return null;
       },
     }),
