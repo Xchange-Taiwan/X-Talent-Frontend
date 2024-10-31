@@ -32,6 +32,7 @@ export default function Page() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
+      avatar: undefined,
       region: 'TAIPEI',
       experience: undefined,
       industry: undefined,

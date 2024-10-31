@@ -5,6 +5,7 @@ const linkedinProfileUrlRegex =
 
 export const formSchema = z.object({
   name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
+  avatar: z.instanceof(File).optional(),
   region: z.string({ required_error: '請選擇地區' }),
   experience: z.string().optional(),
   industry: z.string().optional(),
