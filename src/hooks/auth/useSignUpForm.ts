@@ -4,15 +4,16 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
+import { AuthFormProps } from '@/components/auth/types';
 import { useToast } from '@/components/ui/use-toast';
 import { SignUpSchema } from '@/schemas/auth';
 import { signUp } from '@/services/auth/signUp';
 import { AuthResponse } from '@/services/auth/types';
 
-import { SignUpFormProps } from '../../components/auth/signup/types';
 import { handleSignUpError } from '../../services/auth/signUpErrorHandler';
+type SignUpValues = z.infer<typeof SignUpSchema>;
 
-export default function useSignUpForm(): SignUpFormProps {
+export default function useSignUpForm(): AuthFormProps<SignUpValues> {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();

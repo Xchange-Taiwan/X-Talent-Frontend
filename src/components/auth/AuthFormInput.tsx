@@ -15,6 +15,7 @@ interface AuthFormInputProps<T extends FieldValues> {
   placeholder: string;
   type?: string;
   control: Control<T>;
+  forgotPasswordLink?: React.ReactNode;
 }
 
 const AuthFormInput = <T extends FieldValues>({
@@ -23,6 +24,7 @@ const AuthFormInput = <T extends FieldValues>({
   placeholder,
   type = 'text',
   control,
+  forgotPasswordLink,
 }: AuthFormInputProps<T>) => {
   return (
     <FormField
@@ -35,6 +37,7 @@ const AuthFormInput = <T extends FieldValues>({
             <Input placeholder={placeholder} type={type} {...field} />
           </FormControl>
           <FormMessage />
+          {forgotPasswordLink}
         </FormItem>
       )}
     />

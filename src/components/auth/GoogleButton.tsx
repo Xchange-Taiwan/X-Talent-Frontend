@@ -1,5 +1,3 @@
-import React from 'react';
-
 import { GoogleColor } from '@/components/Icon';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';

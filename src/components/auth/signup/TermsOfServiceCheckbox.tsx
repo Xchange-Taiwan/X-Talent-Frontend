@@ -1,13 +1,11 @@
 import Link from 'next/link';
-import React from 'react';
 import { Control } from 'react-hook-form';
 import * as z from 'zod';
 
+import { linkStyle } from '@/components/auth/constants';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FormField, FormMessage } from '@/components/ui/form';
 import { SignUpSchema } from '@/schemas/auth';
-
-import { linkStyle } from './constants';
 
 interface TermsOfServiceCheckboxProps {
   control: Control<z.infer<typeof SignUpSchema>>;

@@ -1,9 +1,9 @@
 import { AuthFormFieldType } from '@/components/auth/types';
 
-export const formFieldData: AuthFormFieldType<'signup'>[] = [
+export const formFieldData: AuthFormFieldType<'signin'>[] = [
   {
     name: 'email',
-    label: '輸入電子郵件',
+    label: '電子郵件地址',
     placeholder: '請填入您的 E-mail',
     type: 'text',
   },
@@ -11,12 +11,6 @@ export const formFieldData: AuthFormFieldType<'signup'>[] = [
     name: 'password',
     label: '登入密碼',
     placeholder: '請輸入密碼',
-    type: 'password',
-  },
-  {
-    name: 'confirm_password',
-    label: '再次輸入密碼',
-    placeholder: '請再次輸入密碼',
     type: 'password',
   },
 ];
