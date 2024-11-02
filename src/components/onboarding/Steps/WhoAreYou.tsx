@@ -1,10 +1,10 @@
 'use client';
 
-import ImageIcon from '@mui/icons-material/ImageOutlined';
 import { FC } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
+import AvatarUpload from '@/components/ui/avatarUpload';
 import {
   FormControl,
   FormField,
@@ -21,20 +21,13 @@ interface Props {
 }
 
 export const WhoAreYou: FC<Props> = ({ form }) => {
-  const handleUploadAvatar = () => {
-    alert('TODO: upload avatar');
-  };
-
   return (
     <>
-      <div className="mb-10 flex">
-        <div
-          className="cursor-pointer rounded-full border-2 border-[#B7CBCB] bg-[#F4FCFC] p-10"
-          onClick={handleUploadAvatar}
-        >
-          <ImageIcon sx={{ fontSize: 80, color: '#B7CBCB' }} />
-        </div>
-      </div>
+      <AvatarUpload
+        control={form.control}
+        name="avatar"
+        maxSize={2 * 1024 * 1024}
+      />
 
       <FormField
         control={form.control}
