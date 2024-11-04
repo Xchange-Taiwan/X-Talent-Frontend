@@ -16,4 +16,5 @@ export type AuthFormFieldType<T extends AuthPageType> = {
   label: string;
   placeholder: string;
   type: string;
+  autocomplete: string;
 };

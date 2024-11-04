@@ -29,6 +29,7 @@ export default function SignUpForm({
               placeholder={field.placeholder}
               type={field.type}
               control={form.control}
+              autocomplete={field.autocomplete}
             />
           ))}
           <TermsOfServiceCheckbox control={form.control} />

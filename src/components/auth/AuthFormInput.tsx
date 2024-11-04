@@ -16,6 +16,7 @@ interface AuthFormInputProps<T extends FieldValues> {
   type?: string;
   control: Control<T>;
   forgotPasswordLink?: React.ReactNode;
+  autocomplete: string;
 }
 
 const AuthFormInput = <T extends FieldValues>({
@@ -25,6 +26,7 @@ const AuthFormInput = <T extends FieldValues>({
   type = 'text',
   control,
   forgotPasswordLink,
+  autocomplete,
 }: AuthFormInputProps<T>) => {
   return (
     <FormField
@@ -34,7 +36,13 @@ const AuthFormInput = <T extends FieldValues>({
         <FormItem>
           <FormLabel showErrorStyle={false}>{label}</FormLabel>
           <FormControl>
-            <Input placeholder={placeholder} type={type} {...field} />
+            <Input
+              placeholder={placeholder}
+              type={type}
+              autoComplete={autocomplete}
+              {...field}
+              value={field.value ?? ''}
+            />
           </FormControl>
           <FormMessage />
           {forgotPasswordLink}

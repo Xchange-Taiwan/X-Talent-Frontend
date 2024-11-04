@@ -28,6 +28,7 @@ export default function SignInForm({
               placeholder={field.placeholder}
               type={field.type}
               control={form.control}
+              autocomplete={field.autocomplete}
               forgotPasswordLink={
                 field.name === 'password' ? <ForgotPasswordLink /> : undefined
               }
