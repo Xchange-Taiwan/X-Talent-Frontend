@@ -4,6 +4,8 @@ declare namespace NodeJS {
     NEXTAUTH_SECRET: string;
     GITHUB_ID: string;
     GITHUB_SECRET: string;
+    GOOGLE_CLIENT_ID: string;
+    GOOGLE_CLIENT_SECRET: string;
     LINKEDIN_CLIENT_ID: string;
     LINKEDIN_CLIENT_SECRET: string;
   }

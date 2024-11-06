@@ -1,3 +1,5 @@
+import { signIn } from 'next-auth/react';
+
 import { GoogleColor } from '@/components/Icon';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -11,12 +13,17 @@ export default function GoogleSignUpButton({
 }: GoogleSignUpButtonProps) {
   const { toast } = useToast();
 
-  const handleGoogleSignUp = () => {
-    toast({
-      variant: 'default',
-      title: '註冊成功',
-      description: '請前往您的電子郵件信箱驗證您的帳號',
-    });
+  const handleGoogleSignUp = async () => {
+    try {
+      await signIn('google');
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: '註冊失敗',
+        description: '無法完成 Google 註冊，請稍後再試。',
+      });
+      return;
+    }
   };
 
   return (
