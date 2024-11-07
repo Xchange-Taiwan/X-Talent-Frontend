@@ -6,10 +6,12 @@ import { useToast } from '@/components/ui/use-toast';
 
 interface GoogleSignUpButtonProps {
   isSubmitting: boolean;
+  label: string;
 }
 
 export default function GoogleSignUpButton({
   isSubmitting,
+  label,
 }: GoogleSignUpButtonProps) {
   const { toast } = useToast();
 
@@ -34,7 +36,7 @@ export default function GoogleSignUpButton({
       onClick={handleGoogleSignUp}
     >
       <GoogleColor className="mr-3 text-xl" />
-      <span className="text-base">使用 Google 帳號註冊</span>
+      <span className="text-base">{label}</span>
     </Button>
   );
 }

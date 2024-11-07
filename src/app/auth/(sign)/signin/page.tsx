@@ -15,7 +15,10 @@ export default function AuthPage() {
         <AuthTitle>登入 Talents 帳戶</AuthTitle>
         <SignInForm {...signInFormProps} />
         <Divider>或</Divider>
-        <GoogleSignUpButton isSubmitting={signInFormProps.isSubmitting} />
+        <GoogleSignUpButton
+          isSubmitting={signInFormProps.isSubmitting}
+          label="使用 Google 帳號登入"
+        />
         <LinkedInSignInButton
           isSubmitting={signInFormProps.isSubmitting}
           label="使用 LinkedIn 帳號登入"
