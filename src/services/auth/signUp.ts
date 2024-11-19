@@ -2,14 +2,13 @@ import { z } from 'zod';
 
 import { SignUpSchema } from '@/schemas/auth';
 
+import { AuthResponse, createGeneralErrorResponse } from '../types';
 import {
   createEmailAlreadyRegisteredResponse,
-  createGeneralErrorResponse,
   createRateLimitResponse,
   createSignUpSuccessResponse,
   createValidationErrorResponse,
 } from './signupResponseHandlers';
-import { AuthResponse } from './types';
 
 export async function signUp(
   values: z.infer<typeof SignUpSchema>,

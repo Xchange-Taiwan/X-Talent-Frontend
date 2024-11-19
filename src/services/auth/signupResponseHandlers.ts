@@ -1,4 +1,4 @@
-import { AuthResponse } from './types';
+import { AuthResponse } from '../types';
 
 export const createSignUpSuccessResponse = (): AuthResponse => ({
   status: 'success',
@@ -25,14 +25,4 @@ export const createRateLimitResponse = (): AuthResponse => ({
   code: 429,
   httpStatus: 429,
   message: '您已超出最大註冊嘗試次數。請稍後再試。',
-});
-
-export const createGeneralErrorResponse = (
-  httpStatus: number,
-  message: string,
-): AuthResponse => ({
-  status: 'error',
-  code: httpStatus,
-  httpStatus,
-  message,
 });

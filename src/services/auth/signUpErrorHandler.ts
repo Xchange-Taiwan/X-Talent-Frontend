@@ -1,4 +1,4 @@
-import { AuthResponse } from '@/services/auth/types';
+import { AuthResponse } from '@/services/types';
 
 export const handleSignUpError = (
   result: AuthResponse,

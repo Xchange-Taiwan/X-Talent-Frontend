@@ -8,7 +8,7 @@ import { AuthFormProps } from '@/components/auth/types';
 import { useToast } from '@/components/ui/use-toast';
 import { SignUpSchema } from '@/schemas/auth';
 import { signUp } from '@/services/auth/signUp';
-import { AuthResponse } from '@/services/auth/types';
+import { AuthResponse } from '@/services/types';
 
 import { handleSignUpError } from '../../services/auth/signUpErrorHandler';
 type SignUpValues = z.infer<typeof SignUpSchema>;
@@ -34,6 +34,7 @@ export default function useSignUpForm(): AuthFormProps<SignUpValues> {
       const result = await signUp(values);
 
       if (result.status === 'success') {
+        sessionStorage.setItem('email', values.email);
         router.push('/auth/emailVerify');
         return;
       }
