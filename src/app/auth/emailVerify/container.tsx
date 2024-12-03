@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
-import { resendVerificationEmail } from '@/services/resend/resend';
+import { resendVerificationEmail } from '@/services/auth/resend';
 
 const EmailVerificationPage = dynamic(() => import('./ui'));
 
