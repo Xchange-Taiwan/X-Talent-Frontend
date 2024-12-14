@@ -2,7 +2,6 @@
 import AuthTitle from '@/components/auth/AuthTitle';
 import Divider from '@/components/auth/Divider';
 import GoogleSignUpButton from '@/components/auth/GoogleButton';
-import LinkedInSignUpButton from '@/components/auth/LinedinButton';
 import SignUpForm from '@/components/auth/signup/SignUpForm';
 import useSignUpForm from '@/hooks/auth/useSignUpForm';
 
@@ -18,10 +17,6 @@ export default function AuthPage() {
         <GoogleSignUpButton
           isSubmitting={signUpFormProps.isSubmitting}
           label="使用 Google 帳號註冊"
-        />
-        <LinkedInSignUpButton
-          isSubmitting={signUpFormProps.isSubmitting}
-          label="使用 LinkedIn 帳號註冊"
         />
       </div>
     </div>
