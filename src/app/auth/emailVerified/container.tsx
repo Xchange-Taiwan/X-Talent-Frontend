@@ -47,7 +47,7 @@ export default function EmailVerifiedContainer() {
 
   return (
     <EmailVerifiedPresentation
-      onSetProfile={() => router.push('/auth/onboarding')}
+      onSetProfile={() => router.push('/auth/signin')}
     />
   );
 }
