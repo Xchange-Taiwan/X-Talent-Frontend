@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'next/navigation';
+import { getSession } from 'next-auth/react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -13,7 +13,6 @@ type SignInValues = z.infer<typeof SignInSchema>;
 
 export default function useSignInForm(): AuthFormProps<SignInValues> {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const router = useRouter();
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof SignInSchema>>({
@@ -28,17 +27,22 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
     setIsSubmitting(true);
 
     try {
-      const error = await signIn(values);
+      await signIn(values);
+      const session = await getSession();
 
-      if (error) {
+      if (!session?.accessToken || session?.accessToken.length === 0) {
         toast({
           variant: 'destructive',
-          description: error.message,
+          description: 'Login failed: User data is missing',
           duration: 1000,
         });
+        return;
+      }
+
+      if (session?.user.onBoarding === false) {
+        window.location.href = '/auth/onboarding';
       } else {
-        // Handle successful sign-in (e.g., redirect to dashboard)
-        router.push('/dashboard');
+        window.location.href = '/mentorlist';
       }
     } catch (error) {
       console.error(error);

@@ -1,4 +1,5 @@
 'use client';
+
 import AuthTitle from '@/components/auth/AuthTitle';
 import Divider from '@/components/auth/Divider';
 import GoogleSignUpButton from '@/components/auth/GoogleButton';

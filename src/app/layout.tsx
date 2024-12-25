@@ -1,5 +1,7 @@
 import '../styles/global.css';
 
+import { SessionProvider } from 'next-auth/react';
+
 import { Footer } from '@/components/Layout/Footer';
 import { Header } from '@/components/Layout/Header';
 import { Toaster } from '@/components/ui/toaster';
@@ -20,12 +22,14 @@ export default function RootLayout({
   return (
     <html lang="zh-TW" className={notoSans.className}>
       <body id="app">
-        <div className="flex min-h-screen flex-col">
-          <Header />
-          <main className="grow pt-[70px]">{children}</main>
-          <Footer />
-        </div>
-        <Toaster />
+        <SessionProvider>
+          <div className="flex min-h-screen flex-col">
+            <Header />
+            <main className="grow pt-[70px]">{children}</main>
+            <Footer />
+          </div>
+          <Toaster />
+        </SessionProvider>
       </body>
     </html>
   );

@@ -1,40 +1,59 @@
 import type { NextAuthConfig } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import GoogleProvider from 'next-auth/providers/google';
+import Google from 'next-auth/providers/google';
 
-import { SignInSchema } from './schemas/auth';
+import { SignInSchema } from '@/schemas/auth';
 
 export default {
   providers: [
+    Google,
     CredentialsProvider({
       async authorize(credentials) {
         const validatedFields = SignInSchema.safeParse(credentials);
         if (validatedFields.success) {
           const { email, password } = validatedFields.data;
 
-          // TODO : 待處理串接 API
-          const res = await fetch('http://localhost:3000/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: email,
-              password: password,
-            }),
-          });
+          const res = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/auth/login`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, password }),
+            },
+          );
 
-          // TODO : 待處理 user 資訊
-          const user = await res.json();
-          if (res.ok && user.token) {
-            return { id: user.id, email: user.email, token: user.token };
+          const response = await res.json();
+
+          if (res.ok && response.data) {
+            return {
+              id: response.data.auth.user_id,
+              token: response.data.auth.token,
+              onBoarding: response.data.user.on_boarding,
+            };
           }
           return null;
         }
         return null;
       },
     }),
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    }),
   ],
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user && 'id' in user) {
+        token.id = user.id as string;
+        token.token = user.token as string;
+        token.onBoarding = user.onBoarding as boolean;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      session.user = {
+        id: token.id as string,
+        onBoarding: token.onBoarding as boolean,
+      };
+      session.accessToken = token.token as string;
+      return session;
+    },
+  },
+  secret: process.env.NEXTAUTH_SECRET,
 } satisfies NextAuthConfig;

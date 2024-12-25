@@ -4,13 +4,9 @@ import { AuthError } from 'next-auth';
 import * as z from 'zod';
 
 import { signIn as AuthSignIn } from '@/auth';
-import { DEFAULT_LOGIN_REDIRECT } from '@/routes';
 import { SignInSchema } from '@/schemas/auth';
 
-export const signIn = async (
-  values: z.infer<typeof SignInSchema>,
-  callbackUrl?: string | null,
-) => {
+export const signIn = async (values: z.infer<typeof SignInSchema>) => {
   const validatedFields = SignInSchema.safeParse(values);
 
   if (!validatedFields.success) {
@@ -23,7 +19,7 @@ export const signIn = async (
     await AuthSignIn('credentials', {
       email,
       password,
-      redirectTo: callbackUrl || DEFAULT_LOGIN_REDIRECT,
+      redirect: false,
     });
   } catch (error) {
     if (error instanceof AuthError) {

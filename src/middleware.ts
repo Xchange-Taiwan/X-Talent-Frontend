@@ -1,9 +1,4 @@
-import {
-  apiAuthPrefix,
-  authRoutes,
-  DEFAULT_LOGIN_REDIRECT,
-  publicRoutes,
-} from '@/routes';
+import { apiAuthPrefix, DEFAULT_LOGIN, publicRoutes } from '@/routes';
 
 import { auth } from './auth';
 
@@ -12,24 +7,14 @@ export default auth((req) => {
   const isLoggedIn = !!req.auth;
 
   const isApiAuthRoute = nextUrl.pathname.startsWith(apiAuthPrefix);
-  const isAuthRoute = authRoutes.includes(nextUrl.pathname);
   const isPublicRoute = publicRoutes.includes(nextUrl.pathname);
 
   if (isApiAuthRoute) {
     return null;
   }
 
-  if (isAuthRoute && isLoggedIn) {
-    if (nextUrl.pathname === '/auth/signin') {
-      return Response.redirect(new URL('/auth/onboarding', nextUrl));
-    } else if (nextUrl.pathname === '/auth/signup') {
-      return Response.redirect(new URL('/auth/emailVerify', nextUrl));
-    }
-    return Response.redirect(new URL(DEFAULT_LOGIN_REDIRECT, nextUrl));
-  }
-
   if (!isPublicRoute && !isLoggedIn) {
-    return Response.redirect(new URL('/auth/signin', nextUrl));
+    return Response.redirect(new URL(DEFAULT_LOGIN, nextUrl));
   }
 
   return null;
