@@ -22,7 +22,7 @@ import {
 
 import {
   industryOptions,
-  regionOptions,
+  locationOptions,
   totalWorkSpanOptions,
 } from './constant';
 import { formSchema } from './index';
@@ -37,7 +37,7 @@ export const PersonalInfo: FC<Props> = ({ form }) => {
       <div className="flex flex-col gap-4">
         <FormField
           control={form.control}
-          name="region"
+          name="location"
           render={({ field }) => (
             <FormItem>
               <FormLabel>地區</FormLabel>
@@ -48,7 +48,7 @@ export const PersonalInfo: FC<Props> = ({ form }) => {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {regionOptions.map((option) => (
+                  {locationOptions.map((option) => (
                     <SelectItem
                       key={`region ${option.value}`}
                       value={option.value}
@@ -65,7 +65,7 @@ export const PersonalInfo: FC<Props> = ({ form }) => {
 
         <FormField
           control={form.control}
-          name="experience"
+          name="years_of_experience"
           render={({ field }) => (
             <FormItem>
               <FormLabel>經驗</FormLabel>
@@ -121,7 +121,7 @@ export const PersonalInfo: FC<Props> = ({ form }) => {
 
         <FormField
           control={form.control}
-          name="jobTitle"
+          name="job_title"
           render={({ field }) => (
             <FormItem>
               <FormLabel showErrorStyle={false}>職稱 (選填)</FormLabel>
@@ -149,7 +149,7 @@ export const PersonalInfo: FC<Props> = ({ form }) => {
 
         <FormField
           control={form.control}
-          name="linkedinUrl"
+          name="linkedin_profile"
           render={({ field }) => (
             <FormItem>
               <FormLabel showErrorStyle={false}>

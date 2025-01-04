@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { useMultiStepForm } from '@/hooks/useMultiStepForm';
+import { updateProfile } from '@/services/auth/updateProfile';
 
 const STEP_TITLE = [
   '該如何稱呼你呢？',
@@ -32,16 +33,17 @@ export default function Page() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
-      avatar: undefined,
-      region: 'TAIPEI',
-      experience: undefined,
-      industry: undefined,
-      jobTitle: '',
+      avatar: '',
+      location: 'TWN',
+      years_of_experience: '',
+      industry: '',
+      job_title: '',
       company: '',
-      linkedinUrl: '',
-      interestedRole: [],
-      skillEnhancementTarget: [],
-      talkTopic: [],
+      linkedin_profile: '',
+      interested_positions: [],
+      skills: [],
+      topics: [],
+      language: 'zh_TW',
     },
   });
 
@@ -68,16 +70,11 @@ export default function Page() {
     goToPrev();
   };
 
-  // TODO: 待處理串接 API
   const onSubmit = (values: z.infer<typeof formSchema>) => {
-    console.log(values);
-
     handleGoToNext();
 
     if (isLastStep) {
-      console.log('Fire Submit API');
-      console.log(values);
-
+      updateProfile(values);
       router.push('/profile/card');
     }
   };

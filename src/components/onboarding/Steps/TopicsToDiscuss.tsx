@@ -47,7 +47,7 @@ export const TopicsToDiscuss: FC<Props> = ({ form }) => {
           <FormField
             key={option.value}
             control={form.control}
-            name="talkTopic"
+            name="topics"
             render={({ field }) => {
               return (
                 <FormItem

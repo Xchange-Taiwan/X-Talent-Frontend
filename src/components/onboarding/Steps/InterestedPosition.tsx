@@ -27,7 +27,7 @@ export const InterestedPosition: FC<Props> = ({ form }) => {
         <FormField
           key={option.value}
           control={form.control}
-          name="interestedRole"
+          name="interested_positions"
           render={({ field }) => {
             return (
               <FormItem
