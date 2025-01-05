@@ -19,16 +19,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { IndustryType } from '@/services/user/industry/industry';
 
-import { industryOptions, totalWorkSpanOptions } from './constant';
+import { totalWorkSpanOptions } from './constant';
 import { formSchema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
   locationOptions: { value: string; text: string }[];
+  industryOptions: IndustryType[];
 }
 
-export const PersonalInfo: FC<Props> = ({ form, locationOptions }) => {
+export const PersonalInfo: FC<Props> = ({
+  form,
+  locationOptions,
+  industryOptions,
+}) => {
   return (
     <>
       <div className="flex flex-col gap-4">
@@ -103,10 +109,10 @@ export const PersonalInfo: FC<Props> = ({ form, locationOptions }) => {
                 <SelectContent>
                   {industryOptions.map((option) => (
                     <SelectItem
-                      key={`industry ${option.value}`}
-                      value={option.value}
+                      key={`industry ${option.subject_group}`}
+                      value={option.subject_group}
                     >
-                      {option.text}
+                      {option.subject}
                     </SelectItem>
                   ))}
                 </SelectContent>

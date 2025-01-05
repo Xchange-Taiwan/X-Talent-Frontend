@@ -26,22 +26,6 @@ export enum TotalWorkSpanEnum {
 export const totalWorkSpanOptions = enumToOptionsArray(TotalWorkSpanEnum);
 
 /**
- * 產業類別
- */
-export enum IndustryEnum {
-  SOFTWARE_AND_NETWORK = '軟體及網路相關',
-  TELECOMUNICATION = '電信及通訊相關',
-  COMPUTER_AND_CONSUMER_ELECTRONICS = '電腦及消費性電子製造業',
-  SEMICONDUCTOR = '半導體業',
-  FINANCE = '金融業',
-  CONSULTING = '顧問業',
-  STUDENT = '學生',
-  OTHER = '其他',
-}
-
-export const industryOptions = enumToOptionsArray(IndustryEnum);
-
-/**
  * 有興趣的職位或領域
  */
 export enum InterestedRoleEnum {

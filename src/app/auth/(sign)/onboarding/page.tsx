@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { useMultiStepForm } from '@/hooks/useMultiStepForm';
 import useLocationOptions from '@/hooks/user/country/useLocationOptions';
+import useIndustry from '@/hooks/user/industry/useIndustry';
 import useInterests from '@/hooks/user/interests/useInterests';
 import { updateProfile } from '@/services/auth/updateProfile';
 
@@ -51,6 +52,7 @@ export default function Page() {
 
   const { locationOptions } = useLocationOptions('zh_TW');
   const { interestedPosition, skill, topic } = useInterests('zh_TW');
+  const { industries } = useIndustry('zh_TW');
 
   const {
     stepElement,
@@ -65,6 +67,7 @@ export default function Page() {
       key="PersonalInfo"
       form={form}
       locationOptions={locationOptions}
+      industryOptions={industries}
     />,
     <InterestedPosition
       key="InterestedPosition"

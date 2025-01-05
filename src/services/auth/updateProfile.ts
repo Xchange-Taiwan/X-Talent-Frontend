@@ -22,7 +22,6 @@ export async function updateProfile(
     const updatedProfileData = {
       ...profileData,
       user_id: userId,
-      industry: 'design',
     };
 
     const response = await fetch(
