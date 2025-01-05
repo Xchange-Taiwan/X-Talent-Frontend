@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 
-import { fetchInterests, Interest } from '@/services/user/interests/interests';
+import { fetchInterests, InterestType } from '@/services/user/interests';
 
 const useInterests = (language: string) => {
-  const [interestedPosition, setInterestedPosition] = useState<Interest[]>([]);
-  const [skill, setSkill] = useState<Interest[]>([]);
-  const [topic, setTopic] = useState<Interest[]>([]);
+  const [interestedPositions, setInterestedPositions] = useState<
+    InterestType[]
+  >([]);
+  const [skills, setSkills] = useState<InterestType[]>([]);
+  const [topics, setTopics] = useState<InterestType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,9 +22,9 @@ const useInterests = (language: string) => {
         fetchInterests(language, 'TOPIC'),
       ]);
 
-      setInterestedPosition(positions);
-      setSkill(skills);
-      setTopic(topics);
+      setInterestedPositions(positions);
+      setSkills(skills);
+      setTopics(topics);
     } catch (err) {
       console.error('Failed to load interests:', err);
       setError('Failed to load interests');
@@ -35,7 +37,7 @@ const useInterests = (language: string) => {
     loadInterests();
   }, [language]);
 
-  return { interestedPosition, skill, topic, loading, error };
+  return { interestedPositions, skills, topics, loading, error };
 };
 
 export default useInterests;

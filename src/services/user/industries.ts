@@ -18,7 +18,9 @@ interface IndustryResponse {
   };
 }
 
-export async function fetchIndustry(language: string): Promise<IndustryType[]> {
+export async function fetchIndustries(
+  language: string,
+): Promise<IndustryType[]> {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/users/${language}/industries`,

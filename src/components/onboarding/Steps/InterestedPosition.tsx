@@ -12,19 +12,22 @@ import {
   FormLabel,
 } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
-import { Interest } from '@/services/user/interests/interests';
+import { InterestType } from '@/services/user/interests';
 
 import { formSchema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
-  interestedPosition: Interest[];
+  interestedPositionOptions: InterestType[];
 }
 
-export const InterestedPosition: FC<Props> = ({ form, interestedPosition }) => {
+export const InterestedPosition: FC<Props> = ({
+  form,
+  interestedPositionOptions,
+}) => {
   return (
     <div className="flex flex-wrap gap-3">
-      {interestedPosition.map((option) => (
+      {interestedPositionOptions.map((option) => (
         <FormField
           key={option.subject_group}
           control={form.control}

@@ -12,20 +12,20 @@ import {
   FormLabel,
 } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
-import { Interest } from '@/services/user/interests/interests';
+import { InterestType } from '@/services/user/interests';
 
 import { formSchema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
-  topic: Interest[];
+  topicOptions: InterestType[];
 }
 
-export const TopicsToDiscuss: FC<Props> = ({ form, topic }) => {
+export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {
   return (
     <>
       <div className="grid grid-cols-1 gap-4">
-        {topic.map((option) => (
+        {topicOptions.map((option) => (
           <FormField
             key={option.subject_group}
             control={form.control}

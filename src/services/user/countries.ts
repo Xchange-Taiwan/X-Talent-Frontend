@@ -1,3 +1,8 @@
+export interface LocationType {
+  value: string;
+  text: string;
+}
+
 interface CountryResponse {
   code: string;
   msg: string;
@@ -6,7 +11,7 @@ interface CountryResponse {
 
 export async function fetchCountries(
   language: string,
-): Promise<{ value: string; text: string }[]> {
+): Promise<LocationType[]> {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/users/${language}/countries`,
@@ -24,10 +29,14 @@ export async function fetchCountries(
 
     const data: CountryResponse = await response.json();
 
-    return Object.entries(data.data).map(([key, value]) => ({
-      value: key,
-      text: value,
-    }));
+    const countries: LocationType[] = Object.entries(data.data).map(
+      ([key, value]) => ({
+        value: key,
+        text: value,
+      }),
+    );
+
+    return countries;
   } catch (error) {
     console.error('獲取國家資料失敗:', error);
     return [];

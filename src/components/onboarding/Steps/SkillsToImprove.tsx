@@ -12,20 +12,20 @@ import {
   FormLabel,
 } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
-import { Interest } from '@/services/user/interests/interests';
+import { InterestType } from '@/services/user/interests';
 
 import { formSchema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
-  skill: Interest[];
+  skillOptions: InterestType[];
 }
 
-export const SkillsToImprove: FC<Props> = ({ form, skill }) => {
+export const SkillsToImprove: FC<Props> = ({ form, skillOptions }) => {
   return (
     <>
       <div className="grid grid-cols-2 gap-4">
-        {skill.map((option) => (
+        {skillOptions.map((option) => (
           <FormField
             key={option.subject_group}
             control={form.control}

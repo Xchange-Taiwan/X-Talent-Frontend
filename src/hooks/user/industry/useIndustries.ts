@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 
-import { fetchIndustry, IndustryType } from '@/services/user/industry/industry';
+import { fetchIndustries, IndustryType } from '@/services/user/industries';
 
-const useIndustry = (language: string) => {
+const useIndustries = (language: string) => {
   const [industries, setIndustries] = useState<IndustryType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -12,7 +12,7 @@ const useIndustry = (language: string) => {
       setLoading(true);
       setError(null);
 
-      const industriesData = await fetchIndustry(language);
+      const industriesData = await fetchIndustries(language);
       setIndustries(industriesData);
     } catch (err) {
       console.error('Failed to load industries:', err);
@@ -29,4 +29,4 @@ const useIndustry = (language: string) => {
   return { industries, loading, error };
 };
 
-export default useIndustry;
+export default useIndustries;

@@ -1,4 +1,4 @@
-export interface Interest {
+export interface InterestType {
   id: number;
   category: string;
   language: string;
@@ -14,7 +14,7 @@ interface InterestResponse {
   code: string;
   msg: string;
   data: {
-    interests: Interest[];
+    interests: InterestType[];
     language: string | null;
   };
 }
@@ -22,7 +22,7 @@ interface InterestResponse {
 export async function fetchInterests(
   language: string,
   interest: string,
-): Promise<Interest[]> {
+): Promise<InterestType[]> {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/users/${language}/interests?interest=${interest}`,

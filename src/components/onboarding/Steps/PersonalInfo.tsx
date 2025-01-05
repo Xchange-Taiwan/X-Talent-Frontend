@@ -19,14 +19,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { IndustryType } from '@/services/user/industry/industry';
+import { LocationType } from '@/services/user/countries';
+import { IndustryType } from '@/services/user/industries';
 
 import { totalWorkSpanOptions } from './constant';
 import { formSchema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
-  locationOptions: { value: string; text: string }[];
+  locationOptions: LocationType[];
   industryOptions: IndustryType[];
 }
 

@@ -16,8 +16,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { useMultiStepForm } from '@/hooks/useMultiStepForm';
-import useLocationOptions from '@/hooks/user/country/useLocationOptions';
-import useIndustry from '@/hooks/user/industry/useIndustry';
+import useLocations from '@/hooks/user/country/useLocations';
+import useIndustries from '@/hooks/user/industry/useIndustries';
 import useInterests from '@/hooks/user/interests/useInterests';
 import { updateAvatar } from '@/services/auth/updateAvatar';
 import { updateProfile } from '@/services/auth/updateProfile';
@@ -52,9 +52,9 @@ export default function Page() {
     },
   });
 
-  const { locationOptions } = useLocationOptions('zh_TW');
-  const { interestedPosition, skill, topic } = useInterests('zh_TW');
-  const { industries } = useIndustry('zh_TW');
+  const { locations } = useLocations('zh_TW');
+  const { interestedPositions, skills, topics } = useInterests('zh_TW');
+  const { industries } = useIndustries('zh_TW');
 
   const {
     stepElement,
@@ -68,16 +68,16 @@ export default function Page() {
     <PersonalInfo
       key="PersonalInfo"
       form={form}
-      locationOptions={locationOptions}
+      locationOptions={locations}
       industryOptions={industries}
     />,
     <InterestedPosition
       key="InterestedPosition"
       form={form}
-      interestedPosition={interestedPosition}
+      interestedPositionOptions={interestedPositions}
     />,
-    <SkillsToImprove key="SkillsToImprove" form={form} skill={skill} />,
-    <TopicsToDiscuss key="TopicsToDiscuss" form={form} topic={topic} />,
+    <SkillsToImprove key="SkillsToImprove" form={form} skillOptions={skills} />,
+    <TopicsToDiscuss key="TopicsToDiscuss" form={form} topicOptions={topics} />,
   ]);
 
   const handleGoToNext = () => {
