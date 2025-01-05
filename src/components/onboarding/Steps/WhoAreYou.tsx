@@ -25,7 +25,7 @@ export const WhoAreYou: FC<Props> = ({ form }) => {
     <>
       <AvatarUpload
         control={form.control}
-        name="avatar"
+        name="avatarFile"
         maxSize={2 * 1024 * 1024}
       />
 

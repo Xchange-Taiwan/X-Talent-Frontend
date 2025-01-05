@@ -19,6 +19,7 @@ import { useMultiStepForm } from '@/hooks/useMultiStepForm';
 import useLocationOptions from '@/hooks/user/country/useLocationOptions';
 import useIndustry from '@/hooks/user/industry/useIndustry';
 import useInterests from '@/hooks/user/interests/useInterests';
+import { updateAvatar } from '@/services/auth/updateAvatar';
 import { updateProfile } from '@/services/auth/updateProfile';
 
 const STEP_TITLE = [
@@ -37,6 +38,7 @@ export default function Page() {
     defaultValues: {
       name: '',
       avatar: '',
+      avatarFile: undefined,
       location: 'TWN',
       years_of_experience: '',
       industry: '',
@@ -86,12 +88,24 @@ export default function Page() {
     goToPrev();
   };
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    handleGoToNext();
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    try {
+      handleGoToNext();
 
-    if (isLastStep) {
-      updateProfile(values);
-      router.push('/profile/card');
+      if (isLastStep) {
+        if (values.avatarFile) {
+          values.avatar = await updateAvatar(values.avatarFile);
+          values.avatarFile = undefined;
+        }
+
+        await updateProfile(values);
+        router.push('/profile/card');
+      }
+    } catch (error) {
+      console.error(
+        '提交失敗:',
+        error instanceof Error ? error.message : error,
+      );
     }
   };
 
