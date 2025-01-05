@@ -20,18 +20,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-import {
-  industryOptions,
-  locationOptions,
-  totalWorkSpanOptions,
-} from './constant';
+import { industryOptions, totalWorkSpanOptions } from './constant';
 import { formSchema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
+  locationOptions: { value: string; text: string }[];
 }
 
-export const PersonalInfo: FC<Props> = ({ form }) => {
+export const PersonalInfo: FC<Props> = ({ form, locationOptions }) => {
   return (
     <>
       <div className="flex flex-col gap-4">

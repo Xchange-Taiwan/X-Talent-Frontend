@@ -15,6 +15,7 @@ import {
 } from '@/components/onboarding/Steps';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
+import useLocationOptions from '@/hooks/countries/useLocationOptions';
 import { useMultiStepForm } from '@/hooks/useMultiStepForm';
 import { updateProfile } from '@/services/auth/updateProfile';
 
@@ -47,6 +48,8 @@ export default function Page() {
     },
   });
 
+  const { locationOptions } = useLocationOptions('zh_TW');
+
   const {
     stepElement,
     goToNext,
@@ -56,7 +59,11 @@ export default function Page() {
     stepsTotal,
   } = useMultiStepForm([
     <WhoAreYou key="WhoAreYou" form={form} />,
-    <PersonalInfo key="PersonalInfo" form={form} />,
+    <PersonalInfo
+      key="PersonalInfo"
+      form={form}
+      locationOptions={locationOptions}
+    />,
     <InterestedPosition key="InterestedPosition" form={form} />,
     <SkillsToImprove key="SkillsToImprove" form={form} />,
     <TopicsToDiscuss key="TopicsToDiscuss" form={form} />,
