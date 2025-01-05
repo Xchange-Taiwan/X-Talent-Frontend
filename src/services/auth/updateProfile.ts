@@ -22,9 +22,6 @@ export async function updateProfile(
     const updatedProfileData = {
       ...profileData,
       user_id: userId,
-      interested_positions: ['frontend_dev'],
-      skills: ['business_strategy'],
-      topics: ['industry_knowledge'],
       industry: 'design',
     };
 

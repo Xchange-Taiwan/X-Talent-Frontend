@@ -15,8 +15,9 @@ import {
 } from '@/components/onboarding/Steps';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
-import useLocationOptions from '@/hooks/countries/useLocationOptions';
 import { useMultiStepForm } from '@/hooks/useMultiStepForm';
+import useLocationOptions from '@/hooks/user/country/useLocationOptions';
+import useInterests from '@/hooks/user/interests/useInterests';
 import { updateProfile } from '@/services/auth/updateProfile';
 
 const STEP_TITLE = [
@@ -49,6 +50,7 @@ export default function Page() {
   });
 
   const { locationOptions } = useLocationOptions('zh_TW');
+  const { interestedPosition, skill, topic } = useInterests('zh_TW');
 
   const {
     stepElement,
@@ -64,9 +66,13 @@ export default function Page() {
       form={form}
       locationOptions={locationOptions}
     />,
-    <InterestedPosition key="InterestedPosition" form={form} />,
-    <SkillsToImprove key="SkillsToImprove" form={form} />,
-    <TopicsToDiscuss key="TopicsToDiscuss" form={form} />,
+    <InterestedPosition
+      key="InterestedPosition"
+      form={form}
+      interestedPosition={interestedPosition}
+    />,
+    <SkillsToImprove key="SkillsToImprove" form={form} skill={skill} />,
+    <TopicsToDiscuss key="TopicsToDiscuss" form={form} topic={topic} />,
   ]);
 
   const handleGoToNext = () => {

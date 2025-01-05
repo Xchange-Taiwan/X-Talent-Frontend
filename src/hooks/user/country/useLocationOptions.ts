@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { fetchCountries } from '@/services/country/countries';
+import { fetchCountries } from '@/services/user/country/countries';
 
 interface LocationOption {
   value: string;
