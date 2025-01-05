@@ -46,10 +46,10 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
             <AvatarEditor
               ref={editorRef}
               image={file}
-              width={200}
-              height={200}
+              width={512}
+              height={512}
               border={50}
-              borderRadius={100}
+              borderRadius={300}
               scale={zoomScale}
             />
           )}
