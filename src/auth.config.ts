@@ -28,7 +28,7 @@ export default {
             return {
               id: response.data.auth.user_id,
               token: response.data.auth.token,
-              onBoarding: response.data.user.on_boarding,
+              onBoarding: response.data.user.onboarding,
             };
           }
           return null;
