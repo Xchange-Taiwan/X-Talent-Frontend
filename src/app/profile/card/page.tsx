@@ -17,7 +17,6 @@ export default function Page() {
         const data = await fetchUser('zh_TW');
         if (data) {
           setUserData(data);
-          console.log(data);
         }
       } catch (err) {
         console.error('Fetch User Data Error:', err);

@@ -6,7 +6,7 @@ export interface InterestType {
   subject: string;
   desc: {
     desc?: string;
-    icon: string;
+    icon?: string;
   };
 }
 

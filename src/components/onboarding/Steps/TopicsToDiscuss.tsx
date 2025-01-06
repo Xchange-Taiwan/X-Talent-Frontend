@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { FC } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -15,6 +16,9 @@ import { cn } from '@/lib/utils';
 import { InterestType } from '@/services/user/interests';
 
 import { formSchema } from './index';
+
+const DEFAULT_ICON = 'https://via.placeholder.com/40';
+const DEFAULT_ALT = 'DEFAULT_ICON';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
@@ -42,7 +46,13 @@ export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {
                 >
                   <FormLabel className="flex grow cursor-pointer gap-4 ">
                     <div className="rounded-full bg-[#EBFBFB] p-3">
-                      {option.desc.icon}
+                      <Image
+                        src={option.desc.icon || DEFAULT_ICON}
+                        alt={option.desc.desc || DEFAULT_ALT}
+                        width={24}
+                        height={24}
+                        className="object-contain"
+                      />
                     </div>
 
                     <div>
