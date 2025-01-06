@@ -1,11 +1,7 @@
 'use Client';
 import type { FC, ReactNode } from 'react';
 
-import {
-  InterestedRoleEnum,
-  SkillEnhancementTargetEnum,
-  talkTopicEnum,
-} from '@/components/onboarding/Steps/constant';
+import { InterestType } from '@/services/user/interests';
 
 import { AvatarCard } from '../AvatarCard';
 
@@ -14,11 +10,8 @@ const SubTitle: FC<{ children: ReactNode }> = ({ children }) => {
 };
 
 const Tag: FC<{
-  enumKey: string;
-  enumObj: Record<string, string>;
-}> = ({ enumKey, enumObj }) => {
-  const displayText = enumObj[enumKey as keyof typeof enumObj];
-
+  displayText: string;
+}> = ({ displayText }) => {
   if (!displayText) return null;
 
   return (
@@ -34,9 +27,9 @@ interface Props {
   jobTitle?: string;
   company?: string;
   linkedinUrl?: string;
-  interestedRole?: string[];
-  skillEnhancementTarget?: string[];
-  talkTopic?: string[];
+  interestedRole?: InterestType[];
+  skillEnhancementTarget?: InterestType[];
+  talkTopic?: InterestType[];
 }
 
 export const ProfileCard: FC<Props> = ({
@@ -69,9 +62,8 @@ export const ProfileCard: FC<Props> = ({
             <div className="flex flex-wrap gap-2">
               {interestedRole.map((role) => (
                 <Tag
-                  key={`interestedRole ${role}`}
-                  enumKey={role}
-                  enumObj={InterestedRoleEnum}
+                  key={`interestedRole ${role.id}`}
+                  displayText={role.subject}
                 />
               ))}
             </div>
@@ -86,8 +78,7 @@ export const ProfileCard: FC<Props> = ({
                 {skillEnhancementTarget.map((target) => (
                   <Tag
                     key={`skillEnhancementTarget ${target}`}
-                    enumKey={target}
-                    enumObj={SkillEnhancementTargetEnum}
+                    displayText={target.subject}
                   />
                 ))}
               </div>
@@ -99,11 +90,7 @@ export const ProfileCard: FC<Props> = ({
             <SubTitle>想多了解的主題</SubTitle>
             <div className="flex flex-wrap gap-2">
               {talkTopic.map((topic) => (
-                <Tag
-                  key={`talkTopic ${topic}`}
-                  enumKey={topic}
-                  enumObj={talkTopicEnum}
-                />
+                <Tag key={`talkTopic ${topic}`} displayText={topic.subject} />
               ))}
             </div>
           </div>

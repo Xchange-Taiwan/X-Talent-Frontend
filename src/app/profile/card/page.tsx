@@ -1,11 +1,31 @@
 'use client';
 import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 import { ProfileCard } from '@/components/profile/ProfileCard';
 import { Button } from '@/components/ui/button';
+import { fetchUser } from '@/services/user/user';
+import { UserType } from '@/services/user/user';
 
 export default function Page() {
   const router = useRouter();
+  const [userData, setUserData] = useState<UserType | null>(null);
+
+  useEffect(() => {
+    async function fetchUserData() {
+      try {
+        const data = await fetchUser('zh_TW');
+        if (data) {
+          setUserData(data);
+          console.log(data);
+        }
+      } catch (err) {
+        console.error('Fetch User Data Error:', err);
+      }
+    }
+
+    fetchUserData();
+  }, []);
 
   return (
     <div className="mx-auto w-11/12 max-w-[630px] pb-20 pt-10">
@@ -18,22 +38,18 @@ export default function Page() {
       </div>
 
       <div className="py-10">
-        {/* TODO: 待處理取資料 API 邏輯 */}
-        <ProfileCard
-          name={'Martin Lin'}
-          company={'Hahow'}
-          jobTitle={'前端工程師'}
-          linkedinUrl={'https://www.linkedin.com/in/cheng-yi-lin/'}
-          interestedRole={['UI_UX_DESIGNER', 'BUSINESS_DEVELOPMENT']}
-          skillEnhancementTarget={['JAVASCRIPT', 'SQL', 'STRATEGY_PLANNING']}
-          talkTopic={[
-            'RESUME_CHECKUP',
-            'MOCK_INTERVIEW',
-            'COMPANY_CULTURE_OPPORTUNITIES',
-            'INDUSTRY_KNOWLEDGE',
-            'JOB_POSITION_EXPERTISE',
-          ]}
-        />
+        {userData && (
+          <ProfileCard
+            name={userData.name}
+            avatarImgUrl={userData.avatar}
+            company={userData.company}
+            jobTitle={userData.job_title}
+            linkedinUrl={userData.linkedin_profile}
+            interestedRole={userData.interested_positions.interests}
+            skillEnhancementTarget={userData.skills.interests}
+            talkTopic={userData.topics.interests}
+          />
+        )}
       </div>
 
       <div className="flex justify-center gap-4">

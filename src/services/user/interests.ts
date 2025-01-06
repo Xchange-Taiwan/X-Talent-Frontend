@@ -46,5 +46,3 @@ export async function fetchInterests(
     return [];
   }
 }
-
-console.log(fetchInterests('zh_TW', 'INTERESTED_POSITION'));
