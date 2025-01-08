@@ -23,10 +23,10 @@ import { LocationType } from '@/services/user/countries';
 import { IndustryType } from '@/services/user/industries';
 
 import { totalWorkSpanOptions } from './constant';
-import { formSchema } from './index';
+import { step2Schema } from './index';
 
 interface Props {
-  form: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
+  form: ReturnType<typeof useForm<z.infer<typeof step2Schema>>>;
   locationOptions: LocationType[];
   industryOptions: IndustryType[];
 }
@@ -100,7 +100,7 @@ export const PersonalInfo: FC<Props> = ({
           name="industry"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>產業</FormLabel>
+              <FormLabel>產業 (選填)</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>

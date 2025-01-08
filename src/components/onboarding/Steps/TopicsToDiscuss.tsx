@@ -11,17 +11,18 @@ import {
   FormField,
   FormItem,
   FormLabel,
+  FormMessage,
 } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
 import { InterestType } from '@/services/user/interests';
 
-import { formSchema } from './index';
+import { step5Schema } from './index';
 
 const DEFAULT_ICON = 'https://via.placeholder.com/40';
 const DEFAULT_ALT = 'DEFAULT_ICON';
 
 interface Props {
-  form: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
+  form: ReturnType<typeof useForm<z.infer<typeof step5Schema>>>;
   topicOptions: InterestType[];
 }
 
@@ -86,6 +87,19 @@ export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {
             }}
           />
         ))}
+      </div>
+      <div className="ml-1 mt-3">
+        <FormField
+          control={form.control}
+          name="topics"
+          render={() => {
+            return (
+              <FormItem>
+                <FormMessage />
+              </FormItem>
+            );
+          }}
+        />
       </div>
     </>
   );

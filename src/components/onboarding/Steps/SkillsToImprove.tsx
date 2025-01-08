@@ -10,14 +10,15 @@ import {
   FormField,
   FormItem,
   FormLabel,
+  FormMessage,
 } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
 import { InterestType } from '@/services/user/interests';
 
-import { formSchema } from './index';
+import { step4Schema } from './index';
 
 interface Props {
-  form: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
+  form: ReturnType<typeof useForm<z.infer<typeof step4Schema>>>;
   skillOptions: InterestType[];
 }
 
@@ -65,6 +66,19 @@ export const SkillsToImprove: FC<Props> = ({ form, skillOptions }) => {
             }}
           />
         ))}
+      </div>
+      <div className="ml-1 mt-3">
+        <FormField
+          control={form.control}
+          name="skills"
+          render={() => {
+            return (
+              <FormItem>
+                <FormMessage />
+              </FormItem>
+            );
+          }}
+        />
       </div>
     </>
   );

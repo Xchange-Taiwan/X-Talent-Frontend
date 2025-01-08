@@ -14,10 +14,10 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 
-import { formSchema } from './index';
+import { step1Schema } from './index';
 
 interface Props {
-  form: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
+  form: ReturnType<typeof useForm<z.infer<typeof step1Schema>>>;
 }
 
 export const WhoAreYou: FC<Props> = ({ form }) => {
