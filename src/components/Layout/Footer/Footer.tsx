@@ -13,7 +13,7 @@ export const Footer: FC = () => {
             <p className="mb-5 text-xl font-bold tracking-[0.085em]">
               關於我們
             </p>
-            <p className="font-normal">關於 XTalent</p>
+            <p className="font-normal">關於 X-Talent</p>
           </div>
           <div className="mb-[58px] mr-[140px]">
             <p className="mb-5 text-xl font-bold tracking-[0.085em]">

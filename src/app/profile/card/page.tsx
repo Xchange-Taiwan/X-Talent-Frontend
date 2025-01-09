@@ -63,7 +63,7 @@ export default function Page() {
           variant="default"
           className="grow rounded-full px-6 py-3 sm:grow-0"
         >
-          開始探索 Talent
+          開始探索 X-Talent
         </Button>
       </div>
     </div>

@@ -1,10 +1,10 @@
-# XTalent
+# X-Talent
 
-XTalent is a platform that connects mentors and mentees, providing a free resource for users to either find a mentor or become one to share their experiences with others.
+X-Talent is a platform that connects mentors and mentees, providing a free resource for users to either find a mentor or become one to share their experiences with others.
 
 ## Website
 
-Access the XTalent testing website here: [XTalent Testing Website](https://xtalent.vercel.app/)
+Access the X-Talent testing website here: [X-Talent Testing Website](https://xtalent.vercel.app/)
 
 ## Getting Started
 
@@ -73,7 +73,7 @@ The application will be available at `http://localhost:3000`.
 
 ## Testing
 
-XTalent provides end-to-end testing with predefined accounts. Use the following testing accounts to explore the platform:
+X-Talent provides end-to-end testing with predefined accounts. Use the following testing accounts to explore the platform:
 
 Password should be asked other developers
 
