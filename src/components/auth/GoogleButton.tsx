@@ -6,18 +6,24 @@ import { useToast } from '@/components/ui/use-toast';
 
 interface GoogleSignUpButtonProps {
   isSubmitting: boolean;
+  isSignIn: boolean;
   label: string;
 }
 
 export default function GoogleSignUpButton({
   isSubmitting,
   label,
+  isSignIn,
 }: GoogleSignUpButtonProps) {
   const { toast } = useToast();
 
   const handleGoogleSignUp = async () => {
     try {
-      await signIn('google');
+      await signIn('google', {
+        callbackUrl: isSignIn
+          ? '/auth/google/callback/signin'
+          : '/auth/google/callback/signup',
+      });
     } catch (error) {
       toast({
         variant: 'destructive',

@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useRouter } from 'next/navigation';
 import { getSession } from 'next-auth/react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -14,6 +15,7 @@ type SignInValues = z.infer<typeof SignInSchema>;
 export default function useSignInForm(): AuthFormProps<SignInValues> {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
 
   const form = useForm<z.infer<typeof SignInSchema>>({
     resolver: zodResolver(SignInSchema),
@@ -40,9 +42,9 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
       }
 
       if (session?.user.onBoarding === false) {
-        window.location.href = '/auth/onboarding';
+        router.push('/auth/onboarding');
       } else {
-        window.location.href = '/mentorlist';
+        router.push('/mentorlist');
       }
     } catch (error) {
       console.error(error);

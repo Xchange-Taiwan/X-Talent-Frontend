@@ -17,6 +17,7 @@ export default function AuthPage() {
         <GoogleSignUpButton
           isSubmitting={signUpFormProps.isSubmitting}
           label="使用 Google 帳號註冊"
+          isSignIn={false}
         />
       </div>
     </div>

@@ -6,9 +6,10 @@ declare module 'next-auth' {
    * Extending the User object returned by `authorize`, `getUser`, etc.
    */
   interface User {
-    id: string;
+    id?: string;
     token?: string;
     onBoarding?: boolean;
+    oauthId?: string;
   }
 
   /**
@@ -16,10 +17,13 @@ declare module 'next-auth' {
    */
   interface Session {
     user: {
-      id: string;
+      id?: string;
+      token?: string;
       onBoarding?: boolean;
+      oauthId?: string;
     } & DefaultSession['user'];
     accessToken?: string;
+    googleAccessToken?: string;
   }
 
   /**

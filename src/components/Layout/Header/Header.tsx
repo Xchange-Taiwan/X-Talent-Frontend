@@ -28,7 +28,7 @@ export const Header: FC = async () => {
           >
             關於 X-Talent
           </Link>
-          {session ? (
+          {session?.user.id ? (
             <form
               action={async () => {
                 'use server';
