@@ -23,7 +23,7 @@ export default function Page() {
         if (!session?.accessToken || session?.accessToken.length === 0) {
           toast({
             variant: 'destructive',
-            description: 'Login failed: User data is missing',
+            description: 'Login failed',
             duration: 1000,
           });
           if (user?.msg) {

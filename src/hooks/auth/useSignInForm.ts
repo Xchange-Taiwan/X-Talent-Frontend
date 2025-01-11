@@ -33,11 +33,13 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
       const session = await getSession();
 
       if (!session?.accessToken || session?.accessToken.length === 0) {
-        toast({
-          variant: 'destructive',
-          description: 'Login failed: User data is missing',
-          duration: 1000,
-        });
+        if (session?.user.msg) {
+          toast({
+            variant: 'destructive',
+            description: session.user.msg,
+            duration: 1000,
+          });
+        }
         return;
       }
 

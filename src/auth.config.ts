@@ -34,7 +34,7 @@ export default {
               onBoarding: response.data.user.onboarding,
             };
           }
-          return null;
+          return { id: response.code, msg: response.msg };
         }
         return null;
       },
@@ -86,13 +86,14 @@ export default {
           token.avatar = profile.picture;
           token.name = profile.name;
         } else if (user) {
-          token.id = user.id as string;
+          if (!user.msg) {
+            token.id = user.id as string;
+          }
           token.token = user.token as string;
           token.onBoarding = user.onBoarding as boolean;
           token.msg = user.msg;
         }
       }
-
       return token;
     },
     async session({ session, token }) {
