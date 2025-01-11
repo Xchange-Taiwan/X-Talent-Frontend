@@ -68,7 +68,7 @@ export default {
             onBoarding: response.data.user.onboarding,
           };
         }
-        return null;
+        return { id: response.code, msg: response.msg };
       },
     }),
   ],
@@ -83,10 +83,13 @@ export default {
           token.access_token = account.access_token;
           token.email = profile.email;
           token.oauthId = profile.sub;
+          token.avatar = profile.picture;
+          token.name = profile.name;
         } else if (user) {
           token.id = user.id as string;
           token.token = user.token as string;
           token.onBoarding = user.onBoarding as boolean;
+          token.msg = user.msg;
         }
       }
 
@@ -98,6 +101,9 @@ export default {
         onBoarding: token.onBoarding as boolean | undefined,
         email: token.email as string | undefined,
         oauthId: token.oauthId as string | undefined,
+        name: token.name as string | undefined,
+        avatar: token.avatar as string | undefined,
+        msg: token.msg as string | undefined,
       };
       session.accessToken = token.token as string | undefined;
       session.googleAccessToken = token.access_token as string | undefined;

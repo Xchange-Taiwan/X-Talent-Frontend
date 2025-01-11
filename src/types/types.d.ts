@@ -10,6 +10,9 @@ declare module 'next-auth' {
     token?: string;
     onBoarding?: boolean;
     oauthId?: string;
+    name?: string;
+    avatar?: string;
+    msg?: string;
   }
 
   /**
@@ -21,6 +24,7 @@ declare module 'next-auth' {
       token?: string;
       onBoarding?: boolean;
       oauthId?: string;
+      msg?: string;
     } & DefaultSession['user'];
     accessToken?: string;
     googleAccessToken?: string;
@@ -47,5 +51,6 @@ declare module 'next-auth/jwt' {
     id: string;
     token: string;
     onBoarding?: boolean;
+    msg?: string;
   }
 }

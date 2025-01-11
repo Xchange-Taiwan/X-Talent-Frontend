@@ -18,15 +18,17 @@ import { step1Schema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step1Schema>>>;
+  avatarUrl: string;
 }
 
-export const WhoAreYou: FC<Props> = ({ form }) => {
+export const WhoAreYou: FC<Props> = ({ form, avatarUrl }) => {
   return (
     <>
       <AvatarUpload
         control={form.control}
         name="avatarFile"
         maxSize={2 * 1024 * 1024}
+        avatarUrl={avatarUrl}
       />
 
       <FormField

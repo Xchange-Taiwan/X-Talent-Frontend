@@ -63,11 +63,11 @@ export default function Page() {
     doSignUp();
   }, [status]);
 
-  if (isLoading) {
-    return <div className="text-center">驗證中，請稍候...</div>;
-  }
-
   if (message) {
     return <div className="text-center">{message}</div>;
+  }
+
+  if (isLoading) {
+    return <div className="text-center">驗證中，請稍候...</div>;
   }
 }

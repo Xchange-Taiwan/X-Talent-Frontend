@@ -2,7 +2,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import ArrowBackIcon from '@mui/icons-material/ArrowBackIosNew';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -45,6 +45,22 @@ export default function Page() {
 
   const [currentStep, setCurrentStep] = useState(1);
 
+  useEffect(() => {
+    const name = sessionStorage.getItem('name');
+    let avatar = sessionStorage.getItem('avatar');
+
+    if (avatar) {
+      avatar = avatar.slice(0, avatar.lastIndexOf('='));
+    }
+
+    step1Form.reset({
+      name: name || '',
+      avatar: avatar || '',
+      avatarFile: undefined,
+      language: 'zh_TW',
+    });
+  }, []);
+
   const [tempData, setTempData] = useState<{
     step1?: z.infer<typeof step1Schema>;
     step2?: z.infer<typeof step2Schema>;
@@ -58,6 +74,7 @@ export default function Page() {
     defaultValues: {
       name: '',
       avatarFile: undefined,
+      avatar: '',
       language: 'zh_TW',
     },
   });
@@ -160,7 +177,10 @@ export default function Page() {
               </div>
 
               <div>
-                <WhoAreYou form={step1Form} />
+                <WhoAreYou
+                  form={step1Form}
+                  avatarUrl={step1Form.getValues().avatar || ''}
+                />
               </div>
 
               <div>

@@ -5,8 +5,6 @@ import { signIn } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
-import { handleSignUpError } from '@/services/auth/signUpErrorHandler';
-import { AuthResponse } from '@/services/types';
 
 export default function Page() {
   const { toast } = useToast();
@@ -28,6 +26,11 @@ export default function Page() {
             description: 'Login failed: User data is missing',
             duration: 1000,
           });
+          if (user?.msg) {
+            setMessage(user.msg);
+          } else {
+            setMessage('Unknown error occurred');
+          }
           return;
         }
 
@@ -36,8 +39,15 @@ export default function Page() {
         } else {
           router.push('/mentorlist');
         }
-
         return;
+      }
+
+      if (user?.name) {
+        sessionStorage.setItem('name', user.name);
+      }
+
+      if (user?.avatar) {
+        sessionStorage.setItem('avatar', user.avatar);
       }
 
       try {
@@ -47,15 +57,14 @@ export default function Page() {
           language: 'zh_TW',
         });
       } catch (err) {
-        const error = err as AuthResponse;
+        const error = err as Error;
+        console.error(error);
 
-        if (error?.message) {
+        if (error) {
           setMessage(error.message);
         } else {
           setMessage('Unknown error occurred');
         }
-
-        handleSignUpError(error as AuthResponse, toast);
       } finally {
         setIsLoading(false);
       }
@@ -64,11 +73,11 @@ export default function Page() {
     doSignIn();
   }, []);
 
-  if (isLoading) {
-    return <div className="text-center">驗證中，請稍候...</div>;
-  }
-
   if (message) {
     return <div className="text-center">{message}</div>;
+  }
+
+  if (isLoading) {
+    return <div className="text-center">驗證中，請稍候...</div>;
   }
 }

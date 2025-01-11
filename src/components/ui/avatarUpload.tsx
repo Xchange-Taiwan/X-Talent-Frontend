@@ -10,16 +10,20 @@ interface AvatarUploadProps<T extends FieldValues> {
   control: Control<T>;
   name: Path<T>;
   maxSize?: number;
+  avatarUrl: string;
 }
 
 const AvatarUpload = <T extends FieldValues>({
   control,
   name,
   maxSize = 2 * 1024 * 1024,
+  avatarUrl,
 }: AvatarUploadProps<T>) => {
   const { field } = useController({ control, name });
 
-  const imagePreviewUrl = field.value ? URL.createObjectURL(field.value) : null;
+  const imagePreviewUrl = field.value
+    ? URL.createObjectURL(field.value)
+    : avatarUrl;
 
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [open, setOpen] = useState(false);
