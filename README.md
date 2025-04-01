@@ -31,13 +31,13 @@ Ensure you have the following installed:
 
    - Run the following command to install PNPM globally:
      ```bash
-     npm install -g pnpm@8
+     npm install -g pnpm@9.12.3
      ```
    - Verify the installation by running:
      ```bash
      pnpm -v
      ```
-     You should see the version number `8.x.x`.
+     You should see the version number `9.12.3`.
 
 3. Clone the repository:
 
