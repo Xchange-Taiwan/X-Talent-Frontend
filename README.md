@@ -27,7 +27,7 @@ Ensure you have the following installed:
      ```
      You should see the version number `20.x.x`.
 
-2. Install PNPM (version 8):
+2. Install PNPM (version 9.12.3):
 
    - Run the following command to install PNPM globally:
      ```bash
