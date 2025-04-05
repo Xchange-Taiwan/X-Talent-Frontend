@@ -18,6 +18,7 @@ import landingPage_icon_9 from '@/assets/landing/landingPage_icon_9.png';
 import landingPage_icon_10 from '@/assets/landing/landingPage_icon_10.svg';
 import { HomePageSlider } from '@/components/landing/HomePageSlider';
 import { JoinWaitingList } from '@/components/landing/JoinWaitingList';
+import SearchBar from '@/components/ui/searchBar';
 import { SCREEN_SIZE } from '@/constant/theme';
 import useWindowSize from '@/hooks/useWindowSize';
 
@@ -51,9 +52,17 @@ const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
 
 const Home = () => {
   const { width } = useWindowSize();
-
+  const handleSearch = async (query: string) => {
+    // Perform search logic here
+    console.log('Searching for:', query);
+    await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate a delay
+  };
   return (
     <>
+      <section className="flex justify-center py-6">
+        <SearchBar onSearch={handleSearch} />
+      </section>
+
       <section className="flex h-[532px] items-center justify-center bg-[url('/landing/home-page-hero-sm.svg')] bg-cover bg-no-repeat px-4 sm:bg-[url('/landing/home-page-hero-md.svg')] sm:px-0 lg:h-[640px] lg:bg-none">
         <h1 className="text-center">
           <p className="text-blue-950 mb-8 text-5xl font-bold leading-normal">
