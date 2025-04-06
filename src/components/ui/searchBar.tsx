@@ -1,7 +1,7 @@
+import SearchIcon from '@mui/icons-material/Search';
 import React, { useState } from 'react';
 
 import { Button } from '@/components/ui/button'; // 匯入 Button 元件
-
 interface SearchBarProps {
   onSearch: (query: string) => Promise<void>;
 }
@@ -48,6 +48,16 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           width: '100%', // 預設寬度為 20%
         }}
       >
+        <SearchIcon
+          style={{
+            position: 'absolute',
+            left: '3%', // 與搜尋框左側保持距離
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: '#888', // 搜尋圖示顏色
+          }}
+        />
+
         <input
           type="text"
           value={query}
@@ -55,6 +65,8 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           onKeyDown={handleKeyDown}
           placeholder="Search for job position..."
           style={{
+            left: '3%', // 與搜尋圖示保持距離
+            paddingLeft: '10%', // 為了讓文字不與圖示重疊
             padding: '18px 16px',
             flex: 1,
             border: '1px solid #ccc',
