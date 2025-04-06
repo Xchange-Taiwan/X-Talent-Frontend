@@ -1,7 +1,6 @@
 import { StaticImageData } from 'next/image';
-import { FC } from 'react';
 
-import { Avatar } from './Avatar';
+import { AvatarWithBadge } from './AvatarWithBadge';
 import { Information } from './Information';
 
 interface MentorCardProps {
@@ -14,7 +13,7 @@ interface MentorCardProps {
   skills: string[];
 }
 
-export const MentorCard: FC<MentorCardProps> = ({
+export const MentorCard = ({
   avatar,
   years,
   name,
@@ -22,10 +21,10 @@ export const MentorCard: FC<MentorCardProps> = ({
   company,
   personalStatment,
   skills,
-}) => {
+}: MentorCardProps) => {
   return (
     <article className="h-full max-h-[480px] w-full max-w-[413px] overflow-hidden rounded-lg border border-[#E6E8EA] bg-background-white">
-      <Avatar avatar={avatar} years={years} />
+      <AvatarWithBadge avatar={avatar} years={years} />
       <div className="px-4 pb-6 pt-4">
         <Information
           name={name}

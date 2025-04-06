@@ -1,4 +1,4 @@
-import { FC, useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 import { Skill } from './Skill';
 
@@ -10,13 +10,13 @@ interface InformationProps {
   skills: string[];
 }
 
-export const Information: FC<InformationProps> = ({
+export const Information = ({
   name,
   position,
   company,
   personalStatment,
   skills,
-}) => {
+}: InformationProps) => {
   const skillsContainerRef = useRef<HTMLDivElement>(null);
   const [visibleSkillsCount, setVisibleSkillsCount] = useState(skills.length);
 
@@ -30,11 +30,11 @@ export const Information: FC<InformationProps> = ({
 
       const containerWidth = container.offsetWidth;
       let lastVisibleIndex = 0;
-      let totalWidth = 52; // Initial max width
+      let totalWidth = 52;
 
       for (let i = 0; i < skillElements.length; i++) {
         const skillWidth = skillElements[i].getBoundingClientRect().width;
-        const gap = i > 0 ? 8 : 0; // gap-2 is 8px between elements
+        const gap = i > 0 ? 8 : 0;
         totalWidth += skillWidth + gap;
         if (totalWidth > containerWidth) {
           lastVisibleIndex = i - 1;

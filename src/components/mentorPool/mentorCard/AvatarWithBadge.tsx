@@ -1,13 +1,12 @@
 import Image from 'next/image';
 import { StaticImageData } from 'next/image';
-import { FC } from 'react';
 
-interface AvatarProps {
+interface AvatarWithBadgeProps {
   avatar: StaticImageData;
   years: string;
 }
 
-export const Avatar: FC<AvatarProps> = ({ avatar, years }) => {
+export const AvatarWithBadge = ({ avatar, years }: AvatarWithBadgeProps) => {
   return (
     <figure className="relative h-[292px] w-full overflow-hidden">
       <Image src={avatar} alt="avatar" />
