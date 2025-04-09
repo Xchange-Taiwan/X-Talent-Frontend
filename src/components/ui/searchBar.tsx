@@ -66,7 +66,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           placeholder="Search for job position..."
           style={{
             left: '3%', // 與搜尋圖示保持距離
-            paddingLeft: '10%', // 為了讓文字不與圖示重疊
+            paddingLeft: '12%', // 為了讓文字不與圖示重疊
             padding: '18px 16px',
             flex: 1,
             border: '1px solid #ccc',
