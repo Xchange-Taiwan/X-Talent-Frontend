@@ -1,9 +1,11 @@
 import { StaticImageData } from 'next/image';
+import { forwardRef } from 'react';
 
 import { AvatarWithBadge } from './AvatarWithBadge';
 import { Information } from './Information';
 
-interface MentorCardProps {
+export interface MentorCardProps {
+  id: number;
   avatar: StaticImageData;
   years: string;
   name: string;
@@ -13,27 +15,37 @@ interface MentorCardProps {
   skills: string[];
 }
 
-export const MentorCard = ({
-  avatar,
-  years,
-  name,
-  position,
-  company,
-  personalStatment,
-  skills,
-}: MentorCardProps) => {
-  return (
-    <article className="h-full max-h-[480px] w-full max-w-[413px] overflow-hidden rounded-lg border border-[#E6E8EA] bg-background-white">
-      <AvatarWithBadge avatar={avatar} years={years} />
-      <div className="px-4 pb-6 pt-4">
-        <Information
-          name={name}
-          position={position}
-          company={company}
-          personalStatment={personalStatment}
-          skills={skills}
-        />
-      </div>
-    </article>
-  );
-};
+export const MentorCard = forwardRef<HTMLElement, MentorCardProps>(
+  (
+    {
+      avatar,
+      years,
+      name,
+      position,
+      company,
+      personalStatment,
+      skills,
+    }: MentorCardProps,
+    ref,
+  ) => {
+    return (
+      <article
+        ref={ref}
+        className="h-[534px] w-[334px] overflow-hidden rounded-lg border border-[#E6E8EA] bg-background-white xl:h-[480px] xl:w-[413px]"
+      >
+        <AvatarWithBadge avatar={avatar} years={years} />
+        <div className="px-4 pb-6 pt-4">
+          <Information
+            name={name}
+            position={position}
+            company={company}
+            personalStatment={personalStatment}
+            skills={skills}
+          />
+        </div>
+      </article>
+    );
+  },
+);
+
+MentorCard.displayName = 'MentorCard';
