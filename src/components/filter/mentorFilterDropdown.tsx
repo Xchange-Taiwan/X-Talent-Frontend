@@ -1,19 +1,22 @@
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'; // Import the down arrow icon
+import ArrowDropUpIcon from '@mui/icons-material/ArrowDropUp';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import { useState } from 'react';
 
+import FilterSelect from '@/components/filter/filterSelect';
 import { Button } from '@/components/ui/button';
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { UserType } from '@/services/user/user';
 
-type FilterOptions = {
-  [key: string]: { label: string; value: string }[];
+export type FilterOptions = {
+  [key: string]: {
+    name: string;
+    options: { label: string; value: string }[];
+  };
 };
 
 interface MentorFilterDropdownProps {
@@ -27,6 +30,7 @@ const MentorFilterDropdown: React.FC<MentorFilterDropdownProps> = ({
   onChange,
   filterOptions,
 }) => {
+  const [isOpen, setIsOpen] = useState(false);
   const [selectedFilters, setSelectedFilters] = useState<{
     [key: string]: string;
   }>({});
@@ -40,16 +44,11 @@ const MentorFilterDropdown: React.FC<MentorFilterDropdownProps> = ({
 
   const applyFilters = () => {
     const filtered = users.filter((user) => {
-      console.log('User:', user);
       return Object.entries(selectedFilters).every(([key, value]) => {
-        console.log('Filtering by:', key, value);
-
         const typedKey = key as keyof UserType;
         const userValue = user[typedKey];
-        console.log('User Value:', userValue);
 
         if (typeof userValue === 'object' && userValue !== null) {
-          // Handle nested structure (e.g., industry.name)
           return (userValue as { category?: string }).category === value;
         }
 
@@ -65,46 +64,46 @@ const MentorFilterDropdown: React.FC<MentorFilterDropdownProps> = ({
   };
 
   return (
-    <Select>
-      {Object.entries(filterOptions).map(([key, options]) => (
-        // show key name as label before the select
-        <div key={key} className="flex flex-col gap-2 py-2">
-          {' '}
-          {/* Added padding between items */}
-          <label className="text-black text-lg font-bold capitalize">
-            {key}
-          </label>{' '}
-          {/* Updated label styling */}
-          <Select
-            value={selectedFilters[key] || ''}
-            onValueChange={(val) => handleChange(key, val)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder={`${key}`} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel>
-                  {key.charAt(0).toUpperCase() + key.slice(1)}
-                </SelectLabel>
-                {options.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-      ))}
-
-      <div className="flex gap-4 pt-2">
-        <Button onClick={applyFilters}>Apply</Button>
-        <Button variant="outline" onClick={clearFilters}>
-          Clear All
+    <DropdownMenu onOpenChange={setIsOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          className="flex w-[15%] items-center justify-between"
+        >
+          {/* Add the FilterListIcon and Filters text */}
+          <div className="flex items-center gap-2">
+            <FilterListIcon className="text-gray-700" />
+            <span>Filters</span>
+          </div>
+          {/* Add the down arrow icon on the right */}
+          {isOpen ? (
+            <ArrowDropUpIcon className="text-gray-700" />
+          ) : (
+            <ArrowDropDownIcon className="text-gray-700" />
+          )}
         </Button>
-      </div>
-    </Select>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-[320px] space-y-4 rounded-md p-4 shadow-xl">
+        {Object.entries(filterOptions).map(([key, { name, options }]) => (
+          <FilterSelect
+            key={key}
+            name={name}
+            value={selectedFilters[key] || ''}
+            options={options}
+            onChange={(val) => handleChange(key, val)}
+          />
+        ))}
+
+        <div className="flex gap-2 pt-2">
+          <Button className="w-full" onClick={applyFilters}>
+            Apply
+          </Button>
+          <Button className="w-full" variant="outline" onClick={clearFilters}>
+            Clear All
+          </Button>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 
