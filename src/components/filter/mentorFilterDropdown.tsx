@@ -1,15 +1,12 @@
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'; // Import the down arrow icon
+// components/mentor-filter-dropdown.tsx
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import ArrowDropUpIcon from '@mui/icons-material/ArrowDropUp';
 import FilterListIcon from '@mui/icons-material/FilterList';
-import { useState } from 'react';
+import * as Popover from '@radix-ui/react-popover';
+import { useCallback, useState } from 'react';
 
 import FilterSelect from '@/components/filter/filterSelect';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { UserType } from '@/services/user/user';
 
 export type FilterOptions = {
@@ -30,7 +27,7 @@ const MentorFilterDropdown: React.FC<MentorFilterDropdownProps> = ({
   onChange,
   filterOptions,
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [open, setOpen] = useState(false);
   const [selectedFilters, setSelectedFilters] = useState<{
     [key: string]: string;
   }>({});
@@ -42,7 +39,7 @@ const MentorFilterDropdown: React.FC<MentorFilterDropdownProps> = ({
     }));
   };
 
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     const filtered = users.filter((user) => {
       return Object.entries(selectedFilters).every(([key, value]) => {
         const typedKey = key as keyof UserType;
@@ -56,54 +53,62 @@ const MentorFilterDropdown: React.FC<MentorFilterDropdownProps> = ({
       });
     });
     onChange(filtered);
-  };
+    setOpen(false); // close on apply
+  }, [users, selectedFilters, onChange]);
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setSelectedFilters({});
-    onChange(users); // Reset to full user list
-  };
+    onChange(users);
+    setOpen(false); // close on clear
+  }, [users, onChange]);
 
   return (
-    <DropdownMenu onOpenChange={setIsOpen}>
-      <DropdownMenuTrigger asChild>
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger asChild>
         <Button
           variant="outline"
-          className="flex w-[15%] items-center justify-between"
+          className="flex w-[15%] items-center justify-between gap-2"
         >
-          {/* Add the FilterListIcon and Filters text */}
+          {/* Left part: Icon and text */}
           <div className="flex items-center gap-2">
-            <FilterListIcon className="text-gray-700" />
+            <FilterListIcon className="h-4 w-4 text-gray-700" />
             <span>Filters</span>
           </div>
-          {/* Add the down arrow icon on the right */}
-          {isOpen ? (
-            <ArrowDropUpIcon className="text-gray-700" />
+          {/* Right part: Arrow icon */}
+          {open ? (
+            <ArrowDropUpIcon className="h-4 w-4 text-gray-700" />
           ) : (
-            <ArrowDropDownIcon className="text-gray-700" />
+            <ArrowDropDownIcon className="h-4 w-4 text-gray-700" />
           )}
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-[320px] space-y-4 rounded-md p-4 shadow-xl">
-        {Object.entries(filterOptions).map(([key, { name, options }]) => (
-          <FilterSelect
-            key={key}
-            name={name}
-            value={selectedFilters[key] || ''}
-            options={options}
-            onChange={(val) => handleChange(key, val)}
-          />
-        ))}
+      </Popover.Trigger>
 
-        <div className="flex gap-2 pt-2">
-          <Button className="w-full" onClick={applyFilters}>
-            Apply
-          </Button>
-          <Button className="w-full" variant="outline" onClick={clearFilters}>
-            Clear All
-          </Button>
-        </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      <Popover.Portal>
+        <Popover.Content
+          className="!bg-white dark:bg-white z-[9999] w-[320px] space-y-4 rounded-md border border-gray-200 p-4 shadow-xl"
+          sideOffset={8}
+        >
+          {Object.entries(filterOptions).map(([key, { name, options }]) => (
+            <FilterSelect
+              key={key}
+              name={name}
+              value={selectedFilters[key] || ''}
+              options={options}
+              onChange={(val) => handleChange(key, val)}
+            />
+          ))}
+
+          <div className="flex gap-2 pt-2">
+            <Button className="w-full" onClick={applyFilters}>
+              Apply
+            </Button>
+            <Button className="w-full" variant="outline" onClick={clearFilters}>
+              Clear All
+            </Button>
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 };
 
