@@ -1,4 +1,6 @@
 'use client';
+import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import avatarImage from '@/assets/default-avatar.jpeg';
@@ -14,102 +16,112 @@ const mokeData: MentorCardProps[] = [
   {
     id: 1,
     avatar: avatarImage,
-    years: '3',
-    name: '陳小明',
-    position: '資深產品經理',
-    company: '台灣大哥大',
-    personalStatment: '專注於產品設計與用戶體驗，熱愛分享與交流。',
-    skills: ['產品設計', '用戶研究', '數據分析'],
+    years: '10',
+    name: 'John Doe',
+    position: 'Senior Software Engineer',
+    company: 'Microsoft',
+    personalStatment:
+      'Passionate about building scalable systems and mentoring junior developers.',
+    skills: ['System Design', 'Cloud Computing', 'C#'],
   },
   {
     id: 2,
     avatar: avatarImage,
-    years: '5',
-    name: '李小華',
-    position: '行銷總監',
-    company: '聯發科技',
-    personalStatment: '專注於數位行銷與品牌策略，喜歡與人交流。',
-    skills: ['數位行銷', '品牌策略', '社群媒體'],
+    years: '7',
+    name: 'Jane Smith',
+    position: 'Data Scientist',
+    company: 'Amazon',
+    personalStatment:
+      'Focused on data-driven decision making and predictive modeling.',
+    skills: ['Machine Learning', 'Data Visualization', 'Python'],
   },
   {
     id: 3,
     avatar: avatarImage,
-    years: '2',
-    name: '王小美',
-    position: '數據科學家',
-    company: '台積電',
-    personalStatment: '專注於數據分析與機器學習，熱愛解決問題。',
-    skills: ['數據分析', '機器學習', 'Python'],
+    years: '5',
+    name: 'Alice Johnson',
+    position: 'Product Manager',
+    company: 'Google',
+    personalStatment:
+      'Dedicated to creating user-centric products that solve real-world problems.',
+    skills: ['Product Management', 'Agile Methodologies', 'User Research'],
   },
   {
     id: 4,
     avatar: avatarImage,
-    years: '4',
-    name: '蕭雲',
-    position: '軟體工程師',
-    company: '宏達電',
-    personalStatment: '專注於後端開發與系統架構設計，喜歡挑戰新技術。',
-    skills: ['後端開發', '系統架構', '雲端運算'],
+    years: '8',
+    name: 'Bob Brown',
+    position: 'UX Designer',
+    company: 'Apple',
+    personalStatment:
+      'Specialized in crafting intuitive and visually appealing user experiences.',
+    skills: ['UI/UX Design', 'Prototyping', 'Figma'],
   },
   {
     id: 5,
     avatar: avatarImage,
-    years: '24',
-    name: '霍華德',
-    position: '軟體工程師',
-    company: '中國信託',
-    personalStatment: '專注於後端開發與系統架構設計，喜歡挑戰新技術。',
-    skills: ['後端開發', '系統架構', '雲端運算'],
+    years: '15',
+    name: 'Charlie Davis',
+    position: 'DevOps Engineer',
+    company: 'Netflix',
+    personalStatment:
+      'Experienced in automating infrastructure and ensuring system reliability.',
+    skills: ['CI/CD', 'Kubernetes', 'AWS'],
   },
   {
     id: 6,
     avatar: avatarImage,
-    years: '4',
-    name: '張小強',
-    position: '軟體工程師',
-    company: '宏達電',
-    personalStatment: '專注於後端開發與系統架構設計，喜歡挑戰新技術。',
-    skills: ['後端開發', '系統架構', '雲端運算'],
+    years: '6',
+    name: 'Emily Wilson',
+    position: 'Frontend Developer',
+    company: 'Spotify',
+    personalStatment:
+      'Enthusiastic about creating responsive and accessible web applications.',
+    skills: ['React', 'TypeScript', 'CSS'],
   },
   {
     id: 7,
     avatar: avatarImage,
-    years: '4年',
-    name: '張小強',
-    position: '軟體工程師',
-    company: '宏達電',
-    personalStatment: '專注於後端開發與系統架構設計，喜歡挑戰新技術。',
-    skills: ['後端開發', '系統架構', '雲端運算'],
+    years: '12',
+    name: 'Frank Thomas',
+    position: 'Cybersecurity Specialist',
+    company: 'Cisco',
+    personalStatment:
+      'Committed to protecting systems and data from cyber threats.',
+    skills: ['Network Security', 'Penetration Testing', 'Encryption'],
   },
   {
     id: 8,
     avatar: avatarImage,
-    years: '4年',
-    name: '張小強',
-    position: '軟體工程師',
-    company: '宏達電',
-    personalStatment: '專注於後端開發與系統架構設計，喜歡挑戰新技術。',
-    skills: ['後端開發', '系統架構', '雲端運算'],
+    years: '9',
+    name: 'Grace Lee',
+    position: 'AI Researcher',
+    company: 'OpenAI',
+    personalStatment:
+      'Exploring the boundaries of artificial intelligence and its applications.',
+    skills: ['Deep Learning', 'Natural Language Processing', 'TensorFlow'],
   },
   {
     id: 9,
     avatar: avatarImage,
-    years: '18',
-    name: '張小強',
-    position: '軟體工程師',
-    company: '宏達電',
-    personalStatment: '專注於後端開發與系統架構設計，喜歡挑戰新技術。',
-    skills: ['後端開發', '系統架構', '雲端運算'],
+    years: '4',
+    name: 'Henry White',
+    position: 'Mobile App Developer',
+    company: 'Snapchat',
+    personalStatment:
+      'Focused on delivering seamless mobile experiences for users.',
+    skills: ['iOS Development', 'Swift', 'UI Design'],
   },
   {
     id: 10,
     avatar: avatarImage,
-    years: '3',
-    name: '阿明',
-    position: '軟體工程師',
-    company: '宏達電',
-    personalStatment: '專注於後端開發與系統架構設計，喜歡挑戰新技術。',
-    skills: ['後端開發', '系統架構', '雲端運算'],
+    years: '20',
+    name: 'Ivy Green',
+    position: 'CTO',
+    company: 'Tesla',
+    personalStatment:
+      'Leading technology teams to innovate and achieve business goals.',
+    skills: ['Leadership', 'Strategic Planning', 'Software Architecture'],
   },
 ];
 
@@ -132,9 +144,11 @@ export const MentorCardList = ({}: MentorCardListProps) => {
     const startIndex = (page - 1) * pageSize;
     const endIndex = Math.min(startIndex + pageSize, mokeData.length);
     const newData = mokeData.slice(startIndex, endIndex);
-    setMentorList((prevMentorList) => [...prevMentorList, ...newData]);
-    setHasMore(newData.length >= pageSize);
-    setIsLoading(false);
+    setTimeout(() => {
+      setMentorList((prevMentorList) => [...prevMentorList, ...newData]);
+      setHasMore(newData.length >= pageSize);
+      setIsLoading(false);
+    }, 10000); // Simulate network delay
   }, [page, hasMore]);
 
   useEffect(() => {
@@ -168,21 +182,52 @@ export const MentorCardList = ({}: MentorCardListProps) => {
   );
 
   return (
-    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-      {mentorList.map((mentor, index) => (
-        <MentorCard
-          ref={index === mentorList.length - 1 ? lastCardRef : null}
-          key={mentor.id}
-          id={mentor.id}
-          avatar={mentor.avatar}
-          years={mentor.years}
-          name={mentor.name}
-          position={mentor.position}
-          company={mentor.company}
-          personalStatment={mentor.personalStatment}
-          skills={mentor.skills}
-        />
-      ))}
+    <div className="flex flex-col items-center gap-6">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {mentorList.map((mentor, index) => (
+          <MentorCard
+            ref={index === mentorList.length - 1 ? lastCardRef : null}
+            key={mentor.id}
+            id={mentor.id}
+            avatar={mentor.avatar}
+            years={mentor.years}
+            name={mentor.name}
+            position={mentor.position}
+            company={mentor.company}
+            personalStatment={mentor.personalStatment}
+            skills={mentor.skills}
+          />
+        ))}
+      </div>
+      {isLoading && <LoadingIcon />}
     </div>
+  );
+};
+
+const LoadingIcon = () => {
+  return (
+    <Box sx={{ position: 'relative' }}>
+      <CircularProgress
+        variant="determinate"
+        sx={() => ({
+          color: '#F0F6F6',
+        })}
+        size={40}
+        thickness={4}
+        value={100}
+      />
+      <CircularProgress
+        variant="indeterminate"
+        disableShrink
+        sx={() => ({
+          color: '#BEDEDE',
+          animationDuration: '550ms',
+          position: 'absolute',
+          left: 0,
+        })}
+        size={40}
+        thickness={4}
+      />
+    </Box>
   );
 };
