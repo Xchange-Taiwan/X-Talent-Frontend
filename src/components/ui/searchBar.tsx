@@ -29,34 +29,9 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        width: '100%',
-        padding: '16px 0',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          position: 'relative',
-          maxWidth: '400px', // 最大寬度
-          minWidth: '200px', // 最小寬度
-          width: '100%', // 預設寬度為 20%
-        }}
-      >
-        <SearchIcon
-          style={{
-            position: 'absolute',
-            left: '3%', // 與搜尋框左側保持距離
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: '#888', // 搜尋圖示顏色
-          }}
-        />
+    <div className="flex w-full items-center justify-center py-4">
+      <div className="relative flex w-full min-w-[200px] max-w-[400px] items-center">
+        <SearchIcon className="absolute left-[3%] top-1/2 -translate-y-1/2 transform text-gray-500" />
 
         <input
           type="text"
@@ -64,29 +39,12 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Search for job position..."
-          style={{
-            left: '3%', // 與搜尋圖示保持距離
-            paddingLeft: '12%', // 為了讓文字不與圖示重疊
-            padding: '18px 16px',
-            flex: 1,
-            border: '1px solid #ccc',
-            borderRadius: '18px',
-            boxSizing: 'border-box',
-          }}
+          className="box-border flex-1 rounded-[18px] border-none py-4 pl-[12%] pr-4 focus:ring-0"
         />
+
         <Button
           onClick={handleSearch}
-          className="bg-primary hover:bg-primary"
-          style={{
-            position: 'absolute',
-            right: '3%', // 與搜尋框右側保持距離
-            top: '50%',
-            transform: 'translateY(-50%)',
-            padding: '18px', // 減少按鈕內邊距
-            fontSize: '12px', // 縮小字體大小
-            borderRadius: '24px', // 減少圓角
-            cursor: 'pointer', // 確保顯示為可點擊的指標
-          }}
+          className="absolute right-[3%] top-1/2 -translate-y-1/2 transform cursor-pointer rounded-[24px] border-none bg-primary px-4 py-3 text-xs hover:bg-primary"
         >
           {isLoading ? '...' : 'Search'}
         </Button>
