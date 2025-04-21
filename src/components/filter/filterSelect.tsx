@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+
 interface FilterSelectProps {
   name: string;
   value: string;
@@ -14,12 +15,12 @@ interface FilterSelectProps {
   onChange: (val: string) => void;
 }
 
-const FilterSelect: React.FC<FilterSelectProps> = ({
+function FilterSelect({
   name,
   value,
   options,
   onChange,
-}) => {
+}: FilterSelectProps): JSX.Element {
   return (
     <div className="flex flex-col gap-2">
       <label className="text-black text-sm font-medium capitalize">
@@ -42,6 +43,6 @@ const FilterSelect: React.FC<FilterSelectProps> = ({
       </Select>
     </div>
   );
-};
+}
 
 export default FilterSelect;
