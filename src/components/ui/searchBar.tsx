@@ -1,7 +1,7 @@
 import SearchIcon from '@mui/icons-material/Search';
 import React, { useState } from 'react';
 
-import { Button } from '@/components/ui/button'; // 匯入 Button 元件
+import { Button } from '@/components/ui/button';
 interface SearchBarProps {
   onSearch: (query: string) => Promise<void>;
 }
