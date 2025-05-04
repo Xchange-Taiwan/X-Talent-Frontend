@@ -10,7 +10,7 @@ interface AvatarUploadProps<T extends FieldValues> {
   control: Control<T>;
   name: Path<T>;
   maxSize?: number;
-  avatarUrl: string;
+  avatarUrl?: string;
 }
 
 const AvatarUpload = <T extends FieldValues>({
