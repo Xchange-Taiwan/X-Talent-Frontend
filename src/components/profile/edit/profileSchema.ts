@@ -4,6 +4,13 @@ import * as z from 'zod';
 // 🗃️ Form Schema & Types
 //--------------------------------------------------
 
+const educationSchema = z.object({
+  subject: z.string().min(1, '請輸入主修'),
+  school: z.string().min(1, '請選擇學校'),
+  educationPeriodStart: z.string().min(1, '請選擇開始年份'),
+  educationPeriodEnd: z.string().min(1, '請選擇結束年份'),
+});
+
 export const formSchema = z.object({
   avatarFile: z.instanceof(File).optional(),
   name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
@@ -18,11 +25,7 @@ export const formSchema = z.object({
   industry: z.string(),
   jobLocation: z.string(),
   description: z.string(),
-  subject: z.string(),
-  school: z.string(),
-  educationPeriodStart: z.string(),
-  educationPeriodEnd: z.string(),
-  educationLocation: z.string(),
+  educations: z.array(educationSchema).min(1, '請至少填寫一筆教育資料'),
   linkedin: z.string(),
   facebook: z.string(),
   instagram: z.string(),
@@ -47,11 +50,14 @@ export const defaultValues: ProfileFormValues = {
   industry: '',
   jobLocation: '',
   description: '',
-  subject: '',
-  school: '',
-  educationPeriodStart: '',
-  educationPeriodEnd: '',
-  educationLocation: '',
+  educations: [
+    {
+      subject: '',
+      school: '',
+      educationPeriodStart: '',
+      educationPeriodEnd: '',
+    },
+  ],
   linkedin: '',
   facebook: '',
   instagram: '',

@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { AvatarSection } from '@/components/profile/edit/avatarSection';
-import { EducationSection } from '@/components/profile/edit/educationSection';
+import { EducationSection } from '@/components/profile/edit/educationSection/educationSection';
 import {
   SelectField,
   TextareaField,
