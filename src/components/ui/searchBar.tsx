@@ -29,9 +29,9 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   };
 
   return (
-    <div className="flex w-full items-center justify-center py-4">
-      <div className="relative flex w-full min-w-[200px] max-w-[400px] items-center">
-        <SearchIcon className="absolute left-[3%] top-1/2 -translate-y-1/2 transform text-gray-500" />
+    <>
+      <div className="flex w-full max-w-[846px] items-center rounded-2xl border border-[#E6E8EA] bg-background-white px-3 py-1.5 md:px-6 md:py-4">
+        <SearchIcon className="mr-2 h-6 w-6 text-gray-500" />
 
         <input
           type="text"
@@ -39,17 +39,17 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Search for job position..."
-          className="box-border flex-1 rounded-[18px] border-none py-4 pl-[12%] pr-4 focus:ring-0"
+          className="h-5 min-w-[200px] flex-auto text-base outline-none"
         />
 
         <Button
           onClick={handleSearch}
-          className="absolute right-[3%] top-1/2 -translate-y-1/2 transform cursor-pointer rounded-[24px] border-none bg-primary px-4 py-3 text-xs hover:bg-primary"
+          className="ml-2 cursor-pointer rounded-[24px] border-none bg-primary leading-5 md:px-6 md:py-2.5"
         >
           {isLoading ? '...' : 'Search'}
         </Button>
       </div>
-    </div>
+    </>
   );
 };
 
