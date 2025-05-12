@@ -2,7 +2,7 @@ import Image from 'next/image';
 import { StaticImageData } from 'next/image';
 
 interface AvatarWithBadgeProps {
-  avatar: StaticImageData;
+  avatar: string | StaticImageData;
   years: string;
 }
 
