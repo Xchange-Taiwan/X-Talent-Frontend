@@ -6,7 +6,7 @@ import React, { useCallback, useState } from 'react';
 
 import FilterSelect from '@/components/filter/filterSelect';
 import { Button } from '@/components/ui/button';
-import { UserType } from '@/services/user/user';
+import { MentorType } from '@/services/searchMentor/mentors';
 
 export type FilterOptions = {
   [key: string]: {
@@ -16,8 +16,8 @@ export type FilterOptions = {
 };
 
 interface MentorFilterDropdownProps {
-  users: UserType[];
-  onChange: (filteredUsers: UserType[]) => void;
+  users: MentorType[];
+  onChange: (filteredUsers: MentorType[]) => void;
   filterOptions: FilterOptions;
 }
 
@@ -38,7 +38,7 @@ const MentorFilterDropdown = ({
   const applyFilters = useCallback(() => {
     const filtered = users.filter((user) =>
       Object.entries(selectedFilters).every(([key, value]) => {
-        const typedKey = key as keyof UserType;
+        const typedKey = key as keyof MentorType;
         const userValue = user[typedKey];
         if (typeof userValue === 'object' && userValue !== null) {
           return (userValue as { category?: string }).category === value;
@@ -53,31 +53,27 @@ const MentorFilterDropdown = ({
   const clearFilters = useCallback(() => {
     setSelectedFilters({});
     onChange(users);
-    setOpen(false);
   }, [users, onChange]);
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <Button
-          variant="outline"
-          className="flex w-[15%] items-center justify-between gap-2"
-        >
-          <div className="flex items-center gap-2">
-            <FilterListIcon className="h-4 w-4 text-gray-700" />
+        <button className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#E6E8EA] px-4 py-1">
+          <div className="flex items-center gap-1">
+            <FilterListIcon className="h-5 w-5" />
             <span>Filters</span>
           </div>
           {open ? (
-            <ArrowDropUpIcon className="h-4 w-4 text-gray-700" />
+            <ArrowDropUpIcon className="h-5 w-5" />
           ) : (
-            <ArrowDropDownIcon className="h-4 w-4 text-gray-700" />
+            <ArrowDropDownIcon className="h-5 w-5" />
           )}
-        </Button>
+        </button>
       </Popover.Trigger>
 
       <Popover.Portal>
         <Popover.Content
-          className="bg-white dark:bg-white z-[9999] w-[320px] space-y-4 rounded-md border border-gray-200 p-4 shadow-xl"
+          className="dark:bg-white w-[320px] space-y-4 rounded-md border border-gray-200 bg-background-white p-4 shadow-xl"
           sideOffset={8}
         >
           {Object.entries(filterOptions).map(([key, { name, options }]) => (

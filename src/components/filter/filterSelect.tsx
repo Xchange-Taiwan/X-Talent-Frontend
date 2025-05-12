@@ -30,7 +30,8 @@ function FilterSelect({
         <SelectTrigger>
           <SelectValue placeholder={`Select ${name}`} />
         </SelectTrigger>
-        <SelectContent>
+
+        <SelectContent className="z-10">
           <SelectGroup>
             <SelectLabel>{name}</SelectLabel>
             {options.map((option) => (
