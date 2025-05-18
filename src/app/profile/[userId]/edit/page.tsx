@@ -25,6 +25,7 @@ import { Form } from '@/components/ui/form';
 import { MultiSelect } from '@/components/ui/multi-select';
 import useLocations from '@/hooks/user/country/useLocations';
 import useIndustries from '@/hooks/user/industry/useIndustries';
+import useInterests from '@/hooks/user/interests/useInterests';
 
 const onSubmit = (values: z.infer<typeof formSchema>) => {
   console.log(values);
@@ -35,23 +36,43 @@ export default function Page() {
 
   const { locations } = useLocations('zh_TW');
   const { industries } = useIndustries('zh_TW');
+  const { interestedPositions, skills, topics } = useInterests('zh_TW');
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues,
   });
 
-  const frameworksList = [
-    { value: 'react', label: 'React' },
-    { value: 'angular', label: 'Angular' },
-    { value: 'vue', label: 'Vue' },
-    { value: 'svelte', label: 'Svelte' },
-    { value: 'ember', label: 'Ember' },
-  ];
-  const [selectedFrameworks, setSelectedFrameworks] = useState<string[]>([
-    'react',
-    'angular',
-  ]);
+  const whatIOfferTopicsList = topics.map((topic) => ({
+    value: topic.subject_group,
+    label: topic.subject,
+  }));
+
+  const expertisedList = skills.map((skill) => ({
+    value: skill.subject_group,
+    label: skill.subject,
+  }));
+
+  const interestedPositionList = interestedPositions.map((skill) => ({
+    value: skill.subject_group,
+    label: skill.subject,
+  }));
+
+  const interestedSkillsList = skills.map((skill) => ({
+    value: skill.subject_group,
+    label: skill.subject,
+  }));
+
+  const interestedTopicsList = skills.map((skill) => ({
+    value: skill.subject_group,
+    label: skill.subject,
+  }));
+
+  const [selectedWhatIOffer, setSelectedWhatIOffer] = useState<string[]>([]);
+  const [selectedExpertised, setSelectedExpertised] = useState<string[]>([]);
+  const [interestedPosition, setInterestedPosition] = useState<string[]>([]);
+  const [interestedSkills, setInterestedSkills] = useState<string[]>([]);
+  const [interestedTopics, setInterestedTopics] = useState<string[]>([]);
 
   const handleGoToPrev = () => {};
   return (
@@ -93,9 +114,9 @@ export default function Page() {
           {isMentor && (
             <Section title="我能提供的服務">
               <MultiSelect
-                options={frameworksList}
-                onValueChange={setSelectedFrameworks}
-                defaultValue={selectedFrameworks}
+                options={whatIOfferTopicsList}
+                onValueChange={setSelectedWhatIOffer}
+                defaultValue={selectedWhatIOffer}
                 placeholder="我能提供的服務"
                 variant="primaryAlt"
                 animation={2}
@@ -106,7 +127,15 @@ export default function Page() {
 
           {isMentor && (
             <Section title="專業能力">
-              <h1> TBD</h1>
+              <MultiSelect
+                options={expertisedList}
+                onValueChange={setSelectedExpertised}
+                defaultValue={selectedExpertised}
+                placeholder="專業能力"
+                variant="primaryAlt"
+                animation={2}
+                maxCount={3}
+              />
             </Section>
           )}
 
@@ -148,15 +177,39 @@ export default function Page() {
           </Section>
 
           <Section title="有興趣多了解的職位">
-            <h1> TBD</h1>
+            <MultiSelect
+              options={interestedPositionList}
+              onValueChange={setInterestedPosition}
+              defaultValue={interestedPosition}
+              placeholder="有興趣多了解的職位"
+              variant="primaryAlt"
+              animation={2}
+              maxCount={3}
+            />
           </Section>
 
           <Section title="想多了解、加強的技能">
-            <h1> TBD</h1>
+            <MultiSelect
+              options={interestedSkillsList}
+              onValueChange={setInterestedSkills}
+              defaultValue={interestedSkills}
+              placeholder="想多了解、加強的技能"
+              variant="primaryAlt"
+              animation={2}
+              maxCount={3}
+            />
           </Section>
 
           <Section title="想多了解的主題">
-            <h1> TBD</h1>
+            <MultiSelect
+              options={interestedTopicsList}
+              onValueChange={setInterestedTopics}
+              defaultValue={interestedTopics}
+              placeholder="想多了解的主題"
+              variant="primaryAlt"
+              animation={2}
+              maxCount={3}
+            />
           </Section>
 
           <JobExperienceSection form={form} />
