@@ -1,18 +1,20 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 
+import { InterestType } from '@/services/searchMentor/mentors';
+
 import { Skill } from './Skill';
 
 interface InformationProps {
   name: string;
-  position: string;
+  job_title: string;
   company: string;
   personalStatment: string;
-  skills: string[];
+  skills: InterestType[];
 }
 
 export const Information = ({
   name,
-  position,
+  job_title,
   company,
   personalStatment,
   skills,
@@ -57,7 +59,7 @@ export const Information = ({
       <div>
         <h3 className="text-base font-bold tracking-[0.5px]">{name}</h3>
         <div className="flex gap-[6px] text-sm font-normal tracking-wide">
-          {position}
+          {job_title}
           <span className="text-[#9DA8B9]">at</span>
           {company}
         </div>
@@ -67,7 +69,7 @@ export const Information = ({
       </p>
       <div ref={skillsContainerRef} className="flex flex-wrap gap-2">
         {visibleSkills.map((skill, index) => (
-          <Skill skill={skill} key={index} />
+          <Skill skill={skill.subject} key={index} />
         ))}
         {extraSkillsCount > 0 && (
           <Skill skill={`+${extraSkillsCount}`} key="extra" />

@@ -1,18 +1,24 @@
 import { StaticImageData } from 'next/image';
+import Link from 'next/link';
 import { forwardRef } from 'react';
+
+import { InterestType } from '@/services/searchMentor/mentors';
 
 import { AvatarWithBadge } from './AvatarWithBadge';
 import { Information } from './Information';
 
 export interface MentorCardProps {
   id: number;
-  avatar: StaticImageData;
+  avatar: string | StaticImageData;
   years: string;
   name: string;
-  position: string;
+  job_title: string;
   company: string;
   personalStatment: string;
-  skills: string[];
+  skills: {
+    interests: InterestType[];
+    language: string | null;
+  };
 }
 
 export const MentorCard = forwardRef<HTMLElement, MentorCardProps>(
@@ -21,7 +27,7 @@ export const MentorCard = forwardRef<HTMLElement, MentorCardProps>(
       avatar,
       years,
       name,
-      position,
+      job_title,
       company,
       personalStatment,
       skills,
@@ -31,16 +37,20 @@ export const MentorCard = forwardRef<HTMLElement, MentorCardProps>(
     return (
       <article
         ref={ref}
-        className="h-[534px] w-[334px] overflow-hidden rounded-lg border border-[#E6E8EA] bg-background-white xl:h-[480px] xl:w-[413px]"
+        className=" relative h-[534px] w-[334px] overflow-hidden rounded-lg border border-[#E6E8EA] bg-background-white transition-shadow hover:shadow-xl xl:h-[480px] xl:w-[413px]"
       >
+        <Link
+          href=""
+          className="absolute bottom-0 left-0 right-0 top-0 z-10"
+        ></Link>
         <AvatarWithBadge avatar={avatar} years={years} />
         <div className="px-4 pb-6 pt-4">
           <Information
             name={name}
-            position={position}
+            job_title={job_title}
             company={company}
             personalStatment={personalStatment}
-            skills={skills}
+            skills={skills.interests}
           />
         </div>
       </article>
