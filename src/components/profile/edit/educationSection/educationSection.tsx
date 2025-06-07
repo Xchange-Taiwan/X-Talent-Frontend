@@ -1,6 +1,6 @@
 'use client';
 
-import { PlusIcon } from '@radix-ui/react-icons';
+import { PlusIcon, TrashIcon } from '@radix-ui/react-icons';
 import React from 'react';
 import { useFieldArray, UseFormReturn } from 'react-hook-form';
 
@@ -111,7 +111,7 @@ export const EducationSection = ({ form }: Props) => {
           </div>
 
           {/* Period */}
-          <div className="gap-2 md:flex md:basis-1/2">
+          <div className="gap-2 py-4 md:flex md:basis-1/2">
             <FormField
               control={control}
               name={`educations.${index}.educationPeriodStart`}
@@ -174,6 +174,14 @@ export const EducationSection = ({ form }: Props) => {
               )}
             />
           </div>
+
+          <Button
+            variant="destructive"
+            className="text-white rounded-md px-4 py-2"
+          >
+            <TrashIcon className="mr-2 h-5 w-5" />
+            移除
+          </Button>
         </div>
       ))}
 
