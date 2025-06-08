@@ -4,6 +4,7 @@ import { PlusIcon, TrashIcon } from '@radix-ui/react-icons';
 import React from 'react';
 import { useFieldArray, UseFormReturn } from 'react-hook-form';
 
+import { ConfirmDialog } from '@/components/profile/edit/confirmDialog';
 import { Button } from '@/components/ui/button';
 import {
   FormControl,
@@ -32,7 +33,7 @@ interface Props {
 export const EducationSection = ({ form }: Props) => {
   const { control, getValues } = form;
 
-  const { fields, append } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control,
     name: 'educations',
   });
@@ -175,13 +176,19 @@ export const EducationSection = ({ form }: Props) => {
             />
           </div>
 
-          <Button
-            variant="destructive"
-            className="text-white rounded-md px-4 py-2"
-          >
-            <TrashIcon className="mr-2 h-5 w-5" />
-            移除
-          </Button>
+          {fields.length > 1 && (
+            <ConfirmDialog
+              title="要刪除這筆學歷嗎?"
+              description="您確定要移除這個區塊嗎?"
+              onConfirm={() => remove(index)}
+              trigger={
+                <Button variant="destructive">
+                  <TrashIcon className="mr-2 h-5 w-5" />
+                  移除
+                </Button>
+              }
+            />
+          )}
         </div>
       ))}
 
