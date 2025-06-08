@@ -11,13 +11,7 @@ const educationSchema = z.object({
   educationPeriodEnd: z.string().min(1, '請選擇結束年份'),
 });
 
-export const formSchema = z.object({
-  avatarFile: z.instanceof(File).optional(),
-  name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
-  region: z.string({ required_error: '請選擇地區' }),
-  statement: z.string(),
-  about: z.string(),
-  seniority: z.string({ required_error: '請選擇職務級別' }),
+const jobSchema = z.object({
   job: z.string(),
   company: z.string(),
   jobPeriodStart: z.string(),
@@ -25,6 +19,17 @@ export const formSchema = z.object({
   industry: z.string(),
   jobLocation: z.string(),
   description: z.string(),
+});
+
+export const formSchema = z.object({
+  avatarFile: z.instanceof(File).optional(),
+  name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
+  region: z.string({ required_error: '請選擇地區' }),
+  statement: z.string(),
+  about: z.string(),
+  industry: z.string(),
+  seniority: z.string({ required_error: '請選擇職務級別' }),
+  jobs: z.array(jobSchema).min(1, '請至少填寫一筆工作經驗'),
   educations: z.array(educationSchema).min(1, '請至少填寫一筆教育資料'),
   linkedin: z.string(),
   facebook: z.string(),
@@ -42,14 +47,19 @@ export const defaultValues: ProfileFormValues = {
   region: '',
   statement: '',
   about: '',
-  seniority: '',
-  job: '',
-  company: '',
-  jobPeriodStart: '',
-  jobPeriodEnd: '',
   industry: '',
-  jobLocation: '',
-  description: '',
+  seniority: '',
+  jobs: [
+    {
+      job: '',
+      company: '',
+      jobPeriodStart: '',
+      jobPeriodEnd: '',
+      industry: '',
+      jobLocation: '',
+      description: '',
+    },
+  ],
   educations: [
     {
       subject: '',

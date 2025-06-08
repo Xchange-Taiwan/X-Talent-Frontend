@@ -212,7 +212,11 @@ export default function Page() {
             />
           </Section>
 
-          <JobExperienceSection form={form} />
+          <JobExperienceSection
+            industries={industries}
+            locations={locations}
+            form={form}
+          />
           <EducationSection form={form} />
           <LinksSection form={form} />
         </form>

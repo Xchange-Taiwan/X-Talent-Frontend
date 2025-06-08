@@ -1,6 +1,6 @@
 'use client';
 
-import { UseFormReturn } from 'react-hook-form';
+import { FieldPath,FieldValues, UseFormReturn } from 'react-hook-form';
 
 import {
   FormControl,
@@ -97,10 +97,9 @@ export const TextareaField = ({
   />
 );
 
-export interface SelectFieldProps {
-  form: UseFormReturn<ProfileFormValues>;
-  name: keyof ProfileFormValues;
-  /** Placeholder text (e.g. "Please select…") */
+export interface SelectFieldProps<T extends FieldValues> {
+  form: UseFormReturn<T>;
+  name: FieldPath<T>;
   placeholder?: string;
   options: Array<{ label: string; value: string }>;
 }
@@ -108,12 +107,12 @@ export interface SelectFieldProps {
 /**
  * A generic select dropdown field.
  */
-export const SelectField = ({
+export const SelectField = <T extends FieldValues>({
   form,
   name,
   placeholder,
   options,
-}: SelectFieldProps) => (
+}: SelectFieldProps<T>) => (
   <FormField
     control={form.control}
     name={name}
@@ -121,7 +120,8 @@ export const SelectField = ({
       <FormItem>
         <Select
           onValueChange={field.onChange}
-          defaultValue={String(field.value ?? '')}
+          value={typeof field.value === 'string' ? field.value : ''}
+          defaultValue={typeof field.value === 'string' ? field.value : ''}
         >
           <FormControl>
             <SelectTrigger>
