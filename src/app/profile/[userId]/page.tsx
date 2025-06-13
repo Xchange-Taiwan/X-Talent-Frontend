@@ -2,6 +2,8 @@
 
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { getSession } from 'next-auth/react';
+import { useEffect, useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.jpeg';
 import { LinkedinColor } from '@/components/Icon';
@@ -30,8 +32,22 @@ export default function Page({
 }) {
   const router = useRouter();
 
-  // TODO: 待處理依據 userId 取資料邏輯
-  console.info('userId', userId);
+  const [isLogging, setIsLogging] = useState(false);
+  const [isMentee, setIsMentee] = useState(false);
+  const [isMentor, setIsMentor] = useState(false);
+
+  useEffect(() => {
+    const fetchSession = async () => {
+      const session = await getSession();
+      const user = session?.user;
+
+      setIsLogging(!!user?.id);
+      setIsMentee(user?.isMentor !== true);
+      setIsMentor(user?.isMentor === true);
+    };
+
+    fetchSession();
+  }, []);
 
   const { name, avatarImgUrl, jobTitle, companyName } = PROFILE_DATA;
 
@@ -68,19 +84,33 @@ export default function Page({
           </div>
 
           <div className="static mt-4 flex items-center justify-center gap-4 sm:absolute sm:bottom-0 sm:left-[184px] sm:mt-0 lg:static">
-            <Button
-              variant="outline"
-              className="grow rounded-full px-6  py-3 sm:grow-0"
-              onClick={() => router.push(`/profile/${userId}/edit`)}
-            >
-              編輯個人資訊
-            </Button>
-            <Button
-              variant="default"
-              className="grow rounded-full px-6 py-3 sm:grow-0"
-            >
-              預約設定
-            </Button>
+            {isLogging && (
+              <Button
+                variant="outline"
+                className="grow rounded-full px-6  py-3 sm:grow-0"
+                onClick={() => router.push(`/profile/${userId}/edit`)}
+              >
+                編輯個人資訊
+              </Button>
+            )}
+
+            {isLogging && isMentee && (
+              <Button
+                variant="default"
+                className="grow rounded-full px-6 py-3 sm:grow-0"
+              >
+                變成導師
+              </Button>
+            )}
+
+            {isLogging && isMentor && (
+              <Button
+                variant="default"
+                className="grow rounded-full px-6 py-3 sm:grow-0"
+              >
+                預約設定
+              </Button>
+            )}
           </div>
         </div>
 
@@ -107,6 +137,7 @@ export default function Page({
               <p className="text-sm text-gray-400">目前還沒有教育</p>
             </div>
           </div>
+
           <div className="hidden w-1/2 lg:block">
             <div>
               <p className="mb-4 text-xl font-bold">可預約時段</p>

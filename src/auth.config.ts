@@ -32,6 +32,7 @@ export default {
               id: response.data.auth.user_id,
               token: response.data.auth.token,
               onBoarding: response.data.user.onboarding,
+              isMentor: response.data.user.is_mentor,
             };
           }
           return { id: response.code, msg: response.msg };
@@ -92,6 +93,7 @@ export default {
           token.token = user.token as string;
           token.onBoarding = user.onBoarding as boolean;
           token.msg = user.msg;
+          token.isMentor = user.isMentor;
         }
       }
       return token;
@@ -105,6 +107,7 @@ export default {
         name: token.name as string | undefined,
         avatar: token.avatar as string | undefined,
         msg: token.msg as string | undefined,
+        isMentor: token.isMentor as boolean | undefined,
       };
       session.accessToken = token.token as string | undefined;
       session.googleAccessToken = token.access_token as string | undefined;
