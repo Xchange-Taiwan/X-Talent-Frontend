@@ -26,13 +26,14 @@ const EXPERTISE_SELECTION = [
 ] as const;
 
 export default function Page({
-  params: { userId },
+  params: { pageUserId },
 }: {
-  params: { userId: string };
+  params: { pageUserId: string };
 }) {
   const router = useRouter();
 
   const [isLogging, setIsLogging] = useState(false);
+  const [loginUserId, setLoginUserId] = useState('');
   const [isMentee, setIsMentee] = useState(false);
   const [isMentor, setIsMentor] = useState(false);
 
@@ -42,6 +43,7 @@ export default function Page({
       const user = session?.user;
 
       setIsLogging(!!user?.id);
+      setLoginUserId(!!user?.id ? String(user?.id) : '');
       setIsMentee(user?.isMentor !== true);
       setIsMentor(user?.isMentor === true);
     };
@@ -84,17 +86,17 @@ export default function Page({
           </div>
 
           <div className="static mt-4 flex items-center justify-center gap-4 sm:absolute sm:bottom-0 sm:left-[184px] sm:mt-0 lg:static">
-            {isLogging && (
+            {isLogging && pageUserId === loginUserId && (
               <Button
                 variant="outline"
                 className="grow rounded-full px-6  py-3 sm:grow-0"
-                onClick={() => router.push(`/profile/${userId}/edit`)}
+                onClick={() => router.push(`/profile/${pageUserId}/edit`)}
               >
                 編輯個人資訊
               </Button>
             )}
 
-            {isLogging && isMentee && (
+            {isLogging && isMentee && pageUserId === loginUserId && (
               <Button
                 variant="default"
                 className="grow rounded-full px-6 py-3 sm:grow-0"

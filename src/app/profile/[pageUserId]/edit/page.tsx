@@ -1,7 +1,9 @@
 'use client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import ArrowBackIcon from '@mui/icons-material/ArrowBackIosNew';
-import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { getSession } from 'next-auth/react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -31,7 +33,30 @@ const onSubmit = (values: z.infer<typeof formSchema>) => {
   console.log(values);
 };
 
-export default function Page() {
+export default function Page({
+  params: { pageUserId },
+}: {
+  params: { pageUserId: string };
+}) {
+  const router = useRouter();
+  const [isAuthorized, setIsAuthorized] = useState(false);
+
+  useEffect(() => {
+    const verifyUser = async () => {
+      const session = await getSession();
+      const loginUserId = String(session?.user?.id);
+
+      if (!loginUserId || loginUserId !== pageUserId) {
+        router.push('/');
+        return;
+      }
+
+      setIsAuthorized(true);
+    };
+
+    verifyUser();
+  }, [pageUserId, router]);
+
   const isMentor = true;
 
   const { locations } = useLocations('zh_TW');
@@ -73,6 +98,10 @@ export default function Page() {
   const [interestedPosition, setInterestedPosition] = useState<string[]>([]);
   const [interestedSkills, setInterestedSkills] = useState<string[]>([]);
   const [interestedTopics, setInterestedTopics] = useState<string[]>([]);
+
+  if (!isAuthorized) {
+    return null;
+  }
 
   const handleGoToPrev = () => {};
   return (
