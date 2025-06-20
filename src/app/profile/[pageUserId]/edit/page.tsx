@@ -40,6 +40,7 @@ export default function Page({
 }) {
   const router = useRouter();
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isMentor, setIsMentor] = useState(false);
 
   useEffect(() => {
     const verifyUser = async () => {
@@ -52,12 +53,11 @@ export default function Page({
       }
 
       setIsAuthorized(true);
+      setIsMentor(session?.user?.isMentor === true);
     };
 
     verifyUser();
   }, [pageUserId, router]);
-
-  const isMentor = true;
 
   const { locations } = useLocations('zh_TW');
   const { industries } = useIndustries('zh_TW');
@@ -141,7 +141,7 @@ export default function Page({
           </Section>
 
           {isMentor && (
-            <Section title="我能提供的服務">
+            <Section title="*我能提供的服務">
               <MultiSelect
                 options={whatIOfferTopicsList}
                 onValueChange={setSelectedWhatIOffer}
@@ -155,7 +155,7 @@ export default function Page({
           )}
 
           {isMentor && (
-            <Section title="專業能力">
+            <Section title="*專業能力">
               <MultiSelect
                 options={expertisedList}
                 onValueChange={setSelectedExpertised}
