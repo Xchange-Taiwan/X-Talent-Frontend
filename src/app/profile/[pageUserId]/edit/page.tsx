@@ -108,7 +108,10 @@ export default function Page({
     return null;
   }
 
-  const handleGoToPrev = () => {};
+  const handleGoToPrev = () => {
+    router.push(`/profile/${pageUserId}`);
+  };
+
   return (
     <div className="mx-auto w-11/12 max-w-[1064px] pb-20 pt-10">
       <div className="mb-10 flex justify-between">
@@ -123,6 +126,7 @@ export default function Page({
           <Button
             variant="outline"
             className="hidden grow rounded-full  px-6 py-3 sm:inline-flex sm:grow-0"
+            onClick={handleGoToPrev}
           >
             取消
           </Button>
