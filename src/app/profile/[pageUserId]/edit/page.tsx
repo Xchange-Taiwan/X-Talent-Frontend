@@ -2,6 +2,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import ArrowBackIcon from '@mui/icons-material/ArrowBackIosNew';
 import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { getSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -42,6 +43,9 @@ export default function Page({
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isMentor, setIsMentor] = useState(false);
 
+  const searchParams = useSearchParams();
+  const isOnboarding = searchParams?.get('onboarding') === 'true';
+
   useEffect(() => {
     const verifyUser = async () => {
       const session = await getSession();
@@ -53,7 +57,8 @@ export default function Page({
       }
 
       setIsAuthorized(true);
-      setIsMentor(session?.user?.isMentor === true);
+      const isMentorFromSession = session?.user?.isMentor === true;
+      setIsMentor(isMentorFromSession || isOnboarding);
     };
 
     verifyUser();
