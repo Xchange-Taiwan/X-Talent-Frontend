@@ -34,7 +34,7 @@ export async function updateAvatar(
     formData.append('file', avatarFile, avatarFile.name);
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/storage/?user_id=${userId}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/v1/storage/?user_id=${userId}`,
       {
         method: 'POST',
         body: formData,

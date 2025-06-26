@@ -5,7 +5,7 @@ interface ResendEmailResponse {
 export async function resendVerificationEmail(email: string): Promise<void> {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/auth/email/resend`,
+      `${process.env.NEXT_PUBLIC_API_URL}/v1/auth/email/resend`,
       {
         method: 'POST',
         body: JSON.stringify({ email }),

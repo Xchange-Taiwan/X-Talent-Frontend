@@ -17,7 +17,7 @@ export default {
           const { email, password } = validatedFields.data;
 
           const res = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/auth/login`,
+            `${process.env.NEXT_PUBLIC_API_URL}/v1/auth/login`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -52,7 +52,7 @@ export default {
         if (!access_token || !oauth_id) return null;
 
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/oauth/login/GOOGLE?language=${language}`,
+          `${process.env.NEXT_PUBLIC_API_URL}/v1/oauth/login/GOOGLE?language=${language}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

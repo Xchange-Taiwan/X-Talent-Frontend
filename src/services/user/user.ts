@@ -47,7 +47,7 @@ export async function fetchUser(language: string): Promise<UserType | null> {
 
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/${userId}/${language}/profile`,
+      `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${userId}/${language}/profile`,
       {
         method: 'GET',
         headers: {

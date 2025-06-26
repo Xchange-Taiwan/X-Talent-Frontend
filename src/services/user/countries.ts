@@ -14,7 +14,7 @@ export async function fetchCountries(
 ): Promise<LocationType[]> {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/${language}/countries`,
+      `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${language}/countries`,
       {
         method: 'GET',
         headers: {

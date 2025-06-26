@@ -25,7 +25,7 @@ export async function fetchInterests(
 ): Promise<InterestType[]> {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/${language}/interests?interest=${interest}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${language}/interests?interest=${interest}`,
       {
         method: 'GET',
         headers: {

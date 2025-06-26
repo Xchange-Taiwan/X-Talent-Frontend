@@ -15,7 +15,7 @@ export async function signUp(
 ): Promise<AuthResponse> {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/auth/signup`,
+      `${process.env.NEXT_PUBLIC_API_URL}/v1/auth/signup`,
       {
         method: 'POST',
         body: JSON.stringify({

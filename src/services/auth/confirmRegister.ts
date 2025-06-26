@@ -5,7 +5,7 @@ interface ConfirmRegisterResponse {
 export async function confirmRegister(token: string): Promise<void> {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/auth/signup/confirm`,
+      `${process.env.NEXT_PUBLIC_API_URL}/v1/auth/signup/confirm`,
       {
         method: 'POST',
         body: JSON.stringify({ token }),

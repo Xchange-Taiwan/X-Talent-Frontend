@@ -23,7 +23,7 @@ export async function fetchIndustries(
 ): Promise<IndustryType[]> {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/users/${language}/industries`,
+      `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${language}/industries`,
       {
         method: 'GET',
         headers: {
