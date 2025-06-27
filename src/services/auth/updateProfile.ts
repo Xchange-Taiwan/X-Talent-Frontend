@@ -25,7 +25,7 @@ export async function updateProfile(
     };
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${userId}/profile`,
+      `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors/${userId}/profile`,
       {
         method: 'PUT',
         body: JSON.stringify(updatedProfileData),

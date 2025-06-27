@@ -150,22 +150,6 @@ export const PersonalInfo: FC<Props> = ({
             </FormItem>
           )}
         />
-
-        <FormField
-          control={form.control}
-          name="linkedin_profile"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel showErrorStyle={false}>
-                你的 LinkedIn 連結 (選填)
-              </FormLabel>
-              <FormControl>
-                <Input placeholder="請提供您的個人檔案連結" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
       </div>
     </>
   );

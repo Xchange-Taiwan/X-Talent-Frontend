@@ -91,7 +91,6 @@ export default function Page() {
       industry: '',
       job_title: '',
       company: '',
-      linkedin_profile: '',
     },
   });
   const onSubmitStep2 = (data: z.infer<typeof step2Schema>) => {

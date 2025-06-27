@@ -1,7 +1,8 @@
 import * as z from 'zod';
 
-const linkedinProfileUrlRegex =
-  /^https:\/\/www\.linkedin\.com\/in\/[a-zA-Z0-9-._~]+\/?$/;
+// It will be used in the future
+// const linkedinProfileUrlRegex =
+//   /^https:\/\/www\.linkedin\.com\/in\/[a-zA-Z0-9-._~]+\/?$/;
 
 export const step1Schema = z.object({
   name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
@@ -16,13 +17,6 @@ export const step2Schema = z.object({
   industry: z.string({ required_error: '請選擇您的產業類別' }),
   job_title: z.string().optional(),
   company: z.string().optional(),
-  linkedin_profile: z
-    .string()
-    .refine(
-      (url) => url.length === 0 || linkedinProfileUrlRegex.test(url),
-      '請輸入正確的 Linkedin 個人頁面連結',
-    )
-    .optional(),
 });
 
 export const step3Schema = z.object({
