@@ -55,13 +55,14 @@ export default function Page() {
         <Button
           variant="outline"
           className="grow rounded-full px-6  py-3 sm:grow-0"
-          onClick={() => router.push('/profile/expertise')}
+          onClick={() => router.push(`/profile/${userData?.user_id}/edit`)}
         >
           成為 Mentor
         </Button>
         <Button
           variant="default"
           className="grow rounded-full px-6 py-3 sm:grow-0"
+          onClick={() => router.push('/mentorPool')}
         >
           開始探索 X-Talent
         </Button>
