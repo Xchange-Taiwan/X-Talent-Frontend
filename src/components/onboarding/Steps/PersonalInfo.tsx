@@ -85,7 +85,7 @@ export const PersonalInfo: FC<Props> = ({
                       key={`totalWorkSpan ${option.value}`}
                       value={option.value}
                     >
-                      {option.text}
+                      {option.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -28,7 +28,7 @@ export const formSchema = z.object({
   statement: z.string(),
   about: z.string(),
   industry: z.string(),
-  seniority: z.string({ required_error: '請選擇職務級別' }),
+  years_of_experience: z.string({ required_error: '請選擇經驗' }),
   jobs: z.array(jobSchema).min(1, '請至少填寫一筆工作經驗'),
   educations: z.array(educationSchema).min(1, '請至少填寫一筆教育資料'),
   linkedin: z.string(),
@@ -48,7 +48,7 @@ export const defaultValues: ProfileFormValues = {
   statement: '',
   about: '',
   industry: '',
-  seniority: '',
+  years_of_experience: '',
   jobs: [
     {
       job: '',

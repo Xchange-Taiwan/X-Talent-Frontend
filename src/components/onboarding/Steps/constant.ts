@@ -5,10 +5,10 @@
  */
 function enumToOptionsArray(
   enumObj: Record<string, string>,
-): { value: string; text: string }[] {
+): { value: string; label: string }[] {
   return Object.keys(enumObj).map((key) => ({
     value: key,
-    text: enumObj[key],
+    label: enumObj[key],
   }));
 }
 

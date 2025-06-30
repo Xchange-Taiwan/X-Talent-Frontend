@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
+import { totalWorkSpanOptions } from '@/components/onboarding/Steps/constant';
 import { AvatarSection } from '@/components/profile/edit/avatarSection';
 import { EducationSection } from '@/components/profile/edit/educationSection/educationSection';
 import {
@@ -29,6 +30,7 @@ import { MultiSelect } from '@/components/ui/multi-select';
 import useLocations from '@/hooks/user/country/useLocations';
 import useIndustries from '@/hooks/user/industry/useIndustries';
 import useInterests from '@/hooks/user/interests/useInterests';
+import { fetchUser } from '@/services/user/user';
 
 const onSubmit = (values: z.infer<typeof formSchema>) => {
   console.log(values);
@@ -68,7 +70,7 @@ export default function Page({
   const { industries } = useIndustries('zh_TW');
   const { interestedPositions, skills, topics } = useInterests('zh_TW');
 
-  const form = useForm<ProfileFormValues>({
+  const { reset, ...form } = useForm<ProfileFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues,
   });
@@ -93,7 +95,7 @@ export default function Page({
     label: skill.subject,
   }));
 
-  const interestedTopicsList = skills.map((skill) => ({
+  const interestedTopicsList = topics.map((skill) => ({
     value: skill.subject_group,
     label: skill.subject,
   }));
@@ -103,6 +105,63 @@ export default function Page({
   const [interestedPosition, setInterestedPosition] = useState<string[]>([]);
   const [interestedSkills, setInterestedSkills] = useState<string[]>([]);
   const [interestedTopics, setInterestedTopics] = useState<string[]>([]);
+
+  useEffect(() => {
+    async function fetchUserData() {
+      try {
+        const data = await fetchUser('zh_TW');
+        if (data) {
+          reset({
+            avatarFile: undefined,
+            name: data.name || '',
+            region: data.location || '',
+            statement: data.personal_statement || '',
+            about: data.about || '',
+            industry: data.industry?.subject_group || '',
+            years_of_experience: data.years_of_experience || '',
+            linkedin: '',
+            facebook: '',
+            instagram: '',
+            twitter: '',
+            youtube: '',
+            website: '',
+            jobs:
+              data.experiences?.map((job) => ({
+                job: job.job_title || '',
+                company: job.company || '',
+                jobPeriodStart: job.start || '',
+                jobPeriodEnd: job.end || '',
+                industry: job.industry || '',
+                jobLocation: job.location || '',
+                description: job.description || '',
+              })) || defaultValues.jobs,
+            educations: defaultValues.educations,
+          });
+
+          setSelectedWhatIOffer(
+            data.topics?.interests?.map((i) => i.subject_group) || [],
+          );
+          setSelectedExpertised(
+            data.skills?.interests?.map((i) => i.subject_group) || [],
+          );
+          setInterestedPosition(
+            data.interested_positions?.interests?.map((i) => i.subject_group) ||
+              [],
+          );
+          setInterestedSkills(
+            data.skills?.interests?.map((i) => i.subject_group) || [],
+          );
+          setInterestedTopics(
+            data.topics?.interests?.map((i) => i.subject_group) || [],
+          );
+        }
+      } catch (err) {
+        console.error('Fetch User Data Error:', err);
+      }
+    }
+
+    fetchUserData();
+  }, [reset]);
 
   if (!isAuthorized) {
     return null;
@@ -189,12 +248,12 @@ export default function Page({
             />
           </Section>
 
-          <Section title="職務級別">
+          <Section title="經驗">
             <SelectField
               form={form}
-              name="seniority"
-              placeholder="請填入您的職務級別"
-              options={[{ label: 'junior', value: 'junior' }]}
+              name="years_of_experience"
+              placeholder="請填入您的經驗"
+              options={totalWorkSpanOptions}
             />
           </Section>
 
@@ -219,6 +278,7 @@ export default function Page({
               options={interestedPositionList}
               onValueChange={setInterestedPosition}
               defaultValue={interestedPosition}
+              value={interestedPosition}
               placeholder="有興趣多了解的職位"
               variant="primaryAlt"
               animation={2}
@@ -231,6 +291,7 @@ export default function Page({
               options={interestedSkillsList}
               onValueChange={setInterestedSkills}
               defaultValue={interestedSkills}
+              value={interestedSkills}
               placeholder="想多了解、加強的技能"
               variant="primaryAlt"
               animation={2}
@@ -243,6 +304,7 @@ export default function Page({
               options={interestedTopicsList}
               onValueChange={setInterestedTopics}
               defaultValue={interestedTopics}
+              value={interestedTopics}
               placeholder="想多了解的主題"
               variant="primaryAlt"
               animation={2}

@@ -3,6 +3,10 @@ import { getSession } from 'next-auth/react';
 import { IndustryType } from './industries';
 import { InterestType } from './interests';
 
+export interface ExperienceType {
+  [key: string]: unknown;
+}
+
 export interface UserType {
   user_id: number;
   name: string;
@@ -11,7 +15,6 @@ export interface UserType {
   company: string;
   years_of_experience: string;
   location: string;
-  linkedin_profile: string;
   interested_positions: {
     interests: InterestType[];
     language: string | null;
@@ -28,6 +31,13 @@ export interface UserType {
   onboarding: boolean;
   is_mentor: boolean;
   language: string;
+  personal_statement?: string;
+  about?: string;
+  seniority_level?: string;
+  expertises?: {
+    professions: string[];
+  };
+  experiences?: ExperienceType[];
 }
 
 interface UserResponse {
@@ -47,7 +57,7 @@ export async function fetchUser(language: string): Promise<UserType | null> {
 
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${userId}/${language}/profile`,
+      `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors/${userId}/${language}/profile`,
       {
         method: 'GET',
         headers: {
