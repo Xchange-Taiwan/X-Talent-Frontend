@@ -83,6 +83,7 @@ export default function GoogleOAuthRedirectPage() {
         console.log('[OAuth Debug] cleanedUser:', cleanedUser);
 
         const result = await signIn('custom-google-token', {
+          redirect: false,
           token,
           user: JSON.stringify(cleanedUser),
         });
@@ -96,13 +97,13 @@ export default function GoogleOAuthRedirectPage() {
         const session = await getSession();
         console.log('[OAuth Debug] session:', session);
 
-        // if (session?.user?.onBoarding === false) {
-        //   console.log('[OAuth Debug] Redirecting to onboarding...');
-        //   router.push('/auth/onboarding');
-        // } else {
-        //   console.log('[OAuth Debug] Redirecting to mentorPool...');
-        //   router.push('/mentorPool');
-        // }
+        if (session?.user?.onBoarding === false) {
+          console.log('[OAuth Debug] Redirecting to onboarding...');
+          router.push('/auth/onboarding');
+        } else {
+          console.log('[OAuth Debug] Redirecting to mentorPool...');
+          router.push('/mentorPool');
+        }
       } catch (err) {
         console.error('[OAuth Debug] OAuth login failed:', err);
         toast({
