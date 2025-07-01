@@ -82,7 +82,7 @@ export default function GoogleOAuthRedirectPage() {
           redirect: false,
           token,
           user: JSON.stringify(cleanedUser),
-          callbackUrl: '',
+          callbackUrl: `${window.location.origin}/mentorPool`,
         });
 
         console.log('[OAuth Debug] signIn result:', result);
