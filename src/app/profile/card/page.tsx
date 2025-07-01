@@ -43,7 +43,7 @@ export default function Page() {
             avatarImgUrl={userData.avatar}
             company={userData.company}
             jobTitle={userData.job_title}
-            linkedinUrl={userData.linkedin_profile}
+            linkedinUrl={''}
             interestedRole={userData.interested_positions.interests}
             skillEnhancementTarget={userData.skills.interests}
             talkTopic={userData.topics.interests}

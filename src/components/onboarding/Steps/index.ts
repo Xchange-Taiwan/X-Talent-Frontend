@@ -4,10 +4,12 @@ import * as z from 'zod';
 // const linkedinProfileUrlRegex =
 //   /^https:\/\/www\.linkedin\.com\/in\/[a-zA-Z0-9-._~]+\/?$/;
 
+const isBrowser = typeof window !== 'undefined';
+
 export const step1Schema = z.object({
   name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
   avatar: z.string().optional(),
-  avatarFile: z.instanceof(File).optional(),
+  avatarFile: isBrowser ? z.instanceof(File).optional() : z.any().optional(),
   language: z.string().optional(),
 });
 

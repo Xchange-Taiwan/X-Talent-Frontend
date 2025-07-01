@@ -70,7 +70,7 @@ export default function Page({
   const { industries } = useIndustries('zh_TW');
   const { interestedPositions, skills, topics } = useInterests('zh_TW');
 
-  const { reset, ...form } = useForm<ProfileFormValues>({
+  const { ...form } = useForm<ProfileFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues,
   });
@@ -111,7 +111,7 @@ export default function Page({
       try {
         const data = await fetchUser('zh_TW');
         if (data) {
-          reset({
+          form.reset({
             avatarFile: undefined,
             name: data.name || '',
             region: data.location || '',
@@ -126,14 +126,14 @@ export default function Page({
             youtube: '',
             website: '',
             jobs:
-              data.experiences?.map((job) => ({
-                job: job.job_title || '',
-                company: job.company || '',
-                jobPeriodStart: job.start || '',
-                jobPeriodEnd: job.end || '',
-                industry: job.industry || '',
-                jobLocation: job.location || '',
-                description: job.description || '',
+              data.experiences?.map(() => ({
+                job: '',
+                company: '',
+                jobPeriodStart: '',
+                jobPeriodEnd: '',
+                industry: '',
+                jobLocation: '',
+                description: '',
               })) || defaultValues.jobs,
             educations: defaultValues.educations,
           });
@@ -161,7 +161,7 @@ export default function Page({
     }
 
     fetchUserData();
-  }, [reset]);
+  }, []);
 
   if (!isAuthorized) {
     return null;
