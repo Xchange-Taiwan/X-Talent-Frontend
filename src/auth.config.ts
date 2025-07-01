@@ -1,15 +1,10 @@
 import type { NextAuthConfig } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import GoogleProvider from 'next-auth/providers/google';
 
 import { SignInSchema } from '@/schemas/auth';
 
 export default {
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    }),
     CredentialsProvider({
       async authorize(credentials) {
         const validatedFields = SignInSchema.safeParse(credentials);
@@ -44,6 +39,7 @@ export default {
     }),
     CredentialsProvider({
       id: 'custom-google-token',
+      name: 'Custom Google Token',
       credentials: {
         token: { label: 'Token', type: 'text' },
         user: { label: 'User JSON', type: 'text' },

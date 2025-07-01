@@ -79,10 +79,8 @@ export default function GoogleOAuthRedirectPage() {
         console.log('[OAuth Debug] cleanedUser:', cleanedUser);
 
         const result = await signIn('custom-google-token', {
-          redirect: false,
           token,
           user: JSON.stringify(cleanedUser),
-          callbackUrl: `${window.location.origin}/mentorPool`,
         });
 
         console.log('[OAuth Debug] signIn result:', result);
