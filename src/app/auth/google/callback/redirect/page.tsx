@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getSession,signIn } from 'next-auth/react';
+import { getSession, signIn } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
@@ -34,33 +34,42 @@ export default function GoogleOAuthRedirectPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
+    const handleOAuthFlow = async () => {
+      const code = searchParams.get('code');
+      const state = searchParams.get('state');
 
-    const cached = localStorage.getItem('google_oauth_data');
-    if (cached) {
-      console.log('[OAuth Debug] Found cached OAuth data');
-      try {
-        const cachedData: OAuthResponse = JSON.parse(cached);
-        proceedWithSignIn(cachedData);
-        return;
-      } catch (err) {
-        console.error('Failed to parse cached OAuth data:', err);
-        localStorage.removeItem('google_oauth_data');
+      const cached = localStorage.getItem('google_oauth_data');
+      if (cached) {
+        console.log('[OAuth Debug] Found cached OAuth data');
+        try {
+          const session = await getSession();
+          console.log('[OAuth Debug] session:', session);
+
+          localStorage.removeItem('google_oauth_data');
+
+          if (session?.user?.onBoarding === false) {
+            router.push('/auth/onboarding');
+          } else {
+            router.push('/mentorPool');
+          }
+
+          return;
+        } catch (err) {
+          console.error('Failed to parse cached OAuth data:', err);
+          localStorage.removeItem('google_oauth_data');
+        }
       }
-    }
 
-    if (!code || !state) {
-      toast({
-        variant: 'destructive',
-        title: 'Missing Google OAuth parameters',
-        description: 'Authorization failed. Please try again.',
-      });
-      router.push('/auth/signin');
-      return;
-    }
+      if (!code || !state) {
+        toast({
+          variant: 'destructive',
+          title: 'Missing Google OAuth parameters',
+          description: 'Authorization failed. Please try again.',
+        });
+        router.push('/auth/signin');
+        return;
+      }
 
-    const handleGoogleOAuth = async () => {
       try {
         console.log(
           '[OAuth Debug] Sending POST to /v2/oauth/google/callback...',
@@ -92,7 +101,7 @@ export default function GoogleOAuthRedirectPage() {
       }
     };
 
-    handleGoogleOAuth();
+    handleOAuthFlow();
   }, [searchParams, router, toast]);
 
   const proceedWithSignIn = async (data: OAuthResponse) => {
@@ -120,20 +129,6 @@ export default function GoogleOAuthRedirectPage() {
       token,
       user: JSON.stringify(user),
     });
-
-    // 避免 session 還沒準備好，延遲確認
-    setTimeout(async () => {
-      const session = await getSession();
-      console.log('[OAuth Debug] session:', session);
-
-      localStorage.removeItem('google_oauth_data');
-
-      if (session?.user?.onBoarding === false) {
-        router.push('/auth/onboarding');
-      } else {
-        router.push('/mentorPool');
-      }
-    }, 1000);
   };
 
   return (
