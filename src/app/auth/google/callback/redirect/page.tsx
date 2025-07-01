@@ -82,6 +82,7 @@ export default function GoogleOAuthRedirectPage() {
           redirect: false,
           token,
           user: JSON.stringify(cleanedUser),
+          callbackUrl: '',
         });
 
         console.log('[OAuth Debug] signIn result:', result);
