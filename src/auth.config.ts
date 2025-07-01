@@ -33,6 +33,8 @@ export default {
               token: response.data.auth.token,
               onBoarding: response.data.user.onboarding,
               isMentor: response.data.user.is_mentor,
+              name: response.data.user.name,
+              avatar: response.data.user.avatar,
             };
           }
           return { id: response.code, msg: response.msg };
@@ -41,76 +43,44 @@ export default {
       },
     }),
     CredentialsProvider({
-      id: 'credentials-google-oauth',
+      id: 'custom-google-token',
       credentials: {
-        access_token: { label: 'Google Access Token', type: 'text' },
-        oauth_id: { label: 'OAuth Id', type: 'text' },
-        language: { label: 'Language', type: 'text' },
+        token: { label: 'Token', type: 'text' },
+        user: { label: 'User JSON', type: 'text' },
       },
       async authorize(credentials) {
-        const { access_token, oauth_id, language } = credentials ?? {};
-        if (!access_token || !oauth_id) return null;
+        if (!credentials?.token || !credentials?.user) return null;
+        const user = JSON.parse(credentials.user as string);
 
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/v1/oauth/login/GOOGLE?language=${language}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ access_token, oauth_id }),
-          },
-        );
-
-        const response = await res.json();
-
-        if (res.ok && response.data) {
+        if (user) {
           return {
-            id: response.data.auth.user_id,
-            token: response.data.auth.token,
-            onBoarding: response.data.user.onboarding,
+            id: user.user_id,
+            token: credentials.token as string,
+            name: user.name,
+            avatar: user.avatar,
+            isMentor: user.is_mentor,
+            onBoarding: user.onboarding,
           };
+        } else {
+          return null;
         }
-        return { id: response.code, msg: response.msg };
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user, account, profile }) {
-      if (account) {
-        if (
-          account.provider === 'google' &&
-          profile &&
-          user.onBoarding === undefined
-        ) {
-          token.access_token = account.access_token;
-          token.email = profile.email;
-          token.oauthId = profile.sub;
-          token.avatar = profile.picture;
-          token.name = profile.name;
-        } else if (user) {
-          if (!user.msg) {
-            token.id = user.id as string;
-          }
-          token.token = user.token as string;
-          token.onBoarding = user.onBoarding as boolean;
-          token.msg = user.msg;
-          token.isMentor = user.isMentor;
-        }
-      }
-      return token;
+    async jwt({ token, user }) {
+      return user ? { ...token, ...user } : token;
     },
     async session({ session, token }) {
       session.user = {
         id: token.id as string,
         onBoarding: token.onBoarding as boolean | undefined,
-        email: token.email as string | undefined,
-        oauthId: token.oauthId as string | undefined,
         name: token.name as string | undefined,
         avatar: token.avatar as string | undefined,
-        msg: token.msg as string | undefined,
         isMentor: token.isMentor as boolean | undefined,
+        msg: token.msg as string | undefined,
       };
       session.accessToken = token.token as string | undefined;
-      session.googleAccessToken = token.access_token as string | undefined;
 
       return session;
     },

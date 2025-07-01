@@ -1,25 +1,24 @@
 'use client';
 
-// import {userRouter} from 'next/navigation';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
+import { getSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 
-export default function Page() {
+export default function GoogleOAuthRedirectPage() {
   const searchParams = useSearchParams();
-  // const router = useRouter();
+  const router = useRouter();
   const { toast } = useToast();
-
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const code = searchParams.get('code');
     const state = searchParams.get('state');
 
-    console.log('Extracted code:', code);
-    console.log('Extracted state:', state);
+    console.log('[OAuth Debug] code:', code);
+    console.log('[OAuth Debug] state:', state);
 
     if (!code || !state) {
       toast({
@@ -27,70 +26,100 @@ export default function Page() {
         title: 'Missing Google OAuth parameters',
         description: 'Authorization failed. Please try again.',
       });
-      // router.push('/auth/signin'); // temporarily disabled
+      router.push('/auth/signin');
       return;
     }
 
     const handleGoogleOAuth = async () => {
       try {
-        console.log('Sending request to backend with code and state...');
-
-        const response = await fetch(
+        console.log(
+          '[OAuth Debug] Sending POST to /v2/oauth/google/callback...',
+        );
+        const res = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/v2/oauth/google/callback`,
           {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code, state }),
           },
         );
 
-        console.log('Backend response status:', response.status);
+        const data = await res.json();
+        console.log('[OAuth Debug] Response from backend:', data);
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Backend error response:', errorText);
-          throw new Error('Failed to exchange Google token');
+        if (!res.ok || !data?.data?.token) {
+          throw new Error(data?.msg || 'Google login failed.');
         }
 
-        const data = await response.json();
-        console.log('Backend returned data:', data);
+        const backendData = data?.data || {};
 
-        // Optional: Use returned token with next-auth
-        const signInResponse = await signIn('credentials', {
+        const auth_type: string | undefined = backendData.auth?.auth_type;
+        const token: string | undefined = backendData.auth?.token;
+        const user = backendData.user;
+
+        console.log('[OAuth Debug] token:', token);
+        console.log('[OAuth Debug] auth_type:', auth_type);
+        console.log('[OAuth Debug] user:', user);
+
+        if (!token) {
+          throw new Error('Missing token in OAuth response.');
+        }
+
+        if (auth_type === 'SIGNUP') {
+          console.log('[OAuth Debug] Redirecting to email verification...');
+          router.push('/auth/emailVerify');
+          return;
+        }
+
+        const cleanedUser = {
+          user_id: user?.user_id || '',
+          name: user?.name || '',
+          avatar: user?.avatar || '',
+          is_mentor: user?.is_mentor ?? false,
+          onboarding: user?.onboarding ?? false,
+        };
+
+        console.log('[OAuth Debug] cleanedUser:', cleanedUser);
+
+        const result = await signIn('custom-google-token', {
           redirect: false,
-          accessToken: data.accessToken,
+          token,
+          user: JSON.stringify(cleanedUser),
         });
 
-        console.log('signIn result:', signInResponse);
+        console.log('[OAuth Debug] signIn result:', result);
 
-        toast({
-          title: 'Login successful!',
-        });
+        if (result?.error) {
+          throw new Error(result.error);
+        }
 
-        // router.push('/dashboard'); // temporarily disabled
-      } catch (error) {
-        console.error('OAuth error:', error);
+        const session = await getSession();
+        console.log('[OAuth Debug] session:', session);
+
+        if (session?.user?.onBoarding === false) {
+          console.log('[OAuth Debug] Redirecting to onboarding...');
+          router.push('/auth/onboarding');
+        } else {
+          console.log('[OAuth Debug] Redirecting to mentorPool...');
+          router.push('/mentorPool');
+        }
+      } catch (err) {
+        console.error('[OAuth Debug] OAuth login failed:', err);
         toast({
           variant: 'destructive',
           title: 'Login failed',
           description: 'Something went wrong during login.',
         });
-        // router.push('/auth/signin'); // temporarily disabled
+        router.push('/auth/signin');
       } finally {
         setLoading(false);
       }
     };
 
     handleGoogleOAuth();
-  }, [searchParams]);
+  }, [searchParams, router, toast]);
 
   return (
-    <div>
-      {loading
-        ? 'Signing you in with Google...'
-        : 'Done. Check the console logs.'}
-    </div>
+    <div>{loading ? 'Signing you in with Google...' : 'Redirecting...'}</div>
   );
 }
