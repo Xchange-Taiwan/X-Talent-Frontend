@@ -1,28 +1,54 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { signIn } from 'next-auth/react';
-import { getSession } from 'next-auth/react';
+import { getSession,signIn } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
+
+// 型別定義
+type OAuthUser = {
+  user_id: string;
+  name: string;
+  avatar: string;
+  is_mentor: boolean;
+  onboarding: boolean;
+};
+
+type OAuthResponse = {
+  data: {
+    auth_type?: 'SIGNIN' | 'SIGNUP';
+    auth?: {
+      token: string;
+    };
+    user: OAuthUser;
+  };
+  code?: string;
+  msg?: string;
+};
 
 export default function GoogleOAuthRedirectPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [hasRun, setHasRun] = useState(false);
 
   useEffect(() => {
-    if (hasRun) return;
-    setHasRun(true);
-
     const code = searchParams.get('code');
     const state = searchParams.get('state');
 
-    console.log('[OAuth Debug] code:', code);
-    console.log('[OAuth Debug] state:', state);
+    const cached = localStorage.getItem('google_oauth_data');
+    if (cached) {
+      console.log('[OAuth Debug] Found cached OAuth data');
+      try {
+        const cachedData: OAuthResponse = JSON.parse(cached);
+        proceedWithSignIn(cachedData);
+        return;
+      } catch (err) {
+        console.error('Failed to parse cached OAuth data:', err);
+        localStorage.removeItem('google_oauth_data');
+      }
+    }
 
     if (!code || !state) {
       toast({
@@ -48,62 +74,11 @@ export default function GoogleOAuthRedirectPage() {
           },
         );
 
-        const data = await res.json();
+        const data: OAuthResponse = await res.json();
         console.log('[OAuth Debug] Response from backend:', data);
 
-        const backendData = data?.data || {};
-
-        const auth_type: string | undefined = backendData.auth_type;
-        console.log('[OAuth Debug] auth_type:', auth_type);
-
-        if (auth_type === 'SIGNUP') {
-          console.log('[OAuth Debug] Redirecting to email verification...');
-          router.push('/auth/emailVerify');
-          return;
-        }
-
-        const token: string | undefined = backendData.auth?.token;
-        const user = backendData.user;
-
-        console.log('[OAuth Debug] token:', token);
-        console.log('[OAuth Debug] user:', user);
-
-        if (!token) {
-          throw new Error('Missing token in OAuth response.');
-        }
-
-        const cleanedUser = {
-          user_id: user?.user_id || '',
-          name: user?.name || '',
-          avatar: user?.avatar || '',
-          is_mentor: user?.is_mentor ?? false,
-          onboarding: user?.onboarding ?? false,
-        };
-
-        console.log('[OAuth Debug] cleanedUser:', cleanedUser);
-
-        const result = await signIn('custom-google-token', {
-          token,
-          user: JSON.stringify(cleanedUser),
-          redirect: false,
-        });
-
-        console.log('[OAuth Debug] signIn result:', result);
-
-        if (result?.error) {
-          throw new Error(result.error);
-        }
-
-        const session = await getSession();
-        console.log('[OAuth Debug] session:', session);
-
-        if (session?.user?.onBoarding === false) {
-          console.log('[OAuth Debug] Redirecting to onboarding...');
-          router.push('/auth/onboarding');
-        } else {
-          console.log('[OAuth Debug] Redirecting to mentorPool...');
-          router.push('/mentorPool');
-        }
+        localStorage.setItem('google_oauth_data', JSON.stringify(data));
+        proceedWithSignIn(data);
       } catch (err) {
         console.error('[OAuth Debug] OAuth login failed:', err);
         toast({
@@ -119,6 +94,47 @@ export default function GoogleOAuthRedirectPage() {
 
     handleGoogleOAuth();
   }, [searchParams, router, toast]);
+
+  const proceedWithSignIn = async (data: OAuthResponse) => {
+    const backendData = data?.data;
+
+    if (!backendData || !backendData.user || !backendData.auth?.token) {
+      toast({
+        variant: 'destructive',
+        title: 'Missing login data',
+        description: 'OAuth response is missing required fields.',
+      });
+      router.push('/auth/signin');
+      return;
+    }
+
+    if (backendData.auth_type === 'SIGNUP') {
+      router.push('/auth/emailVerify');
+      return;
+    }
+
+    const token = backendData.auth.token;
+    const user = backendData.user;
+
+    await signIn('custom-google-token', {
+      token,
+      user: JSON.stringify(user),
+    });
+
+    // 避免 session 還沒準備好，延遲確認
+    setTimeout(async () => {
+      const session = await getSession();
+      console.log('[OAuth Debug] session:', session);
+
+      localStorage.removeItem('google_oauth_data');
+
+      if (session?.user?.onBoarding === false) {
+        router.push('/auth/onboarding');
+      } else {
+        router.push('/mentorPool');
+      }
+    }, 1000);
+  };
 
   return (
     <div>{loading ? 'Signing you in with Google...' : 'Redirecting...'}</div>
