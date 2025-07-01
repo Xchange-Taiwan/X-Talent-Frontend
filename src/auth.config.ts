@@ -6,7 +6,6 @@ import { SignInSchema } from '@/schemas/auth';
 export default {
   providers: [
     CredentialsProvider({
-      id: 'email-password',
       async authorize(credentials) {
         const validatedFields = SignInSchema.safeParse(credentials);
         if (validatedFields.success) {
