@@ -47,10 +47,6 @@ export default function GoogleOAuthRedirectPage() {
         const data = await res.json();
         console.log('[OAuth Debug] Response from backend:', data);
 
-        if (!res.ok || !data?.data?.token) {
-          throw new Error(data?.msg || 'Google login failed.');
-        }
-
         const backendData = data?.data || {};
 
         const auth_type: string | undefined = backendData.auth_type;
