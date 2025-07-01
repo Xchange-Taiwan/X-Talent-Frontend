@@ -12,8 +12,12 @@ export default function GoogleOAuthRedirectPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [hasRun, setHasRun] = useState(false);
 
   useEffect(() => {
+    if (hasRun) return;
+    setHasRun(true);
+
     const code = searchParams.get('code');
     const state = searchParams.get('state');
 
