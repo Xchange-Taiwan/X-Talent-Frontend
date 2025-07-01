@@ -40,10 +40,6 @@ export default {
     CredentialsProvider({
       id: 'custom-google-token',
       name: 'Custom Google Token',
-      credentials: {
-        token: { label: 'Token', type: 'text' },
-        user: { label: 'User JSON', type: 'text' },
-      },
       async authorize(credentials) {
         console.log('[DEBUG] Received credentials:', credentials);
 
