@@ -49,19 +49,34 @@ export default {
         user: { label: 'User JSON', type: 'text' },
       },
       async authorize(credentials) {
-        if (!credentials?.token || !credentials?.user) return null;
-        const user = JSON.parse(credentials.user as string);
+        console.log('[DEBUG] Received credentials:', credentials);
 
-        if (user) {
-          return {
-            id: user.user_id,
-            token: credentials.token as string,
-            name: user.name,
-            avatar: user.avatar,
-            isMentor: user.is_mentor,
-            onBoarding: user.onboarding,
-          };
-        } else {
+        if (!credentials?.token || !credentials?.user) {
+          console.warn('[DEBUG] Missing token or user');
+          return null;
+        }
+
+        try {
+          const user = JSON.parse(credentials.user as string);
+          console.log('[DEBUG] Parsed user:', user);
+
+          if (user) {
+            const result = {
+              id: user.user_id,
+              token: credentials.token as string,
+              name: user.name,
+              avatar: user.avatar,
+              isMentor: user.is_mentor,
+              onBoarding: user.onboarding,
+            };
+            console.log('[DEBUG] Returning user object:', result);
+            return result;
+          } else {
+            console.warn('[DEBUG] User is null after parsing');
+            return null;
+          }
+        } catch (error) {
+          console.error('[DEBUG] Error parsing user JSON:', error);
           return null;
         }
       },
