@@ -83,9 +83,9 @@ export default function GoogleOAuthRedirectPage() {
         console.log('[OAuth Debug] cleanedUser:', cleanedUser);
 
         const result = await signIn('custom-google-token', {
-          redirect: false,
           token,
           user: JSON.stringify(cleanedUser),
+          redirect: false,
         });
 
         console.log('[OAuth Debug] signIn result:', result);
