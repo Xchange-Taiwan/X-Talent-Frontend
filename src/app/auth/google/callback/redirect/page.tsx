@@ -53,22 +53,23 @@ export default function GoogleOAuthRedirectPage() {
 
         const backendData = data?.data || {};
 
-        const auth_type: string | undefined = backendData.auth?.auth_type;
-        const token: string | undefined = backendData.auth?.token;
-        const user = backendData.user;
-
-        console.log('[OAuth Debug] token:', token);
+        const auth_type: string | undefined = backendData.auth_type;
         console.log('[OAuth Debug] auth_type:', auth_type);
-        console.log('[OAuth Debug] user:', user);
-
-        if (!token) {
-          throw new Error('Missing token in OAuth response.');
-        }
 
         if (auth_type === 'SIGNUP') {
           console.log('[OAuth Debug] Redirecting to email verification...');
           router.push('/auth/emailVerify');
           return;
+        }
+
+        const token: string | undefined = backendData.auth?.token;
+        const user = backendData.user;
+
+        console.log('[OAuth Debug] token:', token);
+        console.log('[OAuth Debug] user:', user);
+
+        if (!token) {
+          throw new Error('Missing token in OAuth response.');
         }
 
         const cleanedUser = {
