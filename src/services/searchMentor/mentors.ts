@@ -58,7 +58,7 @@ export async function fetchMentors(
     });
 
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/mentors?${query.toString()}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors?${query.toString()}`,
       {
         method: 'GET',
         headers: {
