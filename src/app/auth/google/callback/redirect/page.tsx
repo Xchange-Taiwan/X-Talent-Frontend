@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 
-// 型別定義
 type OAuthUser = {
   user_id: string;
   name: string;
@@ -38,6 +37,12 @@ export default function GoogleOAuthRedirectPage() {
       const code = searchParams.get('code');
       const state = searchParams.get('state');
 
+      // 🔁 Workaround for NextAuth issue:
+      // In v5.0.0-beta.4, calling `signIn` with `{ redirect: false }` causes the page to crash,
+      // and calling `signIn` without it causes a full page reload.
+      //
+      // To avoid both issues, we temporarily store the backend OAuth response in `localStorage`,
+      // and defer session-based routing until `getSession()` confirms the user is logged in.
       const cached = localStorage.getItem('google_oauth_data');
       if (cached) {
         console.log('[OAuth Debug] Found cached OAuth data');
@@ -125,6 +130,11 @@ export default function GoogleOAuthRedirectPage() {
     const token = backendData.auth.token;
     const user = backendData.user;
 
+    // ⚠️ NextAuth (v5.0.0-beta.4) limitation:
+    // `signIn('credentials', { redirect: false })` crashes
+    // `signIn('credentials')` triggers unwanted page reload
+    //
+    // So we accept the reload here temporarily, relying on the localStorage workaround above.
     await signIn('custom-google-token', {
       token,
       user: JSON.stringify(user),
