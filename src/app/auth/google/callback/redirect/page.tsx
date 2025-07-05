@@ -112,6 +112,11 @@ export default function GoogleOAuthRedirectPage() {
   const proceedWithSignIn = async (data: OAuthResponse) => {
     const backendData = data?.data;
 
+    if (backendData.auth_type === 'SIGNUP') {
+      router.push('/auth/emailVerify');
+      return;
+    }
+
     if (!backendData || !backendData.user || !backendData.auth?.token) {
       toast({
         variant: 'destructive',
@@ -119,11 +124,6 @@ export default function GoogleOAuthRedirectPage() {
         description: 'OAuth response is missing required fields.',
       });
       router.push('/auth/signin');
-      return;
-    }
-
-    if (backendData.auth_type === 'SIGNUP') {
-      router.push('/auth/emailVerify');
       return;
     }
 
