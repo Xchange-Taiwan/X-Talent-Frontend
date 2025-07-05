@@ -1,62 +1,43 @@
-import { getSession } from 'next-auth/react';
+import { StaticImageData } from 'next/image';
 
-export interface IndustryType {
-  id: number;
-  category: string;
-  language: string;
-  subject_group: string;
-  subject: string;
-  profession_metadata: {
-    desc: string;
-    icon: string;
-  };
-}
-
-export interface InterestType {
-  id: number;
-  category: string;
-  language: string;
-  subject_group: string;
-  subject: string;
-  desc: {
-    desc?: string;
-    icon?: string;
-  };
+export interface experienceType {
+  duration: string;
+  company: string;
+  title: string;
 }
 
 export interface MentorType {
   user_id: number;
   name: string;
-  avatar: string;
+  avatar: string | StaticImageData;
   job_title: string;
   company: string;
   years_of_experience: string;
   location: string;
   linkedin_profile: string;
-  interested_positions: {
-    interests: InterestType[];
-    language: string | null;
-  };
-  skills: {
-    interests: InterestType[];
-    language: string | null;
-  };
-  topics: {
-    interests: InterestType[];
-    language: string | null;
-  };
-  industry: IndustryType;
-  onboarding: boolean;
-  is_mentor: boolean;
+  interested_positions: [];
+  skills: [];
+  topics: [];
+  industry: string;
   language: string;
   personal_statement: string;
   about: string;
   seniority_level: string;
-  expertises: {
-    professions: [];
-  };
-  update_at: number;
-  views: number;
+  expertises: [];
+  experiences: experienceType[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MentorRequest {
+  searchPattern?: string;
+  filter_positions?: string;
+  filter_skills?: string;
+  filter_topics?: string;
+  filter_expertises?: string;
+  filter_industries?: string;
+  limit: number;
+  cursor?: string;
 }
 
 interface MentorResponse {
@@ -65,17 +46,19 @@ interface MentorResponse {
   data: MentorType[];
 }
 
-export async function fetchMentors(): Promise<MentorType[] | []> {
-  const session = await getSession();
-  const token = session?.accessToken;
-
-  if (!token) {
-    throw new Error('未找到授權令牌。請重新登入。');
-  }
-
+export async function fetchMentors(
+  param: MentorRequest,
+): Promise<MentorType[] | []> {
   try {
+    const query = new URLSearchParams();
+    Object.entries(param).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        query.append(key, String(value));
+      }
+    });
+
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors`,
+      `${process.env.NEXT_PUBLIC_API_URL}/mentors?${query.toString()}`,
       {
         method: 'GET',
         headers: {
@@ -97,7 +80,7 @@ export async function fetchMentors(): Promise<MentorType[] | []> {
 
     return result.data;
   } catch (error) {
-    console.error('Fetch User Error:', error);
+    console.error('Fetch Mentors Error:', error);
     return [];
   }
 }

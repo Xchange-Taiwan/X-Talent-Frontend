@@ -2,8 +2,6 @@ import { StaticImageData } from 'next/image';
 import Link from 'next/link';
 import { forwardRef } from 'react';
 
-import { InterestType } from '@/services/searchMentor/mentors';
-
 import { AvatarWithBadge } from './AvatarWithBadge';
 import { Information } from './Information';
 
@@ -15,10 +13,7 @@ export interface MentorCardProps {
   job_title: string;
   company: string;
   personalStatment: string;
-  skills: {
-    interests: InterestType[];
-    language: string | null;
-  };
+  skills: [];
 }
 
 export const MentorCard = forwardRef<HTMLElement, MentorCardProps>(
@@ -37,7 +32,7 @@ export const MentorCard = forwardRef<HTMLElement, MentorCardProps>(
     return (
       <article
         ref={ref}
-        className=" relative h-[534px] w-[334px] overflow-hidden rounded-lg border border-[#E6E8EA] bg-background-white transition-shadow hover:shadow-xl xl:h-[480px] xl:w-[413px]"
+        className="relative w-[334px] overflow-hidden rounded-lg border border-[#E6E8EA] bg-background-white transition-shadow hover:shadow-xl xl:h-[480px] xl:w-[413px]"
       >
         <Link
           href=""
@@ -50,7 +45,7 @@ export const MentorCard = forwardRef<HTMLElement, MentorCardProps>(
             job_title={job_title}
             company={company}
             personalStatment={personalStatment}
-            skills={skills.interests}
+            skills={skills}
           />
         </div>
       </article>
