@@ -6,7 +6,6 @@ import React, { useCallback, useState } from 'react';
 
 import FilterSelect from '@/components/filter/filterSelect';
 import { Button } from '@/components/ui/button';
-import { MentorType } from '@/services/searchMentor/mentors';
 
 export type FilterOptions = {
   [key: string]: {
@@ -15,45 +14,34 @@ export type FilterOptions = {
   };
 };
 
+interface SelectOptions {
+  [key: string]: string;
+}
+
 interface MentorFilterDropdownProps {
-  users: MentorType[];
-  onChange: (filteredUsers: MentorType[]) => void;
+  onChange: (filters: SelectOptions) => void;
   filterOptions: FilterOptions;
 }
 
 const MentorFilterDropdown = ({
-  users,
   onChange,
   filterOptions,
 }: MentorFilterDropdownProps): JSX.Element => {
   const [open, setOpen] = useState(false);
-  const [selectedFilters, setSelectedFilters] = useState<{
-    [key: string]: string;
-  }>({});
+  const [selectedFilters, setSelectedFilters] = useState<SelectOptions>({});
 
   const handleChange = (field: string, value: string) => {
     setSelectedFilters((prev) => ({ ...prev, [field]: value }));
   };
 
   const applyFilters = useCallback(() => {
-    const filtered = users.filter((user) =>
-      Object.entries(selectedFilters).every(([key, value]) => {
-        const typedKey = key as keyof MentorType;
-        const userValue = user[typedKey];
-        if (typeof userValue === 'object' && userValue !== null) {
-          return (userValue as { category?: string }).category === value;
-        }
-        return userValue === value;
-      }),
-    );
-    onChange(filtered);
+    onChange(selectedFilters || {});
     setOpen(false);
-  }, [users, selectedFilters, onChange]);
+  }, [selectedFilters, onChange]);
 
-  const clearFilters = useCallback(() => {
+  const clearFilters = () => {
     setSelectedFilters({});
-    onChange(users);
-  }, [users, onChange]);
+  };
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
@@ -73,7 +61,7 @@ const MentorFilterDropdown = ({
 
       <Popover.Portal>
         <Popover.Content
-          className="dark:bg-white w-[320px] space-y-4 rounded-md border border-gray-200 bg-background-white p-4 shadow-xl"
+          className="dark:bg-white z-20 w-[320px] space-y-4 rounded-md border border-gray-200 bg-background-white p-4 shadow-xl"
           sideOffset={8}
         >
           {Object.entries(filterOptions).map(([key, { name, options }]) => (

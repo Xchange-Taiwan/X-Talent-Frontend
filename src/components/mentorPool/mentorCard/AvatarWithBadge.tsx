@@ -8,7 +8,7 @@ interface AvatarWithBadgeProps {
 
 export const AvatarWithBadge = ({ avatar, years }: AvatarWithBadgeProps) => {
   return (
-    <figure className="relative h-[292px] w-full overflow-hidden">
+    <figure className="relative h-[348px] w-full overflow-hidden xl:h-[292px]">
       <Image
         src={avatar}
         alt="avatar"

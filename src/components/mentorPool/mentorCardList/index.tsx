@@ -36,6 +36,7 @@ export const MentorCardList = ({
   }, []);
 
   const lastCardRef = (node: HTMLElement | null) => {
+    observer.current?.disconnect();
     if (node) {
       observer.current = new IntersectionObserver(
         (entries) => {

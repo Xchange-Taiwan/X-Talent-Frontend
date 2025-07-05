@@ -1,7 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 
-import { InterestType } from '@/services/searchMentor/mentors';
-
 import { Skill } from './Skill';
 
 interface InformationProps {
@@ -9,7 +7,7 @@ interface InformationProps {
   job_title: string;
   company: string;
   personalStatment: string;
-  skills: InterestType[];
+  skills: string[];
 }
 
 export const Information = ({
@@ -49,13 +47,13 @@ export const Information = ({
     };
 
     checkSkillsInLine();
-  }, []);
+  }, [skills]);
 
   const visibleSkills = skills.slice(0, visibleSkillsCount);
   const extraSkillsCount = skills.length - visibleSkillsCount;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex h-full flex-col gap-4">
       <div>
         <h3 className="text-base font-bold tracking-[0.5px]">{name}</h3>
         <div className="flex gap-[6px] text-sm font-normal tracking-wide">
@@ -69,7 +67,7 @@ export const Information = ({
       </p>
       <div ref={skillsContainerRef} className="flex flex-wrap gap-2">
         {visibleSkills.map((skill, index) => (
-          <Skill skill={skill.subject} key={index} />
+          <Skill skill={skill} key={index} />
         ))}
         {extraSkillsCount > 0 && (
           <Skill skill={`+${extraSkillsCount}`} key="extra" />
