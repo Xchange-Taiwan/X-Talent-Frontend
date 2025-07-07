@@ -38,6 +38,10 @@ export default function GoogleOAuthRedirectPage() {
       const code = searchParams.get('code');
       const state = searchParams.get('state');
 
+      console.log('code' + code);
+      console.log('state' + state);
+      return;
+
       // 🔁 Workaround for NextAuth issue:
       // In v5.0.0-beta.4, calling `signIn` with `{ redirect: false }` causes the page to crash,
       // and calling `signIn` without it causes a full page reload.
