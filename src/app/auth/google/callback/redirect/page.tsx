@@ -1,7 +1,8 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getSession, signIn } from 'next-auth/react';
+import { getSession } from 'next-auth/react';
+// import { getSession, signIn } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
@@ -71,7 +72,10 @@ export default function GoogleOAuthRedirectPage() {
           title: 'Missing Google OAuth parameters',
           description: 'Authorization failed. Please try again.',
         });
-        router.push('/auth/signin');
+
+        console.log('code' + code);
+        console.log('state' + state);
+        // router.push('/auth/signin');
         return;
       }
 
@@ -91,8 +95,8 @@ export default function GoogleOAuthRedirectPage() {
         const data: OAuthResponse = await res.json();
         console.log('[OAuth Debug] Response from backend:', data);
 
-        localStorage.setItem('google_oauth_data', JSON.stringify(data));
-        proceedWithSignIn(data);
+        //localStorage.setItem('google_oauth_data', JSON.stringify(data));
+        //proceedWithSignIn(data);
       } catch (err) {
         console.error('[OAuth Debug] OAuth login failed:', err);
         toast({
@@ -109,37 +113,39 @@ export default function GoogleOAuthRedirectPage() {
     handleOAuthFlow();
   }, [searchParams, router, toast]);
 
-  const proceedWithSignIn = async (data: OAuthResponse) => {
-    const backendData = data?.data;
+  // const proceedWithSignIn = async (data: OAuthResponse) => {
+  //   const backendData = data?.data;
 
-    if (backendData.auth_type === 'SIGNUP') {
-      router.push('/auth/emailVerify');
-      return;
-    }
+  //   if (backendData.auth_type === 'SIGNUP') {
+  //     router.push('/auth/emailVerify');
+  //     return;
+  //   }
 
-    if (!backendData || !backendData.user || !backendData.auth?.token) {
-      toast({
-        variant: 'destructive',
-        title: 'Missing login data',
-        description: 'OAuth response is missing required fields.',
-      });
-      router.push('/auth/signin');
-      return;
-    }
+  //   if (!backendData || !backendData.user || !backendData.auth?.token) {
+  //     toast({
+  //       variant: 'destructive',
+  //       title: 'Missing login data',
+  //       description: 'OAuth response is missing required fields.',
+  //     });
 
-    const token = backendData.auth.token;
-    const user = backendData.user;
+  //     console.log("")
+  //     router.push('/auth/signin');
+  //     return;
+  //   }
 
-    // ⚠️ NextAuth (v5.0.0-beta.4) limitation:
-    // `signIn('credentials', { redirect: false })` crashes
-    // `signIn('credentials')` triggers unwanted page reload
-    //
-    // So we accept the reload here temporarily, relying on the localStorage workaround above.
-    await signIn('custom-google-token', {
-      token,
-      user: JSON.stringify(user),
-    });
-  };
+  //   const token = backendData.auth.token;
+  //   const user = backendData.user;
+
+  //   // ⚠️ NextAuth (v5.0.0-beta.4) limitation:
+  //   // `signIn('credentials', { redirect: false })` crashes
+  //   // `signIn('credentials')` triggers unwanted page reload
+  //   //
+  //   // So we accept the reload here temporarily, relying on the localStorage workaround above.
+  //   await signIn('custom-google-token', {
+  //     token,
+  //     user: JSON.stringify(user),
+  //   });
+  // };
 
   return (
     <div>{loading ? 'Signing you in with Google...' : 'Redirecting...'}</div>
