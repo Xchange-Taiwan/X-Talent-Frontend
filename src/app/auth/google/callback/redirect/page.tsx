@@ -7,25 +7,25 @@ import { useEffect, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 
-type OAuthUser = {
-  user_id: string;
-  name: string;
-  avatar: string;
-  is_mentor: boolean;
-  onboarding: boolean;
-};
+// type OAuthUser = {
+//   user_id: string;
+//   name: string;
+//   avatar: string;
+//   is_mentor: boolean;
+//   onboarding: boolean;
+// };
 
-type OAuthResponse = {
-  data: {
-    auth_type?: 'SIGNIN' | 'SIGNUP';
-    auth?: {
-      token: string;
-    };
-    user: OAuthUser;
-  };
-  code?: string;
-  msg?: string;
-};
+// type OAuthResponse = {
+//   data: {
+//     auth_type?: 'SIGNIN' | 'SIGNUP';
+//     auth?: {
+//       token: string;
+//     };
+//     user: OAuthUser;
+//   };
+//   code?: string;
+//   msg?: string;
+// };
 
 export default function GoogleOAuthRedirectPage() {
   const searchParams = useSearchParams();
@@ -92,7 +92,7 @@ export default function GoogleOAuthRedirectPage() {
           },
         );
 
-        const data: OAuthResponse = await res.json();
+        const data = await res.json();
         console.log('[OAuth Debug] Response from backend:', data);
 
         //localStorage.setItem('google_oauth_data', JSON.stringify(data));
