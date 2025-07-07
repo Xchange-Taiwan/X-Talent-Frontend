@@ -115,7 +115,7 @@ export default function GoogleOAuthRedirectPage() {
     };
 
     handleOAuthFlow();
-  }, [searchParams, router, toast]);
+  }, []);
 
   // const proceedWithSignIn = async (data: OAuthResponse) => {
   //   const backendData = data?.data;
