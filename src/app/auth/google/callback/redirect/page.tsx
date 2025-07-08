@@ -1,32 +1,52 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getSession } from 'next-auth/react';
-// import { getSession, signIn } from 'next-auth/react';
+import { getSession, signIn } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 
-// type OAuthUser = {
-//   user_id: string;
-//   name: string;
-//   avatar: string;
-//   is_mentor: boolean;
-//   onboarding: boolean;
-// };
+type OAuthUser = {
+  user_id: number | string;
+  name: string;
+  avatar: string;
+  is_mentor: boolean;
+  onboarding: boolean;
+  job_title?: string;
+  company?: string;
+  years_of_experience?: string;
+  location?: string;
+  interested_positions?: string[] | null;
+  skills?: string[] | null;
+  topics?: string[] | null;
+  industry?: string | null;
+  language?: string;
+};
 
-// type OAuthResponse = {
-//   data: {
-//     auth_type?: 'SIGNIN' | 'SIGNUP';
-//     auth?: {
-//       token: string;
-//     };
-//     user: OAuthUser;
-//   };
-//   code?: string;
-//   msg?: string;
-// };
+type SignupResponse = {
+  code: string;
+  msg: string;
+  data: {
+    auth_type: 'SIGNUP';
+    ttl_secs: number;
+    token: string;
+  };
+};
 
+type LoginResponse = {
+  code: string;
+  msg: string;
+  data: {
+    auth_type: 'LOGIN';
+    auth: {
+      user_id: number | string;
+      token: string;
+    };
+    user: OAuthUser;
+  };
+};
+
+type OAuthResponse = SignupResponse | LoginResponse;
 export default function GoogleOAuthRedirectPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -90,11 +110,11 @@ export default function GoogleOAuthRedirectPage() {
           },
         );
 
-        const data = await res.json();
+        const data: OAuthResponse = await res.json();
         console.log('[OAuth Debug] Response from backend:', data);
 
-        //localStorage.setItem('google_oauth_data', JSON.stringify(data));
-        //proceedWithSignIn(data);
+        localStorage.setItem('google_oauth_data', JSON.stringify(data));
+        proceedWithSignIn(data);
       } catch (err) {
         console.error('[OAuth Debug] OAuth login failed:', err);
         toast({
@@ -111,39 +131,39 @@ export default function GoogleOAuthRedirectPage() {
     handleOAuthFlow();
   }, []);
 
-  // const proceedWithSignIn = async (data: OAuthResponse) => {
-  //   const backendData = data?.data;
+  const proceedWithSignIn = async (data: OAuthResponse) => {
+    const backendData = data?.data;
 
-  //   if (backendData.auth_type === 'SIGNUP') {
-  //     router.push('/auth/emailVerify');
-  //     return;
-  //   }
+    if (backendData.auth_type === 'SIGNUP') {
+      router.push('/auth/emailVerify');
+      return;
+    }
 
-  //   if (!backendData || !backendData.user || !backendData.auth?.token) {
-  //     toast({
-  //       variant: 'destructive',
-  //       title: 'Missing login data',
-  //       description: 'OAuth response is missing required fields.',
-  //     });
+    if (!backendData || !backendData.user || !backendData.auth?.token) {
+      toast({
+        variant: 'destructive',
+        title: 'Missing login data',
+        description: 'OAuth response is missing required fields.',
+      });
 
-  //     console.log("")
-  //     router.push('/auth/signin');
-  //     return;
-  //   }
+      console.log('');
+      router.push('/auth/signin');
+      return;
+    }
 
-  //   const token = backendData.auth.token;
-  //   const user = backendData.user;
+    const token = backendData.auth.token;
+    const user = backendData.user;
 
-  //   // ⚠️ NextAuth (v5.0.0-beta.4) limitation:
-  //   // `signIn('credentials', { redirect: false })` crashes
-  //   // `signIn('credentials')` triggers unwanted page reload
-  //   //
-  //   // So we accept the reload here temporarily, relying on the localStorage workaround above.
-  //   await signIn('custom-google-token', {
-  //     token,
-  //     user: JSON.stringify(user),
-  //   });
-  // };
+    // ⚠️ NextAuth (v5.0.0-beta.4) limitation:
+    // `signIn('credentials', { redirect: false })` crashes
+    // `signIn('credentials')` triggers unwanted page reload
+    //
+    // So we accept the reload here temporarily, relying on the localStorage workaround above.
+    await signIn('custom-google-token', {
+      token,
+      user: JSON.stringify(user),
+    });
+  };
 
   return (
     <div>{loading ? 'Signing you in with Google...' : 'Redirecting...'}</div>
