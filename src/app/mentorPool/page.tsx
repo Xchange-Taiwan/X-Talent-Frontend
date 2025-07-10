@@ -1,17 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { XIcon } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 
 import avatarImage from '@/assets/default-avatar.jpeg';
-import { FilterOptions } from '@/components/filter/mentorFilterDropdown';
+import {
+  FilterOptions,
+  SelectFilters,
+} from '@/components/filter/mentorFilterDropdown';
 import MentorFilterDropdown from '@/components/filter/mentorFilterDropdown';
 import { MentorCardList } from '@/components/mentorPool/mentorCardList';
+import { Badge } from '@/components/ui/badge';
 import SearchBar from '@/components/ui/searchBar';
 import { fetchMentors, MentorType } from '@/services/searchMentor/mentors';
 
 const filterOptions: FilterOptions = {
   filter_positions: {
-    name: 'position',
+    name: 'Position',
     options: [
       { label: 'Frontend Developer', value: 'Frontend Developer' },
       { label: 'Software Engineer', value: 'Software Engineer' },
@@ -20,7 +25,7 @@ const filterOptions: FilterOptions = {
     ],
   },
   filter_skills: {
-    name: 'skill',
+    name: 'Skill',
     options: [
       { label: 'Kubernetes', value: 'Kubernetes' },
       { label: 'Agile', value: 'Agile' },
@@ -31,7 +36,7 @@ const filterOptions: FilterOptions = {
     ],
   },
   filter_topics: {
-    name: 'topic',
+    name: 'Topic',
     options: [
       { label: 'Microservices', value: 'Microservices' },
       { label: 'User Research', value: 'User Research' },
@@ -40,7 +45,7 @@ const filterOptions: FilterOptions = {
     ],
   },
   filter_expertises: {
-    name: 'expertise',
+    name: 'Expertise',
     options: [
       { label: 'DevOps', value: 'DevOps' },
       { label: 'Full Stack Development', value: 'Full Stack Development' },
@@ -49,7 +54,7 @@ const filterOptions: FilterOptions = {
     ],
   },
   filter_industries: {
-    name: 'industry',
+    name: 'Industry',
     options: [
       { label: 'Technology', value: 'Technology' },
       { label: 'Healthcare', value: 'Healthcare' },
@@ -62,16 +67,13 @@ const MentorPool = () => {
   const [searchPattern, setSearchPattern] = useState('');
   const [mentorCount, setMentorCount] = useState<number>(0);
   const [mentors, setMentors] = useState<MentorType[]>([]);
-  const [selectedFilters, setSelectedFilters] = useState<{
-    [key: string]: string;
-  }>({});
-  const [showNoResults, setShowNoResults] = useState(false);
+  const [selectedFilters, setSelectedFilters] = useState<SelectFilters>({});
+  const [isNoResults, setIsNoResults] = useState(false);
   const [cursor, setCursor] = useState<string | undefined>('');
   const limit = 9;
 
-  const handleFilterChange = (filterOptions: { [key: string]: string }) => {
-    setSelectedFilters(filterOptions);
-    fetchBySearch(filterOptions);
+  const handleFilterChange = (options: SelectFilters) => {
+    setSelectedFilters(options);
   };
 
   const handleSearch = async (queryWords: string) => {
@@ -79,15 +81,19 @@ const MentorPool = () => {
   };
 
   const handleScrollToBottom = async () => {
-    fetchByScrollToBottom();
+    if (mentors.length < limit) return;
+    fetchMoreMentors();
   };
 
-  const fetchBySearch = async (filterOptions?: { [key: string]: string }) => {
+  const fetchMentorsBySearch = useCallback(async () => {
+    const filters = Object.fromEntries(
+      Object.entries(selectedFilters).map(([key, value]) => [key, value.value]),
+    );
     const param = {
       searchPattern,
       limit,
       cursor: '',
-      ...filterOptions,
+      ...filters,
     };
     const rtnList = await fetchMentors(param);
     if (rtnList.length > 0) {
@@ -97,17 +103,23 @@ const MentorPool = () => {
       setMentors(rtnList);
       setMentorCount(rtnList.length);
       setCursor(rtnList.at(-1)?.updated_at?.toString());
+      setIsNoResults(false);
       return;
     }
-    setShowNoResults(true);
-  };
+    setMentors([]);
+    setMentorCount(0);
+    setIsNoResults(true);
+  }, [searchPattern, limit, selectedFilters]);
 
-  const fetchByScrollToBottom = async () => {
+  const fetchMoreMentors = async () => {
+    const filters = Object.fromEntries(
+      Object.entries(selectedFilters).map(([key, value]) => [key, value.value]),
+    );
     const param = {
       searchPattern,
       limit,
       cursor,
-      ...selectedFilters,
+      ...filters,
     };
     const rtnList = await fetchMentors(param);
     if (rtnList.length > 0) {
@@ -119,19 +131,20 @@ const MentorPool = () => {
       setCursor(rtnList.at(-1)?.updated_at?.toString());
       return;
     }
-    setShowNoResults(true);
+    setIsNoResults(true);
   };
 
   useEffect(() => {
-    fetchBySearch();
-  }, []);
+    fetchMentorsBySearch();
+  }, [fetchMentorsBySearch]);
 
-  useEffect(() => {
-    if (searchPattern) {
-      fetchBySearch();
-    }
-  }, [searchPattern]);
-
+  function removeFilter(key: string) {
+    setSelectedFilters((prevFilters) => {
+      const newFilters = { ...prevFilters };
+      delete newFilters[key];
+      return newFilters;
+    });
+  }
   return (
     <div className="relative">
       <section className="flex h-[202px] w-full items-center justify-center bg-[linear-gradient(to_right,#FFFFEF_0%,#FFF6FF_19%,#F7F2FB_42%,#E4FFFF_100%)] text-3xl font-semibold xl:rounded-br-[120px]">
@@ -150,12 +163,34 @@ const MentorPool = () => {
               <MentorFilterDropdown
                 onChange={handleFilterChange}
                 filterOptions={filterOptions}
+                selectOptions={selectedFilters}
               />
             </div>
           </div>
+          <div className="mb-5 flex flex-wrap gap-3">
+            {Object.entries(selectedFilters).map(([key, filter]) => (
+              <Badge
+                key={key}
+                variant={'filter'}
+                className="text-sm font-medium leading-5"
+              >
+                <span>
+                  {filter.name}: {filter.value}
+                </span>
+                <XIcon
+                  className="h-4 w-4 cursor-pointer"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    removeFilter(key);
+                  }}
+                />
+              </Badge>
+            ))}
+          </div>
+
           {mentors.length === 0 ? (
             <div className="flex h-72 w-full items-center justify-center">
-              {showNoResults && (
+              {isNoResults && (
                 <span className="text-3xl">No results found</span>
               )}
             </div>

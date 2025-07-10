@@ -2,7 +2,7 @@ import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import ArrowDropUpIcon from '@mui/icons-material/ArrowDropUp';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import * as Popover from '@radix-ui/react-popover';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 import FilterSelect from '@/components/filter/filterSelect';
 import { Button } from '@/components/ui/button';
@@ -14,34 +14,47 @@ export type FilterOptions = {
   };
 };
 
-interface SelectOptions {
-  [key: string]: string;
+export interface SelectFilters {
+  [key: string]: {
+    name: string;
+    value: string;
+  };
 }
 
 interface MentorFilterDropdownProps {
-  onChange: (filters: SelectOptions) => void;
+  onChange: (filters: SelectFilters) => void;
   filterOptions: FilterOptions;
+  selectOptions: SelectFilters;
 }
 
 const MentorFilterDropdown = ({
   onChange,
   filterOptions,
+  selectOptions,
 }: MentorFilterDropdownProps): JSX.Element => {
   const [open, setOpen] = useState(false);
-  const [selectedFilters, setSelectedFilters] = useState<SelectOptions>({});
+  const [pendingFilters, setPendingFilters] =
+    useState<SelectFilters>(selectOptions);
 
-  const handleChange = (field: string, value: string) => {
-    setSelectedFilters((prev) => ({ ...prev, [field]: value }));
+  const handleChange = (field: string, name: string, value: string) => {
+    setPendingFilters((prev) => ({
+      ...prev,
+      [field]: { name, value },
+    }));
   };
 
   const applyFilters = useCallback(() => {
-    onChange(selectedFilters || {});
+    onChange(pendingFilters || {});
     setOpen(false);
-  }, [selectedFilters, onChange]);
+  }, [pendingFilters, onChange]);
 
   const clearFilters = () => {
-    setSelectedFilters({});
+    setPendingFilters({});
   };
+
+  useEffect(() => {
+    setPendingFilters(selectOptions);
+  }, [selectOptions]);
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
@@ -68,9 +81,9 @@ const MentorFilterDropdown = ({
             <FilterSelect
               key={key}
               name={name}
-              value={selectedFilters[key] || ''}
+              value={pendingFilters[key]?.value || ''}
               options={options}
-              onChange={(val) => handleChange(key, val)}
+              onChange={(val) => handleChange(key, name, val)}
             />
           ))}
           <div className="flex gap-2 pt-2">
