@@ -20,13 +20,8 @@ export const MentorCardList = ({
 
   const fetchMentorData = async () => {
     setIsLoading(true);
-    try {
-      await onScrollToBottom();
-    } catch (error) {
-      console.error('Error fetching mentor data:', error);
-    } finally {
-      setIsLoading(false);
-    }
+    await onScrollToBottom();
+    setIsLoading(false);
   };
 
   useEffect(() => {
