@@ -13,7 +13,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
-import { InterestType } from '@/services/user/interests';
+import { InterestType } from '@/services/profile/interests';
 
 import { step3Schema } from './index';
 

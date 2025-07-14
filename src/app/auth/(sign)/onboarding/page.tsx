@@ -24,8 +24,8 @@ import { Form } from '@/components/ui/form';
 import useLocations from '@/hooks/user/country/useLocations';
 import useIndustries from '@/hooks/user/industry/useIndustries';
 import useInterests from '@/hooks/user/interests/useInterests';
-import { updateAvatar } from '@/services/auth/updateAvatar';
-import { updateProfile } from '@/services/auth/updateProfile';
+import { updateAvatar } from '@/services/profile/updateAvatar';
+import { updateProfile } from '@/services/profile/updateProfile';
 
 const STEP_TITLE = [
   '該如何稱呼你呢？',
@@ -143,6 +143,7 @@ export default function Page() {
         allData.avatarFile = undefined;
       }
       const validatedData = formSchema.parse(allData);
+      console.log(validatedData);
       await updateProfile(validatedData);
 
       router.push('/profile/card');

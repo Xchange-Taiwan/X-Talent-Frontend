@@ -19,8 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { LocationType } from '@/services/user/countries';
-import { IndustryType } from '@/services/user/industries';
+import { LocationType } from '@/services/profile/countries';
+import { IndustryType } from '@/services/profile/industries';
 
 import { totalWorkSpanOptions } from './constant';
 import { step2Schema } from './index';

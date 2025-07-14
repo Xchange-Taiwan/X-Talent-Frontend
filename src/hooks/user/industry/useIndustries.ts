@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { fetchIndustries, IndustryType } from '@/services/user/industries';
+import { fetchIndustries, IndustryType } from '@/services/profile/industries';
 
 const useIndustries = (language: string) => {
   const [industries, setIndustries] = useState<IndustryType[]>([]);

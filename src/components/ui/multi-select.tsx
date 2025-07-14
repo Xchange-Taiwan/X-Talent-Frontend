@@ -49,7 +49,7 @@ const multiSelectVariants = cva(
  * Props for MultiSelect component
  */
 interface MultiSelectProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onChange'>,
     VariantProps<typeof multiSelectVariants> {
   /**
    * An array of option objects to be displayed in the multi-select component.
@@ -68,7 +68,13 @@ interface MultiSelectProps
    * Callback function triggered when the selected values change.
    * Receives an array of the new selected values.
    */
-  onValueChange: (value: string[]) => void;
+  // onValueChange?: (value: string[]) => void;
+
+  /** 可選，用於 controlled 模式 */
+  onValueChange?: (value: string[]) => void;
+
+  /** 用於 react-hook-form Controller 支援 */
+  onChange?: (value: string[]) => void;
 
   /** The default selected values when the component mounts. */
   defaultValue?: string[];
@@ -142,9 +148,15 @@ export const MultiSelect = React.forwardRef<
 
     const updateValues = (newValues: string[]) => {
       if (value === undefined) {
-        setInternalSelectedValues(newValues); // 只有非受控狀態才更新
+        setInternalSelectedValues(newValues); // 非受控狀態
       }
-      onValueChange(newValues); // 一律回報變化
+
+      // 若有 onValueChange 傳進來就用它，否則用 onChange（來自 Controller）
+      if (onValueChange) {
+        onValueChange(newValues);
+      } else if (props.onChange) {
+        props.onChange(newValues);
+      }
     };
 
     const handleInputKeyDown = (
@@ -196,7 +208,6 @@ export const MultiSelect = React.forwardRef<
         <PopoverTrigger asChild>
           <Button
             ref={ref}
-            {...props}
             onClick={handleTogglePopover}
             className={cn(
               'bg-inherit hover:bg-inherit flex h-auto min-h-10 w-full items-center justify-between rounded-md border p-1 [&_svg]:pointer-events-auto',

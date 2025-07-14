@@ -64,8 +64,6 @@ export const LinksSection = ({ form }: Props) => (
         control={form.control}
         name={name}
         render={({ field }) => {
-          // Ensure the input value is a string to satisfy InputProps
-          const value = typeof field.value === 'string' ? field.value : '';
           return (
             <FormItem className="mb-4">
               <FormLabel>{label}</FormLabel>
@@ -77,8 +75,10 @@ export const LinksSection = ({ form }: Props) => (
                 <FormControl>
                   <Input
                     placeholder="請填入您的連結"
-                    value={value}
-                    onChange={field.onChange}
+                    value={field.value?.url || ''}
+                    onChange={(e) =>
+                      field.onChange({ ...field.value, url: e.target.value })
+                    }
                     onBlur={field.onBlur}
                     name={field.name}
                     ref={field.ref}

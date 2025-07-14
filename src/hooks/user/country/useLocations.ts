@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
-import { fetchCountries } from '@/services/user/countries';
-import { LocationType } from '@/services/user/countries';
+import { fetchCountries } from '@/services/profile/countries';
+import { LocationType } from '@/services/profile/countries';
 
 const useLocations = (language: string) => {
   const [locations, setLocations] = useState<LocationType[]>([]);

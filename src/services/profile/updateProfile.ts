@@ -2,13 +2,16 @@ import { getSession } from 'next-auth/react';
 import * as z from 'zod';
 
 import { formSchema } from '@/components/onboarding/Steps';
+import { profileFormSchema } from '@/components/profile/edit/profileSchema';
+
+export const unionformSchema = z.union([formSchema, profileFormSchema]);
 
 interface UpdateProfileResponse {
   msg?: string;
 }
 
 export async function updateProfile(
-  profileData: z.infer<typeof formSchema>,
+  profileData: z.infer<typeof unionformSchema>,
 ): Promise<void> {
   try {
     const session = await getSession();

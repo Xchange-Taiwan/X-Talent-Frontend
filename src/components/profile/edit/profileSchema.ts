@@ -4,14 +4,16 @@ import * as z from 'zod';
 // 🗃️ Form Schema & Types
 //--------------------------------------------------
 
-const educationSchema = z.object({
+export const educationSchema = z.object({
+  id: z.number().int(),
   subject: z.string().min(1, '請輸入主修'),
   school: z.string().min(1, '請選擇學校'),
   educationPeriodStart: z.string().min(1, '請選擇開始年份'),
   educationPeriodEnd: z.string().min(1, '請選擇結束年份'),
 });
 
-const jobSchema = z.object({
+export const jobSchema = z.object({
+  id: z.number().int(),
   job: z.string(),
   company: z.string(),
   jobPeriodStart: z.string(),
@@ -21,57 +23,57 @@ const jobSchema = z.object({
   description: z.string(),
 });
 
-export const formSchema = z.object({
-  avatarFile: z.instanceof(File).optional(),
+export const personLinkSchema = z.object({
+  id: z.number().int(),
+  platform: z.string(),
+  url: z.string(),
+});
+
+const isBrowser = typeof window !== 'undefined';
+export const profileFormSchema = z.object({
+  avatarFile: isBrowser ? z.instanceof(File).optional() : z.any().optional(),
   name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
-  region: z.string({ required_error: '請選擇地區' }),
+  location: z.string({ required_error: '請選擇地區' }),
   statement: z.string(),
   about: z.string(),
   industry: z.string(),
   years_of_experience: z.string({ required_error: '請選擇經驗' }),
-  jobs: z.array(jobSchema).min(1, '請至少填寫一筆工作經驗'),
-  educations: z.array(educationSchema).min(1, '請至少填寫一筆教育資料'),
-  linkedin: z.string(),
-  facebook: z.string(),
-  instagram: z.string(),
-  twitter: z.string(),
-  youtube: z.string(),
-  website: z.string(),
+  work_experiences: z.array(jobSchema),
+  educations: z.array(educationSchema),
+  linkedin: personLinkSchema,
+  facebook: personLinkSchema,
+  instagram: personLinkSchema,
+  twitter: personLinkSchema,
+  youtube: personLinkSchema,
+  website: personLinkSchema,
+  what_i_offer: z.array(z.string()),
+  expertises: z.array(z.string()),
+  interested_positions: z.array(z.string()).min(1, '請至少選擇一個職位'),
+  skills: z.array(z.string()).min(1, '請至少選擇一個技能'),
+  topics: z.array(z.string()).min(1, '請至少選擇一個主題'),
 });
 
-export type ProfileFormValues = z.infer<typeof formSchema>;
+export type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
 export const defaultValues: ProfileFormValues = {
   avatarFile: undefined,
   name: '',
-  region: '',
+  location: '',
   statement: '',
   about: '',
   industry: '',
   years_of_experience: '',
-  jobs: [
-    {
-      job: '',
-      company: '',
-      jobPeriodStart: '',
-      jobPeriodEnd: '',
-      industry: '',
-      jobLocation: '',
-      description: '',
-    },
-  ],
-  educations: [
-    {
-      subject: '',
-      school: '',
-      educationPeriodStart: '',
-      educationPeriodEnd: '',
-    },
-  ],
-  linkedin: '',
-  facebook: '',
-  instagram: '',
-  twitter: '',
-  youtube: '',
-  website: '',
+  work_experiences: [],
+  educations: [],
+  linkedin: { id: -1, url: '', platform: 'linkedin' },
+  facebook: { id: -1, url: '', platform: 'facebook' },
+  instagram: { id: -1, url: '', platform: 'instagram' },
+  twitter: { id: -1, url: '', platform: 'twitter' },
+  youtube: { id: -1, url: '', platform: 'youtube' },
+  website: { id: -1, url: '', platform: 'website' },
+  what_i_offer: [],
+  expertises: [],
+  interested_positions: [],
+  skills: [],
+  topics: [],
 };

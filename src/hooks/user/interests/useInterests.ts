@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { fetchInterests, InterestType } from '@/services/user/interests';
+import { fetchInterests, InterestType } from '@/services/profile/interests';
 
 const useInterests = (language: string) => {
   const [interestedPositions, setInterestedPositions] = useState<

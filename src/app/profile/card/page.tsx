@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 
 import { ProfileCard } from '@/components/profile/ProfileCard';
 import { Button } from '@/components/ui/button';
-import { fetchUser } from '@/services/user/user';
-import { UserType } from '@/services/user/user';
+import { fetchUser } from '@/services/profile/user';
+import { UserType } from '@/services/profile/user';
 
 export default function Page() {
   const router = useRouter();

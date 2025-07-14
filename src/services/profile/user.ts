@@ -1,5 +1,6 @@
 import { getSession } from 'next-auth/react';
 
+import { ExpertiseType } from './expertises';
 import { IndustryType } from './industries';
 import { InterestType } from './interests';
 
@@ -35,7 +36,8 @@ export interface UserType {
   about?: string;
   seniority_level?: string;
   expertises?: {
-    professions: string[];
+    professions: ExpertiseType[];
+    language: string | null;
   };
   experiences?: ExperienceType[];
 }
@@ -81,5 +83,48 @@ export async function fetchUser(language: string): Promise<UserType | null> {
   } catch (error) {
     console.error('Fetch User Error:', error);
     return null;
+  }
+}
+
+export async function updateUserProfile(
+  userData: Partial<UserType>,
+): Promise<boolean> {
+  const session = await getSession();
+  const token = session?.accessToken;
+  const userId = session?.user?.id;
+
+  if (!token || !userId) {
+    throw new Error('未找到授權令牌或使用者 ID。請重新登入。');
+  }
+
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors/${userId}/profile`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(userData),
+      },
+    );
+
+    if (!response.ok) {
+      console.error('Failed to update profile:', response.statusText);
+      return false;
+    }
+
+    const result = await response.json();
+
+    if (result.code !== '0') {
+      console.error('API Error:', result.msg);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Update User Error:', error);
+    return false;
   }
 }

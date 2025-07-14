@@ -1,4 +1,4 @@
-import { UserType } from '@/services/user/user';
+import { UserType } from '@/services/profile/user';
 export type SortMethod = 'a-z' | 'z-a';
 
 export function sortUsersByName(

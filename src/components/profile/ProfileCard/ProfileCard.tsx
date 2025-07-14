@@ -1,7 +1,7 @@
 'use Client';
 import type { FC, ReactNode } from 'react';
 
-import { InterestType } from '@/services/user/interests';
+import { InterestType } from '@/services/profile/interests';
 
 import { AvatarCard } from '../AvatarCard';
 

@@ -39,18 +39,21 @@ export const EducationSection = ({ form }: Props) => {
   });
 
   const addEducation = () => {
-    const last = getValues('educations')?.at(-1);
+    const educations = getValues('educations');
+    const last = educations?.at(-1);
     if (
-      !last?.subject ||
-      !last?.school ||
-      !last?.educationPeriodStart ||
-      !last?.educationPeriodEnd
+      educations.length > 0 &&
+      (!last?.subject ||
+        !last?.school ||
+        !last?.educationPeriodStart ||
+        !last?.educationPeriodEnd)
     ) {
       alert('請先完成上一筆教育資料再新增');
       return;
     }
 
     append({
+      id: -1,
       subject: '',
       school: '',
       educationPeriodStart: '',
