@@ -126,7 +126,15 @@ const MentorPool = () => {
       rtnList.map((mentor) => {
         mentor.avatar = avatarImage;
       });
-      setMentors((prevMentors) => [...prevMentors, ...rtnList]);
+      setMentors((prevMentors) => {
+        const newMentors = rtnList.filter(
+          (newMentor) =>
+            !prevMentors.some(
+              (prevMentor) => prevMentor.user_id === newMentor.user_id,
+            ),
+        );
+        return [...prevMentors, ...newMentors];
+      });
       setMentorCount(mentorCount + rtnList.length);
       setCursor(rtnList.at(-1)?.updated_at?.toString());
       return;
