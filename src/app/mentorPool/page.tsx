@@ -1,5 +1,7 @@
 'use client';
 
+import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
 import { XIcon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -69,6 +71,7 @@ const MentorPool = () => {
   const [mentors, setMentors] = useState<MentorType[]>([]);
   const [selectedFilters, setSelectedFilters] = useState<SelectFilters>({});
   const [isNoResults, setIsNoResults] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [cursor, setCursor] = useState<string | undefined>('');
   const limit = 9;
 
@@ -81,7 +84,7 @@ const MentorPool = () => {
   };
 
   const handleScrollToBottom = async () => {
-    if (mentors.length < limit) return;
+    if (mentors.length % limit) return;
     fetchMoreMentors();
   };
 
@@ -95,7 +98,15 @@ const MentorPool = () => {
       cursor: '',
       ...filters,
     };
-    const rtnList = await fetchMentors(param);
+    setMentors([]);
+    setMentorCount(0);
+    setIsLoading(true);
+    let rtnList: MentorType[] = [];
+    try {
+      rtnList = await fetchMentors(param);
+    } finally {
+      setIsLoading(false);
+    }
     if (rtnList.length > 0) {
       rtnList.map((mentor) => {
         mentor.avatar = avatarImage;
@@ -106,8 +117,6 @@ const MentorPool = () => {
       setIsNoResults(false);
       return;
     }
-    setMentors([]);
-    setMentorCount(0);
     setIsNoResults(true);
   }, [searchPattern, limit, selectedFilters]);
 
@@ -121,7 +130,13 @@ const MentorPool = () => {
       cursor,
       ...filters,
     };
-    const rtnList = await fetchMentors(param);
+    setIsLoading(true);
+    let rtnList: MentorType[] = [];
+    try {
+      rtnList = await fetchMentors(param);
+    } finally {
+      setIsLoading(false);
+    }
     if (rtnList.length > 0) {
       rtnList.map((mentor) => {
         mentor.avatar = avatarImage;
@@ -195,22 +210,56 @@ const MentorPool = () => {
               </Badge>
             ))}
           </div>
-
-          {mentors.length === 0 ? (
-            <div className="flex h-72 w-full items-center justify-center">
+          {mentors.length === 0 && !isLoading ? (
+            <div className="mt-6 flex h-full w-full items-center justify-center">
               {isNoResults && (
                 <span className="text-3xl">No results found</span>
               )}
             </div>
           ) : (
-            <MentorCardList
-              mentors={mentors}
-              onScrollToBottom={handleScrollToBottom}
-            />
+            <div className="mb-6">
+              <MentorCardList
+                mentors={mentors}
+                onScrollToBottom={handleScrollToBottom}
+              />
+            </div>
+          )}
+          {isLoading && (
+            <div className="flex h-full w-full items-center justify-center">
+              <LoadingIcon />
+            </div>
           )}
         </div>
       </section>
     </div>
+  );
+};
+
+const LoadingIcon = () => {
+  return (
+    <Box sx={{ position: 'relative' }}>
+      <CircularProgress
+        variant="determinate"
+        sx={() => ({
+          color: '#F0F6F6',
+        })}
+        size={40}
+        thickness={4}
+        value={100}
+      />
+      <CircularProgress
+        variant="indeterminate"
+        disableShrink
+        sx={() => ({
+          color: '#BEDEDE',
+          animationDuration: '550ms',
+          position: 'absolute',
+          left: 0,
+        })}
+        size={40}
+        thickness={4}
+      />
+    </Box>
   );
 };
 
