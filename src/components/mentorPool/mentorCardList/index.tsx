@@ -1,6 +1,4 @@
-import Box from '@mui/material/Box';
-import CircularProgress from '@mui/material/CircularProgress';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { MentorType } from '@/services/searchMentor/mentors';
 
@@ -15,35 +13,32 @@ export const MentorCardList = ({
   mentors,
   onScrollToBottom,
 }: MentorCardListProps) => {
-  const [isLoading, setIsLoading] = useState(false);
   const observer = useRef<IntersectionObserver | null>(null);
+  const lastCardRef = useRef<HTMLElement | null>(null);
 
   const fetchMentorData = async () => {
-    setIsLoading(true);
     await onScrollToBottom();
-    setIsLoading(false);
   };
 
   useEffect(() => {
+    observer.current?.disconnect();
+    observer.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          fetchMentorData();
+        }
+      },
+      { threshold: 0.5 },
+    );
+
+    if (lastCardRef.current) {
+      observer.current.observe(lastCardRef.current);
+    }
+
     return () => {
       observer.current?.disconnect();
     };
-  }, []);
-
-  const lastCardRef = (node: HTMLElement | null) => {
-    observer.current?.disconnect();
-    if (node) {
-      observer.current = new IntersectionObserver(
-        (entries) => {
-          if (entries[0].isIntersecting) {
-            fetchMentorData();
-          }
-        },
-        { threshold: 0.5 },
-      );
-      observer.current?.observe(node);
-    }
-  };
+  }, [mentors]);
 
   return (
     <div className="flex flex-col items-center gap-6">
@@ -63,35 +58,6 @@ export const MentorCardList = ({
           />
         ))}
       </div>
-      {isLoading && <LoadingIcon />}
     </div>
-  );
-};
-
-const LoadingIcon = () => {
-  return (
-    <Box sx={{ position: 'relative' }}>
-      <CircularProgress
-        variant="determinate"
-        sx={() => ({
-          color: '#F0F6F6',
-        })}
-        size={40}
-        thickness={4}
-        value={100}
-      />
-      <CircularProgress
-        variant="indeterminate"
-        disableShrink
-        sx={() => ({
-          color: '#BEDEDE',
-          animationDuration: '550ms',
-          position: 'absolute',
-          left: 0,
-        })}
-        size={40}
-        thickness={4}
-      />
-    </Box>
   );
 };
