@@ -1,6 +1,7 @@
 'use Client';
 import type { FC, ReactNode } from 'react';
 
+import { ExpertiseType } from '@/services/profile/expertises';
 import { InterestType } from '@/services/profile/interests';
 
 import { AvatarCard } from '../AvatarCard';
@@ -30,6 +31,7 @@ interface Props {
   interestedRole?: InterestType[];
   skillEnhancementTarget?: InterestType[];
   talkTopic?: InterestType[];
+  expertise?: ExpertiseType[];
 }
 
 export const ProfileCard: FC<Props> = ({
@@ -41,6 +43,7 @@ export const ProfileCard: FC<Props> = ({
   interestedRole,
   skillEnhancementTarget,
   talkTopic,
+  expertise,
 }) => {
   return (
     <div className="overflow-hidden rounded-2xl shadow-xl">
@@ -91,6 +94,16 @@ export const ProfileCard: FC<Props> = ({
             <div className="flex flex-wrap gap-2">
               {talkTopic.map((topic) => (
                 <Tag key={`talkTopic ${topic}`} displayText={topic.subject} />
+              ))}
+            </div>
+          </div>
+        )}
+        {Array.isArray(expertise) && expertise.length > 0 && (
+          <div>
+            <SubTitle>Expertise</SubTitle>
+            <div className="flex flex-wrap gap-2">
+              {expertise.map((exp) => (
+                <Tag key={`expertise ${exp}`} displayText={exp.subject} />
               ))}
             </div>
           </div>

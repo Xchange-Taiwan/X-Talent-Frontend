@@ -9,6 +9,8 @@ import DefaultAvatarImgUrl from '@/assets/default-avatar.jpeg';
 import { LinkedinColor } from '@/components/Icon';
 import { ExpertiseSelectItem } from '@/components/profile/ExpertiseSelectItem';
 import { Button } from '@/components/ui/button';
+import { fetchUser } from '@/services/profile/user';
+// import { UserType } from '@/services/profile/user';
 
 const PROFILE_DATA = {
   name: 'Kim Jae-hoon',
@@ -35,7 +37,8 @@ export default function Page({
   const [isLogging, setIsLogging] = useState(false);
   const [loginUserId, setLoginUserId] = useState('');
   const [isMentee, setIsMentee] = useState(false);
-  const [isMentor, setIsMentor] = useState(false);
+  // const [isMentor, setIsMentor] = useState(false);
+  // const [userData, setUserData] = useState<UserType | null>(null);
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -44,11 +47,23 @@ export default function Page({
 
       setIsLogging(!!user?.id);
       setLoginUserId(!!user?.id ? String(user?.id) : '');
-      setIsMentee(user?.isMentor !== true);
-      setIsMentor(user?.isMentor === true);
     };
 
+    async function fetchUserData() {
+      try {
+        const data = await fetchUser('zh_TW');
+        if (data) {
+          // setUserData(data);
+          // setIsMentor(data.is_mentor);
+          setIsMentee(!data.is_mentor);
+        }
+      } catch (err) {
+        console.error('Fetch User Data Error:', err);
+      }
+    }
+
     fetchSession();
+    fetchUserData();
   }, []);
 
   const { name, avatarImgUrl, jobTitle, companyName } = PROFILE_DATA;
@@ -105,15 +120,6 @@ export default function Page({
                 }
               >
                 變成導師
-              </Button>
-            )}
-
-            {isLogging && isMentor && (
-              <Button
-                variant="default"
-                className="grow rounded-full px-6 py-3 sm:grow-0"
-              >
-                預約設定
               </Button>
             )}
           </div>
