@@ -1,14 +1,19 @@
 import { ReactNode } from 'react';
 
 interface DividerProps {
-  children: ReactNode;
+  children?: ReactNode;
+  className?: string;
 }
 
-export default function Divider({ children }: DividerProps) {
+export default function Divider({ children, className = '' }: DividerProps) {
   return (
-    <div className="flex items-center">
+    <div className={`flex items-center ${className}`} role="separator">
       <div className="h-[1px] flex-1 bg-background-border" />
-      <p className="flex-0 text-neutral-600 px-2">{children}</p>
+      {children && (
+        <span className="text-neutral-600 whitespace-nowrap px-2 text-sm">
+          {children}
+        </span>
+      )}
       <div className="h-[1px] flex-1 bg-background-border" />
     </div>
   );

@@ -16,7 +16,7 @@ const badgeVariants = cva(
           'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
         outline: 'text-foreground',
         primaryAlt:
-          'border-transparent bg-primary text-black-foreground hover:bg-primary/80',
+          'border-transparent bg-primary text-black-foreground hover:bg-primary/90',
         filter: 'py-1.5 pr-2 pl-3 h-8 border border-[#E6E8EA] rounded-lg gap-2',
       },
     },

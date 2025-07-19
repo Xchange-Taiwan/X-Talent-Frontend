@@ -100,8 +100,6 @@ export default function Page({
       }
 
       setIsAuthorized(true);
-      const isMentorFromSession = session?.user?.isMentor === true;
-      setIsMentor(isMentorFromSession || isOnboarding);
     };
 
     verifyUser();
@@ -276,6 +274,8 @@ export default function Page({
             'topics',
             data.topics?.interests?.map((i) => i.subject_group) || [],
           );
+
+          setIsMentor(data.is_mentor || isOnboarding);
         }
       } catch (err) {
         console.error('Fetch User Data Error:', err);

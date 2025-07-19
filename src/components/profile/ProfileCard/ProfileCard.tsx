@@ -100,7 +100,7 @@ export const ProfileCard: FC<Props> = ({
         )}
         {Array.isArray(expertise) && expertise.length > 0 && (
           <div>
-            <SubTitle>Expertise</SubTitle>
+            <SubTitle>專業能力</SubTitle>
             <div className="flex flex-wrap gap-2">
               {expertise.map((exp) => (
                 <Tag key={`expertise ${exp}`} displayText={exp.subject} />
