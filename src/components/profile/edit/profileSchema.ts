@@ -30,30 +30,37 @@ export const personLinkSchema = z.object({
 });
 
 const isBrowser = typeof window !== 'undefined';
-export const profileFormSchema = z.object({
-  avatarFile: isBrowser ? z.instanceof(File).optional() : z.any().optional(),
-  name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
-  location: z.string({ required_error: '請選擇地區' }),
-  statement: z.string(),
-  about: z.string(),
-  industry: z.string(),
-  years_of_experience: z.string({ required_error: '請選擇經驗' }),
-  work_experiences: z.array(jobSchema),
-  educations: z.array(educationSchema),
-  linkedin: personLinkSchema,
-  facebook: personLinkSchema,
-  instagram: personLinkSchema,
-  twitter: personLinkSchema,
-  youtube: personLinkSchema,
-  website: personLinkSchema,
-  what_i_offer: z.array(z.string()),
-  expertises: z.array(z.string()),
-  interested_positions: z.array(z.string()).min(1, '請至少選擇一個職位'),
-  skills: z.array(z.string()).min(1, '請至少選擇一個技能'),
-  topics: z.array(z.string()).min(1, '請至少選擇一個主題'),
-});
+export const createProfileFormSchema = (isMentor: boolean) =>
+  z.object({
+    avatarFile: isBrowser ? z.instanceof(File).optional() : z.any().optional(),
+    name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
+    location: z.string({ required_error: '請選擇地區' }),
+    statement: z.string(),
+    about: isMentor ? z.string().min(1, '請填寫關於我') : z.string().optional(),
+    industry: z.string(),
+    years_of_experience: z.string({ required_error: '請選擇經驗' }),
+    work_experiences: isMentor
+      ? z.array(jobSchema).min(1, '請填寫至少一項工作經歷')
+      : z.array(jobSchema),
+    educations: isMentor
+      ? z.array(educationSchema).min(1, '請填寫至少一項學歷')
+      : z.array(educationSchema),
+    linkedin: personLinkSchema,
+    facebook: personLinkSchema,
+    instagram: personLinkSchema,
+    twitter: personLinkSchema,
+    youtube: personLinkSchema,
+    website: personLinkSchema,
+    what_i_offer: z.array(z.string()),
+    expertises: z.array(z.string()),
+    interested_positions: z.array(z.string()).min(1, '請至少選擇一個職位'),
+    skills: z.array(z.string()).min(1, '請至少選擇一個技能'),
+    topics: z.array(z.string()).min(1, '請至少選擇一個主題'),
+  });
 
-export type ProfileFormValues = z.infer<typeof profileFormSchema>;
+export type ProfileFormValues = z.infer<
+  ReturnType<typeof createProfileFormSchema>
+>;
 
 export const defaultValues: ProfileFormValues = {
   avatarFile: undefined,

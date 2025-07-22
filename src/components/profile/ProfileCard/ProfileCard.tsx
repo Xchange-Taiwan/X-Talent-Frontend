@@ -49,7 +49,7 @@ export const ProfileCard: FC<Props> = ({
     <div className="overflow-hidden rounded-2xl shadow-xl">
       <div className="relative h-[111px] bg-gradient-to-br from-[#92e7e7] to-[#e7a0d4] sm:h-[100px]">
         <AvatarCard
-          className="absolute -bottom-56 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:-bottom-40 sm:left-[180px]"
+          className="absolute -bottom-56 left-1/2 -translate-x-1/3 -translate-y-1/2 sm:-bottom-40 sm:left-[180px]"
           name={name}
           avatarImgUrl={avatarImgUrl}
           jobTitle={jobTitle}

@@ -2,9 +2,12 @@ import { getSession } from 'next-auth/react';
 import * as z from 'zod';
 
 import { formSchema } from '@/components/onboarding/Steps';
-import { profileFormSchema } from '@/components/profile/edit/profileSchema';
+import { createProfileFormSchema } from '@/components/profile/edit/profileSchema';
 
-export const unionformSchema = z.union([formSchema, profileFormSchema]);
+export const unionformSchema = z.union([
+  formSchema,
+  createProfileFormSchema(true),
+]);
 
 interface UpdateProfileResponse {
   msg?: string;

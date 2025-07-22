@@ -19,11 +19,11 @@ import {
 import { JobExperienceSection } from '@/components/profile/edit/jobExperienceSection';
 import { LinksSection } from '@/components/profile/edit/linkSection';
 import {
+  createProfileFormSchema,
   defaultValues,
   educationSchema,
   jobSchema,
   personLinkSchema,
-  profileFormSchema,
   ProfileFormValues,
 } from '@/components/profile/edit/profileSchema';
 import { Section } from '@/components/profile/edit/section';
@@ -80,7 +80,7 @@ export default function Page({
   const [isMentor, setIsMentor] = useState(false);
 
   const searchParams = useSearchParams();
-  const isOnboarding = searchParams?.get('onboarding') === 'true';
+  const isMentorOnboarding = searchParams?.get('onboarding') === 'true';
 
   const [originalWorkExperiences, setOriginalWorkExperiences] = useState<
     WorkExperienceFormValue[]
@@ -88,6 +88,7 @@ export default function Page({
   const [originalEducations, setOriginalEducations] = useState<
     EducationFormValue[]
   >([]);
+  const [isPageLoading, setIsPageLoading] = useState(true);
 
   useEffect(() => {
     const verifyUser = async () => {
@@ -111,7 +112,7 @@ export default function Page({
   const { expertises } = useExpertises('zh_TW');
 
   const { ...form } = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileFormSchema),
+    resolver: zodResolver(createProfileFormSchema(isMentor)),
     defaultValues,
   });
 
@@ -275,7 +276,8 @@ export default function Page({
             data.topics?.interests?.map((i) => i.subject_group) || [],
           );
 
-          setIsMentor(data.is_mentor || isOnboarding);
+          setIsMentor(data.is_mentor || isMentorOnboarding);
+          setIsPageLoading(false);
         }
       } catch (err) {
         console.error('Fetch User Data Error:', err);
@@ -293,7 +295,7 @@ export default function Page({
     router.push(`/profile/${pageUserId}`);
   };
 
-  const onSubmit = async (values: z.infer<typeof profileFormSchema>) => {
+  const onSubmit = async (values: ProfileFormValues) => {
     console.log(values);
 
     updateProfile(values);
@@ -425,7 +427,17 @@ export default function Page({
         return Promise.resolve();
       }),
     );
+
+    if (isMentorOnboarding) {
+      router.push('/profile/card');
+    } else {
+      handleGoToPrev();
+    }
   };
+
+  if (isPageLoading) {
+    return null;
+  }
 
   return (
     <div className="mx-auto w-11/12 max-w-[1064px] pb-20 pt-10">
