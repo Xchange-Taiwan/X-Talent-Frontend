@@ -34,7 +34,6 @@ import useLocations from '@/hooks/user/country/useLocations';
 import useExpertises from '@/hooks/user/expertises/useExpertises';
 import useIndustries from '@/hooks/user/industry/useIndustries';
 import useInterests from '@/hooks/user/interests/useInterests';
-import { deleteExperience } from '@/services/profile/deleteExperience';
 import { ExperienceType } from '@/services/profile/experienceType';
 import { updateProfile } from '@/services/profile/updateProfile';
 import {
@@ -47,28 +46,13 @@ type EducationFormValue = z.infer<typeof educationSchema>;
 type WorkExperienceFormValue = z.infer<typeof jobSchema>;
 type PersonLinkFormValue = z.infer<typeof personLinkSchema>;
 
-type BaseExperience = {
-  id: number;
+type MentorExperienceMetadata<T> = {
+  data?: T[];
 };
 
-function diffExperienceArray<T extends BaseExperience>(
-  oldData: T[],
-  newData: T[],
-) {
-  const oldMap = new Map(oldData.map((item) => [item.id, item]));
-  const newMap = new Map(newData.map((item) => [item.id, item]));
-
-  const toDelete = oldData.filter((old) => !newMap.has(old.id));
-  const toCreate = newData.filter((item) => item.id === -1);
-  const toUpdate = newData.filter((item) => {
-    const old = oldMap.get(item.id);
-    return (
-      item.id !== -1 && old && JSON.stringify(old) !== JSON.stringify(item)
-    );
-  });
-
-  return { toDelete, toCreate, toUpdate };
-}
+type WhatIOfferMetadata = {
+  subject_group: string;
+};
 
 export default function Page({
   params: { pageUserId },
@@ -81,13 +65,6 @@ export default function Page({
 
   const searchParams = useSearchParams();
   const isMentorOnboarding = searchParams?.get('onboarding') === 'true';
-
-  const [originalWorkExperiences, setOriginalWorkExperiences] = useState<
-    WorkExperienceFormValue[]
-  >([]);
-  const [originalEducations, setOriginalEducations] = useState<
-    EducationFormValue[]
-  >([]);
   const [isPageLoading, setIsPageLoading] = useState(true);
 
   useEffect(() => {
@@ -165,31 +142,44 @@ export default function Page({
       ?.filter((e) => e.category === 'LINK')
       .forEach((e) => {
         const metadata =
-          e.mentor_experiences_metadata as Partial<PersonLinkFormValue>;
-        const platform = metadata.platform as keyof typeof result;
-        const url = metadata.url || '';
-        const id = e.id ?? -1;
+          e.mentor_experiences_metadata as MentorExperienceMetadata<PersonLinkFormValue>;
+        const entries = metadata?.data || [];
 
-        if (
-          platform &&
-          [
-            'linkedin',
-            'facebook',
-            'instagram',
-            'twitter',
-            'youtube',
-            'website',
-          ].includes(platform)
-        ) {
-          result[platform] = {
-            id,
-            platform,
-            url,
-          };
-        }
+        entries.forEach((entry) => {
+          const platform = entry.platform as keyof typeof result;
+          const url = entry.url || '';
+          const id = e.id ?? -1;
+
+          if (
+            platform &&
+            [
+              'linkedin',
+              'facebook',
+              'instagram',
+              'twitter',
+              'youtube',
+              'website',
+            ].includes(platform)
+          ) {
+            result[platform] = {
+              id,
+              platform,
+              url,
+            };
+          }
+        });
       });
 
     return result;
+  }
+
+  function parseWhatIOffer(experiences: MentorExperiencePayload[]): string[] {
+    const whatIOffer = experiences.find((e) => e.category === 'WHAT_I_OFFER');
+
+    const metadata =
+      whatIOffer?.mentor_experiences_metadata as MentorExperienceMetadata<WhatIOfferMetadata>;
+
+    return metadata?.data?.map((item) => item.subject_group) || [];
   }
 
   useEffect(() => {
@@ -199,33 +189,37 @@ export default function Page({
         if (data) {
           const parsedExperiences = data.experiences
             ?.filter((e) => e.category === 'WORK')
-            .map((e): WorkExperienceFormValue => {
+            .flatMap((e): WorkExperienceFormValue[] => {
               const metadata =
-                e.mentor_experiences_metadata as Partial<WorkExperienceFormValue>;
-              return {
+                e.mentor_experiences_metadata as MentorExperienceMetadata<WorkExperienceFormValue>;
+              const entries = metadata?.data || [];
+
+              return entries.map((item) => ({
                 id: typeof e.id === 'number' ? e.id : -1,
-                job: metadata.job || '',
-                company: metadata.company || '',
-                jobPeriodStart: metadata.jobPeriodStart || '',
-                jobPeriodEnd: metadata.jobPeriodEnd || '',
-                industry: metadata.industry || '',
-                jobLocation: metadata.jobLocation || '',
-                description: metadata.description || '',
-              };
+                job: item.job || '',
+                company: item.company || '',
+                jobPeriodStart: item.jobPeriodStart || '',
+                jobPeriodEnd: item.jobPeriodEnd || '',
+                industry: item.industry || '',
+                jobLocation: item.jobLocation || '',
+                description: item.description || '',
+              }));
             });
 
           const parsedEducations = data.experiences
             ?.filter((e) => e.category === 'EDUCATION')
-            .map((e): EducationFormValue => {
+            .flatMap((e): EducationFormValue[] => {
               const metadata =
-                e.mentor_experiences_metadata as Partial<EducationFormValue>;
-              return {
+                e.mentor_experiences_metadata as MentorExperienceMetadata<EducationFormValue>;
+              const entries = metadata?.data || [];
+
+              return entries.map((item) => ({
                 id: typeof e.id === 'number' ? e.id : -1,
-                school: metadata.school || '',
-                subject: metadata.subject || '',
-                educationPeriodStart: metadata.educationPeriodStart || '',
-                educationPeriodEnd: metadata.educationPeriodEnd || '',
-              };
+                school: item.school || '',
+                subject: item.subject || '',
+                educationPeriodStart: item.educationPeriodStart || '',
+                educationPeriodEnd: item.educationPeriodEnd || '',
+              }));
             });
 
           const parsedLinks = parseLinks(
@@ -251,9 +245,6 @@ export default function Page({
             educations: parsedEducations || defaultValues.educations,
           });
 
-          setOriginalWorkExperiences(parsedExperiences || []);
-          setOriginalEducations(parsedEducations || []);
-
           form.setValue(
             'what_i_offer',
             data.topics?.interests?.map((i) => i.subject_group) || [],
@@ -274,6 +265,12 @@ export default function Page({
           form.setValue(
             'topics',
             data.topics?.interests?.map((i) => i.subject_group) || [],
+          );
+          form.setValue(
+            'what_i_offer',
+            parseWhatIOffer(
+              data.experiences as unknown as MentorExperiencePayload[],
+            ),
           );
 
           setIsMentor(data.is_mentor || isMentorOnboarding);
@@ -296,95 +293,38 @@ export default function Page({
   };
 
   const onSubmit = async (values: ProfileFormValues) => {
-    updateProfile(values);
+    await updateProfile(values);
 
-    const {
-      toDelete: workToDelete,
-      toCreate: workToCreate,
-      toUpdate: workToUpdate,
-    } = diffExperienceArray(originalWorkExperiences, values.work_experiences);
+    await upsertMentorExperience(ExperienceType.WORK, true, {
+      id: 1,
+      category: ExperienceType.WORK,
+      mentor_experiences_metadata: {
+        data: values.work_experiences.map((item) => ({
+          job: item.job,
+          company: item.company,
+          jobPeriodStart: item.jobPeriodStart,
+          jobPeriodEnd: item.jobPeriodEnd,
+          industry: item.industry,
+          jobLocation: item.jobLocation,
+          description: item.description,
+        })),
+      },
+      order: 1,
+    });
 
-    await Promise.all(
-      workToDelete.map((item) =>
-        deleteExperience(ExperienceType.WORK, item.id, true),
-      ),
-    );
-    await Promise.all(
-      workToCreate.map((item, idx) =>
-        upsertMentorExperience(ExperienceType.WORK, true, {
-          category: ExperienceType.WORK,
-          mentor_experiences_metadata: {
-            job: item.job,
-            company: item.company,
-            jobPeriodStart: item.jobPeriodStart,
-            jobPeriodEnd: item.jobPeriodEnd,
-            industry: item.industry,
-            jobLocation: item.jobLocation,
-            description: item.description,
-          },
-          order: idx,
-        }),
-      ),
-    );
-    await Promise.all(
-      workToUpdate.map((item, idx) =>
-        upsertMentorExperience(ExperienceType.WORK, true, {
-          id: item.id,
-          category: ExperienceType.WORK,
-          mentor_experiences_metadata: {
-            job: item.job,
-            company: item.company,
-            jobPeriodStart: item.jobPeriodStart,
-            jobPeriodEnd: item.jobPeriodEnd,
-            industry: item.industry,
-            jobLocation: item.jobLocation,
-            description: item.description,
-          },
-          order: idx,
-        }),
-      ),
-    );
-
-    const {
-      toDelete: eduToDelete,
-      toCreate: eduToCreate,
-      toUpdate: eduToUpdate,
-    } = diffExperienceArray(originalEducations, values.educations);
-
-    await Promise.all(
-      eduToDelete.map((item) =>
-        deleteExperience(ExperienceType.EDUCATION, item.id, true),
-      ),
-    );
-    await Promise.all(
-      eduToCreate.map((item, idx) =>
-        upsertMentorExperience(ExperienceType.EDUCATION, true, {
-          category: ExperienceType.EDUCATION,
-          mentor_experiences_metadata: {
-            school: item.school,
-            subject: item.subject,
-            educationPeriodStart: item.educationPeriodStart,
-            educationPeriodEnd: item.educationPeriodEnd,
-          },
-          order: idx,
-        }),
-      ),
-    );
-    await Promise.all(
-      eduToUpdate.map((item, idx) =>
-        upsertMentorExperience(ExperienceType.EDUCATION, true, {
-          id: item.id,
-          category: ExperienceType.EDUCATION,
-          mentor_experiences_metadata: {
-            school: item.school,
-            subject: item.subject,
-            educationPeriodStart: item.educationPeriodStart,
-            educationPeriodEnd: item.educationPeriodEnd,
-          },
-          order: idx,
-        }),
-      ),
-    );
+    await upsertMentorExperience(ExperienceType.EDUCATION, true, {
+      id: 2,
+      category: ExperienceType.EDUCATION,
+      mentor_experiences_metadata: {
+        data: values.educations.map((item) => ({
+          school: item.school,
+          subject: item.subject,
+          educationPeriodStart: item.educationPeriodStart,
+          educationPeriodEnd: item.educationPeriodEnd,
+        })),
+      },
+      order: 2,
+    });
 
     const links = [
       values.linkedin,
@@ -395,36 +335,28 @@ export default function Page({
       values.website,
     ];
 
-    await Promise.all(
-      links.map((link, idx) => {
-        const metadata = {
+    await upsertMentorExperience(ExperienceType.LINK, true, {
+      id: 3,
+      category: ExperienceType.LINK,
+      mentor_experiences_metadata: {
+        data: links.map((link) => ({
           platform: link.platform,
           url: link.url,
-        };
+        })),
+      },
+      order: 3,
+    });
 
-        const payload: MentorExperiencePayload = {
-          category: ExperienceType.LINK,
-          mentor_experiences_metadata: metadata,
-          order: idx,
-        };
-
-        // 如果沒有填 url 而且是舊資料（有 id），就刪除
-        if (!link.url && link.id !== -1) {
-          return deleteExperience(ExperienceType.LINK, link.id, true);
-        }
-
-        // 有填 url，就 upsert
-        if (link.url) {
-          if (link.id !== -1) {
-            payload.id = link.id;
-          }
-          return upsertMentorExperience(ExperienceType.LINK, isMentor, payload);
-        }
-
-        // 全新空白 link，什麼都不做
-        return Promise.resolve();
-      }),
-    );
+    await upsertMentorExperience(ExperienceType.WHAT_I_OFFER, true, {
+      id: 4,
+      category: ExperienceType.WHAT_I_OFFER,
+      mentor_experiences_metadata: {
+        data: values.what_i_offer.map((item) => ({
+          subject_group: item,
+        })),
+      },
+      order: 4,
+    });
 
     if (isMentorOnboarding) {
       router.push('/profile/card');
