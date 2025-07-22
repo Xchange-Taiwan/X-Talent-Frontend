@@ -245,16 +245,20 @@ export default function Page({
           </div>
 
           <div className="hidden w-1/2 lg:block">
-            <div>
-              <p className="mb-4 text-xl font-bold">可預約時段</p>
-              <p className="text-sm text-gray-400">目前沒有可預約時段</p>
-            </div>
-            <Button
-              variant="default"
-              className="mt-5 w-2/3 rounded-full px-6 py-3"
-            >
-              預約設定
-            </Button>
+            {isMentor && (
+              <div>
+                <div>
+                  <p className="mb-4 text-xl font-bold">可預約時段</p>
+                  <p className="text-sm text-gray-400">目前沒有可預約時段</p>
+                </div>
+                <Button
+                  variant="default"
+                  className="mt-5 w-2/3 rounded-full px-6 py-3"
+                >
+                  預約設定
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>
