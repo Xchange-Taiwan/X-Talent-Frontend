@@ -14,13 +14,13 @@ export const educationSchema = z.object({
 
 export const jobSchema = z.object({
   id: z.number().int(),
-  job: z.string(),
-  company: z.string(),
-  jobPeriodStart: z.string(),
-  jobPeriodEnd: z.string(),
-  industry: z.string(),
-  jobLocation: z.string(),
-  description: z.string(),
+  job: z.string().min(1, '請輸入職稱'),
+  company: z.string().min(1, '請輸入公司名稱'),
+  jobPeriodStart: z.string().min(1, '請選擇開始年份'),
+  jobPeriodEnd: z.string().min(1, '請選擇結束年份'),
+  industry: z.string().min(1, '請輸入產業類別'),
+  jobLocation: z.string().min(1, '請輸入工作地點'),
+  description: z.string().min(1, '請輸入工作內容'),
 });
 
 export const personLinkSchema = z.object({
@@ -51,8 +51,12 @@ export const createProfileFormSchema = (isMentor: boolean) =>
     twitter: personLinkSchema,
     youtube: personLinkSchema,
     website: personLinkSchema,
-    what_i_offer: z.array(z.string()),
-    expertises: z.array(z.string()),
+    what_i_offer: isMentor
+      ? z.array(z.string()).min(1, '請至少選擇一個主題')
+      : z.array(z.string()),
+    expertises: isMentor
+      ? z.array(z.string()).min(1, '請至少選擇一個技能')
+      : z.array(z.string()),
     interested_positions: z.array(z.string()).min(1, '請至少選擇一個職位'),
     skills: z.array(z.string()).min(1, '請至少選擇一個技能'),
     topics: z.array(z.string()).min(1, '請至少選擇一個主題'),

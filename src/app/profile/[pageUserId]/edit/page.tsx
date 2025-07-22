@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 import { getSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { totalWorkSpanOptions } from '@/components/onboarding/Steps/constant';
@@ -18,6 +18,7 @@ import {
 } from '@/components/profile/edit/fields';
 import { JobExperienceSection } from '@/components/profile/edit/jobExperienceSection';
 import { LinksSection } from '@/components/profile/edit/linkSection';
+import { MultiSelectField } from '@/components/profile/edit/MultiSelectField';
 import {
   createProfileFormSchema,
   defaultValues,
@@ -29,7 +30,6 @@ import {
 import { Section } from '@/components/profile/edit/section';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
-import { MultiSelect } from '@/components/ui/multi-select';
 import useLocations from '@/hooks/user/country/useLocations';
 import useExpertises from '@/hooks/user/expertises/useExpertises';
 import useIndustries from '@/hooks/user/industry/useIndustries';
@@ -296,8 +296,6 @@ export default function Page({
   };
 
   const onSubmit = async (values: ProfileFormValues) => {
-    console.log(values);
-
     updateProfile(values);
 
     const {
@@ -484,38 +482,28 @@ export default function Page({
 
           {isMentor && (
             <Section title="*我能提供的服務">
-              <Controller
-                control={form.control}
+              <MultiSelectField
+                form={form}
                 name="what_i_offer"
-                render={({ field }) => (
-                  <MultiSelect
-                    {...field}
-                    options={whatIOfferTopicsList}
-                    placeholder="我能提供的服務"
-                    variant="primaryAlt"
-                    animation={2}
-                    maxCount={3}
-                  />
-                )}
+                options={whatIOfferTopicsList}
+                placeholder="我能提供的服務"
+                variant="primaryAlt"
+                animation={2}
+                maxCount={3}
               />
             </Section>
           )}
 
           {isMentor && (
             <Section title="*專業能力">
-              <Controller
-                control={form.control}
+              <MultiSelectField
+                form={form}
                 name="expertises"
-                render={({ field }) => (
-                  <MultiSelect
-                    {...field}
-                    options={expertisedList}
-                    placeholder="專業能力"
-                    variant="primaryAlt"
-                    animation={2}
-                    maxCount={3}
-                  />
-                )}
+                options={expertisedList}
+                placeholder="專業能力"
+                variant="primaryAlt"
+                animation={2}
+                maxCount={3}
               />
             </Section>
           )}
@@ -558,53 +546,38 @@ export default function Page({
           </Section>
 
           <Section title="有興趣多了解的職位">
-            <Controller
-              control={form.control}
+            <MultiSelectField
+              form={form}
               name="interested_positions"
-              render={({ field }) => (
-                <MultiSelect
-                  {...field}
-                  options={interestedPositionList}
-                  placeholder="有興趣多了解的職位"
-                  variant="primaryAlt"
-                  animation={2}
-                  maxCount={3}
-                />
-              )}
+              options={interestedPositionList}
+              placeholder="有興趣多了解的職位"
+              variant="primaryAlt"
+              animation={2}
+              maxCount={3}
             />
           </Section>
 
           <Section title="想多了解、加強的技能">
-            <Controller
-              control={form.control}
+            <MultiSelectField
+              form={form}
               name="skills"
-              render={({ field }) => (
-                <MultiSelect
-                  {...field}
-                  options={interestedSkillsList}
-                  placeholder="想多了解、加強的技能"
-                  variant="primaryAlt"
-                  animation={2}
-                  maxCount={3}
-                />
-              )}
+              options={interestedSkillsList}
+              placeholder="想多了解、加強的技能"
+              variant="primaryAlt"
+              animation={2}
+              maxCount={3}
             />
           </Section>
 
           <Section title="想多了解的主題">
-            <Controller
-              control={form.control}
+            <MultiSelectField
+              form={form}
               name="topics"
-              render={({ field }) => (
-                <MultiSelect
-                  {...field}
-                  options={interestedTopicsList}
-                  placeholder="想多了解的主題"
-                  variant="primaryAlt"
-                  animation={2}
-                  maxCount={3}
-                />
-              )}
+              options={interestedTopicsList}
+              placeholder="想多了解的主題"
+              variant="primaryAlt"
+              animation={2}
+              maxCount={3}
             />
           </Section>
 
