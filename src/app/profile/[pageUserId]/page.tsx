@@ -6,12 +6,104 @@ import { getSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.jpeg';
-import { LinkedinColor } from '@/components/Icon';
 import { ExperienceSection } from '@/components/profile/ExperienceSection/ExperienceSection';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { fetchUser } from '@/services/profile/user';
+import { fetchUserById } from '@/services/profile/user';
 import { UserType } from '@/services/profile/user';
+
+type WorkExperienceMetadata = {
+  job?: string;
+  company?: string;
+  jobPeriodStart?: string;
+  jobPeriodEnd?: string;
+  description?: string;
+};
+
+type EducationExperienceMetadata = {
+  subject?: string;
+  school?: string;
+  educationPeriodStart?: string;
+  educationPeriodEnd?: string;
+};
+
+type WhatIOfferMetadata = {
+  subject_group: string;
+};
+
+type PersonalLinkMetadata = {
+  platform: string;
+  url: string;
+};
+
+const platformLabelMap: Record<string, { label: string; icon: JSX.Element }> = {
+  linkedin: {
+    label: 'LinkedIn',
+    icon: (
+      <Image
+        src="/profile/edit/linkedin-logo.svg"
+        alt="LinkedIn"
+        width={20}
+        height={20}
+      />
+    ),
+  },
+  facebook: {
+    label: 'Facebook',
+    icon: (
+      <Image
+        src="/profile/edit/facebook-logo.svg"
+        alt="Facebook"
+        width={20}
+        height={20}
+      />
+    ),
+  },
+  instagram: {
+    label: 'Instagram',
+    icon: (
+      <Image
+        src="/profile/edit/instagram-logo.svg"
+        alt="Instagram"
+        width={20}
+        height={20}
+      />
+    ),
+  },
+  twitter: {
+    label: 'X (formerly Twitter)',
+    icon: (
+      <Image
+        src="/profile/edit/twitter-logo.svg"
+        alt="Twitter"
+        width={20}
+        height={20}
+      />
+    ),
+  },
+  youtube: {
+    label: 'YouTube',
+    icon: (
+      <Image
+        src="/profile/edit/youtube-logo.svg"
+        alt="YouTube"
+        width={20}
+        height={20}
+      />
+    ),
+  },
+  website: {
+    label: '個人網站',
+    icon: (
+      <Image
+        src="/profile/edit/website-logo.svg"
+        alt="Website"
+        width={20}
+        height={20}
+      />
+    ),
+  },
+};
 
 export default function Page({
   params: { pageUserId },
@@ -25,6 +117,7 @@ export default function Page({
   const [isMentee, setIsMentee] = useState(false);
   const [isMentor, setIsMentor] = useState(false);
   const [userData, setUserData] = useState<UserType | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -35,9 +128,17 @@ export default function Page({
       setLoginUserId(!!user?.id ? String(user?.id) : '');
     };
 
-    async function fetchUserData() {
+    fetchSession();
+  }, []);
+
+  useEffect(() => {
+    const userId = Number(pageUserId);
+    if (!userId || isNaN(userId)) return;
+
+    const fetchUserData = async () => {
+      setLoading(true);
       try {
-        const data = await fetchUser('zh_TW');
+        const data = await fetchUserById(userId, 'zh_TW');
         if (data) {
           setUserData(data);
           setIsMentor(data.is_mentor);
@@ -45,12 +146,25 @@ export default function Page({
         }
       } catch (err) {
         console.error('Fetch User Data Error:', err);
+      } finally {
+        setLoading(false);
       }
-    }
+    };
 
-    fetchSession();
     fetchUserData();
-  }, []);
+  }, [pageUserId]);
+
+  if (loading) {
+    return null;
+  }
+
+  if (!userData) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center text-gray-500">
+        沒有該位使用者
+      </div>
+    );
+  }
 
   const firstWorkExperience = userData?.experiences?.find(
     (exp) => (exp.category as string) === 'WORK',
@@ -67,44 +181,56 @@ export default function Page({
   const parsedExperiences =
     userData?.experiences
       ?.filter((e) => e.category === 'WORK')
-      .map((e) => {
-        const metadata = e.mentor_experiences_metadata as {
-          job?: string;
-          company?: string;
-          jobPeriodStart?: string;
-          jobPeriodEnd?: string;
-          description?: string;
-        };
-        return {
-          title: metadata.job || '',
-          subtitle: metadata.company || '',
-          description: metadata.description || '',
-          startDate: metadata.jobPeriodStart || '',
-          endDate: metadata.jobPeriodEnd || '',
-        };
+      .flatMap((e) => {
+        const metadataArray =
+          (e.mentor_experiences_metadata as { data?: WorkExperienceMetadata[] })
+            ?.data ?? [];
+        return metadataArray.map((meta) => ({
+          title: meta.job || '',
+          subtitle: meta.company || '',
+          description: meta.description || '',
+          startDate: meta.jobPeriodStart || '',
+          endDate: meta.jobPeriodEnd || '',
+        }));
       }) || [];
 
   const parsedEducations =
     userData?.experiences
       ?.filter((e) => e.category === 'EDUCATION')
-      .map((e) => {
-        const metadata = e.mentor_experiences_metadata as {
-          school?: string;
-          subject?: string;
-          educationPeriodStart?: string;
-          educationPeriodEnd?: string;
-        };
-        return {
-          title: metadata.subject || '',
-          subtitle: metadata.school || '',
-          startDate: metadata.educationPeriodStart || '',
-          endDate: metadata.educationPeriodEnd || '',
-        };
+      .flatMap((e) => {
+        const metadataArray =
+          (
+            e.mentor_experiences_metadata as {
+              data?: EducationExperienceMetadata[];
+            }
+          )?.data ?? [];
+        return metadataArray.map((meta) => ({
+          title: meta.subject || '',
+          subtitle: meta.school || '',
+          startDate: meta.educationPeriodStart || '',
+          endDate: meta.educationPeriodEnd || '',
+        }));
       }) || [];
 
-  if (!userData) {
-    return null;
-  }
+  const parsedWhatIOffer =
+    userData?.experiences
+      ?.filter((e) => e.category === 'WHAT_I_OFFER')
+      .flatMap((e) => {
+        const metadataArray =
+          (e.mentor_experiences_metadata as { data?: WhatIOfferMetadata[] })
+            ?.data ?? [];
+        return metadataArray.map((meta) => meta.subject_group);
+      }) || [];
+
+  const personalLinks =
+    userData?.experiences
+      ?.filter((e) => e.category === 'LINK')
+      .flatMap((e) => {
+        const metadataArray =
+          (e.mentor_experiences_metadata as { data?: PersonalLinkMetadata[] })
+            ?.data ?? [];
+        return metadataArray.filter((link) => link.url);
+      }) || [];
 
   return (
     <div>
@@ -125,7 +251,20 @@ export default function Page({
             <div className="sm:mb-6 lg:mb-0">
               <div className="mb-2 flex items-center justify-center gap-2 sm:justify-start">
                 <p className="text-2xl font-semibold">{userData?.name}</p>
-                <LinkedinColor className="h-5 w-5 cursor-pointer sm:h-6 sm:w-6" />
+                {personalLinks.map((link) => (
+                  <a
+                    key={link.platform}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-blue-600 text-gray-600"
+                    title={
+                      platformLabelMap[link.platform]?.label || link.platform
+                    }
+                  >
+                    {platformLabelMap[link.platform]?.icon}
+                  </a>
+                ))}
               </div>
               <div>
                 <p className="text-sm">
@@ -182,10 +321,16 @@ export default function Page({
               </div>
             )}
 
-            {isMentor && (
+            {isMentor && parsedWhatIOffer.length > 0 && (
               <div className="mt-10">
                 <p className="mb-4 text-xl font-bold">我能提供的服務</p>
-                <Badge variant={'primaryAlt'}>空格</Badge>
+                <div className="flex flex-wrap gap-3">
+                  {parsedWhatIOffer.map((subjectGroup) => (
+                    <Badge variant={'primaryAlt'} key={subjectGroup}>
+                      {subjectGroup}
+                    </Badge>
+                  ))}
+                </div>
               </div>
             )}
 
