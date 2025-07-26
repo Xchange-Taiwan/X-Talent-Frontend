@@ -57,23 +57,13 @@ export async function fetchUser(language: string): Promise<UserType | null> {
     throw new Error('未找到授權令牌。請重新登入。');
   }
 
-  return fetchUserById(Number(userId), language, token);
+  return fetchUserById(Number(userId), language);
 }
 
 export async function fetchUserById(
   userId: number,
   language: string,
-  token?: string,
 ): Promise<UserType | null> {
-  if (!token) {
-    const session = await getSession();
-    token = session?.accessToken;
-  }
-
-  if (!token) {
-    throw new Error('未找到授權令牌。請重新登入。');
-  }
-
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors/${userId}/${language}/profile`,
@@ -81,7 +71,6 @@ export async function fetchUserById(
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
       },
     );

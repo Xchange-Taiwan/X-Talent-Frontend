@@ -20,6 +20,13 @@ type WorkExperienceMetadata = {
   description?: string;
 };
 
+type WorkExperience = {
+  category: string;
+  mentor_experiences_metadata?: {
+    data: WorkExperienceMetadata[];
+  };
+};
+
 type EducationExperienceMetadata = {
   subject?: string;
   school?: string;
@@ -167,16 +174,18 @@ export default function Page({
   }
 
   const firstWorkExperience = userData?.experiences?.find(
-    (exp) => (exp.category as string) === 'WORK',
-  );
+    (exp) => exp.category === 'WORK',
+  ) as WorkExperience;
 
-  const metadata = firstWorkExperience?.mentor_experiences_metadata as {
-    company?: string;
-    job?: string;
-  };
+  const firstWorkMetadataList =
+    firstWorkExperience?.mentor_experiences_metadata?.data;
 
-  const firstWorkExperienceCompany = metadata?.company || '';
-  const firstWorkExperienceTitle = metadata?.job || '';
+  const firstWorkMetadata = Array.isArray(firstWorkMetadataList)
+    ? firstWorkMetadataList[0]
+    : undefined;
+
+  const firstWorkExperienceCompany = firstWorkMetadata?.company || '';
+  const firstWorkExperienceTitle = firstWorkMetadata?.job || '';
 
   const parsedExperiences =
     userData?.experiences

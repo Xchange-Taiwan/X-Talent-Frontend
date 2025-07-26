@@ -13,6 +13,7 @@ export const publicRoutes: string[] = [
   '/auth/passwordResetSuccess',
   '/auth/emailVerify',
   '/auth/emailVerified',
+  '/profile/[pageUserId]',
 ];
 
 /**
