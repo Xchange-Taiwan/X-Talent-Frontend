@@ -1,0 +1,42 @@
+name: Deploy to Vercel (Production)
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_PROD }}
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID_PROD }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to Production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      - name: Install PNPM
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment info
+        run: vercel pull --yes --environment=production --token=${{ env.VERCEL_TOKEN }}
+
+      - name: Build project
+        run: vercel build --prod --token=${{ env.VERCEL_TOKEN }}
+
+      - name: Deploy to production
+        run: vercel deploy --prebuilt --prod --token=${{ env.VERCEL_TOKEN }}
