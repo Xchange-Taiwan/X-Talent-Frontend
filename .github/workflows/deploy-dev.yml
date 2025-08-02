@@ -1,4 +1,4 @@
-name: Deploy to Vercel (Develop & PR Preview)
+name: Deploy to Vercel (Develop)
 
 on:
   push:
@@ -36,16 +36,16 @@ jobs:
         run: npm install --global vercel@latest
 
       - name: Pull Vercel environment info
-        run: vercel pull --yes --environment=preview --token=${{ env.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token=${{ env.VERCEL_TOKEN }}
 
       - name: Build project
-        run: vercel build --token=${{ env.VERCEL_TOKEN }}
+        run: vercel build --prod --token=${{ env.VERCEL_TOKEN }}
 
-      - name: Deploy to Vercel (Preview)
+      - name: Deploy to Vercel (Production for develop)
         id: deploy
         run: |
-          echo "🚀 Deploying to Vercel Preview..."
-          url=$(vercel deploy --prebuilt --token=${{ env.VERCEL_TOKEN }} | tail -n 1)
+          echo "🚀 Deploying to Vercel Production (develop)..."
+          url=$(vercel deploy --prebuilt --prod --token=${{ env.VERCEL_TOKEN }} | tail -n 1)
           echo "vercel_url=${url}" >> $GITHUB_ENV
           echo "::set-output name=url::$url"
 
@@ -58,17 +58,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `🚀 PR Preview Deployment:\n${{ env.vercel_url }}`
-            })
-
-      - name: Comment on develop commit with Preview URL
-        if: ${{ github.ref == 'refs/heads/develop' }}
-        uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.repos.createCommitComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              commit_sha: context.sha,
-              body: `🚀 Staging Deployment from develop branch:\n${{ env.vercel_url }}`
+              body: `🚀 PR Preview Deployment (still on dev project):\n${{ env.vercel_url }}`
             })
