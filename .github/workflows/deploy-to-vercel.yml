@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - main
+      - develop
   pull_request:
     branches:
       - '**'
@@ -18,40 +19,51 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout code
         uses: actions/checkout@v3
+
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 20
+
       - name: Set up PNPM
         uses: pnpm/action-setup@v2
         with:
           version: 8
+
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
-      - name: Pull Vercel Environment Information
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-      - name: Build Project Artifacts
+
+      - name: Pull Vercel Environment Info
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build project
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "Building for preview environment..."
-            vercel build --token=${{ secrets.VERCEL_TOKEN }}
-          else
-            echo "Building for production environment..."
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "🛠️ Building for production..."
             vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+          else
+            echo "🛠️ Building for preview..."
+            vercel build --token=${{ secrets.VERCEL_TOKEN }}
           fi
-      - name: Deploy Project Artifacts
+
+      - name: Deploy project
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "Deploying to preview environment..."
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "🚀 Deploying to production (xtalent.vercel.app)..."
+            vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "🚀 Deploying to preview (develop branch)..."
+            echo "vercel_url=https://xtalent-git-develop-xchanges-projects-068f3040.vercel.app" >> $GITHUB_ENV
+            vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
+          else
+            echo "🚀 Deploying pull request preview..."
             url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} | tail -n 1)
             echo "vercel_url=${url}" >> $GITHUB_ENV
-          else
-            echo "Deploying to production environment..."
-            vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
           fi
-      - name: Comment Deployment URL on PR
+
+      - name: Comment on PR with Preview URL
         if: ${{ github.event_name == 'pull_request' }}
         uses: actions/github-script@v6
         with:
@@ -60,5 +72,17 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `🚀 Deployment URL: ${{ env.vercel_url }}`
+              body: `🚀 Preview URL: ${{ env.vercel_url }}`
+            })
+
+      - name: Comment on develop branch commit
+        if: ${{ github.ref == 'refs/heads/develop' }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: `🚀 Preview for \`develop\` branch:\nhttps://xtalent-git-develop-xchanges-projects-068f3040.vercel.app`
             })
