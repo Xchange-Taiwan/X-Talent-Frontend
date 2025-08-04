@@ -18,7 +18,6 @@ Ensure you have the following installed:
 ### Installation
 
 1. Install Node.js (version 20):
-
    - Visit [Node.js](https://nodejs.org/) and download the version 20 installer for your operating system.
    - Follow the installation instructions provided for your system.
    - Verify the installation by running:
@@ -28,7 +27,6 @@ Ensure you have the following installed:
      You should see the version number `20.x.x`.
 
 2. Install PNPM (version 9.12.3):
-
    - Run the following command to install PNPM globally:
      ```bash
      npm install -g pnpm@9.12.3
