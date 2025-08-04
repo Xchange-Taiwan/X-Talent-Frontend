@@ -19,7 +19,7 @@ interface IndustryResponse {
 }
 
 export async function fetchIndustries(
-  language: string,
+  language: string
 ): Promise<IndustryType[]> {
   try {
     const response = await fetch(
@@ -29,7 +29,7 @@ export async function fetchIndustries(
         headers: {
           'Content-Type': 'application/json',
         },
-      },
+      }
     );
 
     if (!response.ok) {

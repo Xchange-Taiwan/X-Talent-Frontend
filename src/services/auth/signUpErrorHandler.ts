@@ -6,7 +6,7 @@ export const handleSignUpError = (
     variant: 'default' | 'destructive';
     title: string;
     description?: string;
-  }) => void,
+  }) => void
 ) => {
   const { code, message, httpStatus } = result;
   const errorDescription = `${message || '發生錯誤。'}`;

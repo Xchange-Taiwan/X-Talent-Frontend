@@ -119,7 +119,7 @@ export default function Page({
   }));
 
   function parseLinks(
-    experiences: MentorExperiencePayload[],
+    experiences: MentorExperiencePayload[]
   ): Partial<
     Record<
       'linkedin' | 'facebook' | 'instagram' | 'twitter' | 'youtube' | 'website',
@@ -223,7 +223,7 @@ export default function Page({
             });
 
           const parsedLinks = parseLinks(
-            data.experiences as unknown as MentorExperiencePayload[],
+            data.experiences as unknown as MentorExperiencePayload[]
           );
 
           form.reset({
@@ -247,30 +247,30 @@ export default function Page({
 
           form.setValue(
             'what_i_offer',
-            data.topics?.interests?.map((i) => i.subject_group) || [],
+            data.topics?.interests?.map((i) => i.subject_group) || []
           );
           form.setValue(
             'expertises',
-            data.expertises?.professions?.map((i) => i.subject_group) || [],
+            data.expertises?.professions?.map((i) => i.subject_group) || []
           );
           form.setValue(
             'interested_positions',
             data.interested_positions?.interests?.map((i) => i.subject_group) ||
-              [],
+              []
           );
           form.setValue(
             'skills',
-            data.skills?.interests?.map((i) => i.subject_group) || [],
+            data.skills?.interests?.map((i) => i.subject_group) || []
           );
           form.setValue(
             'topics',
-            data.topics?.interests?.map((i) => i.subject_group) || [],
+            data.topics?.interests?.map((i) => i.subject_group) || []
           );
           form.setValue(
             'what_i_offer',
             parseWhatIOffer(
-              data.experiences as unknown as MentorExperiencePayload[],
-            ),
+              data.experiences as unknown as MentorExperiencePayload[]
+            )
           );
 
           setIsMentor(data.is_mentor || isMentorOnboarding);

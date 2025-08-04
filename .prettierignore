@@ -1,4 +1,14 @@
 package-lock.json
+pnpm-lock.yaml
 
 # next.js
 /.next/
+/out/
+/build/
+/dist/
+
+# dependencies
+/node_modules/
+
+# storybook
+/storybook-static/

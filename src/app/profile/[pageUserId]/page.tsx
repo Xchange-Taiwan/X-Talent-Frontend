@@ -174,7 +174,7 @@ export default function Page({
   }
 
   const firstWorkExperience = userData?.experiences?.find(
-    (exp) => exp.category === 'WORK',
+    (exp) => exp.category === 'WORK'
   ) as WorkExperience;
 
   const firstWorkMetadataList =

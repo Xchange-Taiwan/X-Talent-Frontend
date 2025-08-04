@@ -62,7 +62,7 @@ export async function fetchUser(language: string): Promise<UserType | null> {
 
 export async function fetchUserById(
   userId: number,
-  language: string,
+  language: string
 ): Promise<UserType | null> {
   try {
     const response = await fetch(
@@ -72,7 +72,7 @@ export async function fetchUserById(
         headers: {
           'Content-Type': 'application/json',
         },
-      },
+      }
     );
 
     if (!response.ok) {
@@ -94,7 +94,7 @@ export async function fetchUserById(
 }
 
 export async function updateUserProfile(
-  userData: Partial<UserType>,
+  userData: Partial<UserType>
 ): Promise<boolean> {
   const session = await getSession();
   const token = session?.accessToken;
@@ -114,7 +114,7 @@ export async function updateUserProfile(
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(userData),
-      },
+      }
     );
 
     if (!response.ok) {

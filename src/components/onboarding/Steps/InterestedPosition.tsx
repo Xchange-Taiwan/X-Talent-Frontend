@@ -51,8 +51,8 @@ export const InterestedPosition: FC<Props> = ({
                             ])
                           : field.onChange(
                               field.value?.filter(
-                                (value) => value !== option.subject_group,
-                              ),
+                                (value) => value !== option.subject_group
+                              )
                             );
                       }}
                     />
@@ -63,7 +63,7 @@ export const InterestedPosition: FC<Props> = ({
                       className={cn(
                         'cursor-pointer rounded-xl border border-gray-200 px-3 py-2',
                         field.value.includes(option.subject_group) &&
-                          'border-primary bg-secondary',
+                          'border-primary bg-secondary'
                       )}
                     >
                       {option.subject}

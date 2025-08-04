@@ -49,7 +49,7 @@ export const Color = () => {
                       'm-2 flex flex-col justify-between gap-2 p-3',
                       +name > 400 || TEXT_WHITE_LIST.includes(name)
                         ? 'text-light'
-                        : 'text-dark',
+                        : 'text-dark'
                     )}
                     style={{ backgroundColor: color }}
                   >

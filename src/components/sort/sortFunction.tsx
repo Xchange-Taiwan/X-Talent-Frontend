@@ -3,7 +3,7 @@ export type SortMethod = 'a-z' | 'z-a';
 
 export function sortUsersByName(
   users: UserType[],
-  method: SortMethod,
+  method: SortMethod
 ): UserType[] {
   return [...users].sort((a, b) => {
     const nameA = a.name || '';

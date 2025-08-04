@@ -90,7 +90,7 @@ const MentorPool = () => {
 
   const fetchMentorsBySearch = useCallback(async () => {
     const filters = Object.fromEntries(
-      Object.entries(selectedFilters).map(([key, value]) => [key, value.value]),
+      Object.entries(selectedFilters).map(([key, value]) => [key, value.value])
     );
     const param = {
       searchPattern,
@@ -122,7 +122,7 @@ const MentorPool = () => {
 
   const fetchMoreMentors = async () => {
     const filters = Object.fromEntries(
-      Object.entries(selectedFilters).map(([key, value]) => [key, value.value]),
+      Object.entries(selectedFilters).map(([key, value]) => [key, value.value])
     );
     const param = {
       searchPattern,
@@ -145,8 +145,8 @@ const MentorPool = () => {
         const newMentors = rtnList.filter(
           (newMentor) =>
             !prevMentors.some(
-              (prevMentor) => prevMentor.user_id === newMentor.user_id,
-            ),
+              (prevMentor) => prevMentor.user_id === newMentor.user_id
+            )
         );
         return [...prevMentors, ...newMentors];
       });

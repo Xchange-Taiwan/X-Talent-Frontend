@@ -63,7 +63,7 @@ export const EducationSection = ({ form }: Props) => {
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: currentYear - 1940 + 1 }, (_, i) =>
-    (currentYear - i).toString(),
+    (currentYear - i).toString()
   );
 
   return (

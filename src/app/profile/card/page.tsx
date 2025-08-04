@@ -44,7 +44,7 @@ export default function Page() {
     )?.url || '';
 
   const firstWorkExperience = userData?.experiences?.find(
-    (exp) => (exp.category as string) === 'WORK',
+    (exp) => (exp.category as string) === 'WORK'
   );
 
   const metadata = firstWorkExperience?.mentor_experiences_metadata as {

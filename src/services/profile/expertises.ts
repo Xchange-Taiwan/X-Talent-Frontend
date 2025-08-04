@@ -29,7 +29,7 @@ interface ExpertiseResponse {
 }
 
 export async function fetchExpertises(
-  language: string,
+  language: string
 ): Promise<ExpertiseType[]> {
   try {
     const response = await fetch(
@@ -39,7 +39,7 @@ export async function fetchExpertises(
         headers: {
           'Content-Type': 'application/json',
         },
-      },
+      }
     );
 
     if (!response.ok) {

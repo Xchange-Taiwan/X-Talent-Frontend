@@ -1,0 +1,132 @@
+name: Code Quality Check
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    name: Format and Lint Check
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history for auto-commit functionality
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up PNPM
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check Prettier formatting
+        id: prettier-check
+        run: |
+          if ! pnpm run format:check; then
+            echo "formatting_needed=true" >> $GITHUB_OUTPUT
+            echo "❌ Code formatting issues detected"
+          else
+            echo "formatting_needed=false" >> $GITHUB_OUTPUT
+            echo "✅ Code is properly formatted"
+          fi
+
+      - name: Run Prettier (auto-fix)
+        if: steps.prettier-check.outputs.formatting_needed == 'true'
+        run: pnpm run format
+
+      - name: Run ESLint
+        id: eslint-check
+        run: |
+          if ! pnpm run lint; then
+            echo "❌ ESLint errors detected, attempting auto-fix..."
+            pnpm run lint:fix
+            if ! pnpm run lint; then
+              echo "❌ Unfixable ESLint errors remain"
+              echo "lint_failed=true" >> $GITHUB_OUTPUT
+              exit 1
+            else
+              echo "✅ ESLint errors fixed automatically"
+              echo "lint_fixed=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "✅ No ESLint errors detected"
+            echo "lint_fixed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for changes
+        id: git-check
+        run: |
+          if git diff --quiet; then
+            echo "changes_made=false" >> $GITHUB_OUTPUT
+            echo "✅ No formatting or linting changes needed"
+          else
+            echo "changes_made=true" >> $GITHUB_OUTPUT
+            echo "📝 Formatting or linting changes detected"
+          fi
+
+      - name: Configure Git
+        if: steps.git-check.outputs.changes_made == 'true' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Commit and push changes
+        if: steps.git-check.outputs.changes_made == 'true' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master'
+        run: |
+          git add .
+          git commit -m "🔧 Auto-fix: Format code and fix linting issues
+
+          - Applied Prettier formatting
+          - Fixed auto-fixable ESLint issues
+
+          [skip ci]"
+          git push
+
+      - name: Notify about main/master branch
+        if: steps.git-check.outputs.changes_made == 'true' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        run: |
+          echo "⚠️  Formatting/linting issues detected on main/master branch."
+          echo "Auto-commit is disabled for main/master branches."
+          echo "Please run 'npm run format && npm run lint:fix' locally and commit the changes."
+          exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Code Quality Check Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ steps.prettier-check.outputs.formatting_needed }}" == "true" ]]; then
+            echo "| Prettier | 🔧 Fixed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Prettier | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [[ "${{ steps.eslint-check.outputs.lint_failed }}" == "true" ]]; then
+            echo "| ESLint | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ steps.eslint-check.outputs.lint_fixed }}" == "true" ]]; then
+            echo "| ESLint | 🔧 Fixed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| ESLint | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [[ "${{ steps.git-check.outputs.changes_made }}" == "true" ]]; then
+            if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/master" ]]; then
+              echo "| Auto-commit | ⚠️ Skipped (main/master) |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| Auto-commit | ✅ Applied |" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "| Auto-commit | ➖ Not needed |" >> $GITHUB_STEP_SUMMARY
+          fi

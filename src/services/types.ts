@@ -7,7 +7,7 @@ export type AuthResponse = {
 
 export const createGeneralErrorResponse = (
   httpStatus: number,
-  message: string,
+  message: string
 ): AuthResponse => ({
   status: 'error',
   code: httpStatus,

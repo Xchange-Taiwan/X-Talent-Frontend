@@ -30,7 +30,7 @@ const SelectItem = React.forwardRef<HTMLDivElement, SelectItemProps>(
       <Select.Item
         className={cn(
           'data-[disabled]:text-mauve8 text-black data-[highlighted]:text-white relative flex h-[25px] select-none items-center rounded-[3px] pl-[25px] pr-[35px] text-[13px] leading-none data-[disabled]:pointer-events-none data-[highlighted]:bg-primary data-[highlighted]:outline-none',
-          className,
+          className
         )}
         {...props}
         ref={ref}
@@ -41,7 +41,7 @@ const SelectItem = React.forwardRef<HTMLDivElement, SelectItemProps>(
         </Select.ItemIndicator>
       </Select.Item>
     );
-  },
+  }
 );
 SelectItem.displayName = 'SelectItem';
 
@@ -84,7 +84,7 @@ const SelectOptions = React.forwardRef<HTMLDivElement, SelectOptionsProps>(
         </Select.Portal>
       </Select.Root>
     );
-  },
+  }
 );
 SelectOptions.displayName = 'SelectOptions';
 

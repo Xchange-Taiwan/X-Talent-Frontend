@@ -20,7 +20,7 @@ export default function EmailVerifiedContainer() {
   const [icon, setIcon] = useState(EmailVerifiedIconUrl.src);
   const [title, setTitle] = useState('驗證成功');
   const [content, setContent] = useState(
-    '你的帳號已完成註冊。現在可以開始建立你的個人頁面和尋找 Mentors 了！',
+    '你的帳號已完成註冊。現在可以開始建立你的個人頁面和尋找 Mentors 了！'
   );
   const [btnContent, setBtnContent] = useState('設定個人資訊');
   const [redirectUrl, setRedirectUrl] = useState('/auth/signin');

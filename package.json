@@ -7,7 +7,11 @@
     "dev-turbo": "next dev --turbo",
     "build": "next build",
     "start": "next start",
-    "lint": "prettier --write . && eslint --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
+    "lint:check": "npm run format:check && npm run lint",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "prepare": "husky install"
@@ -80,18 +84,13 @@
     "tsconfig-paths-webpack-plugin": "^4.1.0",
     "typescript": "^5.3.3"
   },
-  "prettier": {
-    "semi": true,
-    "tabWidth": 2,
-    "singleQuote": true,
-    "plugins": [
-      "prettier-plugin-tailwindcss"
-    ]
-  },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
+      "prettier --write",
       "eslint --cache --fix"
     ],
-    "*.{js,jsx,ts,tsx,json,css,scss,md}": "prettier --write"
+    "*.{json,css,scss,md}": [
+      "prettier --write"
+    ]
   }
 }

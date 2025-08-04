@@ -16,7 +16,7 @@ interface UpsertExperienceResponse {
 export async function upsertMentorExperience(
   experienceType: ExperienceType,
   isMentor: boolean,
-  payload: MentorExperiencePayload,
+  payload: MentorExperiencePayload
 ): Promise<void> {
   try {
     const session = await getSession();
@@ -37,7 +37,7 @@ export async function upsertMentorExperience(
           'is-mentor': String(isMentor),
         },
         body: JSON.stringify(payload),
-      },
+      }
     );
 
     if (!response.ok) {

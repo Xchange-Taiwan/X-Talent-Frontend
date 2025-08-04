@@ -9,7 +9,7 @@ export const JoinWaitingList: FC<{ children: ReactNode }> = ({ children }) => {
     window.open(
       'https://www.surveycake.com/s/2O4aw',
       '_blank',
-      'noreferrer noopener',
+      'noreferrer noopener'
     );
   };
 

@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 
 export const formSchema = z.object({
   expertise: z.array(
-    z.enum(['UI Design', 'UX Design', 'SEO Writing', 'Graphic Design']),
+    z.enum(['UI Design', 'UX Design', 'SEO Writing', 'Graphic Design'])
   ),
 });
 
@@ -63,7 +63,7 @@ export const ExpertiseSelectItem: FC<Props> = ({ form, type }) => {
             className={cn(
               'flex cursor-pointer items-start gap-2 rounded-xl border border-gray-200 px-4 py-3',
               'hover:border-primary hover:bg-secondary',
-              field.value.includes(type) && 'border-primary bg-secondary',
+              field.value.includes(type) && 'border-primary bg-secondary'
             )}
           >
             <FormLabel className="flex grow cursor-pointer gap-4">
@@ -82,7 +82,7 @@ export const ExpertiseSelectItem: FC<Props> = ({ form, type }) => {
                   return checked
                     ? field.onChange([...field.value, type])
                     : field.onChange(
-                        field.value?.filter((value) => value !== type),
+                        field.value?.filter((value) => value !== type)
                       );
                 }}
               />

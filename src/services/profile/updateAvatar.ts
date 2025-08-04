@@ -19,7 +19,7 @@ interface UpdateAvatarResponse {
 }
 
 export async function updateAvatar(
-  avatarFile: File,
+  avatarFile: File
 ): Promise<string | undefined> {
   try {
     const session = await getSession();
@@ -41,7 +41,7 @@ export async function updateAvatar(
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      },
+      }
     );
 
     if (!response.ok) {

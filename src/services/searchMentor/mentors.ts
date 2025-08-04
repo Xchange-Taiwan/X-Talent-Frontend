@@ -47,7 +47,7 @@ interface MentorResponse {
 }
 
 export async function fetchMentors(
-  param: MentorRequest,
+  param: MentorRequest
 ): Promise<MentorType[] | []> {
   try {
     const query = new URLSearchParams();
@@ -64,7 +64,7 @@ export async function fetchMentors(
         headers: {
           'Content-Type': 'application/json',
         },
-      },
+      }
     );
 
     if (!response.ok) {

@@ -38,7 +38,7 @@ export const SkillsToImprove: FC<Props> = ({ form, skillOptions }) => {
                   className={cn(
                     'flex items-center space-y-0 rounded-xl border border-gray-200 pl-3',
                     field.value.includes(option.subject_group) &&
-                      'border-primary bg-secondary',
+                      'border-primary bg-secondary'
                   )}
                 >
                   <FormControl>
@@ -52,8 +52,8 @@ export const SkillsToImprove: FC<Props> = ({ form, skillOptions }) => {
                             ])
                           : field.onChange(
                               field.value?.filter(
-                                (value) => value !== option.subject_group,
-                              ),
+                                (value) => value !== option.subject_group
+                              )
                             );
                       }}
                     />

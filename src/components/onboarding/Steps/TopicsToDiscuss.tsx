@@ -42,7 +42,7 @@ export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {
                   className={cn(
                     'flex items-start gap-2 rounded-xl border border-gray-200 px-4 py-3',
                     field.value.includes(option.subject_group) &&
-                      'border-primary bg-secondary',
+                      'border-primary bg-secondary'
                   )}
                 >
                   <FormLabel className="flex grow cursor-pointer gap-4 ">
@@ -76,8 +76,8 @@ export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {
                             ])
                           : field.onChange(
                               field.value?.filter(
-                                (value) => value !== option.subject_group,
-                              ),
+                                (value) => value !== option.subject_group
+                              )
                             );
                       }}
                     />

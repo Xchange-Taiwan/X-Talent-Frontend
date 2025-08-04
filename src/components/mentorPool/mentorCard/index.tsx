@@ -27,7 +27,7 @@ export const MentorCard = forwardRef<HTMLElement, MentorCardProps>(
       personalStatment,
       skills,
     }: MentorCardProps,
-    ref,
+    ref
   ) => {
     return (
       <article
@@ -50,7 +50,7 @@ export const MentorCard = forwardRef<HTMLElement, MentorCardProps>(
         </div>
       </article>
     );
-  },
+  }
 );
 
 MentorCard.displayName = 'MentorCard';

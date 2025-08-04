@@ -42,7 +42,7 @@ const multiSelectVariants = cva(
     defaultVariants: {
       variant: 'default',
     },
-  },
+  }
 );
 
 /**
@@ -137,7 +137,7 @@ export const MultiSelect = React.forwardRef<
       className,
       ...props
     },
-    ref,
+    ref
   ) => {
     const [internalSelectedValues, setInternalSelectedValues] =
       React.useState<string[]>(defaultValue);
@@ -160,7 +160,7 @@ export const MultiSelect = React.forwardRef<
     };
 
     const handleInputKeyDown = (
-      event: React.KeyboardEvent<HTMLInputElement>,
+      event: React.KeyboardEvent<HTMLInputElement>
     ) => {
       if (event.key === 'Enter') {
         setIsPopoverOpen(true);
@@ -211,7 +211,7 @@ export const MultiSelect = React.forwardRef<
             onClick={handleTogglePopover}
             className={cn(
               'bg-inherit hover:bg-inherit flex h-auto min-h-10 w-full items-center justify-between rounded-md border p-1 [&_svg]:pointer-events-auto',
-              className,
+              className
             )}
             variant={variant}
           >
@@ -246,7 +246,7 @@ export const MultiSelect = React.forwardRef<
                     <Badge
                       className={cn(
                         'bg-transparent border-foreground/1 hover:bg-transparent text-foreground',
-                        multiSelectVariants({ variant }),
+                        multiSelectVariants({ variant })
                       )}
                       style={{ animationDuration: `${animation}s` }}
                     >
@@ -309,7 +309,7 @@ export const MultiSelect = React.forwardRef<
                       'mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary',
                       selectedValues.length === options.length
                         ? 'bg-primary text-primary-foreground'
-                        : 'opacity-50 [&_svg]:invisible',
+                        : 'opacity-50 [&_svg]:invisible'
                     )}
                   >
                     <CheckIcon className="h-4 w-4" />
@@ -329,7 +329,7 @@ export const MultiSelect = React.forwardRef<
                           'mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary',
                           isSelected
                             ? 'bg-primary text-primary-foreground'
-                            : 'opacity-50 [&_svg]:invisible',
+                            : 'opacity-50 [&_svg]:invisible'
                         )}
                       >
                         <CheckIcon className="h-4 w-4" />
@@ -372,7 +372,7 @@ export const MultiSelect = React.forwardRef<
         </PopoverContent>
       </Popover>
     );
-  },
+  }
 );
 
 MultiSelect.displayName = 'MultiSelect';

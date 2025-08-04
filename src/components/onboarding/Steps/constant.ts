@@ -4,7 +4,7 @@
  * @returns
  */
 function enumToOptionsArray(
-  enumObj: Record<string, string>,
+  enumObj: Record<string, string>
 ): { value: string; label: string }[] {
   return Object.keys(enumObj).map((key) => ({
     value: key,

@@ -99,7 +99,7 @@ export default function GoogleOAuthRedirectPage() {
 
       try {
         console.log(
-          '[OAuth Debug] Sending POST to /v2/oauth/google/callback...',
+          '[OAuth Debug] Sending POST to /v2/oauth/google/callback...'
         );
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/v2/oauth/google/callback`,
@@ -107,7 +107,7 @@ export default function GoogleOAuthRedirectPage() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code, state }),
-          },
+          }
         );
 
         const data: OAuthResponse = await res.json();

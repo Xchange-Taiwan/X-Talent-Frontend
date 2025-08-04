@@ -11,7 +11,7 @@ import {
 } from './signupResponseHandlers';
 
 export async function signUp(
-  values: z.infer<typeof SignUpSchema>,
+  values: z.infer<typeof SignUpSchema>
 ): Promise<AuthResponse> {
   try {
     const response = await fetch(
@@ -24,7 +24,7 @@ export async function signUp(
           confirm_password: values.confirm_password,
         }),
         headers: { 'Content-Type': 'application/json' },
-      },
+      }
     );
 
     const result = await response.json();
@@ -46,13 +46,13 @@ export async function signUp(
 
     throw createGeneralErrorResponse(
       response.status,
-      result.message || '註冊失敗',
+      result.message || '註冊失敗'
     );
   } catch (error) {
     if (error instanceof TypeError && error.message === 'Failed to fetch') {
       throw createGeneralErrorResponse(
         0,
-        '無法連接到伺服器。請檢查您的網絡連接。',
+        '無法連接到伺服器。請檢查您的網絡連接。'
       );
     }
 

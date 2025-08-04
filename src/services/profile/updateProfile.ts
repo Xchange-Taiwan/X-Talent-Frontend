@@ -14,7 +14,7 @@ interface UpdateProfileResponse {
 }
 
 export async function updateProfile(
-  profileData: z.infer<typeof unionformSchema>,
+  profileData: z.infer<typeof unionformSchema>
 ): Promise<void> {
   try {
     const session = await getSession();
@@ -39,7 +39,7 @@ export async function updateProfile(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-      },
+      }
     );
 
     if (!response.ok) {

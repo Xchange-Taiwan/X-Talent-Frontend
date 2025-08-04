@@ -10,7 +10,7 @@ export async function confirmRegister(token: string): Promise<void> {
         method: 'POST',
         body: JSON.stringify({ token }),
         headers: { 'Content-Type': 'application/json' },
-      },
+      }
     );
 
     if (!response.ok) {

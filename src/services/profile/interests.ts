@@ -21,7 +21,7 @@ interface InterestResponse {
 
 export async function fetchInterests(
   language: string,
-  interest: string,
+  interest: string
 ): Promise<InterestType[]> {
   try {
     const response = await fetch(
@@ -31,7 +31,7 @@ export async function fetchInterests(
         headers: {
           'Content-Type': 'application/json',
         },
-      },
+      }
     );
 
     if (!response.ok) {

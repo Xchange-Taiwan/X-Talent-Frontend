@@ -10,7 +10,7 @@ interface CountryResponse {
 }
 
 export async function fetchCountries(
-  language: string,
+  language: string
 ): Promise<LocationType[]> {
   try {
     const response = await fetch(
@@ -20,7 +20,7 @@ export async function fetchCountries(
         headers: {
           'Content-Type': 'application/json',
         },
-      },
+      }
     );
 
     if (!response.ok) {
@@ -33,7 +33,7 @@ export async function fetchCountries(
       ([key, value]) => ({
         value: key,
         text: value,
-      }),
+      })
     );
 
     return countries;
