@@ -9,6 +9,9 @@ import DefaultAvatarImgUrl from '@/assets/default-avatar.jpeg';
 import { ExperienceSection } from '@/components/profile/ExperienceSection/ExperienceSection';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import useMentorSchedule, {
+  dummyRawTimeslots,
+} from '@/hooks/useMentorSchedule';
 import { fetchUserById } from '@/services/profile/user';
 import { UserType } from '@/services/profile/user';
 
@@ -160,6 +163,10 @@ export default function Page({
 
     fetchUserData();
   }, [pageUserId]);
+
+  // Dummy calendar data
+  const parsedTimeslots = useMentorSchedule(dummyRawTimeslots);
+  console.log(parsedTimeslots);
 
   if (loading) {
     return null;
