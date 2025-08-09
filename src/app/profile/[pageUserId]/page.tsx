@@ -170,7 +170,7 @@ export default function Page({
 
   const parsedTimeslots = useMentorSchedule(dummyRawTimeslots);
   console.log('Parsed Timeslots:', parsedTimeslots);
-
+  console.log(userData);
   const allowedDates = parsedTimeslots
     .filter((slot) => slot.type === 'ALLOW')
     .map((slot) => slot.start.toDateString());
@@ -452,7 +452,7 @@ export default function Page({
                   disabled={(day) => !allowedDates.includes(day.toDateString())}
                 />
                 <div className="flex flex-col items-start gap-4">
-                  <p>可預約時段</p>
+                  <p>當日可預約時段</p>
                   {availableSlots.length === 0 ? (
                     <div className="text-gray-400">此日無可預約時段</div>
                   ) : (
@@ -473,7 +473,11 @@ export default function Page({
                     disabled={availableSlots.length === 0}
                     onClick={() => reservationHandler()}
                   >
-                    {loginUserId && isMentor ? '預約設定' : '預約時間'}
+                    {loginUserId && isMentor
+                      ? loginUserId === userData?.user_id.toString()
+                        ? '行程設定'
+                        : '馬上預約'
+                      : '馬上預約'}
                   </Button>
                 </div>
               </div>
