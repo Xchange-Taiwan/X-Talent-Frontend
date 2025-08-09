@@ -6,6 +6,21 @@ const nextConfig = {
       'lh3.googleusercontent.com',
     ],
   },
+  // Enable hot reload optimizations
+  experimental: {
+    // Enable faster refresh
+    optimizeCss: false,
+  },
+  // Ensure webpack hot reload works properly
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.watchOptions = {
+        poll: 1000,
+        aggregateTimeout: 300,
+      };
+    }
+    return config;
+  },
 };
 
 module.exports = nextConfig;
