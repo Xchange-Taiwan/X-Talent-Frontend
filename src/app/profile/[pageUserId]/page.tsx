@@ -1,5 +1,6 @@
 'use client';
 
+import dayjs from 'dayjs';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { getSession } from 'next-auth/react';
@@ -9,6 +10,7 @@ import DefaultAvatarImgUrl from '@/assets/default-avatar.jpeg';
 import { ExperienceSection } from '@/components/profile/ExperienceSection/ExperienceSection';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import useMentorSchedule, {
   dummyRawTimeslots,
 } from '@/hooks/useMentorSchedule';
@@ -128,6 +130,7 @@ export default function Page({
   const [isMentor, setIsMentor] = useState(false);
   const [userData, setUserData] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(true);
+  const [date, setDate] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -140,6 +143,7 @@ export default function Page({
 
     fetchSession();
   }, []);
+  console.log(loginUserId, isLogging);
 
   useEffect(() => {
     const userId = Number(pageUserId);
@@ -164,9 +168,19 @@ export default function Page({
     fetchUserData();
   }, [pageUserId]);
 
-  // Dummy calendar data
   const parsedTimeslots = useMentorSchedule(dummyRawTimeslots);
-  console.log(parsedTimeslots);
+  console.log('Parsed Timeslots:', parsedTimeslots);
+
+  const allowedDates = parsedTimeslots
+    .filter((slot) => slot.type === 'ALLOW')
+    .map((slot) => slot.start.toDateString());
+
+  const availableSlots = parsedTimeslots.filter(
+    (slot) =>
+      slot.type === 'ALLOW' &&
+      date &&
+      slot.start.toDateString() === date.toDateString()
+  );
 
   if (loading) {
     return null;
@@ -248,6 +262,18 @@ export default function Page({
         return metadataArray.filter((link) => link.url);
       }) || [];
 
+  const reservationHandler = () => {
+    if (!loginUserId) {
+      router.push('/auth/signin');
+      return;
+    }
+    if (!isMentor) {
+      // TODO: popup mentee reservation schedule component
+      return;
+    }
+    // TODO: popup mentor setting schedule component
+  };
+
   return (
     <div>
       <div className="relative h-[111px] bg-gradient-to-br from-[#92e7e7] to-[#e7a0d4] sm:h-[100px]" />
@@ -294,13 +320,21 @@ export default function Page({
 
           <div className="static mt-4 flex items-center justify-center gap-4 sm:absolute sm:bottom-0 sm:left-[184px] sm:mt-0 lg:static">
             {isLogging && pageUserId === loginUserId && (
-              <Button
-                variant="outline"
-                className="grow rounded-full px-6 py-3 sm:grow-0"
-                onClick={() => router.push(`/profile/${pageUserId}/edit`)}
-              >
-                編輯個人資訊
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  className="grow rounded-full px-6 py-3 sm:grow-0"
+                  onClick={() => router.push(`/profile/${pageUserId}/edit`)}
+                >
+                  編輯個人資訊
+                </Button>
+                <Button
+                  className="grow rounded-full px-6 py-3 sm:grow-0 lg:hidden"
+                  onClick={() => reservationHandler()}
+                >
+                  預約設定
+                </Button>
+              </>
             )}
 
             {isLogging && isMentee && pageUserId === loginUserId && (
@@ -317,8 +351,8 @@ export default function Page({
           </div>
         </div>
 
-        <div className="flex gap-40">
-          <div className="w-full">
+        <div className="flex gap-24 ">
+          <div className="w-2/3">
             <div>
               <p className="mb-4 text-xl font-bold">關於我</p>
               <p className="text-sm text-gray-400">{userData?.about}</p>
@@ -405,19 +439,43 @@ export default function Page({
             </div>
           </div>
 
-          <div className="hidden w-1/2 lg:block">
+          <div className="hidden w-1/3 lg:block">
             {isMentor && (
               <div>
-                <div>
-                  <p className="mb-4 text-xl font-bold">可預約時段</p>
-                  <p className="text-sm text-gray-400">目前沒有可預約時段</p>
+                <p className="mb-4 text-xl font-bold">可預約日期</p>
+                <Calendar
+                  mode="single"
+                  captionLayout="dropdown"
+                  selected={date}
+                  onSelect={setDate}
+                  className="mb-6 w-full rounded-lg border"
+                  disabled={(day) => !allowedDates.includes(day.toDateString())}
+                />
+                <div className="flex flex-col items-start gap-4">
+                  <p>可預約時段</p>
+                  {availableSlots.length === 0 ? (
+                    <div className="text-gray-400">此日無可預約時段</div>
+                  ) : (
+                    <div className="flex gap-2">
+                      {availableSlots.map((slot) => (
+                        <div
+                          key={slot.id}
+                          className="flex h-10 w-[140px] select-none items-center justify-center rounded-lg border border-[#E6E8EA] text-sm font-medium"
+                        >
+                          {dayjs(slot.start).format('h:mm A')}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <Button
+                    variant="default"
+                    className="w-full rounded-full px-6 py-3"
+                    disabled={availableSlots.length === 0}
+                    onClick={() => reservationHandler()}
+                  >
+                    {loginUserId && isMentor ? '預約設定' : '預約時間'}
+                  </Button>
                 </div>
-                <Button
-                  variant="default"
-                  className="mt-5 w-2/3 rounded-full px-6 py-3"
-                >
-                  預約設定
-                </Button>
               </div>
             )}
           </div>
