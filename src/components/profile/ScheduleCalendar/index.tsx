@@ -2,18 +2,17 @@
 
 import { Calendar } from '@/components/ui/calendar';
 
-interface CustomCalendarProps {
+interface ScheduleCalendarProps {
   selected: Date;
   onSelect?: (date: Date) => void;
   allowedDates?: string[];
 }
 
-export function ScheduleCalendar({
+export const ScheduleCalendar = ({
   selected,
   onSelect,
   allowedDates = [],
-}: CustomCalendarProps) {
-  const date = selected;
+}: ScheduleCalendarProps) => {
   const handleSelect = (d: Date | undefined) => {
     if (!d) return;
     onSelect?.(d);
@@ -35,13 +34,13 @@ export function ScheduleCalendar({
     <div className="inline-block w-auto rounded-lg border p-2 shadow-md">
       <div className="px-3 pb-3 pt-1">
         <h2 className="text-2xl font-semibold tracking-tight">
-          {formatSelectedDate(date)}
+          {formatSelectedDate(selected)}
         </h2>
       </div>
       <Calendar
         mode="single"
         captionLayout="dropdown"
-        selected={date}
+        selected={selected}
         onSelect={handleSelect}
         className="w-full rounded-lg"
         disabled={(day) =>
@@ -50,4 +49,4 @@ export function ScheduleCalendar({
       />
     </div>
   );
-}
+};
