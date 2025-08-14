@@ -68,6 +68,14 @@ export const dummyRawTimeslots: RawMentorTimeslot[] = [
     rrule: null,
     exdate: null,
   },
+  {
+    id: 999,
+    type: 'ALLOW',
+    dtstart: 1755114000,
+    dtend: 1755115800,
+    rrule: null,
+    exdate: null,
+  },
 ];
 
 export default useMentorSchedule;
