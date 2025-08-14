@@ -8,9 +8,9 @@ import { useEffect, useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.jpeg';
 import { ExperienceSection } from '@/components/profile/ExperienceSection/ExperienceSection';
+import { ScheduleCalendar } from '@/components/profile/ScheduleCalendar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
 import useMentorSchedule, {
   dummyRawTimeslots,
 } from '@/hooks/useMentorSchedule';
@@ -130,7 +130,7 @@ export default function Page({
   const [isMentor, setIsMentor] = useState(false);
   const [userData, setUserData] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(true);
-  const [date, setDate] = useState<Date | undefined>(undefined);
+  const [date, setDate] = useState<Date>(new Date());
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -351,8 +351,8 @@ export default function Page({
           </div>
         </div>
 
-        <div className="flex gap-24 ">
-          <div className="w-2/3">
+        <div className="flex gap-12 ">
+          <div className="w-3/5">
             <div>
               <p className="mb-4 text-xl font-bold">關於我</p>
               <p className="text-sm text-gray-400">{userData?.about}</p>
@@ -439,22 +439,21 @@ export default function Page({
             </div>
           </div>
 
-          <div className="hidden w-1/3 lg:block">
+          <div className="hidden w-2/5 lg:block">
             {isMentor && (
-              <div>
-                <p className="mb-4 text-xl font-bold">可預約日期</p>
-                <Calendar
-                  mode="single"
-                  captionLayout="dropdown"
+              <div className="flex w-full flex-col gap-4">
+                <p className=" text-xl font-bold">可預約日期</p>
+                <ScheduleCalendar
                   selected={date}
                   onSelect={setDate}
-                  className="mb-6 w-full rounded-lg border"
-                  disabled={(day) => !allowedDates.includes(day.toDateString())}
+                  allowedDates={allowedDates}
                 />
                 <div className="flex flex-col items-start gap-4">
                   <p>當日可預約時段</p>
                   {availableSlots.length === 0 ? (
-                    <div className="text-gray-400">此日無可預約時段</div>
+                    <div className="flex min-h-10 items-center text-gray-400">
+                      無可預約的時段
+                    </div>
                   ) : (
                     <div className="flex gap-2">
                       {availableSlots.map((slot) => (
@@ -467,19 +466,19 @@ export default function Page({
                       ))}
                     </div>
                   )}
-                  <Button
-                    variant="default"
-                    className="w-full rounded-full px-6 py-3"
-                    disabled={availableSlots.length === 0}
-                    onClick={() => reservationHandler()}
-                  >
-                    {loginUserId && isMentor
-                      ? loginUserId === userData?.user_id.toString()
-                        ? '行程設定'
-                        : '馬上預約'
-                      : '馬上預約'}
-                  </Button>
                 </div>
+                <Button
+                  variant="default"
+                  className="w-full rounded-full px-6 py-3"
+                  disabled={!isMentor && availableSlots.length === 0}
+                  onClick={() => setOpenReservationDialog(true)}
+                >
+                  {loginUserId && isMentor
+                    ? loginUserId === userData?.user_id.toString()
+                      ? '預約設定'
+                      : '預約時間'
+                    : '預約時間'}
+                </Button>
               </div>
             )}
           </div>
