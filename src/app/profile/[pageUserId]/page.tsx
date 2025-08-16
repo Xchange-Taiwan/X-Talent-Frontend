@@ -11,9 +11,7 @@ import { ExperienceSection } from '@/components/profile/ExperienceSection/Experi
 import { ScheduleCalendar } from '@/components/profile/ScheduleCalendar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import useMentorSchedule, {
-  dummyRawTimeslots,
-} from '@/hooks/useMentorSchedule';
+import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { fetchUserById } from '@/services/profile/user';
 import { UserType } from '@/services/profile/user';
 
@@ -168,7 +166,10 @@ export default function Page({
     fetchUserData();
   }, [pageUserId]);
 
-  const parsedTimeslots = useMentorSchedule(dummyRawTimeslots);
+  const { parsed: parsedTimeslots } = useMentorSchedule({
+    storageKey: `mentor.timeslots:${pageUserId}`,
+  });
+
   console.log('Parsed Timeslots:', parsedTimeslots);
   console.log(userData);
   const allowedDates = parsedTimeslots
