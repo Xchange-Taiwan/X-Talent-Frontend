@@ -5,6 +5,10 @@ on:
     branches:
       - '**'
 
+permissions:
+  contents: read
+  pull-requests: write  # needed to comment on PR
+
 env:
   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_DEV }}
@@ -17,17 +21,25 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'pnpm'
 
       - name: Set up PNPM
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v3
         with:
           version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # (Optional but recommended) Local app build to fail fast on PR
+      - name: App build check
+        run: pnpm run build
 
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
@@ -35,24 +47,29 @@ jobs:
       - name: Pull Vercel environment (preview)
         run: vercel pull --yes --environment=preview --token=${{ env.VERCEL_TOKEN }}
 
-      - name: Build project
+      # Vercel build will also fail the job if build fails
+      - name: Build project with Vercel
         run: vercel build --token=${{ env.VERCEL_TOKEN }}
 
       - name: Deploy PR preview
         id: vercel_preview
+        shell: bash
         run: |
+          set -euo pipefail
           echo "🚀 Deploying PR preview..."
-          url=$(vercel deploy --prebuilt --token=${{ env.VERCEL_TOKEN }} | tail -n 1)
-          echo "vercel_url=${url}" >> $GITHUB_ENV
-          echo "::set-output name=url::$url"
+          out="$(vercel deploy --prebuilt --token="${{ env.VERCEL_TOKEN }}")"
+          echo "$out"
+          url="$(printf '%s\n' "$out" | tail -n 1)"
+          echo "vercel_url=$url" >> "$GITHUB_ENV"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Comment on PR with Preview URL
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `🚀 Preview deployed for this PR:\n${{ env.vercel_url }}`
+              body: `🚀 Preview deployed for this PR:\n${process.env.vercel_url}`
             })
