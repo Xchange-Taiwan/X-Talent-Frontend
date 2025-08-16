@@ -1,5 +1,7 @@
 'use client';
 
+import dayjs from 'dayjs';
+
 import { Calendar } from '@/components/ui/calendar';
 
 interface ScheduleCalendarProps {
@@ -44,7 +46,8 @@ export const ScheduleCalendar = ({
         onSelect={handleSelect}
         className="w-full rounded-lg"
         disabled={(day) =>
-          allowedDates.length > 0 && !allowedDates.includes(day.toDateString())
+          allowedDates.length > 0 &&
+          !allowedDates.includes(dayjs(day).format('YYYY-MM-DD'))
         }
       />
     </div>

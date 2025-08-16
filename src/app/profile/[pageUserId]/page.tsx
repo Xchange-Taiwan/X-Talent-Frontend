@@ -11,7 +11,11 @@ import { ExperienceSection } from '@/components/profile/ExperienceSection/Experi
 import { ScheduleCalendar } from '@/components/profile/ScheduleCalendar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useMentorSchedule } from '@/hooks/useMentorSchedule';
+import {
+  fetchMentorSchedule,
+  ScheduleTimeSlots,
+  ScheduleType,
+} from '@/services/profile/schedule';
 import { fetchUserById } from '@/services/profile/user';
 import { UserType } from '@/services/profile/user';
 
@@ -129,6 +133,9 @@ export default function Page({
   const [userData, setUserData] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState<Date>(new Date());
+  const [schedules, setSchedules] = useState<ScheduleType>();
+  const [allowedDates, setAllowedDates] = useState<string[]>([]);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -141,7 +148,6 @@ export default function Page({
 
     fetchSession();
   }, []);
-  console.log(loginUserId, isLogging);
 
   useEffect(() => {
     const userId = Number(pageUserId);
@@ -166,22 +172,45 @@ export default function Page({
     fetchUserData();
   }, [pageUserId]);
 
-  const { parsed: parsedTimeslots } = useMentorSchedule({
-    storageKey: `mentor.timeslots:${pageUserId}`,
-  });
+  useEffect(() => {
+    const fetchSchedule = async () => {
+      if (!userData) return;
+      const schedule = await fetchMentorSchedule({
+        userId: pageUserId,
+        year: date.getFullYear(),
+        month: date.getMonth() + 1,
+      });
+      setSchedules(schedule);
 
-  console.log('Parsed Timeslots:', parsedTimeslots);
-  console.log(userData);
-  const allowedDates = parsedTimeslots
-    .filter((slot) => slot.type === 'ALLOW')
-    .map((slot) => slot.start.toDateString());
+      const allowDatesSet = new Set<string>();
+      schedule.timeslots?.forEach((slot: ScheduleTimeSlots) => {
+        if (slot.dt_type === 'ALLOW') {
+          const d = dayjs(Number(slot.dtstart) * 1000).format('YYYY-MM-DD');
+          allowDatesSet.add(d);
+        }
+      });
 
-  const availableSlots = parsedTimeslots.filter(
-    (slot) =>
-      slot.type === 'ALLOW' &&
-      date &&
-      slot.start.toDateString() === date.toDateString()
-  );
+      setAllowedDates(Array.from(allowDatesSet));
+    };
+
+    fetchSchedule();
+  }, [userData, date]);
+
+  useEffect(() => {
+    const selectedDateStr = dayjs(date).format('YYYY-MM-DD');
+
+    const slots = schedules?.timeslots
+      .filter(
+        (slot: ScheduleTimeSlots) =>
+          dayjs(Number(slot.dtstart) * 1000).format('YYYY-MM-DD') ===
+          selectedDateStr
+      )
+      .map((slot: ScheduleTimeSlots) =>
+        dayjs(Number(slot.dtstart) * 1000).format('HH:mm A')
+      );
+
+    setAvailableSlots(slots || []);
+  }, [date, schedules]);
 
   if (loading) {
     return null;
@@ -459,10 +488,10 @@ export default function Page({
                     <div className="flex gap-2">
                       {availableSlots.map((slot) => (
                         <div
-                          key={slot.id}
+                          key={slot}
                           className="flex h-10 w-[140px] select-none items-center justify-center rounded-lg border border-[#E6E8EA] text-sm font-medium"
                         >
-                          {dayjs(slot.start).format('h:mm A')}
+                          {slot}
                         </div>
                       ))}
                     </div>
@@ -472,7 +501,9 @@ export default function Page({
                   variant="default"
                   className="w-full rounded-full px-6 py-3"
                   disabled={!isMentor && availableSlots.length === 0}
-                  onClick={() => setOpenReservationDialog(true)}
+                  onClick={() => {
+                    /* TODO: setOpenReservationDialog(true) */
+                  }}
                 >
                   {loginUserId && isMentor
                     ? loginUserId === userData?.user_id.toString()
