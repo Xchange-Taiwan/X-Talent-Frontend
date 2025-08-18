@@ -4,87 +4,136 @@ import React, { useState } from 'react';
 
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 
-/**
- * 超簡版測試頁（get + 新增 + 刪除）
- * 儲存邏輯已內建在 hook 中（例如 autosave）
- */
 export default function Page({
   params: { pageUserId },
 }: {
   params: { pageUserId: string };
 }) {
-  // ⬇️ hook 內部自動儲存（本頁不再需要 save/reload）
-  const { parsed, createFromDates, deleteTimeslot } = useMentorSchedule({
-    storageKey: `mentor.timeslots:${pageUserId}`,
-  });
+  const {
+    loaded,
+    dirty,
+    selectedDate,
+    setSelectedDate,
+    draftForSelectedDate,
+    addSlotForSelectedDate,
+    deleteDraftSlot,
+    confirmChanges,
+    resetChanges,
+  } = useMentorSchedule({ storageKey: `mentor.timeslots:${pageUserId}` });
 
   const [type, setType] = useState<'ALLOW' | 'BLOCK'>('ALLOW');
-  const [start, setStart] = useState('');
-  const [end, setEnd] = useState('');
+  const [startTime, setStartTime] = useState(''); // HH:mm
+  const [endTime, setEndTime] = useState(''); // HH:mm
+
+  if (!loaded) return <div className="p-6">Loading…</div>;
 
   const onAdd = () => {
-    if (!start || !end) return alert('請選擇開始與結束時間');
-    const s = new Date(start);
-    const e = new Date(end);
-    if (e <= s) return alert('結束時間必須晚於開始時間');
-    createFromDates({ type, start: s, end: e });
-    setStart('');
-    setEnd('');
+    if (!selectedDate) return alert('請先選擇日期');
+    if (!startTime || !endTime) return alert('請選擇開始與結束時間');
+    addSlotForSelectedDate({ type, startTime, endTime });
+    setStartTime('');
+    setEndTime('');
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <h1 className="text-xl font-bold">Mentor Schedule（讀 / 寫 / 刪）</h1>
+    <div className="max-w-2xl space-y-6 p-6">
+      <h1 className="text-xl font-bold">
+        Mentor Schedule（Calendar + Draft/Confirm）
+      </h1>
 
-      {/* 新增 */}
+      {/* 1) Calendar (date picker) */}
       <div className="space-y-2">
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value as 'ALLOW' | 'BLOCK')}
-          className="rounded border px-2 py-1"
-        >
-          <option value="ALLOW">ALLOW</option>
-          <option value="BLOCK">BLOCK</option>
-        </select>
+        <label className="block text-sm font-medium">選擇日期</label>
         <input
-          type="datetime-local"
-          value={start}
-          onChange={(e) => setStart(e.target.value)}
+          type="date"
+          value={selectedDate ?? ''}
+          onChange={(e) => setSelectedDate(e.target.value || null)}
           className="rounded border px-2 py-1"
         />
-        <input
-          type="datetime-local"
-          value={end}
-          onChange={(e) => setEnd(e.target.value)}
-          className="rounded border px-2 py-1"
-        />
-        <div className="flex gap-2">
+      </div>
+
+      {/* 2) Add time slots for selected date */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value as 'ALLOW' | 'BLOCK')}
+            className="rounded border px-2 py-1"
+          >
+            <option value="ALLOW">ALLOW</option>
+            <option value="BLOCK">BLOCK</option>
+          </select>
+
+          <input
+            type="time"
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            className="rounded border px-2 py-1"
+          />
+          <span>~</span>
+          <input
+            type="time"
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
+            className="rounded border px-2 py-1"
+          />
+
           <button
             onClick={onAdd}
             className="bg-black text-white rounded px-3 py-1"
           >
-            新增
+            新增時間段
           </button>
         </div>
+        <p className="text-xs text-gray-500">
+          * 先累積在草稿（hook 內），按下 Confirm 才會寫入 localStorage。
+        </p>
       </div>
 
-      {/* 列表 */}
-      <ul className="list-disc space-y-1 pl-5">
-        {parsed.length === 0 && <li>目前沒有資料</li>}
-        {parsed.map((p) => (
-          <li key={p.id} className="flex items-center gap-2">
-            <span>
-              {p.formatted}（{p.type}）
-            </span>
-            <button
-              onClick={() => deleteTimeslot(p.id)}
-              className="border-red-400 text-red-600 rounded border px-2 py-0.5 text-xs"
+      {/* 3) List draft slots for the selected date */}
+      <div className="space-y-2">
+        <h2 className="font-medium">{selectedDate ?? '未選擇日期'} 的時間段</h2>
+        <ul className="space-y-1">
+          {draftForSelectedDate.length === 0 && (
+            <li className="text-gray-500">目前沒有資料</li>
+          )}
+          {draftForSelectedDate.map((p) => (
+            <li
+              key={p.id}
+              className="flex items-center justify-between gap-2 rounded border px-3 py-1"
             >
-              刪除
-            </button>
-          </li>
-        ))}
-      </ul>
+              <span>
+                {p.formatted}（{p.type}）
+              </span>
+              <button
+                onClick={() => deleteDraftSlot(p.id)}
+                className="border-red-400 text-red-600 rounded border px-2 py-0.5 text-xs"
+              >
+                刪除
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* 4) Confirm / Reset */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={confirmChanges}
+          disabled={!dirty}
+          className="bg-green-600 text-white rounded px-3 py-1 disabled:opacity-40"
+        >
+          Confirm（寫入 localStorage）
+        </button>
+        <button
+          onClick={resetChanges}
+          disabled={!dirty}
+          className="rounded border px-3 py-1 disabled:opacity-40"
+        >
+          Reset（還原草稿）
+        </button>
+        {dirty && <span className="text-amber-600 text-xs">尚未儲存變更</span>}
+      </div>
     </div>
   );
 }

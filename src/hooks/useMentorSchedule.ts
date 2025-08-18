@@ -1,11 +1,16 @@
+'use client';
+
 import dayjs from 'dayjs';
-import { useEffect, useMemo, useState } from 'react';
+import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
+
+dayjs.extend(isSameOrBefore);
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 export type RawMentorTimeslot = {
   id: number;
   type: 'ALLOW' | 'BLOCK';
-  dtstart: number; // unix 秒
-  dtend: number; // unix 秒
+  dtstart: number; // unix seconds
+  dtend: number; // unix seconds
 };
 
 export type ParsedMentorTimeslot = {
@@ -14,17 +19,37 @@ export type ParsedMentorTimeslot = {
   start: Date;
   end: Date;
   durationMinutes: number;
-  formatted: string;
+  formatted: string; // e.g. 2025-08-18 09:00 ~ 10:00
+  dateKey: string; // YYYY-MM-DD (local)
 };
 
-type UseMentorScheduleReturn = {
-  parsed: ParsedMentorTimeslot[];
-  createFromDates: (opts: {
+type Options = {
+  storageKey?: string;
+  seed?: RawMentorTimeslot[];
+};
+
+export type UseMentorScheduleReturn = {
+  // state
+  loaded: boolean;
+  dirty: boolean; // draft differs from saved
+  selectedDate: string | null; // YYYY-MM-DD (local)
+  setSelectedDate: (dateStr: string | null) => void;
+
+  // derived lists
+  parsedDraft: ParsedMentorTimeslot[]; // all draft slots (for debug or global list)
+  draftForSelectedDate: ParsedMentorTimeslot[]; // filtered by selectedDate
+
+  // actions (all modify DRAFT only)
+  addSlotForSelectedDate: (opts: {
     type: 'ALLOW' | 'BLOCK';
-    start: Date;
-    end: Date;
+    startTime: string; // HH:mm
+    endTime: string; // HH:mm
   }) => void;
-  deleteTimeslot: (id: number) => void;
+  deleteDraftSlot: (id: number) => void;
+
+  // persistence
+  confirmChanges: () => void; // write draft -> localStorage
+  resetChanges: () => void; // revert draft <- saved
 };
 
 // ---- helpers ----
@@ -34,6 +59,7 @@ const format = (r: RawMentorTimeslot): ParsedMentorTimeslot => {
   const durationMinutes = Math.round(
     (end.getTime() - start.getTime()) / (1000 * 60)
   );
+  const dateKey = dayjs(start).format('YYYY-MM-DD');
   return {
     id: r.id,
     type: r.type,
@@ -41,6 +67,7 @@ const format = (r: RawMentorTimeslot): ParsedMentorTimeslot => {
     end,
     durationMinutes,
     formatted: `${dayjs(start).format('YYYY-MM-DD HH:mm')} ~ ${dayjs(end).format('HH:mm')}`,
+    dateKey,
   };
 };
 
@@ -60,61 +87,97 @@ const writeToStorage = (key: string, data: RawMentorTimeslot[]) => {
 const nextId = (rows: RawMentorTimeslot[]) =>
   (rows.length ? Math.max(...rows.map((r) => r.id)) : 0) + 1;
 
-type Options = {
-  storageKey?: string;
-  seed?: RawMentorTimeslot[];
-};
-
 export const useMentorSchedule = (
   opts: Options = {}
-): UseMentorScheduleReturn & { loaded: boolean } => {
+): UseMentorScheduleReturn => {
   const { storageKey = 'mentor.timeslots', seed = [] } = opts;
 
-  const [rows, setRows] = useState<RawMentorTimeslot[]>([]);
+  // Saved = committed copy in localStorage
+  const [saved, setSaved] = useState<RawMentorTimeslot[]>([]);
+  // Draft = working copy you edit until Confirm
+  const [draft, setDraft] = useState<RawMentorTimeslot[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(
+    dayjs().format('YYYY-MM-DD')
+  );
 
-  // ✅ 只依賴 storageKey；不要依賴 seed（避免每次 render 觸發初始化）
+  // initial load
   useEffect(() => {
     const fromStore = readFromStorage(storageKey);
-    setRows(fromStore ?? seed ?? []);
+    const base = fromStore ?? seed ?? [];
+    setSaved(base);
+    setDraft(base);
     setLoaded(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
-  // ✅ 讀取完成後才寫回 localStorage，避免初始化期間把資料蓋掉
-  useEffect(() => {
-    if (!loaded) return;
-    writeToStorage(storageKey, rows);
-  }, [storageKey, rows, loaded]);
+  // derived
+  const parsedDraft = useMemo(
+    () =>
+      draft.map(format).sort((a, b) => a.start.getTime() - b.start.getTime()),
+    [draft]
+  );
+  const draftForSelectedDate = useMemo(
+    () =>
+      selectedDate
+        ? parsedDraft.filter((p) => p.dateKey === selectedDate)
+        : parsedDraft,
+    [parsedDraft, selectedDate]
+  );
 
-  const parsed = useMemo(() => rows.map(format), [rows]);
+  const dirty = useMemo(
+    () => JSON.stringify(saved) !== JSON.stringify(draft),
+    [saved, draft]
+  );
 
-  const createFromDates = ({
-    type,
-    start,
-    end,
-  }: {
-    type: 'ALLOW' | 'BLOCK';
-    start: Date;
-    end: Date;
-  }) => {
-    if (!(start instanceof Date) || isNaN(start.getTime())) return;
-    if (!(end instanceof Date) || isNaN(end.getTime())) return;
-    if (end <= start) return;
+  // actions: add/delete on DRAFT only
+  const addSlotForSelectedDate: UseMentorScheduleReturn['addSlotForSelectedDate'] =
+    useCallback(
+      ({ type, startTime, endTime }) => {
+        if (!selectedDate) return;
+        if (!startTime || !endTime) return;
+        const s = dayjs(`${selectedDate} ${startTime}`);
+        const e = dayjs(`${selectedDate} ${endTime}`);
+        if (!s.isValid() || !e.isValid()) return;
+        if (e.isSameOrBefore(s)) return;
 
-    setRows((prev) => [
-      ...prev,
-      {
-        id: nextId(prev),
-        type,
-        dtstart: Math.floor(start.getTime() / 1000),
-        dtend: Math.floor(end.getTime() / 1000),
+        setDraft((prev) => [
+          ...prev,
+          {
+            id: nextId(prev),
+            type,
+            dtstart: Math.floor(s.valueOf() / 1000),
+            dtend: Math.floor(e.valueOf() / 1000),
+          },
+        ]);
       },
-    ]);
+      [selectedDate]
+    );
+
+  const deleteDraftSlot = useCallback((id: number) => {
+    setDraft((prev) => prev.filter((r) => r.id !== id));
+  }, []);
+
+  // persistence
+  const confirmChanges = useCallback(() => {
+    writeToStorage(storageKey, draft);
+    setSaved(draft);
+  }, [draft, storageKey]);
+
+  const resetChanges = useCallback(() => {
+    setDraft(saved);
+  }, [saved]);
+
+  return {
+    loaded,
+    dirty,
+    selectedDate,
+    setSelectedDate,
+    parsedDraft,
+    draftForSelectedDate,
+    addSlotForSelectedDate,
+    deleteDraftSlot,
+    confirmChanges,
+    resetChanges,
   };
-
-  const deleteTimeslot = (id: number) =>
-    setRows((prev) => prev.filter((r) => r.id !== id));
-
-  return { parsed, createFromDates, deleteTimeslot, loaded };
 };

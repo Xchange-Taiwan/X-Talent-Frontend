@@ -175,6 +175,8 @@ export default function Page({
   useEffect(() => {
     const fetchSchedule = async () => {
       if (!userData) return;
+      console.log('year' + date.getFullYear());
+      console.log('month' + date.getMonth() + 1);
       const schedule = await fetchMentorSchedule({
         userId: pageUserId,
         year: date.getFullYear(),
