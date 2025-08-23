@@ -1,5 +1,5 @@
+import AcceptReservationDialog from '@/components/reservation/acceptReservationDialog';
 import CancelReservationDialog from '@/components/reservation/cancelReservationDialog';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
 import { ReservationCard } from './reservationCard';
@@ -20,14 +20,17 @@ export function ReservationList({
           item={it}
           actions={
             variant === 'history' ? null : variant === 'pending-mentor' ? (
-              <div className="flex items-center gap-2">
-                <Button size="sm" className="min-h-9 px-3">
-                  Accept
-                </Button>
-                <Button size="sm" variant="outline" className="min-h-9 px-3">
-                  Decline
-                </Button>
-              </div>
+              <AcceptReservationDialog
+                reservation={it}
+                onAccept={async ({ id, message }) => {
+                  // TODO: call accept API
+                  console.log('ACCEPT', id, message);
+                }}
+                onReject={async ({ id, reason }) => {
+                  // TODO: call reject API
+                  console.log('REJECT', id, reason);
+                }}
+              />
             ) : (
               <CancelReservationDialog
                 reservation={it}
