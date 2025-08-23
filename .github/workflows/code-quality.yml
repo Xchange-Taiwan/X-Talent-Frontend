@@ -4,18 +4,24 @@ on:
   pull_request:
     branches: ['**']
 
+permissions:
+  contents: write # 讓 GITHUB_TOKEN 能夠 push（同 repo PR 才用得到）
+  pull-requests: write
+
 jobs:
   code-quality:
     runs-on: ubuntu-latest
     name: Format and Lint Check
 
     steps:
-      - name: Checkout code
+      - name: Checkout code (PR head branch)
         uses: actions/checkout@v4
         with:
-          # Fetch full history for auto-commit functionality
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+          # 重要：檢出 PR 來源的 head 分支，而不是 refs/pull/.../merge（避免 detached HEAD 造成 push 困難）
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -76,29 +82,49 @@ jobs:
           fi
 
       - name: Configure Git
-        if: steps.git-check.outputs.changes_made == 'true' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master'
+        # 僅在有變更、且 PR 不是 main/master、且 PR 來源與目標在同一個 repo 時才設定（fork 沒權限）
+        if: |
+          steps.git-check.outputs.changes_made == 'true' &&
+          github.ref != 'refs/heads/main' &&
+          github.ref != 'refs/heads/master' &&
+          github.event.pull_request.head.repo.full_name == github.repository
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
 
       - name: Commit and push changes
-        if: steps.git-check.outputs.changes_made == 'true' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master'
+        # 關鍵：在 detached HEAD 也能推，用 HEAD:<branch> 明確指定目標分支
+        if: |
+          steps.git-check.outputs.changes_made == 'true' &&
+          github.ref != 'refs/heads/main' &&
+          github.ref != 'refs/heads/master' &&
+          github.event.pull_request.head.repo.full_name == github.repository
         run: |
-          git add .
+          git add -A
           git commit -m "🔧 Auto-fix: Format code and fix linting issues
 
           - Applied Prettier formatting
           - Fixed auto-fixable ESLint issues
 
-          [skip ci]"
-          git push
+          [skip ci]" || echo "No changes to commit"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
+      - name: Notify about fork PR (no auto-commit)
+        if: |
+          steps.git-check.outputs.changes_made == 'true' &&
+          github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "⚠️  This is a forked PR. Auto-commit is disabled for security/permission reasons."
+          echo "Please run 'pnpm run format && pnpm run lint:fix' locally and push the changes."
 
       - name: Notify about main/master branch
-        if: steps.git-check.outputs.changes_made == 'true' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        if: |
+          steps.git-check.outputs.changes_made == 'true' &&
+          (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         run: |
           echo "⚠️  Formatting/linting issues detected on main/master branch."
           echo "Auto-commit is disabled for main/master branches."
-          echo "Please run 'npm run format && npm run lint:fix' locally and commit the changes."
+          echo "Please run 'pnpm run format && pnpm run lint:fix' locally and commit the changes."
           exit 1
 
       - name: Summary
@@ -120,7 +146,9 @@ jobs:
             echo "| ESLint | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
           fi
           if [[ "${{ steps.git-check.outputs.changes_made }}" == "true" ]]; then
-            if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/master" ]]; then
+            if [[ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+              echo "| Auto-commit | ⚠️ Skipped (fork) |" >> $GITHUB_STEP_SUMMARY
+            elif [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/master" ]]; then
               echo "| Auto-commit | ⚠️ Skipped (main/master) |" >> $GITHUB_STEP_SUMMARY
             else
               echo "| Auto-commit | ✅ Applied |" >> $GITHUB_STEP_SUMMARY

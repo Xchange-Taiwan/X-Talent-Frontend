@@ -1,3 +1,4 @@
+import CancelReservationDialog from '@/components/reservation/cancelReservationDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -28,13 +29,14 @@ export function ReservationList({
                 </Button>
               </div>
             ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                className="min-h-9 px-3 text-destructive"
-              >
-                Cancel
-              </Button>
+              <CancelReservationDialog
+                reservation={it}
+                onConfirmCancel={async ({ id, reason }) => {
+                  // TODO: 這裡串後端 API
+                  // await api.cancelReservation(id, { reason })
+                  console.log('cancel confirmed:', id, reason);
+                }}
+              />
             )
           }
         />
