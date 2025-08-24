@@ -66,7 +66,7 @@ const format = (r: RawMentorTimeslot): ParsedMentorTimeslot => {
     start,
     end,
     durationMinutes,
-    formatted: `${dayjs(start).format('YYYY-MM-DD HH:mm')} ~ ${dayjs(end).format('HH:mm')}`,
+    formatted: `${dayjs(start).format('YYYY-MM-DD hh:mm A')} ~ ${dayjs(end).format('hh:mm A')}`,
     dateKey,
   };
 };
