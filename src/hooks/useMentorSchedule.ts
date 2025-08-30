@@ -1,10 +1,17 @@
+// useMentorSchedule.ts
 'use client';
 
 import dayjs from 'dayjs';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
-
 dayjs.extend(isSameOrBefore);
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import {
+  fetchMentorSchedule,
+  saveMentorSchedule,
+  ScheduleTimeSlots,
+} from '@/services/mentorSchedule/schedule'; // ← 依你的實際路徑
 
 export type RawMentorTimeslot = {
   id: number;
@@ -23,9 +30,20 @@ export type ParsedMentorTimeslot = {
   dateKey: string; // YYYY-MM-DD (local)
 };
 
+/** ========= 新增：資料來源選項 ========= */
 type Options = {
   storageKey?: string;
   seed?: RawMentorTimeslot[];
+
+  /** 切換資料來源：'local' 或 'backend'（預設 local） */
+  mode?: 'local' | 'backend';
+
+  /** backend 模式所需參數（以「月」為單位抓資料） */
+  backend?: {
+    userId: string;
+    year: number;
+    month: number; // 1-12
+  };
 };
 
 export type UseMentorScheduleReturn = {
@@ -48,8 +66,8 @@ export type UseMentorScheduleReturn = {
   deleteDraftSlot: (id: number) => void;
 
   // persistence
-  confirmChanges: () => void; // write draft -> localStorage
-  resetChanges: () => void; // revert draft <- saved
+  confirmChanges: () => void; // write draft -> localStorage or Backend
+  resetChanges: () => void; // revert draft <- saved or refetch
 };
 
 // ---- helpers ----
@@ -87,12 +105,45 @@ const writeToStorage = (key: string, data: RawMentorTimeslot[]) => {
 const nextId = (rows: RawMentorTimeslot[]) =>
   (rows.length ? Math.max(...rows.map((r) => r.id)) : 0) + 1;
 
+/** 後端（ScheduleTimeSlots）→ RawMentorTimeslot */
+const backendToRaw = (t: ScheduleTimeSlots): RawMentorTimeslot => {
+  // t.dtstart / t.dtend 可能是 Date/字串/數字，統一轉成時間戳（秒）
+  const toUnixSec = (v: unknown): number => {
+    if (typeof v === 'number') {
+      // 可能已是秒或毫秒，這裡假設毫秒太大：>1e12 視為毫秒
+      return v > 1e12 ? Math.floor(v / 1000) : v;
+    }
+    const ms = new Date(v as any).getTime();
+    return Math.floor(ms / 1000);
+  };
+
+  return {
+    id: Number(t.id) || Math.floor(Math.random() * 1e9),
+    type: t.dt_type,
+    dtstart: toUnixSec(t.dtstart as any),
+    dtend: toUnixSec(t.dtend as any),
+  };
+};
+
+/** RawMentorTimeslot → 後端 upsert slot */
+const rawToBackendSlot = (r: RawMentorTimeslot) => ({
+  id: r.id,
+  dt_type: r.type,
+  dtstart: r.dtstart,
+  dtend: r.dtend,
+});
+
 export const useMentorSchedule = (
   opts: Options = {}
 ): UseMentorScheduleReturn => {
-  const { storageKey = 'mentor.timeslots', seed = [] } = opts;
+  const {
+    storageKey = 'mentor.timeslots',
+    seed = [],
+    mode = 'local',
+    backend,
+  } = opts;
 
-  // Saved = committed copy in localStorage
+  // Saved = committed copy（localStorage 或 Backend 已存在值）
   const [saved, setSaved] = useState<RawMentorTimeslot[]>([]);
   // Draft = working copy you edit until Confirm
   const [draft, setDraft] = useState<RawMentorTimeslot[]>([]);
@@ -103,13 +154,48 @@ export const useMentorSchedule = (
 
   // initial load
   useEffect(() => {
-    const fromStore = readFromStorage(storageKey);
-    const base = fromStore ?? seed ?? [];
-    setSaved(base);
-    setDraft(base);
-    setLoaded(true);
+    let ignore = false;
+    (async () => {
+      if (
+        mode === 'backend' &&
+        backend?.userId &&
+        backend?.year &&
+        backend?.month
+      ) {
+        const data = await fetchMentorSchedule({
+          userId: backend.userId,
+          year: backend.year,
+          month: backend.month,
+        });
+
+        const raws = (data?.timeslots ?? [])
+          .map(backendToRaw)
+          // 保險：只保留指定年月（若後端已濾好可移除）
+          .filter((r) => {
+            const d = dayjs(r.dtstart * 1000);
+            return d.year() === backend.year && d.month() + 1 === backend.month;
+          });
+
+        if (!ignore) {
+          setSaved(raws);
+          setDraft(raws);
+          setLoaded(true);
+        }
+      } else {
+        const fromStore = readFromStorage(storageKey);
+        const base = fromStore ?? seed ?? [];
+        if (!ignore) {
+          setSaved(base);
+          setDraft(base);
+          setLoaded(true);
+        }
+      }
+    })();
+    return () => {
+      ignore = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storageKey]);
+  }, [mode, storageKey, backend?.userId, backend?.year, backend?.month]);
 
   // derived
   const parsedDraft = useMemo(
@@ -117,6 +203,7 @@ export const useMentorSchedule = (
       draft.map(format).sort((a, b) => a.start.getTime() - b.start.getTime()),
     [draft]
   );
+
   const draftForSelectedDate = useMemo(
     () =>
       selectedDate
@@ -160,13 +247,49 @@ export const useMentorSchedule = (
 
   // persistence
   const confirmChanges = useCallback(() => {
-    writeToStorage(storageKey, draft);
-    setSaved(draft);
-  }, [draft, storageKey]);
+    if (mode === 'backend') {
+      if (!backend?.userId) {
+        console.warn(
+          'confirmChanges: backend.userId 未提供，改以 local 儲存。'
+        );
+        writeToStorage(storageKey, draft);
+        setSaved(draft);
+        return;
+      }
+      const okPromise = saveMentorSchedule({
+        userId: backend.userId,
+        timeslots: draft.map(rawToBackendSlot),
+      });
+      okPromise.then((ok) => {
+        if (ok) setSaved(draft);
+        else console.error('後端儲存失敗；保持原狀。');
+      });
+    } else {
+      writeToStorage(storageKey, draft);
+      setSaved(draft);
+    }
+  }, [mode, backend?.userId, draft, storageKey]);
 
   const resetChanges = useCallback(() => {
-    setDraft(saved);
-  }, [saved]);
+    if (
+      mode === 'backend' &&
+      backend?.userId &&
+      backend?.year &&
+      backend?.month
+    ) {
+      fetchMentorSchedule({
+        userId: backend.userId,
+        year: backend.year,
+        month: backend.month,
+      }).then((data) => {
+        const raws = (data?.timeslots ?? []).map(backendToRaw);
+        setDraft(raws);
+        setSaved(raws);
+      });
+    } else {
+      setDraft(saved);
+    }
+  }, [mode, backend?.userId, backend?.year, backend?.month, saved]);
 
   return {
     loaded,

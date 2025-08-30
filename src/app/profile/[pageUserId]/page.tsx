@@ -15,7 +15,7 @@ import {
   fetchMentorSchedule,
   ScheduleTimeSlots,
   ScheduleType,
-} from '@/services/profile/schedule';
+} from '@/services/mentorSchedule/schedule';
 import { fetchUserById } from '@/services/profile/user';
 import { UserType } from '@/services/profile/user';
 
