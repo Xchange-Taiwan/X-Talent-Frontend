@@ -94,29 +94,6 @@ const format = (r: RawMentorTimeslot): ParsedMentorTimeslot => {
   };
 };
 
-const isSameSlot = (
-  a: {
-    type: 'ALLOW' | 'BLOCK';
-    dtstart: number;
-    dtend: number;
-    rrule?: string;
-  },
-  b?: {
-    type: 'ALLOW' | 'BLOCK';
-    dtstart: number;
-    dtend: number;
-    rrule?: string;
-  }
-) => {
-  if (!b) return false;
-  return (
-    a.type === b.type &&
-    a.dtstart === b.dtstart &&
-    a.dtend === b.dtend &&
-    (a.rrule ?? '') === (b.rrule ?? '')
-  );
-};
-
 const readFromStorage = (key: string): RawMentorTimeslot[] | null => {
   try {
     const str = localStorage.getItem(key);
@@ -358,41 +335,28 @@ export const useMentorSchedule = (
   );
 
   // confirm: 依差異決定 PUT / DELETE / 或兩者
-  const confirmChanges = useCallback(() => {
+  const confirmChanges = useCallback(async () => {
+    log('confirmChanges clicked:', { mode, backend, dirty, pendingDeleteIds });
     if (!dirty) return;
 
     if (mode !== 'backend') {
+      // local
       writeToStorage(storageKey, draft);
       setSaved(draft);
       setPendingDeleteIds([]);
       return;
     }
 
+    // --- backend 模式 ---
     if (!backend?.userId) {
+      log('fallback to local: missing backend.userId');
       writeToStorage(storageKey, draft);
       setSaved(draft);
       setPendingDeleteIds([]);
       return;
     }
 
-    // diff
-    const savedMap = new Map(
-      saved.filter((s) => s.id > 0).map((s) => [s.id, s])
-    );
-    const upserts = draft.filter((r) => {
-      if (r.id < 0) return true;
-      if (r.id > 0) return !isSameSlot(r, savedMap.get(r.id));
-      return false;
-    });
-
-    const draftPosIds = new Set(draft.filter((d) => d.id > 0).map((d) => d.id));
-    const deletedByDiff = saved
-      .filter((s) => s.id > 0 && !draftPosIds.has(s.id))
-      .map((s) => s.id);
-    const idsToDelete = Array.from(
-      new Set([...pendingDeleteIds, ...deletedByDiff])
-    );
-
+    // 月底 23:59:59
     const endOfMonthUnix = dayjs(
       `${backend.year}-${String(backend.month).padStart(2, '0')}-01`
     )
@@ -403,74 +367,93 @@ export const useMentorSchedule = (
       .millisecond(0)
       .unix();
 
-    const upsertPayload = upserts.map(toServiceSlot);
-    const doPut = upsertPayload.length > 0;
-    const doDelete = idsToDelete.length > 0;
+    // 這次要 upsert 的 payload（不要含待刪的）
+    const upsertPayload = draft
+      .filter((r) => !pendingDeleteIds.includes(r.id))
+      .map(toServiceSlot);
 
-    const refetch = () =>
-      fetchMentorSchedule({
+    const idsToDelete = [...pendingDeleteIds];
+
+    // 小工具：refetch 當月並同步 saved/draft
+    const refetch = async () => {
+      const data = await fetchMentorSchedule({
         userId: backend.userId,
         year: backend.year,
         month: backend.month,
-      }).then((data) => {
-        const raws = (data?.timeslots ?? []).map(backendToRaw).filter((r) => {
-          const d = dayjs(r.dtstart * 1000);
-          return d.year() === backend.year && d.month() + 1 === backend.month;
-        });
-        setSaved(raws);
-        setDraft(raws);
-        setPendingDeleteIds([]);
       });
+      const raws = (data?.timeslots ?? []).map(backendToRaw).filter((r) => {
+        const d = dayjs(r.dtstart * 1000);
+        return d.year() === backend.year && d.month() + 1 === backend.month;
+      });
+      setSaved(raws);
+      setDraft(raws);
+      setPendingDeleteIds([]);
+      log('refetched after confirm:', { count: raws.length, raws });
+    };
 
-    if (!doPut && doDelete) {
-      Promise.all(
-        idsToDelete.map((id) =>
-          deleteMentorSchedule({ userId: backend.userId, scheduleId: id })
-        )
-      )
-        .then(refetch)
-        .catch((e) => console.error('[MentorSchedule] DELETE only failed:', e));
-      return;
-    }
+    const doPut = upsertPayload.length > 0;
+    const doDelete = idsToDelete.length > 0;
 
-    if (doPut && !doDelete) {
-      saveMentorSchedule({
+    try {
+      // 只有 PUT
+      if (doPut && !doDelete) {
+        const ok = await saveMentorSchedule({
+          userId: backend.userId,
+          until: endOfMonthUnix,
+          timeslots: upsertPayload,
+        });
+        if (ok) await refetch();
+        return;
+      }
+
+      // 只有 DELETE
+      if (!doPut && doDelete) {
+        await Promise.all(
+          idsToDelete.map(async (id) => {
+            const ok = await deleteMentorSchedule({
+              userId: backend.userId,
+              scheduleId: id,
+            });
+            if (!ok) throw new Error(`DELETE failed: ${id}`);
+          })
+        );
+        await refetch();
+        return;
+      }
+
+      // PUT + DELETE 同時
+      const ok = await saveMentorSchedule({
         userId: backend.userId,
         until: endOfMonthUnix,
         timeslots: upsertPayload,
-      })
-        .then((ok) => ok && refetch())
-        .catch((e) => console.error('[MentorSchedule] PUT only failed:', e));
-      return;
-    }
+      });
+      if (!ok) throw new Error('PUT failed');
 
-    // both
-    saveMentorSchedule({
-      userId: backend.userId,
-      until: endOfMonthUnix,
-      timeslots: upsertPayload,
-    })
-      .then((ok) => {
-        if (!ok) throw new Error('PUT failed');
-        return Promise.all(
-          idsToDelete.map((id) =>
-            deleteMentorSchedule({ userId: backend.userId, scheduleId: id })
-          )
-        );
-      })
-      .then(refetch)
-      .catch((e) => console.error('[MentorSchedule] PUT+DELETE failed:', e));
+      await Promise.all(
+        idsToDelete.map(async (id) => {
+          const okDel = await deleteMentorSchedule({
+            userId: backend.userId,
+            scheduleId: id,
+          });
+          if (!okDel) throw new Error(`DELETE failed: ${id}`);
+        })
+      );
+
+      await refetch();
+    } catch (e) {
+      console.error('[MentorSchedule] confirm failed:', e);
+    }
   }, [
     mode,
     backend?.userId,
     backend?.year,
     backend?.month,
     draft,
-    saved,
     storageKey,
     toServiceSlot,
     dirty,
     pendingDeleteIds,
+    log,
   ]);
 
   const resetChanges = useCallback(() => {
