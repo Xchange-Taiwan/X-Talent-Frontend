@@ -33,27 +33,20 @@ export async function fetchMentorSchedule(
   param: ScheduleRequest
 ): Promise<ScheduleType> {
   try {
-    const response = await fetch(
+    const res = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors/${param.userId}/schedule/y/${param.year}/m/${param.month}`,
-      {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      }
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } }
     );
-    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-    const result: ScheduleResponse = await response.json();
-    if (result.code !== '0') {
-      console.error(`API Error: ${result.msg}`);
-      return {} as ScheduleType;
-    }
+    if (!res.ok) throw new Error(String(res.status));
+    const result: ScheduleResponse = await res.json();
+    if (result.code !== '0') return {} as ScheduleType;
     return result.data;
-  } catch (error) {
-    console.error('Fetch Mentors Schedule Error:', error);
+  } catch {
     return {} as ScheduleType;
   }
 }
 
-/** ========= 與 backend 對齊 ========= */
+/** 與 backend 對齊 */
 export type UpsertTimeslotBackend = {
   id?: string | number;
   user_id?: string | number;
@@ -87,7 +80,7 @@ export async function saveMentorSchedule(params: {
     timeslots: params.timeslots.map((t) =>
       clean({
         id: t.id,
-        user_id: params.userId, // 後端有時會要求
+        user_id: params.userId,
         dt_type: t.dt_type,
         dtstart: t.dtstart,
         dtend: t.dtend,
@@ -105,25 +98,10 @@ export async function saveMentorSchedule(params: {
         body: JSON.stringify(body),
       }
     );
-    if (!res.ok) {
-      let errText = '';
-      try {
-        errText = await res.text();
-      } catch {}
-      console.error('[MentorSchedule] PUT http error', {
-        status: res.status,
-        response: errText,
-      });
-      throw new Error(`HTTP ${res.status}`);
-    }
+    if (!res.ok) return false;
     const result: SaveScheduleResponse = await res.json();
-    if (result.code !== '0') {
-      console.error(`Save API Error: ${result.msg}`);
-      return false;
-    }
-    return true;
-  } catch (e) {
-    console.error('Save Mentors Schedule Error:', e);
+    return result.code === '0';
+  } catch {
     return false;
   }
 }
@@ -134,40 +112,21 @@ export async function deleteMentorSchedule(params: {
   scheduleId: string | number;
 }): Promise<boolean> {
   try {
-    const url = `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors/${params.userId}/schedule/${params.scheduleId}`;
-    const res = await fetch(url, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    // 有些後端回 204 無 body
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors/${params.userId}/schedule/${params.scheduleId}`,
+      { method: 'DELETE', headers: { 'Content-Type': 'application/json' } }
+    );
     if (res.status === 204) return true;
+    if (!res.ok) return false;
 
-    if (!res.ok) {
-      let errText = '';
-      try {
-        errText = await res.text();
-      } catch {}
-      console.error('[MentorSchedule] DELETE http error', {
-        status: res.status,
-        response: errText,
-      });
-      return false;
-    }
-
-    // 若有統一回傳格式
+    // 若有統一回傳格式就檢查；沒有就直接當成功
     try {
       const json: SaveScheduleResponse = await res.json();
-      if (json.code && json.code !== '0') {
-        console.error('[MentorSchedule] DELETE api error', json);
-        return false;
-      }
+      return !json.code || json.code === '0';
     } catch {
-      // 沒有 body 視為成功
+      return true;
     }
-    return true;
-  } catch (e) {
-    console.error('Delete Mentor Schedule Error:', e);
+  } catch {
     return false;
   }
 }
