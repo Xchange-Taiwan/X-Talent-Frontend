@@ -7,6 +7,7 @@ dayjs.extend(isSameOrBefore);
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
+  deleteMentorSchedule,
   fetchMentorSchedule,
   saveMentorSchedule,
   ScheduleTimeSlots,
@@ -18,7 +19,7 @@ export type RawMentorTimeslot = {
   type: 'ALLOW' | 'BLOCK';
   dtstart: number; // unix seconds
   dtend: number; // unix seconds
-  rrule?: string; // 🔁 後端要求帶；新增預設空字串
+  rrule?: string; // 後端要求帶；新增預設空字串
 };
 
 export type ParsedMentorTimeslot = {
@@ -27,7 +28,7 @@ export type ParsedMentorTimeslot = {
   start: Date;
   end: Date;
   durationMinutes: number;
-  formatted: string; // e.g. 2025-08-18 09:00 ~ 10:00
+  formatted: string;
   dateKey: string; // YYYY-MM-DD (local)
 };
 
@@ -48,14 +49,28 @@ export type UseMentorScheduleReturn = {
   dirty: boolean;
   selectedDate: string | null;
   setSelectedDate: (dateStr: string | null) => void;
+
   parsedDraft: ParsedMentorTimeslot[];
   draftForSelectedDate: ParsedMentorTimeslot[];
+
   addSlotForSelectedDate: (opts: {
     type: 'ALLOW' | 'BLOCK';
     startTime: string; // HH:mm
     endTime: string; // HH:mm
   }) => void;
+
+  /** ✅ 新增：更新草稿中的某個 slot（只改 draft，按 Confirm 才送） */
+  updateDraftSlot: (
+    id: number,
+    patch: {
+      type?: 'ALLOW' | 'BLOCK';
+      startTime?: string; // HH:mm
+      endTime?: string; // HH:mm
+    }
+  ) => void;
+
   deleteDraftSlot: (id: number) => void;
+
   confirmChanges: () => void;
   resetChanges: () => void;
 };
@@ -79,6 +94,29 @@ const format = (r: RawMentorTimeslot): ParsedMentorTimeslot => {
   };
 };
 
+const isSameSlot = (
+  a: {
+    type: 'ALLOW' | 'BLOCK';
+    dtstart: number;
+    dtend: number;
+    rrule?: string;
+  },
+  b?: {
+    type: 'ALLOW' | 'BLOCK';
+    dtstart: number;
+    dtend: number;
+    rrule?: string;
+  }
+) => {
+  if (!b) return false;
+  return (
+    a.type === b.type &&
+    a.dtstart === b.dtstart &&
+    a.dtend === b.dtend &&
+    (a.rrule ?? '') === (b.rrule ?? '')
+  );
+};
+
 const readFromStorage = (key: string): RawMentorTimeslot[] | null => {
   try {
     const str = localStorage.getItem(key);
@@ -92,24 +130,22 @@ const writeToStorage = (key: string, data: RawMentorTimeslot[]) => {
   localStorage.setItem(key, JSON.stringify(data));
 };
 
-/** 新增用負數 id（-1, -2, ...）避免誤傳給後端被當作更新 */
 const nextTempId = (rows: RawMentorTimeslot[]) => {
   const negatives = rows.filter((r) => r.id < 0).map((r) => r.id);
   return negatives.length ? Math.min(...negatives) - 1 : -1;
 };
 
-/** 後端 → Raw（保留 rrule） */
 const backendToRaw = (t: ScheduleTimeSlots): RawMentorTimeslot => {
   const toUnixSec = (v: unknown): number => {
     if (typeof v === 'number') return v > 1e12 ? Math.floor(v / 1000) : v;
     return Math.floor(new Date(v as any).getTime() / 1000);
   };
   return {
-    id: Number(t.id) || Math.floor(Math.random() * 1e9), // 後端 id 應為正數
+    id: Number(t.id) || Math.floor(Math.random() * 1e9),
     type: t.dt_type,
     dtstart: toUnixSec(t.dtstart as any),
     dtend: toUnixSec(t.dtend as any),
-    rrule: t.rrule ?? '', // 🔁 保留（更新時要帶回去）
+    rrule: t.rrule ?? '',
   };
 };
 
@@ -124,9 +160,8 @@ export const useMentorSchedule = (
     debug = false,
   } = opts;
 
-  const log = (...args: any[]) => {
-    if (debug) console.log('[MentorSchedule]', ...args);
-  };
+  const log = (...args: any[]) =>
+    debug && console.log('[MentorSchedule]', ...args);
 
   const [saved, setSaved] = useState<RawMentorTimeslot[]>([]);
   const [draft, setDraft] = useState<RawMentorTimeslot[]>([]);
@@ -135,24 +170,23 @@ export const useMentorSchedule = (
     dayjs().format('YYYY-MM-DD')
   );
 
-  /** 只有「後端已存在」的 id（正數）才視為 persisted */
+  /** 被刪除、等 Confirm 才真的 DELETE 的正數 id */
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<number[]>([]);
+
   const persistedIdSet = useMemo(
     () => new Set(saved.filter((s) => s.id > 0).map((s) => s.id)),
     [saved]
   );
 
-  /** Raw → Backend：新增不帶 id；更新才帶 id；一律帶 rrule */
   const toServiceSlot = useCallback(
     (r: RawMentorTimeslot): UpsertTimeslotBackend => {
       const slot: UpsertTimeslotBackend = {
         dt_type: r.type,
         dtstart: r.dtstart,
         dtend: r.dtend,
-        rrule: r.rrule ?? '', // 🔁 後端需要
+        rrule: r.rrule ?? '',
       };
-      if (r.id > 0 && persistedIdSet.has(r.id)) {
-        slot.id = r.id;
-      }
+      if (r.id > 0 && persistedIdSet.has(r.id)) slot.id = r.id;
       return slot;
     },
     [persistedIdSet]
@@ -163,7 +197,6 @@ export const useMentorSchedule = (
     let ignore = false;
     (async () => {
       log('init load:', { mode, backend, storageKey });
-
       if (
         mode === 'backend' &&
         backend?.userId &&
@@ -176,17 +209,15 @@ export const useMentorSchedule = (
             year: backend.year,
             month: backend.month,
           });
-
           const raws = (data?.timeslots ?? []).map(backendToRaw).filter((r) => {
             const d = dayjs(r.dtstart * 1000);
             return d.year() === backend.year && d.month() + 1 === backend.month;
           });
-
           if (!ignore) {
             setSaved(raws);
             setDraft(raws);
             setLoaded(true);
-            log('loaded from backend:', { count: raws.length, raws });
+            setPendingDeleteIds([]);
           }
         } catch (e) {
           log('fetchMentorSchedule error:', e);
@@ -199,7 +230,7 @@ export const useMentorSchedule = (
           setSaved(base);
           setDraft(base);
           setLoaded(true);
-          log('loaded from local:', { count: base.length, base });
+          setPendingDeleteIds([]);
         }
       }
     })();
@@ -225,38 +256,17 @@ export const useMentorSchedule = (
   );
 
   const dirty = useMemo(
-    () => JSON.stringify(saved) !== JSON.stringify(draft),
-    [saved, draft]
+    () =>
+      JSON.stringify(saved) !== JSON.stringify(draft) ||
+      pendingDeleteIds.length > 0,
+    [saved, draft, pendingDeleteIds]
   );
 
-  useEffect(() => {
-    log('dirty changed:', {
-      dirty,
-      savedLen: saved.length,
-      draftLen: draft.length,
-      saved,
-      draft,
-    });
-  }, [dirty, saved, draft]); // eslint-disable-line
-
-  // actions: add/delete on DRAFT only
+  // actions
   const addSlotForSelectedDate: UseMentorScheduleReturn['addSlotForSelectedDate'] =
     useCallback(
       ({ type, startTime, endTime }) => {
-        log('addSlotForSelectedDate called:', {
-          selectedDate,
-          type,
-          startTime,
-          endTime,
-        });
-        if (!selectedDate) {
-          log('add aborted: no selectedDate');
-          return;
-        }
-        if (!startTime || !endTime) {
-          log('add aborted: missing time');
-          return;
-        }
+        if (!selectedDate || !startTime || !endTime) return;
 
         const buildDT = (dateStr: string, timeStr: string) => {
           const [h, m] = timeStr.split(':').map(Number);
@@ -269,137 +279,201 @@ export const useMentorSchedule = (
 
         const s = buildDT(selectedDate, startTime);
         const e = buildDT(selectedDate, endTime);
+        if (!s.isValid() || !e.isValid() || e.isSameOrBefore(s)) return;
 
-        log('parsed times:', {
-          sISO: s.toISOString?.(),
-          eISO: e.toISOString?.(),
-          sValid: s.isValid(),
-          eValid: e.isValid(),
-          sUnix: s.valueOf(),
-          eUnix: e.valueOf(),
-        });
-
-        if (!s.isValid() || !e.isValid()) {
-          log('add aborted: invalid date parse');
-          return;
-        }
-        if (e.isSameOrBefore(s)) {
-          log('add aborted: end <= start');
-          return;
-        }
-
-        setDraft((prev) => {
-          const next: RawMentorTimeslot[] = [
-            ...prev,
-            {
-              id: nextTempId(prev), // 負數暫存 id
-              type,
-              dtstart: Math.floor(s.valueOf() / 1000),
-              dtend: Math.floor(e.valueOf() / 1000),
-              rrule: '', // 🔁 新增預設空字串
-            },
-          ];
-          log('draft added:', {
-            before: prev.length,
-            after: next.length,
-            next,
-          });
-          return next;
-        });
+        setDraft((prev) => [
+          ...prev,
+          {
+            id: nextTempId(prev),
+            type,
+            dtstart: Math.floor(s.valueOf() / 1000),
+            dtend: Math.floor(e.valueOf() / 1000),
+            rrule: '',
+          },
+        ]);
       },
-      [selectedDate, log]
+      [selectedDate]
     );
+
+  /** ✅ 新增：更新草稿中的 slot（只動 draft） */
+  const updateDraftSlot: UseMentorScheduleReturn['updateDraftSlot'] =
+    useCallback((id, patch) => {
+      setDraft((prev) => {
+        const target = prev.find((r) => r.id === id);
+        if (!target) return prev;
+
+        // 用 slot 本身日期當 base，將新的 time 套上去
+        const baseDate = dayjs(target.dtstart * 1000).format('YYYY-MM-DD');
+
+        const fmtHM = (sec: number) => dayjs(sec * 1000).format('HH:mm');
+        const startHM = patch.startTime ?? fmtHM(target.dtstart);
+        const endHM = patch.endTime ?? fmtHM(target.dtend);
+
+        const buildDT = (dateStr: string, timeStr: string) => {
+          const [h, m] = timeStr.split(':').map(Number);
+          return dayjs(dateStr)
+            .hour(h ?? 0)
+            .minute(m ?? 0)
+            .second(0)
+            .millisecond(0);
+        };
+
+        const s = buildDT(baseDate, startHM);
+        const e = buildDT(baseDate, endHM);
+        if (!s.isValid() || !e.isValid() || e.isSameOrBefore(s)) {
+          console.warn('[MentorSchedule] updateDraftSlot invalid time', {
+            id,
+            patch,
+            baseDate,
+            startHM,
+            endHM,
+          });
+          return prev;
+        }
+
+        const next = prev.map((r) =>
+          r.id === id
+            ? {
+                ...r,
+                type: patch.type ?? r.type,
+                dtstart: Math.floor(s.valueOf() / 1000),
+                dtend: Math.floor(e.valueOf() / 1000),
+              }
+            : r
+        );
+        return next;
+      });
+    }, []);
 
   const deleteDraftSlot = useCallback(
     (id: number) => {
-      setDraft((prev) => {
-        const next = prev.filter((r) => r.id !== id);
-        log('draft deleted:', { id, before: prev.length, after: next.length });
-        return next;
-      });
+      setDraft((prev) => prev.filter((r) => r.id !== id));
+      if (mode === 'backend' && id > 0) {
+        setPendingDeleteIds((prev) =>
+          prev.includes(id) ? prev : [...prev, id]
+        );
+      }
     },
-    [log]
+    [mode]
   );
 
-  // persistence
+  // confirm: 依差異決定 PUT / DELETE / 或兩者
   const confirmChanges = useCallback(() => {
-    log('confirmChanges clicked:', { mode, backend, dirty });
-    if (!dirty) {
-      log('confirm aborted: not dirty');
+    if (!dirty) return;
+
+    if (mode !== 'backend') {
+      writeToStorage(storageKey, draft);
+      setSaved(draft);
+      setPendingDeleteIds([]);
       return;
     }
 
-    if (mode === 'backend') {
-      if (!backend?.userId) {
-        log('confirm fallback to local: missing backend.userId');
-        writeToStorage(storageKey, draft);
-        setSaved(draft);
-        return;
-      }
+    if (!backend?.userId) {
+      writeToStorage(storageKey, draft);
+      setSaved(draft);
+      setPendingDeleteIds([]);
+      return;
+    }
 
-      // 計算這個月的 until（月底 23:59:59）
-      const endOfMonthUnix = dayjs(
-        `${backend.year}-${String(backend.month).padStart(2, '0')}-01`
+    // diff
+    const savedMap = new Map(
+      saved.filter((s) => s.id > 0).map((s) => [s.id, s])
+    );
+    const upserts = draft.filter((r) => {
+      if (r.id < 0) return true;
+      if (r.id > 0) return !isSameSlot(r, savedMap.get(r.id));
+      return false;
+    });
+
+    const draftPosIds = new Set(draft.filter((d) => d.id > 0).map((d) => d.id));
+    const deletedByDiff = saved
+      .filter((s) => s.id > 0 && !draftPosIds.has(s.id))
+      .map((s) => s.id);
+    const idsToDelete = Array.from(
+      new Set([...pendingDeleteIds, ...deletedByDiff])
+    );
+
+    const endOfMonthUnix = dayjs(
+      `${backend.year}-${String(backend.month).padStart(2, '0')}-01`
+    )
+      .endOf('month')
+      .hour(23)
+      .minute(59)
+      .second(59)
+      .millisecond(0)
+      .unix();
+
+    const upsertPayload = upserts.map(toServiceSlot);
+    const doPut = upsertPayload.length > 0;
+    const doDelete = idsToDelete.length > 0;
+
+    const refetch = () =>
+      fetchMentorSchedule({
+        userId: backend.userId,
+        year: backend.year,
+        month: backend.month,
+      }).then((data) => {
+        const raws = (data?.timeslots ?? []).map(backendToRaw).filter((r) => {
+          const d = dayjs(r.dtstart * 1000);
+          return d.year() === backend.year && d.month() + 1 === backend.month;
+        });
+        setSaved(raws);
+        setDraft(raws);
+        setPendingDeleteIds([]);
+      });
+
+    if (!doPut && doDelete) {
+      Promise.all(
+        idsToDelete.map((id) =>
+          deleteMentorSchedule({ userId: backend.userId, scheduleId: id })
+        )
       )
-        .endOf('month')
-        .hour(23)
-        .minute(59)
-        .second(59)
-        .millisecond(0)
-        .unix();
+        .then(refetch)
+        .catch((e) => console.error('[MentorSchedule] DELETE only failed:', e));
+      return;
+    }
 
-      const payload = draft.map(toServiceSlot);
-      log('will PUT', { until: endOfMonthUnix, timeslots: payload });
-
+    if (doPut && !doDelete) {
       saveMentorSchedule({
         userId: backend.userId,
         until: endOfMonthUnix,
-        timeslots: payload,
+        timeslots: upsertPayload,
       })
-        .then((ok) => {
-          log('PUT result:', ok);
-          if (!ok) return;
-          // 成功後 refetch
-          fetchMentorSchedule({
-            userId: backend.userId,
-            year: backend.year,
-            month: backend.month,
-          })
-            .then((data) => {
-              const raws = (data?.timeslots ?? [])
-                .map(backendToRaw)
-                .filter((r) => {
-                  const d = dayjs(r.dtstart * 1000);
-                  return (
-                    d.year() === backend.year && d.month() + 1 === backend.month
-                  );
-                });
-              log('refetched after PUT:', { count: raws.length, raws });
-              setSaved(raws);
-              setDraft(raws);
-            })
-            .catch((e) => log('refetch error after PUT:', e));
-        })
-        .catch((e) => log('saveMentorSchedule error:', e));
-    } else {
-      log('saving to local storage…');
-      writeToStorage(storageKey, draft);
-      setSaved(draft);
+        .then((ok) => ok && refetch())
+        .catch((e) => console.error('[MentorSchedule] PUT only failed:', e));
+      return;
     }
+
+    // both
+    saveMentorSchedule({
+      userId: backend.userId,
+      until: endOfMonthUnix,
+      timeslots: upsertPayload,
+    })
+      .then((ok) => {
+        if (!ok) throw new Error('PUT failed');
+        return Promise.all(
+          idsToDelete.map((id) =>
+            deleteMentorSchedule({ userId: backend.userId, scheduleId: id })
+          )
+        );
+      })
+      .then(refetch)
+      .catch((e) => console.error('[MentorSchedule] PUT+DELETE failed:', e));
   }, [
     mode,
     backend?.userId,
     backend?.year,
     backend?.month,
     draft,
+    saved,
     storageKey,
     toServiceSlot,
     dirty,
-    log,
+    pendingDeleteIds,
   ]);
 
   const resetChanges = useCallback(() => {
-    log('resetChanges clicked');
     if (
       mode === 'backend' &&
       backend?.userId &&
@@ -410,21 +484,20 @@ export const useMentorSchedule = (
         userId: backend.userId,
         year: backend.year,
         month: backend.month,
-      })
-        .then((data) => {
-          const raws = (data?.timeslots ?? []).map(backendToRaw).filter((r) => {
-            const d = dayjs(r.dtstart * 1000);
-            return d.year() === backend.year && d.month() + 1 === backend.month;
-          });
-          log('reset fetched:', { count: raws.length, raws });
-          setDraft(raws);
-          setSaved(raws);
-        })
-        .catch((e) => log('reset fetch error:', e));
+      }).then((data) => {
+        const raws = (data?.timeslots ?? []).map(backendToRaw).filter((r) => {
+          const d = dayjs(r.dtstart * 1000);
+          return d.year() === backend.year && d.month() + 1 === backend.month;
+        });
+        setDraft(raws);
+        setSaved(raws);
+        setPendingDeleteIds([]);
+      });
     } else {
       setDraft(saved);
+      setPendingDeleteIds([]);
     }
-  }, [mode, backend?.userId, backend?.year, backend?.month, saved, log]);
+  }, [mode, backend?.userId, backend?.year, backend?.month, saved]);
 
   return {
     loaded,
@@ -434,6 +507,7 @@ export const useMentorSchedule = (
     parsedDraft,
     draftForSelectedDate,
     addSlotForSelectedDate,
+    updateDraftSlot,
     deleteDraftSlot,
     confirmChanges,
     resetChanges,
