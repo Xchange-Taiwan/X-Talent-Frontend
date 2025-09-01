@@ -1,3 +1,4 @@
+// src/app/profile/[pageUserId]/scheduleplayaround/page.tsx
 'use client';
 
 import dayjs from 'dayjs';
@@ -12,15 +13,11 @@ export default function Page({
 }: {
   params: { pageUserId: string };
 }) {
-  // UI 狀態
   const [type, setType] = useState<'ALLOW' | 'BLOCK'>('ALLOW');
-  const [startTime, setStartTime] = useState(''); // HH:mm
-  const [endTime, setEndTime] = useState(''); // HH:mm
-
-  // 新增：資料來源切換
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [source, setSource] = useState<SourceMode>('local');
 
-  // 用日期控制 backend 的 year/month（也可直接用今天）
   const [datePicker, setDatePicker] = useState<string>(
     dayjs().format('YYYY-MM-DD')
   );
@@ -30,8 +27,7 @@ export default function Page({
     [datePicker]
   );
 
-  // 依來源動態產生 hook 參數
-  const hookOpts =
+  const hookOpts: Parameters<typeof useMentorSchedule>[0] =
     source === 'backend'
       ? ({
           mode: 'backend',
@@ -40,10 +36,12 @@ export default function Page({
             year: selectedYear,
             month: selectedMonth,
           },
+          debug: true,
         } as const)
       : ({
           mode: 'local',
           storageKey: `mentor.timeslots:${pageUserId}`,
+          debug: true,
         } as const);
 
   const {
@@ -58,7 +56,6 @@ export default function Page({
     resetChanges,
   } = useMentorSchedule(hookOpts);
 
-  // 同步日期選擇器到 hook 的 selectedDate（兩者維持一致）
   useEffect(() => {
     setSelectedDate(datePicker || null);
   }, [datePicker, setSelectedDate]);
@@ -98,11 +95,11 @@ export default function Page({
             checked={source === 'backend'}
             onChange={() => setSource('backend')}
           />
-          Backend API（GET）
+          Backend API（GET / PUT）
         </label>
       </div>
 
-      {/* 選擇日期（同時驅動 hook 的 selectedDate；也決定 backend year/month） */}
+      {/* 選擇日期 */}
       <div className="space-y-2">
         <label className="block text-sm font-medium">選擇日期</label>
         <input
@@ -113,13 +110,12 @@ export default function Page({
         />
         {source === 'backend' && (
           <p className="text-xs text-gray-500">
-            目前向後端取：{selectedYear} 年 / {selectedMonth}{' '}
-            月的時段（自動依上方日期變動）
+            目前向後端取：{selectedYear} 年 / {selectedMonth} 月的時段
           </p>
         )}
       </div>
 
-      {/* 新增時段（寫入 hook 的草稿） */}
+      {/* 新增時段 */}
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <select
@@ -154,13 +150,10 @@ export default function Page({
         </div>
         <p className="text-xs text-gray-500">
           * 先累積在草稿，按下 Confirm 才會「儲存」。
-          {source === 'local'
-            ? '（LocalStorage）'
-            : '（Backend 模式目前只同步到 hook 的 saved，不呼叫後端寫入）'}
         </p>
       </div>
 
-      {/* 當日草稿列表 */}
+      {/* 草稿列表 */}
       <div className="space-y-2">
         <h2 className="font-medium">{selectedDate ?? '未選擇日期'} 的時間段</h2>
         <ul className="space-y-1">
@@ -193,7 +186,8 @@ export default function Page({
           disabled={!dirty}
           className="bg-green-600 text-white rounded px-3 py-1 disabled:opacity-40"
         >
-          Confirm（{source === 'local' ? '寫入 LocalStorage' : '同步到 saved'}）
+          Confirm（{source === 'local' ? '寫入 LocalStorage' : 'PUT 到 Backend'}
+          ）
         </button>
         <button
           onClick={resetChanges}

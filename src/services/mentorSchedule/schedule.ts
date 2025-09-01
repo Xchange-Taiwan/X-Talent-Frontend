@@ -11,8 +11,8 @@ export interface ScheduleTimeSlots {
   dt_type: 'ALLOW' | 'BLOCK';
   dt_year: string;
   dt_month: string;
-  dtstart: Date; // 注意：實際回應多半是 ISO 字串，下面轉換會處理
-  dtend: Date; // 同上
+  dtstart: Date; // 後端實際多半是 ISO 字串，hook 會統一轉成 unix seconds
+  dtend: Date;
   timezone: string;
   rrule: string;
   exdate: [];
@@ -59,12 +59,14 @@ export async function fetchMentorSchedule(
   }
 }
 
-/** ========= 新增：儲存 API（依你的後端調整路由/方法） ========= */
-export type UpsertTimeslot = {
+/** ========= 與 backend 對齊（保留 rrule / timezone / exdate / until / user_id） ========= */
+export type UpsertTimeslotBackend = {
   id?: string | number;
+  user_id?: string | number;
   dt_type: 'ALLOW' | 'BLOCK';
   dtstart: number; // unix seconds
   dtend: number; // unix seconds
+  rrule?: string; // 一次性可給空字串或不送
 };
 
 interface SaveScheduleResponse {
@@ -72,19 +74,51 @@ interface SaveScheduleResponse {
   msg: string;
 }
 
+/** PUT /v1/mentors/:userId/schedule */
 export async function saveMentorSchedule(params: {
   userId: string;
-  timeslots: UpsertTimeslot[];
+  timeslots: UpsertTimeslotBackend[];
+  until?: number | null; // 若你的後端支援在 body 最外層帶 until
 }): Promise<boolean> {
+  console.log('hello save schedule');
   try {
+    // 乾淨化 object：移除 undefined / null 欄位
+    const clean = (obj: Record<string, any>) =>
+      Object.fromEntries(
+        Object.entries(obj).filter(
+          ([, v]) =>
+            v !== undefined &&
+            v !== null &&
+            !(Array.isArray(v) && v.length === 0)
+        )
+      );
+
+    const body = clean({
+      until: params.until,
+      timeslots: params.timeslots.map((t) =>
+        clean({
+          id: t.id,
+          user_id: params.userId, // 通常由 path 參數決定，可不送
+          dt_type: t.dt_type,
+          dtstart: t.dtstart,
+          dtend: t.dtend,
+          rrule: t.rrule, // 一次性可為 ''
+        })
+      ),
+    });
+
+    console.log('user id: ', params.userId);
+    console.log('body: ', body);
+
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors/${params.userId}/schedule`,
       {
-        method: 'PUT', // 若你的後端是 POST/PATCH，請改這裡
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ timeslots: params.timeslots }),
+        body: JSON.stringify(body),
       }
     );
+    console.log(res);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const result: SaveScheduleResponse = await res.json();
