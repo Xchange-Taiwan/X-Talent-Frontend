@@ -1,10 +1,18 @@
-// ---------- Types ----------
 export type Reservation = {
   id: string;
   name: string;
   avatar?: string;
-  roleLine: string; // e.g., "7 years Experience, Senior UX Designer"
-  date: string; // e.g., "Thu, Feb 01, 2024"
-  time: string; // e.g., "8:00 pm"
+  roleLine: string;
+  date: string;
+  time: string;
   note?: string;
+
+  // PUT 需要
+  scheduleId: number;
+  dtstart: number;
+  dtend: number;
+
+  // ✅ 同時保留兩邊 id，避免判錯
+  senderUserId: number | string;
+  participantUserId: number | string;
 };
