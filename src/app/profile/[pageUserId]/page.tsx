@@ -1,6 +1,5 @@
 'use client';
 
-import dayjs from 'dayjs';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { getSession } from 'next-auth/react';
@@ -8,14 +7,15 @@ import { useEffect, useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.jpeg';
 import { ExperienceSection } from '@/components/profile/ExperienceSection/ExperienceSection';
-import { ScheduleCalendar } from '@/components/profile/ScheduleCalendar';
+import MenteeReservationDialog from '@/components/profile/reservation/MenteeReservationDialog';
+import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
+import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalendar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  fetchMentorSchedule,
-  ScheduleTimeSlots,
-  ScheduleType,
-} from '@/services/mentorSchedule/schedule';
+  ParsedMentorTimeslot,
+  useMentorSchedule,
+} from '@/hooks/useMentorSchedule';
 import { fetchUserById } from '@/services/profile/user';
 import { UserType } from '@/services/profile/user';
 
@@ -126,16 +126,25 @@ export default function Page({
 }) {
   const router = useRouter();
 
+  const schedule = useMentorSchedule({
+    storageKey: `mentor.timeslots:${pageUserId}`,
+  });
+  const {
+    loaded,
+    selectedDate,
+    setSelectedDate,
+    draftForSelectedDate,
+    parsedDraft,
+  } = schedule;
   const [isLogging, setIsLogging] = useState(false);
   const [loginUserId, setLoginUserId] = useState('');
   const [isMentee, setIsMentee] = useState(false);
   const [isMentor, setIsMentor] = useState(false);
   const [userData, setUserData] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(true);
-  const [date, setDate] = useState<Date>(new Date());
-  const [schedules, setSchedules] = useState<ScheduleType>();
-  const [allowedDates, setAllowedDates] = useState<string[]>([]);
-  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [openReservationDialog, setOpenReservationDialog] = useState(false);
+  const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =
+    useState(false);
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -172,49 +181,19 @@ export default function Page({
     fetchUserData();
   }, [pageUserId]);
 
-  useEffect(() => {
-    const fetchSchedule = async () => {
-      if (!userData) return;
-      console.log('year' + date.getFullYear());
-      console.log('month' + date.getMonth() + 1);
-      const schedule = await fetchMentorSchedule({
-        userId: pageUserId,
-        year: date.getFullYear(),
-        month: date.getMonth() + 1,
-      });
-      setSchedules(schedule);
+  const formatSelectedDate = (selectedDate: Date | undefined): string => {
+    if (!selectedDate) {
+      return '';
+    }
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Taipei',
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    }).format(selectedDate);
+  };
 
-      const allowDatesSet = new Set<string>();
-      schedule.timeslots?.forEach((slot: ScheduleTimeSlots) => {
-        if (slot.dt_type === 'ALLOW') {
-          const d = dayjs(Number(slot.dtstart) * 1000).format('YYYY-MM-DD');
-          allowDatesSet.add(d);
-        }
-      });
-
-      setAllowedDates(Array.from(allowDatesSet));
-    };
-
-    fetchSchedule();
-  }, [userData, date]);
-
-  useEffect(() => {
-    const selectedDateStr = dayjs(date).format('YYYY-MM-DD');
-
-    const slots = schedules?.timeslots
-      .filter(
-        (slot: ScheduleTimeSlots) =>
-          dayjs(Number(slot.dtstart) * 1000).format('YYYY-MM-DD') ===
-          selectedDateStr
-      )
-      .map((slot: ScheduleTimeSlots) =>
-        dayjs(Number(slot.dtstart) * 1000).format('HH:mm A')
-      );
-
-    setAvailableSlots(slots || []);
-  }, [date, schedules]);
-
-  if (loading) {
+  if (loading || !loaded) {
     return null;
   }
 
@@ -293,17 +272,28 @@ export default function Page({
             ?.data ?? [];
         return metadataArray.filter((link) => link.url);
       }) || [];
-
   const reservationHandler = () => {
     if (!loginUserId) {
       router.push('/auth/signin');
       return;
     }
-    if (!isMentor) {
-      // TODO: popup mentee reservation schedule component
+    if (isMentor && pageUserId === loginUserId) {
+      setOpenReservationDialog(true);
       return;
     }
-    // TODO: popup mentor setting schedule component
+    if (isMentor && pageUserId !== loginUserId) {
+      setOpenMenteeReservationDialog(true);
+      return;
+    }
+  };
+
+  const allowedDates = parsedDraft
+    .filter((slot) => slot.type === 'ALLOW')
+    .map((slot) => slot.dateKey);
+
+  const formatStartTimeSlot = (slot: ParsedMentorTimeslot) => {
+    const slotArr = JSON.stringify(slot.formatted)?.split(' ');
+    return slotArr ? `${slotArr[1]} ${slotArr[2]}` : '';
   };
 
   return (
@@ -474,38 +464,63 @@ export default function Page({
           <div className="hidden w-2/5 lg:block">
             {isMentor && (
               <div className="flex w-full flex-col gap-4">
-                <p className=" text-xl font-bold">可預約日期</p>
-                <ScheduleCalendar
-                  selected={date}
-                  onSelect={setDate}
-                  allowedDates={allowedDates}
-                />
+                <p className="text-xl font-bold">可預約日期</p>
+
+                <div className="inline-block w-auto rounded-lg border p-2 shadow-md">
+                  <div className="px-3 pb-3 pt-1">
+                    <h2 className="text-2xl font-semibold tracking-tight">
+                      {formatSelectedDate(
+                        selectedDate ? new Date(selectedDate) : undefined
+                      )}
+                    </h2>
+                  </div>
+                  <ScheduleCalendar
+                    selected={
+                      selectedDate ? new Date(selectedDate) : new Date()
+                    }
+                    onSelect={(d) =>
+                      setSelectedDate(
+                        d
+                          ? `${d.getFullYear()}-${String(
+                              d.getMonth() + 1
+                            ).padStart(2, '0')}-${String(d.getDate()).padStart(
+                              2,
+                              '0'
+                            )}`
+                          : null
+                      )
+                    }
+                    allowedDates={allowedDates}
+                    showTodayStyle={false}
+                    disableEmptyDates={true}
+                  />
+                </div>
                 <div className="flex flex-col items-start gap-4">
                   <p>當日可預約時段</p>
-                  {availableSlots.length === 0 ? (
+                  {draftForSelectedDate.length === 0 ? (
                     <div className="flex min-h-10 items-center text-gray-400">
                       無可預約的時段
                     </div>
                   ) : (
-                    <div className="flex gap-2">
-                      {availableSlots.map((slot) => (
-                        <div
-                          key={slot}
-                          className="flex h-10 w-[140px] select-none items-center justify-center rounded-lg border border-[#E6E8EA] text-sm font-medium"
-                        >
-                          {slot}
-                        </div>
-                      ))}
+                    <div className="flex flex-wrap gap-2">
+                      {[...draftForSelectedDate]
+                        .sort((a, b) => a.start.getTime() - b.start.getTime())
+                        .map((slot) => (
+                          <div
+                            key={slot.id}
+                            className="flex h-10 w-[140px] select-none items-center justify-center rounded-lg border border-[#E6E8EA] text-sm font-medium"
+                          >
+                            {formatStartTimeSlot(slot)}
+                          </div>
+                        ))}
                     </div>
                   )}
                 </div>
                 <Button
                   variant="default"
                   className="w-full rounded-full px-6 py-3"
-                  disabled={!isMentor && availableSlots.length === 0}
-                  onClick={() => {
-                    /* TODO: setOpenReservationDialog(true) */
-                  }}
+                  disabled={!isMentor && draftForSelectedDate.length === 0}
+                  onClick={reservationHandler}
                 >
                   {loginUserId && isMentor
                     ? loginUserId === userData?.user_id.toString()
@@ -513,6 +528,20 @@ export default function Page({
                       : '預約時間'
                     : '預約時間'}
                 </Button>
+                {loginUserId === pageUserId ? (
+                  <MentorScheduleDialog
+                    open={openReservationDialog}
+                    onOpenChange={setOpenReservationDialog}
+                    schedule={schedule}
+                  />
+                ) : (
+                  <MenteeReservationDialog
+                    open={openMenteeReservationDialog}
+                    onOpenChange={setOpenMenteeReservationDialog}
+                    schedule={schedule}
+                    userData={userData}
+                  />
+                )}
               </div>
             )}
           </div>
