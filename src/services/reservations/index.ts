@@ -324,3 +324,82 @@ export async function updateReservationStatus(opts: {
 
   return json.data;
 }
+
+/* ================================-
+ * POST: Create new reservation
+ * ================================- */
+
+export type CreateReservationPayload = {
+  my_user_id: number | string;
+  my_status: 'ACCEPT' | 'PENDING' | 'REJECT';
+  user_id: number | string;
+  schedule_id: number;
+  dtstart: number; // epoch seconds
+  dtend: number; // epoch seconds
+  messages: Array<{ user_id: number | string; msg: string }>;
+  previous_reserve: { reserve_id: number } | Record<string, never>;
+};
+
+export type CreateReservationAPIData = {
+  id: number;
+  status: 'PENDING' | string;
+  my_user_id: number | string;
+  my_status: 'ACCEPT' | string;
+  user_id: number | string;
+  schedule_id: number;
+  dtstart: number;
+  dtend: number;
+  messages: Array<{ user_id: number | string; msg: string }>;
+  previous_reserve: { reserve_id: number } | Record<string, never>;
+};
+
+/**
+ * 新增預約（POST /v1/users/:user_id/reservations）
+ *
+ * @param opts.body.previous_reserve - 傳入 `{}` 表示新預約；傳入 `{ reserve_id: number }` 表示修改預約
+ */
+export async function createReservation(opts: {
+  userId: string | number; // path :user_id（自己）
+  body: CreateReservationPayload;
+  accessToken?: string;
+  debug?: boolean;
+}): Promise<CreateReservationAPIData> {
+  const { userId, body, accessToken, debug } = opts;
+
+  const url = `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${userId}/reservations`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+  if (debug)
+    console.debug('[reservations] POST Request', { url, headers, body });
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (debug)
+    console.debug(
+      '[reservations] POST Response status',
+      res.status,
+      res.statusText
+    );
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    if (debug) console.debug('[reservations] POST Error body', text);
+    throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
+  }
+
+  const json = (await res.json()) as ApiResp<CreateReservationAPIData>;
+  if (debug) console.debug('[reservations] POST Parsed JSON', json);
+
+  if (json.code !== '0') {
+    throw new Error(`API error: code=${json.code}, msg=${json.msg}`);
+  }
+
+  return json.data;
+}
