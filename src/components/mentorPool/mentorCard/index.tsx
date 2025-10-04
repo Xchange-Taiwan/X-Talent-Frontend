@@ -19,6 +19,7 @@ export interface MentorCardProps {
 export const MentorCard = forwardRef<HTMLElement, MentorCardProps>(
   (
     {
+      id,
       avatar,
       years,
       name,
@@ -35,7 +36,7 @@ export const MentorCard = forwardRef<HTMLElement, MentorCardProps>(
         className="relative w-[334px] overflow-hidden rounded-lg border border-[#E6E8EA] bg-background-white transition-shadow hover:shadow-xl xl:h-[480px] xl:w-[413px]"
       >
         <Link
-          href=""
+          href={`/profile/${id}`}
           className="absolute bottom-0 left-0 right-0 top-0 z-10"
         ></Link>
         <AvatarWithBadge avatar={avatar} years={years} />
