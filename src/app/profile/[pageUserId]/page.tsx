@@ -272,6 +272,7 @@ export default function Page({
             ?.data ?? [];
         return metadataArray.filter((link) => link.url);
       }) || [];
+
   const reservationHandler = () => {
     if (!loginUserId) {
       router.push('/auth/signin');
@@ -519,7 +520,6 @@ export default function Page({
                 <Button
                   variant="default"
                   className="w-full rounded-full px-6 py-3"
-                  disabled={!isMentor && draftForSelectedDate.length === 0}
                   onClick={reservationHandler}
                 >
                   {loginUserId && isMentor
