@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { getSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
+import { WorkExperience } from '@/app/profile/[pageUserId]/page';
 import DefaultAvatarImgUrl from '@/assets/default-avatar.jpeg';
 import { Button } from '@/components/ui/button';
 import {
@@ -157,7 +158,7 @@ export default function MenteeReservationDialog({
 
   const firstWorkExperience = userData?.experiences?.find(
     (exp) => exp.category === 'WORK'
-  );
+  ) as WorkExperience;
 
   const firstWorkMetadata = Array.isArray(
     firstWorkExperience?.mentor_experiences_metadata?.data

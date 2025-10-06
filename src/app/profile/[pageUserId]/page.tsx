@@ -27,7 +27,7 @@ type WorkExperienceMetadata = {
   description?: string;
 };
 
-type WorkExperience = {
+export type WorkExperience = {
   category: string;
   mentor_experiences_metadata?: {
     data: WorkExperienceMetadata[];
