@@ -16,13 +16,14 @@ export default {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
+        console.log('hihi');
         if (!credentials) return null;
 
         const validated = SignInSchema.safeParse(credentials);
         if (!validated.success) return null;
 
         const { email, password } = validated.data;
-
+        console.log('what' + validated.data);
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/v1/auth/login`,
           {
