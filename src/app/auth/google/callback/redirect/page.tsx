@@ -73,7 +73,7 @@ export default function GoogleOAuthRedirectPage() {
       }
 
       try {
-        console.log('[OAuth Debug] Sending POST to /v2/oauth/google/callback');
+        console.log('[OAuth Debug] POST → /v2/oauth/google/callback');
 
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/v2/oauth/google/callback`,
@@ -85,7 +85,7 @@ export default function GoogleOAuthRedirectPage() {
         );
 
         const data: OAuthResponse = await res.json();
-        console.log('[OAuth Debug] Response from backend:', data);
+        console.log('[OAuth Debug] Response:', data);
 
         await proceedWithSignIn(data);
       } catch (err) {
@@ -107,16 +107,15 @@ export default function GoogleOAuthRedirectPage() {
   const proceedWithSignIn = async (data: OAuthResponse) => {
     const backendData = data.data;
 
-    // --------- SIGNUP FLOW ---------
+    // SIGNUP — go to email verification
     if (backendData.auth_type === 'SIGNUP') {
       console.log('[OAuth Debug] SIGNUP detected');
       sessionStorage.setItem('email', backendData.auth.email);
-
       router.push('/auth/emailVerify');
       return;
     }
 
-    // --------- LOGIN FLOW ---------
+    // LOGIN — must have user + token
     if (!('user' in backendData) || !backendData.auth?.token) {
       toast({
         variant: 'destructive',
@@ -130,7 +129,6 @@ export default function GoogleOAuthRedirectPage() {
     const token = backendData.auth.token;
     const user = backendData.user;
 
-    // v4 supports redirect: false safely
     await signIn('custom-google-token', {
       redirect: false,
       token,
