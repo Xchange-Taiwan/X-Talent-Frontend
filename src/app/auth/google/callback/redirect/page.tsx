@@ -50,6 +50,7 @@ type LoginResponse = {
 };
 
 type OAuthResponse = SignupResponse | LoginResponse;
+
 export default function GoogleOAuthRedirectPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -61,49 +62,19 @@ export default function GoogleOAuthRedirectPage() {
       const code = searchParams.get('code');
       const state = searchParams.get('state');
 
-      // 🔁 Workaround for NextAuth issue:
-      // In v5.0.0-beta.4, calling `signIn` with `{ redirect: false }` causes the page to crash,
-      // and calling `signIn` without it causes a full page reload.
-      //
-      // To avoid both issues, we temporarily store the backend OAuth response in `localStorage`,
-      // and defer session-based routing until `getSession()` confirms the user is logged in.
-      const cached = localStorage.getItem('google_oauth_data');
-      if (cached) {
-        console.log('[OAuth Debug] Found cached OAuth data');
-        try {
-          const session = await getSession();
-          console.log('[OAuth Debug] session:', session);
-
-          localStorage.removeItem('google_oauth_data');
-
-          if (session?.user?.onBoarding === false) {
-            router.push('/auth/onboarding');
-          } else {
-            router.push('/mentorPool');
-          }
-
-          return;
-        } catch (err) {
-          console.error('Failed to parse cached OAuth data:', err);
-          localStorage.removeItem('google_oauth_data');
-        }
-      }
-
       if (!code || !state) {
         toast({
           variant: 'destructive',
           title: 'Missing Google OAuth parameters',
           description: 'Authorization failed. Please try again.',
         });
-
         router.push('/auth/signin');
         return;
       }
 
       try {
-        console.log(
-          '[OAuth Debug] Sending POST to /v2/oauth/google/callback...'
-        );
+        console.log('[OAuth Debug] Sending POST to /v2/oauth/google/callback');
+
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/v2/oauth/google/callback`,
           {
@@ -116,8 +87,7 @@ export default function GoogleOAuthRedirectPage() {
         const data: OAuthResponse = await res.json();
         console.log('[OAuth Debug] Response from backend:', data);
 
-        localStorage.setItem('google_oauth_data', JSON.stringify(data));
-        proceedWithSignIn(data);
+        await proceedWithSignIn(data);
       } catch (err) {
         console.error('[OAuth Debug] OAuth login failed:', err);
         toast({
@@ -135,22 +105,24 @@ export default function GoogleOAuthRedirectPage() {
   }, []);
 
   const proceedWithSignIn = async (data: OAuthResponse) => {
-    const backendData = data?.data;
+    const backendData = data.data;
 
+    // --------- SIGNUP FLOW ---------
     if (backendData.auth_type === 'SIGNUP') {
+      console.log('[OAuth Debug] SIGNUP detected');
       sessionStorage.setItem('email', backendData.auth.email);
+
       router.push('/auth/emailVerify');
       return;
     }
 
-    if (!backendData || !backendData.user || !backendData.auth?.token) {
+    // --------- LOGIN FLOW ---------
+    if (!('user' in backendData) || !backendData.auth?.token) {
       toast({
         variant: 'destructive',
         title: 'Missing login data',
         description: 'OAuth response is missing required fields.',
       });
-
-      console.log('');
       router.push('/auth/signin');
       return;
     }
@@ -158,15 +130,20 @@ export default function GoogleOAuthRedirectPage() {
     const token = backendData.auth.token;
     const user = backendData.user;
 
-    // ⚠️ NextAuth (v5.0.0-beta.4) limitation:
-    // `signIn('credentials', { redirect: false })` crashes
-    // `signIn('credentials')` triggers unwanted page reload
-    //
-    // So we accept the reload here temporarily, relying on the localStorage workaround above.
+    // v4 supports redirect: false safely
     await signIn('custom-google-token', {
+      redirect: false,
       token,
       user: JSON.stringify(user),
     });
+
+    const session = await getSession();
+
+    if (session?.user?.onBoarding === false) {
+      router.push('/auth/onboarding');
+    } else {
+      router.push('/mentorPool');
+    }
   };
 
   return (
