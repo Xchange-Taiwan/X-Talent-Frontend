@@ -131,38 +131,72 @@ export default function GoogleOAuthRedirectPage() {
     handleOAuthFlow();
   }, []);
 
+  // const proceedWithSignIn = async (data: OAuthResponse) => {
+  //   const backendData = data?.data;
+
+  //   if (backendData.auth_type === 'SIGNUP') {
+  //     router.push('/auth/emailVerify');
+  //     return;
+  //   }
+
+  //   if (!backendData || !backendData.user || !backendData.auth?.token) {
+  //     toast({
+  //       variant: 'destructive',
+  //       title: 'Missing login data',
+  //       description: 'OAuth response is missing required fields.',
+  //     });
+
+  //     console.log('');
+  //     router.push('/auth/signin');
+  //     return;
+  //   }
+
+  //   const token = backendData.auth.token;
+  //   const user = backendData.user;
+
+  //   // ⚠️ NextAuth (v5.0.0-beta.4) limitation:
+  //   // `signIn('credentials', { redirect: false })` crashes
+  //   // `signIn('credentials')` triggers unwanted page reload
+  //   //
+  //   // So we accept the reload here temporarily, relying on the localStorage workaround above.
+  //   await signIn('custom-google-token', {
+  //     token,
+  //     user: JSON.stringify(user),
+  //   });
+  // };
+
   const proceedWithSignIn = async (data: OAuthResponse) => {
     const backendData = data?.data;
 
     if (backendData.auth_type === 'SIGNUP') {
-      router.push('/auth/emailVerify');
-      return;
-    }
+      console.log(backendData);
+      // router.push('/auth/emailVerify');
+    } else {
+      if (!backendData || !backendData.user || !backendData.auth?.token) {
+        toast({
+          variant: 'destructive',
+          title: 'Missing login data',
+          description: 'OAuth response is missing required fields.',
+        });
 
-    if (!backendData || !backendData.user || !backendData.auth?.token) {
-      toast({
-        variant: 'destructive',
-        title: 'Missing login data',
-        description: 'OAuth response is missing required fields.',
+        console.log('');
+        router.push('/auth/signin');
+        return;
+      }
+
+      const token = backendData.auth.token;
+      const user = backendData.user;
+
+      // ⚠️ NextAuth (v5.0.0-beta.4) limitation:
+      // `signIn('credentials', { redirect: false })` crashes
+      // `signIn('credentials')` triggers unwanted page reload
+      //
+      // So we accept the reload here temporarily, relying on the localStorage workaround above.
+      await signIn('custom-google-token', {
+        token,
+        user: JSON.stringify(user),
       });
-
-      console.log('');
-      router.push('/auth/signin');
-      return;
     }
-
-    const token = backendData.auth.token;
-    const user = backendData.user;
-
-    // ⚠️ NextAuth (v5.0.0-beta.4) limitation:
-    // `signIn('credentials', { redirect: false })` crashes
-    // `signIn('credentials')` triggers unwanted page reload
-    //
-    // So we accept the reload here temporarily, relying on the localStorage workaround above.
-    await signIn('custom-google-token', {
-      token,
-      user: JSON.stringify(user),
-    });
   };
 
   return (
