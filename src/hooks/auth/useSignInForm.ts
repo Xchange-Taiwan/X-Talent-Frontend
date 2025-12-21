@@ -1,13 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { getSession } from 'next-auth/react';
+import { getSession, signIn as clientSignIn } from 'next-auth/react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { AuthFormProps } from '@/components/auth/types';
 import { useToast } from '@/components/ui/use-toast';
-import { signIn } from '@/lib/actions/signIn';
+import { validateSignIn } from '@/lib/actions/signIn';
 import { SignInSchema } from '@/schemas/auth';
 
 type SignInValues = z.infer<typeof SignInSchema>;
@@ -17,7 +17,7 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
   const { toast } = useToast();
   const router = useRouter();
 
-  const form = useForm<z.infer<typeof SignInSchema>>({
+  const form = useForm<SignInValues>({
     resolver: zodResolver(SignInSchema),
     defaultValues: {
       email: '',
@@ -25,35 +25,59 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof SignInSchema>) => {
+  const onSubmit = async (values: SignInValues) => {
     setIsSubmitting(true);
 
     try {
-      await signIn(values);
-      const session = await getSession();
-
-      if (!session?.accessToken || session?.accessToken.length === 0) {
-        if (session?.user.msg) {
-          toast({
-            variant: 'destructive',
-            description: session.user.msg,
-            duration: 1000,
-          });
-        }
+      // 1️⃣ 先做 server-side 驗證（不登入）
+      const validated = await validateSignIn(values);
+      if (validated.error) {
+        toast({
+          variant: 'destructive',
+          description: validated.error,
+          duration: 1000,
+        });
         return;
       }
 
-      if (session?.user.onBoarding === false) {
+      // 2️⃣ 進行 NextAuth v4 Credentials Login（on client）
+      const login = await clientSignIn('credentials', {
+        email: validated.email,
+        password: validated.password,
+        redirect: false,
+      });
+
+      if (login?.error) {
+        toast({
+          variant: 'destructive',
+          description: 'Invalid credentials!',
+          duration: 1000,
+        });
+        return;
+      }
+
+      // 3️⃣ 取得 session（成功登入後會有 accessToken）
+      const session = await getSession();
+      if (!session?.accessToken) {
+        toast({
+          variant: 'destructive',
+          description: 'Login failed',
+          duration: 1000,
+        });
+        return;
+      }
+
+      // 4️⃣ Redirect
+      if (session.user.onBoarding === false) {
         router.push('/auth/onboarding');
       } else {
         router.push('/mentorPool');
       }
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
       toast({
         variant: 'destructive',
         description: 'Something went wrong!',
-        duration: 1000,
       });
     } finally {
       setIsSubmitting(false);

@@ -1,9 +1,8 @@
 import '../styles/global.css';
 
-import { SessionProvider } from 'next-auth/react';
-
 import { Footer } from '@/components/Layout/Footer';
 import { Header } from '@/components/Layout/Header';
+import Providers from '@/components/Providers';
 import { Toaster } from '@/components/ui/toaster';
 
 import { notoSans } from './font';
@@ -22,14 +21,14 @@ export default function RootLayout({
   return (
     <html lang="zh-TW" className={notoSans.className}>
       <body id="app">
-        <SessionProvider>
+        <Providers>
           <div className="flex min-h-screen flex-col">
             <Header />
             <main className="grow pt-[70px]">{children}</main>
             <Footer />
           </div>
           <Toaster />
-        </SessionProvider>
+        </Providers>
       </body>
     </html>
   );

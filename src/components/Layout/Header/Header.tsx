@@ -1,15 +1,18 @@
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
+import { signOut, useSession } from 'next-auth/react';
 import { FC } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
-import { auth, signOut } from '@/auth';
 import { Button } from '@/components/ui/button';
 
 import { HamburgerMenu } from './HamburgerMenu';
 
-export const Header: FC = async () => {
-  const session = await auth();
+export const Header: FC = () => {
+  const { data: session } = useSession();
+  const isLoggedIn = !!session?.user?.id;
 
   return (
     <header className="fixed inset-x-0 z-50 bg-light px-5 text-2xl">
@@ -28,17 +31,14 @@ export const Header: FC = async () => {
           >
             關於 X-Talent
           </Link>
-          {session?.user.id ? (
-            <form
-              action={async () => {
-                'use server';
-                await signOut();
-              }}
+
+          {isLoggedIn ? (
+            <Button
+              className="bg-primary hover:bg-primary"
+              onClick={() => signOut()}
             >
-              <Button className="bg-primary hover:bg-primary" type="submit">
-                登出
-              </Button>
-            </form>
+              登出
+            </Button>
           ) : (
             <>
               <Link href="/auth/signup">

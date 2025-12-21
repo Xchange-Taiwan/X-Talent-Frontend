@@ -1,0 +1,150 @@
+'use client';
+
+import { useRouter, useSearchParams } from 'next/navigation';
+import { getSession, signIn } from 'next-auth/react';
+import { useEffect, useState } from 'react';
+
+import { useToast } from '@/components/ui/use-toast';
+
+type OAuthUser = {
+  user_id: number | string;
+  name: string;
+  avatar: string;
+  is_mentor: boolean;
+  onboarding: boolean;
+  job_title?: string;
+  company?: string;
+  years_of_experience?: string;
+  location?: string;
+  interested_positions?: string[] | null;
+  skills?: string[] | null;
+  topics?: string[] | null;
+  industry?: string | null;
+  language?: string;
+};
+
+type SignupResponse = {
+  code: string;
+  msg: string;
+  data: {
+    auth_type: 'SIGNUP';
+    ttl_secs: number;
+    auth: {
+      email: string;
+      token: string;
+    };
+  };
+};
+
+type LoginResponse = {
+  code: string;
+  msg: string;
+  data: {
+    auth_type: 'LOGIN';
+    auth: {
+      user_id: number | string;
+      token: string;
+    };
+    user: OAuthUser;
+  };
+};
+
+type OAuthResponse = SignupResponse | LoginResponse;
+
+export default function GoogleOAuthRedirectPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const handleOAuthFlow = async () => {
+      const code = searchParams.get('code');
+      const state = searchParams.get('state');
+
+      if (!code || !state) {
+        toast({
+          variant: 'destructive',
+          title: 'Missing Google OAuth parameters',
+          description: 'Authorization failed. Please try again.',
+        });
+        router.push('/auth/signin');
+        return;
+      }
+
+      try {
+        console.log('[OAuth Debug] POST → /v2/oauth/google/callback');
+
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/v2/oauth/google/callback`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, state }),
+          }
+        );
+
+        const data: OAuthResponse = await res.json();
+        console.log('[OAuth Debug] Response:', data);
+
+        await proceedWithSignIn(data);
+      } catch (err) {
+        console.error('[OAuth Debug] OAuth login failed:', err);
+        toast({
+          variant: 'destructive',
+          title: 'Login failed',
+          description: 'Something went wrong during login.',
+        });
+        router.push('/auth/signin');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    handleOAuthFlow();
+  }, []);
+
+  const proceedWithSignIn = async (data: OAuthResponse) => {
+    const backendData = data.data;
+
+    // SIGNUP — go to email verification
+    if (backendData.auth_type === 'SIGNUP') {
+      console.log('[OAuth Debug] SIGNUP detected');
+      sessionStorage.setItem('email', backendData.auth.email);
+      router.push('/auth/emailVerify');
+      return;
+    }
+
+    // LOGIN — must have user + token
+    if (!('user' in backendData) || !backendData.auth?.token) {
+      toast({
+        variant: 'destructive',
+        title: 'Missing login data',
+        description: 'OAuth response is missing required fields.',
+      });
+      router.push('/auth/signin');
+      return;
+    }
+
+    const token = backendData.auth.token;
+    const user = backendData.user;
+
+    await signIn('custom-google-token', {
+      redirect: false,
+      token,
+      user: JSON.stringify(user),
+    });
+
+    const session = await getSession();
+
+    if (session?.user?.onBoarding === false) {
+      router.push('/auth/onboarding');
+    } else {
+      router.push('/mentorPool');
+    }
+  };
+
+  return (
+    <div>{loading ? 'Signing you in with Google...' : 'Redirecting...'}</div>
+  );
+}
