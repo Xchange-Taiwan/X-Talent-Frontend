@@ -32,6 +32,7 @@ export const personLinkSchema = z.object({
 const isBrowser = typeof window !== 'undefined';
 export const createProfileFormSchema = (isMentor: boolean) =>
   z.object({
+    is_mentor: z.boolean(),
     avatarFile: isBrowser ? z.instanceof(File).optional() : z.any().optional(),
     name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
     location: z.string({ required_error: '請選擇地區' }),
@@ -67,6 +68,7 @@ export type ProfileFormValues = z.infer<
 >;
 
 export const defaultValues: ProfileFormValues = {
+  is_mentor: false,
   avatarFile: undefined,
   name: '',
   location: '',
