@@ -13,7 +13,7 @@ Access the X-Talent testing website here: [X-Talent Testing Website](https://xta
 Ensure you have the following installed:
 
 - [Node.js](https://nodejs.org/) (version 20)
-- [pnpm](https://pnpm.io/) (version 8)
+- [pnpm](https://pnpm.io/) (version 9)
 
 ### Installation
 
