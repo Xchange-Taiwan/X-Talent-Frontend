@@ -225,8 +225,10 @@ export default function Page({
           const parsedLinks = parseLinks(
             data.experiences as unknown as MentorExperiencePayload[]
           );
+          const mentorFlag = Boolean(data.is_mentor || isMentorOnboarding);
 
           form.reset({
+            is_mentor: mentorFlag,
             avatarFile: undefined,
             name: data.name || '',
             location: data.location || '',
