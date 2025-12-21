@@ -205,6 +205,7 @@ export default function Page({
     );
   }
 
+  console.log(userData);
   const firstWorkExperience = userData?.experiences?.find(
     (exp) => exp.category === 'WORK'
   ) as WorkExperience;
@@ -252,6 +253,8 @@ export default function Page({
           endDate: meta.educationPeriodEnd || '',
         }));
       }) || [];
+
+  console.log(parsedEducations);
 
   const parsedWhatIOffer =
     userData?.experiences
