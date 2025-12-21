@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 env:
   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
