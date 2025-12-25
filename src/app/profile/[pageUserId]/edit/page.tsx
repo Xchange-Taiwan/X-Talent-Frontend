@@ -66,6 +66,8 @@ export default function Page({
   const searchParams = useSearchParams();
   const isMentorOnboarding = searchParams?.get('onboarding') === 'true';
   const [isPageLoading, setIsPageLoading] = useState(true);
+  const [jobSectionError, setJobSectionError] = useState(false);
+  const [educationSectionError, setEducationSectionError] = useState(false);
 
   useEffect(() => {
     const verifyUser = async () => {
@@ -295,6 +297,9 @@ export default function Page({
   };
 
   const onSubmit = async (values: ProfileFormValues) => {
+    if (jobSectionError || educationSectionError) {
+      return;
+    }
     await updateProfile(values);
 
     if (values.work_experiences?.length > 0) {
@@ -527,8 +532,12 @@ export default function Page({
             industries={industries}
             locations={locations}
             form={form}
+            onValidationChange={setJobSectionError}
           />
-          <EducationSection form={form} />
+          <EducationSection
+            form={form}
+            onValidationChange={setEducationSectionError}
+          />
           <LinksSection form={form} />
         </form>
       </Form>
