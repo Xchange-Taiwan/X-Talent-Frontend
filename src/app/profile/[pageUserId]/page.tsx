@@ -387,7 +387,7 @@ export default function Page({
             {isMentor && (
               <div className="mt-10">
                 <p className="mb-4 text-xl font-bold">專業能力</p>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   {userData?.expertises?.professions?.map((i) => (
                     <Badge variant={'primaryAlt'} key={i.subject_group}>
                       {i.subject_group}
@@ -412,7 +412,7 @@ export default function Page({
 
             <div className="mt-10">
               <p className="mb-4 text-xl font-bold">專長領域</p>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 {userData?.expertises?.professions?.map((i) => (
                   <Badge variant={'primaryAlt'} key={i.subject_group}>
                     {i.subject_group}
@@ -423,7 +423,7 @@ export default function Page({
 
             <div className="mt-10">
               <p className="mb-4 text-xl font-bold">有興趣的職位</p>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 {userData?.interested_positions?.interests?.map((i) => (
                   <Badge variant={'primaryAlt'} key={i.subject_group}>
                     {i.subject_group}
@@ -434,7 +434,7 @@ export default function Page({
 
             <div className="mt-10">
               <p className="mb-4 text-xl font-bold">有興趣的技能</p>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 {userData?.skills?.interests?.map((i) => (
                   <Badge variant={'primaryAlt'} key={i.subject_group}>
                     {i.subject_group}
@@ -445,7 +445,7 @@ export default function Page({
 
             <div className="mt-10">
               <p className="mb-4 text-xl font-bold">有興趣的主題</p>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 {userData?.topics?.interests?.map((i) => (
                   <Badge variant={'primaryAlt'} key={i.subject_group}>
                     {i.subject_group}
