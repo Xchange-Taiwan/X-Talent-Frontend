@@ -104,7 +104,13 @@ export const JobExperienceSection = ({
   };
 
   return (
-    <Section title="工作經驗">
+    <Section
+      title={
+        <>
+          <span className="text-status-200">* </span>工作經驗
+        </>
+      }
+    >
       {fields.map((field, index) => {
         const watched = watchedExperiences?.[index] ?? {};
         const start = watched.jobPeriodStart;

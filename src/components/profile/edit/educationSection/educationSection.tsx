@@ -87,7 +87,13 @@ export const EducationSection = ({ form, onValidationChange }: Props) => {
   }, [watchedEducations, onValidationChange]);
 
   return (
-    <Section title="教育">
+    <Section
+      title={
+        <>
+          <span className="text-status-200">* </span>教育經歷
+        </>
+      }
+    >
       {fields.map((field, index) => {
         const watched = watchedEducations?.[index] ?? {};
         const start = watched.educationPeriodStart;
