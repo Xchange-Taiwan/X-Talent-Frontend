@@ -70,7 +70,30 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* =========================
+   Fix: Radix scroll-lock layout shift
+   (page shifts left when Select/Popover opens)
+   ========================= */
+
+/* Optional but recommended: keep scrollbar space stable to reduce layout shift */
+html {
+  scrollbar-gutter: stable;
+}
+
+@layer base {
+  /* Prevent Radix/RemoveScroll from shifting layout when Select/Popover opens */
+  html body[data-scroll-locked] {
+    overflow: auto !important;
+    overscroll-behavior: auto !important;
+    position: static !important;
+
+    margin-right: 0 !important;
+    padding-right: 0 !important;
   }
 }
