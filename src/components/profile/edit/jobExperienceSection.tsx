@@ -1,8 +1,8 @@
 'use client';
 
 import { PlusIcon, TrashIcon } from '@radix-ui/react-icons';
-import React from 'react';
-import { useFieldArray, UseFormReturn } from 'react-hook-form';
+import React, { useEffect } from 'react';
+import { useFieldArray, UseFormReturn, useWatch } from 'react-hook-form';
 
 import { ConfirmDialog } from '@/components/profile/edit/confirmDialog';
 import { SelectField } from '@/components/profile/edit/fields';
@@ -37,12 +37,14 @@ interface Props {
     text: string;
   }[];
   form: UseFormReturn<ProfileFormValues>;
+  onValidationChange: (hasError: boolean) => void;
 }
 
 export const JobExperienceSection = ({
   industries,
   locations,
   form,
+  onValidationChange,
 }: Props) => {
   const { control, getValues } = form;
 
@@ -55,6 +57,25 @@ export const JobExperienceSection = ({
   const years = Array.from({ length: currentYear - 1940 + 1 }, (_, i) =>
     (currentYear - i).toString()
   );
+
+  const watchedExperiences = useWatch({
+    control,
+    name: 'work_experiences',
+  }) as
+    | Array<{
+        jobPeriodStart?: string;
+        jobPeriodEnd?: string;
+      }>
+    | undefined;
+
+  useEffect(() => {
+    const hasError = watchedExperiences?.some((exp) => {
+      const start = exp.jobPeriodStart;
+      const end = exp.jobPeriodEnd;
+      return start && end && end !== 'now' && Number(start) > Number(end);
+    });
+    onValidationChange(!!hasError);
+  }, [watchedExperiences, onValidationChange]);
 
   const addJob = () => {
     const experiences = getValues('work_experiences');
@@ -84,162 +105,178 @@ export const JobExperienceSection = ({
 
   return (
     <Section title="工作經驗">
-      {fields.map((field, index) => (
-        <div key={field.id} className="mb-8 border-b pb-4">
-          {/* Title & Company */}
-          <div className="mb-6 gap-6 md:flex">
-            <FormField
-              control={control}
-              name={`work_experiences.${index}.job`}
-              render={({ field }) => (
-                <FormItem className="mb-4 grow md:mb-0">
-                  <FormLabel>職稱</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={control}
-              name={`work_experiences.${index}.company`}
-              render={({ field }) => (
-                <FormItem className="grow">
-                  <FormLabel>公司名稱</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+      {fields.map((field, index) => {
+        const watched = watchedExperiences?.[index] ?? {};
+        const start = watched.jobPeriodStart;
+        const end = watched.jobPeriodEnd;
+        const isInvalidPeriod =
+          start && end && end !== 'now' && Number(start) > Number(end);
 
-          {/* Period */}
-          <div className="mb-6 gap-2 md:flex">
-            <FormField
-              control={control}
-              name={`work_experiences.${index}.jobPeriodStart`}
-              render={({ field }) => (
-                <FormItem className="mb-4 grow basis-1/2 md:mb-0">
-                  <FormLabel>開始年份</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
+        return (
+          <div key={field.id} className="mb-8 border-b pb-4">
+            {/* Title & Company */}
+            <div className="mb-6 gap-6 md:flex">
+              <FormField
+                control={control}
+                name={`work_experiences.${index}.job`}
+                render={({ field }) => (
+                  <FormItem className="mb-4 grow md:mb-0">
+                    <FormLabel>職稱</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="請選擇年份" />
-                      </SelectTrigger>
+                      <Input {...field} />
                     </FormControl>
-                    <SelectContent>
-                      {years.map((year) => (
-                        <SelectItem key={year} value={year}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <p className="relative bottom-[-8px] mx-2 my-auto hidden text-center md:block">
-              ～
-            </p>
-            <p className="relative bottom-[-8px] mx-2 my-auto text-center text-sm md:hidden">
-              至
-            </p>
-            <FormField
-              control={control}
-              name={`work_experiences.${index}.jobPeriodEnd`}
-              render={({ field }) => (
-                <FormItem className="grow basis-1/2">
-                  <FormLabel className="invisible md:visible">&nbsp;</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={control}
+                name={`work_experiences.${index}.company`}
+                render={({ field }) => (
+                  <FormItem className="grow">
+                    <FormLabel>公司名稱</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="至今" />
-                      </SelectTrigger>
+                      <Input {...field} />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="now">至今</SelectItem>
-                      {years.map((year) => (
-                        <SelectItem key={year} value={year}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          {/* Industry & Location */}
-          <div className="mb-6 gap-6 md:flex">
-            <div className="mb-4 grow basis-1/2 md:mb-0">
-              <FormLabel>產業</FormLabel>
-              <SelectField
-                form={form}
-                name={`work_experiences.${index}.industry`}
-                placeholder="請選擇產業"
-                options={industries.map((i) => ({
-                  value: i.subject_group,
-                  label: i.subject,
-                }))}
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
 
-            <div className="grow basis-1/2">
-              <FormLabel>地點</FormLabel>
-              <SelectField
-                form={form}
-                name={`work_experiences.${index}.jobLocation`}
-                placeholder="請選擇地區"
-                options={locations.map((loc) => ({
-                  value: loc.value,
-                  label: loc.text,
-                }))}
+            {/* Period */}
+            <div className="mb-2 gap-2 md:flex">
+              <FormField
+                control={control}
+                name={`work_experiences.${index}.jobPeriodStart`}
+                render={({ field }) => (
+                  <FormItem className="mb-4 grow basis-1/2 md:mb-0">
+                    <FormLabel>開始年份</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="請選擇年份" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {years.map((year) => (
+                          <SelectItem key={year} value={year}>
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <p className="relative -bottom-3 my-auto hidden text-center md:block">
+                ～
+              </p>
+              <p className="relative -bottom-3 my-auto text-center text-sm md:hidden">
+                至
+              </p>
+              <FormField
+                control={control}
+                name={`work_experiences.${index}.jobPeriodEnd`}
+                render={({ field }) => (
+                  <FormItem className="grow basis-1/2">
+                    <FormLabel className="invisible md:visible">
+                      &nbsp;
+                    </FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="至今" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="now">至今</SelectItem>
+                        {years.map((year) => (
+                          <SelectItem key={year} value={year}>
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
             </div>
-          </div>
 
-          {/* Description */}
-          <FormField
-            control={control}
-            name={`work_experiences.${index}.description`}
-            render={({ field }) => (
-              <FormItem className="mb-6">
-                <FormLabel>描述</FormLabel>
-                <FormControl>
-                  <Textarea {...field} className="h-24" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+            {isInvalidPeriod && (
+              <p className="mb-4 text-sm font-medium text-status-200">
+                開始年份不可大於結束年份
+              </p>
             )}
-          />
 
-          {fields.length > 1 && (
-            <ConfirmDialog
-              title="要刪除這段工作經驗嗎？"
-              description="您確定要移除這個區塊嗎？"
-              onConfirm={() => remove(index)}
-              trigger={
-                <Button variant="destructive">
-                  <TrashIcon className="mr-2 h-5 w-5" />
-                  移除
-                </Button>
-              }
+            {/* Industry & Location */}
+            <div className="mb-6 gap-6 md:flex">
+              <div className="mb-4 grow basis-1/2 md:mb-0">
+                <FormLabel>產業</FormLabel>
+                <SelectField
+                  form={form}
+                  name={`work_experiences.${index}.industry`}
+                  placeholder="請選擇產業"
+                  options={industries.map((i) => ({
+                    value: i.subject_group,
+                    label: i.subject,
+                  }))}
+                />
+              </div>
+
+              <div className="grow basis-1/2">
+                <FormLabel>地點</FormLabel>
+                <SelectField
+                  form={form}
+                  name={`work_experiences.${index}.jobLocation`}
+                  placeholder="請選擇地區"
+                  options={locations.map((loc) => ({
+                    value: loc.value,
+                    label: loc.text,
+                  }))}
+                />
+              </div>
+            </div>
+
+            {/* Description */}
+            <FormField
+              control={control}
+              name={`work_experiences.${index}.description`}
+              render={({ field }) => (
+                <FormItem className="mb-6">
+                  <FormLabel>描述</FormLabel>
+                  <FormControl>
+                    <Textarea {...field} className="h-24" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          )}
-        </div>
-      ))}
+
+            {fields.length > 1 && (
+              <ConfirmDialog
+                title="要刪除這段工作經驗嗎？"
+                description="您確定要移除這個區塊嗎？"
+                onConfirm={() => remove(index)}
+                trigger={
+                  <Button variant="destructive">
+                    <TrashIcon className="mr-2 h-5 w-5" />
+                    移除
+                  </Button>
+                }
+              />
+            )}
+          </div>
+        );
+      })}
 
       <Button
         variant="ghost"
