@@ -418,12 +418,24 @@ export default function Page({
             name="avatarFile"
             avatarUrl={''}
           />
-          <Section title="姓名">
+          <Section
+            title={
+              <>
+                <span className="text-status-200">* </span>姓名
+              </>
+            }
+          >
             <TextField form={form} name="name" placeholder="請填入您的姓名" />
           </Section>
 
           {isMentor && (
-            <Section title="*我能提供的服務">
+            <Section
+              title={
+                <>
+                  <span className="text-status-200">* </span>我能提供的服務
+                </>
+              }
+            >
               <MultiSelectField
                 form={form}
                 name="what_i_offer"
@@ -437,7 +449,13 @@ export default function Page({
           )}
 
           {isMentor && (
-            <Section title="*專業能力">
+            <Section
+              title={
+                <>
+                  <span className="text-status-200">* </span>專業能力
+                </>
+              }
+            >
               <MultiSelectField
                 form={form}
                 name="expertises"
@@ -450,7 +468,13 @@ export default function Page({
             </Section>
           )}
 
-          <Section title="地區">
+          <Section
+            title={
+              <>
+                <span className="text-status-200">* </span>地區
+              </>
+            }
+          >
             <SelectField
               form={form}
               name="location"
@@ -462,7 +486,13 @@ export default function Page({
             />
           </Section>
 
-          <Section title="經驗">
+          <Section
+            title={
+              <>
+                <span className="text-status-200">* </span>經驗
+              </>
+            }
+          >
             <SelectField
               form={form}
               name="years_of_experience"
@@ -471,7 +501,13 @@ export default function Page({
             />
           </Section>
 
-          <Section title="產業">
+          <Section
+            title={
+              <>
+                <span className="text-status-200">* </span>產業
+              </>
+            }
+          >
             <SelectField
               form={form}
               name="industry"
@@ -483,11 +519,23 @@ export default function Page({
             />
           </Section>
 
-          <Section title="關於我">
+          <Section
+            title={
+              <>
+                <span className="text-status-200">* </span>自我介紹
+              </>
+            }
+          >
             <TextareaField form={form} name="about" rows={6} />
           </Section>
 
-          <Section title="有興趣多了解的職位">
+          <Section
+            title={
+              <>
+                <span className="text-status-200">* </span>有興趣多了解的職位
+              </>
+            }
+          >
             <MultiSelectField
               form={form}
               name="interested_positions"
@@ -499,7 +547,13 @@ export default function Page({
             />
           </Section>
 
-          <Section title="想多了解、加強的技能">
+          <Section
+            title={
+              <>
+                <span className="text-status-200">* </span>想多了解、加強的技能
+              </>
+            }
+          >
             <MultiSelectField
               form={form}
               name="skills"
@@ -511,7 +565,13 @@ export default function Page({
             />
           </Section>
 
-          <Section title="想多了解的主題">
+          <Section
+            title={
+              <>
+                <span className="text-status-200">* </span>想多了解的主題
+              </>
+            }
+          >
             <MultiSelectField
               form={form}
               name="topics"

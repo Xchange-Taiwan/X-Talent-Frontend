@@ -67,7 +67,13 @@ export const EducationSection = ({ form }: Props) => {
   );
 
   return (
-    <Section title="教育">
+    <Section
+      title={
+        <>
+          <span className="text-status-200">* </span>教育經歷
+        </>
+      }
+    >
       {fields.map((field, index) => (
         <div key={field.id} className="mb-8 border-b pb-4">
           {/* Major & School */}

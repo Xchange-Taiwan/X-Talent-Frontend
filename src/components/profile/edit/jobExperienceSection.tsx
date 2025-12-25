@@ -83,7 +83,13 @@ export const JobExperienceSection = ({
   };
 
   return (
-    <Section title="工作經驗">
+    <Section
+      title={
+        <>
+          <span className="text-status-200">* </span>工作經驗
+        </>
+      }
+    >
       {fields.map((field, index) => (
         <div key={field.id} className="mb-8 border-b pb-4">
           {/* Title & Company */}
