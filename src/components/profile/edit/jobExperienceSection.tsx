@@ -46,7 +46,11 @@ export const JobExperienceSection = ({
   form,
   onValidationChange,
 }: Props) => {
-  const { control, getValues } = form;
+  const {
+    control,
+    getValues,
+    formState: { errors },
+  } = form;
 
   const { fields, append, remove } = useFieldArray({
     control,
@@ -292,6 +296,11 @@ export const JobExperienceSection = ({
         <PlusIcon className="mr-2 h-5 w-5" />
         新增
       </Button>
+      {errors.work_experiences?.message && (
+        <p className="mt-2 text-sm font-medium text-destructive">
+          {errors.work_experiences?.message as string}
+        </p>
+      )}
     </Section>
   );
 };
