@@ -31,7 +31,11 @@ interface Props {
 }
 
 export const EducationSection = ({ form }: Props) => {
-  const { control, getValues } = form;
+  const {
+    control,
+    getValues,
+    formState: { errors },
+  } = form;
 
   const { fields, append, remove } = useFieldArray({
     control,
@@ -209,6 +213,11 @@ export const EducationSection = ({ form }: Props) => {
         <PlusIcon className="mr-2 h-5 w-5" />
         新增
       </Button>
+      {errors.educations?.message && (
+        <p className="mt-2 text-sm font-medium text-destructive">
+          {errors.educations?.message as string}
+        </p>
+      )}
     </Section>
   );
 };
