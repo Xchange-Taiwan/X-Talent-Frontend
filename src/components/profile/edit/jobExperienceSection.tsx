@@ -59,8 +59,6 @@ export const JobExperienceSection = ({
     name: 'work_experiences',
   });
 
-  const showRequiredAsterisk = isMentor || fields.length > 0;
-
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: currentYear - 1940 + 1 }, (_, i) =>
     (currentYear - i).toString()
@@ -115,7 +113,7 @@ export const JobExperienceSection = ({
     <Section
       title={
         <>
-          {showRequiredAsterisk && <span className="text-status-200">* </span>}
+          {isMentor && <span className="text-status-200">* </span>}
           工作經驗
         </>
       }

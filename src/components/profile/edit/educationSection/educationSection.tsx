@@ -48,8 +48,6 @@ export const EducationSection = ({
     name: 'educations',
   });
 
-  const showRequiredAsterisk = isMentor || fields.length > 0;
-
   const addEducation = () => {
     const educations = getValues('educations');
     const last = educations?.at(-1);
@@ -101,7 +99,7 @@ export const EducationSection = ({
     <Section
       title={
         <>
-          {showRequiredAsterisk && <span className="text-status-200">* </span>}
+          {isMentor && <span className="text-status-200">* </span>}
           教育經歷
         </>
       }
