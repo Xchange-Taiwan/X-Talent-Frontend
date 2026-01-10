@@ -37,6 +37,7 @@ interface Props {
     text: string;
   }[];
   form: UseFormReturn<ProfileFormValues>;
+  isMentor: boolean;
   onValidationChange: (hasError: boolean) => void;
 }
 
@@ -44,6 +45,7 @@ export const JobExperienceSection = ({
   industries,
   locations,
   form,
+  isMentor,
   onValidationChange,
 }: Props) => {
   const {
@@ -56,6 +58,8 @@ export const JobExperienceSection = ({
     control,
     name: 'work_experiences',
   });
+
+  const showRequiredAsterisk = isMentor || fields.length > 0;
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: currentYear - 1940 + 1 }, (_, i) =>
@@ -111,7 +115,8 @@ export const JobExperienceSection = ({
     <Section
       title={
         <>
-          <span className="text-status-200">* </span>工作經驗
+          {showRequiredAsterisk && <span className="text-status-200">* </span>}
+          工作經驗
         </>
       }
     >

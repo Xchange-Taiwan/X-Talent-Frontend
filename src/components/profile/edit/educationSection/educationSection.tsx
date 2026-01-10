@@ -28,10 +28,15 @@ import { taiwanSchools } from './schoolData';
 
 interface Props {
   form: UseFormReturn<ProfileFormValues>;
+  isMentor: boolean;
   onValidationChange: (hasError: boolean) => void;
 }
 
-export const EducationSection = ({ form, onValidationChange }: Props) => {
+export const EducationSection = ({
+  form,
+  isMentor,
+  onValidationChange,
+}: Props) => {
   const {
     control,
     getValues,
@@ -42,6 +47,8 @@ export const EducationSection = ({ form, onValidationChange }: Props) => {
     control,
     name: 'educations',
   });
+
+  const showRequiredAsterisk = isMentor || fields.length > 0;
 
   const addEducation = () => {
     const educations = getValues('educations');
@@ -94,7 +101,8 @@ export const EducationSection = ({ form, onValidationChange }: Props) => {
     <Section
       title={
         <>
-          <span className="text-status-200">* </span>教育經歷
+          {showRequiredAsterisk && <span className="text-status-200">* </span>}
+          教育經歷
         </>
       }
     >

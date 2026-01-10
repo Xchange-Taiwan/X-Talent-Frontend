@@ -592,10 +592,12 @@ export default function Page({
             industries={industries}
             locations={locations}
             form={form}
+            isMentor={isMentor}
             onValidationChange={setJobSectionError}
           />
           <EducationSection
             form={form}
+            isMentor={isMentor}
             onValidationChange={setEducationSectionError}
           />
           <LinksSection form={form} />
