@@ -15,7 +15,7 @@ export const Information = ({
   job_title,
   company,
   personalStatment,
-  skills,
+  skills = [],
 }: InformationProps) => {
   const skillsContainerRef = useRef<HTMLDivElement>(null);
   const [visibleSkillsCount, setVisibleSkillsCount] = useState(skills.length);
