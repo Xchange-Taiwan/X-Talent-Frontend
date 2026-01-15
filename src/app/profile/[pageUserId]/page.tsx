@@ -16,6 +16,7 @@ import {
   ParsedMentorTimeslot,
   useMentorSchedule,
 } from '@/hooks/useMentorSchedule';
+import useInterests from '@/hooks/user/interests/useInterests';
 import { fetchUserById } from '@/services/profile/user';
 import { UserType } from '@/services/profile/user';
 
@@ -146,6 +147,11 @@ export default function Page({
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
   const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =
     useState(false);
+  const { topics } = useInterests('zh_TW');
+
+  const topicLabelByGroup = new Map(
+    topics.map((t) => [t.subject_group, t.subject] as const)
+  );
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -403,8 +409,8 @@ export default function Page({
                 <p className="mb-4 text-xl font-bold">我能提供的服務</p>
                 <div className="flex flex-wrap gap-3">
                   {parsedWhatIOffer.map((subjectGroup) => (
-                    <Badge variant={'primaryAlt'} key={subjectGroup}>
-                      {subjectGroup}
+                    <Badge variant="primaryAlt" key={subjectGroup}>
+                      {topicLabelByGroup.get(subjectGroup) ?? subjectGroup}
                     </Badge>
                   ))}
                 </div>
