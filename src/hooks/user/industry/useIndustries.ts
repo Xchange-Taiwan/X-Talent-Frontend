@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 
-import { fetchIndustries, IndustryType } from '@/services/profile/industries';
+import { fetchIndustries, IndustryDTO } from '@/services/profile/industries';
 
 const useIndustries = (language: string) => {
-  const [industries, setIndustries] = useState<IndustryType[]>([]);
+  const [industries, setIndustries] = useState<IndustryDTO[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 

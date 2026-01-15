@@ -2,7 +2,7 @@
 import type { FC, ReactNode } from 'react';
 
 import { ExpertiseType } from '@/services/profile/expertises';
-import { InterestType } from '@/services/profile/interests';
+import { InterestDTO } from '@/services/profile/interests';
 
 import { AvatarCard } from '../AvatarCard';
 
@@ -28,9 +28,9 @@ interface Props {
   jobTitle?: string;
   company?: string;
   linkedinUrl?: string;
-  interestedRole?: InterestType[];
-  skillEnhancementTarget?: InterestType[];
-  talkTopic?: InterestType[];
+  interestedRole?: InterestDTO[];
+  skillEnhancementTarget?: InterestDTO[];
+  talkTopic?: InterestDTO[];
   expertise?: ExpertiseType[];
 }
 

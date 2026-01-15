@@ -1,8 +1,8 @@
 import { getSession } from 'next-auth/react';
 
 import { ExpertiseType } from './expertises';
-import { IndustryType } from './industries';
-import { InterestType } from './interests';
+import { IndustryDTO } from './industries';
+import { InterestDTO } from './interests';
 
 export interface ExperienceType {
   [key: string]: unknown;
@@ -17,18 +17,18 @@ export interface UserDTO {
   years_of_experience: string;
   location: string;
   interested_positions: {
-    interests: InterestType[];
+    interests: InterestDTO[];
     language: string | null;
   };
   skills: {
-    interests: InterestType[];
+    interests: InterestDTO[];
     language: string | null;
   };
   topics: {
-    interests: InterestType[];
+    interests: InterestDTO[];
     language: string | null;
   };
-  industry: IndustryType;
+  industry: IndustryDTO;
   onboarding: boolean;
   is_mentor: boolean;
   language: string;

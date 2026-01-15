@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 
-import { fetchInterests, InterestType } from '@/services/profile/interests';
+import { fetchInterests, InterestDTO } from '@/services/profile/interests';
 
 const useInterests = (language: string) => {
-  const [interestedPositions, setInterestedPositions] = useState<
-    InterestType[]
-  >([]);
-  const [skills, setSkills] = useState<InterestType[]>([]);
-  const [topics, setTopics] = useState<InterestType[]>([]);
+  const [interestedPositions, setInterestedPositions] = useState<InterestDTO[]>(
+    []
+  );
+  const [skills, setSkills] = useState<InterestDTO[]>([]);
+  const [topics, setTopics] = useState<InterestDTO[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
