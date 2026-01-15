@@ -98,7 +98,7 @@ export const JobExperienceSection = ({
       jobPeriodStart: '',
       jobPeriodEnd: '',
       industry: '',
-      jobLocation: '',
+      jobLocation: 'TWN',
       description: '',
     });
   };

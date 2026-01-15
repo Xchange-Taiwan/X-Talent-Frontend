@@ -43,6 +43,7 @@ type EducationExperienceMetadata = {
 
 type WhatIOfferMetadata = {
   subject_group: string;
+  subject: string;
 };
 
 type PersonalLinkMetadata = {
@@ -390,7 +391,7 @@ export default function Page({
                 <div className="flex flex-wrap gap-3">
                   {userData?.expertises?.professions?.map((i) => (
                     <Badge variant={'primaryAlt'} key={i.subject_group}>
-                      {i.subject_group}
+                      {i.subject}
                     </Badge>
                   ))}
                 </div>
@@ -415,7 +416,7 @@ export default function Page({
               <div className="flex flex-wrap gap-3">
                 {userData?.expertises?.professions?.map((i) => (
                   <Badge variant={'primaryAlt'} key={i.subject_group}>
-                    {i.subject_group}
+                    {i.subject}
                   </Badge>
                 ))}
               </div>
@@ -426,7 +427,7 @@ export default function Page({
               <div className="flex flex-wrap gap-3">
                 {userData?.interested_positions?.interests?.map((i) => (
                   <Badge variant={'primaryAlt'} key={i.subject_group}>
-                    {i.subject_group}
+                    {i.subject}
                   </Badge>
                 ))}
               </div>
@@ -437,7 +438,7 @@ export default function Page({
               <div className="flex flex-wrap gap-3">
                 {userData?.skills?.interests?.map((i) => (
                   <Badge variant={'primaryAlt'} key={i.subject_group}>
-                    {i.subject_group}
+                    {i.subject}
                   </Badge>
                 ))}
               </div>
@@ -448,7 +449,7 @@ export default function Page({
               <div className="flex flex-wrap gap-3">
                 {userData?.topics?.interests?.map((i) => (
                   <Badge variant={'primaryAlt'} key={i.subject_group}>
-                    {i.subject_group}
+                    {i.subject}
                   </Badge>
                 ))}
               </div>
