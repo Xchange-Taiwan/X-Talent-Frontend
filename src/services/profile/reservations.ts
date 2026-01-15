@@ -55,7 +55,7 @@ export async function fetchUserById(
 }
 
 // export async function updateUserProfile(
-//   userData: Partial<UserType>
+//   userData: Partial<UserDTO >
 // ): Promise<boolean> {
 //   const session = await getSession();
 //   const token = session?.accessToken;

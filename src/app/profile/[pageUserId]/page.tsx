@@ -18,7 +18,7 @@ import {
 } from '@/hooks/useMentorSchedule';
 import useInterests from '@/hooks/user/interests/useInterests';
 import { fetchUserById } from '@/services/profile/user';
-import { UserType } from '@/services/profile/user';
+import { UserDTO } from '@/services/profile/user';
 
 type WorkExperienceMetadata = {
   job?: string;
@@ -142,7 +142,7 @@ export default function Page({
   const [loginUserId, setLoginUserId] = useState('');
   const [isMentee, setIsMentee] = useState(false);
   const [isMentor, setIsMentor] = useState(false);
-  const [userData, setUserData] = useState<UserType | null>(null);
+  const [userData, setUserData] = useState<UserDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
   const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =

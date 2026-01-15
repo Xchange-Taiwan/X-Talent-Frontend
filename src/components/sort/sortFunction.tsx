@@ -1,10 +1,10 @@
-import { UserType } from '@/services/profile/user';
+import { UserDTO } from '@/services/profile/user';
 export type SortMethod = 'a-z' | 'z-a';
 
 export function sortUsersByName(
-  users: UserType[],
+  users: UserDTO[],
   method: SortMethod
-): UserType[] {
+): UserDTO[] {
   return [...users].sort((a, b) => {
     const nameA = a.name || '';
     const nameB = b.name || '';

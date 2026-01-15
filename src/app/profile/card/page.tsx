@@ -5,12 +5,12 @@ import { useEffect, useState } from 'react';
 import { ProfileCard } from '@/components/profile/ProfileCard';
 import { Button } from '@/components/ui/button';
 import { fetchUser } from '@/services/profile/user';
-import { UserType } from '@/services/profile/user';
+import { UserDTO } from '@/services/profile/user';
 
 export default function Page() {
   const router = useRouter();
   const [isMentor, setIsMentor] = useState<boolean>(false);
-  const [userData, setUserData] = useState<UserType | null>(null);
+  const [userData, setUserData] = useState<UserDTO | null>(null);
 
   useEffect(() => {
     async function fetchUserData() {

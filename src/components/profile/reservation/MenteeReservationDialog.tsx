@@ -22,7 +22,7 @@ import {
   ParsedMentorTimeslot,
   UseMentorScheduleReturn,
 } from '@/hooks/useMentorSchedule';
-import { UserType } from '@/services/profile/user';
+import { UserDTO } from '@/services/profile/user';
 import {
   createReservation,
   CreateReservationPayload,
@@ -39,7 +39,7 @@ export default function MenteeReservationDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   schedule: UseMentorScheduleReturn;
-  userData: UserType | null;
+  userData: UserDTO | null;
 }) {
   const { selectedDate, setSelectedDate, draftForSelectedDate, parsedDraft } =
     schedule;
