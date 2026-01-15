@@ -38,7 +38,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Search for job position..."
+          placeholder="搜尋有興趣職位、公司或是想精進的領域"
           className="h-5 min-w-[200px] flex-auto text-base outline-none"
         />
 
@@ -46,7 +46,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
           onClick={handleSearch}
           className="ml-2 cursor-pointer rounded-[24px] border-none bg-primary leading-5 md:px-6 md:py-2.5"
         >
-          {isLoading ? '...' : 'Search'}
+          {isLoading ? '...' : '搜尋'}
         </Button>
       </div>
     </>

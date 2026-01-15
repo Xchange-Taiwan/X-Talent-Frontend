@@ -62,7 +62,7 @@ const MentorFilterDropdown = ({
         <button className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#E6E8EA] px-4 py-1">
           <div className="flex items-center gap-1">
             <FilterListIcon className="h-5 w-5" />
-            <span>Filters</span>
+            <span>篩選</span>
           </div>
           {open ? (
             <ArrowDropUpIcon className="h-5 w-5" />
