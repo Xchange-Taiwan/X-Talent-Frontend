@@ -6,7 +6,10 @@ import { getSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.jpeg';
-import { ExperienceSection } from '@/components/profile/ExperienceSection/ExperienceSection';
+import {
+  EducationSection,
+  WorkExperienceSection,
+} from '@/components/profile/ExperienceSection/ExperienceSection';
 import MenteeReservationDialog from '@/components/profile/reservation/MenteeReservationDialog';
 import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
 import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalendar';
@@ -16,41 +19,7 @@ import {
   ParsedMentorTimeslot,
   useMentorSchedule,
 } from '@/hooks/useMentorSchedule';
-import useInterests from '@/hooks/user/interests/useInterests';
-import { fetchUserById } from '@/services/profile/user';
-import { UserType } from '@/services/profile/user';
-
-type WorkExperienceMetadata = {
-  job?: string;
-  company?: string;
-  jobPeriodStart?: string;
-  jobPeriodEnd?: string;
-  description?: string;
-};
-
-export type WorkExperience = {
-  category: string;
-  mentor_experiences_metadata?: {
-    data: WorkExperienceMetadata[];
-  };
-};
-
-type EducationExperienceMetadata = {
-  subject?: string;
-  school?: string;
-  educationPeriodStart?: string;
-  educationPeriodEnd?: string;
-};
-
-type WhatIOfferMetadata = {
-  subject_group: string;
-  subject: string;
-};
-
-type PersonalLinkMetadata = {
-  platform: string;
-  url: string;
-};
+import useUserData from '@/hooks/user/userData/useUserData';
 
 const platformLabelMap: Record<string, { label: string; icon: JSX.Element }> = {
   linkedin: {
@@ -140,18 +109,10 @@ export default function Page({
   } = schedule;
   const [isLogging, setIsLogging] = useState(false);
   const [loginUserId, setLoginUserId] = useState('');
-  const [isMentee, setIsMentee] = useState(false);
-  const [isMentor, setIsMentor] = useState(false);
-  const [userData, setUserData] = useState<UserType | null>(null);
-  const [loading, setLoading] = useState(true);
+
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
   const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =
     useState(false);
-  const { topics } = useInterests('zh_TW');
-
-  const topicLabelByGroup = new Map(
-    topics.map((t) => [t.subject_group, t.subject] as const)
-  );
 
   useEffect(() => {
     const fetchSession = async () => {
@@ -165,28 +126,11 @@ export default function Page({
     fetchSession();
   }, []);
 
-  useEffect(() => {
-    const userId = Number(pageUserId);
-    if (!userId || isNaN(userId)) return;
-
-    const fetchUserData = async () => {
-      setLoading(true);
-      try {
-        const data = await fetchUserById(userId, 'zh_TW');
-        if (data) {
-          setUserData(data);
-          setIsMentor(data.is_mentor);
-          setIsMentee(!data.is_mentor);
-        }
-      } catch (err) {
-        console.error('Fetch User Data Error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserData();
-  }, [pageUserId]);
+  const pageUserIdNumber = Number(pageUserId);
+  const { userData, isLoading: loading } = useUserData(
+    pageUserIdNumber,
+    'zh_TW'
+  );
 
   const formatSelectedDate = (selectedDate: Date | undefined): string => {
     if (!selectedDate) {
@@ -212,87 +156,16 @@ export default function Page({
     );
   }
 
-  console.log(userData);
-  const firstWorkExperience = userData?.experiences?.find(
-    (exp) => exp.category === 'WORK'
-  ) as WorkExperience;
-
-  const firstWorkMetadataList =
-    firstWorkExperience?.mentor_experiences_metadata?.data;
-
-  const firstWorkMetadata = Array.isArray(firstWorkMetadataList)
-    ? firstWorkMetadataList[0]
-    : undefined;
-
-  const firstWorkExperienceCompany = firstWorkMetadata?.company || '';
-  const firstWorkExperienceTitle = firstWorkMetadata?.job || '';
-
-  const parsedExperiences =
-    userData?.experiences
-      ?.filter((e) => e.category === 'WORK')
-      .flatMap((e) => {
-        const metadataArray =
-          (e.mentor_experiences_metadata as { data?: WorkExperienceMetadata[] })
-            ?.data ?? [];
-        return metadataArray.map((meta) => ({
-          title: meta.job || '',
-          subtitle: meta.company || '',
-          description: meta.description || '',
-          startDate: meta.jobPeriodStart || '',
-          endDate: meta.jobPeriodEnd || '',
-        }));
-      }) || [];
-
-  const parsedEducations =
-    userData?.experiences
-      ?.filter((e) => e.category === 'EDUCATION')
-      .flatMap((e) => {
-        const metadataArray =
-          (
-            e.mentor_experiences_metadata as {
-              data?: EducationExperienceMetadata[];
-            }
-          )?.data ?? [];
-        return metadataArray.map((meta) => ({
-          title: meta.subject || '',
-          subtitle: meta.school || '',
-          startDate: meta.educationPeriodStart || '',
-          endDate: meta.educationPeriodEnd || '',
-        }));
-      }) || [];
-
-  console.log(parsedEducations);
-
-  const parsedWhatIOffer =
-    userData?.experiences
-      ?.filter((e) => e.category === 'WHAT_I_OFFER')
-      .flatMap((e) => {
-        const metadataArray =
-          (e.mentor_experiences_metadata as { data?: WhatIOfferMetadata[] })
-            ?.data ?? [];
-        return metadataArray.map((meta) => meta.subject_group);
-      }) || [];
-
-  const personalLinks =
-    userData?.experiences
-      ?.filter((e) => e.category === 'LINK')
-      .flatMap((e) => {
-        const metadataArray =
-          (e.mentor_experiences_metadata as { data?: PersonalLinkMetadata[] })
-            ?.data ?? [];
-        return metadataArray.filter((link) => link.url);
-      }) || [];
-
   const reservationHandler = () => {
     if (!loginUserId) {
       router.push('/auth/signin');
       return;
     }
-    if (isMentor && pageUserId === loginUserId) {
+    if (userData.is_mentor && pageUserId === loginUserId) {
       setOpenReservationDialog(true);
       return;
     }
-    if (isMentor && pageUserId !== loginUserId) {
+    if (userData.is_mentor && pageUserId !== loginUserId) {
       setOpenMenteeReservationDialog(true);
       return;
     }
@@ -326,7 +199,7 @@ export default function Page({
             <div className="sm:mb-6 lg:mb-0">
               <div className="mb-2 flex items-center justify-center gap-2 sm:justify-start">
                 <p className="text-2xl font-semibold">{userData?.name}</p>
-                {personalLinks.map((link) => (
+                {userData?.personalLinks?.map((link) => (
                   <a
                     key={link.platform}
                     href={link.url}
@@ -343,9 +216,9 @@ export default function Page({
               </div>
               <div>
                 <p className="text-sm">
-                  {firstWorkExperienceTitle}{' '}
+                  {userData.job_title}{' '}
                   <span className="text-text-tertiary">at</span>{' '}
-                  {firstWorkExperienceCompany}
+                  {userData.company}
                 </p>
               </div>
             </div>
@@ -370,7 +243,7 @@ export default function Page({
               </>
             )}
 
-            {isLogging && isMentee && pageUserId === loginUserId && (
+            {isLogging && userData.is_mentor && pageUserId === loginUserId && (
               <Button
                 variant="default"
                 className="grow rounded-full px-6 py-3 sm:grow-0"
@@ -391,11 +264,11 @@ export default function Page({
               <p className="text-sm text-gray-400">{userData?.about}</p>
             </div>
 
-            {isMentor && (
+            {userData.is_mentor && (
               <div className="mt-10">
                 <p className="mb-4 text-xl font-bold">專業能力</p>
                 <div className="flex flex-wrap gap-3">
-                  {userData?.expertises?.professions?.map((i) => (
+                  {userData?.expertises?.map((i) => (
                     <Badge variant={'primaryAlt'} key={i.subject_group}>
                       {i.subject}
                     </Badge>
@@ -404,13 +277,13 @@ export default function Page({
               </div>
             )}
 
-            {isMentor && parsedWhatIOffer.length > 0 && (
+            {userData.is_mentor && (
               <div className="mt-10">
                 <p className="mb-4 text-xl font-bold">我能提供的服務</p>
                 <div className="flex flex-wrap gap-3">
-                  {parsedWhatIOffer.map((subjectGroup) => (
-                    <Badge variant="primaryAlt" key={subjectGroup}>
-                      {topicLabelByGroup.get(subjectGroup) ?? subjectGroup}
+                  {userData?.what_i_offers?.map((i) => (
+                    <Badge variant={'primaryAlt'} key={i.subject_group}>
+                      {i.subject}
                     </Badge>
                   ))}
                 </div>
@@ -420,7 +293,7 @@ export default function Page({
             <div className="mt-10">
               <p className="mb-4 text-xl font-bold">專長領域</p>
               <div className="flex flex-wrap gap-3">
-                {userData?.expertises?.professions?.map((i) => (
+                {userData?.expertises?.map((i) => (
                   <Badge variant={'primaryAlt'} key={i.subject_group}>
                     {i.subject}
                   </Badge>
@@ -431,7 +304,7 @@ export default function Page({
             <div className="mt-10">
               <p className="mb-4 text-xl font-bold">有興趣的職位</p>
               <div className="flex flex-wrap gap-3">
-                {userData?.interested_positions?.interests?.map((i) => (
+                {userData?.interested_positions?.map((i) => (
                   <Badge variant={'primaryAlt'} key={i.subject_group}>
                     {i.subject}
                   </Badge>
@@ -442,7 +315,7 @@ export default function Page({
             <div className="mt-10">
               <p className="mb-4 text-xl font-bold">有興趣的技能</p>
               <div className="flex flex-wrap gap-3">
-                {userData?.skills?.interests?.map((i) => (
+                {userData?.skills?.map((i) => (
                   <Badge variant={'primaryAlt'} key={i.subject_group}>
                     {i.subject}
                   </Badge>
@@ -453,7 +326,7 @@ export default function Page({
             <div className="mt-10">
               <p className="mb-4 text-xl font-bold">有興趣的主題</p>
               <div className="flex flex-wrap gap-3">
-                {userData?.topics?.interests?.map((i) => (
+                {userData?.topics?.map((i) => (
                   <Badge variant={'primaryAlt'} key={i.subject_group}>
                     {i.subject}
                   </Badge>
@@ -463,17 +336,19 @@ export default function Page({
 
             <div className="mt-10">
               <p className="mb-4 text-xl font-bold">工作經驗</p>
-              <ExperienceSection items={parsedExperiences} />
+              <WorkExperienceSection
+                workExperiences={userData?.workExperiences}
+              />
             </div>
 
             <div className="mt-10">
               <p className="mb-4 text-xl font-bold">教育</p>
-              <ExperienceSection items={parsedEducations} />
+              <EducationSection educations={userData?.educations} />
             </div>
           </div>
 
           <div className="hidden w-2/5 lg:block">
-            {isMentor && (
+            {userData.is_mentor && (
               <div className="flex w-full flex-col gap-4">
                 <p className="text-xl font-bold">可預約日期</p>
 
@@ -532,7 +407,7 @@ export default function Page({
                   className="w-full rounded-full px-6 py-3"
                   onClick={reservationHandler}
                 >
-                  {loginUserId && isMentor
+                  {loginUserId && userData.is_mentor
                     ? loginUserId === userData?.user_id.toString()
                       ? '預約設定'
                       : '預約時間'

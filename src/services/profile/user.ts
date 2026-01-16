@@ -1,14 +1,14 @@
 import { getSession } from 'next-auth/react';
 
 import { ExpertiseType } from './expertises';
-import { IndustryType } from './industries';
-import { InterestType } from './interests';
+import { IndustryDTO } from './industries';
+import { InterestDTO } from './interests';
 
 export interface ExperienceType {
   [key: string]: unknown;
 }
 
-export interface UserType {
+export interface UserDTO {
   user_id: number;
   name: string;
   avatar: string;
@@ -17,18 +17,18 @@ export interface UserType {
   years_of_experience: string;
   location: string;
   interested_positions: {
-    interests: InterestType[];
+    interests: InterestDTO[];
     language: string | null;
   };
   skills: {
-    interests: InterestType[];
+    interests: InterestDTO[];
     language: string | null;
   };
   topics: {
-    interests: InterestType[];
+    interests: InterestDTO[];
     language: string | null;
   };
-  industry: IndustryType;
+  industry: IndustryDTO;
   onboarding: boolean;
   is_mentor: boolean;
   language: string;
@@ -42,13 +42,13 @@ export interface UserType {
   experiences?: ExperienceType[];
 }
 
-interface UserResponse {
+interface UserResponseDTO {
   code: string;
   msg: string;
-  data: UserType;
+  data: UserDTO;
 }
 
-export async function fetchUser(language: string): Promise<UserType | null> {
+export async function fetchUser(language: string): Promise<UserDTO | null> {
   const session = await getSession();
   const token = session?.accessToken;
   const userId = session?.user?.id;
@@ -63,7 +63,7 @@ export async function fetchUser(language: string): Promise<UserType | null> {
 export async function fetchUserById(
   userId: number,
   language: string
-): Promise<UserType | null> {
+): Promise<UserDTO | null> {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors/${userId}/${language}/profile`,
@@ -79,7 +79,7 @@ export async function fetchUserById(
       throw new Error(`HTTP Error: ${response.status}`);
     }
 
-    const result: UserResponse = await response.json();
+    const result: UserResponseDTO = await response.json();
 
     if (result.code !== '0') {
       console.error(`API Error: ${result.msg}`);
@@ -94,7 +94,7 @@ export async function fetchUserById(
 }
 
 export async function updateUserProfile(
-  userData: Partial<UserType>
+  userData: Partial<UserDTO>
 ): Promise<boolean> {
   const session = await getSession();
   const token = session?.accessToken;

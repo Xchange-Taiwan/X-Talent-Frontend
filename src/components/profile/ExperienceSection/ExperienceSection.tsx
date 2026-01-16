@@ -2,6 +2,10 @@
 import React from 'react';
 
 import Divider from '@/components/auth/Divider';
+import {
+  EducationExperienceMetadata,
+  WorkExperienceMetadata,
+} from '@/hooks/user/userData/useUserData';
 
 export type ExperienceItem = {
   title: string;
@@ -55,4 +59,41 @@ export const ExperienceSection = ({ items }: ExperienceSectionProps) => {
       ))}
     </section>
   );
+};
+
+export type WorkExperienceSectionProps = {
+  workExperiences?: WorkExperienceMetadata[];
+};
+
+export const WorkExperienceSection = ({
+  workExperiences,
+}: WorkExperienceSectionProps) => {
+  const workExperienceItems: ExperienceItem[] = (workExperiences ?? []).map(
+    (experience) => ({
+      title: experience.job ?? '',
+      subtitle: experience.company ?? '',
+      description: experience.description ?? '',
+      startDate: experience.jobPeriodStart ?? '',
+      endDate: experience.jobPeriodEnd ?? '',
+    })
+  );
+
+  return <ExperienceSection items={workExperienceItems} />;
+};
+
+export type EducationSectionProps = {
+  educations?: EducationExperienceMetadata[];
+};
+
+export const EducationSection = ({ educations }: EducationSectionProps) => {
+  const educationItems: ExperienceItem[] = (educations ?? []).map(
+    (education) => ({
+      title: education.subject ?? '',
+      subtitle: education.school ?? '',
+      startDate: education.educationPeriodStart ?? '',
+      endDate: education.educationPeriodEnd ?? '',
+    })
+  );
+
+  return <ExperienceSection items={educationItems} />;
 };
