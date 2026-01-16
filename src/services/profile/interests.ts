@@ -1,4 +1,4 @@
-export interface InterestType {
+export interface InterestDTO {
   id: number;
   category: string;
   language: string;
@@ -10,11 +10,11 @@ export interface InterestType {
   };
 }
 
-interface InterestResponse {
+interface InterestResponseDTO {
   code: string;
   msg: string;
   data: {
-    interests: InterestType[];
+    interests: InterestDTO[];
     language: string | null;
   };
 }
@@ -22,7 +22,7 @@ interface InterestResponse {
 export async function fetchInterests(
   language: string,
   interest: string
-): Promise<InterestType[]> {
+): Promise<InterestDTO[]> {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${language}/interests?interest=${interest}`,
@@ -38,7 +38,7 @@ export async function fetchInterests(
       throw new Error(`HTTP 錯誤: ${response.status}`);
     }
 
-    const data: InterestResponse = await response.json();
+    const data: InterestResponseDTO = await response.json();
 
     return data.data.interests;
   } catch (error) {

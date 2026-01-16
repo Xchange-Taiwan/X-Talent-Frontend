@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
-import { InterestType } from '@/services/profile/interests';
+import { InterestDTO } from '@/services/profile/interests';
 
 import { step5Schema } from './index';
 
@@ -23,7 +23,7 @@ const DEFAULT_ALT = 'DEFAULT_ICON';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step5Schema>>>;
-  topicOptions: InterestType[];
+  topicOptions: InterestDTO[];
 }
 
 export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {

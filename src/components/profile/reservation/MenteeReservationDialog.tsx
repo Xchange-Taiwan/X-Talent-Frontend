@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { getSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
-import { WorkExperience } from '@/app/profile/[pageUserId]/page';
 import DefaultAvatarImgUrl from '@/assets/default-avatar.jpeg';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,7 +21,7 @@ import {
   ParsedMentorTimeslot,
   UseMentorScheduleReturn,
 } from '@/hooks/useMentorSchedule';
-import { UserType } from '@/services/profile/user';
+import { UserType } from '@/hooks/user/userData/useUserData';
 import {
   createReservation,
   CreateReservationPayload,
@@ -156,16 +155,6 @@ export default function MenteeReservationDialog({
     }).format(new Date(selectedDate));
   };
 
-  const firstWorkExperience = userData?.experiences?.find(
-    (exp) => exp.category === 'WORK'
-  ) as WorkExperience;
-
-  const firstWorkMetadata = Array.isArray(
-    firstWorkExperience?.mentor_experiences_metadata?.data
-  )
-    ? firstWorkExperience?.mentor_experiences_metadata?.data[0]
-    : undefined;
-
   const allowedDates = parsedDraft
     .filter((slot) => slot.type === 'ALLOW')
     .map((slot) => slot.dateKey);
@@ -261,7 +250,7 @@ export default function MenteeReservationDialog({
             <div>
               <p className="font-semibold">{userData?.name}</p>
               <p className="text-sm text-muted-foreground">
-                {firstWorkMetadata?.job} at {firstWorkMetadata?.company}
+                {userData?.job_title} at {userData?.company}
               </p>
             </div>
           </div>

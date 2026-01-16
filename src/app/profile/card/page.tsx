@@ -1,63 +1,46 @@
 'use client';
+
 import { useRouter } from 'next/navigation';
+import { getSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import { ProfileCard } from '@/components/profile/ProfileCard';
 import { Button } from '@/components/ui/button';
-import { fetchUser } from '@/services/profile/user';
-import { UserType } from '@/services/profile/user';
+import useUserData from '@/hooks/user/userData/useUserData';
 
 export default function Page() {
   const router = useRouter();
-  const [isMentor, setIsMentor] = useState<boolean>(false);
-  const [userData, setUserData] = useState<UserType | null>(null);
+
+  const [loginUserId, setLoginUserId] = useState<number | null>(null);
 
   useEffect(() => {
-    async function fetchUserData() {
-      try {
-        const data = await fetchUser('zh_TW');
-        if (data) {
-          setUserData(data);
-          setIsMentor(data.is_mentor);
-        }
-      } catch (err) {
-        console.error('Fetch User Data Error:', err);
-      }
-    }
+    const loadSession = async () => {
+      const session = await getSession();
+      const idFromSession = session?.user?.id ? Number(session.user.id) : null;
+      setLoginUserId(
+        idFromSession && !Number.isNaN(idFromSession) ? idFromSession : null
+      );
+    };
 
-    fetchUserData();
+    loadSession();
   }, []);
 
-  const linkedInUrl =
-    (
-      userData?.experiences?.find((exp) => {
-        const category = exp.category as string;
-        const metadata = exp.mentor_experiences_metadata as {
-          platform?: string;
-          url?: string;
-        };
-        return (
-          category === 'LINK' &&
-          metadata?.platform?.toLowerCase() === 'linkedin'
-        );
-      })?.mentor_experiences_metadata as { url?: string } | undefined
-    )?.url || '';
+  const { userData, isLoading } = useUserData(loginUserId ?? 0, 'zh_TW');
 
-  const firstWorkExperience = userData?.experiences?.find(
-    (exp) => (exp.category as string) === 'WORK'
-  );
-
-  const metadata = firstWorkExperience?.mentor_experiences_metadata as {
-    company?: string;
-    job?: string;
-  };
-
-  const firstWorkExperienceCompany = metadata?.company || '';
-  const firstWorkExperienceTitle = metadata?.job || '';
+  if (isLoading || !loginUserId) {
+    return null;
+  }
 
   if (!userData) {
     return null;
   }
+
+  const isMentor = userData.is_mentor;
+
+  const linkedinUrl =
+    userData.personalLinks?.find(
+      (link) => link.platform.toLowerCase() === 'linkedin'
+    )?.url ?? '';
 
   return (
     <div className="mx-auto w-11/12 max-w-[630px] pb-20 pt-10">
@@ -76,26 +59,28 @@ export default function Page() {
       </div>
 
       <div className="py-10">
-        {!isMentor && userData && (
+        {!isMentor && (
           <ProfileCard
             name={userData.name}
             avatarImgUrl={userData.avatar}
-            company={firstWorkExperienceCompany}
-            jobTitle={firstWorkExperienceTitle}
-            linkedinUrl={linkedInUrl}
-            interestedRole={userData.interested_positions.interests}
-            skillEnhancementTarget={userData.skills.interests}
-            talkTopic={userData.topics.interests}
+            company={userData.company}
+            jobTitle={userData.job_title}
+            linkedinUrl={linkedinUrl}
+            interestedRole={userData.interested_positions}
+            skillEnhancementTarget={userData.skills}
+            talkTopic={userData.topics}
           />
         )}
-        {isMentor && userData && (
+
+        {isMentor && (
           <ProfileCard
             name={userData.name}
             avatarImgUrl={userData.avatar}
-            company={firstWorkExperienceCompany}
-            jobTitle={firstWorkExperienceTitle}
-            linkedinUrl={linkedInUrl}
-            expertise={userData.expertises?.professions}
+            company={userData.company}
+            jobTitle={userData.job_title}
+            linkedinUrl={linkedinUrl}
+            expertise={userData.expertises}
+            whatIOffer={userData.what_i_offers}
           />
         )}
       </div>
@@ -104,9 +89,9 @@ export default function Page() {
         <div className="flex justify-center gap-4">
           <Button
             variant="outline"
-            className="grow rounded-full px-6  py-3 sm:grow-0"
+            className="grow rounded-full px-6 py-3 sm:grow-0"
             onClick={() =>
-              router.push(`/profile/${userData?.user_id}/edit?onboarding=true`)
+              router.push(`/profile/${loginUserId}/edit?onboarding=true`)
             }
           >
             成為 Mentor
@@ -126,7 +111,7 @@ export default function Page() {
           <Button
             variant="default"
             className="grow rounded-full px-6 py-3 sm:grow-0"
-            onClick={() => router.push(`/profile/${userData?.user_id}`)}
+            onClick={() => router.push(`/profile/${loginUserId}`)}
           >
             Back to my profile
           </Button>

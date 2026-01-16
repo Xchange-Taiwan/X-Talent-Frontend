@@ -13,13 +13,13 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
-import { InterestType } from '@/services/profile/interests';
+import { InterestDTO } from '@/services/profile/interests';
 
 import { step4Schema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step4Schema>>>;
-  skillOptions: InterestType[];
+  skillOptions: InterestDTO[];
 }
 
 export const SkillsToImprove: FC<Props> = ({ form, skillOptions }) => {

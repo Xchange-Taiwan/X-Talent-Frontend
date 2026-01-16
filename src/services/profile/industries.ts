@@ -1,4 +1,4 @@
-export interface IndustryType {
+export interface IndustryDTO {
   id: number;
   category: string;
   language: string;
@@ -10,17 +10,17 @@ export interface IndustryType {
   };
 }
 
-interface IndustryResponse {
+interface IndustryResponseDTO {
   code: string;
   msg: string;
   data: {
-    professions: IndustryType[];
+    professions: IndustryDTO[];
   };
 }
 
 export async function fetchIndustries(
   language: string
-): Promise<IndustryType[]> {
+): Promise<IndustryDTO[]> {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${language}/industries`,
@@ -35,7 +35,7 @@ export async function fetchIndustries(
     if (!response.ok) {
       throw new Error(`HTTP 錯誤: ${response.status}`);
     }
-    const data: IndustryResponse = await response.json();
+    const data: IndustryResponseDTO = await response.json();
 
     return data.data.professions;
   } catch (error) {
