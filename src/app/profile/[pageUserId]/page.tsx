@@ -243,7 +243,7 @@ export default function Page({
               </>
             )}
 
-            {isLogging && userData.is_mentor && pageUserId === loginUserId && (
+            {isLogging && !userData.is_mentor && pageUserId === loginUserId && (
               <Button
                 variant="default"
                 className="grow rounded-full px-6 py-3 sm:grow-0"
