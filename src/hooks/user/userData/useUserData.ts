@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 
 import { ExperienceType } from '@/services/profile/experienceType';
-import { fetchUserById } from '@/services/profile/user';
-import { UserDTO } from '@/services/profile/user';
+import { fetchUserById, UserDTO } from '@/services/profile/user';
+
+import { getInterestsCached } from '../interests/useInterests';
 
 export interface InterestType {
   subject_group: string;
@@ -49,15 +50,10 @@ export interface UserType {
 
 type ExperienceBlock = {
   category: ExperienceType;
-  mentor_experiences_metadata?: {
-    data?: unknown[]; // refined per category below via narrowing
-  };
+  mentor_experiences_metadata?: { data?: unknown[] };
 };
 
-type WhatIOfferMetadata = {
-  subject_group: string;
-  subject?: string;
-};
+type WhatIOfferMetadata = { subject_group: string };
 
 function toInterestList(
   interests: UserDTO['topics']['interests']
@@ -73,22 +69,36 @@ function getBlocksByCategory(
   category: ExperienceType
 ): ExperienceBlock[] {
   if (!experiences) return [];
-
-  // If your ExperienceType is already well-typed, you can remove this cast
-  // and just use experiences.filter(e => e.category === category).
   return (experiences as unknown as ExperienceBlock[]).filter(
     (exp) => exp.category === category
   );
 }
 
 function getMetadataArray<T>(block: ExperienceBlock): T[] {
-  // We assume backend shape is `{ mentor_experiences_metadata: { data: T[] } }`
-  // If absent, return empty.
-  const data = block.mentor_experiences_metadata?.data ?? [];
-  return data as T[];
+  return (block.mentor_experiences_metadata?.data ?? []) as T[];
 }
 
-function parseUserDtoToUserType(userDto: UserDTO): UserType {
+function buildWhatIOffers(
+  offerBlocks: ExperienceBlock[],
+  labelByGroup: Map<string, string>
+): InterestType[] {
+  const subjectGroups = offerBlocks
+    .flatMap((b) => getMetadataArray<WhatIOfferMetadata>(b))
+    .map((m) => m.subject_group)
+    .filter(Boolean);
+
+  const uniqueSubjectGroups = Array.from(new Set(subjectGroups));
+
+  return uniqueSubjectGroups.map((subject_group) => ({
+    subject_group,
+    subject: labelByGroup.get(subject_group) ?? subject_group,
+  }));
+}
+
+function parseUserDtoToUserType(
+  userDto: UserDTO,
+  labelByGroup: Map<string, string>
+): UserType {
   const workBlocks = getBlocksByCategory(
     userDto.experiences,
     ExperienceType.WORK
@@ -111,13 +121,12 @@ function parseUserDtoToUserType(userDto: UserDTO): UserType {
     ? getMetadataArray<WorkExperienceMetadata>(firstWork)[0]
     : undefined;
 
-  const primaryJobTitle = firstWorkMetadata?.job ?? userDto.job_title ?? '';
-  const primaryCompany = firstWorkMetadata?.company ?? userDto.company ?? '';
+  const job_title = firstWorkMetadata?.job ?? userDto.job_title ?? '';
+  const company = firstWorkMetadata?.company ?? userDto.company ?? '';
 
   const workExperiences = workBlocks.flatMap((b) =>
     getMetadataArray<WorkExperienceMetadata>(b)
   );
-
   const educations = educationBlocks.flatMap((b) =>
     getMetadataArray<EducationExperienceMetadata>(b)
   );
@@ -126,12 +135,7 @@ function parseUserDtoToUserType(userDto: UserDTO): UserType {
     .flatMap((b) => getMetadataArray<PersonalLinkMetadata>(b))
     .filter((l) => Boolean(l.url));
 
-  const whatIOffers = offerBlocks.flatMap((b) =>
-    getMetadataArray<WhatIOfferMetadata>(b).map((m) => ({
-      subject_group: m.subject_group,
-      subject: m.subject ?? m.subject_group,
-    }))
-  );
+  const what_i_offers = buildWhatIOffers(offerBlocks, labelByGroup);
 
   const expertises: InterestType[] =
     userDto.expertises?.professions?.map((p) => ({
@@ -143,8 +147,8 @@ function parseUserDtoToUserType(userDto: UserDTO): UserType {
     user_id: userDto.user_id,
     name: userDto.name,
     avatar: userDto.avatar,
-    job_title: primaryJobTitle,
-    company: primaryCompany,
+    job_title,
+    company,
     interested_positions: toInterestList(
       userDto.interested_positions.interests
     ),
@@ -153,7 +157,7 @@ function parseUserDtoToUserType(userDto: UserDTO): UserType {
     is_mentor: userDto.is_mentor,
     about: userDto.about ?? '',
     expertises,
-    what_i_offers: whatIOffers,
+    what_i_offers,
     workExperiences,
     educations,
     personalLinks,
@@ -166,21 +170,29 @@ const useUserData = (userId: number, language: string) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const isUserIdValid = Boolean(userId) && !Number.isNaN(userId);
-    const isLanguageValid = Boolean(language);
+    let cancelled = false;
 
-    if (!isUserIdValid || !isLanguageValid) {
-      setUserData(null);
-      setError(null);
-      return;
-    }
+    const run = async () => {
+      const isUserIdValid = Boolean(userId) && !Number.isNaN(userId);
+      const isLanguageValid = Boolean(language);
 
-    const fetchUser = async () => {
+      if (!isUserIdValid || !isLanguageValid) {
+        setUserData(null);
+        setError(null);
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
 
       try {
-        const userDto = await fetchUserById(userId, language);
+        const [userDto, interests] = await Promise.all([
+          fetchUserById(userId, language),
+          getInterestsCached(language),
+        ]);
+
+        if (cancelled) return;
 
         if (!userDto) {
           setUserData(null);
@@ -188,17 +200,28 @@ const useUserData = (userId: number, language: string) => {
           return;
         }
 
-        setUserData(parseUserDtoToUserType(userDto));
+        const labelByGroup = new Map(
+          interests.whatIOffers.map(
+            (item) => [item.subject_group, item.subject] as const
+          )
+        );
+
+        setUserData(parseUserDtoToUserType(userDto, labelByGroup));
       } catch (e) {
-        console.error('Failed to fetch user:', e);
+        console.error('Failed to load user:', e);
+        if (cancelled) return;
         setUserData(null);
         setError('Failed to load user data');
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
-    fetchUser();
+    run();
+
+    return () => {
+      cancelled = true;
+    };
   }, [userId, language]);
 
   return { userData, isLoading, error };
