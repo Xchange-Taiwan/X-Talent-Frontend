@@ -30,6 +30,7 @@ export interface PersonalLinkMetadata {
 }
 
 export interface UserType {
+  user_id: number;
   name: string;
   avatar: string;
   job_title: string;
@@ -139,6 +140,7 @@ function parseUserDtoToUserType(userDto: UserDTO): UserType {
     })) ?? [];
 
   return {
+    user_id: userDto.user_id,
     name: userDto.name,
     avatar: userDto.avatar,
     job_title: primaryJobTitle,
