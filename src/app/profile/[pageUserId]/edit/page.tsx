@@ -527,7 +527,8 @@ export default function Page({
           <Section
             title={
               <>
-                <span className="text-status-200">* </span>自我介紹
+                {isMentor && <span className="text-status-200">* </span>}
+                自我介紹
               </>
             }
           >
