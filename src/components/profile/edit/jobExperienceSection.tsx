@@ -37,6 +37,7 @@ interface Props {
     text: string;
   }[];
   form: UseFormReturn<ProfileFormValues>;
+  isMentor: boolean;
   onValidationChange: (hasError: boolean) => void;
 }
 
@@ -44,9 +45,14 @@ export const JobExperienceSection = ({
   industries,
   locations,
   form,
+  isMentor,
   onValidationChange,
 }: Props) => {
-  const { control, getValues } = form;
+  const {
+    control,
+    getValues,
+    formState: { errors },
+  } = form;
 
   const { fields, append, remove } = useFieldArray({
     control,
@@ -104,7 +110,14 @@ export const JobExperienceSection = ({
   };
 
   return (
-    <Section title="工作經驗">
+    <Section
+      title={
+        <>
+          {isMentor && <span className="text-status-200">* </span>}
+          工作經驗
+        </>
+      }
+    >
       {fields.map((field, index) => {
         const watched = watchedExperiences?.[index] ?? {};
         const start = watched.jobPeriodStart;
@@ -286,6 +299,11 @@ export const JobExperienceSection = ({
         <PlusIcon className="mr-2 h-5 w-5" />
         新增
       </Button>
+      {errors.work_experiences?.message && (
+        <p className="mt-2 text-sm font-medium text-destructive">
+          {errors.work_experiences?.message as string}
+        </p>
+      )}
     </Section>
   );
 };

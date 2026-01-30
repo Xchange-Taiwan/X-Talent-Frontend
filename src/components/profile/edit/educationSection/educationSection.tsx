@@ -28,11 +28,20 @@ import { taiwanSchools } from './schoolData';
 
 interface Props {
   form: UseFormReturn<ProfileFormValues>;
+  isMentor: boolean;
   onValidationChange: (hasError: boolean) => void;
 }
 
-export const EducationSection = ({ form, onValidationChange }: Props) => {
-  const { control, getValues } = form;
+export const EducationSection = ({
+  form,
+  isMentor,
+  onValidationChange,
+}: Props) => {
+  const {
+    control,
+    getValues,
+    formState: { errors },
+  } = form;
 
   const { fields, append, remove } = useFieldArray({
     control,
@@ -87,7 +96,14 @@ export const EducationSection = ({ form, onValidationChange }: Props) => {
   }, [watchedEducations, onValidationChange]);
 
   return (
-    <Section title="教育">
+    <Section
+      title={
+        <>
+          {isMentor && <span className="text-status-200">* </span>}
+          教育經歷
+        </>
+      }
+    >
       {fields.map((field, index) => {
         const watched = watchedEducations?.[index] ?? {};
         const start = watched.educationPeriodStart;
@@ -237,6 +253,11 @@ export const EducationSection = ({ form, onValidationChange }: Props) => {
         <PlusIcon className="mr-2 h-5 w-5" />
         新增
       </Button>
+      {errors.educations?.message && (
+        <p className="mt-2 text-sm font-medium text-destructive">
+          {errors.educations?.message as string}
+        </p>
+      )}
     </Section>
   );
 };
