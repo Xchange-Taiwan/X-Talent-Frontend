@@ -2,7 +2,7 @@
 import Image from 'next/image';
 import type { FC } from 'react';
 
-import DefaultAvatarImgUrl from '@/assets/default-avatar.jpeg';
+import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { LinkedinColor } from '@/components/Icon';
 import { cn } from '@/lib/utils';
 

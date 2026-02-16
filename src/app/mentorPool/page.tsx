@@ -5,7 +5,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import { XIcon } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
-import avatarImage from '@/assets/default-avatar.jpeg';
+import avatarImage from '@/assets/default-avatar.png';
 import {
   FilterOptions,
   SelectFilters,

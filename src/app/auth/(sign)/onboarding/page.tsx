@@ -1,4 +1,5 @@
 'use client';
+
 import { zodResolver } from '@hookform/resolvers/zod';
 import ArrowBackIcon from '@mui/icons-material/ArrowBackIosNew';
 import { useRouter } from 'next/navigation';
@@ -27,6 +28,7 @@ import useIndustries from '@/hooks/user/industry/useIndustries';
 import useInterests from '@/hooks/user/interests/useInterests';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
+import { fetchUser } from '@/services/profile/user';
 
 const STEP_TITLE = [
   '該如何稱呼你呢？',
@@ -46,18 +48,7 @@ export default function Page() {
 
   const [currentStep, setCurrentStep] = useState(1);
 
-  const { data: session } = useSession();
-  useEffect(() => {
-    const name = session?.user?.name ?? '';
-    const avatar = session?.user?.avatar ?? '';
-
-    step1Form.reset({
-      name: name || '',
-      avatar: avatar || '',
-      avatarFile: undefined,
-      language: 'zh_TW',
-    });
-  }, []);
+  const { data: session, status, update: updateSession } = useSession();
 
   const [tempData, setTempData] = useState<{
     step1?: z.infer<typeof step1Schema>;
@@ -76,6 +67,22 @@ export default function Page() {
       language: 'zh_TW',
     },
   });
+
+  // 用 session 預填 step1（要等 session loading 完）
+  useEffect(() => {
+    if (status === 'loading') return;
+
+    const name = session?.user?.name ?? '';
+    const avatar = session?.user?.avatar ?? '';
+
+    step1Form.reset({
+      name: name || '',
+      avatar: avatar || '',
+      avatarFile: undefined,
+      language: 'zh_TW',
+    });
+  }, [session?.user?.name, session?.user?.avatar, status, step1Form]);
+
   const onSubmitStep1 = (data: z.infer<typeof step1Schema>) => {
     setTempData((prev) => ({ ...prev, step1: data }));
     setCurrentStep(2);
@@ -124,7 +131,9 @@ export default function Page() {
       topics: [],
     },
   });
+
   const onSubmitStep5 = async (data: z.infer<typeof step5Schema>) => {
+    // 先把 step5 存進暫存
     setTempData((prev) => ({ ...prev, step5: data }));
 
     const allData = {
@@ -136,13 +145,33 @@ export default function Page() {
     };
 
     try {
+      // avatar upload
       if (allData.avatarFile) {
-        allData.avatar = await updateAvatar(allData.avatarFile);
+        const newUrl = await updateAvatar(allData.avatarFile);
+        allData.avatar = newUrl ?? allData.avatar;
         allData.avatarFile = undefined;
       }
+
       const validatedData = formSchema.parse(allData);
-      console.log(validatedData);
+
+      // 更新後端 profile
       await updateProfile(validatedData);
+
+      // 拉最新 user，確保 session 跟後端一致（最穩）
+      const latest = await fetchUser('zh_TW');
+
+      // 更新 next-auth session（需要你 authOptions 裡 jwt trigger update）
+      await updateSession({
+        user: {
+          id: session?.user?.id,
+          name: latest?.name ?? validatedData.name ?? session?.user?.name,
+          avatar:
+            latest?.avatar ?? validatedData.avatar ?? session?.user?.avatar,
+          isMentor: Boolean(latest?.is_mentor),
+          onBoarding: Boolean(latest?.onboarding),
+          msg: session?.user?.msg,
+        },
+      });
 
       router.push('/profile/card');
     } catch (error) {
