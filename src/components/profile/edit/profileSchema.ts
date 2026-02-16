@@ -34,6 +34,7 @@ export const createProfileFormSchema = (isMentor: boolean) =>
   z
     .object({
       is_mentor: z.boolean(),
+      avatar: z.string().url().optional().or(z.literal('')),
       avatarFile: isBrowser
         ? z.instanceof(File).optional()
         : z.any().optional(),
@@ -88,6 +89,7 @@ export type ProfileFormValues = z.infer<
 
 export const defaultValues: ProfileFormValues = {
   is_mentor: false,
+  avatar: '',
   avatarFile: undefined,
   name: '',
   location: '',

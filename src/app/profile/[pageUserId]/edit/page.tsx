@@ -35,6 +35,7 @@ import useExpertises from '@/hooks/user/expertises/useExpertises';
 import useIndustries from '@/hooks/user/industry/useIndustries';
 import useInterests from '@/hooks/user/interests/useInterests';
 import { ExperienceType } from '@/services/profile/experienceType';
+import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
 import {
   MentorExperiencePayload,
@@ -231,6 +232,7 @@ export default function Page({
 
           form.reset({
             is_mentor: mentorFlag,
+            avatar: data.avatar || '',
             avatarFile: undefined,
             name: data.name || '',
             location: data.location || '',
@@ -300,7 +302,21 @@ export default function Page({
     if (jobSectionError || educationSectionError) {
       return;
     }
-    await updateProfile(values);
+
+    let avatar = values.avatar;
+
+    if (values.avatarFile) {
+      const newUrl = await updateAvatar(values.avatarFile);
+      avatar = newUrl ?? avatar;
+    }
+
+    const payload = {
+      ...values,
+      avatar,
+      avatarFile: undefined,
+    };
+
+    await updateProfile(payload);
 
     if (values.work_experiences?.length > 0) {
       await upsertMentorExperience(ExperienceType.WORK, true, {
@@ -421,7 +437,7 @@ export default function Page({
           <AvatarSection
             control={form.control}
             name="avatarFile"
-            avatarUrl={''}
+            avatarUrl={form.watch('avatar') ?? ''}
           />
           <Section
             title={

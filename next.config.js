@@ -4,6 +4,7 @@ const nextConfig = {
     domains: [
       'x-career-multimedia.s3.ap-northeast-1.amazonaws.com',
       'lh3.googleusercontent.com',
+      'x-career-multimedia.s3.amazonaws.com',
     ],
   },
   // Enable hot reload optimizations
