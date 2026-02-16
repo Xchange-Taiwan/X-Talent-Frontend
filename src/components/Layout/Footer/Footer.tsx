@@ -3,35 +3,82 @@ import { FC } from 'react';
 
 import logoImgUrl from './assets/logo.png';
 
+type FooterLink = {
+  label: string;
+  href: string;
+};
+
+type FooterLinksConfig = {
+  relatedLinks: FooterLink[];
+  socialLinks: FooterLink[];
+};
+
+const FOOTER_LINKS: FooterLinksConfig = {
+  relatedLinks: [
+    { label: 'XChange Website', href: 'https://xchange.com.tw/' },
+    {
+      label: 'X-IMPACT Podcast',
+      href: 'https://podcasts.apple.com/us/podcast/x-impact/id1514930493?l=zh-Hant-TW',
+    },
+    { label: 'XChange Medium', href: 'https://xchange-taiwan.medium.com/' },
+  ],
+  socialLinks: [
+    {
+      label: 'Facebook 粉絲專頁',
+      href: 'https://www.facebook.com/XChange.tw/?locale=zh_TW',
+    },
+    {
+      label: 'Instagram 商業檔案',
+      href: 'https://www.instagram.com/xchange.tw/',
+    },
+  ],
+};
+
 export const Footer: FC = () => {
   return (
     <footer className="flex h-[730px] w-full bg-dark md:h-[534px] xl:h-[290px]">
-      <div className="flex h-full w-full flex-col px-[70px] pt-[50px] xl:flex-row xl:justify-between">
+      <div className="flex h-full w-full flex-col px-[70px] pt-[50px] xl:flex-row xl:items-start xl:justify-between">
         <Image src={logoImgUrl} className="h-[39px] w-[146px]" alt="logo" />
-        <div className="mt-[60px] text-[#FFFFFF] md:grid md:grid-cols-2 md:grid-rows-2 md:gap-x-4 xl:mt-0 xl:flex">
-          <div className="mb-[58px] mr-[140px]">
-            <p className="mb-5 text-xl font-bold tracking-[0.085em]">
-              關於我們
-            </p>
-            <p className="font-normal">關於 X-Talent</p>
-          </div>
-          <div className="mb-[58px] mr-[140px]">
+
+        <div className="mt-[60px] flex flex-col gap-[58px] text-[#FFFFFF] md:flex-row md:gap-x-4 xl:mt-0 xl:flex-row">
+          <div className="mr-[140px] flex flex-col">
             <p className="mb-5 text-xl font-bold tracking-[0.085em]">
               相關連結
             </p>
-            <p className="mb-3 font-normal">XChange Website</p>
-            <p className="mb-3 font-normal">X-IMPACT Podcast</p>
-            <p className="font-normal">XChange Medium</p>
+
+            <div className="flex flex-col gap-3">
+              {FOOTER_LINKS.relatedLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block font-normal hover:underline"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
           </div>
-          <div>
+
+          <div className="flex flex-col">
             <p className="mb-5 text-xl font-bold tracking-[0.085em]">
               XChange 社群連結
             </p>
-            <p className="mb-3 font-normal">Facebook 粉絲專頁</p>
-            <p className="mb-3 font-normal">
-              Facebook 社團｜XChange 互聯網 Coffee Room
-            </p>
-            <p className="font-normal">Instagram 商業檔案</p>
+
+            <div className="flex flex-col gap-3">
+              {FOOTER_LINKS.socialLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block font-normal hover:underline"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
           </div>
         </div>
       </div>
