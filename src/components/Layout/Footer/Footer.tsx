@@ -40,8 +40,8 @@ export const Footer: FC = () => {
       <div className="flex h-full w-full flex-col px-[70px] pt-[50px] xl:flex-row xl:items-start xl:justify-between">
         <Image src={logoImgUrl} className="h-[39px] w-[146px]" alt="logo" />
 
-        <div className="mt-[60px] flex flex-col gap-[58px] text-[#FFFFFF] md:flex-row md:gap-x-4 xl:mt-0 xl:flex-row">
-          <div className="mr-[140px] flex flex-col">
+        <div className="mr-[150px] mt-[60px] flex flex-col gap-[58px] text-[#FFFFFF] md:flex-row md:gap-x-4 xl:mt-0 xl:flex-row">
+          <div className="mr-[140px] flex flex-col ">
             <p className="mb-5 text-xl font-bold tracking-[0.085em]">
               相關連結
             </p>
