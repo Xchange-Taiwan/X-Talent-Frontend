@@ -14,6 +14,7 @@ export const publicRoutes: string[] = [
   '/auth/emailVerify',
   '/auth/emailVerified',
   '/profile/[pageUserId]',
+  '/mentorPool',
 ];
 
 /**
