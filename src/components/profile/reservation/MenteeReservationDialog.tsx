@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { getSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
-import DefaultAvatarImgUrl from '@/assets/default-avatar.jpeg';
+import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

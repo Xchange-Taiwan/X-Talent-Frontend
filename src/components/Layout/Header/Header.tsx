@@ -2,64 +2,96 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { signOut, useSession } from 'next-auth/react';
-import { FC } from 'react';
+import { useSession } from 'next-auth/react';
 
 import LogoImgUrl from '@/assets/logo.svg';
 import { Button } from '@/components/ui/button';
 
 import { HamburgerMenu } from './HamburgerMenu';
+import { UserDropdown } from './UserDropdown';
 
-export const Header: FC = () => {
+export function Header(): JSX.Element {
   const { data: session } = useSession();
-  const isLoggedIn = !!session?.user?.id;
+
+  const isLoggedIn = Boolean(session?.user?.id);
+  const isMentor = Boolean(session?.user?.isMentor);
+  const userId = session?.user?.id;
+
+  const findMentorHref = '/mentorPool';
+
+  const becomeMentorHref = !isLoggedIn
+    ? '/auth/signup'
+    : `/profile/${userId}/edit?onboarding=true`;
+
+  const profileHref = userId ? `/profile/${userId}` : '/';
+
+  const leftSecondNav = isMentor
+    ? { label: '我的導師頁面', href: profileHref }
+    : { label: '成為導師', href: becomeMentorHref };
 
   return (
-    <header className="fixed inset-x-0 z-50 bg-light px-5 text-2xl">
+    <header className="fixed inset-x-0 z-50 bg-light px-5">
       <div className="flex h-[70px] items-center justify-between">
-        <Link href="/">
-          <Image src={LogoImgUrl} alt="logo" />
-        </Link>
-
-        <div className="hidden gap-7 md:flex md:items-center">
-          <Link href="/" className="text-black font-['Open_Sans'] text-base">
-            首頁
-          </Link>
-          <Link
-            href="/about"
-            className="text-black font-['Open_Sans'] text-base"
-          >
-            關於 X-Talent
+        <div className="flex items-center gap-10">
+          <Link href="/" aria-label="Go to homepage">
+            <Image src={LogoImgUrl} alt="logo" />
           </Link>
 
-          {isLoggedIn ? (
-            <Button
-              className="bg-primary hover:bg-primary"
-              onClick={() => signOut()}
+          <nav className="hidden items-center gap-7 md:flex">
+            <Link
+              href={findMentorHref}
+              className="text-black font-['Open_Sans'] text-base"
             >
-              登出
-            </Button>
-          ) : (
-            <>
-              <Link href="/auth/signup">
-                <Button
-                  variant="outline"
-                  className="border-primary text-primary hover:text-primary"
-                >
-                  註冊
-                </Button>
-              </Link>
-              <Link href="/auth/signin">
-                <Button className="bg-primary hover:bg-primary">登入</Button>
-              </Link>
-            </>
-          )}
+              尋找導師
+            </Link>
+
+            <Link
+              href={leftSecondNav.href}
+              className="text-black font-['Open_Sans'] text-base"
+            >
+              {leftSecondNav.label}
+            </Link>
+
+            <Link
+              href="/about"
+              className="text-black font-['Open_Sans'] text-base"
+            >
+              關於 X-Talent
+            </Link>
+          </nav>
         </div>
 
-        <div className="md:hidden">
-          <HamburgerMenu />
+        <div className="mr-20 flex items-center gap-3">
+          <div className="hidden items-center gap-3 md:flex">
+            {!isLoggedIn ? (
+              <>
+                <Link href="/auth/signup">
+                  <Button
+                    variant="outline"
+                    className="border-primary text-primary hover:text-primary"
+                  >
+                    註冊
+                  </Button>
+                </Link>
+
+                <Link href="/auth/signin">
+                  <Button className="bg-primary hover:bg-primary">登入</Button>
+                </Link>
+              </>
+            ) : (
+              <UserDropdown user={session!.user} />
+            )}
+          </div>
+
+          <div className="md:hidden">
+            <HamburgerMenu
+              isLoggedIn={isLoggedIn}
+              isMentor={isMentor}
+              userId={userId}
+            />
+          </div>
         </div>
       </div>
     </header>
   );
-};
+}

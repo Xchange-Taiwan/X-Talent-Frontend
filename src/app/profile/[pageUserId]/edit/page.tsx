@@ -1,10 +1,10 @@
 'use client';
+
 import { zodResolver } from '@hookform/resolvers/zod';
 import ArrowBackIcon from '@mui/icons-material/ArrowBackIosNew';
-import { useRouter } from 'next/navigation';
-import { useSearchParams } from 'next/navigation';
-import { getSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -61,38 +61,44 @@ export default function Page({
   params: { pageUserId: string };
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isMentorOnboarding = searchParams?.get('onboarding') === 'true';
+
+  const { data: session, status, update: updateSession } = useSession();
+
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isMentor, setIsMentor] = useState(false);
 
-  const searchParams = useSearchParams();
-  const isMentorOnboarding = searchParams?.get('onboarding') === 'true';
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [jobSectionError, setJobSectionError] = useState(false);
   const [educationSectionError, setEducationSectionError] = useState(false);
 
+  // ---- authorization (client-side guard) ----
   useEffect(() => {
-    const verifyUser = async () => {
-      const session = await getSession();
-      const loginUserId = String(session?.user?.id);
+    if (status === 'loading') return;
 
-      if (!loginUserId || loginUserId !== pageUserId) {
-        router.push('/');
-        return;
-      }
+    const loginUserId = session?.user?.id ? String(session.user.id) : '';
 
-      setIsAuthorized(true);
-    };
+    if (!loginUserId || loginUserId !== pageUserId) {
+      router.push('/');
+      return;
+    }
 
-    verifyUser();
-  }, [pageUserId, router]);
+    setIsAuthorized(true);
+  }, [pageUserId, router, session?.user?.id, status]);
 
   const { locations } = useLocations('zh_TW');
   const { industries } = useIndustries('zh_TW');
   const { interestedPositions, skills, topics } = useInterests('zh_TW');
   const { expertises } = useExpertises('zh_TW');
 
-  const { ...form } = useForm<ProfileFormValues>({
-    resolver: zodResolver(createProfileFormSchema(isMentor)),
+  const resolver = useMemo(
+    () => zodResolver(createProfileFormSchema(isMentor)),
+    [isMentor]
+  );
+
+  const form = useForm<ProfileFormValues>({
+    resolver,
     defaultValues,
   });
 
@@ -164,11 +170,7 @@ export default function Page({
               'website',
             ].includes(platform)
           ) {
-            result[platform] = {
-              id,
-              platform,
-              url,
-            };
+            result[platform] = { id, platform, url };
           }
         });
       });
@@ -178,227 +180,246 @@ export default function Page({
 
   function parseWhatIOffer(experiences: MentorExperiencePayload[]): string[] {
     const whatIOffer = experiences.find((e) => e.category === 'WHAT_I_OFFER');
-
     const metadata =
       whatIOffer?.mentor_experiences_metadata as MentorExperienceMetadata<WhatIOfferMetadata>;
 
     return metadata?.data?.map((item) => item.subject_group) || [];
   }
 
+  // ---- fetch page data only after authorized ----
   useEffect(() => {
+    if (!isAuthorized) return;
+
+    let cancelled = false;
+
     async function fetchUserData() {
       try {
         const data = await fetchUser('zh_TW');
-        if (data) {
-          const parsedExperiences = data.experiences
-            ?.filter((e) => e.category === 'WORK')
-            .flatMap((e): WorkExperienceFormValue[] => {
-              const metadata =
-                e.mentor_experiences_metadata as MentorExperienceMetadata<WorkExperienceFormValue>;
-              const entries = metadata?.data || [];
+        if (!data || cancelled) return;
 
-              return entries.map((item) => ({
-                id: typeof e.id === 'number' ? e.id : -1,
-                job: item.job || '',
-                company: item.company || '',
-                jobPeriodStart: item.jobPeriodStart || '',
-                jobPeriodEnd: item.jobPeriodEnd || '',
-                industry: item.industry || '',
-                jobLocation: item.jobLocation || '',
-                description: item.description || '',
-              }));
-            });
+        const mentorFlag = Boolean(data.is_mentor || isMentorOnboarding);
 
-          const parsedEducations = data.experiences
-            ?.filter((e) => e.category === 'EDUCATION')
-            .flatMap((e): EducationFormValue[] => {
-              const metadata =
-                e.mentor_experiences_metadata as MentorExperienceMetadata<EducationFormValue>;
-              const entries = metadata?.data || [];
+        const parsedExperiences = data.experiences
+          ?.filter((e) => e.category === 'WORK')
+          .flatMap((e): WorkExperienceFormValue[] => {
+            const metadata =
+              e.mentor_experiences_metadata as MentorExperienceMetadata<WorkExperienceFormValue>;
+            const entries = metadata?.data || [];
 
-              return entries.map((item) => ({
-                id: typeof e.id === 'number' ? e.id : -1,
-                school: item.school || '',
-                subject: item.subject || '',
-                educationPeriodStart: item.educationPeriodStart || '',
-                educationPeriodEnd: item.educationPeriodEnd || '',
-              }));
-            });
-
-          const parsedLinks = parseLinks(
-            data.experiences as unknown as MentorExperiencePayload[]
-          );
-          const mentorFlag = Boolean(data.is_mentor || isMentorOnboarding);
-
-          form.reset({
-            is_mentor: mentorFlag,
-            avatar: data.avatar || '',
-            avatarFile: undefined,
-            name: data.name || '',
-            location: data.location || '',
-            statement: data.personal_statement || '',
-            about: data.about || '',
-            industry: data.industry?.subject_group || '',
-            years_of_experience: data.years_of_experience || '',
-            linkedin: parsedLinks.linkedin || defaultValues.linkedin,
-            facebook: parsedLinks.facebook || defaultValues.facebook,
-            instagram: parsedLinks.instagram || defaultValues.instagram,
-            twitter: parsedLinks.twitter || defaultValues.twitter,
-            youtube: parsedLinks.youtube || defaultValues.youtube,
-            website: parsedLinks.website || defaultValues.website,
-            work_experiences:
-              parsedExperiences || defaultValues.work_experiences,
-            educations: parsedEducations || defaultValues.educations,
+            return entries.map((item) => ({
+              id: typeof e.id === 'number' ? e.id : -1,
+              job: item.job || '',
+              company: item.company || '',
+              jobPeriodStart: item.jobPeriodStart || '',
+              jobPeriodEnd: item.jobPeriodEnd || '',
+              industry: item.industry || '',
+              jobLocation: item.jobLocation || '',
+              description: item.description || '',
+            }));
           });
 
-          form.setValue(
-            'what_i_offer',
-            data.topics?.interests?.map((i) => i.subject_group) || []
-          );
-          form.setValue(
-            'expertises',
-            data.expertises?.professions?.map((i) => i.subject_group) || []
-          );
-          form.setValue(
-            'interested_positions',
-            data.interested_positions?.interests?.map((i) => i.subject_group) ||
-              []
-          );
-          form.setValue(
-            'skills',
-            data.skills?.interests?.map((i) => i.subject_group) || []
-          );
-          form.setValue(
-            'topics',
-            data.topics?.interests?.map((i) => i.subject_group) || []
-          );
-          form.setValue(
-            'what_i_offer',
-            parseWhatIOffer(
-              data.experiences as unknown as MentorExperiencePayload[]
-            )
-          );
+        const parsedEducations = data.experiences
+          ?.filter((e) => e.category === 'EDUCATION')
+          .flatMap((e): EducationFormValue[] => {
+            const metadata =
+              e.mentor_experiences_metadata as MentorExperienceMetadata<EducationFormValue>;
+            const entries = metadata?.data || [];
 
-          setIsMentor(data.is_mentor || isMentorOnboarding);
-          setIsPageLoading(false);
-        }
+            return entries.map((item) => ({
+              id: typeof e.id === 'number' ? e.id : -1,
+              school: item.school || '',
+              subject: item.subject || '',
+              educationPeriodStart: item.educationPeriodStart || '',
+              educationPeriodEnd: item.educationPeriodEnd || '',
+            }));
+          });
+
+        const parsedLinks = parseLinks(
+          data.experiences as unknown as MentorExperiencePayload[]
+        );
+
+        form.reset({
+          is_mentor: mentorFlag,
+          avatar: data.avatar || '',
+          avatarFile: undefined,
+          name: data.name || '',
+          location: data.location || '',
+          statement: data.personal_statement || '',
+          about: data.about || '',
+          industry: data.industry?.subject_group || '',
+          years_of_experience: data.years_of_experience || '',
+          linkedin: parsedLinks.linkedin || defaultValues.linkedin,
+          facebook: parsedLinks.facebook || defaultValues.facebook,
+          instagram: parsedLinks.instagram || defaultValues.instagram,
+          twitter: parsedLinks.twitter || defaultValues.twitter,
+          youtube: parsedLinks.youtube || defaultValues.youtube,
+          website: parsedLinks.website || defaultValues.website,
+          work_experiences: parsedExperiences || defaultValues.work_experiences,
+          educations: parsedEducations || defaultValues.educations,
+        });
+
+        form.setValue(
+          'expertises',
+          data.expertises?.professions?.map((i) => i.subject_group) || []
+        );
+        form.setValue(
+          'interested_positions',
+          data.interested_positions?.interests?.map((i) => i.subject_group) ||
+            []
+        );
+        form.setValue(
+          'skills',
+          data.skills?.interests?.map((i) => i.subject_group) || []
+        );
+        form.setValue(
+          'topics',
+          data.topics?.interests?.map((i) => i.subject_group) || []
+        );
+        form.setValue(
+          'what_i_offer',
+          parseWhatIOffer(
+            data.experiences as unknown as MentorExperiencePayload[]
+          )
+        );
+
+        setIsMentor(mentorFlag);
+        setIsPageLoading(false);
       } catch (err) {
+        // 你可以加 toast
         console.error('Fetch User Data Error:', err);
       }
     }
 
     fetchUserData();
-  }, []);
 
-  if (!isAuthorized) {
-    return null;
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, [form, isAuthorized, isMentorOnboarding]);
+
+  if (!isAuthorized) return null;
+  if (isPageLoading) return null;
 
   const handleGoToPrev = () => {
     router.push(`/profile/${pageUserId}`);
   };
 
   const onSubmit = async (values: ProfileFormValues) => {
-    if (jobSectionError || educationSectionError) {
-      return;
-    }
+    if (jobSectionError || educationSectionError) return;
 
-    let avatar = values.avatar;
+    try {
+      setIsPageLoading(true);
 
-    if (values.avatarFile) {
-      const newUrl = await updateAvatar(values.avatarFile);
-      avatar = newUrl ?? avatar;
-    }
+      // 1) avatar upload (if any)
+      let avatar = values.avatar;
+      if (values.avatarFile) {
+        const newUrl = await updateAvatar(values.avatarFile);
+        avatar = newUrl ?? avatar;
+      }
 
-    const payload = {
-      ...values,
-      avatar,
-      avatarFile: undefined,
-    };
+      // 2) profile update
+      const payload = { ...values, avatar, avatarFile: undefined };
+      await updateProfile(payload);
 
-    await updateProfile(payload);
+      // 3) upsert experiences (keep your original logic)
+      if (values.work_experiences?.length > 0) {
+        await upsertMentorExperience(ExperienceType.WORK, true, {
+          id: 1,
+          category: ExperienceType.WORK,
+          mentor_experiences_metadata: {
+            data: values.work_experiences.map((item) => ({
+              job: item.job,
+              company: item.company,
+              jobPeriodStart: item.jobPeriodStart,
+              jobPeriodEnd: item.jobPeriodEnd,
+              industry: item.industry,
+              jobLocation: item.jobLocation,
+              description: item.description,
+            })),
+          },
+          order: 1,
+        });
+      }
 
-    if (values.work_experiences?.length > 0) {
-      await upsertMentorExperience(ExperienceType.WORK, true, {
-        id: 1,
-        category: ExperienceType.WORK,
-        mentor_experiences_metadata: {
-          data: values.work_experiences.map((item) => ({
-            job: item.job,
-            company: item.company,
-            jobPeriodStart: item.jobPeriodStart,
-            jobPeriodEnd: item.jobPeriodEnd,
-            industry: item.industry,
-            jobLocation: item.jobLocation,
-            description: item.description,
-          })),
+      if (values.educations?.length > 0) {
+        await upsertMentorExperience(ExperienceType.EDUCATION, true, {
+          id: 2,
+          category: ExperienceType.EDUCATION,
+          mentor_experiences_metadata: {
+            data: values.educations.map((item) => ({
+              school: item.school,
+              subject: item.subject,
+              educationPeriodStart: item.educationPeriodStart,
+              educationPeriodEnd: item.educationPeriodEnd,
+            })),
+          },
+          order: 2,
+        });
+      }
+
+      const links = [
+        values.linkedin,
+        values.facebook,
+        values.instagram,
+        values.twitter,
+        values.youtube,
+        values.website,
+      ].filter((l) => l && l.url);
+
+      if (links.length > 0) {
+        await upsertMentorExperience(ExperienceType.LINK, true, {
+          id: 3,
+          category: ExperienceType.LINK,
+          mentor_experiences_metadata: {
+            data: links.map((link) => ({
+              platform: link.platform,
+              url: link.url,
+            })),
+          },
+          order: 3,
+        });
+      }
+
+      if (values.what_i_offer?.length > 0) {
+        await upsertMentorExperience(ExperienceType.WHAT_I_OFFER, true, {
+          id: 4,
+          category: ExperienceType.WHAT_I_OFFER,
+          mentor_experiences_metadata: {
+            data: values.what_i_offer.map((item) => ({
+              subject_group: item,
+            })),
+          },
+          order: 4,
+        });
+      }
+
+      // 4) fetch latest user to sync session accurately
+      const latest = await fetchUser('zh_TW');
+
+      // 5) update next-auth session (requires jwt trigger update handler!)
+      await updateSession({
+        user: {
+          // keep id from current session
+          id: session?.user?.id,
+          name: latest?.name ?? values.name ?? session?.user?.name,
+          avatar: latest?.avatar ?? avatar ?? session?.user?.avatar,
+          isMentor: Boolean(latest?.is_mentor),
+          onBoarding: Boolean(latest?.onboarding),
+          msg: session?.user?.msg,
         },
-        order: 1,
       });
-    }
 
-    if (values.educations?.length > 0) {
-      await upsertMentorExperience(ExperienceType.EDUCATION, true, {
-        id: 2,
-        category: ExperienceType.EDUCATION,
-        mentor_experiences_metadata: {
-          data: values.educations.map((item) => ({
-            school: item.school,
-            subject: item.subject,
-            educationPeriodStart: item.educationPeriodStart,
-            educationPeriodEnd: item.educationPeriodEnd,
-          })),
-        },
-        order: 2,
-      });
-    }
-
-    const links = [
-      values.linkedin,
-      values.facebook,
-      values.instagram,
-      values.twitter,
-      values.youtube,
-      values.website,
-    ].filter((l) => l && l.url);
-
-    if (links.length > 0) {
-      await upsertMentorExperience(ExperienceType.LINK, true, {
-        id: 3,
-        category: ExperienceType.LINK,
-        mentor_experiences_metadata: {
-          data: links.map((link) => ({
-            platform: link.platform,
-            url: link.url,
-          })),
-        },
-        order: 3,
-      });
-    }
-
-    if (values.what_i_offer?.length > 0) {
-      await upsertMentorExperience(ExperienceType.WHAT_I_OFFER, true, {
-        id: 4,
-        category: ExperienceType.WHAT_I_OFFER,
-        mentor_experiences_metadata: {
-          data: values.what_i_offer.map((item) => ({
-            subject_group: item,
-          })),
-        },
-        order: 4,
-      });
-    }
-
-    if (isMentorOnboarding) {
-      router.push('/profile/card');
-    } else {
-      handleGoToPrev();
+      // 6) navigate
+      if (isMentorOnboarding) {
+        router.push('/profile/card');
+      } else {
+        handleGoToPrev();
+      }
+    } catch (err) {
+      console.error('Update Profile Error:', err);
+      setIsPageLoading(false);
     }
   };
-
-  if (isPageLoading) {
-    return null;
-  }
 
   return (
     <div className="mx-auto w-11/12 max-w-[1064px] pb-20 pt-10">
@@ -410,14 +431,16 @@ export default function Page({
           />
           <p className="text-4xl font-bold">編輯個人頁面</p>
         </div>
+
         <div className="flex items-center gap-4">
           <Button
             variant="outline"
-            className="hidden grow rounded-full  px-6 py-3 sm:inline-flex sm:grow-0"
+            className="hidden grow rounded-full px-6 py-3 sm:inline-flex sm:grow-0"
             onClick={handleGoToPrev}
           >
             取消
           </Button>
+
           <Button
             type="submit"
             variant="default"
@@ -428,6 +451,7 @@ export default function Page({
           </Button>
         </div>
       </div>
+
       <Form {...form}>
         <form
           id="edit-profile-form"
@@ -439,6 +463,7 @@ export default function Page({
             name="avatarFile"
             avatarUrl={form.watch('avatar') ?? ''}
           />
+
           <Section
             title={
               <>
@@ -612,11 +637,13 @@ export default function Page({
             isMentor={isMentor}
             onValidationChange={setJobSectionError}
           />
+
           <EducationSection
             form={form}
             isMentor={isMentor}
             onValidationChange={setEducationSectionError}
           />
+
           <LinksSection form={form} />
         </form>
       </Form>
