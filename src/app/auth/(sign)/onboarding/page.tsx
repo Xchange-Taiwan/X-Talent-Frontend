@@ -2,6 +2,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import ArrowBackIcon from '@mui/icons-material/ArrowBackIosNew';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -45,13 +46,10 @@ export default function Page() {
 
   const [currentStep, setCurrentStep] = useState(1);
 
+  const { data: session } = useSession();
   useEffect(() => {
-    const name = sessionStorage.getItem('name');
-    let avatar = sessionStorage.getItem('avatar');
-
-    if (avatar) {
-      avatar = avatar.slice(0, avatar.lastIndexOf('='));
-    }
+    const name = session?.user?.name ?? '';
+    const avatar = session?.user?.avatar ?? '';
 
     step1Form.reset({
       name: name || '',
