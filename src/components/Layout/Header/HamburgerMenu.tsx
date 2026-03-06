@@ -47,7 +47,7 @@ export function HamburgerMenu({
           </SheetClose>
 
           <div className="flex flex-col items-center gap-10 text-2xl">
-            <Link href="/mentorPool" onClick={close} className="text-black">
+            <Link href="/mentor-pool" onClick={close} className="text-black">
               尋找導師
             </Link>
 

@@ -17,7 +17,7 @@ export function Header(): JSX.Element {
   const isMentor = Boolean(session?.user?.isMentor);
   const userId = session?.user?.id;
 
-  const findMentorHref = '/mentorPool';
+  const findMentorHref = '/mentor-pool';
 
   const becomeMentorHref = !isLoggedIn
     ? '/auth/signup'

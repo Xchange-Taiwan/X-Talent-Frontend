@@ -99,7 +99,7 @@ export default function Page() {
           <Button
             variant="default"
             className="grow rounded-full px-6 py-3 sm:grow-0"
-            onClick={() => router.push('/mentorPool')}
+            onClick={() => router.push('/mentor-pool')}
           >
             開始探索 X-Talent
           </Button>
