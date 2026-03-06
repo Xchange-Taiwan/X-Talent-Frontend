@@ -7,9 +7,6 @@ const authOptions = {
   session: { strategy: 'jwt' },
 
   providers: [
-    /***************************************
-     * Username + Password Login Provider
-     ***************************************/
     CredentialsProvider({
       name: 'credentials',
       credentials: {
@@ -36,20 +33,35 @@ const authOptions = {
         const response = await res.json();
         if (!res.ok || !response?.data) return null;
 
+        const experiences: {
+          category: string;
+          mentor_experiences_metadata?: { data?: unknown[] };
+        }[] = response.data.user.experiences ?? [];
+        const personalLinks = experiences
+          .filter((exp) => exp.category === 'LINK')
+          .flatMap(
+            (exp) =>
+              (exp.mentor_experiences_metadata?.data ?? []) as {
+                platform: string;
+                url: string;
+              }[]
+          )
+          .filter((l) => Boolean(l.url));
+
         return {
-          id: response.data.auth.user_id,
+          id: String(response.data.auth.user_id),
           token: response.data.auth.token,
           onBoarding: response.data.user.onboarding,
           isMentor: response.data.user.is_mentor,
           name: response.data.user.name,
           avatar: response.data.user.avatar,
+          jobTitle: response.data.user.job_title ?? '',
+          company: response.data.user.company ?? '',
+          personalLinks,
         };
       },
     }),
 
-    /***************************************
-     * Custom Google Token Provider
-     ***************************************/
     CredentialsProvider({
       id: 'custom-google-token',
       name: 'Custom Google Token',
@@ -63,13 +75,31 @@ const authOptions = {
         try {
           const user = JSON.parse(credentials.user as string);
 
+          const experiences: {
+            category: string;
+            mentor_experiences_metadata?: { data?: unknown[] };
+          }[] = user.experiences ?? [];
+          const personalLinks = experiences
+            .filter((exp) => exp.category === 'LINK')
+            .flatMap(
+              (exp) =>
+                (exp.mentor_experiences_metadata?.data ?? []) as {
+                  platform: string;
+                  url: string;
+                }[]
+            )
+            .filter((l) => Boolean(l.url));
+
           return {
-            id: user.user_id,
+            id: String(user.user_id),
             token: credentials.token,
             name: user.name,
             avatar: user.avatar,
             isMentor: user.is_mentor,
             onBoarding: user.onboarding,
+            jobTitle: user.job_title ?? '',
+            company: user.company ?? '',
+            personalLinks,
           };
         } catch {
           return null;
@@ -78,16 +108,12 @@ const authOptions = {
     }),
   ],
 
-  /***************************************
-   * JWT + Session callbacks
-   ***************************************/
   callbacks: {
     async jwt({ token, user, trigger, session }) {
-      // 1) initial sign-in (user comes from authorize())
-      if (user) return { ...token, ...user };
+      if (user) {
+        return { ...token, ...user };
+      }
 
-      // 2) client calls useSession().update(...)
-      // IMPORTANT: this enables session update after profile edit
       if (trigger === 'update' && session?.user) {
         return {
           ...token,
@@ -100,11 +126,14 @@ const authOptions = {
 
     async session({ session, token }) {
       session.user = {
-        id: token.id ?? undefined,
+        id: (token.id as string | undefined) ?? undefined,
         name: (token.name as string | null | undefined) ?? undefined,
-        avatar: (token.avatar as string | null | undefined) ?? undefined,
+        avatar: (token.avatar as string | undefined) ?? undefined,
         onBoarding: (token.onBoarding as boolean | undefined) ?? undefined,
         isMentor: (token.isMentor as boolean | undefined) ?? undefined,
+        jobTitle: (token.jobTitle as string | undefined) ?? undefined,
+        company: (token.company as string | undefined) ?? undefined,
+        personalLinks: token.personalLinks ?? [],
         msg: (token.msg as string | undefined) ?? undefined,
       };
 

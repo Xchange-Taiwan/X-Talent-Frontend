@@ -1,5 +1,10 @@
 import { DefaultSession } from 'next-auth';
 
+export interface PersonalLink {
+  platform: string;
+  url: string;
+}
+
 declare module 'next-auth' {
   interface User {
     id?: string;
@@ -8,6 +13,9 @@ declare module 'next-auth' {
     name?: string | null;
     avatar?: string | null;
     isMentor?: boolean;
+    jobTitle?: string;
+    company?: string;
+    personalLinks?: PersonalLink[];
     msg?: string;
   }
 
@@ -25,6 +33,9 @@ declare module 'next-auth/jwt' {
     name?: string | null;
     avatar?: string | null;
     isMentor?: boolean;
+    jobTitle?: string;
+    company?: string;
+    personalLinks?: PersonalLink[];
     msg?: string;
   }
 }
