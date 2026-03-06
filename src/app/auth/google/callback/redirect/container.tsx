@@ -111,7 +111,7 @@ export default function GoogleOAuthRedirectPage() {
     if (backendData.auth_type === 'SIGNUP') {
       console.log('[OAuth Debug] SIGNUP detected');
       sessionStorage.setItem('email', backendData.auth.email);
-      router.push('/auth/emailVerify');
+      router.push('/auth/email-verify');
       return;
     }
 
@@ -140,7 +140,7 @@ export default function GoogleOAuthRedirectPage() {
     if (session?.user?.onBoarding === false) {
       router.push('/auth/onboarding');
     } else {
-      router.push('/mentorPool');
+      router.push('/mentor-pool');
     }
   };
 

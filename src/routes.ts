@@ -8,13 +8,13 @@ export const publicRoutes: string[] = [
   '/auth/signin',
   '/auth/signup',
   '/auth/google/callback/redirect',
-  '/auth/passwordForget',
-  '/auth/passwordReset',
-  '/auth/passwordResetSuccess',
-  '/auth/emailVerify',
-  '/auth/emailVerified',
+  '/auth/password-forget',
+  '/auth/password-reset',
+  '/auth/password-reset-success',
+  '/auth/email-verify',
+  '/auth/email-verified',
   '/profile/[pageUserId]',
-  '/mentorPool',
+  '/mentor-pool',
 ];
 
 /**

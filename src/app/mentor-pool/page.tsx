@@ -11,7 +11,7 @@ import {
   SelectFilters,
 } from '@/components/filter/mentorFilterDropdown';
 import MentorFilterDropdown from '@/components/filter/mentorFilterDropdown';
-import { MentorCardList } from '@/components/mentorPool/mentorCardList';
+import { MentorCardList } from '@/components/mentor-pool/mentorCardList';
 import { Badge } from '@/components/ui/badge';
 import SearchBar from '@/components/ui/searchBar';
 import { fetchMentors, MentorType } from '@/services/searchMentor/mentors';
@@ -65,7 +65,7 @@ const filterOptions: FilterOptions = {
   },
 };
 
-const MentorPool = () => {
+const Page = () => {
   const [searchPattern, setSearchPattern] = useState('');
   const [mentorCount, setMentorCount] = useState<number>(0);
   const [mentors, setMentors] = useState<MentorType[]>([]);
@@ -262,4 +262,4 @@ const LoadingIcon = () => {
   );
 };
 
-export default MentorPool;
+export default Page;
