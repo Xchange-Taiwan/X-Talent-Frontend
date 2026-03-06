@@ -71,7 +71,7 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
       if (session.user.onBoarding === false) {
         router.push('/auth/onboarding');
       } else {
-        router.push('/mentorPool');
+        router.push('/mentor-pool');
       }
     } catch (err) {
       console.error(err);

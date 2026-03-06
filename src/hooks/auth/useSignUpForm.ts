@@ -35,7 +35,7 @@ export default function useSignUpForm(): AuthFormProps<SignUpValues> {
 
       if (result.status === 'success') {
         sessionStorage.setItem('email', values.email);
-        router.push('/auth/emailVerify');
+        router.push('/auth/email-verify');
         return;
       }
     } catch (error) {
