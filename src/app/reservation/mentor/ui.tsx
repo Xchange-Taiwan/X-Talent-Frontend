@@ -1,3 +1,5 @@
+'use client';
+
 import ReservationTabs, { type ReservationTabsProps } from './ReservationTabs';
 
 export type ReservationPresentationProps = ReservationTabsProps;
