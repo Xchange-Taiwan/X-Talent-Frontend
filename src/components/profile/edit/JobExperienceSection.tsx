@@ -102,7 +102,7 @@ export const JobExperienceSection = ({
       job: '',
       company: '',
       jobPeriodStart: '',
-      jobPeriodEnd: '',
+      jobPeriodEnd: 'now',
       industry: '',
       jobLocation: 'TWN',
       description: '',

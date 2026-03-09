@@ -1,11 +1,20 @@
 'use client';
 
 import { PlusIcon, TrashIcon } from '@radix-ui/react-icons';
-import React, { useEffect } from 'react';
+import { Check, ChevronsUpDown } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { useFieldArray, UseFormReturn, useWatch } from 'react-hook-form';
 
 import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
 import { Button } from '@/components/ui/button';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import {
   FormControl,
   FormField,
@@ -15,16 +24,81 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
 import { ProfileFormValues } from '../profileSchema';
 import { Section } from '../Section';
 import { taiwanSchools } from './schoolData';
+
+function SchoolComboboxField({
+  field,
+}: {
+  field: { value: string; onChange: (value: string) => void };
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <FormItem className="grow">
+      <FormLabel>學校名稱</FormLabel>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <FormControl>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={open}
+              className="w-full justify-between font-normal"
+            >
+              <span className={cn(!field.value && 'text-muted-foreground')}>
+                {field.value || '請選擇學校'}
+              </span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </FormControl>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+          <Command>
+            <CommandInput placeholder="搜尋學校..." />
+            <CommandList>
+              <CommandEmpty>找不到相符的學校</CommandEmpty>
+              <CommandGroup>
+                {taiwanSchools.map((school) => (
+                  <CommandItem
+                    key={school}
+                    value={school}
+                    onSelect={(value) => {
+                      field.onChange(value);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        'mr-2 h-4 w-4',
+                        field.value === school ? 'opacity-100' : 'opacity-0'
+                      )}
+                    />
+                    {school}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      <FormMessage />
+    </FormItem>
+  );
+}
 
 interface Props {
   form: UseFormReturn<ProfileFormValues>;
@@ -67,7 +141,7 @@ export const EducationSection = ({
       subject: '',
       school: '',
       educationPeriodStart: '',
-      educationPeriodEnd: '',
+      educationPeriodEnd: 'now',
     });
   };
 
@@ -130,29 +204,7 @@ export const EducationSection = ({
               <FormField
                 control={control}
                 name={`educations.${index}.school`}
-                render={({ field }) => (
-                  <FormItem className="grow">
-                    <FormLabel>學校名稱</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="請選擇學校" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {taiwanSchools.map((school) => (
-                          <SelectItem key={school} value={school}>
-                            {school}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                render={({ field }) => <SchoolComboboxField field={field} />}
               />
             </div>
 

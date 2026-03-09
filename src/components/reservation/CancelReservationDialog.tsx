@@ -77,7 +77,7 @@ export default function CancelReservationDialog({
           <div className="p-6">
             <DialogHeader className="mb-4">
               <DialogTitle className="text-center sm:text-left">
-                Cancel Reservation
+                取消預約
               </DialogTitle>
               <DialogDescription className="text-center sm:text-left">
                 Visual communication through imagery, typography, and color.
@@ -117,14 +117,14 @@ export default function CancelReservationDialog({
             <DialogFooter className="mt-6 gap-2">
               <DialogClose asChild>
                 <Button variant="outline" className="w-full sm:w-auto">
-                  Keep Reservation
+                  維持預約
                 </Button>
               </DialogClose>
               <Button
                 className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto"
                 onClick={() => setStep('reason')}
               >
-                Cancel Reservation
+                取消預約
               </Button>
             </DialogFooter>
           </div>
@@ -132,7 +132,7 @@ export default function CancelReservationDialog({
           <div className="p-6">
             <DialogHeader className="mb-4">
               <DialogTitle className="text-center sm:text-left">
-                Reason for Cancellation
+                取消原因
               </DialogTitle>
               <DialogDescription className="text-center sm:text-left">
                 Let the mentor know why you need to cancel.
@@ -149,7 +149,7 @@ export default function CancelReservationDialog({
             <DialogFooter className="mt-6 gap-2">
               <DialogClose asChild>
                 <Button variant="outline" className="w-full sm:w-auto">
-                  No, keep it.
+                  維持預約
                 </Button>
               </DialogClose>
               <Button
@@ -157,7 +157,7 @@ export default function CancelReservationDialog({
                 className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto"
                 onClick={handleConfirm}
               >
-                Yes, cancel it.
+                取消預約
               </Button>
             </DialogFooter>
           </div>
