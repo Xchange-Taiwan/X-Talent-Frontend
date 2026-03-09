@@ -3,12 +3,12 @@
 
 import { getSession } from 'next-auth/react';
 
-import AcceptReservationDialog from '@/components/reservation/acceptReservationDialog';
-import CancelReservationDialog from '@/components/reservation/cancelReservationDialog';
+import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
+import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { updateReservationStatus } from '@/services/reservations';
 
-import { ReservationCard } from './reservationCard';
+import { ReservationCard } from './ReservationCard';
 import type { Reservation } from './types';
 
 type Variant = 'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';

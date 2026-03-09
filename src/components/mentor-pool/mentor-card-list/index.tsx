@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 
-import { MentorType } from '@/services/searchMentor/mentors';
+import { MentorType } from '@/services/search-mentor/mentors';
 
-import { MentorCard } from '../mentorCard';
+import { MentorCard } from '../mentor-card';
 
 interface MentorCardListProps {
   mentors: MentorType[];

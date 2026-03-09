@@ -1,7 +1,7 @@
 import { getSession } from 'next-auth/react';
 import * as z from 'zod';
 
-import { formSchema } from '@/components/onboarding/Steps';
+import { formSchema } from '@/components/onboarding/steps';
 import { createProfileFormSchema } from '@/components/profile/edit/profileSchema';
 
 export const unionformSchema = z.union([

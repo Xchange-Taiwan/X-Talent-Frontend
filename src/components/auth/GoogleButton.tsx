@@ -1,6 +1,6 @@
 import { useRouter } from 'next/navigation';
 
-import { GoogleColor } from '@/components/Icon';
+import { GoogleColor } from '@/components/icon';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 

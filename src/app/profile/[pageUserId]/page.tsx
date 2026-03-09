@@ -9,7 +9,7 @@ import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import {
   EducationSection,
   WorkExperienceSection,
-} from '@/components/profile/ExperienceSection/ExperienceSection';
+} from '@/components/profile/experience-section/ExperienceSection';
 import MenteeReservationDialog from '@/components/profile/reservation/MenteeReservationDialog';
 import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
 import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalendar';
@@ -19,7 +19,7 @@ import {
   ParsedMentorTimeslot,
   useMentorSchedule,
 } from '@/hooks/useMentorSchedule';
-import useUserData from '@/hooks/user/userData/useUserData';
+import useUserData from '@/hooks/user/user-data/useUserData';
 
 const platformLabelMap: Record<string, { label: string; icon: JSX.Element }> = {
   linkedin: {

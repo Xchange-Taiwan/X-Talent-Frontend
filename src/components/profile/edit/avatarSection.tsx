@@ -3,9 +3,9 @@
 import React from 'react';
 import { Control, FieldValues, Path } from 'react-hook-form';
 
-import AvatarUpload from '@/components/ui/avatarUpload';
+import AvatarUpload from '@/components/ui/avatar-upload';
 
-import { Section } from './section';
+import { Section } from './Section';
 
 interface AvatarSectionProps<T extends FieldValues> {
   control: Control<T>;

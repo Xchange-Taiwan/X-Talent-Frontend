@@ -4,7 +4,7 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import * as Popover from '@radix-ui/react-popover';
 import React, { useCallback, useEffect, useState } from 'react';
 
-import FilterSelect from '@/components/filter/filterSelect';
+import FilterSelect from '@/components/filter/FilterSelect';
 import { Button } from '@/components/ui/button';
 
 export type FilterOptions = {

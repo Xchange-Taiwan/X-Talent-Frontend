@@ -4,9 +4,9 @@ import { useRouter } from 'next/navigation';
 import { getSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
-import { ProfileCard } from '@/components/profile/ProfileCard';
+import { ProfileCard } from '@/components/profile/profile-card';
 import { Button } from '@/components/ui/button';
-import useUserData from '@/hooks/user/userData/useUserData';
+import useUserData from '@/hooks/user/user-data/useUserData';
 
 export default function Page() {
   const router = useRouter();

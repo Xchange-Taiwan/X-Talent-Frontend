@@ -2,9 +2,9 @@
 
 import type { FC, ReactNode } from 'react';
 
-import { InterestType } from '@/hooks/user/userData/useUserData';
+import { InterestType } from '@/hooks/user/user-data/useUserData';
 
-import { AvatarCard } from '../AvatarCard';
+import { AvatarCard } from '../avatar-card';
 
 const SubTitle: FC<{ children: ReactNode }> = ({ children }) => {
   return <h2 className="mb-3 text-base font-bold">{children}</h2>;

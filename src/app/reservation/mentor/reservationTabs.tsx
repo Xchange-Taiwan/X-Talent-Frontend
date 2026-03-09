@@ -1,6 +1,6 @@
 'use client';
 
-import { ReservationList } from '@/components/reservation/reservationList';
+import { ReservationList } from '@/components/reservation/ReservationList';
 import type { Reservation } from '@/components/reservation/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 

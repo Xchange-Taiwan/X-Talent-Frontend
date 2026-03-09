@@ -12,7 +12,7 @@ import {
   saveMentorSchedule,
   ScheduleTimeSlots,
   UpsertTimeslotBackend,
-} from '@/services/mentorSchedule/schedule';
+} from '@/services/mentor-schedule/schedule';
 
 export type RawMentorTimeslot = {
   id: number; // 新增用負數暫存 id（-1, -2, ...）

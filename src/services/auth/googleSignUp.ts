@@ -4,7 +4,7 @@ import {
   createRateLimitResponse,
   createSignUpSuccessResponse,
   createValidationErrorResponse,
-} from './signupResponseHandlers';
+} from './signUpResponseHandlers';
 
 export interface GoogleSignUpType {
   email: string;

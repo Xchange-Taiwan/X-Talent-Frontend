@@ -21,7 +21,7 @@ import {
   ParsedMentorTimeslot,
   UseMentorScheduleReturn,
 } from '@/hooks/useMentorSchedule';
-import { UserType } from '@/hooks/user/userData/useUserData';
+import { UserType } from '@/hooks/user/user-data/useUserData';
 import {
   createReservation,
   CreateReservationPayload,

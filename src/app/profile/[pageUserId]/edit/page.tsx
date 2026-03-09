@@ -8,16 +8,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
-import { totalWorkSpanOptions } from '@/components/onboarding/Steps/constant';
-import { AvatarSection } from '@/components/profile/edit/avatarSection';
+import { totalWorkSpanOptions } from '@/components/onboarding/steps/constant';
+import { AvatarSection } from '@/components/profile/edit/AvatarSection';
 import { EducationSection } from '@/components/profile/edit/educationSection/educationSection';
 import {
   SelectField,
   TextareaField,
   TextField,
-} from '@/components/profile/edit/fields';
-import { JobExperienceSection } from '@/components/profile/edit/jobExperienceSection';
-import { LinksSection } from '@/components/profile/edit/linkSection';
+} from '@/components/profile/edit/Fields';
+import { JobExperienceSection } from '@/components/profile/edit/JobExperienceSection';
+import { LinksSection } from '@/components/profile/edit/LinkSection';
 import { MultiSelectField } from '@/components/profile/edit/MultiSelectField';
 import {
   createProfileFormSchema,
@@ -27,7 +27,7 @@ import {
   personLinkSchema,
   ProfileFormValues,
 } from '@/components/profile/edit/profileSchema';
-import { Section } from '@/components/profile/edit/section';
+import { Section } from '@/components/profile/edit/Section';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import useLocations from '@/hooks/user/country/useLocations';
