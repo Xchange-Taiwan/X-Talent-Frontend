@@ -120,7 +120,7 @@ export function useProfileSubmit({
       }
 
       // 4) poll until backend reflects all updated fields (up to 1 min, every 5s)
-      const latest = await pollUntilSynced(values, avatar);
+      const latest = await pollUntilSynced(values, avatar ?? '');
 
       // 5) update next-auth session (requires jwt trigger update handler!)
       await updateSession({
