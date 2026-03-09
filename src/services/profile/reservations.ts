@@ -1,5 +1,7 @@
 import { getSession } from 'next-auth/react';
 
+import { apiClient } from '@/lib/apiClient';
+
 export interface ExperienceType {
   [key: string]: unknown;
 }
@@ -26,21 +28,10 @@ export async function fetchReservationsByUserId(
   userId: number
 ): Promise<ReservationType | null> {
   try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${userId}/reservations`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
+    const result = await apiClient.get<ReservationsResponse>(
+      `/v1/users/${userId}/reservations`,
+      { auth: false }
     );
-
-    if (!response.ok) {
-      throw new Error(`HTTP Error: ${response.status}`);
-    }
-
-    const result: ReservationsResponse = await response.json();
 
     if (result.code !== '0') {
       console.error(`API Error: ${result.msg}`);

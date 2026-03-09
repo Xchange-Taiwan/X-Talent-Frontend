@@ -1,5 +1,7 @@
 import { getSession } from 'next-auth/react';
 
+import { apiClient } from '@/lib/apiClient';
+
 export interface PresignedUrlFields {
   key: string;
   AWSAccessKeyId: string;
@@ -36,27 +38,9 @@ export async function fetchPresignedUrlByUserId(
   userId: number
 ): Promise<PresignedUrlData | null> {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (!baseUrl) {
-      console.error('Missing NEXT_PUBLIC_API_URL');
-      return null;
-    }
-    console.log(userId);
-    const response = await fetch(
-      `${baseUrl}/v1/storage/presigned-url/${userId}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
+    const result = await apiClient.get<PresignedUrlResponse>(
+      `/v1/storage/presigned-url/${userId}`
     );
-    console.log(response);
-    if (!response.ok) {
-      throw new Error(`HTTP Error: ${response.status}`);
-    }
-
-    const result: PresignedUrlResponse = await response.json();
 
     if (result.code !== '0') {
       console.error(`API Error: ${result.msg}`);
