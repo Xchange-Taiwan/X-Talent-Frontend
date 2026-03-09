@@ -1,8 +1,77 @@
+'use client';
+
 import Link from 'next/link';
+import { Suspense } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import usePasswordResetForm from '@/hooks/auth/usePasswordResetForm';
+
+function PasswordResetForm() {
+  const { form, isSubmitting, onSubmit } = usePasswordResetForm();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = form;
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} noValidate>
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <Label
+            htmlFor="password"
+            className="text-base font-normal text-[#2B2B2B]"
+          >
+            新密碼
+          </Label>
+          <Input
+            id="password"
+            type="password"
+            placeholder="請輸入新密碼"
+            className="h-[36px] rounded-[8px] border border-[#D9D9D9] px-3 text-sm placeholder:text-[#B3B3B3]"
+            {...register('password')}
+          />
+          {errors.password && (
+            <p className="text-red-500 text-sm">{errors.password.message}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label
+            htmlFor="confirm_password"
+            className="text-base font-normal text-[#2B2B2B]"
+          >
+            確認新密碼
+          </Label>
+          <Input
+            id="confirm_password"
+            type="password"
+            placeholder="請再次輸入新密碼"
+            className="h-[36px] rounded-[8px] border border-[#D9D9D9] px-3 text-sm placeholder:text-[#B3B3B3]"
+            {...register('confirm_password')}
+          />
+          {errors.confirm_password && (
+            <p className="text-red-500 text-sm">
+              {errors.confirm_password.message}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-8 flex justify-center">
+        <Button
+          type="submit"
+          disabled={isSubmitting}
+          className="text-white h-[36px] min-w-[92px] rounded-full bg-[#35C9CF] px-6 text-sm font-semibold hover:bg-[#2fbec4] disabled:opacity-50"
+        >
+          {isSubmitting ? '處理中...' : '更改密碼'}
+        </Button>
+      </div>
+    </form>
+  );
+}
 
 export default function Page() {
   return (
@@ -14,43 +83,9 @@ export default function Page() {
               重設密碼
             </h1>
 
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <Label
-                  htmlFor="password"
-                  className="text-base font-normal text-[#2B2B2B]"
-                >
-                  新密碼
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="請輸入新密碼"
-                  className="h-[36px] rounded-[8px] border border-[#D9D9D9] px-3 text-sm placeholder:text-[#B3B3B3]"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label
-                  htmlFor="password-confirm"
-                  className="text-base font-normal text-[#2B2B2B]"
-                >
-                  確認新密碼
-                </Label>
-                <Input
-                  id="password-confirm"
-                  type="password"
-                  placeholder="請再次輸入新密碼"
-                  className="h-[36px] rounded-[8px] border border-[#D9D9D9] px-3 text-sm placeholder:text-[#B3B3B3]"
-                />
-              </div>
-            </div>
-
-            <div className="mt-8 flex justify-center">
-              <Button className="text-white h-[36px] min-w-[92px] rounded-full bg-[#35C9CF] px-6 text-sm font-semibold hover:bg-[#2fbec4]">
-                更改密碼
-              </Button>
-            </div>
+            <Suspense>
+              <PasswordResetForm />
+            </Suspense>
 
             <div className="mt-6 text-center">
               <Link
