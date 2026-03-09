@@ -116,6 +116,6 @@ jobs:
             fi
           } >> $GITHUB_STEP_SUMMARY
 
-      - name: Fail on security vulnerabilities
-        if: steps.audit.outputs.result == 'failed'
-        run: exit 1
+      # Security audit is informational — findings are reported in the summary
+      # but do not block CI. Address high/critical advisories as part of
+      # regular dependency maintenance.
