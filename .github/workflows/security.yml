@@ -138,5 +138,9 @@ jobs:
       - name: Fail on unused dependencies
         if: steps.depcheck.outputs.unused_found == 'true'
         run: |
-          echo "❌ Build failed: unused dependencies detected. Remove them or add to the ignore list."
+          echo "❌ Unused dependencies detected:"
+          echo ""
+          echo "${{ steps.depcheck.outputs.unused_list }}"
+          echo ""
+          echo "→ Remove them from package.json, or add to the --ignores list in security.yml if they are config-only deps."
           exit 1
