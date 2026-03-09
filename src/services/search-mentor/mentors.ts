@@ -1,5 +1,7 @@
 import { StaticImageData } from 'next/image';
 
+import { apiClient } from '@/lib/apiClient';
+
 export interface experienceType {
   duration: string;
   company: string;
@@ -48,30 +50,12 @@ interface MentorResponse {
 
 export async function fetchMentors(
   param: MentorRequest
-): Promise<MentorType[] | []> {
+): Promise<MentorType[]> {
   try {
-    const query = new URLSearchParams();
-    Object.entries(param).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        query.append(key, String(value));
-      }
+    const result = await apiClient.get<MentorResponse>('/v1/mentors', {
+      auth: false,
+      params: param as unknown as Record<string, string | number | undefined>,
     });
-
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors?${query.toString()}`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`HTTP Error: ${response.status}`);
-    }
-
-    const result: MentorResponse = await response.json();
 
     if (result.code !== '0') {
       console.error(`API Error: ${result.msg}`);

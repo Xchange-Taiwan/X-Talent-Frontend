@@ -1,4 +1,5 @@
-// schedule.ts
+import { apiClient } from '@/lib/apiClient';
+
 export interface ScheduleRequest {
   userId: string;
   year: number;
@@ -33,12 +34,10 @@ export async function fetchMentorSchedule(
   param: ScheduleRequest
 ): Promise<ScheduleType> {
   try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors/${param.userId}/schedule/y/${param.year}/m/${param.month}`,
-      { method: 'GET', headers: { 'Content-Type': 'application/json' } }
+    const result = await apiClient.get<ScheduleResponse>(
+      `/v1/mentors/${param.userId}/schedule/y/${param.year}/m/${param.month}`,
+      { auth: false }
     );
-    if (!res.ok) throw new Error(String(res.status));
-    const result: ScheduleResponse = await res.json();
     if (result.code !== '0') return {} as ScheduleType;
     return result.data;
   } catch {
@@ -61,13 +60,15 @@ interface SaveScheduleResponse {
   msg: string;
 }
 
+type CleanObject = Record<string, unknown>;
+
 /** PUT /v1/mentors/:userId/schedule */
 export async function saveMentorSchedule(params: {
   userId: string;
   timeslots: UpsertTimeslotBackend[];
   until?: number | null;
 }): Promise<boolean> {
-  const clean = (obj: Record<string, any>) =>
+  const clean = (obj: CleanObject): CleanObject =>
     Object.fromEntries(
       Object.entries(obj).filter(
         ([, v]) =>
@@ -90,16 +91,11 @@ export async function saveMentorSchedule(params: {
   });
 
   try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors/${params.userId}/schedule`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }
+    const result = await apiClient.put<SaveScheduleResponse>(
+      `/v1/mentors/${params.userId}/schedule`,
+      body,
+      { auth: false }
     );
-    if (!res.ok) return false;
-    const result: SaveScheduleResponse = await res.json();
     return result.code === '0';
   } catch {
     return false;
@@ -112,20 +108,11 @@ export async function deleteMentorSchedule(params: {
   scheduleId: string | number;
 }): Promise<boolean> {
   try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors/${params.userId}/schedule/${params.scheduleId}`,
-      { method: 'DELETE', headers: { 'Content-Type': 'application/json' } }
+    await apiClient.delete(
+      `/v1/mentors/${params.userId}/schedule/${params.scheduleId}`,
+      { auth: false }
     );
-    if (res.status === 204) return true;
-    if (!res.ok) return false;
-
-    // 若有統一回傳格式就檢查；沒有就直接當成功
-    try {
-      const json: SaveScheduleResponse = await res.json();
-      return !json.code || json.code === '0';
-    } catch {
-      return true;
-    }
+    return true;
   } catch {
     return false;
   }
