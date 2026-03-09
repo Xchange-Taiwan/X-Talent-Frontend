@@ -31,7 +31,7 @@ jobs:
       - name: Set up PNPM
         uses: pnpm/action-setup@v2
         with:
-          version: 8
+          version: 9
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
@@ -68,6 +68,18 @@ jobs:
           else
             echo "✅ No ESLint errors detected"
             echo "lint_fixed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: TypeScript type check
+        id: type-check
+        run: |
+          if ! pnpm run type-check; then
+            echo "type_failed=true" >> $GITHUB_OUTPUT
+            echo "❌ TypeScript type errors detected"
+            exit 1
+          else
+            echo "type_failed=false" >> $GITHUB_OUTPUT
+            echo "✅ No TypeScript errors"
           fi
 
       - name: Check for changes
@@ -144,6 +156,11 @@ jobs:
             echo "| ESLint | 🔧 Fixed |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| ESLint | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [[ "${{ steps.type-check.outputs.type_failed }}" == "true" ]]; then
+            echo "| TypeScript | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| TypeScript | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
           fi
           if [[ "${{ steps.git-check.outputs.changes_made }}" == "true" ]]; then
             if [[ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then

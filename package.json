@@ -14,6 +14,7 @@
     "lint:check": "npm run format:check && npm run lint",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
+    "type-check": "tsc --noEmit",
     "prepare": "husky install"
   },
   "dependencies": {
@@ -38,11 +39,9 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "cmdk": "^1.1.1",
-    "crypto-js": "^4.2.0",
-    "date-fns": "^4.1.0",
     "dayjs": "^1.11.13",
     "lucide-react": "^0.316.0",
-    "next": "14.1.0",
+    "next": "14.2.35",
     "next-auth": "4.24.13",
     "path-to-regexp": "^8.2.0",
     "react": "18.2.0",
@@ -51,21 +50,19 @@
     "react-dom": "18.2.0",
     "react-hook-form": "^7.49.3",
     "sharp": "^0.33.2",
-    "swiper": "^11.0.5",
+    "swiper": "^12.1.2",
     "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@storybook/addon-essentials": "^8.0.0",
-    "@storybook/addon-interactions": "^8.0.0",
-    "@storybook/addon-links": "^8.0.0",
-    "@storybook/blocks": "^8.0.0",
-    "@storybook/nextjs": "^8.0.0",
-    "@storybook/react": "^8.0.0",
-    "@storybook/test": "^8.0.0",
-    "@tailwindcss/forms": "^0.5.7",
-    "@types/crypto-js": "^4.2.2",
+    "@storybook/addon-essentials": "^8.6.17",
+    "@storybook/addon-interactions": "^8.6.17",
+    "@storybook/addon-links": "^8.6.17",
+    "@storybook/blocks": "^8.6.17",
+    "@storybook/nextjs": "^8.6.17",
+    "@storybook/react": "^8.6.17",
+    "@storybook/test": "^8.6.17",
     "@types/node": "20.11.7",
     "@types/path-to-regexp": "^1.7.0",
     "@types/react": "18.2.48",
@@ -75,7 +72,7 @@
     "@typescript-eslint/parser": "^6.19.1",
     "autoprefixer": "^10.4.17",
     "eslint": "^8.56.0",
-    "eslint-config-next": "14.1.0",
+    "eslint-config-next": "14.2.35",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-simple-import-sort": "^10.0.0",
     "eslint-plugin-storybook": "^0.8.0",
@@ -84,10 +81,17 @@
     "postcss": "^8.4.33",
     "prettier": "^3.2.4",
     "prettier-plugin-tailwindcss": "^0.5.11",
-    "storybook": "^8.0.0",
+    "storybook": "^8.6.17",
     "tailwindcss": "^3.4.1",
     "tsconfig-paths-webpack-plugin": "^4.1.0",
     "typescript": "^5.3.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "minimatch@<3.1.4": "3.1.4",
+      "minimatch@>=9.0.0 <9.0.7": "9.0.7",
+      "glob@>=10.2.0 <10.5.0": "10.5.0"
+    }
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
