@@ -1,0 +1,94 @@
+name: Security & Dependency Check
+
+on:
+  pull_request:
+    branches: ['**']
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    name: Security Audit & Unused Dependencies
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up PNPM
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Security audit (fail on high/critical)
+        id: audit
+        run: |
+          if pnpm audit --audit-level=high; then
+            echo "result=passed" >> $GITHUB_OUTPUT
+            echo "✅ No high/critical vulnerabilities found"
+          else
+            echo "result=failed" >> $GITHUB_OUTPUT
+            echo "❌ High/critical vulnerabilities detected"
+          fi
+
+      - name: Check unused dependencies (informational)
+        id: depcheck
+        continue-on-error: true
+        run: |
+          output=$(npx depcheck \
+            --ignores="@types/*,eslint-*,prettier-*,postcss,autoprefixer,tailwindcss,husky,lint-staged,storybook,@storybook/*,tsconfig-paths-webpack-plugin,tailwindcss-animate" \
+            2>&1) || true
+          echo "$output"
+          if echo "$output" | grep -qE "^Unused (dependencies|devDependencies)"; then
+            echo "unused_found=true" >> $GITHUB_OUTPUT
+            {
+              echo "unused_list<<EOF"
+              echo "$output" | grep -A 999 "Unused"
+              echo "EOF"
+            } >> $GITHUB_OUTPUT
+          else
+            echo "unused_found=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## 🔒 Security & Dependency Check"
+            echo ""
+            echo "| Check | Status |"
+            echo "|-------|--------|"
+            if [[ "${{ steps.audit.outputs.result }}" == "failed" ]]; then
+              echo "| pnpm audit | ❌ High/Critical vulnerabilities found |"
+            else
+              echo "| pnpm audit | ✅ No high/critical vulnerabilities |"
+            fi
+            if [[ "${{ steps.depcheck.outputs.unused_found }}" == "true" ]]; then
+              echo "| Unused Dependencies | ⚠️ Found (informational) |"
+            else
+              echo "| Unused Dependencies | ✅ None detected |"
+            fi
+            if [[ "${{ steps.depcheck.outputs.unused_found }}" == "true" ]]; then
+              echo ""
+              echo "### ⚠️ Unused Dependencies (informational — may include false positives)"
+              echo '```'
+              echo "${{ steps.depcheck.outputs.unused_list }}"
+              echo '```'
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail on security vulnerabilities
+        if: steps.audit.outputs.result == 'failed'
+        run: exit 1

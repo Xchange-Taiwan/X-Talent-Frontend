@@ -14,6 +14,7 @@
     "lint:check": "npm run format:check && npm run lint",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
+    "type-check": "tsc --noEmit",
     "prepare": "husky install"
   },
   "dependencies": {
