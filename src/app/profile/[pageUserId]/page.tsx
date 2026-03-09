@@ -291,17 +291,6 @@ export default function Page({
             )}
 
             <div className="mt-10">
-              <p className="mb-4 text-xl font-bold">專長領域</p>
-              <div className="flex flex-wrap gap-3">
-                {userData?.expertises?.map((i) => (
-                  <Badge variant={'primaryAlt'} key={i.subject_group}>
-                    {i.subject}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-10">
               <p className="mb-4 text-xl font-bold">有興趣的職位</p>
               <div className="flex flex-wrap gap-3">
                 {userData?.interested_positions?.map((i) => (
