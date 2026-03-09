@@ -110,6 +110,7 @@ export default function Page({
   const [isLogging, setIsLogging] = useState(false);
   const [loginUserId, setLoginUserId] = useState('');
 
+  const [avatarCacheBust] = useState(() => Date.now());
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
   const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =
     useState(false);
@@ -189,7 +190,11 @@ export default function Page({
           <div className="flex flex-col items-center gap-6 sm:flex-row">
             <div className="relative h-[160px] w-[160px] flex-shrink-0 overflow-hidden rounded-full bg-background-white">
               <Image
-                src={userData?.avatar || DefaultAvatarImgUrl}
+                src={
+                  userData?.avatar
+                    ? `${userData.avatar}?cb=${avatarCacheBust}`
+                    : DefaultAvatarImgUrl
+                }
                 alt={'Avatar of ' + userData?.name}
                 fill
                 style={{ objectFit: 'contain' }}
@@ -291,7 +296,7 @@ export default function Page({
             )}
 
             <div className="mt-10">
-              <p className="mb-4 text-xl font-bold">有興趣的職位</p>
+              <p className="mb-4 text-xl font-bold">有興趣多了解的職位</p>
               <div className="flex flex-wrap gap-3">
                 {userData?.interested_positions?.map((i) => (
                   <Badge variant={'primaryAlt'} key={i.subject_group}>
@@ -302,7 +307,7 @@ export default function Page({
             </div>
 
             <div className="mt-10">
-              <p className="mb-4 text-xl font-bold">有興趣的技能</p>
+              <p className="mb-4 text-xl font-bold">想多了解、加強的技能</p>
               <div className="flex flex-wrap gap-3">
                 {userData?.skills?.map((i) => (
                   <Badge variant={'primaryAlt'} key={i.subject_group}>
@@ -313,7 +318,7 @@ export default function Page({
             </div>
 
             <div className="mt-10">
-              <p className="mb-4 text-xl font-bold">有興趣的主題</p>
+              <p className="mb-4 text-xl font-bold">想多了解的主題</p>
               <div className="flex flex-wrap gap-3">
                 {userData?.topics?.map((i) => (
                   <Badge variant={'primaryAlt'} key={i.subject_group}>

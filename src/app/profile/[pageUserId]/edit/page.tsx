@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import ArrowBackIcon from '@mui/icons-material/ArrowBackIosNew';
+import { Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -55,6 +56,24 @@ type WhatIOfferMetadata = {
   subject_group: string;
 };
 
+function isProfileSynced(
+  values: ProfileFormValues,
+  latest: UserDTO,
+  avatar: string
+): boolean {
+  if (latest.name !== values.name) return false;
+  if ((latest.location ?? '') !== (values.location ?? '')) return false;
+  if ((latest.personal_statement ?? '') !== (values.statement ?? ''))
+    return false;
+  if ((latest.about ?? '') !== (values.about ?? '')) return false;
+  if ((latest.years_of_experience ?? '') !== (values.years_of_experience ?? ''))
+    return false;
+  if ((latest.industry?.subject_group ?? '') !== (values.industry ?? ''))
+    return false;
+  if (avatar && latest.avatar !== avatar) return false;
+  return true;
+}
+
 export default function Page({
   params: { pageUserId },
 }: {
@@ -70,6 +89,7 @@ export default function Page({
   const [isMentor, setIsMentor] = useState(false);
 
   const [isPageLoading, setIsPageLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [jobSectionError, setJobSectionError] = useState(false);
   const [educationSectionError, setEducationSectionError] = useState(false);
 
@@ -308,7 +328,7 @@ export default function Page({
     if (jobSectionError || educationSectionError) return;
 
     try {
-      setIsPageLoading(true);
+      setIsSaving(true);
 
       // 1) avatar upload (if any)
       let avatar = values.avatar;
@@ -393,8 +413,17 @@ export default function Page({
         });
       }
 
-      // 4) fetch latest user to sync session accurately
-      const latest = await fetchUser('zh_TW');
+      // 4) poll until backend reflects all updated fields (up to 1 min, every 5s)
+      let latest = await fetchUser('zh_TW');
+      const MAX_RETRIES = 12;
+      for (
+        let i = 1;
+        i < MAX_RETRIES && !(latest && isProfileSynced(values, latest, avatar));
+        i++
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        latest = await fetchUser('zh_TW');
+      }
 
       // 5) update next-auth session (requires jwt trigger update handler!)
       await updateSession({
@@ -403,6 +432,9 @@ export default function Page({
           id: session?.user?.id,
           name: latest?.name ?? values.name ?? session?.user?.name,
           avatar: latest?.avatar ?? avatar ?? session?.user?.avatar,
+          avatarUpdatedAt: values.avatarFile
+            ? Date.now()
+            : session?.user?.avatarUpdatedAt,
           isMentor: Boolean(latest?.is_mentor),
           onBoarding: Boolean(latest?.onboarding),
           msg: session?.user?.msg,
@@ -417,7 +449,7 @@ export default function Page({
       }
     } catch (err) {
       console.error('Update Profile Error:', err);
-      setIsPageLoading(false);
+      setIsSaving(false);
     }
   };
 
@@ -426,8 +458,8 @@ export default function Page({
       <div className="mb-10 flex justify-between">
         <div className="flex items-center gap-3">
           <ArrowBackIcon
-            className="cursor-pointer sm:hidden"
-            onClick={handleGoToPrev}
+            className={`sm:hidden ${isSaving ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
+            onClick={isSaving ? undefined : handleGoToPrev}
           />
           <p className="text-4xl font-bold">編輯個人頁面</p>
         </div>
@@ -437,6 +469,7 @@ export default function Page({
             variant="outline"
             className="hidden grow rounded-full px-6 py-3 sm:inline-flex sm:grow-0"
             onClick={handleGoToPrev}
+            disabled={isSaving}
           >
             取消
           </Button>
@@ -446,8 +479,16 @@ export default function Page({
             variant="default"
             className="grow rounded-full px-6 py-3 sm:grow-0"
             form="edit-profile-form"
+            disabled={isSaving}
           >
-            儲存
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                儲存中...
+              </>
+            ) : (
+              '儲存'
+            )}
           </Button>
         </div>
       </div>
@@ -461,7 +502,11 @@ export default function Page({
           <AvatarSection
             control={form.control}
             name="avatarFile"
-            avatarUrl={form.watch('avatar') ?? ''}
+            avatarUrl={
+              form.watch('avatar')
+                ? `${form.watch('avatar')}?cb=${session?.user?.avatarUpdatedAt ?? 0}`
+                : ''
+            }
           />
 
           <Section
