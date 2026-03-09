@@ -32,19 +32,30 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Security audit (fail on high/critical)
+      - name: Security audit (fail on critical only)
         id: audit
         run: |
           # pnpm audit exits 1 for ANY vulnerability regardless of --audit-level.
-          # Use --json and parse high/critical counts explicitly.
+          # Parse JSON to check critical count only — known high advisories in
+          # next@14 require a Next.js 15 migration and are tracked separately.
           pnpm audit --json > audit-output.json 2>&1 || true
+
+          CRITICAL=$(python3 -c "
+          import json, sys
+          try:
+              d = json.load(open('audit-output.json'))
+              v = d.get('metadata', {}).get('vulnerabilities', {})
+              print(v.get('critical', 0))
+          except Exception:
+              print(0)
+          ")
 
           HIGH=$(python3 -c "
           import json, sys
           try:
               d = json.load(open('audit-output.json'))
               v = d.get('metadata', {}).get('vulnerabilities', {})
-              print(v.get('high', 0) + v.get('critical', 0))
+              print(v.get('high', 0))
           except Exception:
               print(0)
           ")
@@ -59,15 +70,16 @@ jobs:
               print(0)
           ")
 
-          echo "high_critical=${HIGH}" >> $GITHUB_OUTPUT
+          echo "critical=${CRITICAL}" >> $GITHUB_OUTPUT
+          echo "high=${HIGH}" >> $GITHUB_OUTPUT
           echo "total=${TOTAL}" >> $GITHUB_OUTPUT
 
-          if [ "$HIGH" -gt 0 ]; then
+          if [ "$CRITICAL" -gt 0 ]; then
             echo "result=failed" >> $GITHUB_OUTPUT
-            echo "❌ High/Critical vulnerabilities detected: ${HIGH}"
+            echo "❌ Critical vulnerabilities detected: ${CRITICAL}"
           else
             echo "result=passed" >> $GITHUB_OUTPUT
-            echo "✅ No high/critical vulnerabilities (total advisories: ${TOTAL})"
+            echo "✅ No critical vulnerabilities (high: ${HIGH}, total: ${TOTAL})"
           fi
 
       - name: Check unused dependencies (informational)
@@ -98,9 +110,11 @@ jobs:
             echo "| Check | Status |"
             echo "|-------|--------|"
             if [[ "${{ steps.audit.outputs.result }}" == "failed" ]]; then
-              echo "| pnpm audit | ❌ High/Critical vulnerabilities found |"
+              echo "| pnpm audit | ❌ Critical vulnerabilities found (${{ steps.audit.outputs.critical }}) |"
+            elif [[ "${{ steps.audit.outputs.high }}" -gt 0 ]]; then
+              echo "| pnpm audit | ⚠️ No critical, but ${{ steps.audit.outputs.high }} high (total: ${{ steps.audit.outputs.total }}) |"
             else
-              echo "| pnpm audit | ✅ No high/critical vulnerabilities (total advisories: ${{ steps.audit.outputs.total }}) |"
+              echo "| pnpm audit | ✅ No critical or high vulnerabilities (total: ${{ steps.audit.outputs.total }}) |"
             fi
             if [[ "${{ steps.depcheck.outputs.unused_found }}" == "true" ]]; then
               echo "| Unused Dependencies | ⚠️ Found (informational) |"
@@ -116,6 +130,8 @@ jobs:
             fi
           } >> $GITHUB_STEP_SUMMARY
 
-      # Security audit is informational — findings are reported in the summary
-      # but do not block CI. Address high/critical advisories as part of
-      # regular dependency maintenance.
+      - name: Fail on critical vulnerabilities
+        if: steps.audit.outputs.result == 'failed'
+        run: |
+          echo "❌ Build failed: critical vulnerabilities must be resolved before merging."
+          exit 1
