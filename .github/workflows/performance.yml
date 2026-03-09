@@ -1,0 +1,202 @@
+name: Bundle Size Budget
+
+on:
+  pull_request:
+    branches: ['**']
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# Budgets (edit these to tune thresholds)
+env:
+  PAGE_SIZE_WARN_KB: '30'
+  PAGE_SIZE_FAIL_KB: '75'
+  FIRST_LOAD_WARN_KB: '150'
+  FIRST_LOAD_FAIL_KB: '250'
+
+jobs:
+  bundle-size:
+    runs-on: ubuntu-latest
+    name: Bundle Size Budget Check
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up PNPM
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build project
+        run: pnpm run build 2>&1 | tee .build-output.txt
+
+      - name: Check bundle size budgets
+        id: budget
+        run: |
+          python3 - <<'EOF' > .bundle-report.json
+          import re, json, os
+
+          PAGE_SIZE_WARN_KB  = float(os.environ.get('PAGE_SIZE_WARN_KB',  '30'))
+          PAGE_SIZE_FAIL_KB  = float(os.environ.get('PAGE_SIZE_FAIL_KB',  '75'))
+          FIRST_LOAD_WARN_KB = float(os.environ.get('FIRST_LOAD_WARN_KB', '150'))
+          FIRST_LOAD_FAIL_KB = float(os.environ.get('FIRST_LOAD_FAIL_KB', '250'))
+
+          def parse_kb(s):
+              s = s.strip()
+              num = float(re.sub(r'[^\d.]', '', s))
+              if 'MB' in s: return num * 1024
+              if 'kB' in s: return num
+              return num / 1024  # bytes
+
+          with open('.build-output.txt') as f:
+              content = f.read()
+
+          # Matches lines like: ├ ○ /path    5.2 kB    87.3 kB
+          pattern = re.compile(
+              r'[^\w]*[○λ◐ƒ]\s+(/\S*)\s+([\d.]+\s*(?:kB|MB|B))\s+([\d.]+\s*(?:kB|MB|B))'
+          )
+
+          routes, violations, warnings = [], [], []
+
+          for line in content.splitlines():
+              m = pattern.search(line)
+              if not m:
+                  continue
+              path = m.group(1)
+              size_kb       = parse_kb(m.group(2))
+              first_load_kb = parse_kb(m.group(3))
+
+              if size_kb >= PAGE_SIZE_FAIL_KB or first_load_kb >= FIRST_LOAD_FAIL_KB:
+                  status = 'fail'
+                  violations.append({'path': path, 'size_kb': size_kb, 'first_load_kb': first_load_kb})
+              elif size_kb >= PAGE_SIZE_WARN_KB or first_load_kb >= FIRST_LOAD_WARN_KB:
+                  status = 'warn'
+                  warnings.append({'path': path, 'size_kb': size_kb, 'first_load_kb': first_load_kb})
+              else:
+                  status = 'pass'
+
+              routes.append({'path': path, 'size_kb': round(size_kb, 2),
+                             'first_load_kb': round(first_load_kb, 2), 'status': status})
+
+          print(json.dumps({
+              'routes': routes,
+              'violations': violations,
+              'warnings': warnings,
+              'passed': len(violations) == 0,
+              'budgets': {
+                  'page_size_warn_kb':  PAGE_SIZE_WARN_KB,
+                  'page_size_fail_kb':  PAGE_SIZE_FAIL_KB,
+                  'first_load_warn_kb': FIRST_LOAD_WARN_KB,
+                  'first_load_fail_kb': FIRST_LOAD_FAIL_KB,
+              }
+          }, indent=2))
+          EOF
+
+          passed=$(python3 -c "import json; d=json.load(open('.bundle-report.json')); print('true' if d['passed'] else 'false')")
+          echo "passed=${passed}" >> $GITHUB_OUTPUT
+
+          violations=$(python3 -c "import json; d=json.load(open('.bundle-report.json')); print(len(d['violations']))")
+          echo "violations=${violations}" >> $GITHUB_OUTPUT
+
+      - name: Post PR comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            let report;
+            try {
+              report = JSON.parse(fs.readFileSync('.bundle-report.json', 'utf8'));
+            } catch {
+              console.log('No bundle report found — build may have failed.');
+              return;
+            }
+
+            const b = report.budgets;
+            const statusIcon = s => s === 'fail' ? '❌' : s === 'warn' ? '⚠️' : '✅';
+
+            const rows = report.routes.length
+              ? report.routes.map(r =>
+                  `| ${statusIcon(r.status)} | \`${r.path}\` | ${r.size_kb.toFixed(1)} kB | ${r.first_load_kb.toFixed(1)} kB |`
+                ).join('\n')
+              : '| — | No routes detected | — | — |';
+
+            const headline = report.passed
+              ? `✅ All routes within budget${report.warnings.length ? ` (${report.warnings.length} warning${report.warnings.length > 1 ? 's' : ''})` : ''}`
+              : `❌ ${report.violations.length} route(s) exceed budget limits`;
+
+            const body = [
+              '## 📦 Bundle Size Budget',
+              '',
+              headline,
+              '',
+              `> **Limits** — Page size: warn >${b.page_size_warn_kb} kB / fail >${b.page_size_fail_kb} kB &nbsp;|&nbsp; First Load JS: warn >${b.first_load_warn_kb} kB / fail >${b.first_load_fail_kb} kB`,
+              '',
+              '| | Route | Page Size | First Load JS |',
+              '|---|---|---|---|',
+              rows,
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            const existing = comments.find(
+              c => c.user.login === 'github-actions[bot]' && c.body.includes('Bundle Size Budget')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                comment_id: existing.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            }
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## 📦 Bundle Size Budget"
+            echo ""
+            if [ -f .bundle-report.json ]; then
+              python3 -c "
+          import json
+          d = json.load(open('.bundle-report.json'))
+          print('| Route | Page Size | First Load JS | Status |')
+          print('|-------|-----------|---------------|--------|')
+          for r in d['routes']:
+              icon = '❌' if r['status'] == 'fail' else '⚠️' if r['status'] == 'warn' else '✅'
+              print(f\"| \`{r['path']}\` | {r['size_kb']:.1f} kB | {r['first_load_kb']:.1f} kB | {icon} |\")"
+            else
+              echo "Build output not available."
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail on budget violations
+        if: steps.budget.outputs.passed == 'false'
+        run: |
+          echo "❌ Bundle size budget exceeded (${{ steps.budget.outputs.violations }} violation(s))."
+          echo "→ Reduce page size or split code. Thresholds are set in performance.yml env section."
+          exit 1
