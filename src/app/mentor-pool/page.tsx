@@ -9,12 +9,12 @@ import avatarImage from '@/assets/default-avatar.png';
 import {
   FilterOptions,
   SelectFilters,
-} from '@/components/filter/mentorFilterDropdown';
-import MentorFilterDropdown from '@/components/filter/mentorFilterDropdown';
-import { MentorCardList } from '@/components/mentor-pool/mentorCardList';
+} from '@/components/filter/MentorFilterDropdown';
+import MentorFilterDropdown from '@/components/filter/MentorFilterDropdown';
+import { MentorCardList } from '@/components/mentor-pool/mentor-card-list';
 import { Badge } from '@/components/ui/badge';
-import SearchBar from '@/components/ui/searchBar';
-import { fetchMentors, MentorType } from '@/services/searchMentor/mentors';
+import SearchBar from '@/components/ui/search-bar';
+import { fetchMentors, MentorType } from '@/services/search-mentor/mentors';
 
 const filterOptions: FilterOptions = {
   filter_positions: {

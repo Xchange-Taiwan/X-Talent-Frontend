@@ -20,7 +20,7 @@ import {
   step5Schema,
   TopicsToDiscuss,
   WhoAreYou,
-} from '@/components/onboarding/Steps';
+} from '@/components/onboarding/steps';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import useLocations from '@/hooks/user/country/useLocations';

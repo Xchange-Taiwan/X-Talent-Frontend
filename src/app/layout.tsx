@@ -1,7 +1,7 @@
 import '../styles/global.css';
 
-import { Footer } from '@/components/Layout/Footer';
-import { Header } from '@/components/Layout/Header';
+import { Footer } from '@/components/layout/Footer';
+import { Header } from '@/components/layout/Header';
 import Providers from '@/components/Providers';
 import { Toaster } from '@/components/ui/toaster';
 

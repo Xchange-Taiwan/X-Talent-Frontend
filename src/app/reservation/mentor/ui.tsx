@@ -1,4 +1,4 @@
-import ReservationTabs, { type ReservationTabsProps } from './reservationTabs';
+import ReservationTabs, { type ReservationTabsProps } from './ReservationTabs';
 
 export type ReservationPresentationProps = ReservationTabsProps;
 

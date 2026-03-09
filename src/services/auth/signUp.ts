@@ -8,7 +8,7 @@ import {
   createRateLimitResponse,
   createSignUpSuccessResponse,
   createValidationErrorResponse,
-} from './signupResponseHandlers';
+} from './signUpResponseHandlers';
 
 export async function signUp(
   values: z.infer<typeof SignUpSchema>

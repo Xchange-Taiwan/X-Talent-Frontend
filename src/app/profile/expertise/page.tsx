@@ -4,8 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
-import { ExpertiseSelectItem } from '@/components/profile/ExpertiseSelectItem';
-import { formSchema } from '@/components/profile/ExpertiseSelectItem';
+import { ExpertiseSelectItem } from '@/components/profile/expertise-select-item';
+import { formSchema } from '@/components/profile/expertise-select-item';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 

@@ -5,7 +5,7 @@ import Divider from '@/components/auth/Divider';
 import {
   EducationExperienceMetadata,
   WorkExperienceMetadata,
-} from '@/hooks/user/userData/useUserData';
+} from '@/hooks/user/user-data/useUserData';
 
 export type ExperienceItem = {
   title: string;

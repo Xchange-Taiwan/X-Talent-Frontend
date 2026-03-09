@@ -4,7 +4,7 @@ import { FC } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
-import AvatarUpload from '@/components/ui/avatarUpload';
+import AvatarUpload from '@/components/ui/avatar-upload';
 import {
   FormControl,
   FormField,

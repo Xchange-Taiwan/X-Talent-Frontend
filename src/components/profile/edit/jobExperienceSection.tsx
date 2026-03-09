@@ -4,8 +4,8 @@ import { PlusIcon, TrashIcon } from '@radix-ui/react-icons';
 import React, { useEffect } from 'react';
 import { useFieldArray, UseFormReturn, useWatch } from 'react-hook-form';
 
-import { ConfirmDialog } from '@/components/profile/edit/confirmDialog';
-import { SelectField } from '@/components/profile/edit/fields';
+import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
+import { SelectField } from '@/components/profile/edit/Fields';
 import { Button } from '@/components/ui/button';
 import {
   FormControl,

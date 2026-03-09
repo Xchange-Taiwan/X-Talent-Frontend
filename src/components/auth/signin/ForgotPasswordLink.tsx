@@ -10,7 +10,7 @@ const ForgotPasswordLink: React.FC = () => {
   return (
     <FormDescription
       className={cn(linkStyle, 'inline-block')}
-      onClick={() => router.push('/auth/password-forget')}
+      onClick={() => router.push('/auth/password-forgot')}
     >
       忘記密碼
     </FormDescription>

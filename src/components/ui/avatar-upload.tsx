@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useState } from 'react';
 import { Control, FieldValues, Path, useController } from 'react-hook-form';
 
-import AvatarCropModal from './avatarCropModal';
+import AvatarCropModal from './avatar-crop-modal';
 
 interface AvatarUploadProps<T extends FieldValues> {
   control: Control<T>;
