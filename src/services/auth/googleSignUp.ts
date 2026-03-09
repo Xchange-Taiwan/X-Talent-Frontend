@@ -1,3 +1,5 @@
+import { apiClient, ApiError } from '@/lib/apiClient';
+
 import { AuthResponse, createGeneralErrorResponse } from '../types';
 import {
   createEmailAlreadyRegisteredResponse,
@@ -12,46 +14,29 @@ export interface GoogleSignUpType {
   oauth_id: string;
 }
 
+interface GoogleSignUpApiResponse {
+  code: string;
+  message?: string;
+}
+
 export async function googleSignUp(
   values: GoogleSignUpType
 ): Promise<AuthResponse> {
   try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/oauth/signup/GOOGLE`,
-      {
-        method: 'POST',
-        body: JSON.stringify(values),
-        headers: { 'Content-Type': 'application/json' },
-      }
+    const result = await apiClient.post<GoogleSignUpApiResponse>(
+      '/oauth/signup/GOOGLE',
+      values,
+      { auth: false }
     );
 
-    const result = await response.json();
-    if (response.status === 201 && result.code === '0') {
-      return createSignUpSuccessResponse();
-    }
-
-    if (response.status === 422) {
-      throw createValidationErrorResponse();
-    }
-
-    if (response.status === 406) {
-      throw createEmailAlreadyRegisteredResponse();
-    }
-
-    if (response.status === 429 && result.code === '42900') {
-      throw createRateLimitResponse();
-    }
-
-    throw createGeneralErrorResponse(
-      response.status,
-      result.message || '註冊失敗'
-    );
+    if (result.code === '0') return createSignUpSuccessResponse();
+    throw createGeneralErrorResponse(200, result.message || '註冊失敗');
   } catch (error) {
-    if (error instanceof TypeError && error.message === 'Failed to fetch') {
-      throw createGeneralErrorResponse(
-        0,
-        '無法連接到伺服器。請檢查您的網絡連接。'
-      );
+    if (error instanceof ApiError) {
+      if (error.status === 422) throw createValidationErrorResponse();
+      if (error.status === 406) throw createEmailAlreadyRegisteredResponse();
+      if (error.status === 429) throw createRateLimitResponse();
+      throw createGeneralErrorResponse(error.status, error.message);
     }
 
     if (error instanceof Error || (error as AuthResponse)?.status === 'error') {

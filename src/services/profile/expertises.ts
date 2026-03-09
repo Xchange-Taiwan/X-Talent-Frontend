@@ -1,3 +1,5 @@
+import { apiClient } from '@/lib/apiClient';
+
 export interface ExpertiseType {
   id: number;
   category: string;
@@ -32,21 +34,10 @@ export async function fetchExpertises(
   language: string
 ): Promise<ExpertiseType[]> {
   try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors/${language}/expertises`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
+    const data = await apiClient.get<ExpertiseResponse>(
+      `/v1/mentors/${language}/expertises`,
+      { auth: false }
     );
-
-    if (!response.ok) {
-      throw new Error(`HTTP 錯誤: ${response.status}`);
-    }
-
-    const data: ExpertiseResponse = await response.json();
 
     return data.data.professions.map((profession) => ({
       id: profession.id,

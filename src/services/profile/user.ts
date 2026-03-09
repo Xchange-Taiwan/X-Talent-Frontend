@@ -1,5 +1,7 @@
 import { getSession } from 'next-auth/react';
 
+import { apiClient } from '@/lib/apiClient';
+
 import { ExpertiseType } from './expertises';
 import { IndustryDTO } from './industries';
 import { InterestDTO } from './interests';
@@ -50,11 +52,10 @@ interface UserResponseDTO {
 
 export async function fetchUser(language: string): Promise<UserDTO | null> {
   const session = await getSession();
-  const token = session?.accessToken;
   const userId = session?.user?.id;
 
-  if (!token) {
-    throw new Error('未找到授權令牌。請重新登入。');
+  if (!userId) {
+    throw new Error('未找到使用者 ID。請重新登入。');
   }
 
   return fetchUserById(Number(userId), language);
@@ -65,21 +66,10 @@ export async function fetchUserById(
   language: string
 ): Promise<UserDTO | null> {
   try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors/${userId}/${language}/profile`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
+    const result = await apiClient.get<UserResponseDTO>(
+      `/v1/mentors/${userId}/${language}/profile`,
+      { auth: false }
     );
-
-    if (!response.ok) {
-      throw new Error(`HTTP Error: ${response.status}`);
-    }
-
-    const result: UserResponseDTO = await response.json();
 
     if (result.code !== '0') {
       console.error(`API Error: ${result.msg}`);
@@ -97,32 +87,17 @@ export async function updateUserProfile(
   userData: Partial<UserDTO>
 ): Promise<boolean> {
   const session = await getSession();
-  const token = session?.accessToken;
   const userId = session?.user?.id;
 
-  if (!token || !userId) {
-    throw new Error('未找到授權令牌或使用者 ID。請重新登入。');
+  if (!userId) {
+    throw new Error('未找到使用者 ID。請重新登入。');
   }
 
   try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/mentors/${userId}/profile`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(userData),
-      }
+    const result = await apiClient.put<UserResponseDTO>(
+      `/v1/mentors/${userId}/profile`,
+      userData
     );
-
-    if (!response.ok) {
-      console.error('Failed to update profile:', response.statusText);
-      return false;
-    }
-
-    const result = await response.json();
 
     if (result.code !== '0') {
       console.error('API Error:', result.msg);

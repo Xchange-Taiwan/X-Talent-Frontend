@@ -1,3 +1,5 @@
+import { apiClient } from '@/lib/apiClient';
+
 export interface LocationType {
   value: string;
   text: string;
@@ -13,30 +15,15 @@ export async function fetchCountries(
   language: string
 ): Promise<LocationType[]> {
   try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${language}/countries`,
-      {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
+    const data = await apiClient.get<CountryResponse>(
+      `/v1/users/${language}/countries`,
+      { auth: false }
     );
 
-    if (!response.ok) {
-      throw new Error(`HTTP 錯誤: ${response.status}`);
-    }
-
-    const data: CountryResponse = await response.json();
-
-    const countries: LocationType[] = Object.entries(data.data).map(
-      ([key, value]) => ({
-        value: key,
-        text: value,
-      })
-    );
-
-    return countries;
+    return Object.entries(data.data).map(([key, value]) => ({
+      value: key,
+      text: value,
+    }));
   } catch (error) {
     console.error('獲取國家資料失敗:', error);
     return [];
