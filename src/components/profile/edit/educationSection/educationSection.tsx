@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 
 import { ProfileFormValues } from '../profileSchema';
-import { Section } from '../section';
+import { Section } from '../Section';
 import { taiwanSchools } from './schoolData';
 
 interface Props {

@@ -25,7 +25,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 
 import { ProfileFormValues } from './profileSchema';
-import { Section } from './section';
+import { Section } from './Section';
 
 interface Props {
   industries: {

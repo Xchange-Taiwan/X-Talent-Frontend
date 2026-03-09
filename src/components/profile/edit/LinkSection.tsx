@@ -13,7 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 
 import { ProfileFormValues } from './profileSchema';
-import { Section } from './section';
+import { Section } from './Section';
 
 const SOCIAL_LINKS: Array<{
   name: keyof ProfileFormValues;
