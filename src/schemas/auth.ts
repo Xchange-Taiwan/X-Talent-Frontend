@@ -18,3 +18,13 @@ export const SignUpSchema = z
     message: '密碼與確認密碼不符',
     path: ['confirm_password'],
   });
+
+export const PasswordResetSchema = z
+  .object({
+    password: z.string().min(8, { message: '密碼至少需為 8 個字' }),
+    confirm_password: z.string().min(8, { message: '密碼至少需為 8 個字' }),
+  })
+  .refine((data) => data.password === data.confirm_password, {
+    message: '密碼與確認密碼不符',
+    path: ['confirm_password'],
+  });
