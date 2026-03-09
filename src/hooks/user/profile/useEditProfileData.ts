@@ -100,5 +100,5 @@ export function useEditProfileData({
     return () => {
       cancelled = true;
     };
-  }, [isAuthorized, isMentorOnboarding]);
+  }, [isAuthorized, isMentorOnboarding, form, setIsMentor, setIsPageLoading]);
 }

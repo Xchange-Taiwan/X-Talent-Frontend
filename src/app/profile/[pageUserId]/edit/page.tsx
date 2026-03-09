@@ -3,8 +3,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useMemo, useState } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { useRef, useState } from 'react';
+import { useForm } from 'react-hook-form';
 
 import { totalWorkSpanOptions } from '@/components/onboarding/steps/constant';
 import { AvatarSection } from '@/components/profile/edit/AvatarSection';
@@ -57,19 +57,14 @@ export default function Page({
   const { interestedPositions, skills, topics } = useInterests('zh_TW');
   const { expertises } = useExpertises('zh_TW');
 
+  const isMentorRef = useRef(isMentor);
+  isMentorRef.current = isMentor;
+
   const form = useForm<ProfileFormValues>({
-    resolver: zodResolver(createProfileFormSchema(isMentor)),
+    resolver: (...args) =>
+      zodResolver(createProfileFormSchema(isMentorRef.current))(...args),
     defaultValues,
   });
-
-  const isMentorWatch = useWatch({ control: form.control, name: 'is_mentor' });
-
-  const watchedResolver = useMemo(
-    () => zodResolver(createProfileFormSchema(isMentorWatch)),
-    [isMentorWatch]
-  );
-
-  form.setOptions({ resolver: watchedResolver });
 
   useEditProfileData({
     form,
