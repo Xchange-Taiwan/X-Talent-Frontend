@@ -82,9 +82,8 @@ jobs:
             echo "✅ No critical vulnerabilities (high: ${HIGH}, total: ${TOTAL})"
           fi
 
-      - name: Check unused dependencies (informational)
+      - name: Check unused dependencies
         id: depcheck
-        continue-on-error: true
         run: |
           output=$(npx depcheck \
             --ignores="@types/*,eslint-*,prettier-*,postcss,autoprefixer,tailwindcss,husky,lint-staged,storybook,@storybook/*,tsconfig-paths-webpack-plugin,tailwindcss-animate" \
@@ -117,7 +116,7 @@ jobs:
               echo "| pnpm audit | ✅ No critical or high vulnerabilities (total: ${{ steps.audit.outputs.total }}) |"
             fi
             if [[ "${{ steps.depcheck.outputs.unused_found }}" == "true" ]]; then
-              echo "| Unused Dependencies | ⚠️ Found (informational) |"
+              echo "| Unused Dependencies | ❌ Found (see details below) |"
             else
               echo "| Unused Dependencies | ✅ None detected |"
             fi
@@ -134,4 +133,10 @@ jobs:
         if: steps.audit.outputs.result == 'failed'
         run: |
           echo "❌ Build failed: critical vulnerabilities must be resolved before merging."
+          exit 1
+
+      - name: Fail on unused dependencies
+        if: steps.depcheck.outputs.unused_found == 'true'
+        run: |
+          echo "❌ Build failed: unused dependencies detected. Remove them or add to the ignore list."
           exit 1
