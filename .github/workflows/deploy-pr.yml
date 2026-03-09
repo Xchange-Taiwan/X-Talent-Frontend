@@ -60,13 +60,12 @@ jobs:
       - name: Extract bundle size report
         id: bundle
         run: |
-          python3 - <<'EOF'
+          python3 - <<'EOF' > .bundle-report.txt 2>&1 || echo "Could not extract bundle size." > .bundle-report.txt
           import re
 
           with open('.build-output.txt') as f:
               content = f.read()
 
-          # Match the Next.js route/page size table
           match = re.search(r'(Route \(app\)|Route \(pages\)|Page\s+)[\s\S]*?(?=\ninfo |\Z)', content)
           if match:
               lines = match.group(0).split('\n')[:60]
@@ -74,7 +73,6 @@ jobs:
           else:
               print('Bundle size data not available in build output.')
           EOF
-          ) > .bundle-report.txt 2>&1 || echo "Could not extract bundle size." > .bundle-report.txt
 
       - name: Post PR comment (preview URL + bundle size)
         uses: actions/github-script@v7
