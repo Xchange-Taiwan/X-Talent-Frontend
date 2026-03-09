@@ -115,13 +115,13 @@ const nextTempId = (rows: RawMentorTimeslot[]) => {
 const backendToRaw = (t: ScheduleTimeSlots): RawMentorTimeslot => {
   const toUnixSec = (v: unknown): number => {
     if (typeof v === 'number') return v > 1e12 ? Math.floor(v / 1000) : v;
-    return Math.floor(new Date(v as any).getTime() / 1000);
+    return Math.floor(new Date(v as string | number | Date).getTime() / 1000);
   };
   return {
     id: Number(t.id) || Math.floor(Math.random() * 1e9),
     type: t.dt_type,
-    dtstart: toUnixSec(t.dtstart as any),
-    dtend: toUnixSec(t.dtend as any),
+    dtstart: toUnixSec(t.dtstart),
+    dtend: toUnixSec(t.dtend),
     rrule: t.rrule ?? '',
   };
 };
@@ -137,7 +137,7 @@ export const useMentorSchedule = (
     debug = false,
   } = opts;
 
-  const log = (...args: any[]) =>
+  const log = (...args: unknown[]) =>
     debug && console.log('[MentorSchedule]', ...args);
 
   const [saved, setSaved] = useState<RawMentorTimeslot[]>([]);
@@ -454,6 +454,7 @@ export const useMentorSchedule = (
     dirty,
     pendingDeleteIds,
     log,
+    backend,
   ]);
 
   const resetChanges = useCallback(() => {
