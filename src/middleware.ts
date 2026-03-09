@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { match } from 'path-to-regexp';
 
 import { apiAuthPrefix, DEFAULT_LOGIN, publicRoutes } from '@/routes';
@@ -8,7 +8,7 @@ function normalizeRoute(route: string): string {
   return route.replace(/\[([^\]]+)\]/g, ':$1');
 }
 
-export function middleware(req: any) {
+export function middleware(req: NextRequest) {
   const { nextUrl } = req;
   const pathname = nextUrl.pathname;
 

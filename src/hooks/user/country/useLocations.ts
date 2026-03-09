@@ -8,22 +8,20 @@ const useLocations = (language: string) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadLocationOptions = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const options: LocationType[] = await fetchCountries(language);
-      setLocations(options);
-    } catch (err) {
-      console.error('Failed to fetch countries:', err);
-      setError('Failed to load location options');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const loadLocationOptions = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const options: LocationType[] = await fetchCountries(language);
+        setLocations(options);
+      } catch (err) {
+        console.error('Failed to fetch countries:', err);
+        setError('Failed to load location options');
+      } finally {
+        setIsLoading(false);
+      }
+    };
     loadLocationOptions();
   }, [language]);
 

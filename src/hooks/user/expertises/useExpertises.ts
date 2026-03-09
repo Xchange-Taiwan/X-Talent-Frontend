@@ -8,22 +8,20 @@ const useExpertises = (language: string) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadExpertises = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const data = await fetchExpertises(language);
-      setExpertises(data);
-    } catch (err) {
-      console.error('Failed to load expertises:', err);
-      setError('Failed to load expertises');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const loadExpertises = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await fetchExpertises(language);
+        setExpertises(data);
+      } catch (err) {
+        console.error('Failed to load expertises:', err);
+        setError('Failed to load expertises');
+      } finally {
+        setLoading(false);
+      }
+    };
     loadExpertises();
   }, [language]);
 

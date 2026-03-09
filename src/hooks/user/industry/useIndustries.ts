@@ -7,22 +7,20 @@ const useIndustries = (language: string) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadIndustries = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const industriesData = await fetchIndustries(language);
-      setIndustries(industriesData);
-    } catch (err) {
-      console.error('Failed to load industries:', err);
-      setError('Failed to load industries');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const loadIndustries = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const industriesData = await fetchIndustries(language);
+        setIndustries(industriesData);
+      } catch (err) {
+        console.error('Failed to load industries:', err);
+        setError('Failed to load industries');
+      } finally {
+        setLoading(false);
+      }
+    };
     loadIndustries();
   }, [language]);
 
