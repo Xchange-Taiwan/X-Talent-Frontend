@@ -29,7 +29,9 @@ export function UserDropdown({ user }: UserDropdownProps): JSX.Element {
   const userId = user.id;
   const isMentor = Boolean(user.isMentor);
   const name = user.name ?? '';
-  const avatarSrc = user.avatar ?? '';
+  const avatarSrc = user.avatar
+    ? `${user.avatar}?cb=${user.avatarUpdatedAt ?? 0}`
+    : '';
   const jobTitle = user.jobTitle ?? '';
   const company = user.company ?? '';
 

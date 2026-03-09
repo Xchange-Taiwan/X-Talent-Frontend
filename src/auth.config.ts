@@ -129,6 +129,8 @@ const authOptions = {
         id: (token.id as string | undefined) ?? undefined,
         name: (token.name as string | null | undefined) ?? undefined,
         avatar: (token.avatar as string | undefined) ?? undefined,
+        avatarUpdatedAt:
+          (token.avatarUpdatedAt as number | undefined) ?? undefined,
         onBoarding: (token.onBoarding as boolean | undefined) ?? undefined,
         isMentor: (token.isMentor as boolean | undefined) ?? undefined,
         jobTitle: (token.jobTitle as string | undefined) ?? undefined,

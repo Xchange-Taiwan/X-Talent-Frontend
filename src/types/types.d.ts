@@ -12,6 +12,7 @@ declare module 'next-auth' {
     onBoarding?: boolean;
     name?: string | null;
     avatar?: string | null;
+    avatarUpdatedAt?: number;
     isMentor?: boolean;
     jobTitle?: string;
     company?: string;
@@ -32,6 +33,7 @@ declare module 'next-auth/jwt' {
     onBoarding?: boolean;
     name?: string | null;
     avatar?: string | null;
+    avatarUpdatedAt?: number;
     isMentor?: boolean;
     jobTitle?: string;
     company?: string;

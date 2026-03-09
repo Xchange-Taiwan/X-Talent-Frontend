@@ -13,82 +13,16 @@ import {
 import MenteeReservationDialog from '@/components/profile/reservation/MenteeReservationDialog';
 import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
 import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalendar';
-import { Badge } from '@/components/ui/badge';
+import { platformLabelMap } from '@/components/profile/social-links/platformLabelMap';
+import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
 import { Button } from '@/components/ui/button';
-import {
-  ParsedMentorTimeslot,
-  useMentorSchedule,
-} from '@/hooks/useMentorSchedule';
+import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import useUserData from '@/hooks/user/user-data/useUserData';
-
-const platformLabelMap: Record<string, { label: string; icon: JSX.Element }> = {
-  linkedin: {
-    label: 'LinkedIn',
-    icon: (
-      <Image
-        src="/profile/edit/linkedin-logo.svg"
-        alt="LinkedIn"
-        width={20}
-        height={20}
-      />
-    ),
-  },
-  facebook: {
-    label: 'Facebook',
-    icon: (
-      <Image
-        src="/profile/edit/facebook-logo.svg"
-        alt="Facebook"
-        width={20}
-        height={20}
-      />
-    ),
-  },
-  instagram: {
-    label: 'Instagram',
-    icon: (
-      <Image
-        src="/profile/edit/instagram-logo.svg"
-        alt="Instagram"
-        width={20}
-        height={20}
-      />
-    ),
-  },
-  twitter: {
-    label: 'X (formerly Twitter)',
-    icon: (
-      <Image
-        src="/profile/edit/twitter-logo.svg"
-        alt="Twitter"
-        width={20}
-        height={20}
-      />
-    ),
-  },
-  youtube: {
-    label: 'YouTube',
-    icon: (
-      <Image
-        src="/profile/edit/youtube-logo.svg"
-        alt="YouTube"
-        width={20}
-        height={20}
-      />
-    ),
-  },
-  website: {
-    label: '個人網站',
-    icon: (
-      <Image
-        src="/profile/edit/website-logo.svg"
-        alt="Website"
-        width={20}
-        height={20}
-      />
-    ),
-  },
-};
+import {
+  formatSelectedDate,
+  formatStartTimeSlot,
+  toDateKey,
+} from '@/lib/profile/scheduleFormatters';
 
 export default function Page({
   params: { pageUserId },
@@ -110,6 +44,7 @@ export default function Page({
   const [isLogging, setIsLogging] = useState(false);
   const [loginUserId, setLoginUserId] = useState('');
 
+  const [avatarCacheBust] = useState(() => Date.now());
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
   const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =
     useState(false);
@@ -131,18 +66,6 @@ export default function Page({
     pageUserIdNumber,
     'zh_TW'
   );
-
-  const formatSelectedDate = (selectedDate: Date | undefined): string => {
-    if (!selectedDate) {
-      return '';
-    }
-    return new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Taipei',
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    }).format(selectedDate);
-  };
 
   if (loading || !loaded) {
     return null;
@@ -175,11 +98,6 @@ export default function Page({
     .filter((slot) => slot.type === 'ALLOW')
     .map((slot) => slot.dateKey);
 
-  const formatStartTimeSlot = (slot: ParsedMentorTimeslot) => {
-    const slotArr = JSON.stringify(slot.formatted)?.split(' ');
-    return slotArr ? `${slotArr[1]} ${slotArr[2]}` : '';
-  };
-
   return (
     <div>
       <div className="relative h-[111px] bg-gradient-to-br from-[#92e7e7] to-[#e7a0d4] sm:h-[100px]" />
@@ -189,7 +107,11 @@ export default function Page({
           <div className="flex flex-col items-center gap-6 sm:flex-row">
             <div className="relative h-[160px] w-[160px] flex-shrink-0 overflow-hidden rounded-full bg-background-white">
               <Image
-                src={userData?.avatar || DefaultAvatarImgUrl}
+                src={
+                  userData?.avatar
+                    ? `${userData.avatar}?cb=${avatarCacheBust}`
+                    : DefaultAvatarImgUrl
+                }
                 alt={'Avatar of ' + userData?.name}
                 fill
                 style={{ objectFit: 'contain' }}
@@ -265,74 +187,33 @@ export default function Page({
             </div>
 
             {userData.is_mentor && (
-              <div className="mt-10">
-                <p className="mb-4 text-xl font-bold">專業能力</p>
-                <div className="flex flex-wrap gap-3">
-                  {userData?.expertises?.map((i) => (
-                    <Badge variant={'primaryAlt'} key={i.subject_group}>
-                      {i.subject}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
+              <ProfileBadgeSection
+                title="專業能力"
+                items={userData?.expertises ?? []}
+              />
             )}
 
             {userData.is_mentor && (
-              <div className="mt-10">
-                <p className="mb-4 text-xl font-bold">我能提供的服務</p>
-                <div className="flex flex-wrap gap-3">
-                  {userData?.what_i_offers?.map((i) => (
-                    <Badge variant={'primaryAlt'} key={i.subject_group}>
-                      {i.subject}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
+              <ProfileBadgeSection
+                title="我能提供的服務"
+                items={userData?.what_i_offers ?? []}
+              />
             )}
 
-            <div className="mt-10">
-              <p className="mb-4 text-xl font-bold">專長領域</p>
-              <div className="flex flex-wrap gap-3">
-                {userData?.expertises?.map((i) => (
-                  <Badge variant={'primaryAlt'} key={i.subject_group}>
-                    {i.subject}
-                  </Badge>
-                ))}
-              </div>
-            </div>
+            <ProfileBadgeSection
+              title="有興趣多了解的職位"
+              items={userData?.interested_positions ?? []}
+            />
 
-            <div className="mt-10">
-              <p className="mb-4 text-xl font-bold">有興趣的職位</p>
-              <div className="flex flex-wrap gap-3">
-                {userData?.interested_positions?.map((i) => (
-                  <Badge variant={'primaryAlt'} key={i.subject_group}>
-                    {i.subject}
-                  </Badge>
-                ))}
-              </div>
-            </div>
+            <ProfileBadgeSection
+              title="想多了解、加強的技能"
+              items={userData?.skills ?? []}
+            />
 
-            <div className="mt-10">
-              <p className="mb-4 text-xl font-bold">有興趣的技能</p>
-              <div className="flex flex-wrap gap-3">
-                {userData?.skills?.map((i) => (
-                  <Badge variant={'primaryAlt'} key={i.subject_group}>
-                    {i.subject}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-10">
-              <p className="mb-4 text-xl font-bold">有興趣的主題</p>
-              <div className="flex flex-wrap gap-3">
-                {userData?.topics?.map((i) => (
-                  <Badge variant={'primaryAlt'} key={i.subject_group}>
-                    {i.subject}
-                  </Badge>
-                ))}
-              </div>
-            </div>
+            <ProfileBadgeSection
+              title="想多了解的主題"
+              items={userData?.topics ?? []}
+            />
 
             <div className="mt-10">
               <p className="mb-4 text-xl font-bold">工作經驗</p>
@@ -364,18 +245,7 @@ export default function Page({
                     selected={
                       selectedDate ? new Date(selectedDate) : new Date()
                     }
-                    onSelect={(d) =>
-                      setSelectedDate(
-                        d
-                          ? `${d.getFullYear()}-${String(
-                              d.getMonth() + 1
-                            ).padStart(2, '0')}-${String(d.getDate()).padStart(
-                              2,
-                              '0'
-                            )}`
-                          : null
-                      )
-                    }
+                    onSelect={(d) => setSelectedDate(d ? toDateKey(d) : null)}
                     allowedDates={allowedDates}
                     showTodayStyle={false}
                     disableEmptyDates={true}

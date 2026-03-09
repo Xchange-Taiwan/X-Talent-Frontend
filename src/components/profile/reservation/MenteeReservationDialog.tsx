@@ -78,7 +78,7 @@ export default function MenteeReservationDialog({
   };
 
   const handleGoToReservation = () => {
-    router.push('/reservation');
+    router.push('/reservation/mentee');
     handleClose();
   };
 

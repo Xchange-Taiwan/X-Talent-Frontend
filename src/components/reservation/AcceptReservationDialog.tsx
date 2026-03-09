@@ -68,7 +68,7 @@ export default function AcceptReservationDialog({
           <div className="p-6">
             <DialogHeader className="mb-4">
               <DialogTitle className="text-center sm:text-left">
-                Check Reservation
+                查看我的預約
               </DialogTitle>
               <DialogDescription className="text-center sm:text-left">
                 Review the details and optionally add a question for this
@@ -108,9 +108,7 @@ export default function AcceptReservationDialog({
 
             {/* Question area */}
             <div className="mt-6">
-              <div className="mb-2 text-sm font-medium">
-                Question about this booking.
-              </div>
+              <div className="mb-2 text-sm font-medium">Mentee所提出的問題</div>
               <div className="rounded-2xl border p-2">
                 <Textarea
                   placeholder={`Hello ${reservation.name.split(' ')[0]}, ...`}
@@ -129,7 +127,7 @@ export default function AcceptReservationDialog({
                 className="w-full bg-secondary text-destructive hover:bg-secondary/80 sm:w-auto"
                 onClick={() => setStep('reject')}
               >
-                Reject
+                拒絕
               </Button>
 
               {/* 接受 */}
@@ -141,7 +139,7 @@ export default function AcceptReservationDialog({
                   setOpen(false);
                 }}
               >
-                Accept
+                接收
               </Button>
             </DialogFooter>
           </div>
@@ -149,7 +147,7 @@ export default function AcceptReservationDialog({
           <div className="p-6">
             <DialogHeader className="mb-4">
               <DialogTitle className="text-center sm:text-left">
-                Reason for Rejection
+                拒絕Mentee預約的原因
               </DialogTitle>
               <DialogDescription className="text-center sm:text-left">
                 Tell the mentee why this booking can’t be accepted.
@@ -169,7 +167,7 @@ export default function AcceptReservationDialog({
               {/* 關閉視窗 */}
               <DialogClose asChild>
                 <Button variant="outline" className="w-full sm:w-auto">
-                  Discard
+                  捨棄
                 </Button>
               </DialogClose>
 
@@ -183,7 +181,7 @@ export default function AcceptReservationDialog({
                   setOpen(false);
                 }}
               >
-                Yes, reject it.
+                拒絕
               </Button>
             </DialogFooter>
           </div>
