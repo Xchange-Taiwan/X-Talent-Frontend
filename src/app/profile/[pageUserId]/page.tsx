@@ -19,8 +19,8 @@ import { Button } from '@/components/ui/button';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import useUserData from '@/hooks/user/user-data/useUserData';
 import {
+  formatBookingSlotTime,
   formatSelectedDate,
-  formatStartTimeSlot,
   toDateKey,
 } from '@/lib/profile/scheduleFormatters';
 
@@ -31,16 +31,31 @@ export default function Page({
 }) {
   const router = useRouter();
 
+  const now = new Date();
   const schedule = useMentorSchedule({
-    storageKey: `mentor.timeslots:${pageUserId}`,
+    mode: 'backend',
+    backend: {
+      userId: pageUserId,
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+    },
   });
   const {
     loaded,
     selectedDate,
     setSelectedDate,
-    draftForSelectedDate,
     parsedDraft,
+    generateBookingSlots,
   } = schedule;
+
+  // Auto-select the first available date once schedule is loaded
+  useEffect(() => {
+    if (!loaded) return;
+    const firstSlot = parsedDraft.find((s) => s.type === 'ALLOW');
+    if (firstSlot) setSelectedDate(firstSlot.dateKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
+
   const [isLogging, setIsLogging] = useState(false);
   const [loginUserId, setLoginUserId] = useState('');
 
@@ -148,21 +163,13 @@ export default function Page({
 
           <div className="static mt-4 flex items-center justify-center gap-4 sm:absolute sm:bottom-0 sm:left-[184px] sm:mt-0 lg:static">
             {isLogging && pageUserId === loginUserId && (
-              <>
-                <Button
-                  variant="outline"
-                  className="grow rounded-full px-6 py-3 sm:grow-0"
-                  onClick={() => router.push(`/profile/${pageUserId}/edit`)}
-                >
-                  編輯個人資訊
-                </Button>
-                <Button
-                  className="grow rounded-full px-6 py-3 sm:grow-0 lg:hidden"
-                  onClick={() => reservationHandler()}
-                >
-                  預約設定
-                </Button>
-              </>
+              <Button
+                variant="outline"
+                className="grow rounded-full px-6 py-3 sm:grow-0"
+                onClick={() => router.push(`/profile/${pageUserId}/edit`)}
+              >
+                編輯個人資訊
+              </Button>
             )}
 
             {isLogging && !userData.is_mentor && pageUserId === loginUserId && (
@@ -179,8 +186,8 @@ export default function Page({
           </div>
         </div>
 
-        <div className="flex gap-12 ">
-          <div className="w-3/5">
+        <div className="flex flex-col gap-8 lg:flex-row lg:gap-12">
+          <div className="w-full lg:w-3/5">
             <div>
               <p className="mb-4 text-xl font-bold">關於我</p>
               <p className="text-sm text-gray-400">{userData?.about}</p>
@@ -228,22 +235,26 @@ export default function Page({
             </div>
           </div>
 
-          <div className="hidden w-2/5 lg:block">
-            {userData.is_mentor && (
+          {userData.is_mentor && (
+            <div className="w-full lg:w-2/5">
               <div className="flex w-full flex-col gap-4">
                 <p className="text-xl font-bold">可預約日期</p>
 
-                <div className="inline-block w-auto rounded-lg border p-2 shadow-md">
+                <div className="w-full rounded-lg border p-2 shadow-md">
                   <div className="px-3 pb-3 pt-1">
                     <h2 className="text-2xl font-semibold tracking-tight">
                       {formatSelectedDate(
-                        selectedDate ? new Date(selectedDate) : undefined
+                        selectedDate
+                          ? new Date(selectedDate + 'T00:00:00')
+                          : undefined
                       )}
                     </h2>
                   </div>
                   <ScheduleCalendar
                     selected={
-                      selectedDate ? new Date(selectedDate) : new Date()
+                      selectedDate
+                        ? new Date(selectedDate + 'T00:00:00')
+                        : new Date()
                     }
                     onSelect={(d) => setSelectedDate(d ? toDateKey(d) : null)}
                     allowedDates={allowedDates}
@@ -253,24 +264,30 @@ export default function Page({
                 </div>
                 <div className="flex flex-col items-start gap-4">
                   <p>當日可預約時段</p>
-                  {draftForSelectedDate.length === 0 ? (
-                    <div className="flex min-h-10 items-center text-gray-400">
-                      無可預約的時段
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {[...draftForSelectedDate]
-                        .sort((a, b) => a.start.getTime() - b.start.getTime())
-                        .map((slot) => (
+                  {(() => {
+                    const slots = selectedDate
+                      ? generateBookingSlots(selectedDate)
+                      : [];
+                    if (slots.length === 0) {
+                      return (
+                        <div className="flex min-h-10 items-center text-gray-400">
+                          無可預約的時段
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="grid w-full grid-cols-2 gap-2">
+                        {slots.map((slot) => (
                           <div
-                            key={slot.id}
-                            className="flex h-10 w-[140px] select-none items-center justify-center rounded-lg border border-[#E6E8EA] text-sm font-medium"
+                            key={slot.start.getTime()}
+                            className="flex h-10 select-none items-center justify-center rounded-lg border border-[#E6E8EA] text-sm font-medium"
                           >
-                            {formatStartTimeSlot(slot)}
+                            {formatBookingSlotTime(slot)}
                           </div>
                         ))}
-                    </div>
-                  )}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <Button
                   variant="default"
@@ -298,8 +315,8 @@ export default function Page({
                   />
                 )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

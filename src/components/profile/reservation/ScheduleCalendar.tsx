@@ -11,6 +11,7 @@ interface ScheduleCalendarProps {
   showTodayStyle?: boolean;
   readOnly?: boolean;
   disableEmptyDates?: boolean;
+  disablePastDates?: boolean;
   highlightAvailableDates?: boolean;
 }
 
@@ -21,6 +22,7 @@ export const ScheduleCalendar = ({
   showTodayStyle,
   readOnly = false,
   disableEmptyDates = false,
+  disablePastDates = false,
   highlightAvailableDates = false,
 }: ScheduleCalendarProps) => {
   const handleSelect = (d: Date | undefined) => {
@@ -29,7 +31,7 @@ export const ScheduleCalendar = ({
   };
 
   const availableDays = highlightAvailableDates
-    ? allowedDates.map((dateStr) => new Date(dateStr))
+    ? allowedDates.map((dateStr) => new Date(dateStr + 'T00:00:00'))
     : [];
 
   return (
@@ -49,11 +51,14 @@ export const ScheduleCalendar = ({
         },
       }}
       disabled={(day) => {
+        if (disablePastDates) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (day < today) return true;
+        }
         if (disableEmptyDates) {
           const dateStr = dayjs(day).format('YYYY-MM-DD');
-          if (allowedDates.length === 0) {
-            return true;
-          }
+          if (allowedDates.length === 0) return true;
           return !allowedDates.includes(dateStr);
         }
         return false;

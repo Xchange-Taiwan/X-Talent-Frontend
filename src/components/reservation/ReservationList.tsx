@@ -13,6 +13,8 @@ import type { Reservation } from './types';
 
 type Variant = 'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';
 
+// ── Component ───────────────────────────────────────────────────────────────
+
 export function ReservationList({
   items,
   variant,
@@ -46,12 +48,12 @@ export function ReservationList({
     const otherId = resolveOtherId(myId, it);
 
     await updateReservationStatus({
-      userId: myId, // path :user_id = 自己
+      userId: myId,
       reservationId: id,
       debug: true,
       body: {
-        my_user_id: myId, // 自己
-        user_id: otherId, // 對方
+        my_user_id: myId,
+        user_id: otherId,
         my_status: 'ACCEPT',
         schedule_id: it.scheduleId,
         dtstart: it.dtstart,
@@ -63,7 +65,12 @@ export function ReservationList({
       },
     });
 
-    hardReload(); // ✅ 成功後整頁重載
+    // TODO: block the accepted time slot so other mentees can't book it.
+    // Blocked by backend: PUT /mentors/:id/schedule returns 422 when a BLOCK
+    // slot overlaps an existing ALLOW slot. Re-enable once backend supports it,
+    // or once GET schedule returns booked_slots so the frontend can filter them.
+
+    hardReload();
   };
 
   // Reject & Cancel 共用（API 等同）
@@ -81,8 +88,8 @@ export function ReservationList({
       debug: true,
       body: {
         my_user_id: myId,
-        user_id: otherId, // 對方
-        my_status: 'REJECT', // Reject & Cancel
+        user_id: otherId,
+        my_status: 'REJECT',
         schedule_id: it.scheduleId,
         dtstart: it.dtstart,
         dtend: it.dtend,
@@ -91,7 +98,10 @@ export function ReservationList({
       },
     });
 
-    hardReload(); // ✅ 成功後整頁重載
+    // TODO: remove the BLOCK slot when cancelling an accepted reservation.
+    // Blocked by the same backend limitation as above.
+
+    hardReload();
   };
 
   return (

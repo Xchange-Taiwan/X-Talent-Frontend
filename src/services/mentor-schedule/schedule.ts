@@ -19,8 +19,15 @@ export interface ScheduleTimeSlots {
   exdate: [];
 }
 
+export interface BookedSlot {
+  dtstart: number; // unix seconds
+  dtend: number; // unix seconds
+}
+
 export interface ScheduleType {
   timeslots: ScheduleTimeSlots[] | [];
+  meeting_duration_minutes?: number;
+  booked_slots?: BookedSlot[];
   next_dtstart: string;
 }
 
@@ -67,17 +74,23 @@ export async function saveMentorSchedule(params: {
   userId: string;
   timeslots: UpsertTimeslotBackend[];
   until?: number | null;
+  meetingDurationMinutes?: number;
+  debug?: boolean;
 }): Promise<boolean> {
   const clean = (obj: CleanObject): CleanObject =>
     Object.fromEntries(
       Object.entries(obj).filter(
         ([, v]) =>
-          v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0)
+          v !== undefined &&
+          v !== null &&
+          v !== '' &&
+          !(Array.isArray(v) && v.length === 0)
       )
     );
 
   const body = clean({
     until: params.until,
+    meeting_duration_minutes: params.meetingDurationMinutes,
     timeslots: params.timeslots.map((t) =>
       clean({
         id: t.id,
@@ -90,14 +103,37 @@ export async function saveMentorSchedule(params: {
     ),
   });
 
+  if (params.debug) {
+    console.log(
+      '[saveMentorSchedule] PUT body:',
+      JSON.stringify(body, null, 2)
+    );
+  }
+
   try {
     const result = await apiClient.put<SaveScheduleResponse>(
       `/v1/mentors/${params.userId}/schedule`,
       body,
       { auth: false }
     );
-    return result.code === '0';
-  } catch {
+    if (params.debug) {
+      console.log('[saveMentorSchedule] response:', result);
+    }
+    if (result.code !== '0') {
+      if (params.debug) {
+        console.error(
+          '[saveMentorSchedule] non-zero code:',
+          result.code,
+          result.msg
+        );
+      }
+      return false;
+    }
+    return true;
+  } catch (err) {
+    if (params.debug) {
+      console.error('[saveMentorSchedule] request failed:', err);
+    }
     return false;
   }
 }

@@ -1,11 +1,10 @@
-import { ParsedMentorTimeslot } from '@/hooks/useMentorSchedule';
+import { BookingSlot, ParsedMentorTimeslot } from '@/hooks/useMentorSchedule';
 
 export function formatSelectedDate(selectedDate: Date | undefined): string {
   if (!selectedDate) {
     return '';
   }
   return new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Taipei',
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -15,6 +14,18 @@ export function formatSelectedDate(selectedDate: Date | undefined): string {
 export function formatStartTimeSlot(slot: ParsedMentorTimeslot): string {
   const slotArr = JSON.stringify(slot.formatted)?.split(' ');
   return slotArr ? `${slotArr[1]} ${slotArr[2]}` : '';
+}
+
+const timeFormat: Intl.DateTimeFormatOptions = {
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: true,
+};
+
+export function formatBookingSlotTime(slot: BookingSlot): string {
+  const start = slot.start.toLocaleTimeString('en-US', timeFormat);
+  const end = slot.end.toLocaleTimeString('en-US', timeFormat);
+  return `${start} – ${end}`;
 }
 
 export function toDateKey(d: Date): string {

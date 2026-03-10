@@ -11,7 +11,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { UseMentorScheduleReturn } from '@/hooks/useMentorSchedule';
 
 import { ScheduleCalendar } from './ScheduleCalendar';
@@ -22,6 +28,24 @@ type EditingSlot = {
   startMinute: string;
   endHour: string;
   endMinute: string;
+};
+
+type SlotErrors = {
+  timeRange?: string;
+  overlap?: string;
+};
+
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) =>
+  String(i).padStart(2, '0')
+);
+const MINUTE_OPTIONS = ['00', '15', '30', '45'];
+
+/** Snap a minute value to the nearest option in [0, 15, 30, 45]. */
+const snapMinute = (m: number): string => {
+  const snapped = [0, 15, 30, 45].reduce((prev, curr) =>
+    Math.abs(curr - m) < Math.abs(prev - m) ? curr : prev
+  );
+  return String(snapped).padStart(2, '0');
 };
 
 export default function MentorScheduleDialog({
@@ -43,25 +67,40 @@ export default function MentorScheduleDialog({
     resetChanges,
     parsedDraft,
     updateDraftSlot,
+    meetingDurationMinutes,
   } = schedule;
 
   const [isSaving, setIsSaving] = useState(false);
   const [editingSlots, setEditingSlots] = useState<EditingSlot[]>([]);
+  const [slotErrors, setSlotErrors] = useState<Record<number, SlotErrors>>({});
 
   useEffect(() => {
-    const newEditingSlots = draftForSelectedDate.map((slot) => ({
-      id: slot.id,
-      startHour: String(slot.start.getHours()).padStart(2, '0'),
-      startMinute: String(slot.start.getMinutes()).padStart(2, '0'),
-      endHour: String(slot.end.getHours()).padStart(2, '0'),
-      endMinute: String(slot.end.getMinutes()).padStart(2, '0'),
-    }));
-    setEditingSlots(newEditingSlots);
+    setEditingSlots(
+      draftForSelectedDate.map((slot) => ({
+        id: slot.id,
+        startHour: String(slot.start.getHours()).padStart(2, '0'),
+        startMinute: snapMinute(slot.start.getMinutes()),
+        endHour: String(slot.end.getHours()).padStart(2, '0'),
+        endMinute: snapMinute(slot.end.getMinutes()),
+      }))
+    );
+    setSlotErrors({});
   }, [draftForSelectedDate]);
 
   const allowedDates = parsedDraft
     .filter((slot) => slot.type === 'ALLOW')
     .map((slot) => slot.dateKey);
+
+  const hasAnyError = Object.values(slotErrors).some(
+    (e) => e.timeRange || e.overlap
+  );
+
+  const hasInvalidTimes = editingSlots.some((slot) => {
+    const startTotal =
+      parseInt(slot.startHour) * 60 + parseInt(slot.startMinute);
+    const endTotal = parseInt(slot.endHour) * 60 + parseInt(slot.endMinute);
+    return endTotal - startTotal < 30;
+  });
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -70,163 +109,239 @@ export default function MentorScheduleDialog({
     onOpenChange(false);
   };
 
-  const handleLocalTimeChange = (
+  const checkOverlapWithOthers = (
     id: number,
-    part: keyof Omit<EditingSlot, 'id'>,
-    value: string
-  ) => {
-    setEditingSlots((currentSlots) =>
-      currentSlots.map((slot) =>
-        slot.id === id ? { ...slot, [part]: value } : slot
+    startTotal: number,
+    endTotal: number
+  ): boolean => {
+    return parsedDraft
+      .filter(
+        (s) => s.type === 'ALLOW' && s.id !== id && s.dateKey === selectedDate
       )
-    );
+      .some((s) => {
+        const otherStart = s.start.getHours() * 60 + s.start.getMinutes();
+        const otherEnd = s.end.getHours() * 60 + s.end.getMinutes();
+        return startTotal < otherEnd && endTotal > otherStart;
+      });
   };
 
-  const handleTimeBlur = (
+  const handleTimeChange = (
     id: number,
     part: keyof Omit<EditingSlot, 'id'>,
     value: string
   ) => {
-    const numericValue = parseInt(value, 10);
-    const clampedValue = isNaN(numericValue) ? 0 : numericValue;
-    const formattedValue = String(clampedValue).padStart(2, '0');
-
-    handleLocalTimeChange(id, part, formattedValue);
-
     const originalSlot = editingSlots.find((s) => s.id === id);
     if (!originalSlot) return;
 
-    const updatedSlot = { ...originalSlot, [part]: formattedValue };
-    const newStartTime = `${updatedSlot.startHour}:${updatedSlot.startMinute}`;
-    const newEndTime = `${updatedSlot.endHour}:${updatedSlot.endMinute}`;
+    const updatedSlot = { ...originalSlot, [part]: value };
+    setEditingSlots((prev) =>
+      prev.map((slot) => (slot.id === id ? updatedSlot : slot))
+    );
+
+    const startTotal =
+      parseInt(updatedSlot.startHour) * 60 + parseInt(updatedSlot.startMinute);
+    const endTotal =
+      parseInt(updatedSlot.endHour) * 60 + parseInt(updatedSlot.endMinute);
+
+    if (endTotal <= startTotal) {
+      setSlotErrors((prev) => ({
+        ...prev,
+        [id]: { timeRange: 'End time must be after start time' },
+      }));
+      return;
+    }
+
+    if (checkOverlapWithOthers(id, startTotal, endTotal)) {
+      setSlotErrors((prev) => ({
+        ...prev,
+        [id]: { overlap: 'This slot overlaps with another slot' },
+      }));
+      return;
+    }
+
+    setSlotErrors((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
 
     updateDraftSlot(id, {
-      startTime: newStartTime,
-      endTime: newEndTime,
+      startTime: `${updatedSlot.startHour}:${updatedSlot.startMinute}`,
+      endTime: `${updatedSlot.endHour}:${updatedSlot.endMinute}`,
     });
   };
 
   const addNewTimeSlot = () => {
+    const slotsToday = parsedDraft
+      .filter((s) => s.type === 'ALLOW' && s.dateKey === selectedDate)
+      .sort((a, b) => a.end.getTime() - b.end.getTime());
+
+    let startH = 9;
+    let startM = 0;
+
+    if (slotsToday.length > 0) {
+      const lastEnd = slotsToday[slotsToday.length - 1].end;
+      startH = lastEnd.getHours();
+      startM = lastEnd.getMinutes();
+      // snap to next 15-min boundary at or after lastEnd's minute
+      const snapped = Math.ceil(startM / 15) * 15;
+      if (snapped >= 60) {
+        startH += 1;
+        startM = 0;
+      } else {
+        startM = snapped;
+      }
+    }
+
+    if (startH >= 24) return;
+
+    const totalEndMin = startH * 60 + startM + meetingDurationMinutes;
+    const endH = Math.floor(totalEndMin / 60);
+    const endM = totalEndMin % 60;
+
+    if (endH >= 24) return;
+
     addSlotForSelectedDate({
       type: 'ALLOW',
-      startTime: '09:00',
-      endTime: '10:00',
+      startTime: `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`,
+      endTime: `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`,
     });
+  };
+
+  const renderTimeSelect = (
+    id: number,
+    part: keyof Omit<EditingSlot, 'id'>,
+    value: string,
+    options: string[],
+    hasError: boolean
+  ) => (
+    <Select value={value} onValueChange={(v) => handleTimeChange(id, part, v)}>
+      <SelectTrigger
+        className={`w-14 px-2 ${hasError ? 'border-red-500' : ''}`}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((opt) => (
+          <SelectItem key={opt} value={opt}>
+            {opt}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
+  const MIN_DURATION = 30; // minutes
+
+  const getEndHourOptions = (slot: EditingSlot): string[] => {
+    const minEnd =
+      parseInt(slot.startHour) * 60 + parseInt(slot.startMinute) + MIN_DURATION;
+    // Keep hours where at least one minute option (max = 45) yields endTotal >= minEnd
+    return HOUR_OPTIONS.filter((h) => parseInt(h) * 60 + 45 >= minEnd);
+  };
+
+  const getEndMinuteOptions = (slot: EditingSlot): string[] => {
+    const minEnd =
+      parseInt(slot.startHour) * 60 + parseInt(slot.startMinute) + MIN_DURATION;
+    return MINUTE_OPTIONS.filter(
+      (m) => parseInt(slot.endHour) * 60 + parseInt(m) >= minEnd
+    );
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle>Scheduling Setting</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-4">
-          <div>
-            <ScheduleCalendar
-              selected={selectedDate ? new Date(selectedDate) : new Date()}
-              onSelect={(d) =>
-                setSelectedDate(
-                  d
-                    ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-                    : null
-                )
-              }
-              allowedDates={allowedDates}
-              showTodayStyle={false}
-              disableEmptyDates={false}
-              highlightAvailableDates={true}
-            />
-          </div>
+          <ScheduleCalendar
+            selected={
+              selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date()
+            }
+            onSelect={(d) =>
+              setSelectedDate(
+                d
+                  ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+                  : null
+              )
+            }
+            allowedDates={allowedDates}
+            showTodayStyle={false}
+            disableEmptyDates={false}
+            disablePastDates={true}
+            highlightAvailableDates={true}
+          />
+
           <div>
             <p className="font-semibold">Available time slots</p>
-            <div className="mt-4 flex flex-col gap-4">
-              {editingSlots.map((slot, index) => (
-                <div
-                  key={slot.id}
-                  className="flex items-center justify-between"
-                >
-                  <div className="flex flex-nowrap items-center gap-1">
-                    <Input
-                      type="number"
-                      value={slot.startHour}
-                      onChange={(e) =>
-                        handleLocalTimeChange(
-                          slot.id,
-                          'startHour',
-                          e.target.value
-                        )
-                      }
-                      onBlur={(e) =>
-                        handleTimeBlur(slot.id, 'startHour', e.target.value)
-                      }
-                      className="w-14 text-center"
-                    />
-                    <span>:</span>
-                    <Input
-                      type="number"
-                      value={slot.startMinute}
-                      onChange={(e) =>
-                        handleLocalTimeChange(
-                          slot.id,
-                          'startMinute',
-                          e.target.value
-                        )
-                      }
-                      onBlur={(e) =>
-                        handleTimeBlur(slot.id, 'startMinute', e.target.value)
-                      }
-                      className="w-14 text-center"
-                    />
-                    <span className="mx-1">~</span>
-                    <Input
-                      type="number"
-                      value={slot.endHour}
-                      onChange={(e) =>
-                        handleLocalTimeChange(
-                          slot.id,
-                          'endHour',
-                          e.target.value
-                        )
-                      }
-                      onBlur={(e) =>
-                        handleTimeBlur(slot.id, 'endHour', e.target.value)
-                      }
-                      className="w-14 text-center"
-                    />
-                    <span>:</span>
-                    <Input
-                      type="number"
-                      value={slot.endMinute}
-                      onChange={(e) =>
-                        handleLocalTimeChange(
-                          slot.id,
-                          'endMinute',
-                          e.target.value
-                        )
-                      }
-                      onBlur={(e) =>
-                        handleTimeBlur(slot.id, 'endMinute', e.target.value)
-                      }
-                      className="w-14 text-center"
-                    />
-                    <Button
-                      variant="ghost"
-                      onClick={() => deleteDraftSlot(slot.id!)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="flex flex-shrink-0 items-center">
-                    {index === editingSlots.length - 1 ? (
-                      <Button variant="ghost" onClick={addNewTimeSlot}>
-                        <Plus className="h-4 w-4" />
+            <div className="mt-3 flex flex-col gap-3">
+              {editingSlots.map((slot, index) => {
+                const errors = slotErrors[slot.id] ?? {};
+                const hasError = Boolean(errors.timeRange || errors.overlap);
+                const endHourOptions = getEndHourOptions(slot);
+                const endMinuteOptions = getEndMinuteOptions(slot);
+                return (
+                  <div key={slot.id} className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1">
+                      {renderTimeSelect(
+                        slot.id,
+                        'startHour',
+                        slot.startHour,
+                        HOUR_OPTIONS,
+                        hasError
+                      )}
+                      <span className="text-muted-foreground">:</span>
+                      {renderTimeSelect(
+                        slot.id,
+                        'startMinute',
+                        slot.startMinute,
+                        MINUTE_OPTIONS,
+                        hasError
+                      )}
+                      <span className="mx-1 text-muted-foreground">–</span>
+                      {renderTimeSelect(
+                        slot.id,
+                        'endHour',
+                        slot.endHour,
+                        endHourOptions,
+                        hasError
+                      )}
+                      <span className="text-muted-foreground">:</span>
+                      {renderTimeSelect(
+                        slot.id,
+                        'endMinute',
+                        slot.endMinute,
+                        endMinuteOptions,
+                        hasError
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteDraftSlot(slot.id)}
+                      >
+                        <X className="h-4 w-4" />
                       </Button>
-                    ) : (
-                      <div className="w-10" />
+                      {index === editingSlots.length - 1 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={addNewTimeSlot}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    {errors.timeRange && (
+                      <p className="text-red-500 text-xs">{errors.timeRange}</p>
+                    )}
+                    {errors.overlap && (
+                      <p className="text-red-500 text-xs">{errors.overlap}</p>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
+
               {draftForSelectedDate.length === 0 && (
                 <Button
                   variant="ghost"
@@ -239,6 +354,7 @@ export default function MentorScheduleDialog({
             </div>
           </div>
         </div>
+
         <DialogFooter className="justify-center">
           <Button
             variant="outline"
@@ -249,7 +365,10 @@ export default function MentorScheduleDialog({
           >
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
+          <Button
+            onClick={handleSave}
+            disabled={isSaving || hasAnyError || hasInvalidTimes}
+          >
             {isSaving ? 'Saving...' : 'Save'}
           </Button>
         </DialogFooter>

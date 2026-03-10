@@ -7,6 +7,7 @@ dayjs.extend(isSameOrBefore);
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
+  BookedSlot,
   deleteMentorSchedule,
   fetchMentorSchedule,
   saveMentorSchedule,
@@ -32,6 +33,12 @@ export type ParsedMentorTimeslot = {
   dateKey: string; // YYYY-MM-DD (local)
 };
 
+export type BookingSlot = {
+  start: Date;
+  end: Date;
+  scheduleId: number; // parent ALLOW slot id
+};
+
 type Options = {
   storageKey?: string;
   seed?: RawMentorTimeslot[];
@@ -52,6 +59,10 @@ export type UseMentorScheduleReturn = {
 
   parsedDraft: ParsedMentorTimeslot[];
   draftForSelectedDate: ParsedMentorTimeslot[];
+
+  meetingDurationMinutes: number;
+  setMeetingDuration: (minutes: number) => void;
+  generateBookingSlots: (dateKey: string) => BookingSlot[];
 
   addSlotForSelectedDate: (opts: {
     type: 'ALLOW' | 'BLOCK';
@@ -150,6 +161,15 @@ export const useMentorSchedule = (
   /** 被刪除、等 Confirm 才真的 DELETE 的正數 id */
   const [pendingDeleteIds, setPendingDeleteIds] = useState<number[]>([]);
 
+  const [bookedSlots, setBookedSlots] = useState<BookedSlot[]>([]);
+
+  const [meetingDurationMinutes, setMeetingDurationMinutes] =
+    useState<number>(30);
+
+  const setMeetingDuration = useCallback((minutes: number) => {
+    setMeetingDurationMinutes(minutes);
+  }, []);
+
   const persistedIdSet = useMemo(
     () => new Set(saved.filter((s) => s.id > 0).map((s) => s.id)),
     [saved]
@@ -195,6 +215,10 @@ export const useMentorSchedule = (
             setDraft(raws);
             setLoaded(true);
             setPendingDeleteIds([]);
+            setBookedSlots(data?.booked_slots ?? []);
+            if (data?.meeting_duration_minutes) {
+              setMeetingDurationMinutes(data.meeting_duration_minutes);
+            }
           }
         } catch (e) {
           log('fetchMentorSchedule error:', e);
@@ -232,6 +256,37 @@ export const useMentorSchedule = (
     [parsedDraft, selectedDate]
   );
 
+  const generateBookingSlots = useCallback(
+    (dateKey: string): BookingSlot[] => {
+      const allowSlots = parsedDraft.filter(
+        (slot) => slot.type === 'ALLOW' && slot.dateKey === dateKey
+      );
+      const durationMs = meetingDurationMinutes * 60 * 1000;
+      const result: BookingSlot[] = [];
+      for (const slot of allowSlots) {
+        let cursor = slot.start.getTime();
+        const slotEnd = slot.end.getTime();
+        while (cursor + durationMs <= slotEnd) {
+          const subStart = cursor;
+          const subEnd = cursor + durationMs;
+          const isBooked = bookedSlots.some(
+            (b) => subStart < b.dtend * 1000 && subEnd > b.dtstart * 1000
+          );
+          if (!isBooked) {
+            result.push({
+              start: new Date(subStart),
+              end: new Date(subEnd),
+              scheduleId: slot.id,
+            });
+          }
+          cursor += durationMs;
+        }
+      }
+      return result;
+    },
+    [parsedDraft, meetingDurationMinutes, bookedSlots]
+  );
+
   const dirty = useMemo(
     () =>
       JSON.stringify(saved) !== JSON.stringify(draft) ||
@@ -258,16 +313,31 @@ export const useMentorSchedule = (
         const e = buildDT(selectedDate, endTime);
         if (!s.isValid() || !e.isValid() || e.isSameOrBefore(s)) return;
 
-        setDraft((prev) => [
-          ...prev,
-          {
-            id: nextTempId(prev),
-            type,
-            dtstart: Math.floor(s.valueOf() / 1000),
-            dtend: Math.floor(e.valueOf() / 1000),
-            rrule: '',
-          },
-        ]);
+        const newDtstart = Math.floor(s.valueOf() / 1000);
+        const newDtend = Math.floor(e.valueOf() / 1000);
+
+        setDraft((prev) => {
+          const hasOverlap = prev.some((r) => {
+            const rDate = dayjs(r.dtstart * 1000).format('YYYY-MM-DD');
+            return (
+              rDate === selectedDate &&
+              newDtstart < r.dtend &&
+              newDtend > r.dtstart
+            );
+          });
+          if (hasOverlap) return prev;
+
+          return [
+            ...prev,
+            {
+              id: nextTempId(prev),
+              type,
+              dtstart: newDtstart,
+              dtend: newDtend,
+              rrule: '',
+            },
+          ];
+        });
       },
       [selectedDate]
     );
@@ -308,13 +378,30 @@ export const useMentorSchedule = (
           return prev;
         }
 
+        const newDtstart = Math.floor(s.valueOf() / 1000);
+        const newDtend = Math.floor(e.valueOf() / 1000);
+        const hasOverlap = prev.some((r) => {
+          if (r.id === id) return false;
+          const rDate = dayjs(r.dtstart * 1000).format('YYYY-MM-DD');
+          return (
+            rDate === baseDate && newDtstart < r.dtend && newDtend > r.dtstart
+          );
+        });
+        if (hasOverlap) {
+          console.warn('[MentorSchedule] updateDraftSlot overlap detected', {
+            id,
+            baseDate,
+          });
+          return prev;
+        }
+
         const next = prev.map((r) =>
           r.id === id
             ? {
                 ...r,
                 type: patch.type ?? r.type,
-                dtstart: Math.floor(s.valueOf() / 1000),
-                dtend: Math.floor(e.valueOf() / 1000),
+                dtstart: newDtstart,
+                dtend: newDtend,
               }
             : r
         );
@@ -388,6 +475,10 @@ export const useMentorSchedule = (
       setSaved(raws);
       setDraft(raws);
       setPendingDeleteIds([]);
+      setBookedSlots(data?.booked_slots ?? []);
+      if (data?.meeting_duration_minutes) {
+        setMeetingDurationMinutes(data.meeting_duration_minutes);
+      }
       log('refetched after confirm:', { count: raws.length, raws });
     };
 
@@ -401,6 +492,7 @@ export const useMentorSchedule = (
           userId: backend.userId,
           until: endOfMonthUnix,
           timeslots: upsertPayload,
+          meetingDurationMinutes,
         });
         if (ok) await refetch();
         return;
@@ -426,6 +518,7 @@ export const useMentorSchedule = (
         userId: backend.userId,
         until: endOfMonthUnix,
         timeslots: upsertPayload,
+        meetingDurationMinutes,
       });
       if (!ok) throw new Error('PUT failed');
 
@@ -453,6 +546,7 @@ export const useMentorSchedule = (
     toServiceSlot,
     dirty,
     pendingDeleteIds,
+    meetingDurationMinutes,
     log,
     backend,
   ]);
@@ -490,6 +584,9 @@ export const useMentorSchedule = (
     setSelectedDate,
     parsedDraft,
     draftForSelectedDate,
+    meetingDurationMinutes,
+    setMeetingDuration,
+    generateBookingSlots,
     addSlotForSelectedDate,
     updateDraftSlot,
     deleteDraftSlot,
