@@ -18,7 +18,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  ParsedMentorTimeslot,
+  BookingSlot,
   UseMentorScheduleReturn,
 } from '@/hooks/useMentorSchedule';
 import { UserType } from '@/hooks/user/user-data/useUserData';
@@ -40,18 +40,17 @@ export default function MenteeReservationDialog({
   schedule: UseMentorScheduleReturn;
   userData: UserType | null;
 }) {
-  const { selectedDate, setSelectedDate, draftForSelectedDate, parsedDraft } =
+  const { selectedDate, setSelectedDate, parsedDraft, generateBookingSlots } =
     schedule;
   const router = useRouter();
 
   const [view, setView] = useState<'selection' | 'confirmation' | 'success'>(
     'selection'
   );
-  const [selectedSlot, setSelectedSlot] = useState<ParsedMentorTimeslot | null>(
-    null
-  );
+  const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
   const [bookingQuestion, setBookingQuestion] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -59,6 +58,7 @@ export default function MenteeReservationDialog({
         setView('selection');
         setSelectedSlot(null);
         setBookingQuestion('');
+        setSubmitError(null);
       }, 200);
     }
   }, [open]);
@@ -97,9 +97,9 @@ export default function MenteeReservationDialog({
         my_user_id: menteeId,
         my_status: 'PENDING',
         user_id: userData.user_id,
-        schedule_id: selectedSlot.id,
-        dtstart: Math.floor(new Date(selectedSlot.start).getTime() / 1000),
-        dtend: Math.floor(new Date(selectedSlot.end).getTime() / 1000),
+        schedule_id: selectedSlot.scheduleId,
+        dtstart: Math.floor(selectedSlot.start.getTime() / 1000),
+        dtend: Math.floor(selectedSlot.end.getTime() / 1000),
         messages: [{ user_id: menteeId, msg: bookingQuestion }],
         previous_reserve: {},
       };
@@ -111,26 +111,33 @@ export default function MenteeReservationDialog({
         debug: process.env.NODE_ENV === 'development',
       });
 
+      setSubmitError(null);
       setView('success');
     } catch (error) {
       console.error('Failed to create reservation:', error);
-      alert(
-        `Failed to create reservation: ${
-          error instanceof Error ? error.message : 'Unknown error'
-        }`
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      const isDuplicate =
+        msg.includes('409') ||
+        msg.toLowerCase().includes('conflict') ||
+        msg.toLowerCase().includes('already');
+      setSubmitError(
+        isDuplicate
+          ? 'This time slot has already been booked. Please choose another slot.'
+          : `Booking failed: ${msg}`
       );
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const formatStartTimeSlot = (slot: ParsedMentorTimeslot) => {
-    const date = new Date(slot.start);
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
+  const formatTimeSlot = (slot: BookingSlot) => {
+    const fmt = (d: Date) =>
+      d.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+    return `${fmt(slot.start)} – ${fmt(slot.end)}`;
   };
 
   const formatDate = (date: string | null) => {
@@ -148,11 +155,10 @@ export default function MenteeReservationDialog({
       return '';
     }
     return new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Taipei',
       weekday: 'short',
       month: 'short',
       day: 'numeric',
-    }).format(new Date(selectedDate));
+    }).format(new Date(selectedDate + 'T00:00:00'));
   };
 
   const allowedDates = parsedDraft
@@ -172,7 +178,9 @@ export default function MenteeReservationDialog({
             </h2>
           </div>
           <ScheduleCalendar
-            selected={selectedDate ? new Date(selectedDate) : new Date()}
+            selected={
+              selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date()
+            }
             onSelect={(d) =>
               setSelectedDate(
                 d
@@ -191,21 +199,32 @@ export default function MenteeReservationDialog({
         <div>
           <p className="font-semibold">Available time slots</p>
           <div className="mt-4 flex flex-row flex-wrap gap-4">
-            {draftForSelectedDate.map((slot) => (
-              <Button
-                key={slot.id}
-                variant={selectedSlot?.id === slot.id ? 'default' : 'outline'}
-                onClick={() => setSelectedSlot(slot)}
-                className="h-[40px] w-[96px]"
-              >
-                {formatStartTimeSlot(slot)}
-              </Button>
-            ))}
-            {draftForSelectedDate.length === 0 && (
-              <div className="text-center text-sm text-gray-500">
-                No available slots for this date.
-              </div>
-            )}
+            {(() => {
+              const slots = selectedDate
+                ? generateBookingSlots(selectedDate)
+                : [];
+              if (slots.length === 0) {
+                return (
+                  <div className="text-center text-sm text-gray-500">
+                    No available slots for this date.
+                  </div>
+                );
+              }
+              return slots.map((slot) => (
+                <Button
+                  key={slot.start.getTime()}
+                  variant={
+                    selectedSlot?.start.getTime() === slot.start.getTime()
+                      ? 'default'
+                      : 'outline'
+                  }
+                  onClick={() => setSelectedSlot(slot)}
+                  className="h-[40px] w-[160px]"
+                >
+                  {formatTimeSlot(slot)}
+                </Button>
+              ));
+            })()}
           </div>
         </div>
       </div>
@@ -262,7 +281,7 @@ export default function MenteeReservationDialog({
             </div>
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground" />
-              <p>{selectedSlot ? formatStartTimeSlot(selectedSlot) : ''}</p>
+              <p>{selectedSlot ? formatTimeSlot(selectedSlot) : ''}</p>
             </div>
           </div>
         </div>
@@ -280,6 +299,9 @@ export default function MenteeReservationDialog({
           />
         </div>
       </div>
+      {submitError && (
+        <p className="text-red-500 text-center text-sm">{submitError}</p>
+      )}
       <DialogFooter className="justify-center">
         <Button
           onClick={handleConfirm}
@@ -324,7 +346,7 @@ export default function MenteeReservationDialog({
             </div>
             <div className="flex items-center gap-2">
               <Hourglass className="h-4 w-4 text-muted-foreground" />
-              <p>{selectedSlot ? formatStartTimeSlot(selectedSlot) : ''}</p>
+              <p>{selectedSlot ? formatTimeSlot(selectedSlot) : ''}</p>
             </div>
           </div>
         </div>

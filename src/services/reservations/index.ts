@@ -88,9 +88,13 @@ function pickCounterparty(r: BackendReservation, state: ReservationState) {
   return r.sender;
 }
 
-function formatDateTime(epochSec: number) {
-  const d = dayjs.unix(epochSec);
-  return { date: d.format('ddd, MMM DD, YYYY'), time: d.format('h:mm a') };
+function formatDateTime(dtstart: number, dtend: number) {
+  const start = dayjs.unix(dtstart);
+  const end = dayjs.unix(dtend);
+  return {
+    date: start.format('ddd, MMM DD, YYYY'),
+    time: `${start.format('h:mm a')} – ${end.format('h:mm a')}`,
+  };
 }
 
 /* ================================
@@ -102,7 +106,7 @@ function mapToReservation(
   state: ReservationState
 ): Reservation {
   const counterparty = pickCounterparty(r, state);
-  const { date, time } = formatDateTime(r.dtstart);
+  const { date, time } = formatDateTime(r.dtstart, r.dtend);
   const roleLineParts = [
     counterparty.job_title?.trim() || '',
     prettyYears(counterparty.years_of_experience),
