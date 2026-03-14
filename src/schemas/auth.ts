@@ -28,3 +28,7 @@ export const PasswordResetSchema = z
     message: '密碼與確認密碼不符',
     path: ['confirm_password'],
   });
+
+export const PasswordForgotSchema = z.object({
+  email: z.string().email('請輸入電子郵件'),
+});
