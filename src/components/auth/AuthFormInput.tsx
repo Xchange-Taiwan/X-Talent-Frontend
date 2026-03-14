@@ -1,3 +1,7 @@
+'use client';
+
+import { Eye, EyeOff } from 'lucide-react';
+import { useState } from 'react';
 import { Control, FieldValues, Path } from 'react-hook-form';
 
 import {
@@ -28,6 +32,19 @@ const AuthFormInput = <T extends FieldValues>({
   forgotPasswordLink,
   autocomplete,
 }: AuthFormInputProps<T>) => {
+  const [showPassword, setShowPassword] = useState(false);
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
+  const isPasswordInput = type === 'password';
+  const inputType = isPasswordInput
+    ? showPassword
+      ? 'text'
+      : 'password'
+    : type;
+
   return (
     <FormField
       control={control}
@@ -35,15 +52,32 @@ const AuthFormInput = <T extends FieldValues>({
       render={({ field }) => (
         <FormItem>
           <FormLabel showErrorStyle={false}>{label}</FormLabel>
-          <FormControl>
-            <Input
-              placeholder={placeholder}
-              type={type}
-              autoComplete={autocomplete}
-              {...field}
-              value={field.value ?? ''}
-            />
-          </FormControl>
+          <div className="relative">
+            <FormControl>
+              <Input
+                placeholder={placeholder}
+                type={inputType}
+                autoComplete={autocomplete}
+                className={isPasswordInput ? 'pr-10' : ''}
+                {...field}
+                value={field.value ?? ''}
+              />
+            </FormControl>
+            {isPasswordInput && (
+              <button
+                type="button"
+                onClick={togglePasswordVisibility}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                aria-label={showPassword ? 'hide password' : 'show password'}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5" />
+                ) : (
+                  <Eye className="h-5 w-5" />
+                )}
+              </button>
+            )}
+          </div>
           <FormMessage />
           {forgotPasswordLink}
         </FormItem>
