@@ -9,6 +9,7 @@ export const publicRoutes: string[] = [
   '/auth/signup',
   '/auth/google/callback/redirect',
   '/auth/password-forgot',
+  '/auth/password-forgot-success',
   '/auth/password-reset',
   '/auth/password-reset-success',
   '/auth/email-verify',
