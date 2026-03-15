@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
+import { PageLoading } from '@/components/ui/loading-spinner';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import useUserData from '@/hooks/user/user-data/useUserData';
 
@@ -60,7 +61,7 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
     'zh_TW'
   );
 
-  if (loading || !loaded) return null;
+  if (loading || !loaded) return <PageLoading />;
 
   if (!userData) {
     return (

@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getSession, signIn } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
 
 type OAuthUser = {
@@ -73,8 +74,6 @@ export default function GoogleOAuthRedirectPage() {
       }
 
       try {
-        console.log('[OAuth Debug] POST → /v2/oauth/google/callback');
-
         const res = await fetch(
           `${process.env.NEXT_PUBLIC_API_URL}/v2/oauth/google/callback`,
           {
@@ -85,11 +84,9 @@ export default function GoogleOAuthRedirectPage() {
         );
 
         const data: OAuthResponse = await res.json();
-        console.log('[OAuth Debug] Response:', data);
 
         await proceedWithSignIn(data);
       } catch (err) {
-        console.error('[OAuth Debug] OAuth login failed:', err);
         toast({
           variant: 'destructive',
           title: 'Login failed',
@@ -109,7 +106,6 @@ export default function GoogleOAuthRedirectPage() {
 
     // SIGNUP — go to email verification
     if (backendData.auth_type === 'SIGNUP') {
-      console.log('[OAuth Debug] SIGNUP detected');
       sessionStorage.setItem('email', backendData.auth.email);
       router.push('/auth/email-verify');
       return;
@@ -145,6 +141,11 @@ export default function GoogleOAuthRedirectPage() {
   };
 
   return (
-    <div>{loading ? 'Signing you in with Google...' : 'Redirecting...'}</div>
+    <div className="flex h-[50vh] w-full flex-col items-center justify-center gap-3">
+      <LoadingSpinner size="lg" />
+      <p className="text-sm text-muted-foreground">
+        {loading ? 'Signing you in with Google...' : 'Redirecting...'}
+      </p>
+    </div>
   );
 }

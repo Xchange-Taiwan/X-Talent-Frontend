@@ -1,7 +1,5 @@
 'use client';
 
-import Box from '@mui/material/Box';
-import CircularProgress from '@mui/material/CircularProgress';
 import { XIcon } from 'lucide-react';
 
 import {
@@ -11,6 +9,7 @@ import {
 import MentorFilterDropdown from '@/components/filter/MentorFilterDropdown';
 import { MentorCardList } from '@/components/mentor-pool/mentor-card-list';
 import { Badge } from '@/components/ui/badge';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import SearchBar from '@/components/ui/search-bar';
 import { MentorType } from '@/services/search-mentor/mentors';
 
@@ -25,35 +24,6 @@ interface Props {
   onFilterChange: (opts: SelectFilters) => void;
   onRemoveFilter: (key: string) => void;
   onScrollToBottom: () => Promise<void>;
-}
-
-const trackSx = { color: '#F0F6F6' };
-const spinnerSx = {
-  color: '#BEDEDE',
-  animationDuration: '550ms',
-  position: 'absolute' as const,
-  left: 0,
-};
-
-function LoadingIcon() {
-  return (
-    <Box sx={{ position: 'relative' }}>
-      <CircularProgress
-        variant="determinate"
-        sx={trackSx}
-        size={40}
-        thickness={4}
-        value={100}
-      />
-      <CircularProgress
-        variant="indeterminate"
-        disableShrink
-        sx={spinnerSx}
-        size={40}
-        thickness={4}
-      />
-    </Box>
-  );
 }
 
 export default function MentorPoolUI({
@@ -125,7 +95,7 @@ export default function MentorPoolUI({
           )}
           {isLoading && (
             <div className="flex h-full w-full items-center justify-center">
-              <LoadingIcon />
+              <LoadingSpinner size="lg" />
             </div>
           )}
         </div>

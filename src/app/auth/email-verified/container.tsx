@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 
 import EmailVerifiedFailuredIconUrl from '@/assets/auth/email-verified-failed-icon.svg';
 import EmailVerifiedIconUrl from '@/assets/auth/email-verified-icon.svg';
+import { PageLoading } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
 import { confirmRegister } from '@/services/auth/confirmRegister';
 
@@ -56,7 +57,7 @@ export default function EmailVerifiedContainer() {
   }, [token, router, toast]);
 
   if (isLoading) {
-    return <div className="text-center">驗證中，請稍候...</div>;
+    return <PageLoading />;
   }
 
   return (

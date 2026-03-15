@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
+import { PageLoading } from '@/components/ui/loading-spinner';
 import useUserData from '@/hooks/user/user-data/useUserData';
 
 const ProfileCardUI = dynamic(() => import('./ui'));
@@ -27,7 +28,7 @@ export default function ProfileCardContainer() {
 
   const { userData, isLoading } = useUserData(loginUserId ?? 0, 'zh_TW');
 
-  if (isLoading || !loginUserId) return null;
+  if (isLoading || !loginUserId) return <PageLoading />;
   if (!userData) return null;
 
   const isMentor = userData.is_mentor;

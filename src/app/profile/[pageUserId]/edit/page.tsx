@@ -23,6 +23,7 @@ import {
 } from '@/components/profile/edit/profileSchema';
 import { Section } from '@/components/profile/edit/Section';
 import { Form } from '@/components/ui/form';
+import { PageLoading } from '@/components/ui/loading-spinner';
 import { useProfileAuth } from '@/hooks/user/auth/useProfileAuth';
 import useLocations from '@/hooks/user/country/useLocations';
 import useExpertises from '@/hooks/user/expertises/useExpertises';
@@ -113,7 +114,7 @@ export default function Page({
   });
 
   if (!isAuthorized) return null;
-  if (isPageLoading) return null;
+  if (isPageLoading) return <PageLoading />;
 
   const handleGoToPrev = () => {
     router.push(`/profile/${pageUserId}`);
