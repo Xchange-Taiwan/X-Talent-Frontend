@@ -54,12 +54,13 @@ export default function MenteeReservationDialog({
 
   useEffect(() => {
     if (!open) {
-      setTimeout(() => {
+      const id = setTimeout(() => {
         setView('selection');
         setSelectedSlot(null);
         setBookingQuestion('');
         setSubmitError(null);
       }, 200);
+      return () => clearTimeout(id);
     }
   }, [open]);
 

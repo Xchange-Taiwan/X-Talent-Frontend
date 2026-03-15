@@ -50,7 +50,6 @@ export function ReservationList({
     await updateReservationStatus({
       userId: myId,
       reservationId: id,
-      debug: true,
       body: {
         my_user_id: myId,
         user_id: otherId,
@@ -85,7 +84,6 @@ export function ReservationList({
     await updateReservationStatus({
       userId: myId,
       reservationId: id,
-      debug: true,
       body: {
         my_user_id: myId,
         user_id: otherId,

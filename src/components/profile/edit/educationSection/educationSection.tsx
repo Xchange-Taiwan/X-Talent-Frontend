@@ -41,6 +41,11 @@ import { ProfileFormValues } from '../profileSchema';
 import { Section } from '../Section';
 import { taiwanSchools } from './schoolData';
 
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR - 1940 + 1 }, (_, i) =>
+  (CURRENT_YEAR - i).toString()
+);
+
 function SchoolComboboxField({
   field,
 }: {
@@ -145,11 +150,6 @@ export const EducationSection = ({
     });
   };
 
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: currentYear - 1940 + 1 }, (_, i) =>
-    (currentYear - i).toString()
-  );
-
   const watchedEducations = useWatch({
     control,
     name: 'educations',
@@ -225,7 +225,7 @@ export const EducationSection = ({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {years.map((year) => (
+                        {YEAR_OPTIONS.map((year) => (
                           <SelectItem key={year} value={year}>
                             {year}
                           </SelectItem>
@@ -261,7 +261,7 @@ export const EducationSection = ({
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="now">至今</SelectItem>
-                        {years.map((year) => (
+                        {YEAR_OPTIONS.map((year) => (
                           <SelectItem key={year} value={year}>
                             {year}
                           </SelectItem>
