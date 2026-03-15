@@ -11,6 +11,10 @@ import useUserData from '@/hooks/user/user-data/useUserData';
 
 const ProfilePageUI = dynamic(() => import('./ui'));
 
+// Stable within a browser session — lets the browser cache profile avatars
+// across navigations. Resets on full page refresh, ensuring a fresh fetch.
+const AVATAR_CACHE_BUST = Date.now();
+
 interface Props {
   pageUserId: string;
 }
@@ -39,7 +43,6 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
 
   const [isLogging, setIsLogging] = useState(false);
   const [loginUserId, setLoginUserId] = useState('');
-  const [avatarCacheBust] = useState(() => Date.now());
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
   const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =
     useState(false);
@@ -97,7 +100,7 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
       schedule={schedule}
       loginUserId={loginUserId}
       isLogging={isLogging}
-      avatarCacheBust={avatarCacheBust}
+      avatarCacheBust={AVATAR_CACHE_BUST}
       allowedDates={allowedDates}
       openReservationDialog={openReservationDialog}
       setOpenReservationDialog={setOpenReservationDialog}
