@@ -33,23 +33,21 @@ import { useEditProfileData } from '@/hooks/user/profile/useEditProfileData';
 import { useProfileSelectOptions } from '@/hooks/user/profile/useProfileSelectOptions';
 import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
 
-const JobExperienceSection = dynamic(() =>
-  import('@/components/profile/edit/JobExperienceSection').then((m) => ({
-    default: m.JobExperienceSection,
-  }))
-);
+const JobExperienceSection = dynamic(async () => {
+  const m = await import('@/components/profile/edit/JobExperienceSection');
+  return { default: m.JobExperienceSection };
+});
 
-const EducationSection = dynamic(() =>
-  import('@/components/profile/edit/educationSection/educationSection').then(
-    (m) => ({ default: m.EducationSection })
-  )
-);
+const EducationSection = dynamic(async () => {
+  const m =
+    await import('@/components/profile/edit/educationSection/educationSection');
+  return { default: m.EducationSection };
+});
 
-const LinksSection = dynamic(() =>
-  import('@/components/profile/edit/LinkSection').then((m) => ({
-    default: m.LinksSection,
-  }))
-);
+const LinksSection = dynamic(async () => {
+  const m = await import('@/components/profile/edit/LinkSection');
+  return { default: m.LinksSection };
+});
 
 export default function Page({
   params: { pageUserId },
@@ -61,6 +59,11 @@ export default function Page({
   const isMentorOnboarding = searchParams?.get('onboarding') === 'true';
 
   const { data: session, update: updateSession } = useSession();
+
+  // Stable fallback used when avatarUpdatedAt is absent (e.g. fresh login before
+  // any update). Ensures the browser always fetches the current image on first
+  // load rather than serving a previously-cached ?cb=0 stale copy.
+  const stableEditCacheBust = useRef(Date.now()).current;
 
   const { isAuthorized } = useProfileAuth(pageUserId);
 
@@ -137,7 +140,7 @@ export default function Page({
             name="avatarFile"
             avatarUrl={
               watchedAvatar
-                ? `${watchedAvatar}?cb=${session?.user?.avatarUpdatedAt ?? 0}`
+                ? `${watchedAvatar}?cb=${session?.user?.avatarUpdatedAt ?? stableEditCacheBust}`
                 : ''
             }
           />

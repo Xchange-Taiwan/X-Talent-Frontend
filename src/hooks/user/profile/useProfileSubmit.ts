@@ -4,6 +4,7 @@ import { Session } from 'next-auth';
 import { useState } from 'react';
 
 import { ProfileFormValues } from '@/components/profile/edit/profileSchema';
+import { clearUserDataCache } from '@/hooks/user/user-data/useUserData';
 import { pollUntilSynced } from '@/lib/profile/pollUntilSynced';
 import { ExperienceType } from '@/services/profile/experienceType';
 import { updateAvatar } from '@/services/profile/updateAvatar';
@@ -124,7 +125,13 @@ export function useProfileSubmit({
       // 4) poll until backend reflects all updated fields (up to 1 min, every 5s)
       const latest = await pollUntilSynced(values, avatar ?? '');
 
-      // 5) update next-auth session (requires jwt trigger update handler!)
+      // 5) invalidate in-memory user data cache so the profile page fetches
+      //    fresh data on next mount instead of a potentially stale promise
+      if (session?.user?.id) {
+        clearUserDataCache(Number(session.user.id), 'zh_TW');
+      }
+
+      // 6) update next-auth session (requires jwt trigger update handler!)
       await updateSession({
         user: {
           // keep id from current session
@@ -140,7 +147,7 @@ export function useProfileSubmit({
         },
       });
 
-      // 6) navigate
+      // 7) navigate
       if (isMentorOnboarding) {
         router.push('/profile/card');
       } else {
