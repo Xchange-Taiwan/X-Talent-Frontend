@@ -14,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 
 import { ShareProfileDialog } from './ShareProfileDialog';
 
@@ -31,8 +32,10 @@ export const UserDropdown = React.memo(function UserDropdown({
   const userId = user.id;
   const isMentor = Boolean(user.isMentor);
   const name = user.name ?? '';
+  // Use the thumbnail variant for all small avatar displays in the header /
+  // dropdown / share dialog — the full-size image is only needed on the profile page.
   const avatarSrc = user.avatar
-    ? `${user.avatar}?cb=${user.avatarUpdatedAt ?? 0}`
+    ? `${getAvatarThumbUrl(user.avatar)}?cb=${user.avatarUpdatedAt ?? 0}`
     : '';
   const jobTitle = user.jobTitle ?? '';
   const company = user.company ?? '';

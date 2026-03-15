@@ -7,6 +7,16 @@ import { getInterestsCached } from '../interests/useInterests';
 
 const userDtoPromiseCache = new Map<string, Promise<UserDTO | null>>();
 
+/**
+ * Removes a user's entry from the in-memory request cache so the next call to
+ * useUserData for that user triggers a fresh API fetch.  Call this after a
+ * successful profile update to prevent any concurrent mount from receiving
+ * stale data.
+ */
+export function clearUserDataCache(userId: number, language: string): void {
+  userDtoPromiseCache.delete(`${userId}-${language}`);
+}
+
 function fetchUserByIdCached(
   userId: number,
   language: string

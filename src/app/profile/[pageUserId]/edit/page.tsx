@@ -62,6 +62,11 @@ export default function Page({
 
   const { data: session, update: updateSession } = useSession();
 
+  // Stable fallback used when avatarUpdatedAt is absent (e.g. fresh login before
+  // any update). Ensures the browser always fetches the current image on first
+  // load rather than serving a previously-cached ?cb=0 stale copy.
+  const stableEditCacheBust = useRef(Date.now()).current;
+
   const { isAuthorized } = useProfileAuth(pageUserId);
 
   const [isMentor, setIsMentor] = useState(false);
@@ -137,7 +142,7 @@ export default function Page({
             name="avatarFile"
             avatarUrl={
               watchedAvatar
-                ? `${watchedAvatar}?cb=${session?.user?.avatarUpdatedAt ?? 0}`
+                ? `${watchedAvatar}?cb=${session?.user?.avatarUpdatedAt ?? stableEditCacheBust}`
                 : ''
             }
           />
