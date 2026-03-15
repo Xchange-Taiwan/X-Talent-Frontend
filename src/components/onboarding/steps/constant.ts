@@ -1,7 +1,5 @@
 /**
- * 轉換 Enum 為下拉選單的選項
- * @param enumObj
- * @returns
+ * Converts an enum object into an array of { value, label } options for use in dropdowns.
  */
 function enumToOptionsArray(
   enumObj: Record<string, string>
@@ -13,7 +11,7 @@ function enumToOptionsArray(
 }
 
 /**
- * 總年資
+ * Total years of experience
  */
 export enum TotalWorkSpanEnum {
   BELOW_ONE_YEAR = '1 年以下',

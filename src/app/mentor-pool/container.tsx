@@ -12,6 +12,8 @@ import { filterOptions } from './data';
 const MentorPoolUI = dynamic(() => import('./ui'));
 
 const PAGE_LIMIT = 9;
+const SESSION_KEY_PATTERN = 'mentor-pool:searchPattern';
+const SESSION_KEY_FILTERS = 'mentor-pool:selectedFilters';
 
 export default function MentorPoolContainer() {
   const [searchPattern, setSearchPattern] = useState('');
@@ -21,20 +23,45 @@ export default function MentorPoolContainer() {
   const [isNoResults, setIsNoResults] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [cursor, setCursor] = useState<string | undefined>('');
+  const [sessionRestored, setSessionRestored] = useState(false);
   const isLoadingRef = useRef(false);
+
+  // Restore persisted search state before the first fetch
+  useEffect(() => {
+    try {
+      const savedPattern = sessionStorage.getItem(SESSION_KEY_PATTERN);
+      if (savedPattern !== null) setSearchPattern(savedPattern);
+
+      const savedFilters = sessionStorage.getItem(SESSION_KEY_FILTERS);
+      if (savedFilters) setSelectedFilters(JSON.parse(savedFilters));
+    } catch {
+      // sessionStorage unavailable (private browsing restrictions etc.) — ignore
+    } finally {
+      setSessionRestored(true);
+    }
+  }, []);
 
   const handleFilterChange = useCallback((options: SelectFilters) => {
     setSelectedFilters(options);
+    try {
+      sessionStorage.setItem(SESSION_KEY_FILTERS, JSON.stringify(options));
+    } catch {}
   }, []);
 
   const handleSearch = useCallback(async (queryWords: string) => {
     setSearchPattern(queryWords);
+    try {
+      sessionStorage.setItem(SESSION_KEY_PATTERN, queryWords);
+    } catch {}
   }, []);
 
   const removeFilter = useCallback((key: string) => {
     setSelectedFilters((prevFilters) => {
       const newFilters = { ...prevFilters };
       delete newFilters[key];
+      try {
+        sessionStorage.setItem(SESSION_KEY_FILTERS, JSON.stringify(newFilters));
+      } catch {}
       return newFilters;
     });
   }, []);
@@ -117,9 +144,12 @@ export default function MentorPoolContainer() {
     await fetchMoreMentors();
   }, [mentors.length, fetchMoreMentors]);
 
+  // Only start fetching after sessionStorage has been read — avoids a wasted
+  // request with empty state immediately followed by one with the restored state.
   useEffect(() => {
+    if (!sessionRestored) return;
     fetchMentorsBySearch();
-  }, [fetchMentorsBySearch]);
+  }, [sessionRestored, fetchMentorsBySearch]);
 
   return (
     <MentorPoolUI

@@ -19,8 +19,6 @@ export default function ReservationTabs({
   pendingMentor,
   history,
 }: ReservationTabsProps) {
-  // Optional: if you still need mentee later, you can keep these props.
-  // For now, the UI shows mentor tabs only.
   void upcomingMentee;
   void pendingMentee;
 
@@ -36,7 +34,6 @@ export default function ReservationTabs({
     <div className="mx-auto w-full max-w-3xl px-0 sm:px-4 lg:px-6">
       {/* IMPORTANT: defaultValue must match an existing TabsTrigger value */}
       <Tabs defaultValue="upcoming-mentor" className="w-full">
-        {/* Top filter tabs */}
         <div className="bg-white sticky top-0 z-10 pb-2">
           <div className="-mx-3 sm:mx-0">
             <div
@@ -71,7 +68,6 @@ export default function ReservationTabs({
           </div>
         </div>
 
-        {/* Content */}
         <div className="px-3 pt-2 sm:px-0">
           <TabsContent value="upcoming-mentor" className="mt-4 sm:mt-6">
             <ReservationList items={upcomingMentor} variant="upcoming" />

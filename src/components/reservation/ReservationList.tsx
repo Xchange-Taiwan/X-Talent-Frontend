@@ -1,4 +1,3 @@
-// src/components/reservation/reservationList.tsx
 'use client';
 
 import { getSession } from 'next-auth/react';
@@ -12,8 +11,6 @@ import { ReservationCard } from './ReservationCard';
 import type { Reservation } from './types';
 
 type Variant = 'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';
-
-// ── Component ───────────────────────────────────────────────────────────────
 
 export function ReservationList({
   items,
@@ -29,16 +26,16 @@ export function ReservationList({
     return found;
   };
 
-  // 由目前登入者決定「對方」 user_id
+  // Resolve the other party's user_id based on who is currently logged in
   const resolveOtherId = (myId: string, it: Reservation): string | number =>
     String(it.senderUserId) === myId ? it.participantUserId : it.senderUserId;
 
-  // 整頁重載
+  // Hard reload the page to reflect updated reservation state
   const hardReload = () => {
     if (typeof window !== 'undefined') window.location.reload();
   };
 
-  // Accept（導師 pending-mentor）
+  // Accept a booking request (mentor side, pending-mentor variant)
   const accept = async ({ id, message }: { id: string; message: string }) => {
     const session = await getSession();
     const myId = String(session?.user?.id ?? '');
@@ -72,7 +69,7 @@ export function ReservationList({
     hardReload();
   };
 
-  // Reject & Cancel 共用（API 等同）
+  // Shared handler for both reject and cancel (same API call)
   const rejectOrCancel = async (id: string, text: string) => {
     const session = await getSession();
     const myId = String(session?.user?.id ?? '');

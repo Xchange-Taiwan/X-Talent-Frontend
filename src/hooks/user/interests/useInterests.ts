@@ -79,7 +79,6 @@ function useInterests(language: string) {
         setExpertises(data.expertises);
         setWhatIOffers(data.whatIOffers);
       } catch (e) {
-        console.error('Failed to load interests:', e);
         if (cancelled) return;
         setError('Failed to load interests');
       } finally {

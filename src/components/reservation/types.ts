@@ -7,12 +7,12 @@ export type Reservation = {
   time: string;
   note?: string;
 
-  // PUT 需要
+  // Required by the PUT reservation status endpoint
   scheduleId: number;
   dtstart: number;
   dtend: number;
 
-  // ✅ 同時保留兩邊 id，避免判錯
+  // Both user ids are kept so we can reliably determine which side the current user is on
   senderUserId: number | string;
   participantUserId: number | string;
 };

@@ -120,6 +120,8 @@ export default function Page({
     router.push(`/profile/${pageUserId}`);
   };
 
+  const watchedAvatar = form.watch('avatar');
+
   return (
     <div className="mx-auto w-11/12 max-w-[1064px] pb-20 pt-10">
       <EditPageHeader isSaving={isSaving} onBack={handleGoToPrev} />
@@ -134,8 +136,8 @@ export default function Page({
             control={form.control}
             name="avatarFile"
             avatarUrl={
-              form.watch('avatar')
-                ? `${form.watch('avatar')}?cb=${session?.user?.avatarUpdatedAt ?? 0}`
+              watchedAvatar
+                ? `${watchedAvatar}?cb=${session?.user?.avatarUpdatedAt ?? 0}`
                 : ''
             }
           />

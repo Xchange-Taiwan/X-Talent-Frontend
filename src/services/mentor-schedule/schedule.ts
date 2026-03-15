@@ -52,7 +52,6 @@ export async function fetchMentorSchedule(
   }
 }
 
-/** 與 backend 對齊 */
 export type UpsertTimeslotBackend = {
   id?: string | number;
   user_id?: string | number;

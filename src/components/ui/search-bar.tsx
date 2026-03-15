@@ -1,4 +1,5 @@
 import SearchIcon from '@mui/icons-material/Search';
+import { Loader2 } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSearch = async () => {
-    if (!query.trim()) return;
+    if (!query.trim() || isLoading) return;
     setIsLoading(true);
     try {
       await onSearch(query);
@@ -44,9 +45,10 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch }) => {
 
         <Button
           onClick={handleSearch}
+          disabled={isLoading}
           className="ml-2 cursor-pointer rounded-[24px] border-none bg-primary leading-5 md:px-6 md:py-2.5"
         >
-          {isLoading ? '...' : '搜尋'}
+          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : '搜尋'}
         </Button>
       </div>
     </>
