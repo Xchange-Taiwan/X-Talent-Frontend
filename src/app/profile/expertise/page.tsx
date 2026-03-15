@@ -9,12 +9,7 @@ import { formSchema } from '@/components/profile/expertise-select-item';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 
-const EXPERTISE_SELECTION = [
-  'UI Design',
-  'UX Design',
-  'SEO Writing',
-  'Graphic Design',
-] as const;
+import { EXPERTISE_SELECTION } from './data';
 
 const onSubmit = (values: z.infer<typeof formSchema>) => {
   console.log(values);

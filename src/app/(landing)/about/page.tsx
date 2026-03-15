@@ -5,11 +5,9 @@ import aboutPage_1 from '@/assets/landing/aboutPage_1.png';
 import aboutPage_icon_1 from '@/assets/landing/aboutPage_icon_1.svg';
 import aboutPage_icon_2 from '@/assets/landing/aboutPage_icon_2.svg';
 import aboutPage_icon_3 from '@/assets/landing/aboutPage_icon_3.svg';
-import landingPage_icon_7 from '@/assets/landing/landingPage_icon_7.svg';
-import landingPage_icon_8 from '@/assets/landing/landingPage_icon_8.svg';
-import landingPage_icon_9 from '@/assets/landing/landingPage_icon_9.png';
-import landingPage_icon_10 from '@/assets/landing/landingPage_icon_10.svg';
 import { JoinWaitingList } from '@/components/landing/JoinWaitingList';
+
+import { featureData } from '../data';
 
 const SectionTitle: FC<{ children: ReactNode }> = ({ children }) => (
   <h2 className="mb-20 text-center text-2xl font-bold">{children}</h2>
@@ -23,25 +21,6 @@ const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
     </div>
   );
 };
-
-const featureData = [
-  {
-    icon: landingPage_icon_7,
-    text: '產業洞見線上分享',
-  },
-  {
-    icon: landingPage_icon_8,
-    text: '職涯心法座談會',
-  },
-  {
-    icon: landingPage_icon_9,
-    text: '填寫問卷尋找導師',
-  },
-  {
-    icon: landingPage_icon_10,
-    text: '一對一深度交流',
-  },
-];
 
 export default function Page() {
   return (
@@ -105,8 +84,8 @@ export default function Page() {
         </SectionTitle>
         <div className="flex w-full flex-col items-center justify-center">
           <div className="text-black flex flex-col flex-wrap justify-center font-bold md:flex-row">
-            {featureData.map((item, index) => (
-              <FeatureItem key={index} icon={item.icon} text={item.text} />
+            {featureData.map((item) => (
+              <FeatureItem key={item.text} icon={item.icon} text={item.text} />
             ))}
           </div>
         </div>
