@@ -3,7 +3,7 @@
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import { XIcon } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import avatarImage from '@/assets/default-avatar.png';
 import {
@@ -65,6 +65,8 @@ const filterOptions: FilterOptions = {
   },
 };
 
+const PAGE_LIMIT = 9;
+
 const Page = () => {
   const [searchPattern, setSearchPattern] = useState('');
   const [mentorCount, setMentorCount] = useState<number>(0);
@@ -73,20 +75,23 @@ const Page = () => {
   const [isNoResults, setIsNoResults] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [cursor, setCursor] = useState<string | undefined>('');
-  const limit = 9;
+  const isLoadingRef = useRef(false);
 
-  const handleFilterChange = (options: SelectFilters) => {
+  const handleFilterChange = useCallback((options: SelectFilters) => {
     setSelectedFilters(options);
-  };
+  }, []);
 
-  const handleSearch = async (queryWords: string) => {
+  const handleSearch = useCallback(async (queryWords: string) => {
     setSearchPattern(queryWords);
-  };
+  }, []);
 
-  const handleScrollToBottom = async () => {
-    if (mentors.length % limit) return;
-    fetchMoreMentors();
-  };
+  const removeFilter = useCallback((key: string) => {
+    setSelectedFilters((prevFilters) => {
+      const newFilters = { ...prevFilters };
+      delete newFilters[key];
+      return newFilters;
+    });
+  }, []);
 
   const fetchMentorsBySearch = useCallback(async () => {
     const filters = Object.fromEntries(
@@ -94,21 +99,23 @@ const Page = () => {
     );
     const param = {
       searchPattern,
-      limit,
+      limit: PAGE_LIMIT,
       cursor: '',
       ...filters,
     };
     setMentors([]);
     setMentorCount(0);
     setIsLoading(true);
+    isLoadingRef.current = true;
     let rtnList: MentorType[] = [];
     try {
       rtnList = await fetchMentors(param);
     } finally {
       setIsLoading(false);
+      isLoadingRef.current = false;
     }
     if (rtnList.length > 0) {
-      rtnList.map((mentor) => {
+      rtnList.forEach((mentor) => {
         mentor.avatar = avatarImage;
       });
       setMentors(rtnList);
@@ -118,27 +125,29 @@ const Page = () => {
       return;
     }
     setIsNoResults(true);
-  }, [searchPattern, limit, selectedFilters]);
+  }, [searchPattern, selectedFilters]);
 
-  const fetchMoreMentors = async () => {
+  const fetchMoreMentors = useCallback(async () => {
     const filters = Object.fromEntries(
       Object.entries(selectedFilters).map(([key, value]) => [key, value.value])
     );
     const param = {
       searchPattern,
-      limit,
+      limit: PAGE_LIMIT,
       cursor,
       ...filters,
     };
     setIsLoading(true);
+    isLoadingRef.current = true;
     let rtnList: MentorType[] = [];
     try {
       rtnList = await fetchMentors(param);
     } finally {
       setIsLoading(false);
+      isLoadingRef.current = false;
     }
     if (rtnList.length > 0) {
-      rtnList.map((mentor) => {
+      rtnList.forEach((mentor) => {
         mentor.avatar = avatarImage;
       });
       setMentors((prevMentors) => {
@@ -150,24 +159,21 @@ const Page = () => {
         );
         return [...prevMentors, ...newMentors];
       });
-      setMentorCount(mentorCount + rtnList.length);
+      setMentorCount((prev) => prev + rtnList.length);
       setCursor(rtnList.at(-1)?.updated_at?.toString());
       return;
     }
     setIsNoResults(true);
-  };
+  }, [selectedFilters, searchPattern, cursor]);
+
+  const handleScrollToBottom = useCallback(async () => {
+    if (mentors.length % PAGE_LIMIT || isLoadingRef.current) return;
+    await fetchMoreMentors();
+  }, [mentors.length, fetchMoreMentors]);
 
   useEffect(() => {
     fetchMentorsBySearch();
   }, [fetchMentorsBySearch]);
-
-  function removeFilter(key: string) {
-    setSelectedFilters((prevFilters) => {
-      const newFilters = { ...prevFilters };
-      delete newFilters[key];
-      return newFilters;
-    });
-  }
   return (
     <div className="relative">
       <section className="flex h-[202px] w-full items-center justify-center bg-[linear-gradient(to_right,#FFFFEF_0%,#FFF6FF_19%,#F7F2FB_42%,#E4FFFF_100%)] text-3xl font-semibold xl:rounded-br-[120px]">
