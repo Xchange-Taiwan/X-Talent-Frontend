@@ -4,7 +4,7 @@ import dayjs from 'dayjs';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 dayjs.extend(isSameOrBefore);
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   BookedSlot,
@@ -146,8 +146,11 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
     debug = false,
   } = opts;
 
-  const log = (...args: unknown[]) =>
-    debug && console.log('[MentorSchedule]', ...args);
+  const debugRef = useRef(debug);
+  debugRef.current = debug;
+  const log = useCallback((...args: unknown[]) => {
+    if (debugRef.current) console.log('[MentorSchedule]', ...args);
+  }, []);
 
   const [saved, setSaved] = useState<RawMentorTimeslot[]>([]);
   const [draft, setDraft] = useState<RawMentorTimeslot[]>([]);
@@ -525,9 +528,6 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
     }
   }, [
     mode,
-    backend?.userId,
-    backend?.year,
-    backend?.month,
     draft,
     storageKey,
     toServiceSlot,

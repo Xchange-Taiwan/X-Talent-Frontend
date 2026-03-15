@@ -3,11 +3,12 @@
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { getSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import { PageLoading } from '@/components/ui/loading-spinner';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import useUserData from '@/hooks/user/user-data/useUserData';
+
+import { ProfilePageSkeleton } from './skeleton';
 
 const ProfilePageUI = dynamic(() => import('./ui'));
 
@@ -22,14 +23,12 @@ interface Props {
 export default function ProfilePageContainer({ pageUserId }: Props) {
   const router = useRouter();
 
-  const now = new Date();
+  const year = useMemo(() => new Date().getFullYear(), []);
+  const month = useMemo(() => new Date().getMonth() + 1, []);
+
   const schedule = useMentorSchedule({
     mode: 'backend',
-    backend: {
-      userId: pageUserId,
-      year: now.getFullYear(),
-      month: now.getMonth() + 1,
-    },
+    backend: { userId: pageUserId, year, month },
   });
   const { loaded, setSelectedDate, parsedDraft } = schedule;
 
@@ -64,7 +63,9 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
     'zh_TW'
   );
 
-  if (loading || !loaded) return <PageLoading />;
+  // Show skeleton only while user profile data loads.
+  // Schedule data (calendar) renders progressively once the profile appears.
+  if (loading) return <ProfilePageSkeleton />;
 
   if (!userData) {
     return (
@@ -98,6 +99,7 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
       userData={userData}
       pageUserId={pageUserId}
       schedule={schedule}
+      scheduleLoaded={loaded}
       loginUserId={loginUserId}
       isLogging={isLogging}
       avatarCacheBust={AVATAR_CACHE_BUST}
