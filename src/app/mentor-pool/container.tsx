@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import avatarImage from '@/assets/default-avatar.png';
 import { SelectFilters } from '@/components/filter/MentorFilterDropdown';
-import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { fetchMentors, MentorType } from '@/services/search-mentor/mentors';
 
 import { filterOptions } from './data';
@@ -92,7 +91,7 @@ export default function MentorPoolContainer() {
       rtnList.forEach((mentor) => {
         mentor.avatar =
           typeof mentor.avatar === 'string' && mentor.avatar
-            ? getAvatarThumbUrl(mentor.avatar)
+            ? mentor.avatar
             : avatarImage;
       });
       setMentors(rtnList);
@@ -127,7 +126,7 @@ export default function MentorPoolContainer() {
       rtnList.forEach((mentor) => {
         mentor.avatar =
           typeof mentor.avatar === 'string' && mentor.avatar
-            ? getAvatarThumbUrl(mentor.avatar)
+            ? mentor.avatar
             : avatarImage;
       });
       setMentors((prevMentors) => {
