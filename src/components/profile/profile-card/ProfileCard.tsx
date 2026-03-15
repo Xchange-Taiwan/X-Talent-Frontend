@@ -20,7 +20,7 @@ const Tag: FC<{ displayText: string }> = ({ displayText }) => {
   );
 };
 
-type Props = {
+interface Props {
   name: string;
   avatarImgUrl?: string;
   jobTitle?: string;
@@ -32,7 +32,7 @@ type Props = {
   talkTopic?: InterestType[];
   expertise?: InterestType[];
   whatIOffer?: InterestType[];
-};
+}
 
 function renderTagList(
   title: string,

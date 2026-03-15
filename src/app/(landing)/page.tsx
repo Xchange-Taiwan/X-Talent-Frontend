@@ -12,33 +12,12 @@ import landingPage_icon_3 from '@/assets/landing/landingPage_icon_3.svg';
 import landingPage_icon_4 from '@/assets/landing/landingPage_icon_4.svg';
 import landingPage_icon_5 from '@/assets/landing/landingPage_icon_5.svg';
 import landingPage_icon_6 from '@/assets/landing/landingPage_icon_6.svg';
-import landingPage_icon_7 from '@/assets/landing/landingPage_icon_7.svg';
-import landingPage_icon_8 from '@/assets/landing/landingPage_icon_8.svg';
-import landingPage_icon_9 from '@/assets/landing/landingPage_icon_9.png';
-import landingPage_icon_10 from '@/assets/landing/landingPage_icon_10.svg';
 import { HomePageSlider } from '@/components/landing/HomePageSlider';
 import { JoinWaitingList } from '@/components/landing/JoinWaitingList';
 import { SCREEN_SIZE } from '@/constant/theme';
 import useWindowSize from '@/hooks/useWindowSize';
 
-const featureData = [
-  {
-    icon: landingPage_icon_7,
-    text: '產業洞見線上分享',
-  },
-  {
-    icon: landingPage_icon_8,
-    text: '職涯心法座談會',
-  },
-  {
-    icon: landingPage_icon_9,
-    text: '填寫問卷尋找導師',
-  },
-  {
-    icon: landingPage_icon_10,
-    text: '一對一深度交流',
-  },
-];
+import { featureData } from './data';
 
 const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
   return (
@@ -49,7 +28,7 @@ const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
   );
 };
 
-const Home = () => {
+export default function Page() {
   const { width } = useWindowSize();
 
   return (
@@ -84,8 +63,8 @@ const Home = () => {
             的職涯可能性
           </p>
           <div className="text-black flex flex-col flex-wrap justify-center font-bold md:flex-row">
-            {featureData.map((item, index) => (
-              <FeatureItem key={index} icon={item.icon} text={item.text} />
+            {featureData.map((item) => (
+              <FeatureItem key={item.text} icon={item.icon} text={item.text} />
             ))}
           </div>
         </div>
@@ -279,6 +258,4 @@ const Home = () => {
       </section>
     </>
   );
-};
-
-export default Home;
+}

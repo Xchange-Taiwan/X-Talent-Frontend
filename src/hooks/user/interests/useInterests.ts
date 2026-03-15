@@ -46,7 +46,7 @@ export async function getInterestsCached(
   return promise;
 }
 
-const useInterests = (language: string) => {
+function useInterests(language: string) {
   const [interestedPositions, setInterestedPositions] = useState<InterestDTO[]>(
     []
   );
@@ -54,7 +54,7 @@ const useInterests = (language: string) => {
   const [topics, setTopics] = useState<InterestDTO[]>([]);
   const [expertises, setExpertises] = useState<InterestDTO[]>([]);
   const [whatIOffers, setWhatIOffers] = useState<InterestDTO[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -62,11 +62,11 @@ const useInterests = (language: string) => {
 
     const run = async () => {
       if (!language) {
-        setLoading(false);
+        setIsLoading(false);
         return;
       }
 
-      setLoading(true);
+      setIsLoading(true);
       setError(null);
 
       try {
@@ -83,7 +83,7 @@ const useInterests = (language: string) => {
         if (cancelled) return;
         setError('Failed to load interests');
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
@@ -100,9 +100,9 @@ const useInterests = (language: string) => {
     topics,
     expertises,
     whatIOffers,
-    loading,
+    isLoading,
     error,
   };
-};
+}
 
 export default useInterests;

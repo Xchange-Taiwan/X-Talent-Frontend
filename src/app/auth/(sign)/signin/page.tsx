@@ -6,7 +6,7 @@ import GoogleSignUpButton from '@/components/auth/GoogleButton';
 import SignInForm from '@/components/auth/signin/SignInForm';
 import useSignInForm from '@/hooks/auth/useSignInForm';
 
-export default function AuthPage() {
+export default function Page() {
   const signInFormProps = useSignInForm();
 
   return (

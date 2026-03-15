@@ -5,6 +5,23 @@ import { fetchUserById, UserDTO } from '@/services/profile/user';
 
 import { getInterestsCached } from '../interests/useInterests';
 
+const userDtoPromiseCache = new Map<string, Promise<UserDTO | null>>();
+
+function fetchUserByIdCached(
+  userId: number,
+  language: string
+): Promise<UserDTO | null> {
+  const key = `${userId}-${language}`;
+  const inflight = userDtoPromiseCache.get(key);
+  if (inflight) return inflight;
+
+  const promise = fetchUserById(userId, language).finally(() => {
+    userDtoPromiseCache.delete(key);
+  });
+  userDtoPromiseCache.set(key, promise);
+  return promise;
+}
+
 export interface InterestType {
   subject_group: string;
   subject: string;
@@ -164,7 +181,7 @@ function parseUserDtoToUserType(
   };
 }
 
-const useUserData = (userId: number, language: string) => {
+function useUserData(userId: number, language: string) {
   const [userData, setUserData] = useState<UserType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -188,7 +205,7 @@ const useUserData = (userId: number, language: string) => {
 
       try {
         const [userDto, interests] = await Promise.all([
-          fetchUserById(userId, language),
+          fetchUserByIdCached(userId, language),
           getInterestsCached(language),
         ]);
 
@@ -225,6 +242,6 @@ const useUserData = (userId: number, language: string) => {
   }, [userId, language]);
 
   return { userData, isLoading, error };
-};
+}
 
 export default useUserData;

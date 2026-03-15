@@ -1,6 +1,6 @@
 import { StaticImageData } from 'next/image';
 import Link from 'next/link';
-import { forwardRef } from 'react';
+import { forwardRef, memo } from 'react';
 
 import { AvatarWithBadge } from './AvatarWithBadge';
 import { Information } from './Information';
@@ -16,7 +16,7 @@ export interface MentorCardProps {
   skills: [];
 }
 
-export const MentorCard = forwardRef<HTMLElement, MentorCardProps>(
+const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
   (
     {
       id,
@@ -54,4 +54,6 @@ export const MentorCard = forwardRef<HTMLElement, MentorCardProps>(
   }
 );
 
-MentorCard.displayName = 'MentorCard';
+MentorCardBase.displayName = 'MentorCard';
+
+export const MentorCard = memo(MentorCardBase);

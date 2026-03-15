@@ -1,6 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useRef, useState } from 'react';
@@ -9,14 +10,11 @@ import { useForm } from 'react-hook-form';
 import { totalWorkSpanOptions } from '@/components/onboarding/steps/constant';
 import { AvatarSection } from '@/components/profile/edit/AvatarSection';
 import { EditPageHeader } from '@/components/profile/edit/EditPageHeader';
-import { EducationSection } from '@/components/profile/edit/educationSection/educationSection';
 import {
   SelectField,
   TextareaField,
   TextField,
 } from '@/components/profile/edit/Fields';
-import { JobExperienceSection } from '@/components/profile/edit/JobExperienceSection';
-import { LinksSection } from '@/components/profile/edit/LinkSection';
 import { MultiSelectField } from '@/components/profile/edit/MultiSelectField';
 import {
   createProfileFormSchema,
@@ -33,6 +31,24 @@ import useInterests from '@/hooks/user/interests/useInterests';
 import { useEditProfileData } from '@/hooks/user/profile/useEditProfileData';
 import { useProfileSelectOptions } from '@/hooks/user/profile/useProfileSelectOptions';
 import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
+
+const JobExperienceSection = dynamic(() =>
+  import('@/components/profile/edit/JobExperienceSection').then((m) => ({
+    default: m.JobExperienceSection,
+  }))
+);
+
+const EducationSection = dynamic(() =>
+  import('@/components/profile/edit/educationSection/educationSection').then(
+    (m) => ({ default: m.EducationSection })
+  )
+);
+
+const LinksSection = dynamic(() =>
+  import('@/components/profile/edit/LinkSection').then((m) => ({
+    default: m.LinksSection,
+  }))
+);
 
 export default function Page({
   params: { pageUserId },

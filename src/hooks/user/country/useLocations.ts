@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 
-import { fetchCountries } from '@/services/profile/countries';
-import { LocationType } from '@/services/profile/countries';
+import { fetchCountries, LocationType } from '@/services/profile/countries';
 
-const useLocations = (language: string) => {
+export default function useLocations(language: string) {
   const [locations, setLocations] = useState<LocationType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +25,4 @@ const useLocations = (language: string) => {
   }, [language]);
 
   return { locations, isLoading, error };
-};
-
-export default useLocations;
+}

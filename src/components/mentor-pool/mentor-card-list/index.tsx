@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 
 import { MentorType } from '@/services/search-mentor/mentors';
 
@@ -9,23 +9,19 @@ interface MentorCardListProps {
   onScrollToBottom: () => Promise<void>;
 }
 
-export const MentorCardList = ({
+const MentorCardListBase = ({
   mentors,
   onScrollToBottom,
 }: MentorCardListProps) => {
   const observer = useRef<IntersectionObserver | null>(null);
   const lastCardRef = useRef<HTMLElement | null>(null);
 
-  const fetchMentorData = async () => {
-    await onScrollToBottom();
-  };
-
   useEffect(() => {
     observer.current?.disconnect();
     observer.current = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          fetchMentorData();
+          onScrollToBottom();
         }
       },
       { threshold: 0.5 }
@@ -38,7 +34,7 @@ export const MentorCardList = ({
     return () => {
       observer.current?.disconnect();
     };
-  }, [mentors]);
+  }, [mentors, onScrollToBottom]);
 
   return (
     <div className="flex flex-col items-center gap-6">
@@ -61,3 +57,5 @@ export const MentorCardList = ({
     </div>
   );
 };
+
+export const MentorCardList = memo(MentorCardListBase);

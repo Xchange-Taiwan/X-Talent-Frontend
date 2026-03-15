@@ -13,7 +13,7 @@ export const AvatarWithBadge = ({ avatar, years }: AvatarWithBadgeProps) => {
         src={avatar}
         alt="avatar"
         fill
-        sizes="100vw"
+        sizes="(max-width: 768px) 334px, 413px"
         className="h-full object-cover"
       />
       <figcaption className="absolute bottom-[30px] right-[30px] rounded-lg bg-[#000000]/30 px-2.5 py-1 text-text-white">

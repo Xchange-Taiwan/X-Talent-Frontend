@@ -27,6 +27,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { ProfileFormValues } from './profileSchema';
 import { Section } from './Section';
 
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR - 1940 + 1 }, (_, i) =>
+  (CURRENT_YEAR - i).toString()
+);
+
 interface Props {
   industries: {
     subject: string;
@@ -58,11 +63,6 @@ export const JobExperienceSection = ({
     control,
     name: 'work_experiences',
   });
-
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: currentYear - 1940 + 1 }, (_, i) =>
-    (currentYear - i).toString()
-  );
 
   const watchedExperiences = useWatch({
     control,
@@ -175,7 +175,7 @@ export const JobExperienceSection = ({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {years.map((year) => (
+                        {YEAR_OPTIONS.map((year) => (
                           <SelectItem key={year} value={year}>
                             {year}
                           </SelectItem>
@@ -211,7 +211,7 @@ export const JobExperienceSection = ({
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="now">至今</SelectItem>
-                        {years.map((year) => (
+                        {YEAR_OPTIONS.map((year) => (
                           <SelectItem key={year} value={year}>
                             {year}
                           </SelectItem>

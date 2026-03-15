@@ -66,8 +66,8 @@ export const Information = ({
         {personalStatment}
       </p>
       <div ref={skillsContainerRef} className="flex flex-wrap gap-2">
-        {visibleSkills.map((skill, index) => (
-          <Skill skill={skill} key={index} />
+        {visibleSkills.map((skill) => (
+          <Skill skill={skill} key={skill} />
         ))}
         {extraSkillsCount > 0 && (
           <Skill skill={`+${extraSkillsCount}`} key="extra" />
