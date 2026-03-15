@@ -33,23 +33,21 @@ import { useEditProfileData } from '@/hooks/user/profile/useEditProfileData';
 import { useProfileSelectOptions } from '@/hooks/user/profile/useProfileSelectOptions';
 import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
 
-const JobExperienceSection = dynamic(() =>
-  import('@/components/profile/edit/JobExperienceSection').then((m) => ({
-    default: m.JobExperienceSection,
-  }))
-);
+const JobExperienceSection = dynamic(async () => {
+  const m = await import('@/components/profile/edit/JobExperienceSection');
+  return { default: m.JobExperienceSection };
+});
 
-const EducationSection = dynamic(() =>
-  import('@/components/profile/edit/educationSection/educationSection').then(
-    (m) => ({ default: m.EducationSection })
-  )
-);
+const EducationSection = dynamic(async () => {
+  const m =
+    await import('@/components/profile/edit/educationSection/educationSection');
+  return { default: m.EducationSection };
+});
 
-const LinksSection = dynamic(() =>
-  import('@/components/profile/edit/LinkSection').then((m) => ({
-    default: m.LinksSection,
-  }))
-);
+const LinksSection = dynamic(async () => {
+  const m = await import('@/components/profile/edit/LinkSection');
+  return { default: m.LinksSection };
+});
 
 export default function Page({
   params: { pageUserId },
