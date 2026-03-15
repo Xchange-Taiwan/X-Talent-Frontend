@@ -240,14 +240,20 @@ const Page = () => {
   );
 };
 
+const trackSx = { color: '#F0F6F6' };
+const spinnerSx = {
+  color: '#BEDEDE',
+  animationDuration: '550ms',
+  position: 'absolute' as const,
+  left: 0,
+};
+
 const LoadingIcon = () => {
   return (
     <Box sx={{ position: 'relative' }}>
       <CircularProgress
         variant="determinate"
-        sx={() => ({
-          color: '#F0F6F6',
-        })}
+        sx={trackSx}
         size={40}
         thickness={4}
         value={100}
@@ -255,12 +261,7 @@ const LoadingIcon = () => {
       <CircularProgress
         variant="indeterminate"
         disableShrink
-        sx={() => ({
-          color: '#BEDEDE',
-          animationDuration: '550ms',
-          position: 'absolute',
-          left: 0,
-        })}
+        sx={spinnerSx}
         size={40}
         thickness={4}
       />

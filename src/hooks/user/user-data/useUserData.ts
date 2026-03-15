@@ -5,6 +5,23 @@ import { fetchUserById, UserDTO } from '@/services/profile/user';
 
 import { getInterestsCached } from '../interests/useInterests';
 
+const userDtoPromiseCache = new Map<string, Promise<UserDTO | null>>();
+
+function fetchUserByIdCached(
+  userId: number,
+  language: string
+): Promise<UserDTO | null> {
+  const key = `${userId}-${language}`;
+  const inflight = userDtoPromiseCache.get(key);
+  if (inflight) return inflight;
+
+  const promise = fetchUserById(userId, language).finally(() => {
+    userDtoPromiseCache.delete(key);
+  });
+  userDtoPromiseCache.set(key, promise);
+  return promise;
+}
+
 export interface InterestType {
   subject_group: string;
   subject: string;
@@ -188,7 +205,7 @@ const useUserData = (userId: number, language: string) => {
 
       try {
         const [userDto, interests] = await Promise.all([
-          fetchUserById(userId, language),
+          fetchUserByIdCached(userId, language),
           getInterestsCached(language),
         ]);
 
