@@ -17,7 +17,7 @@ export function useReservationData() {
   const loginUserId = session?.user?.id ? String(session.user.id) : '';
 
   const [data, setData] = useState<ReservationData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!loginUserId) return;
@@ -42,7 +42,7 @@ export function useReservationData() {
       } catch (err) {
         console.error('[useReservationData] fetch error:', err);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     })();
 
@@ -51,5 +51,5 @@ export function useReservationData() {
     };
   }, [loginUserId]);
 
-  return { data, loading };
+  return { data, isLoading };
 }

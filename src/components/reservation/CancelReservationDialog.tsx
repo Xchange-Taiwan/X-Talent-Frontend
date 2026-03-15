@@ -20,14 +20,14 @@ import { cn } from '@/lib/utils';
 
 import type { Reservation } from './types';
 
-type Props = {
+interface Props {
   reservation: Reservation;
   className?: string;
   onConfirmCancel?: (payload: {
     id: string;
     reason: string;
   }) => Promise<void> | void;
-};
+}
 
 export default function CancelReservationDialog({
   reservation,

@@ -49,7 +49,7 @@ const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
   );
 };
 
-const Home = () => {
+export default function Page() {
   const { width } = useWindowSize();
 
   return (
@@ -84,8 +84,8 @@ const Home = () => {
             的職涯可能性
           </p>
           <div className="text-black flex flex-col flex-wrap justify-center font-bold md:flex-row">
-            {featureData.map((item, index) => (
-              <FeatureItem key={index} icon={item.icon} text={item.text} />
+            {featureData.map((item) => (
+              <FeatureItem key={item.text} icon={item.icon} text={item.text} />
             ))}
           </div>
         </div>
@@ -279,6 +279,4 @@ const Home = () => {
       </section>
     </>
   );
-};
-
-export default Home;
+}

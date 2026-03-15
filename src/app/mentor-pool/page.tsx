@@ -67,7 +67,7 @@ const filterOptions: FilterOptions = {
 
 const PAGE_LIMIT = 9;
 
-const Page = () => {
+function Page() {
   const [searchPattern, setSearchPattern] = useState('');
   const [mentorCount, setMentorCount] = useState<number>(0);
   const [mentors, setMentors] = useState<MentorType[]>([]);
@@ -238,7 +238,7 @@ const Page = () => {
       </section>
     </div>
   );
-};
+}
 
 const trackSx = { color: '#F0F6F6' };
 const spinnerSx = {

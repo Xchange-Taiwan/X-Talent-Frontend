@@ -181,7 +181,7 @@ function parseUserDtoToUserType(
   };
 }
 
-const useUserData = (userId: number, language: string) => {
+function useUserData(userId: number, language: string) {
   const [userData, setUserData] = useState<UserType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -242,6 +242,6 @@ const useUserData = (userId: number, language: string) => {
   }, [userId, language]);
 
   return { userData, isLoading, error };
-};
+}
 
 export default useUserData;

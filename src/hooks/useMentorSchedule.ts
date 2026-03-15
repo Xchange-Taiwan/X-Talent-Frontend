@@ -137,9 +137,7 @@ const backendToRaw = (t: ScheduleTimeSlots): RawMentorTimeslot => {
   };
 };
 
-export const useMentorSchedule = (
-  opts: Options = {}
-): UseMentorScheduleReturn => {
+export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
   const {
     storageKey = 'mentor.timeslots',
     seed = [],
@@ -593,4 +591,4 @@ export const useMentorSchedule = (
     confirmChanges,
     resetChanges,
   };
-};
+}
