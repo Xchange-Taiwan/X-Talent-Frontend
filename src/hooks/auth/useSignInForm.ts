@@ -74,7 +74,7 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
         router.push('/mentor-pool');
       }
     } catch (err) {
-      console.error(err);
+      console.error('[SignIn] unexpected error:', err);
       toast({
         variant: 'destructive',
         description: 'Something went wrong!',

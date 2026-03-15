@@ -37,7 +37,6 @@ export default function useIndustries(language: string) {
         const data = await fetchIndustriesCached(language);
         if (!cancelled) setIndustries(data);
       } catch (err) {
-        console.error('Failed to load industries:', err);
         if (!cancelled) setError('Failed to load industries');
       } finally {
         if (!cancelled) setIsLoading(false);

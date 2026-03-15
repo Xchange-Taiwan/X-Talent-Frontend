@@ -42,7 +42,7 @@ export default function GoogleSignUpButton({
         throw new Error(json.msg || '無法取得授權連結');
       }
     } catch (error) {
-      console.error('❌ Google SignUp Error:', error);
+      console.error('[GoogleAuth] error:', error);
       toast({
         variant: 'destructive',
         title: '註冊失敗',

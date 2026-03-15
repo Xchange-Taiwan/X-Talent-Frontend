@@ -37,7 +37,6 @@ export default function useLocations(language: string) {
         const data = await fetchCountriesCached(language);
         if (!cancelled) setLocations(data);
       } catch (err) {
-        console.error('Failed to fetch countries:', err);
         if (!cancelled) setError('Failed to load location options');
       } finally {
         if (!cancelled) setIsLoading(false);

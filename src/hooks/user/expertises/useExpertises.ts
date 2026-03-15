@@ -39,7 +39,6 @@ export default function useExpertises(language: string) {
         const data = await fetchExpertisesCached(language);
         if (!cancelled) setExpertises(data);
       } catch (err) {
-        console.error('Failed to load expertises:', err);
         if (!cancelled) setError('Failed to load expertises');
       } finally {
         if (!cancelled) setIsLoading(false);

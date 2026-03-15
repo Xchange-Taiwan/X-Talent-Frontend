@@ -366,13 +366,6 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
         const s = buildDT(baseDate, startHM);
         const e = buildDT(baseDate, endHM);
         if (!s.isValid() || !e.isValid() || e.isSameOrBefore(s)) {
-          console.warn('[MentorSchedule] updateDraftSlot invalid time', {
-            id,
-            patch,
-            baseDate,
-            startHM,
-            endHM,
-          });
           return prev;
         }
 
@@ -386,10 +379,6 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
           );
         });
         if (hasOverlap) {
-          console.warn('[MentorSchedule] updateDraftSlot overlap detected', {
-            id,
-            baseDate,
-          });
           return prev;
         }
 
