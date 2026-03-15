@@ -84,7 +84,6 @@ export default function CancelReservationDialog({
               </DialogDescription>
             </DialogHeader>
 
-            {/* Summary card */}
             <div className="rounded-xl border p-4 sm:p-5">
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10">

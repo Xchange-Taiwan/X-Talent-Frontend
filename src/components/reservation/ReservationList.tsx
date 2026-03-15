@@ -1,4 +1,3 @@
-// src/components/reservation/reservationList.tsx
 'use client';
 
 import { getSession } from 'next-auth/react';
@@ -12,8 +11,6 @@ import { ReservationCard } from './ReservationCard';
 import type { Reservation } from './types';
 
 type Variant = 'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';
-
-// ── Component ───────────────────────────────────────────────────────────────
 
 export function ReservationList({
   items,

@@ -69,8 +69,6 @@ interface MultiSelectProps
    * Callback function triggered when the selected values change.
    * Receives an array of the new selected values.
    */
-  // onValueChange?: (value: string[]) => void;
-
   /** Optional callback for controlled mode */
   onValueChange?: (value: string[]) => void;
 

@@ -86,7 +86,6 @@ export type UseMentorScheduleReturn = {
   resetChanges: () => void;
 };
 
-// ---- helpers ----
 const format = (r: RawMentorTimeslot): ParsedMentorTimeslot => {
   const start = new Date(r.dtstart * 1000);
   const end = new Date(r.dtend * 1000);
@@ -159,7 +158,7 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
     dayjs().format('YYYY-MM-DD')
   );
 
-  /** 被刪除、等 Confirm 才真的 DELETE 的正數 id */
+  /** Positive ids removed from the draft, pending actual backend DELETE on confirm */
   const [pendingDeleteIds, setPendingDeleteIds] = useState<number[]>([]);
 
   const [bookedSlots, setBookedSlots] = useState<BookedSlot[]>([]);
@@ -190,7 +189,6 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
     [persistedIdSet]
   );
 
-  // initial load
   useEffect(() => {
     let ignore = false;
     (async () => {
@@ -242,7 +240,6 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, storageKey, backend?.userId, backend?.year, backend?.month]);
 
-  // derived
   const parsedDraft = useMemo(
     () =>
       draft.map(format).sort((a, b) => a.start.getTime() - b.start.getTime()),
@@ -295,7 +292,6 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
     [saved, draft, pendingDeleteIds]
   );
 
-  // actions
   const addSlotForSelectedDate: UseMentorScheduleReturn['addSlotForSelectedDate'] =
     useCallback(
       ({ type, startTime, endTime }) => {
@@ -343,14 +339,13 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
       [selectedDate]
     );
 
-  /** ✅ 新增：更新草稿中的 slot（只動 draft） */
   const updateDraftSlot: UseMentorScheduleReturn['updateDraftSlot'] =
     useCallback((id, patch) => {
       setDraft((prev) => {
         const target = prev.find((r) => r.id === id);
         if (!target) return prev;
 
-        // 用 slot 本身日期當 base，將新的 time 套上去
+        // Use the slot's own date as base and apply the new time on top
         const baseDate = dayjs(target.dtstart * 1000).format('YYYY-MM-DD');
 
         const fmtHM = (sec: number) => dayjs(sec * 1000).format('HH:mm');
@@ -411,7 +406,6 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
     [mode]
   );
 
-  // confirm: 依差異決定 PUT / DELETE / 或兩者
   const confirmChanges = useCallback(async () => {
     log('confirmChanges clicked:', { mode, backend, dirty, pendingDeleteIds });
     if (!dirty) return;
@@ -424,7 +418,6 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
       return;
     }
 
-    // --- backend 模式 ---
     if (!backend?.userId) {
       log('fallback to local: missing backend.userId');
       writeToStorage(storageKey, draft);
@@ -433,7 +426,7 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
       return;
     }
 
-    // 月底 23:59:59
+    // End of month at 23:59:59
     const endOfMonthUnix = dayjs(
       `${backend.year}-${String(backend.month).padStart(2, '0')}-01`
     )
@@ -444,14 +437,14 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
       .millisecond(0)
       .unix();
 
-    // 這次要 upsert 的 payload（不要含待刪的）
+    // Payload to upsert this round (excluding pending deletes)
     const upsertPayload = draft
       .filter((r) => !pendingDeleteIds.includes(r.id))
       .map(toServiceSlot);
 
     const idsToDelete = [...pendingDeleteIds];
 
-    // 小工具：refetch 當月並同步 saved/draft
+    // Refetch the current month and sync saved/draft state
     const refetch = async () => {
       const data = await fetchMentorSchedule({
         userId: backend.userId,
@@ -476,7 +469,7 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
     const doDelete = idsToDelete.length > 0;
 
     try {
-      // 只有 PUT
+      // PUT only
       if (doPut && !doDelete) {
         const ok = await saveMentorSchedule({
           userId: backend.userId,
@@ -488,7 +481,7 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
         return;
       }
 
-      // 只有 DELETE
+      // DELETE only
       if (!doPut && doDelete) {
         await Promise.all(
           idsToDelete.map(async (id) => {
@@ -503,7 +496,7 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
         return;
       }
 
-      // PUT + DELETE 同時
+      // PUT + DELETE together
       const ok = await saveMentorSchedule({
         userId: backend.userId,
         until: endOfMonthUnix,

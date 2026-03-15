@@ -62,7 +62,6 @@ export default function AcceptReservationDialog({
         </Button>
       </DialogTrigger>
 
-      {/* RWD: 90vw on mobile, lg size on desktop; outer p-0 with inner p-6 for spacing */}
       <DialogContent className="w-[90vw] max-w-[420px] p-0 sm:max-w-lg">
         {step === 'check' ? (
           <div className="p-6">
@@ -76,7 +75,6 @@ export default function AcceptReservationDialog({
               </DialogDescription>
             </DialogHeader>
 
-            {/* Summary card */}
             <div className="rounded-2xl border p-4 sm:p-5">
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10">
@@ -106,7 +104,6 @@ export default function AcceptReservationDialog({
               </div>
             </div>
 
-            {/* Question area */}
             <div className="mt-6">
               <div className="mb-2 text-sm font-medium">Mentee所提出的問題</div>
               <div className="rounded-2xl border p-2">
@@ -120,7 +117,6 @@ export default function AcceptReservationDialog({
             </div>
 
             <DialogFooter className="mt-6 gap-2">
-              {/* Proceed to the rejection reason step */}
               <Button
                 type="button"
                 variant="secondary"
@@ -130,7 +126,6 @@ export default function AcceptReservationDialog({
                 拒絕
               </Button>
 
-              {/* Accept the booking */}
               <Button
                 type="button"
                 className="bg-teal-500 text-white hover:bg-teal-500/90 w-full sm:w-auto"
@@ -164,14 +159,12 @@ export default function AcceptReservationDialog({
             </div>
 
             <DialogFooter className="mt-6 gap-2">
-              {/* Close dialog without rejecting */}
               <DialogClose asChild>
                 <Button variant="outline" className="w-full sm:w-auto">
                   捨棄
                 </Button>
               </DialogClose>
 
-              {/* Confirm rejection */}
               <Button
                 type="button"
                 className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto"

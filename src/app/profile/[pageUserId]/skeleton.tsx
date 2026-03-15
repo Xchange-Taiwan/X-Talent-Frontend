@@ -3,11 +3,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 export function ProfilePageSkeleton() {
   return (
     <div>
-      {/* gradient header */}
       <div className="relative h-[111px] bg-gradient-to-br from-[#92e7e7] to-[#e7a0d4] sm:h-[100px]" />
 
       <div className="container mb-20 max-w-[1024px]">
-        {/* avatar + name row */}
         <div className="flex h-auto -translate-y-10 flex-col justify-between sm:relative sm:h-[160px] sm:flex-row lg:static">
           <div className="flex flex-col items-center gap-6 sm:flex-row">
             <Skeleton className="h-[160px] w-[160px] flex-shrink-0 rounded-full" />
@@ -19,7 +17,6 @@ export function ProfilePageSkeleton() {
         </div>
 
         <div className="flex flex-col gap-8 lg:flex-row lg:gap-12">
-          {/* left column */}
           <div className="flex w-full flex-col gap-8 lg:w-3/5">
             <div className="flex flex-col gap-3">
               <Skeleton className="h-6 w-16" />
@@ -51,7 +48,6 @@ export function ProfilePageSkeleton() {
             </div>
           </div>
 
-          {/* right column */}
           <div className="w-full lg:w-2/5">
             <div className="flex flex-col gap-4">
               <Skeleton className="h-6 w-24" />
