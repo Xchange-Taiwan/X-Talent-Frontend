@@ -11,9 +11,7 @@ import { Form } from '@/components/ui/form';
 
 import { EXPERTISE_SELECTION } from './data';
 
-const onSubmit = (values: z.infer<typeof formSchema>) => {
-  console.log(values);
-};
+const onSubmit = (_values: z.infer<typeof formSchema>) => {};
 
 export default function Page() {
   const router = useRouter();
