@@ -1,3 +1,5 @@
+import { Loader2 } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
 
 interface AuthButtonProps {
@@ -15,7 +17,14 @@ export default function AuthButton({
       type="submit"
       disabled={isSubmitting}
     >
-      {children}
+      {isSubmitting ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          {children}
+        </>
+      ) : (
+        children
+      )}
     </Button>
   );
 }
