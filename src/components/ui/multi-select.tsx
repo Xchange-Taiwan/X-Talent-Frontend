@@ -71,10 +71,10 @@ interface MultiSelectProps
    */
   // onValueChange?: (value: string[]) => void;
 
-  /** 可選，用於 controlled 模式 */
+  /** Optional callback for controlled mode */
   onValueChange?: (value: string[]) => void;
 
-  /** 用於 react-hook-form Controller 支援 */
+  /** Supports react-hook-form Controller via the onChange prop */
   onChange?: (value: string[]) => void;
 
   /** The default selected values when the component mounts. */
@@ -149,10 +149,10 @@ export const MultiSelect = React.forwardRef<
 
     const updateValues = (newValues: string[]) => {
       if (value === undefined) {
-        setInternalSelectedValues(newValues); // 非受控狀態
+        setInternalSelectedValues(newValues); // uncontrolled mode
       }
 
-      // 若有 onValueChange 傳進來就用它，否則用 onChange（來自 Controller）
+      // Prefer onValueChange if provided; fall back to onChange from react-hook-form Controller
       if (onValueChange) {
         onValueChange(newValues);
       } else if (props.onChange) {

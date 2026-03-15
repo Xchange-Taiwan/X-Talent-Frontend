@@ -38,7 +38,7 @@ export default function CancelReservationDialog({
   const [step, setStep] = useState<'confirm' | 'reason'>('confirm');
   const [reason, setReason] = useState('');
 
-  // 每次打開 dialog 重置成第一步
+  // Reset to the first step every time the dialog opens
   function onOpenChange(next: boolean) {
     setOpen(next);
     if (next) {

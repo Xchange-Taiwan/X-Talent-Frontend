@@ -62,7 +62,7 @@ export default function AcceptReservationDialog({
         </Button>
       </DialogTrigger>
 
-      {/* RWD: 手機 90vw、桌機 lg 尺寸；邊距留白用 p-0 + 內層 p-6 */}
+      {/* RWD: 90vw on mobile, lg size on desktop; outer p-0 with inner p-6 for spacing */}
       <DialogContent className="w-[90vw] max-w-[420px] p-0 sm:max-w-lg">
         {step === 'check' ? (
           <div className="p-6">
@@ -120,7 +120,7 @@ export default function AcceptReservationDialog({
             </div>
 
             <DialogFooter className="mt-6 gap-2">
-              {/* 進到拒絕理由的第二步 */}
+              {/* Proceed to the rejection reason step */}
               <Button
                 type="button"
                 variant="secondary"
@@ -130,7 +130,7 @@ export default function AcceptReservationDialog({
                 拒絕
               </Button>
 
-              {/* 接受 */}
+              {/* Accept the booking */}
               <Button
                 type="button"
                 className="bg-teal-500 text-white hover:bg-teal-500/90 w-full sm:w-auto"
@@ -164,14 +164,14 @@ export default function AcceptReservationDialog({
             </div>
 
             <DialogFooter className="mt-6 gap-2">
-              {/* 關閉視窗 */}
+              {/* Close dialog without rejecting */}
               <DialogClose asChild>
                 <Button variant="outline" className="w-full sm:w-auto">
                   捨棄
                 </Button>
               </DialogClose>
 
-              {/* 確認拒絕 */}
+              {/* Confirm rejection */}
               <Button
                 type="button"
                 className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto"

@@ -29,7 +29,7 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
     setIsSubmitting(true);
 
     try {
-      // 1️⃣ 先做 server-side 驗證（不登入）
+      // 1️⃣ Server-side validation without signing in
       const validated = await validateSignIn(values);
       if (validated.error) {
         toast({
@@ -40,7 +40,7 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
         return;
       }
 
-      // 2️⃣ 進行 NextAuth v4 Credentials Login（on client）
+      // 2️⃣ Sign in via NextAuth v4 credentials provider (client-side)
       const login = await clientSignIn('credentials', {
         email: validated.email,
         password: validated.password,
@@ -56,7 +56,7 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
         return;
       }
 
-      // 3️⃣ 取得 session（成功登入後會有 accessToken）
+      // 3️⃣ Fetch session to confirm the accessToken was issued
       const session = await getSession();
       if (!session?.accessToken) {
         toast({
@@ -67,7 +67,7 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
         return;
       }
 
-      // 4️⃣ Redirect
+      // 4️⃣ Redirect based on onboarding status
       if (session.user.onBoarding === false) {
         router.push('/auth/onboarding');
       } else {

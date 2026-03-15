@@ -16,11 +16,11 @@ import {
 } from '@/services/mentor-schedule/schedule';
 
 export type RawMentorTimeslot = {
-  id: number; // 新增用負數暫存 id（-1, -2, ...）
+  id: number; // negative ids are used as temporary local ids for new slots (-1, -2, ...)
   type: 'ALLOW' | 'BLOCK';
   dtstart: number; // unix seconds
   dtend: number; // unix seconds
-  rrule?: string; // 後端要求帶；新增預設空字串
+  rrule?: string; // required by the backend; defaults to empty string for new slots
 };
 
 export type ParsedMentorTimeslot = {
@@ -70,7 +70,7 @@ export type UseMentorScheduleReturn = {
     endTime: string; // HH:mm
   }) => void;
 
-  /** ✅ 新增：更新草稿中的某個 slot（只改 draft，按 Confirm 才送） */
+  /** Update a slot in the draft without persisting — changes are sent only when the user confirms. */
   updateDraftSlot: (
     id: number,
     patch: {
