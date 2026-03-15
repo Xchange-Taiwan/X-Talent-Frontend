@@ -55,6 +55,9 @@ const authOptions = {
           isMentor: response.data.user.is_mentor,
           name: response.data.user.name,
           avatar: response.data.user.avatar,
+          // Set on every login so the browser never serves a stale cached avatar
+          // from a previous session (the S3 key never changes between uploads).
+          avatarUpdatedAt: Date.now(),
           jobTitle: response.data.user.job_title ?? '',
           company: response.data.user.company ?? '',
           personalLinks,
@@ -95,6 +98,7 @@ const authOptions = {
             token: credentials.token,
             name: user.name,
             avatar: user.avatar,
+            avatarUpdatedAt: Date.now(),
             isMentor: user.is_mentor,
             onBoarding: user.onboarding,
             jobTitle: user.job_title ?? '',

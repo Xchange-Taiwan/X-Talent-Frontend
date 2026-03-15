@@ -20,18 +20,17 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
   const [zoomScale, setZoomScale] = useState(1);
   const editorRef = useRef<AvatarEditor | null>(null);
 
-  const handleSaveImage = () => {
+  const handleSaveImage = async () => {
     if (editorRef.current) {
-      const imageUrl = editorRef.current.getImageScaledToCanvas().toDataURL();
-      fetch(imageUrl)
-        .then((response) => response.blob())
-        .then((blob) => {
-          onSave(blob);
-          onClose();
-        })
-        .catch((error) => {
-          console.error('Error saving image:', error);
-        });
+      try {
+        const imageUrl = editorRef.current.getImageScaledToCanvas().toDataURL();
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        onSave(blob);
+        onClose();
+      } catch (error) {
+        console.error('Error saving image:', error);
+      }
     }
   };
 

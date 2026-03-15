@@ -2,8 +2,8 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { getSession } from 'next-auth/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import useUserData from '@/hooks/user/user-data/useUserData';
@@ -11,10 +11,6 @@ import useUserData from '@/hooks/user/user-data/useUserData';
 import { ProfilePageSkeleton } from './skeleton';
 
 const ProfilePageUI = dynamic(() => import('./ui'));
-
-// Stable within a browser session — lets the browser cache profile avatars
-// across navigations. Resets on full page refresh, ensuring a fresh fetch.
-const AVATAR_CACHE_BUST = Date.now();
 
 interface Props {
   pageUserId: string;
@@ -40,22 +36,25 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
-  const [isLogging, setIsLogging] = useState(false);
-  const [loginUserId, setLoginUserId] = useState('');
+  // Stable per-session fallback for other users' profiles — allows browser
+  // caching across navigations. Resets only on full page refresh.
+  const stableCacheBust = useRef(Date.now()).current;
+
+  const { data: session } = useSession();
+  const isLogging = Boolean(session?.user?.id);
+  const loginUserId = session?.user?.id ? String(session.user.id) : '';
+
+  // For the logged-in user's own profile, use the session's avatarUpdatedAt so
+  // the latest avatar appears immediately after a profile update without a full
+  // page reload. For other users' profiles the stable fallback is sufficient.
+  const avatarCacheBust =
+    loginUserId === pageUserId
+      ? (session?.user?.avatarUpdatedAt ?? stableCacheBust)
+      : stableCacheBust;
+
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
   const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =
     useState(false);
-
-  useEffect(() => {
-    const fetchSession = async () => {
-      const session = await getSession();
-      const user = session?.user;
-      setIsLogging(!!user?.id);
-      setLoginUserId(!!user?.id ? String(user?.id) : '');
-    };
-
-    fetchSession();
-  }, []);
 
   const pageUserIdNumber = Number(pageUserId);
   const { userData, isLoading: loading } = useUserData(
@@ -102,7 +101,7 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
       scheduleLoaded={loaded}
       loginUserId={loginUserId}
       isLogging={isLogging}
-      avatarCacheBust={AVATAR_CACHE_BUST}
+      avatarCacheBust={avatarCacheBust}
       allowedDates={allowedDates}
       openReservationDialog={openReservationDialog}
       setOpenReservationDialog={setOpenReservationDialog}

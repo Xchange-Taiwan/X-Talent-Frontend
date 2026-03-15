@@ -538,11 +538,12 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
       backend?.year &&
       backend?.month
     ) {
-      fetchMentorSchedule({
-        userId: backend.userId,
-        year: backend.year,
-        month: backend.month,
-      }).then((data) => {
+      (async () => {
+        const data = await fetchMentorSchedule({
+          userId: backend.userId,
+          year: backend.year,
+          month: backend.month,
+        });
         const raws = (data?.timeslots ?? []).map(backendToRaw).filter((r) => {
           const d = dayjs(r.dtstart * 1000);
           return d.year() === backend.year && d.month() + 1 === backend.month;
@@ -550,7 +551,7 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
         setDraft(raws);
         setSaved(raws);
         setPendingDeleteIds([]);
-      });
+      })();
     } else {
       setDraft(saved);
       setPendingDeleteIds([]);
