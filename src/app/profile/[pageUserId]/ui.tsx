@@ -21,10 +21,13 @@ import {
   toDateKey,
 } from '@/lib/profile/scheduleFormatters';
 
+import { ScheduleSkeleton } from './skeleton';
+
 interface Props {
   userData: UserType;
   pageUserId: string;
   schedule: UseMentorScheduleReturn;
+  scheduleLoaded: boolean;
   loginUserId: string;
   isLogging: boolean;
   avatarCacheBust: number;
@@ -42,6 +45,7 @@ export default function ProfilePageUI({
   userData,
   pageUserId,
   schedule,
+  scheduleLoaded,
   loginUserId,
   isLogging,
   avatarCacheBust,
@@ -72,6 +76,7 @@ export default function ProfilePageUI({
                 }
                 alt={'Avatar of ' + userData?.name}
                 fill
+                sizes="160px"
                 style={{ objectFit: 'contain' }}
               />
             </div>
@@ -178,84 +183,88 @@ export default function ProfilePageUI({
 
           {userData.is_mentor && (
             <div className="w-full lg:w-2/5">
-              <div className="flex w-full flex-col gap-4">
-                <p className="text-xl font-bold">可預約日期</p>
+              {!scheduleLoaded ? (
+                <ScheduleSkeleton />
+              ) : (
+                <div className="flex w-full flex-col gap-4">
+                  <p className="text-xl font-bold">可預約日期</p>
 
-                <div className="w-full rounded-lg border p-2 shadow-md">
-                  <div className="px-3 pb-3 pt-1">
-                    <h2 className="text-2xl font-semibold tracking-tight">
-                      {formatSelectedDate(
+                  <div className="w-full rounded-lg border p-2 shadow-md">
+                    <div className="px-3 pb-3 pt-1">
+                      <h2 className="text-2xl font-semibold tracking-tight">
+                        {formatSelectedDate(
+                          selectedDate
+                            ? new Date(selectedDate + 'T00:00:00')
+                            : undefined
+                        )}
+                      </h2>
+                    </div>
+                    <ScheduleCalendar
+                      selected={
                         selectedDate
                           ? new Date(selectedDate + 'T00:00:00')
-                          : undefined
-                      )}
-                    </h2>
+                          : new Date()
+                      }
+                      onSelect={(d) => setSelectedDate(d ? toDateKey(d) : null)}
+                      allowedDates={allowedDates}
+                      showTodayStyle={false}
+                      disableEmptyDates={true}
+                    />
                   </div>
-                  <ScheduleCalendar
-                    selected={
-                      selectedDate
-                        ? new Date(selectedDate + 'T00:00:00')
-                        : new Date()
-                    }
-                    onSelect={(d) => setSelectedDate(d ? toDateKey(d) : null)}
-                    allowedDates={allowedDates}
-                    showTodayStyle={false}
-                    disableEmptyDates={true}
-                  />
-                </div>
-                <div className="flex flex-col items-start gap-4">
-                  <p>當日可預約時段</p>
-                  {(() => {
-                    const slots = selectedDate
-                      ? generateBookingSlots(selectedDate)
-                      : [];
-                    if (slots.length === 0) {
+                  <div className="flex flex-col items-start gap-4">
+                    <p>當日可預約時段</p>
+                    {(() => {
+                      const slots = selectedDate
+                        ? generateBookingSlots(selectedDate)
+                        : [];
+                      if (slots.length === 0) {
+                        return (
+                          <div className="flex min-h-10 items-center text-gray-400">
+                            無可預約的時段
+                          </div>
+                        );
+                      }
                       return (
-                        <div className="flex min-h-10 items-center text-gray-400">
-                          無可預約的時段
+                        <div className="grid w-full grid-cols-2 gap-2">
+                          {slots.map((slot) => (
+                            <div
+                              key={slot.start.getTime()}
+                              className="flex h-10 select-none items-center justify-center rounded-lg border border-[#E6E8EA] text-sm font-medium"
+                            >
+                              {formatBookingSlotTime(slot)}
+                            </div>
+                          ))}
                         </div>
                       );
-                    }
-                    return (
-                      <div className="grid w-full grid-cols-2 gap-2">
-                        {slots.map((slot) => (
-                          <div
-                            key={slot.start.getTime()}
-                            className="flex h-10 select-none items-center justify-center rounded-lg border border-[#E6E8EA] text-sm font-medium"
-                          >
-                            {formatBookingSlotTime(slot)}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
+                    })()}
+                  </div>
+                  <Button
+                    variant="default"
+                    className="w-full rounded-full px-6 py-3"
+                    onClick={onReservation}
+                  >
+                    {loginUserId && userData.is_mentor
+                      ? loginUserId === userData?.user_id.toString()
+                        ? '預約設定'
+                        : '預約時間'
+                      : '預約時間'}
+                  </Button>
+                  {loginUserId === pageUserId ? (
+                    <MentorScheduleDialog
+                      open={openReservationDialog}
+                      onOpenChange={setOpenReservationDialog}
+                      schedule={schedule}
+                    />
+                  ) : (
+                    <MenteeReservationDialog
+                      open={openMenteeReservationDialog}
+                      onOpenChange={setOpenMenteeReservationDialog}
+                      schedule={schedule}
+                      userData={userData}
+                    />
+                  )}
                 </div>
-                <Button
-                  variant="default"
-                  className="w-full rounded-full px-6 py-3"
-                  onClick={onReservation}
-                >
-                  {loginUserId && userData.is_mentor
-                    ? loginUserId === userData?.user_id.toString()
-                      ? '預約設定'
-                      : '預約時間'
-                    : '預約時間'}
-                </Button>
-                {loginUserId === pageUserId ? (
-                  <MentorScheduleDialog
-                    open={openReservationDialog}
-                    onOpenChange={setOpenReservationDialog}
-                    schedule={schedule}
-                  />
-                ) : (
-                  <MenteeReservationDialog
-                    open={openMenteeReservationDialog}
-                    onOpenChange={setOpenMenteeReservationDialog}
-                    schedule={schedule}
-                    userData={userData}
-                  />
-                )}
-              </div>
+              )}
             </div>
           )}
         </div>

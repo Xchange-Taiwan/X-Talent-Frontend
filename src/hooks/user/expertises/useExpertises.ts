@@ -1,7 +1,28 @@
 import { useEffect, useState } from 'react';
 
-import { ExpertiseType } from '@/services/profile//expertises'; // 若 interface 放在獨立檔案，請調整匯入路徑
-import { fetchExpertises } from '@/services/profile/expertises';
+import { ExpertiseType, fetchExpertises } from '@/services/profile/expertises';
+
+const expertisesCache = new Map<string, ExpertiseType[]>();
+const expertisesPromiseCache = new Map<string, Promise<ExpertiseType[]>>();
+
+async function fetchExpertisesCached(
+  language: string
+): Promise<ExpertiseType[]> {
+  if (expertisesCache.has(language)) return expertisesCache.get(language)!;
+
+  const inflight = expertisesPromiseCache.get(language);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    const result = await fetchExpertises(language);
+    expertisesCache.set(language, result);
+    expertisesPromiseCache.delete(language);
+    return result;
+  })();
+
+  expertisesPromiseCache.set(language, promise);
+  return promise;
+}
 
 export default function useExpertises(language: string) {
   const [expertises, setExpertises] = useState<ExpertiseType[]>([]);
@@ -9,20 +30,25 @@ export default function useExpertises(language: string) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadExpertises = async () => {
+    let cancelled = false;
+
+    const run = async () => {
+      setIsLoading(true);
+      setError(null);
       try {
-        setIsLoading(true);
-        setError(null);
-        const data = await fetchExpertises(language);
-        setExpertises(data);
+        const data = await fetchExpertisesCached(language);
+        if (!cancelled) setExpertises(data);
       } catch (err) {
-        console.error('Failed to load expertises:', err);
-        setError('Failed to load expertises');
+        if (!cancelled) setError('Failed to load expertises');
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
-    loadExpertises();
+
+    run();
+    return () => {
+      cancelled = true;
+    };
   }, [language]);
 
   return { expertises, isLoading, error };

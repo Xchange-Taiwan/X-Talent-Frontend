@@ -21,7 +21,9 @@ export type UserDropdownProps = {
   user: Session['user'];
 };
 
-export function UserDropdown({ user }: UserDropdownProps): JSX.Element {
+export const UserDropdown = React.memo(function UserDropdown({
+  user,
+}: UserDropdownProps): JSX.Element {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [shareDialogOpen, setShareDialogOpen] = React.useState(false);
@@ -48,40 +50,38 @@ export function UserDropdown({ user }: UserDropdownProps): JSX.Element {
       ? `${jobTitle} at ${company}`
       : jobTitle || company || '';
 
-  const handleGoProfile = (): void => {
+  const handleGoProfile = React.useCallback((): void => {
     setMenuOpen(false);
     router.push(profilePath);
-  };
+  }, [router, profilePath]);
 
-  const handleShareProfile = (): void => {
+  const handleShareProfile = React.useCallback((): void => {
     if (!userId) return;
     setMenuOpen(false);
     requestAnimationFrame(() => {
       setShareDialogOpen(true);
     });
-  };
+  }, [userId]);
 
-  const handleAsMentor = (): void => {
+  const handleAsMentor = React.useCallback((): void => {
     if (!userId) return;
-
     setMenuOpen(false);
-
     if (isMentor) {
       router.push('/reservation/mentor');
     } else {
       router.push(`/profile/${userId}/edit?onboarding=true`);
     }
-  };
+  }, [router, userId, isMentor]);
 
-  const handleMyReservation = (): void => {
+  const handleMyReservation = React.useCallback((): void => {
     setMenuOpen(false);
     router.push('/reservation/mentee');
-  };
+  }, [router]);
 
-  const handleLogout = (): void => {
+  const handleLogout = React.useCallback((): void => {
     setMenuOpen(false);
     signOut();
-  };
+  }, []);
 
   return (
     <>
@@ -98,6 +98,7 @@ export function UserDropdown({ user }: UserDropdownProps): JSX.Element {
               width={32}
               height={32}
               className="h-8 w-8 rounded-full object-cover"
+              priority
             />
             <span className="text-xl leading-none">▾</span>
           </button>
@@ -174,4 +175,4 @@ export function UserDropdown({ user }: UserDropdownProps): JSX.Element {
       />
     </>
   );
-}
+});

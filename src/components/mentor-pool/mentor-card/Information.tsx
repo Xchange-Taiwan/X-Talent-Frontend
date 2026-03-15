@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Skill } from './Skill';
 
@@ -20,7 +20,7 @@ export const Information = ({
   const skillsContainerRef = useRef<HTMLDivElement>(null);
   const [visibleSkillsCount, setVisibleSkillsCount] = useState(skills.length);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const checkSkillsInLine = () => {
       if (!skillsContainerRef.current) return;
 

@@ -29,7 +29,6 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
     setIsSubmitting(true);
 
     try {
-      // 1️⃣ 先做 server-side 驗證（不登入）
       const validated = await validateSignIn(values);
       if (validated.error) {
         toast({
@@ -40,7 +39,6 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
         return;
       }
 
-      // 2️⃣ 進行 NextAuth v4 Credentials Login（on client）
       const login = await clientSignIn('credentials', {
         email: validated.email,
         password: validated.password,
@@ -56,7 +54,6 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
         return;
       }
 
-      // 3️⃣ 取得 session（成功登入後會有 accessToken）
       const session = await getSession();
       if (!session?.accessToken) {
         toast({
@@ -67,14 +64,13 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
         return;
       }
 
-      // 4️⃣ Redirect
       if (session.user.onBoarding === false) {
         router.push('/auth/onboarding');
       } else {
         router.push('/mentor-pool');
       }
     } catch (err) {
-      console.error(err);
+      console.error('[SignIn] unexpected error:', err);
       toast({
         variant: 'destructive',
         description: 'Something went wrong!',

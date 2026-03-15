@@ -8,7 +8,7 @@ import {
   FormItem,
   FormMessage,
 } from '@/components/ui/form';
-import { MultiSelect } from '@/components/ui/multi-select'; // ⬅️ 請根據實際路徑調整
+import { MultiSelect } from '@/components/ui/multi-select';
 
 interface MultiSelectFieldProps<T extends FieldValues> {
   form: UseFormReturn<T>;

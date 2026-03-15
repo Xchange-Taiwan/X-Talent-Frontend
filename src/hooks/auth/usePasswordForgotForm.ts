@@ -32,7 +32,7 @@ export default function usePasswordForgotForm() {
         sessionStorage.setItem('pending_reset_email', values.email);
         router.push('/auth/password-forgot-success');
       } else {
-        // 如果 code 不是 200，手動重置
+        // Non-200 response — manually reset the submitting state
         setIsSubmitting(false);
       }
     } catch (error) {
