@@ -2,15 +2,15 @@ import { useEffect, useState } from 'react';
 
 import { fetchIndustries, IndustryDTO } from '@/services/profile/industries';
 
-const useIndustries = (language: string) => {
+export default function useIndustries(language: string) {
   const [industries, setIndustries] = useState<IndustryDTO[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadIndustries = async () => {
       try {
-        setLoading(true);
+        setIsLoading(true);
         setError(null);
         const industriesData = await fetchIndustries(language);
         setIndustries(industriesData);
@@ -18,13 +18,11 @@ const useIndustries = (language: string) => {
         console.error('Failed to load industries:', err);
         setError('Failed to load industries');
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
     loadIndustries();
   }, [language]);
 
-  return { industries, loading, error };
-};
-
-export default useIndustries;
+  return { industries, isLoading, error };
+}

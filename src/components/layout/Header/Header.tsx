@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
+import { memo } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { HamburgerMenu } from './HamburgerMenu';
 import { UserDropdown } from './UserDropdown';
 
-export function Header(): JSX.Element {
+function HeaderComponent(): JSX.Element {
   const { data: session } = useSession();
 
   const isLoggedIn = Boolean(session?.user?.id);
@@ -95,3 +96,5 @@ export function Header(): JSX.Element {
     </header>
   );
 }
+
+export const Header = memo(HeaderComponent);

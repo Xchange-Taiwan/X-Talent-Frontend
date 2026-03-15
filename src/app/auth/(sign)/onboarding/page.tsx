@@ -30,14 +30,7 @@ import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
 import { fetchUser } from '@/services/profile/user';
 
-const STEP_TITLE = [
-  '該如何稱呼你呢？',
-  '個人資訊',
-  '有興趣多了解的職位',
-  '想多了解、加強的技能',
-  '想多了解的主題',
-];
-const stepsTotal = STEP_TITLE.length;
+import { STEP_TITLE, STEPS_TOTAL } from './data';
 
 export default function Page() {
   const router = useRouter();
@@ -194,7 +187,7 @@ export default function Page() {
             >
               <div>
                 <p className="mb-6 text-base font-semibold text-text-tertiary">
-                  Step {currentStep} of {stepsTotal}
+                  Step {currentStep} of {STEPS_TOTAL}
                 </p>
                 <div className="flex items-center gap-3">
                   <p className="text-4xl font-bold">
@@ -227,7 +220,7 @@ export default function Page() {
             >
               <div>
                 <p className="mb-6 text-base font-semibold text-text-tertiary">
-                  Step {currentStep} of {stepsTotal}
+                  Step {currentStep} of {STEPS_TOTAL}
                 </p>
                 <div className="flex items-center gap-3">
                   {currentStep > 1 && (
@@ -267,7 +260,7 @@ export default function Page() {
             >
               <div>
                 <p className="mb-6 text-base font-semibold text-text-tertiary">
-                  Step {currentStep} of {stepsTotal}
+                  Step {currentStep} of {STEPS_TOTAL}
                 </p>
                 <div className="flex items-center gap-3">
                   {currentStep > 1 && (
@@ -306,7 +299,7 @@ export default function Page() {
             >
               <div>
                 <p className="mb-6 text-base font-semibold text-text-tertiary">
-                  Step {currentStep} of {stepsTotal}
+                  Step {currentStep} of {STEPS_TOTAL}
                 </p>
                 <div className="flex items-center gap-3">
                   {currentStep > 1 && (
@@ -342,7 +335,7 @@ export default function Page() {
             >
               <div>
                 <p className="mb-6 text-base font-semibold text-text-tertiary">
-                  Step {currentStep} of {stepsTotal}
+                  Step {currentStep} of {STEPS_TOTAL}
                 </p>
                 <div className="flex items-center gap-3">
                   {currentStep > 1 && (

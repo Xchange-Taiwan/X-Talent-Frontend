@@ -5,7 +5,7 @@ import GoogleSignUpButton from '@/components/auth/GoogleButton';
 import SignUpForm from '@/components/auth/signup/SignUpForm';
 import useSignUpForm from '@/hooks/auth/useSignUpForm';
 
-export default function AuthPage() {
+export default function Page() {
   const signUpFormProps = useSignUpForm();
 
   return (
