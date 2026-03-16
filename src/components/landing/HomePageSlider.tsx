@@ -19,7 +19,7 @@ export const HomePageSlider: FC = () => {
     <Swiper
       modules={[Autoplay, Pagination]}
       spaceBetween={0}
-      slidesPerView={width > SCREEN_SIZE.md ? 2 : 1}
+      slidesPerView={width > SCREEN_SIZE.lg ? 2 : 1}
       loop
       pagination={{ clickable: true }}
       autoplay={{

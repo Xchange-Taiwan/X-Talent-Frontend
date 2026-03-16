@@ -125,7 +125,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
               />
               <div className="min-w-0">
                 <div className="text-black truncate text-2xl font-semibold">
-                  {name || 'My Profile'}
+                  {name || '我的個人頁面'}
                 </div>
                 {subtitle ? (
                   <div className="mt-1 truncate text-sm text-gray-500">
@@ -142,7 +142,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
               onClick={handleShareProfile}
               disabled={!userId}
             >
-              Share Profile
+              分享個人頁面
             </Button>
 
             <div className="h-px w-full bg-muted" />
@@ -155,14 +155,14 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
                 disabled={!userId}
                 className="text-black py-4 text-left text-xl disabled:opacity-50"
               >
-                As a mentor
+                {isMentor ? '導師預約管理' : '成為導師'}
               </button>
               <button
                 type="button"
                 onClick={handleMyReservation}
                 className="text-black py-4 text-left text-xl"
               >
-                My reservation
+                我的預約
               </button>
             </nav>
 
@@ -171,7 +171,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
                 className="w-full bg-primary hover:bg-primary"
                 onClick={handleLogout}
               >
-                Log out
+                登出
               </Button>
             </div>
           </div>
@@ -184,7 +184,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
           setShareDialogOpen(nextOpen);
           if (!nextOpen) close();
         }}
-        name={name || 'My Profile'}
+        name={name || '我的個人頁面'}
         avatarSrc={avatarSrc}
         subtitle={subtitle}
         profileUrl={profileUrl}
