@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -19,6 +19,11 @@ export default function useSignUpForm(): AuthFormProps<SignUpValues> {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+
+  // Fire once when the sign-up form mounts — user has reached the sign-up page
+  useEffect(() => {
+    trackEvent({ name: 'sign_up_started', feature: 'auth' });
+  }, []);
 
   const form = useForm<z.infer<typeof SignUpSchema>>({
     resolver: zodResolver(SignUpSchema),

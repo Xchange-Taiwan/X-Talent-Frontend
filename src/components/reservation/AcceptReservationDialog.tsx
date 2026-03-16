@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { trackEvent } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 
 import type { Reservation } from './types';
@@ -44,6 +45,11 @@ export default function AcceptReservationDialog({
       setStep('check');
       setMessage('');
       setReason('');
+      trackEvent({
+        name: 'feature_opened',
+        feature: 'reservation',
+        metadata: { dialog: 'accept_reservation' },
+      });
     }
   }
 
