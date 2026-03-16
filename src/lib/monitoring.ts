@@ -1,13 +1,14 @@
 /**
  * Frontend Runtime Error Monitoring
  *
- * Captures unhandled JS errors, unhandled promise rejections, and React render errors.
- * Events are structured consistently and sent to console.error (Vercel / deployment logs).
- * Architecture keeps `captureError` as a single integration point — swap in Sentry or
- * another service here without touching any other file.
+ * Captures unhandled JS errors, unhandled promise rejections, React render errors,
+ * and API failures. Events are structured consistently and forwarded to Sentry.
  *
  * Sensitive fields are masked before any event is emitted.
+ * Sentry is initialized separately in instrumentation-client.ts / sentry.server.config.ts.
  */
+
+import * as Sentry from '@sentry/nextjs';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -131,8 +132,20 @@ export function captureError(event: MonitoringEvent): void {
     componentStack: sanitize(event.componentStack),
   };
 
-  // Single integration point — swap for Sentry.captureEvent() or similar here
-  console.error('[monitoring]', sanitizedEvent);
+  Sentry.captureEvent({
+    message: sanitizedEvent.message,
+    level: 'error',
+    tags: {
+      event_name: sanitizedEvent.name,
+      route: sanitizedEvent.route,
+      environment: sanitizedEvent.environment,
+    },
+    extra: {
+      stack: sanitizedEvent.stack,
+      componentStack: sanitizedEvent.componentStack,
+      componentName: sanitizedEvent.componentName,
+    },
+  });
 }
 
 // ─── Helper to build a base event ─────────────────────────────────────────────
@@ -182,6 +195,18 @@ export function captureApiFailure(
     duration: event.duration,
   };
 
-  // Single integration point — swap for Sentry.captureEvent() or similar here
-  console.error('[monitoring]', fullEvent);
+  Sentry.captureEvent({
+    message: fullEvent.message,
+    level: 'error',
+    tags: {
+      event_name: 'api.failure',
+      route: fullEvent.route,
+      method: fullEvent.method,
+      status: String(fullEvent.status),
+    },
+    extra: {
+      endpoint: fullEvent.endpoint,
+      duration: fullEvent.duration,
+    },
+  });
 }
