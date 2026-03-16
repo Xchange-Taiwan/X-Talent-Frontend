@@ -10,7 +10,9 @@ export default async function AuthOperationLayout({
   children: React.ReactNode;
 }) {
   const session = await getServerSession(authOptions);
-  if (session?.user?.id) redirect('/');
+  // Redirect logged-in users away from signin/signup, but let users with
+  // incomplete onboarding (onBoarding === false) through to /auth/onboarding.
+  if (session?.user?.id && session.user.onBoarding !== false) redirect('/');
 
   return (
     <div className="flex min-h-[calc(100vh-70px)] lg:min-h-[720px]">
