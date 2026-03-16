@@ -13,13 +13,21 @@ Sentry.init({
   // Enable logs to be sent to Sentry
   enableLogs: true,
 
-  // Replay: capture 10% of sessions, 100% of sessions with errors
-  integrations: [Sentry.replayIntegration()],
-  replaysSessionSampleRate: 0.1,
-  replaysOnErrorSampleRate: 1.0,
-
   // Do not send PII (IP addresses, user emails, etc.) automatically
   sendDefaultPii: false,
+
+  // Session Replay is lazy-loaded below to avoid adding ~50kB to the initial bundle.
+  // replaysSessionSampleRate and replaysOnErrorSampleRate are set on the integration itself.
+});
+
+// Lazy-load Replay after the page is interactive so it does not block initial load.
+Sentry.lazyLoadIntegration('replayIntegration').then((replayIntegration) => {
+  Sentry.addIntegration(
+    replayIntegration({
+      replaysSessionSampleRate: 0.1,
+      replaysOnErrorSampleRate: 1.0,
+    })
+  );
 });
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
