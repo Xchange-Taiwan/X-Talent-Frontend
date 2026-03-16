@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -44,6 +44,8 @@ export default function OnboardingContainer() {
     step5?: z.infer<typeof step5Schema>;
   }>({});
 
+  const stableOnboardingCacheBust = useRef(Date.now()).current;
+
   const step1Form = useForm<z.infer<typeof step1Schema>>({
     resolver: zodResolver(step1Schema),
     defaultValues: {
@@ -53,6 +55,11 @@ export default function OnboardingContainer() {
       language: 'zh_TW',
     },
   });
+
+  const watchedAvatar = step1Form.watch('avatar');
+  const avatarDisplayUrl = watchedAvatar
+    ? `${watchedAvatar}?cb=${session?.user?.avatarUpdatedAt ?? stableOnboardingCacheBust}`
+    : '';
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -203,6 +210,7 @@ export default function OnboardingContainer() {
       currentStep={currentStep}
       stepsTotal={STEPS_TOTAL}
       stepTitle={STEP_TITLE}
+      avatarDisplayUrl={avatarDisplayUrl}
       step1Form={step1Form}
       step2Form={step2Form}
       step3Form={step3Form}
