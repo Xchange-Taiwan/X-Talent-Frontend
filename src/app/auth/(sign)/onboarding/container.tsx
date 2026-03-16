@@ -66,6 +66,15 @@ export default function OnboardingContainer() {
     });
   }, [session?.user?.name, session?.user?.avatar, status, step1Form]);
 
+  // Track which onboarding step the user is currently viewing
+  useEffect(() => {
+    trackEvent({
+      name: 'onboarding_step_viewed',
+      feature: 'onboarding',
+      metadata: { step: currentStep },
+    });
+  }, [currentStep]);
+
   const onSubmitStep1 = (data: z.infer<typeof step1Schema>) => {
     setTempData((prev) => ({ ...prev, step1: data }));
     trackEvent({ name: 'onboarding_step_1_completed', feature: 'onboarding' });

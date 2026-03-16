@@ -31,6 +31,30 @@ export default function RootLayout({
   return (
     <html lang="zh-TW" className={notoSans.className}>
       <body id="app">
+        {/* Google Analytics 4 — only loads when NEXT_PUBLIC_GA_ID is set.
+            strategy="afterInteractive" ensures it never blocks page render.
+            Page views are tracked by PageViewTracker on route changes. */}
+        {process.env.NEXT_PUBLIC_GA_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script
+              id="google-analytics"
+              strategy="afterInteractive"
+              dangerouslySetInnerHTML={{
+                __html: `
+                  window.dataLayer = window.dataLayer || [];
+                  function gtag(){dataLayer.push(arguments);}
+                  gtag('js', new Date());
+                  gtag('config', '${process.env.NEXT_PUBLIC_GA_ID}', { send_page_view: false });
+                `,
+              }}
+            />
+          </>
+        )}
+
         {/* Microsoft Clarity — behavior tracking for testing phase.
             Only loads when NEXT_PUBLIC_CLARITY_ID is set.
             strategy="afterInteractive" ensures it never blocks page render. */}
