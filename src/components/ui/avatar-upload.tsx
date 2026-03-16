@@ -1,10 +1,14 @@
-import AddAPhotoRoundedIcon from '@mui/icons-material/AddAPhotoRounded';
-import ImageIcon from '@mui/icons-material/ImageOutlined';
+import { Camera, ImageIcon } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { useState } from 'react';
 import { Control, FieldValues, Path, useController } from 'react-hook-form';
 
-import AvatarCropModal from './avatar-crop-modal';
+// Lazy-load the crop modal — it pulls in react-avatar-editor and @mui/material
+// (~100kB+), which are only needed when the user actually opens the crop dialog.
+const AvatarCropModal = dynamic(() => import('./avatar-crop-modal'), {
+  ssr: false,
+});
 
 interface AvatarUploadProps<T extends FieldValues> {
   control: Control<T>;
@@ -67,16 +71,18 @@ const AvatarUpload = <T extends FieldValues>({
 
         {/* Hover show upload icon */}
         <div className="absolute inset-0 flex items-center justify-center bg-[#6f6f6f] opacity-0 transition-opacity duration-200 group-hover:opacity-75">
-          <AddAPhotoRoundedIcon sx={{ fontSize: 50, color: '#B7CBCB' }} />
+          <Camera size={50} color="#B7CBCB" />
         </div>
 
-        {/* Modal for cropping image */}
-        <AvatarCropModal
-          file={selectedImage}
-          isOpen={open}
-          onClose={handleClose}
-          onSave={handleSaveImage}
-        />
+        {/* Modal for cropping image — lazy-loaded on first open */}
+        {open && (
+          <AvatarCropModal
+            file={selectedImage}
+            isOpen={open}
+            onClose={handleClose}
+            onSave={handleSaveImage}
+          />
+        )}
 
         {imagePreviewUrl ? (
           <Image
@@ -88,7 +94,7 @@ const AvatarUpload = <T extends FieldValues>({
           />
         ) : (
           // Show default avatar if no image is selected
-          <ImageIcon sx={{ fontSize: 50, color: '#B7CBCB' }} />
+          <ImageIcon size={50} color="#B7CBCB" />
         )}
       </div>
     </div>

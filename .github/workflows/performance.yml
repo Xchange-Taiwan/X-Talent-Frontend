@@ -9,11 +9,14 @@ permissions:
   pull-requests: write
 
 # Budgets (edit these to tune thresholds)
+# Note: @sentry/nextjs adds ~37 kB to every page's First Load JS.
+# FIRST_LOAD_FAIL_KB is set to 300 to account for this monitoring overhead
+# while still catching genuinely bloated pages.
 env:
   PAGE_SIZE_WARN_KB: '30'
   PAGE_SIZE_FAIL_KB: '75'
   FIRST_LOAD_WARN_KB: '150'
-  FIRST_LOAD_FAIL_KB: '250'
+  FIRST_LOAD_FAIL_KB: '300'
 
 jobs:
   bundle-size:

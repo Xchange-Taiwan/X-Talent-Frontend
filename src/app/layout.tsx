@@ -1,17 +1,26 @@
 import '../styles/global.css';
 
+import * as Sentry from '@sentry/nextjs';
+import type { Metadata } from 'next';
+
 import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import Providers from '@/components/Providers';
 import { Toaster } from '@/components/ui/toaster';
 
 import { notoSans } from './font';
-export const metadata = {
-  title: {
-    default: 'XChange Talent Pool',
-    template: '%s | XChange Talent Pool',
-  },
-};
+
+export function generateMetadata(): Metadata {
+  return {
+    title: {
+      default: 'XChange Talent Pool',
+      template: '%s | XChange Talent Pool',
+    },
+    other: {
+      ...Sentry.getTraceData(),
+    },
+  };
+}
 
 export default function RootLayout({
   children,

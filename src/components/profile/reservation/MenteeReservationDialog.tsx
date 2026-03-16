@@ -22,6 +22,7 @@ import {
   UseMentorScheduleReturn,
 } from '@/hooks/useMentorSchedule';
 import { UserType } from '@/hooks/user/user-data/useUserData';
+import { captureFlowFailure } from '@/lib/monitoring';
 import {
   createReservation,
   CreateReservationPayload,
@@ -117,6 +118,11 @@ export default function MenteeReservationDialog({
     } catch (error) {
       console.error('Failed to create reservation:', error);
       const msg = error instanceof Error ? error.message : 'Unknown error';
+      captureFlowFailure({
+        flow: 'reservation_create',
+        step: msg.includes('logged in') ? 'get_session' : 'create_reservation',
+        message: msg,
+      });
       const isDuplicate =
         msg.includes('409') ||
         msg.toLowerCase().includes('conflict') ||

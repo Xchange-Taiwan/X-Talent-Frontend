@@ -5,6 +5,7 @@ import { getSession } from 'next-auth/react';
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
 import { Card, CardContent } from '@/components/ui/card';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { updateReservationStatus } from '@/services/reservations';
 
 import { ReservationCard } from './ReservationCard';
@@ -37,66 +38,88 @@ export function ReservationList({
 
   // Accept a booking request (mentor side, pending-mentor variant)
   const accept = async ({ id, message }: { id: string; message: string }) => {
-    const session = await getSession();
-    const myId = String(session?.user?.id ?? '');
-    if (!myId) throw new Error('[ReservationList] missing current user id');
+    try {
+      const session = await getSession();
+      const myId = String(session?.user?.id ?? '');
+      if (!myId) throw new Error('[ReservationList] missing current user id');
 
-    const it = findItem(id);
-    const otherId = resolveOtherId(myId, it);
+      const it = findItem(id);
+      const otherId = resolveOtherId(myId, it);
 
-    await updateReservationStatus({
-      userId: myId,
-      reservationId: id,
-      body: {
-        my_user_id: myId,
-        user_id: otherId,
-        my_status: 'ACCEPT',
-        schedule_id: it.scheduleId,
-        dtstart: it.dtstart,
-        dtend: it.dtend,
-        messages: message.trim()
-          ? [{ user_id: myId, msg: message.trim() }]
-          : [],
-        previous_reserve: {},
-      },
-    });
+      await updateReservationStatus({
+        userId: myId,
+        reservationId: id,
+        body: {
+          my_user_id: myId,
+          user_id: otherId,
+          my_status: 'ACCEPT',
+          schedule_id: it.scheduleId,
+          dtstart: it.dtstart,
+          dtend: it.dtend,
+          messages: message.trim()
+            ? [{ user_id: myId, msg: message.trim() }]
+            : [],
+          previous_reserve: {},
+        },
+      });
 
-    // TODO: block the accepted time slot so other mentees can't book it.
-    // Blocked by backend: PUT /mentors/:id/schedule returns 422 when a BLOCK
-    // slot overlaps an existing ALLOW slot. Re-enable once backend supports it,
-    // or once GET schedule returns booked_slots so the frontend can filter them.
+      // TODO: block the accepted time slot so other mentees can't book it.
+      // Blocked by backend: PUT /mentors/:id/schedule returns 422 when a BLOCK
+      // slot overlaps an existing ALLOW slot. Re-enable once backend supports it,
+      // or once GET schedule returns booked_slots so the frontend can filter them.
 
-    hardReload();
+      hardReload();
+    } catch (err) {
+      captureFlowFailure({
+        flow: 'reservation_accept',
+        step: 'update_status',
+        message:
+          err instanceof Error ? err.message : 'Failed to accept reservation',
+      });
+      throw err;
+    }
   };
 
   // Shared handler for both reject and cancel (same API call)
   const rejectOrCancel = async (id: string, text: string) => {
-    const session = await getSession();
-    const myId = String(session?.user?.id ?? '');
-    if (!myId) throw new Error('[ReservationList] missing current user id');
+    try {
+      const session = await getSession();
+      const myId = String(session?.user?.id ?? '');
+      if (!myId) throw new Error('[ReservationList] missing current user id');
 
-    const it = findItem(id);
-    const otherId = resolveOtherId(myId, it);
+      const it = findItem(id);
+      const otherId = resolveOtherId(myId, it);
 
-    await updateReservationStatus({
-      userId: myId,
-      reservationId: id,
-      body: {
-        my_user_id: myId,
-        user_id: otherId,
-        my_status: 'REJECT',
-        schedule_id: it.scheduleId,
-        dtstart: it.dtstart,
-        dtend: it.dtend,
-        messages: text.trim() ? [{ user_id: myId, msg: text.trim() }] : [],
-        previous_reserve: {},
-      },
-    });
+      await updateReservationStatus({
+        userId: myId,
+        reservationId: id,
+        body: {
+          my_user_id: myId,
+          user_id: otherId,
+          my_status: 'REJECT',
+          schedule_id: it.scheduleId,
+          dtstart: it.dtstart,
+          dtend: it.dtend,
+          messages: text.trim() ? [{ user_id: myId, msg: text.trim() }] : [],
+          previous_reserve: {},
+        },
+      });
 
-    // TODO: remove the BLOCK slot when cancelling an accepted reservation.
-    // Blocked by the same backend limitation as above.
+      // TODO: remove the BLOCK slot when cancelling an accepted reservation.
+      // Blocked by the same backend limitation as above.
 
-    hardReload();
+      hardReload();
+    } catch (err) {
+      captureFlowFailure({
+        flow: 'reservation_reject',
+        step: 'update_status',
+        message:
+          err instanceof Error
+            ? err.message
+            : 'Failed to reject/cancel reservation',
+      });
+      throw err;
+    }
   };
 
   return (

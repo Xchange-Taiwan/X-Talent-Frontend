@@ -6,6 +6,7 @@ import * as z from 'zod';
 
 import { AuthFormProps } from '@/components/auth/types';
 import { useToast } from '@/components/ui/use-toast';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { SignUpSchema } from '@/schemas/auth';
 import { signUp } from '@/services/auth/signUp';
 import { AuthResponse } from '@/services/types';
@@ -39,6 +40,13 @@ export default function useSignUpForm(): AuthFormProps<SignUpValues> {
         return;
       }
     } catch (error) {
+      captureFlowFailure({
+        flow: 'sign_up',
+        step: 'submit',
+        message:
+          error instanceof Error ? error.message : 'Unexpected sign-up error',
+        errorCode: (error as AuthResponse)?.code,
+      });
       handleSignUpError(error as AuthResponse, toast);
     } finally {
       setIsSubmitting(false);

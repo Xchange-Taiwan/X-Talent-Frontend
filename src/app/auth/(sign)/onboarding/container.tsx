@@ -18,6 +18,7 @@ import {
 import useLocations from '@/hooks/user/country/useLocations';
 import useIndustries from '@/hooks/user/industry/useIndustries';
 import useInterests from '@/hooks/user/interests/useInterests';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
 import { fetchUser } from '@/services/profile/user';
@@ -127,26 +128,48 @@ export default function OnboardingContainer() {
       setIsSubmitting(true);
 
       if (allData.avatarFile) {
-        const newUrl = await updateAvatar(allData.avatarFile);
-        allData.avatar = newUrl ?? allData.avatar;
-        allData.avatarFile = undefined;
+        try {
+          const newUrl = await updateAvatar(allData.avatarFile);
+          allData.avatar = newUrl ?? allData.avatar;
+          allData.avatarFile = undefined;
+        } catch (err) {
+          captureFlowFailure({
+            flow: 'onboarding_submit',
+            step: 'avatar_upload',
+            message:
+              err instanceof Error ? err.message : 'Avatar upload failed',
+          });
+          throw err;
+        }
       }
 
-      const validatedData = formSchema.parse(allData);
-      await updateProfile(validatedData);
-      const latest = await fetchUser('zh_TW');
+      try {
+        const validatedData = formSchema.parse(allData);
+        await updateProfile(validatedData);
+        const latest = await fetchUser('zh_TW');
 
-      await updateSession({
-        user: {
-          id: session?.user?.id,
-          name: latest?.name ?? validatedData.name ?? session?.user?.name,
-          avatar:
-            latest?.avatar ?? validatedData.avatar ?? session?.user?.avatar,
-          isMentor: Boolean(latest?.is_mentor),
-          onBoarding: Boolean(latest?.onboarding),
-          msg: session?.user?.msg,
-        },
-      });
+        await updateSession({
+          user: {
+            id: session?.user?.id,
+            name: latest?.name ?? validatedData.name ?? session?.user?.name,
+            avatar:
+              latest?.avatar ?? validatedData.avatar ?? session?.user?.avatar,
+            isMentor: Boolean(latest?.is_mentor),
+            onBoarding: Boolean(latest?.onboarding),
+            msg: session?.user?.msg,
+          },
+        });
+      } catch (err) {
+        captureFlowFailure({
+          flow: 'onboarding_submit',
+          step: 'submit_profile',
+          message:
+            err instanceof Error
+              ? err.message
+              : 'Onboarding profile submit failed',
+        });
+        throw err;
+      }
 
       router.push('/profile/card');
     } catch {

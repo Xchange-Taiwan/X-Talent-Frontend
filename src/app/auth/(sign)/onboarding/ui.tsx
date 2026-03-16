@@ -1,19 +1,16 @@
 'use client';
 
 import { ChevronLeft, Loader2 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { UseFormReturn } from 'react-hook-form';
 import * as z from 'zod';
 
 import {
-  InterestedPosition,
-  PersonalInfo,
-  SkillsToImprove,
   step1Schema,
   step2Schema,
   step3Schema,
   step4Schema,
   step5Schema,
-  TopicsToDiscuss,
   WhoAreYou,
 } from '@/components/onboarding/steps';
 import { Button } from '@/components/ui/button';
@@ -21,6 +18,30 @@ import { Form } from '@/components/ui/form';
 import { LocationType } from '@/services/profile/countries';
 import { IndustryDTO } from '@/services/profile/industries';
 import { InterestDTO } from '@/services/profile/interests';
+
+// Steps 2-5 are only rendered after the user completes step 1.
+// Lazy-load them so their code is excluded from the initial bundle and
+// downloaded in the background while the user fills in step 1.
+const PersonalInfo = dynamic(() =>
+  import('@/components/onboarding/steps/PersonalInfo').then((m) => ({
+    default: m.PersonalInfo,
+  }))
+);
+const InterestedPosition = dynamic(() =>
+  import('@/components/onboarding/steps/InterestedPosition').then((m) => ({
+    default: m.InterestedPosition,
+  }))
+);
+const SkillsToImprove = dynamic(() =>
+  import('@/components/onboarding/steps/SkillsToImprove').then((m) => ({
+    default: m.SkillsToImprove,
+  }))
+);
+const TopicsToDiscuss = dynamic(() =>
+  import('@/components/onboarding/steps/TopicsToDiscuss').then((m) => ({
+    default: m.TopicsToDiscuss,
+  }))
+);
 
 interface Props {
   currentStep: number;

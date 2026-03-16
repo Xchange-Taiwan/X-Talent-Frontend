@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const { withSentryConfig } = require('@sentry/nextjs');
+
 const nextConfig = {
   images: {
     // Cache optimized images on the Next.js server for 30 days.
@@ -22,7 +24,6 @@ const nextConfig = {
   },
   // Enable hot reload optimizations
   experimental: {
-    // Enable faster refresh
     optimizeCss: false,
   },
   // Ensure webpack hot reload works properly
@@ -37,4 +38,24 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+module.exports = withSentryConfig(nextConfig, {
+  org: 'xchange-6j',
+  project: 'x-talent-frontend',
+
+  // Only print logs for uploading source maps in CI
+  silent: !process.env.CI,
+
+  // Upload a larger set of source maps for prettier stack traces (increases build time)
+  widenClientFileUpload: true,
+
+  // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
+  // Note: ensure this route does not conflict with Next.js middleware.
+  tunnelRoute: '/monitoring',
+
+  webpack: {
+    automaticVercelMonitors: true,
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
+});

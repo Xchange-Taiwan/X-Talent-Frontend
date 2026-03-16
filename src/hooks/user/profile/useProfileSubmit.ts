@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { ProfileFormValues } from '@/components/profile/edit/profileSchema';
 import { clearUserDataCache } from '@/hooks/user/user-data/useUserData';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { pollUntilSynced } from '@/lib/profile/pollUntilSynced';
 import { ExperienceType } from '@/services/profile/experienceType';
 import { updateAvatar } from '@/services/profile/updateAvatar';
@@ -40,13 +41,32 @@ export function useProfileSubmit({
       // 1) avatar upload (if any)
       let avatar = values.avatar;
       if (values.avatarFile) {
-        const newUrl = await updateAvatar(values.avatarFile);
-        avatar = newUrl ?? avatar;
+        try {
+          const newUrl = await updateAvatar(values.avatarFile);
+          avatar = newUrl ?? avatar;
+        } catch (err) {
+          captureFlowFailure({
+            flow: 'profile_update',
+            step: 'avatar_upload',
+            message:
+              err instanceof Error ? err.message : 'Avatar upload failed',
+          });
+          throw err;
+        }
       }
 
       // 2) profile update
       const payload = { ...values, avatar, avatarFile: undefined };
-      await updateProfile(payload);
+      try {
+        await updateProfile(payload);
+      } catch (err) {
+        captureFlowFailure({
+          flow: 'profile_update',
+          step: 'update_profile',
+          message: err instanceof Error ? err.message : 'Profile update failed',
+        });
+        throw err;
+      }
 
       // 3) upsert experiences in parallel
       const links = [
@@ -58,69 +78,79 @@ export function useProfileSubmit({
         values.website,
       ].filter((l) => l && l.url);
 
-      await Promise.all([
-        values.work_experiences?.length > 0
-          ? upsertMentorExperience(ExperienceType.WORK, true, {
-              id: 1,
-              category: ExperienceType.WORK,
-              mentor_experiences_metadata: {
-                data: values.work_experiences.map((item) => ({
-                  job: item.job,
-                  company: item.company,
-                  jobPeriodStart: item.jobPeriodStart,
-                  jobPeriodEnd: item.jobPeriodEnd,
-                  industry: item.industry,
-                  jobLocation: item.jobLocation,
-                  description: item.description,
-                })),
-              },
-              order: 1,
-            })
-          : Promise.resolve(),
+      try {
+        await Promise.all([
+          values.work_experiences?.length > 0
+            ? upsertMentorExperience(ExperienceType.WORK, true, {
+                id: 1,
+                category: ExperienceType.WORK,
+                mentor_experiences_metadata: {
+                  data: values.work_experiences.map((item) => ({
+                    job: item.job,
+                    company: item.company,
+                    jobPeriodStart: item.jobPeriodStart,
+                    jobPeriodEnd: item.jobPeriodEnd,
+                    industry: item.industry,
+                    jobLocation: item.jobLocation,
+                    description: item.description,
+                  })),
+                },
+                order: 1,
+              })
+            : Promise.resolve(),
 
-        values.educations?.length > 0
-          ? upsertMentorExperience(ExperienceType.EDUCATION, true, {
-              id: 2,
-              category: ExperienceType.EDUCATION,
-              mentor_experiences_metadata: {
-                data: values.educations.map((item) => ({
-                  school: item.school,
-                  subject: item.subject,
-                  educationPeriodStart: item.educationPeriodStart,
-                  educationPeriodEnd: item.educationPeriodEnd,
-                })),
-              },
-              order: 2,
-            })
-          : Promise.resolve(),
+          values.educations?.length > 0
+            ? upsertMentorExperience(ExperienceType.EDUCATION, true, {
+                id: 2,
+                category: ExperienceType.EDUCATION,
+                mentor_experiences_metadata: {
+                  data: values.educations.map((item) => ({
+                    school: item.school,
+                    subject: item.subject,
+                    educationPeriodStart: item.educationPeriodStart,
+                    educationPeriodEnd: item.educationPeriodEnd,
+                  })),
+                },
+                order: 2,
+              })
+            : Promise.resolve(),
 
-        links.length > 0
-          ? upsertMentorExperience(ExperienceType.LINK, true, {
-              id: 3,
-              category: ExperienceType.LINK,
-              mentor_experiences_metadata: {
-                data: links.map((link) => ({
-                  platform: link.platform,
-                  url: link.url,
-                })),
-              },
-              order: 3,
-            })
-          : Promise.resolve(),
+          links.length > 0
+            ? upsertMentorExperience(ExperienceType.LINK, true, {
+                id: 3,
+                category: ExperienceType.LINK,
+                mentor_experiences_metadata: {
+                  data: links.map((link) => ({
+                    platform: link.platform,
+                    url: link.url,
+                  })),
+                },
+                order: 3,
+              })
+            : Promise.resolve(),
 
-        values.what_i_offer?.length > 0
-          ? upsertMentorExperience(ExperienceType.WHAT_I_OFFER, true, {
-              id: 4,
-              category: ExperienceType.WHAT_I_OFFER,
-              mentor_experiences_metadata: {
-                data: values.what_i_offer.map((item) => ({
-                  subject_group: item,
-                })),
-              },
-              order: 4,
-            })
-          : Promise.resolve(),
-      ]);
+          values.what_i_offer?.length > 0
+            ? upsertMentorExperience(ExperienceType.WHAT_I_OFFER, true, {
+                id: 4,
+                category: ExperienceType.WHAT_I_OFFER,
+                mentor_experiences_metadata: {
+                  data: values.what_i_offer.map((item) => ({
+                    subject_group: item,
+                  })),
+                },
+                order: 4,
+              })
+            : Promise.resolve(),
+        ]);
+      } catch (err) {
+        captureFlowFailure({
+          flow: 'profile_update',
+          step: 'upsert_experience',
+          message:
+            err instanceof Error ? err.message : 'Experience upsert failed',
+        });
+        throw err;
+      }
 
       // 4) poll until backend reflects all updated fields (up to 1 min, every 5s)
       const latest = await pollUntilSynced(values, avatar ?? '');
@@ -154,6 +184,14 @@ export function useProfileSubmit({
         router.push(`/profile/${pageUserId}`);
       }
     } catch (err) {
+      captureFlowFailure({
+        flow: 'profile_update',
+        step: 'unexpected',
+        message:
+          err instanceof Error
+            ? err.message
+            : 'Unexpected profile update error',
+      });
       console.error('Update Profile Error:', err);
       setIsSaving(false);
     }
