@@ -1,10 +1,17 @@
-import CoverImgUrl from '@/assets/auth/signIn-cover.png';
+import { redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth/next';
 
-export default function AuthOperationLayout({
+import CoverImgUrl from '@/assets/auth/signIn-cover.png';
+import authOptions from '@/auth.config';
+
+export default async function AuthOperationLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await getServerSession(authOptions);
+  if (session?.user?.id) redirect('/');
+
   return (
     <div className="flex min-h-[calc(100vh-70px)] lg:min-h-[720px]">
       <div className="flex-1 basis-1/2">{children}</div>
