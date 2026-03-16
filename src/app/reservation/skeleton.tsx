@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export function ReservationSkeleton() {
   return (
-    <div className="flex min-h-screen justify-center">
+    <div className="flex min-h-[calc(100vh-70px)] justify-center">
       <div className="w-full max-w-[90%] overflow-hidden rounded-2xl md:max-w-[800px]">
         {/* title */}
         <div className="mx-auto mb-6 flex h-[42px] w-[251px] items-center justify-center">
