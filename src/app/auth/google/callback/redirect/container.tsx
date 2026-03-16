@@ -84,6 +84,7 @@ export default function GoogleOAuthRedirectPage() {
         );
 
         const data: OAuthResponse = await res.json();
+        console.log('[Google OAuth] backend response:', data);
 
         await proceedWithSignIn(data);
       } catch (err) {
