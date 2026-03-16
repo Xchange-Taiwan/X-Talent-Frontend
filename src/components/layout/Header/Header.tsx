@@ -7,12 +7,14 @@ import { memo } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 
 import { HamburgerMenu } from './HamburgerMenu';
 import { UserDropdown } from './UserDropdown';
 
 function HeaderComponent(): JSX.Element {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const isLoading = status === 'loading';
 
   const isLoggedIn = Boolean(session?.user?.id);
   const isMentor = Boolean(session?.user?.isMentor);
@@ -46,12 +48,16 @@ function HeaderComponent(): JSX.Element {
               尋找導師
             </Link>
 
-            <Link
-              href={leftSecondNav.href}
-              className="text-black font-['Open_Sans'] text-base"
-            >
-              {leftSecondNav.label}
-            </Link>
+            {isLoading ? (
+              <Skeleton className="h-4 w-20" />
+            ) : (
+              <Link
+                href={leftSecondNav.href}
+                className="text-black font-['Open_Sans'] text-base"
+              >
+                {leftSecondNav.label}
+              </Link>
+            )}
 
             <Link
               href="/about"
@@ -64,7 +70,9 @@ function HeaderComponent(): JSX.Element {
 
         <div className="mr-20 flex items-center gap-3">
           <div className="hidden items-center gap-3 md:flex">
-            {!isLoggedIn ? (
+            {isLoading ? (
+              <Skeleton className="h-8 w-20 rounded-full" />
+            ) : !isLoggedIn ? (
               <>
                 <Link href="/auth/signup">
                   <Button
@@ -86,6 +94,7 @@ function HeaderComponent(): JSX.Element {
 
           <div className="md:hidden">
             <HamburgerMenu
+              isLoading={isLoading}
               isLoggedIn={isLoggedIn}
               isMentor={isMentor}
               userId={userId}

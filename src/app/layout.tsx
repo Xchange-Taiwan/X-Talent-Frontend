@@ -3,7 +3,9 @@ import '../styles/global.css';
 import * as Sentry from '@sentry/nextjs';
 import type { Metadata } from 'next';
 import Script from 'next/script';
+import { getServerSession } from 'next-auth/next';
 
+import authOptions from '@/auth.config';
 import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import Providers from '@/components/Providers';
@@ -23,11 +25,13 @@ export function generateMetadata(): Metadata {
   };
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await getServerSession(authOptions);
+
   return (
     <html lang="zh-TW" className={notoSans.className}>
       <body id="app">
@@ -71,7 +75,7 @@ export default function RootLayout({
             }}
           />
         )}
-        <Providers>
+        <Providers session={session}>
           <div className="flex min-h-screen flex-col">
             <Header />
             <main className="grow pt-[70px]">{children}</main>
