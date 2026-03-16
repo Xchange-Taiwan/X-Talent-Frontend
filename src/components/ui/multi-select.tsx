@@ -1,18 +1,10 @@
 import { cva, type VariantProps } from 'class-variance-authority';
-import { CheckIcon, ChevronDown, X, XIcon } from 'lucide-react';
+import { ChevronDown, X, XIcon } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import * as React from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from '@/components/ui/command';
 import {
   Popover,
   PopoverContent,
@@ -20,6 +12,14 @@ import {
 } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+
+// Lazy-load the dropdown content (Command / cmdk) so it is not included in
+// the initial bundle. PopoverContent only mounts when the popover is open,
+// so the chunk is only fetched the first time a user opens any MultiSelect.
+const MultiSelectDropdown = dynamic(
+  () => import('@/components/ui/multi-select-dropdown'),
+  { ssr: false }
+);
 
 /**
  * Variants for the multi-select component to handle different styles.
@@ -52,69 +52,20 @@ interface MultiSelectProps
   extends
     Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onChange'>,
     VariantProps<typeof multiSelectVariants> {
-  /**
-   * An array of option objects to be displayed in the multi-select component.
-   * Each option object has a label, value, and an optional icon.
-   */
   options: {
-    /** The text to display for the option. */
     label: string;
-    /** The unique value associated with the option. */
     value: string;
-    /** Optional icon component to display alongside the option. */
     icon?: React.ComponentType<{ className?: string }>;
   }[];
-
-  /**
-   * Callback function triggered when the selected values change.
-   * Receives an array of the new selected values.
-   */
-  /** Optional callback for controlled mode */
   onValueChange?: (value: string[]) => void;
-
-  /** Supports react-hook-form Controller via the onChange prop */
   onChange?: (value: string[]) => void;
-
-  /** The default selected values when the component mounts. */
   defaultValue?: string[];
-
-  /**
-   * Placeholder text to be displayed when no values are selected.
-   * Optional, defaults to "Select options".
-   */
   placeholder?: string;
-
-  /**
-   * Animation duration in seconds for the visual effects (e.g., bouncing badges).
-   * Optional, defaults to 0 (no animation).
-   */
   animation?: number;
-
-  /**
-   * Maximum number of items to display. Extra selected items will be summarized.
-   * Optional, defaults to 3.
-   */
   maxCount?: number;
-
-  /**
-   * The modality of the popover. When set to true, interaction with outside elements
-   * will be disabled and only popover content will be visible to screen readers.
-   * Optional, defaults to false.
-   */
   modalPopover?: boolean;
-
-  /**
-   * If true, renders the multi-select component as a child of another component.
-   * Optional, defaults to false.
-   */
   asChild?: boolean;
-
-  /**
-   * Additional class names to apply custom styles to the multi-select component.
-   * Optional, can be used to add custom styles.
-   */
   className?: string;
-
   value?: string[];
 }
 
@@ -147,10 +98,8 @@ export const MultiSelect = React.forwardRef<
 
     const updateValues = (newValues: string[]) => {
       if (value === undefined) {
-        setInternalSelectedValues(newValues); // uncontrolled mode
+        setInternalSelectedValues(newValues);
       }
-
-      // Prefer onValueChange if provided; fall back to onChange from react-hook-form Controller
       if (onValueChange) {
         onValueChange(newValues);
       } else if (props.onChange) {
@@ -172,31 +121,25 @@ export const MultiSelect = React.forwardRef<
 
     const toggleOption = (option: string) => {
       const newSelectedValues = selectedValues.includes(option)
-        ? selectedValues.filter((value) => value !== option)
+        ? selectedValues.filter((v) => v !== option)
         : [...selectedValues, option];
       updateValues(newSelectedValues);
     };
 
-    const handleClear = () => {
-      updateValues([]);
-    };
+    const handleClear = () => updateValues([]);
 
-    const clearExtraOptions = () => {
+    const clearExtraOptions = () =>
       updateValues(selectedValues.slice(0, maxCount));
-    };
 
     const toggleAll = () => {
       if (selectedValues.length === options.length) {
         handleClear();
       } else {
-        const allValues = options.map((option) => option.value);
-        updateValues(allValues);
+        updateValues(options.map((o) => o.value));
       }
     };
 
-    const handleTogglePopover = () => {
-      setIsPopoverOpen((prev) => !prev);
-    };
+    const handleTogglePopover = () => setIsPopoverOpen((prev) => !prev);
 
     return (
       <Popover
@@ -217,12 +160,12 @@ export const MultiSelect = React.forwardRef<
             {selectedValues.length > 0 ? (
               <div className="flex w-full items-center justify-between">
                 <div className="flex flex-wrap items-center">
-                  {selectedValues.slice(0, maxCount).map((value) => {
-                    const option = options.find((o) => o.value === value);
+                  {selectedValues.slice(0, maxCount).map((val) => {
+                    const option = options.find((o) => o.value === val);
                     const IconComponent = option?.icon;
                     return (
                       <Badge
-                        key={value}
+                        key={val}
                         className={cn(multiSelectVariants({ variant }))}
                         style={{ animationDuration: `${animation}s` }}
                         variant={variant}
@@ -235,7 +178,7 @@ export const MultiSelect = React.forwardRef<
                           className="ml-2 h-4 w-4 cursor-pointer"
                           onClick={(event) => {
                             event.stopPropagation();
-                            toggleOption(value);
+                            toggleOption(val);
                           }}
                         />
                       </Badge>
@@ -285,89 +228,23 @@ export const MultiSelect = React.forwardRef<
             )}
           </Button>
         </PopoverTrigger>
+
+        {/* PopoverContent only mounts when open — MultiSelectDropdown (cmdk) is
+            therefore only fetched on first user interaction with the dropdown */}
         <PopoverContent
           className="w-auto p-0"
           align="start"
           onEscapeKeyDown={() => setIsPopoverOpen(false)}
         >
-          <Command>
-            <CommandInput
-              placeholder="Search..."
-              onKeyDown={handleInputKeyDown}
-            />
-            <CommandList>
-              <CommandEmpty>No results found.</CommandEmpty>
-              <CommandGroup>
-                <CommandItem
-                  key="all"
-                  onSelect={toggleAll}
-                  className="cursor-pointer"
-                >
-                  <div
-                    className={cn(
-                      'mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary',
-                      selectedValues.length === options.length
-                        ? 'bg-primary text-primary-foreground'
-                        : 'opacity-50 [&_svg]:invisible'
-                    )}
-                  >
-                    <CheckIcon className="h-4 w-4" />
-                  </div>
-                  <span>(Select All)</span>
-                </CommandItem>
-                {options.map((option) => {
-                  const isSelected = selectedValues.includes(option.value);
-                  return (
-                    <CommandItem
-                      key={option.value}
-                      onSelect={() => toggleOption(option.value)}
-                      className="cursor-pointer"
-                    >
-                      <div
-                        className={cn(
-                          'mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary',
-                          isSelected
-                            ? 'bg-primary text-primary-foreground'
-                            : 'opacity-50 [&_svg]:invisible'
-                        )}
-                      >
-                        <CheckIcon className="h-4 w-4" />
-                      </div>
-                      {option.icon && (
-                        <option.icon className="mr-2 h-4 w-4 text-muted-foreground" />
-                      )}
-                      <span>{option.label}</span>
-                    </CommandItem>
-                  );
-                })}
-              </CommandGroup>
-              <CommandSeparator />
-              <CommandGroup>
-                <div className="flex items-center justify-between">
-                  {selectedValues.length > 0 && (
-                    <>
-                      <CommandItem
-                        onSelect={handleClear}
-                        className="flex-1 cursor-pointer justify-center"
-                      >
-                        Clear
-                      </CommandItem>
-                      <Separator
-                        orientation="vertical"
-                        className="flex h-full min-h-6"
-                      />
-                    </>
-                  )}
-                  <CommandItem
-                    onSelect={() => setIsPopoverOpen(false)}
-                    className="max-w-full flex-1 cursor-pointer justify-center"
-                  >
-                    Close
-                  </CommandItem>
-                </div>
-              </CommandGroup>
-            </CommandList>
-          </Command>
+          <MultiSelectDropdown
+            options={options}
+            selectedValues={selectedValues}
+            onInputKeyDown={handleInputKeyDown}
+            onToggleOption={toggleOption}
+            onToggleAll={toggleAll}
+            onClear={handleClear}
+            onClose={() => setIsPopoverOpen(false)}
+          />
         </PopoverContent>
       </Popover>
     );
