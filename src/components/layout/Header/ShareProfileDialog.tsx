@@ -92,7 +92,7 @@ export function ShareProfileDialog({
           <div className="rounded-[24px] bg-light px-6 pb-8 pt-6 sm:px-8">
             <div className="relative mb-8 flex items-center justify-center">
               <Dialog.Title className="text-black text-center text-[36px] font-semibold leading-none">
-                Share Profile
+                分享個人頁面
               </Dialog.Title>
 
               <Dialog.Close asChild>
@@ -156,7 +156,7 @@ export function ShareProfileDialog({
                 htmlFor="share-profile-link"
                 className="text-black mb-2 block text-[14px] font-medium"
               >
-                Profile Link
+                個人頁面連結
               </label>
 
               <div className="flex items-center gap-3 rounded-[14px] border border-[#E6E8EA] bg-light px-4 py-3">
@@ -173,7 +173,7 @@ export function ShareProfileDialog({
                   onClick={handleCopy}
                   className="text-black h-10 shrink-0 rounded-[10px] border border-[#D9DEE3] bg-light px-4 text-[14px] font-medium hover:bg-[#F8F8F8]"
                 >
-                  {copied ? 'Copied' : 'Copy'}
+                  {copied ? '已複製' : '複製'}
                 </Button>
               </div>
             </div>

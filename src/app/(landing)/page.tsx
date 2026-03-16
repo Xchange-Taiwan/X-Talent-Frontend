@@ -21,8 +21,8 @@ import { featureData } from './data';
 
 const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
   return (
-    <div className="mb-[50px] flex items-center md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto">
-      <Image className="h-[70px] w-[70px]" src={icon} alt="1" />
+    <div className="mb-6 flex items-center md:mb-[50px] md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto">
+      <Image className="h-12 w-12 md:h-[70px] md:w-[70px]" src={icon} alt="1" />
       <p className="ml-[20px] text-base tracking-[0.085em] md:mt-8 md:text-xl">
         {text}
       </p>
@@ -37,12 +37,12 @@ export default function Page() {
     <>
       <section className="flex h-[532px] items-center justify-center bg-[url('/landing/home-page-hero-sm.svg')] bg-cover bg-no-repeat px-4 sm:bg-[url('/landing/home-page-hero-md.svg')] sm:px-0 lg:h-[640px] lg:bg-none">
         <h1 className="text-center">
-          <p className="text-blue-950 mb-8 text-3xl font-bold leading-normal md:text-5xl">
+          <p className="text-blue-950 mb-8 text-3xl font-bold leading-normal sm:text-4xl md:text-5xl">
             交流讓
             <br className="md:hidden" />
             改變發生
           </p>
-          <p className="text-black max-w-[516px] text-lg md:text-2xl lg:max-w-[630px]">
+          <p className="text-black max-w-[516px] text-lg sm:text-xl md:text-2xl lg:max-w-[630px]">
             Find your Mentor/Mentee to build up connections, break up limits.
           </p>
         </h1>
@@ -72,7 +72,7 @@ export default function Page() {
         </div>
       </section>
 
-      <section className="py-6 text-center sm:py-10">
+      <section className="py-10 text-center sm:py-10">
         <JoinWaitingList>
           <p className="text-base md:text-xl">
             加入排隊名單， <br className="md:hidden" />
@@ -82,9 +82,15 @@ export default function Page() {
       </section>
 
       <section className="relative contents md:m-auto md:h-[1100px] md:w-[930px] xl:block xl:h-[790px] ">
-        <div className="mb-[50px] mt-[70px] flex flex-col items-center xl:mb-[130px] xl:mt-7 xl:flex-row">
-          <Image src={landingPage_4} width={420} height={270} alt="1" />
-          <div className="m-auto flex flex-row flex-wrap p-[30px] px-4 sm:px-0 md:mt-10 md:p-0 xl:w-full xl:flex-col xl:pl-[62px]">
+        <div className="mb-[50px] mt-8 flex flex-col items-center px-4 min-[550px]:px-14 md:mt-[70px] md:flex-row md:items-start md:gap-8 md:px-8 xl:mb-[130px] xl:mt-7 xl:gap-0 xl:px-0">
+          <Image
+            src={landingPage_4}
+            width={420}
+            height={270}
+            alt="1"
+            className="max-w-full shrink-0 md:w-2/5"
+          />
+          <div className="m-auto flex flex-col py-[30px] md:m-0 md:flex-1 md:py-0 xl:pl-[62px]">
             <p className="text-midnight-blue mb-5 text-xl font-bold md:text-2xl">
               和 X-Talent 一起拓展職涯的選擇性
             </p>
@@ -93,8 +99,8 @@ export default function Page() {
             </p>
           </div>
         </div>
-        <div className="mb-[50px] mt-7 flex flex-col-reverse items-center md:mb-[130px] xl:flex-row">
-          <div className="m-auto flex flex-row flex-wrap p-[30px] px-4 sm:px-0 md:mt-10 xl:w-full xl:flex-col xl:pr-[62px]">
+        <div className="mb-[50px] mt-7 flex flex-col-reverse items-center px-4 min-[550px]:px-14 md:mb-[130px] md:flex-row md:items-start md:gap-8 md:px-8 xl:gap-0 xl:px-0">
+          <div className="m-auto flex flex-col py-[30px] md:m-0 md:flex-1 md:py-0 xl:pr-[62px]">
             <p className="text-midnight-blue mb-5 text-xl font-bold md:text-2xl">
               透過 X-Talent 展開深度交流
             </p>
@@ -103,45 +109,49 @@ export default function Page() {
               一對一的深度交流，讓你在尋求職涯建議、建立人脈上得到最直接的回饋。
             </p>
           </div>
-          <Image src={landingPage_5} className="w-[420px]" alt="1" />
+          <Image
+            src={landingPage_5}
+            className="max-w-full shrink-0 md:w-2/5"
+            alt="1"
+          />
         </div>
       </section>
 
-      <section className="flex h-[907px] w-full bg-[#172E59] md:h-[425px] xl:h-[557px]">
-        <div className="relative m-auto flex h-full flex-col justify-center md:w-[767px] md:flex-row md:flex-wrap md:items-center xl:w-[1280px]">
-          <div className="my-[15px] w-auto text-2xl font-bold leading-[58px] text-light md:col-span-2 md:mt-[40px] md:text-4xl xl:absolute xl:left-[60px] xl:top-[176px] xl:mt-0 ">
+      <section className="flex h-auto w-full bg-[#172E59] py-12 md:h-[425px] md:py-0 xl:h-[557px]">
+        <div className="relative m-auto flex h-auto flex-col items-center px-6 md:h-full md:w-[767px] md:flex-row md:flex-wrap md:items-center md:justify-center md:px-0 xl:w-[1280px]">
+          <div className="my-[15px] w-auto text-center text-2xl font-bold leading-tight text-light md:col-span-2 md:mt-[40px] md:text-left md:text-4xl md:leading-[58px] xl:absolute xl:left-[60px] xl:top-[176px] xl:mt-0">
             <p>9000+ XChangers</p>
             <p>
               for you to <br className="md:hidden" />
               connect with
             </p>
           </div>
-          <div className="my-[15px] flex h-[53px] w-[162px] flex-col items-center justify-center rounded-[124px] bg-[#48EFBD] md:ml-[50px] md:mt-[40px] xl:absolute xl:right-[176px] xl:top-[83px] xl:mt-0 xl:h-[100px] xl:w-[227px]">
+          <div className="my-2 flex h-[53px] w-[162px] flex-col items-center justify-center rounded-[124px] bg-[#48EFBD] md:my-[15px] md:ml-[50px] md:mt-[40px] xl:absolute xl:right-[176px] xl:top-[83px] xl:mt-0 xl:h-[100px] xl:w-[227px]">
             <p className="font-bold text-[#1D1D11]">UI/UX Design</p>
           </div>
-          <div className="my-[15px] flex h-[53px] w-[256px] flex-col items-center justify-center rounded-[124px] bg-[#7CB8FF] xl:absolute xl:right-[475px] xl:top-[236px] xl:h-[100px] xl:w-[300px]">
+          <div className="my-2 flex h-[53px] w-[256px] flex-col items-center justify-center rounded-[124px] bg-[#7CB8FF] md:my-[15px] xl:absolute xl:right-[475px] xl:top-[236px] xl:h-[100px] xl:w-[300px]">
             <p className="font-bold text-[#1D1D11]">Business Development</p>
           </div>
-          <div className="my-[15px] flex h-[53px] w-[132px] flex-col items-center justify-center rounded-[124px] bg-[#FFBF82] md:mx-[30px] xl:absolute xl:right-[107px] xl:top-[386px] xl:mx-0 xl:h-[99px] xl:w-[214px]">
+          <div className="my-2 flex h-[53px] w-[132px] flex-col items-center justify-center rounded-[124px] bg-[#FFBF82] md:mx-[30px] md:my-[15px] xl:absolute xl:right-[107px] xl:top-[386px] xl:mx-0 xl:h-[99px] xl:w-[214px]">
             <p className="font-bold text-[#1D1D11]">Marketing</p>
           </div>
-          <div className="my-[15px] flex h-[53px] w-[223px] flex-col items-center justify-center rounded-[124px] bg-[#FFDE4E] xl:absolute xl:left-[521px] xl:top-[86px] xl:h-[100px] xl:w-[292px]">
+          <div className="my-2 flex h-[53px] w-[223px] flex-col items-center justify-center rounded-[124px] bg-[#FFDE4E] md:my-[15px] xl:absolute xl:left-[521px] xl:top-[86px] xl:h-[100px] xl:w-[292px]">
             <p className="font-bold text-[#1D1D11]">Product Management</p>
           </div>
-          <div className="my-[15px] flex h-[53px] w-[157px] flex-col items-center justify-center rounded-[124px] bg-[#FF6397] md:mb-[50px] xl:absolute xl:left-[250px] xl:top-[386px] xl:h-[100px] xl:w-[224px]">
+          <div className="my-2 flex h-[53px] w-[157px] flex-col items-center justify-center rounded-[124px] bg-[#FF6397] md:my-[15px] md:mb-[50px] xl:absolute xl:left-[250px] xl:top-[386px] xl:h-[100px] xl:w-[224px]">
             <p className="font-bold text-[#1D1D11]">Data Science</p>
           </div>
-          <div className="my-[15px] flex h-[53px] w-[256px] flex-col items-center justify-center rounded-[124px] bg-[#5EE5FF] md:mx-[30px] md:mb-[50px] xl:absolute xl:right-[404px] xl:top-[386px] xl:mx-0 xl:h-[100px] xl:w-[313px]">
+          <div className="my-2 flex h-[53px] w-[256px] flex-col items-center justify-center rounded-[124px] bg-[#5EE5FF] md:mx-[30px] md:my-[15px] md:mb-[50px] xl:absolute xl:right-[404px] xl:top-[386px] xl:mx-0 xl:h-[100px] xl:w-[313px]">
             <p className="font-bold text-[#1D1D11]">Software Development</p>
           </div>
-          <div className="my-[15px] flex h-[53px] w-[203px] flex-col items-center justify-center rounded-[124px] bg-[#CE8FFF] md:mb-[50px] xl:absolute xl:right-[144px] xl:top-[236px] xl:h-[99px] xl:w-[270px]">
+          <div className="my-2 flex h-[53px] w-[203px] flex-col items-center justify-center rounded-[124px] bg-[#CE8FFF] md:my-[15px] md:mb-[50px] xl:absolute xl:right-[144px] xl:top-[236px] xl:h-[99px] xl:w-[270px]">
             <p className="font-bold text-[#1D1D11]">MarTech</p>
           </div>
         </div>
       </section>
 
-      <section className="flex h-[987px] w-full md:h-[780px] xl:h-[820px]">
-        <div className="m-auto flex h-full w-[1280px] flex-col items-center justify-center">
+      <section className="flex h-auto w-full py-10 md:h-[780px] md:py-0 xl:h-[820px]">
+        <div className="m-auto flex h-auto w-full max-w-[1280px] flex-col items-center justify-center px-4 md:h-full md:px-8 xl:px-0">
           <div className="flex">
             <Image
               src={landingPage_6}
@@ -152,10 +162,10 @@ export default function Page() {
               <p className="text-midnight-blue mt-1 text-center text-xl font-bold md:text-2xl xl:text-start">
                 成為 Mentor，你將可以‧‧‧
               </p>
-              <div className="mt-[65px] flex flex-col md:flex-row md:items-center">
-                <div className="mb-[60px] flex items-center md:m-0 md:flex-col xl:w-[180px]">
+              <div className="mt-8 flex flex-col md:mt-[65px] md:flex-row md:items-center">
+                <div className="mb-6 flex items-center md:m-0 md:flex-col xl:w-[180px]">
                   <Image
-                    className="ml-[40px] md:m-0"
+                    className="ml-4 md:m-0"
                     src={landingPage_icon_1}
                     alt="1"
                   />
@@ -164,9 +174,9 @@ export default function Page() {
                     <p className="text-black font-medium">讓知識傳承延續</p>
                   </div>
                 </div>
-                <div className="mb-[60px] flex items-center md:m-0 md:ml-[80px] md:flex-col xl:w-[180px]">
+                <div className="mb-6 flex items-center md:m-0 md:ml-[80px] md:flex-col xl:w-[180px]">
                   <Image
-                    className="ml-[40px] md:m-0"
+                    className="ml-4 md:m-0"
                     src={landingPage_icon_2}
                     alt="1"
                   />
@@ -176,7 +186,7 @@ export default function Page() {
                 </div>
                 <div className="flex items-center md:ml-[80px] md:flex-col xl:w-[180px]">
                   <Image
-                    className="ml-[40px] md:m-0"
+                    className="ml-4 md:m-0"
                     src={landingPage_icon_3}
                     alt="1"
                   />
@@ -188,7 +198,7 @@ export default function Page() {
               </div>
             </div>
           </div>
-          <div className="mt-[70px] flex md:mt-[116px]">
+          <div className="mt-10 flex md:mt-[116px]">
             <Image
               src={landingPage_7}
               className="hidden w-[363px] xl:block"
@@ -198,10 +208,10 @@ export default function Page() {
               <p className="text-midnight-blue mt-1 text-center text-xl font-bold md:text-2xl xl:text-start">
                 成為 Mentee，你將可以‧‧‧
               </p>
-              <div className="mt-[65px] flex flex-col md:flex-row md:items-center">
-                <div className="mb-[60px] flex items-center md:m-0 md:flex-col xl:w-[180px]">
+              <div className="mt-8 flex flex-col md:mt-[65px] md:flex-row md:items-center">
+                <div className="mb-6 flex items-center md:m-0 md:flex-col xl:w-[180px]">
                   <Image
-                    className="ml-[40px] md:m-0"
+                    className="ml-4 md:m-0"
                     src={landingPage_icon_4}
                     alt="1"
                   />
@@ -210,9 +220,9 @@ export default function Page() {
                     <p className="text-black font-medium">職涯發展方向</p>
                   </div>
                 </div>
-                <div className="mb-[60px] flex items-center md:m-0 md:ml-[80px] md:flex-col xl:w-[180px]">
+                <div className="mb-6 flex items-center md:m-0 md:ml-[80px] md:flex-col xl:w-[180px]">
                   <Image
-                    className="ml-[45px] md:m-0"
+                    className="ml-4 md:m-0"
                     src={landingPage_icon_5}
                     alt="1"
                   />
@@ -227,7 +237,7 @@ export default function Page() {
                 </div>
                 <div className="flex items-center md:ml-[80px] md:flex-col xl:w-[180px]">
                   <Image
-                    className="ml-[45px] md:m-0"
+                    className="ml-4 md:m-0"
                     src={landingPage_icon_6}
                     alt="1"
                   />
@@ -250,7 +260,7 @@ export default function Page() {
         </div>
       </section>
 
-      <section className="py-24 text-center">
+      <section className="py-12 text-center md:py-24">
         <JoinWaitingList>
           <p className="text-base md:text-xl">
             加入排隊名單， <br className="md:hidden" />

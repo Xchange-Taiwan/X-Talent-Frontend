@@ -1,4 +1,4 @@
-import { apiClient,ApiError } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
 
 export async function resendVerificationEmail(email: string): Promise<void> {
   console.log('[resend] request payload:', { email });

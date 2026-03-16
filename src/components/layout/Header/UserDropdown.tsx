@@ -123,7 +123,7 @@ export const UserDropdown = React.memo(function UserDropdown({
 
             <div className="min-w-0">
               <div className="text-black truncate text-3xl font-semibold">
-                {name || 'My Profile'}
+                {name || '我的個人頁面'}
               </div>
             </div>
           </button>
@@ -135,7 +135,7 @@ export const UserDropdown = React.memo(function UserDropdown({
               onClick={handleShareProfile}
               disabled={!userId}
             >
-              Share Profile
+              分享個人頁面
             </Button>
           </div>
 
@@ -147,21 +147,21 @@ export const UserDropdown = React.memo(function UserDropdown({
               onClick={handleAsMentor}
               disabled={!userId}
             >
-              As a mentor
+              {isMentor ? '導師預約管理' : '成為導師'}
             </DropdownMenuItem>
 
             <DropdownMenuItem
               className="px-4 py-3 text-2xl"
               onClick={handleMyReservation}
             >
-              My reservation
+              我的預約
             </DropdownMenuItem>
 
             <DropdownMenuItem
               className="px-4 py-3 text-2xl"
               onClick={handleLogout}
             >
-              Log out
+              登出
             </DropdownMenuItem>
           </div>
         </DropdownMenuContent>
@@ -170,7 +170,7 @@ export const UserDropdown = React.memo(function UserDropdown({
       <ShareProfileDialog
         open={shareDialogOpen}
         onOpenChange={setShareDialogOpen}
-        name={name || 'My Profile'}
+        name={name || '我的個人頁面'}
         avatarSrc={avatarSrc}
         subtitle={subtitle}
         profileUrl={profileUrl}

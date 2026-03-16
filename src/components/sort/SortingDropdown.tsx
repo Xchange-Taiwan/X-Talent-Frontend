@@ -19,11 +19,11 @@ const SortingDropdown = ({
     <Select defaultValue="a-z" onValueChange={onSortChange}>
       <SelectTrigger>
         <ArrowDownUp className="h-4 w-4 text-muted-foreground" />
-        <SelectValue placeholder="sorting" />
+        <SelectValue placeholder="排序" />
       </SelectTrigger>
       <SelectContent className="w-fit">
         <SelectGroup>
-          <SelectLabel>Sort By</SelectLabel>
+          <SelectLabel>排序方式</SelectLabel>
           <SelectItem value="a-z">A - Z</SelectItem>
           <SelectItem value="z-a">Z - A (中文排序)</SelectItem>
         </SelectGroup>
