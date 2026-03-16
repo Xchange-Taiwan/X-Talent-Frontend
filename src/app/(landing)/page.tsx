@@ -23,7 +23,9 @@ const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
   return (
     <div className="mb-[50px] flex items-center md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto">
       <Image className="h-[70px] w-[70px]" src={icon} alt="1" />
-      <p className="ml-[20px] text-xl tracking-[0.085em] md:mt-8">{text}</p>
+      <p className="ml-[20px] text-base tracking-[0.085em] md:mt-8 md:text-xl">
+        {text}
+      </p>
     </div>
   );
 };
@@ -35,12 +37,12 @@ export default function Page() {
     <>
       <section className="flex h-[532px] items-center justify-center bg-[url('/landing/home-page-hero-sm.svg')] bg-cover bg-no-repeat px-4 sm:bg-[url('/landing/home-page-hero-md.svg')] sm:px-0 lg:h-[640px] lg:bg-none">
         <h1 className="text-center">
-          <p className="text-blue-950 mb-8 text-5xl font-bold leading-normal">
+          <p className="text-blue-950 mb-8 text-3xl font-bold leading-normal md:text-5xl">
             交流讓
             <br className="md:hidden" />
             改變發生
           </p>
-          <p className="text-black max-w-[516px] text-2xl lg:max-w-[630px]">
+          <p className="text-black max-w-[516px] text-lg md:text-2xl lg:max-w-[630px]">
             Find your Mentor/Mentee to build up connections, break up limits.
           </p>
         </h1>
@@ -57,7 +59,7 @@ export default function Page() {
 
       <section className="flex py-10  sm:py-20">
         <div className="flex w-full flex-col items-center justify-center">
-          <p className="text-midnight-blue mb-[30px] text-center text-2xl font-bold tracking-[0.04em] md:mb-[70px]">
+          <p className="text-midnight-blue mb-[30px] text-center text-xl font-bold tracking-[0.04em] md:mb-[70px] md:text-2xl">
             透過 X -Talent 創造你
             <br className="md:hidden" />
             的職涯可能性
@@ -72,7 +74,7 @@ export default function Page() {
 
       <section className="py-6 text-center sm:py-10">
         <JoinWaitingList>
-          <p className="text-xl">
+          <p className="text-base md:text-xl">
             加入排隊名單， <br className="md:hidden" />
             搶先成為 X-Talent →
           </p>
@@ -83,20 +85,20 @@ export default function Page() {
         <div className="mb-[50px] mt-[70px] flex flex-col items-center xl:mb-[130px] xl:mt-7 xl:flex-row">
           <Image src={landingPage_4} width={420} height={270} alt="1" />
           <div className="m-auto flex flex-row flex-wrap p-[30px] px-4 sm:px-0 md:mt-10 md:p-0 xl:w-full xl:flex-col xl:pl-[62px]">
-            <p className="text-midnight-blue mb-5 text-2xl font-bold">
+            <p className="text-midnight-blue mb-5 text-xl font-bold md:text-2xl">
               和 X-Talent 一起拓展職涯的選擇性
             </p>
-            <p className="text-black text-xl">
+            <p className="text-black text-base md:text-xl">
               聚集多種專業職能的資深前輩，分享產業洞見、職涯心法，協助建構更多元的角度與觀點。不論你是剛開始、還未開始，一起陪你把職涯走得更遠更寬闊。
             </p>
           </div>
         </div>
         <div className="mb-[50px] mt-7 flex flex-col-reverse items-center md:mb-[130px] xl:flex-row">
           <div className="m-auto flex flex-row flex-wrap p-[30px] px-4 sm:px-0 md:mt-10 xl:w-full xl:flex-col xl:pr-[62px]">
-            <p className="text-midnight-blue mb-5 text-2xl font-bold">
+            <p className="text-midnight-blue mb-5 text-xl font-bold md:text-2xl">
               透過 X-Talent 展開深度交流
             </p>
-            <p className="text-black text-xl">
+            <p className="text-black text-base md:text-xl">
               透過 X-Talent 立即安排與 Mentor
               一對一的深度交流，讓你在尋求職涯建議、建立人脈上得到最直接的回饋。
             </p>
@@ -107,7 +109,7 @@ export default function Page() {
 
       <section className="flex h-[907px] w-full bg-[#172E59] md:h-[425px] xl:h-[557px]">
         <div className="relative m-auto flex h-full flex-col justify-center md:w-[767px] md:flex-row md:flex-wrap md:items-center xl:w-[1280px]">
-          <div className="my-[15px] w-auto text-4xl font-bold leading-[58px] text-light md:col-span-2 md:mt-[40px] xl:absolute xl:left-[60px] xl:top-[176px] xl:mt-0 ">
+          <div className="my-[15px] w-auto text-2xl font-bold leading-[58px] text-light md:col-span-2 md:mt-[40px] md:text-4xl xl:absolute xl:left-[60px] xl:top-[176px] xl:mt-0 ">
             <p>9000+ XChangers</p>
             <p>
               for you to <br className="md:hidden" />
@@ -147,7 +149,7 @@ export default function Page() {
               alt="1"
             />
             <div className="xl:ml-[78px]">
-              <p className="text-midnight-blue mt-1 text-center text-2xl font-bold xl:text-start">
+              <p className="text-midnight-blue mt-1 text-center text-xl font-bold md:text-2xl xl:text-start">
                 成為 Mentor，你將可以‧‧‧
               </p>
               <div className="mt-[65px] flex flex-col md:flex-row md:items-center">
@@ -193,7 +195,7 @@ export default function Page() {
               alt="1"
             />
             <div className="xl:ml-[78px]">
-              <p className="text-midnight-blue mt-1 text-center text-2xl font-bold xl:text-start">
+              <p className="text-midnight-blue mt-1 text-center text-xl font-bold md:text-2xl xl:text-start">
                 成為 Mentee，你將可以‧‧‧
               </p>
               <div className="mt-[65px] flex flex-col md:flex-row md:items-center">
@@ -250,7 +252,7 @@ export default function Page() {
 
       <section className="py-24 text-center">
         <JoinWaitingList>
-          <p className="text-xl">
+          <p className="text-base md:text-xl">
             加入排隊名單， <br className="md:hidden" />
             搶先成為 X-Talent →
           </p>

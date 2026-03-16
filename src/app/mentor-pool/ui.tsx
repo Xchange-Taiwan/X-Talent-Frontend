@@ -40,7 +40,7 @@ export default function MentorPoolUI({
 }: Props) {
   return (
     <div className="relative">
-      <section className="flex h-[202px] w-full items-center justify-center bg-[linear-gradient(to_right,#FFFFEF_0%,#FFF6FF_19%,#F7F2FB_42%,#E4FFFF_100%)] text-3xl font-semibold xl:rounded-br-[120px]">
+      <section className="flex h-[202px] w-full items-center justify-center bg-[linear-gradient(to_right,#FFFFEF_0%,#FFF6FF_19%,#F7F2FB_42%,#E4FFFF_100%)] px-4 text-xl font-semibold md:text-3xl xl:rounded-br-[120px]">
         和 Mentors 一起提升你的職涯經驗吧！
       </section>
       <div className="absolute left-[calc(50%-169px)] top-[172px] h-20 w-[338px] md:left-[calc(50%-344px)] md:w-[688px] xl:left-[calc(50%-423px)] xl:w-[846px]">
@@ -82,7 +82,7 @@ export default function MentorPoolUI({
           {mentors.length === 0 && !isLoading ? (
             <div className="mt-6 flex h-full w-full items-center justify-center">
               {isNoResults && (
-                <span className="text-3xl">No results found</span>
+                <span className="text-xl md:text-3xl">No results found</span>
               )}
             </div>
           ) : (
