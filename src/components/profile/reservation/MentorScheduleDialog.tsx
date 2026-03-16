@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { UseMentorScheduleReturn } from '@/hooks/useMentorSchedule';
+import { trackEvent } from '@/lib/analytics';
 
 import { ScheduleCalendar } from './ScheduleCalendar';
 
@@ -73,6 +74,16 @@ export default function MentorScheduleDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [editingSlots, setEditingSlots] = useState<EditingSlot[]>([]);
   const [slotErrors, setSlotErrors] = useState<Record<number, SlotErrors>>({});
+
+  useEffect(() => {
+    if (open) {
+      trackEvent({
+        name: 'feature_opened',
+        feature: 'reservation',
+        metadata: { dialog: 'mentor_schedule' },
+      });
+    }
+  }, [open]);
 
   useEffect(() => {
     setEditingSlots(

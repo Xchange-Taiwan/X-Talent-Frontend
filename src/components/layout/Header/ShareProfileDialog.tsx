@@ -6,6 +6,7 @@ import * as React from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { Button } from '@/components/ui/button';
+import { trackEvent } from '@/lib/analytics';
 import type { PersonalLink } from '@/types/types';
 
 async function copyToClipboard(text: string): Promise<boolean> {
@@ -53,6 +54,11 @@ export function ShareProfileDialog({
   React.useEffect(() => {
     if (open) {
       setCopied(false);
+      trackEvent({
+        name: 'feature_opened',
+        feature: 'profile',
+        metadata: { dialog: 'share_profile' },
+      });
       document.documentElement.style.setProperty(
         'overflow',
         'hidden',

@@ -1,26 +1,32 @@
 /**
- * Frontend Behavior Analytics — Microsoft Clarity
+ * Frontend Behavior Analytics
  *
- * Wraps Clarity's custom event and tag API for lightweight behavior tracking
- * during the testing phase.
+ * Unified analytics layer that dispatches to both:
+ *   - Microsoft Clarity  (session replay, heatmaps, custom events)
+ *   - Google Analytics 4 (page views, funnel analysis, event reporting)
  *
- * What Clarity captures automatically (no code needed):
- *   - All page views
- *   - All clicks (heatmaps)
- *   - Scroll depth
- *   - Session replay
- *   - Rage clicks, dead clicks
+ * ─── Initialization ────────────────────────────────────────────────────────────
+ * GA4:     Initialized via <Script> in src/app/layout.tsx (gtag.js).
+ * Clarity: Initialized via <Script> in src/app/layout.tsx (clarity snippet).
+ * Both are gated by their respective env vars and are no-ops when absent.
  *
- * This module adds custom event markers and session tags on top, to make
- * important user flows filterable in Clarity dashboards and recordings.
+ * ─── How to add a new event ────────────────────────────────────────────────────
+ * 1. Call trackEvent({ name: 'my_feature_action', feature: 'my_feature' })
+ *    in the relevant hook or component.
+ * 2. The event is automatically sent to both GA4 and Clarity.
+ * 3. Use snake_case names in the format <feature>_<action>.
  *
- * Gated by NEXT_PUBLIC_CLARITY_ID — runs in any environment where Clarity
- * is configured (e.g. testing). Silently no-ops when the env var is absent.
+ * ─── What must NEVER be sent ───────────────────────────────────────────────────
+ * - Passwords or password hints
+ * - Access tokens, refresh tokens, auth headers
+ * - Raw email addresses or phone numbers
+ * - Personal IDs or government ID numbers
+ * - Any raw user-entered private content
  *
- * NEVER pass passwords, tokens, emails, or any sensitive data to these functions.
- *
- * Event naming convention: <feature>_<action>
- * Examples: onboarding_step_1_completed, sign_in_succeeded, reservation_booking_confirmed
+ * ─── Event naming convention ───────────────────────────────────────────────────
+ * Format:  <feature>_<action>
+ * Examples: sign_in_succeeded, onboarding_step_1_completed,
+ *           reservation_booking_confirmed, profile_update_submitted
  */
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -41,7 +47,7 @@ export interface BehaviorEvent {
   metadata?: Record<string, string | number | boolean>;
 }
 
-// ─── Internal helper ───────────────────────────────────────────────────────────
+// ─── Internal helpers ──────────────────────────────────────────────────────────
 
 type ClarityFn = (...args: unknown[]) => void;
 
@@ -52,28 +58,66 @@ function getClarity(): ClarityFn | undefined {
   return typeof fn === 'function' ? fn : undefined;
 }
 
+type GtagFn = (...args: unknown[]) => void;
+
+function getGtag(): GtagFn | undefined {
+  if (typeof window === 'undefined') return undefined;
+  if (!process.env.NEXT_PUBLIC_GA_ID) return undefined;
+  const fn = (window as Window & { gtag?: GtagFn }).gtag;
+  return typeof fn === 'function' ? fn : undefined;
+}
+
 // ─── Public API ────────────────────────────────────────────────────────────────
 
 /**
- * Fires a named custom event in Clarity.
- * Visible in Clarity → Events and usable as a filter in recordings / heatmaps.
+ * Fires a named custom event to both GA4 and Clarity.
+ *
+ * GA4:     visible in Events report and usable in funnel/exploration reports.
+ * Clarity: visible in Events tab and usable as a filter in recordings/heatmaps.
  *
  * Do NOT include passwords, tokens, emails, or personal info.
  */
 export function trackEvent(event: BehaviorEvent): void {
-  const clarity = getClarity();
-  if (!clarity) return;
-
-  clarity('event', event.name);
-
-  if (event.feature) {
-    clarity('set', 'feature', event.feature);
+  // — GA4 —
+  const gtag = getGtag();
+  if (gtag) {
+    gtag('event', event.name, {
+      ...(event.feature ? { feature: event.feature } : {}),
+      ...event.metadata,
+    });
   }
 
-  if (event.metadata) {
-    for (const [key, value] of Object.entries(event.metadata)) {
-      clarity('set', key, String(value));
+  // — Clarity —
+  const clarity = getClarity();
+  if (clarity) {
+    clarity('event', event.name);
+    if (event.feature) clarity('set', 'feature', event.feature);
+    if (event.metadata) {
+      for (const [key, value] of Object.entries(event.metadata)) {
+        clarity('set', key, String(value));
+      }
     }
+  }
+
+  // — Local dev debug —
+  if (process.env.NODE_ENV === 'development') {
+    console.debug('[analytics] trackEvent', event);
+  }
+}
+
+/**
+ * Tracks a page view in GA4.
+ * Called automatically by PageViewTracker on every route change.
+ * No need to call this manually.
+ */
+export function trackPageView(path: string): void {
+  const gtag = getGtag();
+  if (gtag) {
+    gtag('config', process.env.NEXT_PUBLIC_GA_ID, { page_path: path });
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    console.debug('[analytics] trackPageView', path);
   }
 }
 

@@ -55,7 +55,13 @@ export default function MenteeReservationDialog({
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      trackEvent({
+        name: 'feature_opened',
+        feature: 'reservation',
+        metadata: { dialog: 'mentee_reservation' },
+      });
+    } else {
       const id = setTimeout(() => {
         setView('selection');
         setSelectedSlot(null);
