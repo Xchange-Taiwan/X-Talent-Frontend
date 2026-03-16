@@ -18,6 +18,7 @@ import {
 import useLocations from '@/hooks/user/country/useLocations';
 import useIndustries from '@/hooks/user/industry/useIndustries';
 import useInterests from '@/hooks/user/interests/useInterests';
+import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
@@ -67,6 +68,7 @@ export default function OnboardingContainer() {
 
   const onSubmitStep1 = (data: z.infer<typeof step1Schema>) => {
     setTempData((prev) => ({ ...prev, step1: data }));
+    trackEvent({ name: 'onboarding_step_1_completed', feature: 'onboarding' });
     setCurrentStep(2);
   };
 
@@ -82,6 +84,7 @@ export default function OnboardingContainer() {
   });
   const onSubmitStep2 = (data: z.infer<typeof step2Schema>) => {
     setTempData((prev) => ({ ...prev, step2: data }));
+    trackEvent({ name: 'onboarding_step_2_completed', feature: 'onboarding' });
     setCurrentStep(3);
   };
 
@@ -93,6 +96,7 @@ export default function OnboardingContainer() {
   });
   const onSubmitStep3 = (data: z.infer<typeof step3Schema>) => {
     setTempData((prev) => ({ ...prev, step3: data }));
+    trackEvent({ name: 'onboarding_step_3_completed', feature: 'onboarding' });
     setCurrentStep(4);
   };
 
@@ -104,6 +108,7 @@ export default function OnboardingContainer() {
   });
   const onSubmitStep4 = (data: z.infer<typeof step4Schema>) => {
     setTempData((prev) => ({ ...prev, step4: data }));
+    trackEvent({ name: 'onboarding_step_4_completed', feature: 'onboarding' });
     setCurrentStep(5);
   };
 
@@ -171,6 +176,7 @@ export default function OnboardingContainer() {
         throw err;
       }
 
+      trackEvent({ name: 'onboarding_completed', feature: 'onboarding' });
       router.push('/profile/card');
     } catch {
       // submit failed silently — user stays on page

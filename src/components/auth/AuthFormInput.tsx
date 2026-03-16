@@ -59,6 +59,7 @@ const AuthFormInput = <T extends FieldValues>({
                 type={inputType}
                 autoComplete={autocomplete}
                 className={isPasswordInput ? 'pr-10' : ''}
+                {...(isPasswordInput ? { 'data-clarity-mask': 'true' } : {})}
                 {...field}
                 value={field.value ?? ''}
               />
