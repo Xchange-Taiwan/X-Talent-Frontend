@@ -12,14 +12,17 @@ import {
   SheetContent,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export type HamburgerMenuProps = {
+  isLoading: boolean;
   isLoggedIn: boolean;
   isMentor: boolean;
   userId?: string;
 };
 
 export function HamburgerMenu({
+  isLoading,
   isLoggedIn,
   isMentor,
   userId,
@@ -51,7 +54,9 @@ export function HamburgerMenu({
               尋找導師
             </Link>
 
-            {isMentor ? (
+            {isLoading ? (
+              <Skeleton className="h-5 w-24" />
+            ) : isMentor ? (
               <Link href={profilePath} onClick={close} className="text-black">
                 我的導師頁面
               </Link>
@@ -69,7 +74,7 @@ export function HamburgerMenu({
               關於 X-Talent
             </Link>
 
-            {isLoggedIn && (
+            {!isLoading && isLoggedIn && (
               <>
                 <Link href={profilePath} onClick={close} className="text-black">
                   Avatar
@@ -95,7 +100,9 @@ export function HamburgerMenu({
           </div>
 
           <div className="mb-12 flex flex-col items-center gap-6">
-            {!isLoggedIn ? (
+            {isLoading ? (
+              <Skeleton className="h-10 w-40 rounded-md" />
+            ) : !isLoggedIn ? (
               <>
                 <Link href="/auth/signin" onClick={close}>
                   <Button className="bg-sky-600 hover:bg-sky-700 w-40">
