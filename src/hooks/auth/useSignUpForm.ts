@@ -6,6 +6,7 @@ import * as z from 'zod';
 
 import { AuthFormProps } from '@/components/auth/types';
 import { useToast } from '@/components/ui/use-toast';
+import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { SignUpSchema } from '@/schemas/auth';
 import { signUp } from '@/services/auth/signUp';
@@ -35,6 +36,7 @@ export default function useSignUpForm(): AuthFormProps<SignUpValues> {
       const result = await signUp(values);
 
       if (result.status === 'success') {
+        trackEvent({ name: 'sign_up_succeeded', feature: 'auth' });
         sessionStorage.setItem('email', values.email);
         router.push('/auth/email-verify');
         return;
