@@ -10,14 +10,18 @@ import { JoinWaitingList } from '@/components/landing/JoinWaitingList';
 import { featureData } from '../data';
 
 const SectionTitle: FC<{ children: ReactNode }> = ({ children }) => (
-  <h2 className="mb-20 text-center text-2xl font-bold">{children}</h2>
+  <h2 className="mb-20 text-center text-xl font-bold md:text-2xl">
+    {children}
+  </h2>
 );
 
 const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
   return (
     <div className="mb-[50px] flex items-center md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto">
       <Image className="h-[70px] w-[70px]" src={icon} alt="1" />
-      <p className="ml-[20px] text-xl tracking-[0.085em] md:mt-8">{text}</p>
+      <p className="ml-[20px] text-base tracking-[0.085em] md:mt-8 md:text-xl">
+        {text}
+      </p>
     </div>
   );
 };
@@ -26,7 +30,7 @@ export default function Page() {
   return (
     <Fragment>
       <section className="relative  flex h-[532px] w-full items-center justify-center overflow-hidden bg-[url('/landing/about-page-hero-sm.svg')] bg-cover bg-center sm:bg-[url('/landing/about-page-hero.svg')]">
-        <h1 className="text-center text-5xl font-bold leading-normal tracking-widest text-[#172E59]">
+        <h1 className="text-center text-3xl font-bold leading-normal tracking-widest text-[#172E59] md:text-5xl">
           關於 <br className="md:hidden" />
           X-Talent
         </h1>
@@ -43,7 +47,7 @@ export default function Page() {
             priority={false}
             placeholder="blur"
           />
-          <p className="max-w-5xl px-8 text-center text-xl lg:px-0">
+          <p className="max-w-5xl px-8 text-center text-base md:text-xl lg:px-0">
             X-Talent 源自於台灣最大的互聯網工作者社群 XChange
             ，有許多想要轉換跑道與資深的工作者，持續在平台中與各領域人才諮詢與交流，不僅僅精進專業技能，也在人脈拓展的同時，釐清職涯道路，甚至獲得內部推薦，產生改變與持續成長。
           </p>
@@ -68,7 +72,7 @@ export default function Page() {
           </div>
         </div>
 
-        <p className="px-8 text-center text-xl lg:px-0">
+        <p className="px-8 text-center text-base md:text-xl lg:px-0">
           一個涵蓋不同領域的人才平台，讓我們能不只是在摸索與碰撞中成長，而是可以從跨領域的
           Mentor 中加速專業與軟實力的成長。
           <br />
@@ -93,7 +97,7 @@ export default function Page() {
 
       <section className="pb-24 pt-10 text-center">
         <JoinWaitingList>
-          <p className="text-xl">
+          <p className="text-base md:text-xl">
             加入排隊名單，
             <br className="md:hidden" />
             搶先成為 X-Talent
