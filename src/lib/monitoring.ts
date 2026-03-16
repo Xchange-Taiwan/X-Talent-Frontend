@@ -166,6 +166,81 @@ export function buildBaseEvent(
   };
 }
 
+// ─── Flow failure capture ─────────────────────────────────────────────────────
+
+/**
+ * Structured event for a failure in a critical user flow.
+ * Distinguishable from generic runtime errors and API failures by the
+ * flow + step fields, which identify exactly where in a user journey
+ * the failure occurred.
+ *
+ * Never includes sensitive form values (passwords, tokens, personal info).
+ */
+export interface FlowFailureEvent {
+  /** Naming convention: flow.<flow_name>.failure */
+  name: string;
+  /** ISO 8601 timestamp */
+  timestamp: string;
+  /** 'production' | 'development' | 'test' */
+  environment: string;
+  /** window.location.pathname at time of failure */
+  route: string;
+  /** Flow identifier: 'sign_in' | 'sign_up' | 'profile_update' | etc. */
+  flow: string;
+  /** Step within the flow where the failure occurred */
+  step: string;
+  /** Error message (sanitized) */
+  message: string;
+  /** Optional error/status code from the API or SDK */
+  errorCode?: string | number;
+}
+
+/**
+ * Captures a failure in a critical user flow and forwards it to Sentry.
+ * Only active in production to avoid noise during development.
+ *
+ * Do NOT include passwords, tokens, emails, or any sensitive form values
+ * in the message or errorCode fields.
+ */
+export function captureFlowFailure(
+  event: Omit<
+    FlowFailureEvent,
+    'name' | 'timestamp' | 'environment' | 'route'
+  > &
+    Partial<Pick<FlowFailureEvent, 'route'>>
+): void {
+  if (process.env.NODE_ENV !== 'production') return;
+
+  const fullEvent: FlowFailureEvent = {
+    name: `flow.${event.flow}.failure`,
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV ?? 'unknown',
+    route:
+      event.route ??
+      (typeof window !== 'undefined' ? window.location.pathname : ''),
+    flow: event.flow,
+    step: event.step,
+    message: sanitize(event.message) ?? event.message,
+    errorCode: event.errorCode,
+  };
+
+  Sentry.captureEvent({
+    message: fullEvent.name,
+    level: 'error',
+    tags: {
+      event_name: fullEvent.name,
+      flow: fullEvent.flow,
+      step: fullEvent.step,
+      route: fullEvent.route,
+    },
+    extra: {
+      message: fullEvent.message,
+      errorCode: fullEvent.errorCode,
+      timestamp: fullEvent.timestamp,
+    },
+  });
+}
+
 // ─── API failure capture ───────────────────────────────────────────────────────
 
 /**

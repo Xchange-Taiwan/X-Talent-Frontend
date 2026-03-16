@@ -2,6 +2,7 @@ import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import { Reservation } from '@/components/reservation/types';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { fetchAllReservationLists } from '@/services/reservations';
 
 export type ReservationData = {
@@ -40,6 +41,14 @@ export function useReservationData() {
           history: lists.history,
         });
       } catch (err) {
+        captureFlowFailure({
+          flow: 'reservation_fetch',
+          step: 'fetch_lists',
+          message:
+            err instanceof Error
+              ? err.message
+              : 'Failed to fetch reservation lists',
+        });
         console.error('[useReservationData] fetch error:', err);
       } finally {
         if (!cancelled) setIsLoading(false);
