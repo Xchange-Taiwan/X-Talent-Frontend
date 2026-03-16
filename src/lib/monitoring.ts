@@ -14,7 +14,8 @@
 export type MonitoringEventName =
   | 'runtime_error.unhandled_js'
   | 'runtime_error.unhandled_rejection'
-  | 'runtime_error.react_render';
+  | 'runtime_error.react_render'
+  | 'api.failure';
 
 export interface MonitoringEvent {
   /** Consistent event name for filtering/grouping in logs */
@@ -33,6 +34,30 @@ export interface MonitoringEvent {
   componentStack?: string;
   /** Component name from ErrorBoundary */
   componentName?: string;
+}
+
+/**
+ * Structured event for a failed API request.
+ * Request/response bodies and auth headers are never included.
+ */
+export interface ApiFailureEvent {
+  name: 'api.failure';
+  /** ISO 8601 timestamp */
+  timestamp: string;
+  /** 'production' | 'development' | 'test' */
+  environment: string;
+  /** window.location.pathname at time of failure */
+  route: string;
+  /** API path with sensitive query params masked */
+  endpoint: string;
+  /** HTTP method: GET, POST, PUT, PATCH, DELETE */
+  method: string;
+  /** HTTP response status code; 0 for network/DNS errors where no response arrived */
+  status: number;
+  /** Error message from response body or fetch exception */
+  message: string;
+  /** Request round-trip duration in milliseconds */
+  duration?: number;
 }
 
 // ─── Sensitive field masking ───────────────────────────────────────────────────
@@ -126,4 +151,37 @@ export function buildBaseEvent(
     message: err?.message ?? String(error),
     stack: err?.stack,
   };
+}
+
+// ─── API failure capture ───────────────────────────────────────────────────────
+
+/**
+ * Emits a structured api.failure event to console.error.
+ * Only active in production to avoid noise during development.
+ *
+ * Never includes request/response bodies or authorization headers.
+ * Sensitive query parameters in the endpoint URL are masked.
+ */
+export function captureApiFailure(
+  event: Omit<ApiFailureEvent, 'name' | 'timestamp' | 'environment' | 'route'> &
+    Partial<Pick<ApiFailureEvent, 'route'>>
+): void {
+  if (process.env.NODE_ENV !== 'production') return;
+
+  const fullEvent: ApiFailureEvent = {
+    name: 'api.failure',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV ?? 'unknown',
+    route:
+      event.route ??
+      (typeof window !== 'undefined' ? window.location.pathname : ''),
+    endpoint: sanitize(event.endpoint) ?? event.endpoint,
+    method: event.method,
+    status: event.status,
+    message: sanitize(event.message) ?? event.message,
+    duration: event.duration,
+  };
+
+  // Single integration point — swap for Sentry.captureEvent() or similar here
+  console.error('[monitoring]', fullEvent);
 }

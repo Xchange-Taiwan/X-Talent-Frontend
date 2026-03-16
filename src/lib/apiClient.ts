@@ -22,6 +22,8 @@
 
 import { getSession } from 'next-auth/react';
 
+import { captureApiFailure } from '@/lib/monitoring';
+
 // ─── Feature flag ────────────────────────────────────────────────────────────
 // Flip to true once backend JWT auth is fully configured.
 const JWT_ENABLED = process.env.NEXT_PUBLIC_USE_API_CLIENT === 'true';
@@ -83,15 +85,31 @@ async function request<T>(
 
   const authHeader = auth ? await getAuthHeader() : {};
 
-  const response = await fetch(buildUrl(path, params), {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeader,
-      ...headers,
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
+  const startTime = Date.now();
+  let response: Response;
+
+  try {
+    response = await fetch(buildUrl(path, params), {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeader,
+        ...headers,
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  } catch (networkError) {
+    // fetch() itself threw — DNS failure, connection refused, timeout, etc.
+    captureApiFailure({
+      endpoint: path,
+      method,
+      status: 0,
+      message:
+        networkError instanceof Error ? networkError.message : 'Network error',
+      duration: Date.now() - startTime,
+    });
+    throw networkError;
+  }
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
@@ -99,6 +117,13 @@ async function request<T>(
       (errorBody as Record<string, string>).msg ||
       (errorBody as Record<string, string>).message ||
       `Request failed with status ${response.status}`;
+    captureApiFailure({
+      endpoint: path,
+      method,
+      status: response.status,
+      message,
+      duration: Date.now() - startTime,
+    });
     throw new ApiError(response.status, message, errorBody);
   }
 
