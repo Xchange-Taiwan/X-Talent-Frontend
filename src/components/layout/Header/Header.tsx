@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
 import { HamburgerMenu } from './HamburgerMenu';
+import { MobileUserMenu } from './MobileUserMenu';
 import { UserDropdown } from './UserDropdown';
 
 function HeaderComponent(): JSX.Element {
@@ -68,7 +69,7 @@ function HeaderComponent(): JSX.Element {
           </nav>
         </div>
 
-        <div className="mr-20 flex items-center gap-3">
+        <div className="flex items-center gap-3 md:mr-20">
           <div className="hidden items-center gap-3 md:flex">
             {isLoading ? (
               <Skeleton className="h-8 w-20 rounded-full" />
@@ -92,7 +93,12 @@ function HeaderComponent(): JSX.Element {
             )}
           </div>
 
-          <div className="md:hidden">
+          <div className="flex items-center gap-3 md:hidden">
+            {isLoading ? (
+              <Skeleton className="h-8 w-8 rounded-full" />
+            ) : isLoggedIn ? (
+              <MobileUserMenu user={session!.user} />
+            ) : null}
             <HamburgerMenu
               isLoading={isLoading}
               isLoggedIn={isLoggedIn}
