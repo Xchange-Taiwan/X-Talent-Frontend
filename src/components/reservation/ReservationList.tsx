@@ -5,6 +5,7 @@ import { getSession } from 'next-auth/react';
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
 import { Card, CardContent } from '@/components/ui/card';
+import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { updateReservationStatus } from '@/services/reservations';
 
@@ -68,6 +69,7 @@ export function ReservationList({
       // slot overlaps an existing ALLOW slot. Re-enable once backend supports it,
       // or once GET schedule returns booked_slots so the frontend can filter them.
 
+      trackEvent({ name: 'reservation_accepted', feature: 'reservation' });
       hardReload();
     } catch (err) {
       captureFlowFailure({
@@ -108,6 +110,7 @@ export function ReservationList({
       // TODO: remove the BLOCK slot when cancelling an accepted reservation.
       // Blocked by the same backend limitation as above.
 
+      trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
       hardReload();
     } catch (err) {
       captureFlowFailure({

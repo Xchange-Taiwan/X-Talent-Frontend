@@ -22,6 +22,7 @@ import {
   UseMentorScheduleReturn,
 } from '@/hooks/useMentorSchedule';
 import { UserType } from '@/hooks/user/user-data/useUserData';
+import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   createReservation,
@@ -67,6 +68,10 @@ export default function MenteeReservationDialog({
 
   const handleSave = () => {
     if (selectedDate && selectedSlot) {
+      trackEvent({
+        name: 'reservation_booking_started',
+        feature: 'reservation',
+      });
       setView('confirmation');
     }
   };
@@ -114,6 +119,10 @@ export default function MenteeReservationDialog({
       });
 
       setSubmitError(null);
+      trackEvent({
+        name: 'reservation_booking_confirmed',
+        feature: 'reservation',
+      });
       setView('success');
     } catch (error) {
       console.error('Failed to create reservation:', error);

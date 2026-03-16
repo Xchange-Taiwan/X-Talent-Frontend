@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { ProfileFormValues } from '@/components/profile/edit/profileSchema';
 import { clearUserDataCache } from '@/hooks/user/user-data/useUserData';
+import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { pollUntilSynced } from '@/lib/profile/pollUntilSynced';
 import { ExperienceType } from '@/services/profile/experienceType';
@@ -178,6 +179,7 @@ export function useProfileSubmit({
       });
 
       // 7) navigate
+      trackEvent({ name: 'profile_update_submitted', feature: 'profile' });
       if (isMentorOnboarding) {
         router.push('/profile/card');
       } else {

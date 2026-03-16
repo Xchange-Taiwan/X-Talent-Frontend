@@ -8,6 +8,7 @@ import * as z from 'zod';
 import { AuthFormProps } from '@/components/auth/types';
 import { useToast } from '@/components/ui/use-toast';
 import { validateSignIn } from '@/lib/actions/signIn';
+import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { SignInSchema } from '@/schemas/auth';
 
@@ -80,6 +81,8 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
         });
         return;
       }
+
+      trackEvent({ name: 'sign_in_succeeded', feature: 'auth' });
 
       if (session.user.onBoarding === false) {
         router.push('/auth/onboarding');
