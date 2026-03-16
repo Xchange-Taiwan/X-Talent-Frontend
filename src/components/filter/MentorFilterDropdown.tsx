@@ -88,10 +88,10 @@ const MentorFilterDropdown = ({
           ))}
           <div className="flex gap-2 pt-2">
             <Button className="w-full" onClick={applyFilters}>
-              Apply
+              套用
             </Button>
             <Button className="w-full" variant="outline" onClick={clearFilters}>
-              Clear All
+              清除全部
             </Button>
           </div>
         </Popover.Content>
