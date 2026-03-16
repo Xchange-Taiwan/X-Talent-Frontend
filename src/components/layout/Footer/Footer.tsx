@@ -36,17 +36,17 @@ const FOOTER_LINKS: FooterLinksConfig = {
 
 export const Footer: FC = () => {
   return (
-    <footer className="flex h-[730px] w-full bg-dark md:h-[534px] xl:h-[290px]">
-      <div className="flex h-full w-full flex-col px-[70px] pt-[50px] xl:flex-row xl:items-start xl:justify-between">
+    <footer className="flex h-auto w-full bg-dark pb-[50px] md:h-[290px]">
+      <div className="flex w-full flex-col items-center px-5 pt-[50px] md:flex-row md:items-start md:justify-between md:px-[70px]">
         <Image src={logoImgUrl} className="h-[39px] w-[146px]" alt="logo" />
 
-        <div className="mr-[150px] mt-[60px] flex flex-col gap-[58px] text-[#FFFFFF] md:flex-row md:gap-x-4 xl:mt-0 xl:flex-row">
-          <div className="mr-[140px] flex flex-col ">
+        <div className="mt-8 flex flex-col gap-8 text-[#FFFFFF] md:mt-0 md:flex-row md:gap-x-16">
+          <div className="flex flex-col items-center md:items-start">
             <p className="mb-5 text-xl font-bold tracking-[0.085em]">
               相關連結
             </p>
 
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col items-center gap-3 md:items-start">
               {FOOTER_LINKS.relatedLinks.map((link) => (
                 <a
                   key={link.href}
@@ -61,12 +61,12 @@ export const Footer: FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-col">
+          <div className="flex flex-col items-center md:items-start">
             <p className="mb-5 text-xl font-bold tracking-[0.085em]">
               XChange 社群連結
             </p>
 
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col items-center gap-3 md:items-start">
               {FOOTER_LINKS.socialLinks.map((link) => (
                 <a
                   key={link.href}
