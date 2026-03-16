@@ -36,8 +36,8 @@ const FOOTER_LINKS: FooterLinksConfig = {
 
 export const Footer: FC = () => {
   return (
-    <footer className="flex h-[730px] w-full bg-dark md:h-[534px] xl:h-[290px]">
-      <div className="flex h-full w-full flex-col px-[70px] pt-[50px] xl:flex-row xl:items-start xl:justify-between">
+    <footer className="flex h-auto w-full bg-dark pb-[50px] md:h-[534px] xl:h-[290px]">
+      <div className="flex w-full flex-col px-[70px] pt-[50px] xl:flex-row xl:items-start xl:justify-between">
         <Image src={logoImgUrl} className="h-[39px] w-[146px]" alt="logo" />
 
         <div className="mr-[150px] mt-[60px] flex flex-col gap-[58px] text-[#FFFFFF] md:flex-row md:gap-x-4 xl:mt-0 xl:flex-row">
