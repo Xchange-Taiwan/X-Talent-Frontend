@@ -136,7 +136,9 @@ export default function ProfilePageUI({
           <div className="w-full lg:w-3/5">
             <div>
               <p className="mb-4 text-xl font-bold">關於我</p>
-              <p className="text-sm text-gray-400">{userData?.about}</p>
+              <p className="break-words text-sm text-gray-400">
+                {userData?.about}
+              </p>
             </div>
 
             {userData.is_mentor && (
