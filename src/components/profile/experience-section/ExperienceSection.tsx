@@ -24,18 +24,21 @@ export const ExperienceItemCard = ({
 }: ExperienceItem) => {
   return (
     <section className="mb-6 flex flex-col gap-3">
-      <div className="flex justify-between text-sm text-gray-600">
-        <span>{subtitle}</span>
-        <span className="text-xs">
+      <div className="flex justify-between gap-2 text-sm text-gray-600">
+        <span className="min-w-0 break-words">{subtitle}</span>
+        <span className="shrink-0 text-xs">
           {startDate} - {endDate}
         </span>
       </div>
       <div>
-        <h2 className="mb-1 text-base font-bold" style={{ color: '#49454F' }}>
+        <h2
+          className="mb-1 break-words text-base font-bold"
+          style={{ color: '#49454F' }}
+        >
           {title}
         </h2>
         {description && (
-          <p className="text-sm" style={{ color: '#49454F' }}>
+          <p className="break-words text-sm" style={{ color: '#49454F' }}>
             {description}
           </p>
         )}
