@@ -22,13 +22,13 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
 
   // Responsive editor size: constrained by both viewport width and height.
   // Width overhead: p-6 padding (24×2) + safety = 56px.
-  // Height overhead: p-6 padding (48px) + slider (36px) + button (52px) + safety = 160px.
-  // Capped at 512px on larger screens.
+  // Height overhead: p-6 padding (48px) + slider (~48px) + button (~56px) + browser chrome = 200px.
+  // Capped at 512px on larger screens, minimum 160px.
   const [editorSize, setEditorSize] = useState(512);
   useEffect(() => {
     const calculate = (): void => {
-      const byWidth = Math.max(200, window.innerWidth - 56);
-      const byHeight = Math.max(200, window.innerHeight - 160);
+      const byWidth = Math.max(160, window.innerWidth - 56);
+      const byHeight = Math.max(160, window.innerHeight - 200);
       setEditorSize(Math.min(512, byWidth, byHeight));
     };
     calculate();
@@ -53,10 +53,10 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
   return (
     <Modal open={isOpen} onClose={onClose}>
       <div
-        className="fixed inset-0 flex items-center justify-center"
+        className="fixed inset-0 flex items-center justify-center p-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="rounded-lg bg-[#F4FCFC] p-6 shadow-lg">
+        <div className="max-h-full overflow-y-auto rounded-lg bg-[#F4FCFC] p-6 shadow-lg">
           {file && (
             <AvatarEditor
               ref={editorRef}
