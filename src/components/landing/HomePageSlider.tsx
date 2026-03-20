@@ -47,7 +47,7 @@ export const HomePageSlider: FC = () => {
                 {name}
               </p>
             </div>
-            <p className="flex-initial">{text}</p>
+            <p className="min-w-0 flex-1">{text}</p>
           </div>
         </SwiperSlide>
       ))}

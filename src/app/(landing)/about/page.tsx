@@ -72,7 +72,7 @@ export default function Page() {
           </div>
         </div>
 
-        <p className="px-8 text-center text-base md:text-xl lg:px-0">
+        <p className="px-8 text-center text-base md:text-xl">
           一個涵蓋不同領域的人才平台，讓我們能不只是在摸索與碰撞中成長，而是可以從跨領域的
           Mentor 中加速專業與軟實力的成長。
           <br />
