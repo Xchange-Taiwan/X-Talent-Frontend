@@ -47,3 +47,7 @@ next-env.d.ts
 # Claude Code local config
 .claude/
 CLAUDE.md
+
+# Test reports and screenshots
+/reports/
+/.playwright-mcp/
