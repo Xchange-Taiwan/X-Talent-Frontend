@@ -20,12 +20,16 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
   const [zoomScale, setZoomScale] = useState(1);
   const editorRef = useRef<AvatarEditor | null>(null);
 
-  // Responsive editor size: fit within the viewport minus modal padding (p-6 = 24px×2)
-  // and a small safety buffer. Capped at 512px on larger screens.
+  // Responsive editor size: constrained by both viewport width and height.
+  // Width overhead: p-6 padding (24×2) + safety = 56px.
+  // Height overhead: p-6 padding (48px) + slider (36px) + button (52px) + safety = 160px.
+  // Capped at 512px on larger screens.
   const [editorSize, setEditorSize] = useState(512);
   useEffect(() => {
     const calculate = (): void => {
-      setEditorSize(Math.min(512, Math.max(200, window.innerWidth - 56)));
+      const byWidth = Math.max(200, window.innerWidth - 56);
+      const byHeight = Math.max(200, window.innerHeight - 160);
+      setEditorSize(Math.min(512, byWidth, byHeight));
     };
     calculate();
     window.addEventListener('resize', calculate);
