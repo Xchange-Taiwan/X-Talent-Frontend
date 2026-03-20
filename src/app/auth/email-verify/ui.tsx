@@ -23,7 +23,7 @@ export default function EmailVerificationPage({
           height={80}
         />
       </div>
-      <div className="flex flex-col items-center gap-6 p-20 text-center">
+      <div className="flex flex-col items-center gap-6 px-6 pb-8 pt-16 text-center md:p-20">
         <h1 className="text-[32px] font-bold leading-10">驗證信箱</h1>
 
         <p className="text-neutral-600">

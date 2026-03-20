@@ -9,6 +9,7 @@ import {
   Sheet,
   SheetClose,
   SheetContent,
+  SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -43,6 +44,7 @@ export function HamburgerMenu({
       </SheetTrigger>
 
       <SheetContent side="right" className="h-screen w-screen">
+        <SheetTitle className="sr-only">導航選單</SheetTitle>
         <div className="flex h-full flex-col">
           <SheetClose asChild className="ml-auto">
             <Cross2Icon className="text-blue-900 h-8 w-8" />
