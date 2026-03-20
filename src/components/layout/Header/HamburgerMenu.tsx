@@ -50,7 +50,7 @@ export function HamburgerMenu({
             <Cross2Icon className="text-blue-900 h-8 w-8" />
           </SheetClose>
 
-          <div className="flex flex-1 flex-col items-center justify-center gap-10 text-2xl">
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8 text-2xl">
             <Link href="/mentor-pool" onClick={close} className="text-black">
               尋找導師
             </Link>
@@ -77,7 +77,7 @@ export function HamburgerMenu({
           </div>
 
           {!isLoggedIn && (
-            <div className="mt-auto flex flex-col items-center gap-6 pb-12">
+            <div className="mt-auto flex flex-col items-center gap-6 pb-6">
               {isLoading ? (
                 <>
                   <Skeleton className="h-10 w-40 rounded-md" />
