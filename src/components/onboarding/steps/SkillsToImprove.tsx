@@ -25,7 +25,7 @@ interface Props {
 export const SkillsToImprove: FC<Props> = ({ form, skillOptions }) => {
   return (
     <>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {skillOptions.map((option) => (
           <FormField
             key={option.subject_group}
