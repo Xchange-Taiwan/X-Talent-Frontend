@@ -74,19 +74,22 @@ const MentorFilterDropdown = ({
 
       <Popover.Portal>
         <Popover.Content
-          className="dark:bg-white z-20 w-[320px] space-y-4 rounded-md border border-gray-200 bg-background-white p-4 shadow-xl"
+          className="dark:bg-white z-[55] flex max-h-[calc(var(--radix-popover-content-available-height)-8px)] w-[320px] flex-col rounded-md border border-gray-200 bg-background-white shadow-xl"
           sideOffset={8}
+          collisionPadding={8}
         >
-          {Object.entries(filterOptions).map(([key, { name, options }]) => (
-            <FilterSelect
-              key={key}
-              name={name}
-              value={pendingFilters[key]?.value || ''}
-              options={options}
-              onChange={(val) => handleChange(key, name, val)}
-            />
-          ))}
-          <div className="flex gap-2 pt-2">
+          <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-2">
+            {Object.entries(filterOptions).map(([key, { name, options }]) => (
+              <FilterSelect
+                key={key}
+                name={name}
+                value={pendingFilters[key]?.value || ''}
+                options={options}
+                onChange={(val) => handleChange(key, name, val)}
+              />
+            ))}
+          </div>
+          <div className="flex gap-2 border-t border-gray-100 p-4 pt-3">
             <Button className="w-full" onClick={applyFilters}>
               套用
             </Button>

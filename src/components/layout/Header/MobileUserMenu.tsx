@@ -13,6 +13,7 @@ import {
   Sheet,
   SheetClose,
   SheetContent,
+  SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
@@ -105,6 +106,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
         </SheetTrigger>
 
         <SheetContent side="right" className="h-screen w-screen">
+          <SheetTitle className="sr-only">用戶選單</SheetTitle>
           <div className="flex h-full flex-col">
             <SheetClose asChild className="ml-auto">
               <Cross2Icon className="text-blue-900 h-8 w-8" />

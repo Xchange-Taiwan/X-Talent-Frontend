@@ -15,7 +15,7 @@ export default async function AuthOperationLayout({
   if (session?.user?.id && session.user.onBoarding !== false) redirect('/');
 
   return (
-    <div className="flex min-h-[calc(100vh-70px)] lg:min-h-[720px]">
+    <div className="flex lg:min-h-[720px]">
       <div className="flex-1 basis-1/2">{children}</div>
       <div
         className="box-border hidden flex-1	basis-1/2 bg-cover bg-center bg-no-repeat px-20 py-32 text-center lg:block"

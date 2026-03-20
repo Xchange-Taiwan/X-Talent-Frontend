@@ -34,7 +34,7 @@ export function ReservationCard({
           {/* Main content */}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="truncate">
+              <div className="min-w-0 truncate">
                 <div className="truncate text-sm font-medium sm:text-base">
                   {item.name}
                 </div>
@@ -42,6 +42,7 @@ export function ReservationCard({
                   {item.roleLine}
                 </div>
               </div>
+              <div className="shrink-0">{actions}</div>
             </div>
 
             {/* Divider only on >=sm to match Figma feel */}
@@ -65,9 +66,6 @@ export function ReservationCard({
                   {item.note}
                 </Badge>
               ) : null}
-
-              {/* Actions (right aligned) */}
-              <div className="ml-auto shrink-0">{actions}</div>
             </div>
           </div>
         </div>

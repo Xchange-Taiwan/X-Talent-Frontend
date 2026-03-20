@@ -81,9 +81,11 @@ export default function ProfilePageUI({
               />
             </div>
 
-            <div className="sm:mb-6 lg:mb-0">
+            <div className="min-w-0 sm:mb-6 lg:mb-0">
               <div className="mb-2 flex items-center justify-center gap-2 sm:justify-start">
-                <p className="text-2xl font-semibold">{userData?.name}</p>
+                <p className="break-words text-2xl font-semibold">
+                  {userData?.name}
+                </p>
                 {userData?.personalLinks?.map((link) => (
                   <a
                     key={link.platform}

@@ -31,7 +31,7 @@ function FilterSelect({
           <SelectValue placeholder={`Select ${name}`} />
         </SelectTrigger>
 
-        <SelectContent className="z-30">
+        <SelectContent className="z-[60]">
           <SelectGroup>
             <SelectLabel>{name}</SelectLabel>
             {options.map((option) => (
