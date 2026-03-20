@@ -107,7 +107,11 @@ export const UserDropdown = React.memo(function UserDropdown({
           </button>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end" className="w-[360px] rounded-2xl p-0">
+        <DropdownMenuContent
+          align="end"
+          collisionPadding={8}
+          className="max-h-[var(--radix-dropdown-menu-content-available-height)] w-[360px] overflow-y-auto rounded-2xl p-0"
+        >
           <button
             type="button"
             onClick={handleGoProfile}

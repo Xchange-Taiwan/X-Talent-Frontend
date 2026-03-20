@@ -89,6 +89,9 @@ export function ShareProfileDialog({
         <Dialog.Overlay className="fixed inset-0 z-[100] bg-dark/70 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
 
         <Dialog.Content className="fixed left-1/2 top-1/2 z-[101] w-[calc(100%-32px)] max-w-[640px] -translate-x-1/2 -translate-y-1/2 rounded-[24px] border border-[#D9DEE3] bg-light shadow-2xl focus:outline-none">
+          <Dialog.Description className="sr-only">
+            複製個人頁面連結以分享給他人
+          </Dialog.Description>
           <div className="rounded-[24px] bg-light px-6 pb-8 pt-6 sm:px-8">
             <div className="relative mb-8 flex items-center justify-center">
               <Dialog.Title className="text-black text-center text-[36px] font-semibold leading-none">
