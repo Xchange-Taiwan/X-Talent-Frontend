@@ -107,7 +107,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
 
         <SheetContent side="right" className="h-screen w-screen">
           <SheetTitle className="sr-only">用戶選單</SheetTitle>
-          <div className="flex h-full flex-col">
+          <div className="flex h-full flex-col overflow-y-auto">
             <SheetClose asChild className="ml-auto">
               <Cross2Icon className="text-blue-900 h-8 w-8" />
             </SheetClose>
@@ -116,7 +116,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
             <button
               type="button"
               onClick={handleGoProfile}
-              className="flex items-center gap-4 pb-6 pt-10 text-left"
+              className="flex items-center gap-4 pb-6 pt-4 text-left"
             >
               <Image
                 src={avatarSrc || DefaultAvatarImgUrl}
@@ -168,7 +168,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
               </button>
             </nav>
 
-            <div className="mt-auto pb-12">
+            <div className="mt-auto pb-6">
               <Button
                 className="w-full bg-primary hover:bg-primary"
                 onClick={handleLogout}

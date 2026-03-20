@@ -1,5 +1,5 @@
 import { Modal, Slider } from '@mui/material';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import AvatarEditor from 'react-avatar-editor';
 
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,18 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
 }) => {
   const [zoomScale, setZoomScale] = useState(1);
   const editorRef = useRef<AvatarEditor | null>(null);
+
+  // Responsive editor size: fit within the viewport minus modal padding (p-6 = 24px×2)
+  // and a small safety buffer. Capped at 512px on larger screens.
+  const [editorSize, setEditorSize] = useState(512);
+  useEffect(() => {
+    const calculate = (): void => {
+      setEditorSize(Math.min(512, Math.max(200, window.innerWidth - 56)));
+    };
+    calculate();
+    window.addEventListener('resize', calculate);
+    return () => window.removeEventListener('resize', calculate);
+  }, []);
 
   const handleSaveImage = async () => {
     if (editorRef.current) {
@@ -45,8 +57,8 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
             <AvatarEditor
               ref={editorRef}
               image={file}
-              width={512}
-              height={512}
+              width={editorSize}
+              height={editorSize}
               border={50}
               borderRadius={300}
               scale={zoomScale}
