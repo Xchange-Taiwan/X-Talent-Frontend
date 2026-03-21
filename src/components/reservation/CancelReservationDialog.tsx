@@ -74,7 +74,7 @@ export default function CancelReservationDialog({
           className={cn('min-h-9 px-3 text-destructive', className)}
           onClick={() => setOpen(true)}
         >
-          Cancel
+          取消預約
         </Button>
       </DialogTrigger>
 
@@ -86,7 +86,7 @@ export default function CancelReservationDialog({
                 取消預約
               </DialogTitle>
               <DialogDescription className="text-center sm:text-left">
-                Visual communication through imagery, typography, and color.
+                確認後將取消此預約，此操作無法復原。
               </DialogDescription>
             </DialogHeader>
 
@@ -140,12 +140,12 @@ export default function CancelReservationDialog({
                 取消原因
               </DialogTitle>
               <DialogDescription className="text-center sm:text-left">
-                Let the mentor know why you need to cancel.
+                請說明取消預約的原因。
               </DialogDescription>
             </DialogHeader>
 
             <Textarea
-              placeholder={`Hello ${reservation.name.split(' ')[0]}, ...`}
+              placeholder={`您好 ${reservation.name.split(' ')[0]}，...`}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className="min-h-[140px] resize-y"

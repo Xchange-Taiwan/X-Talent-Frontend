@@ -28,7 +28,7 @@ function FilterSelect({
       </label>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger>
-          <SelectValue placeholder={`Select ${name}`} />
+          <SelectValue placeholder={`請選擇${name}`} />
         </SelectTrigger>
 
         <SelectContent className="z-[60]">

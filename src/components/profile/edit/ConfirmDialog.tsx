@@ -29,10 +29,12 @@ export function ConfirmDialog({
           </Dialog.Description>
           <div className="mt-6 flex justify-center gap-4">
             <Dialog.Close asChild>
-              <Button variant="destructive">取消</Button>
+              <Button variant="outline">取消</Button>
             </Dialog.Close>
             <Dialog.Close asChild>
-              <Button onClick={onConfirm}>確認</Button>
+              <Button variant="destructive" onClick={onConfirm}>
+                確認
+              </Button>
             </Dialog.Close>
           </div>
         </Dialog.Content>

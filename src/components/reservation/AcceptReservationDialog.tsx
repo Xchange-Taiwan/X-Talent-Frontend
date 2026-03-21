@@ -64,7 +64,7 @@ export default function AcceptReservationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button size="sm" className={cn('min-h-9 px-3', className)}>
-          Accept
+          接受
         </Button>
       </DialogTrigger>
 
@@ -76,8 +76,7 @@ export default function AcceptReservationDialog({
                 查看我的預約
               </DialogTitle>
               <DialogDescription className="text-center sm:text-left">
-                Review the details and optionally add a question for this
-                booking.
+                查看預約詳情，並可選擇性地回覆 Mentee。
               </DialogDescription>
             </DialogHeader>
 
@@ -111,10 +110,12 @@ export default function AcceptReservationDialog({
             </div>
 
             <div className="mt-6">
-              <div className="mb-2 text-sm font-medium">Mentee所提出的問題</div>
+              <div className="mb-2 text-sm font-medium">
+                給 Mentee 的留言（選填）
+              </div>
               <div className="rounded-2xl border p-2">
                 <Textarea
-                  placeholder={`Hello ${reservation.name.split(' ')[0]}, ...`}
+                  placeholder={`您好 ${reservation.name.split(' ')[0]}，...`}
                   className="min-h-[120px] resize-y border-0 shadow-none focus-visible:ring-0"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
@@ -148,16 +149,16 @@ export default function AcceptReservationDialog({
           <div className="p-6">
             <DialogHeader className="mb-4">
               <DialogTitle className="text-center sm:text-left">
-                拒絕Mentee預約的原因
+                拒絕 Mentee 預約的原因
               </DialogTitle>
               <DialogDescription className="text-center sm:text-left">
-                Tell the mentee why this booking can’t be accepted.
+                請說明無法接受此預約的原因。
               </DialogDescription>
             </DialogHeader>
 
             <div className="rounded-2xl border p-2">
               <Textarea
-                placeholder="Write your reason..."
+                placeholder="請在此輸入原因..."
                 className="min-h-[120px] resize-y border-0 shadow-none focus-visible:ring-0"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
