@@ -82,7 +82,7 @@ export default function Page() {
 
       <section className="py-20">
         <SectionTitle>
-          透過 X -Talent 創造你
+          透過 X-Talent 創造你
           <br className="md:hidden" />
           的職涯可能性
         </SectionTitle>

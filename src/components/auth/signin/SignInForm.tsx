@@ -37,7 +37,7 @@ export default function SignInForm({
           <AuthButton isSubmitting={isSubmitting}>登入</AuthButton>
           <SignUpLink
             prefixText="還不是會員?"
-            text="註冊X-Talent"
+            text="註冊 X-Talent"
             href="/auth/signup"
           />
         </form>

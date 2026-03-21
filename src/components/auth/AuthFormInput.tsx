@@ -69,7 +69,7 @@ const AuthFormInput = <T extends FieldValues>({
                 type="button"
                 onClick={togglePasswordVisibility}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
-                aria-label={showPassword ? 'hide password' : 'show password'}
+                aria-label={showPassword ? '隱藏密碼' : '顯示密碼'}
               >
                 {showPassword ? (
                   <EyeOff className="h-5 w-5" />

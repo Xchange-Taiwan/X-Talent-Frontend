@@ -10,7 +10,7 @@ export const formFieldData: AuthFormFieldType<'signup'>[] = [
   },
   {
     name: 'password',
-    label: '登入密碼',
+    label: '設定密碼',
     placeholder: '請輸入密碼',
     type: 'password',
     autocomplete: 'new-password',

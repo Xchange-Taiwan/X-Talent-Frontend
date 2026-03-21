@@ -18,9 +18,6 @@ import { InterestDTO } from '@/services/profile/interests';
 
 import { step5Schema } from './index';
 
-const DEFAULT_ICON = 'https://via.placeholder.com/40';
-const DEFAULT_ALT = 'DEFAULT_ICON';
-
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step5Schema>>>;
   topicOptions: InterestDTO[];
@@ -47,13 +44,15 @@ export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {
                 >
                   <FormLabel className="flex grow cursor-pointer gap-4 ">
                     <div className="rounded-full bg-[#EBFBFB] p-3">
-                      <Image
-                        src={option.desc.icon || DEFAULT_ICON}
-                        alt={option.desc.desc || DEFAULT_ALT}
-                        width={24}
-                        height={24}
-                        className="object-contain"
-                      />
+                      {option.desc.icon && (
+                        <Image
+                          src={option.desc.icon}
+                          alt={option.desc.desc || '主題圖示'}
+                          width={24}
+                          height={24}
+                          className="object-contain"
+                        />
+                      )}
                     </div>
 
                     <div>
