@@ -60,7 +60,7 @@ export default function Page() {
       <section className="flex py-10  sm:py-20">
         <div className="flex w-full flex-col items-center justify-center">
           <p className="text-midnight-blue mb-[30px] text-center text-xl font-bold tracking-[0.04em] md:mb-[70px] md:text-2xl">
-            透過 X -Talent 創造你
+            透過 X-Talent 創造你
             <br className="md:hidden" />
             的職涯可能性
           </p>
