@@ -157,7 +157,7 @@ export default function MentorScheduleDialog({
     if (endTotal <= startTotal) {
       setSlotErrors((prev) => ({
         ...prev,
-        [id]: { timeRange: 'End time must be after start time' },
+        [id]: { timeRange: '結束時間必須晚於開始時間' },
       }));
       return;
     }
@@ -165,7 +165,7 @@ export default function MentorScheduleDialog({
     if (checkOverlapWithOthers(id, startTotal, endTotal)) {
       setSlotErrors((prev) => ({
         ...prev,
-        [id]: { overlap: 'This slot overlaps with another slot' },
+        [id]: { overlap: '此時段與其他時段重疊' },
       }));
       return;
     }
@@ -263,7 +263,7 @@ export default function MentorScheduleDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
-          <DialogTitle>Scheduling Setting</DialogTitle>
+          <DialogTitle>排程設定</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-4">
           <ScheduleCalendar
@@ -285,7 +285,7 @@ export default function MentorScheduleDialog({
           />
 
           <div>
-            <p className="font-semibold">Available time slots</p>
+            <p className="font-semibold">可預約時段</p>
             <div className="mt-3 flex flex-col gap-3">
               {editingSlots.map((slot, index) => {
                 const errors = slotErrors[slot.id] ?? {};
@@ -374,13 +374,13 @@ export default function MentorScheduleDialog({
               onOpenChange(false);
             }}
           >
-            Cancel
+            取消
           </Button>
           <Button
             onClick={handleSave}
             disabled={isSaving || hasAnyError || hasInvalidTimes}
           >
-            {isSaving ? 'Saving...' : 'Save'}
+            {isSaving ? '儲存中...' : '儲存'}
           </Button>
         </DialogFooter>
       </DialogContent>

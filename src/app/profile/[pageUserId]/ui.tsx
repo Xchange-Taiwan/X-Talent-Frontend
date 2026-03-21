@@ -128,7 +128,7 @@ export default function ProfilePageUI({
                 className="grow rounded-full px-6 py-3 sm:grow-0"
                 onClick={onBecomeMentor}
               >
-                變成導師
+                成為導師
               </Button>
             )}
           </div>

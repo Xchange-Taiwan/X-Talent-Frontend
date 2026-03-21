@@ -83,7 +83,7 @@ function StepHeader({
   return (
     <div>
       <p className="mb-6 text-base font-semibold text-text-tertiary">
-        Step {currentStep} of {stepsTotal}
+        步驟 {currentStep} / {stepsTotal}
       </p>
       <div className="flex items-center gap-3">
         {showBack && (

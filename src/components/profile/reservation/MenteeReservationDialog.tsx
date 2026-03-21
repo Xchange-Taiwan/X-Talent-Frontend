@@ -143,9 +143,7 @@ export default function MenteeReservationDialog({
         msg.toLowerCase().includes('conflict') ||
         msg.toLowerCase().includes('already');
       setSubmitError(
-        isDuplicate
-          ? 'This time slot has already been booked. Please choose another slot.'
-          : `Booking failed: ${msg}`
+        isDuplicate ? '此時段已被預約，請選擇其他時段。' : `預約失敗：${msg}`
       );
     } finally {
       setIsSubmitting(false);
@@ -154,7 +152,7 @@ export default function MenteeReservationDialog({
 
   const formatTimeSlot = (slot: BookingSlot) => {
     const fmt = (d: Date) =>
-      d.toLocaleTimeString('en-US', {
+      d.toLocaleTimeString('zh-TW', {
         hour: '2-digit',
         minute: '2-digit',
         hour12: true,
@@ -164,7 +162,7 @@ export default function MenteeReservationDialog({
 
   const formatDate = (date: string | null) => {
     if (!date) return '';
-    return new Date(date).toLocaleDateString('en-US', {
+    return new Date(date).toLocaleDateString('zh-TW', {
       weekday: 'short',
       year: 'numeric',
       month: 'short',
@@ -176,7 +174,7 @@ export default function MenteeReservationDialog({
     if (!selectedDate) {
       return '';
     }
-    return new Intl.DateTimeFormat('en-US', {
+    return new Intl.DateTimeFormat('zh-TW', {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
@@ -190,7 +188,7 @@ export default function MenteeReservationDialog({
   const renderSelectionView = () => (
     <>
       <DialogHeader>
-        <DialogTitle>Book a Session</DialogTitle>
+        <DialogTitle>預約時段</DialogTitle>
       </DialogHeader>
       <div className="flex flex-col gap-4 py-4">
         <div className="inline-block w-auto rounded-lg border p-2 shadow-md">
@@ -219,7 +217,7 @@ export default function MenteeReservationDialog({
           />
         </div>
         <div>
-          <p className="font-semibold">Available time slots</p>
+          <p className="font-semibold">可預約時段</p>
           <div className="mt-4 flex flex-row flex-wrap gap-4">
             {(() => {
               const slots = selectedDate
@@ -228,7 +226,7 @@ export default function MenteeReservationDialog({
               if (slots.length === 0) {
                 return (
                   <div className="text-center text-sm text-gray-500">
-                    No available slots for this date.
+                    此日期暫無可預約時段
                   </div>
                 );
               }
@@ -252,10 +250,10 @@ export default function MenteeReservationDialog({
       </div>
       <DialogFooter className="flex flex-col justify-center gap-2 sm:flex-row">
         <Button variant="outline" onClick={handleClose}>
-          Cancel
+          取消
         </Button>
         <Button onClick={handleSave} disabled={!selectedDate || !selectedSlot}>
-          Book a Session
+          預約時段
         </Button>
       </DialogFooter>
     </>
@@ -274,7 +272,7 @@ export default function MenteeReservationDialog({
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <DialogTitle>Confirm Your Reservation</DialogTitle>
+          <DialogTitle>確認預約</DialogTitle>
         </div>
       </DialogHeader>
       <div className="flex flex-col gap-4 py-4">
@@ -309,11 +307,11 @@ export default function MenteeReservationDialog({
         </div>
         <div className="space-y-1">
           <label htmlFor="booking-question" className="font-semibold">
-            Your question about this booking
+            你想問導師的問題
           </label>
           <Textarea
             id="booking-question"
-            placeholder="Type your question here..."
+            placeholder="請在此輸入你的問題..."
             className="min-h-[179px]"
             value={bookingQuestion}
             onChange={(e) => setBookingQuestion(e.target.value)}
@@ -331,7 +329,7 @@ export default function MenteeReservationDialog({
           disabled={isSubmitting}
         >
           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Confirm
+          確認
         </Button>
       </DialogFooter>
     </>
@@ -340,7 +338,7 @@ export default function MenteeReservationDialog({
   const renderSuccessView = () => (
     <>
       <DialogHeader>
-        <DialogTitle className="text-center">Booked Successfully</DialogTitle>
+        <DialogTitle className="text-center">預約成功</DialogTitle>
       </DialogHeader>
       <div className="flex flex-col items-center gap-6 py-4">
         <div className="w-full rounded-lg border p-4">
@@ -375,10 +373,10 @@ export default function MenteeReservationDialog({
       </div>
       <DialogFooter className="flex-col gap-3 sm:flex-col sm:space-x-0">
         <Button onClick={handleGoToReservation} className="w-full">
-          My Reservation
+          我的預約
         </Button>
         <Button variant="outline" onClick={handleClose} className="w-full">
-          Explore Mentors
+          繼續探索導師
         </Button>
       </DialogFooter>
     </>

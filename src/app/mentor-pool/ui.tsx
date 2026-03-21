@@ -49,7 +49,7 @@ export default function MentorPoolUI({
       <section className="mt-[132px] px-5 pb-10 md:px-10 xl:px-20">
         <div className="mx-auto w-full max-w-[1280px] ">
           <div className="item-center mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-0">
-            <div className="text-base">{mentorCount} mentors were found</div>
+            <div className="text-base">找到 {mentorCount} 位導師</div>
             <div className="grid w-full grid-cols-2 gap-3 md:flex md:w-fit">
               <div className="block md:hidden"></div>
               <MentorFilterDropdown
@@ -82,7 +82,7 @@ export default function MentorPoolUI({
           {mentors.length === 0 && !isLoading ? (
             <div className="mt-6 flex h-full w-full items-center justify-center">
               {isNoResults && (
-                <span className="text-xl md:text-3xl">No results found</span>
+                <span className="text-xl md:text-3xl">找不到符合的導師</span>
               )}
             </div>
           ) : (
