@@ -162,7 +162,7 @@ export default function MenteeReservationDialog({
 
   const formatDate = (date: string | null) => {
     if (!date) return '';
-    return new Date(date).toLocaleDateString('zh-TW', {
+    return new Date(date + 'T00:00:00').toLocaleDateString('zh-TW', {
       weekday: 'short',
       year: 'numeric',
       month: 'short',
@@ -199,7 +199,11 @@ export default function MenteeReservationDialog({
           </div>
           <ScheduleCalendar
             selected={
-              selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date()
+              selectedDate
+                ? new Date(selectedDate + 'T00:00:00')
+                : allowedDates[0]
+                  ? new Date(allowedDates[0] + 'T00:00:00')
+                  : new Date()
             }
             onSelect={(d) =>
               setSelectedDate(

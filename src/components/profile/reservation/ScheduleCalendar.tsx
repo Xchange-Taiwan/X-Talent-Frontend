@@ -40,6 +40,7 @@ export const ScheduleCalendar = ({
     <Calendar
       mode="single"
       captionLayout="dropdown"
+      defaultMonth={selected}
       selected={selected}
       onSelect={handleSelect}
       onMonthChange={onMonthChange}
