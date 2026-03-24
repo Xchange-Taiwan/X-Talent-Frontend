@@ -163,7 +163,7 @@ export default function Page({
               </>
             }
           >
-            <TextareaField form={form} name="about" rows={6} />
+            <TextareaField form={form} name="about" rows={10} />
           </Section>
 
           {isMentor && (
