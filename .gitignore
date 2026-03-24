@@ -51,3 +51,9 @@ CLAUDE.md
 # Test reports and screenshots
 /reports/
 /.playwright-mcp/
+
+# RWD testing scripts and screenshots
+/rwd-testing/
+
+# Avatar assets for RWD testing (generated, not source)
+/public/avatars/
