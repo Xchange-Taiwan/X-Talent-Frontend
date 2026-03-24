@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
 import { ExperienceType } from '@/services/profile/experienceType';
 import { fetchUserById, UserDTO } from '@/services/profile/user';
 
@@ -68,6 +69,8 @@ export interface UserType {
   topics: InterestType[];
   is_mentor: boolean;
   about?: string;
+  years_of_experience?: string;
+  industry?: string;
   expertises?: InterestType[];
   what_i_offers?: InterestType[];
   workExperiences?: WorkExperienceMetadata[];
@@ -183,6 +186,11 @@ function parseUserDtoToUserType(
     topics: toInterestList(userDto.topics.interests),
     is_mentor: userDto.is_mentor,
     about: userDto.about ?? '',
+    years_of_experience:
+      TotalWorkSpanEnum[
+        userDto.years_of_experience as keyof typeof TotalWorkSpanEnum
+      ] ?? userDto.years_of_experience,
+    industry: userDto.industry?.subject,
     expertises,
     what_i_offers,
     workExperiences,

@@ -27,7 +27,9 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
   const [editorSize, setEditorSize] = useState(512);
   useEffect(() => {
     const calculate = (): void => {
-      const byWidth = Math.max(160, window.innerWidth - 56);
+      // Overhead breakdown:
+      //   p-4 backdrop (16×2) + p-6 card (24×2) + AvatarEditor border (50×2) + safety = 196px
+      const byWidth = Math.max(160, window.innerWidth - 196);
       const byHeight = Math.max(160, window.innerHeight - 200);
       setEditorSize(Math.min(512, byWidth, byHeight));
     };

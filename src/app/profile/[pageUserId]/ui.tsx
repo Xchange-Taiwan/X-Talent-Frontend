@@ -103,13 +103,15 @@ export default function ProfilePageUI({
                   </a>
                 ))}
               </div>
-              <div>
+              {(userData.job_title || userData.company) && (
                 <p className="text-sm">
-                  {userData.job_title}{' '}
-                  <span className="text-text-tertiary">at</span>{' '}
+                  {userData.job_title}
+                  {userData.job_title && userData.company && (
+                    <span className="text-text-tertiary"> at </span>
+                  )}
                   {userData.company}
                 </p>
-              </div>
+              )}
             </div>
           </div>
 
@@ -138,12 +140,37 @@ export default function ProfilePageUI({
 
         <div className="flex flex-col gap-8 lg:flex-row lg:gap-12">
           <div className="w-full lg:w-3/5">
-            <div>
-              <p className="mb-4 text-xl font-bold">關於我</p>
-              <p className="break-words text-sm text-gray-400">
-                {userData?.about}
-              </p>
-            </div>
+            {userData?.about && (
+              <div>
+                <p className="mb-4 text-xl font-bold">關於我</p>
+                <p className="break-words text-sm text-gray-400">
+                  {userData.about}
+                </p>
+              </div>
+            )}
+
+            <ProfileBadgeSection
+              title="經驗"
+              items={
+                userData?.years_of_experience
+                  ? [
+                      {
+                        subject_group: 'years_of_experience',
+                        subject: userData.years_of_experience,
+                      },
+                    ]
+                  : []
+              }
+            />
+
+            <ProfileBadgeSection
+              title="產業"
+              items={
+                userData?.industry
+                  ? [{ subject_group: 'industry', subject: userData.industry }]
+                  : []
+              }
+            />
 
             {userData.is_mentor && (
               <ProfileBadgeSection
@@ -174,17 +201,21 @@ export default function ProfilePageUI({
               items={userData?.topics ?? []}
             />
 
-            <div className="mt-10">
-              <p className="mb-4 text-xl font-bold">工作經驗</p>
-              <WorkExperienceSection
-                workExperiences={userData?.workExperiences}
-              />
-            </div>
+            {!!userData?.workExperiences?.length && (
+              <div className="mt-10">
+                <p className="mb-4 text-xl font-bold">工作經驗</p>
+                <WorkExperienceSection
+                  workExperiences={userData.workExperiences}
+                />
+              </div>
+            )}
 
-            <div className="mt-10">
-              <p className="mb-4 text-xl font-bold">教育</p>
-              <EducationSection educations={userData?.educations} />
-            </div>
+            {!!userData?.educations?.length && (
+              <div className="mt-10">
+                <p className="mb-4 text-xl font-bold">教育</p>
+                <EducationSection educations={userData.educations} />
+              </div>
+            )}
           </div>
 
           {userData.is_mentor && (
