@@ -36,6 +36,7 @@ interface Props {
   setOpenReservationDialog: (open: boolean) => void;
   openMenteeReservationDialog: boolean;
   setOpenMenteeReservationDialog: (open: boolean) => void;
+  onScheduleMonthChange: (date: Date) => void;
   onReservation: () => void;
   onEditProfile: () => void;
   onBecomeMentor: () => void;
@@ -54,6 +55,7 @@ export default function ProfilePageUI({
   setOpenReservationDialog,
   openMenteeReservationDialog,
   setOpenMenteeReservationDialog,
+  onScheduleMonthChange,
   onReservation,
   onEditProfile,
   onBecomeMentor,
@@ -210,6 +212,7 @@ export default function ProfilePageUI({
                           : new Date()
                       }
                       onSelect={(d) => setSelectedDate(d ? toDateKey(d) : null)}
+                      onMonthChange={onScheduleMonthChange}
                       allowedDates={allowedDates}
                       showTodayStyle={false}
                       disableEmptyDates={true}
@@ -258,6 +261,7 @@ export default function ProfilePageUI({
                       open={openReservationDialog}
                       onOpenChange={setOpenReservationDialog}
                       schedule={schedule}
+                      onMonthChange={onScheduleMonthChange}
                     />
                   ) : (
                     <MenteeReservationDialog

@@ -53,10 +53,12 @@ export default function MentorScheduleDialog({
   open,
   onOpenChange,
   schedule,
+  onMonthChange,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   schedule: UseMentorScheduleReturn;
+  onMonthChange?: (date: Date) => void;
 }) {
   const {
     selectedDate,
@@ -277,6 +279,7 @@ export default function MentorScheduleDialog({
                   : null
               )
             }
+            onMonthChange={onMonthChange}
             allowedDates={allowedDates}
             showTodayStyle={false}
             disableEmptyDates={false}

@@ -438,11 +438,34 @@ export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
       .unix();
 
     // Payload to upsert this round (excluding pending deletes)
-    const upsertPayload = draft
+    const rawUpsert = draft
       .filter((r) => !pendingDeleteIds.includes(r.id))
       .map(toServiceSlot);
 
-    const idsToDelete = [...pendingDeleteIds];
+    // Deduplicate by (dtstart, dtend): keep first occurrence, schedule extras for deletion
+    // Prevents backend 400 "conflict" errors caused by duplicate timeslots in the DB.
+    const seenKeys = new Map<string, number>();
+    const upsertPayload: UpsertTimeslotBackend[] = [];
+    const extraDeleteIds: number[] = [];
+    for (const slot of rawUpsert) {
+      const key = `${slot.dtstart}_${slot.dtend}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.set(key, upsertPayload.length);
+        upsertPayload.push(slot);
+      } else if (typeof slot.id === 'number' && slot.id > 0) {
+        extraDeleteIds.push(slot.id);
+      }
+    }
+
+    const idsToDelete = [...pendingDeleteIds, ...extraDeleteIds];
+
+    log('confirmChanges dedup:', {
+      rawUpsertCount: rawUpsert.length,
+      upsertPayloadCount: upsertPayload.length,
+      extraDeleteIds,
+      idsToDelete,
+      upsertPayload: JSON.stringify(upsertPayload),
+    });
 
     // Refetch the current month and sync saved/draft state
     const refetch = async () => {

@@ -29,6 +29,7 @@ export function useReservationData() {
       try {
         const lists = await fetchAllReservationLists({
           userId: loginUserId,
+          debug: true,
         });
 
         if (cancelled) return;

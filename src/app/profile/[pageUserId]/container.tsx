@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import useUserData from '@/hooks/user/user-data/useUserData';
@@ -19,12 +19,18 @@ interface Props {
 export default function ProfilePageContainer({ pageUserId }: Props) {
   const router = useRouter();
 
-  const year = useMemo(() => new Date().getFullYear(), []);
-  const month = useMemo(() => new Date().getMonth() + 1, []);
+  const [year, setYear] = useState(() => new Date().getFullYear());
+  const [month, setMonth] = useState(() => new Date().getMonth() + 1);
+
+  const handleScheduleMonthChange = (date: Date) => {
+    setYear(date.getFullYear());
+    setMonth(date.getMonth() + 1);
+  };
 
   const schedule = useMentorSchedule({
     mode: 'backend',
     backend: { userId: pageUserId, year, month },
+    debug: true,
   });
   const { loaded, setSelectedDate, parsedDraft } = schedule;
 
@@ -108,6 +114,7 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
       openMenteeReservationDialog={openMenteeReservationDialog}
       setOpenMenteeReservationDialog={setOpenMenteeReservationDialog}
       onReservation={reservationHandler}
+      onScheduleMonthChange={handleScheduleMonthChange}
       onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}
       onBecomeMentor={() =>
         router.push(`/profile/${pageUserId}/edit?onboarding=true`)
