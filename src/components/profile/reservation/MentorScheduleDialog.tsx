@@ -53,10 +53,12 @@ export default function MentorScheduleDialog({
   open,
   onOpenChange,
   schedule,
+  onMonthChange,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   schedule: UseMentorScheduleReturn;
+  onMonthChange?: (date: Date) => void;
 }) {
   const {
     selectedDate,
@@ -261,7 +263,7 @@ export default function MentorScheduleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[440px]">
+      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle>排程設定</DialogTitle>
         </DialogHeader>
@@ -277,6 +279,7 @@ export default function MentorScheduleDialog({
                   : null
               )
             }
+            onMonthChange={onMonthChange}
             allowedDates={allowedDates}
             showTodayStyle={false}
             disableEmptyDates={false}

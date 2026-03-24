@@ -7,6 +7,7 @@ import { Calendar } from '@/components/ui/calendar';
 interface ScheduleCalendarProps {
   selected: Date;
   onSelect?: (date: Date) => void;
+  onMonthChange?: (date: Date) => void;
   allowedDates?: string[];
   showTodayStyle?: boolean;
   readOnly?: boolean;
@@ -18,6 +19,7 @@ interface ScheduleCalendarProps {
 export const ScheduleCalendar = ({
   selected,
   onSelect,
+  onMonthChange,
   allowedDates = [],
   showTodayStyle,
   readOnly = false,
@@ -38,8 +40,10 @@ export const ScheduleCalendar = ({
     <Calendar
       mode="single"
       captionLayout="dropdown"
+      defaultMonth={selected}
       selected={selected}
       onSelect={handleSelect}
+      onMonthChange={onMonthChange}
       className="w-full"
       modifiers={{
         available: availableDays,
