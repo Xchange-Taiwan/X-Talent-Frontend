@@ -36,14 +36,12 @@ export default function AcceptReservationDialog({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<'check' | 'reject'>('check');
-  const [message, setMessage] = useState('');
   const [reason, setReason] = useState('');
 
   function onOpenChange(next: boolean) {
     setOpen(next);
     if (next) {
       setStep('check');
-      setMessage('');
       setReason('');
       trackEvent({
         name: 'feature_opened',
@@ -76,7 +74,7 @@ export default function AcceptReservationDialog({
                 查看我的預約
               </DialogTitle>
               <DialogDescription className="text-center sm:text-left">
-                查看預約詳情，並可選擇性地回覆 Mentee。
+                查看預約詳情後，選擇接受或拒絕。
               </DialogDescription>
             </DialogHeader>
 
@@ -110,16 +108,15 @@ export default function AcceptReservationDialog({
             </div>
 
             <div className="mt-6">
-              <div className="mb-2 text-sm font-medium">
-                給 Mentee 的留言（選填）
-              </div>
-              <div className="rounded-2xl border p-2">
-                <Textarea
-                  placeholder={`您好 ${reservation.name.split(' ')[0]}，...`}
-                  className="min-h-[120px] resize-y border-0 shadow-none focus-visible:ring-0"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                />
+              <div className="mb-2 text-sm font-medium">學員提交的問題</div>
+              <div className="rounded-2xl border bg-muted/40 p-4 text-sm">
+                {reservation.note ? (
+                  <p className="whitespace-pre-wrap text-foreground">
+                    {reservation.note}
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground">（學員未提交問題）</p>
+                )}
               </div>
             </div>
 
@@ -137,7 +134,7 @@ export default function AcceptReservationDialog({
                 type="button"
                 className="bg-teal-500 text-white hover:bg-teal-500/90 w-full sm:w-auto"
                 onClick={async () => {
-                  await onAccept?.({ id: reservation.id, message });
+                  await onAccept?.({ id: reservation.id, message: '' });
                   setOpen(false);
                 }}
               >

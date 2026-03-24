@@ -112,6 +112,17 @@ function mapToReservation(
     prettyYears(counterparty.years_of_experience),
   ].filter(Boolean);
 
+  // Extract the mentee's booking message, shown read-only in the mentor Accept dialog.
+  // For MENTOR_* states the backend sets sender = mentor (current user), participant = mentee.
+  // For MENTEE_* / HISTORY states the sender is the mentee.
+  const menteeUserId = state.startsWith('MENTOR_')
+    ? r.participant.user_id
+    : r.sender.user_id;
+  const senderMessage = r.messages?.find(
+    (m) => String(m.user_id) === String(menteeUserId)
+  );
+  const note = senderMessage?.content ?? undefined;
+
   return {
     id: String(r.id),
     name: counterparty.name || '—',
@@ -120,6 +131,7 @@ function mapToReservation(
     time,
 
     avatar: counterparty.avatar,
+    note,
     scheduleId: r.schedule_id,
     dtstart: r.dtstart,
     dtend: r.dtend,
