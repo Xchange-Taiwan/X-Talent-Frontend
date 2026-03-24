@@ -30,7 +30,6 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
   const schedule = useMentorSchedule({
     mode: 'backend',
     backend: { userId: pageUserId, year, month },
-    debug: true,
   });
   const { loaded, setSelectedDate, parsedDraft } = schedule;
 
