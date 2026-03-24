@@ -57,8 +57,7 @@ const AvatarUpload = <T extends FieldValues>({
   return (
     <div className="mb-10 flex justify-center lg:justify-start">
       <div
-        className="group relative flex cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 border-[#B7CBCB] bg-[#F4FCFC]"
-        style={{ width: 100, height: 100 }}
+        className="group relative flex h-16 w-16 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 border-[#B7CBCB] bg-[#F4FCFC] sm:h-24 sm:w-24 lg:h-[100px] lg:w-[100px]"
         onClick={() => document.getElementById('fileInput')?.click()}
       >
         <input
