@@ -88,7 +88,7 @@ export const TextareaField = ({
             {...field}
             value={typeof field.value === 'string' ? field.value : ''}
             placeholder={placeholder}
-            className={`h-${rows * 8}`}
+            rows={rows}
           />
         </FormControl>
         <FormMessage />
