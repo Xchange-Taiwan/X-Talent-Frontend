@@ -55,7 +55,7 @@ const AvatarUpload = <T extends FieldValues>({
   };
 
   return (
-    <div className="mb-10 flex">
+    <div className="mb-10 flex justify-center lg:justify-start">
       <div
         className="group relative flex cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 border-[#B7CBCB] bg-[#F4FCFC]"
         style={{ width: 100, height: 100 }}

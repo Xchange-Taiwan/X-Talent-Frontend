@@ -155,6 +155,17 @@ export default function Page({
             <TextField form={form} name="name" placeholder="請填入您的姓名" />
           </Section>
 
+          <Section
+            title={
+              <>
+                {isMentor && <span className="text-status-200">* </span>}
+                關於我
+              </>
+            }
+          >
+            <TextareaField form={form} name="about" rows={6} />
+          </Section>
+
           {isMentor && (
             <Section
               title={
@@ -244,17 +255,6 @@ export default function Page({
                 label: loc.subject,
               }))}
             />
-          </Section>
-
-          <Section
-            title={
-              <>
-                {isMentor && <span className="text-status-200">* </span>}
-                自我介紹
-              </>
-            }
-          >
-            <TextareaField form={form} name="about" rows={6} />
           </Section>
 
           <Section

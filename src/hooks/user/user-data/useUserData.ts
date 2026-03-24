@@ -68,6 +68,8 @@ export interface UserType {
   topics: InterestType[];
   is_mentor: boolean;
   about?: string;
+  years_of_experience?: string;
+  industry?: string;
   expertises?: InterestType[];
   what_i_offers?: InterestType[];
   workExperiences?: WorkExperienceMetadata[];
@@ -183,6 +185,8 @@ function parseUserDtoToUserType(
     topics: toInterestList(userDto.topics.interests),
     is_mentor: userDto.is_mentor,
     about: userDto.about ?? '',
+    years_of_experience: userDto.years_of_experience,
+    industry: userDto.industry?.subject,
     expertises,
     what_i_offers,
     workExperiences,
