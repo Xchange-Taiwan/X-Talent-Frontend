@@ -3,7 +3,6 @@
 import Image from 'next/image';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
-import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
 import {
   EducationSection,
   WorkExperienceSection,
@@ -144,27 +143,30 @@ export default function ProfilePageUI({
               <p className="break-words text-sm text-gray-400">
                 {userData?.about}
               </p>
-              {(userData?.years_of_experience || userData?.industry) && (
-                <div className="mt-4 flex flex-col gap-1 text-sm">
-                  {userData.years_of_experience && (
-                    <p>
-                      <span className="font-medium">經驗：</span>
-                      <span className="text-gray-400">
-                        {TotalWorkSpanEnum[
-                          userData.years_of_experience as keyof typeof TotalWorkSpanEnum
-                        ] ?? userData.years_of_experience}
-                      </span>
-                    </p>
-                  )}
-                  {userData.industry && (
-                    <p>
-                      <span className="font-medium">產業：</span>
-                      <span className="text-gray-400">{userData.industry}</span>
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
+
+            <ProfileBadgeSection
+              title="經驗"
+              items={
+                userData?.years_of_experience
+                  ? [
+                      {
+                        subject_group: 'years_of_experience',
+                        subject: userData.years_of_experience,
+                      },
+                    ]
+                  : []
+              }
+            />
+
+            <ProfileBadgeSection
+              title="產業"
+              items={
+                userData?.industry
+                  ? [{ subject_group: 'industry', subject: userData.industry }]
+                  : []
+              }
+            />
 
             {userData.is_mentor && (
               <ProfileBadgeSection
