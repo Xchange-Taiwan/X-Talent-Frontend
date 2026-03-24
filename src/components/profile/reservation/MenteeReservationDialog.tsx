@@ -401,7 +401,7 @@ export default function MenteeReservationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[335px] sm:max-w-[425px]">
+      <DialogContent className="max-h-[85dvh] max-w-[335px] overflow-y-auto sm:max-w-[425px]">
         {renderContent()}
       </DialogContent>
     </Dialog>

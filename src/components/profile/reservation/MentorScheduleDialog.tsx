@@ -263,7 +263,7 @@ export default function MentorScheduleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[440px]">
+      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle>排程設定</DialogTitle>
         </DialogHeader>
