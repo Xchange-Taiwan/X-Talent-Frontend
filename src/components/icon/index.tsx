@@ -1,5 +1,10 @@
+export { default as FacebookColor } from './color/facebook';
 export { default as GoogleColor } from './color/google';
+export { default as InstagramColor } from './color/instagram';
 export { default as LinkedinColor } from './color/linkedin';
+export { default as TwitterColor } from './color/twitter';
+export { default as WebsiteColor } from './color/website';
+export { default as YoutubeColor } from './color/youtube';
 export { default as ApartmentSolid } from './solid/apartment';
 export { default as BiotechSolid } from './solid/biotech';
 export { default as CorporateFareSolid } from './solid/corporate_fare';

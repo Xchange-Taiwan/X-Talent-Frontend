@@ -175,6 +175,10 @@ export function useProfileSubmit({
           isMentor: Boolean(latest?.is_mentor),
           onBoarding: Boolean(latest?.onboarding),
           msg: session?.user?.msg,
+          personalLinks: links.map((link) => ({
+            platform: link.platform,
+            url: link.url,
+          })),
         },
       });
 
