@@ -1,0 +1,24 @@
+import * as React from 'react';
+import { SVGProps } from 'react';
+
+interface Props extends SVGProps<SVGSVGElement> {}
+
+function Icon(props: Props) {
+  return (
+    <svg
+      width="1em"
+      height="1em"
+      viewBox="0 0 18 18"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <path
+        d="M12.4024 18V11.0344H14.7347L15.0838 8.3265H12.4024V6.59765C12.4024 5.81364 12.62 5.27934 13.7443 5.27934L15.1783 5.27867V2.85676C14.9302 2.82382 14.0791 2.75006 13.0888 2.75006C11.0213 2.75006 9.606 4.01198 9.606 6.32952V8.3265H7.2677V11.0344H9.606V18H1C0.44772 18 0 17.5523 0 17V1C0 0.44772 0.44772 0 1 0H17C17.5523 0 18 0.44772 18 1V17C18 17.5523 17.5523 18 17 18H12.4024Z"
+        fill="#1877F2"
+      />
+    </svg>
+  );
+}
+
+export default Icon;
