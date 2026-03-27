@@ -4,11 +4,18 @@ import React from 'react';
 import { UseFormReturn } from 'react-hook-form';
 
 import {
+  FacebookColor,
+  InstagramColor,
+  LinkedinColor,
+  TwitterColor,
+  WebsiteColor,
+  YoutubeColor,
+} from '@/components/icon';
+import {
   FormControl,
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 
@@ -18,33 +25,37 @@ import { Section } from './Section';
 const SOCIAL_LINKS: Array<{
   name: keyof ProfileFormValues;
   label: string;
-  icon: string;
+  icon: React.ReactElement;
 }> = [
   {
     name: 'linkedin',
     label: 'LinkedIn',
-    icon: '/profile/edit/linkedin-logo.svg',
+    icon: <LinkedinColor className="h-5 w-5" />,
   },
   {
     name: 'facebook',
     label: 'Facebook',
-    icon: '/profile/edit/facebook-logo.svg',
+    icon: <FacebookColor className="h-5 w-5" />,
   },
   {
     name: 'instagram',
     label: 'Instagram',
-    icon: '/profile/edit/instagram-logo.svg',
+    icon: <InstagramColor className="h-5 w-5" />,
   },
   {
     name: 'twitter',
     label: 'X (formerly Twitter)',
-    icon: '/profile/edit/twitter-logo.svg',
+    icon: <TwitterColor className="h-5 w-5" />,
   },
-  { name: 'youtube', label: 'YouTube', icon: '/profile/edit/youtube-logo.svg' },
+  {
+    name: 'youtube',
+    label: 'YouTube',
+    icon: <YoutubeColor className="h-5 w-5" />,
+  },
   {
     name: 'website',
     label: '個人網站',
-    icon: '/profile/edit/website-logo.svg',
+    icon: <WebsiteColor className="h-5 w-5" />,
   },
 ];
 
@@ -64,14 +75,19 @@ export const LinksSection = ({ form }: Props) => (
         control={form.control}
         name={name}
         render={({ field }) => {
+          const urlErrorMessage = (
+            form.formState.errors[name] as
+              | { url?: { message?: string } }
+              | undefined
+          )?.url?.message;
+
           return (
             <FormItem className="mb-4">
               <FormLabel>{label}</FormLabel>
               <div className="flex items-center">
-                <div
-                  className="mr-3 h-5 w-5 bg-contain bg-center bg-no-repeat"
-                  style={{ backgroundImage: `url('${icon}')` }}
-                />
+                <div className="mr-3 flex h-5 w-5 flex-shrink-0 items-center justify-center">
+                  {icon}
+                </div>
                 <FormControl>
                   <Input
                     placeholder="請填入您的連結"
@@ -86,7 +102,11 @@ export const LinksSection = ({ form }: Props) => (
                   />
                 </FormControl>
               </div>
-              <FormMessage />
+              {urlErrorMessage && (
+                <p className="text-[0.8rem] font-medium text-destructive">
+                  {urlErrorMessage}
+                </p>
+              )}
             </FormItem>
           );
         }}

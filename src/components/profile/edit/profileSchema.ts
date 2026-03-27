@@ -29,6 +29,55 @@ export const personLinkSchema = z.object({
   url: z.string(),
 });
 
+const createPlatformLinkSchema = (
+  allowedDomains: string[],
+  errorMessage: string
+) =>
+  z.object({
+    id: z.number().int(),
+    platform: z.string(),
+    url: z.string().refine(
+      (val) => {
+        if (!val) return true;
+        try {
+          const { hostname } = new URL(val);
+          return allowedDomains.some((domain) => hostname.endsWith(domain));
+        } catch {
+          return false;
+        }
+      },
+      { message: errorMessage }
+    ),
+  });
+
+const linkedinLinkSchema = createPlatformLinkSchema(
+  ['linkedin.com'],
+  '請輸入有效的 LinkedIn 網址（例如 https://www.linkedin.com/in/yourname）'
+);
+const facebookLinkSchema = createPlatformLinkSchema(
+  ['facebook.com', 'fb.com'],
+  '請輸入有效的 Facebook 網址（例如 https://www.facebook.com/yourname）'
+);
+const instagramLinkSchema = createPlatformLinkSchema(
+  ['instagram.com'],
+  '請輸入有效的 Instagram 網址（例如 https://www.instagram.com/yourname）'
+);
+const twitterLinkSchema = createPlatformLinkSchema(
+  ['twitter.com', 'x.com'],
+  '請輸入有效的 X (Twitter) 網址（例如 https://x.com/yourname）'
+);
+const youtubeLinkSchema = createPlatformLinkSchema(
+  ['youtube.com', 'youtu.be'],
+  '請輸入有效的 YouTube 網址（例如 https://www.youtube.com/@yourchannel）'
+);
+const websiteLinkSchema = z.object({
+  id: z.number().int(),
+  platform: z.string(),
+  url: z.string().refine((val) => !val || /^https?:\/\/.+/.test(val), {
+    message: '請輸入有效的網址（需以 http:// 或 https:// 開頭）',
+  }),
+});
+
 const isBrowser = typeof window !== 'undefined';
 export const createProfileFormSchema = (isMentor: boolean) =>
   z
@@ -48,12 +97,12 @@ export const createProfileFormSchema = (isMentor: boolean) =>
       years_of_experience: z.string({ required_error: '請選擇經驗' }),
       work_experiences: z.array(jobSchema),
       educations: z.array(educationSchema),
-      linkedin: personLinkSchema,
-      facebook: personLinkSchema,
-      instagram: personLinkSchema,
-      twitter: personLinkSchema,
-      youtube: personLinkSchema,
-      website: personLinkSchema,
+      linkedin: linkedinLinkSchema,
+      facebook: facebookLinkSchema,
+      instagram: instagramLinkSchema,
+      twitter: twitterLinkSchema,
+      youtube: youtubeLinkSchema,
+      website: websiteLinkSchema,
       what_i_offer: isMentor
         ? z.array(z.string()).min(1, '請至少選擇一個主題')
         : z.array(z.string()),

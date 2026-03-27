@@ -8,7 +8,7 @@ function Icon(props: Props) {
     <svg
       width="1em"
       height="1em"
-      viewBox="0 0 20 20"
+      viewBox="2.5 2.5 15 15"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       {...props}

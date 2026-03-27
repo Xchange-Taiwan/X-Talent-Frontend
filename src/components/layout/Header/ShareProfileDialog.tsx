@@ -5,6 +5,7 @@ import Image from 'next/image';
 import * as React from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
+import { platformLabelMap } from '@/components/profile/social-links/platformLabelMap';
 import { Button } from '@/components/ui/button';
 import { trackEvent } from '@/lib/analytics';
 import type { PersonalLink } from '@/types/types';
@@ -132,15 +133,10 @@ export function ShareProfileDialog({
                         href={link.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        aria-label={`Open ${link.platform} profile`}
+                        aria-label={`前往 ${platformLabelMap[link.platform]?.label ?? link.platform} 頁面`}
                         className="shrink-0"
                       >
-                        <Image
-                          src={`/profile/edit/${link.platform}-logo.svg`}
-                          alt={link.platform}
-                          width={18}
-                          height={18}
-                        />
+                        {platformLabelMap[link.platform]?.icon}
                       </a>
                     ))}
                   </div>

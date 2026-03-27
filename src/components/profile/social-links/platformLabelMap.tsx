@@ -1,4 +1,11 @@
-import Image from 'next/image';
+import {
+  FacebookColor,
+  InstagramColor,
+  LinkedinColor,
+  TwitterColor,
+  WebsiteColor,
+  YoutubeColor,
+} from '@/components/icon';
 
 export const platformLabelMap: Record<
   string,
@@ -6,68 +13,26 @@ export const platformLabelMap: Record<
 > = {
   linkedin: {
     label: 'LinkedIn',
-    icon: (
-      <Image
-        src="/profile/edit/linkedin-logo.svg"
-        alt="LinkedIn"
-        width={20}
-        height={20}
-      />
-    ),
+    icon: <LinkedinColor className="h-5 w-5" />,
   },
   facebook: {
     label: 'Facebook',
-    icon: (
-      <Image
-        src="/profile/edit/facebook-logo.svg"
-        alt="Facebook"
-        width={20}
-        height={20}
-      />
-    ),
+    icon: <FacebookColor className="h-5 w-5" />,
   },
   instagram: {
     label: 'Instagram',
-    icon: (
-      <Image
-        src="/profile/edit/instagram-logo.svg"
-        alt="Instagram"
-        width={20}
-        height={20}
-      />
-    ),
+    icon: <InstagramColor className="h-5 w-5" />,
   },
   twitter: {
     label: 'X (formerly Twitter)',
-    icon: (
-      <Image
-        src="/profile/edit/twitter-logo.svg"
-        alt="Twitter"
-        width={20}
-        height={20}
-      />
-    ),
+    icon: <TwitterColor className="h-5 w-5" />,
   },
   youtube: {
     label: 'YouTube',
-    icon: (
-      <Image
-        src="/profile/edit/youtube-logo.svg"
-        alt="YouTube"
-        width={20}
-        height={20}
-      />
-    ),
+    icon: <YoutubeColor className="h-5 w-5" />,
   },
   website: {
     label: '個人網站',
-    icon: (
-      <Image
-        src="/profile/edit/website-logo.svg"
-        alt="Website"
-        width={20}
-        height={20}
-      />
-    ),
+    icon: <WebsiteColor className="h-5 w-5" />,
   },
 };
