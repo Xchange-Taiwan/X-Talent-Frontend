@@ -73,9 +73,6 @@ export default function AcceptReservationDialog({
               <DialogTitle className="text-center sm:text-left">
                 查看我的預約
               </DialogTitle>
-              <DialogDescription className="text-center sm:text-left">
-                查看預約詳情後，選擇接受或拒絕。
-              </DialogDescription>
             </DialogHeader>
 
             <div className="rounded-2xl border p-4 sm:p-5">
@@ -108,14 +105,14 @@ export default function AcceptReservationDialog({
             </div>
 
             <div className="mt-6">
-              <div className="mb-2 text-sm font-medium">學員提交的問題</div>
+              <div className="mb-2 text-sm font-medium">學員所提出的問題</div>
               <div className="rounded-2xl border bg-muted/40 p-4 text-sm">
                 {reservation.note ? (
                   <p className="whitespace-pre-wrap text-foreground">
                     {reservation.note}
                   </p>
                 ) : (
-                  <p className="text-muted-foreground">（學員未提交問題）</p>
+                  <p className="text-muted-foreground">（學員未提出問題）</p>
                 )}
               </div>
             </div>

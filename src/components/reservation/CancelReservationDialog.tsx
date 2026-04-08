@@ -85,9 +85,6 @@ export default function CancelReservationDialog({
               <DialogTitle className="text-center sm:text-left">
                 取消預約
               </DialogTitle>
-              <DialogDescription className="text-center sm:text-left">
-                確認後將取消此預約，此操作無法復原。
-              </DialogDescription>
             </DialogHeader>
 
             <div className="rounded-xl border p-4 sm:p-5">
