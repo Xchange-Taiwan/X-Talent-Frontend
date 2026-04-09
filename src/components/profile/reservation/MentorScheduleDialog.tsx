@@ -230,7 +230,7 @@ export default function MentorScheduleDialog({
   ) => (
     <Select value={value} onValueChange={(v) => handleTimeChange(id, part, v)}>
       <SelectTrigger
-        className={`w-14 px-2 ${hasError ? 'border-red-500' : ''}`}
+        className={`w-12 px-1 ${hasError ? 'border-red-500' : ''}`}
       >
         <SelectValue />
       </SelectTrigger>
@@ -297,54 +297,58 @@ export default function MentorScheduleDialog({
                 const endMinuteOptions = getEndMinuteOptions(slot);
                 return (
                   <div key={slot.id} className="flex flex-col gap-1">
-                    <div className="flex items-center gap-1">
-                      {renderTimeSelect(
-                        slot.id,
-                        'startHour',
-                        slot.startHour,
-                        HOUR_OPTIONS,
-                        hasError
-                      )}
-                      <span className="text-muted-foreground">:</span>
-                      {renderTimeSelect(
-                        slot.id,
-                        'startMinute',
-                        slot.startMinute,
-                        MINUTE_OPTIONS,
-                        hasError
-                      )}
-                      <span className="mx-1 text-muted-foreground">–</span>
-                      {renderTimeSelect(
-                        slot.id,
-                        'endHour',
-                        slot.endHour,
-                        endHourOptions,
-                        hasError
-                      )}
-                      <span className="text-muted-foreground">:</span>
-                      {renderTimeSelect(
-                        slot.id,
-                        'endMinute',
-                        slot.endMinute,
-                        endMinuteOptions,
-                        hasError
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteDraftSlot(slot.id)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                      {index === editingSlots.length - 1 && (
+                    <div className="flex flex-wrap items-center gap-1">
+                      <div className="flex items-center gap-1">
+                        {renderTimeSelect(
+                          slot.id,
+                          'startHour',
+                          slot.startHour,
+                          HOUR_OPTIONS,
+                          hasError
+                        )}
+                        <span className="text-muted-foreground">:</span>
+                        {renderTimeSelect(
+                          slot.id,
+                          'startMinute',
+                          slot.startMinute,
+                          MINUTE_OPTIONS,
+                          hasError
+                        )}
+                        <span className="mx-0.5 text-muted-foreground">–</span>
+                        {renderTimeSelect(
+                          slot.id,
+                          'endHour',
+                          slot.endHour,
+                          endHourOptions,
+                          hasError
+                        )}
+                        <span className="text-muted-foreground">:</span>
+                        {renderTimeSelect(
+                          slot.id,
+                          'endMinute',
+                          slot.endMinute,
+                          endMinuteOptions,
+                          hasError
+                        )}
+                      </div>
+                      <div className="ml-auto flex items-center gap-1">
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={addNewTimeSlot}
+                          onClick={() => deleteDraftSlot(slot.id)}
                         >
-                          <Plus className="h-4 w-4" />
+                          <X className="h-4 w-4" />
                         </Button>
-                      )}
+                        {index === editingSlots.length - 1 && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={addNewTimeSlot}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     {errors.timeRange && (
                       <p className="text-red-500 text-xs">{errors.timeRange}</p>

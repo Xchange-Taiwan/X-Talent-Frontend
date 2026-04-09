@@ -203,7 +203,7 @@ export default function MenteeReservationDialog({
         <DialogTitle>預約時段</DialogTitle>
       </DialogHeader>
       <div className="flex flex-col gap-4 py-4">
-        <div className="inline-block w-auto rounded-lg border p-2 shadow-md">
+        <div className="w-full rounded-lg border p-2 shadow-md">
           <div className="px-3 pb-3 pt-1">
             <h2 className="text-2xl font-semibold tracking-tight">
               {formatSelectedDate(selectedDate)}
