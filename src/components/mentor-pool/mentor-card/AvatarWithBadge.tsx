@@ -1,12 +1,17 @@
 import Image from 'next/image';
 import { StaticImageData } from 'next/image';
 
+import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
+
 interface AvatarWithBadgeProps {
   avatar: string | StaticImageData;
   years: string;
 }
 
 export const AvatarWithBadge = ({ avatar, years }: AvatarWithBadgeProps) => {
+  const displayYears =
+    TotalWorkSpanEnum[years as keyof typeof TotalWorkSpanEnum] ?? years;
+
   return (
     <figure className="relative h-[348px] w-full overflow-hidden xl:h-[292px]">
       <Image
@@ -17,7 +22,7 @@ export const AvatarWithBadge = ({ avatar, years }: AvatarWithBadgeProps) => {
         className="h-full object-cover"
       />
       <figcaption className="absolute bottom-[30px] right-[30px] rounded-lg bg-[#000000]/30 px-2.5 py-1 text-text-white">
-        {years} 年工作經驗
+        {displayYears}工作經驗
       </figcaption>
     </figure>
   );
