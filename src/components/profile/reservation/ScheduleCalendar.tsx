@@ -44,7 +44,7 @@ export const ScheduleCalendar = ({
       selected={selected}
       onSelect={handleSelect}
       onMonthChange={onMonthChange}
-      className="w-full"
+      className="w-full [--cell-size:1.75rem] sm:[--cell-size:2rem]"
       modifiers={{
         available: availableDays,
       }}
