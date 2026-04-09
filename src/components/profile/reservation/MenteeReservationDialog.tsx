@@ -46,9 +46,9 @@ export default function MenteeReservationDialog({
     schedule;
   const router = useRouter();
 
-  const [view, setView] = useState<'selection' | 'confirmation' | 'success'>(
-    'selection'
-  );
+  const [view, setView] = useState<
+    'selection' | 'confirmation' | 'success' | 'conflict'
+  >('selection');
   const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
   const [bookingQuestion, setBookingQuestion] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -93,6 +93,16 @@ export default function MenteeReservationDialog({
   const handleGoToReservation = () => {
     router.push('/reservation/mentee');
     handleClose();
+  };
+
+  const handleFindMentor = () => {
+    router.push('/mentor-pool');
+    handleClose();
+  };
+
+  const handleRebook = () => {
+    setView('selection');
+    setSubmitError(null);
   };
 
   const handleConfirm = async () => {
@@ -142,9 +152,11 @@ export default function MenteeReservationDialog({
         msg.includes('409') ||
         msg.toLowerCase().includes('conflict') ||
         msg.toLowerCase().includes('already');
-      setSubmitError(
-        isDuplicate ? '此時段已被預約，請選擇其他時段。' : `預約失敗：${msg}`
-      );
+      if (isDuplicate) {
+        setView('conflict');
+      } else {
+        setSubmitError(`預約失敗：${msg}`);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -386,6 +398,45 @@ export default function MenteeReservationDialog({
     </>
   );
 
+  const renderConflictView = () => {
+    const formattedDate = selectedDate ? formatDate(selectedDate) : '';
+    const formattedTime = selectedSlot ? formatTimeSlot(selectedSlot) : '';
+    const dateTimeLabel = [formattedDate, formattedTime]
+      .filter(Boolean)
+      .join(' • ');
+
+    return (
+      <>
+        <DialogHeader>
+          <DialogTitle className="text-center">預約時間重疊</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 py-4">
+          <p className="text-sm text-muted-foreground">
+            該時段您已有其他預約，請重新選擇其他時段，謝謝。
+          </p>
+          <div className="space-y-2 rounded-xl border border-border p-5">
+            <p className="text-sm font-semibold">導師：{userData?.name}</p>
+            <p className="text-sm text-muted-foreground">
+              時間：{dateTimeLabel}
+            </p>
+          </div>
+        </div>
+        <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+          <Button
+            variant="outline"
+            onClick={handleFindMentor}
+            className="w-full sm:w-auto"
+          >
+            尋找導師
+          </Button>
+          <Button onClick={handleRebook} className="w-full sm:w-auto">
+            重新預約
+          </Button>
+        </DialogFooter>
+      </>
+    );
+  };
+
   const renderContent = () => {
     switch (view) {
       case 'selection':
@@ -394,6 +445,8 @@ export default function MenteeReservationDialog({
         return renderConfirmationView();
       case 'success':
         return renderSuccessView();
+      case 'conflict':
+        return renderConflictView();
       default:
         return null;
     }

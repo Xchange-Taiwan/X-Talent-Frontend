@@ -1,6 +1,8 @@
 import dayjs from 'dayjs';
 
+import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
 import { Reservation } from '@/components/reservation/types';
+
 /* ================================
  * Backend domain types
  * ================================ */
@@ -14,13 +16,7 @@ export type BackendReservation = {
     name: string;
     avatar: string;
     job_title: string;
-    years_of_experience:
-      | '0'
-      | 'ONE'
-      | 'TWO'
-      | 'THREE_TO_FIVE'
-      | 'SIX_TO_TEN'
-      | string;
+    years_of_experience: keyof typeof TotalWorkSpanEnum | string;
   };
   participant: BackendReservation['sender'];
   schedule_id: number;
@@ -63,29 +59,12 @@ export type FetchOptions = {
  * Helpers
  * ================================ */
 
-function prettyYears(
-  exp?: BackendReservation['sender']['years_of_experience']
+function formatExperience(
+  yearsOfExperience?: BackendReservation['sender']['years_of_experience']
 ) {
-  switch (exp) {
-    case '0':
-      return '0 year';
-    case 'ONE':
-      return '1 year';
-    case 'TWO':
-      return '2 years';
-    case 'THREE_TO_FIVE':
-      return '3–5 years';
-    case 'SIX_TO_TEN':
-      return '6–10 years';
-    default:
-      return '';
-  }
-}
-
-function pickCounterparty(r: BackendReservation, state: ReservationState) {
-  // 當前使用者是導師時，卡片顯示對方（學員）；反之亦然
-  if (state.startsWith('MENTOR_')) return r.participant;
-  return r.sender;
+  return (
+    TotalWorkSpanEnum[yearsOfExperience as keyof typeof TotalWorkSpanEnum] ?? ''
+  );
 }
 
 function formatDateTime(dtstart: number, dtend: number) {
@@ -98,46 +77,46 @@ function formatDateTime(dtstart: number, dtend: number) {
 }
 
 /* ================================
- * Frontend view type
+ * Mapping
  * ================================ */
 
 function mapToReservation(
-  r: BackendReservation,
+  reservation: BackendReservation,
   state: ReservationState
 ): Reservation {
-  const counterparty = pickCounterparty(r, state);
-  const { date, time } = formatDateTime(r.dtstart, r.dtend);
-  const roleLineParts = [
+  // API 固定結構：sender = 當前使用者，participant = 對方
+  const counterparty = reservation.participant;
+  const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
+  const roleLine = [
     counterparty.job_title?.trim() || '',
-    prettyYears(counterparty.years_of_experience),
-  ].filter(Boolean);
+    formatExperience(counterparty.years_of_experience),
+  ]
+    .filter(Boolean)
+    .join(', ');
 
   // Extract the mentee's booking message, shown read-only in the mentor Accept dialog.
   // For MENTOR_* states the backend sets sender = mentor (current user), participant = mentee.
   // For MENTEE_* / HISTORY states the sender is the mentee.
   const menteeUserId = state.startsWith('MENTOR_')
-    ? r.participant.user_id
-    : r.sender.user_id;
-  const senderMessage = r.messages?.find(
-    (m) => String(m.user_id) === String(menteeUserId)
+    ? reservation.participant.user_id
+    : reservation.sender.user_id;
+  const menteeMessage = reservation.messages?.find(
+    (message) => String(message.user_id) === String(menteeUserId)
   );
-  const note = senderMessage?.content ?? undefined;
 
   return {
-    id: String(r.id),
+    id: String(reservation.id),
     name: counterparty.name || '—',
-    roleLine: roleLineParts.join(', '),
+    roleLine,
     date,
     time,
-
     avatar: counterparty.avatar,
-    note,
-    scheduleId: r.schedule_id,
-    dtstart: r.dtstart,
-    dtend: r.dtend,
-
-    senderUserId: r.sender.user_id,
-    participantUserId: r.participant.user_id,
+    note: menteeMessage?.content ?? undefined,
+    scheduleId: reservation.schedule_id,
+    dtstart: reservation.dtstart,
+    dtend: reservation.dtend,
+    senderUserId: reservation.sender.user_id,
+    participantUserId: reservation.participant.user_id,
   };
 }
 
@@ -145,7 +124,6 @@ function mapToReservation(
  * Queries
  * ================================ */
 
-// 取得單一 state 的預約清單
 export async function fetchReservations(
   opts: FetchOptions
 ): Promise<{ items: Reservation[]; next_dtend: number }> {
@@ -157,7 +135,6 @@ export async function fetchReservations(
   if (typeof nextDtend === 'number') query.set('next_dtend', String(nextDtend));
 
   const url = `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${userId}/reservations?${query.toString()}`;
-
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -168,38 +145,39 @@ export async function fetchReservations(
   const res = await fetch(url, { method: 'GET', headers });
 
   if (debug)
-    console.debug(
-      '[reservations] GET Response status',
-      res.status,
-      res.statusText
-    );
+    console.debug('[reservations] GET response', res.status, res.statusText);
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    if (debug) console.debug('[reservations] GET Error body', text);
+    if (debug) console.debug('[reservations] GET error body', text);
     throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
   }
 
   const json = (await res.json()) as BackendResponse;
-  if (debug) console.debug('[reservations] GET Parsed JSON', json);
+  if (debug) console.debug('[reservations] GET parsed', json);
 
   if (json.code !== '0')
     throw new Error(`API error: code=${json.code}, msg=${json.msg}`);
 
-  const items = (json.data.reservations || []).map((r) =>
-    mapToReservation(r, state)
+  const items = (json.data.reservations ?? []).map((reservation) =>
+    mapToReservation(reservation, state)
   );
   return { items, next_dtend: json.data?.next_dtend ?? 0 };
 }
 
-// 一次抓五個清單（並發）
-export async function fetchAllReservationLists(params: {
+export type FetchAllReservationListsOptions = {
   userId: string | number;
   accessToken?: string;
   batch?: number;
   debug?: boolean;
-}) {
-  const { userId, accessToken, batch = 10, debug } = params;
+};
+
+export async function fetchAllReservationLists(
+  opts: FetchAllReservationListsOptions
+) {
+  const { userId, accessToken, batch = 10, debug } = opts;
+
+  const commonOpts = { userId, batch, accessToken, debug };
 
   const [
     upcomingMenteeRes,
@@ -208,35 +186,11 @@ export async function fetchAllReservationLists(params: {
     pendingMentorRes,
     historyRes,
   ] = await Promise.all([
-    fetchReservations({
-      userId,
-      state: 'MENTEE_UPCOMING',
-      batch,
-      accessToken,
-      debug,
-    }),
-    fetchReservations({
-      userId,
-      state: 'MENTEE_PENDING',
-      batch,
-      accessToken,
-      debug,
-    }),
-    fetchReservations({
-      userId,
-      state: 'MENTOR_UPCOMING',
-      batch,
-      accessToken,
-      debug,
-    }),
-    fetchReservations({
-      userId,
-      state: 'MENTOR_PENDING',
-      batch,
-      accessToken,
-      debug,
-    }),
-    fetchReservations({ userId, state: 'HISTORY', batch, accessToken, debug }),
+    fetchReservations({ ...commonOpts, state: 'MENTEE_UPCOMING' }),
+    fetchReservations({ ...commonOpts, state: 'MENTEE_PENDING' }),
+    fetchReservations({ ...commonOpts, state: 'MENTOR_UPCOMING' }),
+    fetchReservations({ ...commonOpts, state: 'MENTOR_PENDING' }),
+    fetchReservations({ ...commonOpts, state: 'HISTORY' }),
   ]);
 
   return {
@@ -260,9 +214,9 @@ export async function fetchAllReservationLists(params: {
  * ================================ */
 
 export type UpdateReservationPayload = {
-  my_user_id: number | string; // 操作者（自己）
+  my_user_id: number | string;
   my_status: 'ACCEPT' | 'PENDING' | 'REJECT';
-  user_id: number | string; // 對方
+  user_id: number | string;
   schedule_id: number;
   dtstart: number; // epoch seconds
   dtend: number; // epoch seconds
@@ -270,33 +224,25 @@ export type UpdateReservationPayload = {
   previous_reserve?: Record<string, unknown> | null;
 };
 
-// 依你提供的 response 型別
 export type UpdateReservationAPIData = {
   id: number;
   status: 'ACCEPT' | 'PENDING' | 'REJECT' | string;
-
   my_user_id: number | string;
   my_status: 'ACCEPT' | 'PENDING' | 'REJECT' | string;
   my_role: 'MENTOR' | 'MENTEE' | string;
-
-  user_id: number | string; // 對方
+  user_id: number | string;
   schedule_id: number;
   dtstart: number;
   dtend: number;
-
   messages: Array<{ user_id: number | string; msg: string }>;
   previous_reserve: Record<string, unknown>;
 };
 
-type ApiResp<T> = { code: string; msg: string; data: T };
+type ApiResponse<T> = { code: string; msg: string; data: T };
 
-/**
- * 更新預約狀態（PUT /v1/users/:user_id/reservations/:reservation_id）
- * 回傳扁平結構（含 id / status / messages / ...）
- */
 export async function updateReservationStatus(opts: {
-  userId: string | number; // path :user_id（自己）
-  reservationId: string | number; // path :reservation_id
+  userId: string | number;
+  reservationId: string | number;
   body: UpdateReservationPayload;
   accessToken?: string;
   debug?: boolean;
@@ -309,8 +255,7 @@ export async function updateReservationStatus(opts: {
   };
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-  if (debug)
-    console.debug('[reservations] PUT Request', { url, headers, body });
+  if (debug) console.debug('[reservations] PUT request', { url, body });
 
   const res = await fetch(url, {
     method: 'PUT',
@@ -319,31 +264,26 @@ export async function updateReservationStatus(opts: {
   });
 
   if (debug)
-    console.debug(
-      '[reservations] PUT Response status',
-      res.status,
-      res.statusText
-    );
+    console.debug('[reservations] PUT response', res.status, res.statusText);
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    if (debug) console.debug('[reservations] PUT Error body', text);
+    if (debug) console.debug('[reservations] PUT error body', text);
     throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
   }
 
-  const json = (await res.json()) as ApiResp<UpdateReservationAPIData>;
-  if (debug) console.debug('[reservations] PUT Parsed JSON', json);
+  const json = (await res.json()) as ApiResponse<UpdateReservationAPIData>;
+  if (debug) console.debug('[reservations] PUT parsed', json);
 
-  if (json.code !== '0') {
+  if (json.code !== '0')
     throw new Error(`API error: code=${json.code}, msg=${json.msg}`);
-  }
 
   return json.data;
 }
 
-/* ================================-
+/* ================================
  * POST: Create new reservation
- * ================================- */
+ * ================================ */
 
 export type CreateReservationPayload = {
   my_user_id: number | string;
@@ -375,7 +315,7 @@ export type CreateReservationAPIData = {
  * @param opts.body.previous_reserve - 傳入 `{}` 表示新預約；傳入 `{ reserve_id: number }` 表示修改預約
  */
 export async function createReservation(opts: {
-  userId: string | number; // path :user_id（自己）
+  userId: string | number;
   body: CreateReservationPayload;
   accessToken?: string;
   debug?: boolean;
@@ -388,8 +328,7 @@ export async function createReservation(opts: {
   };
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-  if (debug)
-    console.debug('[reservations] POST Request', { url, headers, body });
+  if (debug) console.debug('[reservations] POST request', { url, body });
 
   const res = await fetch(url, {
     method: 'POST',
@@ -398,24 +337,19 @@ export async function createReservation(opts: {
   });
 
   if (debug)
-    console.debug(
-      '[reservations] POST Response status',
-      res.status,
-      res.statusText
-    );
+    console.debug('[reservations] POST response', res.status, res.statusText);
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    if (debug) console.debug('[reservations] POST Error body', text);
+    if (debug) console.debug('[reservations] POST error body', text);
     throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
   }
 
-  const json = (await res.json()) as ApiResp<CreateReservationAPIData>;
-  if (debug) console.debug('[reservations] POST Parsed JSON', json);
+  const json = (await res.json()) as ApiResponse<CreateReservationAPIData>;
+  if (debug) console.debug('[reservations] POST parsed', json);
 
-  if (json.code !== '0') {
+  if (json.code !== '0')
     throw new Error(`API error: code=${json.code}, msg=${json.msg}`);
-  }
 
   return json.data;
 }
