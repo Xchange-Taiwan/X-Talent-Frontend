@@ -68,6 +68,7 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
               border={50}
               borderRadius={300}
               scale={zoomScale}
+              style={{ touchAction: 'none' }}
             />
           )}
           <Slider
@@ -78,7 +79,14 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
             onChange={(_, newScale) => setZoomScale(newScale as number)}
             className="mt-4"
           />
-          <div className="mt-4 flex justify-center">
+          <div className="mt-4 flex justify-center gap-3">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="rounded-xl px-12"
+            >
+              取消
+            </Button>
             <Button onClick={handleSaveImage} className="rounded-xl px-12">
               儲存
             </Button>
