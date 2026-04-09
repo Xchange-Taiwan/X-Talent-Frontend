@@ -168,13 +168,14 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
               </button>
             </nav>
 
-            <div className="mt-auto pb-6">
-              <Button
-                className="w-full bg-primary hover:bg-primary"
+            <div className="pb-6">
+              <button
+                type="button"
+                className="text-black py-4 text-left text-xl"
                 onClick={handleLogout}
               >
                 登出
-              </Button>
+              </button>
             </div>
           </div>
         </SheetContent>
