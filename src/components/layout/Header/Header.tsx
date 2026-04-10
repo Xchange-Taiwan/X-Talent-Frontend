@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { memo } from 'react';
+import { memo, useRef } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,9 @@ import { UserDropdown } from './UserDropdown';
 
 function HeaderComponent(): JSX.Element {
   const { data: session, status } = useSession();
-  const isLoading = status === 'loading';
+  const wasAuthenticated = useRef(false);
+  if (status === 'authenticated') wasAuthenticated.current = true;
+  const isLoading = status === 'loading' && !wasAuthenticated.current;
 
   const isLoggedIn = Boolean(session?.user?.id);
   const isMentor = Boolean(session?.user?.isMentor);
