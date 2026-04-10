@@ -86,7 +86,7 @@ jobs:
         id: depcheck
         run: |
           output=$(npx depcheck \
-            --ignores="@types/*,eslint-*,prettier-*,postcss,autoprefixer,tailwindcss,husky,lint-staged,storybook,@storybook/*,tsconfig-paths-webpack-plugin,tailwindcss-animate,jimp,@playwright/test" \
+            --ignores="@types/*,eslint-*,prettier-*,postcss,autoprefixer,tailwindcss,husky,lint-staged,storybook,@storybook/*,tsconfig-paths-webpack-plugin,tailwindcss-animate,jimp,@playwright/test,@testing-library/user-event" \
             2>&1) || true
           echo "$output"
           if echo "$output" | grep -qE "^Unused (dependencies|devDependencies)"; then
