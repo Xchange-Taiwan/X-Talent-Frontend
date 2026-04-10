@@ -36,6 +36,7 @@ const AvatarUpload = <T extends FieldValues>({
 
   const handleUploadAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (file && file.size <= maxSize) {
       setSelectedImage(file);
       setOpen(true);
