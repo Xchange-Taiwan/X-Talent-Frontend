@@ -2,14 +2,26 @@ import { apiClient } from '@/lib/apiClient';
 
 import { AuthResponse, createGeneralErrorResponse } from '../types';
 
+interface ResetPasswordByEmailApiResponse {
+  code: string;
+  msg: string;
+  data: {
+    ttl_secs: number;
+  };
+}
+
 export async function resetPassword(email: string): Promise<AuthResponse> {
   try {
-    await apiClient.get('/v1/auth/password/reset/email', {
-      params: { email },
-      auth: false,
-    });
+    const result = await apiClient.get<ResetPasswordByEmailApiResponse>(
+      '/v1/auth/password/reset/email',
+      {
+        params: { email },
+        auth: false,
+      }
+    );
 
-    return { status: 'success', code: 200 };
+    if (result.code === '0') return { status: 'success', code: 200 };
+    throw createGeneralErrorResponse(200, result.msg || '信件寄送失敗');
   } catch (error) {
     if ((error as AuthResponse)?.status === 'error') throw error;
     throw createGeneralErrorResponse(

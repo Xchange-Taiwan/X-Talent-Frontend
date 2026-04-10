@@ -2,19 +2,26 @@ import { apiClient } from '@/lib/apiClient';
 
 import { AuthResponse, createGeneralErrorResponse } from '../types';
 
+interface ResetPasswordApiResponse {
+  code: string;
+  msg: string;
+  data: null;
+}
+
 export async function resetPassword(
   verifyToken: string,
   password: string,
   confirmPassword: string
 ): Promise<AuthResponse> {
   try {
-    await apiClient.put(
+    const result = await apiClient.put<ResetPasswordApiResponse>(
       '/v1/auth/password/reset',
       { password, confirm_password: confirmPassword },
       { auth: false, params: { verify_token: verifyToken } }
     );
 
-    return { status: 'success', code: 200 };
+    if (result.code === '0') return { status: 'success', code: 200 };
+    throw createGeneralErrorResponse(200, result.msg || '密碼重設失敗');
   } catch (error) {
     if ((error as AuthResponse)?.status === 'error') throw error;
     throw createGeneralErrorResponse(
