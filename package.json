@@ -68,8 +68,6 @@
     "@storybook/react": "^8.6.17",
     "@storybook/test": "^8.6.17",
     "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.2",
-    "@testing-library/user-event": "^14.6.1",
     "@types/node": "20.11.7",
     "@types/path-to-regexp": "^1.7.0",
     "@types/react": "18.2.48",
