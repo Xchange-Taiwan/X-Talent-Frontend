@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { apiClient,ApiError } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
 
 vi.mock('next-auth/react', () => ({
   getSession: vi.fn().mockResolvedValue(null),
