@@ -59,7 +59,7 @@ export type FetchOptions = {
  * Helpers
  * ================================ */
 
-function formatExperience(
+export function formatExperience(
   yearsOfExperience?: BackendReservation['sender']['years_of_experience']
 ) {
   return (
@@ -67,7 +67,7 @@ function formatExperience(
   );
 }
 
-function formatDateTime(dtstart: number, dtend: number) {
+export function formatDateTime(dtstart: number, dtend: number) {
   const start = dayjs.unix(dtstart);
   const end = dayjs.unix(dtend);
   return {
@@ -80,7 +80,7 @@ function formatDateTime(dtstart: number, dtend: number) {
  * Mapping
  * ================================ */
 
-function mapToReservation(
+export function mapToReservation(
   reservation: BackendReservation,
   state: ReservationState
 ): Reservation {
