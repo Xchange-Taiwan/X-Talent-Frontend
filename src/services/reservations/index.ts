@@ -220,7 +220,7 @@ export type UpdateReservationPayload = {
   schedule_id: number;
   dtstart: number; // epoch seconds
   dtend: number; // epoch seconds
-  messages?: Array<{ user_id: number | string; msg: string }>;
+  messages?: Array<{ user_id: number | string; content: string }>;
   previous_reserve?: Record<string, unknown> | null;
 };
 
@@ -234,7 +234,7 @@ export type UpdateReservationAPIData = {
   schedule_id: number;
   dtstart: number;
   dtend: number;
-  messages: Array<{ user_id: number | string; msg: string }>;
+  messages: Array<{ user_id: number | string; content: string }>;
   previous_reserve: Record<string, unknown>;
 };
 
@@ -292,7 +292,7 @@ export type CreateReservationPayload = {
   schedule_id: number;
   dtstart: number; // epoch seconds
   dtend: number; // epoch seconds
-  messages: Array<{ user_id: number | string; msg: string }>;
+  messages: Array<{ user_id: number | string; content: string }>;
   previous_reserve: { reserve_id: number } | Record<string, never>;
 };
 
@@ -305,7 +305,7 @@ export type CreateReservationAPIData = {
   schedule_id: number;
   dtstart: number;
   dtend: number;
-  messages: Array<{ user_id: number | string; msg: string }>;
+  messages: Array<{ user_id: number | string; content: string }>;
   previous_reserve: { reserve_id: number } | Record<string, never>;
 };
 

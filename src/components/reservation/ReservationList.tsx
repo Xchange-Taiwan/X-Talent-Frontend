@@ -58,7 +58,7 @@ export function ReservationList({
           dtstart: it.dtstart,
           dtend: it.dtend,
           messages: message.trim()
-            ? [{ user_id: myId, msg: message.trim() }]
+            ? [{ user_id: myId, content: message.trim() }]
             : [],
           previous_reserve: {},
         },
@@ -102,7 +102,9 @@ export function ReservationList({
           schedule_id: it.scheduleId,
           dtstart: it.dtstart,
           dtend: it.dtend,
-          messages: text.trim() ? [{ user_id: myId, msg: text.trim() }] : [],
+          messages: text.trim()
+            ? [{ user_id: myId, content: text.trim() }]
+            : [],
           previous_reserve: {},
         },
       });

@@ -123,7 +123,7 @@ export default function MenteeReservationDialog({
         schedule_id: selectedSlot.scheduleId,
         dtstart: Math.floor(selectedSlot.start.getTime() / 1000),
         dtend: Math.floor(selectedSlot.end.getTime() / 1000),
-        messages: [{ user_id: menteeId, msg: bookingQuestion }],
+        messages: [{ user_id: menteeId, content: bookingQuestion }],
         previous_reserve: {},
       };
 
