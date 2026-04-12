@@ -21,7 +21,10 @@ export function useReservationData() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!loginUserId) return;
+    if (!loginUserId) {
+      setIsLoading(false);
+      return;
+    }
 
     let cancelled = false;
 
