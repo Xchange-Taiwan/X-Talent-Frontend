@@ -52,6 +52,11 @@ CLAUDE.md
 /reports/
 /.playwright-mcp/
 
+# Playwright E2E
+/playwright-report/
+/test-results/
+e2e/.auth/user.json
+
 # RWD testing scripts and screenshots
 /rwd-testing/
 
