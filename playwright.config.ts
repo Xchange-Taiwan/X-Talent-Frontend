@@ -11,6 +11,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
+  timeout: 90_000,
 
   use: {
     baseURL: 'http://localhost:3000',
@@ -22,14 +23,23 @@ export default defineConfig({
       name: 'setup',
       testDir: './e2e',
       testMatch: '**/fixtures/auth.setup.ts',
+      use: { actionTimeout: 60_000 },
     },
     {
       name: 'chromium',
+      testDir: './e2e/tests/authenticated',
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'e2e/.auth/user.json',
       },
       dependencies: ['setup'],
+    },
+    {
+      name: 'chromium-anon',
+      testDir: './e2e/tests/public',
+      use: {
+        ...devices['Desktop Chrome'],
+      },
     },
   ],
 
