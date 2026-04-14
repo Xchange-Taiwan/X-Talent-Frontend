@@ -34,6 +34,15 @@ export default defineConfig({
       },
       dependencies: ['setup'],
     },
+    // Onboarding tests forge their own signed session cookie via next-auth/jwt
+    // encode(), so no real user or storageState is needed.
+    {
+      name: 'chromium-onboarding',
+      testDir: './e2e/tests/onboarding',
+      use: {
+        ...devices['Desktop Chrome'],
+      },
+    },
     {
       name: 'chromium-anon',
       testDir: './e2e/tests/public',
