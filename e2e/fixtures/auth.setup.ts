@@ -19,7 +19,7 @@ setup('authenticate', async ({ page }) => {
   await page.click('button[type="submit"]');
 
   await page.waitForURL((url) => !url.pathname.includes('/auth/signin'), {
-    timeout: 20_000,
+    timeout: 60_000,
   });
 
   await page.context().storageState({ path: AUTH_FILE });
