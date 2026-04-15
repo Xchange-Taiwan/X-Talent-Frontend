@@ -2,10 +2,15 @@ import { defineConfig, devices } from '@playwright/test';
 import { config } from 'dotenv';
 import path from 'path';
 
-// Load app secrets (NEXTAUTH_SECRET, etc.) first, then let e2e-specific
-// values override — later calls win on duplicate keys.
+// Load Next.js env files in ascending priority order. dotenv does NOT override
+// already-set values by default, so earlier calls win — but we use
+// override:true for the E2E file so test-specific values always take effect.
+//   .env          → base (lowest priority)
+//   .env.local    → local developer overrides (includes NEXTAUTH_SECRET)
+//   .env.e2e.local → test-specific overrides (highest priority)
+config({ path: path.resolve(__dirname, '.env') });
 config({ path: path.resolve(__dirname, '.env.local') });
-config({ path: path.resolve(__dirname, '.env.e2e.local') });
+config({ path: path.resolve(__dirname, '.env.e2e.local'), override: true });
 
 export default defineConfig({
   testDir: './e2e/tests',

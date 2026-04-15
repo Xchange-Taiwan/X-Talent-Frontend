@@ -30,11 +30,18 @@ test('invalid credentials → toast shows "Invalid credentials!", stays on sign-
 
   await page.fill('input[name="email"]', 'wrong@example.com');
   await page.fill('input[name="password"]', 'WrongPassword1');
+
+  // Wait for the mocked response BEFORE asserting the toast so Playwright
+  // starts polling for the element only after the hook has received the error.
+  const responsePromise = page.waitForResponse(
+    /\/api\/auth\/callback\/credentials/
+  );
   await page.click('button[type="submit"]');
+  await responsePromise;
 
   await expect(
     page.getByText('Invalid credentials!', { exact: true })
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 10_000 });
   await expect(page).toHaveURL('/auth/signin');
 });
 
