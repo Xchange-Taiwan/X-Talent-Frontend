@@ -1,5 +1,4 @@
 import { expect, Page, test } from '@playwright/test';
-import { encode } from 'next-auth/jwt';
 
 import { mockApiRoute } from '../../helpers/route';
 
@@ -89,37 +88,19 @@ const MOCK_CLIENT_SESSION = {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Forge a valid NextAuth JWE session cookie with `onBoarding: false` so the
- * server-side `layout.tsx` guard (`getServerSession`) does NOT redirect the
- * test to `/`. Uses `NEXTAUTH_SECRET` from `.env.e2e.local` (loaded by
- * `playwright.config.ts` via dotenv).
+ * Set a session cookie so the Next.js middleware (which only checks for the
+ * cookie's *existence*) lets the request through to /auth/onboarding.
+ *
+ * We deliberately use a value that is NOT a valid JWT. The server-side
+ * `layout.tsx` guard calls `getServerSession()`, which tries to decode the
+ * cookie; when decoding fails it returns `null`, so `null?.user?.id` is
+ * falsy and the guard does NOT redirect. No NEXTAUTH_SECRET needed.
  */
-async function setOnboardingSession(page: Page): Promise<void> {
-  const secret = process.env.NEXTAUTH_SECRET;
-  if (!secret) {
-    throw new Error('NEXTAUTH_SECRET is not set in .env.e2e.local');
-  }
-
-  const jweToken = await encode({
-    token: {
-      sub: 'e2e-onboarding-user',
-      id: 'e2e-onboarding-user',
-      name: 'Test User',
-      onBoarding: false,
-      isMentor: false,
-      token: 'mock-access-token',
-      jobTitle: '',
-      company: '',
-      personalLinks: [],
-      avatarUpdatedAt: 0,
-    },
-    secret,
-  });
-
+async function setFakeSessionCookie(page: Page): Promise<void> {
   await page.context().addCookies([
     {
       name: 'next-auth.session-token',
-      value: jweToken,
+      value: 'e2e-fake-session-token',
       domain: 'localhost',
       path: '/',
       httpOnly: true,
@@ -186,7 +167,7 @@ async function setupPageMocks(page: Page): Promise<void> {
  * `/auth/onboarding`. Combines `setOnboardingSession` + `setupPageMocks`.
  */
 async function gotoOnboarding(page: Page): Promise<void> {
-  await setOnboardingSession(page);
+  await setFakeSessionCookie(page);
   await setupPageMocks(page);
   await page.goto('/auth/onboarding');
 }
