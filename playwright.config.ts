@@ -2,6 +2,9 @@ import { defineConfig, devices } from '@playwright/test';
 import { config } from 'dotenv';
 import path from 'path';
 
+// Load app secrets (NEXTAUTH_SECRET, etc.) first, then let e2e-specific
+// values override — later calls win on duplicate keys.
+config({ path: path.resolve(__dirname, '.env.local') });
 config({ path: path.resolve(__dirname, '.env.e2e.local') });
 
 export default defineConfig({
