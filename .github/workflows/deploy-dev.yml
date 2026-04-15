@@ -34,7 +34,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Vercel CLI
-        run: npm install --global vercel@latest
+        run: npm install --global vercel@51.2.1
 
       - name: Pull Vercel environment info
         run: vercel pull --yes --environment=production --token=${{ env.VERCEL_TOKEN }}
