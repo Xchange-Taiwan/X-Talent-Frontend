@@ -179,6 +179,10 @@ test('submit Step 1 with empty name → inline validation error shown, does NOT 
 }) => {
   await gotoOnboarding(page);
 
+  // The session mock pre-fills the name field with 'Test User' via useEffect.
+  // Wait for that reset to settle, then clear the field so validation fires.
+  await expect(page.locator('input[name="name"]')).toHaveValue('Test User');
+  await page.fill('input[name="name"]', '');
   await page.getByRole('button', { name: '下一步' }).click();
 
   await expect(page.getByText('請輸入姓名')).toBeVisible();
@@ -200,7 +204,11 @@ test('complete all 5 steps (happy path) → redirects to /profile/card', async (
     body: { code: '0', msg: 'ok', data: null },
   });
 
-  // PUT /api/auth/session — updateSession after onboarding completes
+  // PUT /api/auth/session — updateSession after onboarding completes.
+  // Use route.fallback() (not route.continue()) for non-PUT requests so they
+  // fall through to the GET handler registered in setupPageMocks. Without this,
+  // getSession() calls inside updateProfile/fetchUser go to the real server,
+  // which returns null for the fake session cookie → userId is null → submit fails.
   await page.route(/\/api\/auth\/session/, (route) => {
     if (route.request().method() === 'PUT') {
       return route.fulfill({
@@ -212,7 +220,7 @@ test('complete all 5 steps (happy path) → redirects to /profile/card', async (
         }),
       });
     }
-    return route.continue();
+    return route.fallback();
   });
 
   // Step 1 — fill name
@@ -262,7 +270,11 @@ test('click 上一步 on Step 3 → returns to Step 2, previously entered Step 2
   await expect(page.getByText('步驟 3 / 5')).toBeVisible();
   await page.locator('.lucide-chevron-left').click();
 
-  // Back on Step 2 — years_of_experience value should still be shown
+  // Back on Step 2 — years_of_experience value should still be shown in the
+  // combobox trigger. Use getByRole to avoid strict-mode violation from the
+  // hidden <option> element that also contains the same text.
   await expect(page.getByText('步驟 2 / 5')).toBeVisible();
-  await expect(page.getByText('1 年以下')).toBeVisible();
+  await expect(page.getByRole('combobox', { name: '經驗' })).toContainText(
+    '1 年以下'
+  );
 });
