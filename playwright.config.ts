@@ -58,6 +58,15 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
       },
     },
+    // Profile tests forge their own session cookie (same pattern as onboarding).
+    // No real user or storageState needed.
+    {
+      name: 'chromium-profile',
+      testDir: './e2e/tests/profile',
+      use: {
+        ...devices['Desktop Chrome'],
+      },
+    },
   ],
 
   webServer: {
