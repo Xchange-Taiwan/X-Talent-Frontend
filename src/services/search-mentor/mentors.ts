@@ -31,6 +31,11 @@ export interface MentorType {
   updated_at: string;
 }
 
+export interface MentorsType {
+  mentors: MentorType[];
+  next_id: number;
+}
+
 export interface MentorRequest {
   searchPattern?: string;
   filter_positions?: string;
@@ -45,7 +50,7 @@ export interface MentorRequest {
 interface MentorResponse {
   code: string;
   msg: string;
-  data: MentorType[];
+  data: MentorsType;
 }
 
 export async function fetchMentors(
@@ -61,8 +66,7 @@ export async function fetchMentors(
       console.error(`API Error: ${result.msg}`);
       return [];
     }
-
-    return result.data;
+    return result.data.mentors;
   } catch (error) {
     console.error('Fetch Mentors Error:', error);
     return [];
