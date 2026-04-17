@@ -10,7 +10,7 @@ interface SessionPayload {
   token: string;
   jobTitle?: string;
   company?: string;
-  personalLinks?: unknown[];
+  personalLinks?: { platform: string; url: string }[];
 }
 
 /**
