@@ -204,13 +204,25 @@ test('complete all 5 steps (happy path) → redirects to /profile/card', async (
     body: { code: '0', msg: 'ok', data: null },
   });
 
-  // PUT /api/auth/session — updateSession after onboarding completes.
-  // Use route.fallback() (not route.continue()) for non-PUT requests so they
-  // fall through to the GET handler registered in setupPageMocks. Without this,
-  // getSession() calls inside updateProfile/fetchUser go to the real server,
-  // which returns null for the fake session cookie → userId is null → submit fails.
+  // Override /api/auth/session for both GET and POST so that:
+  //   GET  → useSession() / getSession() inside updateProfile and fetchUser
+  //          return a valid session (userId present, no real-server decode needed)
+  //   POST → NextAuth's update() call after onboarding; mocking prevents the
+  //          server from trying to decode the fake cookie and clearing it via
+  //          Set-Cookie, which would strip the session cookie and break the
+  //          middleware auth check when router.push('/profile/card') fires.
+  // This handler is registered after setupPageMocks, so it is tried first
+  // (Playwright routes are LIFO) and shadows the GET-only handler above.
   await page.route(/\/api\/auth\/session/, (route) => {
-    if (route.request().method() === 'PUT') {
+    const method = route.request().method();
+    if (method === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(MOCK_CLIENT_SESSION),
+      });
+    }
+    if (method === 'POST') {
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -220,7 +232,7 @@ test('complete all 5 steps (happy path) → redirects to /profile/card', async (
         }),
       });
     }
-    return route.fallback();
+    return route.continue();
   });
 
   // Step 1 — fill name

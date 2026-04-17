@@ -67,6 +67,15 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
       },
     },
+    // Reservation tests forge their own session cookie.
+    // No real user or storageState needed.
+    {
+      name: 'chromium-reservation',
+      testDir: './e2e/tests/reservation',
+      use: {
+        ...devices['Desktop Chrome'],
+      },
+    },
   ],
 
   webServer: {
