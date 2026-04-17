@@ -17,11 +17,26 @@ export async function mockApiRoute(
   pattern: string | RegExp,
   options: MockRouteOptions
 ): Promise<void> {
-  await page.route(pattern, (route) =>
-    route.fulfill({
+  await page.route(pattern, (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      return route.fulfill({
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods':
+            'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        },
+      });
+    }
+
+    return route.fulfill({
       status: options.status ?? 200,
       contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+      },
       body: JSON.stringify(options.body),
-    })
-  );
+    });
+  });
 }
