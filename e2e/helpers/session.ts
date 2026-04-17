@@ -1,5 +1,5 @@
 import { Page } from '@playwright/test';
-import { encode } from 'next-auth/jwt';
+import { encode, JWT } from 'next-auth/jwt';
 
 interface SessionPayload {
   id: string;
@@ -26,7 +26,7 @@ export async function setSignedSessionCookie(
   payload: SessionPayload
 ): Promise<void> {
   const signed = await encode({
-    token: payload,
+    token: payload as JWT,
     secret: process.env.NEXTAUTH_SECRET ?? 'secret',
   });
 
