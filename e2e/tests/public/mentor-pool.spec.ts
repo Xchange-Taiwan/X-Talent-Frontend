@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { blockUnmockedExternalApi } from '../../helpers/route';
+
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
 const MOCK_INTERESTS = {
@@ -34,7 +36,7 @@ function makeMentor(id: number) {
 }
 
 function mentorResponse(mentors: ReturnType<typeof makeMentor>[]) {
-  return { code: '0', msg: 'ok', data: mentors };
+  return { code: '0', msg: 'ok', data: { mentors, next_id: 0 } };
 }
 
 const PAGE_LIMIT = 9;
@@ -50,6 +52,9 @@ test.beforeEach(async ({ page }) => {
       body: JSON.stringify(MOCK_INTERESTS),
     })
   );
+  // Abort any external API call not explicitly mocked above so tests fail fast
+  // instead of waiting for the real AWS endpoint to time out.
+  await blockUnmockedExternalApi(page);
 });
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
