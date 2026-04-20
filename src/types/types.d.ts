@@ -18,6 +18,8 @@ declare module 'next-auth' {
     company?: string;
     personalLinks?: PersonalLink[];
     msg?: string;
+    /** NextAuth provider id: 'credentials' = XC, 'custom-google-token' = Google */
+    provider?: string;
   }
 
   interface Session {
@@ -39,5 +41,6 @@ declare module 'next-auth/jwt' {
     company?: string;
     personalLinks?: PersonalLink[];
     msg?: string;
+    provider?: string;
   }
 }

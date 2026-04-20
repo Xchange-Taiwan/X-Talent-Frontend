@@ -51,6 +51,7 @@ const authOptions = {
         return {
           id: String(response.data.auth.user_id),
           token: response.data.auth.token,
+          email: response.data.auth.email,
           onBoarding: response.data.user.onboarding,
           isMentor: response.data.user.is_mentor,
           name: response.data.user.name,
@@ -113,9 +114,13 @@ const authOptions = {
   ],
 
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
+    async jwt({ token, user, account, trigger, session }) {
       if (user) {
-        return { ...token, ...user };
+        return {
+          ...token,
+          ...user,
+          ...(account ? { provider: account.provider } : {}),
+        };
       }
 
       if (trigger === 'update' && session?.user) {
@@ -144,6 +149,9 @@ const authOptions = {
       };
 
       session.accessToken = (token.token as string | undefined) ?? undefined;
+      session.user.provider =
+        (token.provider as string | undefined) ?? undefined;
+      session.user.email = (token.email as string | undefined) ?? undefined;
       return session;
     },
   },
