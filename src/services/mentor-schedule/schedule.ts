@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/apiClient';
+import { components } from '@/types/api';
 
 export interface ScheduleRequest {
   userId: string;
@@ -6,49 +7,38 @@ export interface ScheduleRequest {
   month: number;
 }
 
-export interface ScheduleTimeSlots {
-  id: string;
-  user_id: string;
-  dt_type: 'ALLOW' | 'BLOCK';
-  dt_year: string;
-  dt_month: string;
-  dtstart: Date;
-  dtend: Date;
-  timezone: string;
-  rrule: string;
-  exdate: [];
-}
+export type TimeSlotVO = components['schemas']['TimeSlotVO'];
 
 export interface BookedSlot {
   dtstart: number; // unix seconds
   dtend: number; // unix seconds
 }
 
-export interface ScheduleType {
-  timeslots: ScheduleTimeSlots[] | [];
+// MentorScheduleVO does not document these fields in the OpenAPI spec;
+// they are kept as optional extensions for runtime compatibility.
+export type ScheduleData = components['schemas']['MentorScheduleVO'] & {
   meeting_duration_minutes?: number;
   booked_slots?: BookedSlot[];
-  next_dtstart: string;
-}
+};
 
-interface ScheduleResponse {
+interface ScheduleApiResponse {
   code: string;
   msg: string;
-  data: ScheduleType;
+  data: ScheduleData;
 }
 
 export async function fetchMentorSchedule(
   param: ScheduleRequest
-): Promise<ScheduleType> {
+): Promise<ScheduleData> {
   try {
-    const result = await apiClient.get<ScheduleResponse>(
+    const result = await apiClient.get<ScheduleApiResponse>(
       `/v1/mentors/${param.userId}/schedule/y/${param.year}/m/${param.month}`,
       { auth: false }
     );
-    if (result.code !== '0') return {} as ScheduleType;
+    if (result.code !== '0') return {} as ScheduleData;
     return result.data;
   } catch {
-    return {} as ScheduleType;
+    return {} as ScheduleData;
   }
 }
 

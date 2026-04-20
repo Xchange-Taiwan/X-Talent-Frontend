@@ -11,7 +11,7 @@ import {
   deleteMentorSchedule,
   fetchMentorSchedule,
   saveMentorSchedule,
-  ScheduleTimeSlots,
+  TimeSlotVO,
   UpsertTimeslotBackend,
 } from '@/services/mentor-schedule/schedule';
 
@@ -122,19 +122,13 @@ const nextTempId = (rows: RawMentorTimeslot[]) => {
   return negatives.length ? Math.min(...negatives) - 1 : -1;
 };
 
-const backendToRaw = (t: ScheduleTimeSlots): RawMentorTimeslot => {
-  const toUnixSec = (v: unknown): number => {
-    if (typeof v === 'number') return v > 1e12 ? Math.floor(v / 1000) : v;
-    return Math.floor(new Date(v as string | number | Date).getTime() / 1000);
-  };
-  return {
-    id: Number(t.id) || Math.floor(Math.random() * 1e9),
-    type: t.dt_type,
-    dtstart: toUnixSec(t.dtstart),
-    dtend: toUnixSec(t.dtend),
-    rrule: t.rrule ?? '',
-  };
-};
+const backendToRaw = (t: TimeSlotVO): RawMentorTimeslot => ({
+  id: t.id || Math.floor(Math.random() * 1e9),
+  type: t.dt_type as 'ALLOW' | 'BLOCK',
+  dtstart: t.dtstart,
+  dtend: t.dtend,
+  rrule: t.rrule ?? '',
+});
 
 export function useMentorSchedule(opts: Options = {}): UseMentorScheduleReturn {
   const {
