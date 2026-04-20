@@ -2,42 +2,9 @@ import dayjs from 'dayjs';
 
 import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
 import { Reservation } from '@/components/reservation/types';
+import { components } from '@/types/api';
 
-/* ================================
- * Backend domain types
- * ================================ */
-
-export type BackendReservation = {
-  id: number;
-  sender: {
-    user_id: number | string;
-    role: 'MENTOR' | 'MENTEE';
-    status: 'ACCEPT' | 'PENDING' | string;
-    name: string;
-    avatar: string;
-    job_title: string;
-    years_of_experience: keyof typeof TotalWorkSpanEnum | string;
-  };
-  participant: BackendReservation['sender'];
-  schedule_id: number;
-  dtstart: number; // epoch seconds
-  dtend: number; // epoch seconds
-  previous_reserve: unknown;
-  messages: Array<{
-    user_id: number | string;
-    role: string | null;
-    content: string | null;
-  }>;
-};
-
-export type BackendResponse = {
-  code: string;
-  msg: string;
-  data: {
-    reservations: BackendReservation[];
-    next_dtend: number;
-  };
-};
+type ApiResponse<T> = { code: string; msg: string; data: T };
 
 export type ReservationState =
   | 'MENTOR_UPCOMING'
@@ -59,9 +26,7 @@ export type FetchOptions = {
  * Helpers
  * ================================ */
 
-export function formatExperience(
-  yearsOfExperience?: BackendReservation['sender']['years_of_experience']
-) {
+export function formatExperience(yearsOfExperience?: string | null) {
   return (
     TotalWorkSpanEnum[yearsOfExperience as keyof typeof TotalWorkSpanEnum] ?? ''
   );
@@ -81,7 +46,7 @@ export function formatDateTime(dtstart: number, dtend: number) {
  * ================================ */
 
 export function mapToReservation(
-  reservation: BackendReservation,
+  reservation: components['schemas']['ReservationInfoVO'],
   state: ReservationState
 ): Reservation {
   // API 固定結構：sender = 當前使用者，participant = 對方
@@ -101,22 +66,24 @@ export function mapToReservation(
     ? reservation.participant.user_id
     : reservation.sender.user_id;
   const menteeMessage = reservation.messages?.find(
-    (message) => String(message.user_id) === String(menteeUserId)
+    (message) =>
+      message.user_id != null &&
+      String(message.user_id) === String(menteeUserId)
   );
 
   return {
-    id: String(reservation.id),
+    id: String(reservation.id ?? ''),
     name: counterparty.name || '—',
     roleLine,
     date,
     time,
-    avatar: counterparty.avatar,
+    avatar: counterparty.avatar ?? undefined,
     note: menteeMessage?.content ?? undefined,
     scheduleId: reservation.schedule_id,
     dtstart: reservation.dtstart,
     dtend: reservation.dtend,
-    senderUserId: reservation.sender.user_id,
-    participantUserId: reservation.participant.user_id,
+    senderUserId: reservation.sender.user_id ?? 0,
+    participantUserId: reservation.participant.user_id ?? 0,
   };
 }
 
@@ -153,7 +120,9 @@ export async function fetchReservations(
     throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
   }
 
-  const json = (await res.json()) as BackendResponse;
+  const json = (await res.json()) as ApiResponse<
+    components['schemas']['ReservationInfoListVO']
+  >;
   if (debug) console.debug('[reservations] GET parsed', json);
 
   if (json.code !== '0')
@@ -224,29 +193,13 @@ export type UpdateReservationPayload = {
   previous_reserve?: Record<string, unknown> | null;
 };
 
-export type UpdateReservationAPIData = {
-  id: number;
-  status: 'ACCEPT' | 'PENDING' | 'REJECT' | string;
-  my_user_id: number | string;
-  my_status: 'ACCEPT' | 'PENDING' | 'REJECT' | string;
-  my_role: 'MENTOR' | 'MENTEE' | string;
-  user_id: number | string;
-  schedule_id: number;
-  dtstart: number;
-  dtend: number;
-  messages: Array<{ user_id: number | string; content: string }>;
-  previous_reserve: Record<string, unknown>;
-};
-
-type ApiResponse<T> = { code: string; msg: string; data: T };
-
 export async function updateReservationStatus(opts: {
   userId: string | number;
   reservationId: string | number;
   body: UpdateReservationPayload;
   accessToken?: string;
   debug?: boolean;
-}): Promise<UpdateReservationAPIData> {
+}): Promise<components['schemas']['ReservationVO']> {
   const { userId, reservationId, body, accessToken, debug } = opts;
 
   const url = `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${userId}/reservations/${reservationId}`;
@@ -272,7 +225,9 @@ export async function updateReservationStatus(opts: {
     throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
   }
 
-  const json = (await res.json()) as ApiResponse<UpdateReservationAPIData>;
+  const json = (await res.json()) as ApiResponse<
+    components['schemas']['ReservationVO']
+  >;
   if (debug) console.debug('[reservations] PUT parsed', json);
 
   if (json.code !== '0')
@@ -296,19 +251,6 @@ export type CreateReservationPayload = {
   previous_reserve: { reserve_id: number } | Record<string, never>;
 };
 
-export type CreateReservationAPIData = {
-  id: number;
-  status: 'PENDING' | string;
-  my_user_id: number | string;
-  my_status: 'ACCEPT' | string;
-  user_id: number | string;
-  schedule_id: number;
-  dtstart: number;
-  dtend: number;
-  messages: Array<{ user_id: number | string; content: string }>;
-  previous_reserve: { reserve_id: number } | Record<string, never>;
-};
-
 /**
  * 新增預約（POST /v1/users/:user_id/reservations）
  *
@@ -319,7 +261,7 @@ export async function createReservation(opts: {
   body: CreateReservationPayload;
   accessToken?: string;
   debug?: boolean;
-}): Promise<CreateReservationAPIData> {
+}): Promise<components['schemas']['ReservationVO']> {
   const { userId, body, accessToken, debug } = opts;
 
   const url = `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${userId}/reservations`;
@@ -345,7 +287,9 @@ export async function createReservation(opts: {
     throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
   }
 
-  const json = (await res.json()) as ApiResponse<CreateReservationAPIData>;
+  const json = (await res.json()) as ApiResponse<
+    components['schemas']['ReservationVO']
+  >;
   if (debug) console.debug('[reservations] POST parsed', json);
 
   if (json.code !== '0')
