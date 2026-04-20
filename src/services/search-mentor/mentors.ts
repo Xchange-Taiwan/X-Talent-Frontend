@@ -1,20 +1,15 @@
 import { StaticImageData } from 'next/image';
 
+import { WorkExperienceMetadata } from '@/hooks/user/user-data/useUserData';
 import { apiClient } from '@/lib/apiClient';
 import { components } from '@/types/api';
 
 type RawMentor = components['schemas']['SearchMentorProfileVO'];
 type ExperienceCategory = components['schemas']['ExperienceCategory'];
+type MentorListResponse =
+  components['schemas']['ApiResponse_SearchMentorProfileListVO_'];
 
-export interface WorkExperienceMetadata {
-  job?: string;
-  company?: string;
-  jobPeriodStart?: string;
-  jobPeriodEnd?: string;
-  jobLocation?: string;
-  description?: string;
-  industry?: string;
-}
+export type { WorkExperienceMetadata };
 
 export interface MentorExperienceBlock {
   id: number;
@@ -43,10 +38,7 @@ export interface MentorType {
   updated_at: number | null;
 }
 
-export interface MentorsType {
-  mentors: MentorType[];
-  next_id: number | null;
-}
+export type MentorsType = components['schemas']['SearchMentorProfileListVO'];
 
 export interface MentorRequest {
   searchPattern?: string;
@@ -57,15 +49,6 @@ export interface MentorRequest {
   filter_industries?: string;
   limit: number;
   cursor?: string;
-}
-
-interface MentorResponse {
-  code: string;
-  msg: string;
-  data: {
-    mentors: RawMentor[];
-    next_id: number | null;
-  };
 }
 
 function mapMentor(raw: RawMentor): MentorType {
@@ -103,7 +86,7 @@ export async function fetchMentors(
   param: MentorRequest
 ): Promise<MentorType[]> {
   try {
-    const result = await apiClient.get<MentorResponse>('/v1/mentors', {
+    const result = await apiClient.get<MentorListResponse>('/v1/mentors', {
       auth: false,
       params: param as unknown as Record<string, string | number | undefined>,
     });
@@ -112,7 +95,7 @@ export async function fetchMentors(
       console.error(`API Error: ${result.msg}`);
       return [];
     }
-    return result.data.mentors.map(mapMentor);
+    return (result.data?.mentors ?? []).map(mapMentor);
   } catch (error) {
     console.error('Fetch Mentors Error:', error);
     return [];

@@ -43,7 +43,9 @@ export interface WorkExperienceMetadata {
   company?: string;
   jobPeriodStart?: string;
   jobPeriodEnd?: string;
+  jobLocation?: string;
   description?: string;
+  industry?: string;
 }
 
 export interface EducationExperienceMetadata {
