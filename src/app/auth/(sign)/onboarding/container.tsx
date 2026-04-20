@@ -94,8 +94,6 @@ export default function OnboardingContainer() {
       location: 'TWN',
       years_of_experience: '',
       industry: '',
-      job_title: '',
-      company: '',
     },
   });
   const onSubmitStep2 = (data: z.infer<typeof step2Schema>) => {

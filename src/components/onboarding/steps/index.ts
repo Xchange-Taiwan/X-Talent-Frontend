@@ -17,8 +17,6 @@ export const step2Schema = z.object({
   location: z.string({ required_error: '請選擇地區' }),
   years_of_experience: z.string().min(1, '請選擇您的年資區間'),
   industry: z.string({ required_error: '請選擇您的產業類別' }),
-  job_title: z.string().optional(),
-  company: z.string().optional(),
 });
 
 export const step3Schema = z.object({

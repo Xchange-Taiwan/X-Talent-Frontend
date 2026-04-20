@@ -2,10 +2,21 @@ import { StaticImageData } from 'next/image';
 
 import { apiClient } from '@/lib/apiClient';
 
-export interface experienceType {
-  duration: string;
-  company: string;
-  title: string;
+export interface WorkExperienceMetadata {
+  job?: string;
+  company?: string;
+  jobPeriodStart?: string;
+  jobPeriodEnd?: string;
+  jobLocation?: string;
+  description?: string;
+  industry?: string;
+}
+
+export interface MentorExperienceBlock {
+  id: number;
+  category: string;
+  order: number;
+  mentor_experiences_metadata?: { data?: WorkExperienceMetadata[] };
 }
 
 export interface MentorType {
@@ -26,7 +37,7 @@ export interface MentorType {
   about: string;
   seniority_level: string;
   expertises: [];
-  experiences: experienceType[];
+  experiences: MentorExperienceBlock[];
   created_at: string;
   updated_at: string;
 }

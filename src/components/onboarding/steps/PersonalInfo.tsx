@@ -11,7 +11,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -118,34 +117,6 @@ export const PersonalInfo: FC<Props> = ({
                   ))}
                 </SelectContent>
               </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="job_title"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel showErrorStyle={false}>職稱 (選填)</FormLabel>
-              <FormControl>
-                <Input placeholder="請填入您的職稱" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="company"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel showErrorStyle={false}>公司名稱 (選填) </FormLabel>
-              <FormControl>
-                <Input placeholder="請填入您的公司名稱" {...field} />
-              </FormControl>
               <FormMessage />
             </FormItem>
           )}
