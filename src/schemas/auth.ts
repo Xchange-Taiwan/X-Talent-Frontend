@@ -32,3 +32,13 @@ export const PasswordResetSchema = z
 export const PasswordForgotSchema = z.object({
   email: z.string().email('請輸入電子郵件'),
 });
+
+export const DeleteAccountXCSchema = z.object({
+  email: z.string().email('請輸入電子郵件'),
+  password: z.string().min(1, '請輸入密碼'),
+});
+
+export const DeleteAccountGoogleSchema = z.object({
+  email: z.string().email('請輸入電子郵件'),
+  id_token: z.string().min(1, '請先完成 Google 身分驗證'),
+});
