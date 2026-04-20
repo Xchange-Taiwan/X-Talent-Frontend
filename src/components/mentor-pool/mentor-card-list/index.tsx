@@ -1,9 +1,9 @@
 import { memo, useEffect, useRef } from 'react';
 
+import { WorkExperienceMetadata } from '@/hooks/user/user-data/useUserData';
 import {
   MentorExperienceBlock,
   MentorType,
-  WorkExperienceMetadata,
 } from '@/services/search-mentor/mentors';
 
 import { MentorCard } from '../mentor-card';
