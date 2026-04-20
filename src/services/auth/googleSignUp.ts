@@ -1,4 +1,5 @@
 import { apiClient, ApiError } from '@/lib/apiClient';
+import type { components } from '@/types/api';
 
 import { AuthResponse, createGeneralErrorResponse } from '../types';
 import {
@@ -14,10 +15,8 @@ export interface GoogleSignUpType {
   oauth_id: string;
 }
 
-interface GoogleSignUpApiResponse {
-  code: string;
-  message?: string;
-}
+type GoogleSignUpApiResponse =
+  components['schemas']['ApiResponse_GoogleCallbackVO_'];
 
 export async function googleSignUp(
   values: GoogleSignUpType
@@ -30,7 +29,7 @@ export async function googleSignUp(
     );
 
     if (result.code === '0') return createSignUpSuccessResponse();
-    throw createGeneralErrorResponse(200, result.message || '註冊失敗');
+    throw createGeneralErrorResponse(200, result.msg || '註冊失敗');
   } catch (error) {
     if (error instanceof ApiError) {
       if (error.status === 422) throw createValidationErrorResponse();
