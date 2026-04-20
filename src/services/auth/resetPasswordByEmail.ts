@@ -1,14 +1,10 @@
 import { apiClient } from '@/lib/apiClient';
+import type { components } from '@/types/api';
 
 import { AuthResponse, createGeneralErrorResponse } from '../types';
 
-interface ResetPasswordByEmailApiResponse {
-  code: string;
-  msg: string;
-  data: {
-    ttl_secs: number;
-  };
-}
+type ResetPasswordByEmailApiResponse =
+  components['schemas']['ApiResponse_EmailSentVO_'];
 
 export async function resetPassword(email: string): Promise<AuthResponse> {
   try {
