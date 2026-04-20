@@ -56,11 +56,13 @@ export const Information = ({
     <div className="flex h-full flex-col gap-4">
       <div>
         <h3 className="text-base font-bold tracking-[0.5px]">{name}</h3>
-        <div className="flex gap-[6px] text-sm font-normal tracking-wide">
-          {job_title}
-          <span className="text-[#9DA8B9]">at</span>
-          {company}
-        </div>
+        {(job_title || company) && (
+          <div className="flex gap-[6px] text-sm font-normal tracking-wide">
+            {job_title}
+            {job_title && company && <span className="text-[#9DA8B9]">at</span>}
+            {company}
+          </div>
+        )}
       </div>
       <p className="line-clamp-2 text-sm font-normal tracking-wide text-[#9DA8B9]">
         {personalStatment}
