@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  BackendReservation,
   formatDateTime,
   formatExperience,
   mapToReservation,
   ReservationState,
 } from '@/services/reservations';
+import { components } from '@/types/api';
+
+type ReservationInfoVO = components['schemas']['ReservationInfoVO'];
 
 // 2024-01-01 09:00:00 UTC (epoch seconds)
 const DTSTART = 1704099600;
@@ -14,8 +16,8 @@ const DTSTART = 1704099600;
 const DTEND = 1704103200;
 
 function makeReservation(
-  overrides: Partial<BackendReservation> = {}
-): BackendReservation {
+  overrides: Partial<ReservationInfoVO> = {}
+): ReservationInfoVO {
   return {
     id: 1,
     sender: {
@@ -46,7 +48,7 @@ function makeReservation(
 }
 
 function makeReservationWithState(
-  overrides: Partial<BackendReservation>,
+  overrides: Partial<ReservationInfoVO>,
   state: ReservationState
 ) {
   return mapToReservation(makeReservation(overrides), state);
