@@ -10,4 +10,6 @@ if (!url) {
   process.exit(1);
 }
 
-execSync(`openapi-typescript "${url}" -o src/types/api.ts`, { stdio: 'inherit' });
+execSync(`openapi-typescript "${url}" -o src/types/api.ts`, {
+  stdio: 'inherit',
+});
