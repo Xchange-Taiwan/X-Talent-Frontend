@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
 
 pnpm type-check
-pnpm test --run
+pnpm test
