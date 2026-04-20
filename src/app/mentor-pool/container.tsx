@@ -104,9 +104,9 @@ export default function MentorPoolContainer() {
           typeof mentor.avatar === 'string' && mentor.avatar
             ? mentor.avatar
             : avatarImage;
-        mentor.skills = (mentor.skills as string[]).map(
+        mentor.skills = mentor.skills.map(
           (s) => skillLabelMapRef.current[s] ?? s
-        ) as [];
+        );
       });
       setMentors(rtnList);
       setMentorCount(rtnList.length);
@@ -142,9 +142,9 @@ export default function MentorPoolContainer() {
           typeof mentor.avatar === 'string' && mentor.avatar
             ? mentor.avatar
             : avatarImage;
-        mentor.skills = (mentor.skills as string[]).map(
+        mentor.skills = mentor.skills.map(
           (s) => skillLabelMapRef.current[s] ?? s
-        ) as [];
+        );
       });
       setMentors((prevMentors) => {
         const newMentors = rtnList.filter(
