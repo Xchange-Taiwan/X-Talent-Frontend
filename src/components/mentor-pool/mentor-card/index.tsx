@@ -13,7 +13,7 @@ export interface MentorCardProps {
   job_title: string;
   company: string;
   personalStatment: string;
-  skills: [];
+  skills: string[];
 }
 
 const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
