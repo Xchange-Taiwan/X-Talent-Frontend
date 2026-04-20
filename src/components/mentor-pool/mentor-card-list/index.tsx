@@ -13,8 +13,11 @@ function deriveCurrentJob(experiences: MentorExperienceBlock[]): {
   company: string;
 } {
   const firstWork = experiences.find((e) => e.category === 'WORK');
-  const metadata: WorkExperienceMetadata | undefined =
-    firstWork?.mentor_experiences_metadata?.data?.[0];
+  const metadata: WorkExperienceMetadata | undefined = (
+    firstWork?.mentor_experiences_metadata as
+      | { data?: WorkExperienceMetadata[] }
+      | undefined
+  )?.data?.[0];
   return {
     job_title: metadata?.job ?? '',
     company: metadata?.company ?? '',
