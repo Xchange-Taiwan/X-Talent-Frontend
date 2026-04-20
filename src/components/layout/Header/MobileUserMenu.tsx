@@ -8,6 +8,7 @@ import { signOut } from 'next-auth/react';
 import * as React from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
+import { DeleteAccountDialog } from '@/components/auth/DeleteAccountDialog';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -28,11 +29,17 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [shareDialogOpen, setShareDialogOpen] = React.useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
 
   const close = (): void => setOpen(false);
 
   const userId = user.id;
   const isMentor = Boolean(user.isMentor);
+  const canDeleteAccount = [
+    'testing_visitor@xchange.com.tw',
+    'testing_mentee@xchange.com.tw',
+    'testing_mentor@xchange.com.tw',
+  ].includes(user.email ?? '');
   const name = user.name ?? '';
   const avatarSrc = user.avatar
     ? `${getAvatarThumbUrl(user.avatar)}?cb=${user.avatarUpdatedAt ?? 0}`
@@ -78,6 +85,11 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
   const handleMyReservation = (): void => {
     close();
     router.push('/reservation/mentee');
+  };
+
+  const handleDeleteAccount = (): void => {
+    close();
+    requestAnimationFrame(() => setDeleteDialogOpen(true));
   };
 
   const handleLogout = (): void => {
@@ -168,7 +180,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
               </button>
             </nav>
 
-            <div className="pb-6">
+            <div className="flex flex-col pb-6">
               <button
                 type="button"
                 className="text-black py-4 text-left text-xl"
@@ -176,10 +188,24 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
               >
                 登出
               </button>
+              {canDeleteAccount && (
+                <button
+                  type="button"
+                  className="py-4 text-left text-xl text-destructive"
+                  onClick={handleDeleteAccount}
+                >
+                  刪除帳號
+                </button>
+              )}
             </div>
           </div>
         </SheetContent>
       </Sheet>
+
+      <DeleteAccountDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+      />
 
       <ShareProfileDialog
         open={shareDialogOpen}

@@ -7,6 +7,7 @@ import { signOut } from 'next-auth/react';
 import * as React from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
+import { DeleteAccountDialog } from '@/components/auth/DeleteAccountDialog';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -28,9 +29,15 @@ export const UserDropdown = React.memo(function UserDropdown({
   const router = useRouter();
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [shareDialogOpen, setShareDialogOpen] = React.useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
 
   const userId = user.id;
   const isMentor = Boolean(user.isMentor);
+  const canDeleteAccount = [
+    'testing_visitor@xchange.com.tw',
+    'testing_mentee@xchange.com.tw',
+    'testing_mentor@xchange.com.tw',
+  ].includes(user.email ?? '');
   const name = user.name ?? '';
   // Use the thumbnail variant for all small avatar displays in the header /
   // dropdown / share dialog — the full-size image is only needed on the profile page.
@@ -80,6 +87,13 @@ export const UserDropdown = React.memo(function UserDropdown({
     setMenuOpen(false);
     router.push('/reservation/mentee');
   }, [router]);
+
+  const handleDeleteAccount = React.useCallback((): void => {
+    setMenuOpen(false);
+    requestAnimationFrame(() => {
+      setDeleteDialogOpen(true);
+    });
+  }, []);
 
   const handleLogout = React.useCallback((): void => {
     setMenuOpen(false);
@@ -167,9 +181,23 @@ export const UserDropdown = React.memo(function UserDropdown({
             >
               登出
             </DropdownMenuItem>
+
+            {canDeleteAccount && (
+              <DropdownMenuItem
+                className="px-4 py-3 text-2xl text-destructive focus:text-destructive"
+                onClick={handleDeleteAccount}
+              >
+                刪除帳號
+              </DropdownMenuItem>
+            )}
           </div>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <DeleteAccountDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+      />
 
       <ShareProfileDialog
         open={shareDialogOpen}
