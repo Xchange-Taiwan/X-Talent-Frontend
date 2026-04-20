@@ -67,74 +67,77 @@ export default function ProfilePageUI({
       <div className="relative h-[111px] bg-gradient-to-br from-[#92e7e7] to-[#e7a0d4] sm:h-[100px]" />
 
       <div className="container mb-20 max-w-[1024px]">
-        <div className="flex h-auto -translate-y-10 flex-col justify-between sm:relative sm:h-[160px] sm:flex-row lg:static">
-          <div className="flex flex-col items-center gap-6 sm:flex-row">
-            <div className="relative h-[160px] w-[160px] flex-shrink-0 overflow-hidden rounded-full bg-background-white">
-              <Image
-                src={
-                  userData?.avatar
-                    ? `${userData.avatar}?cb=${avatarCacheBust}`
-                    : DefaultAvatarImgUrl
-                }
-                alt={'Avatar of ' + userData?.name}
-                fill
-                sizes="160px"
-                style={{ objectFit: 'contain' }}
-              />
-            </div>
-
-            <div className="min-w-0 sm:mb-6 lg:mb-0">
-              <div className="mb-2 flex items-center justify-center gap-2 sm:justify-start">
-                <p className="break-words text-2xl font-semibold">
-                  {userData?.name}
-                </p>
-                {userData?.personalLinks?.map((link) => (
-                  <a
-                    key={link.platform}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:text-blue-600 text-gray-600"
-                    title={
-                      platformLabelMap[link.platform]?.label || link.platform
-                    }
-                  >
-                    {platformLabelMap[link.platform]?.icon}
-                  </a>
-                ))}
-              </div>
-              {(userData.job_title || userData.company) && (
-                <p className="text-sm">
-                  {userData.job_title}
-                  {userData.job_title && userData.company && (
-                    <span className="text-text-tertiary"> at </span>
-                  )}
-                  {userData.company}
-                </p>
-              )}
-            </div>
+        <div className="flex h-auto -translate-y-10 flex-col sm:flex-row sm:items-start">
+          <div className="relative mx-auto h-[160px] w-[160px] flex-shrink-0 overflow-hidden rounded-full bg-background-white sm:mx-0">
+            <Image
+              src={
+                userData?.avatar
+                  ? `${userData.avatar}?cb=${avatarCacheBust}`
+                  : DefaultAvatarImgUrl
+              }
+              alt={'Avatar of ' + userData?.name}
+              fill
+              sizes="160px"
+              style={{ objectFit: 'contain' }}
+            />
           </div>
 
-          <div className="static mt-4 flex items-center justify-center gap-4 sm:absolute sm:bottom-0 sm:left-[184px] sm:mt-0 lg:static">
-            {isLogging && pageUserId === loginUserId && (
-              <Button
-                variant="outline"
-                className="grow rounded-full px-6 py-3 sm:grow-0"
-                onClick={onEditProfile}
-              >
-                編輯個人資訊
-              </Button>
+          <div className="flex min-w-0 flex-col items-center sm:ml-6 sm:mt-10 sm:items-start">
+            <div className="mb-2 flex flex-col items-center gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+              <p className="break-words text-2xl font-semibold">
+                {userData?.name}
+              </p>
+              {!!userData?.personalLinks?.length && (
+                <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                  {userData.personalLinks.map((link) => (
+                    <a
+                      key={link.platform}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-blue-600 text-gray-600"
+                      title={
+                        platformLabelMap[link.platform]?.label || link.platform
+                      }
+                    >
+                      {platformLabelMap[link.platform]?.icon}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+            {(userData.job_title || userData.company) && (
+              <p className="text-sm">
+                {userData.job_title}
+                {userData.job_title && userData.company && (
+                  <span className="text-text-tertiary"> at </span>
+                )}
+                {userData.company}
+              </p>
             )}
+            <div className="mt-4 flex items-center justify-center gap-4 sm:justify-start">
+              {isLogging && pageUserId === loginUserId && (
+                <Button
+                  variant="outline"
+                  className="grow rounded-full px-6 py-3 sm:grow-0"
+                  onClick={onEditProfile}
+                >
+                  編輯個人資訊
+                </Button>
+              )}
 
-            {isLogging && !userData.is_mentor && pageUserId === loginUserId && (
-              <Button
-                variant="default"
-                className="grow rounded-full px-6 py-3 sm:grow-0"
-                onClick={onBecomeMentor}
-              >
-                成為導師
-              </Button>
-            )}
+              {isLogging &&
+                !userData.is_mentor &&
+                pageUserId === loginUserId && (
+                  <Button
+                    variant="default"
+                    className="grow rounded-full px-6 py-3 sm:grow-0"
+                    onClick={onBecomeMentor}
+                  >
+                    成為導師
+                  </Button>
+                )}
+            </div>
           </div>
         </div>
 
