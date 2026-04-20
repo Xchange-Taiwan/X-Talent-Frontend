@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { SignUpSchema } from '@/schemas/auth';
+import type { components } from '@/types/api';
 
 import { AuthResponse, createGeneralErrorResponse } from '../types';
 import {
@@ -11,10 +12,7 @@ import {
   createValidationErrorResponse,
 } from './signUpResponseHandlers';
 
-interface SignUpApiResponse {
-  code: string;
-  message?: string;
-}
+type SignUpApiResponse = components['schemas']['ApiResponse_SignupResponseVO_'];
 
 export async function signUp(
   values: z.infer<typeof SignUpSchema>
@@ -31,7 +29,7 @@ export async function signUp(
     );
 
     if (result.code === '0') return createSignUpSuccessResponse();
-    throw createGeneralErrorResponse(200, result.message || '註冊失敗');
+    throw createGeneralErrorResponse(200, result.msg || '註冊失敗');
   } catch (error) {
     if (error instanceof ApiError) {
       if (error.status === 422) throw createValidationErrorResponse();

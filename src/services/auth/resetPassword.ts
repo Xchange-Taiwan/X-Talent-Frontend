@@ -1,12 +1,9 @@
 import { apiClient } from '@/lib/apiClient';
+import type { components } from '@/types/api';
 
 import { AuthResponse, createGeneralErrorResponse } from '../types';
 
-interface ResetPasswordApiResponse {
-  code: string;
-  msg: string;
-  data: null;
-}
+type ResetPasswordApiResponse = components['schemas']['ApiResponse_NoneType_'];
 
 export async function resetPassword(
   verifyToken: string,
