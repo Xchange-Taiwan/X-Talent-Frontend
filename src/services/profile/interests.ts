@@ -1,4 +1,12 @@
 import { apiClient } from '@/lib/apiClient';
+import type { components } from '@/types/api';
+
+type InterestVO = components['schemas']['InterestVO'];
+type ApiResponse = components['schemas']['ApiResponse_InterestListVO_'];
+
+// desc is typed as Record<string, never> in the generated schema
+// because the backend Pydantic model uses dict — see X-Talent-Tracker#88
+type InterestDesc = { desc?: string; icon?: string };
 
 export interface InterestDTO {
   id: number;
@@ -12,12 +20,18 @@ export interface InterestDTO {
   };
 }
 
-interface InterestResponseDTO {
-  code: string;
-  msg: string;
-  data: {
-    interests: InterestDTO[];
-    language: string | null;
+function toInterestDTO(interest: InterestVO): InterestDTO {
+  const desc = interest.desc as unknown as InterestDesc | null;
+  return {
+    id: interest.id,
+    category: interest.category ?? '',
+    language: interest.language ?? '',
+    subject_group: interest.subject_group,
+    subject: interest.subject ?? '',
+    desc: {
+      desc: desc?.desc,
+      icon: desc?.icon,
+    },
   };
 }
 
@@ -26,12 +40,12 @@ export async function fetchInterests(
   interest: string
 ): Promise<InterestDTO[]> {
   try {
-    const data = await apiClient.get<InterestResponseDTO>(
+    const data = await apiClient.get<ApiResponse>(
       `/v1/users/${language}/interests`,
       { auth: false, params: { interest } }
     );
 
-    return data.data.interests;
+    return (data.data?.interests ?? []).map(toInterestDTO);
   } catch (error) {
     console.error('獲取興趣列表失敗:', error);
     return [];
