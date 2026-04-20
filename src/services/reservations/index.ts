@@ -2,9 +2,8 @@ import dayjs from 'dayjs';
 
 import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
 import { Reservation } from '@/components/reservation/types';
+import { apiClient } from '@/lib/apiClient';
 import { components } from '@/types/api';
-
-type ApiResponse<T> = { code: string; msg: string; data: T };
 
 export type ReservationState =
   | 'MENTOR_UPCOMING'
@@ -18,7 +17,6 @@ export type FetchOptions = {
   state: ReservationState;
   batch?: number;
   nextDtend?: number;
-  accessToken?: string;
   debug?: boolean;
 };
 
@@ -94,41 +92,23 @@ export function mapToReservation(
 export async function fetchReservations(
   opts: FetchOptions
 ): Promise<{ items: Reservation[]; next_dtend: number }> {
-  const { userId, state, batch = 10, nextDtend, accessToken, debug } = opts;
-
-  const query = new URLSearchParams();
-  query.set('state', state);
-  query.set('batch', String(batch));
-  if (typeof nextDtend === 'number') query.set('next_dtend', String(nextDtend));
-
-  const url = `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${userId}/reservations?${query.toString()}`;
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-
-  if (debug) console.debug('[reservations] GET', { url, headers });
-
-  const res = await fetch(url, { method: 'GET', headers });
+  const { userId, state, batch = 10, nextDtend, debug } = opts;
 
   if (debug)
-    console.debug('[reservations] GET response', res.status, res.statusText);
+    console.debug('[reservations] GET', { userId, state, batch, nextDtend });
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    if (debug) console.debug('[reservations] GET error body', text);
-    throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
-  }
+  const json = await apiClient.get<
+    components['schemas']['ApiResponse_ReservationInfoListVO_']
+  >(`/v1/users/${userId}/reservations`, {
+    params: { state, batch, next_dtend: nextDtend },
+  });
 
-  const json = (await res.json()) as ApiResponse<
-    components['schemas']['ReservationInfoListVO']
-  >;
   if (debug) console.debug('[reservations] GET parsed', json);
 
   if (json.code !== '0')
     throw new Error(`API error: code=${json.code}, msg=${json.msg}`);
 
-  const items = (json.data.reservations ?? []).map((reservation) =>
+  const items = (json.data?.reservations ?? []).map((reservation) =>
     mapToReservation(reservation, state)
   );
   return { items, next_dtend: json.data?.next_dtend ?? 0 };
@@ -136,7 +116,6 @@ export async function fetchReservations(
 
 export type FetchAllReservationListsOptions = {
   userId: string | number;
-  accessToken?: string;
   batch?: number;
   debug?: boolean;
 };
@@ -144,9 +123,9 @@ export type FetchAllReservationListsOptions = {
 export async function fetchAllReservationLists(
   opts: FetchAllReservationListsOptions
 ) {
-  const { userId, accessToken, batch = 10, debug } = opts;
+  const { userId, batch = 10, debug } = opts;
 
-  const commonOpts = { userId, batch, accessToken, debug };
+  const commonOpts = { userId, batch, debug };
 
   const [
     upcomingMenteeRes,
@@ -197,41 +176,27 @@ export async function updateReservationStatus(opts: {
   userId: string | number;
   reservationId: string | number;
   body: UpdateReservationPayload;
-  accessToken?: string;
   debug?: boolean;
 }): Promise<components['schemas']['ReservationVO']> {
-  const { userId, reservationId, body, accessToken, debug } = opts;
-
-  const url = `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${userId}/reservations/${reservationId}`;
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-
-  if (debug) console.debug('[reservations] PUT request', { url, body });
-
-  const res = await fetch(url, {
-    method: 'PUT',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const { userId, reservationId, body, debug } = opts;
 
   if (debug)
-    console.debug('[reservations] PUT response', res.status, res.statusText);
+    console.debug('[reservations] PUT request', {
+      userId,
+      reservationId,
+      body,
+    });
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    if (debug) console.debug('[reservations] PUT error body', text);
-    throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
-  }
+  const json = await apiClient.put<
+    components['schemas']['ApiResponse_ReservationVO_']
+  >(`/v1/users/${userId}/reservations/${reservationId}`, body);
 
-  const json = (await res.json()) as ApiResponse<
-    components['schemas']['ReservationVO']
-  >;
   if (debug) console.debug('[reservations] PUT parsed', json);
 
   if (json.code !== '0')
     throw new Error(`API error: code=${json.code}, msg=${json.msg}`);
+
+  if (!json.data) throw new Error('API error: missing data in response');
 
   return json.data;
 }
@@ -259,41 +224,22 @@ export type CreateReservationPayload = {
 export async function createReservation(opts: {
   userId: string | number;
   body: CreateReservationPayload;
-  accessToken?: string;
   debug?: boolean;
 }): Promise<components['schemas']['ReservationVO']> {
-  const { userId, body, accessToken, debug } = opts;
+  const { userId, body, debug } = opts;
 
-  const url = `${process.env.NEXT_PUBLIC_API_URL}/v1/users/${userId}/reservations`;
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  if (debug) console.debug('[reservations] POST request', { userId, body });
 
-  if (debug) console.debug('[reservations] POST request', { url, body });
+  const json = await apiClient.post<
+    components['schemas']['ApiResponse_ReservationVO_']
+  >(`/v1/users/${userId}/reservations`, body);
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
-
-  if (debug)
-    console.debug('[reservations] POST response', res.status, res.statusText);
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    if (debug) console.debug('[reservations] POST error body', text);
-    throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
-  }
-
-  const json = (await res.json()) as ApiResponse<
-    components['schemas']['ReservationVO']
-  >;
   if (debug) console.debug('[reservations] POST parsed', json);
 
   if (json.code !== '0')
     throw new Error(`API error: code=${json.code}, msg=${json.msg}`);
+
+  if (!json.data) throw new Error('API error: missing data in response');
 
   return json.data;
 }

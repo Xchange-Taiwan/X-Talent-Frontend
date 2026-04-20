@@ -130,7 +130,6 @@ export default function MenteeReservationDialog({
       await createReservation({
         userId: menteeId,
         body: payload,
-        accessToken: session.accessToken,
         debug: process.env.NODE_ENV === 'development',
       });
 
