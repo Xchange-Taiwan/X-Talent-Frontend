@@ -6,27 +6,19 @@
  * Usage:
  *   import { apiClient } from '@/lib/apiClient';
  *
- *   // Authenticated (default — token injected when NEXT_PUBLIC_USE_API_CLIENT=true)
+ *   // Authenticated (default — Bearer token injected from NextAuth session)
  *   const data = await apiClient.get<UserDTO>('/v1/mentors/123/en/profile');
  *
- *   // Public endpoint (no token ever)
- *   const data = await apiClient.get<ExpertiseType[]>('/v1/mentors/en/expertises', { auth: false });
+ *   // Public endpoint (no token)
+ *   const data = await apiClient.get<MentorType[]>('/v1/mentors', { auth: false });
  *
  *   // With query params
  *   const mentors = await apiClient.get<MentorType[]>('/v1/mentors', { params: { limit: 10 } });
- *
- * Feature flag:
- *   NEXT_PUBLIC_USE_API_CLIENT=false  → JWT not injected (safe while backend auth isn't ready)
- *   NEXT_PUBLIC_USE_API_CLIENT=true   → JWT auto-injected from NextAuth session
  */
 
 import { getSession } from 'next-auth/react';
 
 import { captureApiFailure } from '@/lib/monitoring';
-
-// ─── Feature flag ────────────────────────────────────────────────────────────
-// Flip to true once backend JWT auth is fully configured.
-const JWT_ENABLED = process.env.NEXT_PUBLIC_USE_API_CLIENT === 'true';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 export class ApiError extends Error {
@@ -68,7 +60,6 @@ function buildUrl(path: string, params?: RequestOptions['params']): string {
 }
 
 async function getAuthHeader(): Promise<Record<string, string>> {
-  if (!JWT_ENABLED) return {};
   const session = await getSession();
   const token = session?.accessToken;
   if (!token) return {};
