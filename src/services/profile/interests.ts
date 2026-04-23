@@ -42,7 +42,7 @@ export async function fetchInterests(
   try {
     const data = await apiClient.get<ApiResponse>(
       `/v1/users/${language}/interests`,
-      { auth: false, params: { interest } }
+      { params: { interest } }
     );
 
     return (data.data?.interests ?? []).map(toInterestDTO);
