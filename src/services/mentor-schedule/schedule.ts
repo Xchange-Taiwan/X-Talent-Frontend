@@ -102,8 +102,7 @@ export async function saveMentorSchedule(params: {
   try {
     const result = await apiClient.put<SaveScheduleResponse>(
       `/v1/mentors/${params.userId}/schedule`,
-      body,
-      { auth: false }
+      body
     );
     if (params.debug) {
       console.log('[saveMentorSchedule] response:', result);
@@ -134,8 +133,7 @@ export async function deleteMentorSchedule(params: {
 }): Promise<boolean> {
   try {
     await apiClient.delete(
-      `/v1/mentors/${params.userId}/schedule/${params.scheduleId}`,
-      { auth: false }
+      `/v1/mentors/${params.userId}/schedule/${params.scheduleId}`
     );
     return true;
   } catch {
