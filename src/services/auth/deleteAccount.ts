@@ -1,5 +1,3 @@
-import { getSession } from 'next-auth/react';
-
 import { apiClient, ApiError } from '@/lib/apiClient';
 import type { components } from '@/types/api';
 
@@ -14,11 +12,7 @@ export async function deleteAccount(
   payload: DeleteAccountDTO
 ): Promise<DeleteAccountResult> {
   try {
-    const session = await getSession();
-    const token = session?.accessToken;
-    await apiClient.delete('/v1/auth/account', payload, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    await apiClient.delete('/v1/auth/account', payload);
     return { status: 'success' };
   } catch (error) {
     if (error instanceof ApiError) {
