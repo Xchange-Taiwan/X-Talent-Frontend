@@ -6,13 +6,12 @@ import { useEffect, useState } from 'react';
 
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
+import { googleCallback } from '@/lib/actions/googleCallback';
 import { trackEvent } from '@/lib/analytics';
 import { deleteAccount } from '@/services/auth/deleteAccount';
 import type { components } from '@/types/api';
 
 type GoogleCallbackVO = components['schemas']['GoogleCallbackVO'];
-type OAuthCallbackResponse =
-  components['schemas']['ApiResponse_GoogleCallbackVO_'];
 
 export default function GoogleOAuthRedirectPage() {
   const searchParams = useSearchParams();
@@ -36,16 +35,7 @@ export default function GoogleOAuthRedirectPage() {
       }
 
       try {
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/v2/oauth/google/callback`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, state }),
-          }
-        );
-
-        const response: OAuthCallbackResponse = await res.json();
+        const response = await googleCallback(code, state);
         console.log('[Google OAuth] backend response:', response);
 
         const callbackData = response.data;
@@ -59,14 +49,20 @@ export default function GoogleOAuthRedirectPage() {
           return;
         }
 
+        const refreshToken = response.refreshToken;
+
         const deleteEmail = sessionStorage.getItem('delete_account_email');
         if (deleteEmail) {
           sessionStorage.removeItem('delete_account_email');
-          await handleDeleteAccountFlow(callbackData, deleteEmail);
+          await handleDeleteAccountFlow(
+            callbackData,
+            deleteEmail,
+            refreshToken
+          );
           return;
         }
 
-        await proceedWithSignIn(callbackData);
+        await proceedWithSignIn(callbackData, refreshToken);
       } catch (err) {
         toast({
           variant: 'destructive',
@@ -84,7 +80,8 @@ export default function GoogleOAuthRedirectPage() {
 
   const handleDeleteAccountFlow = async (
     data: GoogleCallbackVO,
-    email: string
+    email: string,
+    refreshToken: string | null
   ) => {
     if (data.auth_type !== 'LOGIN') {
       toast({
@@ -113,6 +110,7 @@ export default function GoogleOAuthRedirectPage() {
       token: auth.token,
       email: auth.email ?? '',
       user: JSON.stringify(user),
+      refreshToken: refreshToken ?? '',
     });
 
     const result = await deleteAccount({ email, id_token });
@@ -141,7 +139,10 @@ export default function GoogleOAuthRedirectPage() {
     router.push('/auth/signin');
   };
 
-  const proceedWithSignIn = async (data: GoogleCallbackVO) => {
+  const proceedWithSignIn = async (
+    data: GoogleCallbackVO,
+    refreshToken: string | null
+  ) => {
     if (data.auth_type === 'SIGNUP') {
       sessionStorage.setItem('email', data.auth.email ?? '');
       router.push('/auth/email-verify');
@@ -163,6 +164,7 @@ export default function GoogleOAuthRedirectPage() {
       token: data.auth.token,
       email: data.auth.email ?? '',
       user: JSON.stringify(data.user),
+      refreshToken: refreshToken ?? '',
     });
 
     const session = await getSession();

@@ -6,6 +6,7 @@ import { SessionProvider } from 'next-auth/react';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import GlobalErrorMonitor from '@/components/GlobalErrorMonitor';
 import PageViewTracker from '@/components/PageViewTracker';
+import SessionErrorWatcher from '@/components/SessionErrorWatcher';
 import WebVitalsMonitor from '@/components/WebVitalsMonitor';
 
 export default function Providers({
@@ -20,6 +21,7 @@ export default function Providers({
       <GlobalErrorMonitor />
       <WebVitalsMonitor />
       <PageViewTracker />
+      <SessionErrorWatcher />
       <ErrorBoundary>{children}</ErrorBoundary>
     </SessionProvider>
   );

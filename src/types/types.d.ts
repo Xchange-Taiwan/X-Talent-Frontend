@@ -9,6 +9,7 @@ declare module 'next-auth' {
   interface User {
     id?: string;
     token?: string;
+    refreshToken?: string;
     onBoarding?: boolean;
     name?: string | null;
     avatar?: string | null;
@@ -23,8 +24,9 @@ declare module 'next-auth' {
   }
 
   interface Session {
-    user: Omit<User, 'token'> & DefaultSession['user'];
+    user: Omit<User, 'token' | 'refreshToken'> & DefaultSession['user'];
     accessToken?: string;
+    error?: 'RefreshTokenError';
   }
 }
 
@@ -32,6 +34,7 @@ declare module 'next-auth/jwt' {
   interface JWT {
     id?: string;
     token?: string;
+    refreshToken?: string;
     email?: string;
     onBoarding?: boolean;
     name?: string | null;
@@ -43,5 +46,6 @@ declare module 'next-auth/jwt' {
     personalLinks?: PersonalLink[];
     msg?: string;
     provider?: string;
+    error?: 'RefreshTokenError';
   }
 }

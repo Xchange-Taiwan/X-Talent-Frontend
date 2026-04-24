@@ -2,6 +2,27 @@ import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
 import { SignInSchema } from '@/schemas/auth';
+import { refreshAccessToken } from '@/services/auth/refreshToken';
+
+function decodeJwtExp(jwtString: string): number | null {
+  try {
+    const base64 = jwtString
+      .split('.')[1]
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+    const payload = JSON.parse(
+      Buffer.from(base64, 'base64').toString('utf-8')
+    ) as Record<string, unknown>;
+    return typeof payload.exp === 'number' ? payload.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+function extractRefreshToken(headers: Headers): string | undefined {
+  const setCookie = headers.get('set-cookie') ?? '';
+  return setCookie.match(/refresh_token=([^;,]+)/)?.[1] ?? undefined;
+}
 
 const authOptions = {
   session: { strategy: 'jwt' },
@@ -51,6 +72,7 @@ const authOptions = {
         return {
           id: String(response.data.auth.user_id),
           token: response.data.auth.token,
+          refreshToken: extractRefreshToken(res.headers),
           email: response.data.auth.email,
           onBoarding: response.data.user.onboarding,
           isMentor: response.data.user.is_mentor,
@@ -73,6 +95,7 @@ const authOptions = {
         token: { label: 'Token', type: 'text' },
         email: { label: 'Email', type: 'text' },
         user: { label: 'User JSON', type: 'text' },
+        refreshToken: { label: 'Refresh Token', type: 'text' },
       },
       async authorize(credentials) {
         if (!credentials?.token || !credentials?.user) return null;
@@ -98,6 +121,7 @@ const authOptions = {
           return {
             id: String(user.user_id),
             token: credentials.token,
+            refreshToken: (credentials.refreshToken as string) || undefined,
             email: (credentials.email as string) || undefined,
             name: user.name,
             avatar: user.avatar,
@@ -132,6 +156,29 @@ const authOptions = {
         };
       }
 
+      const backendToken = token.token;
+      const storedRefreshToken = token.refreshToken;
+
+      if (backendToken && storedRefreshToken) {
+        const exp = decodeJwtExp(backendToken);
+        const isExpiringSoon = exp !== null && exp - Date.now() / 1000 < 300;
+
+        if (isExpiringSoon) {
+          try {
+            const { token: newToken, refreshToken: newRefreshToken } =
+              await refreshAccessToken(storedRefreshToken);
+            return {
+              ...token,
+              token: newToken,
+              refreshToken: newRefreshToken ?? storedRefreshToken,
+              error: undefined,
+            };
+          } catch {
+            return { ...token, error: 'RefreshTokenError' as const };
+          }
+        }
+      }
+
       return token;
     },
 
@@ -154,6 +201,7 @@ const authOptions = {
       session.user.provider =
         (token.provider as string | undefined) ?? undefined;
       session.user.email = (token.email as string | undefined) ?? undefined;
+      session.error = token.error;
       return session;
     },
   },
