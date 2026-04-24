@@ -1212,12 +1212,12 @@ export interface components {
       url: string | null;
       /**
        * Create Time
-       * @default 2026-04-24T06:29:43.873734Z
+       * @default 2026-04-24T07:25:00.505055Z
        */
       create_time: string | null;
       /**
        * Update Time
-       * @default 2026-04-24T06:29:43.873750Z
+       * @default 2026-04-24T07:25:00.505070Z
        */
       update_time: string | null;
       /** Create User Id */
