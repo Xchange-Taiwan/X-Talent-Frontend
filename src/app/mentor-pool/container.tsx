@@ -5,8 +5,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import avatarImage from '@/assets/default-avatar.png';
 import { SelectFilters } from '@/components/filter/MentorFilterDropdown';
-import useInterests from '@/hooks/user/interests/useInterests';
-import { fetchMentors, MentorType } from '@/services/search-mentor/mentors';
+import {
+  fetchMentorsEnriched,
+  MentorType,
+} from '@/services/search-mentor/mentors';
 
 import { filterOptions } from './data';
 
@@ -26,16 +28,6 @@ export default function MentorPoolContainer() {
   const [cursor, setCursor] = useState<string | undefined>('');
   const [sessionRestored, setSessionRestored] = useState(false);
   const isLoadingRef = useRef(false);
-  const { skills: skillInterests } = useInterests('zh_TW');
-  const skillLabelMapRef = useRef<Record<string, string>>({});
-
-  useEffect(() => {
-    const map: Record<string, string> = {};
-    skillInterests.forEach((s) => {
-      map[s.subject_group] = s.subject ?? '';
-    });
-    skillLabelMapRef.current = map;
-  }, [skillInterests]);
 
   // Restore persisted search state before the first fetch
   useEffect(() => {
@@ -93,21 +85,18 @@ export default function MentorPoolContainer() {
     isLoadingRef.current = true;
     let rtnList: MentorType[] = [];
     try {
-      rtnList = await fetchMentors(param);
+      rtnList = (await fetchMentorsEnriched(param)).map((mentor) => ({
+        ...mentor,
+        avatar:
+          typeof mentor.avatar === 'string' && mentor.avatar
+            ? mentor.avatar
+            : avatarImage,
+      }));
     } finally {
       setIsLoading(false);
       isLoadingRef.current = false;
     }
     if (rtnList.length > 0) {
-      rtnList.forEach((mentor) => {
-        mentor.avatar =
-          typeof mentor.avatar === 'string' && mentor.avatar
-            ? mentor.avatar
-            : avatarImage;
-        mentor.skills = mentor.skills.map(
-          (s) => skillLabelMapRef.current[s] ?? s
-        );
-      });
       setMentors(rtnList);
       setMentorCount(rtnList.length);
       setCursor(rtnList.at(-1)?.updated_at?.toString());
@@ -131,21 +120,18 @@ export default function MentorPoolContainer() {
     isLoadingRef.current = true;
     let rtnList: MentorType[] = [];
     try {
-      rtnList = await fetchMentors(param);
+      rtnList = (await fetchMentorsEnriched(param)).map((mentor) => ({
+        ...mentor,
+        avatar:
+          typeof mentor.avatar === 'string' && mentor.avatar
+            ? mentor.avatar
+            : avatarImage,
+      }));
     } finally {
       setIsLoading(false);
       isLoadingRef.current = false;
     }
     if (rtnList.length > 0) {
-      rtnList.forEach((mentor) => {
-        mentor.avatar =
-          typeof mentor.avatar === 'string' && mentor.avatar
-            ? mentor.avatar
-            : avatarImage;
-        mentor.skills = mentor.skills.map(
-          (s) => skillLabelMapRef.current[s] ?? s
-        );
-      });
       setMentors((prevMentors) => {
         const newMentors = rtnList.filter(
           (newMentor) =>

@@ -1,28 +1,8 @@
 import { memo, useEffect, useRef } from 'react';
 
-import { WorkExperienceMetadata } from '@/hooks/user/user-data/useUserData';
-import {
-  MentorExperienceBlock,
-  MentorType,
-} from '@/services/search-mentor/mentors';
+import { MentorType } from '@/services/search-mentor/mentors';
 
 import { MentorCard } from '../mentor-card';
-
-function deriveCurrentJob(experiences: MentorExperienceBlock[]): {
-  job_title: string;
-  company: string;
-} {
-  const firstWork = experiences.find((e) => e.category === 'WORK');
-  const metadata: WorkExperienceMetadata | undefined = (
-    firstWork?.mentor_experiences_metadata as
-      | { data?: WorkExperienceMetadata[] }
-      | undefined
-  )?.data?.[0];
-  return {
-    job_title: metadata?.job ?? '',
-    company: metadata?.company ?? '',
-  };
-}
 
 interface MentorCardListProps {
   mentors: MentorType[];
@@ -67,14 +47,8 @@ const MentorCardListBase = ({
             avatar={mentor.avatar}
             years={mentor.years_of_experience}
             name={mentor.name}
-            job_title={
-              deriveCurrentJob(mentor.experiences ?? []).job_title ||
-              mentor.job_title
-            }
-            company={
-              deriveCurrentJob(mentor.experiences ?? []).company ||
-              mentor.company
-            }
+            job_title={mentor.job_title}
+            company={mentor.company}
             personalStatment={mentor.personal_statement}
             skills={mentor.skills}
           />
