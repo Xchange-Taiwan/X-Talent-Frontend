@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 
-import { ExpertiseType, fetchExpertises } from '@/services/profile/expertises';
+import { fetchExpertises, ProfessionVO } from '@/services/profile/expertises';
 
-const expertisesCache = new Map<string, ExpertiseType[]>();
-const expertisesPromiseCache = new Map<string, Promise<ExpertiseType[]>>();
+const expertisesCache = new Map<string, ProfessionVO[]>();
+const expertisesPromiseCache = new Map<string, Promise<ProfessionVO[]>>();
 
 async function fetchExpertisesCached(
   language: string
-): Promise<ExpertiseType[]> {
+): Promise<ProfessionVO[]> {
   if (expertisesCache.has(language)) return expertisesCache.get(language)!;
 
   const inflight = expertisesPromiseCache.get(language);
@@ -25,7 +25,7 @@ async function fetchExpertisesCached(
 }
 
 export default function useExpertises(language: string) {
-  const [expertises, setExpertises] = useState<ExpertiseType[]>([]);
+  const [expertises, setExpertises] = useState<ProfessionVO[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 

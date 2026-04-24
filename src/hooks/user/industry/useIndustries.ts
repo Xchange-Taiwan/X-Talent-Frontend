@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 
-import { fetchIndustries, IndustryDTO } from '@/services/profile/industries';
+import { fetchIndustries, ProfessionVO } from '@/services/profile/industries';
 
-const industriesCache = new Map<string, IndustryDTO[]>();
-const industriesPromiseCache = new Map<string, Promise<IndustryDTO[]>>();
+const industriesCache = new Map<string, ProfessionVO[]>();
+const industriesPromiseCache = new Map<string, Promise<ProfessionVO[]>>();
 
-async function fetchIndustriesCached(language: string): Promise<IndustryDTO[]> {
+async function fetchIndustriesCached(
+  language: string
+): Promise<ProfessionVO[]> {
   if (industriesCache.has(language)) return industriesCache.get(language)!;
 
   const inflight = industriesPromiseCache.get(language);
@@ -23,7 +25,7 @@ async function fetchIndustriesCached(language: string): Promise<IndustryDTO[]> {
 }
 
 export default function useIndustries(language: string) {
-  const [industries, setIndustries] = useState<IndustryDTO[]>([]);
+  const [industries, setIndustries] = useState<ProfessionVO[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
