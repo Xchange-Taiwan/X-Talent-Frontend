@@ -4,10 +4,6 @@ import type { components } from '@/types/api';
 type ProfessionVO = components['schemas']['ProfessionVO'];
 type ApiResponse = components['schemas']['ApiResponse_ProfessionListVO_'];
 
-// profession_metadata is typed as Record<string, never> in the generated schema
-// because the backend Pydantic model uses dict — see X-Talent-Tracker#88
-type ProfessionMetadata = { desc?: string; icon?: string };
-
 export interface ExpertiseType {
   id: number;
   category: string;
@@ -21,8 +17,6 @@ export interface ExpertiseType {
 }
 
 function toExpertiseType(profession: ProfessionVO): ExpertiseType {
-  const metadata =
-    profession.profession_metadata as unknown as ProfessionMetadata;
   return {
     id: profession.id,
     category: profession.category,
@@ -30,8 +24,8 @@ function toExpertiseType(profession: ProfessionVO): ExpertiseType {
     subject_group: profession.subject_group,
     subject: profession.subject,
     desc: {
-      desc: metadata.desc,
-      icon: metadata.icon,
+      desc: profession.profession_metadata.desc ?? undefined,
+      icon: profession.profession_metadata.icon ?? undefined,
     },
   };
 }

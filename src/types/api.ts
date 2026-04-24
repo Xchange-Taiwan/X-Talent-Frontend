@@ -81,7 +81,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Refresh Token */
+    /**
+     * Refresh Token
+     * @description OAuth 2.0 風格換發 access JWT：`grant_type=refresh_token` + `refresh_token`（form-urlencoded）。
+     */
     post: operations['refresh_token_api_v1_auth_token_post'];
     delete?: never;
     options?: never;
@@ -172,40 +175,6 @@ export interface paths {
     post?: never;
     /** Delete Account */
     delete: operations['delete_account_api_v1_auth_account_delete'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/oauth/signup/{auth_type}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Signup Oauth */
-    post: operations['signup_oauth_api_v1_oauth_signup__auth_type__post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/oauth/login/{auth_type}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Login Oauth */
-    post: operations['login_oauth_api_v1_oauth_login__auth_type__post'];
-    delete?: never;
     options?: never;
     head?: never;
     patch?: never;
@@ -1092,8 +1061,16 @@ export interface components {
     };
     /** Body_refresh_token_api_v1_auth_token_post */
     Body_refresh_token_api_v1_auth_token_post: {
-      /** User Id */
-      user_id: number;
+      /**
+       * Grant Type
+       * @description OAuth 2.0：必須為 refresh_token
+       */
+      grant_type: string;
+      /**
+       * Refresh Token
+       * @description 先前核發的 refresh token；若為 HttpOnly cookie 則可省略，改由瀏覽器自動帶上同名 cookie
+       */
+      refresh_token?: string | null;
     };
     /** Body_signup_email_resend_api_v1_auth_email_resend_post */
     Body_signup_email_resend_api_v1_auth_email_resend_post: {
@@ -1235,12 +1212,12 @@ export interface components {
       url: string | null;
       /**
        * Create Time
-       * @default 2026-04-24T01:40:06.322029Z
+       * @default 2026-04-24T06:29:43.873734Z
        */
       create_time: string | null;
       /**
        * Update Time
-       * @default 2026-04-24T01:40:06.322038Z
+       * @default 2026-04-24T06:29:43.873750Z
        */
       update_time: string | null;
       /** Create User Id */
@@ -1350,19 +1327,6 @@ export interface components {
       email: string;
       /** Password */
       password: string;
-    };
-    /**
-     * LoginOauthDTO
-     * @example {
-     *       "access_token": "access_token",
-     *       "oauth_id": "oauth_id"
-     *     }
-     */
-    LoginOauthDTO: {
-      /** Oauth Id */
-      oauth_id: string;
-      /** Access Token */
-      access_token: string;
     };
     /** LoginResponseVO */
     LoginResponseVO: {
@@ -1538,11 +1502,6 @@ export interface components {
       /** Icon */
       icon?: string | null;
     };
-    /**
-     * OAuthType
-     * @enum {string}
-     */
-    OAuthType: 'GOOGLE';
     /**
      * ProfessionCategory
      * @enum {string}
@@ -1989,25 +1948,6 @@ export interface components {
       /** Confirm Password */
       confirm_password: string;
     };
-    /**
-     * SignupOauthDTO
-     * @example {
-     *       "access_token": "access_token",
-     *       "email": "user@example.com",
-     *       "oauth_id": "oauth_id"
-     *     }
-     */
-    SignupOauthDTO: {
-      /**
-       * Email
-       * Format: email
-       */
-      email: string;
-      /** Oauth Id */
-      oauth_id: string;
-      /** Access Token */
-      access_token: string;
-    };
     /** SignupResponseVO */
     SignupResponseVO: {
       auth: components['schemas']['AuthVO'];
@@ -2366,7 +2306,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        'application/json': components['schemas']['Body_refresh_token_api_v1_auth_token_post'];
+        'application/x-www-form-urlencoded': components['schemas']['Body_refresh_token_api_v1_auth_token_post'];
       };
     };
     responses: {
@@ -2578,92 +2518,6 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  signup_oauth_api_v1_oauth_signup__auth_type__post: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        auth_type: components['schemas']['OAuthType'];
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['SignupOauthDTO'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_EmailSentVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  login_oauth_api_v1_oauth_login__auth_type__post: {
-    parameters: {
-      query?: {
-        language?: components['schemas']['Language'];
-      };
-      header?: never;
-      path: {
-        auth_type: components['schemas']['OAuthType'];
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['LoginOauthDTO'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_LoginResponseVO_'];
-        };
       };
       /** @description Not found */
       404: {

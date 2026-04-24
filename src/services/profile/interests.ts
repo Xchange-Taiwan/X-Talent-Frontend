@@ -4,10 +4,6 @@ import type { components } from '@/types/api';
 type InterestVO = components['schemas']['InterestVO'];
 type ApiResponse = components['schemas']['ApiResponse_InterestListVO_'];
 
-// desc is typed as Record<string, never> in the generated schema
-// because the backend Pydantic model uses dict — see X-Talent-Tracker#88
-type InterestDesc = { desc?: string; icon?: string };
-
 export interface InterestDTO {
   id: number;
   category: string;
@@ -21,7 +17,6 @@ export interface InterestDTO {
 }
 
 function toInterestDTO(interest: InterestVO): InterestDTO {
-  const desc = interest.desc as unknown as InterestDesc | null;
   return {
     id: interest.id,
     category: interest.category ?? '',
@@ -29,8 +24,8 @@ function toInterestDTO(interest: InterestVO): InterestDTO {
     subject_group: interest.subject_group,
     subject: interest.subject ?? '',
     desc: {
-      desc: desc?.desc,
-      icon: desc?.icon,
+      desc: interest.desc?.desc ?? undefined,
+      icon: interest.desc?.icon ?? undefined,
     },
   };
 }
