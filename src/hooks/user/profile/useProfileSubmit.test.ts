@@ -36,7 +36,7 @@ import { ExperienceType } from '@/services/profile/experienceType';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
 import { upsertMentorExperience } from '@/services/profile/upsertExperience';
-import { UserDTO } from '@/services/profile/user';
+import type { MentorProfileVO } from '@/services/profile/user';
 import { mockRouter } from '@/test/mocks/navigation';
 
 import { useProfileSubmit } from './useProfileSubmit';
@@ -46,7 +46,7 @@ const mockUpdateProfile = vi.mocked(updateProfile);
 const mockUpsertMentorExperience = vi.mocked(upsertMentorExperience);
 const mockPollUntilSynced = vi.mocked(pollUntilSynced);
 
-const mockUserDTO: UserDTO = {
+const mockUserDTO: MentorProfileVO = {
   user_id: 1,
   name: 'Test User',
   avatar: 'https://example.com/avatar.jpg',
@@ -68,6 +68,9 @@ const mockUserDTO: UserDTO = {
   onboarding: true,
   is_mentor: true,
   language: 'zh_TW',
+  personal_statement: null,
+  about: null,
+  seniority_level: null,
 };
 
 const mockSession: Session = {
