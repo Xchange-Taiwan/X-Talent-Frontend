@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
+import { parseCurrentJob } from '@/lib/profile/parseUserExperiences';
 import { ExperienceType } from '@/services/profile/experienceType';
 import { fetchUserById, MentorProfileVO } from '@/services/profile/user';
 
@@ -148,13 +149,12 @@ function parseUserDtoToUserType(
     ExperienceType.LINK
   );
 
-  const firstWork = workBlocks[0];
-  const firstWorkMetadata = firstWork
-    ? getMetadataArray<WorkExperienceMetadata>(firstWork)[0]
-    : undefined;
-
-  const job_title = firstWorkMetadata?.job ?? userDto.job_title ?? '';
-  const company = firstWorkMetadata?.company ?? userDto.company ?? '';
+  const { job_title, company } = parseCurrentJob(
+    userDto.experiences as {
+      category: string;
+      mentor_experiences_metadata: unknown;
+    }[]
+  );
 
   const workExperiences = workBlocks.flatMap((b) =>
     getMetadataArray<WorkExperienceMetadata>(b)
