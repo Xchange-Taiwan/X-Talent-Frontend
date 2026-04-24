@@ -59,7 +59,7 @@ const mockUserDTO: UserDTO = {
   topics: { interests: [], language: null },
   industry: {
     id: 1,
-    category: 'tech',
+    category: 'INDUSTRY',
     subject_group: 'tech',
     subject: 'software',
     language: 'zh_TW',

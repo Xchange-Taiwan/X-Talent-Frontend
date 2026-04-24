@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { LocationType } from '@/services/profile/countries';
-import { IndustryDTO } from '@/services/profile/industries';
+import { ProfessionVO } from '@/services/profile/industries';
 
 import { totalWorkSpanOptions } from './constant';
 import { step2Schema } from './index';
@@ -27,7 +27,7 @@ import { step2Schema } from './index';
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step2Schema>>>;
   locationOptions: LocationType[];
-  industryOptions: IndustryDTO[];
+  industryOptions: ProfessionVO[];
 }
 
 export const PersonalInfo: FC<Props> = ({

@@ -13,13 +13,13 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
-import { InterestDTO } from '@/services/profile/interests';
+import { InterestVO } from '@/services/profile/interests';
 
 import { step4Schema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step4Schema>>>;
-  skillOptions: InterestDTO[];
+  skillOptions: InterestVO[];
 }
 
 export const SkillsToImprove: FC<Props> = ({ form, skillOptions }) => {
@@ -59,7 +59,7 @@ export const SkillsToImprove: FC<Props> = ({ form, skillOptions }) => {
                     />
                   </FormControl>
                   <FormLabel className="grow cursor-pointer px-4 py-3 text-base font-normal">
-                    {option.subject}
+                    {option.subject ?? ''}
                   </FormLabel>
                 </FormItem>
               );

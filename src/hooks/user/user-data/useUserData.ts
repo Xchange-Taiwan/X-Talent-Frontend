@@ -92,7 +92,7 @@ function toInterestList(
 ): InterestType[] {
   return interests.map((i) => ({
     subject_group: i.subject_group,
-    subject: i.subject,
+    subject: i.subject ?? '',
   }));
 }
 
@@ -239,7 +239,7 @@ function useUserData(userId: number, language: string) {
 
         const labelByGroup = new Map(
           interests.whatIOffers.map(
-            (item) => [item.subject_group, item.subject] as const
+            (item) => [item.subject_group, item.subject ?? ''] as const
           )
         );
 

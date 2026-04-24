@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 
-import { fetchInterests, InterestDTO } from '@/services/profile/interests';
+import { fetchInterests, InterestVO } from '@/services/profile/interests';
 
 export type InterestsResult = {
-  interestedPositions: InterestDTO[];
-  skills: InterestDTO[];
-  topics: InterestDTO[];
-  expertises: InterestDTO[];
-  whatIOffers: InterestDTO[];
+  interestedPositions: InterestVO[];
+  skills: InterestVO[];
+  topics: InterestVO[];
+  expertises: InterestVO[];
+  whatIOffers: InterestVO[];
 };
 
 const interestsDataCache = new Map<string, InterestsResult>();
@@ -47,13 +47,13 @@ export async function getInterestsCached(
 }
 
 function useInterests(language: string) {
-  const [interestedPositions, setInterestedPositions] = useState<InterestDTO[]>(
+  const [interestedPositions, setInterestedPositions] = useState<InterestVO[]>(
     []
   );
-  const [skills, setSkills] = useState<InterestDTO[]>([]);
-  const [topics, setTopics] = useState<InterestDTO[]>([]);
-  const [expertises, setExpertises] = useState<InterestDTO[]>([]);
-  const [whatIOffers, setWhatIOffers] = useState<InterestDTO[]>([]);
+  const [skills, setSkills] = useState<InterestVO[]>([]);
+  const [topics, setTopics] = useState<InterestVO[]>([]);
+  const [expertises, setExpertises] = useState<InterestVO[]>([]);
+  const [whatIOffers, setWhatIOffers] = useState<InterestVO[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 

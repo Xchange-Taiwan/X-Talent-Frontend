@@ -14,13 +14,13 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
-import { InterestDTO } from '@/services/profile/interests';
+import { InterestVO } from '@/services/profile/interests';
 
 import { step5Schema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step5Schema>>>;
-  topicOptions: InterestDTO[];
+  topicOptions: InterestVO[];
 }
 
 export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {
@@ -44,10 +44,10 @@ export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {
                 >
                   <FormLabel className="flex grow cursor-pointer gap-4 ">
                     <div className="rounded-full bg-[#EBFBFB] p-3">
-                      {option.desc.icon && (
+                      {option.desc?.icon && (
                         <Image
-                          src={option.desc.icon}
-                          alt={option.desc.desc || '主題圖示'}
+                          src={option.desc.icon ?? ''}
+                          alt={option.desc?.desc ?? '主題圖示'}
                           width={24}
                           height={24}
                           className="object-contain"
@@ -57,10 +57,10 @@ export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {
 
                     <div>
                       <p className="text-base font-normal text-text-primary">
-                        {option.subject}
+                        {option.subject ?? ''}
                       </p>
                       <p className=" text-sm text-text-tertiary">
-                        {option.desc.desc}
+                        {option.desc?.desc}
                       </p>
                     </div>
                   </FormLabel>

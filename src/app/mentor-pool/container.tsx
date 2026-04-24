@@ -32,7 +32,7 @@ export default function MentorPoolContainer() {
   useEffect(() => {
     const map: Record<string, string> = {};
     skillInterests.forEach((s) => {
-      map[s.subject_group] = s.subject;
+      map[s.subject_group] = s.subject ?? '';
     });
     skillLabelMapRef.current = map;
   }, [skillInterests]);
