@@ -16,8 +16,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { LocationType } from '@/services/profile/countries';
-import { IndustryDTO } from '@/services/profile/industries';
-import { InterestDTO } from '@/services/profile/interests';
+import { ProfessionVO } from '@/services/profile/industries';
+import { InterestVO } from '@/services/profile/interests';
 
 // Steps 2-5 are only rendered after the user completes step 1.
 // Lazy-load them so their code is excluded from the initial bundle and
@@ -54,10 +54,10 @@ interface Props {
   step4Form: UseFormReturn<z.infer<typeof step4Schema>>;
   step5Form: UseFormReturn<z.infer<typeof step5Schema>>;
   locations: LocationType[];
-  industries: IndustryDTO[];
-  interestedPositions: InterestDTO[];
-  skills: InterestDTO[];
-  topics: InterestDTO[];
+  industries: ProfessionVO[];
+  interestedPositions: InterestVO[];
+  skills: InterestVO[];
+  topics: InterestVO[];
   isSubmitting: boolean;
   onGoToPrev: () => void;
   onSubmitStep1: (data: z.infer<typeof step1Schema>) => void;

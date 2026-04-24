@@ -13,13 +13,13 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { cn } from '@/lib/utils';
-import { InterestDTO } from '@/services/profile/interests';
+import { InterestVO } from '@/services/profile/interests';
 
 import { step3Schema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step3Schema>>>;
-  interestedPositionOptions: InterestDTO[];
+  interestedPositionOptions: InterestVO[];
 }
 
 export const InterestedPosition: FC<Props> = ({
@@ -66,7 +66,7 @@ export const InterestedPosition: FC<Props> = ({
                           'border-primary bg-secondary'
                       )}
                     >
-                      {option.subject}
+                      {option.subject ?? ''}
                     </div>
                   </FormLabel>
                 </FormItem>
