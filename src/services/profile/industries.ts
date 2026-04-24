@@ -41,7 +41,8 @@ export async function fetchIndustries(
 ): Promise<IndustryDTO[]> {
   try {
     const data = await apiClient.get<ApiResponse>(
-      `/v1/users/${language}/industries`
+      `/v1/users/${language}/industries`,
+      { auth: false }
     );
 
     return (data.data?.professions ?? []).map(toIndustryDTO);

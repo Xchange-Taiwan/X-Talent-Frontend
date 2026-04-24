@@ -41,7 +41,8 @@ export async function fetchExpertises(
 ): Promise<ExpertiseType[]> {
   try {
     const data = await apiClient.get<ApiResponse>(
-      `/v1/mentors/${language}/expertises`
+      `/v1/mentors/${language}/expertises`,
+      { auth: false }
     );
 
     return (data.data?.professions ?? []).map(toExpertiseType);

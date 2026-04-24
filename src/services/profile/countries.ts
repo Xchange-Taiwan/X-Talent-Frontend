@@ -16,7 +16,8 @@ export async function fetchCountries(
 ): Promise<LocationType[]> {
   try {
     const data = await apiClient.get<CountryResponse>(
-      `/v1/users/${language}/countries`
+      `/v1/users/${language}/countries`,
+      { auth: false }
     );
 
     return Object.entries(data.data).map(([key, value]) => ({
