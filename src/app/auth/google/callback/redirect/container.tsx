@@ -8,53 +8,11 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
 import { trackEvent } from '@/lib/analytics';
 import { deleteAccount } from '@/services/auth/deleteAccount';
+import type { components } from '@/types/api';
 
-type OAuthUser = {
-  user_id: number | string;
-  name: string;
-  avatar: string;
-  is_mentor: boolean;
-  onboarding: boolean;
-  job_title?: string;
-  company?: string;
-  years_of_experience?: string;
-  location?: string;
-  interested_positions?: string[] | null;
-  skills?: string[] | null;
-  topics?: string[] | null;
-  industry?: string | null;
-  language?: string;
-};
-
-type SignupResponse = {
-  code: string;
-  msg: string;
-  data: {
-    auth_type: 'SIGNUP';
-    ttl_secs: number;
-    auth: {
-      email: string;
-      token: string;
-    };
-  };
-};
-
-type LoginResponse = {
-  code: string;
-  msg: string;
-  data: {
-    auth_type: 'LOGIN';
-    auth: {
-      user_id: number | string;
-      token: string;
-      email?: string | null;
-    };
-    user: OAuthUser;
-    id_token?: string | null;
-  };
-};
-
-type OAuthResponse = SignupResponse | LoginResponse;
+type GoogleCallbackVO = components['schemas']['GoogleCallbackVO'];
+type OAuthCallbackResponse =
+  components['schemas']['ApiResponse_GoogleCallbackVO_'];
 
 export default function GoogleOAuthRedirectPage() {
   const searchParams = useSearchParams();
@@ -87,17 +45,28 @@ export default function GoogleOAuthRedirectPage() {
           }
         );
 
-        const data: OAuthResponse = await res.json();
-        console.log('[Google OAuth] backend response:', data);
+        const response: OAuthCallbackResponse = await res.json();
+        console.log('[Google OAuth] backend response:', response);
+
+        const callbackData = response.data;
+        if (!callbackData) {
+          toast({
+            variant: 'destructive',
+            title: 'Login failed',
+            description: 'Something went wrong during login.',
+          });
+          router.push('/auth/signin');
+          return;
+        }
 
         const deleteEmail = sessionStorage.getItem('delete_account_email');
         if (deleteEmail) {
           sessionStorage.removeItem('delete_account_email');
-          await handleDeleteAccountFlow(data, deleteEmail);
+          await handleDeleteAccountFlow(callbackData, deleteEmail);
           return;
         }
 
-        await proceedWithSignIn(data);
+        await proceedWithSignIn(callbackData);
       } catch (err) {
         toast({
           variant: 'destructive',
@@ -114,13 +83,10 @@ export default function GoogleOAuthRedirectPage() {
   }, []);
 
   const handleDeleteAccountFlow = async (
-    data: OAuthResponse,
+    data: GoogleCallbackVO,
     email: string
   ) => {
-    const id_token =
-      data.data.auth_type === 'LOGIN' ? data.data.id_token : null;
-
-    if (!id_token) {
+    if (data.auth_type !== 'LOGIN') {
       toast({
         variant: 'destructive',
         title: '刪除帳號失敗',
@@ -129,6 +95,25 @@ export default function GoogleOAuthRedirectPage() {
       router.push('/auth/signin');
       return;
     }
+
+    const { id_token, auth, user } = data;
+
+    if (!id_token || !auth.token || !user) {
+      toast({
+        variant: 'destructive',
+        title: '刪除帳號失敗',
+        description: '無法取得 Google 憑證，請稍後再試',
+      });
+      router.push('/auth/signin');
+      return;
+    }
+
+    await signIn('custom-google-token', {
+      redirect: false,
+      token: auth.token,
+      email: auth.email ?? '',
+      user: JSON.stringify(user),
+    });
 
     const result = await deleteAccount({ email, id_token });
 
@@ -156,18 +141,14 @@ export default function GoogleOAuthRedirectPage() {
     router.push('/auth/signin');
   };
 
-  const proceedWithSignIn = async (data: OAuthResponse) => {
-    const backendData = data.data;
-
-    // SIGNUP — go to email verification
-    if (backendData.auth_type === 'SIGNUP') {
-      sessionStorage.setItem('email', backendData.auth.email);
+  const proceedWithSignIn = async (data: GoogleCallbackVO) => {
+    if (data.auth_type === 'SIGNUP') {
+      sessionStorage.setItem('email', data.auth.email ?? '');
       router.push('/auth/email-verify');
       return;
     }
 
-    // LOGIN — must have user + token
-    if (!('user' in backendData) || !backendData.auth?.token) {
+    if (!data.user || !data.auth.token) {
       toast({
         variant: 'destructive',
         title: 'Missing login data',
@@ -177,14 +158,11 @@ export default function GoogleOAuthRedirectPage() {
       return;
     }
 
-    const token = backendData.auth.token;
-    const user = backendData.user;
-
     await signIn('custom-google-token', {
       redirect: false,
-      token,
-      email: backendData.auth.email ?? '',
-      user: JSON.stringify(user),
+      token: data.auth.token,
+      email: data.auth.email ?? '',
+      user: JSON.stringify(data.user),
     });
 
     const session = await getSession();
