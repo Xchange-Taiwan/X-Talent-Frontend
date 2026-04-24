@@ -1,10 +1,10 @@
-import { UserDTO } from '@/services/profile/user';
+import type { MentorProfileVO } from '@/services/profile/user';
 export type SortMethod = 'a-z' | 'z-a';
 
 export function sortUsersByName(
-  users: UserDTO[],
+  users: MentorProfileVO[],
   method: SortMethod
-): UserDTO[] {
+): MentorProfileVO[] {
   return [...users].sort((a, b) => {
     const nameA = a.name || '';
     const nameB = b.name || '';
