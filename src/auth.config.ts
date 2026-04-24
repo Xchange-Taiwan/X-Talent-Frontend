@@ -71,6 +71,7 @@ const authOptions = {
       name: 'Custom Google Token',
       credentials: {
         token: { label: 'Token', type: 'text' },
+        email: { label: 'Email', type: 'text' },
         user: { label: 'User JSON', type: 'text' },
       },
       async authorize(credentials) {
@@ -97,6 +98,7 @@ const authOptions = {
           return {
             id: String(user.user_id),
             token: credentials.token,
+            email: (credentials.email as string) || undefined,
             name: user.name,
             avatar: user.avatar,
             avatarUpdatedAt: Date.now(),

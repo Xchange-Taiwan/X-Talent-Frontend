@@ -47,6 +47,7 @@ type LoginResponse = {
     auth: {
       user_id: number | string;
       token: string;
+      email?: string | null;
     };
     user: OAuthUser;
     id_token?: string | null;
@@ -182,6 +183,7 @@ export default function GoogleOAuthRedirectPage() {
     await signIn('custom-google-token', {
       redirect: false,
       token,
+      email: backendData.auth.email ?? '',
       user: JSON.stringify(user),
     });
 
