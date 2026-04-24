@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useRouter } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -9,6 +10,7 @@ import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { DeleteAccountXCSchema } from '@/schemas/auth';
 import { deleteAccount } from '@/services/auth/deleteAccount';
+import { getGoogleAuthorizeLoginUrl } from '@/services/auth/googleAuthorize';
 
 type XCValues = z.infer<typeof DeleteAccountXCSchema>;
 
@@ -20,11 +22,13 @@ interface UseDeleteAccountFormReturn {
   isSubmitting: boolean;
   blockedByReservations: boolean;
   onSubmitXC: (values: XCValues) => Promise<void>;
+  initiateGoogleReauth: () => Promise<void>;
 }
 
 export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
   const { data: session } = useSession();
   const { toast } = useToast();
+  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [blockedByReservations, setBlockedByReservations] = useState(false);
 
@@ -71,5 +75,32 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
     }
   };
 
-  return { mode, xcForm, isSubmitting, blockedByReservations, onSubmitXC };
+  const initiateGoogleReauth = async (): Promise<void> => {
+    setIsSubmitting(true);
+    try {
+      sessionStorage.setItem(
+        'delete_account_email',
+        session?.user?.email ?? ''
+      );
+      const { authorization_url } = await getGoogleAuthorizeLoginUrl();
+      router.push(authorization_url);
+    } catch {
+      sessionStorage.removeItem('delete_account_email');
+      toast({
+        variant: 'destructive',
+        description: '無法取得 Google 授權連結，請稍後再試',
+        duration: 3000,
+      });
+      setIsSubmitting(false);
+    }
+  };
+
+  return {
+    mode,
+    xcForm,
+    isSubmitting,
+    blockedByReservations,
+    onSubmitXC,
+    initiateGoogleReauth,
+  };
 }
