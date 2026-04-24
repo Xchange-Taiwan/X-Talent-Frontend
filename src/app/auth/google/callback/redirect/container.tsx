@@ -1,11 +1,13 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getSession, signIn } from 'next-auth/react';
+import { getSession, signIn, signOut } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
+import { trackEvent } from '@/lib/analytics';
+import { deleteAccount } from '@/services/auth/deleteAccount';
 
 type OAuthUser = {
   user_id: number | string;
@@ -47,6 +49,7 @@ type LoginResponse = {
       token: string;
     };
     user: OAuthUser;
+    id_token?: string | null;
   };
 };
 
@@ -86,6 +89,13 @@ export default function GoogleOAuthRedirectPage() {
         const data: OAuthResponse = await res.json();
         console.log('[Google OAuth] backend response:', data);
 
+        const deleteEmail = sessionStorage.getItem('delete_account_email');
+        if (deleteEmail) {
+          sessionStorage.removeItem('delete_account_email');
+          await handleDeleteAccountFlow(data, deleteEmail);
+          return;
+        }
+
         await proceedWithSignIn(data);
       } catch (err) {
         toast({
@@ -101,6 +111,49 @@ export default function GoogleOAuthRedirectPage() {
 
     handleOAuthFlow();
   }, []);
+
+  const handleDeleteAccountFlow = async (
+    data: OAuthResponse,
+    email: string
+  ) => {
+    const id_token =
+      data.data.auth_type === 'LOGIN' ? data.data.id_token : null;
+
+    if (!id_token) {
+      toast({
+        variant: 'destructive',
+        title: '刪除帳號失敗',
+        description: '無法取得 Google 憑證，請稍後再試',
+      });
+      router.push('/auth/signin');
+      return;
+    }
+
+    const result = await deleteAccount({ email, id_token });
+
+    if (result.status === 'success') {
+      trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
+      await signOut({ callbackUrl: '/' });
+      return;
+    }
+
+    if (result.status === 'blocked_reservations') {
+      toast({
+        variant: 'destructive',
+        title: '無法刪除帳號',
+        description: '您目前有未完成或未來的預約，請先處理後再刪除帳號。',
+      });
+      router.push('/reservation/mentee');
+      return;
+    }
+
+    toast({
+      variant: 'destructive',
+      title: '刪除帳號失敗',
+      description: result.message || '系統錯誤，請稍後再試',
+    });
+    router.push('/auth/signin');
+  };
 
   const proceedWithSignIn = async (data: OAuthResponse) => {
     const backendData = data.data;
