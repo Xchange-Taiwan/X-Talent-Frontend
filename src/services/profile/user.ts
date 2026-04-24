@@ -82,31 +82,3 @@ export async function fetchUserById(
     return null;
   }
 }
-
-export async function updateUserProfile(
-  userData: Partial<UserDTO>
-): Promise<boolean> {
-  const session = await getSession();
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    throw new Error('未找到使用者 ID。請重新登入。');
-  }
-
-  try {
-    const result = await apiClient.put<UserResponseDTO>(
-      `/v1/mentors/${userId}/profile`,
-      userData
-    );
-
-    if (result.code !== '0') {
-      console.error('API Error:', result.msg);
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error('Update User Error:', error);
-    return false;
-  }
-}
