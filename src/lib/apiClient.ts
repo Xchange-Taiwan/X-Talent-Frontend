@@ -16,6 +16,7 @@
  *   const mentors = await apiClient.get<MentorType[]>('/v1/mentors', { params: { limit: 10 } });
  */
 
+import type { Session } from 'next-auth';
 import { getSession } from 'next-auth/react';
 
 import { captureApiFailure } from '@/lib/monitoring';
@@ -44,6 +45,19 @@ type RequestOptions = {
 // ─── Internals ───────────────────────────────────────────────────────────────
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
 
+// Deduplicate concurrent 401 refresh calls — if multiple requests fail at once,
+// they all wait on the same refresh rather than each triggering a new one.
+let pendingRefresh: Promise<Session | null> | null = null;
+
+function refreshSession(): Promise<Session | null> {
+  if (!pendingRefresh) {
+    pendingRefresh = getSession().finally(() => {
+      pendingRefresh = null;
+    });
+  }
+  return pendingRefresh;
+}
+
 function buildUrl(path: string, params?: RequestOptions['params']): string {
   const url = `${BASE_URL}${path}`;
   if (!params) return url;
@@ -70,7 +84,8 @@ async function request<T>(
   method: string,
   path: string,
   body?: unknown,
-  options: RequestOptions = {}
+  options: RequestOptions = {},
+  isRetry = false
 ): Promise<T> {
   const { auth = true, headers = {}, params } = options;
 
@@ -100,6 +115,13 @@ async function request<T>(
       duration: Date.now() - startTime,
     });
     throw networkError;
+  }
+
+  if (response.status === 401 && auth && !isRetry) {
+    const freshSession = await refreshSession();
+    if (freshSession?.accessToken && !freshSession.error) {
+      return request<T>(method, path, body, options, true);
+    }
   }
 
   if (!response.ok) {
