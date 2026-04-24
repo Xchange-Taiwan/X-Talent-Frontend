@@ -33,8 +33,14 @@ export function DeleteAccountDialog({
   onOpenChange,
 }: DeleteAccountDialogProps): JSX.Element {
   const router = useRouter();
-  const { mode, xcForm, isSubmitting, blockedByReservations, onSubmitXC } =
-    useDeleteAccountForm();
+  const {
+    mode,
+    xcForm,
+    isSubmitting,
+    blockedByReservations,
+    onSubmitXC,
+    initiateGoogleReauth,
+  } = useDeleteAccountForm();
 
   const handleClose = (): void => {
     if (isSubmitting) return;
@@ -71,12 +77,25 @@ export function DeleteAccountDialog({
         {mode === 'google' ? (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Google 帳號的刪除流程需要後端提供 re-auth 授權
-              URL，目前尚未實作。請聯絡客服處理。
+              系統將引導您前往 Google
+              完成身分驗證，確認後帳號將被永久刪除且無法復原。
             </p>
             <DialogFooter>
-              <Button variant="outline" onClick={handleClose}>
-                關閉
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleClose}
+                disabled={isSubmitting}
+              >
+                取消
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={initiateGoogleReauth}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? '處理中…' : '前往 Google 驗證並刪除帳號'}
               </Button>
             </DialogFooter>
           </div>

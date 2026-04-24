@@ -3,6 +3,10 @@ import { useRouter } from 'next/navigation';
 import { GoogleColor } from '@/components/icon';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
+import {
+  getGoogleAuthorizeLoginUrl,
+  getGoogleAuthorizeSignupUrl,
+} from '@/services/auth/googleAuthorize';
 
 interface GoogleSignUpButtonProps {
   isSubmitting: boolean;
@@ -20,27 +24,10 @@ export default function GoogleSignUpButton({
 
   const handleGoogleSignUp = async () => {
     try {
-      const endpoint = isSignIn
-        ? '/v2/oauth/google/authorize/login'
-        : '/v2/oauth/google/authorize/signup';
-
-      const url = `${process.env.NEXT_PUBLIC_API_URL}${endpoint}`;
-
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-      });
-
-      const json = await res.json();
-
-      if (res.ok && json.data?.authorization_url) {
-        router.push(json.data.authorization_url);
-      } else {
-        throw new Error(json.msg || '無法取得授權連結');
-      }
+      const { authorization_url } = isSignIn
+        ? await getGoogleAuthorizeLoginUrl()
+        : await getGoogleAuthorizeSignupUrl();
+      router.push(authorization_url);
     } catch (error) {
       console.error('[GoogleAuth] error:', error);
       toast({

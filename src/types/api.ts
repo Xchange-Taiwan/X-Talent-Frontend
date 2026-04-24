@@ -1235,12 +1235,12 @@ export interface components {
       url: string | null;
       /**
        * Create Time
-       * @default 2026-04-20T16:17:37.452678Z
+       * @default 2026-04-24T01:40:06.322029Z
        */
       create_time: string | null;
       /**
        * Update Time
-       * @default 2026-04-20T16:17:37.452692Z
+       * @default 2026-04-24T01:40:06.322038Z
        */
       update_time: string | null;
       /** Create User Id */
@@ -1288,6 +1288,8 @@ export interface components {
       user?: components['schemas']['ProfileVO'] | null;
       /** Ttl Secs */
       ttl_secs?: number | null;
+      /** Id Token */
+      id_token?: string | null;
     };
     /** HTTPValidationError */
     HTTPValidationError: {
@@ -1326,11 +1328,7 @@ export interface components {
        * @default
        */
       subject: string | null;
-      /**
-       * Desc
-       * @default {}
-       */
-      desc: Record<string, never> | null;
+      desc?: components['schemas']['MetadataVO'] | null;
     };
     /**
      * Language
@@ -1533,6 +1531,13 @@ export interface components {
        */
       next_dtstart?: number | null;
     };
+    /** MetadataVO */
+    MetadataVO: {
+      /** Desc */
+      desc?: string | null;
+      /** Icon */
+      icon?: string | null;
+    };
     /**
      * OAuthType
      * @enum {string}
@@ -1571,11 +1576,8 @@ export interface components {
        * @default
        */
       subject: string;
-      /**
-       * Profession Metadata
-       * @default {}
-       */
-      profession_metadata: Record<string, never>;
+      /** @default {} */
+      profession_metadata: components['schemas']['MetadataVO'];
     };
     /** ProfileDTO */
     ProfileDTO: {
