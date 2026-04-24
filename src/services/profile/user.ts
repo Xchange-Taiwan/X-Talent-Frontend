@@ -3,54 +3,14 @@ import { getSession } from 'next-auth/react';
 import { apiClient } from '@/lib/apiClient';
 import type { components } from '@/types/api';
 
-type ProfessionVO = components['schemas']['ProfessionVO'];
-type InterestVO = components['schemas']['InterestVO'];
+export type MentorProfileVO = components['schemas']['MentorProfileVO'];
 
-export interface ExperienceType {
-  [key: string]: unknown;
-}
+type ApiResponseMentorProfileVO =
+  components['schemas']['ApiResponse_MentorProfileVO_'];
 
-export interface UserDTO {
-  user_id: number;
-  name: string;
-  avatar: string;
-  job_title: string;
-  company: string;
-  years_of_experience: string;
-  location: string;
-  interested_positions: {
-    interests: InterestVO[];
-    language: string | null;
-  };
-  skills: {
-    interests: InterestVO[];
-    language: string | null;
-  };
-  topics: {
-    interests: InterestVO[];
-    language: string | null;
-  };
-  industry: ProfessionVO;
-  onboarding: boolean;
-  is_mentor: boolean;
-  language: string;
-  personal_statement?: string;
-  about?: string;
-  seniority_level?: string;
-  expertises?: {
-    professions: ProfessionVO[];
-    language: string | null;
-  };
-  experiences?: ExperienceType[];
-}
-
-interface UserResponseDTO {
-  code: string;
-  msg: string;
-  data: UserDTO;
-}
-
-export async function fetchUser(language: string): Promise<UserDTO | null> {
+export async function fetchUser(
+  language: string
+): Promise<MentorProfileVO | null> {
   const session = await getSession();
   const userId = session?.user?.id;
 
@@ -64,9 +24,9 @@ export async function fetchUser(language: string): Promise<UserDTO | null> {
 export async function fetchUserById(
   userId: number,
   language: string
-): Promise<UserDTO | null> {
+): Promise<MentorProfileVO | null> {
   try {
-    const result = await apiClient.get<UserResponseDTO>(
+    const result = await apiClient.get<ApiResponseMentorProfileVO>(
       `/v1/mentors/${userId}/${language}/profile`,
       { auth: false }
     );
@@ -76,7 +36,7 @@ export async function fetchUserById(
       return null;
     }
 
-    return result.data;
+    return result.data ?? null;
   } catch (error) {
     console.error('Fetch User Error:', error);
     return null;

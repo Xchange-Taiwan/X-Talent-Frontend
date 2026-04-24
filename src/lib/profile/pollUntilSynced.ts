@@ -1,9 +1,9 @@
 import { ProfileFormValues } from '@/components/profile/edit/profileSchema';
-import { fetchUser, UserDTO } from '@/services/profile/user';
+import { fetchUser, MentorProfileVO } from '@/services/profile/user';
 
 function isProfileSynced(
   values: ProfileFormValues,
-  latest: UserDTO,
+  latest: MentorProfileVO,
   avatar: string
 ): boolean {
   if (latest.name !== values.name) return false;
@@ -24,7 +24,7 @@ export async function pollUntilSynced(
   avatar: string,
   maxRetries = 12,
   intervalMs = 5000
-): Promise<UserDTO | null> {
+): Promise<MentorProfileVO | null> {
   let latest = await fetchUser('zh_TW');
   for (
     let i = 1;

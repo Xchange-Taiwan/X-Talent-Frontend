@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 
 import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
 import { ExperienceType } from '@/services/profile/experienceType';
-import { fetchUserById, UserDTO } from '@/services/profile/user';
+import { fetchUserById, MentorProfileVO } from '@/services/profile/user';
 
 import { getInterestsCached } from '../interests/useInterests';
 
-const userDtoPromiseCache = new Map<string, Promise<UserDTO | null>>();
+const userDtoPromiseCache = new Map<string, Promise<MentorProfileVO | null>>();
 
 /**
  * Removes a user's entry from the in-memory request cache so the next call to
@@ -21,7 +21,7 @@ export function clearUserDataCache(userId: number, language: string): void {
 function fetchUserByIdCached(
   userId: number,
   language: string
-): Promise<UserDTO | null> {
+): Promise<MentorProfileVO | null> {
   const key = `${userId}-${language}`;
   const inflight = userDtoPromiseCache.get(key);
   if (inflight) return inflight;
@@ -87,9 +87,9 @@ type ExperienceBlock = {
 
 type WhatIOfferMetadata = { subject_group: string };
 
-function toInterestList(
-  interests: UserDTO['topics']['interests']
-): InterestType[] {
+type InterestVO = NonNullable<MentorProfileVO['topics']>['interests'][number];
+
+function toInterestList(interests: InterestVO[]): InterestType[] {
   return interests.map((i) => ({
     subject_group: i.subject_group,
     subject: i.subject ?? '',
@@ -97,7 +97,7 @@ function toInterestList(
 }
 
 function getBlocksByCategory(
-  experiences: UserDTO['experiences'] | undefined,
+  experiences: MentorProfileVO['experiences'],
   category: ExperienceType
 ): ExperienceBlock[] {
   if (!experiences) return [];
@@ -128,7 +128,7 @@ function buildWhatIOffers(
 }
 
 function parseUserDtoToUserType(
-  userDto: UserDTO,
+  userDto: MentorProfileVO,
   labelByGroup: Map<string, string>
 ): UserType {
   const workBlocks = getBlocksByCategory(
@@ -177,22 +177,23 @@ function parseUserDtoToUserType(
 
   return {
     user_id: userDto.user_id,
-    name: userDto.name,
-    avatar: userDto.avatar,
+    name: userDto.name ?? '',
+    avatar: userDto.avatar ?? '',
     job_title,
     company,
     interested_positions: toInterestList(
-      userDto.interested_positions.interests
+      userDto.interested_positions?.interests ?? []
     ),
-    skills: toInterestList(userDto.skills.interests),
-    topics: toInterestList(userDto.topics.interests),
-    is_mentor: userDto.is_mentor,
+    skills: toInterestList(userDto.skills?.interests ?? []),
+    topics: toInterestList(userDto.topics?.interests ?? []),
+    is_mentor: userDto.is_mentor ?? false,
     about: userDto.about ?? '',
-    years_of_experience:
-      TotalWorkSpanEnum[
-        userDto.years_of_experience as keyof typeof TotalWorkSpanEnum
-      ] ?? userDto.years_of_experience,
-    industry: userDto.industry?.subject,
+    years_of_experience: userDto.years_of_experience
+      ? (TotalWorkSpanEnum[
+          userDto.years_of_experience as keyof typeof TotalWorkSpanEnum
+        ] ?? userDto.years_of_experience)
+      : undefined,
+    industry: userDto.industry?.subject ?? undefined,
     expertises,
     what_i_offers,
     workExperiences,
