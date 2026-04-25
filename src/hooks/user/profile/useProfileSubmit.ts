@@ -20,6 +20,7 @@ interface Options {
   updateSession: (data: unknown) => Promise<Session | null>;
   jobSectionError: boolean;
   educationSectionError: boolean;
+  onScrollToError?: (fieldId: string) => void;
 }
 
 export function useProfileSubmit({
@@ -29,12 +30,16 @@ export function useProfileSubmit({
   updateSession,
   jobSectionError,
   educationSectionError,
+  onScrollToError,
 }: Options) {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
 
   const onSubmit = async (values: ProfileFormValues) => {
-    if (jobSectionError || educationSectionError) return;
+    if (jobSectionError || educationSectionError) {
+      onScrollToError?.(jobSectionError ? 'work_experiences' : 'educations');
+      return;
+    }
 
     try {
       setIsSaving(true);
