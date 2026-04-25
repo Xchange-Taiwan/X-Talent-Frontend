@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { trackEvent } from '@/lib/analytics';
+import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { cn } from '@/lib/utils';
 
 import type { Reservation } from './types';
@@ -79,7 +80,11 @@ export default function AcceptReservationDialog({
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10">
                   <AvatarImage
-                    src={reservation.avatar}
+                    src={
+                      reservation.avatar
+                        ? getAvatarThumbUrl(reservation.avatar)
+                        : undefined
+                    }
                     alt={reservation.name}
                   />
                   <AvatarFallback>{initials}</AvatarFallback>

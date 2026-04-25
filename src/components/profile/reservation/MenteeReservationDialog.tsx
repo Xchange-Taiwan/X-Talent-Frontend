@@ -23,6 +23,7 @@ import {
 } from '@/hooks/useMentorSchedule';
 import { UserType } from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
+import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   createReservation,
@@ -298,7 +299,11 @@ export default function MenteeReservationDialog({
           <div className="flex items-center gap-4">
             <div className="relative h-16 w-16 flex-shrink-0 rounded-full">
               <Image
-                src={userData?.avatar || DefaultAvatarImgUrl}
+                src={
+                  userData?.avatar
+                    ? getAvatarThumbUrl(userData.avatar)
+                    : DefaultAvatarImgUrl
+                }
                 alt={userData?.name || 'Mentor Avatar'}
                 fill
                 className="rounded-full object-cover"
@@ -363,7 +368,11 @@ export default function MenteeReservationDialog({
           <div className="flex items-center gap-4">
             <div className="relative h-16 w-16 flex-shrink-0 rounded-full">
               <Image
-                src={userData?.avatar || DefaultAvatarImgUrl}
+                src={
+                  userData?.avatar
+                    ? getAvatarThumbUrl(userData.avatar)
+                    : DefaultAvatarImgUrl
+                }
                 alt={userData?.name || 'Mentor Avatar'}
                 fill
                 className="rounded-full object-cover"
