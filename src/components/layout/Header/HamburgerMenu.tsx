@@ -43,7 +43,7 @@ export function HamburgerMenu({
         </Button>
       </SheetTrigger>
 
-      <SheetContent side="right" className="h-screen w-screen">
+      <SheetContent side="right" className="h-dvh w-screen">
         <SheetTitle className="sr-only">導航選單</SheetTitle>
         <div className="flex h-full flex-col">
           <SheetClose asChild className="ml-auto">
