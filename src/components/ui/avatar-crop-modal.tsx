@@ -40,13 +40,16 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
 
   const handleSaveImage = () => {
     if (!editorRef.current) return;
-    const editorCanvas = editorRef.current.getImageScaledToCanvas();
+    // getImage() = original-resolution crop; getImageScaledToCanvas() = display size (≤512px) → upscale → blurry
+    const sourceCanvas = editorRef.current.getImage();
     const out = document.createElement('canvas');
     out.width = 1024;
     out.height = 1024;
     const ctx = out.getContext('2d');
     if (!ctx) return;
-    ctx.drawImage(editorCanvas, 0, 0, 1024, 1024);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(sourceCanvas, 0, 0, 1024, 1024);
     const maxBytes = 2 * 1024 * 1024;
 
     out.toBlob((pngBlob) => {
