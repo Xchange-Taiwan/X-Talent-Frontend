@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useRef, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { FieldErrors, useForm } from 'react-hook-form';
 
 import { totalWorkSpanOptions } from '@/components/onboarding/steps/constant';
 import { AvatarSection } from '@/components/profile/edit/AvatarSection';
@@ -107,6 +107,32 @@ export default function Page({
     skills,
   });
 
+  const scrollToField = (fieldId: string) => {
+    document
+      .getElementById(fieldId)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const FIELD_SCROLL_ORDER: (keyof ProfileFormValues)[] = [
+    'name',
+    'about',
+    'what_i_offer',
+    'expertises',
+    'location',
+    'years_of_experience',
+    'industry',
+    'interested_positions',
+    'skills',
+    'topics',
+    'work_experiences',
+    'educations',
+  ];
+
+  const onError = (errors: FieldErrors<ProfileFormValues>) => {
+    const firstKey = FIELD_SCROLL_ORDER.find((key) => key in errors);
+    if (firstKey) scrollToField(firstKey);
+  };
+
   const { onSubmit, isSaving } = useProfileSubmit({
     pageUserId,
     isMentorOnboarding,
@@ -114,6 +140,7 @@ export default function Page({
     updateSession,
     jobSectionError,
     educationSectionError,
+    onScrollToError: scrollToField,
   });
 
   if (!isAuthorized) return null;
@@ -132,7 +159,7 @@ export default function Page({
       <Form {...form}>
         <form
           id="edit-profile-form"
-          onSubmit={form.handleSubmit(onSubmit)}
+          onSubmit={form.handleSubmit(onSubmit, onError)}
           className="space-y-10"
         >
           <AvatarSection
@@ -146,6 +173,7 @@ export default function Page({
           />
 
           <Section
+            id="name"
             title={
               <>
                 <span className="text-status-200">* </span>姓名
@@ -156,6 +184,7 @@ export default function Page({
           </Section>
 
           <Section
+            id="about"
             title={
               <>
                 {isMentor && <span className="text-status-200">* </span>}
@@ -168,6 +197,7 @@ export default function Page({
 
           {isMentor && (
             <Section
+              id="what_i_offer"
               title={
                 <>
                   <span className="text-status-200">* </span>我能提供的服務
@@ -188,6 +218,7 @@ export default function Page({
 
           {isMentor && (
             <Section
+              id="expertises"
               title={
                 <>
                   <span className="text-status-200">* </span>專業能力
@@ -207,6 +238,7 @@ export default function Page({
           )}
 
           <Section
+            id="location"
             title={
               <>
                 <span className="text-status-200">* </span>地區
@@ -225,6 +257,7 @@ export default function Page({
           </Section>
 
           <Section
+            id="years_of_experience"
             title={
               <>
                 <span className="text-status-200">* </span>經驗
@@ -240,6 +273,7 @@ export default function Page({
           </Section>
 
           <Section
+            id="industry"
             title={
               <>
                 <span className="text-status-200">* </span>產業
@@ -258,6 +292,7 @@ export default function Page({
           </Section>
 
           <Section
+            id="interested_positions"
             title={
               <>
                 <span className="text-status-200">* </span>有興趣多了解的職位
@@ -276,6 +311,7 @@ export default function Page({
           </Section>
 
           <Section
+            id="skills"
             title={
               <>
                 <span className="text-status-200">* </span>想多了解、加強的技能
@@ -294,6 +330,7 @@ export default function Page({
           </Section>
 
           <Section
+            id="topics"
             title={
               <>
                 <span className="text-status-200">* </span>想多了解的主題
@@ -311,19 +348,23 @@ export default function Page({
             />
           </Section>
 
-          <JobExperienceSection
-            industries={industries}
-            locations={locations}
-            form={form}
-            isMentor={isMentor}
-            onValidationChange={setJobSectionError}
-          />
+          <div id="work_experiences">
+            <JobExperienceSection
+              industries={industries}
+              locations={locations}
+              form={form}
+              isMentor={isMentor}
+              onValidationChange={setJobSectionError}
+            />
+          </div>
 
-          <EducationSection
-            form={form}
-            isMentor={isMentor}
-            onValidationChange={setEducationSectionError}
-          />
+          <div id="educations">
+            <EducationSection
+              form={form}
+              isMentor={isMentor}
+              onValidationChange={setEducationSectionError}
+            />
+          </div>
 
           <LinksSection form={form} />
         </form>
