@@ -118,8 +118,6 @@ function Calendar({
           defaultClassNames.caption_label
         ),
 
-        table: cn('w-full border-collapse', defaultClassNames.table),
-
         weekdays: cn(
           'grid w-full grid-cols-7 gap-1',
           defaultClassNames.weekdays
