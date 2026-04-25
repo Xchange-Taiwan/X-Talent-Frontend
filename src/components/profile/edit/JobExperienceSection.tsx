@@ -1,6 +1,11 @@
 'use client';
 
-import { PlusIcon, TrashIcon } from '@radix-ui/react-icons';
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  PlusIcon,
+  TrashIcon,
+} from '@radix-ui/react-icons';
 import React, { useEffect } from 'react';
 import { useFieldArray, UseFormReturn, useWatch } from 'react-hook-form';
 
@@ -59,7 +64,7 @@ export const JobExperienceSection = ({
     formState: { errors },
   } = form;
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, move } = useFieldArray({
     control,
     name: 'work_experiences',
   });
@@ -126,7 +131,29 @@ export const JobExperienceSection = ({
           start && end && end !== 'now' && Number(start) > Number(end);
 
         return (
-          <div key={field.id} className="mb-8 border-b pb-4">
+          <div key={field.id} className="mb-4 rounded-lg border p-4">
+            {fields.length > 1 && (
+              <div className="mb-4 flex justify-end gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={index === 0}
+                  onClick={() => move(index, index - 1)}
+                >
+                  <ChevronUpIcon className="h-5 w-5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={index === fields.length - 1}
+                  onClick={() => move(index, index + 1)}
+                >
+                  <ChevronDownIcon className="h-5 w-5" />
+                </Button>
+              </div>
+            )}
             {/* Title & Company */}
             <div className="mb-6 gap-6 md:flex">
               <FormField
