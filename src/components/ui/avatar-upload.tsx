@@ -13,14 +13,12 @@ const AvatarCropModal = dynamic(() => import('./avatar-crop-modal'), {
 interface AvatarUploadProps<T extends FieldValues> {
   control: Control<T>;
   name: Path<T>;
-  maxSize?: number;
   avatarUrl?: string;
 }
 
 const AvatarUpload = <T extends FieldValues>({
   control,
   name,
-  maxSize = 2 * 1024 * 1024,
   avatarUrl,
 }: AvatarUploadProps<T>) => {
   const { field } = useController({ control, name });
@@ -37,11 +35,9 @@ const AvatarUpload = <T extends FieldValues>({
   const handleUploadAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (file && file.size <= maxSize) {
+    if (file) {
       setSelectedImage(file);
       setOpen(true);
-    } else if (file) {
-      alert(`上傳的檔案大小不能超過 ${maxSize / (1024 * 1024)}MB`);
     }
   };
 
