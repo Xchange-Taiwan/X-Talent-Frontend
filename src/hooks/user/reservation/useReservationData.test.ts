@@ -81,6 +81,7 @@ describe('useReservationData', () => {
       upcomingMentor: mockLists.upcomingMentor,
       pendingMentor: mockLists.pendingMentor,
       history: mockLists.history,
+      nextTokens: mockLists.nextTokens,
     });
     expect(result.current.isLoading).toBe(false);
   });
