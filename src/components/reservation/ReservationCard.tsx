@@ -3,6 +3,7 @@ import { CalendarDays, Clock } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 
 import type { Reservation } from './types';
 
@@ -20,7 +21,10 @@ export function ReservationCard({
           {/* Avatar */}
           <Avatar className="h-10 w-10 shrink-0 sm:h-12 sm:w-12">
             {item.avatar ? (
-              <AvatarImage src={item.avatar} alt={item.name} />
+              <AvatarImage
+                src={getAvatarThumbUrl(item.avatar)}
+                alt={item.name}
+              />
             ) : null}
             <AvatarFallback className="font-medium">
               {item.name
