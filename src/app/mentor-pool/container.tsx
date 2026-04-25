@@ -89,7 +89,7 @@ export default function MentorPoolContainer() {
         ...mentor,
         avatar:
           typeof mentor.avatar === 'string' && mentor.avatar
-            ? mentor.avatar
+            ? `${mentor.avatar}${mentor.updated_at ? `?cb=${mentor.updated_at}` : ''}`
             : avatarImage,
       }));
     } finally {
@@ -124,7 +124,7 @@ export default function MentorPoolContainer() {
         ...mentor,
         avatar:
           typeof mentor.avatar === 'string' && mentor.avatar
-            ? mentor.avatar
+            ? `${mentor.avatar}${mentor.updated_at ? `?cb=${mentor.updated_at}` : ''}`
             : avatarImage,
       }));
     } finally {
