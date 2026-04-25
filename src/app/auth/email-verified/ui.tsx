@@ -18,7 +18,7 @@ export default function EmailVerifiedPresentation({
   onSetProfile,
 }: EmailVerifiedPresentationProps) {
   return (
-    <div className="mx-auto my-40 max-w-[90%] overflow-hidden rounded-2xl border-2 border-solid border-background-border md:max-w-[630px]">
+    <div className="mx-auto my-8 max-w-[90%] overflow-hidden rounded-2xl border-2 border-solid border-background-border md:my-40 md:max-w-[630px]">
       <div className="relative h-[108px] bg-[#EBFBFB]">
         <Image
           className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-2/3 transform"
@@ -28,7 +28,7 @@ export default function EmailVerifiedPresentation({
           height={80}
         />
       </div>
-      <div className="flex flex-col items-center gap-6 p-20 text-center">
+      <div className="flex flex-col items-center gap-6 px-6 py-10 text-center md:p-20">
         <h1 className="text-[32px] font-bold leading-10">{title}</h1>
 
         <p className="text-neutral-600">{content}</p>
