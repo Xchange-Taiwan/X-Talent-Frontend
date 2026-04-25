@@ -154,7 +154,11 @@ export default function Page({
 
   return (
     <div className="mx-auto w-11/12 max-w-[1064px] pb-20 pt-10">
-      <EditPageHeader isSaving={isSaving} onBack={handleGoToPrev} />
+      <EditPageHeader
+        isSaving={isSaving}
+        onBack={handleGoToPrev}
+        isMentorOnboarding={isMentorOnboarding}
+      />
 
       <Form {...form}>
         <form
