@@ -19,11 +19,6 @@ export const AvatarSection = <T extends FieldValues>({
   avatarUrl,
 }: AvatarSectionProps<T>) => (
   <Section title="個人頭像">
-    <AvatarUpload
-      control={control}
-      name={name}
-      maxSize={2 * 1024 * 1024}
-      avatarUrl={avatarUrl}
-    />
+    <AvatarUpload control={control} name={name} avatarUrl={avatarUrl} />
   </Section>
 );

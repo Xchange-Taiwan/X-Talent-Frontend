@@ -38,18 +38,29 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
     return () => window.removeEventListener('resize', calculate);
   }, []);
 
-  const handleSaveImage = async () => {
-    if (editorRef.current) {
-      try {
-        const imageUrl = editorRef.current.getImageScaledToCanvas().toDataURL();
-        const response = await fetch(imageUrl);
-        const blob = await response.blob();
-        onSave(blob);
+  const handleSaveImage = () => {
+    if (!editorRef.current) return;
+    const canvas = editorRef.current.getImageScaledToCanvas();
+    const maxBytes = 2 * 1024 * 1024;
+
+    canvas.toBlob((pngBlob) => {
+      if (!pngBlob) return;
+      if (pngBlob.size <= maxBytes) {
+        onSave(pngBlob);
         onClose();
-      } catch (error) {
-        console.error('Error saving image:', error);
+      } else {
+        canvas.toBlob(
+          (jpegBlob) => {
+            if (jpegBlob) {
+              onSave(jpegBlob);
+              onClose();
+            }
+          },
+          'image/jpeg',
+          0.85
+        );
       }
-    }
+    });
   };
 
   return (
