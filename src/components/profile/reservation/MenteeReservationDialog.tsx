@@ -209,6 +209,7 @@ export default function MenteeReservationDialog({
             </h2>
           </div>
           <ScheduleCalendar
+            size="compact"
             selected={
               selectedDate
                 ? new Date(selectedDate + 'T00:00:00')
@@ -233,18 +234,20 @@ export default function MenteeReservationDialog({
         </div>
         <div>
           <p className="font-semibold">可預約時段</p>
-          <div className="mt-4 flex flex-row flex-wrap gap-4">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-2">
             {(() => {
               const slots = selectedDate
                 ? generateBookingSlots(selectedDate)
                 : [];
+
               if (slots.length === 0) {
                 return (
-                  <div className="text-center text-sm text-gray-500">
+                  <div className="col-span-full text-center text-sm text-gray-500">
                     此日期暫無可預約時段
                   </div>
                 );
               }
+
               return slots.map((slot) => (
                 <Button
                   key={slot.start.getTime()}
@@ -254,7 +257,7 @@ export default function MenteeReservationDialog({
                       : 'outline'
                   }
                   onClick={() => setSelectedSlot(slot)}
-                  className="h-[40px] w-[160px]"
+                  className="h-10 w-full text-sm lg:h-11 lg:text-base"
                 >
                   {formatTimeSlot(slot)}
                 </Button>
@@ -453,7 +456,7 @@ export default function MenteeReservationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85dvh] max-w-[335px] overflow-y-auto sm:max-w-[425px]">
+      <DialogContent className="max-h-[85dvh] w-[calc(100vw-2rem)] max-w-[335px] overflow-y-auto sm:max-w-[425px] lg:max-w-[560px]">
         {renderContent()}
       </DialogContent>
     </Dialog>

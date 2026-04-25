@@ -66,7 +66,7 @@ export default function ProfilePageUI({
     <div>
       <div className="relative h-[111px] bg-gradient-to-br from-[#92e7e7] to-[#e7a0d4] sm:h-[100px]" />
 
-      <div className="container mb-20 max-w-[1024px]">
+      <div className="container mb-20 max-w-[1024px] 2xl:max-w-[1280px]">
         <div className="flex h-auto -translate-y-10 flex-col sm:flex-row sm:items-start">
           <div className="relative mx-auto h-[160px] w-[160px] flex-shrink-0 overflow-hidden rounded-full bg-background-white sm:mx-0">
             <Image
@@ -141,8 +141,8 @@ export default function ProfilePageUI({
           </div>
         </div>
 
-        <div className="flex flex-col gap-8 lg:flex-row lg:gap-12">
-          <div className="w-full lg:w-3/5">
+        <div className="flex flex-col gap-8 2xl:flex-row 2xl:gap-12">
+          <div className="w-full 2xl:w-3/5">
             {userData?.about && (
               <div>
                 <p className="mb-4 text-xl font-bold">關於我</p>
@@ -222,16 +222,16 @@ export default function ProfilePageUI({
           </div>
 
           {userData.is_mentor && (
-            <div className="w-full lg:w-2/5">
+            <div className="w-full 2xl:w-2/5">
               {!scheduleLoaded ? (
                 <ScheduleSkeleton />
               ) : (
                 <div className="flex w-full flex-col gap-4">
                   <p className="text-xl font-bold">可預約日期</p>
 
-                  <div className="w-full rounded-lg border p-2 shadow-md">
-                    <div className="px-3 pb-3 pt-1">
-                      <h2 className="text-2xl font-semibold tracking-tight">
+                  <div className="w-full rounded-lg border p-3 shadow-md md:p-5 2xl:p-3">
+                    <div className="px-3 pb-4 pt-1 md:pb-6 2xl:pb-3">
+                      <h2 className="text-2xl font-semibold tracking-tight md:text-3xl 2xl:text-2xl">
                         {formatSelectedDate(
                           selectedDate
                             ? new Date(selectedDate + 'T00:00:00')
@@ -239,7 +239,9 @@ export default function ProfilePageUI({
                         )}
                       </h2>
                     </div>
+
                     <ScheduleCalendar
+                      size="profile"
                       selected={
                         selectedDate
                           ? new Date(selectedDate + 'T00:00:00')
