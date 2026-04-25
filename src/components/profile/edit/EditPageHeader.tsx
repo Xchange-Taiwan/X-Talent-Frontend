@@ -6,9 +6,14 @@ import { Button } from '@/components/ui/button';
 interface Props {
   isSaving: boolean;
   onBack: () => void;
+  isMentorOnboarding?: boolean;
 }
 
-export function EditPageHeader({ isSaving, onBack }: Props) {
+export function EditPageHeader({
+  isSaving,
+  onBack,
+  isMentorOnboarding,
+}: Props) {
   return (
     <div className="mb-10 flex justify-between">
       <div className="flex items-center gap-3">
@@ -16,7 +21,9 @@ export function EditPageHeader({ isSaving, onBack }: Props) {
           className={`sm:hidden ${isSaving ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
           onClick={isSaving ? undefined : onBack}
         />
-        <p className="text-4xl font-bold">編輯個人頁面</p>
+        <p className="whitespace-nowrap text-4xl font-bold">
+          {isMentorOnboarding ? '完成個人資料' : '編輯個人頁面'}
+        </p>
       </div>
 
       <div className="flex items-center gap-4">
@@ -32,7 +39,7 @@ export function EditPageHeader({ isSaving, onBack }: Props) {
         <Button
           type="submit"
           variant="default"
-          className="grow rounded-full px-6 py-3 sm:grow-0"
+          className="w-[88px] rounded-full py-3 sm:w-auto sm:grow-0 sm:px-6"
           form="edit-profile-form"
           disabled={isSaving}
         >
