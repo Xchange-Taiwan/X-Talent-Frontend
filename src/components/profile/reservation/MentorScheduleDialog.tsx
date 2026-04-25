@@ -263,7 +263,7 @@ export default function MentorScheduleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-[440px]">
+      <DialogContent className="max-h-[85dvh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-[440px] lg:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>排程設定</DialogTitle>
         </DialogHeader>
@@ -288,17 +288,22 @@ export default function MentorScheduleDialog({
           />
 
           <div>
-            <p className="font-semibold">可預約時段</p>
+            <p className="font-semibold lg:text-lg">可預約時段</p>
+
             <div className="mt-3 flex flex-col gap-3">
               {editingSlots.map((slot, index) => {
                 const errors = slotErrors[slot.id] ?? {};
                 const hasError = Boolean(errors.timeRange || errors.overlap);
                 const endHourOptions = getEndHourOptions(slot);
                 const endMinuteOptions = getEndMinuteOptions(slot);
+
                 return (
-                  <div key={slot.id} className="flex flex-col gap-1">
-                    <div className="flex flex-wrap items-center gap-1">
-                      <div className="flex items-center gap-1">
+                  <div
+                    key={slot.id}
+                    className="flex flex-col gap-2 rounded-lg p-3 lg:p-4"
+                  >
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="flex flex-wrap items-center gap-1.5 lg:gap-2">
                         {renderTimeSelect(
                           slot.id,
                           'startHour',
@@ -306,7 +311,11 @@ export default function MentorScheduleDialog({
                           HOUR_OPTIONS,
                           hasError
                         )}
-                        <span className="text-muted-foreground">:</span>
+
+                        <span className="text-muted-foreground lg:text-base">
+                          :
+                        </span>
+
                         {renderTimeSelect(
                           slot.id,
                           'startMinute',
@@ -314,7 +323,11 @@ export default function MentorScheduleDialog({
                           MINUTE_OPTIONS,
                           hasError
                         )}
-                        <span className="mx-0.5 text-muted-foreground">–</span>
+
+                        <span className="mx-1 text-muted-foreground lg:text-base">
+                          –
+                        </span>
+
                         {renderTimeSelect(
                           slot.id,
                           'endHour',
@@ -322,7 +335,11 @@ export default function MentorScheduleDialog({
                           endHourOptions,
                           hasError
                         )}
-                        <span className="text-muted-foreground">:</span>
+
+                        <span className="text-muted-foreground lg:text-base">
+                          :
+                        </span>
+
                         {renderTimeSelect(
                           slot.id,
                           'endMinute',
@@ -331,30 +348,40 @@ export default function MentorScheduleDialog({
                           hasError
                         )}
                       </div>
-                      <div className="ml-auto flex items-center gap-1">
+
+                      <div className="flex justify-end gap-1 lg:ml-4">
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-9 w-9 lg:h-10 lg:w-10"
                           onClick={() => deleteDraftSlot(slot.id)}
                         >
-                          <X className="h-4 w-4" />
+                          <X className="h-4 w-4 lg:h-5 lg:w-5" />
                         </Button>
+
                         {index === editingSlots.length - 1 && (
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-9 w-9 lg:h-10 lg:w-10"
                             onClick={addNewTimeSlot}
                           >
-                            <Plus className="h-4 w-4" />
+                            <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
                           </Button>
                         )}
                       </div>
                     </div>
+
                     {errors.timeRange && (
-                      <p className="text-red-500 text-xs">{errors.timeRange}</p>
+                      <p className="text-red-500 text-xs lg:text-sm">
+                        {errors.timeRange}
+                      </p>
                     )}
+
                     {errors.overlap && (
-                      <p className="text-red-500 text-xs">{errors.overlap}</p>
+                      <p className="text-red-500 text-xs lg:text-sm">
+                        {errors.overlap}
+                      </p>
                     )}
                   </div>
                 );
@@ -364,9 +391,9 @@ export default function MentorScheduleDialog({
                 <Button
                   variant="ghost"
                   onClick={addNewTimeSlot}
-                  className="w-full"
+                  className="h-10 w-full lg:h-11 lg:text-base"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
                 </Button>
               )}
             </div>
