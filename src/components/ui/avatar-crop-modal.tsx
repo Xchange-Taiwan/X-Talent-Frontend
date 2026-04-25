@@ -42,11 +42,11 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
     if (!editorRef.current) return;
     const editorCanvas = editorRef.current.getImageScaledToCanvas();
     const out = document.createElement('canvas');
-    out.width = 512;
-    out.height = 512;
+    out.width = 1024;
+    out.height = 1024;
     const ctx = out.getContext('2d');
     if (!ctx) return;
-    ctx.drawImage(editorCanvas, 0, 0, 512, 512);
+    ctx.drawImage(editorCanvas, 0, 0, 1024, 1024);
     const maxBytes = 2 * 1024 * 1024;
 
     out.toBlob((pngBlob) => {
