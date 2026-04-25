@@ -3,6 +3,8 @@
 import { ReservationList } from '@/components/reservation/ReservationList';
 import type { Reservation } from '@/components/reservation/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import type { NextTokens } from '@/hooks/user/reservation/useReservationData';
+import type { ReservationState } from '@/services/reservations';
 
 export type ReservationTabsProps = {
   upcomingMentee: Reservation[];
@@ -10,6 +12,9 @@ export type ReservationTabsProps = {
   upcomingMentor: Reservation[];
   pendingMentor: Reservation[];
   history: Reservation[];
+  nextTokens: NextTokens;
+  isLoadingMore: boolean;
+  onLoadMore: (state: ReservationState) => void;
 };
 
 export default function ReservationTabs({
@@ -18,6 +23,9 @@ export default function ReservationTabs({
   upcomingMentor,
   pendingMentor,
   history,
+  nextTokens,
+  isLoadingMore,
+  onLoadMore,
 }: ReservationTabsProps) {
   void upcomingMentee;
   void pendingMentee;
@@ -70,15 +78,33 @@ export default function ReservationTabs({
 
         <div className="px-3 pt-2 sm:px-0">
           <TabsContent value="upcoming-mentor" className="mt-4 sm:mt-6">
-            <ReservationList items={upcomingMentor} variant="upcoming" />
+            <ReservationList
+              items={upcomingMentor}
+              variant="upcoming"
+              hasMore={nextTokens.mentorUpcoming !== 0}
+              onLoadMore={() => onLoadMore('MENTOR_UPCOMING')}
+              isLoadingMore={isLoadingMore}
+            />
           </TabsContent>
 
           <TabsContent value="pending-mentor" className="mt-4 sm:mt-6">
-            <ReservationList items={pendingMentor} variant="pending-mentor" />
+            <ReservationList
+              items={pendingMentor}
+              variant="pending-mentor"
+              hasMore={nextTokens.mentorPending !== 0}
+              onLoadMore={() => onLoadMore('MENTOR_PENDING')}
+              isLoadingMore={isLoadingMore}
+            />
           </TabsContent>
 
           <TabsContent value="history" className="mt-4 sm:mt-6">
-            <ReservationList items={history} variant="history" />
+            <ReservationList
+              items={history}
+              variant="history"
+              hasMore={nextTokens.history !== 0}
+              onLoadMore={() => onLoadMore('HISTORY')}
+              isLoadingMore={isLoadingMore}
+            />
           </TabsContent>
         </div>
       </Tabs>

@@ -4,6 +4,7 @@ import { getSession } from 'next-auth/react';
 
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
@@ -17,9 +18,15 @@ type Variant = 'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';
 export function ReservationList({
   items,
   variant,
+  hasMore = false,
+  onLoadMore,
+  isLoadingMore = false,
 }: {
   items: Reservation[];
   variant: Variant;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
 }) {
   const findItem = (id: string): Reservation => {
     const found = items.find((x) => x.id === id);
@@ -158,6 +165,19 @@ export function ReservationList({
             目前尚無資料
           </CardContent>
         </Card>
+      )}
+
+      {hasMore && (
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onLoadMore}
+            disabled={isLoadingMore}
+          >
+            {isLoadingMore ? '載入中...' : '載入更多'}
+          </Button>
+        </div>
       )}
     </div>
   );
