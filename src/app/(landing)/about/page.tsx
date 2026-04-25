@@ -5,7 +5,6 @@ import aboutPage_1 from '@/assets/landing/aboutPage_1.png';
 import aboutPage_icon_1 from '@/assets/landing/aboutPage_icon_1.svg';
 import aboutPage_icon_2 from '@/assets/landing/aboutPage_icon_2.svg';
 import aboutPage_icon_3 from '@/assets/landing/aboutPage_icon_3.svg';
-import { JoinWaitingList } from '@/components/landing/JoinWaitingList';
 
 import { featureData } from '../data';
 
@@ -93,16 +92,6 @@ export default function Page() {
             ))}
           </div>
         </div>
-      </section>
-
-      <section className="pb-24 pt-10 text-center">
-        <JoinWaitingList>
-          <p className="text-base md:text-xl">
-            加入排隊名單，
-            <br className="md:hidden" />
-            搶先成為 X-Talent
-          </p>
-        </JoinWaitingList>
       </section>
     </Fragment>
   );

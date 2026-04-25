@@ -13,7 +13,6 @@ import landingPage_icon_4 from '@/assets/landing/landingPage_icon_4.svg';
 import landingPage_icon_5 from '@/assets/landing/landingPage_icon_5.svg';
 import landingPage_icon_6 from '@/assets/landing/landingPage_icon_6.svg';
 import { HomePageSlider } from '@/components/landing/HomePageSlider';
-import { JoinWaitingList } from '@/components/landing/JoinWaitingList';
 import { SCREEN_SIZE } from '@/constant/theme';
 import useWindowSize from '@/hooks/useWindowSize';
 
@@ -70,15 +69,6 @@ export default function Page() {
             ))}
           </div>
         </div>
-      </section>
-
-      <section className="py-10 text-center sm:py-10">
-        <JoinWaitingList>
-          <p className="text-base md:text-xl">
-            加入排隊名單， <br className="md:hidden" />
-            搶先成為 X-Talent →
-          </p>
-        </JoinWaitingList>
       </section>
 
       <section className="relative contents md:m-auto md:h-[1100px] md:w-[930px] xl:block xl:h-[790px] ">
@@ -258,15 +248,6 @@ export default function Page() {
         <div className="w-full max-w-[600px] py-10 lg:max-w-6xl">
           <HomePageSlider />
         </div>
-      </section>
-
-      <section className="py-12 text-center md:py-24">
-        <JoinWaitingList>
-          <p className="text-base md:text-xl">
-            加入排隊名單， <br className="md:hidden" />
-            搶先成為 X-Talent →
-          </p>
-        </JoinWaitingList>
       </section>
     </>
   );
