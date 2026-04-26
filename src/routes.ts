@@ -16,6 +16,8 @@ export const publicRoutes: string[] = [
   '/auth/email-verified',
   '/profile/[pageUserId]',
   '/mentor-pool',
+  '/preview/category-multi-select',
+  '/preview/onboarding-step',
 ];
 
 /**
