@@ -44,7 +44,11 @@ export default function MentorPoolUI({
         和 Mentors 一起提升你的職涯經驗吧！
       </section>
       <div className="absolute left-[calc(50%-169px)] top-[172px] h-20 w-[338px] md:left-[calc(50%-344px)] md:w-[688px] xl:left-[calc(50%-423px)] xl:w-[846px]">
-        <SearchBar onSearch={onSearch} />
+        <SearchBar
+          onSearch={onSearch}
+          mobilePlaceholder="搜尋職位、公司或領域"
+          tabletPlaceholder="搜尋職位、公司或想精進的領域"
+        />
       </div>
       <section className="mt-[132px] px-5 pb-10 md:px-10 xl:px-20">
         <div className="mx-auto w-full max-w-[1280px] ">
