@@ -61,14 +61,13 @@ Ensure you have the following installed:
 
 ### Troubleshooting
 
-This project pins Node to `20.19.0` (see `.nvmrc`) and enforces it via `.npmrc` (`engine-strict=true`). If your local Node version doesn't match, `pnpm install` will fail.
+This project pins Node to `20.19.0` (see `.nvmrc`) and enforces it via `.npmrc` (`engine-strict=true`), which makes `pnpm install` reject any Node version outside the `engines` range declared in `package.json` (`>=20 <21`).
 
-- **`ERR_PNPM_UNSUPPORTED_ENGINE` / `Unsupported engine`** — Your Node version is outside `>=20 <21`. Switch to Node 20.x:
+- **`ERR_PNPM_UNSUPPORTED_ENGINE` / `Unsupported engine`** — Your Node version is outside `>=20 <21`. Switch to Node 20.x before running `pnpm install`:
   - With **nvm**: `nvm install 20.19.0 && nvm use 20.19.0`
   - With **fnm**: `fnm use` (auto-reads `.nvmrc`)
   - With **Volta**: `volta install node@20.19.0`
 - **Wrong package manager** — Always use `pnpm`, not `npm` or `yarn`. The lockfile and version enforcement are pnpm-specific.
-- **pnpm auto-downloads Node** — `.npmrc` sets `use-node-version=20.19.0`, so pnpm will fetch the correct Node version automatically when running install commands. If this isn't working, make sure your pnpm is `>=9`.
 - **Why `20.19.0` and not `20.18.0`?** — Node `20.19.0` was the first 20.x release where `require(ESM)` is enabled by default. Some test dependencies (jsdom → `html-encoding-sniffer` → `@exodus/bytes`) require this; on Node `<20.19.0`, `pnpm test` fails with `ERR_REQUIRE_ESM`.
 
 ### Running the Application
