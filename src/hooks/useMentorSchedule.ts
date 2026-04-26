@@ -4,7 +4,7 @@ import dayjs from 'dayjs';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 dayjs.extend(isSameOrBefore);
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   BookingSlot,
@@ -23,12 +23,7 @@ import {
   syncMonthSchedule,
 } from '@/services/mentor-schedule/sync';
 
-export type {
-  BookingSlot,
-  DtType,
-  ParsedMentorTimeslot,
-  RawMentorTimeslot,
-} from '@/lib/profile/scheduleHelpers';
+export type { BookingSlot } from '@/lib/profile/scheduleHelpers';
 export { expandRrule } from '@/lib/profile/scheduleHelpers';
 
 type Options = {
@@ -37,12 +32,10 @@ type Options = {
     year: number;
     month: number; // 1-12
   };
-  debug?: boolean;
 };
 
 export type UseMentorScheduleReturn = {
   loaded: boolean;
-  dirty: boolean;
   selectedDate: string | null;
   setSelectedDate: (dateStr: string | null) => void;
 
@@ -52,7 +45,6 @@ export type UseMentorScheduleReturn = {
   allowedDates: string[];
 
   meetingDurationMinutes: number;
-  setMeetingDuration: (minutes: number) => void;
   generateBookingSlots: (dateKey: string) => BookingSlot[];
 
   addSlotForSelectedDate: (opts: {
@@ -79,13 +71,7 @@ export type UseMentorScheduleReturn = {
 };
 
 export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
-  const { backend, debug = false } = opts;
-
-  const debugRef = useRef(debug);
-  debugRef.current = debug;
-  const log = useCallback((...args: unknown[]) => {
-    if (debugRef.current) console.log('[MentorSchedule]', ...args);
-  }, []);
+  const { backend } = opts;
 
   const [saved, setSaved] = useState<RawMentorTimeslot[]>([]);
   const [draft, setDraft] = useState<RawMentorTimeslot[]>([]);
@@ -96,10 +82,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const [pendingDeleteIds, setPendingDeleteIds] = useState<number[]>([]);
   const [meetingDurationMinutes, setMeetingDurationMinutes] =
     useState<number>(30);
-
-  const setMeetingDuration = useCallback((minutes: number) => {
-    setMeetingDurationMinutes(minutes);
-  }, []);
 
   const persistedIdSet = useMemo(
     () => new Set(saved.filter((s) => s.id > 0).map((s) => s.id)),
@@ -125,7 +107,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     if (!backend.userId || !backend.year || !backend.month) return;
     let ignore = false;
     (async () => {
-      log('init load:', { backend });
       try {
         const raws = await loadMonthSchedule(backend);
         if (ignore) return;
@@ -141,8 +122,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           );
           if (derived > 0) setMeetingDurationMinutes(derived);
         }
-      } catch (e) {
-        log('fetchMentorSchedule error:', e);
+      } catch {
         if (!ignore) setLoaded(true);
       }
     })();
@@ -210,13 +190,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       return result;
     },
     [draft]
-  );
-
-  const dirty = useMemo(
-    () =>
-      JSON.stringify(saved) !== JSON.stringify(draft) ||
-      pendingDeleteIds.length > 0,
-    [saved, draft, pendingDeleteIds]
   );
 
   const addSlotForSelectedDate: UseMentorScheduleReturn['addSlotForSelectedDate'] =
@@ -348,8 +321,11 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     []
   );
 
+  const dirty =
+    JSON.stringify(saved) !== JSON.stringify(draft) ||
+    pendingDeleteIds.length > 0;
+
   const confirmChanges = useCallback(async () => {
-    log('confirmChanges clicked:', { backend, dirty, pendingDeleteIds });
     if (!dirty) return;
     if (!backend.userId) return;
 
@@ -374,13 +350,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
     const idsToDelete = [...pendingDeleteIds, ...extraDeleteIds];
 
-    log('confirmChanges dedup:', {
-      rawUpsertCount: rawUpsert.length,
-      upsertPayloadCount: upsertPayload.length,
-      extraDeleteIds,
-      idsToDelete,
-    });
-
     const raws = await syncMonthSchedule({
       ref: backend,
       upsertPayload,
@@ -390,9 +359,8 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       setSaved(raws);
       setDraft(raws);
       setPendingDeleteIds([]);
-      log('refetched after confirm:', { count: raws.length });
     }
-  }, [draft, toServiceSlot, dirty, pendingDeleteIds, log, backend]);
+  }, [draft, toServiceSlot, dirty, pendingDeleteIds, backend]);
 
   const resetChanges = useCallback(() => {
     if (!backend.userId || !backend.year || !backend.month) return;
@@ -407,14 +375,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   return {
     loaded,
-    dirty,
     selectedDate,
     setSelectedDate,
     parsedDraft,
     draftForSelectedDate,
     allowedDates,
     meetingDurationMinutes,
-    setMeetingDuration,
     generateBookingSlots,
     addSlotForSelectedDate,
     updateDraftSlot,

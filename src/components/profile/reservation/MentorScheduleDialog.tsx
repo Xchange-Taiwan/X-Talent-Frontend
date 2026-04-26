@@ -98,7 +98,7 @@ export default function MentorScheduleDialog({
     }
   }, [open]);
 
-  // Only show ALLOW/BLOCK slots in the editor; BOOKED/PENDING are read-only
+  // Only ALLOW slots are editable; BOOKED/PENDING are read-only
   const editableSlotsForDate = draftForSelectedDate.filter(
     (s) => s.type === 'ALLOW'
   );
