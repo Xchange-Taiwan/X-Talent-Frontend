@@ -13,13 +13,26 @@ interface SessionPayload {
   personalLinks?: { platform: string; url: string }[];
 }
 
-// Derive cookie domain + secure flag from BASE_URL so the same helper works
-// against both http://localhost:3000 (local dev server) and remote https
-// deployments like https://xtalentdev.vercel.app.
-function getCookieTarget(): { domain: string; secure: boolean } {
+// Derive cookie domain, secure flag, and cookie *name* from BASE_URL so the
+// same helper works against both http://localhost:3000 and remote https
+// deployments. NextAuth prefixes the cookie name with `__Secure-` when the
+// deployment serves over HTTPS — forging without this prefix means the server
+// never sees the cookie and treats the user as signed-out.
+function getCookieTarget(): {
+  name: string;
+  domain: string;
+  secure: boolean;
+} {
   const baseUrl = process.env.BASE_URL ?? 'http://localhost:3000';
   const url = new URL(baseUrl);
-  return { domain: url.hostname, secure: url.protocol === 'https:' };
+  const secure = url.protocol === 'https:';
+  return {
+    name: secure
+      ? '__Secure-next-auth.session-token'
+      : 'next-auth.session-token',
+    domain: url.hostname,
+    secure,
+  };
 }
 
 /**
@@ -41,10 +54,10 @@ export async function setSignedSessionCookie(
     secret: process.env.NEXTAUTH_SECRET ?? 'secret',
   });
 
-  const { domain, secure } = getCookieTarget();
+  const { name, domain, secure } = getCookieTarget();
   await page.context().addCookies([
     {
-      name: 'next-auth.session-token',
+      name,
       value: signed,
       domain,
       path: '/',
@@ -64,10 +77,10 @@ export async function setRawSessionCookie(
   page: Page,
   value: string
 ): Promise<void> {
-  const { domain, secure } = getCookieTarget();
+  const { name, domain, secure } = getCookieTarget();
   await page.context().addCookies([
     {
-      name: 'next-auth.session-token',
+      name,
       value,
       domain,
       path: '/',
