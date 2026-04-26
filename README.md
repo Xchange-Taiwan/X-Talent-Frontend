@@ -59,6 +59,17 @@ Ensure you have the following installed:
    - This file contains secrets and tokens required for development.
    - Please request this file from other developers.
 
+### Troubleshooting
+
+This project requires Node `>=20.19.0` (declared in `package.json` `engines`) and enforces it via `.npmrc` (`engine-strict=true`). Any newer Node (20.19+, 22, 24) works — there is no upper bound. CI runs Node 20 LTS; `.nvmrc` pins `20.19.0` for tooling that reads it.
+
+- **`ERR_PNPM_UNSUPPORTED_ENGINE` / `Unsupported engine`** — Your Node version is below `20.19.0`. Upgrade before running `pnpm install`. To install/switch to a specific 20.x:
+  - With **nvm**: `nvm install 20.19.0 && nvm use 20.19.0`
+  - With **fnm**: `fnm use` (auto-reads `.nvmrc`)
+  - With **Volta**: `volta install node@20.19.0`
+- **Wrong package manager** — Always use `pnpm`, not `npm` or `yarn`. The lockfile and version enforcement are pnpm-specific.
+- **Why `>=20.19.0` and not just `>=20`?** — Node `20.19.0` was the first 20.x release where `require(ESM)` is enabled by default. Some test dependencies (jsdom → `html-encoding-sniffer` → `@exodus/bytes`) require this; on Node `<20.19.0`, `pnpm test` fails with `ERR_REQUIRE_ESM`.
+
 ### Running the Application
 
 To start the development server:
