@@ -272,7 +272,11 @@ export default function ProfilePageUI({
                           {slots.map((slot) => (
                             <div
                               key={slot.start.getTime()}
-                              className="flex h-10 select-none items-center justify-center rounded-lg border border-[#E6E8EA] text-sm font-medium"
+                              className={`flex h-10 select-none items-center justify-center rounded-lg border text-sm font-medium ${
+                                slot.isBooked
+                                  ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                                  : 'border-[#E6E8EA]'
+                              }`}
                             >
                               {formatBookingSlotTime(slot)}
                             </div>
