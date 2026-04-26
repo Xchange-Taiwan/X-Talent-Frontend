@@ -253,8 +253,13 @@ export default function MenteeReservationDialog({
                       ? 'default'
                       : 'outline'
                   }
+                  disabled={slot.isBooked}
                   onClick={() => setSelectedSlot(slot)}
-                  className="h-10 w-full text-sm lg:h-11 lg:text-base"
+                  className={`h-10 w-full text-sm lg:h-11 lg:text-base ${
+                    slot.isBooked
+                      ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 disabled:opacity-100'
+                      : ''
+                  }`}
                 >
                   {formatTimeSlot(slot)}
                 </Button>

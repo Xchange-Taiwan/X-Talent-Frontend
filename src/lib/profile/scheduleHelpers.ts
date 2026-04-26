@@ -37,6 +37,7 @@ export type BookingSlot = {
   start: Date;
   end: Date;
   scheduleId: number; // parent ALLOW slot id
+  isBooked: boolean;
 };
 
 /** Expand an rrule string from dtstart, returning all occurrence dtstart values (unix seconds). */

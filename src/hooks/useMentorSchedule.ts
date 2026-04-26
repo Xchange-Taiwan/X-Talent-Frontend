@@ -178,15 +178,16 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
         for (const occ of occurrences) {
           if (slot.exdate.includes(occ)) continue;
-          if (bookedStarts.has(occ)) continue;
           result.push({
             start: new Date(occ * 1000),
             end: new Date((occ + slotDuration) * 1000),
             scheduleId: slot.id,
+            isBooked: bookedStarts.has(occ),
           });
         }
       }
 
+      result.sort((a, b) => a.start.getTime() - b.start.getTime());
       return result;
     },
     [draft]
