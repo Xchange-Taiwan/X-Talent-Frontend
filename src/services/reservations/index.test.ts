@@ -4,7 +4,6 @@ import {
   formatDateTime,
   formatExperience,
   mapToReservation,
-  ReservationState,
 } from '@/services/reservations';
 import { components } from '@/types/api';
 
@@ -47,13 +46,6 @@ function makeReservation(
   };
 }
 
-function makeReservationWithState(
-  overrides: Partial<ReservationInfoVO>,
-  state: ReservationState
-) {
-  return mapToReservation(makeReservation(overrides), state);
-}
-
 /* ================================
  * formatExperience
  * ================================ */
@@ -86,18 +78,16 @@ describe('formatDateTime', () => {
  * ================================ */
 
 describe('mapToReservation', () => {
-  it('MENTOR_PENDING → counterpartyMessage picks the mentee message (participant.user_id)', () => {
+  it('mentee message present, mentor silent → menteeMessage set, mentorMessage undefined', () => {
     const reservation = makeReservation({
       messages: [{ user_id: 20, role: 'MENTEE', content: 'Hello mentor!' }],
     });
-    const result = mapToReservation(reservation, 'MENTOR_PENDING');
-    expect(result.counterpartyMessage).toEqual({
-      role: 'MENTEE',
-      content: 'Hello mentor!',
-    });
+    const result = mapToReservation(reservation);
+    expect(result.menteeMessage).toEqual({ content: 'Hello mentor!' });
+    expect(result.mentorMessage).toBeUndefined();
   });
 
-  it('MENTEE_PENDING → counterpartyMessage picks the mentor reply (participant.user_id)', () => {
+  it('both sides have messages → menteeMessage and mentorMessage both populated', () => {
     const reservation = makeReservation({
       sender: {
         user_id: 30,
@@ -122,38 +112,58 @@ describe('mapToReservation', () => {
         { user_id: 40, role: 'MENTOR', content: 'See you on Google Meet.' },
       ],
     });
-    const result = mapToReservation(reservation, 'MENTEE_PENDING');
-    expect(result.counterpartyMessage).toEqual({
-      role: 'MENTOR',
+    const result = mapToReservation(reservation);
+    expect(result.menteeMessage).toEqual({ content: 'Looking forward!' });
+    expect(result.mentorMessage).toEqual({
       content: 'See you on Google Meet.',
     });
   });
 
-  it('multiple counterparty messages → counterpartyMessage uses the latest one', () => {
+  it('multiple mentee messages → menteeMessage uses the latest one', () => {
     const reservation = makeReservation({
       messages: [
         { user_id: 20, role: 'MENTEE', content: 'First note' },
         { user_id: 20, role: 'MENTEE', content: 'Updated note' },
       ],
     });
-    const result = mapToReservation(reservation, 'MENTOR_PENDING');
-    expect(result.counterpartyMessage).toEqual({
-      role: 'MENTEE',
-      content: 'Updated note',
-    });
+    const result = mapToReservation(reservation);
+    expect(result.menteeMessage).toEqual({ content: 'Updated note' });
+    expect(result.mentorMessage).toBeUndefined();
   });
 
-  it('blank counterparty message → counterpartyMessage is undefined', () => {
+  it('blank message content → message is undefined', () => {
     const reservation = makeReservation({
       messages: [{ user_id: 20, role: 'MENTEE', content: '   ' }],
     });
-    const result = mapToReservation(reservation, 'MENTOR_PENDING');
-    expect(result.counterpartyMessage).toBeUndefined();
+    const result = mapToReservation(reservation);
+    expect(result.menteeMessage).toBeUndefined();
+    expect(result.mentorMessage).toBeUndefined();
+  });
+
+  it('message role missing → falls back to user_id → sender/participant role lookup', () => {
+    const reservation = makeReservation({
+      messages: [
+        { user_id: 10, role: null, content: 'From the mentor side' },
+        { user_id: 20, role: undefined, content: 'From the mentee side' },
+      ],
+    });
+    const result = mapToReservation(reservation);
+    expect(result.mentorMessage).toEqual({ content: 'From the mentor side' });
+    expect(result.menteeMessage).toEqual({ content: 'From the mentee side' });
+  });
+
+  it('message from unknown user with unknown role → ignored', () => {
+    const reservation = makeReservation({
+      messages: [{ user_id: 999, role: 'OTHER', content: 'Wrong user' }],
+    });
+    const result = mapToReservation(reservation);
+    expect(result.menteeMessage).toBeUndefined();
+    expect(result.mentorMessage).toBeUndefined();
   });
 
   it('job_title present, years_of_experience empty → roleLine has no trailing comma', () => {
-    const result = makeReservationWithState(
-      {
+    const result = mapToReservation(
+      makeReservation({
         participant: {
           user_id: 20,
           role: 'MENTEE',
@@ -163,15 +173,14 @@ describe('mapToReservation', () => {
           job_title: 'Product Manager',
           years_of_experience: '',
         },
-      },
-      'MENTOR_UPCOMING'
+      })
     );
     expect(result.roleLine).toBe('Product Manager');
   });
 
   it('both job_title and years_of_experience empty → roleLine is empty string', () => {
-    const result = makeReservationWithState(
-      {
+    const result = mapToReservation(
+      makeReservation({
         participant: {
           user_id: 20,
           role: 'MENTEE',
@@ -181,15 +190,14 @@ describe('mapToReservation', () => {
           job_title: '',
           years_of_experience: '',
         },
-      },
-      'MENTOR_UPCOMING'
+      })
     );
     expect(result.roleLine).toBe('');
   });
 
   it('name is empty string → name falls back to "—"', () => {
-    const result = makeReservationWithState(
-      {
+    const result = mapToReservation(
+      makeReservation({
         participant: {
           user_id: 20,
           role: 'MENTEE',
@@ -199,17 +207,8 @@ describe('mapToReservation', () => {
           job_title: '',
           years_of_experience: '',
         },
-      },
-      'MENTOR_UPCOMING'
+      })
     );
     expect(result.name).toBe('—');
-  });
-
-  it('no matching counterparty message → counterpartyMessage is undefined', () => {
-    const reservation = makeReservation({
-      messages: [{ user_id: 999, role: 'OTHER', content: 'Wrong user' }],
-    });
-    const result = mapToReservation(reservation, 'MENTOR_PENDING');
-    expect(result.counterpartyMessage).toBeUndefined();
   });
 });

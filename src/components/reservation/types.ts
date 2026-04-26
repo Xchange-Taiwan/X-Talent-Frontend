@@ -1,5 +1,4 @@
-export type CounterpartyMessage = {
-  role: 'MENTEE' | 'MENTOR';
+export type ReservationMessage = {
   content: string;
 };
 
@@ -10,8 +9,10 @@ export type Reservation = {
   roleLine: string;
   date: string;
   time: string;
-  // Latest message from the OTHER party (mentee question, mentor reply / reason).
-  counterpartyMessage?: CounterpartyMessage;
+  // Latest message authored by each party. Either side may be undefined when
+  // that party hasn't written anything yet.
+  menteeMessage?: ReservationMessage;
+  mentorMessage?: ReservationMessage;
 
   // Required by the PUT reservation status endpoint
   scheduleId: number;
