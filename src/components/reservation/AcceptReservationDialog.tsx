@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarDays, Clock, Loader2 } from 'lucide-react';
+import { CalendarDays, Clock, Loader2, MessageSquarePlus } from 'lucide-react';
 import { useState } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -39,6 +39,8 @@ export default function AcceptReservationDialog({
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<'check' | 'reject'>('check');
   const [reason, setReason] = useState('');
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [reply, setReply] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -48,6 +50,8 @@ export default function AcceptReservationDialog({
     if (next) {
       setStep('check');
       setReason('');
+      setReply('');
+      setReplyOpen(false);
       trackEvent({
         name: 'feature_opened',
         feature: 'reservation',
@@ -59,7 +63,14 @@ export default function AcceptReservationDialog({
   async function handleAccept() {
     setIsSubmitting(true);
     try {
-      await onAccept?.({ id: reservation.id, message: '' });
+      await onAccept?.({ id: reservation.id, message: reply.trim() });
+      trackEvent({
+        name: 'reservation_accepted',
+        feature: 'reservation',
+        metadata: { has_reply: reply.trim().length > 0 },
+      });
+      setIsSubmitting(false);
+      setOpen(false);
     } catch {
       toast({
         variant: 'destructive',
@@ -73,6 +84,8 @@ export default function AcceptReservationDialog({
     setIsSubmitting(true);
     try {
       await onReject?.({ id: reservation.id, reason });
+      setIsSubmitting(false);
+      setOpen(false);
     } catch {
       toast({
         variant: 'destructive',
@@ -82,7 +95,11 @@ export default function AcceptReservationDialog({
     }
   }
 
-  const hasNote = Boolean(reservation.note?.trim());
+  // counterpartyMessage on the mentor side is always the mentee's question.
+  const menteeMessage =
+    reservation.counterpartyMessage?.role === 'MENTEE'
+      ? reservation.counterpartyMessage.content
+      : undefined;
   const trimmedReason = reason.trim();
   const canSubmitReject = trimmedReason.length > 0 && !isSubmitting;
 
@@ -143,16 +160,45 @@ export default function AcceptReservationDialog({
               </div>
             </div>
 
-            {hasNote && (
+            {menteeMessage ? (
               <div className="mt-6">
                 <div className="mb-2 text-sm font-medium">學員所提出的問題</div>
                 <div className="rounded-2xl border bg-muted/40 p-4 text-sm">
                   <p className="whitespace-pre-wrap text-foreground">
-                    {reservation.note}
+                    {menteeMessage}
                   </p>
                 </div>
               </div>
-            )}
+            ) : null}
+
+            <div className="mt-6">
+              {replyOpen ? (
+                <div>
+                  <div className="mb-2 text-sm font-medium">
+                    給學員的回覆（選填）
+                  </div>
+                  <div className="rounded-2xl border p-2">
+                    <Textarea
+                      placeholder="例如：屆時於 Google Meet 見，請先準備一份履歷。"
+                      className="min-h-[96px] resize-y border-0 shadow-none focus-visible:ring-0"
+                      value={reply}
+                      onChange={(e) => setReply(e.target.value)}
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setReplyOpen(true)}
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                  disabled={isSubmitting}
+                >
+                  <MessageSquarePlus className="h-4 w-4" aria-hidden />
+                  附上回覆訊息（選填）
+                </button>
+              )}
+            </div>
 
             <DialogFooter className="mt-6 gap-2">
               <Button

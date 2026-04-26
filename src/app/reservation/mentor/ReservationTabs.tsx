@@ -15,6 +15,7 @@ export type ReservationTabsProps = {
   nextTokens: NextTokens;
   isLoadingMore: boolean;
   onLoadMore: (state: ReservationState) => void;
+  onMutationSuccess?: (id: string) => void;
 };
 
 export default function ReservationTabs({
@@ -26,6 +27,7 @@ export default function ReservationTabs({
   nextTokens,
   isLoadingMore,
   onLoadMore,
+  onMutationSuccess,
 }: ReservationTabsProps) {
   void upcomingMentee;
   void pendingMentee;
@@ -85,6 +87,7 @@ export default function ReservationTabs({
               hasMore={nextTokens.mentorUpcoming !== 0}
               onLoadMore={() => onLoadMore('MENTOR_UPCOMING')}
               isLoadingMore={isLoadingMore}
+              onMutationSuccess={onMutationSuccess}
             />
           </TabsContent>
 
@@ -96,6 +99,7 @@ export default function ReservationTabs({
               hasMore={nextTokens.mentorPending !== 0}
               onLoadMore={() => onLoadMore('MENTOR_PENDING')}
               isLoadingMore={isLoadingMore}
+              onMutationSuccess={onMutationSuccess}
             />
           </TabsContent>
 
@@ -107,6 +111,7 @@ export default function ReservationTabs({
               hasMore={nextTokens.history !== 0}
               onLoadMore={() => onLoadMore('HISTORY')}
               isLoadingMore={isLoadingMore}
+              onMutationSuccess={onMutationSuccess}
             />
           </TabsContent>
         </div>
