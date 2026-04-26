@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarDays, Clock } from 'lucide-react';
+import { CalendarDays, Clock, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/components/ui/use-toast';
 import { trackEvent } from '@/lib/analytics';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { cn } from '@/lib/utils';
@@ -38,8 +39,11 @@ export default function AcceptReservationDialog({
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<'check' | 'reject'>('check');
   const [reason, setReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
 
   function onOpenChange(next: boolean) {
+    if (isSubmitting) return;
     setOpen(next);
     if (next) {
       setStep('check');
@@ -51,6 +55,36 @@ export default function AcceptReservationDialog({
       });
     }
   }
+
+  async function handleAccept() {
+    setIsSubmitting(true);
+    try {
+      await onAccept?.({ id: reservation.id, message: '' });
+    } catch {
+      toast({
+        variant: 'destructive',
+        description: '接受預約失敗,請稍後再試',
+      });
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleReject() {
+    setIsSubmitting(true);
+    try {
+      await onReject?.({ id: reservation.id, reason });
+    } catch {
+      toast({
+        variant: 'destructive',
+        description: '拒絕預約失敗,請稍後再試',
+      });
+      setIsSubmitting(false);
+    }
+  }
+
+  const hasNote = Boolean(reservation.note?.trim());
+  const trimmedReason = reason.trim();
+  const canSubmitReject = trimmedReason.length > 0 && !isSubmitting;
 
   const initials =
     reservation.name
@@ -109,25 +143,24 @@ export default function AcceptReservationDialog({
               </div>
             </div>
 
-            <div className="mt-6">
-              <div className="mb-2 text-sm font-medium">學員所提出的問題</div>
-              <div className="rounded-2xl border bg-muted/40 p-4 text-sm">
-                {reservation.note ? (
+            {hasNote && (
+              <div className="mt-6">
+                <div className="mb-2 text-sm font-medium">學員所提出的問題</div>
+                <div className="rounded-2xl border bg-muted/40 p-4 text-sm">
                   <p className="whitespace-pre-wrap text-foreground">
                     {reservation.note}
                   </p>
-                ) : (
-                  <p className="text-muted-foreground">（學員未提出問題）</p>
-                )}
+                </div>
               </div>
-            </div>
+            )}
 
             <DialogFooter className="mt-6 gap-2">
               <Button
                 type="button"
-                variant="secondary"
-                className="w-full bg-secondary text-destructive hover:bg-secondary/80 sm:w-auto"
+                variant="outline"
+                className="w-full border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
                 onClick={() => setStep('reject')}
+                disabled={isSubmitting}
               >
                 拒絕
               </Button>
@@ -135,12 +168,13 @@ export default function AcceptReservationDialog({
               <Button
                 type="button"
                 className="bg-teal-500 text-white hover:bg-teal-500/90 w-full sm:w-auto"
-                onClick={async () => {
-                  await onAccept?.({ id: reservation.id, message: '' });
-                  setOpen(false);
-                }}
+                onClick={handleAccept}
+                disabled={isSubmitting}
               >
-                接收
+                {isSubmitting && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                接受
               </Button>
             </DialogFooter>
           </div>
@@ -161,12 +195,22 @@ export default function AcceptReservationDialog({
                 className="min-h-[120px] resize-y border-0 shadow-none focus-visible:ring-0"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
+                disabled={isSubmitting}
               />
             </div>
+            {trimmedReason.length === 0 && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                請填寫拒絕原因
+              </p>
+            )}
 
             <DialogFooter className="mt-6 gap-2">
               <DialogClose asChild>
-                <Button variant="outline" className="w-full sm:w-auto">
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  disabled={isSubmitting}
+                >
                   捨棄
                 </Button>
               </DialogClose>
@@ -174,12 +218,12 @@ export default function AcceptReservationDialog({
               <Button
                 type="button"
                 className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto"
-                disabled={reason.trim().length === 0}
-                onClick={async () => {
-                  await onReject?.({ id: reservation.id, reason });
-                  setOpen(false);
-                }}
+                disabled={!canSubmitReject}
+                onClick={handleReject}
               >
+                {isSubmitting && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
                 拒絕
               </Button>
             </DialogFooter>
