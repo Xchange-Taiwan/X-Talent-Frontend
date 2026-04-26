@@ -198,6 +198,9 @@ const authOptions = {
       };
 
       session.accessToken = (token.token as string | undefined) ?? undefined;
+      // TEST: expose refreshToken to client for debugging (remove after testing)
+      session.user.refreshToken =
+        (token.refreshToken as string | undefined) ?? undefined;
       session.user.provider =
         (token.provider as string | undefined) ?? undefined;
       session.user.email = (token.email as string | undefined) ?? undefined;
