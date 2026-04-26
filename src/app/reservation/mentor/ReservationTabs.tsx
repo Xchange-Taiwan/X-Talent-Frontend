@@ -81,6 +81,7 @@ export default function ReservationTabs({
             <ReservationList
               items={upcomingMentor}
               variant="upcoming"
+              sourceRole="mentor"
               hasMore={nextTokens.mentorUpcoming !== 0}
               onLoadMore={() => onLoadMore('MENTOR_UPCOMING')}
               isLoadingMore={isLoadingMore}
@@ -91,6 +92,7 @@ export default function ReservationTabs({
             <ReservationList
               items={pendingMentor}
               variant="pending-mentor"
+              sourceRole="mentor"
               hasMore={nextTokens.mentorPending !== 0}
               onLoadMore={() => onLoadMore('MENTOR_PENDING')}
               isLoadingMore={isLoadingMore}
@@ -101,6 +103,7 @@ export default function ReservationTabs({
             <ReservationList
               items={history}
               variant="history"
+              sourceRole="mentor"
               hasMore={nextTokens.history !== 0}
               onLoadMore={() => onLoadMore('HISTORY')}
               isLoadingMore={isLoadingMore}
