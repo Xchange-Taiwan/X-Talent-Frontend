@@ -2,6 +2,9 @@
   "name": "xchange-talent-pool",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20 <21"
+  },
   "scripts": {
     "dev": "next dev",
     "dev-turbo": "next dev --turbo",
@@ -12,8 +15,6 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "lint:check": "npm run format:check && npm run lint",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -63,13 +64,6 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
-    "@storybook/addon-essentials": "^8.6.17",
-    "@storybook/addon-interactions": "^8.6.17",
-    "@storybook/addon-links": "^8.6.17",
-    "@storybook/blocks": "^8.6.17",
-    "@storybook/nextjs": "^8.6.17",
-    "@storybook/react": "^8.6.17",
-    "@storybook/test": "^8.6.17",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -87,7 +81,6 @@
     "eslint-config-next": "14.2.35",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-simple-import-sort": "^10.0.0",
-    "eslint-plugin-storybook": "^0.8.0",
     "husky": "^9.0.10",
     "jimp": "^1.6.0",
     "jsdom": "^29.0.2",
@@ -96,9 +89,7 @@
     "postcss": "^8.4.33",
     "prettier": "^3.2.4",
     "prettier-plugin-tailwindcss": "^0.5.11",
-    "storybook": "^8.6.17",
     "tailwindcss": "^3.4.1",
-    "tsconfig-paths-webpack-plugin": "^4.1.0",
     "typescript": "^5.3.3",
     "vitest": "^4.1.4"
   },
