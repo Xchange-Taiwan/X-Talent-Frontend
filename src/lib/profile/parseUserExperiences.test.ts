@@ -43,7 +43,7 @@ describe('parseCurrentJob', () => {
     expect(result).toEqual({ job_title: 'Senior Engineer', company: 'Dell' });
   });
 
-  it('falls back to the current job (no jobPeriodEnd) when no entry is primary', () => {
+  it('falls back to the first entry when no entry is primary', () => {
     const result = parseCurrentJob([
       makeWorkBlock([
         {
@@ -62,26 +62,5 @@ describe('parseCurrentJob', () => {
     ]);
 
     expect(result).toEqual({ job_title: 'Engineer', company: 'Acme' });
-  });
-
-  it('falls back to the latest jobPeriodEnd when no current job and no primary', () => {
-    const result = parseCurrentJob([
-      makeWorkBlock([
-        {
-          job: 'Junior',
-          company: 'Old Co',
-          jobPeriodStart: '2015',
-          jobPeriodEnd: '2017',
-        },
-        {
-          job: 'Senior',
-          company: 'New Co',
-          jobPeriodStart: '2018',
-          jobPeriodEnd: '2023',
-        },
-      ]),
-    ]);
-
-    expect(result).toEqual({ job_title: 'Senior', company: 'New Co' });
   });
 });

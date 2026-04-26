@@ -134,7 +134,7 @@ export const JobExperienceSection = ({
       industry: '',
       jobLocation: 'TWN',
       description: '',
-      isPrimary: false,
+      isPrimary: experiences.length === 0,
     });
   };
 
