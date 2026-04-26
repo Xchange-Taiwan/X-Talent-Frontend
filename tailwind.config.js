@@ -3,11 +3,7 @@ const colors = require('./src/design/tokens/color');
 
 export const darkMode = ['class'];
 
-export const content = [
-  './src/**/*.{js,jsx,ts,tsx}',
-  './.storybook/**/*.{ts,tsx}',
-  './src/stories/**/*.{js,ts,jsx,tsx,mdx}',
-];
+export const content = ['./src/**/*.{js,jsx,ts,tsx}'];
 
 export const theme = {
   container: {

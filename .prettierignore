@@ -9,6 +9,3 @@ pnpm-lock.yaml
 
 # dependencies
 /node_modules/
-
-# storybook
-/storybook-static/
