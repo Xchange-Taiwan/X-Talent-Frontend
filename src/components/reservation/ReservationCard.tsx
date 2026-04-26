@@ -1,4 +1,5 @@
 import { CalendarDays, Clock, MessageSquare } from 'lucide-react';
+import Link from 'next/link';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,44 +15,78 @@ const COUNTERPARTY_LABEL: Record<'MENTEE' | 'MENTOR', string> = {
 export function ReservationCard({
   item,
   actions,
+  profileHref,
+  onProfileClick,
 }: {
   item: Reservation;
   actions?: React.ReactNode;
+  profileHref?: string;
+  onProfileClick?: () => void;
 }) {
   const { counterpartyMessage } = item;
+
+  const initials = item.name
+    .split(' ')
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join('');
+
+  const avatar = (
+    <Avatar className="h-10 w-10 sm:h-12 sm:w-12">
+      {item.avatar ? (
+        <AvatarImage src={getAvatarThumbUrl(item.avatar)} alt={item.name} />
+      ) : null}
+      <AvatarFallback className="font-medium">{initials}</AvatarFallback>
+    </Avatar>
+  );
+
+  const profileAriaLabel = `查看 ${item.name} 的個人資料`;
 
   return (
     <Card className="border-muted/40 transition-shadow hover:shadow-sm">
       <CardContent className="p-3 sm:p-4">
         <div className="flex items-start gap-3 sm:gap-4">
           {/* Avatar */}
-          <Avatar className="h-10 w-10 shrink-0 sm:h-12 sm:w-12">
-            {item.avatar ? (
-              <AvatarImage
-                src={getAvatarThumbUrl(item.avatar)}
-                alt={item.name}
-              />
-            ) : null}
-            <AvatarFallback className="font-medium">
-              {item.name
-                .split(' ')
-                .map((n) => n[0])
-                .slice(0, 2)
-                .join('')}
-            </AvatarFallback>
-          </Avatar>
+          {profileHref ? (
+            <Link
+              href={profileHref}
+              aria-label={profileAriaLabel}
+              onClick={onProfileClick}
+              className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              {avatar}
+            </Link>
+          ) : (
+            <div className="shrink-0">{avatar}</div>
+          )}
 
           {/* Main content */}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="min-w-0 truncate">
-                <div className="truncate text-sm font-medium sm:text-base">
-                  {item.name}
+              {profileHref ? (
+                <Link
+                  href={profileHref}
+                  aria-label={profileAriaLabel}
+                  onClick={onProfileClick}
+                  className="group min-w-0 truncate rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <div className="truncate text-sm font-medium group-hover:underline sm:text-base">
+                    {item.name}
+                  </div>
+                  <div className="truncate text-xs text-muted-foreground sm:text-sm">
+                    {item.roleLine}
+                  </div>
+                </Link>
+              ) : (
+                <div className="min-w-0 truncate">
+                  <div className="truncate text-sm font-medium sm:text-base">
+                    {item.name}
+                  </div>
+                  <div className="truncate text-xs text-muted-foreground sm:text-sm">
+                    {item.roleLine}
+                  </div>
                 </div>
-                <div className="truncate text-xs text-muted-foreground sm:text-sm">
-                  {item.roleLine}
-                </div>
-              </div>
+              )}
               <div className="shrink-0">{actions}</div>
             </div>
 

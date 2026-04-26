@@ -15,7 +15,7 @@ export function EditPageHeader({
   isMentorOnboarding,
 }: Props) {
   return (
-    <div className="mb-10 flex justify-between">
+    <div className="sticky top-[70px] z-40 mb-6 flex justify-between border-b border-gray-200 bg-light/95 py-4 backdrop-blur supports-[backdrop-filter]:bg-light/80">
       <div className="flex items-center gap-3">
         <ArrowBackIcon
           className={`sm:hidden ${isSaving ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
