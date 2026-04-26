@@ -309,6 +309,7 @@ export default function ProfilePageUI({
                       onOpenChange={setOpenMenteeReservationDialog}
                       schedule={schedule}
                       userData={userData}
+                      onMonthChange={onScheduleMonthChange}
                     />
                   )}
                 </div>
