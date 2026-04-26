@@ -12,9 +12,9 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     name: Playwright E2E
-    # Non-blocking: a red e2e run does not fail the workflow chain or any
-    # required-checks gate. Status still surfaces in the Actions UI.
-    continue-on-error: true
+    # Manual trigger only, never wired into branch protection — so a failure
+    # here cannot block PR merge anyway. Let the run fail loudly so the result
+    # is unambiguous in the Actions UI instead of always showing green.
     env:
       BASE_URL: ${{ inputs.base_url }}
       E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
@@ -43,12 +43,7 @@ jobs:
         run: pnpm playwright install --with-deps chromium
 
       - name: Run Playwright tests
-        id: e2e
         run: pnpm test:e2e
-
-      - name: Surface failure as warning
-        if: steps.e2e.outcome == 'failure'
-        run: echo "::warning ::E2E tests failed against ${{ inputs.base_url }} — not blocking merge"
 
       - name: Upload Playwright report
         if: always()
