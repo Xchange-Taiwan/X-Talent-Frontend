@@ -54,6 +54,7 @@
     "react-day-picker": "^9.8.1",
     "react-dom": "18.2.0",
     "react-hook-form": "^7.49.3",
+    "rrule": "^2.8.1",
     "sharp": "^0.33.2",
     "swiper": "^12.1.2",
     "tailwind-merge": "^2.2.1",

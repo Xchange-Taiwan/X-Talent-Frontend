@@ -660,6 +660,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v2/oauth/google/callback-test': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Oauth Callback Get
+     * @description Google 授權完成後以 GET 導回（query 帶 code、state）。與 POST /callback 行為相同，方便本機或未接前端的 redirect_uri 直接指到 BFF。
+     */
+    get: operations['oauth_callback_get_api_v2_oauth_google_callback_test_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/gateway/{term}': {
     parameters: {
       query?: never;
@@ -820,6 +840,20 @@ export interface components {
        */
       msg: string;
       data?: components['schemas']['MentorProfileVO'] | null;
+    };
+    /** ApiResponse[MentorScheduleQueryVO] */
+    ApiResponse_MentorScheduleQueryVO_: {
+      /**
+       * Code
+       * @default 0
+       */
+      code: string;
+      /**
+       * Msg
+       * @default ok
+       */
+      msg: string;
+      data?: components['schemas']['MentorScheduleQueryVO'] | null;
     };
     /** ApiResponse[MentorScheduleVO] */
     ApiResponse_MentorScheduleVO_: {
@@ -1212,12 +1246,12 @@ export interface components {
       url: string | null;
       /**
        * Create Time
-       * @default 2026-04-24T07:25:00.505055Z
+       * @default 2026-04-26T04:35:57.666240Z
        */
       create_time: string | null;
       /**
        * Update Time
-       * @default 2026-04-24T07:25:00.505070Z
+       * @default 2026-04-26T04:35:57.666249Z
        */
       update_time: string | null;
       /** Create User Id */
@@ -1481,6 +1515,77 @@ export interface components {
        * @default []
        */
       timeslots: components['schemas']['TimeSlotDTO'][];
+    };
+    /** MentorScheduleQueryVO */
+    MentorScheduleQueryVO: {
+      /**
+       * Segments
+       * @default []
+       */
+      segments: components['schemas']['MentorScheduleSegmentVO'][] | null;
+      /**
+       * Next Dtstart
+       * @example 0
+       */
+      next_dtstart?: number | null;
+    };
+    /** MentorScheduleSegmentVO */
+    MentorScheduleSegmentVO: {
+      /**
+       * Id
+       * @example 0
+       */
+      id?: number | null;
+      /**
+       * User Id
+       * @example 1
+       */
+      user_id: number;
+      /**
+       * Dt Type
+       * @example ALLOW
+       */
+      dt_type: string;
+      /**
+       * Dtstart
+       * @example 1717203600
+       */
+      dtstart: number;
+      /**
+       * Dtend
+       * @example 1717207200
+       */
+      dtend: number;
+      /**
+       * Rrule
+       * @example FREQ=WEEKLY;COUNT=4
+       */
+      rrule?: string | null;
+      /**
+       * Timezone
+       * @default UTC
+       * @example UTC
+       */
+      timezone: string;
+      /**
+       * Exdate
+       * @default []
+       * @example [
+       *       1718413200,
+       *       1719622800
+       *     ]
+       */
+      exdate: (number | null)[];
+      /**
+       * Source
+       * @example schedule
+       */
+      source: string;
+      /**
+       * Source Id
+       * @example 100
+       */
+      source_id?: number | null;
     };
     /** MentorScheduleVO */
     MentorScheduleVO: {
@@ -1994,6 +2099,21 @@ export interface components {
        * @example FREQ=WEEKLY;COUNT=4
        */
       rrule?: string | null;
+      /**
+       * Timezone
+       * @default UTC
+       * @example UTC
+       */
+      timezone: string;
+      /**
+       * Exdate
+       * @default []
+       * @example [
+       *       1718413200,
+       *       1719622800
+       *     ]
+       */
+      exdate: (number | null)[];
     };
     /** TimeSlotVO */
     TimeSlotVO: {
@@ -2037,6 +2157,21 @@ export interface components {
        * @example FREQ=WEEKLY;COUNT=4
        */
       rrule?: string | null;
+      /**
+       * Timezone
+       * @default UTC
+       * @example UTC
+       */
+      timezone: string;
+      /**
+       * Exdate
+       * @default []
+       * @example [
+       *       1718413200,
+       *       1719622800
+       *     ]
+       */
+      exdate: (number | null)[];
     };
     /** TokenRefreshAuthVO */
     TokenRefreshAuthVO: {
@@ -3293,7 +3428,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['ApiResponse_MentorScheduleVO_'];
+          'application/json': components['schemas']['ApiResponse_MentorScheduleQueryVO_'];
         };
       };
       /** @description Not found */
@@ -3791,6 +3926,45 @@ export interface operations {
         'application/json': components['schemas']['Body_oauth_callback_api_v2_oauth_google_callback_post'];
       };
     };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_GoogleCallbackVO_'];
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  oauth_callback_get_api_v2_oauth_google_callback_test_get: {
+    parameters: {
+      query: {
+        code: string;
+        state: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
     responses: {
       /** @description Successful Response */
       201: {
