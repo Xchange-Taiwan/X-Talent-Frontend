@@ -12,6 +12,7 @@ import { useFieldArray, UseFormReturn, useWatch } from 'react-hook-form';
 import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
 import { SelectField } from '@/components/profile/edit/Fields';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   FormControl,
   FormField,
@@ -61,6 +62,7 @@ export const JobExperienceSection = ({
   const {
     control,
     getValues,
+    setValue,
     formState: { errors },
   } = form;
 
@@ -68,6 +70,27 @@ export const JobExperienceSection = ({
     control,
     name: 'work_experiences',
   });
+
+  const setPrimary = (targetIndex: number) => {
+    const experiences = getValues('work_experiences') ?? [];
+    experiences.forEach((_, i) => {
+      setValue(`work_experiences.${i}.isPrimary`, i === targetIndex, {
+        shouldDirty: true,
+      });
+    });
+  };
+
+  const removeAndReassignPrimary = (index: number) => {
+    const experiences = getValues('work_experiences') ?? [];
+    const removingPrimary = experiences[index]?.isPrimary === true;
+    remove(index);
+
+    if (!removingPrimary) return;
+    const next = getValues('work_experiences') ?? [];
+    if (next.length > 0) {
+      setValue(`work_experiences.0.isPrimary`, true, { shouldDirty: true });
+    }
+  };
 
   const watchedExperiences = useWatch({
     control,
@@ -111,6 +134,7 @@ export const JobExperienceSection = ({
       industry: '',
       jobLocation: 'TWN',
       description: '',
+      isPrimary: experiences.length === 0,
     });
   };
 
@@ -301,11 +325,33 @@ export const JobExperienceSection = ({
               )}
             />
 
+            {/* Primary toggle */}
+            <FormField
+              control={control}
+              name={`work_experiences.${index}.isPrimary`}
+              render={({ field }) => (
+                <FormItem className="mb-6 flex items-center gap-2 space-y-0">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value ?? false}
+                      onCheckedChange={(checked) => {
+                        if (checked) setPrimary(index);
+                        else field.onChange(false);
+                      }}
+                    />
+                  </FormControl>
+                  <FormLabel className="cursor-pointer text-sm font-normal">
+                    設為頁面顯示的職稱
+                  </FormLabel>
+                </FormItem>
+              )}
+            />
+
             {fields.length > 1 && (
               <ConfirmDialog
                 title="要刪除這段工作經驗嗎？"
                 description="您確定要移除這個區塊嗎？"
-                onConfirm={() => remove(index)}
+                onConfirm={() => removeAndReassignPrimary(index)}
                 trigger={
                   <Button variant="destructive">
                     <TrashIcon className="mr-2 h-5 w-5" />

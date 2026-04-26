@@ -27,6 +27,7 @@ export function parseCurrentJob(
     company?: string;
     jobPeriodStart?: string;
     jobPeriodEnd?: string;
+    isPrimary?: boolean;
   };
 
   const allWorkEntries = (experiences ?? [])
@@ -39,13 +40,7 @@ export function parseCurrentJob(
 
   if (allWorkEntries.length === 0) return { job_title: '', company: '' };
 
-  const current =
-    allWorkEntries.find((e) => !e.jobPeriodEnd) ??
-    allWorkEntries.reduce((latest, e) => {
-      if (!latest.jobPeriodEnd) return e;
-      if (!e.jobPeriodEnd) return latest;
-      return e.jobPeriodEnd > latest.jobPeriodEnd ? e : latest;
-    });
+  const current = allWorkEntries.find((e) => e.isPrimary) ?? allWorkEntries[0];
 
   return {
     job_title: current.job ?? '',
@@ -112,7 +107,7 @@ export function parseWhatIOffer(
 export function parseWorkExperiences(
   experiences: MentorExperiencePayload[]
 ): WorkExperienceFormValue[] {
-  return (experiences ?? [])
+  const flattened = (experiences ?? [])
     .filter((e) => e.category === 'WORK')
     .flatMap((e) => {
       const metadata =
@@ -127,8 +122,15 @@ export function parseWorkExperiences(
         industry: item.industry || '',
         jobLocation: item.jobLocation || '',
         description: item.description || '',
+        isPrimary: item.isPrimary ?? false,
       }));
     });
+
+  if (flattened.length > 0 && !flattened.some((item) => item.isPrimary)) {
+    flattened[0].isPrimary = true;
+  }
+
+  return flattened;
 }
 
 export function parseEducations(

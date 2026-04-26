@@ -286,4 +286,55 @@ describe('useProfileSubmit', () => {
 
     expect(mockRouter.push).toHaveBeenCalledWith('/profile/card');
   });
+
+  // ── Primary job persistence ────────────────────────────────────────────────
+
+  it('work experience upsert includes isPrimary in payload', async () => {
+    const valuesWithPrimary = {
+      ...baseValues,
+      work_experiences: [
+        {
+          id: 1,
+          job: 'Engineer',
+          company: 'Acme',
+          jobPeriodStart: '2020',
+          jobPeriodEnd: 'now',
+          industry: 'tech',
+          jobLocation: 'TWN',
+          description: 'desc',
+          isPrimary: false,
+        },
+        {
+          id: 2,
+          job: 'Senior Engineer',
+          company: 'Dell',
+          jobPeriodStart: '2015',
+          jobPeriodEnd: '2019',
+          industry: 'tech',
+          jobLocation: 'TWN',
+          description: 'desc',
+          isPrimary: true,
+        },
+      ],
+    };
+
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(valuesWithPrimary);
+    });
+
+    const workCall = mockUpsertMentorExperience.mock.calls.find(
+      ([type]) => type === ExperienceType.WORK
+    );
+    expect(workCall).toBeDefined();
+    const payload = workCall![2];
+    const data = (
+      payload.mentor_experiences_metadata as {
+        data: { isPrimary?: boolean }[];
+      }
+    ).data;
+    expect(data[0].isPrimary).toBe(false);
+    expect(data[1].isPrimary).toBe(true);
+  });
 });
