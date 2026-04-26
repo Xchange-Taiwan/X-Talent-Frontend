@@ -22,12 +22,16 @@ export function ReservationList({
   hasMore = false,
   onLoadMore,
   isLoadingMore = false,
+  onMutationSuccess,
 }: {
   items: Reservation[];
   variant: Variant;
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
+  // Called after a successful accept / reject / cancel so the parent hook can
+  // optimistically remove the operated item and refetch in the background.
+  onMutationSuccess?: (id: string) => void;
 }) {
   const { toast } = useToast();
 
@@ -41,13 +45,6 @@ export function ReservationList({
   // Resolve the other party's user_id based on who is currently logged in
   const resolveOtherId = (myId: string, it: Reservation): string | number =>
     String(it.senderUserId) === myId ? it.participantUserId : it.senderUserId;
-
-  // Hard reload the page to reflect updated reservation state.
-  // Delayed so the success toast has time to render before the page reloads.
-  const hardReload = () => {
-    if (typeof window === 'undefined') return;
-    setTimeout(() => window.location.reload(), 800);
-  };
 
   // Accept a booking request (mentor side, pending-mentor variant)
   const accept = async ({ id, message }: { id: string; message: string }) => {
@@ -81,9 +78,8 @@ export function ReservationList({
       // slot overlaps an existing ALLOW slot. Re-enable once backend supports it,
       // or once GET schedule returns booked_slots so the frontend can filter them.
 
-      trackEvent({ name: 'reservation_accepted', feature: 'reservation' });
       toast({ description: '已接受預約' });
-      hardReload();
+      onMutationSuccess?.(id);
     } catch (err) {
       captureFlowFailure({
         flow: 'reservation_accept',
@@ -131,7 +127,7 @@ export function ReservationList({
 
       trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
       toast({ description: successMessage });
-      hardReload();
+      onMutationSuccess?.(id);
     } catch (err) {
       captureFlowFailure({
         flow: 'reservation_reject',
