@@ -1,12 +1,14 @@
 'use client';
 
 import { Plus, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -84,9 +86,11 @@ export default function MentorScheduleDialog({
     meetingDurationMinutes,
   } = schedule;
 
+  const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [editingSlots, setEditingSlots] = useState<EditingSlot[]>([]);
   const [slotErrors, setSlotErrors] = useState<Record<number, SlotErrors>>({});
+  const [pendingPromptOpen, setPendingPromptOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -107,6 +111,14 @@ export default function MentorScheduleDialog({
   const bookedStartsForDate = new Set(
     draftForSelectedDate
       .filter((s) => s.type === 'BOOKED')
+      .map((s) => Math.floor(s.start.getTime() / 1000))
+  );
+
+  // PENDING occurrences must be cancelled via the reservation-management page,
+  // not by excluding them from the schedule editor — see issue #144.
+  const pendingStartsForDate = new Set(
+    draftForSelectedDate
+      .filter((s) => s.type === 'PENDING')
       .map((s) => Math.floor(s.start.getTime() / 1000))
   );
 
@@ -300,28 +312,42 @@ export default function MentorScheduleDialog({
       <div className="mt-2 flex flex-wrap gap-1.5">
         {occurrences.map((occ) => {
           const isBooked = bookedStartsForDate.has(occ);
+          const isPending = pendingStartsForDate.has(occ);
           const isExcluded = parsed.exdate?.includes(occ) ?? false;
           const startLabel = fmtTime(occ);
           const endLabel = fmtTime(occ + slotDurSec);
+
+          const handleClick = () => {
+            if (isPending) {
+              setPendingPromptOpen(true);
+              return;
+            }
+            toggleOccurrence(slotId, occ);
+          };
 
           return (
             <button
               key={occ}
               type="button"
               disabled={isBooked}
-              onClick={() => toggleOccurrence(slotId, occ)}
+              onClick={handleClick}
               className={[
                 'rounded border px-2 py-0.5 text-xs transition-colors',
                 isBooked
                   ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
-                  : isExcluded
-                    ? 'bg-white border-gray-300 text-gray-400 line-through'
-                    : 'border-primary bg-primary/10 text-primary hover:bg-primary/20',
+                  : isPending
+                    ? 'border-primary bg-primary/10 text-primary hover:bg-primary/20'
+                    : isExcluded
+                      ? 'bg-white border-gray-300 text-gray-400 line-through'
+                      : 'border-primary bg-primary/10 text-primary hover:bg-primary/20',
               ].join(' ')}
             >
               {startLabel}–{endLabel}
               {isBooked && (
                 <span className="ml-1 text-[10px] text-gray-400">已預約</span>
+              )}
+              {isPending && (
+                <span className="ml-1 text-[10px] text-primary/70">已申請</span>
               )}
             </button>
           );
@@ -331,164 +357,194 @@ export default function MentorScheduleDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85dvh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-[440px] lg:max-w-[560px]">
-        <DialogHeader>
-          <DialogTitle>排程設定</DialogTitle>
-        </DialogHeader>
-        <div className="flex flex-col gap-4 py-4">
-          <ScheduleCalendar
-            selected={
-              selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date()
-            }
-            onSelect={(d) =>
-              setSelectedDate(
-                d
-                  ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-                  : null
-              )
-            }
-            onMonthChange={onMonthChange}
-            allowedDates={allowedDates}
-            showTodayStyle={false}
-            disableEmptyDates={false}
-            disablePastDates={true}
-            highlightAvailableDates={true}
-          />
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-h-[85dvh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-[440px] lg:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>排程設定</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-4">
+            <ScheduleCalendar
+              selected={
+                selectedDate ? new Date(selectedDate + 'T00:00:00') : new Date()
+              }
+              onSelect={(d) =>
+                setSelectedDate(
+                  d
+                    ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+                    : null
+                )
+              }
+              onMonthChange={onMonthChange}
+              allowedDates={allowedDates}
+              showTodayStyle={false}
+              disableEmptyDates={false}
+              disablePastDates={true}
+              highlightAvailableDates={true}
+            />
 
-          <div>
-            <p className="font-semibold lg:text-lg">可預約時段</p>
+            <div>
+              <p className="font-semibold lg:text-lg">可預約時段</p>
 
-            <div className="mt-3 flex flex-col gap-3">
-              {editingSlots.map((slot, index) => {
-                const errors = slotErrors[slot.id] ?? {};
-                const hasError = Boolean(errors.timeRange || errors.overlap);
-                const endHourOptions = getEndHourOptions(slot);
-                const endMinuteOptions = getEndMinuteOptions(slot);
+              <div className="mt-3 flex flex-col gap-3">
+                {editingSlots.map((slot, index) => {
+                  const errors = slotErrors[slot.id] ?? {};
+                  const hasError = Boolean(errors.timeRange || errors.overlap);
+                  const endHourOptions = getEndHourOptions(slot);
+                  const endMinuteOptions = getEndMinuteOptions(slot);
 
-                return (
-                  <div
-                    key={slot.id}
-                    className="flex flex-col gap-2 rounded-lg p-3 lg:p-4"
-                  >
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="flex flex-wrap items-center gap-1.5 lg:gap-2">
-                        {renderTimeSelect(
-                          slot.id,
-                          'startHour',
-                          slot.startHour,
-                          HOUR_OPTIONS,
-                          hasError
-                        )}
+                  return (
+                    <div
+                      key={slot.id}
+                      className="flex flex-col gap-2 rounded-lg p-3 lg:p-4"
+                    >
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex flex-wrap items-center gap-1.5 lg:gap-2">
+                          {renderTimeSelect(
+                            slot.id,
+                            'startHour',
+                            slot.startHour,
+                            HOUR_OPTIONS,
+                            hasError
+                          )}
 
-                        <span className="text-muted-foreground lg:text-base">
-                          :
-                        </span>
+                          <span className="text-muted-foreground lg:text-base">
+                            :
+                          </span>
 
-                        {renderTimeSelect(
-                          slot.id,
-                          'startMinute',
-                          slot.startMinute,
-                          MINUTE_OPTIONS,
-                          hasError
-                        )}
+                          {renderTimeSelect(
+                            slot.id,
+                            'startMinute',
+                            slot.startMinute,
+                            MINUTE_OPTIONS,
+                            hasError
+                          )}
 
-                        <span className="mx-1 text-muted-foreground lg:text-base">
-                          –
-                        </span>
+                          <span className="mx-1 text-muted-foreground lg:text-base">
+                            –
+                          </span>
 
-                        {renderTimeSelect(
-                          slot.id,
-                          'endHour',
-                          slot.endHour,
-                          endHourOptions,
-                          hasError
-                        )}
+                          {renderTimeSelect(
+                            slot.id,
+                            'endHour',
+                            slot.endHour,
+                            endHourOptions,
+                            hasError
+                          )}
 
-                        <span className="text-muted-foreground lg:text-base">
-                          :
-                        </span>
+                          <span className="text-muted-foreground lg:text-base">
+                            :
+                          </span>
 
-                        {renderTimeSelect(
-                          slot.id,
-                          'endMinute',
-                          slot.endMinute,
-                          endMinuteOptions,
-                          hasError
-                        )}
-                      </div>
+                          {renderTimeSelect(
+                            slot.id,
+                            'endMinute',
+                            slot.endMinute,
+                            endMinuteOptions,
+                            hasError
+                          )}
+                        </div>
 
-                      <div className="flex justify-end gap-1 lg:ml-4">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 lg:h-10 lg:w-10"
-                          onClick={() => deleteDraftSlot(slot.id)}
-                        >
-                          <X className="h-4 w-4 lg:h-5 lg:w-5" />
-                        </Button>
-
-                        {index === editingSlots.length - 1 && (
+                        <div className="flex justify-end gap-1 lg:ml-4">
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-9 w-9 lg:h-10 lg:w-10"
-                            onClick={addNewTimeSlot}
+                            onClick={() => deleteDraftSlot(slot.id)}
                           >
-                            <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
+                            <X className="h-4 w-4 lg:h-5 lg:w-5" />
                           </Button>
-                        )}
+
+                          {index === editingSlots.length - 1 && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9 lg:h-10 lg:w-10"
+                              onClick={addNewTimeSlot}
+                            >
+                              <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
+
+                      {renderSubSlots(slot.id)}
+
+                      {errors.timeRange && (
+                        <p className="text-red-500 text-xs lg:text-sm">
+                          {errors.timeRange}
+                        </p>
+                      )}
+
+                      {errors.overlap && (
+                        <p className="text-red-500 text-xs lg:text-sm">
+                          {errors.overlap}
+                        </p>
+                      )}
                     </div>
+                  );
+                })}
 
-                    {renderSubSlots(slot.id)}
-
-                    {errors.timeRange && (
-                      <p className="text-red-500 text-xs lg:text-sm">
-                        {errors.timeRange}
-                      </p>
-                    )}
-
-                    {errors.overlap && (
-                      <p className="text-red-500 text-xs lg:text-sm">
-                        {errors.overlap}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-
-              {editableSlotsForDate.length === 0 && (
-                <Button
-                  variant="ghost"
-                  onClick={addNewTimeSlot}
-                  className="h-10 w-full lg:h-11 lg:text-base"
-                >
-                  <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
-                </Button>
-              )}
+                {editableSlotsForDate.length === 0 && (
+                  <Button
+                    variant="ghost"
+                    onClick={addNewTimeSlot}
+                    className="h-10 w-full lg:h-11 lg:text-base"
+                  >
+                    <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-        <DialogFooter className="justify-center">
-          <Button
-            variant="outline"
-            onClick={() => {
-              resetChanges();
-              onOpenChange(false);
-            }}
-          >
-            取消
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={isSaving || hasAnyError || hasInvalidTimes}
-          >
-            {isSaving ? '儲存中...' : '儲存'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter className="justify-center">
+            <Button
+              variant="outline"
+              onClick={() => {
+                resetChanges();
+                onOpenChange(false);
+              }}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={isSaving || hasAnyError || hasInvalidTimes}
+            >
+              {isSaving ? '儲存中...' : '儲存'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={pendingPromptOpen} onOpenChange={setPendingPromptOpen}>
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>此時段有未處理的預約申請</DialogTitle>
+            <DialogDescription>
+              請至「預約管理」頁面接受或拒絕該申請,確認後此時段才會釋出。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="justify-center">
+            <Button
+              variant="outline"
+              onClick={() => setPendingPromptOpen(false)}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={() => {
+                setPendingPromptOpen(false);
+                onOpenChange(false);
+                router.push('/reservation/mentor');
+              }}
+            >
+              前往預約管理
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
