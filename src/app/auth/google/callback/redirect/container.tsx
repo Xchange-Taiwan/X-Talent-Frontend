@@ -8,7 +8,6 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
 import { googleCallback } from '@/lib/actions/googleCallback';
 import { trackEvent } from '@/lib/analytics';
-import { writeLastGoogleLoginHint } from '@/lib/lastGoogleLoginHint';
 import { deleteAccount } from '@/services/auth/deleteAccount';
 import type { components } from '@/types/api';
 
@@ -167,14 +166,6 @@ export default function GoogleOAuthRedirectPage() {
       user: JSON.stringify(data.user),
       refreshToken: refreshToken ?? '',
     });
-
-    if (data.auth.email) {
-      writeLastGoogleLoginHint({
-        email: data.auth.email,
-        name: data.user.name ?? null,
-        avatar: data.user.avatar ?? null,
-      });
-    }
 
     const session = await getSession();
 
