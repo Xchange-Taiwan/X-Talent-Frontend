@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import { FC, Fragment, ReactNode } from 'react';
 
-import aboutPage_1 from '@/assets/landing/aboutPage_1.png';
+import aboutPage_1 from '@/assets/landing/aboutPage_1.webp';
 import aboutPage_icon_1 from '@/assets/landing/aboutPage_icon_1.svg';
 import aboutPage_icon_2 from '@/assets/landing/aboutPage_icon_2.svg';
 import aboutPage_icon_3 from '@/assets/landing/aboutPage_icon_3.svg';

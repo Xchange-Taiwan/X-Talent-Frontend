@@ -1,11 +1,11 @@
 'use client';
 import Image from 'next/image';
 
-import HomePageHeroImgUrl from '@/assets/landing/home-page-hero.png';
-import landingPage_4 from '@/assets/landing/landingPage_4.png';
-import landingPage_5 from '@/assets/landing/landingPage_5.png';
-import landingPage_6 from '@/assets/landing/landingPage_6.png';
-import landingPage_7 from '@/assets/landing/landingPage_7.png';
+import HomePageHeroImgUrl from '@/assets/landing/home-page-hero.webp';
+import landingPage_4 from '@/assets/landing/landingPage_4.webp';
+import landingPage_5 from '@/assets/landing/landingPage_5.webp';
+import landingPage_6 from '@/assets/landing/landingPage_6.webp';
+import landingPage_7 from '@/assets/landing/landingPage_7.webp';
 import landingPage_icon_1 from '@/assets/landing/landingPage_icon_1.svg';
 import landingPage_icon_2 from '@/assets/landing/landingPage_icon_2.svg';
 import landingPage_icon_3 from '@/assets/landing/landingPage_icon_3.svg';
