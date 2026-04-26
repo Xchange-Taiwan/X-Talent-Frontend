@@ -8,13 +8,17 @@
  *
  * The requests are intentionally unauthenticated — we only care that Next.js
  * has finished compiling the page, not that it renders correctly.
+ *
+ * Skipped when BASE_URL targets a remote deployment, since pages are already
+ * built and need no warming.
  */
 
 import { request } from '@playwright/test';
 import { config } from 'dotenv';
 import path from 'path';
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = process.env.BASE_URL ?? 'http://localhost:3000';
+const isRemote = BASE_URL !== 'http://localhost:3000';
 
 // playwright.config.ts loads .env / .env.local / .env.e2e.local but not
 // .env.development.local, where NEXT_PUBLIC_API_URL lives in local dev. Load it
@@ -51,21 +55,31 @@ const PAGES_TO_WARM = [
 ];
 
 export default async function globalSetup(): Promise<void> {
-  const context = await request.newContext({ baseURL: BASE_URL });
-
-  await Promise.allSettled([
-    ...PAGES_TO_WARM.map((path) =>
-      context.get(path, { timeout: 60_000 }).catch(() => {
-        // Ignore errors (e.g. redirect, 401) — we only need compilation to start.
-      })
-    ),
+  const tasks: Promise<unknown>[] = [
     // Wake the X-Career-Auth Lambda so auth.setup.ts doesn't pay cold-start
     // latency. Bogus credentials are intentional — a 400/401 still spins up the
     // function, which is all we need.
     warmAuthLambda(),
-  ]);
+  ];
 
-  await context.dispose();
+  if (!isRemote) {
+    const context = await request.newContext({ baseURL: BASE_URL });
+    tasks.push(
+      ...PAGES_TO_WARM.map((path) =>
+        context
+          .get(path, { timeout: 60_000 })
+          .catch(() => {
+            // Ignore errors (e.g. redirect, 401) — we only need compilation to start.
+          })
+          .finally(() => undefined)
+      )
+    );
+    await Promise.allSettled(tasks);
+    await context.dispose();
+    return;
+  }
+
+  await Promise.allSettled(tasks);
 }
 
 async function warmAuthLambda(): Promise<void> {

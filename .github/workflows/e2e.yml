@@ -1,0 +1,59 @@
+name: E2E (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Target URL'
+        required: false
+        default: 'https://xtalentdev.vercel.app'
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    name: Playwright E2E
+    # Non-blocking: a red e2e run does not fail the workflow chain or any
+    # required-checks gate. Status still surfaces in the Actions UI.
+    continue-on-error: true
+    env:
+      BASE_URL: ${{ inputs.base_url }}
+      E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET_DEV }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up PNPM
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        id: e2e
+        run: pnpm test:e2e
+
+      - name: Surface failure as warning
+        if: steps.e2e.outcome == 'failure'
+        run: echo "::warning ::E2E tests failed against ${{ inputs.base_url }} — not blocking merge"
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14

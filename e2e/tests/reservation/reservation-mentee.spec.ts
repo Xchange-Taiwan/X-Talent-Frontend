@@ -1,5 +1,6 @@
 import { expect, Page, test } from '@playwright/test';
-import { encode } from 'next-auth/jwt';
+
+import { setSignedSessionCookie as setSharedSessionCookie } from '../../helpers/session';
 
 const USER_ID = '1';
 const PAGE_URL = '/reservation/mentee';
@@ -66,33 +67,10 @@ function makeReservation(id: number, mentorName: string) {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async function setSignedSessionCookie(page: Page): Promise<void> {
-  const secret = process.env.NEXTAUTH_SECRET ?? 'secret';
-  const session = makeSession();
-  const value = await encode({
-    token: {
-      sub: session.user.id,
-      id: session.user.id,
-      name: session.user.name,
-      isMentor: session.user.isMentor,
-      onBoarding: session.user.onBoarding,
-      jobTitle: session.user.jobTitle,
-      company: session.user.company,
-      personalLinks: session.user.personalLinks,
-      token: 'mock-access-token',
-    },
-    secret,
+  await setSharedSessionCookie(page, {
+    ...makeSession().user,
+    token: 'mock-access-token',
   });
-  await page.context().addCookies([
-    {
-      name: 'next-auth.session-token',
-      value,
-      domain: 'localhost',
-      path: '/',
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
-    },
-  ]);
 }
 
 async function mockSessionGet(page: Page): Promise<void> {

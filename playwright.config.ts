@@ -12,6 +12,12 @@ config({ path: path.resolve(__dirname, '.env') });
 config({ path: path.resolve(__dirname, '.env.local') });
 config({ path: path.resolve(__dirname, '.env.e2e.local'), override: true });
 
+// BASE_URL lets the suite target a remote deployment (e.g., the dev Vercel
+// preview) instead of a local dev server. When set, we skip the webServer
+// block below since the target is already running.
+const baseURL = process.env.BASE_URL ?? 'http://localhost:3000';
+const isRemote = baseURL !== 'http://localhost:3000';
+
 export default defineConfig({
   testDir: './e2e/tests',
   globalSetup: './e2e/global-setup.ts',
@@ -26,7 +32,7 @@ export default defineConfig({
   timeout: 90_000,
 
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL,
     trace: 'on-first-retry',
   },
 
@@ -82,10 +88,12 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: 'pnpm dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: isRemote
+    ? undefined
+    : {
+        command: 'pnpm dev',
+        url: 'http://localhost:3000',
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+      },
 });
