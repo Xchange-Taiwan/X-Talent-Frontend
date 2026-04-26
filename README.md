@@ -12,10 +12,8 @@ Access the X-Talent testing website here: [X-Talent Testing Website](https://xta
 
 Ensure you have the following installed:
 
-- [Node.js](https://nodejs.org/) (version 20 — pinned in `.nvmrc` and `package.json` `engines` to match CI)
+- [Node.js](https://nodejs.org/) (version 20)
 - [pnpm](https://pnpm.io/) (version 9)
-
-If you have `nvm` (macOS/Linux) or [`nvm-windows`](https://github.com/coreybutler/nvm-windows) / [`fnm`](https://github.com/Schniz/fnm) (Windows) installed, run `nvm use` in the project root to pick up the version from `.nvmrc`.
 
 ### Installation
 
