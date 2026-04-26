@@ -20,7 +20,6 @@ export const AvatarWithBadge = ({ avatar, years }: AvatarWithBadgeProps) => {
         fill
         sizes="(max-width: 768px) 334px, 413px"
         className="h-full object-cover"
-        unoptimized={typeof avatar === 'string'}
       />
       <figcaption className="absolute bottom-[30px] right-[30px] rounded-lg bg-[#000000]/30 px-2.5 py-1 text-text-white">
         {displayYears}工作經驗
