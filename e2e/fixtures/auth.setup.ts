@@ -13,14 +13,27 @@ setup('authenticate', async ({ page }) => {
     );
   }
 
-  await page.goto('/auth/signin');
-  await page.fill('input[name="email"]', email);
-  await page.fill('input[name="password"]', password);
-  await page.click('button[type="submit"]');
+  // The auth Lambda can cold-start; the first sign-in occasionally times out
+  // even though the second one succeeds quickly. Retry per-attempt with a
+  // shorter timeout instead of relying on a single long wait.
+  const MAX_ATTEMPTS = 3;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      await page.goto('/auth/signin');
+      await page.fill('input[name="email"]', email);
+      await page.fill('input[name="password"]', password);
+      await page.click('button[type="submit"]');
 
-  await page.waitForURL((url) => !url.pathname.includes('/auth/signin'), {
-    timeout: 60_000,
-  });
+      await page.waitForURL((url) => !url.pathname.includes('/auth/signin'), {
+        timeout: 25_000,
+      });
 
-  await page.context().storageState({ path: AUTH_FILE });
+      await page.context().storageState({ path: AUTH_FILE });
+      return;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
 });
