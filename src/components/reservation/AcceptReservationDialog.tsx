@@ -95,11 +95,7 @@ export default function AcceptReservationDialog({
     }
   }
 
-  // counterpartyMessage on the mentor side is always the mentee's question.
-  const menteeMessage =
-    reservation.counterpartyMessage?.role === 'MENTEE'
-      ? reservation.counterpartyMessage.content
-      : undefined;
+  const menteeMessage = reservation.menteeMessage?.content;
   const trimmedReason = reason.trim();
   const canSubmitReject = trimmedReason.length > 0 && !isSubmitting;
 

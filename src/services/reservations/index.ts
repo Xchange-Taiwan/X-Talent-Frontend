@@ -2,8 +2,8 @@ import dayjs from 'dayjs';
 
 import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
 import {
-  CounterpartyMessage,
   Reservation,
+  ReservationMessage,
 } from '@/components/reservation/types';
 import { apiClient } from '@/lib/apiClient';
 import { components } from '@/types/api';
@@ -46,28 +46,25 @@ export function formatDateTime(dtstart: number, dtend: number) {
  * Mapping
  * ================================ */
 
-// Resolve the role of the OTHER party so the UI can label the message
-// ("學員留言" vs "Mentor 回覆") without needing extra context. We try the
-// message's own role first (most authoritative), then the participant's role
-// from the reservation, then fall back to the list state. The state-only
-// fallback can't disambiguate HISTORY, hence the upstream defaults.
-function resolveCounterpartyRole(
-  state: ReservationState,
-  participantRole?: string | null,
-  apiMessageRole?: string | null
+// Classify a single API message as MENTEE / MENTOR / unknown.
+// Trust the message's own role first (most authoritative); fall back to mapping
+// the message's user_id back to sender / participant role.
+function classifyMessageRole(
+  message: components['schemas']['ReservationMessageVO'],
+  userIdToRole: Map<string, string | null | undefined>
 ): 'MENTEE' | 'MENTOR' | undefined {
-  if (apiMessageRole === 'MENTOR' || apiMessageRole === 'MENTEE')
-    return apiMessageRole;
-  if (participantRole === 'MENTOR' || participantRole === 'MENTEE')
-    return participantRole;
-  if (state.startsWith('MENTOR_')) return 'MENTEE';
-  if (state.startsWith('MENTEE_')) return 'MENTOR';
+  if (message.role === 'MENTEE' || message.role === 'MENTOR')
+    return message.role;
+  const fallback =
+    message.user_id != null
+      ? userIdToRole.get(String(message.user_id))
+      : undefined;
+  if (fallback === 'MENTEE' || fallback === 'MENTOR') return fallback;
   return undefined;
 }
 
 export function mapToReservation(
-  reservation: components['schemas']['ReservationInfoVO'],
-  state: ReservationState
+  reservation: components['schemas']['ReservationInfoVO']
 ): Reservation {
   // API 固定結構：sender = 當前使用者，participant = 對方
   const counterparty = reservation.participant;
@@ -79,31 +76,26 @@ export function mapToReservation(
     .filter(Boolean)
     .join(', ');
 
-  // Pick the latest message authored by the counterparty so the viewer always
-  // sees what the OTHER side said (mentee question, mentor accept reply, mentor
-  // rejection / cancellation reason — all flow through the same field).
-  const counterpartyUserId = counterparty.user_id;
-  const counterpartyMessages = (reservation.messages ?? []).filter(
-    (message) =>
-      message.user_id != null &&
-      String(message.user_id) === String(counterpartyUserId) &&
-      typeof message.content === 'string' &&
-      message.content.trim().length > 0
-  );
-  const latestCounterparty =
-    counterpartyMessages[counterpartyMessages.length - 1];
-  const counterpartyRole = resolveCounterpartyRole(
-    state,
-    counterparty.role,
-    latestCounterparty?.role
-  );
-  const counterpartyMessage: CounterpartyMessage | undefined =
-    latestCounterparty && counterpartyRole
-      ? {
-          role: counterpartyRole,
-          content: latestCounterparty.content!.trim(),
-        }
-      : undefined;
+  // Pick the latest non-blank message from each side so the UI can show both
+  // the mentee's question and the mentor's reply / cancellation reason at once.
+  const userIdToRole = new Map<string, string | null | undefined>([
+    [String(reservation.sender.user_id ?? ''), reservation.sender.role],
+    [
+      String(reservation.participant.user_id ?? ''),
+      reservation.participant.role,
+    ],
+  ]);
+
+  let menteeMessage: ReservationMessage | undefined;
+  let mentorMessage: ReservationMessage | undefined;
+  for (const message of reservation.messages ?? []) {
+    if (typeof message.content !== 'string') continue;
+    const trimmed = message.content.trim();
+    if (trimmed.length === 0) continue;
+    const role = classifyMessageRole(message, userIdToRole);
+    if (role === 'MENTEE') menteeMessage = { content: trimmed };
+    else if (role === 'MENTOR') mentorMessage = { content: trimmed };
+  }
 
   return {
     id: String(reservation.id ?? ''),
@@ -112,7 +104,8 @@ export function mapToReservation(
     date,
     time,
     avatar: counterparty.avatar ?? undefined,
-    counterpartyMessage,
+    menteeMessage,
+    mentorMessage,
     scheduleId: reservation.schedule_id,
     dtstart: reservation.dtstart,
     dtend: reservation.dtend,
@@ -145,7 +138,7 @@ export async function fetchReservations(
     throw new Error(`API error: code=${json.code}, msg=${json.msg}`);
 
   const items = (json.data?.reservations ?? []).map((reservation) =>
-    mapToReservation(reservation, state)
+    mapToReservation(reservation)
   );
   return { items, next_dtend: json.data?.next_dtend ?? 0 };
 }
