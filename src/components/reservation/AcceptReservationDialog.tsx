@@ -109,7 +109,13 @@ export default function AcceptReservationDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button size="sm" className={cn('min-h-9 px-3', className)}>
+        <Button
+          size="sm"
+          className={cn(
+            'bg-teal-500 text-white hover:bg-teal-500/90 min-h-9 px-3',
+            className
+          )}
+        >
           接受
         </Button>
       </DialogTrigger>
