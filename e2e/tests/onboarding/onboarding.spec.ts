@@ -1,6 +1,7 @@
 import { expect, Page, test } from '@playwright/test';
 
 import { mockApiRoute } from '../../helpers/route';
+import { setRawSessionCookie } from '../../helpers/session';
 
 // ─── Mock payloads ───────────────────────────────────────────────────────────
 
@@ -87,27 +88,11 @@ const MOCK_CLIENT_SESSION = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/**
- * Set a session cookie so the Next.js middleware (which only checks for the
- * cookie's *existence*) lets the request through to /auth/onboarding.
- *
- * We deliberately use a value that is NOT a valid JWT. The server-side
- * `layout.tsx` guard calls `getServerSession()`, which tries to decode the
- * cookie; when decoding fails it returns `null`, so `null?.user?.id` is
- * falsy and the guard does NOT redirect. No NEXTAUTH_SECRET needed.
- */
+// Onboarding middleware only checks for cookie existence. The server-side
+// layout guard calls getServerSession(), which tries to decode the cookie;
+// decode failure returns null and the guard does NOT redirect.
 async function setFakeSessionCookie(page: Page): Promise<void> {
-  await page.context().addCookies([
-    {
-      name: 'next-auth.session-token',
-      value: 'e2e-fake-session-token',
-      domain: 'localhost',
-      path: '/',
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
-    },
-  ]);
+  await setRawSessionCookie(page, 'e2e-fake-session-token');
 }
 
 /**
