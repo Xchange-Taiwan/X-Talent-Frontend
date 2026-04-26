@@ -9,7 +9,8 @@ import { ReservationSkeleton } from '../skeleton';
 const ReservationPresentation = dynamic(() => import('./ui'));
 
 export default function ReservationContainer() {
-  const { data, isLoading, isLoadingMore, loadMore } = useReservationData();
+  const { data, isLoading, isLoadingMore, loadMore, onMutationSuccess } =
+    useReservationData();
 
   if (isLoading || !data) return <ReservationSkeleton />;
   return (
@@ -17,6 +18,7 @@ export default function ReservationContainer() {
       {...data}
       isLoadingMore={isLoadingMore}
       onLoadMore={loadMore}
+      onMutationSuccess={onMutationSuccess}
     />
   );
 }

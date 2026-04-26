@@ -15,6 +15,7 @@ export type ReservationTabsProps = {
   nextTokens: NextTokens;
   isLoadingMore: boolean;
   onLoadMore: (state: ReservationState) => void;
+  onMutationSuccess?: (id: string) => void;
 };
 
 export default function ReservationTabs({
@@ -26,6 +27,7 @@ export default function ReservationTabs({
   nextTokens,
   isLoadingMore,
   onLoadMore,
+  onMutationSuccess,
 }: ReservationTabsProps) {
   // This file is for mentee UI; keep mentor props to match type and avoid lint issues.
   void upcomingMentor;
@@ -86,6 +88,7 @@ export default function ReservationTabs({
               hasMore={nextTokens.menteeUpcoming !== 0}
               onLoadMore={() => onLoadMore('MENTEE_UPCOMING')}
               isLoadingMore={isLoadingMore}
+              onMutationSuccess={onMutationSuccess}
             />
           </TabsContent>
 
@@ -97,6 +100,7 @@ export default function ReservationTabs({
               hasMore={nextTokens.menteePending !== 0}
               onLoadMore={() => onLoadMore('MENTEE_PENDING')}
               isLoadingMore={isLoadingMore}
+              onMutationSuccess={onMutationSuccess}
             />
           </TabsContent>
 
@@ -108,6 +112,7 @@ export default function ReservationTabs({
               hasMore={nextTokens.history !== 0}
               onLoadMore={() => onLoadMore('HISTORY')}
               isLoadingMore={isLoadingMore}
+              onMutationSuccess={onMutationSuccess}
             />
           </TabsContent>
         </div>

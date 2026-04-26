@@ -86,15 +86,18 @@ describe('formatDateTime', () => {
  * ================================ */
 
 describe('mapToReservation', () => {
-  it('MENTOR_PENDING → menteeMessage looked up using participant.user_id', () => {
+  it('MENTOR_PENDING → counterpartyMessage picks the mentee message (participant.user_id)', () => {
     const reservation = makeReservation({
       messages: [{ user_id: 20, role: 'MENTEE', content: 'Hello mentor!' }],
     });
     const result = mapToReservation(reservation, 'MENTOR_PENDING');
-    expect(result.note).toBe('Hello mentor!');
+    expect(result.counterpartyMessage).toEqual({
+      role: 'MENTEE',
+      content: 'Hello mentor!',
+    });
   });
 
-  it('MENTEE_PENDING → menteeMessage looked up using sender.user_id', () => {
+  it('MENTEE_PENDING → counterpartyMessage picks the mentor reply (participant.user_id)', () => {
     const reservation = makeReservation({
       sender: {
         user_id: 30,
@@ -105,10 +108,47 @@ describe('mapToReservation', () => {
         job_title: 'PM',
         years_of_experience: 'ONE_TO_THREE',
       },
-      messages: [{ user_id: 30, role: 'MENTEE', content: 'Looking forward!' }],
+      participant: {
+        user_id: 40,
+        role: 'MENTOR',
+        status: 'ACCEPT',
+        name: 'Dave',
+        avatar: '',
+        job_title: 'Engineer',
+        years_of_experience: 'THREE_TO_FIVE',
+      },
+      messages: [
+        { user_id: 30, role: 'MENTEE', content: 'Looking forward!' },
+        { user_id: 40, role: 'MENTOR', content: 'See you on Google Meet.' },
+      ],
     });
     const result = mapToReservation(reservation, 'MENTEE_PENDING');
-    expect(result.note).toBe('Looking forward!');
+    expect(result.counterpartyMessage).toEqual({
+      role: 'MENTOR',
+      content: 'See you on Google Meet.',
+    });
+  });
+
+  it('multiple counterparty messages → counterpartyMessage uses the latest one', () => {
+    const reservation = makeReservation({
+      messages: [
+        { user_id: 20, role: 'MENTEE', content: 'First note' },
+        { user_id: 20, role: 'MENTEE', content: 'Updated note' },
+      ],
+    });
+    const result = mapToReservation(reservation, 'MENTOR_PENDING');
+    expect(result.counterpartyMessage).toEqual({
+      role: 'MENTEE',
+      content: 'Updated note',
+    });
+  });
+
+  it('blank counterparty message → counterpartyMessage is undefined', () => {
+    const reservation = makeReservation({
+      messages: [{ user_id: 20, role: 'MENTEE', content: '   ' }],
+    });
+    const result = mapToReservation(reservation, 'MENTOR_PENDING');
+    expect(result.counterpartyMessage).toBeUndefined();
   });
 
   it('job_title present, years_of_experience empty → roleLine has no trailing comma', () => {
@@ -165,11 +205,11 @@ describe('mapToReservation', () => {
     expect(result.name).toBe('—');
   });
 
-  it('no matching message for mentee in messages → note is undefined', () => {
+  it('no matching counterparty message → counterpartyMessage is undefined', () => {
     const reservation = makeReservation({
       messages: [{ user_id: 999, role: 'OTHER', content: 'Wrong user' }],
     });
     const result = mapToReservation(reservation, 'MENTOR_PENDING');
-    expect(result.note).toBeUndefined();
+    expect(result.counterpartyMessage).toBeUndefined();
   });
 });

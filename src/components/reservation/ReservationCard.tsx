@@ -1,12 +1,16 @@
-import { CalendarDays, Clock } from 'lucide-react';
+import { CalendarDays, Clock, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 
 import type { Reservation } from './types';
+
+const COUNTERPARTY_LABEL: Record<'MENTEE' | 'MENTOR', string> = {
+  MENTEE: '學員留言',
+  MENTOR: 'Mentor 回覆',
+};
 
 export function ReservationCard({
   item,
@@ -19,6 +23,8 @@ export function ReservationCard({
   profileHref?: string;
   onProfileClick?: () => void;
 }) {
+  const { counterpartyMessage } = item;
+
   const initials = item.name
     .split(' ')
     .map((n) => n[0])
@@ -97,15 +103,24 @@ export function ReservationCard({
                 <Clock className="h-4 w-4" aria-hidden />
                 <span className="truncate">{item.time}</span>
               </div>
-              {item.note ? (
-                <Badge
-                  variant="secondary"
-                  className="rounded-full text-[11px] sm:text-xs"
-                >
-                  {item.note}
-                </Badge>
-              ) : null}
             </div>
+
+            {counterpartyMessage ? (
+              <div className="mt-3 flex items-start gap-2 rounded-lg bg-muted/40 p-2.5 text-xs sm:text-sm">
+                <MessageSquare
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground sm:h-4 sm:w-4"
+                  aria-hidden
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-medium text-muted-foreground sm:text-xs">
+                    {COUNTERPARTY_LABEL[counterpartyMessage.role]}
+                  </div>
+                  <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap break-words text-foreground">
+                    {counterpartyMessage.content}
+                  </p>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </CardContent>

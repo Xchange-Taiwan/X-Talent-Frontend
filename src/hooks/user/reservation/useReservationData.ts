@@ -46,6 +46,14 @@ const STATE_TO_DATA_KEY: Record<
   HISTORY: 'history',
 };
 
+const ALL_STATES: ReservationState[] = [
+  'MENTEE_UPCOMING',
+  'MENTEE_PENDING',
+  'MENTOR_UPCOMING',
+  'MENTOR_PENDING',
+  'HISTORY',
+];
+
 export function useReservationData() {
   const { data: session } = useSession();
   const loginUserId = session?.user?.id ? String(session.user.id) : '';
@@ -102,6 +110,78 @@ export function useReservationData() {
     };
   }, [loginUserId]);
 
+  // Optimistic helper: drop the operated item from every list so the user
+  // doesn't see it lingering while the background refetch runs.
+  const removeItem = useCallback((id: string) => {
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        upcomingMentee: prev.upcomingMentee.filter((it) => it.id !== id),
+        pendingMentee: prev.pendingMentee.filter((it) => it.id !== id),
+        upcomingMentor: prev.upcomingMentor.filter((it) => it.id !== id),
+        pendingMentor: prev.pendingMentor.filter((it) => it.id !== id),
+        history: prev.history.filter((it) => it.id !== id),
+      };
+    });
+  }, []);
+
+  // Refetch every state in parallel, asking the backend for at least as many
+  // rows as are currently displayed so previously load-more'd items don't
+  // disappear after a mutation.
+  const refetchAll = useCallback(async () => {
+    if (!loginUserId) return;
+    try {
+      const results = await Promise.all(
+        ALL_STATES.map((state) => {
+          const dataKey = STATE_TO_DATA_KEY[state];
+          const currentCount = (data?.[dataKey] as Reservation[] | undefined)
+            ?.length;
+          return fetchReservations({
+            userId: loginUserId,
+            state,
+            batch: Math.max(currentCount ?? 10, 10),
+          });
+        })
+      );
+
+      setData((prev) => {
+        if (!prev) return prev;
+        const next: ReservationData = {
+          ...prev,
+          nextTokens: { ...prev.nextTokens },
+        };
+        ALL_STATES.forEach((state, idx) => {
+          const dataKey = STATE_TO_DATA_KEY[state];
+          const tokenKey = STATE_TO_TOKEN_KEY[state];
+          (next as unknown as Record<string, Reservation[]>)[dataKey] =
+            results[idx].items;
+          next.nextTokens[tokenKey] = results[idx].next_dtend;
+        });
+        return next;
+      });
+    } catch (err) {
+      captureFlowFailure({
+        flow: 'reservation_refetch',
+        step: 'fetch_all',
+        message:
+          err instanceof Error ? err.message : 'Failed to refetch reservations',
+      });
+      console.error('[useReservationData] refetch error:', err);
+    }
+  }, [loginUserId, data]);
+
+  // Single entry point used by mutation handlers in ReservationList: optimistic
+  // remove first (so the card disappears immediately), then refetch in the
+  // background to pick up the moved item in its destination state.
+  const onMutationSuccess = useCallback(
+    (id: string) => {
+      removeItem(id);
+      void refetchAll();
+    },
+    [removeItem, refetchAll]
+  );
+
   const loadMore = useCallback(
     async (state: ReservationState): Promise<void> => {
       if (!data || !loginUserId) return;
@@ -149,5 +229,11 @@ export function useReservationData() {
     [data, loginUserId]
   );
 
-  return { data, isLoading, isLoadingMore, loadMore };
+  return {
+    data,
+    isLoading,
+    isLoadingMore,
+    loadMore,
+    onMutationSuccess,
+  };
 }
