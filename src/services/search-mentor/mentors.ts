@@ -55,19 +55,19 @@ export interface MentorRequest {
 }
 
 function mapMentor(raw: RawMentor): MentorType {
-  const workExp = raw.experiences?.find((e) => e.category === 'WORK');
-  const workMetadata = (
-    workExp?.mentor_experiences_metadata as
-      | { data?: { job?: string; company?: string }[] }
+  const { job_title, company } = parseCurrentJob(
+    raw.experiences as
+      | { category?: string | null; mentor_experiences_metadata: unknown }[]
+      | null
       | undefined
-  )?.data?.[0];
+  );
 
   return {
     user_id: raw.user_id,
     name: raw.name ?? '',
     avatar: raw.avatar ?? '',
-    job_title: workMetadata?.job ?? '',
-    company: workMetadata?.company ?? '',
+    job_title,
+    company,
     years_of_experience: raw.years_of_experience ?? '',
     location: raw.location ?? '',
     personal_statement: raw.personal_statement ?? '',

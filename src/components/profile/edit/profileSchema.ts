@@ -21,6 +21,7 @@ export const jobSchema = z.object({
   industry: z.string().min(1, '請輸入產業類別'),
   jobLocation: z.string().min(1, '請輸入工作地點'),
   description: z.string().min(1, '請輸入工作內容'),
+  isPrimary: z.boolean().optional(),
 });
 
 export const personLinkSchema = z.object({

@@ -47,6 +47,7 @@ export interface WorkExperienceMetadata {
   jobLocation?: string;
   description?: string;
   industry?: string;
+  isPrimary?: boolean;
 }
 
 export interface EducationExperienceMetadata {

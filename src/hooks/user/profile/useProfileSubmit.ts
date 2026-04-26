@@ -99,6 +99,7 @@ export function useProfileSubmit({
                     industry: item.industry,
                     jobLocation: item.jobLocation,
                     description: item.description,
+                    isPrimary: item.isPrimary ?? false,
                   })),
                 },
                 order: 1,
