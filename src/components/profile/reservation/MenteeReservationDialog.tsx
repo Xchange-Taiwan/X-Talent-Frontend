@@ -43,7 +43,7 @@ export default function MenteeReservationDialog({
   schedule: UseMentorScheduleReturn;
   userData: UserType | null;
 }) {
-  const { selectedDate, setSelectedDate, parsedDraft, generateBookingSlots } =
+  const { selectedDate, setSelectedDate, allowedDates, generateBookingSlots } =
     schedule;
   const router = useRouter();
 
@@ -192,10 +192,6 @@ export default function MenteeReservationDialog({
       day: 'numeric',
     }).format(new Date(selectedDate + 'T00:00:00'));
   };
-
-  const allowedDates = parsedDraft
-    .filter((slot) => slot.type === 'ALLOW')
-    .map((slot) => slot.dateKey);
 
   const renderSelectionView = () => (
     <>

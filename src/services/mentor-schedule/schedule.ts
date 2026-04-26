@@ -7,19 +7,10 @@ export interface ScheduleRequest {
   month: number;
 }
 
-export type TimeSlotVO = components['schemas']['TimeSlotVO'];
+export type SegmentVO = components['schemas']['MentorScheduleSegmentVO'];
+export type ScheduleData = components['schemas']['MentorScheduleQueryVO'];
 
-export interface BookedSlot {
-  dtstart: number; // unix seconds
-  dtend: number; // unix seconds
-}
-
-// MentorScheduleVO does not document these fields in the OpenAPI spec;
-// they are kept as optional extensions for runtime compatibility.
-export type ScheduleData = components['schemas']['MentorScheduleVO'] & {
-  meeting_duration_minutes?: number;
-  booked_slots?: BookedSlot[];
-};
+type TimeSlotDTO = components['schemas']['TimeSlotDTO'];
 
 interface ScheduleApiResponse {
   code: string;
@@ -42,13 +33,13 @@ export async function fetchMentorSchedule(
   }
 }
 
-export type UpsertTimeslotBackend = {
-  id?: string | number;
-  user_id?: string | number;
-  dt_type: 'ALLOW' | 'BLOCK';
-  dtstart: number; // unix seconds
-  dtend: number; // unix seconds
-  rrule?: string;
+export type UpsertTimeslotBackend = Pick<
+  TimeSlotDTO,
+  'dtstart' | 'dtend' | 'rrule'
+> & {
+  id?: number;
+  dt_type: 'ALLOW';
+  exdate: number[]; // nulls excluded from TimeSlotDTO.exdate
 };
 
 interface SaveScheduleResponse {
@@ -63,65 +54,46 @@ export async function saveMentorSchedule(params: {
   userId: string;
   timeslots: UpsertTimeslotBackend[];
   until?: number | null;
-  meetingDurationMinutes?: number;
-  debug?: boolean;
 }): Promise<boolean> {
-  const clean = (obj: CleanObject): CleanObject =>
+  const cleanOptional = (obj: CleanObject): CleanObject =>
     Object.fromEntries(
       Object.entries(obj).filter(
-        ([, v]) =>
-          v !== undefined &&
-          v !== null &&
-          v !== '' &&
-          !(Array.isArray(v) && v.length === 0)
+        ([, v]) => v !== undefined && v !== null && v !== ''
       )
     );
 
-  const body = clean({
+  const body = cleanOptional({
     until: params.until,
-    meeting_duration_minutes: params.meetingDurationMinutes,
     timeslots: params.timeslots.map((t) =>
-      clean({
+      cleanOptional({
         id: t.id,
-        user_id: params.userId,
+        user_id: Number(params.userId),
         dt_type: t.dt_type,
         dtstart: t.dtstart,
         dtend: t.dtend,
         rrule: t.rrule,
+        timezone: 'UTC',
+        exdate: t.exdate,
       })
     ),
   });
-
-  if (params.debug) {
-    console.log(
-      '[saveMentorSchedule] PUT body:',
-      JSON.stringify(body, null, 2)
-    );
-  }
 
   try {
     const result = await apiClient.put<SaveScheduleResponse>(
       `/v1/mentors/${params.userId}/schedule`,
       body
     );
-    if (params.debug) {
-      console.log('[saveMentorSchedule] response:', result);
-    }
     if (result.code !== '0') {
-      if (params.debug) {
-        console.error(
-          '[saveMentorSchedule] non-zero code:',
-          result.code,
-          result.msg
-        );
-      }
+      console.error(
+        '[saveMentorSchedule] non-zero code:',
+        result.code,
+        result.msg
+      );
       return false;
     }
     return true;
   } catch (err) {
-    if (params.debug) {
-      console.error('[saveMentorSchedule] request failed:', err);
-    }
+    console.error('[saveMentorSchedule] request failed:', err);
     return false;
   }
 }

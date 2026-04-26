@@ -1,4 +1,4 @@
-import { BookingSlot, ParsedMentorTimeslot } from '@/hooks/useMentorSchedule';
+import { BookingSlot } from '@/hooks/useMentorSchedule';
 
 export function formatSelectedDate(selectedDate: Date | undefined): string {
   if (!selectedDate) {
@@ -9,11 +9,6 @@ export function formatSelectedDate(selectedDate: Date | undefined): string {
     month: 'short',
     day: 'numeric',
   }).format(selectedDate);
-}
-
-export function formatStartTimeSlot(slot: ParsedMentorTimeslot): string {
-  const slotArr = JSON.stringify(slot.formatted)?.split(' ');
-  return slotArr ? `${slotArr[1]} ${slotArr[2]}` : '';
 }
 
 const timeFormat: Intl.DateTimeFormatOptions = {
