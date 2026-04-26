@@ -109,13 +109,7 @@ export default function AcceptReservationDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button
-          size="sm"
-          className={cn(
-            'bg-teal-500 text-white hover:bg-teal-500/90 min-h-9 px-3',
-            className
-          )}
-        >
+        <Button size="sm" className={cn('min-h-9 px-3', className)}>
           接受
         </Button>
       </DialogTrigger>
@@ -205,8 +199,8 @@ export default function AcceptReservationDialog({
             <DialogFooter className="mt-6 gap-2">
               <Button
                 type="button"
-                variant="outline"
-                className="w-full border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
+                variant="destructive"
+                className="w-full sm:w-auto"
                 onClick={() => setStep('reject')}
                 disabled={isSubmitting}
               >
@@ -215,7 +209,7 @@ export default function AcceptReservationDialog({
 
               <Button
                 type="button"
-                className="bg-teal-500 text-white hover:bg-teal-500/90 w-full sm:w-auto"
+                className="w-full sm:w-auto"
                 onClick={handleAccept}
                 disabled={isSubmitting}
               >
