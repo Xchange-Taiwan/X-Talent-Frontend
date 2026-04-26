@@ -523,7 +523,7 @@ export default function MentorScheduleDialog({
           <DialogHeader>
             <DialogTitle>此時段有未處理的預約申請</DialogTitle>
             <DialogDescription>
-              請至「預約管理」頁面接受或拒絕該申請,確認後此時段才會釋出。
+              請至「預約管理」頁面接受或拒絕該申請,僅在拒絕後此時段才會重新釋出。
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="justify-center">
