@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarDays, Clock } from 'lucide-react';
+import { CalendarDays, Clock, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/components/ui/use-toast';
 import { trackEvent } from '@/lib/analytics';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { cn } from '@/lib/utils';
@@ -39,9 +40,12 @@ export default function CancelReservationDialog({
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<'confirm' | 'reason'>('confirm');
   const [reason, setReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
 
   // Reset to the first step every time the dialog opens
   function onOpenChange(next: boolean) {
+    if (isSubmitting) return;
     setOpen(next);
     if (next) {
       setStep('confirm');
@@ -55,8 +59,18 @@ export default function CancelReservationDialog({
   }
 
   async function handleConfirm() {
-    await onConfirmCancel?.({ id: reservation.id, reason });
-    setOpen(false);
+    setIsSubmitting(true);
+    try {
+      await onConfirmCancel?.({ id: reservation.id, reason });
+      setIsSubmitting(false);
+      setOpen(false);
+    } catch {
+      toast({
+        variant: 'destructive',
+        description: '取消預約失敗,請稍後再試',
+      });
+      setIsSubmitting(false);
+    }
   }
 
   const initials =
@@ -151,19 +165,27 @@ export default function CancelReservationDialog({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className="min-h-[140px] resize-y"
+              disabled={isSubmitting}
             />
 
             <DialogFooter className="mt-6 gap-2">
               <DialogClose asChild>
-                <Button variant="outline" className="w-full sm:w-auto">
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  disabled={isSubmitting}
+                >
                   維持預約
                 </Button>
               </DialogClose>
               <Button
-                disabled={reason.trim().length === 0}
+                disabled={reason.trim().length === 0 || isSubmitting}
                 className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto"
                 onClick={handleConfirm}
               >
+                {isSubmitting && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
                 取消預約
               </Button>
             </DialogFooter>
