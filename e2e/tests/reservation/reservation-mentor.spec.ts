@@ -248,11 +248,12 @@ test('點擊接受並確認 → 卡片移至即將到來 Tab', async ({ page }) 
 
   await page.getByRole('button', { name: /接受/ }).click();
 
-  // Dialog opens at step 'check'; confirm by clicking 接收
-  await expect(page.getByRole('button', { name: /接收/ })).toBeVisible({
+  // Dialog opens at step 'check'; confirm by clicking 接受 inside the dialog
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('button', { name: '接受' })).toBeVisible({
     timeout: 5_000,
   });
-  await page.getByRole('button', { name: /接收/ }).click();
+  await dialog.getByRole('button', { name: '接受' }).click();
 
   // Page reloads; wait for tabs to re-render
   await expect(page.getByRole('tab', { name: /即將到來/ })).toBeVisible({

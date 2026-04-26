@@ -18,7 +18,10 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // Local: cap parallelism so the Next.js dev server isn't overwhelmed by
+  // simultaneous on-demand compilation, which causes redirect-target tests to
+  // time out under load. CI stays single-worker for stability.
+  workers: process.env.CI ? 1 : 6,
   reporter: 'html',
   timeout: 90_000,
 
