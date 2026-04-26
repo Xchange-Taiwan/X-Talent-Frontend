@@ -37,11 +37,13 @@ export default function MenteeReservationDialog({
   onOpenChange,
   schedule,
   userData,
+  onMonthChange,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   schedule: UseMentorScheduleReturn;
   userData: UserType | null;
+  onMonthChange?: (date: Date) => void;
 }) {
   const { selectedDate, setSelectedDate, allowedDates, generateBookingSlots } =
     schedule;
@@ -224,6 +226,7 @@ export default function MenteeReservationDialog({
                   : null
               )
             }
+            onMonthChange={onMonthChange}
             allowedDates={allowedDates}
             showTodayStyle={false}
             disableEmptyDates={true}
