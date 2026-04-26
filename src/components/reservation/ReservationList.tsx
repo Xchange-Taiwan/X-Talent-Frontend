@@ -6,6 +6,7 @@ import AcceptReservationDialog from '@/components/reservation/AcceptReservationD
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useToast } from '@/components/ui/use-toast';
 import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { updateReservationStatus } from '@/services/reservations';
@@ -28,6 +29,8 @@ export function ReservationList({
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
 }) {
+  const { toast } = useToast();
+
   const findItem = (id: string): Reservation => {
     const found = items.find((x) => x.id === id);
     if (!found)
@@ -39,9 +42,11 @@ export function ReservationList({
   const resolveOtherId = (myId: string, it: Reservation): string | number =>
     String(it.senderUserId) === myId ? it.participantUserId : it.senderUserId;
 
-  // Hard reload the page to reflect updated reservation state
+  // Hard reload the page to reflect updated reservation state.
+  // Delayed so the success toast has time to render before the page reloads.
   const hardReload = () => {
-    if (typeof window !== 'undefined') window.location.reload();
+    if (typeof window === 'undefined') return;
+    setTimeout(() => window.location.reload(), 800);
   };
 
   // Accept a booking request (mentor side, pending-mentor variant)
@@ -77,6 +82,7 @@ export function ReservationList({
       // or once GET schedule returns booked_slots so the frontend can filter them.
 
       trackEvent({ name: 'reservation_accepted', feature: 'reservation' });
+      toast({ description: '已接受預約' });
       hardReload();
     } catch (err) {
       captureFlowFailure({
@@ -90,7 +96,11 @@ export function ReservationList({
   };
 
   // Shared handler for both reject and cancel (same API call)
-  const rejectOrCancel = async (id: string, text: string) => {
+  const rejectOrCancel = async (
+    id: string,
+    text: string,
+    successMessage: string
+  ) => {
     try {
       const session = await getSession();
       const myId = String(session?.user?.id ?? '');
@@ -120,6 +130,7 @@ export function ReservationList({
       // Blocked by the same backend limitation as above.
 
       trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
+      toast({ description: successMessage });
       hardReload();
     } catch (err) {
       captureFlowFailure({
@@ -145,13 +156,15 @@ export function ReservationList({
               <AcceptReservationDialog
                 reservation={it}
                 onAccept={accept}
-                onReject={async ({ id, reason }) => rejectOrCancel(id, reason)}
+                onReject={async ({ id, reason }) =>
+                  rejectOrCancel(id, reason, '已拒絕預約')
+                }
               />
             ) : (
               <CancelReservationDialog
                 reservation={it}
                 onConfirmCancel={async ({ id, reason }) =>
-                  rejectOrCancel(id, reason)
+                  rejectOrCancel(id, reason, '已取消預約')
                 }
               />
             )
