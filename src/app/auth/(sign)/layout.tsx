@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth/next';
 
-import CoverImgUrl from '@/assets/auth/signIn-cover.png';
+import CoverImgUrl from '@/assets/auth/signIn-cover.webp';
 import authOptions from '@/auth.config';
 
 export default async function AuthOperationLayout({

@@ -1,7 +1,7 @@
 import { StaticImageData } from 'next/image';
 
-import SliderCarolinaImgUrl from './assets/slider_carolina.png';
-import SliderPinHuaImgUrl from './assets/slider_pin_hua.png';
+import SliderCarolinaImgUrl from './assets/slider_carolina.webp';
+import SliderPinHuaImgUrl from './assets/slider_pin_hua.webp';
 
 export interface SlideItem {
   name: string;
