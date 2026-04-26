@@ -27,6 +27,7 @@ export function parseCurrentJob(
     company?: string;
     jobPeriodStart?: string;
     jobPeriodEnd?: string;
+    isPrimary?: boolean;
   };
 
   const allWorkEntries = (experiences ?? [])
@@ -40,6 +41,7 @@ export function parseCurrentJob(
   if (allWorkEntries.length === 0) return { job_title: '', company: '' };
 
   const current =
+    allWorkEntries.find((e) => e.isPrimary) ??
     allWorkEntries.find((e) => !e.jobPeriodEnd) ??
     allWorkEntries.reduce((latest, e) => {
       if (!latest.jobPeriodEnd) return e;
@@ -127,6 +129,7 @@ export function parseWorkExperiences(
         industry: item.industry || '',
         jobLocation: item.jobLocation || '',
         description: item.description || '',
+        isPrimary: item.isPrimary ?? false,
       }));
     });
 }
