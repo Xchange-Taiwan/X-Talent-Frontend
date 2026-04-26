@@ -82,6 +82,7 @@ export default function ReservationTabs({
             <ReservationList
               items={upcomingMentee}
               variant="upcoming"
+              sourceRole="mentee"
               hasMore={nextTokens.menteeUpcoming !== 0}
               onLoadMore={() => onLoadMore('MENTEE_UPCOMING')}
               isLoadingMore={isLoadingMore}
@@ -92,6 +93,7 @@ export default function ReservationTabs({
             <ReservationList
               items={pendingMentee}
               variant="pending-mentee"
+              sourceRole="mentee"
               hasMore={nextTokens.menteePending !== 0}
               onLoadMore={() => onLoadMore('MENTEE_PENDING')}
               isLoadingMore={isLoadingMore}
@@ -102,6 +104,7 @@ export default function ReservationTabs({
             <ReservationList
               items={history}
               variant="history"
+              sourceRole="mentee"
               hasMore={nextTokens.history !== 0}
               onLoadMore={() => onLoadMore('HISTORY')}
               isLoadingMore={isLoadingMore}

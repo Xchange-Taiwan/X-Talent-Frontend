@@ -1,6 +1,6 @@
 'use client';
 
-import { getSession } from 'next-auth/react';
+import { getSession, useSession } from 'next-auth/react';
 
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
@@ -15,21 +15,26 @@ import { ReservationCard } from './ReservationCard';
 import type { Reservation } from './types';
 
 type Variant = 'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';
+type SourceRole = 'mentor' | 'mentee';
 
 export function ReservationList({
   items,
   variant,
+  sourceRole,
   hasMore = false,
   onLoadMore,
   isLoadingMore = false,
 }: {
   items: Reservation[];
   variant: Variant;
+  sourceRole: SourceRole;
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
 }) {
   const { toast } = useToast();
+  const { data: session } = useSession();
+  const myId = session?.user?.id ? String(session.user.id) : '';
 
   const findItem = (id: string): Reservation => {
     const found = items.find((x) => x.id === id);
@@ -145,12 +150,32 @@ export function ReservationList({
     }
   };
 
+  // Build a profile link to the *other* party. Skip when we don't have
+  // a logged-in user (link would be ambiguous) or when the other id would
+  // resolve to the current user (defensive — shouldn't happen in practice).
+  const buildProfileHref = (it: Reservation): string | undefined => {
+    if (!myId) return undefined;
+    const otherId = resolveOtherId(myId, it);
+    if (!otherId || String(otherId) === myId) return undefined;
+    return `/profile/${otherId}`;
+  };
+
+  const handleProfileClick = (): void => {
+    trackEvent({
+      name: 'reservation_profile_viewed',
+      feature: 'reservation',
+      metadata: { source_role: sourceRole },
+    });
+  };
+
   return (
     <div className="space-y-3 sm:space-y-4">
       {items.map((it) => (
         <ReservationCard
           key={it.id}
           item={it}
+          profileHref={buildProfileHref(it)}
+          onProfileClick={handleProfileClick}
           actions={
             variant === 'history' ? null : variant === 'pending-mentor' ? (
               <AcceptReservationDialog
