@@ -362,7 +362,9 @@ export default function MenteeReservationDialog({
   const renderSuccessView = () => (
     <>
       <DialogHeader>
-        <DialogTitle className="text-center">預約成功</DialogTitle>
+        <DialogTitle className="text-center">
+          預約已送出，等待導師回復
+        </DialogTitle>
       </DialogHeader>
       <div className="flex flex-col items-center gap-6 py-4">
         <div className="w-full rounded-lg border p-4">
@@ -398,6 +400,9 @@ export default function MenteeReservationDialog({
             </div>
           </div>
         </div>
+        <p className="text-center text-sm text-muted-foreground">
+          導師接受後預約才會成立，可至「我的預約 → 等待回復」追蹤狀態。
+        </p>
       </div>
       <DialogFooter className="flex-col gap-3 sm:flex-col sm:space-x-0">
         <Button onClick={handleGoToReservation} className="w-full">
