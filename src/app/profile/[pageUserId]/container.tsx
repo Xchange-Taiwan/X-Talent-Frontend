@@ -28,10 +28,9 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
   };
 
   const schedule = useMentorSchedule({
-    mode: 'backend',
     backend: { userId: pageUserId, year, month },
   });
-  const { loaded, setSelectedDate, parsedDraft } = schedule;
+  const { loaded, setSelectedDate, parsedDraft, allowedDates } = schedule;
 
   // Auto-select the first available date once schedule is loaded
   useEffect(() => {
@@ -78,10 +77,6 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
       </div>
     );
   }
-
-  const allowedDates = parsedDraft
-    .filter((slot) => slot.type === 'ALLOW')
-    .map((slot) => slot.dateKey);
 
   const reservationHandler = () => {
     if (!loginUserId) {

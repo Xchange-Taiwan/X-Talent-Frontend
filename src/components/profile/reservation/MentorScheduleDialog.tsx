@@ -18,7 +18,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { UseMentorScheduleReturn } from '@/hooks/useMentorSchedule';
+import {
+  expandRrule,
+  UseMentorScheduleReturn,
+} from '@/hooks/useMentorSchedule';
 import { trackEvent } from '@/lib/analytics';
 
 import { ScheduleCalendar } from './ScheduleCalendar';
@@ -41,12 +44,18 @@ const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) =>
 );
 const MINUTE_OPTIONS = ['00', '15', '30', '45'];
 
-/** Snap a minute value to the nearest option in [0, 15, 30, 45]. */
 const snapMinute = (m: number): string => {
   const snapped = [0, 15, 30, 45].reduce((prev, curr) =>
     Math.abs(curr - m) < Math.abs(prev - m) ? curr : prev
   );
   return String(snapped).padStart(2, '0');
+};
+
+const fmtTime = (unix: number): string => {
+  const d = new Date(unix * 1000);
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
 };
 
 export default function MentorScheduleDialog({
@@ -66,9 +75,11 @@ export default function MentorScheduleDialog({
     draftForSelectedDate,
     addSlotForSelectedDate,
     deleteDraftSlot,
+    toggleOccurrence,
     confirmChanges,
     resetChanges,
     parsedDraft,
+    allowedDates,
     updateDraftSlot,
     meetingDurationMinutes,
   } = schedule;
@@ -87,22 +98,35 @@ export default function MentorScheduleDialog({
     }
   }, [open]);
 
+  // Only show ALLOW/BLOCK slots in the editor; BOOKED/PENDING are read-only
+  const editableSlotsForDate = draftForSelectedDate.filter(
+    (s) => s.type === 'ALLOW'
+  );
+
+  // Collect booked dtstart values for the selected date (for locking sub-slots)
+  const bookedStartsForDate = new Set(
+    draftForSelectedDate
+      .filter((s) => s.type === 'BOOKED')
+      .map((s) => Math.floor(s.start.getTime() / 1000))
+  );
+
   useEffect(() => {
     setEditingSlots(
-      draftForSelectedDate.map((slot) => ({
-        id: slot.id,
-        startHour: String(slot.start.getHours()).padStart(2, '0'),
-        startMinute: snapMinute(slot.start.getMinutes()),
-        endHour: String(slot.end.getHours()).padStart(2, '0'),
-        endMinute: snapMinute(slot.end.getMinutes()),
-      }))
+      editableSlotsForDate.map((slot) => {
+        const endHM = fmtTime(Math.floor(slot.end.getTime() / 1000));
+        const [endH, endM] = endHM.split(':');
+        return {
+          id: slot.id,
+          startHour: String(slot.start.getHours()).padStart(2, '0'),
+          startMinute: snapMinute(slot.start.getMinutes()),
+          endHour: endH ?? '00',
+          endMinute: snapMinute(parseInt(endM ?? '0')),
+        };
+      })
     );
     setSlotErrors({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftForSelectedDate]);
-
-  const allowedDates = parsedDraft
-    .filter((slot) => slot.type === 'ALLOW')
-    .map((slot) => slot.dateKey);
 
   const hasAnyError = Object.values(slotErrors).some(
     (e) => e.timeRange || e.overlap
@@ -196,7 +220,6 @@ export default function MentorScheduleDialog({
       const lastEnd = slotsToday[slotsToday.length - 1].end;
       startH = lastEnd.getHours();
       startM = lastEnd.getMinutes();
-      // snap to next 15-min boundary at or after lastEnd's minute
       const snapped = Math.ceil(startM / 15) * 15;
       if (snapped >= 60) {
         startH += 1;
@@ -244,12 +267,11 @@ export default function MentorScheduleDialog({
     </Select>
   );
 
-  const MIN_DURATION = 30; // minutes
+  const MIN_DURATION = 30;
 
   const getEndHourOptions = (slot: EditingSlot): string[] => {
     const minEnd =
       parseInt(slot.startHour) * 60 + parseInt(slot.startMinute) + MIN_DURATION;
-    // Keep hours where at least one minute option (max = 45) yields endTotal >= minEnd
     return HOUR_OPTIONS.filter((h) => parseInt(h) * 60 + 45 >= minEnd);
   };
 
@@ -258,6 +280,53 @@ export default function MentorScheduleDialog({
       parseInt(slot.startHour) * 60 + parseInt(slot.startMinute) + MIN_DURATION;
     return MINUTE_OPTIONS.filter(
       (m) => parseInt(slot.endHour) * 60 + parseInt(m) >= minEnd
+    );
+  };
+
+  /** Render the sub-slot chips for an ALLOW block so mentor can toggle individual occurrences. */
+  const renderSubSlots = (slotId: number) => {
+    const parsed = editableSlotsForDate.find((s) => s.id === slotId);
+    if (!parsed || parsed.type !== 'ALLOW' || !parsed.rrule) return null;
+
+    const occurrences = expandRrule(
+      Math.floor(parsed.start.getTime() / 1000),
+      parsed.rrule
+    );
+    if (occurrences.length <= 1) return null;
+
+    const slotDurSec = parsed.slotDurationSeconds;
+
+    return (
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {occurrences.map((occ) => {
+          const isBooked = bookedStartsForDate.has(occ);
+          const isExcluded = parsed.exdate?.includes(occ) ?? false;
+          const startLabel = fmtTime(occ);
+          const endLabel = fmtTime(occ + slotDurSec);
+
+          return (
+            <button
+              key={occ}
+              type="button"
+              disabled={isBooked}
+              onClick={() => toggleOccurrence(slotId, occ)}
+              className={[
+                'rounded border px-2 py-0.5 text-xs transition-colors',
+                isBooked
+                  ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                  : isExcluded
+                    ? 'bg-white border-gray-300 text-gray-400 line-through'
+                    : 'border-primary bg-primary/10 text-primary hover:bg-primary/20',
+              ].join(' ')}
+            >
+              {startLabel}–{endLabel}
+              {isBooked && (
+                <span className="ml-1 text-[10px] text-gray-400">已預約</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
     );
   };
 
@@ -372,6 +441,8 @@ export default function MentorScheduleDialog({
                       </div>
                     </div>
 
+                    {renderSubSlots(slot.id)}
+
                     {errors.timeRange && (
                       <p className="text-red-500 text-xs lg:text-sm">
                         {errors.timeRange}
@@ -387,7 +458,7 @@ export default function MentorScheduleDialog({
                 );
               })}
 
-              {draftForSelectedDate.length === 0 && (
+              {editableSlotsForDate.length === 0 && (
                 <Button
                   variant="ghost"
                   onClick={addNewTimeSlot}
