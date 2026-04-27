@@ -18,7 +18,10 @@ const SortingDropdown = ({
   return (
     <Select defaultValue="a-z" onValueChange={onSortChange}>
       <SelectTrigger>
-        <ArrowDownUp className="h-4 w-4 text-muted-foreground" />
+        <ArrowDownUp
+          className="h-4 w-4 text-muted-foreground"
+          aria-hidden="true"
+        />
         <SelectValue placeholder="排序" />
       </SelectTrigger>
       <SelectContent className="w-fit">

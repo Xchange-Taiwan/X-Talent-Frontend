@@ -37,6 +37,7 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
       >
         <Link
           href={`/profile/${id}`}
+          aria-label={`前往 ${name} 的個人頁面`}
           className="absolute bottom-0 left-0 right-0 top-0 z-10"
         ></Link>
         <AvatarWithBadge avatar={avatar} years={years} name={name} />
