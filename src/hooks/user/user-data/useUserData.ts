@@ -11,6 +11,7 @@ import {
 } from '../interests/useInterests';
 import {
   clearUserProfileDtoCache,
+  primeUserProfileDtoCache,
   USER_PROFILE_DTO_CACHE_TTL_MS,
   useUserProfileDto,
 } from './useUserProfileDto';
@@ -18,6 +19,7 @@ import {
 // Re-exported under the historical names so existing callers (e.g.
 // useProfileSubmit, useUserData.test) continue to work without churn.
 export const clearUserDataCache = clearUserProfileDtoCache;
+export const primeUserDataCache = primeUserProfileDtoCache;
 export const USER_DATA_CACHE_TTL_MS = USER_PROFILE_DTO_CACHE_TTL_MS;
 
 export interface InterestType {

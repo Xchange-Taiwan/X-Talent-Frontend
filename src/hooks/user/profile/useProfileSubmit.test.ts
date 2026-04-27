@@ -21,17 +21,26 @@ vi.mock('@/services/profile/upsertExperience', () => ({
 
 vi.mock('@/lib/profile/pollUntilSynced', () => ({
   pollUntilSynced: vi.fn(),
+  firstSyncedFetch: vi.fn(),
 }));
 
 vi.mock('@/hooks/user/user-data/useUserData', () => ({
   clearUserDataCache: vi.fn(),
+  primeUserDataCache: vi.fn(),
 }));
 
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 
 import { defaultValues } from '@/components/profile/edit/profileSchema';
-import { pollUntilSynced } from '@/lib/profile/pollUntilSynced';
+import {
+  clearUserDataCache,
+  primeUserDataCache,
+} from '@/hooks/user/user-data/useUserData';
+import {
+  firstSyncedFetch,
+  pollUntilSynced,
+} from '@/lib/profile/pollUntilSynced';
 import { ExperienceType } from '@/services/profile/experienceType';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
@@ -45,6 +54,9 @@ const mockUpdateAvatar = vi.mocked(updateAvatar);
 const mockUpdateProfile = vi.mocked(updateProfile);
 const mockUpsertMentorExperience = vi.mocked(upsertMentorExperience);
 const mockPollUntilSynced = vi.mocked(pollUntilSynced);
+const mockFirstSyncedFetch = vi.mocked(firstSyncedFetch);
+const mockPrimeUserDataCache = vi.mocked(primeUserDataCache);
+const mockClearUserDataCache = vi.mocked(clearUserDataCache);
 
 const mockUserDTO: MentorProfileVO = {
   user_id: 1,
@@ -75,7 +87,10 @@ const mockUserDTO: MentorProfileVO = {
 
 const mockSession: Session = {
   user: {
-    id: 'test-user-id',
+    // Real sessions store user_id as a numeric string. The cache key is
+    // built via Number(id) so a non-numeric placeholder would silently
+    // become NaN and skip the cache prime path.
+    id: '1',
     name: 'Test User',
     email: 'test@example.com',
     onBoarding: true,
@@ -113,6 +128,10 @@ describe('useProfileSubmit', () => {
     mockUpdateProfile.mockResolvedValue(undefined);
     mockUpsertMentorExperience.mockResolvedValue(undefined);
     mockPollUntilSynced.mockResolvedValue(mockUserDTO);
+    // Default: backend has not synced fast enough → exercise the historical
+    // clear-cache + background-poll fallback. Tests covering the new prime
+    // path override this per-case.
+    mockFirstSyncedFetch.mockResolvedValue(null);
   });
 
   // ── Guard clauses ──────────────────────────────────────────────────────────
@@ -384,6 +403,82 @@ describe('useProfileSubmit', () => {
     });
 
     expect(updateSession).toHaveBeenCalledTimes(1);
+  });
+
+  // ── Cache prime vs fallback ────────────────────────────────────────────────
+
+  it('firstSyncedFetch returns dto → primeUserDataCache called, pollUntilSynced NOT called', async () => {
+    mockFirstSyncedFetch.mockResolvedValueOnce(mockUserDTO);
+
+    const { result } = renderHook(() =>
+      useProfileSubmit(makeOptions({ isMentorOnboarding: true }))
+    );
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+      // Flush microtasks so any inline reconcile after prime runs.
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockPrimeUserDataCache).toHaveBeenCalledWith(
+      Number(mockSession.user!.id),
+      'zh_TW',
+      mockUserDTO
+    );
+    expect(mockClearUserDataCache).not.toHaveBeenCalled();
+    expect(mockPollUntilSynced).not.toHaveBeenCalled();
+    expect(mockRouter.push).toHaveBeenCalledWith('/profile/card');
+  });
+
+  it('firstSyncedFetch returns null → falls back to clearUserDataCache + pollUntilSynced', async () => {
+    mockFirstSyncedFetch.mockResolvedValueOnce(null);
+
+    const { result } = renderHook(() =>
+      useProfileSubmit(makeOptions({ isMentorOnboarding: true }))
+    );
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockPrimeUserDataCache).not.toHaveBeenCalled();
+    expect(mockClearUserDataCache).toHaveBeenCalledWith(
+      Number(mockSession.user!.id),
+      'zh_TW'
+    );
+    expect(mockPollUntilSynced).toHaveBeenCalled();
+    expect(mockRouter.push).toHaveBeenCalledWith('/profile/card');
+  });
+
+  it('prime path: inline reconcile patches session when primed latest disagrees with optimistic role', async () => {
+    mockFirstSyncedFetch.mockResolvedValueOnce({
+      ...mockUserDTO,
+      is_mentor: false,
+      onboarding: true,
+    });
+
+    const updateSession = vi.fn().mockResolvedValue(mockSession);
+    const { result } = renderHook(() =>
+      useProfileSubmit(makeOptions({ updateSession }))
+    );
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Optimistic + inline reconcile (no background poll second call).
+    expect(mockPollUntilSynced).not.toHaveBeenCalled();
+    expect(updateSession).toHaveBeenCalledTimes(2);
+    const reconcileArg = updateSession.mock.calls[1][0] as {
+      user: { isMentor?: boolean; onBoarding?: boolean };
+    };
+    expect(reconcileArg.user.isMentor).toBe(false);
+    expect(reconcileArg.user.onBoarding).toBe(true);
   });
 
   // ── Primary job persistence ────────────────────────────────────────────────

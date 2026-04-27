@@ -14,6 +14,7 @@ import { fetchUserById, type MentorProfileVO } from '@/services/profile/user';
 
 import useUserData, {
   clearUserDataCache,
+  primeUserDataCache,
   USER_DATA_CACHE_TTL_MS as TTL_MS,
 } from './useUserData';
 
@@ -163,6 +164,56 @@ describe('useUserData caching', () => {
     await waitFor(() => expect(mockFetchUserById).toHaveBeenCalledTimes(2));
     expect(second.result.current.userData?.name).toBe('Stale 4007');
     expect(second.result.current.error).toBeNull();
+    second.unmount();
+  });
+
+  it('primeUserDataCache: next mount renders from cache without an API call', async () => {
+    const userId = 4101;
+    const primed = {
+      ...makeUserDto(userId),
+      name: 'Primed 4101',
+    } as MentorProfileVO;
+
+    primeUserDataCache(userId, 'en', primed);
+
+    const { result, unmount } = renderHook(() => useUserData(userId, 'en'));
+
+    await waitFor(() =>
+      expect(result.current.userData?.name).toBe('Primed 4101')
+    );
+    expect(mockFetchUserById).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('primeUserDataCache: replaces a stale entry so next mount sees primed data', async () => {
+    const userId = 4102;
+    const nowSpy = vi.spyOn(Date, 'now');
+    nowSpy.mockReturnValue(50_000);
+
+    mockFetchUserById.mockResolvedValueOnce({
+      ...makeUserDto(userId),
+      name: 'Stale 4102',
+    } as MentorProfileVO);
+
+    const first = renderHook(() => useUserData(userId, 'en'));
+    await waitFor(() =>
+      expect(first.result.current.userData?.name).toBe('Stale 4102')
+    );
+    first.unmount();
+
+    nowSpy.mockReturnValue(50_000 + TTL_MS + 1);
+    primeUserDataCache(userId, 'en', {
+      ...makeUserDto(userId),
+      name: 'Primed 4102',
+    } as MentorProfileVO);
+
+    const second = renderHook(() => useUserData(userId, 'en'));
+    await waitFor(() =>
+      expect(second.result.current.userData?.name).toBe('Primed 4102')
+    );
+    // Only the original fetch was called — prime kept the second mount off
+    // the network.
+    expect(mockFetchUserById).toHaveBeenCalledTimes(1);
     second.unmount();
   });
 
