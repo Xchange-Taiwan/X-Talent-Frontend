@@ -6,9 +6,14 @@ import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
 interface AvatarWithBadgeProps {
   avatar: string | StaticImageData;
   years: string;
+  name: string;
 }
 
-export const AvatarWithBadge = ({ avatar, years }: AvatarWithBadgeProps) => {
+export const AvatarWithBadge = ({
+  avatar,
+  years,
+  name,
+}: AvatarWithBadgeProps) => {
   const displayYears =
     TotalWorkSpanEnum[years as keyof typeof TotalWorkSpanEnum] ?? years;
 
@@ -16,7 +21,7 @@ export const AvatarWithBadge = ({ avatar, years }: AvatarWithBadgeProps) => {
     <figure className="relative h-[348px] w-full overflow-hidden xl:h-[292px]">
       <Image
         src={avatar}
-        alt="avatar"
+        alt={`${name} 的頭像`}
         fill
         sizes="(max-width: 768px) 334px, 413px"
         className="h-full object-cover"
