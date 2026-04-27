@@ -14,10 +14,8 @@ type AnyParams = URLSearchParams | ReadonlyURLSearchParams;
 
 export interface MentorPoolFetchConditions {
   searchPattern: string;
-  filter_positions?: string;
   filter_skills?: string;
   filter_topics?: string;
-  filter_expertises?: string;
   filter_industries?: string;
 }
 
