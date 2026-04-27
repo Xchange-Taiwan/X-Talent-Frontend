@@ -224,10 +224,10 @@ export async function updateReservationStatus(opts: {
  * ================================ */
 
 /**
- * 新增預約（POST /v1/users/:user_id/reservations）
+ * Create a reservation (POST /v1/users/:user_id/reservations)
  *
- * @param opts.body.previous_reserve - 修改預約時傳入 `{ reserve_id: number }`；
- *   一般新預約可省略此欄位。
+ * @param opts.body.previous_reserve - Pass `{ reserve_id: number }` when
+ *   rescheduling an existing booking; omit for a fresh reservation.
  */
 export async function createReservation(opts: {
   userId: string | number;
