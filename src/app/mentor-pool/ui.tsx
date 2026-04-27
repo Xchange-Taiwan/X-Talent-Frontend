@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { MentorType } from '@/services/search-mentor/mentors';
 
+import PopularPositionChips from './PopularPositionChips';
+
 interface Props {
   mentors: MentorType[];
   mentorCount: number;
@@ -45,6 +47,7 @@ export default function MentorPoolUI({
   return (
     <section className="mt-[132px] px-5 pb-10 md:px-10 xl:px-20">
       <div className="mx-auto w-full max-w-[1280px] ">
+        <PopularPositionChips />
         <div className="item-center mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-0">
           <div
             className={`text-base transition-opacity ${isReplacing ? 'opacity-50' : ''}`}

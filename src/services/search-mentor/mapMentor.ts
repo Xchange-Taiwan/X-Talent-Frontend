@@ -43,10 +43,8 @@ export type MentorsType = components['schemas']['SearchMentorProfileListVO'];
 
 export interface MentorRequest {
   searchPattern?: string;
-  filter_positions?: string;
   filter_skills?: string;
   filter_topics?: string;
-  filter_expertises?: string;
   filter_industries?: string;
   limit: number;
   cursor?: string;

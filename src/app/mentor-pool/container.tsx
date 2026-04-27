@@ -1,10 +1,15 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useRef, useState, useTransition } from 'react';
+import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
 
 import avatarImage from '@/assets/default-avatar.png';
-import type { SelectFilters } from '@/components/filter/MentorFilterDropdown';
+import type {
+  FilterOptions,
+  SelectFilters,
+} from '@/components/filter/MentorFilterDropdown';
+import useInterests from '@/hooks/user/interests/useInterests';
+import type { InterestVO } from '@/services/profile/interests';
 import {
   fetchMentorsEnriched,
   MentorType,
@@ -21,6 +26,14 @@ import {
 } from './searchParams';
 import MentorPoolUI from './ui';
 
+function interestsToOptions(
+  items: InterestVO[]
+): { label: string; value: string }[] {
+  return items
+    .map((i) => ({ label: i.subject ?? '', value: i.subject ?? '' }))
+    .filter((o) => o.value);
+}
+
 interface Props {
   initialMentors: MentorType[];
   initialCursor: string;
@@ -36,6 +49,22 @@ export default function MentorPoolContainer({
   const params = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const selectedFilters = parseFiltersFromParams(params);
+  const { expertises, whatIOffers } = useInterests('zh_TW');
+
+  const dynamicFilterOptions = useMemo<FilterOptions>(
+    () => ({
+      ...filterOptions,
+      filter_skills: {
+        ...filterOptions.filter_skills,
+        options: interestsToOptions(expertises),
+      },
+      filter_topics: {
+        ...filterOptions.filter_topics,
+        options: interestsToOptions(whatIOffers),
+      },
+    }),
+    [expertises, whatIOffers]
+  );
 
   const [mentorCount, setMentorCount] = useState<number>(initialMentorCount);
   const [mentors, setMentors] = useState<MentorType[]>(initialMentors);
@@ -123,7 +152,7 @@ export default function MentorPoolContainer({
       isReplacing={isPending}
       isNoResults={isNoResults}
       selectedFilters={selectedFilters}
-      filterOptions={filterOptions}
+      filterOptions={dynamicFilterOptions}
       onFilterChange={handleFilterChange}
       onRemoveFilter={handleRemoveFilter}
       onScrollToBottom={handleScrollToBottom}
