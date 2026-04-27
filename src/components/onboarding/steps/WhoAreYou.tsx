@@ -1,7 +1,8 @@
 'use client';
 
-import { FC } from 'react';
-import { useForm } from 'react-hook-form';
+import { useSession } from 'next-auth/react';
+import { FC, useRef } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import * as z from 'zod';
 
 import AvatarUpload from '@/components/ui/avatar-upload';
@@ -18,17 +19,23 @@ import { step1Schema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step1Schema>>>;
-  avatarUrl: string;
   avatarError?: string | null;
 }
 
-export const WhoAreYou: FC<Props> = ({ form, avatarUrl, avatarError }) => {
+export const WhoAreYou: FC<Props> = ({ form, avatarError }) => {
+  const watchedAvatar = useWatch({ control: form.control, name: 'avatar' });
+  const { data: session } = useSession();
+  const stableCacheBust = useRef(Date.now()).current;
+  const avatarDisplayUrl = watchedAvatar
+    ? `${watchedAvatar}?cb=${session?.user?.avatarUpdatedAt ?? stableCacheBust}`
+    : '';
+
   return (
     <>
       <AvatarUpload
         control={form.control}
         name="avatarFile"
-        avatarUrl={avatarUrl}
+        avatarUrl={avatarDisplayUrl}
       />
       {avatarError && (
         <p className="-mt-6 text-center text-sm font-medium text-destructive lg:text-left">
