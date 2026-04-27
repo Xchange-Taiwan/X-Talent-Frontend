@@ -67,6 +67,7 @@ export default function Page() {
             src={HomePageHeroImgUrl}
             alt=""
             fill
+            sizes="1800px"
             className="-z-10 w-[1800px] object-cover object-top"
           />
         )}
@@ -94,6 +95,7 @@ export default function Page() {
             width={420}
             height={270}
             alt=""
+            sizes="(min-width: 768px) 40vw, 420px"
             className="max-w-full shrink-0 md:w-2/5"
           />
           <div className="m-auto flex flex-col py-[30px] md:m-0 md:flex-1 md:py-0 xl:pl-[62px]">
@@ -117,8 +119,9 @@ export default function Page() {
           </div>
           <Image
             src={landingPage_5}
-            className="max-w-full shrink-0 md:w-2/5"
             alt=""
+            sizes="(min-width: 768px) 40vw, 100vw"
+            className="max-w-full shrink-0 md:w-2/5"
           />
         </div>
       </section>
@@ -161,8 +164,9 @@ export default function Page() {
           <div className="flex">
             <Image
               src={landingPage_6}
-              className="hidden w-[363px] xl:block"
               alt=""
+              sizes="363px"
+              className="hidden w-[363px] xl:block"
             />
             <div className="xl:ml-[78px]">
               <p className="text-midnight-blue mt-1 text-center text-xl font-bold md:text-2xl xl:text-start">
@@ -207,8 +211,9 @@ export default function Page() {
           <div className="mt-10 flex md:mt-[116px]">
             <Image
               src={landingPage_7}
-              className="hidden w-[363px] xl:block"
               alt=""
+              sizes="363px"
+              className="hidden w-[363px] xl:block"
             />
             <div className="xl:ml-[78px]">
               <p className="text-midnight-blue mt-1 text-center text-xl font-bold md:text-2xl xl:text-start">

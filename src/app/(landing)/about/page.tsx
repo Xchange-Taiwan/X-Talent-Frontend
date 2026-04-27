@@ -43,6 +43,7 @@ export default function Page() {
             height={320}
             src={aboutPage_1}
             alt=""
+            sizes="500px"
             priority={false}
             placeholder="blur"
           />

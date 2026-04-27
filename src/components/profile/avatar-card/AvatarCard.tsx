@@ -36,6 +36,7 @@ export const AvatarCard: FC<Props> = ({
           src={avatarImgUrl || DefaultAvatarImgUrl}
           alt={'Avatar of ' + name}
           fill
+          sizes="120px"
           style={{
             objectFit: 'contain',
           }}
