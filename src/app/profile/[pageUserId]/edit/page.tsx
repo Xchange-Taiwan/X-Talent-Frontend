@@ -87,6 +87,7 @@ export default function Page({
   });
 
   useEditProfileData({
+    userId: Number(pageUserId),
     form,
     isAuthorized,
     isMentorOnboarding,
