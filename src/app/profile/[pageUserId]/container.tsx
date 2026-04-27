@@ -3,8 +3,9 @@
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
+import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import useUserData from '@/hooks/user/user-data/useUserData';
 
@@ -42,21 +43,9 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
-  // Stable per-session fallback for other users' profiles — allows browser
-  // caching across navigations. Resets only on full page refresh.
-  const stableCacheBust = useRef(Date.now()).current;
-
   const { data: session } = useSession();
   const isLogging = Boolean(session?.user?.id);
   const loginUserId = session?.user?.id ? String(session.user.id) : '';
-
-  // For the logged-in user's own profile, use the session's avatarUpdatedAt so
-  // the latest avatar appears immediately after a profile update without a full
-  // page reload. For other users' profiles the stable fallback is sufficient.
-  const avatarCacheBust =
-    loginUserId === pageUserId
-      ? (session?.user?.avatarUpdatedAt ?? stableCacheBust)
-      : stableCacheBust;
 
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
   const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =
@@ -67,6 +56,15 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
     pageUserIdNumber,
     'zh_TW'
   );
+
+  // Only attach a versioning param for the logged-in user's own profile; the
+  // stable URL for other users lets the Next.js Image Optimizer hit its cache
+  // across navigations.
+  const avatarSrc = userData?.avatar
+    ? loginUserId === pageUserId && session?.user?.avatarUpdatedAt
+      ? `${userData.avatar}?v=${session.user.avatarUpdatedAt}`
+      : userData.avatar
+    : DefaultAvatarImgUrl;
 
   if (!userLoading && !userData) {
     return (
@@ -101,7 +99,7 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
       scheduleLoaded={loaded}
       loginUserId={loginUserId}
       isLogging={isLogging}
-      avatarCacheBust={avatarCacheBust}
+      avatarSrc={avatarSrc}
       allowedDates={allowedDates}
       openReservationDialog={openReservationDialog}
       setOpenReservationDialog={setOpenReservationDialog}
