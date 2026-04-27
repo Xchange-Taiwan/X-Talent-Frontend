@@ -28,7 +28,8 @@ const scheduleCalendarSizeClassNames: Record<ScheduleCalendarSize, string> = {
     'lg:[--calendar-width:28rem]',
 
     // Dialog / modal cell size
-    '[--cell-size:1.75rem]',
+    // Mobile base meets WCAG AA 44px touch target.
+    '[--cell-size:max(1.75rem,44px)]',
     'sm:[--cell-size:2rem]',
     'md:[--cell-size:2rem]',
     'lg:[--cell-size:2.5rem]',
@@ -62,7 +63,8 @@ const scheduleCalendarSizeClassNames: Record<ScheduleCalendarSize, string> = {
     '[--calendar-width:100%]',
 
     // Profile page cell size
-    '[--cell-size:2rem]',
+    // Mobile base meets WCAG AA 44px touch target.
+    '[--cell-size:max(2rem,44px)]',
     'min-[700px]:[--cell-size:3.75rem]',
     'min-[900px]:[--cell-size:4rem]',
     '2xl:[--cell-size:3.5rem]',
