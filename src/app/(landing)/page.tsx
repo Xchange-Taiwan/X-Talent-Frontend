@@ -1,5 +1,3 @@
-'use client';
-import dynamic from 'next/dynamic';
 import Image from 'next/image';
 
 import HomePageHeroImgUrl from '@/assets/landing/home-page-hero.webp';
@@ -13,31 +11,19 @@ import landingPage_icon_3 from '@/assets/landing/landingPage_icon_3.svg';
 import landingPage_icon_4 from '@/assets/landing/landingPage_icon_4.svg';
 import landingPage_icon_5 from '@/assets/landing/landingPage_icon_5.svg';
 import landingPage_icon_6 from '@/assets/landing/landingPage_icon_6.svg';
-import { SCREEN_SIZE } from '@/constant/theme';
-import useWindowSize from '@/hooks/useWindowSize';
-
-const HomePageSlider = dynamic(
-  () =>
-    import('@/components/landing/HomePageSlider').then(
-      (mod) => mod.HomePageSlider
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <div
-        aria-hidden
-        className="h-[520px] w-full animate-pulse rounded-md bg-gray-100 sm:h-[280px]"
-      />
-    ),
-  }
-);
+import { HomePageSliderClient } from '@/components/landing/HomePageSliderClient';
 
 import { featureData } from './data';
 
 const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
   return (
     <div className="mb-6 flex items-center md:mb-[50px] md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto">
-      <Image className="h-12 w-12 md:h-[70px] md:w-[70px]" src={icon} alt="" />
+      <Image
+        className="h-12 w-12 md:h-[70px] md:w-[70px]"
+        src={icon}
+        alt=""
+        role="presentation"
+      />
       <p className="ml-[20px] text-base tracking-[0.085em] md:mt-8 md:text-xl">
         {text}
       </p>
@@ -46,40 +32,35 @@ const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
 };
 
 export default function Page() {
-  const { width } = useWindowSize();
-
   return (
     <>
-      <section className="flex h-[532px] items-center justify-center bg-[url('/landing/home-page-hero-sm.svg')] bg-cover bg-no-repeat px-4 sm:bg-[url('/landing/home-page-hero-md.svg')] sm:px-0 lg:h-[640px] lg:bg-none">
-        <h1 className="text-center">
-          <p className="text-blue-950 mb-8 text-3xl font-bold leading-normal sm:text-4xl md:text-5xl">
-            交流讓
-            <br className="md:hidden" />
-            改變發生
-          </p>
-          <p className="text-black max-w-[516px] text-lg sm:text-xl md:text-2xl lg:max-w-[630px]">
-            Find your Mentor/Mentee to build up connections, break up limits.
-          </p>
+      <section className="flex h-[532px] flex-col items-center justify-center bg-[url('/landing/home-page-hero-sm.svg')] bg-cover bg-no-repeat px-4 text-center sm:bg-[url('/landing/home-page-hero-md.svg')] sm:px-0 lg:h-[640px] lg:bg-none">
+        <h1 className="text-blue-950 mb-8 text-3xl font-bold leading-normal sm:text-4xl md:text-5xl">
+          交流讓
+          <br className="md:hidden" />
+          改變發生
         </h1>
+        <p className="text-black max-w-[516px] text-lg sm:text-xl md:text-2xl lg:max-w-[630px]">
+          Find your Mentor/Mentee to build up connections, break up limits.
+        </p>
 
-        {width > SCREEN_SIZE.lg && (
-          <Image
-            src={HomePageHeroImgUrl}
-            alt=""
-            fill
-            sizes="1800px"
-            className="-z-10 w-[1800px] object-cover object-top"
-          />
-        )}
+        <Image
+          src={HomePageHeroImgUrl}
+          alt="X-Talent 平台主視覺：專業工作者交流情境"
+          fill
+          sizes="1800px"
+          priority
+          className="-z-10 hidden w-[1800px] object-cover object-top lg:block"
+        />
       </section>
 
       <section className="flex py-10  sm:py-20">
         <div className="flex w-full flex-col items-center justify-center">
-          <p className="text-midnight-blue mb-[30px] text-center text-xl font-bold tracking-[0.04em] md:mb-[70px] md:text-2xl">
+          <h2 className="text-midnight-blue mb-[30px] text-center text-xl font-bold tracking-[0.04em] md:mb-[70px] md:text-2xl">
             透過 X-Talent 創造你
             <br className="md:hidden" />
             的職涯可能性
-          </p>
+          </h2>
           <div className="text-black flex flex-col flex-wrap justify-center font-bold md:flex-row">
             {featureData.map((item) => (
               <FeatureItem key={item.text} icon={item.icon} text={item.text} />
@@ -94,14 +75,14 @@ export default function Page() {
             src={landingPage_4}
             width={420}
             height={270}
-            alt=""
+            alt="Mentor 與 Mentee 線上交流情境"
             sizes="(min-width: 768px) 40vw, 420px"
             className="max-w-full shrink-0 md:w-2/5"
           />
           <div className="m-auto flex flex-col py-[30px] md:m-0 md:flex-1 md:py-0 xl:pl-[62px]">
-            <p className="text-midnight-blue mb-5 text-xl font-bold md:text-2xl">
+            <h2 className="text-midnight-blue mb-5 text-xl font-bold md:text-2xl">
               和 X-Talent 一起拓展職涯的選擇性
-            </p>
+            </h2>
             <p className="text-black text-base md:text-xl">
               聚集多種專業職能的資深前輩，分享產業洞見、職涯心法，協助建構更多元的角度與觀點。不論你是剛開始、還未開始，一起陪你把職涯走得更遠更寬闊。
             </p>
@@ -109,9 +90,9 @@ export default function Page() {
         </div>
         <div className="mb-[50px] mt-7 flex flex-col-reverse items-center px-4 min-[550px]:px-14 md:mb-[130px] md:flex-row md:items-start md:gap-8 md:px-8 xl:gap-0 xl:px-0">
           <div className="m-auto flex flex-col py-[30px] md:m-0 md:flex-1 md:py-0 xl:pr-[62px]">
-            <p className="text-midnight-blue mb-5 text-xl font-bold md:text-2xl">
+            <h2 className="text-midnight-blue mb-5 text-xl font-bold md:text-2xl">
               透過 X-Talent 展開深度交流
-            </p>
+            </h2>
             <p className="text-black text-base md:text-xl">
               透過 X-Talent 立即安排與 Mentor
               一對一的深度交流，讓你在尋求職涯建議、建立人脈上得到最直接的回饋。
@@ -119,7 +100,7 @@ export default function Page() {
           </div>
           <Image
             src={landingPage_5}
-            alt=""
+            alt="Mentor 一對一指導 Mentee 情境"
             sizes="(min-width: 768px) 40vw, 100vw"
             className="max-w-full shrink-0 md:w-2/5"
           />
@@ -164,20 +145,21 @@ export default function Page() {
           <div className="flex">
             <Image
               src={landingPage_6}
-              alt=""
+              alt="成為 Mentor 主視覺"
               sizes="363px"
               className="hidden w-[363px] xl:block"
             />
             <div className="xl:ml-[78px]">
-              <p className="text-midnight-blue mt-1 text-center text-xl font-bold md:text-2xl xl:text-start">
+              <h2 className="text-midnight-blue mt-1 text-center text-xl font-bold md:text-2xl xl:text-start">
                 成為 Mentor，你將可以‧‧‧
-              </p>
+              </h2>
               <div className="mt-8 flex flex-col md:mt-[65px] md:flex-row md:items-center">
                 <div className="mb-6 flex items-center md:m-0 md:flex-col xl:w-[180px]">
                   <Image
                     className="ml-4 md:m-0"
                     src={landingPage_icon_1}
                     alt=""
+                    role="presentation"
                   />
                   <div className="ml-[30px] flex flex-col md:ml-0 md:mt-[34px] md:items-center">
                     <p className="text-black font-medium">分享經驗</p>
@@ -189,6 +171,7 @@ export default function Page() {
                     className="ml-4 md:m-0"
                     src={landingPage_icon_2}
                     alt=""
+                    role="presentation"
                   />
                   <div className="ml-[30px] flex h-[43px] flex-col justify-center md:ml-0 md:mt-[34px] md:items-center">
                     <p className="text-black font-medium">建立專屬人脈網絡</p>
@@ -199,6 +182,7 @@ export default function Page() {
                     className="ml-4 md:m-0"
                     src={landingPage_icon_3}
                     alt=""
+                    role="presentation"
                   />
                   <div className="ml-[30px] flex flex-col md:ml-0 md:mt-[34px] md:items-center">
                     <p className="text-black font-medium">增加社會影響力</p>
@@ -211,20 +195,21 @@ export default function Page() {
           <div className="mt-10 flex md:mt-[116px]">
             <Image
               src={landingPage_7}
-              alt=""
+              alt="成為 Mentee 主視覺"
               sizes="363px"
               className="hidden w-[363px] xl:block"
             />
             <div className="xl:ml-[78px]">
-              <p className="text-midnight-blue mt-1 text-center text-xl font-bold md:text-2xl xl:text-start">
+              <h2 className="text-midnight-blue mt-1 text-center text-xl font-bold md:text-2xl xl:text-start">
                 成為 Mentee，你將可以‧‧‧
-              </p>
+              </h2>
               <div className="mt-8 flex flex-col md:mt-[65px] md:flex-row md:items-center">
                 <div className="mb-6 flex items-center md:m-0 md:flex-col xl:w-[180px]">
                   <Image
                     className="ml-4 md:m-0"
                     src={landingPage_icon_4}
                     alt=""
+                    role="presentation"
                   />
                   <div className="ml-[30px] flex flex-col md:ml-0 md:mt-[34px] md:items-center">
                     <p className="text-black font-medium">探索產業與</p>
@@ -236,6 +221,7 @@ export default function Page() {
                     className="ml-4 md:m-0"
                     src={landingPage_icon_5}
                     alt=""
+                    role="presentation"
                   />
                   <div className="ml-[35px] flex flex-col justify-center md:ml-0 md:mt-[34px] md:items-center">
                     <p className="text-black font-medium">
@@ -251,6 +237,7 @@ export default function Page() {
                     className="ml-4 md:m-0"
                     src={landingPage_icon_6}
                     alt=""
+                    role="presentation"
                   />
                   <div className="ml-[30px] flex flex-col md:ml-0 md:mt-[34px] md:items-center">
                     <p className="text-black font-medium">
@@ -267,7 +254,7 @@ export default function Page() {
 
       <section className="flex items-center justify-center bg-gray-50">
         <div className="w-full max-w-[600px] py-10 lg:max-w-6xl">
-          <HomePageSlider />
+          <HomePageSliderClient />
         </div>
       </section>
     </>
