@@ -20,7 +20,8 @@ interface PresignedUrlData {
 // 所以 file.type 必須是 image/*
 async function uploadToS3WithPresignedPost(
   presigned: PresignedUrlData,
-  avatarFile: File
+  avatarFile: File,
+  signal?: AbortSignal
 ): Promise<void> {
   const formData = new FormData();
 
@@ -39,6 +40,7 @@ async function uploadToS3WithPresignedPost(
   const res = await fetch(presigned.url, {
     method: 'POST',
     body: formData,
+    signal,
   });
 
   if (!res.ok) {
@@ -60,7 +62,8 @@ function buildS3ObjectUrl(bucketUrl: string, key: string): string {
  * 3) 回傳檔案的公開 URL（bucketUrl + key）
  */
 export async function updateAvatar(
-  avatarFile: File
+  avatarFile: File,
+  signal?: AbortSignal
 ): Promise<string | undefined> {
   try {
     const session = await getSession();
@@ -79,10 +82,19 @@ export async function updateAvatar(
       throw new Error('取得 presigned url 失敗或回傳格式不完整');
     }
 
-    await uploadToS3WithPresignedPost(presigned, avatarFile);
+    if (signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
+
+    await uploadToS3WithPresignedPost(presigned, avatarFile, signal);
 
     return buildS3ObjectUrl(presigned.url, presigned.fields.key);
   } catch (error) {
+    // Let abort propagate as-is so callers can detect cancellation
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw error;
+    }
+
     if (error instanceof TypeError && error.message === 'Failed to fetch') {
       throw new Error('無法連接到伺服器。請檢查您的網絡連接。');
     }
