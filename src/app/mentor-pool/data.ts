@@ -1,50 +1,34 @@
 import { FilterOptions } from '@/components/filter/MentorFilterDropdown';
 
+// Option lists are populated at runtime in container.tsx
+// (useInterests for skills/topics, useIndustries for industries).
+// We keep the keys + display name here so server-side searchParams
+// parsing has a stable shape without touching the client caches.
 export const filterOptions: FilterOptions = {
-  filter_positions: {
-    name: 'Position',
-    options: [
-      { label: 'Frontend Developer', value: 'Frontend Developer' },
-      { label: 'Software Engineer', value: 'Software Engineer' },
-      { label: 'Bioinformatics Analyst', value: 'Bioinformatics Analyst' },
-      { label: 'Infrastructure Engineer', value: 'Infrastructure Engineer' },
-    ],
-  },
   filter_skills: {
-    name: 'Skill',
-    options: [
-      { label: 'Kubernetes', value: 'Kubernetes' },
-      { label: 'Agile', value: 'Agile' },
-      { label: 'Go', value: 'Go' },
-      { label: 'Kafka', value: 'Kafka' },
-      { label: 'Financial Modeling', value: 'Financial Modeling' },
-      { label: 'Java', value: 'Java' },
-    ],
+    name: '技能',
+    options: [],
   },
   filter_topics: {
-    name: 'Topic',
-    options: [
-      { label: 'Microservices', value: 'Microservices' },
-      { label: 'User Research', value: 'User Research' },
-      { label: 'System Design', value: 'System Design' },
-      { label: 'DevOps', value: 'DevOps' },
-    ],
-  },
-  filter_expertises: {
-    name: 'Expertise',
-    options: [
-      { label: 'DevOps', value: 'DevOps' },
-      { label: 'Full Stack Development', value: 'Full Stack Development' },
-      { label: 'DevStart', value: 'DevStart' },
-      { label: 'Backend Development', value: 'Backend Development' },
-    ],
+    name: '主題',
+    options: [],
   },
   filter_industries: {
-    name: 'Industry',
-    options: [
-      { label: 'Technology', value: 'Technology' },
-      { label: 'Healthcare', value: 'Healthcare' },
-      { label: 'Finance', value: 'Finance' },
-    ],
+    name: '產業',
+    options: [],
   },
 };
+
+// Hardcoded fallback until the backend exposes a popular-position ranking
+// endpoint. Replacing this with a fetch is a one-line swap in container.tsx.
+// Labels follow the zh_TW INTERESTED_POSITION naming used in onboarding.
+export const POPULAR_POSITIONS: ReadonlyArray<string> = [
+  '前端工程師',
+  '後端工程師',
+  '全端工程師',
+  '產品經理',
+  'UIUX 設計師',
+  '資料工程師',
+  'AI 工程師',
+  'iOS 工程師',
+];
