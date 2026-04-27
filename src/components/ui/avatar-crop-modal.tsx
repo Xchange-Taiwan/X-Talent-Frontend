@@ -11,6 +11,17 @@ interface AvatarCropModalProps {
   onSave: (imageUrl: Blob) => void;
 }
 
+const MIN_SCALE = 1;
+const MAX_SCALE = 3;
+
+const clampScale = (value: number): number =>
+  Math.min(MAX_SCALE, Math.max(MIN_SCALE, value));
+
+const getTouchDistance = (touches: React.TouchList): number => {
+  const [a, b] = [touches[0], touches[1]];
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+};
+
 const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
   file,
   isOpen,
@@ -19,6 +30,31 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
 }) => {
   const [zoomScale, setZoomScale] = useState(1);
   const editorRef = useRef<AvatarEditor | null>(null);
+  const pinchStartRef = useRef<{ distance: number; scale: number } | null>(
+    null
+  );
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>): void => {
+    if (e.touches.length === 2) {
+      pinchStartRef.current = {
+        distance: getTouchDistance(e.touches),
+        scale: zoomScale,
+      };
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>): void => {
+    if (e.touches.length !== 2 || !pinchStartRef.current) return;
+    e.preventDefault();
+    const ratio = getTouchDistance(e.touches) / pinchStartRef.current.distance;
+    setZoomScale(clampScale(pinchStartRef.current.scale * ratio));
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>): void => {
+    if (e.touches.length < 2) {
+      pinchStartRef.current = null;
+    }
+  };
 
   // Responsive editor size: constrained by both viewport width and height.
   // Width overhead: p-6 padding (24×2) + safety = 56px.
@@ -80,21 +116,29 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
       >
         <div className="max-h-full overflow-y-auto rounded-lg bg-[#F4FCFC] p-6 shadow-lg">
           {file && (
-            <AvatarEditor
-              ref={editorRef}
-              image={file}
-              width={editorSize}
-              height={editorSize}
-              border={50}
-              borderRadius={300}
-              scale={zoomScale}
+            <div
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              onTouchCancel={handleTouchEnd}
               style={{ touchAction: 'none' }}
-            />
+            >
+              <AvatarEditor
+                ref={editorRef}
+                image={file}
+                width={editorSize}
+                height={editorSize}
+                border={50}
+                borderRadius={300}
+                scale={zoomScale}
+                style={{ touchAction: 'none' }}
+              />
+            </div>
           )}
           <Slider
             value={zoomScale}
-            min={1}
-            max={3}
+            min={MIN_SCALE}
+            max={MAX_SCALE}
             step={0.1}
             onChange={(_, newScale) => setZoomScale(newScale as number)}
             className="mt-4"
