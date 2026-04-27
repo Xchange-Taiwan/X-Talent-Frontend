@@ -16,7 +16,7 @@ export const AvatarWithBadge = ({ avatar, years }: AvatarWithBadgeProps) => {
     <figure className="relative h-[348px] w-full overflow-hidden xl:h-[292px]">
       <Image
         src={avatar}
-        alt="avatar"
+        alt=""
         fill
         sizes="(max-width: 768px) 334px, 413px"
         className="h-full object-cover"

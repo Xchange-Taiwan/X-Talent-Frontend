@@ -38,16 +38,21 @@ export function HamburgerMenu({
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" aria-label="Open menu">
-          <HamburgerMenuIcon className="h-6 w-6" />
+        <Button variant="ghost" aria-label="開啟導航選單">
+          <HamburgerMenuIcon className="h-6 w-6" aria-hidden="true" />
         </Button>
       </SheetTrigger>
 
       <SheetContent side="right" className="h-dvh w-screen">
         <SheetTitle className="sr-only">導航選單</SheetTitle>
         <div className="flex h-full flex-col">
-          <SheetClose asChild className="ml-auto">
-            <Cross2Icon className="text-blue-900 h-8 w-8" />
+          <SheetClose asChild>
+            <button type="button" aria-label="關閉導航選單" className="ml-auto">
+              <Cross2Icon
+                className="text-blue-900 h-8 w-8"
+                aria-hidden="true"
+              />
+            </button>
           </SheetClose>
 
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8 text-2xl">
