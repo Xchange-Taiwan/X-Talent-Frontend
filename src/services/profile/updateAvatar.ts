@@ -106,9 +106,9 @@ function buildS3ObjectUrl(bucketUrl: string, key: string): string {
 
 /**
  * updateAvatar
- * 1) 呼叫後端拿 presigned url（若有預抓 cache 命中則直接消費）
- * 2) 用 presigned POST 直接上傳到 S3
- * 3) 回傳檔案的公開 URL（bucketUrl + key）
+ * 1) Get a presigned URL (consumes the prefetched cache when available)
+ * 2) Upload the file directly to S3 via presigned POST
+ * 3) Return the public object URL (bucketUrl + key)
  */
 export async function updateAvatar(
   avatarFile: File,
