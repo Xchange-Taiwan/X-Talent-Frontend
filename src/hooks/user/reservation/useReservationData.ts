@@ -15,7 +15,8 @@ export interface NextTokens {
   menteePending: number;
   mentorUpcoming: number;
   mentorPending: number;
-  history: number;
+  mentorHistory: number;
+  menteeHistory: number;
 }
 
 export interface ReservationData {
@@ -23,7 +24,8 @@ export interface ReservationData {
   pendingMentee: Reservation[];
   upcomingMentor: Reservation[];
   pendingMentor: Reservation[];
-  history: Reservation[];
+  mentorHistory: Reservation[];
+  menteeHistory: Reservation[];
   nextTokens: NextTokens;
 }
 
@@ -32,7 +34,8 @@ const STATE_TO_TOKEN_KEY: Record<ReservationState, keyof NextTokens> = {
   MENTEE_PENDING: 'menteePending',
   MENTOR_UPCOMING: 'mentorUpcoming',
   MENTOR_PENDING: 'mentorPending',
-  HISTORY: 'history',
+  MENTOR_HISTORY: 'mentorHistory',
+  MENTEE_HISTORY: 'menteeHistory',
 };
 
 const STATE_TO_DATA_KEY: Record<
@@ -43,7 +46,8 @@ const STATE_TO_DATA_KEY: Record<
   MENTEE_PENDING: 'pendingMentee',
   MENTOR_UPCOMING: 'upcomingMentor',
   MENTOR_PENDING: 'pendingMentor',
-  HISTORY: 'history',
+  MENTOR_HISTORY: 'mentorHistory',
+  MENTEE_HISTORY: 'menteeHistory',
 };
 
 const ALL_STATES: ReservationState[] = [
@@ -51,7 +55,8 @@ const ALL_STATES: ReservationState[] = [
   'MENTEE_PENDING',
   'MENTOR_UPCOMING',
   'MENTOR_PENDING',
-  'HISTORY',
+  'MENTOR_HISTORY',
+  'MENTEE_HISTORY',
 ];
 
 export function useReservationData() {
@@ -81,13 +86,15 @@ export function useReservationData() {
           pendingMentee: lists.pendingMentee,
           upcomingMentor: lists.upcomingMentor,
           pendingMentor: lists.pendingMentor,
-          history: lists.history,
+          mentorHistory: lists.mentorHistory,
+          menteeHistory: lists.menteeHistory,
           nextTokens: {
             menteeUpcoming: lists.nextTokens.menteeUpcoming,
             menteePending: lists.nextTokens.menteePending,
             mentorUpcoming: lists.nextTokens.mentorUpcoming,
             mentorPending: lists.nextTokens.mentorPending,
-            history: lists.nextTokens.history,
+            mentorHistory: lists.nextTokens.mentorHistory,
+            menteeHistory: lists.nextTokens.menteeHistory,
           },
         });
       } catch (err) {
@@ -121,7 +128,8 @@ export function useReservationData() {
         pendingMentee: prev.pendingMentee.filter((it) => it.id !== id),
         upcomingMentor: prev.upcomingMentor.filter((it) => it.id !== id),
         pendingMentor: prev.pendingMentor.filter((it) => it.id !== id),
-        history: prev.history.filter((it) => it.id !== id),
+        mentorHistory: prev.mentorHistory.filter((it) => it.id !== id),
+        menteeHistory: prev.menteeHistory.filter((it) => it.id !== id),
       };
     });
   }, []);

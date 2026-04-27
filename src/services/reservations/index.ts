@@ -13,7 +13,8 @@ export type ReservationState =
   | 'MENTOR_PENDING'
   | 'MENTEE_UPCOMING'
   | 'MENTEE_PENDING'
-  | 'HISTORY';
+  | 'MENTOR_HISTORY'
+  | 'MENTEE_HISTORY';
 
 export type FetchOptions = {
   userId: string | number;
@@ -161,13 +162,15 @@ export async function fetchAllReservationLists(
     pendingMenteeRes,
     upcomingMentorRes,
     pendingMentorRes,
-    historyRes,
+    mentorHistoryRes,
+    menteeHistoryRes,
   ] = await Promise.all([
     fetchReservations({ ...commonOpts, state: 'MENTEE_UPCOMING' }),
     fetchReservations({ ...commonOpts, state: 'MENTEE_PENDING' }),
     fetchReservations({ ...commonOpts, state: 'MENTOR_UPCOMING' }),
     fetchReservations({ ...commonOpts, state: 'MENTOR_PENDING' }),
-    fetchReservations({ ...commonOpts, state: 'HISTORY' }),
+    fetchReservations({ ...commonOpts, state: 'MENTOR_HISTORY' }),
+    fetchReservations({ ...commonOpts, state: 'MENTEE_HISTORY' }),
   ]);
 
   return {
@@ -175,13 +178,15 @@ export async function fetchAllReservationLists(
     pendingMentee: pendingMenteeRes.items,
     upcomingMentor: upcomingMentorRes.items,
     pendingMentor: pendingMentorRes.items,
-    history: historyRes.items,
+    mentorHistory: mentorHistoryRes.items,
+    menteeHistory: menteeHistoryRes.items,
     nextTokens: {
       menteeUpcoming: upcomingMenteeRes.next_dtend,
       menteePending: pendingMenteeRes.next_dtend,
       mentorUpcoming: upcomingMentorRes.next_dtend,
       mentorPending: pendingMentorRes.next_dtend,
-      history: historyRes.next_dtend,
+      mentorHistory: mentorHistoryRes.next_dtend,
+      menteeHistory: menteeHistoryRes.next_dtend,
     },
   };
 }
