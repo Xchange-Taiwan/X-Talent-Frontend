@@ -35,6 +35,12 @@ export default async function RootLayout({
   return (
     <html lang="zh-TW" className={notoSans.className}>
       <body id="app">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        >
+          跳至主要內容
+        </a>
         {/* Google Analytics 4 — only loads when NEXT_PUBLIC_GA_ID is set.
             strategy="afterInteractive" ensures it never blocks page render.
             Page views are tracked by PageViewTracker on route changes. */}
@@ -78,7 +84,13 @@ export default async function RootLayout({
         <Providers session={session}>
           <div className="flex min-h-screen flex-col">
             <Header />
-            <main className="grow pt-[70px]">{children}</main>
+            <main
+              id="main-content"
+              tabIndex={-1}
+              className="grow pt-[70px] focus:outline-none"
+            >
+              {children}
+            </main>
             <Footer />
           </div>
           <Toaster />

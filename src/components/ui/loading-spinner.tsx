@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 interface LoadingSpinnerProps {
   className?: string;
   size?: 'sm' | 'md' | 'lg';
+  label?: string;
 }
 
 const sizeClasses = {
@@ -16,15 +17,20 @@ const sizeClasses = {
 export function LoadingSpinner({
   className,
   size = 'md',
+  label = '載入中',
 }: LoadingSpinnerProps) {
   return (
-    <Loader2
-      className={cn(
-        'animate-spin text-muted-foreground',
-        sizeClasses[size],
-        className
-      )}
-    />
+    <span role="status" className="inline-flex">
+      <Loader2
+        aria-hidden="true"
+        className={cn(
+          'animate-spin text-muted-foreground',
+          sizeClasses[size],
+          className
+        )}
+      />
+      <span className="sr-only">{label}</span>
+    </span>
   );
 }
 

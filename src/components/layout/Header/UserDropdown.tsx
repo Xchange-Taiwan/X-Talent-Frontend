@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import type { Session } from 'next-auth';
 import { signOut } from 'next-auth/react';
 import * as React from 'react';
@@ -27,6 +27,7 @@ export const UserDropdown = React.memo(function UserDropdown({
   user,
 }: UserDropdownProps): JSX.Element {
   const router = useRouter();
+  const pathname = usePathname();
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [shareDialogOpen, setShareDialogOpen] = React.useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
@@ -50,6 +51,11 @@ export const UserDropdown = React.memo(function UserDropdown({
   const personalLinks = user.personalLinks ?? [];
 
   const profilePath = userId ? `/profile/${userId}` : '/';
+  const isOnProfile = Boolean(userId) && pathname === profilePath;
+  const isOnMentorReservation =
+    pathname?.startsWith('/reservation/mentor') ?? false;
+  const isOnMenteeReservation =
+    pathname?.startsWith('/reservation/mentee') ?? false;
   const profileUrl =
     typeof window !== 'undefined'
       ? `${window.location.origin}${profilePath}`
@@ -129,6 +135,7 @@ export const UserDropdown = React.memo(function UserDropdown({
           <button
             type="button"
             onClick={handleGoProfile}
+            aria-current={isOnProfile ? 'page' : undefined}
             className="flex w-full items-center gap-4 px-6 pb-4 pt-6 text-left"
           >
             <Image
@@ -164,6 +171,9 @@ export const UserDropdown = React.memo(function UserDropdown({
               className="px-4 py-3 text-2xl"
               onClick={handleAsMentor}
               disabled={!userId}
+              aria-current={
+                isMentor && isOnMentorReservation ? 'page' : undefined
+              }
             >
               {isMentor ? '導師預約管理' : '成為導師'}
             </DropdownMenuItem>
@@ -171,6 +181,7 @@ export const UserDropdown = React.memo(function UserDropdown({
             <DropdownMenuItem
               className="px-4 py-3 text-2xl"
               onClick={handleMyReservation}
+              aria-current={isOnMenteeReservation ? 'page' : undefined}
             >
               我的預約
             </DropdownMenuItem>
