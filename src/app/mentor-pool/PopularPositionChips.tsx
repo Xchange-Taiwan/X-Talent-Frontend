@@ -20,7 +20,7 @@ export default function PopularPositionChips() {
 
   return (
     <div
-      className="-mx-5 flex gap-2 overflow-x-auto px-5 [scrollbar-width:none] md:-mx-10 md:flex-wrap md:overflow-visible md:px-10 xl:-mx-20 xl:px-20 [&::-webkit-scrollbar]:hidden"
+      className="mx-auto flex w-[338px] flex-wrap justify-center gap-2 md:w-[688px] xl:w-[846px]"
       aria-label="熱門職位"
     >
       {POPULAR_POSITIONS.map((position) => (
