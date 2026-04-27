@@ -40,6 +40,7 @@ export const HomePageSlider: FC = () => {
                   fill
                   src={avatar}
                   alt={`avatar_${name}`}
+                  sizes="112px"
                   className="object-cover"
                 />
               </div>

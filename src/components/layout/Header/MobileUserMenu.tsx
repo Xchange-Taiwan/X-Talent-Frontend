@@ -111,6 +111,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
               alt={name ? `${name} 的頭像` : '我的頭像'}
               width={32}
               height={32}
+              sizes="32px"
               className="h-8 w-8 rounded-full object-cover"
               priority
             />
@@ -144,6 +145,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
                 alt={name ? `${name} 的頭像` : '我的頭像'}
                 width={56}
                 height={56}
+                sizes="56px"
                 className="h-14 w-14 rounded-full object-cover"
               />
               <div className="min-w-0">

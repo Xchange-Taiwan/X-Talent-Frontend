@@ -50,6 +50,7 @@ export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {
                           alt={option.desc?.desc ?? '主題圖示'}
                           width={24}
                           height={24}
+                          sizes="24px"
                           className="object-contain"
                         />
                       )}

@@ -117,6 +117,7 @@ export function ShareProfileDialog({
                     src={avatarSrc || DefaultAvatarImgUrl}
                     alt={`Avatar of ${name}`}
                     fill
+                    sizes="64px"
                     className="object-cover"
                   />
                 </div>
