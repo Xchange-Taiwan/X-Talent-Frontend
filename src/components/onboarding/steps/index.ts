@@ -16,19 +16,31 @@ export const step1Schema = z.object({
 export const step2Schema = z.object({
   location: z.string({ required_error: '請選擇地區' }),
   years_of_experience: z.string().min(1, '請選擇您的年資區間'),
-  industry: z.string({ required_error: '請選擇您的產業類別' }),
+  industry: z
+    .array(z.string())
+    .min(1, '請選擇您的產業類別')
+    .max(10, '最多選 10 個'),
 });
 
 export const step3Schema = z.object({
-  interested_positions: z.array(z.string()).min(1, '請至少選擇一個職位'),
+  interested_positions: z
+    .array(z.string())
+    .min(1, '請至少選擇一個職位')
+    .max(10, '最多選 10 個'),
 });
 
 export const step4Schema = z.object({
-  skills: z.array(z.string()).min(1, '請至少選擇一個技能'),
+  skills: z
+    .array(z.string())
+    .min(1, '請至少選擇一個技能')
+    .max(10, '最多選 10 個'),
 });
 
 export const step5Schema = z.object({
-  topics: z.array(z.string()).min(1, '請至少選擇一個主題'),
+  topics: z
+    .array(z.string())
+    .min(1, '請至少選擇一個主題')
+    .max(10, '最多選 10 個'),
 });
 
 export const formSchema = step1Schema

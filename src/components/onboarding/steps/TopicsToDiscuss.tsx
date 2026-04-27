@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { FC } from 'react';
+import { FC, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -10,12 +10,13 @@ import {
   FormControl,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { groupAsPlaceholderCategories } from '@/lib/profile/categoryGrouping';
 import { cn } from '@/lib/utils';
 import { InterestVO } from '@/services/profile/interests';
 
+import { GroupedSelections } from './GroupedSelections';
 import { step5Schema } from './index';
 
 interface Props {
@@ -24,30 +25,45 @@ interface Props {
 }
 
 export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {
+  const categories = groupAsPlaceholderCategories(topicOptions);
+  const optionMap = useMemo(() => {
+    const map = new Map<string, InterestVO>();
+    topicOptions.forEach((t) => map.set(t.subject_group, t));
+    return map;
+  }, [topicOptions]);
+
   return (
-    <>
-      <div className="grid grid-cols-1 gap-4">
-        {topicOptions.map((option) => (
-          <FormField
-            key={option.subject_group}
-            control={form.control}
-            name="topics"
-            render={({ field }) => {
-              return (
-                <FormItem
-                  key={option.subject_group}
-                  className={cn(
-                    'flex items-start gap-2 rounded-xl border border-gray-200 px-4 py-3',
-                    field.value.includes(option.subject_group) &&
-                      'border-primary bg-secondary'
-                  )}
-                >
-                  <FormLabel className="flex grow cursor-pointer gap-4 ">
+    <FormField
+      control={form.control}
+      name="topics"
+      render={({ field }) => (
+        <FormItem>
+          <FormControl>
+            <GroupedSelections
+              categories={categories}
+              value={field.value ?? []}
+              onChange={field.onChange}
+              maxSelected={10}
+              layoutClass="grid grid-cols-1 gap-4"
+              renderItem={(opt, { checked, disabled, onToggle }) => {
+                const meta = optionMap.get(opt.value);
+                const icon = meta?.desc?.icon;
+                const desc = meta?.desc?.desc;
+                return (
+                  <label
+                    className={cn(
+                      'flex cursor-pointer items-start gap-4 rounded-xl border px-4 py-3',
+                      checked
+                        ? 'border-primary bg-secondary'
+                        : 'border-gray-200',
+                      disabled && 'cursor-not-allowed opacity-50'
+                    )}
+                  >
                     <div className="rounded-full bg-[#EBFBFB] p-3">
-                      {option.desc?.icon && (
+                      {icon && (
                         <Image
-                          src={option.desc.icon ?? ''}
-                          alt={option.desc?.desc ?? '主題圖示'}
+                          src={icon}
+                          alt={desc ?? '主題圖示'}
                           width={24}
                           height={24}
                           sizes="24px"
@@ -55,52 +71,28 @@ export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {
                         />
                       )}
                     </div>
-
-                    <div>
+                    <div className="grow">
                       <p className="text-base font-normal text-text-primary">
-                        {option.subject ?? ''}
+                        {opt.label}
                       </p>
-                      <p className=" text-sm text-text-tertiary">
-                        {option.desc?.desc}
-                      </p>
+                      {desc && (
+                        <p className="text-sm text-text-tertiary">{desc}</p>
+                      )}
                     </div>
-                  </FormLabel>
-                  <FormControl>
                     <Checkbox
-                      checked={field.value?.includes(option.subject_group)}
-                      onCheckedChange={(checked) => {
-                        return checked
-                          ? field.onChange([
-                              ...field.value,
-                              option.subject_group,
-                            ])
-                          : field.onChange(
-                              field.value?.filter(
-                                (value) => value !== option.subject_group
-                              )
-                            );
-                      }}
+                      checked={checked}
+                      disabled={disabled}
+                      onCheckedChange={onToggle}
+                      className="mt-1"
                     />
-                  </FormControl>
-                </FormItem>
-              );
-            }}
-          />
-        ))}
-      </div>
-      <div className="ml-1 mt-3">
-        <FormField
-          control={form.control}
-          name="topics"
-          render={() => {
-            return (
-              <FormItem>
-                <FormMessage />
-              </FormItem>
-            );
-          }}
-        />
-      </div>
-    </>
+                  </label>
+                );
+              }}
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   );
 };
