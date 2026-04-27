@@ -17,7 +17,12 @@ const SectionTitle: FC<{ children: ReactNode }> = ({ children }) => (
 const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
   return (
     <div className="mb-[50px] flex items-center md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto">
-      <Image className="h-[70px] w-[70px]" src={icon} alt="" />
+      <Image
+        className="h-[70px] w-[70px]"
+        src={icon}
+        alt=""
+        role="presentation"
+      />
       <p className="ml-[20px] text-base tracking-[0.085em] md:mt-8 md:text-xl">
         {text}
       </p>
@@ -42,7 +47,7 @@ export default function Page() {
             width={500}
             height={320}
             src={aboutPage_1}
-            alt=""
+            alt="X-Talent 起源 — XChange 社群成員交流情境"
             sizes="500px"
             priority={false}
             placeholder="blur"
@@ -59,15 +64,15 @@ export default function Page() {
 
         <div className="mx-auto mb-20 flex max-w-xl justify-between px-12 sm:px-0">
           <div>
-            <Image src={aboutPage_icon_1} alt="" />
+            <Image src={aboutPage_icon_1} alt="" role="presentation" />
             <p className="mt-7 font-medium">交流</p>
           </div>
           <div>
-            <Image src={aboutPage_icon_2} alt="" />
+            <Image src={aboutPage_icon_2} alt="" role="presentation" />
             <p className="mt-7 font-medium">改變</p>
           </div>
           <div>
-            <Image src={aboutPage_icon_3} alt="" />
+            <Image src={aboutPage_icon_3} alt="" role="presentation" />
             <p className="mt-7 font-medium ">成長</p>
           </div>
         </div>
