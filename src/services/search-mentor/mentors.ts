@@ -4,7 +4,6 @@ import { getInterestsCached } from '@/hooks/user/interests/useInterests';
 import { WorkExperienceMetadata } from '@/hooks/user/user-data/useUserData';
 import { apiClient } from '@/lib/apiClient';
 import { parseCurrentJob } from '@/lib/profile/parseUserExperiences';
-import { fetchUserById, MentorProfileVO } from '@/services/profile/user';
 import { components } from '@/types/api';
 
 type RawMentor = components['schemas']['SearchMentorProfileVO'];
@@ -112,18 +111,6 @@ export async function fetchMentors(
   }
 }
 
-function enrichMentorWithProfile(
-  mentor: MentorType,
-  profile: MentorProfileVO | null,
-  skillLabelMap: Record<string, string>
-): MentorType {
-  const { job_title, company } = parseCurrentJob(profile?.experiences);
-  const skills = (profile?.skills?.interests ?? [])
-    .map((int) => skillLabelMap[int.subject_group] ?? int.subject_group)
-    .filter(Boolean);
-  return { ...mentor, job_title, company, skills };
-}
-
 export async function fetchMentorsEnriched(
   param: MentorRequest
 ): Promise<MentorType[]> {
@@ -139,11 +126,10 @@ export async function fetchMentorsEnriched(
     skillLabelMap[s.subject_group] = s.subject ?? '';
   });
 
-  const profiles = await Promise.all(
-    searchResults.map((m) => fetchUserById(m.user_id, 'zh_TW'))
-  );
-
-  return searchResults.map((mentor, i) =>
-    enrichMentorWithProfile(mentor, profiles[i], skillLabelMap)
-  );
+  return searchResults.map((mentor) => ({
+    ...mentor,
+    skills: mentor.skills
+      .map((subjectGroup) => skillLabelMap[subjectGroup] ?? subjectGroup)
+      .filter(Boolean),
+  }));
 }
