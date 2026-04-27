@@ -1246,12 +1246,12 @@ export interface components {
       url: string | null;
       /**
        * Create Time
-       * @default 2026-04-27T15:42:14.728074Z
+       * @default 2026-04-27T15:54:40.580416Z
        */
       create_time: string | null;
       /**
        * Update Time
-       * @default 2026-04-27T15:42:14.728090Z
+       * @default 2026-04-27T15:54:40.580424Z
        */
       update_time: string | null;
       /** Create User Id */
