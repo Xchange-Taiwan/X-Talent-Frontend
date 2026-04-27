@@ -265,7 +265,7 @@ export default function MentorScheduleDialog({
   ) => (
     <Select value={value} onValueChange={(v) => handleTimeChange(id, part, v)}>
       <SelectTrigger
-        className={`w-12 px-1 ${hasError ? 'border-red-500' : ''}`}
+        className={`w-9 px-0.5 text-xs lg:w-12 lg:px-1 lg:text-sm ${hasError ? 'border-red-500' : ''}`}
       >
         <SelectValue />
       </SelectTrigger>
@@ -398,8 +398,8 @@ export default function MentorScheduleDialog({
                       key={slot.id}
                       className="flex flex-col gap-2 rounded-lg p-3 lg:p-4"
                     >
-                      <div className="flex flex-row flex-wrap items-center justify-between gap-2 lg:gap-3">
-                        <div className="flex flex-wrap items-center gap-1.5 lg:gap-2">
+                      <div className="flex flex-row flex-nowrap items-center justify-between gap-1 lg:gap-3">
+                        <div className="flex min-w-0 flex-nowrap items-center gap-0.5 lg:gap-2">
                           {renderTimeSelect(
                             slot.id,
                             'startHour',
@@ -420,7 +420,7 @@ export default function MentorScheduleDialog({
                             hasError
                           )}
 
-                          <span className="mx-1 text-muted-foreground lg:text-base">
+                          <span className="mx-0.5 text-muted-foreground lg:mx-1 lg:text-base">
                             –
                           </span>
 
@@ -449,7 +449,7 @@ export default function MentorScheduleDialog({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-9 w-9 lg:h-10 lg:w-10"
+                            className="h-8 w-8 lg:h-10 lg:w-10"
                             onClick={() => deleteDraftSlot(slot.id)}
                           >
                             <X className="h-4 w-4 lg:h-5 lg:w-5" />
@@ -459,7 +459,7 @@ export default function MentorScheduleDialog({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-9 w-9 lg:h-10 lg:w-10"
+                              className="h-8 w-8 lg:h-10 lg:w-10"
                               onClick={addNewTimeSlot}
                             >
                               <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
