@@ -1,7 +1,6 @@
 'use client';
 
-import Image from 'next/image';
-import { FC, useMemo } from 'react';
+import { FC } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -26,11 +25,6 @@ interface Props {
 
 export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {
   const categories = groupAsPlaceholderCategories(topicOptions);
-  const optionMap = useMemo(() => {
-    const map = new Map<string, InterestVO>();
-    topicOptions.forEach((t) => map.set(t.subject_group, t));
-    return map;
-  }, [topicOptions]);
 
   return (
     <FormField
@@ -44,50 +38,25 @@ export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {
               value={field.value ?? []}
               onChange={field.onChange}
               maxSelected={10}
-              layoutClass="grid grid-cols-1 gap-4"
-              renderItem={(opt, { checked, disabled, onToggle }) => {
-                const meta = optionMap.get(opt.value);
-                const icon = meta?.desc?.icon;
-                const desc = meta?.desc?.desc;
-                return (
-                  <label
-                    className={cn(
-                      'flex cursor-pointer items-start gap-4 rounded-xl border px-4 py-3',
-                      checked
-                        ? 'border-primary bg-secondary'
-                        : 'border-gray-200',
-                      disabled && 'cursor-not-allowed opacity-50'
-                    )}
-                  >
-                    <div className="rounded-full bg-[#EBFBFB] p-3">
-                      {icon && (
-                        <Image
-                          src={icon}
-                          alt={desc ?? '主題圖示'}
-                          width={24}
-                          height={24}
-                          sizes="24px"
-                          className="object-contain"
-                        />
-                      )}
-                    </div>
-                    <div className="grow">
-                      <p className="text-base font-normal text-text-primary">
-                        {opt.label}
-                      </p>
-                      {desc && (
-                        <p className="text-sm text-text-tertiary">{desc}</p>
-                      )}
-                    </div>
-                    <Checkbox
-                      checked={checked}
-                      disabled={disabled}
-                      onCheckedChange={onToggle}
-                      className="mt-1"
-                    />
-                  </label>
-                );
-              }}
+              layoutClass="grid grid-cols-1 gap-4 sm:grid-cols-2"
+              renderItem={(opt, { checked, disabled, onToggle }) => (
+                <label
+                  className={cn(
+                    'flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-3',
+                    checked ? 'border-primary bg-secondary' : 'border-gray-200',
+                    disabled && 'cursor-not-allowed opacity-50'
+                  )}
+                >
+                  <Checkbox
+                    checked={checked}
+                    disabled={disabled}
+                    onCheckedChange={onToggle}
+                  />
+                  <span className="text-base text-text-primary">
+                    {opt.label}
+                  </span>
+                </label>
+              )}
             />
           </FormControl>
           <FormMessage />
