@@ -77,8 +77,10 @@ export function mapToReservation(
     .filter(Boolean)
     .join(', ');
 
-  // Pick the latest non-blank message from each side so the UI can show both
-  // the mentee's question and the mentor's reply / cancellation reason at once.
+  // Preserve the full conversation in API order so the detail view can render
+  // the entire thread, while also tracking the latest message per side for the
+  // card preview (which still wants both the mentee's question and the
+  // mentor's reply / cancellation reason at a glance).
   const userIdToRole = new Map<string, string | null | undefined>([
     [String(reservation.sender.user_id ?? ''), reservation.sender.role],
     [
@@ -87,6 +89,7 @@ export function mapToReservation(
     ],
   ]);
 
+  const messages: ReservationMessage[] = [];
   let menteeMessage: ReservationMessage | undefined;
   let mentorMessage: ReservationMessage | undefined;
   for (const message of reservation.messages ?? []) {
@@ -94,8 +97,12 @@ export function mapToReservation(
     const trimmed = message.content.trim();
     if (trimmed.length === 0) continue;
     const role = classifyMessageRole(message, userIdToRole);
-    if (role === 'MENTEE') menteeMessage = { content: trimmed };
-    else if (role === 'MENTOR') mentorMessage = { content: trimmed };
+    const item: ReservationMessage = role
+      ? { content: trimmed, role }
+      : { content: trimmed };
+    messages.push(item);
+    if (role === 'MENTEE') menteeMessage = item;
+    else if (role === 'MENTOR') mentorMessage = item;
   }
 
   return {
@@ -105,6 +112,7 @@ export function mapToReservation(
     date,
     time,
     avatar: counterparty.avatar ?? undefined,
+    messages,
     menteeMessage,
     mentorMessage,
     scheduleId: reservation.schedule_id,

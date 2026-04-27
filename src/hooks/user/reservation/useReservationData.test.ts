@@ -25,6 +25,7 @@ const makeReservation = (id: string) => ({
   roleLine: 'Engineer',
   date: 'Mon, Jan 01, 2024',
   time: '10:00 am – 11:00 am',
+  messages: [],
   scheduleId: 1,
   dtstart: 1700000000,
   dtend: 1700003600,
