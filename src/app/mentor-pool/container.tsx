@@ -1,8 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useRef, useState, useTransition } from 'react';
 
 import avatarImage from '@/assets/default-avatar.png';
+import type { SelectFilters } from '@/components/filter/MentorFilterDropdown';
 import {
   fetchMentorsEnriched,
   MentorType,
@@ -10,7 +12,13 @@ import {
 
 import { PAGE_LIMIT } from './constants';
 import { filterOptions } from './data';
-import { useMentorPoolState } from './MentorPoolStateProvider';
+import {
+  buildHref,
+  paramsToFetchConditions,
+  parseFiltersFromParams,
+  removeFilterFromParams,
+  setSelectedFiltersOnParams,
+} from './searchParams';
 import MentorPoolUI from './ui';
 
 interface Props {
@@ -24,83 +32,28 @@ export default function MentorPoolContainer({
   initialCursor,
   initialMentorCount,
 }: Props) {
-  const {
-    searchPattern,
-    selectedFilters,
-    sessionRestored,
-    hasRestoredState,
-    setFilters,
-    removeFilter,
-  } = useMentorPoolState();
+  const router = useRouter();
+  const params = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+  const selectedFilters = parseFiltersFromParams(params);
 
   const [mentorCount, setMentorCount] = useState<number>(initialMentorCount);
   const [mentors, setMentors] = useState<MentorType[]>(initialMentors);
-  const [isNoResults, setIsNoResults] = useState(false);
+  const [isNoResults, setIsNoResults] = useState(initialMentors.length === 0);
   const [isLoading, setIsLoading] = useState(false);
-  const [isReplacing, setIsReplacing] = useState(false);
   const [cursor, setCursor] = useState<string | undefined>(initialCursor);
   const isLoadingRef = useRef(false);
   // Monotonic counter — every fetch claims an id. Late responses whose id no
   // longer matches the current value are stale and must not touch state.
   const requestIdRef = useRef(0);
-  // After the first run, treat further searchPattern/filter changes as user-
-  // driven and always refetch (regardless of restored state).
-  const didInitialRunRef = useRef(false);
-
-  const fetchMentorsBySearch = useCallback(async () => {
-    const myRequestId = ++requestIdRef.current;
-    const filters = Object.fromEntries(
-      Object.entries(selectedFilters).map(([key, value]) => [key, value.value])
-    );
-    const param = {
-      searchPattern,
-      limit: PAGE_LIMIT,
-      cursor: '',
-      ...filters,
-    };
-    setIsLoading(true);
-    setIsReplacing(true);
-    isLoadingRef.current = true;
-    let rtnList: MentorType[] = [];
-    try {
-      rtnList = (await fetchMentorsEnriched(param)).map((mentor) => ({
-        ...mentor,
-        avatar:
-          typeof mentor.avatar === 'string' && mentor.avatar
-            ? `${mentor.avatar}${mentor.updated_at ? `?cb=${mentor.updated_at}` : ''}`
-            : avatarImage,
-      }));
-    } finally {
-      if (myRequestId === requestIdRef.current) {
-        setIsLoading(false);
-        setIsReplacing(false);
-        isLoadingRef.current = false;
-      }
-    }
-    if (myRequestId !== requestIdRef.current) return;
-    if (rtnList.length > 0) {
-      setMentors(rtnList);
-      setMentorCount(rtnList.length);
-      setCursor(rtnList.at(-1)?.updated_at?.toString());
-      setIsNoResults(false);
-      return;
-    }
-    setMentors([]);
-    setMentorCount(0);
-    setCursor('');
-    setIsNoResults(true);
-  }, [searchPattern, selectedFilters]);
 
   const fetchMoreMentors = useCallback(async () => {
     const myRequestId = ++requestIdRef.current;
-    const filters = Object.fromEntries(
-      Object.entries(selectedFilters).map(([key, value]) => [key, value.value])
-    );
+    const conditions = paramsToFetchConditions(params);
     const param = {
-      searchPattern,
+      ...conditions,
       limit: PAGE_LIMIT,
       cursor,
-      ...filters,
     };
     setIsLoading(true);
     isLoadingRef.current = true;
@@ -135,37 +88,44 @@ export default function MentorPoolContainer({
       return;
     }
     setIsNoResults(true);
-  }, [selectedFilters, searchPattern, cursor]);
+  }, [params, cursor]);
 
   const handleScrollToBottom = useCallback(async () => {
     if (mentors.length % PAGE_LIMIT || isLoadingRef.current) return;
     await fetchMoreMentors();
   }, [mentors.length, fetchMoreMentors]);
 
-  // Drives both the initial restore-and-refetch and subsequent search/filter
-  // changes. On first run, only refetch if sessionStorage held persisted state
-  // (otherwise SSR-provided initial mentors are correct). After that, any
-  // search/filter change is user-driven and always refetches.
-  useEffect(() => {
-    if (!sessionRestored) return;
-    if (!didInitialRunRef.current) {
-      didInitialRunRef.current = true;
-      if (!hasRestoredState) return;
-    }
-    fetchMentorsBySearch();
-  }, [sessionRestored, hasRestoredState, fetchMentorsBySearch]);
+  const handleFilterChange = useCallback(
+    (filters: SelectFilters) => {
+      const next = setSelectedFiltersOnParams(params, filters);
+      startTransition(() => {
+        router.push(buildHref(next));
+      });
+    },
+    [params, router]
+  );
+
+  const handleRemoveFilter = useCallback(
+    (key: string) => {
+      const next = removeFilterFromParams(params, key);
+      startTransition(() => {
+        router.push(buildHref(next));
+      });
+    },
+    [params, router]
+  );
 
   return (
     <MentorPoolUI
       mentors={mentors}
       mentorCount={mentorCount}
       isLoading={isLoading}
-      isReplacing={isReplacing}
+      isReplacing={isPending}
       isNoResults={isNoResults}
       selectedFilters={selectedFilters}
       filterOptions={filterOptions}
-      onFilterChange={setFilters}
-      onRemoveFilter={removeFilter}
+      onFilterChange={handleFilterChange}
+      onRemoveFilter={handleRemoveFilter}
       onScrollToBottom={handleScrollToBottom}
     />
   );

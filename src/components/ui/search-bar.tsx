@@ -9,6 +9,7 @@ interface SearchBarProps {
   placeholder?: string;
   mobilePlaceholder?: string;
   tabletPlaceholder?: string;
+  defaultValue?: string;
 }
 
 const DEFAULT_PLACEHOLDER = '搜尋有興趣職位、公司或是想精進的領域';
@@ -18,15 +19,16 @@ const SearchBar: React.FC<SearchBarProps> = ({
   placeholder = DEFAULT_PLACEHOLDER,
   mobilePlaceholder,
   tabletPlaceholder,
+  defaultValue = '',
 }) => {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(defaultValue);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSearch = async () => {
-    if (!query.trim() || isLoading) return;
+    if (isLoading) return;
     setIsLoading(true);
     try {
-      await onSearch(query);
+      await onSearch(query.trim());
     } catch (error) {
       console.error('Error during search:', error);
     } finally {

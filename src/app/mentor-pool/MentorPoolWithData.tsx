@@ -4,6 +4,11 @@ import { fetchMentorsEnrichedServer } from '@/services/search-mentor/mentors.ser
 
 import { PAGE_LIMIT } from './constants';
 import MentorPoolContainer from './container';
+import {
+  paramsToFetchConditions,
+  type ServerSearchParams,
+  toURLSearchParams,
+} from './searchParams';
 
 function resolveAvatar(mentor: MentorType): MentorType {
   return {
@@ -15,14 +20,26 @@ function resolveAvatar(mentor: MentorType): MentorType {
   };
 }
 
-export default async function MentorPoolWithData() {
+interface Props {
+  searchParams: ServerSearchParams;
+}
+
+export default async function MentorPoolWithData({ searchParams }: Props) {
+  const urlParams = toURLSearchParams(searchParams);
+  const conditions = paramsToFetchConditions(urlParams);
+
   const initialMentors = (
-    await fetchMentorsEnrichedServer({ limit: PAGE_LIMIT, cursor: '' })
+    await fetchMentorsEnrichedServer({
+      ...conditions,
+      limit: PAGE_LIMIT,
+      cursor: '',
+    })
   ).map(resolveAvatar);
   const initialCursor = initialMentors.at(-1)?.updated_at?.toString() ?? '';
 
   return (
     <MentorPoolContainer
+      key={urlParams.toString()}
       initialMentors={initialMentors}
       initialCursor={initialCursor}
       initialMentorCount={initialMentors.length}
