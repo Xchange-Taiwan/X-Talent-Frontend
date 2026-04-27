@@ -39,7 +39,7 @@ export function EditPageHeader({
         <Button
           type="submit"
           variant="default"
-          className="w-[88px] rounded-full py-3 sm:w-auto sm:grow-0 sm:px-6"
+          className="min-w-[88px] whitespace-nowrap rounded-full px-4 py-3 sm:w-auto sm:grow-0 sm:px-6"
           form="edit-profile-form"
           disabled={isSaving}
         >
