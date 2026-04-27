@@ -481,6 +481,81 @@ describe('useProfileSubmit', () => {
     expect(reconcileArg.user.onBoarding).toBe(true);
   });
 
+  // ── Parallel writes ────────────────────────────────────────────────────────
+
+  it('updateProfile and experience upserts run concurrently (no sequential wait)', async () => {
+    let resolveProfile: () => void = () => {};
+    let profileStartedAt = 0;
+    let experienceStartedAt = 0;
+
+    mockUpdateProfile.mockImplementationOnce(() => {
+      profileStartedAt = performance.now();
+      return new Promise<void>((resolve) => {
+        resolveProfile = () => resolve();
+      });
+    });
+    mockUpsertMentorExperience.mockImplementationOnce(async () => {
+      experienceStartedAt = performance.now();
+    });
+
+    const valuesWithWork = {
+      ...baseValues,
+      work_experiences: [
+        {
+          id: 1,
+          job: 'Engineer',
+          company: 'Acme',
+          jobPeriodStart: '2020',
+          jobPeriodEnd: 'now',
+          industry: 'tech',
+          jobLocation: 'TWN',
+          description: 'desc',
+          isPrimary: true,
+        },
+      ],
+    };
+
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    const submitPromise = act(async () => {
+      await result.current.onSubmit(valuesWithWork);
+    });
+
+    // Let microtasks drain so both PUTs have a chance to be invoked.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Experience upsert must NOT be gated on updateProfile resolving.
+    expect(mockUpsertMentorExperience).toHaveBeenCalled();
+    expect(experienceStartedAt).toBeGreaterThan(0);
+    expect(profileStartedAt).toBeGreaterThan(0);
+
+    resolveProfile();
+    await submitPromise;
+  });
+
+  // ── Background avatar upload ──────────────────────────────────────────────
+
+  it('consumeAvatarUpload, when provided, is used instead of direct updateAvatar', async () => {
+    const consumed = 'https://example.com/from-bg.jpg';
+    const consumeAvatarUpload = vi.fn().mockResolvedValue(consumed);
+
+    const file = new File(['c'], 'avatar.jpg', { type: 'image/jpeg' });
+    const { result } = renderHook(() =>
+      useProfileSubmit(makeOptions({ consumeAvatarUpload }))
+    );
+
+    await act(async () => {
+      await result.current.onSubmit({ ...baseValues, avatarFile: file });
+    });
+
+    expect(consumeAvatarUpload).toHaveBeenCalledWith(file);
+    expect(mockUpdateAvatar).not.toHaveBeenCalled();
+    expect(mockUpdateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ avatar: consumed })
+    );
+  });
+
   // ── Primary job persistence ────────────────────────────────────────────────
 
   it('work experience upsert includes isPrimary in payload', async () => {

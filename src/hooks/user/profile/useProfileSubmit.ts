@@ -28,6 +28,10 @@ interface Options {
   jobSectionError: boolean;
   educationSectionError: boolean;
   onScrollToError?: (fieldId: string) => void;
+  // Optional: lets the page hand back an already-in-flight S3 upload (kicked
+  // off when the user picked the file) so submit doesn't pay the round trip.
+  // Falls back to a direct upload when omitted, preserving legacy callers.
+  consumeAvatarUpload?: (file: File | undefined) => Promise<string | undefined>;
 }
 
 export function useProfileSubmit({
@@ -38,6 +42,7 @@ export function useProfileSubmit({
   jobSectionError,
   educationSectionError,
   onScrollToError,
+  consumeAvatarUpload,
 }: Options) {
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
@@ -51,11 +56,14 @@ export function useProfileSubmit({
     try {
       setIsSaving(true);
 
-      // 1) avatar upload (if any)
+      // 1) avatar — consume background upload if wired, else upload now.
       let avatar = values.avatar;
       if (values.avatarFile) {
         try {
-          const newUrl = await updateAvatar(values.avatarFile);
+          const uploader = consumeAvatarUpload
+            ? consumeAvatarUpload(values.avatarFile)
+            : updateAvatar(values.avatarFile);
+          const newUrl = await uploader;
           avatar = newUrl ?? avatar;
         } catch (err) {
           captureFlowFailure({
@@ -68,20 +76,12 @@ export function useProfileSubmit({
         }
       }
 
-      // 2) profile update
+      // 2) profile + experience writes — fire all five PUTs in parallel.
+      //    Backend tables are independent (Profile vs MentorExperience, no
+      //    FK, no shared rows; is_mentor flag is only written by the profile
+      //    endpoint), so concurrent merges don't race. See backend audit in
+      //    PR description.
       const payload = { ...values, avatar, avatarFile: undefined };
-      try {
-        await updateProfile(payload);
-      } catch (err) {
-        captureFlowFailure({
-          flow: 'profile_update',
-          step: 'update_profile',
-          message: err instanceof Error ? err.message : 'Profile update failed',
-        });
-        throw err;
-      }
-
-      // 3) upsert experiences in parallel
       const links = [
         values.linkedin,
         values.facebook,
@@ -93,6 +93,8 @@ export function useProfileSubmit({
 
       try {
         await Promise.all([
+          updateProfile(payload),
+
           values.work_experiences?.length > 0
             ? upsertMentorExperience(ExperienceType.WORK, true, {
                 id: 1,
@@ -159,16 +161,18 @@ export function useProfileSubmit({
       } catch (err) {
         captureFlowFailure({
           flow: 'profile_update',
-          step: 'upsert_experience',
+          step: 'parallel_write',
           message:
-            err instanceof Error ? err.message : 'Experience upsert failed',
+            err instanceof Error
+              ? err.message
+              : 'Profile parallel write failed',
         });
         throw err;
       }
 
-      // 4) prime user-data cache before navigation — bounded by a short
+      // 3) prime user-data cache before navigation — bounded by a short
       //    timeout. If the backend has already synced (the common case
-      //    once steps 1-3 returned), the next page mount renders from
+      //    once step 2 returned), the next page mount renders from
       //    cache with zero API calls. Otherwise we fall back to the
       //    historical clear-cache + background-poll path so the user is
       //    never blocked on backend latency.
@@ -189,11 +193,15 @@ export function useProfileSubmit({
         }
       }
 
-      // 5) optimistic session update — keep role/onboarding from current
+      // 4) optimistic session update — keep role/onboarding from current
       //    session so we never flicker mentor → mentee while the backend
-      //    catches up. The reconcile in step 7 corrects them if the user
+      //    catches up. The reconcile in step 6 corrects them if the user
       //    actually transitioned during this submit.
-      await updateSession({
+      //    Fire-and-forget: navigation no longer waits for NextAuth's
+      //    /api/auth/session round trip. The optimistic data is already
+      //    in the call args, so the JWT update lands before the next
+      //    render.
+      void updateSession({
         user: {
           id: sessionUser?.id,
           name: values.name ?? sessionUser?.name,
@@ -208,7 +216,7 @@ export function useProfileSubmit({
         },
       });
 
-      // 6) navigate immediately — user no longer waits for backend sync
+      // 5) navigate immediately — user no longer waits for backend sync
       trackEvent({ name: 'profile_update_submitted', feature: 'profile' });
       if (isMentorOnboarding) {
         router.push('/profile/card');
@@ -216,7 +224,7 @@ export function useProfileSubmit({
         router.push(`/profile/${pageUserId}`);
       }
 
-      // 7) session reconcile — if the backend ultimately reports a
+      // 6) session reconcile — if the backend ultimately reports a
       //    different is_mentor / onboarding than the optimistic value,
       //    patch the session. Reuses the primed result when available so
       //    we do not double-poll; otherwise falls back to the background
