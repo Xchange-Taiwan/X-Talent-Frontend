@@ -37,13 +37,15 @@ const mockLists = {
   pendingMentee: [makeReservation('2')],
   upcomingMentor: [makeReservation('3')],
   pendingMentor: [makeReservation('4')],
-  history: [makeReservation('5')],
+  mentorHistory: [makeReservation('5')],
+  menteeHistory: [makeReservation('6')],
   nextTokens: {
     menteeUpcoming: 0,
     menteePending: 0,
     mentorUpcoming: 0,
     mentorPending: 0,
-    history: 0,
+    mentorHistory: 0,
+    menteeHistory: 0,
   },
 };
 
@@ -69,7 +71,7 @@ describe('useReservationData', () => {
     expect(result.current.data).toBeNull();
   });
 
-  it('has session + fetch succeeds → data contains all five reservation lists correctly mapped', async () => {
+  it('has session + fetch succeeds → data contains all six reservation lists correctly mapped', async () => {
     const { result } = await act(async () =>
       renderHook(() => useReservationData())
     );
@@ -80,7 +82,8 @@ describe('useReservationData', () => {
       pendingMentee: mockLists.pendingMentee,
       upcomingMentor: mockLists.upcomingMentor,
       pendingMentor: mockLists.pendingMentor,
-      history: mockLists.history,
+      mentorHistory: mockLists.mentorHistory,
+      menteeHistory: mockLists.menteeHistory,
       nextTokens: mockLists.nextTokens,
     });
     expect(result.current.isLoading).toBe(false);

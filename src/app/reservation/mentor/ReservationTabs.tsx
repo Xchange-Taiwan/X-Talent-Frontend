@@ -11,7 +11,8 @@ export type ReservationTabsProps = {
   pendingMentee: Reservation[];
   upcomingMentor: Reservation[];
   pendingMentor: Reservation[];
-  history: Reservation[];
+  mentorHistory: Reservation[];
+  menteeHistory: Reservation[];
   nextTokens: NextTokens;
   isLoadingMore: boolean;
   onLoadMore: (state: ReservationState) => void;
@@ -23,7 +24,8 @@ export default function ReservationTabs({
   pendingMentee,
   upcomingMentor,
   pendingMentor,
-  history,
+  mentorHistory,
+  menteeHistory,
   nextTokens,
   isLoadingMore,
   onLoadMore,
@@ -31,6 +33,7 @@ export default function ReservationTabs({
 }: ReservationTabsProps) {
   void upcomingMentee;
   void pendingMentee;
+  void menteeHistory;
 
   const triggerClass =
     'group shrink-0 rounded-full border border-border px-3 py-1.5 text-sm ' +
@@ -70,7 +73,7 @@ export default function ReservationTabs({
 
                   <TabsTrigger value="history" className={triggerClass}>
                     歷史紀錄
-                    <span className={countClass}>{history.length}</span>
+                    <span className={countClass}>{mentorHistory.length}</span>
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -105,11 +108,11 @@ export default function ReservationTabs({
 
           <TabsContent value="history" className="mt-4 sm:mt-6">
             <ReservationList
-              items={history}
+              items={mentorHistory}
               variant="history"
               sourceRole="mentor"
-              hasMore={nextTokens.history !== 0}
-              onLoadMore={() => onLoadMore('HISTORY')}
+              hasMore={nextTokens.mentorHistory !== 0}
+              onLoadMore={() => onLoadMore('MENTOR_HISTORY')}
               isLoadingMore={isLoadingMore}
               onMutationSuccess={onMutationSuccess}
             />
