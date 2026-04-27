@@ -55,26 +55,28 @@ export function ReservationList({
   const accept = async ({ id, message }: { id: string; message: string }) => {
     try {
       const session = await getSession();
-      const myId = String(session?.user?.id ?? '');
-      if (!myId) throw new Error('[ReservationList] missing current user id');
+      const sessionId = session?.user?.id;
+      if (!sessionId)
+        throw new Error('[ReservationList] missing current user id');
+      const myIdStr = String(sessionId);
+      const myIdNum = Number(sessionId);
 
       const it = findItem(id);
-      const otherId = resolveOtherId(myId, it);
+      const otherIdNum = Number(resolveOtherId(myIdStr, it));
 
       await updateReservationStatus({
-        userId: myId,
+        userId: myIdStr,
         reservationId: id,
         body: {
-          my_user_id: myId,
-          user_id: otherId,
+          my_user_id: myIdNum,
+          user_id: otherIdNum,
           my_status: 'ACCEPT',
           schedule_id: it.scheduleId,
           dtstart: it.dtstart,
           dtend: it.dtend,
           messages: message.trim()
-            ? [{ user_id: myId, content: message.trim() }]
+            ? [{ user_id: myIdNum, content: message.trim() }]
             : [],
-          previous_reserve: {},
         },
       });
 
@@ -104,26 +106,28 @@ export function ReservationList({
   ) => {
     try {
       const session = await getSession();
-      const myId = String(session?.user?.id ?? '');
-      if (!myId) throw new Error('[ReservationList] missing current user id');
+      const sessionId = session?.user?.id;
+      if (!sessionId)
+        throw new Error('[ReservationList] missing current user id');
+      const myIdStr = String(sessionId);
+      const myIdNum = Number(sessionId);
 
       const it = findItem(id);
-      const otherId = resolveOtherId(myId, it);
+      const otherIdNum = Number(resolveOtherId(myIdStr, it));
 
       await updateReservationStatus({
-        userId: myId,
+        userId: myIdStr,
         reservationId: id,
         body: {
-          my_user_id: myId,
-          user_id: otherId,
+          my_user_id: myIdNum,
+          user_id: otherIdNum,
           my_status: 'REJECT',
           schedule_id: it.scheduleId,
           dtstart: it.dtstart,
           dtend: it.dtend,
           messages: text.trim()
-            ? [{ user_id: myId, content: text.trim() }]
+            ? [{ user_id: myIdNum, content: text.trim() }]
             : [],
-          previous_reserve: {},
         },
       });
 
