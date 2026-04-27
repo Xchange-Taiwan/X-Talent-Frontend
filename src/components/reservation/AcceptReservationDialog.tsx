@@ -224,7 +224,7 @@ export default function AcceptReservationDialog({
           <div className="p-6">
             <DialogHeader className="mb-4">
               <DialogTitle className="text-center sm:text-left">
-                拒絕 Mentee 預約的原因
+                拒絕學員預約的原因
               </DialogTitle>
               <DialogDescription className="text-center sm:text-left">
                 請說明無法接受此預約的原因。

@@ -1,5 +1,10 @@
+export type MessageRole = 'MENTEE' | 'MENTOR';
+
 export type ReservationMessage = {
   content: string;
+  // Resolved party for this message. Undefined when neither the message's own
+  // role nor the sender/participant fallback could classify it.
+  role?: MessageRole;
 };
 
 export type Reservation = {
@@ -9,8 +14,10 @@ export type Reservation = {
   roleLine: string;
   date: string;
   time: string;
-  // Latest message authored by each party. Either side may be undefined when
-  // that party hasn't written anything yet.
+  // Full conversation in the order returned by the API. Empty when no messages.
+  messages: ReservationMessage[];
+  // Latest message authored by each party — derived from `messages` for the
+  // card preview. Either side may be undefined when that party hasn't written.
   menteeMessage?: ReservationMessage;
   mentorMessage?: ReservationMessage;
 

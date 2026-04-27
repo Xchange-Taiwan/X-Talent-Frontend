@@ -4,6 +4,7 @@ import { getSession, useSession } from 'next-auth/react';
 
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
+import ReservationConversationDialog from '@/components/reservation/ReservationConversationDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
@@ -193,6 +194,14 @@ export function ReservationList({
                 }
               />
             )
+          }
+          footer={
+            variant === 'history' && it.messages.length > 0 ? (
+              <ReservationConversationDialog
+                reservation={it}
+                sourceRole={sourceRole}
+              />
+            ) : null
           }
         />
       ))}
