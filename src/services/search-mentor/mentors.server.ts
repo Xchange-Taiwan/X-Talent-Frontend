@@ -8,7 +8,9 @@ type InterestListResponse =
   components['schemas']['ApiResponse_InterestListVO_'];
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
-// mentor pool data is not realtime — ISR keeps LCP fast and limits BFF load
+// Unfiltered listing is shared by every visitor — keep ISR so LCP stays fast.
+// Filtered/searched listings have unbounded cache-key combinations, so we
+// bypass the data cache to avoid blowing up Next's fetch cache and the BFF.
 const REVALIDATE_SECONDS = 60;
 
 function buildUrl(
@@ -27,6 +29,17 @@ function buildUrl(
   return qs ? `${url}?${qs}` : url;
 }
 
+function hasMentorRequestConditions(param: MentorRequest): boolean {
+  return Boolean(
+    param.searchPattern ||
+    param.filter_positions ||
+    param.filter_skills ||
+    param.filter_topics ||
+    param.filter_expertises ||
+    param.filter_industries
+  );
+}
+
 export async function fetchMentorsServer(
   param: MentorRequest
 ): Promise<MentorType[]> {
@@ -36,12 +49,15 @@ export async function fetchMentorsServer(
   // build prerender.
   if (!BASE_URL) return [];
   try {
+    const fetchOptions: RequestInit = hasMentorRequestConditions(param)
+      ? { cache: 'no-store' }
+      : { next: { revalidate: REVALIDATE_SECONDS } };
     const res = await fetch(
       buildUrl(
         '/v1/mentors',
         param as unknown as Record<string, string | number | undefined>
       ),
-      { next: { revalidate: REVALIDATE_SECONDS } }
+      fetchOptions
     );
     if (!res.ok) {
       console.error(`SSR fetchMentors failed: ${res.status}`);
