@@ -1,6 +1,6 @@
 'use client';
 
-import { FC } from 'react';
+import { FC, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -24,7 +24,10 @@ interface Props {
 }
 
 export const SkillsToImprove: FC<Props> = ({ form, skillOptions }) => {
-  const categories = groupAsPlaceholderCategories(skillOptions);
+  const categories = useMemo(
+    () => groupAsPlaceholderCategories(skillOptions),
+    [skillOptions]
+  );
 
   return (
     <FormField

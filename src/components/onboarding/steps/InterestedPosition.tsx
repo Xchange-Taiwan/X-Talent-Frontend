@@ -1,6 +1,6 @@
 'use client';
 
-import { FC } from 'react';
+import { FC, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -26,7 +26,10 @@ export const InterestedPosition: FC<Props> = ({
   form,
   interestedPositionOptions,
 }) => {
-  const categories = groupAsPlaceholderCategories(interestedPositionOptions);
+  const categories = useMemo(
+    () => groupAsPlaceholderCategories(interestedPositionOptions),
+    [interestedPositionOptions]
+  );
 
   return (
     <FormField
