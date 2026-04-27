@@ -8,8 +8,8 @@ import type {
   FilterOptions,
   SelectFilters,
 } from '@/components/filter/MentorFilterDropdown';
+import useIndustries from '@/hooks/user/industry/useIndustries';
 import useInterests from '@/hooks/user/interests/useInterests';
-import type { InterestVO } from '@/services/profile/interests';
 import {
   fetchMentorsEnriched,
   MentorType,
@@ -26,8 +26,8 @@ import {
 } from './searchParams';
 import MentorPoolUI from './ui';
 
-function interestsToOptions(
-  items: InterestVO[]
+function subjectsToOptions(
+  items: ReadonlyArray<{ subject?: string | null }>
 ): { label: string; value: string }[] {
   return items
     .map((i) => ({ label: i.subject ?? '', value: i.subject ?? '' }))
@@ -50,20 +50,25 @@ export default function MentorPoolContainer({
   const [isPending, startTransition] = useTransition();
   const selectedFilters = parseFiltersFromParams(params);
   const { expertises, whatIOffers } = useInterests('zh_TW');
+  const { industries } = useIndustries('zh_TW');
 
   const dynamicFilterOptions = useMemo<FilterOptions>(
     () => ({
       ...filterOptions,
       filter_skills: {
         ...filterOptions.filter_skills,
-        options: interestsToOptions(expertises),
+        options: subjectsToOptions(expertises),
       },
       filter_topics: {
         ...filterOptions.filter_topics,
-        options: interestsToOptions(whatIOffers),
+        options: subjectsToOptions(whatIOffers),
+      },
+      filter_industries: {
+        ...filterOptions.filter_industries,
+        options: subjectsToOptions(industries),
       },
     }),
-    [expertises, whatIOffers]
+    [expertises, whatIOffers, industries]
   );
 
   const [mentorCount, setMentorCount] = useState<number>(initialMentorCount);

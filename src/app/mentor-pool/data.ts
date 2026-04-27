@@ -1,24 +1,21 @@
 import { FilterOptions } from '@/components/filter/MentorFilterDropdown';
 
-// Skill / Topic option lists are populated at runtime from useInterests in
-// container.tsx. We keep the keys + display name here so server-side
-// searchParams parsing has a stable shape without touching the client cache.
+// Option lists are populated at runtime in container.tsx
+// (useInterests for skills/topics, useIndustries for industries).
+// We keep the keys + display name here so server-side searchParams
+// parsing has a stable shape without touching the client caches.
 export const filterOptions: FilterOptions = {
   filter_skills: {
-    name: 'Skill',
+    name: '技能',
     options: [],
   },
   filter_topics: {
-    name: 'Topic',
+    name: '主題',
     options: [],
   },
   filter_industries: {
-    name: 'Industry',
-    options: [
-      { label: 'Technology', value: 'Technology' },
-      { label: 'Healthcare', value: 'Healthcare' },
-      { label: 'Finance', value: 'Finance' },
-    ],
+    name: '產業',
+    options: [],
   },
 };
 
