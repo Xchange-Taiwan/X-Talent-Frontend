@@ -18,6 +18,7 @@ import {
 import useLocations from '@/hooks/user/country/useLocations';
 import useIndustries from '@/hooks/user/industry/useIndustries';
 import useInterests from '@/hooks/user/interests/useInterests';
+import { clearUserDataCache } from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { updateAvatar } from '@/services/profile/updateAvatar';
@@ -166,6 +167,10 @@ export default function OnboardingContainer() {
         const validatedData = formSchema.parse(allData);
         await updateProfile(validatedData);
         const latest = await fetchUser('zh_TW');
+
+        if (session?.user?.id) {
+          clearUserDataCache(Number(session.user.id), 'zh_TW');
+        }
 
         await updateSession({
           user: {
