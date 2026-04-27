@@ -21,13 +21,14 @@ export const filterOptions: FilterOptions = {
 
 // Hardcoded fallback until the backend exposes a popular-position ranking
 // endpoint. Replacing this with a fetch is a one-line swap in container.tsx.
+// Labels follow the zh_TW INTERESTED_POSITION naming used in onboarding.
 export const POPULAR_POSITIONS: ReadonlyArray<string> = [
-  'Frontend Developer',
-  'Backend Developer',
-  'Software Engineer',
-  'Product Manager',
-  'UI/UX Designer',
-  'Data Engineer',
-  'DevOps Engineer',
-  'Mobile Developer',
+  '前端工程師',
+  '後端工程師',
+  '全端工程師',
+  '產品經理',
+  'UIUX 設計師',
+  '資料工程師',
+  'AI 工程師',
+  'iOS 工程師',
 ];
