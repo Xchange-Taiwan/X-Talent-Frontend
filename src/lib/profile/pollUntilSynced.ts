@@ -23,6 +23,44 @@ function isProfileSynced(
 }
 
 /**
+ * Single, fast attempt to read the latest profile and confirm it matches the
+ * just-submitted values, bounded by `timeoutMs`. Used by submit handlers to
+ * prime caches before navigation so the next page can render from cache
+ * without a fresh API call.
+ *
+ * Returns the synced MentorProfileVO on success, or null if:
+ *   - the backend has not synced yet,
+ *   - fetch failed, or
+ *   - the call did not complete within `timeoutMs`.
+ *
+ * Never throws. On null, callers fall back to the slower `pollUntilSynced`
+ * background reconcile path so the user is not blocked on backend latency.
+ */
+export async function firstSyncedFetch(
+  values: ProfileFormValues,
+  avatar: string,
+  timeoutMs = 800
+): Promise<MentorProfileVO | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), timeoutMs);
+  });
+
+  const fetchPromise = fetchUser('zh_TW')
+    .then((latest) => {
+      if (latest && isProfileSynced(values, latest, avatar)) return latest;
+      return null;
+    })
+    .catch(() => null);
+
+  try {
+    return await Promise.race([fetchPromise, timeoutPromise]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
  * Polls fetchUser until the backend reflects the submitted values, or the
  * retry budget is exhausted. Designed for fire-and-forget background use:
  * never throws, and reports a Sentry breadcrumb if max retries elapse

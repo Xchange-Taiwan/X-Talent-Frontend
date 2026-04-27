@@ -4,14 +4,21 @@ import { Session } from 'next-auth';
 import { useState } from 'react';
 
 import { ProfileFormValues } from '@/components/profile/edit/profileSchema';
-import { clearUserDataCache } from '@/hooks/user/user-data/useUserData';
+import {
+  clearUserDataCache,
+  primeUserDataCache,
+} from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
-import { pollUntilSynced } from '@/lib/profile/pollUntilSynced';
+import {
+  firstSyncedFetch,
+  pollUntilSynced,
+} from '@/lib/profile/pollUntilSynced';
 import { ExperienceType } from '@/services/profile/experienceType';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
 import { upsertMentorExperience } from '@/services/profile/upsertExperience';
+import { MentorProfileVO } from '@/services/profile/user';
 
 interface Options {
   pageUserId: string;
@@ -159,18 +166,33 @@ export function useProfileSubmit({
         throw err;
       }
 
-      // 4) optimistic session update — keep role/onboarding from current
-      //    session so we never flicker mentor → mentee while the backend
-      //    catches up. The background reconcile in step 6 corrects them
-      //    if the user actually transitioned during this submit.
-      if (session?.user?.id) {
-        clearUserDataCache(Number(session.user.id), 'zh_TW');
-      }
+      // 4) prime user-data cache before navigation — bounded by a short
+      //    timeout. If the backend has already synced (the common case
+      //    once steps 1-3 returned), the next page mount renders from
+      //    cache with zero API calls. Otherwise we fall back to the
+      //    historical clear-cache + background-poll path so the user is
+      //    never blocked on backend latency.
+      const sessionUserId = session?.user?.id ? Number(session.user.id) : null;
       const sessionUser = session?.user;
       const personalLinks = links.map((link) => ({
         platform: link.platform,
         url: link.url,
       }));
+
+      let primedLatest: MentorProfileVO | null = null;
+      if (sessionUserId) {
+        primedLatest = await firstSyncedFetch(values, avatar ?? '');
+        if (primedLatest) {
+          primeUserDataCache(sessionUserId, 'zh_TW', primedLatest);
+        } else {
+          clearUserDataCache(sessionUserId, 'zh_TW');
+        }
+      }
+
+      // 5) optimistic session update — keep role/onboarding from current
+      //    session so we never flicker mentor → mentee while the backend
+      //    catches up. The reconcile in step 7 corrects them if the user
+      //    actually transitioned during this submit.
       await updateSession({
         user: {
           id: sessionUser?.id,
@@ -186,7 +208,7 @@ export function useProfileSubmit({
         },
       });
 
-      // 5) navigate immediately — user no longer waits for backend sync
+      // 6) navigate immediately — user no longer waits for backend sync
       trackEvent({ name: 'profile_update_submitted', feature: 'profile' });
       if (isMentorOnboarding) {
         router.push('/profile/card');
@@ -194,10 +216,12 @@ export function useProfileSubmit({
         router.push(`/profile/${pageUserId}`);
       }
 
-      // 6) background reconcile — silent, never blocks the user. If the
-      //    backend ultimately reports a different is_mentor / onboarding
-      //    than the optimistic value, patch the session in the background.
-      void pollUntilSynced(values, avatar ?? '').then((latest) => {
+      // 7) session reconcile — if the backend ultimately reports a
+      //    different is_mentor / onboarding than the optimistic value,
+      //    patch the session. Reuses the primed result when available so
+      //    we do not double-poll; otherwise falls back to the background
+      //    pollUntilSynced for slow-sync cases.
+      const reconcileSession = (latest: MentorProfileVO | null) => {
         if (!latest) return;
         const optimisticIsMentor = sessionUser?.isMentor ?? false;
         const optimisticOnBoarding = sessionUser?.onBoarding ?? false;
@@ -216,7 +240,13 @@ export function useProfileSubmit({
             onBoarding: latestOnBoarding,
           },
         });
-      });
+      };
+
+      if (primedLatest) {
+        reconcileSession(primedLatest);
+      } else {
+        void pollUntilSynced(values, avatar ?? '').then(reconcileSession);
+      }
     } catch (err) {
       captureFlowFailure({
         flow: 'profile_update',

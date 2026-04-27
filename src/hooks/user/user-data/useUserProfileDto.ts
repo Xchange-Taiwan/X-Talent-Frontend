@@ -38,6 +38,28 @@ export function clearUserProfileDtoCache(
   userDtoPromiseCache.delete(key);
 }
 
+/**
+ * Writes a known-fresh dto into the in-memory cache so the next consumer of
+ * useUserProfileDto for this user renders from cache without an API call.
+ * Call this after the caller has already retrieved authoritative data (e.g.
+ * pollUntilSynced result post profile-submit) to prime the cache before
+ * navigating to a page that reads the same dto.
+ */
+export function primeUserProfileDtoCache(
+  userId: number,
+  language: string,
+  data: MentorProfileVO
+): void {
+  const key = `${userId}-${language}`;
+  userDtoDataCache.set(key, {
+    data,
+    expiresAt: Date.now() + USER_PROFILE_DTO_CACHE_TTL_MS,
+  });
+  // Drop any in-flight promise for this key so future readers see the primed
+  // entry instead of awaiting an older fetch that is about to be superseded.
+  userDtoPromiseCache.delete(key);
+}
+
 // Promise-deduped fetch: writes to the data cache on success so subsequent
 // readers (including a parallel-mounted hook) see the fresh entry. Concurrent
 // callers share the same in-flight promise to avoid duplicate network calls.
