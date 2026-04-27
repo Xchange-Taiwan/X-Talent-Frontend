@@ -83,8 +83,14 @@ describe('mapToReservation', () => {
       messages: [{ user_id: 20, role: 'MENTEE', content: 'Hello mentor!' }],
     });
     const result = mapToReservation(reservation);
-    expect(result.menteeMessage).toEqual({ content: 'Hello mentor!' });
+    expect(result.menteeMessage).toEqual({
+      content: 'Hello mentor!',
+      role: 'MENTEE',
+    });
     expect(result.mentorMessage).toBeUndefined();
+    expect(result.messages).toEqual([
+      { content: 'Hello mentor!', role: 'MENTEE' },
+    ]);
   });
 
   it('both sides have messages → menteeMessage and mentorMessage both populated', () => {
@@ -113,13 +119,21 @@ describe('mapToReservation', () => {
       ],
     });
     const result = mapToReservation(reservation);
-    expect(result.menteeMessage).toEqual({ content: 'Looking forward!' });
+    expect(result.menteeMessage).toEqual({
+      content: 'Looking forward!',
+      role: 'MENTEE',
+    });
     expect(result.mentorMessage).toEqual({
       content: 'See you on Google Meet.',
+      role: 'MENTOR',
     });
+    expect(result.messages).toEqual([
+      { content: 'Looking forward!', role: 'MENTEE' },
+      { content: 'See you on Google Meet.', role: 'MENTOR' },
+    ]);
   });
 
-  it('multiple mentee messages → menteeMessage uses the latest one', () => {
+  it('multiple mentee messages → menteeMessage uses the latest, but messages keeps every entry in API order', () => {
     const reservation = makeReservation({
       messages: [
         { user_id: 20, role: 'MENTEE', content: 'First note' },
@@ -127,17 +141,45 @@ describe('mapToReservation', () => {
       ],
     });
     const result = mapToReservation(reservation);
-    expect(result.menteeMessage).toEqual({ content: 'Updated note' });
+    expect(result.menteeMessage).toEqual({
+      content: 'Updated note',
+      role: 'MENTEE',
+    });
     expect(result.mentorMessage).toBeUndefined();
+    expect(result.messages).toEqual([
+      { content: 'First note', role: 'MENTEE' },
+      { content: 'Updated note', role: 'MENTEE' },
+    ]);
   });
 
-  it('blank message content → message is undefined', () => {
+  it('multi-turn conversation → messages preserves every turn in order', () => {
+    const reservation = makeReservation({
+      messages: [
+        { user_id: 20, role: 'MENTEE', content: 'Initial question' },
+        { user_id: 10, role: 'MENTOR', content: 'First reply' },
+        { user_id: 20, role: 'MENTEE', content: 'Follow-up question' },
+        { user_id: 10, role: 'MENTOR', content: 'Final reply' },
+      ],
+    });
+    const result = mapToReservation(reservation);
+    expect(result.messages.map((m) => m.content)).toEqual([
+      'Initial question',
+      'First reply',
+      'Follow-up question',
+      'Final reply',
+    ]);
+    expect(result.menteeMessage?.content).toBe('Follow-up question');
+    expect(result.mentorMessage?.content).toBe('Final reply');
+  });
+
+  it('blank message content → message is undefined and messages array is empty', () => {
     const reservation = makeReservation({
       messages: [{ user_id: 20, role: 'MENTEE', content: '   ' }],
     });
     const result = mapToReservation(reservation);
     expect(result.menteeMessage).toBeUndefined();
     expect(result.mentorMessage).toBeUndefined();
+    expect(result.messages).toEqual([]);
   });
 
   it('message role missing → falls back to user_id → sender/participant role lookup', () => {
@@ -148,17 +190,24 @@ describe('mapToReservation', () => {
       ],
     });
     const result = mapToReservation(reservation);
-    expect(result.mentorMessage).toEqual({ content: 'From the mentor side' });
-    expect(result.menteeMessage).toEqual({ content: 'From the mentee side' });
+    expect(result.mentorMessage).toEqual({
+      content: 'From the mentor side',
+      role: 'MENTOR',
+    });
+    expect(result.menteeMessage).toEqual({
+      content: 'From the mentee side',
+      role: 'MENTEE',
+    });
   });
 
-  it('message from unknown user with unknown role → ignored', () => {
+  it('message from unknown user with unknown role → kept in messages but no role attached', () => {
     const reservation = makeReservation({
       messages: [{ user_id: 999, role: 'OTHER', content: 'Wrong user' }],
     });
     const result = mapToReservation(reservation);
     expect(result.menteeMessage).toBeUndefined();
     expect(result.mentorMessage).toBeUndefined();
+    expect(result.messages).toEqual([{ content: 'Wrong user' }]);
   });
 
   it('job_title present, years_of_experience empty → roleLine has no trailing comma', () => {

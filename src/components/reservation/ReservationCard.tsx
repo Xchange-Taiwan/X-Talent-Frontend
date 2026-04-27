@@ -10,11 +10,15 @@ import type { Reservation } from './types';
 export function ReservationCard({
   item,
   actions,
+  footer,
   profileHref,
   onProfileClick,
 }: {
   item: Reservation;
   actions?: React.ReactNode;
+  // Optional slot rendered below the message preview. Used by HISTORY tabs to
+  // mount the "view full conversation" entry without coupling the card to it.
+  footer?: React.ReactNode;
   profileHref?: string;
   onProfileClick?: () => void;
 }) {
@@ -127,7 +131,7 @@ export function ReservationCard({
                     />
                     <div className="min-w-0 flex-1">
                       <div className="text-[11px] font-medium text-muted-foreground sm:text-xs">
-                        Mentor 回覆
+                        導師回覆
                       </div>
                       <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap break-words text-foreground">
                         {mentorMessage.content}
@@ -137,6 +141,8 @@ export function ReservationCard({
                 ) : null}
               </div>
             ) : null}
+
+            {footer ? <div className="mt-3">{footer}</div> : null}
           </div>
         </div>
       </CardContent>
