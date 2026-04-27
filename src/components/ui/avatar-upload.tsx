@@ -14,12 +14,14 @@ interface AvatarUploadProps<T extends FieldValues> {
   control: Control<T>;
   name: Path<T>;
   avatarUrl?: string;
+  onFileChange?: (file: File) => void;
 }
 
 const AvatarUpload = <T extends FieldValues>({
   control,
   name,
   avatarUrl,
+  onFileChange,
 }: AvatarUploadProps<T>) => {
   const { field } = useController({ control, name });
 
@@ -48,6 +50,7 @@ const AvatarUpload = <T extends FieldValues>({
       });
       field.onChange(croppedFile);
       setSelectedImage(croppedFile);
+      onFileChange?.(croppedFile);
     }
   };
 

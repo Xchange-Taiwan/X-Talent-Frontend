@@ -29,6 +29,7 @@ import useLocations from '@/hooks/user/country/useLocations';
 import useExpertises from '@/hooks/user/expertises/useExpertises';
 import useIndustries from '@/hooks/user/industry/useIndustries';
 import useInterests from '@/hooks/user/interests/useInterests';
+import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { useEditProfileData } from '@/hooks/user/profile/useEditProfileData';
 import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
 import {
@@ -103,6 +104,10 @@ export default function Page({
     prefetchPresignedUrl(userId);
   }, [isAuthorized, pageUserId]);
 
+  // Kicks off the S3 upload the moment the user crops a new avatar so
+  // submit doesn't pay the round trip — see useBackgroundAvatarUpload.
+  const avatarUpload = useBackgroundAvatarUpload();
+
   const industryCategories = flattenAsSingleCategory(industries);
   const whatIOfferCategories = groupAsPlaceholderCategories(topics);
   const expertisesCategories = groupAsPlaceholderCategories(expertises);
@@ -145,6 +150,7 @@ export default function Page({
     jobSectionError,
     educationSectionError,
     onScrollToError: scrollToField,
+    consumeAvatarUpload: avatarUpload.consume,
   });
 
   if (!isAuthorized) return null;
@@ -168,7 +174,11 @@ export default function Page({
           onSubmit={form.handleSubmit(onSubmit, onError)}
           className="space-y-10"
         >
-          <AvatarSection control={form.control} name="avatarFile" />
+          <AvatarSection
+            control={form.control}
+            name="avatarFile"
+            onFileChange={avatarUpload.kickOff}
+          />
 
           <Section
             id="name"

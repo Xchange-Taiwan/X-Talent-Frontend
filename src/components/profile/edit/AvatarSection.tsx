@@ -11,11 +11,13 @@ import { Section } from './Section';
 interface AvatarSectionProps<T extends FieldValues> {
   control: Control<T>;
   name: Path<T>;
+  onFileChange?: (file: File) => void;
 }
 
 export const AvatarSection = <T extends FieldValues>({
   control,
   name,
+  onFileChange,
 }: AvatarSectionProps<T>) => {
   const { data: session } = useSession();
   // Stable fallback used when avatarUpdatedAt is absent (e.g. fresh login
@@ -32,7 +34,12 @@ export const AvatarSection = <T extends FieldValues>({
 
   return (
     <Section title="個人頭像">
-      <AvatarUpload control={control} name={name} avatarUrl={avatarUrl} />
+      <AvatarUpload
+        control={control}
+        name={name}
+        avatarUrl={avatarUrl}
+        onFileChange={onFileChange}
+      />
     </Section>
   );
 };
