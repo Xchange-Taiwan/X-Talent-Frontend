@@ -310,6 +310,7 @@ export default function MenteeReservationDialog({
                 }
                 alt={userData?.name || 'Mentor Avatar'}
                 fill
+                sizes="64px"
                 className="rounded-full object-cover"
               />
             </div>
@@ -381,6 +382,7 @@ export default function MenteeReservationDialog({
                 }
                 alt={userData?.name || 'Mentor Avatar'}
                 fill
+                sizes="64px"
                 className="rounded-full object-cover"
               />
             </div>

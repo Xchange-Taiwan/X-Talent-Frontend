@@ -38,7 +38,12 @@ export const Footer: FC = () => {
   return (
     <footer className="flex h-auto w-full bg-dark pb-[50px] md:h-[290px]">
       <div className="flex w-full flex-col items-center px-5 pt-[50px] md:flex-row md:items-start md:justify-between md:px-[70px]">
-        <Image src={logoImgUrl} className="h-[39px] w-[146px]" alt="logo" />
+        <Image
+          src={logoImgUrl}
+          alt="logo"
+          sizes="146px"
+          className="h-[39px] w-[146px]"
+        />
 
         <div className="mt-8 flex flex-col gap-8 text-[#FFFFFF] md:mt-0 md:flex-row md:gap-x-16">
           <div className="flex flex-col items-center md:items-start">
