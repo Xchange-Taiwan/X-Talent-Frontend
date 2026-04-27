@@ -49,7 +49,8 @@ const SearchBar: React.FC<SearchBarProps> = ({
     'aria-label': '搜尋',
   };
 
-  const inputClass = 'h-5 min-w-0 flex-auto truncate text-base outline-none';
+  const inputClass =
+    'h-5 min-w-0 flex-auto truncate rounded-sm text-base outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 
   return (
     <div className="flex w-full max-w-[846px] items-center rounded-2xl border border-[#E6E8EA] bg-background-white px-3 py-1.5 md:px-6 md:py-4">
