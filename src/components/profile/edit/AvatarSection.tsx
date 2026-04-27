@@ -20,12 +20,14 @@ export const AvatarSection = <T extends FieldValues>({
   const { data: session } = useSession();
   // Stable fallback used when avatarUpdatedAt is absent (e.g. fresh login
   // before any update). Ensures the browser fetches the current image on
-  // first load rather than serving a previously-cached ?cb=0 stale copy.
+  // first load rather than serving a previously-cached ?v=0 stale copy.
   const stableCacheBust = useRef(Date.now()).current;
 
+  // Use ?v= (matches the layout preload + profile view page) so the optimizer
+  // cache key is identical across surfaces and the preloaded image is reused.
   const sessionAvatar = session?.user?.avatar ?? '';
   const avatarUrl = sessionAvatar
-    ? `${sessionAvatar}?cb=${session?.user?.avatarUpdatedAt ?? stableCacheBust}`
+    ? `${sessionAvatar}?v=${session?.user?.avatarUpdatedAt ?? stableCacheBust}`
     : '';
 
   return (

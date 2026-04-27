@@ -88,6 +88,7 @@ const AvatarUpload = <T extends FieldValues>({
             height={150}
             sizes="150px"
             className="h-full w-full rounded-full object-cover"
+            priority
           />
         ) : (
           // Show default avatar if no image is selected
