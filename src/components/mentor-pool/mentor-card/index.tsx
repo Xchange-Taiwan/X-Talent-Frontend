@@ -39,7 +39,7 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
           href={`/profile/${id}`}
           className="absolute bottom-0 left-0 right-0 top-0 z-10"
         ></Link>
-        <AvatarWithBadge avatar={avatar} years={years} />
+        <AvatarWithBadge avatar={avatar} years={years} name={name} />
         <div className="px-4 pb-6 pt-4">
           <Information
             name={name}

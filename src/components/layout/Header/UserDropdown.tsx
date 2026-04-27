@@ -111,7 +111,7 @@ export const UserDropdown = React.memo(function UserDropdown({
           >
             <Image
               src={avatarSrc || DefaultAvatarImgUrl}
-              alt="avatar"
+              alt={name ? `${name} 的頭像` : '我的頭像'}
               width={32}
               height={32}
               className="h-8 w-8 rounded-full object-cover"
@@ -133,7 +133,7 @@ export const UserDropdown = React.memo(function UserDropdown({
           >
             <Image
               src={avatarSrc || DefaultAvatarImgUrl}
-              alt="avatar"
+              alt={name ? `${name} 的頭像` : '我的頭像'}
               width={56}
               height={56}
               className="h-14 w-14 rounded-full object-cover"
