@@ -37,7 +37,7 @@ import { featureData } from './data';
 const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
   return (
     <div className="mb-6 flex items-center md:mb-[50px] md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto">
-      <Image className="h-12 w-12 md:h-[70px] md:w-[70px]" src={icon} alt="1" />
+      <Image className="h-12 w-12 md:h-[70px] md:w-[70px]" src={icon} alt="" />
       <p className="ml-[20px] text-base tracking-[0.085em] md:mt-8 md:text-xl">
         {text}
       </p>
@@ -65,7 +65,7 @@ export default function Page() {
         {width > SCREEN_SIZE.lg && (
           <Image
             src={HomePageHeroImgUrl}
-            alt="Hero Section"
+            alt=""
             fill
             className="-z-10 w-[1800px] object-cover object-top"
           />
@@ -93,7 +93,7 @@ export default function Page() {
             src={landingPage_4}
             width={420}
             height={270}
-            alt="1"
+            alt=""
             className="max-w-full shrink-0 md:w-2/5"
           />
           <div className="m-auto flex flex-col py-[30px] md:m-0 md:flex-1 md:py-0 xl:pl-[62px]">
@@ -118,7 +118,7 @@ export default function Page() {
           <Image
             src={landingPage_5}
             className="max-w-full shrink-0 md:w-2/5"
-            alt="1"
+            alt=""
           />
         </div>
       </section>
@@ -162,7 +162,7 @@ export default function Page() {
             <Image
               src={landingPage_6}
               className="hidden w-[363px] xl:block"
-              alt="1"
+              alt=""
             />
             <div className="xl:ml-[78px]">
               <p className="text-midnight-blue mt-1 text-center text-xl font-bold md:text-2xl xl:text-start">
@@ -173,7 +173,7 @@ export default function Page() {
                   <Image
                     className="ml-4 md:m-0"
                     src={landingPage_icon_1}
-                    alt="1"
+                    alt=""
                   />
                   <div className="ml-[30px] flex flex-col md:ml-0 md:mt-[34px] md:items-center">
                     <p className="text-black font-medium">分享經驗</p>
@@ -184,7 +184,7 @@ export default function Page() {
                   <Image
                     className="ml-4 md:m-0"
                     src={landingPage_icon_2}
-                    alt="1"
+                    alt=""
                   />
                   <div className="ml-[30px] flex h-[43px] flex-col justify-center md:ml-0 md:mt-[34px] md:items-center">
                     <p className="text-black font-medium">建立專屬人脈網絡</p>
@@ -194,7 +194,7 @@ export default function Page() {
                   <Image
                     className="ml-4 md:m-0"
                     src={landingPage_icon_3}
-                    alt="1"
+                    alt=""
                   />
                   <div className="ml-[30px] flex flex-col md:ml-0 md:mt-[34px] md:items-center">
                     <p className="text-black font-medium">增加社會影響力</p>
@@ -208,7 +208,7 @@ export default function Page() {
             <Image
               src={landingPage_7}
               className="hidden w-[363px] xl:block"
-              alt="1"
+              alt=""
             />
             <div className="xl:ml-[78px]">
               <p className="text-midnight-blue mt-1 text-center text-xl font-bold md:text-2xl xl:text-start">
@@ -219,7 +219,7 @@ export default function Page() {
                   <Image
                     className="ml-4 md:m-0"
                     src={landingPage_icon_4}
-                    alt="1"
+                    alt=""
                   />
                   <div className="ml-[30px] flex flex-col md:ml-0 md:mt-[34px] md:items-center">
                     <p className="text-black font-medium">探索產業與</p>
@@ -230,7 +230,7 @@ export default function Page() {
                   <Image
                     className="ml-4 md:m-0"
                     src={landingPage_icon_5}
-                    alt="1"
+                    alt=""
                   />
                   <div className="ml-[35px] flex flex-col justify-center md:ml-0 md:mt-[34px] md:items-center">
                     <p className="text-black font-medium">
@@ -245,7 +245,7 @@ export default function Page() {
                   <Image
                     className="ml-4 md:m-0"
                     src={landingPage_icon_6}
-                    alt="1"
+                    alt=""
                   />
                   <div className="ml-[30px] flex flex-col md:ml-0 md:mt-[34px] md:items-center">
                     <p className="text-black font-medium">
