@@ -3,73 +3,49 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import avatarImage from '@/assets/default-avatar.png';
-import { SelectFilters } from '@/components/filter/MentorFilterDropdown';
 import {
   fetchMentorsEnriched,
   MentorType,
 } from '@/services/search-mentor/mentors';
 
+import { PAGE_LIMIT } from './constants';
 import { filterOptions } from './data';
+import { useMentorPoolState } from './MentorPoolStateProvider';
 import MentorPoolUI from './ui';
 
-const PAGE_LIMIT = 9;
-const SESSION_KEY_PATTERN = 'mentor-pool:searchPattern';
-const SESSION_KEY_FILTERS = 'mentor-pool:selectedFilters';
+interface Props {
+  initialMentors: MentorType[];
+  initialCursor: string;
+  initialMentorCount: number;
+}
 
-export default function MentorPoolContainer() {
-  const [searchPattern, setSearchPattern] = useState('');
-  const [mentorCount, setMentorCount] = useState<number>(0);
-  const [mentors, setMentors] = useState<MentorType[]>([]);
-  const [selectedFilters, setSelectedFilters] = useState<SelectFilters>({});
+export default function MentorPoolContainer({
+  initialMentors,
+  initialCursor,
+  initialMentorCount,
+}: Props) {
+  const {
+    searchPattern,
+    selectedFilters,
+    sessionRestored,
+    hasRestoredState,
+    setFilters,
+    removeFilter,
+  } = useMentorPoolState();
+
+  const [mentorCount, setMentorCount] = useState<number>(initialMentorCount);
+  const [mentors, setMentors] = useState<MentorType[]>(initialMentors);
   const [isNoResults, setIsNoResults] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isReplacing, setIsReplacing] = useState(false);
-  const [cursor, setCursor] = useState<string | undefined>('');
-  const [sessionRestored, setSessionRestored] = useState(false);
+  const [cursor, setCursor] = useState<string | undefined>(initialCursor);
   const isLoadingRef = useRef(false);
   // Monotonic counter — every fetch claims an id. Late responses whose id no
   // longer matches the current value are stale and must not touch state.
   const requestIdRef = useRef(0);
-
-  // Restore persisted search state before the first fetch
-  useEffect(() => {
-    try {
-      const savedPattern = sessionStorage.getItem(SESSION_KEY_PATTERN);
-      if (savedPattern !== null) setSearchPattern(savedPattern);
-
-      const savedFilters = sessionStorage.getItem(SESSION_KEY_FILTERS);
-      if (savedFilters) setSelectedFilters(JSON.parse(savedFilters));
-    } catch {
-      // sessionStorage unavailable (private browsing restrictions etc.) — ignore
-    } finally {
-      setSessionRestored(true);
-    }
-  }, []);
-
-  const handleFilterChange = useCallback((options: SelectFilters) => {
-    setSelectedFilters(options);
-    try {
-      sessionStorage.setItem(SESSION_KEY_FILTERS, JSON.stringify(options));
-    } catch {}
-  }, []);
-
-  const handleSearch = useCallback(async (queryWords: string) => {
-    setSearchPattern(queryWords);
-    try {
-      sessionStorage.setItem(SESSION_KEY_PATTERN, queryWords);
-    } catch {}
-  }, []);
-
-  const removeFilter = useCallback((key: string) => {
-    setSelectedFilters((prevFilters) => {
-      const newFilters = { ...prevFilters };
-      delete newFilters[key];
-      try {
-        sessionStorage.setItem(SESSION_KEY_FILTERS, JSON.stringify(newFilters));
-      } catch {}
-      return newFilters;
-    });
-  }, []);
+  // After the first run, treat further searchPattern/filter changes as user-
+  // driven and always refetch (regardless of restored state).
+  const didInitialRunRef = useRef(false);
 
   const fetchMentorsBySearch = useCallback(async () => {
     const myRequestId = ++requestIdRef.current;
@@ -166,12 +142,18 @@ export default function MentorPoolContainer() {
     await fetchMoreMentors();
   }, [mentors.length, fetchMoreMentors]);
 
-  // Only start fetching after sessionStorage has been read — avoids a wasted
-  // request with empty state immediately followed by one with the restored state.
+  // Drives both the initial restore-and-refetch and subsequent search/filter
+  // changes. On first run, only refetch if sessionStorage held persisted state
+  // (otherwise SSR-provided initial mentors are correct). After that, any
+  // search/filter change is user-driven and always refetches.
   useEffect(() => {
     if (!sessionRestored) return;
+    if (!didInitialRunRef.current) {
+      didInitialRunRef.current = true;
+      if (!hasRestoredState) return;
+    }
     fetchMentorsBySearch();
-  }, [sessionRestored, fetchMentorsBySearch]);
+  }, [sessionRestored, hasRestoredState, fetchMentorsBySearch]);
 
   return (
     <MentorPoolUI
@@ -182,8 +164,7 @@ export default function MentorPoolContainer() {
       isNoResults={isNoResults}
       selectedFilters={selectedFilters}
       filterOptions={filterOptions}
-      onSearch={handleSearch}
-      onFilterChange={handleFilterChange}
+      onFilterChange={setFilters}
       onRemoveFilter={removeFilter}
       onScrollToBottom={handleScrollToBottom}
     />

@@ -1,0 +1,100 @@
+import type { components } from '@/types/api';
+
+import { mapMentor, type MentorRequest, type MentorType } from './mapMentor';
+
+type MentorListResponse =
+  components['schemas']['ApiResponse_SearchMentorProfileListVO_'];
+type InterestListResponse =
+  components['schemas']['ApiResponse_InterestListVO_'];
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
+// mentor pool data is not realtime — ISR keeps LCP fast and limits BFF load
+const REVALIDATE_SECONDS = 60;
+
+function buildUrl(
+  path: string,
+  params?: Record<string, string | number | undefined | null>
+): string {
+  const url = `${BASE_URL}${path}`;
+  if (!params) return url;
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      query.append(key, String(value));
+    }
+  });
+  const qs = query.toString();
+  return qs ? `${url}?${qs}` : url;
+}
+
+export async function fetchMentorsServer(
+  param: MentorRequest
+): Promise<MentorType[]> {
+  // BASE_URL may be unset at build time (no .env.production* / .env.local).
+  // Skip silently — the SSR-empty result lets the client take over at runtime
+  // with the proper env, instead of throwing a noisy "Invalid URL" during
+  // build prerender.
+  if (!BASE_URL) return [];
+  try {
+    const res = await fetch(
+      buildUrl(
+        '/v1/mentors',
+        param as unknown as Record<string, string | number | undefined>
+      ),
+      { next: { revalidate: REVALIDATE_SECONDS } }
+    );
+    if (!res.ok) {
+      console.error(`SSR fetchMentors failed: ${res.status}`);
+      return [];
+    }
+    const result = (await res.json()) as MentorListResponse;
+    if (result.code !== '0') {
+      console.error(`SSR fetchMentors API error: ${result.msg}`);
+      return [];
+    }
+    return (result.data?.mentors ?? []).map(mapMentor);
+  } catch (error) {
+    console.error('SSR fetchMentors error:', error);
+    return [];
+  }
+}
+
+async function fetchSkillLabelMapServer(
+  language: string
+): Promise<Record<string, string>> {
+  if (!BASE_URL) return {};
+  try {
+    const res = await fetch(
+      buildUrl(`/v1/users/${language}/interests`, { interest: 'SKILL' }),
+      { next: { revalidate: REVALIDATE_SECONDS } }
+    );
+    if (!res.ok) return {};
+    const data = (await res.json()) as InterestListResponse;
+    const map: Record<string, string> = {};
+    (data.data?.interests ?? []).forEach((s) => {
+      map[s.subject_group] = s.subject ?? '';
+    });
+    return map;
+  } catch (error) {
+    console.error('SSR fetchSkillLabelMap error:', error);
+    return {};
+  }
+}
+
+export async function fetchMentorsEnrichedServer(
+  param: MentorRequest
+): Promise<MentorType[]> {
+  const [searchResults, skillLabelMap] = await Promise.all([
+    fetchMentorsServer(param),
+    fetchSkillLabelMapServer('zh_TW'),
+  ]);
+
+  if (searchResults.length === 0) return [];
+
+  return searchResults.map((mentor) => ({
+    ...mentor,
+    skills: mentor.skills
+      .map((subjectGroup) => skillLabelMap[subjectGroup] ?? subjectGroup)
+      .filter(Boolean),
+  }));
+}
