@@ -159,42 +159,64 @@ export function useProfileSubmit({
         throw err;
       }
 
-      // 4) poll until backend reflects all updated fields (up to 1 min, every 5s)
-      const latest = await pollUntilSynced(values, avatar ?? '');
-
-      // 5) invalidate in-memory user data cache so the profile page fetches
-      //    fresh data on next mount instead of a potentially stale promise
+      // 4) optimistic session update — keep role/onboarding from current
+      //    session so we never flicker mentor → mentee while the backend
+      //    catches up. The background reconcile in step 6 corrects them
+      //    if the user actually transitioned during this submit.
       if (session?.user?.id) {
         clearUserDataCache(Number(session.user.id), 'zh_TW');
       }
-
-      // 6) update next-auth session (requires jwt trigger update handler!)
+      const sessionUser = session?.user;
+      const personalLinks = links.map((link) => ({
+        platform: link.platform,
+        url: link.url,
+      }));
       await updateSession({
         user: {
-          // keep id from current session
-          id: session?.user?.id,
-          name: latest?.name ?? values.name ?? session?.user?.name,
-          avatar: latest?.avatar ?? avatar ?? session?.user?.avatar,
+          id: sessionUser?.id,
+          name: values.name ?? sessionUser?.name,
+          avatar: avatar ?? sessionUser?.avatar,
           avatarUpdatedAt: values.avatarFile
             ? Date.now()
-            : session?.user?.avatarUpdatedAt,
-          isMentor: Boolean(latest?.is_mentor),
-          onBoarding: Boolean(latest?.onboarding),
-          msg: session?.user?.msg,
-          personalLinks: links.map((link) => ({
-            platform: link.platform,
-            url: link.url,
-          })),
+            : sessionUser?.avatarUpdatedAt,
+          isMentor: sessionUser?.isMentor,
+          onBoarding: sessionUser?.onBoarding,
+          msg: sessionUser?.msg,
+          personalLinks,
         },
       });
 
-      // 7) navigate
+      // 5) navigate immediately — user no longer waits for backend sync
       trackEvent({ name: 'profile_update_submitted', feature: 'profile' });
       if (isMentorOnboarding) {
         router.push('/profile/card');
       } else {
         router.push(`/profile/${pageUserId}`);
       }
+
+      // 6) background reconcile — silent, never blocks the user. If the
+      //    backend ultimately reports a different is_mentor / onboarding
+      //    than the optimistic value, patch the session in the background.
+      void pollUntilSynced(values, avatar ?? '').then((latest) => {
+        if (!latest) return;
+        const optimisticIsMentor = sessionUser?.isMentor ?? false;
+        const optimisticOnBoarding = sessionUser?.onBoarding ?? false;
+        const latestIsMentor = Boolean(latest.is_mentor);
+        const latestOnBoarding = Boolean(latest.onboarding);
+        if (
+          optimisticIsMentor === latestIsMentor &&
+          optimisticOnBoarding === latestOnBoarding
+        ) {
+          return;
+        }
+        void updateSession({
+          user: {
+            ...sessionUser,
+            isMentor: latestIsMentor,
+            onBoarding: latestOnBoarding,
+          },
+        });
+      });
     } catch (err) {
       captureFlowFailure({
         flow: 'profile_update',

@@ -129,6 +129,7 @@ describe('useProfileSubmit', () => {
     expect(mockUpdateProfile).not.toHaveBeenCalled();
     expect(mockUpsertMentorExperience).not.toHaveBeenCalled();
     expect(mockPollUntilSynced).not.toHaveBeenCalled();
+    expect(mockRouter.push).not.toHaveBeenCalled();
   });
 
   it('educationSectionError: true → returns early, no service is called', async () => {
@@ -143,6 +144,7 @@ describe('useProfileSubmit', () => {
     expect(mockUpdateProfile).not.toHaveBeenCalled();
     expect(mockUpsertMentorExperience).not.toHaveBeenCalled();
     expect(mockPollUntilSynced).not.toHaveBeenCalled();
+    expect(mockRouter.push).not.toHaveBeenCalled();
   });
 
   // ── Avatar upload ──────────────────────────────────────────────────────────
@@ -285,6 +287,103 @@ describe('useProfileSubmit', () => {
     });
 
     expect(mockRouter.push).toHaveBeenCalledWith('/profile/card');
+  });
+
+  // ── Optimistic flow: poll runs in the background ───────────────────────────
+
+  it('navigation does not wait for pollUntilSynced to resolve', async () => {
+    // Never-resolving promise simulates a slow backend sync. The user must
+    // still be navigated away within a single tick.
+    let resolvePoll: (value: MentorProfileVO | null) => void = () => {};
+    mockPollUntilSynced.mockReturnValueOnce(
+      new Promise<MentorProfileVO | null>((resolve) => {
+        resolvePoll = resolve;
+      })
+    );
+
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/profile/test-user-id');
+    // Cleanly settle the dangling promise to avoid leaking into later tests.
+    resolvePoll(null);
+  });
+
+  it('optimistic session update preserves current isMentor / onBoarding (does not flicker from latest=null)', async () => {
+    // Background poll resolves to null (e.g. backend never synced) — the
+    // session update made BEFORE the navigation must still reflect the
+    // pre-submit isMentor/onBoarding values.
+    mockPollUntilSynced.mockResolvedValueOnce(null);
+
+    const updateSession = vi.fn().mockResolvedValue(mockSession);
+    const { result } = renderHook(() =>
+      useProfileSubmit(makeOptions({ updateSession }))
+    );
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+    });
+
+    expect(updateSession).toHaveBeenCalled();
+    const firstCallArg = updateSession.mock.calls[0][0] as {
+      user: { isMentor?: boolean; onBoarding?: boolean };
+    };
+    expect(firstCallArg.user.isMentor).toBe(true);
+    expect(firstCallArg.user.onBoarding).toBe(true);
+  });
+
+  it('background reconcile patches session when latest disagrees with optimistic role', async () => {
+    // Optimistic session: isMentor=true. Backend poll says isMentor=false.
+    mockPollUntilSynced.mockResolvedValueOnce({
+      ...mockUserDTO,
+      is_mentor: false,
+      onboarding: true,
+    });
+
+    const updateSession = vi.fn().mockResolvedValue(mockSession);
+    const { result } = renderHook(() =>
+      useProfileSubmit(makeOptions({ updateSession }))
+    );
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+      // Flush microtasks so the .then() reconcile callback runs.
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // First call: optimistic. Second call: reconcile.
+    expect(updateSession).toHaveBeenCalledTimes(2);
+    const reconcileArg = updateSession.mock.calls[1][0] as {
+      user: { isMentor?: boolean; onBoarding?: boolean };
+    };
+    expect(reconcileArg.user.isMentor).toBe(false);
+    expect(reconcileArg.user.onBoarding).toBe(true);
+  });
+
+  it('background reconcile is a no-op when latest matches optimistic session', async () => {
+    // Backend agrees with optimistic state — no second updateSession call.
+    mockPollUntilSynced.mockResolvedValueOnce({
+      ...mockUserDTO,
+      is_mentor: true,
+      onboarding: true,
+    });
+
+    const updateSession = vi.fn().mockResolvedValue(mockSession);
+    const { result } = renderHook(() =>
+      useProfileSubmit(makeOptions({ updateSession }))
+    );
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(updateSession).toHaveBeenCalledTimes(1);
   });
 
   // ── Primary job persistence ────────────────────────────────────────────────
