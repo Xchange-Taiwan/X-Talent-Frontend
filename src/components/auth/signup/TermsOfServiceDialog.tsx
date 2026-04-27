@@ -30,7 +30,7 @@ export default function TermsOfServiceDialog({
           <Dialog.Close asChild>
             <button
               aria-label="Close"
-              className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 focus:outline-none"
+              className="absolute right-4 top-4 rounded-sm text-gray-400 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               ✕
             </button>

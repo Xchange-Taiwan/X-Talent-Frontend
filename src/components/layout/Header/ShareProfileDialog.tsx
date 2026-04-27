@@ -163,7 +163,7 @@ export function ShareProfileDialog({
                   id="share-profile-link"
                   value={profileUrl}
                   readOnly
-                  className="bg-transparent text-black flex-1 border-0 text-base outline-none md:text-[14px]"
+                  className="bg-transparent text-black flex-1 rounded-sm border-0 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-[14px]"
                 />
 
                 <Button
