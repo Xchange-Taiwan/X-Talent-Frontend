@@ -1,4 +1,5 @@
 'use client';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
 
 import HomePageHeroImgUrl from '@/assets/landing/home-page-hero.webp';
@@ -12,9 +13,24 @@ import landingPage_icon_3 from '@/assets/landing/landingPage_icon_3.svg';
 import landingPage_icon_4 from '@/assets/landing/landingPage_icon_4.svg';
 import landingPage_icon_5 from '@/assets/landing/landingPage_icon_5.svg';
 import landingPage_icon_6 from '@/assets/landing/landingPage_icon_6.svg';
-import { HomePageSlider } from '@/components/landing/HomePageSlider';
 import { SCREEN_SIZE } from '@/constant/theme';
 import useWindowSize from '@/hooks/useWindowSize';
+
+const HomePageSlider = dynamic(
+  () =>
+    import('@/components/landing/HomePageSlider').then(
+      (mod) => mod.HomePageSlider
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        aria-hidden
+        className="h-[520px] w-full animate-pulse rounded-md bg-gray-100 sm:h-[280px]"
+      />
+    ),
+  }
+);
 
 import { featureData } from './data';
 
