@@ -63,11 +63,6 @@ export default function Page({
 
   const { data: session, update: updateSession } = useSession();
 
-  // Stable fallback used when avatarUpdatedAt is absent (e.g. fresh login before
-  // any update). Ensures the browser always fetches the current image on first
-  // load rather than serving a previously-cached ?cb=0 stale copy.
-  const stableEditCacheBust = useRef(Date.now()).current;
-
   const { isAuthorized } = useProfileAuth(pageUserId);
 
   const [isMentor, setIsMentor] = useState(false);
@@ -149,11 +144,6 @@ export default function Page({
     router.push(`/profile/${pageUserId}`);
   };
 
-  const watchedAvatar = form.watch('avatar');
-  // Fall back to the session avatar before the form has reset from the DTO,
-  // so the avatar does not flash blank on first paint of the edit page.
-  const editAvatarSrc = watchedAvatar || session?.user?.avatar || '';
-
   return (
     <div className="mx-auto w-11/12 max-w-[1064px] pb-20 pt-10">
       <EditPageHeader
@@ -168,15 +158,7 @@ export default function Page({
           onSubmit={form.handleSubmit(onSubmit, onError)}
           className="space-y-10"
         >
-          <AvatarSection
-            control={form.control}
-            name="avatarFile"
-            avatarUrl={
-              editAvatarSrc
-                ? `${editAvatarSrc}?cb=${session?.user?.avatarUpdatedAt ?? stableEditCacheBust}`
-                : ''
-            }
-          />
+          <AvatarSection control={form.control} name="avatarFile" />
 
           <Section
             id="name"
