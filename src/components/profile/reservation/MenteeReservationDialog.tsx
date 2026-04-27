@@ -25,10 +25,7 @@ import { UserType } from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { captureFlowFailure } from '@/lib/monitoring';
-import {
-  createReservation,
-  CreateReservationPayload,
-} from '@/services/reservations';
+import { createReservation } from '@/services/reservations';
 
 import { ScheduleCalendar } from './ScheduleCalendar';
 
@@ -117,22 +114,19 @@ export default function MenteeReservationDialog({
       if (!session?.user?.id) {
         throw new Error('You must be logged in to make a reservation.');
       }
-      const menteeId = session.user.id;
-
-      const payload: CreateReservationPayload = {
-        my_user_id: menteeId,
-        my_status: 'PENDING',
-        user_id: userData.user_id,
-        schedule_id: selectedSlot.scheduleId,
-        dtstart: Math.floor(selectedSlot.start.getTime() / 1000),
-        dtend: Math.floor(selectedSlot.end.getTime() / 1000),
-        messages: [{ user_id: menteeId, content: bookingQuestion }],
-        previous_reserve: {},
-      };
+      const menteeId = Number(session.user.id);
 
       await createReservation({
         userId: menteeId,
-        body: payload,
+        body: {
+          my_user_id: menteeId,
+          my_status: 'PENDING',
+          user_id: userData.user_id,
+          schedule_id: selectedSlot.scheduleId,
+          dtstart: Math.floor(selectedSlot.start.getTime() / 1000),
+          dtend: Math.floor(selectedSlot.end.getTime() / 1000),
+          messages: [{ user_id: menteeId, content: bookingQuestion }],
+        },
         debug: process.env.NODE_ENV === 'development',
       });
 

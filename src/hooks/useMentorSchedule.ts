@@ -17,7 +17,7 @@ import {
   ParsedMentorTimeslot,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
-import { UpsertTimeslotBackend } from '@/services/mentor-schedule/schedule';
+import { TimeSlotDTO } from '@/services/mentor-schedule/schedule';
 import {
   loadMonthSchedule,
   syncMonthSchedule,
@@ -89,12 +89,16 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   );
 
   const toServiceSlot = useCallback(
-    (r: RawMentorTimeslot): UpsertTimeslotBackend => {
-      const slot: UpsertTimeslotBackend = {
+    (r: RawMentorTimeslot): TimeSlotDTO => {
+      // user_id and timezone are normalized in saveMentorSchedule (path param +
+      // hardcoded UTC), so the values supplied here are placeholders.
+      const slot: TimeSlotDTO = {
+        user_id: 0,
         dt_type: 'ALLOW',
         dtstart: r.dtstart,
         dtend: r.dtend,
         rrule: r.rrule,
+        timezone: 'UTC',
         exdate: r.exdate,
       };
       if (r.id > 0 && persistedIdSet.has(r.id)) slot.id = r.id;
@@ -337,7 +341,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     // Dedupe by (dtstart, dtend); when two slots collide on the same key,
     // keep the first and queue any persisted duplicate for deletion.
     const seenKeys = new Map<string, number>();
-    const upsertPayload: UpsertTimeslotBackend[] = [];
+    const upsertPayload: TimeSlotDTO[] = [];
     const extraDeleteIds: number[] = [];
     for (const slot of rawUpsert) {
       const key = `${slot.dtstart}_${slot.dtend}`;

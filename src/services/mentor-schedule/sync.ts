@@ -6,7 +6,7 @@ import {
   deleteMentorSchedule,
   fetchMentorSchedule,
   saveMentorSchedule,
-  UpsertTimeslotBackend,
+  TimeSlotDTO,
 } from './schedule';
 
 export interface ScheduleMonthRef {
@@ -32,7 +32,7 @@ export async function loadMonthSchedule(
  */
 export async function syncMonthSchedule(params: {
   ref: ScheduleMonthRef;
-  upsertPayload: UpsertTimeslotBackend[];
+  upsertPayload: TimeSlotDTO[];
   deleteIds: number[];
 }): Promise<RawMentorTimeslot[] | null> {
   const { ref, upsertPayload, deleteIds } = params;

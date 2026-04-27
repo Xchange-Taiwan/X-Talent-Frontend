@@ -10,7 +10,7 @@ export interface ScheduleRequest {
 export type SegmentVO = components['schemas']['MentorScheduleSegmentVO'];
 export type ScheduleData = components['schemas']['MentorScheduleQueryVO'];
 
-type TimeSlotDTO = components['schemas']['TimeSlotDTO'];
+export type TimeSlotDTO = components['schemas']['TimeSlotDTO'];
 
 interface ScheduleApiResponse {
   code: string;
@@ -33,15 +33,6 @@ export async function fetchMentorSchedule(
   }
 }
 
-export type UpsertTimeslotBackend = Pick<
-  TimeSlotDTO,
-  'dtstart' | 'dtend' | 'rrule'
-> & {
-  id?: number;
-  dt_type: 'ALLOW';
-  exdate: number[]; // nulls excluded from TimeSlotDTO.exdate
-};
-
 interface SaveScheduleResponse {
   code: string;
   msg: string;
@@ -52,7 +43,7 @@ type CleanObject = Record<string, unknown>;
 /** PUT /v1/mentors/:userId/schedule */
 export async function saveMentorSchedule(params: {
   userId: string;
-  timeslots: UpsertTimeslotBackend[];
+  timeslots: TimeSlotDTO[];
   until?: number | null;
 }): Promise<boolean> {
   const cleanOptional = (obj: CleanObject): CleanObject =>
