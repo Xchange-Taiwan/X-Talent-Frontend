@@ -12,7 +12,7 @@ export function useProfileSelectOptions({
   interestedPositions: { subject: string | null; subject_group: string }[];
   skills: { subject: string | null; subject_group: string }[];
 }) {
-  const whatIOfferTopicsList = useMemo(
+  const topicsList = useMemo(
     () =>
       topics.map((t) => ({ value: t.subject_group, label: t.subject ?? '' })),
     [topics]
@@ -38,17 +38,12 @@ export function useProfileSelectOptions({
       skills.map((s) => ({ value: s.subject_group, label: s.subject ?? '' })),
     [skills]
   );
-  const interestedTopicsList = useMemo(
-    () =>
-      topics.map((t) => ({ value: t.subject_group, label: t.subject ?? '' })),
-    [topics]
-  );
 
   return {
-    whatIOfferTopicsList,
+    whatIOfferTopicsList: topicsList,
     expertisedList,
     interestedPositionList,
     interestedSkillsList,
-    interestedTopicsList,
+    interestedTopicsList: topicsList,
   };
 }

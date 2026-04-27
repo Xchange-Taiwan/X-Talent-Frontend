@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 import { Skill } from './Skill';
 
@@ -10,6 +10,9 @@ interface InformationProps {
   skills: string[];
 }
 
+const SKILL_GAP_PX = 8;
+const EXTRA_BADGE_RESERVE_PX = 52;
+
 export const Information = ({
   name,
   job_title,
@@ -17,36 +20,45 @@ export const Information = ({
   personalStatment,
   skills = [],
 }: InformationProps) => {
-  const skillsContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const widthsRef = useRef<number[]>([]);
   const [visibleSkillsCount, setVisibleSkillsCount] = useState(skills.length);
 
-  useEffect(() => {
-    const checkSkillsInLine = () => {
-      if (!skillsContainerRef.current) return;
+  useLayoutEffect(() => {
+    if (!measureRef.current || !containerRef.current) return;
 
-      const container = skillsContainerRef.current;
-      const skillElements = container.children;
-      if (skillElements.length === 0) return;
+    widthsRef.current = Array.from(measureRef.current.children).map(
+      (child) => (child as HTMLElement).getBoundingClientRect().width
+    );
 
-      const containerWidth = container.offsetWidth;
-      let lastVisibleIndex = 0;
-      let totalWidth = 52;
-
-      for (let i = 0; i < skillElements.length; i++) {
-        const skillWidth = skillElements[i].getBoundingClientRect().width;
-        const gap = i > 0 ? 8 : 0;
-        totalWidth += skillWidth + gap;
-        if (totalWidth > containerWidth) {
-          lastVisibleIndex = i - 1;
+    const computeVisible = (containerWidth: number) => {
+      const widths = widthsRef.current;
+      let total = EXTRA_BADGE_RESERVE_PX;
+      let lastIndex = widths.length - 1;
+      for (let i = 0; i < widths.length; i++) {
+        const gap = i > 0 ? SKILL_GAP_PX : 0;
+        total += widths[i] + gap;
+        if (total > containerWidth) {
+          lastIndex = i - 1;
           break;
         }
-        lastVisibleIndex = i;
       }
-
-      setVisibleSkillsCount(Math.min(lastVisibleIndex + 1, skills.length));
+      setVisibleSkillsCount(
+        Math.max(0, Math.min(lastIndex + 1, skills.length))
+      );
     };
 
-    checkSkillsInLine();
+    computeVisible(containerRef.current.getBoundingClientRect().width);
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      computeVisible(entry.contentRect.width);
+    });
+    observer.observe(containerRef.current);
+
+    return () => observer.disconnect();
   }, [skills]);
 
   const visibleSkills = skills.slice(0, visibleSkillsCount);
@@ -67,13 +79,24 @@ export const Information = ({
       <p className="line-clamp-2 text-sm font-normal tracking-wide text-[#9DA8B9]">
         {personalStatment}
       </p>
-      <div ref={skillsContainerRef} className="flex flex-wrap gap-2">
-        {visibleSkills.map((skill) => (
-          <Skill skill={skill} key={skill} />
-        ))}
-        {extraSkillsCount > 0 && (
-          <Skill skill={`+${extraSkillsCount}`} key="extra" />
-        )}
+      <div className="relative">
+        <div
+          ref={measureRef}
+          aria-hidden
+          className="pointer-events-none invisible absolute left-0 top-0 flex flex-wrap gap-2"
+        >
+          {skills.map((skill) => (
+            <Skill skill={skill} key={`measure-${skill}`} />
+          ))}
+        </div>
+        <div ref={containerRef} className="flex flex-wrap gap-2">
+          {visibleSkills.map((skill) => (
+            <Skill skill={skill} key={skill} />
+          ))}
+          {extraSkillsCount > 0 && (
+            <Skill skill={`+${extraSkillsCount}`} key="extra" />
+          )}
+        </div>
       </div>
     </div>
   );
