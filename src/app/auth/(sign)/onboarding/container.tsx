@@ -44,8 +44,6 @@ export default function OnboardingContainer() {
     step5?: z.infer<typeof step5Schema>;
   }>({});
 
-  const stableOnboardingCacheBust = useRef(Date.now()).current;
-
   // Tracks the in-flight background avatar upload kicked off after Step 1.
   // The promise is consumed at Step 5 submit so the user doesn't wait for S3
   // round-trip; replaced (with abort) when the user picks a new file.
@@ -67,11 +65,6 @@ export default function OnboardingContainer() {
       language: 'zh_TW',
     },
   });
-
-  const watchedAvatar = step1Form.watch('avatar');
-  const avatarDisplayUrl = watchedAvatar
-    ? `${watchedAvatar}?cb=${session?.user?.avatarUpdatedAt ?? stableOnboardingCacheBust}`
-    : '';
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -265,7 +258,6 @@ export default function OnboardingContainer() {
       currentStep={currentStep}
       stepsTotal={STEPS_TOTAL}
       stepTitle={STEP_TITLE}
-      avatarDisplayUrl={avatarDisplayUrl}
       avatarError={avatarUploadError}
       step1Form={step1Form}
       step2Form={step2Form}

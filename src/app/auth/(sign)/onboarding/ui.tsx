@@ -47,7 +47,6 @@ interface Props {
   currentStep: number;
   stepsTotal: number;
   stepTitle: readonly string[];
-  avatarDisplayUrl: string;
   avatarError: string | null;
   step1Form: UseFormReturn<z.infer<typeof step1Schema>>;
   step2Form: UseFormReturn<z.infer<typeof step2Schema>>;
@@ -103,7 +102,6 @@ export default function OnboardingUI({
   currentStep,
   stepsTotal,
   stepTitle,
-  avatarDisplayUrl,
   avatarError,
   step1Form,
   step2Form,
@@ -139,11 +137,7 @@ export default function OnboardingUI({
                 showBack={false}
                 onGoToPrev={onGoToPrev}
               />
-              <WhoAreYou
-                form={step1Form}
-                avatarUrl={avatarDisplayUrl}
-                avatarError={avatarError}
-              />
+              <WhoAreYou form={step1Form} avatarError={avatarError} />
               <Button className="rounded-xl px-12" type="submit">
                 下一步
               </Button>
