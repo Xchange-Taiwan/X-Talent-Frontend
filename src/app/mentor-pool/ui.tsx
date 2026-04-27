@@ -73,13 +73,17 @@ export default function MentorPoolUI({
                 <span>
                   {filter.name}: {filter.value}
                 </span>
-                <XIcon
-                  className="h-4 w-4 cursor-pointer"
+                <button
+                  type="button"
                   onClick={(event) => {
                     event.stopPropagation();
                     onRemoveFilter(key);
                   }}
-                />
+                  aria-label={`移除「${filter.name}：${filter.value}」篩選`}
+                  className="bg-transparent inline-flex items-center rounded-sm p-0 hover:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <XIcon className="h-4 w-4" aria-hidden />
+                </button>
               </Badge>
             ))}
           </div>
