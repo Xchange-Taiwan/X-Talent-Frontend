@@ -25,6 +25,7 @@ const nextConfig = {
   // Enable hot reload optimizations
   experimental: {
     optimizeCss: false,
+    optimizePackageImports: ['lucide-react'],
   },
   // Ensure webpack hot reload works properly
   webpack: (config, { dev }) => {
