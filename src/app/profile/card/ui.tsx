@@ -90,7 +90,7 @@ export default function ProfileCardUI({
             className="grow rounded-full px-6 py-3 sm:grow-0"
             onClick={onBackToProfile}
           >
-            Back to my profile
+            返回我的個人頁面
           </Button>
         </div>
       )}
