@@ -5,26 +5,30 @@ import { parseCurrentJob } from '@/lib/profile/parseUserExperiences';
 import { ExperienceType } from '@/services/profile/experienceType';
 import { fetchUserById, MentorProfileVO } from '@/services/profile/user';
 
-import { getInterestsCached } from '../interests/useInterests';
+import {
+  getInterestsCached,
+  type InterestsResult,
+} from '../interests/useInterests';
 
-const USER_DATA_CACHE_TTL_MS = 5_000;
+export const USER_DATA_CACHE_TTL_MS = 60_000;
 
 interface CachedUserDtoEntry {
   data: MentorProfileVO;
   expiresAt: number;
 }
 
+interface CachedReadResult {
+  data: MentorProfileVO;
+  isStale: boolean;
+}
+
 const userDtoDataCache = new Map<string, CachedUserDtoEntry>();
 const userDtoPromiseCache = new Map<string, Promise<MentorProfileVO | null>>();
 
-function readFreshFromDataCache(key: string): MentorProfileVO | undefined {
+function readFromDataCache(key: string): CachedReadResult | undefined {
   const entry = userDtoDataCache.get(key);
   if (!entry) return undefined;
-  if (entry.expiresAt <= Date.now()) {
-    userDtoDataCache.delete(key);
-    return undefined;
-  }
-  return entry.data;
+  return { data: entry.data, isStale: entry.expiresAt <= Date.now() };
 }
 
 /**
@@ -39,20 +43,18 @@ export function clearUserDataCache(userId: number, language: string): void {
   userDtoPromiseCache.delete(key);
 }
 
-function fetchUserByIdCached(
+// Promise-deduped fetch: writes to the data cache on success so subsequent
+// readers (including a parallel-mounted hook) see the fresh entry. Concurrent
+// callers share the same in-flight promise to avoid duplicate network calls.
+function startFetchUserById(
   userId: number,
   language: string
 ): Promise<MentorProfileVO | null> {
   const key = `${userId}-${language}`;
 
-  const cached = readFreshFromDataCache(key);
-  if (cached !== undefined) return Promise.resolve(cached);
-
   const inflight = userDtoPromiseCache.get(key);
   if (inflight) return inflight;
 
-  // Shared in-flight promise (no signal) so concurrent component mounts
-  // dedupe to a single network call without one unmount aborting the others.
   const promise = fetchUserById(userId, language)
     .then((data) => {
       if (data) {
@@ -245,54 +247,86 @@ function useUserData(userId: number, language: string) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const isUserIdValid = Boolean(userId) && !Number.isNaN(userId);
+    const isLanguageValid = Boolean(language);
+
+    if (!isUserIdValid || !isLanguageValid) {
+      setUserData(null);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+
     let cancelled = false;
+    const key = `${userId}-${language}`;
+    const cachedEntry = readFromDataCache(key);
+    const interestsPromise = getInterestsCached(language);
 
-    const run = async () => {
-      const isUserIdValid = Boolean(userId) && !Number.isNaN(userId);
-      const isLanguageValid = Boolean(language);
+    const applyData = (
+      userDto: MentorProfileVO,
+      interests: InterestsResult
+    ) => {
+      if (cancelled) return;
+      const labelByGroup = new Map(
+        interests.whatIOffers.map(
+          (item) => [item.subject_group, item.subject ?? ''] as const
+        )
+      );
+      setUserData(parseUserDtoToUserType(userDto, labelByGroup));
+      setError(null);
+    };
 
-      if (!isUserIdValid || !isLanguageValid) {
-        setUserData(null);
-        setError(null);
-        setIsLoading(false);
-        return;
+    // Cached path: render immediately from cache, then optionally
+    // revalidate in the background. Only a missing cache entry triggers
+    // a blocking load.
+    if (cachedEntry) {
+      setIsLoading(false);
+      interestsPromise
+        .then((interests) => applyData(cachedEntry.data, interests))
+        .catch((e) => {
+          console.error('Failed to load interests for cached user:', e);
+        });
+
+      if (cachedEntry.isStale) {
+        Promise.all([startFetchUserById(userId, language), interestsPromise])
+          .then(([userDto, interests]) => {
+            if (cancelled || !userDto) return;
+            applyData(userDto, interests);
+          })
+          .catch((e) => {
+            // Background revalidation failure: keep showing stale data,
+            // surface only via console (no error state flip).
+            console.error('Background user-data refetch failed:', e);
+          });
       }
 
-      setIsLoading(true);
-      setError(null);
+      return () => {
+        cancelled = true;
+      };
+    }
 
-      try {
-        const [userDto, interests] = await Promise.all([
-          fetchUserByIdCached(userId, language),
-          getInterestsCached(language),
-        ]);
+    setIsLoading(true);
+    setError(null);
 
+    Promise.all([startFetchUserById(userId, language), interestsPromise])
+      .then(([userDto, interests]) => {
         if (cancelled) return;
-
         if (!userDto) {
           setUserData(null);
           setError('User not found');
           return;
         }
-
-        const labelByGroup = new Map(
-          interests.whatIOffers.map(
-            (item) => [item.subject_group, item.subject ?? ''] as const
-          )
-        );
-
-        setUserData(parseUserDtoToUserType(userDto, labelByGroup));
-      } catch (e) {
+        applyData(userDto, interests);
+      })
+      .catch((e) => {
         console.error('Failed to load user:', e);
         if (cancelled) return;
         setUserData(null);
         setError('Failed to load user data');
-      } finally {
+      })
+      .finally(() => {
         if (!cancelled) setIsLoading(false);
-      }
-    };
-
-    run();
+      });
 
     return () => {
       cancelled = true;

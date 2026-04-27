@@ -11,7 +11,9 @@ import useUserData from '@/hooks/user/user-data/useUserData';
 
 import { ProfilePageSkeleton } from './skeleton';
 
-const ProfilePageUI = dynamic(() => import('./ui'));
+const ProfilePageUI = dynamic(() => import('./ui'), {
+  loading: () => <ProfilePageSkeleton />,
+});
 
 interface Props {
   pageUserId: string;
@@ -50,7 +52,7 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
     useState(false);
 
   const pageUserIdNumber = Number(pageUserId);
-  const { userData, isLoading: loading } = useUserData(
+  const { userData, isLoading: userLoading } = useUserData(
     pageUserIdNumber,
     'zh_TW'
   );
@@ -64,11 +66,7 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
       : userData.avatar
     : DefaultAvatarImgUrl;
 
-  // Show skeleton only while user profile data loads.
-  // Schedule data (calendar) renders progressively once the profile appears.
-  if (loading) return <ProfilePageSkeleton />;
-
-  if (!userData) {
+  if (!userLoading && !userData) {
     return (
       <div className="flex h-[50vh] items-center justify-center text-gray-500">
         沒有該位使用者
@@ -81,6 +79,7 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
       router.push('/auth/signin');
       return;
     }
+    if (!userData) return;
     if (userData.is_mentor && pageUserId === loginUserId) {
       setOpenReservationDialog(true);
       return;
@@ -94,6 +93,7 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
   return (
     <ProfilePageUI
       userData={userData}
+      userLoading={userLoading}
       pageUserId={pageUserId}
       schedule={schedule}
       scheduleLoaded={loaded}
