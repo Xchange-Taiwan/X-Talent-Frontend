@@ -23,9 +23,13 @@ export default function MentorPoolContainer() {
   const [selectedFilters, setSelectedFilters] = useState<SelectFilters>({});
   const [isNoResults, setIsNoResults] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isReplacing, setIsReplacing] = useState(false);
   const [cursor, setCursor] = useState<string | undefined>('');
   const [sessionRestored, setSessionRestored] = useState(false);
   const isLoadingRef = useRef(false);
+  // Monotonic counter — every fetch claims an id. Late responses whose id no
+  // longer matches the current value are stale and must not touch state.
+  const requestIdRef = useRef(0);
 
   // Restore persisted search state before the first fetch
   useEffect(() => {
@@ -68,6 +72,7 @@ export default function MentorPoolContainer() {
   }, []);
 
   const fetchMentorsBySearch = useCallback(async () => {
+    const myRequestId = ++requestIdRef.current;
     const filters = Object.fromEntries(
       Object.entries(selectedFilters).map(([key, value]) => [key, value.value])
     );
@@ -77,9 +82,8 @@ export default function MentorPoolContainer() {
       cursor: '',
       ...filters,
     };
-    setMentors([]);
-    setMentorCount(0);
     setIsLoading(true);
+    setIsReplacing(true);
     isLoadingRef.current = true;
     let rtnList: MentorType[] = [];
     try {
@@ -91,9 +95,13 @@ export default function MentorPoolContainer() {
             : avatarImage,
       }));
     } finally {
-      setIsLoading(false);
-      isLoadingRef.current = false;
+      if (myRequestId === requestIdRef.current) {
+        setIsLoading(false);
+        setIsReplacing(false);
+        isLoadingRef.current = false;
+      }
     }
+    if (myRequestId !== requestIdRef.current) return;
     if (rtnList.length > 0) {
       setMentors(rtnList);
       setMentorCount(rtnList.length);
@@ -101,10 +109,14 @@ export default function MentorPoolContainer() {
       setIsNoResults(false);
       return;
     }
+    setMentors([]);
+    setMentorCount(0);
+    setCursor('');
     setIsNoResults(true);
   }, [searchPattern, selectedFilters]);
 
   const fetchMoreMentors = useCallback(async () => {
+    const myRequestId = ++requestIdRef.current;
     const filters = Object.fromEntries(
       Object.entries(selectedFilters).map(([key, value]) => [key, value.value])
     );
@@ -126,9 +138,12 @@ export default function MentorPoolContainer() {
             : avatarImage,
       }));
     } finally {
-      setIsLoading(false);
-      isLoadingRef.current = false;
+      if (myRequestId === requestIdRef.current) {
+        setIsLoading(false);
+        isLoadingRef.current = false;
+      }
     }
+    if (myRequestId !== requestIdRef.current) return;
     if (rtnList.length > 0) {
       setMentors((prevMentors) => {
         const newMentors = rtnList.filter(
@@ -163,6 +178,7 @@ export default function MentorPoolContainer() {
       mentors={mentors}
       mentorCount={mentorCount}
       isLoading={isLoading}
+      isReplacing={isReplacing}
       isNoResults={isNoResults}
       selectedFilters={selectedFilters}
       filterOptions={filterOptions}
