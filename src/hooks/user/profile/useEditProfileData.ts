@@ -32,12 +32,10 @@ export function useEditProfileData({
   setIsMentor,
   setIsPageLoading,
 }: Options) {
-  // Pass userId only after auth resolves so we don't fetch a profile that
-  // the page would otherwise refuse to render.
-  const { userDto, error } = useUserProfileDto(
-    isAuthorized ? userId : 0,
-    'zh_TW'
-  );
+  // Fire the user fetch in parallel with auth resolution. The form.reset
+  // effect below still gates on `isAuthorized`, so unauthorized callers
+  // (redirected by useProfileAuth) never see the data populated.
+  const { userDto, error } = useUserProfileDto(userId, 'zh_TW');
 
   useEffect(() => {
     if (!isAuthorized || !userDto) return;
