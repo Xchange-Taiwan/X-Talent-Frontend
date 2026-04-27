@@ -1246,12 +1246,12 @@ export interface components {
       url: string | null;
       /**
        * Create Time
-       * @default 2026-04-26T04:35:57.666240Z
+       * @default 2026-04-27T15:42:14.728074Z
        */
       create_time: string | null;
       /**
        * Update Time
-       * @default 2026-04-26T04:35:57.666249Z
+       * @default 2026-04-27T15:42:14.728090Z
        */
       update_time: string | null;
       /** Create User Id */
@@ -1541,11 +1541,8 @@ export interface components {
        * @example 1
        */
       user_id: number;
-      /**
-       * Dt Type
-       * @example ALLOW
-       */
-      dt_type: string;
+      /** @example ALLOW */
+      dt_type: components['schemas']['ScheduleType'];
       /**
        * Dtstart
        * @example 1717203600
@@ -1606,6 +1603,14 @@ export interface components {
       desc?: string | null;
       /** Icon */
       icon?: string | null;
+    };
+    /** PreviousReserveRef */
+    PreviousReserveRef: {
+      /**
+       * Reserve Id
+       * @example 0
+       */
+      reserve_id?: number | null;
     };
     /**
      * ProfessionCategory
@@ -1824,9 +1829,8 @@ export interface components {
        * Messages
        * @default []
        */
-      messages: Record<string, never>[] | null;
-      /** Previous Reserve */
-      previous_reserve?: Record<string, never> | null;
+      messages: components['schemas']['ReservationMessageDTO'][] | null;
+      previous_reserve?: components['schemas']['PreviousReserveRef'] | null;
     };
     /** ReservationInfoListVO */
     ReservationInfoListVO: {
@@ -1862,13 +1866,25 @@ export interface components {
        * @default 0
        */
       dtend: number;
-      /** Previous Reserve */
-      previous_reserve?: Record<string, never> | null;
+      previous_reserve?: components['schemas']['PreviousReserveRef'] | null;
       /**
        * Messages
        * @default []
        */
       messages: components['schemas']['ReservationMessageVO'][] | null;
+    };
+    /** ReservationMessageDTO */
+    ReservationMessageDTO: {
+      /**
+       * User Id
+       * @example 0
+       */
+      user_id: number;
+      /**
+       * Content
+       * @example
+       */
+      content: string;
     };
     /** ReservationMessageVO */
     ReservationMessageVO: {
@@ -1921,9 +1937,8 @@ export interface components {
        * Messages
        * @default []
        */
-      messages: Record<string, never>[] | null;
-      /** Previous Reserve */
-      previous_reserve?: Record<string, never> | null;
+      messages: components['schemas']['ReservationMessageDTO'][] | null;
+      previous_reserve?: components['schemas']['PreviousReserveRef'] | null;
       /** Id */
       id?: number | null;
       /** @example PENDING */
@@ -1943,6 +1958,11 @@ export interface components {
       /** Confirm Password */
       confirm_password: string;
     };
+    /**
+     * ScheduleType
+     * @enum {string}
+     */
+    ScheduleType: 'ALLOW' | 'FORBIDDEN' | 'BOOKED' | 'PENDING';
     /** SearchMentorProfileListVO */
     SearchMentorProfileListVO: {
       /** Mentors */
@@ -2069,11 +2089,8 @@ export interface components {
        * @example 1
        */
       user_id: number;
-      /**
-       * Dt Type
-       * @example ALLOW
-       */
-      dt_type: string;
+      /** @example ALLOW */
+      dt_type: components['schemas']['TimeSlotType'];
       /**
        * Dt Year
        * @example 2024
@@ -2115,6 +2132,11 @@ export interface components {
        */
       exdate: (number | null)[];
     };
+    /**
+     * TimeSlotType
+     * @enum {string}
+     */
+    TimeSlotType: 'ALLOW' | 'FORBIDDEN';
     /** TimeSlotVO */
     TimeSlotVO: {
       /**
@@ -2127,11 +2149,8 @@ export interface components {
        * @example 1
        */
       user_id: number;
-      /**
-       * Dt Type
-       * @example ALLOW
-       */
-      dt_type: string;
+      /** @example ALLOW */
+      dt_type: components['schemas']['TimeSlotType'];
       /**
        * Dt Year
        * @example 2024
@@ -2250,7 +2269,8 @@ export interface components {
        * Messages
        * @default []
        */
-      messages: Record<string, never>[] | null;
+      messages: components['schemas']['ReservationMessageDTO'][] | null;
+      previous_reserve?: components['schemas']['PreviousReserveRef'] | null;
     };
     /** ValidationError */
     ValidationError: {

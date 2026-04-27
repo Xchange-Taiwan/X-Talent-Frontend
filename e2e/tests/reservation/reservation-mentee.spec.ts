@@ -87,7 +87,7 @@ async function mockSessionGet(page: Page): Promise<void> {
 }
 
 /**
- * Mock all 5 reservation list endpoints that useReservationData calls in
+ * Mock all 6 reservation list endpoints that useReservationData calls in
  * parallel. The `stateData` map lets each test override specific states with
  * custom payloads; any state not provided gets an empty list.
  */
@@ -100,7 +100,8 @@ async function mockReservationEndpoints(
     MENTEE_PENDING: [],
     MENTOR_UPCOMING: [],
     MENTOR_PENDING: [],
-    HISTORY: [],
+    MENTOR_HISTORY: [],
+    MENTEE_HISTORY: [],
   };
   const data = { ...defaults, ...stateData };
 
