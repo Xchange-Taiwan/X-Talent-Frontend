@@ -1,6 +1,9 @@
 import { getSession } from 'next-auth/react';
 
-import { fetchPresignedUrlByUserId } from '@/services/profile/presignedUrl';
+import {
+  fetchPresignedUrlByUserId,
+  PresignedUrlData,
+} from '@/services/profile/presignedUrl';
 
 interface PresignedUrlFields {
   key: string;
@@ -11,15 +14,61 @@ interface PresignedUrlFields {
   [key: string]: string;
 }
 
-interface PresignedUrlData {
-  url: string;
-  fields: PresignedUrlFields;
+// S3 presigned POST URLs are valid for 15 minutes; cap our cache at 10 to
+// leave headroom for the actual upload to complete before expiry.
+const PRESIGNED_TTL_MS = 10 * 60 * 1000;
+
+interface PresignedCacheEntry {
+  userId: number;
+  fetchedAt: number;
+  promise: Promise<PresignedUrlData | null>;
+}
+
+let presignedCache: PresignedCacheEntry | null = null;
+
+function isCacheUsable(
+  entry: PresignedCacheEntry | null,
+  userId: number
+): entry is PresignedCacheEntry {
+  if (!entry) return false;
+  if (entry.userId !== userId) return false;
+  if (Date.now() - entry.fetchedAt > PRESIGNED_TTL_MS) return false;
+  return true;
+}
+
+/**
+ * Fire-and-forget warm-up for the avatar presigned URL. Caller should not
+ * await — the cached promise is consumed by `updateAvatar` at submit time
+ * to remove one serial request from the upload waterfall.
+ */
+export function prefetchPresignedUrl(userId: number): void {
+  if (!Number.isFinite(userId) || userId <= 0) return;
+  if (isCacheUsable(presignedCache, userId)) return;
+  const promise = fetchPresignedUrlByUserId(userId).catch(() => null);
+  presignedCache = { userId, fetchedAt: Date.now(), promise };
+}
+
+export function clearPresignedUrlCache(): void {
+  presignedCache = null;
+}
+
+async function consumePresignedUrl(
+  userId: number
+): Promise<PresignedUrlData | null> {
+  if (isCacheUsable(presignedCache, userId)) {
+    const cached = presignedCache;
+    // Single-use: clear regardless of outcome so the next upload re-fetches.
+    presignedCache = null;
+    const result = await cached.promise;
+    if (result) return result;
+  }
+  return fetchPresignedUrlByUserId(userId);
 }
 
 // 你的後端 policy 有這條：["starts-with", "$Content-Type", "image/"]
 // 所以 file.type 必須是 image/*
 async function uploadToS3WithPresignedPost(
-  presigned: PresignedUrlData,
+  presigned: { url: string; fields: PresignedUrlFields },
   avatarFile: File,
   signal?: AbortSignal
 ): Promise<void> {
@@ -57,7 +106,7 @@ function buildS3ObjectUrl(bucketUrl: string, key: string): string {
 
 /**
  * updateAvatar
- * 1) 呼叫後端拿 presigned url (另外一支檔案)
+ * 1) 呼叫後端拿 presigned url（若有預抓 cache 命中則直接消費）
  * 2) 用 presigned POST 直接上傳到 S3
  * 3) 回傳檔案的公開 URL（bucketUrl + key）
  */
@@ -77,7 +126,7 @@ export async function updateAvatar(
       throw new Error('頭像檔案必須是圖片格式 (image/*)。');
     }
 
-    const presigned = await fetchPresignedUrlByUserId(Number(userId));
+    const presigned = await consumePresignedUrl(Number(userId));
     if (!presigned?.url || !presigned?.fields?.key) {
       throw new Error('取得 presigned url 失敗或回傳格式不完整');
     }

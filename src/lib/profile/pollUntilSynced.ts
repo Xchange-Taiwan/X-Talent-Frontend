@@ -1,4 +1,5 @@
 import { ProfileFormValues } from '@/components/profile/edit/profileSchema';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { fetchUser, MentorProfileVO } from '@/services/profile/user';
 
 function isProfileSynced(
@@ -21,20 +22,44 @@ function isProfileSynced(
   return true;
 }
 
+/**
+ * Polls fetchUser until the backend reflects the submitted values, or the
+ * retry budget is exhausted. Designed for fire-and-forget background use:
+ * never throws, and reports a Sentry breadcrumb if max retries elapse
+ * without sync.
+ */
 export async function pollUntilSynced(
   values: ProfileFormValues,
   avatar: string,
   maxRetries = 12,
   intervalMs = 5000
 ): Promise<MentorProfileVO | null> {
-  let latest = await fetchUser('zh_TW');
-  for (
-    let i = 1;
-    i < maxRetries && !(latest && isProfileSynced(values, latest, avatar));
-    i++
-  ) {
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
-    latest = await fetchUser('zh_TW');
+  let latest: MentorProfileVO | null = null;
+  let synced = false;
+
+  for (let i = 0; i < maxRetries; i++) {
+    if (i > 0) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+    try {
+      latest = await fetchUser('zh_TW');
+    } catch {
+      latest = null;
+      continue;
+    }
+    if (latest && isProfileSynced(values, latest, avatar)) {
+      synced = true;
+      break;
+    }
   }
+
+  if (!synced) {
+    captureFlowFailure({
+      flow: 'profile_update',
+      step: 'background_sync',
+      message: 'pollUntilSynced exhausted retries without sync',
+    });
+  }
+
   return latest;
 }
