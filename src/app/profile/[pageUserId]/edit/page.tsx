@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FieldErrors, useForm } from 'react-hook-form';
 
 import { totalWorkSpanOptions } from '@/components/onboarding/steps/constant';
@@ -35,6 +35,7 @@ import {
   flattenAsSingleCategory,
   groupAsPlaceholderCategories,
 } from '@/lib/profile/categoryGrouping';
+import { prefetchPresignedUrl } from '@/services/profile/updateAvatar';
 
 const JobExperienceSection = dynamic(async () => {
   const m = await import('@/components/profile/edit/JobExperienceSection');
@@ -92,6 +93,15 @@ export default function Page({
     setIsMentor,
     setIsPageLoading,
   });
+
+  // Warm up the avatar presigned URL once authorized. Saves a serial round
+  // trip from the submit waterfall when the user uploads a new avatar.
+  useEffect(() => {
+    if (!isAuthorized) return;
+    const userId = Number(pageUserId);
+    if (!Number.isFinite(userId)) return;
+    prefetchPresignedUrl(userId);
+  }, [isAuthorized, pageUserId]);
 
   const industryCategories = flattenAsSingleCategory(industries);
   const whatIOfferCategories = groupAsPlaceholderCategories(topics);
