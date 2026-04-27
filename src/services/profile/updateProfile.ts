@@ -20,9 +20,18 @@ export async function updateProfile(
     throw new Error('未找到使用者 ID。請重新登入。');
   }
 
+  // Backend currently accepts a single industry string; the frontend models
+  // it as string[] (cap 10) for UI consistency with the other category menus.
+  // Drop the array down to its first element until the BFF accepts an array.
+  const { industry, ...rest } = profileData;
+  const industryPayload = Array.isArray(industry)
+    ? (industry[0] ?? '')
+    : industry;
+
   try {
     await apiClient.put(`/v1/mentors/${userId}/profile`, {
-      ...profileData,
+      ...rest,
+      industry: industryPayload,
       user_id: userId,
     });
   } catch (error) {

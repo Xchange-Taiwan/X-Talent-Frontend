@@ -9,12 +9,13 @@ import {
   FormControl,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { groupAsPlaceholderCategories } from '@/lib/profile/categoryGrouping';
 import { cn } from '@/lib/utils';
 import { InterestVO } from '@/services/profile/interests';
 
+import { GroupedSelections } from './GroupedSelections';
 import { step4Schema } from './index';
 
 interface Props {
@@ -23,63 +24,44 @@ interface Props {
 }
 
 export const SkillsToImprove: FC<Props> = ({ form, skillOptions }) => {
+  const categories = groupAsPlaceholderCategories(skillOptions);
+
   return (
-    <>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {skillOptions.map((option) => (
-          <FormField
-            key={option.subject_group}
-            control={form.control}
-            name="skills"
-            render={({ field }) => {
-              return (
-                <FormItem
-                  key={option.subject_group}
+    <FormField
+      control={form.control}
+      name="skills"
+      render={({ field }) => (
+        <FormItem>
+          <FormControl>
+            <GroupedSelections
+              categories={categories}
+              value={field.value ?? []}
+              onChange={field.onChange}
+              maxSelected={10}
+              layoutClass="grid grid-cols-1 gap-4 sm:grid-cols-2"
+              renderItem={(opt, { checked, disabled, onToggle }) => (
+                <label
                   className={cn(
-                    'flex items-center space-y-0 rounded-xl border border-gray-200 pl-3',
-                    field.value.includes(option.subject_group) &&
-                      'border-primary bg-secondary'
+                    'flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-3',
+                    checked ? 'border-primary bg-secondary' : 'border-gray-200',
+                    disabled && 'cursor-not-allowed opacity-50'
                   )}
                 >
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value?.includes(option.subject_group)}
-                      onCheckedChange={(checked) => {
-                        return checked
-                          ? field.onChange([
-                              ...field.value,
-                              option.subject_group,
-                            ])
-                          : field.onChange(
-                              field.value?.filter(
-                                (value) => value !== option.subject_group
-                              )
-                            );
-                      }}
-                    />
-                  </FormControl>
-                  <FormLabel className="grow cursor-pointer px-4 py-3 text-base font-normal">
-                    {option.subject ?? ''}
-                  </FormLabel>
-                </FormItem>
-              );
-            }}
-          />
-        ))}
-      </div>
-      <div className="ml-1 mt-3">
-        <FormField
-          control={form.control}
-          name="skills"
-          render={() => {
-            return (
-              <FormItem>
-                <FormMessage />
-              </FormItem>
-            );
-          }}
-        />
-      </div>
-    </>
+                  <Checkbox
+                    checked={checked}
+                    disabled={disabled}
+                    onCheckedChange={onToggle}
+                  />
+                  <span className="text-base text-text-primary">
+                    {opt.label}
+                  </span>
+                </label>
+              )}
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   );
 };

@@ -9,13 +9,13 @@ import { FieldErrors, useForm } from 'react-hook-form';
 
 import { totalWorkSpanOptions } from '@/components/onboarding/steps/constant';
 import { AvatarSection } from '@/components/profile/edit/AvatarSection';
+import { CategoryMultiSelectField } from '@/components/profile/edit/CategoryMultiSelectField';
 import { EditPageHeader } from '@/components/profile/edit/EditPageHeader';
 import {
   SelectField,
   TextareaField,
   TextField,
 } from '@/components/profile/edit/Fields';
-import { MultiSelectField } from '@/components/profile/edit/MultiSelectField';
 import {
   createProfileFormSchema,
   defaultValues,
@@ -30,8 +30,11 @@ import useExpertises from '@/hooks/user/expertises/useExpertises';
 import useIndustries from '@/hooks/user/industry/useIndustries';
 import useInterests from '@/hooks/user/interests/useInterests';
 import { useEditProfileData } from '@/hooks/user/profile/useEditProfileData';
-import { useProfileSelectOptions } from '@/hooks/user/profile/useProfileSelectOptions';
 import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
+import {
+  flattenAsSingleCategory,
+  groupAsPlaceholderCategories,
+} from '@/lib/profile/categoryGrouping';
 
 const JobExperienceSection = dynamic(async () => {
   const m = await import('@/components/profile/edit/JobExperienceSection');
@@ -94,18 +97,13 @@ export default function Page({
     setIsPageLoading,
   });
 
-  const {
-    whatIOfferTopicsList,
-    expertisedList,
-    interestedPositionList,
-    interestedSkillsList,
-    interestedTopicsList,
-  } = useProfileSelectOptions({
-    topics,
-    expertises,
-    interestedPositions,
-    skills,
-  });
+  const industryCategories = flattenAsSingleCategory(industries);
+  const whatIOfferCategories = groupAsPlaceholderCategories(topics);
+  const expertisesCategories = groupAsPlaceholderCategories(expertises);
+  const interestedPositionCategories =
+    groupAsPlaceholderCategories(interestedPositions);
+  const skillsCategories = groupAsPlaceholderCategories(skills);
+  const topicsCategories = groupAsPlaceholderCategories(topics);
 
   const scrollToField = (fieldId: string) => {
     document
@@ -208,14 +206,12 @@ export default function Page({
                 </>
               }
             >
-              <MultiSelectField
+              <CategoryMultiSelectField
                 form={form}
                 name="what_i_offer"
-                options={whatIOfferTopicsList}
-                placeholder="我能提供的服務"
-                variant="primaryAlt"
-                animation={2}
-                maxCount={3}
+                categories={whatIOfferCategories}
+                maxSelected={10}
+                searchPlaceholder="搜尋服務"
               />
             </Section>
           )}
@@ -229,14 +225,12 @@ export default function Page({
                 </>
               }
             >
-              <MultiSelectField
+              <CategoryMultiSelectField
                 form={form}
                 name="expertises"
-                options={expertisedList}
-                placeholder="專業能力"
-                variant="primaryAlt"
-                animation={2}
-                maxCount={3}
+                categories={expertisesCategories}
+                maxSelected={10}
+                searchPlaceholder="搜尋專業能力"
               />
             </Section>
           )}
@@ -276,22 +270,14 @@ export default function Page({
             />
           </Section>
 
-          <Section
-            id="industry"
-            title={
-              <>
-                <span className="text-status-200">* </span>產業
-              </>
-            }
-          >
-            <SelectField
+          <Section id="industry" title="產業 (選填)">
+            <CategoryMultiSelectField
               form={form}
               name="industry"
-              placeholder="請選擇產業"
-              options={industries.map((loc) => ({
-                value: loc.subject_group,
-                label: loc.subject,
-              }))}
+              categories={industryCategories}
+              flat
+              maxSelected={10}
+              searchPlaceholder="搜尋產業"
             />
           </Section>
 
@@ -303,14 +289,12 @@ export default function Page({
               </>
             }
           >
-            <MultiSelectField
+            <CategoryMultiSelectField
               form={form}
               name="interested_positions"
-              options={interestedPositionList}
-              placeholder="有興趣多了解的職位"
-              variant="primaryAlt"
-              animation={2}
-              maxCount={3}
+              categories={interestedPositionCategories}
+              maxSelected={10}
+              searchPlaceholder="搜尋職位"
             />
           </Section>
 
@@ -322,14 +306,12 @@ export default function Page({
               </>
             }
           >
-            <MultiSelectField
+            <CategoryMultiSelectField
               form={form}
               name="skills"
-              options={interestedSkillsList}
-              placeholder="想多了解、加強的技能"
-              variant="primaryAlt"
-              animation={2}
-              maxCount={3}
+              categories={skillsCategories}
+              maxSelected={10}
+              searchPlaceholder="搜尋技能"
             />
           </Section>
 
@@ -341,14 +323,12 @@ export default function Page({
               </>
             }
           >
-            <MultiSelectField
+            <CategoryMultiSelectField
               form={form}
               name="topics"
-              options={interestedTopicsList}
-              placeholder="想多了解的主題"
-              variant="primaryAlt"
-              animation={2}
-              maxCount={3}
+              categories={topicsCategories}
+              maxSelected={10}
+              searchPlaceholder="搜尋主題"
             />
           </Section>
 

@@ -4,6 +4,7 @@ import { FC } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
+import { CategoryMultiSelect } from '@/components/ui/category-multi-select';
 import {
   FormControl,
   FormField,
@@ -18,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { flattenAsSingleCategory } from '@/lib/profile/categoryGrouping';
 import { LocationType } from '@/services/profile/countries';
 import { ProfessionVO } from '@/services/profile/industries';
 
@@ -35,6 +37,8 @@ export const PersonalInfo: FC<Props> = ({
   locationOptions,
   industryOptions,
 }) => {
+  const industryCategories = flattenAsSingleCategory(industryOptions);
+
   return (
     <>
       <div className="flex flex-col gap-4">
@@ -100,23 +104,16 @@ export const PersonalInfo: FC<Props> = ({
           render={({ field }) => (
             <FormItem>
               <FormLabel>產業 (選填)</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="請選擇您的產業類別" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {industryOptions.map((option) => (
-                    <SelectItem
-                      key={`industry ${option.subject_group}`}
-                      value={option.subject_group}
-                    >
-                      {option.subject}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <CategoryMultiSelect
+                  flat
+                  categories={industryCategories}
+                  value={field.value ?? []}
+                  onChange={field.onChange}
+                  maxSelected={10}
+                  searchPlaceholder="搜尋產業"
+                />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}

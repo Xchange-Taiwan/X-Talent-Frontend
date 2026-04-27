@@ -55,7 +55,9 @@ export function useEditProfileData({
           location: data.location || '',
           statement: data.personal_statement || '',
           about: data.about || '',
-          industry: data.industry?.subject_group || '',
+          industry: data.industry?.subject_group
+            ? [data.industry.subject_group]
+            : [],
           years_of_experience: data.years_of_experience || '',
           linkedin: parsedLinks.linkedin || defaultValues.linkedin,
           facebook: parsedLinks.facebook || defaultValues.facebook,
