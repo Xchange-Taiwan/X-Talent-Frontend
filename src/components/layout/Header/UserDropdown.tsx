@@ -107,7 +107,7 @@ export const UserDropdown = React.memo(function UserDropdown({
           <button
             type="button"
             className="flex items-center gap-2"
-            aria-label="Open user menu"
+            aria-label="開啟用戶選單"
           >
             <Image
               src={avatarSrc || DefaultAvatarImgUrl}
@@ -117,7 +117,9 @@ export const UserDropdown = React.memo(function UserDropdown({
               className="h-8 w-8 rounded-full object-cover"
               priority
             />
-            <span className="text-xl leading-none">▾</span>
+            <span className="text-xl leading-none" aria-hidden="true">
+              ▾
+            </span>
           </button>
         </DropdownMenuTrigger>
 

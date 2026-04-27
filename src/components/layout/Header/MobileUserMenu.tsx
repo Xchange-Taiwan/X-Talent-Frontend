@@ -103,7 +103,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
         <SheetTrigger asChild>
           <button
             type="button"
-            aria-label="Open account menu"
+            aria-label="開啟用戶選單"
             className="flex items-center"
           >
             <Image
@@ -120,8 +120,17 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
         <SheetContent side="right" className="h-screen w-screen">
           <SheetTitle className="sr-only">用戶選單</SheetTitle>
           <div className="flex h-full flex-col overflow-y-auto">
-            <SheetClose asChild className="ml-auto">
-              <Cross2Icon className="text-blue-900 h-8 w-8" />
+            <SheetClose asChild>
+              <button
+                type="button"
+                aria-label="關閉用戶選單"
+                className="ml-auto"
+              >
+                <Cross2Icon
+                  className="text-blue-900 h-8 w-8"
+                  aria-hidden="true"
+                />
+              </button>
             </SheetClose>
 
             {/* Profile header */}
