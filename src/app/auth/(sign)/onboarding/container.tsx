@@ -47,6 +47,18 @@ export default function OnboardingContainer() {
 
   const stableOnboardingCacheBust = useRef(Date.now()).current;
 
+  // Tracks the in-flight background avatar upload kicked off after Step 1.
+  // The promise is consumed at Step 5 submit so the user doesn't wait for S3
+  // round-trip; replaced (with abort) when the user picks a new file.
+  const avatarUploadRef = useRef<{
+    file: File;
+    controller: AbortController;
+    promise: Promise<string | undefined>;
+  } | null>(null);
+  const [avatarUploadError, setAvatarUploadError] = useState<string | null>(
+    null
+  );
+
   const step1Form = useForm<z.infer<typeof step1Schema>>({
     resolver: zodResolver(step1Schema),
     defaultValues: {
@@ -83,8 +95,41 @@ export default function OnboardingContainer() {
     });
   }, [currentStep]);
 
+  const watchedAvatarFile = step1Form.watch('avatarFile');
+  useEffect(() => {
+    if (watchedAvatarFile) setAvatarUploadError(null);
+  }, [watchedAvatarFile]);
+
+  useEffect(() => {
+    return () => {
+      avatarUploadRef.current?.controller.abort();
+    };
+  }, []);
+
   const onSubmitStep1 = (data: z.infer<typeof step1Schema>) => {
     setTempData((prev) => ({ ...prev, step1: data }));
+
+    const file = data.avatarFile;
+    const currentJob = avatarUploadRef.current;
+
+    if (file) {
+      // Same File ref (user advanced without re-cropping) — keep existing job
+      if (currentJob?.file !== file) {
+        currentJob?.controller.abort();
+        const controller = new AbortController();
+        const promise = updateAvatar(file, controller.signal).catch((err) => {
+          // Aborts are expected when the user picks a new file or unmounts —
+          // swallow so they don't show up as upload failures at Step 5
+          if (controller.signal.aborted) return undefined;
+          throw err;
+        });
+        avatarUploadRef.current = { file, controller, promise };
+      }
+    } else if (currentJob) {
+      currentJob.controller.abort();
+      avatarUploadRef.current = null;
+    }
+
     trackEvent({ name: 'onboarding_step_1_completed', feature: 'onboarding' });
     setCurrentStep(2);
   };
@@ -147,9 +192,10 @@ export default function OnboardingContainer() {
     try {
       setIsSubmitting(true);
 
-      if (allData.avatarFile) {
+      const job = avatarUploadRef.current;
+      if (job) {
         try {
-          const newUrl = await updateAvatar(allData.avatarFile);
+          const newUrl = await job.promise;
           allData.avatar = newUrl ?? allData.avatar;
           allData.avatarFile = undefined;
         } catch (err) {
@@ -159,7 +205,12 @@ export default function OnboardingContainer() {
             message:
               err instanceof Error ? err.message : 'Avatar upload failed',
           });
-          throw err;
+          // Drop the failed job so the next Step 1 submit starts a fresh upload
+          avatarUploadRef.current = null;
+          setAvatarUploadError('頭像上傳失敗，請重新選擇。');
+          setCurrentStep(1);
+          setIsSubmitting(false);
+          return;
         }
       }
 
@@ -214,6 +265,7 @@ export default function OnboardingContainer() {
       stepsTotal={STEPS_TOTAL}
       stepTitle={STEP_TITLE}
       avatarDisplayUrl={avatarDisplayUrl}
+      avatarError={avatarUploadError}
       step1Form={step1Form}
       step2Form={step2Form}
       step3Form={step3Form}

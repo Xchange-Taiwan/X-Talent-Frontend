@@ -19,9 +19,10 @@ import { step1Schema } from './index';
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step1Schema>>>;
   avatarUrl: string;
+  avatarError?: string | null;
 }
 
-export const WhoAreYou: FC<Props> = ({ form, avatarUrl }) => {
+export const WhoAreYou: FC<Props> = ({ form, avatarUrl, avatarError }) => {
   return (
     <>
       <AvatarUpload
@@ -29,6 +30,11 @@ export const WhoAreYou: FC<Props> = ({ form, avatarUrl }) => {
         name="avatarFile"
         avatarUrl={avatarUrl}
       />
+      {avatarError && (
+        <p className="-mt-6 text-center text-sm font-medium text-destructive lg:text-left">
+          {avatarError}
+        </p>
+      )}
 
       <FormField
         control={form.control}
