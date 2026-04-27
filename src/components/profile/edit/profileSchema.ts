@@ -94,10 +94,7 @@ export const createProfileFormSchema = (isMentor: boolean) =>
       about: isMentor
         ? z.string().min(1, '請填寫關於我')
         : z.string().optional(),
-      industry: z
-        .array(z.string())
-        .min(1, '請選擇您的產業類別')
-        .max(10, '最多選 10 個'),
+      industry: z.array(z.string()).max(10, '最多選 10 個'),
       years_of_experience: z.string({ required_error: '請選擇經驗' }),
       work_experiences: z.array(jobSchema),
       educations: z.array(educationSchema),

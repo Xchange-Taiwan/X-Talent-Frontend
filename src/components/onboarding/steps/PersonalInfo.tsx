@@ -103,7 +103,7 @@ export const PersonalInfo: FC<Props> = ({
           name="industry"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>產業</FormLabel>
+              <FormLabel>產業 (選填)</FormLabel>
               <FormControl>
                 <CategoryMultiSelect
                   flat

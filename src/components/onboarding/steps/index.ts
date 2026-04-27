@@ -16,10 +16,7 @@ export const step1Schema = z.object({
 export const step2Schema = z.object({
   location: z.string({ required_error: '請選擇地區' }),
   years_of_experience: z.string().min(1, '請選擇您的年資區間'),
-  industry: z
-    .array(z.string())
-    .min(1, '請選擇您的產業類別')
-    .max(10, '最多選 10 個'),
+  industry: z.array(z.string()).max(10, '最多選 10 個'),
 });
 
 export const step3Schema = z.object({
