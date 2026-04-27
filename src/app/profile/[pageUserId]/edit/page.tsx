@@ -150,6 +150,9 @@ export default function Page({
   };
 
   const watchedAvatar = form.watch('avatar');
+  // Fall back to the session avatar before the form has reset from the DTO,
+  // so the avatar does not flash blank on first paint of the edit page.
+  const editAvatarSrc = watchedAvatar || session?.user?.avatar || '';
 
   return (
     <div className="mx-auto w-11/12 max-w-[1064px] pb-20 pt-10">
@@ -169,8 +172,8 @@ export default function Page({
             control={form.control}
             name="avatarFile"
             avatarUrl={
-              watchedAvatar
-                ? `${watchedAvatar}?cb=${session?.user?.avatarUpdatedAt ?? stableEditCacheBust}`
+              editAvatarSrc
+                ? `${editAvatarSrc}?cb=${session?.user?.avatarUpdatedAt ?? stableEditCacheBust}`
                 : ''
             }
           />

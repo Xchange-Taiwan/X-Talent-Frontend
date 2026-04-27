@@ -83,7 +83,10 @@ export function useUserProfileDto(
   language: string
 ): UseUserProfileDtoResult {
   const [userDto, setUserDto] = useState<MentorProfileVO | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  // Default to loading=true so the very first render (before useEffect runs)
+  // does not look like "not loading and no data" to consumers — that gap
+  // would flash a "user not found" guard for one frame.
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

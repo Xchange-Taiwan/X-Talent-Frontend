@@ -190,7 +190,11 @@ function parseUserDtoToUserType(
 }
 
 function useUserData(userId: number, language: string) {
-  const { userDto, isLoading, error } = useUserProfileDto(userId, language);
+  const {
+    userDto,
+    isLoading: dtoLoading,
+    error,
+  } = useUserProfileDto(userId, language);
   const [userData, setUserData] = useState<UserType | null>(null);
 
   useEffect(() => {
@@ -221,6 +225,11 @@ function useUserData(userId: number, language: string) {
       cancelled = true;
     };
   }, [userDto, language]);
+
+  // Treat the gap between DTO arrival and userData computation (async
+  // interests parsing) as still loading, so the consumer's "user not found"
+  // guard does not flash between the two.
+  const isLoading = dtoLoading || (Boolean(userDto) && !userData);
 
   return { userData, isLoading, error };
 }

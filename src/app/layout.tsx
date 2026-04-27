@@ -55,9 +55,24 @@ export default async function RootLayout({
 }) {
   const session = await getServerSession(authOptions);
 
+  // Preload the logged-in user's avatar through the next/image optimizer so the
+  // profile view page's first paint does not wait on a cold S3 fetch. The href
+  // must match the optimizer cache key used by <Image sizes="160px" /> on that
+  // page (w=384 covers 2x DPR; lower-DPR users get a cheap wasted hint).
+  const sessionAvatar = session?.user?.avatar;
+  const avatarVersion = session?.user?.avatarUpdatedAt;
+  const avatarPreloadHref = sessionAvatar
+    ? `/_next/image?url=${encodeURIComponent(
+        avatarVersion ? `${sessionAvatar}?v=${avatarVersion}` : sessionAvatar
+      )}&w=384&q=75`
+    : null;
+
   return (
     <html lang="zh-TW" className={notoSans.className}>
       <body id="app">
+        {avatarPreloadHref && (
+          <link rel="preload" as="image" href={avatarPreloadHref} />
+        )}
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
