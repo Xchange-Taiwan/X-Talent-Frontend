@@ -84,9 +84,9 @@ const AvatarUpload = <T extends FieldValues>({
           <Image
             src={imagePreviewUrl}
             alt="Avatar Preview"
-            width={50}
-            height={50}
-            sizes="50px"
+            width={150}
+            height={150}
+            sizes="150px"
             className="h-full w-full rounded-full object-cover"
           />
         ) : (

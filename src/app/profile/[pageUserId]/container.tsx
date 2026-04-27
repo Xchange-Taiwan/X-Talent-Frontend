@@ -59,11 +59,15 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
 
   // Only attach a versioning param for the logged-in user's own profile; the
   // stable URL for other users lets the Next.js Image Optimizer hit its cache
-  // across navigations.
-  const avatarSrc = userData?.avatar
-    ? loginUserId === pageUserId && session?.user?.avatarUpdatedAt
-      ? `${userData.avatar}?v=${session.user.avatarUpdatedAt}`
-      : userData.avatar
+  // across navigations. While the DTO is still loading on the user's own
+  // profile, fall back to the session avatar so the page does not flash blank.
+  const isOwnProfile = loginUserId === pageUserId;
+  const resolvedAvatar =
+    userData?.avatar ?? (isOwnProfile ? session?.user?.avatar : undefined);
+  const avatarSrc = resolvedAvatar
+    ? isOwnProfile && session?.user?.avatarUpdatedAt
+      ? `${resolvedAvatar}?v=${session.user.avatarUpdatedAt}`
+      : resolvedAvatar
     : DefaultAvatarImgUrl;
 
   if (!userLoading && !userData) {
