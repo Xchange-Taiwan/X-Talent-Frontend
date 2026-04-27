@@ -3,19 +3,25 @@ import { Suspense } from 'react';
 import MentorGridSkeleton from './MentorGridSkeleton';
 import MentorPoolHero from './MentorPoolHero';
 import MentorPoolSearchBar from './MentorPoolSearchBar';
-import { MentorPoolStateProvider } from './MentorPoolStateProvider';
 import MentorPoolWithData from './MentorPoolWithData';
+import type { ServerSearchParams } from './searchParams';
 
-export default function Page() {
+interface PageProps {
+  searchParams: ServerSearchParams;
+}
+
+export default function Page({ searchParams }: PageProps) {
   return (
-    <MentorPoolStateProvider>
+    <>
       <div className="relative">
         <MentorPoolHero />
-        <MentorPoolSearchBar />
+        <Suspense fallback={null}>
+          <MentorPoolSearchBar />
+        </Suspense>
       </div>
       <Suspense fallback={<MentorGridSkeleton />}>
-        <MentorPoolWithData />
+        <MentorPoolWithData searchParams={searchParams} />
       </Suspense>
-    </MentorPoolStateProvider>
+    </>
   );
 }
