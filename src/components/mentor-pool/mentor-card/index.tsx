@@ -40,7 +40,7 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
           aria-label={`前往 ${name} 的個人頁面`}
           className="absolute bottom-0 left-0 right-0 top-0 z-10"
         ></Link>
-        <AvatarWithBadge avatar={avatar} years={years} />
+        <AvatarWithBadge avatar={avatar} years={years} name={name} />
         <div className="px-4 pb-6 pt-4">
           <Information
             name={name}
