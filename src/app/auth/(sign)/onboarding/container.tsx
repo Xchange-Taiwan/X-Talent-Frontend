@@ -23,7 +23,6 @@ import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
-import { fetchUser } from '@/services/profile/user';
 
 import { STEP_TITLE, STEPS_TOTAL } from './data';
 import OnboardingUI from './ui';
@@ -217,21 +216,23 @@ export default function OnboardingContainer() {
       try {
         const validatedData = formSchema.parse(allData);
         await updateProfile(validatedData);
-        const latest = await fetchUser('zh_TW');
 
         if (session?.user?.id) {
           clearUserDataCache(Number(session.user.id), 'zh_TW');
         }
 
+        // Optimistic session update — server-side `is_mentor` is taken from
+        // the existing DB value (onboarding payload doesn't carry it), and
+        // server-side `onboarding` is derived from the interests we just
+        // submitted, so both values are predictable without a fetch.
         await updateSession({
           user: {
-            id: session?.user?.id,
-            name: latest?.name ?? validatedData.name ?? session?.user?.name,
-            avatar:
-              latest?.avatar ?? validatedData.avatar ?? session?.user?.avatar,
-            isMentor: Boolean(latest?.is_mentor),
-            onBoarding: Boolean(latest?.onboarding),
-            msg: session?.user?.msg,
+            ...session?.user,
+            name: validatedData.name ?? session?.user?.name,
+            avatar: validatedData.avatar ?? session?.user?.avatar,
+            isMentor: session?.user?.isMentor ?? false,
+            onBoarding: true,
+            ...(job ? { avatarUpdatedAt: Date.now() } : {}),
           },
         });
       } catch (err) {
