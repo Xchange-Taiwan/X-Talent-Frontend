@@ -190,21 +190,10 @@ export async function fetchAllReservationLists(
  * PUT: Update reservation status
  * ================================ */
 
-export type UpdateReservationPayload = {
-  my_user_id: number | string;
-  my_status: 'ACCEPT' | 'PENDING' | 'REJECT';
-  user_id: number | string;
-  schedule_id: number;
-  dtstart: number; // epoch seconds
-  dtend: number; // epoch seconds
-  messages?: Array<{ user_id: number | string; content: string }>;
-  previous_reserve?: Record<string, unknown> | null;
-};
-
 export async function updateReservationStatus(opts: {
   userId: string | number;
   reservationId: string | number;
-  body: UpdateReservationPayload;
+  body: components['schemas']['UpdateReservationDTO'];
   debug?: boolean;
 }): Promise<components['schemas']['ReservationVO']> {
   const { userId, reservationId, body, debug } = opts;
@@ -234,25 +223,15 @@ export async function updateReservationStatus(opts: {
  * POST: Create new reservation
  * ================================ */
 
-export type CreateReservationPayload = {
-  my_user_id: number | string;
-  my_status: 'ACCEPT' | 'PENDING' | 'REJECT';
-  user_id: number | string;
-  schedule_id: number;
-  dtstart: number; // epoch seconds
-  dtend: number; // epoch seconds
-  messages: Array<{ user_id: number | string; content: string }>;
-  previous_reserve: { reserve_id: number } | Record<string, never>;
-};
-
 /**
  * 新增預約（POST /v1/users/:user_id/reservations）
  *
- * @param opts.body.previous_reserve - 傳入 `{}` 表示新預約；傳入 `{ reserve_id: number }` 表示修改預約
+ * @param opts.body.previous_reserve - 修改預約時傳入 `{ reserve_id: number }`；
+ *   一般新預約可省略此欄位。
  */
 export async function createReservation(opts: {
   userId: string | number;
-  body: CreateReservationPayload;
+  body: components['schemas']['ReservationDTO'];
   debug?: boolean;
 }): Promise<components['schemas']['ReservationVO']> {
   const { userId, body, debug } = opts;
