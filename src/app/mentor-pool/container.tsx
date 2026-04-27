@@ -1,6 +1,5 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import avatarImage from '@/assets/default-avatar.png';
@@ -11,8 +10,7 @@ import {
 } from '@/services/search-mentor/mentors';
 
 import { filterOptions } from './data';
-
-const MentorPoolUI = dynamic(() => import('./ui'));
+import MentorPoolUI from './ui';
 
 const PAGE_LIMIT = 9;
 const SESSION_KEY_PATTERN = 'mentor-pool:searchPattern';
