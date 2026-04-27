@@ -18,7 +18,11 @@ import {
 import useLocations from '@/hooks/user/country/useLocations';
 import useIndustries from '@/hooks/user/industry/useIndustries';
 import useInterests from '@/hooks/user/interests/useInterests';
-import { clearUserDataCache } from '@/hooks/user/user-data/useUserData';
+import { buildOnboardingDtoStub } from '@/hooks/user/onboarding/buildOnboardingDtoStub';
+import {
+  clearUserDataCache,
+  primeUserDataCache,
+} from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { updateAvatar } from '@/services/profile/updateAvatar';
@@ -210,7 +214,21 @@ export default function OnboardingContainer() {
         const validatedData = formSchema.parse(allData);
         await updateProfile(validatedData);
 
-        if (session?.user?.id) {
+        // Prime the user-profile cache from the form values + interest
+        // pools we already have in memory, so /profile/card mounts from
+        // cache instead of refetching the same DTO. Falls back to
+        // clearUserDataCache if the userId is not a finite number, which
+        // matches the historical behaviour for unexpected session shapes.
+        const sessionUserId = session?.user?.id ? Number(session.user.id) : NaN;
+        if (Number.isFinite(sessionUserId)) {
+          const stub = buildOnboardingDtoStub({
+            userId: sessionUserId,
+            formData: validatedData,
+            pools: { interestedPositions, skills, topics },
+            isMentor: session?.user?.isMentor ?? false,
+          });
+          primeUserDataCache(sessionUserId, 'zh_TW', stub);
+        } else if (session?.user?.id) {
           clearUserDataCache(Number(session.user.id), 'zh_TW');
         }
 
