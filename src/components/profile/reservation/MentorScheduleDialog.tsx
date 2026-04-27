@@ -398,7 +398,7 @@ export default function MentorScheduleDialog({
                       key={slot.id}
                       className="flex flex-col gap-2 rounded-lg p-3 lg:p-4"
                     >
-                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="flex flex-row flex-wrap items-center justify-between gap-2 lg:gap-3">
                         <div className="flex flex-wrap items-center gap-1.5 lg:gap-2">
                           {renderTimeSelect(
                             slot.id,
@@ -445,7 +445,7 @@ export default function MentorScheduleDialog({
                           )}
                         </div>
 
-                        <div className="flex justify-end gap-1 lg:ml-4">
+                        <div className="flex shrink-0 justify-end gap-1 lg:ml-4">
                           <Button
                             variant="ghost"
                             size="icon"
