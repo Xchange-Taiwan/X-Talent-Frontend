@@ -1,21 +1,32 @@
-import { useLayoutEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+
+const RESIZE_DEBOUNCE_MS = 150;
+
+const getSize = () => ({
+  width: typeof window === 'undefined' ? 0 : window.innerWidth,
+  height: typeof window === 'undefined' ? 0 : window.innerHeight,
+});
 
 export default function useWindowSize() {
-  const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+  const [windowSize, setWindowSize] = useState(getSize);
 
-  const handleSize = () => {
-    setWindowSize({
-      width: window.innerWidth,
-      height: window.innerHeight,
-    });
-  };
+  useEffect(() => {
+    setWindowSize(getSize());
 
-  useLayoutEffect(() => {
-    handleSize();
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const handleResize = () => {
+      if (timeoutId !== null) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setWindowSize(getSize());
+      }, RESIZE_DEBOUNCE_MS);
+    };
 
-    window.addEventListener('resize', handleSize);
+    window.addEventListener('resize', handleResize);
 
-    return () => window.removeEventListener('resize', handleSize);
+    return () => {
+      if (timeoutId !== null) clearTimeout(timeoutId);
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   return windowSize;
