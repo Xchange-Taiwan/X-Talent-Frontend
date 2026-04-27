@@ -56,23 +56,37 @@ export default async function RootLayout({
   const session = await getServerSession(authOptions);
 
   // Preload the logged-in user's avatar through the next/image optimizer so the
-  // profile view page's first paint does not wait on a cold S3 fetch. The href
-  // must match the optimizer cache key used by <Image sizes="160px" /> on that
-  // page (w=384 covers 2x DPR; lower-DPR users get a cheap wasted hint).
+  // profile view / edit page's first paint does not wait on a cold S3 fetch.
+  // imageSrcSet + imageSizes lets the browser pick the same width that
+  // <Image sizes="150-160px" /> will request (w=256 at 1x DPR, w=384 at 2x),
+  // avoiding the cache-miss caused by a fixed-width preload.
   const sessionAvatar = session?.user?.avatar;
   const avatarVersion = session?.user?.avatarUpdatedAt;
-  const avatarPreloadHref = sessionAvatar
-    ? `/_next/image?url=${encodeURIComponent(
-        avatarVersion ? `${sessionAvatar}?v=${avatarVersion}` : sessionAvatar
-      )}&w=384&q=75`
+  const avatarSrc = sessionAvatar
+    ? avatarVersion
+      ? `${sessionAvatar}?v=${avatarVersion}`
+      : sessionAvatar
+    : null;
+  const buildOptimizerUrl = (w: number) =>
+    `/_next/image?url=${encodeURIComponent(avatarSrc ?? '')}&w=${w}&q=75`;
+  const avatarSrcSet = avatarSrc
+    ? `${buildOptimizerUrl(256)} 256w, ${buildOptimizerUrl(384)} 384w`
     : null;
 
   return (
     <html lang="zh-TW" className={notoSans.className}>
-      <body id="app">
-        {avatarPreloadHref && (
-          <link rel="preload" as="image" href={avatarPreloadHref} />
+      <head>
+        {avatarSrcSet && (
+          <link
+            rel="preload"
+            as="image"
+            imageSrcSet={avatarSrcSet}
+            imageSizes="160px"
+            fetchPriority="high"
+          />
         )}
+      </head>
+      <body id="app">
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
