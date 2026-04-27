@@ -1,8 +1,7 @@
 'use client';
 
-import Image from 'next/image';
+import Image, { type StaticImageData } from 'next/image';
 
-import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import {
   EducationSection,
   WorkExperienceSection,
@@ -30,7 +29,7 @@ interface Props {
   scheduleLoaded: boolean;
   loginUserId: string;
   isLogging: boolean;
-  avatarCacheBust: number;
+  avatarSrc: string | StaticImageData;
   allowedDates: string[];
   openReservationDialog: boolean;
   setOpenReservationDialog: (open: boolean) => void;
@@ -49,7 +48,7 @@ export default function ProfilePageUI({
   scheduleLoaded,
   loginUserId,
   isLogging,
-  avatarCacheBust,
+  avatarSrc,
   allowedDates,
   openReservationDialog,
   setOpenReservationDialog,
@@ -70,15 +69,12 @@ export default function ProfilePageUI({
         <div className="flex h-auto -translate-y-10 flex-col sm:flex-row sm:items-start">
           <div className="relative mx-auto h-[160px] w-[160px] flex-shrink-0 overflow-hidden rounded-full bg-background-white sm:mx-0">
             <Image
-              src={
-                userData?.avatar
-                  ? `${userData.avatar}?cb=${avatarCacheBust}`
-                  : DefaultAvatarImgUrl
-              }
+              src={avatarSrc}
               alt={'Avatar of ' + userData?.name}
               fill
               sizes="160px"
               style={{ objectFit: 'contain' }}
+              priority
             />
           </div>
 
