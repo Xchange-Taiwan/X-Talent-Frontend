@@ -12,12 +12,13 @@ vi.mock('@/hooks/user/interests/useInterests', () => ({
 import { getInterestsCached } from '@/hooks/user/interests/useInterests';
 import { fetchUserById, type MentorProfileVO } from '@/services/profile/user';
 
-import useUserData, { clearUserDataCache } from './useUserData';
+import useUserData, {
+  clearUserDataCache,
+  USER_DATA_CACHE_TTL_MS as TTL_MS,
+} from './useUserData';
 
 const mockFetchUserById = vi.mocked(fetchUserById);
 const mockGetInterestsCached = vi.mocked(getInterestsCached);
-
-const TTL_MS = 5_000;
 
 const makeUserDto = (id: number): MentorProfileVO =>
   ({
@@ -62,21 +63,106 @@ describe('useUserData caching', () => {
     second.unmount();
   });
 
-  it('re-mount after TTL expires triggers a fresh fetch', async () => {
+  it('re-mount after TTL: shows stale data immediately and revalidates in background', async () => {
     const userId = 4002;
     const nowSpy = vi.spyOn(Date, 'now');
     nowSpy.mockReturnValue(10_000);
-    mockFetchUserById.mockResolvedValue(makeUserDto(userId));
+
+    const stale = { ...makeUserDto(userId), name: 'Stale 4002' };
+    const fresh = { ...makeUserDto(userId), name: 'Fresh 4002' };
+    mockFetchUserById.mockResolvedValueOnce(stale as MentorProfileVO);
 
     const first = renderHook(() => useUserData(userId, 'en'));
-    await waitFor(() => expect(first.result.current.isLoading).toBe(false));
+    await waitFor(() =>
+      expect(first.result.current.userData?.name).toBe('Stale 4002')
+    );
     first.unmount();
 
     nowSpy.mockReturnValue(10_000 + TTL_MS + 1);
+    let resolveFresh: (value: MentorProfileVO) => void = () => {};
+    mockFetchUserById.mockImplementationOnce(
+      () =>
+        new Promise<MentorProfileVO>((resolve) => {
+          resolveFresh = resolve;
+        })
+    );
 
     const second = renderHook(() => useUserData(userId, 'en'));
-    await waitFor(() => expect(second.result.current.isLoading).toBe(false));
+    // Stale data is shown immediately without entering loading state,
+    // before the background refetch resolves.
+    await waitFor(() =>
+      expect(second.result.current.userData?.name).toBe('Stale 4002')
+    );
+    expect(second.result.current.isLoading).toBe(false);
     expect(mockFetchUserById).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      resolveFresh(fresh as MentorProfileVO);
+    });
+    await waitFor(() =>
+      expect(second.result.current.userData?.name).toBe('Fresh 4002')
+    );
+    second.unmount();
+  });
+
+  it('background revalidation failure keeps stale data without flipping to error', async () => {
+    const userId = 4006;
+    const nowSpy = vi.spyOn(Date, 'now');
+    nowSpy.mockReturnValue(20_000);
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    mockFetchUserById.mockResolvedValueOnce({
+      ...makeUserDto(userId),
+      name: 'Stale 4006',
+    } as MentorProfileVO);
+
+    const first = renderHook(() => useUserData(userId, 'en'));
+    await waitFor(() =>
+      expect(first.result.current.userData?.name).toBe('Stale 4006')
+    );
+    first.unmount();
+
+    nowSpy.mockReturnValue(20_000 + TTL_MS + 1);
+    mockFetchUserById.mockRejectedValueOnce(new Error('Network down'));
+
+    const second = renderHook(() => useUserData(userId, 'en'));
+    await waitFor(() =>
+      expect(second.result.current.userData?.name).toBe('Stale 4006')
+    );
+    // Wait for the rejected promise to settle, then assert state is intact.
+    await waitFor(() => expect(mockFetchUserById).toHaveBeenCalledTimes(2));
+    expect(second.result.current.userData?.name).toBe('Stale 4006');
+    expect(second.result.current.error).toBeNull();
+
+    consoleErrorSpy.mockRestore();
+    second.unmount();
+  });
+
+  it('background revalidation returning null keeps stale data', async () => {
+    const userId = 4007;
+    const nowSpy = vi.spyOn(Date, 'now');
+    nowSpy.mockReturnValue(30_000);
+
+    mockFetchUserById.mockResolvedValueOnce({
+      ...makeUserDto(userId),
+      name: 'Stale 4007',
+    } as MentorProfileVO);
+
+    const first = renderHook(() => useUserData(userId, 'en'));
+    await waitFor(() =>
+      expect(first.result.current.userData?.name).toBe('Stale 4007')
+    );
+    first.unmount();
+
+    nowSpy.mockReturnValue(30_000 + TTL_MS + 1);
+    mockFetchUserById.mockResolvedValueOnce(null);
+
+    const second = renderHook(() => useUserData(userId, 'en'));
+    await waitFor(() => expect(mockFetchUserById).toHaveBeenCalledTimes(2));
+    expect(second.result.current.userData?.name).toBe('Stale 4007');
+    expect(second.result.current.error).toBeNull();
     second.unmount();
   });
 
