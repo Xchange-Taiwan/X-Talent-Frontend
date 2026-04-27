@@ -13,11 +13,34 @@ import { Toaster } from '@/components/ui/toaster';
 
 import { notoSans } from './font';
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+const SITE_DESCRIPTION =
+  'XChange Talent Pool 是連結業界導師與職涯探索者的 mentorship 平台，協助你在轉職、升遷、跨界探索時，找到對的人聊對的事。';
+
 export function generateMetadata(): Metadata {
   return {
+    metadataBase: new URL(SITE_URL),
     title: {
       default: 'XChange Talent Pool',
       template: '%s | XChange Talent Pool',
+    },
+    description: SITE_DESCRIPTION,
+    openGraph: {
+      siteName: 'XChange Talent Pool',
+      title: 'XChange Talent Pool',
+      description: SITE_DESCRIPTION,
+      url: SITE_URL,
+      locale: 'zh_TW',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: 'XChange Talent Pool',
+      description: SITE_DESCRIPTION,
+    },
+    robots: {
+      index: true,
+      follow: true,
     },
     other: {
       ...Sentry.getTraceData(),
