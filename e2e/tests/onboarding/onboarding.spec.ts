@@ -164,10 +164,14 @@ test('submit Step 1 with empty name → inline validation error shown, does NOT 
 }) => {
   await gotoOnboarding(page);
 
-  // The session mock pre-fills the name field with 'Test User' via useEffect.
-  // Wait for that reset to settle, then clear the field so validation fires.
-  await expect(page.locator('input[name="name"]')).toHaveValue('Test User');
-  await page.fill('input[name="name"]', '');
+  // Clear the name field so validation fires on submit. Whether the session-
+  // driven useEffect has already pre-filled it (local) or never fires because
+  // the SessionProvider sees a null server-side session and skips the
+  // refetch (remote SSR with the intentionally-invalid fake cookie),
+  // fill('') normalises both cases.
+  const nameInput = page.locator('input[name="name"]');
+  await expect(nameInput).toBeVisible();
+  await nameInput.fill('');
   await page.getByRole('button', { name: '下一步' }).click();
 
   await expect(page.getByText('請輸入姓名')).toBeVisible();
