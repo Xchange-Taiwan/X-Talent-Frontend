@@ -94,7 +94,7 @@ export const createProfileFormSchema = (isMentor: boolean) =>
       about: isMentor
         ? z.string().min(1, '請填寫關於我')
         : z.string().optional(),
-      industry: z.string(),
+      industry: z.array(z.string()).max(10, '最多選 10 個'),
       years_of_experience: z.string({ required_error: '請選擇經驗' }),
       work_experiences: z.array(jobSchema),
       educations: z.array(educationSchema),
@@ -105,14 +105,29 @@ export const createProfileFormSchema = (isMentor: boolean) =>
       youtube: youtubeLinkSchema,
       website: websiteLinkSchema,
       what_i_offer: isMentor
-        ? z.array(z.string()).min(1, '請至少選擇一個主題')
-        : z.array(z.string()),
+        ? z
+            .array(z.string())
+            .min(1, '請至少選擇一個主題')
+            .max(10, '最多選 10 個')
+        : z.array(z.string()).max(10, '最多選 10 個'),
       expertises: isMentor
-        ? z.array(z.string()).min(1, '請至少選擇一個技能')
-        : z.array(z.string()),
-      interested_positions: z.array(z.string()).min(1, '請至少選擇一個職位'),
-      skills: z.array(z.string()).min(1, '請至少選擇一個技能'),
-      topics: z.array(z.string()).min(1, '請至少選擇一個主題'),
+        ? z
+            .array(z.string())
+            .min(1, '請至少選擇一個技能')
+            .max(10, '最多選 10 個')
+        : z.array(z.string()).max(10, '最多選 10 個'),
+      interested_positions: z
+        .array(z.string())
+        .min(1, '請至少選擇一個職位')
+        .max(10, '最多選 10 個'),
+      skills: z
+        .array(z.string())
+        .min(1, '請至少選擇一個技能')
+        .max(10, '最多選 10 個'),
+      topics: z
+        .array(z.string())
+        .min(1, '請至少選擇一個主題')
+        .max(10, '最多選 10 個'),
     })
     .superRefine((data, ctx) => {
       if (isMentor) {
@@ -145,7 +160,7 @@ export const defaultValues: ProfileFormValues = {
   location: '',
   statement: '',
   about: '',
-  industry: '',
+  industry: [],
   years_of_experience: '',
   work_experiences: [],
   educations: [],

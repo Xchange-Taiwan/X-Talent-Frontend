@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { FC } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -10,12 +9,13 @@ import {
   FormControl,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { groupAsPlaceholderCategories } from '@/lib/profile/categoryGrouping';
 import { cn } from '@/lib/utils';
 import { InterestVO } from '@/services/profile/interests';
 
+import { GroupedSelections } from './GroupedSelections';
 import { step5Schema } from './index';
 
 interface Props {
@@ -24,83 +24,44 @@ interface Props {
 }
 
 export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {
+  const categories = groupAsPlaceholderCategories(topicOptions);
+
   return (
-    <>
-      <div className="grid grid-cols-1 gap-4">
-        {topicOptions.map((option) => (
-          <FormField
-            key={option.subject_group}
-            control={form.control}
-            name="topics"
-            render={({ field }) => {
-              return (
-                <FormItem
-                  key={option.subject_group}
+    <FormField
+      control={form.control}
+      name="topics"
+      render={({ field }) => (
+        <FormItem>
+          <FormControl>
+            <GroupedSelections
+              categories={categories}
+              value={field.value ?? []}
+              onChange={field.onChange}
+              maxSelected={10}
+              layoutClass="grid grid-cols-1 gap-4 sm:grid-cols-2"
+              renderItem={(opt, { checked, disabled, onToggle }) => (
+                <label
                   className={cn(
-                    'flex items-start gap-2 rounded-xl border border-gray-200 px-4 py-3',
-                    field.value.includes(option.subject_group) &&
-                      'border-primary bg-secondary'
+                    'flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-3',
+                    checked ? 'border-primary bg-secondary' : 'border-gray-200',
+                    disabled && 'cursor-not-allowed opacity-50'
                   )}
                 >
-                  <FormLabel className="flex grow cursor-pointer gap-4 ">
-                    <div className="rounded-full bg-[#EBFBFB] p-3">
-                      {option.desc?.icon && (
-                        <Image
-                          src={option.desc.icon ?? ''}
-                          alt={option.desc?.desc ?? '主題圖示'}
-                          width={24}
-                          height={24}
-                          sizes="24px"
-                          className="object-contain"
-                        />
-                      )}
-                    </div>
-
-                    <div>
-                      <p className="text-base font-normal text-text-primary">
-                        {option.subject ?? ''}
-                      </p>
-                      <p className=" text-sm text-text-tertiary">
-                        {option.desc?.desc}
-                      </p>
-                    </div>
-                  </FormLabel>
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value?.includes(option.subject_group)}
-                      onCheckedChange={(checked) => {
-                        return checked
-                          ? field.onChange([
-                              ...field.value,
-                              option.subject_group,
-                            ])
-                          : field.onChange(
-                              field.value?.filter(
-                                (value) => value !== option.subject_group
-                              )
-                            );
-                      }}
-                    />
-                  </FormControl>
-                </FormItem>
-              );
-            }}
-          />
-        ))}
-      </div>
-      <div className="ml-1 mt-3">
-        <FormField
-          control={form.control}
-          name="topics"
-          render={() => {
-            return (
-              <FormItem>
-                <FormMessage />
-              </FormItem>
-            );
-          }}
-        />
-      </div>
-    </>
+                  <Checkbox
+                    checked={checked}
+                    disabled={disabled}
+                    onCheckedChange={onToggle}
+                  />
+                  <span className="text-base text-text-primary">
+                    {opt.label}
+                  </span>
+                </label>
+              )}
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   );
 };
