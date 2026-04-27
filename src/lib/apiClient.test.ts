@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient, ApiError } from '@/lib/apiClient';
+import { captureApiFailure } from '@/lib/monitoring';
 
 vi.mock('next-auth/react', () => ({
   getSession: vi.fn().mockResolvedValue(null),
@@ -96,6 +97,54 @@ describe('apiClient', () => {
       await expect(apiClient.get('/v1/test', { auth: false })).rejects.toThrow(
         'Failed to fetch'
       );
+    });
+  });
+
+  /* ================================
+   * AbortSignal handling
+   * ================================ */
+
+  describe('AbortSignal handling', () => {
+    beforeEach(() => {
+      vi.mocked(captureApiFailure).mockClear();
+    });
+
+    it('signal is forwarded to fetch options', async () => {
+      mockFetch.mockResolvedValue(new Response('"ok"', { status: 200 }));
+      const controller = new AbortController();
+
+      await apiClient.get('/v1/test', {
+        auth: false,
+        signal: controller.signal,
+      });
+
+      expect(mockFetch.mock.calls[0][1]).toMatchObject({
+        signal: controller.signal,
+      });
+    });
+
+    it('AbortError → re-thrown without calling captureApiFailure', async () => {
+      const abortError = new DOMException('aborted', 'AbortError');
+      mockFetch.mockRejectedValue(abortError);
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        apiClient.get('/v1/test', { auth: false, signal: controller.signal })
+      ).rejects.toBe(abortError);
+
+      expect(captureApiFailure).not.toHaveBeenCalled();
+    });
+
+    it('non-abort network failure → still calls captureApiFailure', async () => {
+      const realFailure = new TypeError('Failed to fetch');
+      mockFetch.mockRejectedValue(realFailure);
+
+      await expect(apiClient.get('/v1/test', { auth: false })).rejects.toBe(
+        realFailure
+      );
+
+      expect(captureApiFailure).toHaveBeenCalled();
     });
   });
 });

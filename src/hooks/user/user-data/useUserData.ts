@@ -7,16 +7,36 @@ import { fetchUserById, MentorProfileVO } from '@/services/profile/user';
 
 import { getInterestsCached } from '../interests/useInterests';
 
+const USER_DATA_CACHE_TTL_MS = 5_000;
+
+interface CachedUserDtoEntry {
+  data: MentorProfileVO;
+  expiresAt: number;
+}
+
+const userDtoDataCache = new Map<string, CachedUserDtoEntry>();
 const userDtoPromiseCache = new Map<string, Promise<MentorProfileVO | null>>();
 
+function readFreshFromDataCache(key: string): MentorProfileVO | undefined {
+  const entry = userDtoDataCache.get(key);
+  if (!entry) return undefined;
+  if (entry.expiresAt <= Date.now()) {
+    userDtoDataCache.delete(key);
+    return undefined;
+  }
+  return entry.data;
+}
+
 /**
- * Removes a user's entry from the in-memory request cache so the next call to
+ * Removes a user's entry from the in-memory cache so the next call to
  * useUserData for that user triggers a fresh API fetch.  Call this after a
  * successful profile update to prevent any concurrent mount from receiving
  * stale data.
  */
 export function clearUserDataCache(userId: number, language: string): void {
-  userDtoPromiseCache.delete(`${userId}-${language}`);
+  const key = `${userId}-${language}`;
+  userDtoDataCache.delete(key);
+  userDtoPromiseCache.delete(key);
 }
 
 function fetchUserByIdCached(
@@ -24,12 +44,28 @@ function fetchUserByIdCached(
   language: string
 ): Promise<MentorProfileVO | null> {
   const key = `${userId}-${language}`;
+
+  const cached = readFreshFromDataCache(key);
+  if (cached !== undefined) return Promise.resolve(cached);
+
   const inflight = userDtoPromiseCache.get(key);
   if (inflight) return inflight;
 
-  const promise = fetchUserById(userId, language).finally(() => {
-    userDtoPromiseCache.delete(key);
-  });
+  // Shared in-flight promise (no signal) so concurrent component mounts
+  // dedupe to a single network call without one unmount aborting the others.
+  const promise = fetchUserById(userId, language)
+    .then((data) => {
+      if (data) {
+        userDtoDataCache.set(key, {
+          data,
+          expiresAt: Date.now() + USER_DATA_CACHE_TTL_MS,
+        });
+      }
+      return data;
+    })
+    .finally(() => {
+      userDtoPromiseCache.delete(key);
+    });
   userDtoPromiseCache.set(key, promise);
   return promise;
 }

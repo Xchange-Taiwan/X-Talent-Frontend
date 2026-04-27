@@ -40,7 +40,13 @@ type RequestOptions = {
   headers?: Record<string, string>;
   /** Query string params — undefined/null values are omitted */
   params?: Record<string, string | number | boolean | undefined | null>;
+  /** AbortSignal forwarded to fetch — caller controls cancellation */
+  signal?: AbortSignal;
 };
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
 
 // ─── Internals ───────────────────────────────────────────────────────────────
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
@@ -87,7 +93,7 @@ async function request<T>(
   options: RequestOptions = {},
   isRetry = false
 ): Promise<T> {
-  const { auth = true, headers = {}, params } = options;
+  const { auth = true, headers = {}, params, signal } = options;
 
   const authHeader = auth ? await getAuthHeader() : {};
 
@@ -103,8 +109,13 @@ async function request<T>(
         ...headers,
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(signal ? { signal } : {}),
     });
   } catch (networkError) {
+    // Caller-driven cancellation — not an error worth reporting.
+    if (isAbortError(networkError)) {
+      throw networkError;
+    }
     // fetch() itself threw — DNS failure, connection refused, timeout, etc.
     captureApiFailure({
       endpoint: path,
