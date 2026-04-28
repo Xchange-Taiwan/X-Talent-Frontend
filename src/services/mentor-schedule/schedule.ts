@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
 import { components } from '@/types/api';
 
 export interface ScheduleRequest {
@@ -40,12 +40,19 @@ interface SaveScheduleResponse {
 
 type CleanObject = Record<string, unknown>;
 
-/** PUT /v1/mentors/:userId/schedule */
+/**
+ * PUT /v1/mentors/:userId/schedule
+ *
+ * Resolves on success, throws on failure. HTTP failures bubble up as ApiError
+ * (with backend `msg` in `.message`); a non-zero response `code` is rethrown
+ * as ApiError(200, msg) so callers can surface the same message regardless of
+ * transport-level vs. body-level failure.
+ */
 export async function saveMentorSchedule(params: {
   userId: string;
   timeslots: TimeSlotDTO[];
   until?: number | null;
-}): Promise<boolean> {
+}): Promise<void> {
   const cleanOptional = (obj: CleanObject): CleanObject =>
     Object.fromEntries(
       Object.entries(obj).filter(
@@ -69,37 +76,25 @@ export async function saveMentorSchedule(params: {
     ),
   });
 
-  try {
-    const result = await apiClient.put<SaveScheduleResponse>(
-      `/v1/mentors/${params.userId}/schedule`,
-      body
-    );
-    if (result.code !== '0') {
-      console.error(
-        '[saveMentorSchedule] non-zero code:',
-        result.code,
-        result.msg
-      );
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.error('[saveMentorSchedule] request failed:', err);
-    return false;
+  const result = await apiClient.put<SaveScheduleResponse>(
+    `/v1/mentors/${params.userId}/schedule`,
+    body
+  );
+  if (result.code !== '0') {
+    throw new ApiError(200, result.msg || 'Save failed', result);
   }
 }
 
-/** DELETE /v1/mentors/:userId/schedule/:scheduleId */
+/**
+ * DELETE /v1/mentors/:userId/schedule/:scheduleId
+ *
+ * Resolves on success, throws on failure (ApiError bubbles up from apiClient).
+ */
 export async function deleteMentorSchedule(params: {
   userId: string | number;
   scheduleId: string | number;
-}): Promise<boolean> {
-  try {
-    await apiClient.delete(
-      `/v1/mentors/${params.userId}/schedule/${params.scheduleId}`
-    );
-    return true;
-  } catch {
-    return false;
-  }
+}): Promise<void> {
+  await apiClient.delete(
+    `/v1/mentors/${params.userId}/schedule/${params.scheduleId}`
+  );
 }

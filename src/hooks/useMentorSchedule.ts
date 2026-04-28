@@ -24,6 +24,7 @@ import {
   loadMonthScheduleFresh,
   prefetchMonthSchedule,
   syncMonthSchedule,
+  SyncResult,
 } from '@/services/mentor-schedule/sync';
 
 export type { BookingSlot } from '@/lib/profile/scheduleHelpers';
@@ -70,7 +71,7 @@ export type UseMentorScheduleReturn = {
   /** Toggle a single sub-slot occurrence in/out of exdate for an ALLOW slot. */
   toggleOccurrence: (slotId: number, occurrenceDtstart: number) => void;
 
-  confirmChanges: () => void;
+  confirmChanges: () => Promise<SyncResult>;
   resetChanges: () => void;
 };
 
@@ -389,9 +390,8 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     dirtyRef.current = dirty;
   }, [dirty]);
 
-  const confirmChanges = useCallback(async () => {
-    if (!dirty) return;
-    if (!backend.userId) return;
+  const confirmChanges = useCallback(async (): Promise<SyncResult> => {
+    if (!dirty || !backend.userId) return { ok: true };
 
     const rawUpsert = draft
       .filter((r) => !pendingDeleteIds.includes(r.id) && r.type === 'ALLOW')
@@ -414,16 +414,20 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
     const idsToDelete = [...pendingDeleteIds, ...extraDeleteIds];
 
-    const raws = await syncMonthSchedule({
+    const outcome = await syncMonthSchedule({
       ref: backend,
       upsertPayload,
       deleteIds: idsToDelete,
     });
-    if (raws) {
-      setSaved(raws);
-      setDraft(raws);
-      setPendingDeleteIds([]);
+    // On failure, leave saved/draft alone so the user keeps their unsaved
+    // edits and can fix the conflict and retry.
+    if (!outcome.ok) {
+      return { ok: false, reason: outcome.reason, message: outcome.message };
     }
+    setSaved(outcome.raws);
+    setDraft(outcome.raws);
+    setPendingDeleteIds([]);
+    return { ok: true };
   }, [draft, toServiceSlot, dirty, pendingDeleteIds, backend]);
 
   const resetChanges = useCallback(() => {
