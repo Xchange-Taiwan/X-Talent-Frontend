@@ -52,7 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "🚀 Deploying PR preview..."
-          out="$(vercel deploy --prebuilt --token="${{ env.VERCEL_TOKEN }}")"
+          out="$(vercel deploy --prebuilt --archive=tgz --token="${{ env.VERCEL_TOKEN }}")"
           echo "$out"
           url="$(printf '%s\n' "$out" | tail -n 1)"
           echo "url=$url" >> "$GITHUB_OUTPUT"
