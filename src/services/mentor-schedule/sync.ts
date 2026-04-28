@@ -8,6 +8,13 @@ import {
   saveMentorSchedule,
   TimeSlotDTO,
 } from './schedule';
+import {
+  cacheKey,
+  readCache,
+  readInflight,
+  trackInflight,
+  writeCache,
+} from './scheduleCache';
 
 export interface ScheduleMonthRef {
   userId: string;
@@ -24,6 +31,41 @@ export async function loadMonthSchedule(
     const d = dayjs(r.dtstart * 1000);
     return d.year() === ref.year && d.month() + 1 === ref.month;
   });
+}
+
+/**
+ * Returns the cached value (sync, may be undefined) and a deduped promise
+ * that resolves to fresh data and writes it to cache. Callers should hydrate
+ * with `cached` immediately and update from `revalidate` when it differs.
+ */
+export function loadMonthScheduleCached(ref: ScheduleMonthRef): {
+  cached: RawMentorTimeslot[] | undefined;
+  revalidate: Promise<RawMentorTimeslot[]>;
+} {
+  const key = cacheKey(ref);
+  const cached = readCache(key);
+
+  let revalidate = readInflight(key);
+  if (!revalidate) {
+    revalidate = trackInflight(
+      key,
+      loadMonthSchedule(ref).then((raws) => {
+        writeCache(key, raws);
+        return raws;
+      })
+    );
+  }
+
+  return { cached, revalidate };
+}
+
+/** Force a network fetch and write the result to cache, bypassing any cache hit. */
+export async function loadMonthScheduleFresh(
+  ref: ScheduleMonthRef
+): Promise<RawMentorTimeslot[]> {
+  const raws = await loadMonthSchedule(ref);
+  writeCache(cacheKey(ref), raws);
+  return raws;
 }
 
 /**
@@ -69,7 +111,7 @@ export async function syncMonthSchedule(params: {
       );
     }
 
-    return await loadMonthSchedule(ref);
+    return await loadMonthScheduleFresh(ref);
   } catch (e) {
     console.error('[MentorSchedule] sync failed:', e);
     return null;

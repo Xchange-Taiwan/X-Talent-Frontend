@@ -4,7 +4,7 @@ import dayjs from 'dayjs';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 dayjs.extend(isSameOrBefore);
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   BookingSlot,
@@ -18,8 +18,10 @@ import {
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
 import { TimeSlotDTO } from '@/services/mentor-schedule/schedule';
+import { clearAllScheduleCache } from '@/services/mentor-schedule/scheduleCache';
 import {
-  loadMonthSchedule,
+  loadMonthScheduleCached,
+  loadMonthScheduleFresh,
   syncMonthSchedule,
 } from '@/services/mentor-schedule/sync';
 
@@ -107,29 +109,52 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     [persistedIdSet]
   );
 
+  const prevUserIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      prevUserIdRef.current !== null &&
+      prevUserIdRef.current !== backend.userId
+    ) {
+      clearAllScheduleCache();
+    }
+    prevUserIdRef.current = backend.userId;
+  }, [backend.userId]);
+
+  const dirtyRef = useRef(false);
+
   useEffect(() => {
     if (!backend.userId || !backend.year || !backend.month) return;
     let ignore = false;
-    (async () => {
-      try {
-        const raws = await loadMonthSchedule(backend);
-        if (ignore) return;
-        setSaved(raws);
-        setDraft(raws);
-        setLoaded(true);
-        setPendingDeleteIds([]);
-        // Derive meeting duration from the first ALLOW slot's sub-slot size
-        const firstAllow = raws.find((r) => r.type === 'ALLOW');
-        if (firstAllow) {
-          const derived = Math.round(
-            (firstAllow.dtend - firstAllow.dtstart) / 60
-          );
-          if (derived > 0) setMeetingDurationMinutes(derived);
-        }
-      } catch {
-        if (!ignore) setLoaded(true);
+
+    const apply = (raws: RawMentorTimeslot[]) => {
+      setSaved(raws);
+      setDraft(raws);
+      setLoaded(true);
+      setPendingDeleteIds([]);
+      const firstAllow = raws.find((r) => r.type === 'ALLOW');
+      if (firstAllow) {
+        const derived = Math.round(
+          (firstAllow.dtend - firstAllow.dtstart) / 60
+        );
+        if (derived > 0) setMeetingDurationMinutes(derived);
       }
-    })();
+    };
+
+    const { cached, revalidate } = loadMonthScheduleCached(backend);
+    if (cached) apply(cached);
+
+    revalidate
+      .then((raws) => {
+        if (ignore) return;
+        // Don't clobber unsaved edits when fresh data arrives in the background.
+        if (dirtyRef.current) return;
+        if (cached && JSON.stringify(cached) === JSON.stringify(raws)) return;
+        apply(raws);
+      })
+      .catch(() => {
+        if (!ignore && !cached) setLoaded(true);
+      });
+
     return () => {
       ignore = true;
     };
@@ -330,6 +355,10 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     JSON.stringify(saved) !== JSON.stringify(draft) ||
     pendingDeleteIds.length > 0;
 
+  useEffect(() => {
+    dirtyRef.current = dirty;
+  }, [dirty]);
+
   const confirmChanges = useCallback(async () => {
     if (!dirty) return;
     if (!backend.userId) return;
@@ -370,7 +399,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const resetChanges = useCallback(() => {
     if (!backend.userId || !backend.year || !backend.month) return;
     (async () => {
-      const raws = await loadMonthSchedule(backend);
+      const raws = await loadMonthScheduleFresh(backend);
       setDraft(raws);
       setSaved(raws);
       setPendingDeleteIds([]);
