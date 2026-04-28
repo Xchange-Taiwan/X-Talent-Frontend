@@ -3,7 +3,10 @@
 import { ReservationList } from '@/components/reservation/ReservationList';
 import type { Reservation } from '@/components/reservation/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { NextTokens } from '@/hooks/user/reservation/useReservationData';
+import type {
+  InitialListState,
+  NextTokens,
+} from '@/hooks/user/reservation/useReservationData';
 import type { ReservationState } from '@/services/reservations';
 
 import { ReservationListSkeleton } from '../skeleton';
@@ -13,6 +16,7 @@ export type ReservationTabsProps = {
   pending: Reservation[];
   history: Reservation[];
   nextTokens: NextTokens;
+  initialState: InitialListState;
   isLoadingMore: boolean;
   isLoadingHistory: boolean;
   isHistoryLoaded: boolean;
@@ -27,6 +31,7 @@ export default function ReservationTabs({
   pending,
   history,
   nextTokens,
+  initialState,
   isLoadingMore,
   isLoadingHistory,
   isHistoryLoaded,
@@ -95,29 +100,37 @@ export default function ReservationTabs({
 
         <div className="px-3 pt-2 sm:px-0">
           <TabsContent value="upcoming-mentor" className="mt-4 sm:mt-6">
-            <ReservationList
-              items={upcoming}
-              variant="upcoming"
-              sourceRole="mentor"
-              myUserId={myUserId}
-              hasMore={nextTokens.upcoming !== 0}
-              onLoadMore={() => onLoadMore('MENTOR_UPCOMING')}
-              isLoadingMore={isLoadingMore}
-              onMutationSuccess={onMutationSuccess}
-            />
+            {initialState.upcoming === 'loading' ? (
+              <ReservationListSkeleton />
+            ) : (
+              <ReservationList
+                items={upcoming}
+                variant="upcoming"
+                sourceRole="mentor"
+                myUserId={myUserId}
+                hasMore={nextTokens.upcoming !== 0}
+                onLoadMore={() => onLoadMore('MENTOR_UPCOMING')}
+                isLoadingMore={isLoadingMore}
+                onMutationSuccess={onMutationSuccess}
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="pending-mentor" className="mt-4 sm:mt-6">
-            <ReservationList
-              items={pending}
-              variant="pending-mentor"
-              sourceRole="mentor"
-              myUserId={myUserId}
-              hasMore={nextTokens.pending !== 0}
-              onLoadMore={() => onLoadMore('MENTOR_PENDING')}
-              isLoadingMore={isLoadingMore}
-              onMutationSuccess={onMutationSuccess}
-            />
+            {initialState.pending === 'loading' ? (
+              <ReservationListSkeleton />
+            ) : (
+              <ReservationList
+                items={pending}
+                variant="pending-mentor"
+                sourceRole="mentor"
+                myUserId={myUserId}
+                hasMore={nextTokens.pending !== 0}
+                onLoadMore={() => onLoadMore('MENTOR_PENDING')}
+                isLoadingMore={isLoadingMore}
+                onMutationSuccess={onMutationSuccess}
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="history" className="mt-4 sm:mt-6">

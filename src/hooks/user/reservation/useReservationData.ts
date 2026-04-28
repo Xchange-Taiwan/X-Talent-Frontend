@@ -48,8 +48,20 @@ const STATE_TO_LIST_KEY: Record<ReservationState, ListKey> = {
   MENTOR_HISTORY: 'history',
 };
 
+export type ListLoadState = 'idle' | 'loading' | 'ready';
+
+export type InitialListState = Record<ListKey, ListLoadState>;
+
+const EMPTY_DATA: ReservationData = {
+  upcoming: [],
+  pending: [],
+  history: [],
+  nextTokens: { upcoming: 0, pending: 0, history: 0 },
+};
+
 export interface UseReservationDataReturn {
   data: ReservationData | null;
+  initialState: InitialListState;
   isLoading: boolean;
   isLoadingMore: boolean;
   isLoadingHistory: boolean;
@@ -70,54 +82,60 @@ export function useReservationData({
   const states = ROLE_STATES[role];
 
   const [data, setData] = useState<ReservationData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [initialUpcoming, setInitialUpcoming] =
+    useState<ListLoadState>('loading');
+  const [initialPending, setInitialPending] =
+    useState<ListLoadState>('loading');
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
 
   // Initial fetch covers only the role's UPCOMING + PENDING states. HISTORY is
   // lazy and only fetched when the user opens the history tab via loadHistory.
+  // Fetches run independently so the active tab (default upcoming) can paint as
+  // soon as its own response lands instead of waiting for the slowest sibling.
   useEffect(() => {
     if (!myUserId) {
-      setIsLoading(false);
+      setInitialUpcoming('idle');
+      setInitialPending('idle');
       return;
     }
 
     let cancelled = false;
 
-    (async () => {
+    const fetchOne = async (
+      key: 'upcoming' | 'pending',
+      state: ReservationState,
+      setStatus: (s: ListLoadState) => void
+    ) => {
       try {
-        const [upcomingRes, pendingRes] = await Promise.all([
-          fetchReservations({ userId: myUserId, state: states.upcoming }),
-          fetchReservations({ userId: myUserId, state: states.pending }),
-        ]);
-
+        const res = await fetchReservations({ userId: myUserId, state });
         if (cancelled) return;
-
-        setData({
-          upcoming: upcomingRes.items,
-          pending: pendingRes.items,
-          history: [],
-          nextTokens: {
-            upcoming: upcomingRes.next_dtend,
-            pending: pendingRes.next_dtend,
-            history: 0,
-          },
+        setData((prev) => {
+          const base = prev ?? EMPTY_DATA;
+          return {
+            ...base,
+            [key]: res.items,
+            nextTokens: { ...base.nextTokens, [key]: res.next_dtend },
+          };
         });
       } catch (err) {
         captureFlowFailure({
           flow: 'reservation_fetch',
-          step: 'fetch_lists',
+          step: `fetch_${key}`,
           message:
             err instanceof Error
               ? err.message
-              : 'Failed to fetch reservation lists',
+              : `Failed to fetch reservation ${key}`,
         });
-        console.error('[useReservationData] fetch error:', err);
+        console.error(`[useReservationData] fetch ${key} error:`, err);
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) setStatus('ready');
       }
-    })();
+    };
+
+    void fetchOne('upcoming', states.upcoming, setInitialUpcoming);
+    void fetchOne('pending', states.pending, setInitialPending);
 
     return () => {
       cancelled = true;
@@ -281,8 +299,27 @@ export function useReservationData({
     [data, myUserId]
   );
 
+  const historyState: ListLoadState = isHistoryLoaded
+    ? 'ready'
+    : isLoadingHistory
+      ? 'loading'
+      : 'idle';
+
+  const initialState: InitialListState = {
+    upcoming: initialUpcoming,
+    pending: initialPending,
+    history: historyState,
+  };
+
+  // Derived for backward compatibility — true while either initial list is
+  // still in flight. UI no longer uses this to gate full-page rendering;
+  // per-list `initialState` is the source of truth for skeletons.
+  const isLoading =
+    initialUpcoming === 'loading' || initialPending === 'loading';
+
   return {
     data,
+    initialState,
     isLoading,
     isLoadingMore,
     isLoadingHistory,
