@@ -193,6 +193,72 @@ describe('useReservationData (mentee)', () => {
     expect(result.current.isLoading).toBe(false);
   });
 
+  it('loadingMoreStates is per-state — loading one state does not block another', async () => {
+    // Initial mount with non-zero cursors so loadMore is allowed to run
+    mockFetch.mockReset();
+    mockFetch.mockImplementation(({ state }) =>
+      Promise.resolve({
+        items: [makeReservation(state)],
+        next_dtend: 1700000000,
+      })
+    );
+
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // Stage controllable responses for the two concurrent load-mores
+    let resolveUpcoming!: (v: {
+      items: ReturnType<typeof makeReservation>[];
+      next_dtend: number;
+    }) => void;
+    let resolvePending!: (v: {
+      items: ReturnType<typeof makeReservation>[];
+      next_dtend: number;
+    }) => void;
+    mockFetch.mockImplementation(({ state }) => {
+      if (state === 'MENTEE_UPCOMING') {
+        return new Promise((resolve) => {
+          resolveUpcoming = resolve;
+        });
+      }
+      if (state === 'MENTEE_PENDING') {
+        return new Promise((resolve) => {
+          resolvePending = resolve;
+        });
+      }
+      return Promise.resolve({ items: [], next_dtend: 0 });
+    });
+
+    await act(async () => {
+      void result.current.loadMore('MENTEE_UPCOMING');
+    });
+    expect(result.current.loadingMoreStates.MENTEE_UPCOMING).toBe(true);
+    expect(result.current.loadingMoreStates.MENTEE_PENDING).toBe(false);
+
+    await act(async () => {
+      void result.current.loadMore('MENTEE_PENDING');
+    });
+    expect(result.current.loadingMoreStates.MENTEE_UPCOMING).toBe(true);
+    expect(result.current.loadingMoreStates.MENTEE_PENDING).toBe(true);
+
+    await act(async () => {
+      resolveUpcoming({
+        items: [makeReservation('upcoming-extra')],
+        next_dtend: 0,
+      });
+    });
+    expect(result.current.loadingMoreStates.MENTEE_UPCOMING).toBe(false);
+    expect(result.current.loadingMoreStates.MENTEE_PENDING).toBe(true);
+
+    await act(async () => {
+      resolvePending({
+        items: [makeReservation('pending-extra')],
+        next_dtend: 0,
+      });
+    });
+    expect(result.current.loadingMoreStates.MENTEE_PENDING).toBe(false);
+  });
+
   it('component unmounts before fetch resolves → state is NOT updated', async () => {
     let resolveFetch!: () => void;
     mockFetch.mockReset();
