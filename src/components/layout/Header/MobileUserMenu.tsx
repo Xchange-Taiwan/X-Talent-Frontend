@@ -17,7 +17,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 
 import { ShareProfileDialog } from './ShareProfileDialog';
 
@@ -42,7 +41,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
   ].includes(user.email ?? '');
   const name = user.name ?? '';
   const avatarSrc = user.avatar
-    ? `${getAvatarThumbUrl(user.avatar)}?cb=${user.avatarUpdatedAt ?? 0}`
+    ? `${user.avatar}?v=${user.avatarUpdatedAt ?? 0}`
     : '';
   const jobTitle = user.jobTitle ?? '';
   const company = user.company ?? '';
