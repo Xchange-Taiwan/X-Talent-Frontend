@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import { Session } from 'next-auth';
 import { useState } from 'react';
 
+import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { ProfileFormValues } from '@/components/profile/edit/profileSchema';
 import {
   clearUserDataCache,
@@ -192,6 +193,14 @@ export function useProfileSubmit({
           clearUserDataCache(sessionUserId, 'zh_TW');
         }
       }
+
+      // Invalidate the SSR ISR cache for /profile/[userId] so other
+      // visitors (and the editor on navigation) don't see up-to-60s-stale
+      // server-rendered HTML. Fire-and-forget — never block navigation on
+      // a failed revalidation.
+      void revalidateProfilePath(pageUserId).catch((e) => {
+        console.error('revalidateProfilePath failed:', e);
+      });
 
       // 4) optimistic session update — keep role/onboarding from current
       //    session so we never flicker mentor → mentee while the backend
