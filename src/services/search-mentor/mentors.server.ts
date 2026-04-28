@@ -107,6 +107,10 @@ export async function fetchMentorsEnrichedServer(
 
   if (searchResults.length === 0) return [];
 
+  // what_i_offer shares the topics interest vocabulary (see useInterests.ts
+  // `whatIOffers: topics` alias), so we reuse topicLabelMap here.
+  const whatIOfferLabelMap = topicLabelMap;
+
   return searchResults.map((mentor) => ({
     ...mentor,
     skills: mentor.skills
@@ -114,6 +118,9 @@ export async function fetchMentorsEnrichedServer(
       .filter(Boolean),
     topics: mentor.topics
       .map((subjectGroup) => topicLabelMap[subjectGroup] ?? subjectGroup)
+      .filter(Boolean),
+    what_i_offers: mentor.what_i_offers
+      .map((subjectGroup) => whatIOfferLabelMap[subjectGroup] ?? subjectGroup)
       .filter(Boolean),
   }));
 }
