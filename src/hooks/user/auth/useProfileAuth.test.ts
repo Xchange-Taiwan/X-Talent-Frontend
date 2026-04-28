@@ -77,4 +77,30 @@ describe('useProfileAuth', () => {
     expect(result.current.isAuthorized).toBe(true);
     expect(mockRouter.push).not.toHaveBeenCalled();
   });
+
+  it('lazy-inits isAuthorized to true on the initial render when session already matches pageUserId', () => {
+    // Asserted synchronously without awaiting effects — the lazy-init seeds
+    // the value so client-side navigation does not paint a one-frame `null`
+    // while waiting for the auth effect to flip the state.
+    const { result } = renderHook(() => useProfileAuth(PAGE_USER_ID));
+    expect(result.current.isAuthorized).toBe(true);
+  });
+
+  it('lazy-inits isAuthorized to false when session is still loading on first render', () => {
+    mockUseSession.mockReturnValue({ data: null, status: 'loading' });
+    const { result } = renderHook(() => useProfileAuth(PAGE_USER_ID));
+    expect(result.current.isAuthorized).toBe(false);
+  });
+
+  it('lazy-inits isAuthorized to false when session is authenticated but does not match pageUserId', () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        ...mockSession,
+        user: { ...mockSession.user, id: 'different-user-id' },
+      },
+      status: 'authenticated',
+    });
+    const { result } = renderHook(() => useProfileAuth(PAGE_USER_ID));
+    expect(result.current.isAuthorized).toBe(false);
+  });
 });
