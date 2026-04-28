@@ -25,7 +25,11 @@ import {
   UseMentorScheduleReturn,
 } from '@/hooks/useMentorSchedule';
 import { trackEvent } from '@/lib/analytics';
-import { DtType } from '@/lib/profile/scheduleHelpers';
+import {
+  buildDateTime,
+  buildRrule,
+  DtType,
+} from '@/lib/profile/scheduleHelpers';
 
 import { ScheduleCalendar } from './ScheduleCalendar';
 
@@ -43,6 +47,11 @@ type SlotErrors = {
 };
 
 type ReservationPromptType = Exclude<DtType, 'ALLOW'> | null;
+
+type BlockPromptState = {
+  type: Exclude<DtType, 'ALLOW'>;
+  reason: 'delete' | 'shrink';
+} | null;
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) =>
   String(i).padStart(2, '0')
@@ -94,7 +103,7 @@ export default function MentorScheduleDialog({
   const [editingSlots, setEditingSlots] = useState<EditingSlot[]>([]);
   const [slotErrors, setSlotErrors] = useState<Record<number, SlotErrors>>({});
   const [slotPrompt, setSlotPrompt] = useState<ReservationPromptType>(null);
-  const [blockPrompt, setBlockPrompt] = useState<ReservationPromptType>(null);
+  const [blockPrompt, setBlockPrompt] = useState<BlockPromptState>(null);
 
   useEffect(() => {
     if (open) {
@@ -142,6 +151,45 @@ export default function MentorScheduleDialog({
     if (occurrences.some((occ) => bookedStartsForDate.has(occ)))
       return 'BOOKED';
     if (occurrences.some((occ) => pendingStartsForDate.has(occ)))
+      return 'PENDING';
+    return null;
+  };
+
+  // Time-edit guard: shrinking or shifting an ALLOW block must keep every
+  // existing BOOKED/PENDING occurrence inside the new occurrence set; otherwise
+  // the candidate would silently drop them. Mirrors updateDraftSlot's geometry.
+  const getOrphanedReservationType = (
+    slotId: number,
+    candidate: EditingSlot
+  ): Exclude<DtType, 'ALLOW'> | null => {
+    const parsed = editableSlotsForDate.find((s) => s.id === slotId);
+    if (!parsed || parsed.type !== 'ALLOW' || !selectedDate) return null;
+
+    const candStart = buildDateTime(
+      selectedDate,
+      `${candidate.startHour}:${candidate.startMinute}`
+    );
+    const candEnd = buildDateTime(
+      selectedDate,
+      `${candidate.endHour}:${candidate.endMinute}`
+    );
+    if (
+      !candStart.isValid() ||
+      !candEnd.isValid() ||
+      candEnd.isSameOrBefore(candStart)
+    )
+      return null;
+
+    const newDtstart = Math.floor(candStart.valueOf() / 1000);
+    const blockDur = Math.floor(candEnd.valueOf() / 1000) - newDtstart;
+    const slotDur = parsed.slotDurationSeconds;
+    const newRrule =
+      blockDur > slotDur ? buildRrule(blockDur, slotDur) : undefined;
+    const newStarts = new Set(expandRrule(newDtstart, newRrule));
+
+    if (Array.from(bookedStartsForDate).some((occ) => !newStarts.has(occ)))
+      return 'BOOKED';
+    if (Array.from(pendingStartsForDate).some((occ) => !newStarts.has(occ)))
       return 'PENDING';
     return null;
   };
@@ -207,9 +255,6 @@ export default function MentorScheduleDialog({
     if (!originalSlot) return;
 
     const updatedSlot = { ...originalSlot, [part]: value };
-    setEditingSlots((prev) =>
-      prev.map((slot) => (slot.id === id ? updatedSlot : slot))
-    );
 
     const startTotal =
       parseInt(updatedSlot.startHour) * 60 + parseInt(updatedSlot.startMinute);
@@ -217,12 +262,27 @@ export default function MentorScheduleDialog({
       parseInt(updatedSlot.endHour) * 60 + parseInt(updatedSlot.endMinute);
 
     if (endTotal <= startTotal) {
+      setEditingSlots((prev) =>
+        prev.map((slot) => (slot.id === id ? updatedSlot : slot))
+      );
       setSlotErrors((prev) => ({
         ...prev,
         [id]: { timeRange: '結束時間必須晚於開始時間' },
       }));
       return;
     }
+
+    // Block the change before mutating UI so the Select snaps back to the
+    // previous valid value; mentor must resolve the reservation first.
+    const orphan = getOrphanedReservationType(id, updatedSlot);
+    if (orphan) {
+      setBlockPrompt({ type: orphan, reason: 'shrink' });
+      return;
+    }
+
+    setEditingSlots((prev) =>
+      prev.map((slot) => (slot.id === id ? updatedSlot : slot))
+    );
 
     if (checkOverlapWithOthers(id, startTotal, endTotal)) {
       setSlotErrors((prev) => ({
@@ -482,7 +542,10 @@ export default function MentorScheduleDialog({
                                 slot.id
                               );
                               if (blocking) {
-                                setBlockPrompt(blocking);
+                                setBlockPrompt({
+                                  type: blocking,
+                                  reason: 'delete',
+                                });
                                 return;
                               }
                               deleteDraftSlot(slot.id);
@@ -595,14 +658,18 @@ export default function MentorScheduleDialog({
         <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>
-              {blockPrompt === 'BOOKED'
+              {blockPrompt?.type === 'BOOKED'
                 ? '此時段內有已成立的預約'
                 : '此時段內有未處理的預約申請'}
             </DialogTitle>
             <DialogDescription>
-              {blockPrompt === 'BOOKED'
-                ? '此時段內有 mentee 預約成功,無法刪除整個時段。如需取消,請至「預約管理」頁面處理。'
-                : '此時段內有 mentee 提出預約申請尚未處理,請先至「預約管理」頁面接受或拒絕後再刪除整個時段。'}
+              {blockPrompt?.type === 'BOOKED'
+                ? blockPrompt.reason === 'shrink'
+                  ? '此調整會排除已成立的預約,無法縮短或變更時段。如需取消預約,請至「預約管理」頁面處理。'
+                  : '此時段內有 mentee 預約成功,無法刪除整個時段。如需取消,請至「預約管理」頁面處理。'
+                : blockPrompt?.reason === 'shrink'
+                  ? '此調整會排除尚未處理的預約申請,請先至「預約管理」頁面接受或拒絕後再調整時段。'
+                  : '此時段內有 mentee 提出預約申請尚未處理,請先至「預約管理」頁面接受或拒絕後再刪除整個時段。'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="justify-center">
