@@ -24,16 +24,13 @@ import type { Reservation } from './types';
 interface Props {
   reservation: Reservation;
   className?: string;
-  onConfirmCancel?: (payload: {
-    id: string;
-    reason: string;
-  }) => Promise<void> | void;
+  onReject?: (payload: { id: string; reason: string }) => Promise<void> | void;
 }
 
-export default function CancelReservationDialog({
+export default function RejectReservationDialog({
   reservation,
   className,
-  onConfirmCancel,
+  onReject,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -48,27 +45,28 @@ export default function CancelReservationDialog({
       trackEvent({
         name: 'feature_opened',
         feature: 'reservation',
-        metadata: { dialog: 'cancel_reservation' },
+        metadata: { dialog: 'reject_reservation' },
       });
     }
   }
 
-  async function handleConfirm() {
+  async function handleReject() {
     setIsSubmitting(true);
     try {
-      await onConfirmCancel?.({ id: reservation.id, reason });
+      await onReject?.({ id: reservation.id, reason });
       setIsSubmitting(false);
       setOpen(false);
     } catch {
       toast({
         variant: 'destructive',
-        description: '取消預約失敗,請稍後再試',
+        description: '拒絕預約失敗,請稍後再試',
       });
       setIsSubmitting(false);
     }
   }
 
-  const canSubmit = reason.trim().length > 0 && !isSubmitting;
+  const trimmedReason = reason.trim();
+  const canSubmit = trimmedReason.length > 0 && !isSubmitting;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -78,7 +76,7 @@ export default function CancelReservationDialog({
           variant="destructive"
           className={cn('min-h-9 px-3', className)}
         >
-          取消預約
+          拒絕
         </Button>
       </DialogTrigger>
 
@@ -86,20 +84,22 @@ export default function CancelReservationDialog({
         <div className="p-6">
           <DialogHeader className="mb-4">
             <DialogTitle className="text-center sm:text-left">
-              取消預約
+              拒絕學員預約的原因
             </DialogTitle>
             <DialogDescription className="text-center sm:text-left">
-              請說明取消預約的原因。
+              請說明無法接受此預約的原因。
             </DialogDescription>
           </DialogHeader>
 
-          <Textarea
-            placeholder={`您好 ${reservation.name.split(' ')[0]}，...`}
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            className="min-h-[140px] resize-y"
-            disabled={isSubmitting}
-          />
+          <div className="rounded-2xl border p-2">
+            <Textarea
+              placeholder="請在此輸入原因..."
+              className="min-h-[120px] resize-y border-0 shadow-none focus-visible:ring-0"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              disabled={isSubmitting}
+            />
+          </div>
 
           <DialogFooter className="mt-6 gap-2">
             <DialogClose asChild>
@@ -108,18 +108,20 @@ export default function CancelReservationDialog({
                 className="w-full sm:w-auto"
                 disabled={isSubmitting}
               >
-                維持預約
+                取消
               </Button>
             </DialogClose>
+
             <Button
-              disabled={!canSubmit}
+              type="button"
               className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto"
-              onClick={handleConfirm}
+              disabled={!canSubmit}
+              onClick={handleReject}
             >
               {isSubmitting && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              取消預約
+              拒絕
             </Button>
           </DialogFooter>
         </div>
