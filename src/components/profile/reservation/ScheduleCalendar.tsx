@@ -1,6 +1,8 @@
 'use client';
 
 import dayjs from 'dayjs';
+import { useState } from 'react';
+import { useSwipeable } from 'react-swipeable';
 
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -108,53 +110,78 @@ export const ScheduleCalendar = ({
   size = 'compact',
   className,
 }: ScheduleCalendarProps) => {
+  const [displayMonth, setDisplayMonth] = useState<Date>(selected);
+
   const handleSelect = (d: Date | undefined) => {
     if (readOnly || !d) return;
     onSelect?.(d);
   };
+
+  const handleMonthChange = (date: Date) => {
+    setDisplayMonth(date);
+    onMonthChange?.(date);
+  };
+
+  const swipeHandlers = useSwipeable({
+    onSwipedLeft: () =>
+      handleMonthChange(dayjs(displayMonth).add(1, 'month').toDate()),
+    onSwipedRight: () =>
+      handleMonthChange(dayjs(displayMonth).subtract(1, 'month').toDate()),
+    delta: 50,
+    trackMouse: false,
+    preventScrollOnSwipe: false,
+  });
 
   const availableDays = highlightAvailableDates
     ? allowedDates.map((dateStr) => new Date(`${dateStr}T00:00:00`))
     : [];
 
   return (
-    <Calendar
-      mode="single"
-      captionLayout="dropdown"
-      defaultMonth={selected}
-      selected={selected}
-      onSelect={handleSelect}
-      onMonthChange={onMonthChange}
-      className={cn(scheduleCalendarSizeClassNames[size], className)}
-      modifiers={{
-        available: availableDays,
-      }}
-      modifiersClassNames={{
-        available: 'rdp-day-available',
-      }}
-      disabled={(day) => {
-        if (disablePastDates) {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
+    <div
+      {...swipeHandlers}
+      className={cn(
+        'touch-pan-y',
+        scheduleCalendarSizeClassNames[size],
+        className
+      )}
+    >
+      <Calendar
+        mode="single"
+        captionLayout="dropdown"
+        month={displayMonth}
+        selected={selected}
+        onSelect={handleSelect}
+        onMonthChange={handleMonthChange}
+        modifiers={{
+          available: availableDays,
+        }}
+        modifiersClassNames={{
+          available: 'rdp-day-available',
+        }}
+        disabled={(day) => {
+          if (disablePastDates) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
 
-          if (day < today) {
-            return true;
+            if (day < today) {
+              return true;
+            }
           }
-        }
 
-        if (disableEmptyDates) {
-          const dateStr = dayjs(day).format('YYYY-MM-DD');
+          if (disableEmptyDates) {
+            const dateStr = dayjs(day).format('YYYY-MM-DD');
 
-          if (allowedDates.length === 0) {
-            return true;
+            if (allowedDates.length === 0) {
+              return true;
+            }
+
+            return !allowedDates.includes(dateStr);
           }
 
-          return !allowedDates.includes(dateStr);
-        }
-
-        return false;
-      }}
-      showTodayStyle={showTodayStyle}
-    />
+          return false;
+        }}
+        showTodayStyle={showTodayStyle}
+      />
+    </div>
   );
 };
