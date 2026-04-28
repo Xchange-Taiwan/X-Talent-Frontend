@@ -3,10 +3,17 @@ const { withSentryConfig } = require('@sentry/nextjs');
 
 const nextConfig = {
   images: {
-    // Cache optimized images on the Next.js server for 30 days.
-    // Without this, Next.js re-fetches from S3 on every request even if the
-    // browser has a cached copy (the optimizer acts as a proxy).
-    minimumCacheTTL: 60 * 60 * 24 * 30,
+    // TEMP: disabled the 30-day Image Optimizer cache.
+    // Avatar URLs from the profile API are stable keys (re-uploads overwrite
+    // the same S3 object), and `MentorProfileVO` does not yet return an
+    // `updated_at` we can append as `?cb=`. Caching long-term means visitors
+    // see stale avatars after another user updates theirs. Setting TTL to 0
+    // makes the optimizer revalidate every request — accepts higher S3
+    // egress in exchange for correctness.
+    // Revert to `60 * 60 * 24 * 30` once the backend adds `updated_at` to
+    // `MentorProfileVO` and profile pages can use `?cb=${updated_at}` like
+    // mentor-pool already does (see `MentorPoolWithData.tsx:resolveAvatar`).
+    minimumCacheTTL: 0,
     remotePatterns: [
       {
         protocol: 'https',
