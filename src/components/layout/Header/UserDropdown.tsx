@@ -15,7 +15,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 
 import { ShareProfileDialog } from './ShareProfileDialog';
 
@@ -40,10 +39,11 @@ export const UserDropdown = React.memo(function UserDropdown({
     'testing_mentor@xchange.com.tw',
   ].includes(user.email ?? '');
   const name = user.name ?? '';
-  // Use the thumbnail variant for all small avatar displays in the header /
-  // dropdown / share dialog — the full-size image is only needed on the profile page.
+  // Use the original avatar URL with ?v= so header / dropdown / share dialog
+  // share the same Image Optimizer + browser cache entry as the profile view
+  // and edit pages, and the layout preload is reused.
   const avatarSrc = user.avatar
-    ? `${getAvatarThumbUrl(user.avatar)}?cb=${user.avatarUpdatedAt ?? 0}`
+    ? `${user.avatar}?v=${user.avatarUpdatedAt ?? 0}`
     : '';
   const jobTitle = user.jobTitle ?? '';
   const company = user.company ?? '';
