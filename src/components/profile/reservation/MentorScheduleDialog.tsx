@@ -25,6 +25,7 @@ import {
   UseMentorScheduleReturn,
 } from '@/hooks/useMentorSchedule';
 import { trackEvent } from '@/lib/analytics';
+import { DtType } from '@/lib/profile/scheduleHelpers';
 
 import { ScheduleCalendar } from './ScheduleCalendar';
 
@@ -40,6 +41,8 @@ type SlotErrors = {
   timeRange?: string;
   overlap?: string;
 };
+
+type ReservationPromptType = Exclude<DtType, 'ALLOW'> | null;
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) =>
   String(i).padStart(2, '0')
@@ -90,7 +93,8 @@ export default function MentorScheduleDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [editingSlots, setEditingSlots] = useState<EditingSlot[]>([]);
   const [slotErrors, setSlotErrors] = useState<Record<number, SlotErrors>>({});
-  const [pendingPromptOpen, setPendingPromptOpen] = useState(false);
+  const [slotPrompt, setSlotPrompt] = useState<ReservationPromptType>(null);
+  const [blockPrompt, setBlockPrompt] = useState<ReservationPromptType>(null);
 
   useEffect(() => {
     if (open) {
@@ -121,6 +125,26 @@ export default function MentorScheduleDialog({
       .filter((s) => s.type === 'PENDING')
       .map((s) => Math.floor(s.start.getTime() / 1000))
   );
+
+  // Block-level guard: deleting the whole ALLOW block must not silently drop
+  // any BOOKED or PENDING occurrences inside it. BOOKED takes priority because
+  // it represents a confirmed reservation that requires a heavier remediation.
+  const getBlockingReservationType = (
+    slotId: number
+  ): Exclude<DtType, 'ALLOW'> | null => {
+    const parsed = editableSlotsForDate.find((s) => s.id === slotId);
+    if (!parsed || parsed.type !== 'ALLOW') return null;
+
+    const occurrences = parsed.rrule
+      ? expandRrule(Math.floor(parsed.start.getTime() / 1000), parsed.rrule)
+      : [Math.floor(parsed.start.getTime() / 1000)];
+
+    if (occurrences.some((occ) => bookedStartsForDate.has(occ)))
+      return 'BOOKED';
+    if (occurrences.some((occ) => pendingStartsForDate.has(occ)))
+      return 'PENDING';
+    return null;
+  };
 
   useEffect(() => {
     setEditingSlots(
@@ -318,8 +342,12 @@ export default function MentorScheduleDialog({
           const endLabel = fmtTime(occ + slotDurSec);
 
           const handleClick = () => {
+            if (isBooked) {
+              setSlotPrompt('BOOKED');
+              return;
+            }
             if (isPending) {
-              setPendingPromptOpen(true);
+              setSlotPrompt('PENDING');
               return;
             }
             toggleOccurrence(slotId, occ);
@@ -329,12 +357,11 @@ export default function MentorScheduleDialog({
             <button
               key={occ}
               type="button"
-              disabled={isBooked}
               onClick={handleClick}
               className={[
                 'rounded border px-2 py-0.5 text-xs transition-colors',
                 isBooked
-                  ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                  ? 'border-gray-200 bg-gray-100 text-gray-400'
                   : isPending
                     ? 'border-primary bg-primary/10 text-primary hover:bg-primary/20'
                     : isExcluded
@@ -450,7 +477,16 @@ export default function MentorScheduleDialog({
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 lg:h-10 lg:w-10"
-                            onClick={() => deleteDraftSlot(slot.id)}
+                            onClick={() => {
+                              const blocking = getBlockingReservationType(
+                                slot.id
+                              );
+                              if (blocking) {
+                                setBlockPrompt(blocking);
+                                return;
+                              }
+                              deleteDraftSlot(slot.id);
+                            }}
                           >
                             <X className="h-4 w-4 lg:h-5 lg:w-5" />
                           </Button>
@@ -518,24 +554,64 @@ export default function MentorScheduleDialog({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={pendingPromptOpen} onOpenChange={setPendingPromptOpen}>
+      <Dialog
+        open={slotPrompt !== null}
+        onOpenChange={(o) => !o && setSlotPrompt(null)}
+      >
         <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>此時段有未處理的預約申請</DialogTitle>
+            <DialogTitle>
+              {slotPrompt === 'BOOKED'
+                ? '此時段已有預約'
+                : '此時段有未處理的預約申請'}
+            </DialogTitle>
             <DialogDescription>
-              請至「預約管理」頁面接受或拒絕該申請,僅在拒絕後此時段才會重新釋出。
+              {slotPrompt === 'BOOKED'
+                ? '此時段已有 mentee 預約成功,無法移除。如需取消,請至「預約管理」頁面處理。'
+                : '請至「預約管理」頁面接受或拒絕該申請,僅在拒絕後此時段才會重新釋出。'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="justify-center">
-            <Button
-              variant="outline"
-              onClick={() => setPendingPromptOpen(false)}
-            >
+            <Button variant="outline" onClick={() => setSlotPrompt(null)}>
               取消
             </Button>
             <Button
               onClick={() => {
-                setPendingPromptOpen(false);
+                setSlotPrompt(null);
+                onOpenChange(false);
+                router.push('/reservation/mentor');
+              }}
+            >
+              前往預約管理
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={blockPrompt !== null}
+        onOpenChange={(o) => !o && setBlockPrompt(null)}
+      >
+        <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>
+              {blockPrompt === 'BOOKED'
+                ? '此時段內有已成立的預約'
+                : '此時段內有未處理的預約申請'}
+            </DialogTitle>
+            <DialogDescription>
+              {blockPrompt === 'BOOKED'
+                ? '此時段內有 mentee 預約成功,無法刪除整個時段。如需取消,請至「預約管理」頁面處理。'
+                : '此時段內有 mentee 提出預約申請尚未處理,請先至「預約管理」頁面接受或拒絕後再刪除整個時段。'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="justify-center">
+            <Button variant="outline" onClick={() => setBlockPrompt(null)}>
+              取消
+            </Button>
+            <Button
+              onClick={() => {
+                setBlockPrompt(null);
                 onOpenChange(false);
                 router.push('/reservation/mentor');
               }}
