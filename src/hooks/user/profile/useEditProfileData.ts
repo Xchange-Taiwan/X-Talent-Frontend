@@ -52,6 +52,9 @@ export function useEditProfileData({
     const parsedEducations = parseEducations(experiences);
     const parsedLinks = parseLinks(experiences);
 
+    // Reset must include every server-driven field so RHF treats them as the
+    // new defaults; otherwise dirtyFields starts non-empty and submit-time
+    // skip optimisations cannot tell what the user actually changed.
     form.reset({
       is_mentor: mentorFlag,
       avatar: userDto.avatar || '',
@@ -64,33 +67,23 @@ export function useEditProfileData({
         ? [userDto.industry.subject_group]
         : [],
       years_of_experience: userDto.years_of_experience || '',
+      work_experiences: parsedExperiences || defaultValues.work_experiences,
+      educations: parsedEducations || defaultValues.educations,
       linkedin: parsedLinks.linkedin || defaultValues.linkedin,
       facebook: parsedLinks.facebook || defaultValues.facebook,
       instagram: parsedLinks.instagram || defaultValues.instagram,
       twitter: parsedLinks.twitter || defaultValues.twitter,
       youtube: parsedLinks.youtube || defaultValues.youtube,
       website: parsedLinks.website || defaultValues.website,
-      work_experiences: parsedExperiences || defaultValues.work_experiences,
-      educations: parsedEducations || defaultValues.educations,
+      what_i_offer: parseWhatIOffer(experiences),
+      expertises:
+        userDto.expertises?.professions?.map((i) => i.subject_group) || [],
+      interested_positions:
+        userDto.interested_positions?.interests?.map((i) => i.subject_group) ||
+        [],
+      skills: userDto.skills?.interests?.map((i) => i.subject_group) || [],
+      topics: userDto.topics?.interests?.map((i) => i.subject_group) || [],
     });
-
-    form.setValue(
-      'expertises',
-      userDto.expertises?.professions?.map((i) => i.subject_group) || []
-    );
-    form.setValue(
-      'interested_positions',
-      userDto.interested_positions?.interests?.map((i) => i.subject_group) || []
-    );
-    form.setValue(
-      'skills',
-      userDto.skills?.interests?.map((i) => i.subject_group) || []
-    );
-    form.setValue(
-      'topics',
-      userDto.topics?.interests?.map((i) => i.subject_group) || []
-    );
-    form.setValue('what_i_offer', parseWhatIOffer(experiences));
 
     setIsMentor(mentorFlag);
     setIsPageLoading(false);
