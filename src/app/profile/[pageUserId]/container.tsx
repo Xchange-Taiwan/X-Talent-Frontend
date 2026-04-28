@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
@@ -64,9 +64,18 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
   const isOwnProfile = loginUserId === pageUserId;
   const resolvedAvatar =
     userData?.avatar ?? (isOwnProfile ? session?.user?.avatar : undefined);
+  // Remember the latest avatar version we saw for this profile. The S3 avatar
+  // URL is a stable key (re-uploads overwrite in place), so the `?v=` query is
+  // the only cache buster. If we drop it on logout, the bare URL hits a stale
+  // browser/Image-Optimizer cache entry from before the upload.
+  const lastAvatarVersionRef = useRef<number | undefined>(undefined);
+  if (isOwnProfile && session?.user?.avatarUpdatedAt) {
+    lastAvatarVersionRef.current = session.user.avatarUpdatedAt;
+  }
+  const avatarVersion = lastAvatarVersionRef.current;
   const avatarSrc = resolvedAvatar
-    ? isOwnProfile && session?.user?.avatarUpdatedAt
-      ? `${resolvedAvatar}?v=${session.user.avatarUpdatedAt}`
+    ? avatarVersion
+      ? `${resolvedAvatar}?v=${avatarVersion}`
       : resolvedAvatar
     : DefaultAvatarImgUrl;
 
