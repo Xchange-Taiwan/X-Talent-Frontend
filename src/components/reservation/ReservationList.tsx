@@ -2,6 +2,7 @@
 
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
+import RejectReservationDialog from '@/components/reservation/RejectReservationDialog';
 import ReservationConversationDialog from '@/components/reservation/ReservationConversationDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -198,13 +199,15 @@ export function ReservationList({
           onProfileClick={handleProfileClick}
           actions={
             variant === 'history' ? null : variant === 'pending-mentor' ? (
-              <AcceptReservationDialog
-                reservation={it}
-                onAccept={accept}
-                onReject={async ({ id, reason }) =>
-                  rejectOrCancel(id, reason, '已拒絕預約')
-                }
-              />
+              <div className="flex gap-2">
+                <RejectReservationDialog
+                  reservation={it}
+                  onReject={async ({ id, reason }) =>
+                    rejectOrCancel(id, reason, '已拒絕預約')
+                  }
+                />
+                <AcceptReservationDialog reservation={it} onAccept={accept} />
+              </div>
             ) : (
               <CancelReservationDialog
                 reservation={it}
