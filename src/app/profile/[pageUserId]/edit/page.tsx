@@ -171,7 +171,10 @@ export default function Page({
       <Form {...form}>
         <form
           id="edit-profile-form"
-          onSubmit={form.handleSubmit(onSubmit, onError)}
+          onSubmit={form.handleSubmit(
+            (values) => onSubmit(values, form.formState.dirtyFields),
+            onError
+          )}
           className="space-y-10"
         >
           <AvatarSection
