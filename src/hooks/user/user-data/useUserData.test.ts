@@ -7,6 +7,9 @@ vi.mock('@/services/profile/user', () => ({
 
 vi.mock('@/hooks/user/interests/useInterests', () => ({
   getInterestsCached: vi.fn(),
+  // The lazy-init read is mocked to always miss; tests cover the async
+  // useEffect parse path via getInterestsCached.
+  getInterestsCachedSync: vi.fn(() => undefined),
 }));
 
 import { getInterestsCached } from '@/hooks/user/interests/useInterests';

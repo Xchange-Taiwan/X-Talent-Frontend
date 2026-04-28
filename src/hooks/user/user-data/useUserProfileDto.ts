@@ -60,6 +60,29 @@ export function primeUserProfileDtoCache(
   userDtoPromiseCache.delete(key);
 }
 
+/**
+ * Prime the cache only when no fresh entry exists. Used by SSR pages that
+ * pass an `initialDto` down to a client container — we want to seed the
+ * client cache for first paint, but never overwrite a more authoritative
+ * client-side prime (e.g. `useProfileSubmit`'s post-write `firstSyncedFetch`)
+ * that landed during the same render cycle. Stale entries (past TTL) are
+ * overwritten because the SSR initialDto is by definition fresh.
+ */
+export function primeUserProfileDtoCacheIfEmpty(
+  userId: number,
+  language: string,
+  data: MentorProfileVO
+): void {
+  const key = `${userId}-${language}`;
+  const existing = userDtoDataCache.get(key);
+  if (existing && existing.expiresAt > Date.now()) return;
+  userDtoDataCache.set(key, {
+    data,
+    expiresAt: Date.now() + USER_PROFILE_DTO_CACHE_TTL_MS,
+  });
+  userDtoPromiseCache.delete(key);
+}
+
 // Promise-deduped fetch: writes to the data cache on success so subsequent
 // readers (including a parallel-mounted hook) see the fresh entry. Concurrent
 // callers share the same in-flight promise to avoid duplicate network calls.
@@ -104,11 +127,20 @@ export function useUserProfileDto(
   userId: number,
   language: string
 ): UseUserProfileDtoResult {
-  const [userDto, setUserDto] = useState<MentorProfileVO | null>(null);
-  // Default to loading=true so the very first render (before useEffect runs)
-  // does not look like "not loading and no data" to consumers — that gap
-  // would flash a "user not found" guard for one frame.
-  const [isLoading, setIsLoading] = useState(true);
+  // Lazy-init from cache so SSR-primed data lands in state on the first
+  // render — avoids a one-frame loading flash before useEffect's cache read
+  // catches up. When the cache is empty the hook still defaults to
+  // loading=true so consumers' "user not found" guard does not flash.
+  const [userDto, setUserDto] = useState<MentorProfileVO | null>(() => {
+    const isUserIdValid = Boolean(userId) && !Number.isNaN(userId);
+    if (!isUserIdValid || !language) return null;
+    return readFromDataCache(`${userId}-${language}`)?.data ?? null;
+  });
+  const [isLoading, setIsLoading] = useState(() => {
+    const isUserIdValid = Boolean(userId) && !Number.isNaN(userId);
+    if (!isUserIdValid || !language) return false;
+    return !readFromDataCache(`${userId}-${language}`);
+  });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

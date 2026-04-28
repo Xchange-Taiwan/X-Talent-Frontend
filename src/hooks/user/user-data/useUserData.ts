@@ -7,6 +7,7 @@ import { MentorProfileVO } from '@/services/profile/user';
 
 import {
   getInterestsCached,
+  getInterestsCachedSync,
   type InterestsResult,
 } from '../interests/useInterests';
 import {
@@ -197,7 +198,21 @@ function useUserData(userId: number, language: string) {
     isLoading: dtoLoading,
     error,
   } = useUserProfileDto(userId, language);
-  const [userData, setUserData] = useState<UserType | null>(null);
+  // Lazy-init: when both the dto (from useUserProfileDto's lazy-init) and
+  // the interests label map are already in-memory, synchronously parse on
+  // the first render so consumers don't see a one-frame skeleton flash on
+  // SSR-primed page loads. Async path below covers the cold case.
+  const [userData, setUserData] = useState<UserType | null>(() => {
+    if (!userDto || !language) return null;
+    const interests = getInterestsCachedSync(language);
+    if (!interests) return null;
+    const labelByGroup = new Map(
+      interests.whatIOffers.map(
+        (item) => [item.subject_group, item.subject ?? ''] as const
+      )
+    );
+    return parseUserDtoToUserType(userDto, labelByGroup);
+  });
 
   useEffect(() => {
     if (!userDto || !language) {

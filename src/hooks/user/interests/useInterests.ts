@@ -13,6 +13,19 @@ export type InterestsResult = {
 const interestsDataCache = new Map<string, InterestsResult>();
 const interestsPromiseCache = new Map<string, Promise<InterestsResult>>();
 
+/**
+ * Synchronous read of the in-memory interests cache. Returns undefined when
+ * the language has not yet been fetched (or the fetch is still in flight).
+ * Used by hooks that want to avoid a one-frame skeleton flash when the
+ * cache is already warm — first paint runs through this; cold reads fall
+ * back to `getInterestsCached`.
+ */
+export function getInterestsCachedSync(
+  language: string
+): InterestsResult | undefined {
+  return interestsDataCache.get(language);
+}
+
 export async function getInterestsCached(
   language: string
 ): Promise<InterestsResult> {
