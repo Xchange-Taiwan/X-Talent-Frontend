@@ -276,7 +276,15 @@ export default function Page({
             />
           </Section>
 
-          <Section id="industry" title="產業 (選填)">
+          <Section
+            id="industry"
+            title={
+              <>
+                {isMentor && <span className="text-status-200">* </span>}
+                產業
+              </>
+            }
+          >
             <CategoryMultiSelectField
               form={form}
               name="industry"
