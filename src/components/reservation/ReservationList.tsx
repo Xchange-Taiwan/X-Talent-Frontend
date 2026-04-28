@@ -1,7 +1,5 @@
 'use client';
 
-import { getSession, useSession } from 'next-auth/react';
-
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
 import ReservationConversationDialog from '@/components/reservation/ReservationConversationDialog';
@@ -10,7 +8,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
-import { updateReservationStatus } from '@/services/reservations';
+import {
+  ReservationState,
+  updateReservationStatus,
+} from '@/services/reservations';
 
 import { ReservationCard } from './ReservationCard';
 import type { Reservation } from './types';
@@ -22,6 +23,7 @@ export function ReservationList({
   items,
   variant,
   sourceRole,
+  myUserId,
   hasMore = false,
   onLoadMore,
   isLoadingMore = false,
@@ -30,16 +32,34 @@ export function ReservationList({
   items: Reservation[];
   variant: Variant;
   sourceRole: SourceRole;
+  myUserId: string;
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
   // Called after a successful accept / reject / cancel so the parent hook can
-  // optimistically remove the operated item and refetch in the background.
-  onMutationSuccess?: (id: string) => void;
+  // optimistically remove the operated item and refetch only the affected
+  // states in the background.
+  onMutationSuccess?: (id: string, affectedStates: ReservationState[]) => void;
 }) {
   const { toast } = useToast();
-  const { data: session } = useSession();
-  const myId = session?.user?.id ? String(session.user.id) : '';
+
+  // Accept on pending-mentor: pending-mentor → upcoming-mentor.
+  const ACCEPT_AFFECTED_STATES: ReservationState[] = [
+    'MENTOR_PENDING',
+    'MENTOR_UPCOMING',
+  ];
+
+  // Reject / cancel always lands the reservation in the role's HISTORY list.
+  // The source state depends on the variant.
+  const buildRejectOrCancelAffectedStates = (): ReservationState[] => {
+    const upper = sourceRole === 'mentor' ? 'MENTOR' : 'MENTEE';
+    const history = `${upper}_HISTORY` as ReservationState;
+    if (variant === 'upcoming')
+      return [`${upper}_UPCOMING` as ReservationState, history];
+    if (variant === 'pending-mentor') return ['MENTOR_PENDING', history];
+    if (variant === 'pending-mentee') return ['MENTEE_PENDING', history];
+    return [];
+  };
 
   const findItem = (id: string): Reservation => {
     const found = items.find((x) => x.id === id);
@@ -49,24 +69,23 @@ export function ReservationList({
   };
 
   // Resolve the other party's user_id based on who is currently logged in
-  const resolveOtherId = (myId: string, it: Reservation): string | number =>
-    String(it.senderUserId) === myId ? it.participantUserId : it.senderUserId;
+  const resolveOtherId = (it: Reservation): string | number =>
+    String(it.senderUserId) === myUserId
+      ? it.participantUserId
+      : it.senderUserId;
 
   // Accept a booking request (mentor side, pending-mentor variant)
   const accept = async ({ id, message }: { id: string; message: string }) => {
     try {
-      const session = await getSession();
-      const sessionId = session?.user?.id;
-      if (!sessionId)
+      if (!myUserId)
         throw new Error('[ReservationList] missing current user id');
-      const myIdStr = String(sessionId);
-      const myIdNum = Number(sessionId);
+      const myIdNum = Number(myUserId);
 
       const it = findItem(id);
-      const otherIdNum = Number(resolveOtherId(myIdStr, it));
+      const otherIdNum = Number(resolveOtherId(it));
 
       await updateReservationStatus({
-        userId: myIdStr,
+        userId: myUserId,
         reservationId: id,
         body: {
           my_user_id: myIdNum,
@@ -87,7 +106,7 @@ export function ReservationList({
       // or once GET schedule returns booked_slots so the frontend can filter them.
 
       toast({ description: '已接受預約' });
-      onMutationSuccess?.(id);
+      onMutationSuccess?.(id, ACCEPT_AFFECTED_STATES);
     } catch (err) {
       captureFlowFailure({
         flow: 'reservation_accept',
@@ -106,18 +125,15 @@ export function ReservationList({
     successMessage: string
   ) => {
     try {
-      const session = await getSession();
-      const sessionId = session?.user?.id;
-      if (!sessionId)
+      if (!myUserId)
         throw new Error('[ReservationList] missing current user id');
-      const myIdStr = String(sessionId);
-      const myIdNum = Number(sessionId);
+      const myIdNum = Number(myUserId);
 
       const it = findItem(id);
-      const otherIdNum = Number(resolveOtherId(myIdStr, it));
+      const otherIdNum = Number(resolveOtherId(it));
 
       await updateReservationStatus({
-        userId: myIdStr,
+        userId: myUserId,
         reservationId: id,
         body: {
           my_user_id: myIdNum,
@@ -137,7 +153,7 @@ export function ReservationList({
 
       trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
       toast({ description: successMessage });
-      onMutationSuccess?.(id);
+      onMutationSuccess?.(id, buildRejectOrCancelAffectedStates());
     } catch (err) {
       captureFlowFailure({
         flow: 'reservation_reject',
@@ -155,9 +171,9 @@ export function ReservationList({
   // a logged-in user (link would be ambiguous) or when the other id would
   // resolve to the current user (defensive — shouldn't happen in practice).
   const buildProfileHref = (it: Reservation): string | undefined => {
-    if (!myId) return undefined;
-    const otherId = resolveOtherId(myId, it);
-    if (!otherId || String(otherId) === myId) return undefined;
+    if (!myUserId) return undefined;
+    const otherId = resolveOtherId(it);
+    if (!otherId || String(otherId) === myUserId) return undefined;
     return `/profile/${otherId}`;
   };
 

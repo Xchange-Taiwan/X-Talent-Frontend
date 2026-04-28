@@ -152,53 +152,6 @@ export async function fetchReservations(
   return { items, next_dtend: json.data?.next_dtend ?? 0 };
 }
 
-export type FetchAllReservationListsOptions = {
-  userId: string | number;
-  batch?: number;
-  debug?: boolean;
-};
-
-export async function fetchAllReservationLists(
-  opts: FetchAllReservationListsOptions
-) {
-  const { userId, batch = 10, debug } = opts;
-
-  const commonOpts = { userId, batch, debug };
-
-  const [
-    upcomingMenteeRes,
-    pendingMenteeRes,
-    upcomingMentorRes,
-    pendingMentorRes,
-    mentorHistoryRes,
-    menteeHistoryRes,
-  ] = await Promise.all([
-    fetchReservations({ ...commonOpts, state: 'MENTEE_UPCOMING' }),
-    fetchReservations({ ...commonOpts, state: 'MENTEE_PENDING' }),
-    fetchReservations({ ...commonOpts, state: 'MENTOR_UPCOMING' }),
-    fetchReservations({ ...commonOpts, state: 'MENTOR_PENDING' }),
-    fetchReservations({ ...commonOpts, state: 'MENTOR_HISTORY' }),
-    fetchReservations({ ...commonOpts, state: 'MENTEE_HISTORY' }),
-  ]);
-
-  return {
-    upcomingMentee: upcomingMenteeRes.items,
-    pendingMentee: pendingMenteeRes.items,
-    upcomingMentor: upcomingMentorRes.items,
-    pendingMentor: pendingMentorRes.items,
-    mentorHistory: mentorHistoryRes.items,
-    menteeHistory: menteeHistoryRes.items,
-    nextTokens: {
-      menteeUpcoming: upcomingMenteeRes.next_dtend,
-      menteePending: pendingMenteeRes.next_dtend,
-      mentorUpcoming: upcomingMentorRes.next_dtend,
-      mentorPending: pendingMentorRes.next_dtend,
-      mentorHistory: mentorHistoryRes.next_dtend,
-      menteeHistory: menteeHistoryRes.next_dtend,
-    },
-  };
-}
-
 /* ================================
  * PUT: Update reservation status
  * ================================ */
