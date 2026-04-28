@@ -9,7 +9,7 @@ export default function Page() {
   const signUpFormProps = useSignUpForm();
 
   return (
-    <div className="flex h-full flex-col items-center justify-center px-5 pb-8 sm:pb-0">
+    <div className="flex h-full flex-col items-center justify-center px-5 pb-8 lg:pb-0">
       <div className="flex w-full max-w-[400px] flex-col gap-6">
         <AuthTitle>註冊 X-Talent 帳戶</AuthTitle>
         <SignUpForm {...signUpFormProps} />

@@ -18,11 +18,13 @@ export default async function AuthOperationLayout({
     <div className="flex lg:min-h-[720px]">
       <div className="flex-1 basis-1/2">{children}</div>
       <div
-        className="box-border hidden flex-1	basis-1/2 bg-cover bg-center bg-no-repeat px-20 py-32 text-center lg:block"
+        className="box-border hidden flex-1 basis-1/2 flex-col items-center justify-center bg-cover bg-center bg-no-repeat px-8 py-16 text-center lg:flex xl:px-20 xl:py-32"
         style={{ backgroundImage: `url(${CoverImgUrl.src})` }}
       >
-        <div className="flex flex-col gap-8 text-text-white">
-          <p className="text-4xl font-bold">現在就加入，更加豐富你的職涯！</p>
+        <div className="flex max-w-md flex-col gap-6 text-text-white xl:gap-8">
+          <p className="text-2xl font-bold lg:text-3xl xl:text-4xl">
+            現在就加入，更加豐富你的職涯！
+          </p>
           <p className="text-base">
             加入我們，成為 X-Talent
             的一份子。一起拓展人脈、提升事業，還有機會接觸到各種資源和機會！
