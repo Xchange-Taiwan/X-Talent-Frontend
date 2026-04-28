@@ -44,15 +44,38 @@ export default function ProfilePageContainer({
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth() + 1);
 
-  const handleScheduleMonthChange = (date: Date) => {
-    setYear(date.getFullYear());
-    setMonth(date.getMonth() + 1);
-  };
-
   const schedule = useMentorSchedule({
     backend: { userId: pageUserId, year, month },
   });
-  const { loaded, setSelectedDate, parsedDraft, allowedDates } = schedule;
+  const { loaded, selectedDate, setSelectedDate, parsedDraft, allowedDates } =
+    schedule;
+
+  const [openReservationDialog, setOpenReservationDialog] = useState(false);
+  const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =
+    useState(false);
+
+  const handleScheduleMonthChange = (date: Date) => {
+    const newYear = date.getFullYear();
+    const newMonth = date.getMonth() + 1;
+    setYear(newYear);
+    setMonth(newMonth);
+    // Carry the viewed month into the booking dialogs by anchoring
+    // selectedDate to the new month. Skip while a dialog is open so
+    // in-dialog month navigation does not clobber the user's day pick.
+    // Clamp to today so a past month never anchors to an un-editable
+    // past day (which would let the dialog render its slot editor on
+    // a date the mentor cannot configure).
+    if (!openReservationDialog && !openMenteeReservationDialog) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const monthStart = new Date(newYear, newMonth - 1, 1);
+      const anchor = monthStart < today ? today : monthStart;
+      const pad = (n: number) => String(n).padStart(2, '0');
+      setSelectedDate(
+        `${anchor.getFullYear()}-${pad(anchor.getMonth() + 1)}-${pad(anchor.getDate())}`
+      );
+    }
+  };
 
   // Auto-select the first available date once schedule is loaded
   useEffect(() => {
@@ -70,10 +93,6 @@ export default function ProfilePageContainer({
     ? String(session.user.id)
     : initialLoginUserId;
   const isLogging = Boolean(loginUserId);
-
-  const [openReservationDialog, setOpenReservationDialog] = useState(false);
-  const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =
-    useState(false);
 
   const { userData, isLoading: userLoading } = useUserData(
     pageUserIdNumber,
@@ -116,6 +135,27 @@ export default function ProfilePageContainer({
       return;
     }
     if (!userData) return;
+    // If the user directly clicked a past day on the profile calendar
+    // (still possible when that day has saved slots), snap selectedDate
+    // forward to today so the dialog never opens on an un-editable past
+    // date with its slot editor primed.
+    if (selectedDate) {
+      const sel = new Date(selectedDate + 'T00:00:00');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (sel < today) {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        setSelectedDate(
+          `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`
+        );
+        const todayYear = today.getFullYear();
+        const todayMonth = today.getMonth() + 1;
+        if (todayYear !== year || todayMonth !== month) {
+          setYear(todayYear);
+          setMonth(todayMonth);
+        }
+      }
+    }
     if (userData.is_mentor && pageUserId === loginUserId) {
       setOpenReservationDialog(true);
       return;
