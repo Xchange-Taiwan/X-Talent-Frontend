@@ -69,6 +69,27 @@ export async function loadMonthScheduleFresh(
 }
 
 /**
+ * Fire-and-forget background fetch that populates cache for a month.
+ * No-op when the month is already cached or a request is in flight.
+ * Failures are silenced — prefetch must never disrupt the user.
+ */
+export function prefetchMonthSchedule(ref: ScheduleMonthRef): void {
+  const key = cacheKey(ref);
+  if (readCache(key) !== undefined) return;
+  if (readInflight(key) !== undefined) return;
+
+  trackInflight(
+    key,
+    loadMonthSchedule(ref).then((raws) => {
+      writeCache(key, raws);
+      return raws;
+    })
+  ).catch(() => {
+    // Silent: prefetch failures shouldn't surface to the user.
+  });
+}
+
+/**
  * PUT all upsert slots, DELETE all removed ids, then reload the month.
  * Returns the freshly loaded slots, or null if any sync request failed.
  */
