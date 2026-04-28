@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useToast } from '@/components/ui/use-toast';
 import {
   expandRrule,
   UseMentorScheduleReturn,
@@ -99,6 +100,7 @@ export default function MentorScheduleDialog({
   } = schedule;
 
   const router = useRouter();
+  const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [editingSlots, setEditingSlots] = useState<EditingSlot[]>([]);
   const [slotErrors, setSlotErrors] = useState<Record<number, SlotErrors>>({});
@@ -225,8 +227,20 @@ export default function MentorScheduleDialog({
 
   const handleSave = async () => {
     setIsSaving(true);
-    await confirmChanges();
+    const result = await confirmChanges();
     setIsSaving(false);
+    if (!result.ok) {
+      // Keep the dialog open so the mentor can adjust the conflicting slot
+      // and retry. The draft state is preserved on failure.
+      toast({
+        variant: 'destructive',
+        description:
+          result.reason === 'conflict'
+            ? '此時段與既有預約衝突,請調整後再試'
+            : '儲存失敗,請稍後再試',
+      });
+      return;
+    }
     onOpenChange(false);
   };
 
