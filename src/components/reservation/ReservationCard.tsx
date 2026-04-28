@@ -1,7 +1,9 @@
 import { CalendarDays, Clock, MessageSquare } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
+import * as React from 'react';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 
@@ -31,10 +33,19 @@ export function ReservationCard({
     .slice(0, 2)
     .join('');
 
+  const [imageFailed, setImageFailed] = React.useState(false);
+
   const avatar = (
     <Avatar className="h-10 w-10 sm:h-12 sm:w-12">
-      {item.avatar ? (
-        <AvatarImage src={getAvatarThumbUrl(item.avatar)} alt={item.name} />
+      {item.avatar && !imageFailed ? (
+        <Image
+          src={getAvatarThumbUrl(item.avatar)}
+          alt={item.name}
+          fill
+          sizes="(min-width: 640px) 48px, 40px"
+          className="object-cover"
+          onError={() => setImageFailed(true)}
+        />
       ) : null}
       <AvatarFallback className="font-medium">{initials}</AvatarFallback>
     </Avatar>
