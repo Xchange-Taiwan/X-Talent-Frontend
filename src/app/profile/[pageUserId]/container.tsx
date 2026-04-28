@@ -47,7 +47,8 @@ export default function ProfilePageContainer({
   const schedule = useMentorSchedule({
     backend: { userId: pageUserId, year, month },
   });
-  const { loaded, setSelectedDate, parsedDraft, allowedDates } = schedule;
+  const { loaded, selectedDate, setSelectedDate, parsedDraft, allowedDates } =
+    schedule;
 
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
   const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =
@@ -134,6 +135,27 @@ export default function ProfilePageContainer({
       return;
     }
     if (!userData) return;
+    // If the user directly clicked a past day on the profile calendar
+    // (still possible when that day has saved slots), snap selectedDate
+    // forward to today so the dialog never opens on an un-editable past
+    // date with its slot editor primed.
+    if (selectedDate) {
+      const sel = new Date(selectedDate + 'T00:00:00');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (sel < today) {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        setSelectedDate(
+          `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`
+        );
+        const todayYear = today.getFullYear();
+        const todayMonth = today.getMonth() + 1;
+        if (todayYear !== year || todayMonth !== month) {
+          setYear(todayYear);
+          setMonth(todayMonth);
+        }
+      }
+    }
     if (userData.is_mentor && pageUserId === loginUserId) {
       setOpenReservationDialog(true);
       return;
