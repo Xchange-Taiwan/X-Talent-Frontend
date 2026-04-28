@@ -1,10 +1,13 @@
 'use client';
 
+import { useCallback } from 'react';
+
 import { ReservationList } from '@/components/reservation/ReservationList';
 import type { Reservation } from '@/components/reservation/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type {
   InitialListState,
+  LoadingMoreStates,
   NextTokens,
 } from '@/hooks/user/reservation/useReservationData';
 import type { ReservationState } from '@/services/reservations';
@@ -17,7 +20,7 @@ export type ReservationTabsProps = {
   history: Reservation[];
   nextTokens: NextTokens;
   initialState: InitialListState;
-  isLoadingMore: boolean;
+  loadingMoreStates: LoadingMoreStates;
   isLoadingHistory: boolean;
   isHistoryLoaded: boolean;
   myUserId: string;
@@ -32,7 +35,7 @@ export default function ReservationTabs({
   history,
   nextTokens,
   initialState,
-  isLoadingMore,
+  loadingMoreStates,
   isLoadingHistory,
   isHistoryLoaded,
   myUserId,
@@ -40,6 +43,18 @@ export default function ReservationTabs({
   onLoadHistory,
   onMutationSuccess,
 }: ReservationTabsProps) {
+  const loadMoreUpcoming = useCallback(
+    () => onLoadMore('MENTEE_UPCOMING'),
+    [onLoadMore]
+  );
+  const loadMorePending = useCallback(
+    () => onLoadMore('MENTEE_PENDING'),
+    [onLoadMore]
+  );
+  const loadMoreHistory = useCallback(
+    () => onLoadMore('MENTEE_HISTORY'),
+    [onLoadMore]
+  );
   const triggerClass =
     'group shrink-0 rounded-full border border-border px-3 py-1.5 text-sm ' +
     'bg-transparent text-foreground ' +
@@ -109,8 +124,8 @@ export default function ReservationTabs({
                 sourceRole="mentee"
                 myUserId={myUserId}
                 hasMore={nextTokens.upcoming !== 0}
-                onLoadMore={() => onLoadMore('MENTEE_UPCOMING')}
-                isLoadingMore={isLoadingMore}
+                onLoadMore={loadMoreUpcoming}
+                isLoadingMore={loadingMoreStates.MENTEE_UPCOMING}
                 onMutationSuccess={onMutationSuccess}
               />
             )}
@@ -126,8 +141,8 @@ export default function ReservationTabs({
                 sourceRole="mentee"
                 myUserId={myUserId}
                 hasMore={nextTokens.pending !== 0}
-                onLoadMore={() => onLoadMore('MENTEE_PENDING')}
-                isLoadingMore={isLoadingMore}
+                onLoadMore={loadMorePending}
+                isLoadingMore={loadingMoreStates.MENTEE_PENDING}
                 onMutationSuccess={onMutationSuccess}
               />
             )}
@@ -143,8 +158,8 @@ export default function ReservationTabs({
                 sourceRole="mentee"
                 myUserId={myUserId}
                 hasMore={nextTokens.history !== 0}
-                onLoadMore={() => onLoadMore('MENTEE_HISTORY')}
-                isLoadingMore={isLoadingMore}
+                onLoadMore={loadMoreHistory}
+                isLoadingMore={loadingMoreStates.MENTEE_HISTORY}
                 onMutationSuccess={onMutationSuccess}
               />
             )}

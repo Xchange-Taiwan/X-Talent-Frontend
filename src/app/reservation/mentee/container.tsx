@@ -8,7 +8,7 @@ export default function ReservationContainer() {
   const {
     data,
     initialState,
-    isLoadingMore,
+    loadingMoreStates,
     isLoadingHistory,
     isHistoryLoaded,
     myUserId,
@@ -24,7 +24,7 @@ export default function ReservationContainer() {
       history={data?.history ?? []}
       nextTokens={data?.nextTokens ?? { upcoming: 0, pending: 0, history: 0 }}
       initialState={initialState}
-      isLoadingMore={isLoadingMore}
+      loadingMoreStates={loadingMoreStates}
       isLoadingHistory={isLoadingHistory}
       isHistoryLoaded={isHistoryLoaded}
       myUserId={myUserId}

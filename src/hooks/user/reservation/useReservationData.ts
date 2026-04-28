@@ -1,5 +1,5 @@
 import { useSession } from 'next-auth/react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Reservation } from '@/components/reservation/types';
 import { trackEvent } from '@/lib/analytics';
@@ -52,6 +52,17 @@ export type ListLoadState = 'idle' | 'loading' | 'ready';
 
 export type InitialListState = Record<ListKey, ListLoadState>;
 
+export type LoadingMoreStates = Record<ReservationState, boolean>;
+
+const EMPTY_LOADING_MORE: LoadingMoreStates = {
+  MENTEE_UPCOMING: false,
+  MENTEE_PENDING: false,
+  MENTEE_HISTORY: false,
+  MENTOR_UPCOMING: false,
+  MENTOR_PENDING: false,
+  MENTOR_HISTORY: false,
+};
+
 const EMPTY_DATA: ReservationData = {
   upcoming: [],
   pending: [],
@@ -63,7 +74,7 @@ export interface UseReservationDataReturn {
   data: ReservationData | null;
   initialState: InitialListState;
   isLoading: boolean;
-  isLoadingMore: boolean;
+  loadingMoreStates: LoadingMoreStates;
   isLoadingHistory: boolean;
   isHistoryLoaded: boolean;
   myUserId: string;
@@ -82,13 +93,32 @@ export function useReservationData({
   const states = ROLE_STATES[role];
 
   const [data, setData] = useState<ReservationData | null>(null);
+  // Mirror of `data` so loadMore can read the latest cursor synchronously
+  // without listing `data` in its deps. Listing `data` rebuilt loadMore (and
+  // therefore onMutationSuccess) on every reservation change, swapping the
+  // prop identity into ReservationTabs and re-rendering the whole subtree.
+  const dataRef = useRef<ReservationData | null>(null);
   const [initialUpcoming, setInitialUpcoming] =
     useState<ListLoadState>('loading');
   const [initialPending, setInitialPending] =
     useState<ListLoadState>('loading');
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [loadingMoreStates, setLoadingMoreStates] =
+    useState<LoadingMoreStates>(EMPTY_LOADING_MORE);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
+
+  // Wrapper that keeps dataRef and React state in lock-step. Every write to
+  // `data` must go through here so the next loadMore reads a fresh cursor.
+  const updateData = useCallback(
+    (updater: (prev: ReservationData | null) => ReservationData | null) => {
+      setData((prev) => {
+        const next = updater(prev);
+        dataRef.current = next;
+        return next;
+      });
+    },
+    []
+  );
 
   // Initial fetch covers only the role's UPCOMING + PENDING states. HISTORY is
   // lazy and only fetched when the user opens the history tab via loadHistory.
@@ -111,7 +141,7 @@ export function useReservationData({
       try {
         const res = await fetchReservations({ userId: myUserId, state });
         if (cancelled) return;
-        setData((prev) => {
+        updateData((prev) => {
           const base = prev ?? EMPTY_DATA;
           return {
             ...base,
@@ -140,19 +170,22 @@ export function useReservationData({
     return () => {
       cancelled = true;
     };
-  }, [myUserId, states.upcoming, states.pending]);
+  }, [myUserId, states.upcoming, states.pending, updateData]);
 
-  const removeItem = useCallback((id: string) => {
-    setData((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        upcoming: prev.upcoming.filter((it) => it.id !== id),
-        pending: prev.pending.filter((it) => it.id !== id),
-        history: prev.history.filter((it) => it.id !== id),
-      };
-    });
-  }, []);
+  const removeItem = useCallback(
+    (id: string) => {
+      updateData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          upcoming: prev.upcoming.filter((it) => it.id !== id),
+          pending: prev.pending.filter((it) => it.id !== id),
+          history: prev.history.filter((it) => it.id !== id),
+        };
+      });
+    },
+    [updateData]
+  );
 
   // Refetch only the affected states. States belonging to the other role are
   // dropped (mentee page never refetches mentor data) and HISTORY is skipped
@@ -180,7 +213,7 @@ export function useReservationData({
           )
         );
 
-        setData((prev) => {
+        updateData((prev) => {
           if (!prev) return prev;
           const next: ReservationData = {
             upcoming: prev.upcoming,
@@ -207,7 +240,14 @@ export function useReservationData({
         console.error('[useReservationData] refetch error:', err);
       }
     },
-    [myUserId, states.upcoming, states.pending, states.history, isHistoryLoaded]
+    [
+      myUserId,
+      states.upcoming,
+      states.pending,
+      states.history,
+      isHistoryLoaded,
+      updateData,
+    ]
   );
 
   const onMutationSuccess = useCallback(
@@ -226,7 +266,7 @@ export function useReservationData({
         userId: myUserId,
         state: states.history,
       });
-      setData((prev) => {
+      updateData((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
@@ -252,16 +292,18 @@ export function useReservationData({
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [myUserId, states.history, isHistoryLoaded, isLoadingHistory]);
+  }, [myUserId, states.history, isHistoryLoaded, isLoadingHistory, updateData]);
 
   const loadMore = useCallback(
     async (state: ReservationState): Promise<void> => {
-      if (!data || !myUserId) return;
+      if (!myUserId) return;
+      const currentData = dataRef.current;
+      if (!currentData) return;
       const key = STATE_TO_LIST_KEY[state];
-      const cursor = data.nextTokens[key];
+      const cursor = currentData.nextTokens[key];
       if (cursor === 0) return;
 
-      setIsLoadingMore(true);
+      setLoadingMoreStates((prev) => ({ ...prev, [state]: true }));
       try {
         const result = await fetchReservations({
           userId: myUserId,
@@ -269,7 +311,7 @@ export function useReservationData({
           nextDtend: cursor,
         });
 
-        setData((prev) => {
+        updateData((prev) => {
           if (!prev) return prev;
           return {
             ...prev,
@@ -293,10 +335,10 @@ export function useReservationData({
         });
         console.error('[useReservationData] loadMore error:', err);
       } finally {
-        setIsLoadingMore(false);
+        setLoadingMoreStates((prev) => ({ ...prev, [state]: false }));
       }
     },
-    [data, myUserId]
+    [myUserId, updateData]
   );
 
   const historyState: ListLoadState = isHistoryLoaded
@@ -321,7 +363,7 @@ export function useReservationData({
     data,
     initialState,
     isLoading,
-    isLoadingMore,
+    loadingMoreStates,
     isLoadingHistory,
     isHistoryLoaded,
     myUserId,
