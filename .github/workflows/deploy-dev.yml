@@ -46,7 +46,7 @@ jobs:
         id: deploy
         run: |
           echo "🚀 Deploying to Vercel Production (develop)..."
-          url=$(vercel deploy --prebuilt --prod --token=${{ env.VERCEL_TOKEN }} | tail -n 1)
+          url=$(vercel deploy --prebuilt --prod --archive=tgz --token=${{ env.VERCEL_TOKEN }} | tail -n 1)
           echo "vercel_url=${url}" >> $GITHUB_OUTPUT
 
       - name: Comment on commit with deploy URL
