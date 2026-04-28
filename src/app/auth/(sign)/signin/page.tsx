@@ -10,7 +10,7 @@ export default function Page() {
   const signInFormProps = useSignInForm();
 
   return (
-    <div className="flex h-full flex-col items-center justify-center px-5 pb-8 sm:pb-0">
+    <div className="flex h-full flex-col items-center justify-center px-5 pb-8 lg:pb-0">
       <div className="flex w-full max-w-[400px] flex-col gap-6">
         <AuthTitle>登入 X-Talent 帳戶</AuthTitle>
         <SignInForm {...signInFormProps} />
