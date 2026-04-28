@@ -61,8 +61,18 @@ export default function ProfilePageContainer({
     // Carry the viewed month into the booking dialogs by anchoring
     // selectedDate to the new month. Skip while a dialog is open so
     // in-dialog month navigation does not clobber the user's day pick.
+    // Clamp to today so a past month never anchors to an un-editable
+    // past day (which would let the dialog render its slot editor on
+    // a date the mentor cannot configure).
     if (!openReservationDialog && !openMenteeReservationDialog) {
-      setSelectedDate(`${newYear}-${String(newMonth).padStart(2, '0')}-01`);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const monthStart = new Date(newYear, newMonth - 1, 1);
+      const anchor = monthStart < today ? today : monthStart;
+      const pad = (n: number) => String(n).padStart(2, '0');
+      setSelectedDate(
+        `${anchor.getFullYear()}-${pad(anchor.getMonth() + 1)}-${pad(anchor.getDate())}`
+      );
     }
   };
 
