@@ -60,6 +60,11 @@ export async function fetchMentorsEnriched(
     topicLabelMap[t.subject_group] = t.subject ?? '';
   });
 
+  const whatIOfferLabelMap: Record<string, string> = {};
+  interests.whatIOffers.forEach((w) => {
+    whatIOfferLabelMap[w.subject_group] = w.subject ?? '';
+  });
+
   return searchResults.map((mentor) => ({
     ...mentor,
     skills: mentor.skills
@@ -67,6 +72,9 @@ export async function fetchMentorsEnriched(
       .filter(Boolean),
     topics: mentor.topics
       .map((subjectGroup) => topicLabelMap[subjectGroup] ?? subjectGroup)
+      .filter(Boolean),
+    what_i_offers: mentor.what_i_offers
+      .map((subjectGroup) => whatIOfferLabelMap[subjectGroup] ?? subjectGroup)
       .filter(Boolean),
   }));
 }
