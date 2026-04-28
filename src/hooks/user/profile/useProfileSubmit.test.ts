@@ -416,17 +416,22 @@ describe('useProfileSubmit', () => {
 
     await act(async () => {
       await result.current.onSubmit(baseValues);
-      // Flush microtasks so any inline reconcile after prime runs.
+      // Flush microtasks so the background prime + reconcile resolve.
       await Promise.resolve();
       await Promise.resolve();
     });
 
+    // Cache is cleared optimistically pre-navigation; the prime that follows
+    // the background firstSyncedFetch refills it with the synced dto.
+    expect(mockClearUserDataCache).toHaveBeenCalledWith(
+      Number(mockSession.user!.id),
+      'zh_TW'
+    );
     expect(mockPrimeUserDataCache).toHaveBeenCalledWith(
       Number(mockSession.user!.id),
       'zh_TW',
       mockUserDTO
     );
-    expect(mockClearUserDataCache).not.toHaveBeenCalled();
     expect(mockPollUntilSynced).not.toHaveBeenCalled();
     expect(mockRouter.push).toHaveBeenCalledWith('/profile/card');
   });
@@ -554,6 +559,166 @@ describe('useProfileSubmit', () => {
     expect(mockUpdateProfile).toHaveBeenCalledWith(
       expect.objectContaining({ avatar: consumed })
     );
+  });
+
+  // ── Dirty-field skip ───────────────────────────────────────────────────────
+
+  it('dirtyFields = {} → no PUTs fire', async () => {
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues, {});
+    });
+
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
+    expect(mockUpsertMentorExperience).not.toHaveBeenCalled();
+  });
+
+  it('dirtyFields with only `name` → only updateProfile fires, no upserts', async () => {
+    const valuesWithEverything = {
+      ...baseValues,
+      work_experiences: [
+        {
+          id: 1,
+          job: 'Engineer',
+          company: 'Acme',
+          jobPeriodStart: '2020',
+          jobPeriodEnd: 'now',
+          industry: 'tech',
+          jobLocation: 'TWN',
+          description: 'desc',
+        },
+      ],
+      educations: [
+        {
+          id: 1,
+          school: 'NTU',
+          subject: 'CS',
+          educationPeriodStart: '2015',
+          educationPeriodEnd: '2019',
+        },
+      ],
+      what_i_offer: ['mentoring'],
+      linkedin: {
+        id: -1,
+        url: 'https://linkedin.com/in/me',
+        platform: 'linkedin',
+      },
+    };
+
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(valuesWithEverything, { name: true });
+    });
+
+    expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+    expect(mockUpsertMentorExperience).not.toHaveBeenCalled();
+  });
+
+  it('dirtyFields = { work_experiences: [...] } → only work upsert fires', async () => {
+    const valuesWithWork = {
+      ...baseValues,
+      work_experiences: [
+        {
+          id: 1,
+          job: 'Engineer',
+          company: 'Acme',
+          jobPeriodStart: '2020',
+          jobPeriodEnd: 'now',
+          industry: 'tech',
+          jobLocation: 'TWN',
+          description: 'desc',
+        },
+      ],
+    };
+
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(valuesWithWork, {
+        work_experiences: [{ job: true }],
+      });
+    });
+
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
+    const calls = mockUpsertMentorExperience.mock.calls.map(([type]) => type);
+    expect(calls).toEqual([ExperienceType.WORK]);
+  });
+
+  it('isMentorOnboarding: true forces updateProfile even with empty dirtyFields', async () => {
+    const { result } = renderHook(() =>
+      useProfileSubmit(makeOptions({ isMentorOnboarding: true }))
+    );
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues, {});
+    });
+
+    expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it('avatarFile present with empty dirtyFields → updateProfile still fires with new avatar', async () => {
+    const newAvatarUrl = 'https://example.com/new.jpg';
+    mockUpdateAvatar.mockResolvedValueOnce(newAvatarUrl);
+    const file = new File(['x'], 'a.jpg', { type: 'image/jpeg' });
+
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit({ ...baseValues, avatarFile: file }, {});
+    });
+
+    expect(mockUpdateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ avatar: newAvatarUrl })
+    );
+  });
+
+  it('dirty link field triggers links upsert (nested dirtyFields shape)', async () => {
+    const valuesWithLink = {
+      ...baseValues,
+      linkedin: {
+        id: -1,
+        url: 'https://linkedin.com/in/me',
+        platform: 'linkedin',
+      },
+    };
+
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(valuesWithLink, {
+        // RHF reports nested dirty as { url: true } for object fields.
+        linkedin: { url: true },
+      });
+    });
+
+    const linkCalls = mockUpsertMentorExperience.mock.calls.filter(
+      ([type]) => type === ExperienceType.LINK
+    );
+    expect(linkCalls).toHaveLength(1);
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
+  });
+
+  it('navigation does not wait for firstSyncedFetch to resolve', async () => {
+    // Background prime must not block router.push — even a slow first-sync
+    // fetch leaves the user on the loading screen too long.
+    let resolveFirst: (value: MentorProfileVO | null) => void = () => {};
+    mockFirstSyncedFetch.mockReturnValueOnce(
+      new Promise<MentorProfileVO | null>((resolve) => {
+        resolveFirst = resolve;
+      })
+    );
+
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+    });
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/profile/test-user-id');
+    // Settle so the dangling background promise doesn't leak into other tests.
+    resolveFirst(null);
   });
 
   // ── Primary job persistence ────────────────────────────────────────────────

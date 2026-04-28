@@ -21,6 +21,21 @@ import { updateProfile } from '@/services/profile/updateProfile';
 import { upsertMentorExperience } from '@/services/profile/upsertExperience';
 import { MentorProfileVO } from '@/services/profile/user';
 
+// RHF's dirtyFields is a deep partial where leaves are `true`. Nested fields
+// (objects, arrays) carry the same shape, so we recurse to detect "anything
+// dirty inside" without enumerating every leaf.
+export type ProfileDirtyFields = Partial<
+  Record<keyof ProfileFormValues, unknown>
+>;
+
+function hasDirtyValue(v: unknown): boolean {
+  if (!v) return false;
+  if (typeof v === 'boolean') return v;
+  if (Array.isArray(v)) return v.some(hasDirtyValue);
+  if (typeof v === 'object') return Object.values(v).some(hasDirtyValue);
+  return Boolean(v);
+}
+
 interface Options {
   pageUserId: string;
   isMentorOnboarding: boolean;
@@ -48,7 +63,10 @@ export function useProfileSubmit({
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
 
-  const onSubmit = async (values: ProfileFormValues) => {
+  const onSubmit = async (
+    values: ProfileFormValues,
+    dirtyFields?: ProfileDirtyFields
+  ) => {
     if (jobSectionError || educationSectionError) {
       onScrollToError?.(jobSectionError ? 'work_experiences' : 'educations');
       return;
@@ -77,11 +95,50 @@ export function useProfileSubmit({
         }
       }
 
-      // 2) profile + experience writes — fire all five PUTs in parallel.
+      // 2) profile + experience writes — fire only the PUTs whose section
+      //    actually changed. When `dirtyFields` is omitted we fall back to
+      //    the legacy "send everything" behaviour so existing callers and
+      //    tests are unaffected.
+      //
       //    Backend tables are independent (Profile vs MentorExperience, no
       //    FK, no shared rows; is_mentor flag is only written by the profile
-      //    endpoint), so concurrent merges don't race. See backend audit in
-      //    PR description.
+      //    endpoint), so concurrent merges don't race.
+      const isDirty = (key: keyof ProfileFormValues): boolean => {
+        if (!dirtyFields) return true;
+        return hasDirtyValue(dirtyFields[key]);
+      };
+
+      // updateProfile sends every form field, so any non-experience profile
+      // edit triggers it. `isMentorOnboarding` forces it through so the
+      // backend onboarding flag flips even when the user submits without
+      // touching anything. A new avatar file also counts.
+      const profileDirty =
+        isMentorOnboarding ||
+        Boolean(values.avatarFile) ||
+        isDirty('avatar') ||
+        isDirty('name') ||
+        isDirty('about') ||
+        isDirty('location') ||
+        isDirty('industry') ||
+        isDirty('years_of_experience') ||
+        isDirty('statement') ||
+        isDirty('expertises') ||
+        isDirty('interested_positions') ||
+        isDirty('skills') ||
+        isDirty('topics') ||
+        isDirty('what_i_offer');
+
+      const workDirty = isDirty('work_experiences');
+      const educationDirty = isDirty('educations');
+      const linksDirty =
+        isDirty('linkedin') ||
+        isDirty('facebook') ||
+        isDirty('instagram') ||
+        isDirty('twitter') ||
+        isDirty('youtube') ||
+        isDirty('website');
+      const whatIOfferDirty = isDirty('what_i_offer');
+
       const payload = { ...values, avatar, avatarFile: undefined };
       const links = [
         values.linkedin,
@@ -94,9 +151,9 @@ export function useProfileSubmit({
 
       try {
         await Promise.all([
-          updateProfile(payload),
+          profileDirty ? updateProfile(payload) : Promise.resolve(),
 
-          values.work_experiences?.length > 0
+          workDirty && values.work_experiences?.length > 0
             ? upsertMentorExperience(ExperienceType.WORK, true, {
                 id: 1,
                 category: ExperienceType.WORK,
@@ -116,7 +173,7 @@ export function useProfileSubmit({
               })
             : Promise.resolve(),
 
-          values.educations?.length > 0
+          educationDirty && values.educations?.length > 0
             ? upsertMentorExperience(ExperienceType.EDUCATION, true, {
                 id: 2,
                 category: ExperienceType.EDUCATION,
@@ -132,7 +189,7 @@ export function useProfileSubmit({
               })
             : Promise.resolve(),
 
-          links.length > 0
+          linksDirty && links.length > 0
             ? upsertMentorExperience(ExperienceType.LINK, true, {
                 id: 3,
                 category: ExperienceType.LINK,
@@ -146,7 +203,7 @@ export function useProfileSubmit({
               })
             : Promise.resolve(),
 
-          values.what_i_offer?.length > 0
+          whatIOfferDirty && values.what_i_offer?.length > 0
             ? upsertMentorExperience(ExperienceType.WHAT_I_OFFER, true, {
                 id: 4,
                 category: ExperienceType.WHAT_I_OFFER,
@@ -171,12 +228,10 @@ export function useProfileSubmit({
         throw err;
       }
 
-      // 3) prime user-data cache before navigation — bounded by a short
-      //    timeout. If the backend has already synced (the common case
-      //    once step 2 returned), the next page mount renders from
-      //    cache with zero API calls. Otherwise we fall back to the
-      //    historical clear-cache + background-poll path so the user is
-      //    never blocked on backend latency.
+      // 3) optimistic cache + navigation — clear the local cache so the next
+      //    page fetches fresh, then navigate immediately. The fast first-sync
+      //    fetch + cache prime now runs in the background (step 6) instead of
+      //    blocking the user behind a ~800ms timeout.
       const sessionUserId = session?.user?.id ? Number(session.user.id) : null;
       const sessionUser = session?.user;
       const personalLinks = links.map((link) => ({
@@ -184,14 +239,8 @@ export function useProfileSubmit({
         url: link.url,
       }));
 
-      let primedLatest: MentorProfileVO | null = null;
       if (sessionUserId) {
-        primedLatest = await firstSyncedFetch(values, avatar ?? '');
-        if (primedLatest) {
-          primeUserDataCache(sessionUserId, 'zh_TW', primedLatest);
-        } else {
-          clearUserDataCache(sessionUserId, 'zh_TW');
-        }
+        clearUserDataCache(sessionUserId, 'zh_TW');
       }
 
       // Invalidate the SSR ISR cache for /profile/[userId] so other
@@ -225,7 +274,7 @@ export function useProfileSubmit({
         },
       });
 
-      // 5) navigate immediately — user no longer waits for backend sync
+      // 5) navigate immediately — user no longer waits for backend sync.
       trackEvent({ name: 'profile_update_submitted', feature: 'profile' });
       if (isMentorOnboarding) {
         router.push('/profile/card');
@@ -233,11 +282,12 @@ export function useProfileSubmit({
         router.push(`/profile/${pageUserId}`);
       }
 
-      // 6) session reconcile — if the backend ultimately reports a
-      //    different is_mentor / onboarding than the optimistic value,
-      //    patch the session. Reuses the primed result when available so
-      //    we do not double-poll; otherwise falls back to the background
-      //    pollUntilSynced for slow-sync cases.
+      // 6) background prime + reconcile — try the fast first-sync read; if
+      //    the backend has already caught up, prime the cache so subsequent
+      //    reads on the next page are instant. Otherwise fall back to the
+      //    longer pollUntilSynced. Either way, reconcile the session if the
+      //    backend reports a different is_mentor / onboarding than the
+      //    optimistic value.
       const reconcileSession = (latest: MentorProfileVO | null) => {
         if (!latest) return;
         const optimisticIsMentor = sessionUser?.isMentor ?? false;
@@ -259,11 +309,19 @@ export function useProfileSubmit({
         });
       };
 
-      if (primedLatest) {
-        reconcileSession(primedLatest);
-      } else {
-        void pollUntilSynced(values, avatar ?? '').then(reconcileSession);
-      }
+      void (async () => {
+        let latest: MentorProfileVO | null = null;
+        if (sessionUserId) {
+          latest = await firstSyncedFetch(values, avatar ?? '');
+          if (latest) {
+            primeUserDataCache(sessionUserId, 'zh_TW', latest);
+          }
+        }
+        if (!latest) {
+          latest = await pollUntilSynced(values, avatar ?? '');
+        }
+        reconcileSession(latest);
+      })();
     } catch (err) {
       captureFlowFailure({
         flow: 'profile_update',
