@@ -6,36 +6,35 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { NextTokens } from '@/hooks/user/reservation/useReservationData';
 import type { ReservationState } from '@/services/reservations';
 
+import { ReservationListSkeleton } from '../skeleton';
+
 export type ReservationTabsProps = {
-  upcomingMentee: Reservation[];
-  pendingMentee: Reservation[];
-  upcomingMentor: Reservation[];
-  pendingMentor: Reservation[];
-  mentorHistory: Reservation[];
-  menteeHistory: Reservation[];
+  upcoming: Reservation[];
+  pending: Reservation[];
+  history: Reservation[];
   nextTokens: NextTokens;
   isLoadingMore: boolean;
+  isLoadingHistory: boolean;
+  isHistoryLoaded: boolean;
+  myUserId: string;
   onLoadMore: (state: ReservationState) => void;
-  onMutationSuccess?: (id: string) => void;
+  onLoadHistory: () => void;
+  onMutationSuccess?: (id: string, affectedStates: ReservationState[]) => void;
 };
 
 export default function ReservationTabs({
-  upcomingMentee,
-  pendingMentee,
-  upcomingMentor,
-  pendingMentor,
-  mentorHistory,
-  menteeHistory,
+  upcoming,
+  pending,
+  history,
   nextTokens,
   isLoadingMore,
+  isLoadingHistory,
+  isHistoryLoaded,
+  myUserId,
   onLoadMore,
+  onLoadHistory,
   onMutationSuccess,
 }: ReservationTabsProps) {
-  // This file is for mentee UI; keep mentor props to match type and avoid lint issues.
-  void upcomingMentor;
-  void pendingMentor;
-  void mentorHistory;
-
   const triggerClass =
     'group shrink-0 rounded-full border border-border px-3 py-1.5 text-sm ' +
     'bg-transparent text-foreground ' +
@@ -44,10 +43,20 @@ export default function ReservationTabs({
   const countClass =
     'ml-1 text-xs text-muted-foreground group-data-[state=active]:text-white/80';
 
+  const handleValueChange = (value: string) => {
+    if (value === 'history' && !isHistoryLoaded && !isLoadingHistory) {
+      onLoadHistory();
+    }
+  };
+
   return (
     <div className="mx-auto w-full max-w-3xl px-0 sm:px-4 lg:px-6">
       {/* IMPORTANT: defaultValue must match an existing TabsTrigger value */}
-      <Tabs defaultValue="upcoming-mentee" className="w-full">
+      <Tabs
+        defaultValue="upcoming-mentee"
+        className="w-full"
+        onValueChange={handleValueChange}
+      >
         <div className="bg-white sticky top-0 z-10 pb-2">
           <div className="-mx-3 sm:mx-0">
             <div
@@ -64,17 +73,19 @@ export default function ReservationTabs({
                 <TabsList className="bg-transparent inline-flex w-max items-center gap-2 px-0">
                   <TabsTrigger value="upcoming-mentee" className={triggerClass}>
                     即將到來
-                    <span className={countClass}>{upcomingMentee.length}</span>
+                    <span className={countClass}>{upcoming.length}</span>
                   </TabsTrigger>
 
                   <TabsTrigger value="pending-mentee" className={triggerClass}>
                     等待回復
-                    <span className={countClass}>{pendingMentee.length}</span>
+                    <span className={countClass}>{pending.length}</span>
                   </TabsTrigger>
 
                   <TabsTrigger value="history" className={triggerClass}>
                     歷史紀錄
-                    <span className={countClass}>{menteeHistory.length}</span>
+                    {isHistoryLoaded ? (
+                      <span className={countClass}>{history.length}</span>
+                    ) : null}
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -85,10 +96,11 @@ export default function ReservationTabs({
         <div className="px-3 pt-2 sm:px-0">
           <TabsContent value="upcoming-mentee" className="mt-4 sm:mt-6">
             <ReservationList
-              items={upcomingMentee}
+              items={upcoming}
               variant="upcoming"
               sourceRole="mentee"
-              hasMore={nextTokens.menteeUpcoming !== 0}
+              myUserId={myUserId}
+              hasMore={nextTokens.upcoming !== 0}
               onLoadMore={() => onLoadMore('MENTEE_UPCOMING')}
               isLoadingMore={isLoadingMore}
               onMutationSuccess={onMutationSuccess}
@@ -97,10 +109,11 @@ export default function ReservationTabs({
 
           <TabsContent value="pending-mentee" className="mt-4 sm:mt-6">
             <ReservationList
-              items={pendingMentee}
+              items={pending}
               variant="pending-mentee"
               sourceRole="mentee"
-              hasMore={nextTokens.menteePending !== 0}
+              myUserId={myUserId}
+              hasMore={nextTokens.pending !== 0}
               onLoadMore={() => onLoadMore('MENTEE_PENDING')}
               isLoadingMore={isLoadingMore}
               onMutationSuccess={onMutationSuccess}
@@ -108,15 +121,20 @@ export default function ReservationTabs({
           </TabsContent>
 
           <TabsContent value="history" className="mt-4 sm:mt-6">
-            <ReservationList
-              items={menteeHistory}
-              variant="history"
-              sourceRole="mentee"
-              hasMore={nextTokens.menteeHistory !== 0}
-              onLoadMore={() => onLoadMore('MENTEE_HISTORY')}
-              isLoadingMore={isLoadingMore}
-              onMutationSuccess={onMutationSuccess}
-            />
+            {isLoadingHistory && !isHistoryLoaded ? (
+              <ReservationListSkeleton />
+            ) : (
+              <ReservationList
+                items={history}
+                variant="history"
+                sourceRole="mentee"
+                myUserId={myUserId}
+                hasMore={nextTokens.history !== 0}
+                onLoadMore={() => onLoadMore('MENTEE_HISTORY')}
+                isLoadingMore={isLoadingMore}
+                onMutationSuccess={onMutationSuccess}
+              />
+            )}
           </TabsContent>
         </div>
       </Tabs>
