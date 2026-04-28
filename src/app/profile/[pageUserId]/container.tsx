@@ -44,15 +44,27 @@ export default function ProfilePageContainer({
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth() + 1);
 
-  const handleScheduleMonthChange = (date: Date) => {
-    setYear(date.getFullYear());
-    setMonth(date.getMonth() + 1);
-  };
-
   const schedule = useMentorSchedule({
     backend: { userId: pageUserId, year, month },
   });
   const { loaded, setSelectedDate, parsedDraft, allowedDates } = schedule;
+
+  const [openReservationDialog, setOpenReservationDialog] = useState(false);
+  const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =
+    useState(false);
+
+  const handleScheduleMonthChange = (date: Date) => {
+    const newYear = date.getFullYear();
+    const newMonth = date.getMonth() + 1;
+    setYear(newYear);
+    setMonth(newMonth);
+    // Carry the viewed month into the booking dialogs by anchoring
+    // selectedDate to the new month. Skip while a dialog is open so
+    // in-dialog month navigation does not clobber the user's day pick.
+    if (!openReservationDialog && !openMenteeReservationDialog) {
+      setSelectedDate(`${newYear}-${String(newMonth).padStart(2, '0')}-01`);
+    }
+  };
 
   // Auto-select the first available date once schedule is loaded
   useEffect(() => {
@@ -70,10 +82,6 @@ export default function ProfilePageContainer({
     ? String(session.user.id)
     : initialLoginUserId;
   const isLogging = Boolean(loginUserId);
-
-  const [openReservationDialog, setOpenReservationDialog] = useState(false);
-  const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =
-    useState(false);
 
   const { userData, isLoading: userLoading } = useUserData(
     pageUserIdNumber,
