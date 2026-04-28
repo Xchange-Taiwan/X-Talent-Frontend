@@ -25,6 +25,7 @@ import {
   UseMentorScheduleReturn,
 } from '@/hooks/useMentorSchedule';
 import { trackEvent } from '@/lib/analytics';
+import { DtType } from '@/lib/profile/scheduleHelpers';
 
 import { ScheduleCalendar } from './ScheduleCalendar';
 
@@ -41,7 +42,7 @@ type SlotErrors = {
   overlap?: string;
 };
 
-type ReservationPromptType = 'booked' | 'pending' | null;
+type ReservationPromptType = Exclude<DtType, 'ALLOW'> | null;
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) =>
   String(i).padStart(2, '0')
@@ -130,7 +131,7 @@ export default function MentorScheduleDialog({
   // it represents a confirmed reservation that requires a heavier remediation.
   const getBlockingReservationType = (
     slotId: number
-  ): 'booked' | 'pending' | null => {
+  ): Exclude<DtType, 'ALLOW'> | null => {
     const parsed = editableSlotsForDate.find((s) => s.id === slotId);
     if (!parsed || parsed.type !== 'ALLOW') return null;
 
@@ -139,9 +140,9 @@ export default function MentorScheduleDialog({
       : [Math.floor(parsed.start.getTime() / 1000)];
 
     if (occurrences.some((occ) => bookedStartsForDate.has(occ)))
-      return 'booked';
+      return 'BOOKED';
     if (occurrences.some((occ) => pendingStartsForDate.has(occ)))
-      return 'pending';
+      return 'PENDING';
     return null;
   };
 
@@ -342,11 +343,11 @@ export default function MentorScheduleDialog({
 
           const handleClick = () => {
             if (isBooked) {
-              setSlotPrompt('booked');
+              setSlotPrompt('BOOKED');
               return;
             }
             if (isPending) {
-              setSlotPrompt('pending');
+              setSlotPrompt('PENDING');
               return;
             }
             toggleOccurrence(slotId, occ);
@@ -560,12 +561,12 @@ export default function MentorScheduleDialog({
         <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>
-              {slotPrompt === 'booked'
+              {slotPrompt === 'BOOKED'
                 ? '此時段已有預約'
                 : '此時段有未處理的預約申請'}
             </DialogTitle>
             <DialogDescription>
-              {slotPrompt === 'booked'
+              {slotPrompt === 'BOOKED'
                 ? '此時段已有 mentee 預約成功,無法移除。如需取消,請至「預約管理」頁面處理。'
                 : '請至「預約管理」頁面接受或拒絕該申請,僅在拒絕後此時段才會重新釋出。'}
             </DialogDescription>
@@ -594,12 +595,12 @@ export default function MentorScheduleDialog({
         <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>
-              {blockPrompt === 'booked'
+              {blockPrompt === 'BOOKED'
                 ? '此時段內有已成立的預約'
                 : '此時段內有未處理的預約申請'}
             </DialogTitle>
             <DialogDescription>
-              {blockPrompt === 'booked'
+              {blockPrompt === 'BOOKED'
                 ? '此時段內有 mentee 預約成功,無法刪除整個時段。如需取消,請至「預約管理」頁面處理。'
                 : '此時段內有 mentee 提出預約申請尚未處理,請先至「預約管理」頁面接受或拒絕後再刪除整個時段。'}
             </DialogDescription>
