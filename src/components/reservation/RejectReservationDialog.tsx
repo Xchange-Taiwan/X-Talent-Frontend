@@ -73,8 +73,8 @@ export default function RejectReservationDialog({
       <DialogTrigger asChild>
         <Button
           size="sm"
-          variant="outline"
-          className={cn('min-h-9 px-3 text-destructive', className)}
+          variant="destructive"
+          className={cn('min-h-9 px-3', className)}
         >
           拒絕
         </Button>
