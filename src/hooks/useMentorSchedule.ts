@@ -22,6 +22,7 @@ import { clearAllScheduleCache } from '@/services/mentor-schedule/scheduleCache'
 import {
   loadMonthScheduleCached,
   loadMonthScheduleFresh,
+  prefetchMonthSchedule,
   syncMonthSchedule,
 } from '@/services/mentor-schedule/sync';
 
@@ -160,6 +161,21 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backend.userId, backend.year, backend.month]);
+
+  // Prefetch the next month after the current month finishes loading, so
+  // forward navigation hits cache. Past months are intentionally skipped.
+  useEffect(() => {
+    if (!loaded || !backend.userId) return;
+    const next = dayjs(`${backend.year}-${backend.month}-01`).add(1, 'month');
+    const handle = setTimeout(() => {
+      prefetchMonthSchedule({
+        userId: backend.userId,
+        year: next.year(),
+        month: next.month() + 1,
+      });
+    }, 0);
+    return () => clearTimeout(handle);
+  }, [loaded, backend.userId, backend.year, backend.month]);
 
   const parsedDraft = useMemo(
     () =>
