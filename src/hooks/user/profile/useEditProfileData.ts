@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { UseFormReturn } from 'react-hook-form';
 
 import {
@@ -37,7 +37,11 @@ export function useEditProfileData({
   // (redirected by useProfileAuth) never see the data populated.
   const { userDto, error } = useUserProfileDto(userId, 'zh_TW');
 
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) so form.reset + setIsPageLoading(false)
+  // commit before the browser paints. When the dto is already cached at mount
+  // (the common profile → edit nav), this skips the one-frame `<PageLoading />`
+  // spinner that otherwise paints between the initial render and the effect.
+  useLayoutEffect(() => {
     if (!isAuthorized || !userDto) return;
 
     const mentorFlag = Boolean(userDto.is_mentor || isMentorOnboarding);
