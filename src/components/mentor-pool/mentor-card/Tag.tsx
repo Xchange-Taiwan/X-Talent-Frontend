@@ -1,11 +1,11 @@
-interface SkillProps {
-  skill: string;
+interface TagProps {
+  label: string;
 }
 
-export const Skill = ({ skill }: SkillProps) => {
+export const Tag = ({ label }: TagProps) => {
   return (
     <div className="rounded-md border border-[#E6E8EA] px-3 py-1.5 text-sm font-medium tracking-wide">
-      {skill}
+      {label}
     </div>
   );
 };

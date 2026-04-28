@@ -1,16 +1,16 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 
-import { Skill } from './Skill';
+import { Tag } from './Tag';
 
 interface InformationProps {
   name: string;
   job_title: string;
   company: string;
   personalStatment: string;
-  skills: string[];
+  topics: string[];
 }
 
-const SKILL_GAP_PX = 8;
+const TAG_GAP_PX = 8;
 const EXTRA_BADGE_RESERVE_PX = 52;
 
 export const Information = ({
@@ -18,12 +18,12 @@ export const Information = ({
   job_title,
   company,
   personalStatment,
-  skills = [],
+  topics = [],
 }: InformationProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const widthsRef = useRef<number[]>([]);
-  const [visibleSkillsCount, setVisibleSkillsCount] = useState(skills.length);
+  const [visibleTagsCount, setVisibleTagsCount] = useState(topics.length);
 
   useLayoutEffect(() => {
     if (!measureRef.current || !containerRef.current) return;
@@ -37,16 +37,14 @@ export const Information = ({
       let total = EXTRA_BADGE_RESERVE_PX;
       let lastIndex = widths.length - 1;
       for (let i = 0; i < widths.length; i++) {
-        const gap = i > 0 ? SKILL_GAP_PX : 0;
+        const gap = i > 0 ? TAG_GAP_PX : 0;
         total += widths[i] + gap;
         if (total > containerWidth) {
           lastIndex = i - 1;
           break;
         }
       }
-      setVisibleSkillsCount(
-        Math.max(0, Math.min(lastIndex + 1, skills.length))
-      );
+      setVisibleTagsCount(Math.max(0, Math.min(lastIndex + 1, topics.length)));
     };
 
     computeVisible(containerRef.current.getBoundingClientRect().width);
@@ -59,10 +57,10 @@ export const Information = ({
     observer.observe(containerRef.current);
 
     return () => observer.disconnect();
-  }, [skills]);
+  }, [topics]);
 
-  const visibleSkills = skills.slice(0, visibleSkillsCount);
-  const extraSkillsCount = skills.length - visibleSkillsCount;
+  const visibleTopics = topics.slice(0, visibleTagsCount);
+  const extraTopicsCount = topics.length - visibleTagsCount;
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -85,16 +83,16 @@ export const Information = ({
           aria-hidden
           className="pointer-events-none invisible absolute left-0 top-0 flex flex-wrap gap-2"
         >
-          {skills.map((skill) => (
-            <Skill skill={skill} key={`measure-${skill}`} />
+          {topics.map((topic) => (
+            <Tag label={topic} key={`measure-${topic}`} />
           ))}
         </div>
         <div ref={containerRef} className="flex flex-wrap gap-2">
-          {visibleSkills.map((skill) => (
-            <Skill skill={skill} key={skill} />
+          {visibleTopics.map((topic) => (
+            <Tag label={topic} key={topic} />
           ))}
-          {extraSkillsCount > 0 && (
-            <Skill skill={`+${extraSkillsCount}`} key="extra" />
+          {extraTopicsCount > 0 && (
+            <Tag label={`+${extraTopicsCount}`} key="extra" />
           )}
         </div>
       </div>
