@@ -100,9 +100,6 @@ export default function RejectReservationDialog({
               disabled={isSubmitting}
             />
           </div>
-          {trimmedReason.length === 0 && (
-            <p className="mt-2 text-xs text-muted-foreground">請填寫拒絕原因</p>
-          )}
 
           <DialogFooter className="mt-6 gap-2">
             <DialogClose asChild>
