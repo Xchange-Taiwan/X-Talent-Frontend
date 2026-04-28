@@ -369,7 +369,7 @@ export default function MentorScheduleDialog({
       >
         <SelectValue />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="min-w-[10rem]">
         {options.map((opt) => (
           <SelectItem key={opt} value={opt}>
             {opt}
