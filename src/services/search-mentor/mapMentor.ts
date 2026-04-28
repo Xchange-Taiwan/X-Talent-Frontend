@@ -39,6 +39,17 @@ export interface MentorType {
   updated_at: number | null;
 }
 
+// The OpenAPI schema declares `topics` as `InterestListVO` (i.e.
+// `{ interests: InterestVO[] }`), but `/v1/mentors` actually returns a flat
+// `InterestVO[]`. Read it as an array so the field is not silently empty.
+type InterestEntry = { subject_group?: string | null };
+function readInterestGroups(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as InterestEntry[])
+    .map((i) => i.subject_group)
+    .filter((g): g is string => Boolean(g));
+}
+
 export type MentorsType = components['schemas']['SearchMentorProfileListVO'];
 
 export interface MentorRequest {
@@ -69,10 +80,9 @@ export function mapMentor(raw: RawMentor): MentorType {
     personal_statement: raw.personal_statement ?? '',
     about: raw.about ?? '',
     seniority_level: raw.seniority_level ?? '',
-    interested_positions:
-      raw.interested_positions?.interests?.map((i) => i.subject_group) ?? [],
-    skills: raw.skills?.interests?.map((i) => i.subject_group) ?? [],
-    topics: raw.topics?.interests?.map((i) => i.subject_group) ?? [],
+    interested_positions: readInterestGroups(raw.interested_positions),
+    skills: readInterestGroups(raw.skills),
+    topics: readInterestGroups(raw.topics),
     industry: raw.industry?.subject ?? null,
     expertises: raw.expertises?.professions?.map((p) => p.subject) ?? [],
     experiences: (raw.experiences ?? []).map((e) => ({

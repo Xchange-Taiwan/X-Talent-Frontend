@@ -7,7 +7,7 @@ interface InformationProps {
   job_title: string;
   company: string;
   personalStatment: string;
-  topics: string[];
+  whatIOffers: string[];
 }
 
 const TAG_GAP_PX = 8;
@@ -18,12 +18,12 @@ export const Information = ({
   job_title,
   company,
   personalStatment,
-  topics = [],
+  whatIOffers = [],
 }: InformationProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const widthsRef = useRef<number[]>([]);
-  const [visibleTagsCount, setVisibleTagsCount] = useState(topics.length);
+  const [visibleTagsCount, setVisibleTagsCount] = useState(whatIOffers.length);
 
   useLayoutEffect(() => {
     if (!measureRef.current || !containerRef.current) return;
@@ -44,7 +44,9 @@ export const Information = ({
           break;
         }
       }
-      setVisibleTagsCount(Math.max(0, Math.min(lastIndex + 1, topics.length)));
+      setVisibleTagsCount(
+        Math.max(0, Math.min(lastIndex + 1, whatIOffers.length))
+      );
     };
 
     computeVisible(containerRef.current.getBoundingClientRect().width);
@@ -57,10 +59,10 @@ export const Information = ({
     observer.observe(containerRef.current);
 
     return () => observer.disconnect();
-  }, [topics]);
+  }, [whatIOffers]);
 
-  const visibleTopics = topics.slice(0, visibleTagsCount);
-  const extraTopicsCount = topics.length - visibleTagsCount;
+  const visibleOffers = whatIOffers.slice(0, visibleTagsCount);
+  const extraOffersCount = whatIOffers.length - visibleTagsCount;
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -83,16 +85,16 @@ export const Information = ({
           aria-hidden
           className="pointer-events-none invisible absolute left-0 top-0 flex flex-wrap gap-2"
         >
-          {topics.map((topic) => (
-            <Tag label={topic} key={`measure-${topic}`} />
+          {whatIOffers.map((offer) => (
+            <Tag label={offer} key={`measure-${offer}`} />
           ))}
         </div>
         <div ref={containerRef} className="flex flex-wrap gap-2">
-          {visibleTopics.map((topic) => (
-            <Tag label={topic} key={topic} />
+          {visibleOffers.map((offer) => (
+            <Tag label={offer} key={offer} />
           ))}
-          {extraTopicsCount > 0 && (
-            <Tag label={`+${extraTopicsCount}`} key="extra" />
+          {extraOffersCount > 0 && (
+            <Tag label={`+${extraOffersCount}`} key="extra" />
           )}
         </div>
       </div>
