@@ -126,13 +126,3 @@ jobs:
                 body,
               });
             }
-
-      - name: Run Lighthouse CI (informational)
-        uses: treosh/lighthouse-ci-action@v11
-        continue-on-error: true
-        with:
-          urls: |
-            ${{ steps.vercel_preview.outputs.url }}
-            ${{ steps.vercel_preview.outputs.url }}/auth/signin
-          uploadArtifacts: true
-          temporaryPublicStorage: true
