@@ -115,5 +115,8 @@ export async function fetchMentorsEnrichedServer(
     topics: mentor.topics
       .map((subjectGroup) => topicLabelMap[subjectGroup] ?? subjectGroup)
       .filter(Boolean),
+    what_i_offers: mentor.what_i_offers
+      .map((subjectGroup) => topicLabelMap[subjectGroup] ?? subjectGroup)
+      .filter(Boolean),
   }));
 }

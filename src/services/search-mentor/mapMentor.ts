@@ -33,10 +33,30 @@ export interface MentorType {
   interested_positions: string[];
   skills: string[];
   topics: string[];
+  what_i_offers: string[];
   industry: string | null;
   expertises: string[];
   experiences: MentorExperienceBlock[];
   updated_at: number | null;
+}
+
+type WhatIOfferMetadataEntry = { subject_group?: string };
+type WhatIOfferMetadata = { data?: WhatIOfferMetadataEntry[] };
+
+function extractWhatIOfferGroups(
+  experiences: RawMentor['experiences']
+): string[] {
+  const groups = (experiences ?? [])
+    .filter((e) => e.category === 'WHAT_I_OFFER')
+    .flatMap(
+      (e) =>
+        (e.mentor_experiences_metadata as WhatIOfferMetadata | undefined)
+          ?.data ?? []
+    )
+    .map((entry) => entry.subject_group)
+    .filter((g): g is string => Boolean(g));
+
+  return Array.from(new Set(groups));
 }
 
 export type MentorsType = components['schemas']['SearchMentorProfileListVO'];
@@ -73,6 +93,7 @@ export function mapMentor(raw: RawMentor): MentorType {
       raw.interested_positions?.interests?.map((i) => i.subject_group) ?? [],
     skills: raw.skills?.interests?.map((i) => i.subject_group) ?? [],
     topics: raw.topics?.interests?.map((i) => i.subject_group) ?? [],
+    what_i_offers: extractWhatIOfferGroups(raw.experiences),
     industry: raw.industry?.subject ?? null,
     expertises: raw.expertises?.professions?.map((p) => p.subject) ?? [],
     experiences: (raw.experiences ?? []).map((e) => ({
