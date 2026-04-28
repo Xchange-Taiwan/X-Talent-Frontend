@@ -73,13 +73,14 @@ export async function fetchMentorsServer(
   }
 }
 
-async function fetchSkillLabelMapServer(
-  language: string
+async function fetchInterestLabelMapServer(
+  language: string,
+  interest: 'SKILL' | 'TOPIC'
 ): Promise<Record<string, string>> {
   if (!BASE_URL) return {};
   try {
     const res = await fetch(
-      buildUrl(`/v1/users/${language}/interests`, { interest: 'SKILL' }),
+      buildUrl(`/v1/users/${language}/interests`, { interest }),
       { next: { revalidate: REVALIDATE_SECONDS } }
     );
     if (!res.ok) return {};
@@ -90,7 +91,7 @@ async function fetchSkillLabelMapServer(
     });
     return map;
   } catch (error) {
-    console.error('SSR fetchSkillLabelMap error:', error);
+    console.error('SSR fetchInterestLabelMap error:', error);
     return {};
   }
 }
@@ -98,9 +99,10 @@ async function fetchSkillLabelMapServer(
 export async function fetchMentorsEnrichedServer(
   param: MentorRequest
 ): Promise<MentorType[]> {
-  const [searchResults, skillLabelMap] = await Promise.all([
+  const [searchResults, skillLabelMap, topicLabelMap] = await Promise.all([
     fetchMentorsServer(param),
-    fetchSkillLabelMapServer('zh_TW'),
+    fetchInterestLabelMapServer('zh_TW', 'SKILL'),
+    fetchInterestLabelMapServer('zh_TW', 'TOPIC'),
   ]);
 
   if (searchResults.length === 0) return [];
@@ -109,6 +111,9 @@ export async function fetchMentorsEnrichedServer(
     ...mentor,
     skills: mentor.skills
       .map((subjectGroup) => skillLabelMap[subjectGroup] ?? subjectGroup)
+      .filter(Boolean),
+    topics: mentor.topics
+      .map((subjectGroup) => topicLabelMap[subjectGroup] ?? subjectGroup)
       .filter(Boolean),
   }));
 }
