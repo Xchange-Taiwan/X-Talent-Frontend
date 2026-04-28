@@ -42,7 +42,7 @@ export default function PopularPositionChips() {
   return (
     <div className="relative">
       <div
-        className="flex gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden xl:mx-auto xl:w-[846px] xl:justify-center xl:overflow-x-visible"
+        className="flex gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] xl:mx-auto xl:w-[846px] xl:justify-center xl:overflow-x-visible [&::-webkit-scrollbar]:hidden"
         aria-label="熱門職位"
       >
         {POPULAR_POSITIONS.map((position, i) => (
@@ -63,7 +63,7 @@ export default function PopularPositionChips() {
       </div>
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background-white to-transparent xl:hidden"
+        className="to-transparent pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background-white xl:hidden"
       />
     </div>
   );
