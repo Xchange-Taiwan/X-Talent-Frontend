@@ -8,6 +8,8 @@ import { useEffect, useState } from 'react';
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import useUserData from '@/hooks/user/user-data/useUserData';
+import { primeUserProfileDtoCacheIfEmpty } from '@/hooks/user/user-data/useUserProfileDto';
+import type { MentorProfileVO } from '@/services/profile/user';
 
 import { ProfilePageSkeleton } from './skeleton';
 
@@ -17,10 +19,27 @@ const ProfilePageUI = dynamic(() => import('./ui'), {
 
 interface Props {
   pageUserId: string;
+  initialDto: MentorProfileVO;
+  initialLoginUserId: string;
 }
 
-export default function ProfilePageContainer({ pageUserId }: Props) {
+export default function ProfilePageContainer({
+  pageUserId,
+  initialDto,
+  initialLoginUserId,
+}: Props) {
   const router = useRouter();
+
+  // Synchronously seed the in-memory dto cache from the SSR-fetched initialDto
+  // BEFORE child hooks run. This is intentionally inside render (not useEffect)
+  // so the first render of useUserProfileDto's lazy-init `useState` reads the
+  // primed entry — first paint shows content with no skeleton flash.
+  // `IfEmpty` preserves a more authoritative client-side prime that
+  // `useProfileSubmit` may have just written via `firstSyncedFetch`.
+  const pageUserIdNumber = Number(pageUserId);
+  if (Number.isFinite(pageUserIdNumber)) {
+    primeUserProfileDtoCacheIfEmpty(pageUserIdNumber, 'zh_TW', initialDto);
+  }
 
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth() + 1);
@@ -44,14 +63,18 @@ export default function ProfilePageContainer({ pageUserId }: Props) {
   }, [loaded]);
 
   const { data: session } = useSession();
-  const isLogging = Boolean(session?.user?.id);
-  const loginUserId = session?.user?.id ? String(session.user.id) : '';
+  // Prefer the live session id once hydrated; fall back to the SSR-resolved
+  // value so own-profile UI (edit button, etc.) renders correctly on first
+  // paint without waiting for next-auth's client hydration.
+  const loginUserId = session?.user?.id
+    ? String(session.user.id)
+    : initialLoginUserId;
+  const isLogging = Boolean(loginUserId);
 
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
   const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =
     useState(false);
 
-  const pageUserIdNumber = Number(pageUserId);
   const { userData, isLoading: userLoading } = useUserData(
     pageUserIdNumber,
     'zh_TW'
