@@ -105,7 +105,10 @@ export function ReservationList({
       // slot overlaps an existing ALLOW slot. Re-enable once backend supports it,
       // or once GET schedule returns booked_slots so the frontend can filter them.
 
-      toast({ description: '已接受預約' });
+      toast({
+        title: '已接受預約',
+        description: '會議連結將於數分鐘內寄至雙方信箱',
+      });
       onMutationSuccess?.(id, ACCEPT_AFFECTED_STATES);
     } catch (err) {
       captureFlowFailure({
