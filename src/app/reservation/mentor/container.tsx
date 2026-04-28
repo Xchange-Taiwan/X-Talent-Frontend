@@ -1,17 +1,13 @@
 'use client';
 
-import dynamic from 'next/dynamic';
-
 import { useReservationData } from '@/hooks/user/reservation/useReservationData';
 
-import { ReservationSkeleton } from '../skeleton';
-
-const ReservationPresentation = dynamic(() => import('./ui'));
+import ReservationPresentation from './ui';
 
 export default function ReservationContainer() {
   const {
     data,
-    isLoading,
+    initialState,
     isLoadingMore,
     isLoadingHistory,
     isHistoryLoaded,
@@ -21,10 +17,13 @@ export default function ReservationContainer() {
     onMutationSuccess,
   } = useReservationData({ role: 'mentor' });
 
-  if (isLoading || !data) return <ReservationSkeleton />;
   return (
     <ReservationPresentation
-      {...data}
+      upcoming={data?.upcoming ?? []}
+      pending={data?.pending ?? []}
+      history={data?.history ?? []}
+      nextTokens={data?.nextTokens ?? { upcoming: 0, pending: 0, history: 0 }}
+      initialState={initialState}
       isLoadingMore={isLoadingMore}
       isLoadingHistory={isLoadingHistory}
       isHistoryLoaded={isHistoryLoaded}
