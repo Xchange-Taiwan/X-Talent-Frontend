@@ -40,6 +40,7 @@ type Options = {
 
 export type UseMentorScheduleReturn = {
   loaded: boolean;
+  isFetching: boolean;
   selectedDate: string | null;
   setSelectedDate: (dateStr: string | null) => void;
 
@@ -80,6 +81,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const [saved, setSaved] = useState<RawMentorTimeslot[]>([]);
   const [draft, setDraft] = useState<RawMentorTimeslot[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(
     dayjs().format('YYYY-MM-DD')
   );
@@ -143,7 +145,16 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     };
 
     const { cached, revalidate } = loadMonthScheduleCached(backend);
-    if (cached) apply(cached);
+    if (cached) {
+      apply(cached);
+    } else if (!dirtyRef.current) {
+      // Cache miss: clear stale month data so the calendar doesn't show
+      // last month's allowed dots / time slots while the fetch is in flight.
+      setSaved([]);
+      setDraft([]);
+      setPendingDeleteIds([]);
+      setIsFetching(true);
+    }
 
     revalidate
       .then((raws) => {
@@ -155,6 +166,9 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       })
       .catch(() => {
         if (!ignore && !cached) setLoaded(true);
+      })
+      .finally(() => {
+        if (!ignore) setIsFetching(false);
       });
 
     return () => {
@@ -429,6 +443,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   return {
     loaded,
+    isFetching,
     selectedDate,
     setSelectedDate,
     parsedDraft,
