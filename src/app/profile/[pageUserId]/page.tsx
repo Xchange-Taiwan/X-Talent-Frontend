@@ -53,11 +53,19 @@ export default async function Page({ params: { pageUserId } }: PageProps) {
 
   const initialLoginUserId = session?.user?.id ? String(session.user.id) : '';
 
+  // Cache-bust the avatar URL per ISR render so the Image Optimizer treats
+  // each revalidation cycle as a new entry. Edit submit calls revalidatePath
+  // → next render generates a fresh value → optimizer re-fetches from S3.
+  // Stopgap until the backend exposes an `avatar_updated_at` we can use as a
+  // precise version.
+  const initialAvatarVersion = Date.now();
+
   return (
     <ProfilePageContainer
       pageUserId={pageUserId}
       initialDto={initialDto}
       initialLoginUserId={initialLoginUserId}
+      initialAvatarVersion={initialAvatarVersion}
     />
   );
 }
