@@ -369,7 +369,7 @@ export default function MentorScheduleDialog({
       >
         <SelectValue />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="min-w-[10rem]">
         {options.map((opt) => (
           <SelectItem key={opt} value={opt}>
             {opt}
@@ -462,7 +462,7 @@ export default function MentorScheduleDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[85dvh] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-[440px] lg:max-w-[560px]">
+        <DialogContent className="max-h-[85dvh] w-[calc(100vw-1rem)] overflow-y-auto sm:max-w-[440px] lg:max-w-[560px]">
           <DialogHeader>
             <DialogTitle>排程設定</DialogTitle>
           </DialogHeader>
