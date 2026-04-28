@@ -33,30 +33,21 @@ export interface MentorType {
   interested_positions: string[];
   skills: string[];
   topics: string[];
-  what_i_offers: string[];
   industry: string | null;
   expertises: string[];
   experiences: MentorExperienceBlock[];
   updated_at: number | null;
 }
 
-type WhatIOfferMetadataEntry = { subject_group?: string };
-type WhatIOfferMetadata = { data?: WhatIOfferMetadataEntry[] };
-
-function extractWhatIOfferGroups(
-  experiences: RawMentor['experiences']
-): string[] {
-  const groups = (experiences ?? [])
-    .filter((e) => e.category === 'WHAT_I_OFFER')
-    .flatMap(
-      (e) =>
-        (e.mentor_experiences_metadata as WhatIOfferMetadata | undefined)
-          ?.data ?? []
-    )
-    .map((entry) => entry.subject_group)
+// The OpenAPI schema declares `topics` as `InterestListVO` (i.e.
+// `{ interests: InterestVO[] }`), but `/v1/mentors` actually returns a flat
+// `InterestVO[]`. Read it as an array so the field is not silently empty.
+type InterestEntry = { subject_group?: string | null };
+function readInterestGroups(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as InterestEntry[])
+    .map((i) => i.subject_group)
     .filter((g): g is string => Boolean(g));
-
-  return Array.from(new Set(groups));
 }
 
 export type MentorsType = components['schemas']['SearchMentorProfileListVO'];
@@ -89,11 +80,9 @@ export function mapMentor(raw: RawMentor): MentorType {
     personal_statement: raw.personal_statement ?? '',
     about: raw.about ?? '',
     seniority_level: raw.seniority_level ?? '',
-    interested_positions:
-      raw.interested_positions?.interests?.map((i) => i.subject_group) ?? [],
-    skills: raw.skills?.interests?.map((i) => i.subject_group) ?? [],
-    topics: raw.topics?.interests?.map((i) => i.subject_group) ?? [],
-    what_i_offers: extractWhatIOfferGroups(raw.experiences),
+    interested_positions: readInterestGroups(raw.interested_positions),
+    skills: readInterestGroups(raw.skills),
+    topics: readInterestGroups(raw.topics),
     industry: raw.industry?.subject ?? null,
     expertises: raw.expertises?.professions?.map((p) => p.subject) ?? [],
     experiences: (raw.experiences ?? []).map((e) => ({
