@@ -21,12 +21,14 @@ interface Props {
   pageUserId: string;
   initialDto: MentorProfileVO;
   initialLoginUserId: string;
+  initialAvatarVersion: number;
 }
 
 export default function ProfilePageContainer({
   pageUserId,
   initialDto,
   initialLoginUserId,
+  initialAvatarVersion,
 }: Props) {
   const router = useRouter();
 
@@ -99,26 +101,26 @@ export default function ProfilePageContainer({
     'zh_TW'
   );
 
-  // Only attach a versioning param for the logged-in user's own profile; the
-  // stable URL for other users lets the Next.js Image Optimizer hit its cache
-  // across navigations. While the DTO is still loading on the user's own
-  // profile, fall back to the session avatar so the page does not flash blank.
+  // The S3 avatar URL is a stable key (re-uploads overwrite in place), so a
+  // `?v=` query is the only way to bust the Image Optimizer / browser cache.
+  // - Default version comes from the SSR render (`Date.now()` per ISR cycle),
+  //   so when an edit triggers `revalidatePath`, the next render hands every
+  //   visitor a fresh version and the optimizer re-fetches from S3.
+  // - On the user's own profile we override with `session.user.avatarUpdatedAt`
+  //   since the optimistic session update lands before the ISR refresh has a
+  //   chance to propagate.
+  // While the DTO is still loading on the user's own profile, fall back to the
+  // session avatar so the page does not flash blank.
   const isOwnProfile = loginUserId === pageUserId;
   const resolvedAvatar =
     userData?.avatar ?? (isOwnProfile ? session?.user?.avatar : undefined);
-  // Remember the latest avatar version we saw for this profile. The S3 avatar
-  // URL is a stable key (re-uploads overwrite in place), so the `?v=` query is
-  // the only cache buster. If we drop it on logout, the bare URL hits a stale
-  // browser/Image-Optimizer cache entry from before the upload.
-  const lastAvatarVersionRef = useRef<number | undefined>(undefined);
+  const lastAvatarVersionRef = useRef<number>(initialAvatarVersion);
   if (isOwnProfile && session?.user?.avatarUpdatedAt) {
     lastAvatarVersionRef.current = session.user.avatarUpdatedAt;
   }
   const avatarVersion = lastAvatarVersionRef.current;
   const avatarSrc = resolvedAvatar
-    ? avatarVersion
-      ? `${resolvedAvatar}?v=${avatarVersion}`
-      : resolvedAvatar
+    ? `${resolvedAvatar}?v=${avatarVersion}`
     : DefaultAvatarImgUrl;
 
   if (!userLoading && !userData) {
