@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 
+import { ApiError } from '@/lib/apiClient';
 import { RawMentorTimeslot, segmentToRaw } from '@/lib/profile/scheduleHelpers';
 
 import {
@@ -21,6 +22,18 @@ export interface ScheduleMonthRef {
   year: number;
   month: number; // 1-12
 }
+
+export type SyncFailureReason = 'conflict' | 'unknown';
+
+/** Internal — syncMonthSchedule passes raws back to the hook on success. */
+export type SyncOutcome =
+  | { ok: true; raws: RawMentorTimeslot[] }
+  | { ok: false; reason: SyncFailureReason; message: string };
+
+/** Public — surfaced to UI; success has no payload. */
+export type SyncResult =
+  | { ok: true }
+  | { ok: false; reason: SyncFailureReason; message: string };
 
 /** Fetch + filter to slots whose dtstart falls in the requested local month. */
 export async function loadMonthSchedule(
@@ -91,13 +104,17 @@ export function prefetchMonthSchedule(ref: ScheduleMonthRef): void {
 
 /**
  * PUT all upsert slots, DELETE all removed ids, then reload the month.
- * Returns the freshly loaded slots, or null if any sync request failed.
+ *
+ * Returns SyncResult — on failure the caller can surface `message` (raw
+ * backend `msg`, e.g. "There is 1 conflict in 2026/5") and `reason` to map
+ * to user-friendly UI copy. PUT failure aborts before DELETE so we don't
+ * partially mutate the schedule.
  */
 export async function syncMonthSchedule(params: {
   ref: ScheduleMonthRef;
   upsertPayload: TimeSlotDTO[];
   deleteIds: number[];
-}): Promise<RawMentorTimeslot[] | null> {
+}): Promise<SyncOutcome> {
   const { ref, upsertPayload, deleteIds } = params;
 
   const endOfMonthUnix = dayjs(
@@ -112,29 +129,36 @@ export async function syncMonthSchedule(params: {
 
   try {
     if (upsertPayload.length > 0) {
-      const ok = await saveMentorSchedule({
+      await saveMentorSchedule({
         userId: ref.userId,
         until: endOfMonthUnix,
         timeslots: upsertPayload,
       });
-      if (!ok) throw new Error('PUT failed');
     }
 
     if (deleteIds.length > 0) {
       await Promise.all(
-        deleteIds.map(async (id) => {
-          const ok = await deleteMentorSchedule({
+        deleteIds.map((id) =>
+          deleteMentorSchedule({
             userId: ref.userId,
             scheduleId: id,
-          });
-          if (!ok) throw new Error(`DELETE failed: ${id}`);
-        })
+          })
+        )
       );
     }
 
-    return await loadMonthScheduleFresh(ref);
+    const raws = await loadMonthScheduleFresh(ref);
+    return { ok: true, raws };
   } catch (e) {
-    console.error('[MentorSchedule] sync failed:', e);
-    return null;
+    const message =
+      e instanceof ApiError
+        ? e.message
+        : e instanceof Error
+          ? e.message
+          : 'Sync failed';
+    const reason: SyncFailureReason = /conflict/i.test(message)
+      ? 'conflict'
+      : 'unknown';
+    return { ok: false, reason, message };
   }
 }
