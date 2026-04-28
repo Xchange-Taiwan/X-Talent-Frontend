@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   expandRrule,
   UseMentorScheduleReturn,
@@ -96,6 +97,7 @@ export default function MentorScheduleDialog({
     allowedDates,
     updateDraftSlot,
     meetingDurationMinutes,
+    isFetching,
   } = schedule;
 
   const router = useRouter();
@@ -473,127 +475,140 @@ export default function MentorScheduleDialog({
             <div>
               <p className="font-semibold lg:text-lg">可預約時段</p>
 
-              <div className="mt-3 flex flex-col gap-3">
-                {editingSlots.map((slot, index) => {
-                  const errors = slotErrors[slot.id] ?? {};
-                  const hasError = Boolean(errors.timeRange || errors.overlap);
-                  const endHourOptions = getEndHourOptions(slot);
-                  const endMinuteOptions = getEndMinuteOptions(slot);
+              {isFetching ? (
+                <div
+                  className="mt-3 flex flex-col gap-3"
+                  aria-busy="true"
+                  aria-live="polite"
+                >
+                  <Skeleton className="h-12 w-full lg:h-14" />
+                  <Skeleton className="h-12 w-full lg:h-14" />
+                </div>
+              ) : (
+                <div className="mt-3 flex flex-col gap-3">
+                  {editingSlots.map((slot, index) => {
+                    const errors = slotErrors[slot.id] ?? {};
+                    const hasError = Boolean(
+                      errors.timeRange || errors.overlap
+                    );
+                    const endHourOptions = getEndHourOptions(slot);
+                    const endMinuteOptions = getEndMinuteOptions(slot);
 
-                  return (
-                    <div
-                      key={slot.id}
-                      className="flex flex-col gap-2 rounded-lg p-3 lg:p-4"
-                    >
-                      <div className="flex flex-row flex-nowrap items-center justify-between gap-1 lg:gap-3">
-                        <div className="flex min-w-0 flex-nowrap items-center gap-0.5 lg:gap-2">
-                          {renderTimeSelect(
-                            slot.id,
-                            'startHour',
-                            slot.startHour,
-                            HOUR_OPTIONS,
-                            hasError
-                          )}
+                    return (
+                      <div
+                        key={slot.id}
+                        className="flex flex-col gap-2 rounded-lg p-3 lg:p-4"
+                      >
+                        <div className="flex flex-row flex-nowrap items-center justify-between gap-1 lg:gap-3">
+                          <div className="flex min-w-0 flex-nowrap items-center gap-0.5 lg:gap-2">
+                            {renderTimeSelect(
+                              slot.id,
+                              'startHour',
+                              slot.startHour,
+                              HOUR_OPTIONS,
+                              hasError
+                            )}
 
-                          <span className="text-muted-foreground lg:text-base">
-                            :
-                          </span>
+                            <span className="text-muted-foreground lg:text-base">
+                              :
+                            </span>
 
-                          {renderTimeSelect(
-                            slot.id,
-                            'startMinute',
-                            slot.startMinute,
-                            MINUTE_OPTIONS,
-                            hasError
-                          )}
+                            {renderTimeSelect(
+                              slot.id,
+                              'startMinute',
+                              slot.startMinute,
+                              MINUTE_OPTIONS,
+                              hasError
+                            )}
 
-                          <span className="mx-0.5 text-muted-foreground lg:mx-1 lg:text-base">
-                            –
-                          </span>
+                            <span className="mx-0.5 text-muted-foreground lg:mx-1 lg:text-base">
+                              –
+                            </span>
 
-                          {renderTimeSelect(
-                            slot.id,
-                            'endHour',
-                            slot.endHour,
-                            endHourOptions,
-                            hasError
-                          )}
+                            {renderTimeSelect(
+                              slot.id,
+                              'endHour',
+                              slot.endHour,
+                              endHourOptions,
+                              hasError
+                            )}
 
-                          <span className="text-muted-foreground lg:text-base">
-                            :
-                          </span>
+                            <span className="text-muted-foreground lg:text-base">
+                              :
+                            </span>
 
-                          {renderTimeSelect(
-                            slot.id,
-                            'endMinute',
-                            slot.endMinute,
-                            endMinuteOptions,
-                            hasError
-                          )}
-                        </div>
+                            {renderTimeSelect(
+                              slot.id,
+                              'endMinute',
+                              slot.endMinute,
+                              endMinuteOptions,
+                              hasError
+                            )}
+                          </div>
 
-                        <div className="flex shrink-0 justify-end gap-1 lg:ml-4">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 lg:h-10 lg:w-10"
-                            onClick={() => {
-                              const blocking = getBlockingReservationType(
-                                slot.id
-                              );
-                              if (blocking) {
-                                setBlockPrompt({
-                                  type: blocking,
-                                  reason: 'delete',
-                                });
-                                return;
-                              }
-                              deleteDraftSlot(slot.id);
-                            }}
-                          >
-                            <X className="h-4 w-4 lg:h-5 lg:w-5" />
-                          </Button>
-
-                          {index === editingSlots.length - 1 && (
+                          <div className="flex shrink-0 justify-end gap-1 lg:ml-4">
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 lg:h-10 lg:w-10"
-                              onClick={addNewTimeSlot}
+                              onClick={() => {
+                                const blocking = getBlockingReservationType(
+                                  slot.id
+                                );
+                                if (blocking) {
+                                  setBlockPrompt({
+                                    type: blocking,
+                                    reason: 'delete',
+                                  });
+                                  return;
+                                }
+                                deleteDraftSlot(slot.id);
+                              }}
                             >
-                              <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
+                              <X className="h-4 w-4 lg:h-5 lg:w-5" />
                             </Button>
-                          )}
+
+                            {index === editingSlots.length - 1 && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 lg:h-10 lg:w-10"
+                                onClick={addNewTimeSlot}
+                              >
+                                <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
+
+                        {renderSubSlots(slot.id)}
+
+                        {errors.timeRange && (
+                          <p className="text-red-500 text-xs lg:text-sm">
+                            {errors.timeRange}
+                          </p>
+                        )}
+
+                        {errors.overlap && (
+                          <p className="text-red-500 text-xs lg:text-sm">
+                            {errors.overlap}
+                          </p>
+                        )}
                       </div>
+                    );
+                  })}
 
-                      {renderSubSlots(slot.id)}
-
-                      {errors.timeRange && (
-                        <p className="text-red-500 text-xs lg:text-sm">
-                          {errors.timeRange}
-                        </p>
-                      )}
-
-                      {errors.overlap && (
-                        <p className="text-red-500 text-xs lg:text-sm">
-                          {errors.overlap}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {editableSlotsForDate.length === 0 && (
-                  <Button
-                    variant="ghost"
-                    onClick={addNewTimeSlot}
-                    className="h-10 w-full lg:h-11 lg:text-base"
-                  >
-                    <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
-                  </Button>
-                )}
-              </div>
+                  {editableSlotsForDate.length === 0 && (
+                    <Button
+                      variant="ghost"
+                      onClick={addNewTimeSlot}
+                      className="h-10 w-full lg:h-11 lg:text-base"
+                    >
+                      <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -609,7 +624,9 @@ export default function MentorScheduleDialog({
             </Button>
             <Button
               onClick={handleSave}
-              disabled={isSaving || hasAnyError || hasInvalidTimes}
+              disabled={
+                isSaving || hasAnyError || hasInvalidTimes || isFetching
+              }
             >
               {isSaving ? '儲存中...' : '儲存'}
             </Button>
