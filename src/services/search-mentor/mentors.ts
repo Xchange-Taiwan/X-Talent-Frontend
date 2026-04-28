@@ -55,10 +55,18 @@ export async function fetchMentorsEnriched(
     skillLabelMap[s.subject_group] = s.subject ?? '';
   });
 
+  const topicLabelMap: Record<string, string> = {};
+  interests.topics.forEach((t) => {
+    topicLabelMap[t.subject_group] = t.subject ?? '';
+  });
+
   return searchResults.map((mentor) => ({
     ...mentor,
     skills: mentor.skills
       .map((subjectGroup) => skillLabelMap[subjectGroup] ?? subjectGroup)
+      .filter(Boolean),
+    topics: mentor.topics
+      .map((subjectGroup) => topicLabelMap[subjectGroup] ?? subjectGroup)
       .filter(Boolean),
   }));
 }
