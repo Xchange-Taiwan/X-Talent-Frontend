@@ -11,7 +11,13 @@ export const unionformSchema = z.union([
 ]);
 
 export async function updateProfile(
-  profileData: z.infer<typeof unionformSchema>
+  // `avatar_updated_at` is an out-of-band signal the form passes when it just
+  // uploaded a new avatar this session — see useProfileSubmit. Backend treats
+  // any non-null value as "bytes changed, please bump the cache buster" and
+  // overwrites with its own clock, so the value the FE sends is irrelevant.
+  profileData: z.infer<typeof unionformSchema> & {
+    avatar_updated_at?: number;
+  }
 ): Promise<void> {
   const session = await getSession();
   const userId = session?.user?.id;

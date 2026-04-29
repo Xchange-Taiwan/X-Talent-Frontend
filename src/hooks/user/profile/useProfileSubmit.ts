@@ -141,7 +141,20 @@ export function useProfileSubmit({
         isDirty('website');
       const whatIOfferDirty = isDirty('what_i_offer');
 
-      const payload = { ...values, avatar, avatarFile: undefined };
+      // The S3 avatar key is per-user and stable, so the URL doesn't change
+      // when bytes change — backend can't detect a re-upload from the URL
+      // alone. Pass an `avatar_updated_at` signal whenever this submit is
+      // committing a freshly-uploaded file; backend treats any non-null value
+      // as "bump with server clock", so the literal number we send doesn't
+      // matter.
+      const payload: ProfileFormValues & { avatar_updated_at?: number } = {
+        ...values,
+        avatar,
+        avatarFile: undefined,
+      };
+      if (values.avatarFile) {
+        payload.avatar_updated_at = Math.floor(Date.now() / 1000);
+      }
       const links = [
         values.linkedin,
         values.facebook,
