@@ -105,6 +105,17 @@ export function mapToReservation(
     else if (role === 'MENTOR') mentorMessage = item;
   }
 
+  // Cancellation badge only fires when the OTHER side rejected/cancelled —
+  // self-cancellations don't need a badge since the user already knows.
+  // Reject (pre-accept) and cancel (post-accept) intentionally share the same
+  // 「取消」copy per PM scope (Tracker #224).
+  const counterpartyRole =
+    counterparty.role === 'MENTEE' || counterparty.role === 'MENTOR'
+      ? counterparty.role
+      : undefined;
+  const cancelledBy =
+    counterparty.status === 'REJECT' ? counterpartyRole : undefined;
+
   return {
     id: String(reservation.id ?? ''),
     name: counterparty.name || '—',
@@ -120,6 +131,7 @@ export function mapToReservation(
     dtend: reservation.dtend,
     senderUserId: reservation.sender.user_id ?? 0,
     participantUserId: reservation.participant.user_id ?? 0,
+    cancelledBy,
   };
 }
 

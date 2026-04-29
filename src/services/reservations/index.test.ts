@@ -260,4 +260,136 @@ describe('mapToReservation', () => {
     );
     expect(result.name).toBe('—');
   });
+
+  /* ============================
+   * cancelledBy — Tracker #224
+   * Badge fires only when the OTHER side rejected/cancelled. Self-cancellation
+   * is intentionally undefined.
+   * ============================ */
+
+  it('participant (MENTEE) has REJECT status → cancelledBy = MENTEE', () => {
+    const result = mapToReservation(
+      makeReservation({
+        sender: {
+          user_id: 10,
+          role: 'MENTOR',
+          status: 'ACCEPT',
+          name: 'Alice',
+          avatar: '',
+          job_title: 'Engineer',
+          years_of_experience: 'THREE_TO_FIVE',
+        },
+        participant: {
+          user_id: 20,
+          role: 'MENTEE',
+          status: 'REJECT',
+          name: 'Bob',
+          avatar: '',
+          job_title: 'Designer',
+          years_of_experience: 'ONE_TO_THREE',
+        },
+      })
+    );
+    expect(result.cancelledBy).toBe('MENTEE');
+  });
+
+  it('participant (MENTOR) has REJECT status → cancelledBy = MENTOR', () => {
+    const result = mapToReservation(
+      makeReservation({
+        sender: {
+          user_id: 10,
+          role: 'MENTEE',
+          status: 'PENDING',
+          name: 'Alice',
+          avatar: '',
+          job_title: 'Designer',
+          years_of_experience: 'ONE_TO_THREE',
+        },
+        participant: {
+          user_id: 20,
+          role: 'MENTOR',
+          status: 'REJECT',
+          name: 'Bob',
+          avatar: '',
+          job_title: 'Engineer',
+          years_of_experience: 'THREE_TO_FIVE',
+        },
+      })
+    );
+    expect(result.cancelledBy).toBe('MENTOR');
+  });
+
+  it('only sender (self) has REJECT status → cancelledBy is undefined (no badge for self-cancel)', () => {
+    const result = mapToReservation(
+      makeReservation({
+        sender: {
+          user_id: 10,
+          role: 'MENTOR',
+          status: 'REJECT',
+          name: 'Alice',
+          avatar: '',
+          job_title: 'Engineer',
+          years_of_experience: 'THREE_TO_FIVE',
+        },
+        participant: {
+          user_id: 20,
+          role: 'MENTEE',
+          status: 'ACCEPT',
+          name: 'Bob',
+          avatar: '',
+          job_title: 'Designer',
+          years_of_experience: 'ONE_TO_THREE',
+        },
+      })
+    );
+    expect(result.cancelledBy).toBeUndefined();
+  });
+
+  it('both sides have REJECT status → cancelledBy resolves to participant (other) side', () => {
+    const result = mapToReservation(
+      makeReservation({
+        sender: {
+          user_id: 10,
+          role: 'MENTOR',
+          status: 'REJECT',
+          name: 'Alice',
+          avatar: '',
+          job_title: 'Engineer',
+          years_of_experience: 'THREE_TO_FIVE',
+        },
+        participant: {
+          user_id: 20,
+          role: 'MENTEE',
+          status: 'REJECT',
+          name: 'Bob',
+          avatar: '',
+          job_title: 'Designer',
+          years_of_experience: 'ONE_TO_THREE',
+        },
+      })
+    );
+    expect(result.cancelledBy).toBe('MENTEE');
+  });
+
+  it('participant has REJECT but unknown role → cancelledBy is undefined (defensive)', () => {
+    const result = mapToReservation(
+      makeReservation({
+        participant: {
+          user_id: 20,
+          role: 'OTHER',
+          status: 'REJECT',
+          name: 'Bob',
+          avatar: '',
+          job_title: 'Designer',
+          years_of_experience: 'ONE_TO_THREE',
+        },
+      })
+    );
+    expect(result.cancelledBy).toBeUndefined();
+  });
+
+  it('no REJECT anywhere → cancelledBy is undefined', () => {
+    const result = mapToReservation(makeReservation());
+    expect(result.cancelledBy).toBeUndefined();
+  });
 });

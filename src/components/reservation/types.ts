@@ -29,4 +29,9 @@ export type Reservation = {
   // Both user ids are kept so we can reliably determine which side the current user is on
   senderUserId: number | string;
   participantUserId: number | string;
+
+  // Set only when the OTHER side cancelled (participant.status === 'REJECT').
+  // Value is the canceller's role so the UI can render "已由導師/學員取消".
+  // Self-cancellations are intentionally omitted — the user already knows.
+  cancelledBy?: 'MENTEE' | 'MENTOR';
 };
