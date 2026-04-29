@@ -98,6 +98,7 @@ async function request<T>(
   const authHeader = auth ? await getAuthHeader() : {};
 
   const startTime = Date.now();
+  console.log('[api →]', method, path, { params, body });
   let response: Response;
 
   try {
@@ -116,6 +117,13 @@ async function request<T>(
     if (isAbortError(networkError)) {
       throw networkError;
     }
+    console.log(
+      '[api ✗]',
+      method,
+      path,
+      `${Date.now() - startTime}ms`,
+      networkError
+    );
     // fetch() itself threw — DNS failure, connection refused, timeout, etc.
     captureApiFailure({
       endpoint: path,
@@ -141,6 +149,14 @@ async function request<T>(
       (errorBody as Record<string, string>).msg ||
       (errorBody as Record<string, string>).message ||
       `Request failed with status ${response.status}`;
+    console.log(
+      '[api ✗]',
+      method,
+      path,
+      response.status,
+      `${Date.now() - startTime}ms`,
+      { message, body: errorBody }
+    );
     captureApiFailure({
       endpoint: path,
       method,
@@ -153,8 +169,27 @@ async function request<T>(
 
   // Handle 204 No Content and other empty responses
   const text = await response.text();
-  if (!text) return undefined as T;
-  return JSON.parse(text) as T;
+  if (!text) {
+    console.log(
+      '[api ←]',
+      method,
+      path,
+      response.status,
+      `${Date.now() - startTime}ms`,
+      '(empty)'
+    );
+    return undefined as T;
+  }
+  const parsed = JSON.parse(text) as T;
+  console.log(
+    '[api ←]',
+    method,
+    path,
+    response.status,
+    `${Date.now() - startTime}ms`,
+    parsed
+  );
+  return parsed;
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
