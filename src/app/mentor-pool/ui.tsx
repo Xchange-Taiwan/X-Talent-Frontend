@@ -1,6 +1,6 @@
 'use client';
 
-import { XIcon } from 'lucide-react';
+import { SearchXIcon, XIcon } from 'lucide-react';
 
 import {
   FilterOptions,
@@ -9,6 +9,7 @@ import {
 import MentorFilterDropdown from '@/components/filter/MentorFilterDropdown';
 import { MentorCardList } from '@/components/mentor-pool/mentor-card-list';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { MentorType } from '@/services/search-mentor/mentors';
 
@@ -24,6 +25,7 @@ interface Props {
   filterOptions: FilterOptions;
   onFilterChange: (opts: SelectFilters) => void;
   onRemoveFilter: (key: string) => void;
+  onClearAll: () => void;
   onScrollToBottom: () => Promise<void>;
 }
 
@@ -37,6 +39,7 @@ export default function MentorPoolUI({
   filterOptions,
   onFilterChange,
   onRemoveFilter,
+  onClearAll,
   onScrollToBottom,
 }: Props) {
   const hasMentors = mentors.length > 0;
@@ -115,8 +118,24 @@ export default function MentorPoolUI({
           </div>
         )}
         {showNoResults && (
-          <div className="mt-6 flex h-full w-full items-center justify-center">
-            <span className="text-xl md:text-3xl">找不到符合的導師</span>
+          <div
+            role="status"
+            aria-live="polite"
+            className="mt-6 flex w-full flex-col items-center justify-center gap-4 py-12 text-center"
+          >
+            <SearchXIcon
+              className="h-12 w-12 text-muted-foreground md:h-16 md:w-16"
+              aria-hidden
+            />
+            <p className="text-xl md:text-3xl">找不到符合的導師</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={onClearAll}
+            >
+              清除所有條件
+            </Button>
           </div>
         )}
       </div>

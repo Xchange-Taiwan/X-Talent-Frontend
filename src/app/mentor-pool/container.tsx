@@ -12,6 +12,7 @@ import useIndustries from '@/hooks/user/industry/useIndustries';
 import useInterests, {
   type InterestsResult,
 } from '@/hooks/user/interests/useInterests';
+import { trackEvent } from '@/lib/analytics';
 import type { ProfessionVO } from '@/services/profile/industries';
 import {
   fetchMentorsEnriched,
@@ -22,6 +23,7 @@ import { PAGE_LIMIT } from './constants';
 import { filterOptions } from './data';
 import {
   buildHref,
+  clearAllConditions,
   paramsToFetchConditions,
   parseFiltersFromParams,
   removeFilterFromParams,
@@ -156,6 +158,14 @@ export default function MentorPoolContainer({
     [params, router]
   );
 
+  const handleClearAll = useCallback(() => {
+    trackEvent({ name: 'mentor_pool_clear_all_filters_click' });
+    const next = clearAllConditions(params);
+    startTransition(() => {
+      router.push(buildHref(next));
+    });
+  }, [params, router]);
+
   return (
     <MentorPoolUI
       mentors={mentors}
@@ -167,6 +177,7 @@ export default function MentorPoolContainer({
       filterOptions={dynamicFilterOptions}
       onFilterChange={handleFilterChange}
       onRemoveFilter={handleRemoveFilter}
+      onClearAll={handleClearAll}
       onScrollToBottom={handleScrollToBottom}
     />
   );
