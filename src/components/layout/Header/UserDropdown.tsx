@@ -39,12 +39,10 @@ export const UserDropdown = React.memo(function UserDropdown({
     'testing_mentor@xchange.com.tw',
   ].includes(user.email ?? '');
   const name = user.name ?? '';
-  // Use the original avatar URL with ?v= so header / dropdown / share dialog
-  // share the same Image Optimizer + browser cache entry as the profile view
-  // and edit pages, and the layout preload is reused.
-  const avatarSrc = user.avatar
-    ? `${user.avatar}?v=${user.avatarUpdatedAt ?? 0}`
-    : '';
+  // Avatar URLs already carry their own `?v=<upload-timestamp>` cache buster
+  // (set by updateAvatar at upload time), so render the URL as-is — header /
+  // dropdown / share dialog / profile pages all share one cache entry.
+  const avatarSrc = user.avatar ?? '';
   const jobTitle = user.jobTitle ?? '';
   const company = user.company ?? '';
 

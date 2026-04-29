@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import React, { useRef } from 'react';
+import React from 'react';
 import { Control, FieldValues, Path } from 'react-hook-form';
 
 import AvatarUpload from '@/components/ui/avatar-upload';
@@ -20,17 +20,9 @@ export const AvatarSection = <T extends FieldValues>({
   onFileChange,
 }: AvatarSectionProps<T>) => {
   const { data: session } = useSession();
-  // Stable fallback used when avatarUpdatedAt is absent (e.g. fresh login
-  // before any update). Ensures the browser fetches the current image on
-  // first load rather than serving a previously-cached ?v=0 stale copy.
-  const stableCacheBust = useRef(Date.now()).current;
-
-  // Use ?v= (matches the layout preload + profile view page) so the optimizer
-  // cache key is identical across surfaces and the preloaded image is reused.
-  const sessionAvatar = session?.user?.avatar ?? '';
-  const avatarUrl = sessionAvatar
-    ? `${sessionAvatar}?v=${session?.user?.avatarUpdatedAt ?? stableCacheBust}`
-    : '';
+  // Avatar URLs already carry their own `?v=` cache buster from upload time,
+  // so render the session value as-is — no post-hoc version stitching.
+  const avatarUrl = session?.user?.avatar ?? '';
 
   return (
     <Section title="個人頭像">
