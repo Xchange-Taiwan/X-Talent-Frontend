@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { fetchInterests, InterestVO } from '@/services/profile/interests';
 
@@ -59,18 +59,34 @@ export async function getInterestsCached(
   return promise;
 }
 
-function useInterests(language: string) {
+function useInterests(language: string, initialData?: InterestsResult) {
+  const initialDataRef = useRef(initialData);
+
   const [interestedPositions, setInterestedPositions] = useState<InterestVO[]>(
-    []
+    initialData?.interestedPositions ?? []
   );
-  const [skills, setSkills] = useState<InterestVO[]>([]);
-  const [topics, setTopics] = useState<InterestVO[]>([]);
-  const [expertises, setExpertises] = useState<InterestVO[]>([]);
-  const [whatIOffers, setWhatIOffers] = useState<InterestVO[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [skills, setSkills] = useState<InterestVO[]>(initialData?.skills ?? []);
+  const [topics, setTopics] = useState<InterestVO[]>(initialData?.topics ?? []);
+  const [expertises, setExpertises] = useState<InterestVO[]>(
+    initialData?.expertises ?? []
+  );
+  const [whatIOffers, setWhatIOffers] = useState<InterestVO[]>(
+    initialData?.whatIOffers ?? []
+  );
+  const [isLoading, setIsLoading] = useState<boolean>(
+    initialData === undefined
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (initialDataRef.current !== undefined) {
+      // Prime the shared cache so getInterestsCached / *Sync consumers
+      // (e.g. mentor-pool infinite scroll, useUserData) skip the round trip.
+      interestsDataCache.set(language, initialDataRef.current);
+      initialDataRef.current = undefined;
+      return;
+    }
+
     let cancelled = false;
 
     const run = async () => {

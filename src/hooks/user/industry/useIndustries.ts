@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { fetchIndustries, ProfessionVO } from '@/services/profile/industries';
 
@@ -24,12 +24,31 @@ async function fetchIndustriesCached(
   return promise;
 }
 
-export default function useIndustries(language: string) {
-  const [industries, setIndustries] = useState<ProfessionVO[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+export default function useIndustries(
+  language: string,
+  initialData?: ProfessionVO[]
+) {
+  // Snapshot at mount — once consumed, language switches go through the
+  // normal client fetch path even if the parent re-passes the same prop.
+  const initialDataRef = useRef(initialData);
+
+  const [industries, setIndustries] = useState<ProfessionVO[]>(
+    initialData ?? []
+  );
+  const [isLoading, setIsLoading] = useState<boolean>(
+    initialData === undefined
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (initialDataRef.current !== undefined) {
+      // Prime in-memory cache so other consumers of fetchIndustriesCached
+      // (and remounts of this hook) skip the round trip too.
+      industriesCache.set(language, initialDataRef.current);
+      initialDataRef.current = undefined;
+      return;
+    }
+
     let cancelled = false;
 
     const run = async () => {

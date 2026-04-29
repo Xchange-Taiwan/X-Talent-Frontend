@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { fetchExpertises, ProfessionVO } from '@/services/profile/expertises';
 
@@ -24,12 +24,27 @@ async function fetchExpertisesCached(
   return promise;
 }
 
-export default function useExpertises(language: string) {
-  const [expertises, setExpertises] = useState<ProfessionVO[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+export default function useExpertises(
+  language: string,
+  initialData?: ProfessionVO[]
+) {
+  const initialDataRef = useRef(initialData);
+
+  const [expertises, setExpertises] = useState<ProfessionVO[]>(
+    initialData ?? []
+  );
+  const [isLoading, setIsLoading] = useState<boolean>(
+    initialData === undefined
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (initialDataRef.current !== undefined) {
+      expertisesCache.set(language, initialDataRef.current);
+      initialDataRef.current = undefined;
+      return;
+    }
+
     let cancelled = false;
 
     const run = async () => {
