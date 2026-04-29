@@ -109,6 +109,13 @@ export function removeFilterFromParams(
   return next;
 }
 
+export function clearAllConditions(base: AnyParams | null): URLSearchParams {
+  const next = new URLSearchParams(base?.toString() ?? '');
+  FILTER_KEYS.forEach((key) => next.delete(key));
+  next.delete(SEARCH_PARAM_KEY);
+  return next;
+}
+
 export function buildHref(params: URLSearchParams): string {
   const qs = params.toString();
   return qs ? `/mentor-pool?${qs}` : '/mentor-pool';
