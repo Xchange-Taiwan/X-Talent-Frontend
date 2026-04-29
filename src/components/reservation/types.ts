@@ -29,4 +29,9 @@ export type Reservation = {
   // Both user ids are kept so we can reliably determine which side the current user is on
   senderUserId: number | string;
   participantUserId: number | string;
+
+  // Set when either side rejected/cancelled. Value is the canceller's role so
+  // the UI can render "已由導師/學員取消" on both mentor and mentee pages.
+  // Participant (other side) takes precedence when both are REJECT.
+  cancelledBy?: 'MENTEE' | 'MENTOR';
 };

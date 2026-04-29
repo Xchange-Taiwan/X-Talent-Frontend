@@ -4,6 +4,7 @@ import AcceptReservationDialog from '@/components/reservation/AcceptReservationD
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
 import RejectReservationDialog from '@/components/reservation/RejectReservationDialog';
 import ReservationConversationDialog from '@/components/reservation/ReservationConversationDialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
@@ -198,7 +199,13 @@ export function ReservationList({
           profileHref={buildProfileHref(it)}
           onProfileClick={handleProfileClick}
           actions={
-            variant === 'history' ? null : variant === 'pending-mentor' ? (
+            variant === 'history' ? (
+              it.cancelledBy ? (
+                <Badge variant="secondary" role="status">
+                  已由{it.cancelledBy === 'MENTOR' ? '導師' : '學員'}取消
+                </Badge>
+              ) : null
+            ) : variant === 'pending-mentor' ? (
               <div className="flex gap-2">
                 <RejectReservationDialog
                   reservation={it}
