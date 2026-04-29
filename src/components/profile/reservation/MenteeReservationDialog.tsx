@@ -42,8 +42,13 @@ export default function MenteeReservationDialog({
   userData: UserType | null;
   onMonthChange?: (date: Date) => void;
 }) {
-  const { selectedDate, setSelectedDate, allowedDates, generateBookingSlots } =
-    schedule;
+  const {
+    selectedDate,
+    setSelectedDate,
+    allowedDates,
+    generateBookingSlots,
+    monthLoaded,
+  } = schedule;
   const router = useRouter();
 
   const [view, setView] = useState<
@@ -224,6 +229,7 @@ export default function MenteeReservationDialog({
             allowedDates={allowedDates}
             showTodayStyle={false}
             disableEmptyDates={true}
+            isMonthLoading={!monthLoaded}
           />
         </div>
         <div>
@@ -233,6 +239,18 @@ export default function MenteeReservationDialog({
               const slots = selectedDate
                 ? generateBookingSlots(selectedDate)
                 : [];
+
+              if (!monthLoaded) {
+                return (
+                  <div
+                    aria-busy="true"
+                    aria-live="polite"
+                    className="col-span-full text-center text-sm text-gray-500"
+                  >
+                    讀取中…
+                  </div>
+                );
+              }
 
               if (slots.length === 0) {
                 return (

@@ -1,6 +1,7 @@
 'use client';
 
 import dayjs from 'dayjs';
+import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useSwipeable } from 'react-swipeable';
 
@@ -19,6 +20,12 @@ interface ScheduleCalendarProps {
   disableEmptyDates?: boolean;
   disablePastDates?: boolean;
   highlightAvailableDates?: boolean;
+  /**
+   * Show a loading overlay over the grid so the user can tell the displayed
+   * month is still being fetched (vs. settled-empty). Swiping/clicking still
+   * works; this only adds a visual cue.
+   */
+  isMonthLoading?: boolean;
   size?: ScheduleCalendarSize;
   className?: string;
 }
@@ -107,6 +114,7 @@ export const ScheduleCalendar = ({
   disableEmptyDates = false,
   disablePastDates = false,
   highlightAvailableDates = false,
+  isMonthLoading = false,
   size = 'compact',
   className,
 }: ScheduleCalendarProps) => {
@@ -145,43 +153,59 @@ export const ScheduleCalendar = ({
         className
       )}
     >
-      <Calendar
-        mode="single"
-        captionLayout="dropdown"
-        month={displayMonth}
-        selected={selected}
-        onSelect={handleSelect}
-        onMonthChange={handleMonthChange}
-        modifiers={{
-          available: availableDays,
-        }}
-        modifiersClassNames={{
-          available: 'rdp-day-available',
-        }}
-        disabled={(day) => {
-          if (disablePastDates) {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+      <div
+        className={cn(
+          'relative transition-opacity',
+          isMonthLoading && 'opacity-60'
+        )}
+        aria-busy={isMonthLoading}
+      >
+        <Calendar
+          mode="single"
+          captionLayout="dropdown"
+          month={displayMonth}
+          selected={selected}
+          onSelect={handleSelect}
+          onMonthChange={handleMonthChange}
+          modifiers={{
+            available: availableDays,
+          }}
+          modifiersClassNames={{
+            available: 'rdp-day-available',
+          }}
+          disabled={(day) => {
+            if (disablePastDates) {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
 
-            if (day < today) {
-              return true;
+              if (day < today) {
+                return true;
+              }
             }
-          }
 
-          if (disableEmptyDates) {
-            const dateStr = dayjs(day).format('YYYY-MM-DD');
+            if (disableEmptyDates) {
+              const dateStr = dayjs(day).format('YYYY-MM-DD');
 
-            if (allowedDates.length === 0) {
-              return true;
+              if (allowedDates.length === 0) {
+                return true;
+              }
+
+              return !allowedDates.includes(dateStr);
             }
 
-            return !allowedDates.includes(dateStr);
-          }
-
-          return false;
-        }}
-        showTodayStyle={showTodayStyle}
-      />
+            return false;
+          }}
+          showTodayStyle={showTodayStyle}
+        />
+        {isMonthLoading && (
+          <div
+            aria-live="polite"
+            className="pointer-events-none absolute inset-0 flex items-center justify-center"
+          >
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        )}
+      </div>
     </div>
   );
 };

@@ -98,7 +98,7 @@ export default function MentorScheduleDialog({
     allowedDates,
     updateDraftSlot,
     meetingDurationMinutes,
-    isFetching,
+    monthLoaded,
   } = schedule;
 
   const router = useRouter();
@@ -514,12 +514,13 @@ export default function MentorScheduleDialog({
               disableEmptyDates={false}
               disablePastDates={true}
               highlightAvailableDates={true}
+              isMonthLoading={!monthLoaded}
             />
 
             <div>
               <p className="font-semibold lg:text-lg">可預約時段</p>
 
-              {isFetching ? (
+              {!monthLoaded ? (
                 <div
                   className="mt-3 flex flex-col gap-3"
                   aria-busy="true"
@@ -624,7 +625,7 @@ export default function MentorScheduleDialog({
             <Button
               onClick={handleSave}
               disabled={
-                isSaving || hasAnyError || hasInvalidTimes || isFetching
+                isSaving || hasAnyError || hasInvalidTimes || !monthLoaded
               }
             >
               {isSaving ? '儲存中...' : '儲存'}
