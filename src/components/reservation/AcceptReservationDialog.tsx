@@ -104,7 +104,11 @@ export default function AcceptReservationDialog({
                 <AvatarImage
                   src={
                     reservation.avatar
-                      ? getAvatarThumbUrl(reservation.avatar)
+                      ? getAvatarThumbUrl(
+                          reservation.avatar_updated_at != null
+                            ? `${reservation.avatar}?v=${reservation.avatar_updated_at}`
+                            : reservation.avatar
+                        )
                       : undefined
                   }
                   alt={reservation.name}
