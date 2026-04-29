@@ -9,7 +9,10 @@ import type {
   SelectFilters,
 } from '@/components/filter/MentorFilterDropdown';
 import useIndustries from '@/hooks/user/industry/useIndustries';
-import useInterests from '@/hooks/user/interests/useInterests';
+import useInterests, {
+  type InterestsResult,
+} from '@/hooks/user/interests/useInterests';
+import type { ProfessionVO } from '@/services/profile/industries';
 import {
   fetchMentorsEnriched,
   MentorType,
@@ -38,19 +41,23 @@ interface Props {
   initialMentors: MentorType[];
   initialCursor: string;
   initialMentorCount: number;
+  initialIndustries: ProfessionVO[];
+  initialInterests: InterestsResult;
 }
 
 export default function MentorPoolContainer({
   initialMentors,
   initialCursor,
   initialMentorCount,
+  initialIndustries,
+  initialInterests,
 }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const selectedFilters = parseFiltersFromParams(params);
-  const { expertises, whatIOffers } = useInterests('zh_TW');
-  const { industries } = useIndustries('zh_TW');
+  const { expertises, whatIOffers } = useInterests('zh_TW', initialInterests);
+  const { industries } = useIndustries('zh_TW', initialIndustries);
 
   const dynamicFilterOptions = useMemo<FilterOptions>(
     () => ({
