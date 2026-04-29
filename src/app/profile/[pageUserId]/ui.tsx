@@ -279,6 +279,7 @@ export default function ProfilePageUI({
                       allowedDates={allowedDates}
                       showTodayStyle={false}
                       disableEmptyDates={true}
+                      isMonthLoading={!schedule.monthLoaded}
                     />
                   </div>
                   <div className="flex flex-col items-start gap-4">
@@ -287,6 +288,17 @@ export default function ProfilePageUI({
                       const slots = selectedDate
                         ? generateBookingSlots(selectedDate)
                         : [];
+                      if (!schedule.monthLoaded) {
+                        return (
+                          <div
+                            aria-busy="true"
+                            aria-live="polite"
+                            className="flex min-h-10 items-center text-gray-400"
+                          >
+                            讀取中…
+                          </div>
+                        );
+                      }
                       if (slots.length === 0) {
                         return (
                           <div className="flex min-h-10 items-center text-gray-400">

@@ -39,7 +39,10 @@ type Options = {
 };
 
 export type UseMentorScheduleReturn = {
+  /** Sticky: true once any month has resolved. Use this for first-paint skeletons. */
   loaded: boolean;
+  /** Per-month: false while the *current* (year, month) is being fetched after a cache miss. */
+  monthLoaded: boolean;
   isFetching: boolean;
   selectedDate: string | null;
   setSelectedDate: (dateStr: string | null) => void;
@@ -81,6 +84,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const [saved, setSaved] = useState<RawMentorTimeslot[]>([]);
   const [draft, setDraft] = useState<RawMentorTimeslot[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [monthLoaded, setMonthLoaded] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(
     dayjs().format('YYYY-MM-DD')
@@ -134,6 +138,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       setSaved(raws);
       setDraft(raws);
       setLoaded(true);
+      setMonthLoaded(true);
       setPendingDeleteIds([]);
       const firstAllow = raws.find((r) => r.type === 'ALLOW');
       if (firstAllow) {
@@ -150,9 +155,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     } else if (!dirtyRef.current) {
       // Cache miss: clear stale month data so the calendar doesn't show
       // last month's allowed dots / time slots while the fetch is in flight.
+      // monthLoaded -> false so consumers can distinguish "fetching" from
+      // "settled empty"; sticky `loaded` is left untouched.
       setSaved([]);
       setDraft([]);
       setPendingDeleteIds([]);
+      setMonthLoaded(false);
       setIsFetching(true);
     }
 
@@ -165,7 +173,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         apply(raws);
       })
       .catch(() => {
-        if (!ignore && !cached) setLoaded(true);
+        // Treat fetch failure as "settled" so the UI doesn't hang on a
+        // skeleton; the user will see the empty state instead.
+        if (!ignore && !cached) {
+          setLoaded(true);
+          setMonthLoaded(true);
+        }
       })
       .finally(() => {
         if (!ignore) setIsFetching(false);
@@ -443,6 +456,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   return {
     loaded,
+    monthLoaded,
     isFetching,
     selectedDate,
     setSelectedDate,
