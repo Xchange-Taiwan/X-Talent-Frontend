@@ -23,10 +23,6 @@ export interface MentorType {
   user_id: number;
   name: string;
   avatar: string | StaticImageData;
-  // Bumped only when the avatar changes; used to bust the Image Optimizer /
-  // browser cache on the stable S3 avatar URL. Null until X-Career-Search
-  // populates it on the mentor index (Xchange-Taiwan/X-Talent-Tracker#242).
-  avatar_updated_at: number | null;
   job_title: string;
   company: string;
   years_of_experience: string;
@@ -94,7 +90,6 @@ export function mapMentor(raw: RawMentor): MentorType {
     user_id: raw.user_id,
     name: raw.name ?? '',
     avatar: raw.avatar ?? '',
-    avatar_updated_at: raw.avatar_updated_at ?? null,
     job_title,
     company,
     years_of_experience: raw.years_of_experience ?? '',

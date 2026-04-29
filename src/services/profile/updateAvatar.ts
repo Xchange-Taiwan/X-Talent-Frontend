@@ -100,8 +100,16 @@ async function uploadToS3WithPresignedPost(
   }
 }
 
+// The S3 avatar key is per-user and stable, so the bare URL doesn't change
+// when the user re-uploads. Bake `?v=<timestamp>` into the URL we hand back
+// so the Image Optimizer / browser cache key changes on every upload —
+// downstream consumers can render the URL directly without combining it
+// with a separate version field.
 function buildS3ObjectUrl(bucketUrl: string, key: string): string {
-  return bucketUrl.endsWith('/') ? `${bucketUrl}${key}` : `${bucketUrl}/${key}`;
+  const base = bucketUrl.endsWith('/')
+    ? `${bucketUrl}${key}`
+    : `${bucketUrl}/${key}`;
+  return `${base}?v=${Date.now()}`;
 }
 
 /**

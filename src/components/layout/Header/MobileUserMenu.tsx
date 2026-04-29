@@ -40,9 +40,8 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
     'testing_mentor@xchange.com.tw',
   ].includes(user.email ?? '');
   const name = user.name ?? '';
-  const avatarSrc = user.avatar
-    ? `${user.avatar}?v=${user.avatarUpdatedAt ?? 0}`
-    : '';
+  // Avatar URL already carries its own `?v=` cache buster from upload time.
+  const avatarSrc = user.avatar ?? '';
   const jobTitle = user.jobTitle ?? '';
   const company = user.company ?? '';
   const personalLinks = user.personalLinks ?? [];
