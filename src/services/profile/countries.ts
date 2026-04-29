@@ -1,18 +1,17 @@
-import countriesEnUS from '@/data/countries.en_US.json';
-import countriesZhTW from '@/data/countries.zh_TW.json';
-
 export interface LocationType {
   value: string;
   text: string;
 }
 
-const tables: Record<string, Record<string, string>> = {
-  zh_TW: countriesZhTW,
-  en_US: countriesEnUS,
-};
+async function loadTable(language: string): Promise<Record<string, string>> {
+  if (language === 'en_US') {
+    return (await import('@/data/countries.en_US.json')).default;
+  }
+  return (await import('@/data/countries.zh_TW.json')).default;
+}
 
-export function getCountries(language: string): LocationType[] {
-  const table = tables[language] ?? tables.zh_TW;
+export async function getCountries(language: string): Promise<LocationType[]> {
+  const table = await loadTable(language);
   const collator = new Intl.Collator(language.replace('_', '-'));
   const list = Object.entries(table)
     .map(([value, text]) => ({ value, text }))
