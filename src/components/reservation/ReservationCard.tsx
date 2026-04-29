@@ -35,11 +35,19 @@ export function ReservationCard({
 
   const [imageFailed, setImageFailed] = React.useState(false);
 
+  // `getAvatarThumbUrl` preserves any query string, so we append `?v=` first
+  // and then swap to the thumb path. Skip when the version is null so we don't
+  // poison the Image Optimizer cache key with `?v=null`.
+  const versionedAvatar =
+    item.avatar && item.avatar_updated_at != null
+      ? `${item.avatar}?v=${item.avatar_updated_at}`
+      : item.avatar;
+
   const avatar = (
     <Avatar className="h-10 w-10 sm:h-12 sm:w-12">
-      {item.avatar && !imageFailed ? (
+      {versionedAvatar && !imageFailed ? (
         <Image
-          src={getAvatarThumbUrl(item.avatar)}
+          src={getAvatarThumbUrl(versionedAvatar)}
           alt={item.name}
           fill
           sizes="(min-width: 640px) 48px, 40px"

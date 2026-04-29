@@ -64,11 +64,19 @@ function classifyMessageRole(
   return undefined;
 }
 
+// Forward-compat overlay: BFF #111 adds `avatar_updated_at` to RUserInfoVO,
+// but the OpenAPI types here are regenerated only after BFF dev redeploys.
+// Once `pnpm generate:types` runs against the new spec this overlay becomes a
+// no-op and can be dropped.
+type RUserInfoVOWithAvatarVersion = components['schemas']['RUserInfoVO'] & {
+  avatar_updated_at?: number | null;
+};
+
 export function mapToReservation(
   reservation: components['schemas']['ReservationInfoVO']
 ): Reservation {
   // API 固定結構：sender = 當前使用者，participant = 對方
-  const counterparty = reservation.participant;
+  const counterparty = reservation.participant as RUserInfoVOWithAvatarVersion;
   const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
   const roleLine = [
     counterparty.job_title?.trim() || '',
@@ -112,6 +120,7 @@ export function mapToReservation(
     date,
     time,
     avatar: counterparty.avatar ?? undefined,
+    avatar_updated_at: counterparty.avatar_updated_at ?? null,
     messages,
     menteeMessage,
     mentorMessage,

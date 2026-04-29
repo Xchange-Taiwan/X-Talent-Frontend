@@ -45,6 +45,7 @@ const MentorCardListBase = ({
             key={mentor.user_id}
             id={mentor.user_id}
             avatar={mentor.avatar}
+            avatarVersion={mentor.avatar_updated_at}
             years={mentor.years_of_experience}
             name={mentor.name}
             job_title={mentor.job_title}

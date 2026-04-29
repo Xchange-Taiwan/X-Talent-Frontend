@@ -81,7 +81,11 @@ export default function ReservationConversationDialog({
             <Avatar className="h-10 w-10 shrink-0">
               {reservation.avatar ? (
                 <AvatarImage
-                  src={getAvatarThumbUrl(reservation.avatar)}
+                  src={getAvatarThumbUrl(
+                    reservation.avatar_updated_at != null
+                      ? `${reservation.avatar}?v=${reservation.avatar_updated_at}`
+                      : reservation.avatar
+                  )}
                   alt={reservation.name}
                 />
               ) : null}
