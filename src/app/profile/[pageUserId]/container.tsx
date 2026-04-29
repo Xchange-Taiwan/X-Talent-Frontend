@@ -3,12 +3,15 @@
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import useUserData from '@/hooks/user/user-data/useUserData';
-import { primeUserProfileDtoCacheIfEmpty } from '@/hooks/user/user-data/useUserProfileDto';
+import {
+  primeUserProfileDtoCacheIfEmpty,
+  useUserProfileDto,
+} from '@/hooks/user/user-data/useUserProfileDto';
 import type { MentorProfileVO } from '@/services/profile/user';
 
 import { ProfilePageSkeleton } from './skeleton';
@@ -21,14 +24,12 @@ interface Props {
   pageUserId: string;
   initialDto: MentorProfileVO;
   initialLoginUserId: string;
-  initialAvatarVersion: number;
 }
 
 export default function ProfilePageContainer({
   pageUserId,
   initialDto,
   initialLoginUserId,
-  initialAvatarVersion,
 }: Props) {
   const router = useRouter();
 
@@ -100,27 +101,22 @@ export default function ProfilePageContainer({
     pageUserIdNumber,
     'zh_TW'
   );
+  const { userDto } = useUserProfileDto(pageUserIdNumber, 'zh_TW');
 
   // The S3 avatar URL is a stable key (re-uploads overwrite in place), so a
   // `?v=` query is the only way to bust the Image Optimizer / browser cache.
-  // - Default version comes from the SSR render (`Date.now()` per ISR cycle),
-  //   so when an edit triggers `revalidatePath`, the next render hands every
-  //   visitor a fresh version and the optimizer re-fetches from S3.
-  // - On the user's own profile we override with `session.user.avatarUpdatedAt`
-  //   since the optimistic session update lands before the ISR refresh has a
-  //   chance to propagate.
-  // While the DTO is still loading on the user's own profile, fall back to the
-  // session avatar so the page does not flash blank.
+  // Use `avatar_updated_at` from the DTO so every viewer — including logged-out
+  // visitors and other users — sees the latest version after the backend bumps
+  // it on upload. While the DTO is still loading on the user's own profile,
+  // fall back to the session avatar so the page does not flash blank.
   const isOwnProfile = loginUserId === pageUserId;
   const resolvedAvatar =
     userData?.avatar ?? (isOwnProfile ? session?.user?.avatar : undefined);
-  const lastAvatarVersionRef = useRef<number>(initialAvatarVersion);
-  if (isOwnProfile && session?.user?.avatarUpdatedAt) {
-    lastAvatarVersionRef.current = session.user.avatarUpdatedAt;
-  }
-  const avatarVersion = lastAvatarVersionRef.current;
+  const avatarVersion = userDto?.avatar_updated_at ?? null;
   const avatarSrc = resolvedAvatar
-    ? `${resolvedAvatar}?v=${avatarVersion}`
+    ? avatarVersion
+      ? `${resolvedAvatar}?v=${avatarVersion}`
+      : resolvedAvatar
     : DefaultAvatarImgUrl;
 
   if (!userLoading && !userData) {

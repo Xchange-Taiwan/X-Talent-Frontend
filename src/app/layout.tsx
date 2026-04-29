@@ -60,13 +60,15 @@ export default async function RootLayout({
   // imageSrcSet + imageSizes lets the browser pick the same width that
   // <Image sizes="150-160px" /> will request (w=256 at 1x DPR, w=384 at 2x),
   // avoiding the cache-miss caused by a fixed-width preload.
+  // Skip preload entirely when no `avatarUpdatedAt` is available — preloading a
+  // bare URL would write it into the optimizer's 30-day cache and lock in stale
+  // bytes for every future viewer.
   const sessionAvatar = session?.user?.avatar;
   const avatarVersion = session?.user?.avatarUpdatedAt;
-  const avatarSrc = sessionAvatar
-    ? avatarVersion
+  const avatarSrc =
+    sessionAvatar && avatarVersion
       ? `${sessionAvatar}?v=${avatarVersion}`
-      : sessionAvatar
-    : null;
+      : null;
   const buildOptimizerUrl = (w: number) =>
     `/_next/image?url=${encodeURIComponent(avatarSrc ?? '')}&w=${w}&q=75`;
   const avatarSrcSet = avatarSrc
