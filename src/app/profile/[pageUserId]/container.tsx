@@ -8,10 +8,7 @@ import { useEffect, useState } from 'react';
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import useUserData from '@/hooks/user/user-data/useUserData';
-import {
-  primeUserProfileDtoCacheIfEmpty,
-  useUserProfileDto,
-} from '@/hooks/user/user-data/useUserProfileDto';
+import { primeUserProfileDtoCacheIfEmpty } from '@/hooks/user/user-data/useUserProfileDto';
 import type { MentorProfileVO } from '@/services/profile/user';
 
 import { ProfilePageSkeleton } from './skeleton';
@@ -101,23 +98,17 @@ export default function ProfilePageContainer({
     pageUserIdNumber,
     'zh_TW'
   );
-  const { userDto } = useUserProfileDto(pageUserIdNumber, 'zh_TW');
 
   // The S3 avatar URL is a stable key (re-uploads overwrite in place), so a
   // `?v=` query is the only way to bust the Image Optimizer / browser cache.
-  // Use `avatar_updated_at` from the DTO so every viewer — including logged-out
-  // visitors and other users — sees the latest version after the backend bumps
-  // it on upload. While the DTO is still loading on the user's own profile,
-  // fall back to the session avatar so the page does not flash blank.
+  // updateAvatar bakes the cache buster into the URL it returns at upload
+  // time, so we render whatever the backend stored (or the session value on
+  // your own profile while the live DTO is loading) without any post-hoc
+  // version stitching.
   const isOwnProfile = loginUserId === pageUserId;
   const resolvedAvatar =
     userData?.avatar ?? (isOwnProfile ? session?.user?.avatar : undefined);
-  const avatarVersion = userDto?.avatar_updated_at ?? null;
-  const avatarSrc = resolvedAvatar
-    ? avatarVersion
-      ? `${resolvedAvatar}?v=${avatarVersion}`
-      : resolvedAvatar
-    : DefaultAvatarImgUrl;
+  const avatarSrc = resolvedAvatar || DefaultAvatarImgUrl;
 
   if (!userLoading && !userData) {
     return (

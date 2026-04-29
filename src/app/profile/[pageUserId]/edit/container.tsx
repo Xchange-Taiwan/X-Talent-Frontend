@@ -209,7 +209,9 @@ export default function EditProfileContainer({
           <AvatarSection
             control={form.control}
             name="avatarFile"
-            onFileChange={avatarUpload.kickOff}
+            onFileChange={(file) =>
+              avatarUpload.kickOff(file, form.getValues('avatar'))
+            }
           />
 
           <Section
@@ -417,7 +419,18 @@ export default function EditProfileContainer({
             <Button variant="outline" onClick={unsaved.cancelLeave}>
               繼續編輯
             </Button>
-            <Button variant="destructive" onClick={unsaved.confirmLeave}>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                // Restore the pre-edit avatar in S3 before navigating. Fire
+                // and forget — re-uploading the snapshot can take a couple of
+                // seconds, and the user shouldn't have to wait while leaving
+                // a page they explicitly cancelled. The hook drops the job
+                // ref synchronously so unmount cleanup can't double-abort.
+                void avatarUpload.rollback();
+                unsaved.confirmLeave();
+              }}
+            >
               離開頁面
             </Button>
           </DialogFooter>
