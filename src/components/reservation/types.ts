@@ -11,6 +11,10 @@ export type Reservation = {
   id: string;
   name: string;
   avatar?: string;
+  // Bumped when the counterparty uploads a new avatar; used as a `?v=` cache
+  // buster on the stable S3 URL. Skipped when null/undefined to keep
+  // `?v=null` out of the Image Optimizer cache key.
+  avatar_updated_at?: number | null;
   roleLine: string;
   date: string;
   time: string;
