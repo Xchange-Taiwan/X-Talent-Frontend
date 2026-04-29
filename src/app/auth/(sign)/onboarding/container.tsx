@@ -17,7 +17,9 @@ import {
 } from '@/components/onboarding/steps';
 import useLocations from '@/hooks/user/country/useLocations';
 import useIndustries from '@/hooks/user/industry/useIndustries';
-import useInterests from '@/hooks/user/interests/useInterests';
+import useInterests, {
+  type InterestsResult,
+} from '@/hooks/user/interests/useInterests';
 import { buildOnboardingDtoStub } from '@/hooks/user/onboarding/buildOnboardingDtoStub';
 import {
   clearUserDataCache,
@@ -25,17 +27,29 @@ import {
 } from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
+import type { ProfessionVO } from '@/services/profile/industries';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
 
 import { STEP_TITLE, STEPS_TOTAL } from './data';
 import OnboardingUI from './ui';
 
-export default function OnboardingContainer() {
+interface Props {
+  initialIndustries: ProfessionVO[];
+  initialInterests: InterestsResult;
+}
+
+export default function OnboardingContainer({
+  initialIndustries,
+  initialInterests,
+}: Props) {
   const router = useRouter();
   const { locations } = useLocations('zh_TW');
-  const { industries } = useIndustries('zh_TW');
-  const { interestedPositions, skills, topics } = useInterests('zh_TW');
+  const { industries } = useIndustries('zh_TW', initialIndustries);
+  const { interestedPositions, skills, topics } = useInterests(
+    'zh_TW',
+    initialInterests
+  );
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { data: session, status, update: updateSession } = useSession();
