@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { ProfileFormValues } from '@/components/profile/edit/profileSchema';
+import { useToast } from '@/components/ui/use-toast';
 import {
   clearUserDataCache,
   primeUserDataCache,
@@ -61,6 +62,7 @@ export function useProfileSubmit({
   consumeAvatarUpload,
 }: Options) {
   const router = useRouter();
+  const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
 
   const onSubmit = async (
@@ -332,6 +334,11 @@ export function useProfileSubmit({
             : 'Unexpected profile update error',
       });
       console.error('Update Profile Error:', err);
+      toast({
+        variant: 'destructive',
+        description: '儲存失敗，請稍後再試',
+        duration: 5000,
+      });
       setIsSaving(false);
     }
   };

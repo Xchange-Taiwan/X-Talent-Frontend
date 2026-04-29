@@ -7,6 +7,11 @@ vi.mock('next/navigation', async () => {
   return navigationMockFactory();
 });
 
+vi.mock('@/components/ui/use-toast', async () => {
+  const { useToastMockFactory } = await import('@/test/mocks/useToast');
+  return useToastMockFactory();
+});
+
 vi.mock('@/services/profile/updateAvatar', () => ({
   updateAvatar: vi.fn(),
 }));
@@ -47,6 +52,7 @@ import { updateProfile } from '@/services/profile/updateProfile';
 import { upsertMentorExperience } from '@/services/profile/upsertExperience';
 import type { MentorProfileVO } from '@/services/profile/user';
 import { mockRouter } from '@/test/mocks/navigation';
+import { mockToast } from '@/test/mocks/useToast';
 
 import { useProfileSubmit } from './useProfileSubmit';
 
@@ -250,6 +256,50 @@ describe('useProfileSubmit', () => {
     });
 
     expect(result.current.isSaving).toBe(false);
+  });
+
+  // ── Error feedback (toast) ────────────────────────────────────────────────
+
+  it('updateProfile throws → destructive toast with generic save-failed message', async () => {
+    mockUpdateProfile.mockRejectedValueOnce(new Error('Profile update failed'));
+
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+    });
+
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        description: '儲存失敗，請稍後再試',
+      })
+    );
+  });
+
+  it('avatar upload throws → destructive toast still fires (inner catch re-throws)', async () => {
+    mockUpdateAvatar.mockRejectedValueOnce(new Error('Upload failed'));
+
+    const file = new File(['c'], 'avatar.jpg', { type: 'image/jpeg' });
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit({ ...baseValues, avatarFile: file });
+    });
+
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: 'destructive' })
+    );
+  });
+
+  it('happy path → no toast is fired', async () => {
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+    });
+
+    expect(mockToast).not.toHaveBeenCalled();
   });
 
   // ── Conditional upserts ────────────────────────────────────────────────────
