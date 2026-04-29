@@ -263,8 +263,8 @@ describe('mapToReservation', () => {
 
   /* ============================
    * cancelledBy — Tracker #224
-   * Badge fires only when the OTHER side rejected/cancelled. Self-cancellation
-   * is intentionally undefined.
+   * Badge fires whenever either side rejected/cancelled, with the canceller's
+   * role surfaced. Participant takes precedence when both sides are REJECT.
    * ============================ */
 
   it('participant (MENTEE) has REJECT status → cancelledBy = MENTEE', () => {
@@ -319,7 +319,7 @@ describe('mapToReservation', () => {
     expect(result.cancelledBy).toBe('MENTOR');
   });
 
-  it('only sender (self) has REJECT status → cancelledBy is undefined (no badge for self-cancel)', () => {
+  it('sender (self/MENTOR) has REJECT status → cancelledBy = MENTOR (self-cancel still shown)', () => {
     const result = mapToReservation(
       makeReservation({
         sender: {
@@ -342,7 +342,33 @@ describe('mapToReservation', () => {
         },
       })
     );
-    expect(result.cancelledBy).toBeUndefined();
+    expect(result.cancelledBy).toBe('MENTOR');
+  });
+
+  it('sender (self/MENTEE) has REJECT status → cancelledBy = MENTEE (self-cancel still shown)', () => {
+    const result = mapToReservation(
+      makeReservation({
+        sender: {
+          user_id: 10,
+          role: 'MENTEE',
+          status: 'REJECT',
+          name: 'Alice',
+          avatar: '',
+          job_title: 'Designer',
+          years_of_experience: 'ONE_TO_THREE',
+        },
+        participant: {
+          user_id: 20,
+          role: 'MENTOR',
+          status: 'PENDING',
+          name: 'Bob',
+          avatar: '',
+          job_title: 'Engineer',
+          years_of_experience: 'THREE_TO_FIVE',
+        },
+      })
+    );
+    expect(result.cancelledBy).toBe('MENTEE');
   });
 
   it('both sides have REJECT status → cancelledBy resolves to participant (other) side', () => {

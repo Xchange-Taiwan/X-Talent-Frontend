@@ -30,8 +30,8 @@ export type Reservation = {
   senderUserId: number | string;
   participantUserId: number | string;
 
-  // Set only when the OTHER side cancelled (participant.status === 'REJECT').
-  // Value is the canceller's role so the UI can render "已由導師/學員取消".
-  // Self-cancellations are intentionally omitted — the user already knows.
+  // Set when either side rejected/cancelled. Value is the canceller's role so
+  // the UI can render "已由導師/學員取消" on both mentor and mentee pages.
+  // Participant (other side) takes precedence when both are REJECT.
   cancelledBy?: 'MENTEE' | 'MENTOR';
 };
