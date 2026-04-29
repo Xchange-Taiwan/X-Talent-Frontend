@@ -1,4 +1,6 @@
 import avatarImage from '@/assets/default-avatar.png';
+import { fetchIndustriesServer } from '@/services/profile/industries.server';
+import { fetchInterestsServer } from '@/services/profile/interests.server';
 import type { MentorType } from '@/services/search-mentor/mentors';
 import { fetchMentorsEnrichedServer } from '@/services/search-mentor/mentors.server';
 
@@ -28,13 +30,16 @@ export default async function MentorPoolWithData({ searchParams }: Props) {
   const urlParams = toURLSearchParams(searchParams);
   const conditions = paramsToFetchConditions(urlParams);
 
-  const initialMentors = (
-    await fetchMentorsEnrichedServer({
+  const [mentors, initialIndustries, initialInterests] = await Promise.all([
+    fetchMentorsEnrichedServer({
       ...conditions,
       limit: PAGE_LIMIT,
       cursor: '',
-    })
-  ).map(resolveAvatar);
+    }),
+    fetchIndustriesServer('zh_TW'),
+    fetchInterestsServer('zh_TW'),
+  ]);
+  const initialMentors = mentors.map(resolveAvatar);
   const initialCursor = initialMentors.at(-1)?.updated_at?.toString() ?? '';
 
   return (
@@ -43,6 +48,8 @@ export default async function MentorPoolWithData({ searchParams }: Props) {
       initialMentors={initialMentors}
       initialCursor={initialCursor}
       initialMentorCount={initialMentors.length}
+      initialIndustries={initialIndustries}
+      initialInterests={initialInterests}
     />
   );
 }
