@@ -1,5 +1,6 @@
 import { getSession } from 'next-auth/react';
 
+import { apiClient } from '@/lib/apiClient';
 import {
   fetchPresignedUrlByUserId,
   PresignedUrlData,
@@ -104,6 +105,30 @@ function buildS3ObjectUrl(bucketUrl: string, key: string): string {
   return bucketUrl.endsWith('/') ? `${bucketUrl}${key}` : `${bucketUrl}/${key}`;
 }
 
+interface TouchAvatarResponse {
+  code: string;
+  msg: string;
+  data?: { avatar_updated_at: number };
+}
+
+// The presigned-URL flow re-uses a stable per-user S3 key, so profile.avatar
+// doesn't change on re-upload and the standard profile upsert can't detect
+// the bytes have changed. Pinging this endpoint after the S3 upload tells
+// the User service to refresh avatar_updated_at — without it, every viewer
+// keeps seeing the old image until a different cache buster fires.
+async function touchAvatar(userId: number): Promise<void> {
+  try {
+    await apiClient.post<TouchAvatarResponse>(
+      `/v1/storage/avatar/touch/${userId}`,
+      {}
+    );
+  } catch (error) {
+    // Log but don't fail the upload — the file is already in S3 and the user
+    // shouldn't see a hard error if only the cache buster refresh failed.
+    console.error('touchAvatar failed:', error);
+  }
+}
+
 /**
  * updateAvatar
  * 1) Get a presigned URL (consumes the prefetched cache when available)
@@ -136,6 +161,8 @@ export async function updateAvatar(
     }
 
     await uploadToS3WithPresignedPost(presigned, avatarFile, signal);
+
+    await touchAvatar(Number(userId));
 
     return buildS3ObjectUrl(presigned.url, presigned.fields.key);
   } catch (error) {
