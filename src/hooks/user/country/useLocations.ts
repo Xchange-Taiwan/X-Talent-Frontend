@@ -1,49 +1,63 @@
 import { useEffect, useState } from 'react';
 
-import { fetchCountries, LocationType } from '@/services/profile/countries';
+import { getCountries, LocationType } from '@/services/profile/countries';
 
-const locationsCache = new Map<string, LocationType[]>();
-const locationsPromiseCache = new Map<string, Promise<LocationType[]>>();
+const cache = new Map<string, LocationType[]>();
+const inflight = new Map<string, Promise<LocationType[]>>();
 
-async function fetchCountriesCached(language: string): Promise<LocationType[]> {
-  if (locationsCache.has(language)) return locationsCache.get(language)!;
-
-  const inflight = locationsPromiseCache.get(language);
-  if (inflight) return inflight;
-
-  const promise = (async () => {
-    const result = await fetchCountries(language);
-    locationsCache.set(language, result);
-    locationsPromiseCache.delete(language);
-    return result;
-  })();
-
-  locationsPromiseCache.set(language, promise);
-  return promise;
+interface UseLocationsResult {
+  locations: LocationType[];
+  isLoading: boolean;
+  error: string | null;
 }
 
-export default function useLocations(language: string) {
-  const [locations, setLocations] = useState<LocationType[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+export default function useLocations(language: string): UseLocationsResult {
+  const [locations, setLocations] = useState<LocationType[]>(
+    () => cache.get(language) ?? []
+  );
+  const [isLoading, setIsLoading] = useState(!cache.has(language));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    const run = async () => {
-      setIsLoading(true);
+    const cached = cache.get(language);
+    if (cached) {
+      setLocations(cached);
+      setIsLoading(false);
       setError(null);
-      try {
-        const data = await fetchCountriesCached(language);
-        if (!cancelled) setLocations(data);
-      } catch (err) {
-        if (!cancelled) setError('Failed to load location options');
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    };
+      return;
+    }
 
-    run();
+    setIsLoading(true);
+    setError(null);
+
+    const promise =
+      inflight.get(language) ??
+      (() => {
+        const p = getCountries(language).then((data) => {
+          cache.set(language, data);
+          inflight.delete(language);
+          return data;
+        });
+        inflight.set(language, p);
+        return p;
+      })();
+
+    promise
+      .then((data) => {
+        if (!cancelled) {
+          setLocations(data);
+          setIsLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError('Failed to load location options');
+          setIsLoading(false);
+        }
+      });
+
     return () => {
       cancelled = true;
     };

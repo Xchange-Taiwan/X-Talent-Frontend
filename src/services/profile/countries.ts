@@ -1,31 +1,24 @@
-import { apiClient } from '@/lib/apiClient';
-
 export interface LocationType {
   value: string;
   text: string;
 }
 
-interface CountryResponse {
-  code: string;
-  msg: string;
-  data: Record<string, string>;
+async function loadTable(language: string): Promise<Record<string, string>> {
+  if (language === 'en_US') {
+    return (await import('@/data/countries.en_US.json')).default;
+  }
+  return (await import('@/data/countries.zh_TW.json')).default;
 }
 
-export async function fetchCountries(
-  language: string
-): Promise<LocationType[]> {
-  try {
-    const data = await apiClient.get<CountryResponse>(
-      `/v1/users/${language}/countries`,
-      { auth: false }
-    );
+export async function getCountries(language: string): Promise<LocationType[]> {
+  const table = await loadTable(language);
+  const collator = new Intl.Collator(language.replace('_', '-'));
+  const list = Object.entries(table)
+    .map(([value, text]) => ({ value, text }))
+    .sort((a, b) => collator.compare(a.text, b.text));
 
-    return Object.entries(data.data).map(([key, value]) => ({
-      value: key,
-      text: value,
-    }));
-  } catch (error) {
-    console.error('獲取國家資料失敗:', error);
-    return [];
-  }
+  const twnIndex = list.findIndex((c) => c.value === 'TWN');
+  if (twnIndex > 0) list.unshift(list.splice(twnIndex, 1)[0]);
+
+  return list;
 }
