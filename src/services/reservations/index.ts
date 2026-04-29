@@ -105,6 +105,20 @@ export function mapToReservation(
     else if (role === 'MENTOR') mentorMessage = item;
   }
 
+  // Cancellation badge fires whenever either side rejected/cancelled, with the
+  // canceller's role surfaced so the UI can render 「已由導師/學員取消」 on both
+  // mentor and mentee history pages. Reject (pre-accept) and cancel
+  // (post-accept) intentionally share the same 「取消」 copy per PM scope
+  // (Tracker #224). Participant takes precedence when both sides are REJECT.
+  const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
+    r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
+  const cancelledBy: 'MENTEE' | 'MENTOR' | undefined =
+    counterparty.status === 'REJECT'
+      ? toRole(counterparty.role)
+      : reservation.sender.status === 'REJECT'
+        ? toRole(reservation.sender.role)
+        : undefined;
+
   return {
     id: String(reservation.id ?? ''),
     name: counterparty.name || '—',
@@ -120,6 +134,7 @@ export function mapToReservation(
     dtend: reservation.dtend,
     senderUserId: reservation.sender.user_id ?? 0,
     participantUserId: reservation.participant.user_id ?? 0,
+    cancelledBy,
   };
 }
 
