@@ -22,6 +22,15 @@ import {
   ProfileFormValues,
 } from '@/components/profile/edit/profileSchema';
 import { Section } from '@/components/profile/edit/Section';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Form } from '@/components/ui/form';
 import { PageLoading } from '@/components/ui/loading-spinner';
 import { useProfileAuth } from '@/hooks/user/auth/useProfileAuth';
@@ -32,6 +41,7 @@ import useInterests from '@/hooks/user/interests/useInterests';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { useEditProfileData } from '@/hooks/user/profile/useEditProfileData';
 import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
+import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import {
   flattenAsSingleCategory,
   groupAsPlaceholderCategories,
@@ -153,11 +163,16 @@ export default function Page({
     consumeAvatarUpload: avatarUpload.consume,
   });
 
+  // Suppress the prompt while a submit is in flight so onSubmit's own
+  // router.push isn't blocked by us. isSaving stays true through the
+  // navigation (only reset on failure), so the page unmounts cleanly.
+  const unsaved = useUnsavedChangesPrompt(form.formState.isDirty && !isSaving);
+
   if (!isAuthorized) return null;
   if (isPageLoading) return <PageLoading />;
 
   const handleGoToPrev = () => {
-    router.push(`/profile/${pageUserId}`);
+    unsaved.guardNavigate(() => router.push(`/profile/${pageUserId}`));
   };
 
   return (
@@ -370,6 +385,30 @@ export default function Page({
           <LinksSection form={form} />
         </form>
       </Form>
+
+      <Dialog
+        open={unsaved.isPromptOpen}
+        onOpenChange={(open) => {
+          if (!open) unsaved.cancelLeave();
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>尚未儲存的變更</DialogTitle>
+            <DialogDescription>
+              你的更動會直接遺失，確定要離開嗎？
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button variant="outline" onClick={unsaved.cancelLeave}>
+              繼續編輯
+            </Button>
+            <Button variant="destructive" onClick={unsaved.confirmLeave}>
+              離開頁面
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
