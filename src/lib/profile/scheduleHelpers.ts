@@ -8,6 +8,26 @@ dayjs.extend(isSameOrBefore);
 
 export type DtType = 'ALLOW' | 'BOOKED' | 'PENDING';
 
+/** 'YYYY-MM' — used to bucket per-month draft state in useMentorSchedule. */
+export type MonthKey = string;
+
+export function monthKeyFromUnix(unix: number): MonthKey {
+  return dayjs(unix * 1000).format('YYYY-MM');
+}
+
+export function monthKeyFromDateStr(dateStr: string): MonthKey {
+  return dateStr.slice(0, 7);
+}
+
+export function monthKeyFromYearMonth(year: number, month: number): MonthKey {
+  return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+export function parseMonthKey(key: MonthKey): { year: number; month: number } {
+  const [y, m] = key.split('-');
+  return { year: Number(y), month: Number(m) };
+}
+
 // id: negative values are temporary local ids for new slots (-1, -2, ...)
 // type: narrowed from SegmentVO.dt_type
 // exdate: nulls excluded from SegmentVO.exdate
