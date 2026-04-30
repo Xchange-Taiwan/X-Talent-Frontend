@@ -312,9 +312,14 @@ export function useProfileSubmit({
         ) {
           return;
         }
+        // Send only the fields we're correcting. Spreading `sessionUser`
+        // here would overwrite step-4's just-updated avatar with the
+        // pre-submit URL captured at the top of onSubmit, snapping the
+        // header / profile page back to the old avatar a few seconds
+        // after navigation. NextAuth's JWT callback shallow-merges, so
+        // omitted fields retain their current token value.
         void updateSession({
           user: {
-            ...sessionUser,
             isMentor: latestIsMentor,
             onBoarding: latestOnBoarding,
           },
