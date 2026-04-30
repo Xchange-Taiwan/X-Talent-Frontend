@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getSession, signIn, signOut } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
+import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
 import { googleCallback } from '@/lib/actions/googleCallback';
@@ -117,6 +118,9 @@ export default function GoogleOAuthRedirectPage() {
 
     if (result.status === 'success') {
       trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
+      if (user?.user_id) {
+        await revalidateProfilePath(String(user.user_id));
+      }
       await signOut({ callbackUrl: '/' });
       return;
     }
