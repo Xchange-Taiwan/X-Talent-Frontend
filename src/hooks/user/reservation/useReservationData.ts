@@ -70,6 +70,13 @@ const EMPTY_DATA: ReservationData = {
   nextTokens: { upcoming: 0, pending: 0, history: 0 },
 };
 
+// Backend orders every list by dtend desc, which is correct for HISTORY
+// (most recent past first) but reverses what users expect for UPCOMING /
+// PENDING — those should lead with the meeting closest to now. Resort
+// client-side by dtstart ascending so the closest reservation sits at the top.
+const sortByDtstartAsc = (items: Reservation[]): Reservation[] =>
+  [...items].sort((a, b) => a.dtstart - b.dtstart);
+
 export interface UseReservationDataReturn {
   data: ReservationData | null;
   initialState: InitialListState;
@@ -145,7 +152,7 @@ export function useReservationData({
           const base = prev ?? EMPTY_DATA;
           return {
             ...base,
-            [key]: res.items,
+            [key]: sortByDtstartAsc(res.items),
             nextTokens: { ...base.nextTokens, [key]: res.next_dtend },
           };
         });
@@ -223,7 +230,10 @@ export function useReservationData({
           };
           filtered.forEach((state, idx) => {
             const key = STATE_TO_LIST_KEY[state];
-            next[key] = results[idx].items;
+            next[key] =
+              key === 'history'
+                ? results[idx].items
+                : sortByDtstartAsc(results[idx].items);
             next.nextTokens[key] = results[idx].next_dtend;
           });
           return next;
@@ -313,9 +323,10 @@ export function useReservationData({
 
         updateData((prev) => {
           if (!prev) return prev;
+          const merged = [...prev[key], ...result.items];
           return {
             ...prev,
-            [key]: [...prev[key], ...result.items],
+            [key]: key === 'history' ? merged : sortByDtstartAsc(merged),
             nextTokens: {
               ...prev.nextTokens,
               [key]: result.next_dtend,
