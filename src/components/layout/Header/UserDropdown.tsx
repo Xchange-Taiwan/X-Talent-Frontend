@@ -15,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 
 import { ShareProfileDialog } from './ShareProfileDialog';
 
@@ -39,10 +40,11 @@ export const UserDropdown = React.memo(function UserDropdown({
     'testing_mentor@xchange.com.tw',
   ].includes(user.email ?? '');
   const name = user.name ?? '';
-  // Avatar URLs already carry their own `?v=<upload-timestamp>` cache buster
-  // (set by updateAvatar at upload time), so render the URL as-is — header /
-  // dropdown / share dialog / profile pages all share one cache entry.
-  const avatarSrc = user.avatar ?? '';
+  // Read through useCurrentAvatar so a just-uploaded avatar shows up before
+  // NextAuth's session round-trip lands. Falls back to user.avatar once the
+  // session catches up. URLs carry their own `?v=<upload-timestamp>` cache
+  // buster from updateAvatar, so they're rendered as-is.
+  const avatarSrc = useCurrentAvatar() ?? '';
   const jobTitle = user.jobTitle ?? '';
   const company = user.company ?? '';
 
