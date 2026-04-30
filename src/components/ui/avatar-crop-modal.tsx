@@ -13,14 +13,6 @@ interface AvatarCropModalProps {
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 3;
-const EDITOR_BORDER = 50;
-
-// Mentor-pool desktop card avatar area is 413×292 (see AvatarWithBadge.tsx).
-// We still save a full square (so circular/square avatar consumers have
-// content), but visually highlight the desktop card's visible band inside
-// the editor — anything outside that band only shows in the non-card
-// displays.
-const CARD_ASPECT = 292 / 413;
 
 const clampScale = (value: number): number =>
   Math.min(MAX_SCALE, Math.max(MIN_SCALE, value));
@@ -65,6 +57,8 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
   };
 
   // Responsive editor size: constrained by both viewport width and height.
+  // Width overhead: p-6 padding (24×2) + safety = 56px.
+  // Height overhead: p-6 padding (48px) + slider (~48px) + button (~56px) + browser chrome = 200px.
   // Capped at 512px on larger screens, minimum 160px.
   const [editorSize, setEditorSize] = useState(512);
   useEffect(() => {
@@ -72,7 +66,6 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
       // Overhead breakdown:
       //   p-4 backdrop (16×2) + p-6 card (24×2) + AvatarEditor border (50×2) + safety = 196px
       const byWidth = Math.max(160, window.innerWidth - 196);
-      // p-6 padding (48px) + slider (~48px) + button (~56px) + browser chrome = 200px
       const byHeight = Math.max(160, window.innerHeight - 200);
       setEditorSize(Math.min(512, byWidth, byHeight));
     };
@@ -128,65 +121,18 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
               onTouchCancel={handleTouchEnd}
-              style={{ position: 'relative', touchAction: 'none' }}
+              style={{ touchAction: 'none' }}
             >
               <AvatarEditor
                 ref={editorRef}
                 image={file}
                 width={editorSize}
                 height={editorSize}
-                border={EDITOR_BORDER}
+                border={50}
+                borderRadius={300}
                 scale={zoomScale}
                 style={{ touchAction: 'none' }}
               />
-              {/* Desktop-card visible band overlay. The dim strips show the
-                  area that gets cropped away on the desktop mentor card
-                  (other avatar surfaces still consume the full square). */}
-              <div
-                aria-hidden
-                style={{
-                  position: 'absolute',
-                  top: EDITOR_BORDER,
-                  left: EDITOR_BORDER,
-                  width: editorSize,
-                  height: editorSize,
-                  pointerEvents: 'none',
-                }}
-              >
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: (editorSize * (1 - CARD_ASPECT)) / 2,
-                    background: 'rgba(0, 0, 0, 0.45)',
-                    pointerEvents: 'none',
-                  }}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: (editorSize * (1 - CARD_ASPECT)) / 2,
-                    background: 'rgba(0, 0, 0, 0.45)',
-                    pointerEvents: 'none',
-                  }}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: (editorSize * (1 - CARD_ASPECT)) / 2,
-                    bottom: (editorSize * (1 - CARD_ASPECT)) / 2,
-                    left: 0,
-                    right: 0,
-                    boxShadow: '0 0 0 1px rgba(255, 255, 255, 0.9)',
-                    pointerEvents: 'none',
-                  }}
-                />
-              </div>
             </div>
           )}
           <Slider
