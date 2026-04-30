@@ -120,10 +120,18 @@ export default function MentorScheduleDialog({
     }
   }, [open]);
 
-  // Only ALLOW slots are editable; BOOKED/PENDING are read-only
-  const editableSlotsForDate = draftForSelectedDate.filter(
-    (s) => s.type === 'ALLOW'
-  );
+  // Only ALLOW slots are editable; BOOKED/PENDING are read-only.
+  // For today, also drop blocks whose every occurrence has already started —
+  // past slots can't be booked or meaningfully edited, so they shouldn't clutter
+  // the editor (matches the calendar's disablePastDates behaviour at minute granularity).
+  const nowSec = Math.floor(Date.now() / 1000);
+  const editableSlotsForDate = draftForSelectedDate.filter((s) => {
+    if (s.type !== 'ALLOW') return false;
+    const occurrences = s.rrule
+      ? expandRrule(Math.floor(s.start.getTime() / 1000), s.rrule)
+      : [Math.floor(s.start.getTime() / 1000)];
+    return occurrences.some((occ) => occ > nowSec);
+  });
 
   // Collect booked dtstart values for the selected date (for locking sub-slots)
   const bookedStartsForDate = new Set(
@@ -422,11 +430,15 @@ export default function MentorScheduleDialog({
     const parsed = editableSlotsForDate.find((s) => s.id === slotId);
     if (!parsed || parsed.type !== 'ALLOW' || !parsed.rrule) return null;
 
-    const occurrences = expandRrule(
+    const allOccurrences = expandRrule(
       Math.floor(parsed.start.getTime() / 1000),
       parsed.rrule
     );
-    if (occurrences.length <= 1) return null;
+    if (allOccurrences.length <= 1) return null;
+
+    // Hide sub-slots that have already started today; the parent block filter
+    // guarantees at least one future occurrence remains.
+    const occurrences = allOccurrences.filter((occ) => occ > nowSec);
 
     const slotDurSec = parsed.slotDurationSeconds;
 

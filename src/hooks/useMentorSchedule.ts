@@ -312,6 +312,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       const bookedStarts = new Set(
         allDraftRaws.filter((s) => s.type === 'BOOKED').map((s) => s.dtstart)
       );
+      const nowSec = Math.floor(Date.now() / 1000);
       const result: BookingSlot[] = [];
 
       for (const slot of allDraftRaws) {
@@ -324,6 +325,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
         for (const occ of occurrences) {
           if (slot.exdate.includes(occ)) continue;
+          if (occ <= nowSec) continue;
           result.push({
             start: new Date(occ * 1000),
             end: new Date((occ + slotDuration) * 1000),
