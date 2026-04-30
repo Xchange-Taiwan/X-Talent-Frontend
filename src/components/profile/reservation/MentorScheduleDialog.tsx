@@ -163,6 +163,9 @@ export default function MentorScheduleDialog({
   // Time-edit guard: shrinking or shifting an ALLOW block must keep every
   // existing BOOKED/PENDING occurrence inside the new occurrence set; otherwise
   // the candidate would silently drop them. Mirrors updateDraftSlot's geometry.
+  // Only bookings owned by THIS ALLOW block (i.e. inside its original occurrence
+  // set) are considered — bookings inside other ALLOW blocks on the same date
+  // are unrelated to this edit.
   const getOrphanedReservationType = (
     slotId: number,
     candidate: EditingSlot
@@ -192,10 +195,21 @@ export default function MentorScheduleDialog({
       blockDur > slotDur ? buildRrule(blockDur, slotDur) : undefined;
     const newStarts = new Set(expandRrule(newDtstart, newRrule));
 
-    if (Array.from(bookedStartsForDate).some((occ) => !newStarts.has(occ)))
-      return 'BOOKED';
-    if (Array.from(pendingStartsForDate).some((occ) => !newStarts.has(occ)))
-      return 'PENDING';
+    const oldStarts = new Set(
+      parsed.rrule
+        ? expandRrule(Math.floor(parsed.start.getTime() / 1000), parsed.rrule)
+        : [Math.floor(parsed.start.getTime() / 1000)]
+    );
+
+    const ownedBooked = Array.from(bookedStartsForDate).filter((occ) =>
+      oldStarts.has(occ)
+    );
+    const ownedPending = Array.from(pendingStartsForDate).filter((occ) =>
+      oldStarts.has(occ)
+    );
+
+    if (ownedBooked.some((occ) => !newStarts.has(occ))) return 'BOOKED';
+    if (ownedPending.some((occ) => !newStarts.has(occ))) return 'PENDING';
     return null;
   };
 
