@@ -11,7 +11,13 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
 // Unfiltered listing is shared by every visitor — keep ISR so LCP stays fast.
 // Filtered/searched listings have unbounded cache-key combinations, so we
 // bypass the data cache to avoid blowing up Next's fetch cache and the BFF.
-const REVALIDATE_SECONDS = 60;
+//
+// 10-minute TTL (vs the original 60s) is safe because profile submits now
+// fire `revalidatePath('/mentor-pool')` (see profile/[pageUserId]/actions.ts),
+// so any user-driven change is invalidated on demand. The TTL only bounds
+// the staleness window for non-frontend-triggered changes (admin actions,
+// search-index lag, account deletions that don't yet revalidate this path).
+const REVALIDATE_SECONDS = 600;
 
 function buildUrl(
   path: string,
