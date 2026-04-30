@@ -43,22 +43,32 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
 
   // Mirrors object-cover: scales the square crop to cover the wider preview
   // box, then centers it horizontally and vertically — same math the browser
-  // applies to the mentor-pool card.
+  // applies to the mentor-pool card. Uses getImage() (original resolution) +
+  // DPR-aware backing store so the preview stays sharp on retina displays.
   const renderPreview = useCallback(() => {
     const editor = editorRef.current;
     const preview = previewCanvasRef.current;
     if (!editor || !preview) return;
 
-    const cropped = editor.getImageScaledToCanvas();
+    const dpr = window.devicePixelRatio || 1;
+    const targetWidth = PREVIEW_WIDTH * dpr;
+    const targetHeight = PREVIEW_HEIGHT * dpr;
+    if (preview.width !== targetWidth || preview.height !== targetHeight) {
+      preview.width = targetWidth;
+      preview.height = targetHeight;
+    }
+
+    const cropped = editor.getImage();
     const ctx = preview.getContext('2d');
     if (!ctx) return;
 
-    ctx.clearRect(0, 0, preview.width, preview.height);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
 
     const sw = cropped.width;
     const sh = cropped.height;
-    const dw = preview.width;
-    const dh = preview.height;
+    const dw = PREVIEW_WIDTH;
+    const dh = PREVIEW_HEIGHT;
     const scale = Math.max(dw / sw, dh / sh);
     const renderW = sw * scale;
     const renderH = sh * scale;
@@ -191,6 +201,7 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
               ref={previewCanvasRef}
               width={PREVIEW_WIDTH}
               height={PREVIEW_HEIGHT}
+              style={{ width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT }}
               className="bg-white rounded-lg border border-[#E6E8EA]"
             />
           </div>
