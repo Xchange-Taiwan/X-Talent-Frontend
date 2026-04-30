@@ -1246,12 +1246,12 @@ export interface components {
       url: string | null;
       /**
        * Create Time
-       * @default 2026-04-29T13:59:26.811995Z
+       * @default 2026-04-30T14:46:35.498506Z
        */
       create_time: string | null;
       /**
        * Update Time
-       * @default 2026-04-29T13:59:26.812011Z
+       * @default 2026-04-30T14:46:35.498521Z
        */
       update_time: string | null;
       /** Create User Id */
@@ -1384,8 +1384,6 @@ export interface components {
        * @default
        */
       avatar: string | null;
-      /** Avatar Updated At */
-      avatar_updated_at?: number | null;
       /**
        * Job Title
        * @default
@@ -1450,8 +1448,6 @@ export interface components {
        * @default
        */
       avatar: string | null;
-      /** Avatar Updated At */
-      avatar_updated_at?: number | null;
       /**
        * Job Title
        * @default
@@ -1666,8 +1662,6 @@ export interface components {
        * @default
        */
       avatar: string | null;
-      /** Avatar Updated At */
-      avatar_updated_at?: number | null;
       /**
        * Job Title
        * @default
@@ -1724,8 +1718,6 @@ export interface components {
        * @default
        */
       avatar: string | null;
-      /** Avatar Updated At */
-      avatar_updated_at?: number | null;
       /**
        * Job Title
        * @default
@@ -1992,8 +1984,6 @@ export interface components {
        * @default
        */
       avatar: string | null;
-      /** Avatar Updated At */
-      avatar_updated_at?: number | null;
       /**
        * Job Title
        * @default
