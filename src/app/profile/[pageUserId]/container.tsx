@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
+import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import useUserData from '@/hooks/user/user-data/useUserData';
 import { primeUserProfileDtoCacheIfEmpty } from '@/hooks/user/user-data/useUserProfileDto';
 import type { MentorProfileVO } from '@/services/profile/user';
@@ -102,12 +103,15 @@ export default function ProfilePageContainer({
   // The S3 avatar URL is a stable key (re-uploads overwrite in place), so a
   // `?v=` query is the only way to bust the Image Optimizer / browser cache.
   // updateAvatar bakes the cache buster into the URL it returns at upload
-  // time, so we render whatever the backend stored (or the session value on
-  // your own profile while the live DTO is loading) without any post-hoc
-  // version stitching.
+  // time. On own-profile, prefer the just-submitted override (set
+  // synchronously by useProfileSubmit) over `userData.avatar`, which can
+  // briefly come from a stale ISR initialDto on the post-submit navigation
+  // race. The override clears once session.user.avatar catches up.
   const isOwnProfile = loginUserId === pageUserId;
-  const resolvedAvatar =
-    userData?.avatar ?? (isOwnProfile ? session?.user?.avatar : undefined);
+  const currentAvatar = useCurrentAvatar();
+  const resolvedAvatar = isOwnProfile
+    ? (currentAvatar ?? userData?.avatar)
+    : userData?.avatar;
   const avatarSrc = resolvedAvatar || DefaultAvatarImgUrl;
 
   if (!userLoading && !userData) {
