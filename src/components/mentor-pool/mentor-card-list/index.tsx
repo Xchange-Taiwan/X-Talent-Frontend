@@ -49,7 +49,7 @@ const MentorCardListBase = ({
             name={mentor.name}
             job_title={mentor.job_title}
             company={mentor.company}
-            personalStatment={mentor.personal_statement}
+            about={mentor.about}
             whatIOffers={mentor.what_i_offers}
           />
         ))}

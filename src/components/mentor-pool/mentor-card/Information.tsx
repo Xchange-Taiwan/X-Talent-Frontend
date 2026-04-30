@@ -6,7 +6,7 @@ interface InformationProps {
   name: string;
   job_title: string;
   company: string;
-  personalStatment: string;
+  about: string;
   whatIOffers: string[];
 }
 
@@ -17,7 +17,7 @@ export const Information = ({
   name,
   job_title,
   company,
-  personalStatment,
+  about,
   whatIOffers = [],
 }: InformationProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -77,7 +77,7 @@ export const Information = ({
         )}
       </div>
       <p className="line-clamp-2 text-sm font-normal tracking-wide text-[#9DA8B9]">
-        {personalStatment}
+        {about}
       </p>
       <div className="relative">
         <div
