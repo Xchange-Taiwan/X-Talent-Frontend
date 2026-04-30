@@ -11,6 +11,7 @@ import {
   primeUserDataCache,
 } from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
+import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   firstSyncedFetch,
@@ -253,14 +254,23 @@ export function useProfileSubmit({
         console.error('revalidateProfilePath failed:', e);
       });
 
-      // 4) optimistic session update — keep role/onboarding from current
+      // 4) optimistic avatar override — NextAuth's update() is async (POST
+      //    + GET round trip), so the header would otherwise show the old
+      //    avatar until the round trip lands. Setting the override here is
+      //    synchronous, so consumers reading useCurrentAvatar() see the new
+      //    URL on the very next render. The override clears itself once
+      //    session.user.avatar catches up.
+      if (values.avatarFile && avatar && sessionUser?.id) {
+        setAvatarOverride(String(sessionUser.id), avatar);
+      }
+
+      // 5) optimistic session update — keep role/onboarding from current
       //    session so we never flicker mentor → mentee while the backend
-      //    catches up. The reconcile in step 6 corrects them if the user
+      //    catches up. The reconcile in step 7 corrects them if the user
       //    actually transitioned during this submit.
       //    Fire-and-forget: navigation no longer waits for NextAuth's
-      //    /api/auth/session round trip. The optimistic data is already
-      //    in the call args, so the JWT update lands before the next
-      //    render.
+      //    /api/auth/session round trip. The avatar override above keeps
+      //    the header in sync until the JWT update lands.
       void updateSession({
         user: {
           id: sessionUser?.id,
@@ -276,7 +286,7 @@ export function useProfileSubmit({
         },
       });
 
-      // 5) navigate immediately — user no longer waits for backend sync.
+      // 6) navigate immediately — user no longer waits for backend sync.
       trackEvent({ name: 'profile_update_submitted', feature: 'profile' });
       if (isMentorOnboarding) {
         router.push('/profile/card');
@@ -284,7 +294,7 @@ export function useProfileSubmit({
         router.push(`/profile/${pageUserId}`);
       }
 
-      // 6) background prime + reconcile — try the fast first-sync read; if
+      // 7) background prime + reconcile — try the fast first-sync read; if
       //    the backend has already caught up, prime the cache so subsequent
       //    reads on the next page are instant. Otherwise fall back to the
       //    longer pollUntilSynced. Either way, reconcile the session if the

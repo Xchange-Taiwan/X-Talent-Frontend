@@ -17,6 +17,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 
 import { ShareProfileDialog } from './ShareProfileDialog';
 
@@ -40,8 +41,10 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
     'testing_mentor@xchange.com.tw',
   ].includes(user.email ?? '');
   const name = user.name ?? '';
-  // Avatar URL already carries its own `?v=` cache buster from upload time.
-  const avatarSrc = user.avatar ?? '';
+  // Read through useCurrentAvatar so a just-uploaded avatar shows up before
+  // NextAuth's session round-trip lands. URL already carries its own `?v=`
+  // cache buster from upload time.
+  const avatarSrc = useCurrentAvatar() ?? '';
   const jobTitle = user.jobTitle ?? '';
   const company = user.company ?? '';
   const personalLinks = user.personalLinks ?? [];
