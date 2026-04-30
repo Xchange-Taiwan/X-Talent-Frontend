@@ -162,3 +162,34 @@ export async function syncMonthSchedule(params: {
     return { ok: false, reason, message };
   }
 }
+
+export interface MonthSyncRequest {
+  ref: ScheduleMonthRef;
+  upsertPayload: TimeSlotDTO[];
+  deleteIds: number[];
+}
+
+export interface MonthSyncResult {
+  /** 'YYYY-MM' for the corresponding request's ref. */
+  monthKey: string;
+  outcome: SyncOutcome;
+}
+
+/**
+ * Sequentially commit one or more months. Each month is independent —
+ * earlier success is NOT rolled back if a later month fails. Callers use the
+ * per-month outcomes to update saved/draft state and to surface a targeted
+ * error toast (e.g. "5 月時段衝突"). Sequential (not parallel) avoids cache
+ * write races and matches the single-month sync's PUT→DELETE ordering.
+ */
+export async function syncMonths(
+  requests: MonthSyncRequest[]
+): Promise<MonthSyncResult[]> {
+  const results: MonthSyncResult[] = [];
+  for (const req of requests) {
+    const monthKey = `${req.ref.year}-${String(req.ref.month).padStart(2, '0')}`;
+    const outcome = await syncMonthSchedule(req);
+    results.push({ monthKey, outcome });
+  }
+  return results;
+}
