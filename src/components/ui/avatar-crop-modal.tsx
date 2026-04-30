@@ -139,54 +139,63 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
                 scale={zoomScale}
                 style={{ touchAction: 'none' }}
               />
-              {/* Desktop-card visible band overlay. The dim strips show the
-                  area that gets cropped away on the desktop mentor card
-                  (other avatar surfaces still consume the full square). */}
-              <div
-                aria-hidden
-                style={{
-                  position: 'absolute',
-                  top: EDITOR_BORDER,
-                  left: EDITOR_BORDER,
-                  width: editorSize,
-                  height: editorSize,
-                  pointerEvents: 'none',
-                }}
-              >
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: (editorSize * (1 - CARD_ASPECT)) / 2,
-                    background: 'rgba(0, 0, 0, 0.45)',
-                    pointerEvents: 'none',
-                  }}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: (editorSize * (1 - CARD_ASPECT)) / 2,
-                    background: 'rgba(0, 0, 0, 0.45)',
-                    pointerEvents: 'none',
-                  }}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: (editorSize * (1 - CARD_ASPECT)) / 2,
-                    bottom: (editorSize * (1 - CARD_ASPECT)) / 2,
-                    left: 0,
-                    right: 0,
-                    boxShadow: '0 0 0 1px rgba(255, 255, 255, 0.9)',
-                    pointerEvents: 'none',
-                  }}
-                />
-              </div>
+              {/* Mask everything outside the desktop-card visible band so
+                  the user only sees that band. The saved file still covers
+                  the full square crop, so circular/square avatar consumers
+                  consume image content from the masked regions too. */}
+              {(() => {
+                const bandHeight = editorSize * CARD_ASPECT;
+                const bandTop = EDITOR_BORDER + (editorSize - bandHeight) / 2;
+                const cover = {
+                  position: 'absolute' as const,
+                  background: '#F4FCFC',
+                  pointerEvents: 'none' as const,
+                };
+                return (
+                  <>
+                    <div
+                      aria-hidden
+                      style={{
+                        ...cover,
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: bandTop,
+                      }}
+                    />
+                    <div
+                      aria-hidden
+                      style={{
+                        ...cover,
+                        top: bandTop + bandHeight,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                      }}
+                    />
+                    <div
+                      aria-hidden
+                      style={{
+                        ...cover,
+                        top: bandTop,
+                        left: 0,
+                        width: EDITOR_BORDER,
+                        height: bandHeight,
+                      }}
+                    />
+                    <div
+                      aria-hidden
+                      style={{
+                        ...cover,
+                        top: bandTop,
+                        right: 0,
+                        width: EDITOR_BORDER,
+                        height: bandHeight,
+                      }}
+                    />
+                  </>
+                );
+              })()}
             </div>
           )}
           <Slider
