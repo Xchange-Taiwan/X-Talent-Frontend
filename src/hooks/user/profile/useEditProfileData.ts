@@ -38,24 +38,23 @@ export function useEditProfileData({
   // (redirected by useProfileAuth) never see the data populated.
   const { userDto, error } = useUserProfileDto(userId, 'zh_TW');
 
-  // #229: WHAT_I_OFFER lives in user_tags(kind=what_i_offer, intent=OFFER)
-  // now. Fetch alongside the profile dto; when the response is empty we
-  // fall back to parseWhatIOffer so users with legacy mentor_experiences
-  // data still see their values until they re-save.
-  const { tags: whatIOfferTags, isLoading: whatIOfferTagsLoading } =
-    useUserTags({
-      userId,
-      kind: 'what_i_offer',
-      intent: 'OFFER',
-      enabled: isAuthorized && Boolean(userId),
-    });
+  // #229–#232: every per-kind picker (what_i_offer / skill / topic /
+  // position / expertise) is now backed by user_tags. Fetch the full
+  // per-user tag list once and group client-side rather than running
+  // one request per (kind, intent) pair. Empty groups fall back to
+  // legacy JSONB / mentor_experiences so users who haven't re-saved
+  // on the new path still see their values during transition.
+  const { tags: allUserTags, isLoading: userTagsLoading } = useUserTags({
+    userId,
+    enabled: isAuthorized && Boolean(userId),
+  });
 
   // useLayoutEffect (not useEffect) so form.reset + setIsPageLoading(false)
   // commit before the browser paints. When the dto is already cached at mount
   // (the common profile → edit nav), this skips the one-frame `<PageLoading />`
   // spinner that otherwise paints between the initial render and the effect.
   useLayoutEffect(() => {
-    if (!isAuthorized || !userDto || whatIOfferTagsLoading) return;
+    if (!isAuthorized || !userDto || userTagsLoading) return;
 
     const mentorFlag = Boolean(userDto.is_mentor || isMentorOnboarding);
     const experiences =
@@ -65,12 +64,43 @@ export function useEditProfileData({
     const parsedEducations = parseEducations(experiences);
     const parsedLinks = parseLinks(experiences);
 
-    const whatIOfferFromTags = whatIOfferTags
-      .map((t) => t.subject_group)
-      .filter((g): g is string => Boolean(g));
-    const whatIOfferFromLegacy = parseWhatIOffer(experiences);
+    const subjectsByKindIntent = (kind: string, intent: string): string[] =>
+      allUserTags
+        .filter((t) => t.kind === kind && t.intent === intent)
+        .map((t) => t.subject_group)
+        .filter((g): g is string => Boolean(g));
+
+    const whatIOfferFromTags = subjectsByKindIntent('what_i_offer', 'OFFER');
     const whatIOfferValues =
-      whatIOfferFromTags.length > 0 ? whatIOfferFromTags : whatIOfferFromLegacy;
+      whatIOfferFromTags.length > 0
+        ? whatIOfferFromTags
+        : parseWhatIOffer(experiences);
+
+    const skillsFromTags = subjectsByKindIntent('skill', 'WANT');
+    const skillsValues =
+      skillsFromTags.length > 0
+        ? skillsFromTags
+        : userDto.skills?.interests?.map((i) => i.subject_group) || [];
+
+    const topicsFromTags = subjectsByKindIntent('topic', 'WANT');
+    const topicsValues =
+      topicsFromTags.length > 0
+        ? topicsFromTags
+        : userDto.topics?.interests?.map((i) => i.subject_group) || [];
+
+    const positionsFromTags = subjectsByKindIntent('position', 'WANT');
+    const positionsValues =
+      positionsFromTags.length > 0
+        ? positionsFromTags
+        : userDto.interested_positions?.interests?.map(
+            (i) => i.subject_group
+          ) || [];
+
+    const expertisesFromTags = subjectsByKindIntent('expertise', 'OFFER');
+    const expertisesValues =
+      expertisesFromTags.length > 0
+        ? expertisesFromTags
+        : userDto.expertises?.professions?.map((i) => i.subject_group) || [];
 
     // Reset must include every server-driven field so RHF treats them as the
     // new defaults; otherwise dirtyFields starts non-empty and submit-time
@@ -96,21 +126,18 @@ export function useEditProfileData({
       youtube: parsedLinks.youtube || defaultValues.youtube,
       website: parsedLinks.website || defaultValues.website,
       what_i_offer: whatIOfferValues,
-      expertises:
-        userDto.expertises?.professions?.map((i) => i.subject_group) || [],
-      interested_positions:
-        userDto.interested_positions?.interests?.map((i) => i.subject_group) ||
-        [],
-      skills: userDto.skills?.interests?.map((i) => i.subject_group) || [],
-      topics: userDto.topics?.interests?.map((i) => i.subject_group) || [],
+      expertises: expertisesValues,
+      interested_positions: positionsValues,
+      skills: skillsValues,
+      topics: topicsValues,
     });
 
     setIsMentor(mentorFlag);
     setIsPageLoading(false);
   }, [
     userDto,
-    whatIOfferTags,
-    whatIOfferTagsLoading,
+    allUserTags,
+    userTagsLoading,
     isAuthorized,
     isMentorOnboarding,
     form,
