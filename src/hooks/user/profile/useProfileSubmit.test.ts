@@ -24,6 +24,10 @@ vi.mock('@/services/profile/upsertExperience', () => ({
   upsertMentorExperience: vi.fn(),
 }));
 
+vi.mock('@/services/userTags/replaceUserTags', () => ({
+  replaceUserTags: vi.fn(),
+}));
+
 vi.mock('@/lib/profile/pollUntilSynced', () => ({
   pollUntilSynced: vi.fn(),
   firstSyncedFetch: vi.fn(),
@@ -51,6 +55,7 @@ import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
 import { upsertMentorExperience } from '@/services/profile/upsertExperience';
 import type { MentorProfileVO } from '@/services/profile/user';
+import { replaceUserTags } from '@/services/userTags/replaceUserTags';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
 
@@ -59,6 +64,7 @@ import { useProfileSubmit } from './useProfileSubmit';
 const mockUpdateAvatar = vi.mocked(updateAvatar);
 const mockUpdateProfile = vi.mocked(updateProfile);
 const mockUpsertMentorExperience = vi.mocked(upsertMentorExperience);
+const mockReplaceUserTags = vi.mocked(replaceUserTags);
 const mockPollUntilSynced = vi.mocked(pollUntilSynced);
 const mockFirstSyncedFetch = vi.mocked(firstSyncedFetch);
 const mockPrimeUserDataCache = vi.mocked(primeUserDataCache);
@@ -133,6 +139,7 @@ describe('useProfileSubmit', () => {
     vi.clearAllMocks();
     mockUpdateProfile.mockResolvedValue(undefined);
     mockUpsertMentorExperience.mockResolvedValue(undefined);
+    mockReplaceUserTags.mockResolvedValue(null);
     mockPollUntilSynced.mockResolvedValue(mockUserDTO);
     // Default: backend has not synced fast enough → exercise the historical
     // clear-cache + background-poll fallback. Tests covering the new prime

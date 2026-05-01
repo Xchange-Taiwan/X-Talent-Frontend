@@ -22,6 +22,7 @@ import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
 import { upsertMentorExperience } from '@/services/profile/upsertExperience';
 import { MentorProfileVO } from '@/services/profile/user';
+import { replaceUserTags } from '@/services/userTags/replaceUserTags';
 
 // RHF's dirtyFields is a deep partial where leaves are `true`. Nested fields
 // (objects, arrays) carry the same shape, so we recurse to detect "anything
@@ -206,16 +207,17 @@ export function useProfileSubmit({
               })
             : Promise.resolve(),
 
-          whatIOfferDirty && values.what_i_offer?.length > 0
-            ? upsertMentorExperience(ExperienceType.WHAT_I_OFFER, true, {
-                id: 4,
-                category: ExperienceType.WHAT_I_OFFER,
-                mentor_experiences_metadata: {
-                  data: values.what_i_offer.map((item) => ({
-                    subject_group: item,
-                  })),
-                },
-                order: 4,
+          // #229 cutover: WHAT_I_OFFER now writes through the unified
+          // user-tags endpoint as kind=what_i_offer, intent=OFFER. The
+          // legacy upsertMentorExperience(WHAT_I_OFFER, id:4) call is gone.
+          // Empty array clears the user's offers (replace-all semantics on
+          // the backend), matching the dirty-and-empty case the legacy path
+          // could not express.
+          whatIOfferDirty
+            ? replaceUserTags({
+                kind: 'what_i_offer',
+                intent: 'OFFER',
+                subject_groups: values.what_i_offer ?? [],
               })
             : Promise.resolve(),
         ]);
