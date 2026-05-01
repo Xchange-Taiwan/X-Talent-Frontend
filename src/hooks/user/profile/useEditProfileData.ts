@@ -7,6 +7,7 @@ import {
   ProfileFormValues,
 } from '@/components/profile/edit/profileSchema';
 import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
+import { useUserTags } from '@/hooks/userTags/useUserTags';
 import {
   parseEducations,
   parseLinks,
@@ -37,12 +38,24 @@ export function useEditProfileData({
   // (redirected by useProfileAuth) never see the data populated.
   const { userDto, error } = useUserProfileDto(userId, 'zh_TW');
 
+  // #229: WHAT_I_OFFER lives in user_tags(kind=what_i_offer, intent=OFFER)
+  // now. Fetch alongside the profile dto; when the response is empty we
+  // fall back to parseWhatIOffer so users with legacy mentor_experiences
+  // data still see their values until they re-save.
+  const { tags: whatIOfferTags, isLoading: whatIOfferTagsLoading } =
+    useUserTags({
+      userId,
+      kind: 'what_i_offer',
+      intent: 'OFFER',
+      enabled: isAuthorized && Boolean(userId),
+    });
+
   // useLayoutEffect (not useEffect) so form.reset + setIsPageLoading(false)
   // commit before the browser paints. When the dto is already cached at mount
   // (the common profile → edit nav), this skips the one-frame `<PageLoading />`
   // spinner that otherwise paints between the initial render and the effect.
   useLayoutEffect(() => {
-    if (!isAuthorized || !userDto) return;
+    if (!isAuthorized || !userDto || whatIOfferTagsLoading) return;
 
     const mentorFlag = Boolean(userDto.is_mentor || isMentorOnboarding);
     const experiences =
@@ -51,6 +64,13 @@ export function useEditProfileData({
     const parsedExperiences = parseWorkExperiences(experiences);
     const parsedEducations = parseEducations(experiences);
     const parsedLinks = parseLinks(experiences);
+
+    const whatIOfferFromTags = whatIOfferTags
+      .map((t) => t.subject_group)
+      .filter((g): g is string => Boolean(g));
+    const whatIOfferFromLegacy = parseWhatIOffer(experiences);
+    const whatIOfferValues =
+      whatIOfferFromTags.length > 0 ? whatIOfferFromTags : whatIOfferFromLegacy;
 
     // Reset must include every server-driven field so RHF treats them as the
     // new defaults; otherwise dirtyFields starts non-empty and submit-time
@@ -75,7 +95,7 @@ export function useEditProfileData({
       twitter: parsedLinks.twitter || defaultValues.twitter,
       youtube: parsedLinks.youtube || defaultValues.youtube,
       website: parsedLinks.website || defaultValues.website,
-      what_i_offer: parseWhatIOffer(experiences),
+      what_i_offer: whatIOfferValues,
       expertises:
         userDto.expertises?.professions?.map((i) => i.subject_group) || [],
       interested_positions:
@@ -89,6 +109,8 @@ export function useEditProfileData({
     setIsPageLoading(false);
   }, [
     userDto,
+    whatIOfferTags,
+    whatIOfferTagsLoading,
     isAuthorized,
     isMentorOnboarding,
     form,
