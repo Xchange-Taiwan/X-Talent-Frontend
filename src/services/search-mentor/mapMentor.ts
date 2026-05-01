@@ -1,7 +1,6 @@
 import type { StaticImageData } from 'next/image';
 
 import type { WorkExperienceMetadata } from '@/hooks/user/user-data/useUserData';
-import { parseCurrentJob } from '@/lib/profile/parseUserExperiences';
 import type { components } from '@/types/api';
 
 type RawMentor = components['schemas']['SearchMentorProfileVO'];
@@ -79,19 +78,12 @@ export interface MentorRequest {
 }
 
 export function mapMentor(raw: RawMentor): MentorType {
-  const { job_title, company } = parseCurrentJob(
-    raw.experiences as
-      | { category?: string | null; mentor_experiences_metadata: unknown }[]
-      | null
-      | undefined
-  );
-
   return {
     user_id: raw.user_id,
     name: raw.name ?? '',
     avatar: raw.avatar ?? '',
-    job_title,
-    company,
+    job_title: raw.job_title ?? '',
+    company: raw.company ?? '',
     years_of_experience: raw.years_of_experience ?? '',
     location: raw.location ?? '',
     personal_statement: raw.personal_statement ?? '',

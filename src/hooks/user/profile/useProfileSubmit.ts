@@ -115,6 +115,9 @@ export function useProfileSubmit({
       // edit triggers it. `isMentorOnboarding` forces it through so the
       // backend onboarding flag flips even when the user submits without
       // touching anything. A new avatar file also counts.
+      // `work_experiences` is included so toggling `isPrimary` (or editing
+      // the primary entry's job/company) re-syncs `mentor.job_title` /
+      // `mentor.company`, which are derived from the primary entry below.
       const profileDirty =
         isMentorOnboarding ||
         Boolean(values.avatarFile) ||
@@ -129,7 +132,8 @@ export function useProfileSubmit({
         isDirty('interested_positions') ||
         isDirty('skills') ||
         isDirty('topics') ||
-        isDirty('what_i_offer');
+        isDirty('what_i_offer') ||
+        isDirty('work_experiences');
 
       const workDirty = isDirty('work_experiences');
       const educationDirty = isDirty('educations');
@@ -142,7 +146,24 @@ export function useProfileSubmit({
         isDirty('website');
       const whatIOfferDirty = isDirty('what_i_offer');
 
-      const payload = { ...values, avatar, avatarFile: undefined };
+      // Mentor's top-level job_title / company mirror the primary work
+      // experience so consumers (profile page, mentor pool card, reservations)
+      // can read them directly from the mentor record without re-deriving
+      // from the experience list. Falls back to the first entry when no
+      // primary is flagged, matching the JobExperienceSection UI invariant.
+      const primaryWork =
+        values.work_experiences?.find((w) => w.isPrimary) ??
+        values.work_experiences?.[0];
+      const job_title = primaryWork?.job ?? '';
+      const companyFromPrimary = primaryWork?.company ?? '';
+
+      const payload = {
+        ...values,
+        avatar,
+        avatarFile: undefined,
+        job_title,
+        company: companyFromPrimary,
+      };
       const links = [
         values.linkedin,
         values.facebook,
