@@ -15,11 +15,21 @@ import {
   updateReservationStatus,
 } from '@/services/reservations';
 
-import { ReservationCard } from './ReservationCard';
+import {
+  ReservationCard,
+  type ReservationCardVariant,
+} from './ReservationCard';
 import type { Reservation } from './types';
 
 type Variant = 'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';
 type SourceRole = 'mentor' | 'mentee';
+
+const cardVariantOf = (variant: Variant): ReservationCardVariant =>
+  variant === 'upcoming'
+    ? 'upcoming'
+    : variant === 'history'
+      ? 'history'
+      : 'pending';
 
 export function ReservationList({
   items,
@@ -196,6 +206,7 @@ export function ReservationList({
         <ReservationCard
           key={it.id}
           item={it}
+          variant={cardVariantOf(variant)}
           profileHref={buildProfileHref(it)}
           onProfileClick={handleProfileClick}
           actions={
