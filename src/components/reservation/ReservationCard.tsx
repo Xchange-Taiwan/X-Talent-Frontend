@@ -1,13 +1,16 @@
-import { CalendarDays, Clock, MessageSquare } from 'lucide-react';
+import { CalendarDays, Clock, Mail, MessageSquare } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import * as React from 'react';
 
+import { ReservationStatusBadge } from '@/components/reservation/ReservationStatusBadge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 
 import type { Reservation } from './types';
+
+export type ReservationCardVariant = 'upcoming' | 'pending' | 'history';
 
 export function ReservationCard({
   item,
@@ -15,6 +18,7 @@ export function ReservationCard({
   footer,
   profileHref,
   onProfileClick,
+  variant,
 }: {
   item: Reservation;
   actions?: React.ReactNode;
@@ -23,7 +27,10 @@ export function ReservationCard({
   footer?: React.ReactNode;
   profileHref?: string;
   onProfileClick?: () => void;
+  // Drives upcoming-only affordances (status badge and email hint).
+  variant?: ReservationCardVariant;
 }) {
+  const isUpcoming = variant === 'upcoming';
   const { menteeMessage, mentorMessage } = item;
   const hasAnyMessage = Boolean(menteeMessage || mentorMessage);
 
@@ -105,15 +112,23 @@ export function ReservationCard({
             <div className="my-3 hidden h-px bg-border sm:block" />
 
             {/* Date & time row */}
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground sm:mt-0 sm:text-sm">
-              <div className="flex items-center gap-1.5">
-                <CalendarDays className="h-4 w-4" aria-hidden />
-                <span className="truncate">{item.date}</span>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-muted-foreground sm:mt-0 sm:text-sm">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <div className="flex items-center gap-1.5">
+                  <CalendarDays className="h-4 w-4" aria-hidden />
+                  <span className="truncate">{item.date}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-4 w-4" aria-hidden />
+                  <span className="truncate">{item.time}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                <Clock className="h-4 w-4" aria-hidden />
-                <span className="truncate">{item.time}</span>
-              </div>
+              {isUpcoming ? (
+                <ReservationStatusBadge
+                  dtstart={item.dtstart}
+                  dtend={item.dtend}
+                />
+              ) : null}
             </div>
 
             {hasAnyMessage ? (
@@ -154,6 +169,13 @@ export function ReservationCard({
             ) : null}
 
             {footer ? <div className="mt-3">{footer}</div> : null}
+
+            {isUpcoming ? (
+              <div className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground sm:text-xs">
+                <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span>會議連結已寄至您的信箱</span>
+              </div>
+            ) : null}
           </div>
         </div>
       </CardContent>
