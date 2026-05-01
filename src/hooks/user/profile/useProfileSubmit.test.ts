@@ -666,7 +666,7 @@ describe('useProfileSubmit', () => {
     expect(mockUpsertMentorExperience).not.toHaveBeenCalled();
   });
 
-  it('dirtyFields = { work_experiences: [...] } → only work upsert fires', async () => {
+  it('dirtyFields = { work_experiences: [...] } → work upsert fires AND updateProfile mirrors job_title / company', async () => {
     const valuesWithWork = {
       ...baseValues,
       work_experiences: [
@@ -691,7 +691,10 @@ describe('useProfileSubmit', () => {
       });
     });
 
-    expect(mockUpdateProfile).not.toHaveBeenCalled();
+    expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+    expect(mockUpdateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ job_title: 'Engineer', company: 'Acme' })
+    );
     const calls = mockUpsertMentorExperience.mock.calls.map(([type]) => type);
     expect(calls).toEqual([ExperienceType.WORK]);
   });
@@ -772,6 +775,134 @@ describe('useProfileSubmit', () => {
   });
 
   // ── Primary job persistence ────────────────────────────────────────────────
+
+  it('updateProfile payload mirrors job_title / company from the primary work experience', async () => {
+    const valuesWithPrimary = {
+      ...baseValues,
+      work_experiences: [
+        {
+          id: 1,
+          job: 'Engineer',
+          company: 'Acme',
+          jobPeriodStart: '2020',
+          jobPeriodEnd: 'now',
+          industry: 'tech',
+          jobLocation: 'TWN',
+          description: 'desc',
+          isPrimary: false,
+        },
+        {
+          id: 2,
+          job: 'Senior Engineer',
+          company: 'Dell',
+          jobPeriodStart: '2015',
+          jobPeriodEnd: '2019',
+          industry: 'tech',
+          jobLocation: 'TWN',
+          description: 'desc',
+          isPrimary: true,
+        },
+      ],
+    };
+
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(valuesWithPrimary);
+    });
+
+    expect(mockUpdateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        job_title: 'Senior Engineer',
+        company: 'Dell',
+      })
+    );
+  });
+
+  it('updateProfile payload falls back to the first work experience when none is primary', async () => {
+    const valuesNoPrimary = {
+      ...baseValues,
+      work_experiences: [
+        {
+          id: 1,
+          job: 'Engineer',
+          company: 'Acme',
+          jobPeriodStart: '2020',
+          jobPeriodEnd: 'now',
+          industry: 'tech',
+          jobLocation: 'TWN',
+          description: 'desc',
+        },
+        {
+          id: 2,
+          job: 'Senior Engineer',
+          company: 'Dell',
+          jobPeriodStart: '2015',
+          jobPeriodEnd: '2019',
+          industry: 'tech',
+          jobLocation: 'TWN',
+          description: 'desc',
+        },
+      ],
+    };
+
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(valuesNoPrimary);
+    });
+
+    expect(mockUpdateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        job_title: 'Engineer',
+        company: 'Acme',
+      })
+    );
+  });
+
+  it('updateProfile payload uses empty strings when no work experiences exist', async () => {
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+    });
+
+    expect(mockUpdateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ job_title: '', company: '' })
+    );
+  });
+
+  it('work_experiences dirty triggers updateProfile so job_title / company stay in sync', async () => {
+    const valuesWithWork = {
+      ...baseValues,
+      work_experiences: [
+        {
+          id: 1,
+          job: 'Engineer',
+          company: 'Acme',
+          jobPeriodStart: '2020',
+          jobPeriodEnd: 'now',
+          industry: 'tech',
+          jobLocation: 'TWN',
+          description: 'desc',
+          isPrimary: true,
+        },
+      ],
+    };
+
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(valuesWithWork, {
+        work_experiences: [{ isPrimary: true }],
+      });
+    });
+
+    expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+    expect(mockUpdateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ job_title: 'Engineer', company: 'Acme' })
+    );
+  });
 
   it('work experience upsert includes isPrimary in payload', async () => {
     const valuesWithPrimary = {
