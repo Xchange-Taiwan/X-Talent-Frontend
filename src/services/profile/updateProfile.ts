@@ -10,8 +10,15 @@ export const unionformSchema = z.union([
   createProfileFormSchema(true),
 ]);
 
+export type UpdateProfileInput = z.infer<typeof unionformSchema> & {
+  // Mirrored from the primary work experience by useProfileSubmit so the
+  // backend mentor record carries the canonical job_title / company.
+  job_title?: string;
+  company?: string;
+};
+
 export async function updateProfile(
-  profileData: z.infer<typeof unionformSchema>
+  profileData: UpdateProfileInput
 ): Promise<void> {
   const session = await getSession();
   const userId = session?.user?.id;
