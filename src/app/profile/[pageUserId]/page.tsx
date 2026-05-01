@@ -32,9 +32,11 @@ export async function generateMetadata({
   return {
     title: name,
     description: about,
+    alternates: { canonical: `/profile/${userIdNum}` },
     openGraph: {
       title: name,
       description: about,
+      url: `/profile/${userIdNum}`,
       images: dto.avatar ? [{ url: dto.avatar }] : undefined,
     },
   };
