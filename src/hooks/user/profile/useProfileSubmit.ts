@@ -142,6 +142,10 @@ export function useProfileSubmit({
         isDirty('youtube') ||
         isDirty('website');
       const whatIOfferDirty = isDirty('what_i_offer');
+      const skillsDirty = isDirty('skills');
+      const topicsDirty = isDirty('topics');
+      const positionsDirty = isDirty('interested_positions');
+      const expertisesDirty = isDirty('expertises');
 
       const payload = { ...values, avatar, avatarFile: undefined };
       const links = [
@@ -218,6 +222,41 @@ export function useProfileSubmit({
                 kind: 'what_i_offer',
                 intent: 'OFFER',
                 subject_groups: values.what_i_offer ?? [],
+              })
+            : Promise.resolve(),
+
+          // #230-#232 cutover: per-kind picker writes also flow through
+          // the unified user-tags endpoint. updateProfile above still
+          // persists the legacy JSONB columns for the duration of the
+          // transition (per the #226 strategy — old write path stays
+          // until #233 cleanup), so v1 search and other consumers that
+          // still read those columns are unaffected.
+          skillsDirty
+            ? replaceUserTags({
+                kind: 'skill',
+                intent: 'WANT',
+                subject_groups: values.skills ?? [],
+              })
+            : Promise.resolve(),
+          topicsDirty
+            ? replaceUserTags({
+                kind: 'topic',
+                intent: 'WANT',
+                subject_groups: values.topics ?? [],
+              })
+            : Promise.resolve(),
+          positionsDirty
+            ? replaceUserTags({
+                kind: 'position',
+                intent: 'WANT',
+                subject_groups: values.interested_positions ?? [],
+              })
+            : Promise.resolve(),
+          expertisesDirty
+            ? replaceUserTags({
+                kind: 'expertise',
+                intent: 'OFFER',
+                subject_groups: values.expertises ?? [],
               })
             : Promise.resolve(),
         ]);
