@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Image from 'next/image';
 
 import HomePageHeroImgUrl from '@/assets/landing/home-page-hero.webp';
@@ -14,6 +15,10 @@ import landingPage_icon_6 from '@/assets/landing/landingPage_icon_6.svg';
 import { HomePageSliderClient } from '@/components/landing/HomePageSliderClient';
 
 import { featureData } from './data';
+
+export const metadata: Metadata = {
+  alternates: { canonical: '/' },
+};
 
 const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
   return (

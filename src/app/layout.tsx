@@ -11,7 +11,7 @@ import { Header } from '@/components/layout/Header';
 import Providers from '@/components/Providers';
 import { Toaster } from '@/components/ui/toaster';
 
-import { notoSans } from './font';
+import { notoSansTC } from './font';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 const SITE_DESCRIPTION =
@@ -73,7 +73,7 @@ export default async function RootLayout({
     : null;
 
   return (
-    <html lang="zh-TW" className={notoSans.className}>
+    <html lang="zh-TW" className={notoSansTC.className}>
       <head>
         {avatarSrcSet && (
           <link
