@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Image from 'next/image';
 import { FC, Fragment, ReactNode } from 'react';
 
@@ -7,6 +8,19 @@ import aboutPage_icon_2 from '@/assets/landing/aboutPage_icon_2.svg';
 import aboutPage_icon_3 from '@/assets/landing/aboutPage_icon_3.svg';
 
 import { featureData } from '../data';
+
+export const metadata: Metadata = {
+  title: '關於 X-Talent',
+  description:
+    '認識 X-Talent — 我們如何串聯業界導師與職涯探索者，協助你在轉職、升遷、跨界探索時，找到對的人聊對的事。',
+  alternates: { canonical: '/about' },
+  openGraph: {
+    title: '關於 X-Talent',
+    description:
+      '認識 X-Talent — 我們如何串聯業界導師與職涯探索者，協助你在轉職、升遷、跨界探索時，找到對的人聊對的事。',
+    url: '/about',
+  },
+};
 
 const SectionTitle: FC<{ children: ReactNode }> = ({ children }) => (
   <h2 className="mb-20 text-center text-xl font-bold md:text-2xl">
