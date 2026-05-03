@@ -1,14 +1,8 @@
-import { useEffect, useState } from 'react';
-
 import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
 import { ExperienceType } from '@/services/profile/experienceType';
 import { MentorProfileVO } from '@/services/profile/user';
+import type { components } from '@/types/api';
 
-import {
-  getInterestsCached,
-  getInterestsCachedSync,
-  type InterestsResult,
-} from '../interests/useInterests';
 import {
   clearUserProfileDtoCache,
   primeUserProfileDtoCache,
@@ -22,7 +16,7 @@ export const clearUserDataCache = clearUserProfileDtoCache;
 export const primeUserDataCache = primeUserProfileDtoCache;
 export const USER_DATA_CACHE_TTL_MS = USER_PROFILE_DTO_CACHE_TTL_MS;
 
-export interface InterestType {
+export interface TagDisplay {
   subject_group: string;
   subject: string;
 }
@@ -56,15 +50,15 @@ export interface UserType {
   avatar: string;
   job_title: string;
   company: string;
-  interested_positions: InterestType[];
-  skills: InterestType[];
-  topics: InterestType[];
   is_mentor: boolean;
   about?: string;
   years_of_experience?: string;
   industry?: string;
-  expertises?: InterestType[];
-  what_i_offers?: InterestType[];
+  want_position: TagDisplay[];
+  want_skill: TagDisplay[];
+  want_topic: TagDisplay[];
+  have_skill: TagDisplay[];
+  have_topic: TagDisplay[];
   workExperiences?: WorkExperienceMetadata[];
   educations?: EducationExperienceMetadata[];
   personalLinks?: PersonalLinkMetadata[];
@@ -75,15 +69,16 @@ type ExperienceBlock = {
   mentor_experiences_metadata?: { data?: unknown[] };
 };
 
-type WhatIOfferMetadata = { subject_group: string };
+type TagVO = components['schemas']['TagVO'];
 
-type InterestVO = NonNullable<MentorProfileVO['topics']>['interests'][number];
-
-function toInterestList(interests: InterestVO[]): InterestType[] {
-  return interests.map((i) => ({
-    subject_group: i.subject_group,
-    subject: i.subject ?? '',
-  }));
+function toTagDisplay(tags: TagVO[] | null | undefined): TagDisplay[] {
+  if (!tags) return [];
+  return tags
+    .map((t) => ({
+      subject_group: t.subject_group ?? '',
+      subject: t.subject ?? t.subject_group ?? '',
+    }))
+    .filter((t) => t.subject_group);
 }
 
 function getBlocksByCategory(
@@ -100,27 +95,7 @@ function getMetadataArray<T>(block: ExperienceBlock): T[] {
   return (block.mentor_experiences_metadata?.data ?? []) as T[];
 }
 
-function buildWhatIOffers(
-  offerBlocks: ExperienceBlock[],
-  labelByGroup: Map<string, string>
-): InterestType[] {
-  const subjectGroups = offerBlocks
-    .flatMap((b) => getMetadataArray<WhatIOfferMetadata>(b))
-    .map((m) => m.subject_group)
-    .filter(Boolean);
-
-  const uniqueSubjectGroups = Array.from(new Set(subjectGroups));
-
-  return uniqueSubjectGroups.map((subject_group) => ({
-    subject_group,
-    subject: labelByGroup.get(subject_group) ?? subject_group,
-  }));
-}
-
-function parseUserDtoToUserType(
-  userDto: MentorProfileVO,
-  labelByGroup: Map<string, string>
-): UserType {
+function parseUserDtoToUserType(userDto: MentorProfileVO): UserType {
   const workBlocks = getBlocksByCategory(
     userDto.experiences,
     ExperienceType.WORK
@@ -129,17 +104,10 @@ function parseUserDtoToUserType(
     userDto.experiences,
     ExperienceType.EDUCATION
   );
-  const offerBlocks = getBlocksByCategory(
-    userDto.experiences,
-    ExperienceType.WHAT_I_OFFER
-  );
   const linkBlocks = getBlocksByCategory(
     userDto.experiences,
     ExperienceType.LINK
   );
-
-  const job_title = userDto.job_title ?? '';
-  const company = userDto.company ?? '';
 
   const workExperiences = workBlocks.flatMap((b) =>
     getMetadataArray<WorkExperienceMetadata>(b)
@@ -147,30 +115,16 @@ function parseUserDtoToUserType(
   const educations = educationBlocks.flatMap((b) =>
     getMetadataArray<EducationExperienceMetadata>(b)
   );
-
   const personalLinks = linkBlocks
     .flatMap((b) => getMetadataArray<PersonalLinkMetadata>(b))
     .filter((l) => Boolean(l.url));
-
-  const what_i_offers = buildWhatIOffers(offerBlocks, labelByGroup);
-
-  const expertises: InterestType[] =
-    userDto.expertises?.professions?.map((p) => ({
-      subject_group: p.subject_group,
-      subject: p.subject,
-    })) ?? [];
 
   return {
     user_id: userDto.user_id,
     name: userDto.name ?? '',
     avatar: userDto.avatar ?? '',
-    job_title,
-    company,
-    interested_positions: toInterestList(
-      userDto.interested_positions?.interests ?? []
-    ),
-    skills: toInterestList(userDto.skills?.interests ?? []),
-    topics: toInterestList(userDto.topics?.interests ?? []),
+    job_title: userDto.job_title ?? '',
+    company: userDto.company ?? '',
     is_mentor: userDto.is_mentor ?? false,
     about: userDto.about ?? '',
     years_of_experience: userDto.years_of_experience
@@ -179,8 +133,11 @@ function parseUserDtoToUserType(
         ] ?? userDto.years_of_experience)
       : undefined,
     industry: userDto.industry?.subject ?? undefined,
-    expertises,
-    what_i_offers,
+    want_position: toTagDisplay(userDto.want_position),
+    want_skill: toTagDisplay(userDto.want_skill),
+    want_topic: toTagDisplay(userDto.want_topic),
+    have_skill: toTagDisplay(userDto.have_skill),
+    have_topic: toTagDisplay(userDto.have_topic),
     workExperiences,
     educations,
     personalLinks,
@@ -193,57 +150,12 @@ function useUserData(userId: number, language: string) {
     isLoading: dtoLoading,
     error,
   } = useUserProfileDto(userId, language);
-  // Lazy-init: when both the dto (from useUserProfileDto's lazy-init) and
-  // the interests label map are already in-memory, synchronously parse on
-  // the first render so consumers don't see a one-frame skeleton flash on
-  // SSR-primed page loads. Async path below covers the cold case.
-  const [userData, setUserData] = useState<UserType | null>(() => {
-    if (!userDto || !language) return null;
-    const interests = getInterestsCachedSync(language);
-    if (!interests) return null;
-    const labelByGroup = new Map(
-      interests.whatIOffers.map(
-        (item) => [item.subject_group, item.subject ?? ''] as const
-      )
-    );
-    return parseUserDtoToUserType(userDto, labelByGroup);
-  });
 
-  useEffect(() => {
-    if (!userDto || !language) {
-      if (!userDto) setUserData(null);
-      return;
-    }
+  const userData: UserType | null = userDto
+    ? parseUserDtoToUserType(userDto)
+    : null;
 
-    let cancelled = false;
-
-    getInterestsCached(language)
-      .then((interests: InterestsResult) => {
-        if (cancelled) return;
-        const labelByGroup = new Map(
-          interests.whatIOffers.map(
-            (item) => [item.subject_group, item.subject ?? ''] as const
-          )
-        );
-        setUserData(parseUserDtoToUserType(userDto, labelByGroup));
-      })
-      .catch((e) => {
-        // Interests-fetch failure leaves the previously rendered userData
-        // intact; surface only via console to keep the UX stable.
-        console.error('Failed to load interests for user:', e);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [userDto, language]);
-
-  // Treat the gap between DTO arrival and userData computation (async
-  // interests parsing) as still loading, so the consumer's "user not found"
-  // guard does not flash between the two.
-  const isLoading = dtoLoading || (Boolean(userDto) && !userData);
-
-  return { userData, isLoading, error };
+  return { userData, isLoading: dtoLoading, error };
 }
 
 export default useUserData;

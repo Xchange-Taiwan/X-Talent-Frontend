@@ -7,7 +7,7 @@ interface InformationProps {
   job_title: string;
   company: string;
   about: string;
-  whatIOffers: string[];
+  haveTopicLabels: string[];
 }
 
 const TAG_GAP_PX = 8;
@@ -18,12 +18,14 @@ export const Information = ({
   job_title,
   company,
   about,
-  whatIOffers = [],
+  haveTopicLabels = [],
 }: InformationProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const widthsRef = useRef<number[]>([]);
-  const [visibleTagsCount, setVisibleTagsCount] = useState(whatIOffers.length);
+  const [visibleTagsCount, setVisibleTagsCount] = useState(
+    haveTopicLabels.length
+  );
 
   useLayoutEffect(() => {
     if (!measureRef.current || !containerRef.current) return;
@@ -45,7 +47,7 @@ export const Information = ({
         }
       }
       setVisibleTagsCount(
-        Math.max(0, Math.min(lastIndex + 1, whatIOffers.length))
+        Math.max(0, Math.min(lastIndex + 1, haveTopicLabels.length))
       );
     };
 
@@ -59,10 +61,10 @@ export const Information = ({
     observer.observe(containerRef.current);
 
     return () => observer.disconnect();
-  }, [whatIOffers]);
+  }, [haveTopicLabels]);
 
-  const visibleOffers = whatIOffers.slice(0, visibleTagsCount);
-  const extraOffersCount = whatIOffers.length - visibleTagsCount;
+  const visibleOffers = haveTopicLabels.slice(0, visibleTagsCount);
+  const extraOffersCount = haveTopicLabels.length - visibleTagsCount;
 
   return (
     <div className="flex h-full flex-col gap-4">
@@ -85,7 +87,7 @@ export const Information = ({
           aria-hidden
           className="pointer-events-none invisible absolute left-0 top-0 flex flex-wrap gap-2"
         >
-          {whatIOffers.map((offer) => (
+          {haveTopicLabels.map((offer) => (
             <Tag label={offer} key={`measure-${offer}`} />
           ))}
         </div>

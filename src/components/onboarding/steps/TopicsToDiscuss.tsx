@@ -11,28 +11,28 @@ import {
   FormItem,
   FormMessage,
 } from '@/components/ui/form';
-import { groupAsPlaceholderCategories } from '@/lib/profile/categoryGrouping';
+import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
 import { cn } from '@/lib/utils';
-import { InterestVO } from '@/services/profile/interests';
+import { TagCatalogGroupVO } from '@/services/profile/tagCatalog';
 
 import { GroupedSelections } from './GroupedSelections';
 import { step5Schema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step5Schema>>>;
-  topicOptions: InterestVO[];
+  wantTopicGroups: TagCatalogGroupVO[];
 }
 
-export const TopicsToDiscuss: FC<Props> = ({ form, topicOptions }) => {
+export const TopicsToDiscuss: FC<Props> = ({ form, wantTopicGroups }) => {
   const categories = useMemo(
-    () => groupAsPlaceholderCategories(topicOptions),
-    [topicOptions]
+    () => tagGroupsToCategories(wantTopicGroups),
+    [wantTopicGroups]
   );
 
   return (
     <FormField
       control={form.control}
-      name="topics"
+      name="want_topic"
       render={({ field }) => (
         <FormItem>
           <FormControl>

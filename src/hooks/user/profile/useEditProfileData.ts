@@ -10,10 +10,19 @@ import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
 import {
   parseEducations,
   parseLinks,
-  parseWhatIOffer,
   parseWorkExperiences,
 } from '@/lib/profile/parseUserExperiences';
 import { MentorExperiencePayload } from '@/services/profile/upsertExperience';
+import type { components } from '@/types/api';
+
+type TagVO = components['schemas']['TagVO'];
+
+function tagsToSubjectGroups(tags: TagVO[] | null | undefined): string[] {
+  if (!tags) return [];
+  return tags
+    .map((t) => t.subject_group ?? '')
+    .filter((g): g is string => Boolean(g));
+}
 
 interface Options {
   userId: number;
@@ -75,14 +84,11 @@ export function useEditProfileData({
       twitter: parsedLinks.twitter || defaultValues.twitter,
       youtube: parsedLinks.youtube || defaultValues.youtube,
       website: parsedLinks.website || defaultValues.website,
-      what_i_offer: parseWhatIOffer(experiences),
-      expertises:
-        userDto.expertises?.professions?.map((i) => i.subject_group) || [],
-      interested_positions:
-        userDto.interested_positions?.interests?.map((i) => i.subject_group) ||
-        [],
-      skills: userDto.skills?.interests?.map((i) => i.subject_group) || [],
-      topics: userDto.topics?.interests?.map((i) => i.subject_group) || [],
+      have_topic: tagsToSubjectGroups(userDto.have_topic),
+      have_skill: tagsToSubjectGroups(userDto.have_skill),
+      want_position: tagsToSubjectGroups(userDto.want_position),
+      want_skill: tagsToSubjectGroups(userDto.want_skill),
+      want_topic: tagsToSubjectGroups(userDto.want_topic),
     });
 
     setIsMentor(mentorFlag);

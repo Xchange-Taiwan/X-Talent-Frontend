@@ -109,27 +109,27 @@ export const createProfileFormSchema = (isMentor: boolean) =>
       twitter: twitterLinkSchema,
       youtube: youtubeLinkSchema,
       website: websiteLinkSchema,
-      what_i_offer: isMentor
+      have_topic: isMentor
         ? z
             .array(z.string())
             .min(1, '請至少選擇一個主題')
             .max(10, '最多選 10 個')
         : z.array(z.string()).max(10, '最多選 10 個'),
-      expertises: isMentor
+      have_skill: isMentor
         ? z
             .array(z.string())
             .min(1, '請至少選擇一個技能')
             .max(10, '最多選 10 個')
         : z.array(z.string()).max(10, '最多選 10 個'),
-      interested_positions: z
+      want_position: z
         .array(z.string())
         .min(1, '請至少選擇一個職位')
         .max(10, '最多選 10 個'),
-      skills: z
+      want_skill: z
         .array(z.string())
         .min(1, '請至少選擇一個技能')
         .max(10, '最多選 10 個'),
-      topics: z
+      want_topic: z
         .array(z.string())
         .min(1, '請至少選擇一個主題')
         .max(10, '最多選 10 個'),
@@ -175,9 +175,9 @@ export const defaultValues: ProfileFormValues = {
   twitter: { id: -1, url: '', platform: 'twitter' },
   youtube: { id: -1, url: '', platform: 'youtube' },
   website: { id: -1, url: '', platform: 'website' },
-  what_i_offer: [],
-  expertises: [],
-  interested_positions: [],
-  skills: [],
-  topics: [],
+  have_topic: [],
+  have_skill: [],
+  want_position: [],
+  want_skill: [],
+  want_topic: [],
 };

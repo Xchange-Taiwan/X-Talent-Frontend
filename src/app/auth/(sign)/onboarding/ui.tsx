@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { LocationType } from '@/services/profile/countries';
 import { ProfessionVO } from '@/services/profile/industries';
-import { InterestVO } from '@/services/profile/interests';
+import { TagCatalogGroupVO } from '@/services/profile/tagCatalog';
 
 // Steps 2-5 are only rendered after the user completes step 1.
 // Lazy-load them so their code is excluded from the initial bundle and
@@ -55,9 +55,9 @@ interface Props {
   step5Form: UseFormReturn<z.infer<typeof step5Schema>>;
   locations: LocationType[];
   industries: ProfessionVO[];
-  interestedPositions: InterestVO[];
-  skills: InterestVO[];
-  topics: InterestVO[];
+  wantPositionGroups: TagCatalogGroupVO[];
+  wantSkillGroups: TagCatalogGroupVO[];
+  wantTopicGroups: TagCatalogGroupVO[];
   isSubmitting: boolean;
   onGoToPrev: () => void;
   onSubmitStep1: (data: z.infer<typeof step1Schema>) => void;
@@ -110,9 +110,9 @@ export default function OnboardingUI({
   step5Form,
   locations,
   industries,
-  interestedPositions,
-  skills,
-  topics,
+  wantPositionGroups,
+  wantSkillGroups,
+  wantTopicGroups,
   isSubmitting,
   onGoToPrev,
   onSubmitStep1,
@@ -185,7 +185,7 @@ export default function OnboardingUI({
               />
               <InterestedPosition
                 form={step3Form}
-                interestedPositionOptions={interestedPositions}
+                wantPositionGroups={wantPositionGroups}
               />
               <Button className="rounded-xl px-12" type="submit">
                 下一步
@@ -207,7 +207,10 @@ export default function OnboardingUI({
                 showBack={true}
                 onGoToPrev={onGoToPrev}
               />
-              <SkillsToImprove form={step4Form} skillOptions={skills} />
+              <SkillsToImprove
+                form={step4Form}
+                wantSkillGroups={wantSkillGroups}
+              />
               <Button className="rounded-xl px-12" type="submit">
                 下一步
               </Button>
@@ -228,7 +231,10 @@ export default function OnboardingUI({
                 showBack={true}
                 onGoToPrev={onGoToPrev}
               />
-              <TopicsToDiscuss form={step5Form} topicOptions={topics} />
+              <TopicsToDiscuss
+                form={step5Form}
+                wantTopicGroups={wantTopicGroups}
+              />
               <Button
                 className="rounded-xl px-12"
                 type="submit"
