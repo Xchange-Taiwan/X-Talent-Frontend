@@ -15,10 +15,10 @@ export default async function AuthOperationLayout({
   if (session?.user?.id && session.user.onBoarding !== false) redirect('/');
 
   return (
-    <div className="flex lg:min-h-[720px]">
+    <div className="flex lg:min-h-screen">
       <div className="flex-1 basis-1/2">{children}</div>
       <div
-        className="box-border hidden flex-1 basis-1/2 flex-col items-center justify-center bg-cover bg-center bg-no-repeat px-8 py-16 text-center lg:flex xl:px-20 xl:py-32"
+        className="box-border hidden flex-1 basis-1/2 flex-col items-center justify-center bg-cover bg-center bg-no-repeat px-8 py-16 text-center lg:sticky lg:top-0 lg:flex lg:h-screen lg:self-start xl:px-20 xl:py-32"
         style={{ backgroundImage: `url(${CoverImgUrl.src})` }}
       >
         <div className="flex max-w-md flex-col gap-6 text-text-white xl:gap-8">
