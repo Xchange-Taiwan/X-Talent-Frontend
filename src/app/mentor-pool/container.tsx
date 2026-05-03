@@ -9,15 +9,14 @@ import type {
   SelectFilters,
 } from '@/components/filter/MentorFilterDropdown';
 import useIndustries from '@/hooks/user/industry/useIndustries';
-import useInterests, {
-  type InterestsResult,
-} from '@/hooks/user/interests/useInterests';
+import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { trackEvent } from '@/lib/analytics';
 import type { ProfessionVO } from '@/services/profile/industries';
-import {
-  fetchMentorsEnriched,
-  MentorType,
-} from '@/services/search-mentor/mentors';
+import type {
+  TagCatalogGroupVO,
+  TagCatalogsByBucket,
+} from '@/services/profile/tagCatalog';
+import { fetchMentors, MentorType } from '@/services/search-mentor/mentors';
 
 import { PAGE_LIMIT } from './constants';
 import { filterOptions } from './data';
@@ -39,12 +38,20 @@ function subjectsToOptions(
     .filter((o) => o.value);
 }
 
+// Filter dropdowns show the BE-stored leaf labels, not catalog group labels —
+// flatten each bucket's groups down to leaves so the user picks tags directly.
+function flattenLeaves(groups: TagCatalogGroupVO[]): { subject: string }[] {
+  return groups.flatMap((g) =>
+    g.leaves.map((leaf) => ({ subject: leaf.subject }))
+  );
+}
+
 interface Props {
   initialMentors: MentorType[];
   initialCursor: string;
   initialMentorCount: number;
   initialIndustries: ProfessionVO[];
-  initialInterests: InterestsResult;
+  initialTagCatalog: TagCatalogsByBucket;
 }
 
 export default function MentorPoolContainer({
@@ -52,13 +59,13 @@ export default function MentorPoolContainer({
   initialCursor,
   initialMentorCount,
   initialIndustries,
-  initialInterests,
+  initialTagCatalog,
 }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const selectedFilters = parseFiltersFromParams(params);
-  const { expertises, whatIOffers } = useInterests('zh_TW', initialInterests);
+  const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
   const { industries } = useIndustries('zh_TW', initialIndustries);
 
   const dynamicFilterOptions = useMemo<FilterOptions>(
@@ -66,18 +73,18 @@ export default function MentorPoolContainer({
       ...filterOptions,
       filter_skills: {
         ...filterOptions.filter_skills,
-        options: subjectsToOptions(expertises),
+        options: subjectsToOptions(flattenLeaves(tagCatalog.have_skill)),
       },
       filter_topics: {
         ...filterOptions.filter_topics,
-        options: subjectsToOptions(whatIOffers),
+        options: subjectsToOptions(flattenLeaves(tagCatalog.have_topic)),
       },
       filter_industries: {
         ...filterOptions.filter_industries,
         options: subjectsToOptions(industries),
       },
     }),
-    [expertises, whatIOffers, industries]
+    [tagCatalog.have_skill, tagCatalog.have_topic, industries]
   );
 
   const [mentorCount, setMentorCount] = useState<number>(initialMentorCount);
@@ -102,7 +109,7 @@ export default function MentorPoolContainer({
     isLoadingRef.current = true;
     let rtnList: MentorType[] = [];
     try {
-      rtnList = (await fetchMentorsEnriched(param)).map((mentor) => ({
+      rtnList = (await fetchMentors(param)).map((mentor) => ({
         ...mentor,
         avatar:
           typeof mentor.avatar === 'string' && mentor.avatar

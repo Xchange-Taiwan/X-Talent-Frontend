@@ -11,28 +11,28 @@ import {
   FormItem,
   FormMessage,
 } from '@/components/ui/form';
-import { groupAsPlaceholderCategories } from '@/lib/profile/categoryGrouping';
+import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
 import { cn } from '@/lib/utils';
-import { InterestVO } from '@/services/profile/interests';
+import { TagCatalogGroupVO } from '@/services/profile/tagCatalog';
 
 import { GroupedSelections } from './GroupedSelections';
 import { step4Schema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step4Schema>>>;
-  skillOptions: InterestVO[];
+  wantSkillGroups: TagCatalogGroupVO[];
 }
 
-export const SkillsToImprove: FC<Props> = ({ form, skillOptions }) => {
+export const SkillsToImprove: FC<Props> = ({ form, wantSkillGroups }) => {
   const categories = useMemo(
-    () => groupAsPlaceholderCategories(skillOptions),
-    [skillOptions]
+    () => tagGroupsToCategories(wantSkillGroups),
+    [wantSkillGroups]
   );
 
   return (
     <FormField
       control={form.control}
-      name="skills"
+      name="want_skill"
       render={({ field }) => (
         <FormItem>
           <FormControl>

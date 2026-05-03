@@ -4,8 +4,6 @@ import { mapMentor, type MentorRequest, type MentorType } from './mapMentor';
 
 type MentorListResponse =
   components['schemas']['ApiResponse_SearchMentorProfileListVO_'];
-type InterestListResponse =
-  components['schemas']['ApiResponse_InterestListVO_'];
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
 // Unfiltered listing is shared by every visitor — keep ISR so LCP stays fast.
@@ -77,56 +75,4 @@ export async function fetchMentorsServer(
     console.error('SSR fetchMentors error:', error);
     return [];
   }
-}
-
-async function fetchInterestLabelMapServer(
-  language: string,
-  interest: 'SKILL' | 'TOPIC'
-): Promise<Record<string, string>> {
-  if (!BASE_URL) return {};
-  try {
-    const res = await fetch(
-      buildUrl(`/v1/users/${language}/interests`, { interest }),
-      { next: { revalidate: REVALIDATE_SECONDS } }
-    );
-    if (!res.ok) return {};
-    const data = (await res.json()) as InterestListResponse;
-    const map: Record<string, string> = {};
-    (data.data?.interests ?? []).forEach((s) => {
-      map[s.subject_group] = s.subject ?? '';
-    });
-    return map;
-  } catch (error) {
-    console.error('SSR fetchInterestLabelMap error:', error);
-    return {};
-  }
-}
-
-export async function fetchMentorsEnrichedServer(
-  param: MentorRequest
-): Promise<MentorType[]> {
-  const [searchResults, skillLabelMap, topicLabelMap] = await Promise.all([
-    fetchMentorsServer(param),
-    fetchInterestLabelMapServer('zh_TW', 'SKILL'),
-    fetchInterestLabelMapServer('zh_TW', 'TOPIC'),
-  ]);
-
-  if (searchResults.length === 0) return [];
-
-  // what_i_offer shares the topics interest vocabulary (see useInterests.ts
-  // `whatIOffers: topics` alias), so we reuse topicLabelMap here.
-  const whatIOfferLabelMap = topicLabelMap;
-
-  return searchResults.map((mentor) => ({
-    ...mentor,
-    skills: mentor.skills
-      .map((subjectGroup) => skillLabelMap[subjectGroup] ?? subjectGroup)
-      .filter(Boolean),
-    topics: mentor.topics
-      .map((subjectGroup) => topicLabelMap[subjectGroup] ?? subjectGroup)
-      .filter(Boolean),
-    what_i_offers: mentor.what_i_offers
-      .map((subjectGroup) => whatIOfferLabelMap[subjectGroup] ?? subjectGroup)
-      .filter(Boolean),
-  }));
 }

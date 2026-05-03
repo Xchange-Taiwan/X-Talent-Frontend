@@ -111,9 +111,9 @@ const baseValues = {
   name: 'Test User',
   location: 'Taiwan',
   years_of_experience: '1_3',
-  interested_positions: ['engineer'],
-  skills: ['TypeScript'],
-  topics: ['frontend'],
+  want_position: ['engineer'],
+  want_skill: ['TypeScript'],
+  want_topic: ['frontend'],
 };
 
 const makeOptions = (
@@ -648,7 +648,7 @@ describe('useProfileSubmit', () => {
           educationPeriodEnd: '2019',
         },
       ],
-      what_i_offer: ['mentoring'],
+      have_topic: ['mentoring'],
       linkedin: {
         id: -1,
         url: 'https://linkedin.com/in/me',

@@ -50,7 +50,7 @@ const MentorCardListBase = ({
             job_title={mentor.job_title}
             company={mentor.company}
             about={mentor.about}
-            whatIOffers={mentor.what_i_offers}
+            haveTopicLabels={mentor.have_topic}
           />
         ))}
       </div>

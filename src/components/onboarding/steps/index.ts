@@ -20,21 +20,21 @@ export const step2Schema = z.object({
 });
 
 export const step3Schema = z.object({
-  interested_positions: z
+  want_position: z
     .array(z.string())
     .min(1, '請至少選擇一個職位')
     .max(10, '最多選 10 個'),
 });
 
 export const step4Schema = z.object({
-  skills: z
+  want_skill: z
     .array(z.string())
     .min(1, '請至少選擇一個技能')
     .max(10, '最多選 10 個'),
 });
 
 export const step5Schema = z.object({
-  topics: z
+  want_topic: z
     .array(z.string())
     .min(1, '請至少選擇一個主題')
     .max(10, '最多選 10 個'),

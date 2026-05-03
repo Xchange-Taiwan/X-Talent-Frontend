@@ -4,19 +4,12 @@ import type { WorkExperienceMetadata } from '@/hooks/user/user-data/useUserData'
 import type { components } from '@/types/api';
 
 type RawMentor = components['schemas']['SearchMentorProfileVO'];
-type ExperienceCategory = components['schemas']['ExperienceCategory'];
+type TagVO = components['schemas']['TagVO'];
 
 export type MentorListResponse =
   components['schemas']['ApiResponse_SearchMentorProfileListVO_'];
 
 export type { WorkExperienceMetadata };
-
-export interface MentorExperienceBlock {
-  id: number;
-  category: ExperienceCategory;
-  order: number;
-  mentor_experiences_metadata?: Record<string, unknown>;
-}
 
 export interface MentorType {
   user_id: number;
@@ -29,41 +22,20 @@ export interface MentorType {
   personal_statement: string;
   about: string;
   seniority_level: string;
-  interested_positions: string[];
-  skills: string[];
-  topics: string[];
-  what_i_offers: string[];
   industry: string | null;
-  expertises: string[];
-  experiences: MentorExperienceBlock[];
+  want_position: string[];
+  want_skill: string[];
+  want_topic: string[];
+  have_skill: string[];
+  have_topic: string[];
   updated_at: number | null;
 }
 
-// The OpenAPI schema declares `topics` as `InterestListVO` (i.e.
-// `{ interests: InterestVO[] }`), but `/v1/mentors` actually returns a flat
-// `InterestVO[]`. Read it as an array so the field is not silently empty.
-type InterestEntry = { subject_group?: string | null };
-function readInterestGroups(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  return (raw as InterestEntry[])
-    .map((i) => i.subject_group)
-    .filter((g): g is string => Boolean(g));
-}
-
-type WhatIOfferDataItem = { subject_group?: string | null };
-function readWhatIOfferGroups(raw: RawMentor['experiences']): string[] {
-  if (!raw) return [];
-  const subjectGroups = raw
-    .filter((e) => e.category === 'WHAT_I_OFFER')
-    .flatMap((e) => {
-      const metadata = e.mentor_experiences_metadata as
-        | { data?: WhatIOfferDataItem[] }
-        | undefined;
-      return metadata?.data ?? [];
-    })
-    .map((item) => item.subject_group)
-    .filter((g): g is string => Boolean(g));
-  return Array.from(new Set(subjectGroups));
+function readTagLabels(tags: TagVO[] | null | undefined): string[] {
+  if (!tags) return [];
+  return tags
+    .map((t) => t.subject ?? t.subject_group ?? '')
+    .filter((s): s is string => Boolean(s));
 }
 
 export type MentorsType = components['schemas']['SearchMentorProfileListVO'];
@@ -89,21 +61,12 @@ export function mapMentor(raw: RawMentor): MentorType {
     personal_statement: raw.personal_statement ?? '',
     about: raw.about ?? '',
     seniority_level: raw.seniority_level ?? '',
-    interested_positions: readInterestGroups(raw.interested_positions),
-    skills: readInterestGroups(raw.skills),
-    topics: readInterestGroups(raw.topics),
-    what_i_offers: readWhatIOfferGroups(raw.experiences),
     industry: raw.industry?.subject ?? null,
-    expertises: raw.expertises?.professions?.map((p) => p.subject) ?? [],
-    experiences: (raw.experiences ?? []).map((e) => ({
-      id: e.id,
-      category: e.category ?? 'WORK',
-      order: e.order,
-      mentor_experiences_metadata: e.mentor_experiences_metadata as Record<
-        string,
-        unknown
-      >,
-    })),
+    want_position: readTagLabels(raw.want_position),
+    want_skill: readTagLabels(raw.want_skill),
+    want_topic: readTagLabels(raw.want_topic),
+    have_skill: readTagLabels(raw.have_skill),
+    have_topic: readTagLabels(raw.have_topic),
     updated_at: raw.updated_at ?? null,
   };
 }

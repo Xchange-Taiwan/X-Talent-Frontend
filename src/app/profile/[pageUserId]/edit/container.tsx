@@ -35,20 +35,18 @@ import { Form } from '@/components/ui/form';
 import { PageLoading } from '@/components/ui/loading-spinner';
 import { useProfileAuth } from '@/hooks/user/auth/useProfileAuth';
 import useLocations from '@/hooks/user/country/useLocations';
-import useExpertises from '@/hooks/user/expertises/useExpertises';
 import useIndustries from '@/hooks/user/industry/useIndustries';
-import useInterests, {
-  type InterestsResult,
-} from '@/hooks/user/interests/useInterests';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { useEditProfileData } from '@/hooks/user/profile/useEditProfileData';
 import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
+import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import {
   flattenAsSingleCategory,
-  groupAsPlaceholderCategories,
+  tagGroupsToCategories,
 } from '@/lib/profile/categoryGrouping';
 import type { ProfessionVO } from '@/services/profile/industries';
+import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import { prefetchPresignedUrl } from '@/services/profile/updateAvatar';
 
 const JobExperienceSection = dynamic(async () => {
@@ -70,15 +68,13 @@ const LinksSection = dynamic(async () => {
 interface Props {
   pageUserId: string;
   initialIndustries: ProfessionVO[];
-  initialInterests: InterestsResult;
-  initialExpertises: ProfessionVO[];
+  initialTagCatalog: TagCatalogsByBucket;
 }
 
 export default function EditProfileContainer({
   pageUserId,
   initialIndustries,
-  initialInterests,
-  initialExpertises,
+  initialTagCatalog,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -95,11 +91,7 @@ export default function EditProfileContainer({
 
   const { locations } = useLocations('zh_TW');
   const { industries } = useIndustries('zh_TW', initialIndustries);
-  const { interestedPositions, skills, topics } = useInterests(
-    'zh_TW',
-    initialInterests
-  );
-  const { expertises } = useExpertises('zh_TW', initialExpertises);
+  const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
 
   const isMentorRef = useRef(isMentor);
   isMentorRef.current = isMentor;
@@ -133,12 +125,13 @@ export default function EditProfileContainer({
   const avatarUpload = useBackgroundAvatarUpload();
 
   const industryCategories = flattenAsSingleCategory(industries);
-  const whatIOfferCategories = groupAsPlaceholderCategories(topics);
-  const expertisesCategories = groupAsPlaceholderCategories(expertises);
-  const interestedPositionCategories =
-    groupAsPlaceholderCategories(interestedPositions);
-  const skillsCategories = groupAsPlaceholderCategories(skills);
-  const topicsCategories = groupAsPlaceholderCategories(topics);
+  const haveTopicCategories = tagGroupsToCategories(tagCatalog.have_topic);
+  const haveSkillCategories = tagGroupsToCategories(tagCatalog.have_skill);
+  const wantPositionCategories = tagGroupsToCategories(
+    tagCatalog.want_position
+  );
+  const wantSkillCategories = tagGroupsToCategories(tagCatalog.want_skill);
+  const wantTopicCategories = tagGroupsToCategories(tagCatalog.want_topic);
 
   const scrollToField = (fieldId: string) => {
     document
@@ -149,14 +142,14 @@ export default function EditProfileContainer({
   const FIELD_SCROLL_ORDER: (keyof ProfileFormValues)[] = [
     'name',
     'about',
-    'what_i_offer',
-    'expertises',
+    'have_topic',
+    'have_skill',
     'location',
     'years_of_experience',
     'industry',
-    'interested_positions',
-    'skills',
-    'topics',
+    'want_position',
+    'want_skill',
+    'want_topic',
     'work_experiences',
     'educations',
   ];
@@ -239,7 +232,7 @@ export default function EditProfileContainer({
 
           {isMentor && (
             <Section
-              id="what_i_offer"
+              id="have_topic"
               title={
                 <>
                   <span className="text-status-200">* </span>我能提供的服務
@@ -248,8 +241,8 @@ export default function EditProfileContainer({
             >
               <CategoryMultiSelectField
                 form={form}
-                name="what_i_offer"
-                categories={whatIOfferCategories}
+                name="have_topic"
+                categories={haveTopicCategories}
                 maxSelected={10}
                 searchPlaceholder="搜尋服務"
               />
@@ -258,7 +251,7 @@ export default function EditProfileContainer({
 
           {isMentor && (
             <Section
-              id="expertises"
+              id="have_skill"
               title={
                 <>
                   <span className="text-status-200">* </span>專業能力
@@ -267,8 +260,8 @@ export default function EditProfileContainer({
             >
               <CategoryMultiSelectField
                 form={form}
-                name="expertises"
-                categories={expertisesCategories}
+                name="have_skill"
+                categories={haveSkillCategories}
                 maxSelected={10}
                 searchPlaceholder="搜尋專業能力"
               />
@@ -330,7 +323,7 @@ export default function EditProfileContainer({
           </Section>
 
           <Section
-            id="interested_positions"
+            id="want_position"
             title={
               <>
                 <span className="text-status-200">* </span>有興趣多了解的職位
@@ -339,15 +332,15 @@ export default function EditProfileContainer({
           >
             <CategoryMultiSelectField
               form={form}
-              name="interested_positions"
-              categories={interestedPositionCategories}
+              name="want_position"
+              categories={wantPositionCategories}
               maxSelected={10}
               searchPlaceholder="搜尋職位"
             />
           </Section>
 
           <Section
-            id="skills"
+            id="want_skill"
             title={
               <>
                 <span className="text-status-200">* </span>想多了解、加強的技能
@@ -356,15 +349,15 @@ export default function EditProfileContainer({
           >
             <CategoryMultiSelectField
               form={form}
-              name="skills"
-              categories={skillsCategories}
+              name="want_skill"
+              categories={wantSkillCategories}
               maxSelected={10}
               searchPlaceholder="搜尋技能"
             />
           </Section>
 
           <Section
-            id="topics"
+            id="want_topic"
             title={
               <>
                 <span className="text-status-200">* </span>想多了解的主題
@@ -373,8 +366,8 @@ export default function EditProfileContainer({
           >
             <CategoryMultiSelectField
               form={form}
-              name="topics"
-              categories={topicsCategories}
+              name="want_topic"
+              categories={wantTopicCategories}
               maxSelected={10}
               searchPlaceholder="搜尋主題"
             />
