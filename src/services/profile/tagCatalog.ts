@@ -33,21 +33,23 @@ export const EMPTY_TAG_CATALOGS: TagCatalogsByBucket = {
   have_topic: [],
 };
 
+// BE returns a flat catalog keyed by `kind` (`skill`/`topic`/`position`) — the
+// same skill catalog is reused for both want_skill (mentee picks) and have_skill
+// (mentor picks), likewise for topic. Position only applies to want_position.
 export function splitCatalogsByBucket(
   catalogs: TagCatalogsVO | null | undefined
 ): TagCatalogsByBucket {
-  const result: TagCatalogsByBucket = {
-    want_position: [],
-    want_skill: [],
-    want_topic: [],
-    have_skill: [],
-    have_topic: [],
+  if (!catalogs?.catalogs) return { ...EMPTY_TAG_CATALOGS };
+  const skillGroups = catalogs.catalogs.skill?.groups ?? [];
+  const topicGroups = catalogs.catalogs.topic?.groups ?? [];
+  const positionGroups = catalogs.catalogs.position?.groups ?? [];
+  return {
+    want_position: positionGroups,
+    want_skill: skillGroups,
+    want_topic: topicGroups,
+    have_skill: skillGroups,
+    have_topic: topicGroups,
   };
-  if (!catalogs?.catalogs) return result;
-  for (const key of TAG_BUCKET_KEYS) {
-    result[key] = catalogs.catalogs[key]?.groups ?? [];
-  }
-  return result;
 }
 
 export async function fetchTagCatalog(
