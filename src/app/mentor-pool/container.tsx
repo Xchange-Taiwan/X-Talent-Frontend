@@ -30,19 +30,28 @@ import {
 } from './searchParams';
 import MentorPoolUI from './ui';
 
+// BE search index stores filter targets (industry, skills, topics) as the
+// `subject_group` code (e.g. "culture_education"), not the localized label —
+// so the option's value must round-trip subject_group while `subject` stays
+// as the display label.
 function subjectsToOptions(
-  items: ReadonlyArray<{ subject?: string | null }>
+  items: ReadonlyArray<{ subject_group?: string; subject?: string | null }>
 ): { label: string; value: string }[] {
   return items
-    .map((i) => ({ label: i.subject ?? '', value: i.subject ?? '' }))
+    .map((i) => ({ label: i.subject ?? '', value: i.subject_group ?? '' }))
     .filter((o) => o.value);
 }
 
 // Filter dropdowns show the BE-stored leaf labels, not catalog group labels —
 // flatten each bucket's groups down to leaves so the user picks tags directly.
-function flattenLeaves(groups: TagCatalogGroupVO[]): { subject: string }[] {
+function flattenLeaves(
+  groups: TagCatalogGroupVO[]
+): { subject_group: string; subject: string }[] {
   return groups.flatMap((g) =>
-    g.leaves.map((leaf) => ({ subject: leaf.subject }))
+    g.leaves.map((leaf) => ({
+      subject_group: leaf.subject_group,
+      subject: leaf.subject,
+    }))
   );
 }
 
@@ -86,6 +95,18 @@ export default function MentorPoolContainer({
     }),
     [tagCatalog.have_skill, tagCatalog.have_topic, industries]
   );
+
+  // /v1/mentors returns have_topic as subject_group codes (e.g.
+  // "promotion_review"), not the localized labels — translate via the catalog
+  // so cards show the zh_TW subject (e.g. "升遷考核制度"). Falls back to the
+  // code if a tag isn't in the catalog (legacy or unpublished tag).
+  const haveTopicLabelMap = useMemo(() => {
+    const map = new Map<string, string>();
+    tagCatalog.have_topic.forEach((g) =>
+      g.leaves.forEach((l) => map.set(l.subject_group, l.subject))
+    );
+    return map;
+  }, [tagCatalog.have_topic]);
 
   const [mentorCount, setMentorCount] = useState<number>(initialMentorCount);
   const [mentors, setMentors] = useState<MentorType[]>(initialMentors);
@@ -173,9 +194,18 @@ export default function MentorPoolContainer({
     });
   }, [params, router]);
 
+  const mentorsForUI = useMemo(
+    () =>
+      mentors.map((m) => ({
+        ...m,
+        have_topic: m.have_topic.map((c) => haveTopicLabelMap.get(c) ?? c),
+      })),
+    [mentors, haveTopicLabelMap]
+  );
+
   return (
     <MentorPoolUI
-      mentors={mentors}
+      mentors={mentorsForUI}
       mentorCount={mentorCount}
       isLoading={isLoading}
       isReplacing={isPending}

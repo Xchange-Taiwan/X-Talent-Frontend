@@ -31,10 +31,18 @@ export interface MentorType {
   updated_at: number | null;
 }
 
-function readTagLabels(tags: TagVO[] | null | undefined): string[] {
+// OpenAPI types these as TagVO[], but the search index actually returns a
+// flat string[] of subject_group codes (e.g. ["promotion_review"]). Accept
+// both — for codes, the consumer is responsible for translating to a
+// localized label via the tag catalog.
+function readTagLabels(
+  tags: ReadonlyArray<TagVO | string> | null | undefined
+): string[] {
   if (!tags) return [];
   return tags
-    .map((t) => t.subject ?? t.subject_group ?? '')
+    .map((t) =>
+      typeof t === 'string' ? t : (t.subject ?? t.subject_group ?? '')
+    )
     .filter((s): s is string => Boolean(s));
 }
 
@@ -61,7 +69,13 @@ export function mapMentor(raw: RawMentor): MentorType {
     personal_statement: raw.personal_statement ?? '',
     about: raw.about ?? '',
     seniority_level: raw.seniority_level ?? '',
-    industry: raw.industry?.subject ?? null,
+    // OpenAPI schema types `industry` as ProfessionVO, but the search index
+    // returns it as a flat subject_group code string (e.g. "culture_education").
+    // Handle both shapes so we don't silently drop the value.
+    industry:
+      typeof raw.industry === 'string'
+        ? raw.industry
+        : (raw.industry?.subject_group ?? null),
     want_position: readTagLabels(raw.want_position),
     want_skill: readTagLabels(raw.want_skill),
     want_topic: readTagLabels(raw.want_topic),
