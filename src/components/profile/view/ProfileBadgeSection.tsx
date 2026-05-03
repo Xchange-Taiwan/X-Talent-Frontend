@@ -1,9 +1,9 @@
 import { Badge } from '@/components/ui/badge';
-import { InterestType } from '@/hooks/user/user-data/useUserData';
+import { TagDisplay } from '@/hooks/user/user-data/useUserData';
 
 interface Props {
   title: string;
-  items: InterestType[];
+  items: TagDisplay[];
 }
 
 export function ProfileBadgeSection({ title, items }: Props) {

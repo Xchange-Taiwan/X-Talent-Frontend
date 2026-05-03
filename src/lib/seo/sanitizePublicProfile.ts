@@ -132,13 +132,10 @@ export function sanitizePublicProfile(
   const { jobTitle, company } = pickCurrentJob(profile);
 
   const expertises =
-    profile.expertises?.professions
-      ?.map((p) => p.subject ?? '')
-      .filter(Boolean) ?? [];
+    profile.have_skill?.map((t) => t.subject ?? '').filter(Boolean) ?? [];
 
   const topics =
-    profile.topics?.interests?.map((i) => i.subject ?? '').filter(Boolean) ??
-    [];
+    profile.have_topic?.map((t) => t.subject ?? '').filter(Boolean) ?? [];
 
   return {
     userId: profile.user_id,

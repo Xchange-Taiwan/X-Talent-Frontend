@@ -300,6 +300,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/users/{language}/tags/catalog': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Tag Catalog */
+    get: operations['get_tag_catalog_api_v1_users__language__tags_catalog_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/mentors/{user_id}/profile': {
     parameters: {
       query?: never;
@@ -982,6 +999,20 @@ export interface components {
       msg: string;
       data?: components['schemas']['SignupResponseVO'] | null;
     };
+    /** ApiResponse[TagCatalogsVO] */
+    ApiResponse_TagCatalogsVO_: {
+      /**
+       * Code
+       * @default 0
+       */
+      code: string;
+      /**
+       * Msg
+       * @default ok
+       */
+      msg: string;
+      data?: components['schemas']['TagCatalogsVO'] | null;
+    };
     /** ApiResponse[TokenRefreshVO] */
     ApiResponse_TokenRefreshVO_: {
       /**
@@ -1246,12 +1277,12 @@ export interface components {
       url: string | null;
       /**
        * Create Time
-       * @default 2026-04-30T14:46:35.498506Z
+       * @default 2026-05-03T02:22:14.496113Z
        */
       create_time: string | null;
       /**
        * Update Time
-       * @default 2026-04-30T14:46:35.498521Z
+       * @default 2026-05-03T02:22:14.496128Z
        */
       update_time: string | null;
       /** Create User Id */
@@ -1433,6 +1464,16 @@ export interface components {
       seniority_level: components['schemas']['SeniorityLevel'] | null;
       /** Expertises */
       expertises?: string[] | null;
+      /** Want Position */
+      want_position?: string[] | null;
+      /** Want Skill */
+      want_skill?: string[] | null;
+      /** Want Topic */
+      want_topic?: string[] | null;
+      /** Have Skill */
+      have_skill?: string[] | null;
+      /** Have Topic */
+      have_topic?: string[] | null;
     };
     /** MentorProfileVO */
     MentorProfileVO: {
@@ -1502,6 +1543,16 @@ export interface components {
       expertises?: components['schemas']['ProfessionListVO'] | null;
       /** Experiences */
       experiences?: components['schemas']['ExperienceVO'][] | null;
+      /** Want Position */
+      want_position?: components['schemas']['TagVO'][] | null;
+      /** Want Skill */
+      want_skill?: components['schemas']['TagVO'][] | null;
+      /** Want Topic */
+      want_topic?: components['schemas']['TagVO'][] | null;
+      /** Have Skill */
+      have_skill?: components['schemas']['TagVO'][] | null;
+      /** Have Topic */
+      have_topic?: components['schemas']['TagVO'][] | null;
     };
     /** MentorScheduleDTO */
     MentorScheduleDTO: {
@@ -2038,6 +2089,16 @@ export interface components {
       expertises?: components['schemas']['ProfessionListVO'] | null;
       /** Experiences */
       experiences?: components['schemas']['ExperienceVO'][] | null;
+      /** Want Position */
+      want_position?: components['schemas']['TagVO'][] | null;
+      /** Want Skill */
+      want_skill?: components['schemas']['TagVO'][] | null;
+      /** Want Topic */
+      want_topic?: components['schemas']['TagVO'][] | null;
+      /** Have Skill */
+      have_skill?: components['schemas']['TagVO'][] | null;
+      /** Have Topic */
+      have_topic?: components['schemas']['TagVO'][] | null;
       /** Updated At */
       updated_at: number | null;
       /** Views */
@@ -2076,6 +2137,88 @@ export interface components {
     /** SignupResponseVO */
     SignupResponseVO: {
       auth: components['schemas']['AuthVO'];
+    };
+    /** TagCatalogGroupVO */
+    TagCatalogGroupVO: {
+      /** Subject Group */
+      subject_group: string;
+      /** Subject */
+      subject: string;
+      /** Language */
+      language: string;
+      /** Desc */
+      desc?: Record<string, never> | null;
+      /**
+       * Leaves
+       * @default []
+       */
+      leaves: components['schemas']['TagCatalogLeafVO'][];
+    };
+    /** TagCatalogLeafVO */
+    TagCatalogLeafVO: {
+      /** Tag Id */
+      tag_id: number;
+      /** Subject Group */
+      subject_group: string;
+      /** Subject */
+      subject: string;
+      /** Language */
+      language: string;
+      /** Desc */
+      desc?: Record<string, never> | null;
+    };
+    /** TagCatalogVO */
+    TagCatalogVO: {
+      /** Kind */
+      kind: string;
+      /** Language */
+      language: string;
+      /**
+       * Groups
+       * @default []
+       */
+      groups: components['schemas']['TagCatalogGroupVO'][];
+    };
+    /** TagCatalogsVO */
+    TagCatalogsVO: {
+      /** Language */
+      language: string;
+      /**
+       * Catalogs
+       * @default {}
+       */
+      catalogs: {
+        [key: string]: components['schemas']['TagCatalogVO'];
+      };
+    };
+    /**
+     * TagKind
+     * @enum {string}
+     */
+    TagKind: 'skill' | 'position' | 'topic';
+    /**
+     * TagVO
+     * @description Mirror of X-Career-User TagVO. Each enriched bucket on
+     *     MentorProfileVO is a list of these.
+     */
+    TagVO: {
+      /** Id */
+      id: number;
+      /** Kind */
+      kind: string;
+      /** Subject Group */
+      subject_group?: string | null;
+      /** Language */
+      language?: string | null;
+      /**
+       * Subject
+       * @default
+       */
+      subject: string | null;
+      /** Desc */
+      desc?: Record<string, never> | null;
+      /** Parent Subject Group */
+      parent_subject_group?: string | null;
     };
     /** TimeSlotDTO */
     TimeSlotDTO: {
@@ -2996,6 +3139,46 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ApiResponse_ReservationVO_'];
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_tag_catalog_api_v1_users__language__tags_catalog_get: {
+    parameters: {
+      query?: {
+        kind?: components['schemas']['TagKind'][] | null;
+      };
+      header?: never;
+      path: {
+        language: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_TagCatalogsVO_'];
         };
       };
       /** @description Not found */

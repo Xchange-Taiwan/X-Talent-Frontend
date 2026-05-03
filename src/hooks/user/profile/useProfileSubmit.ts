@@ -128,11 +128,11 @@ export function useProfileSubmit({
         isDirty('industry') ||
         isDirty('years_of_experience') ||
         isDirty('statement') ||
-        isDirty('expertises') ||
-        isDirty('interested_positions') ||
-        isDirty('skills') ||
-        isDirty('topics') ||
-        isDirty('what_i_offer') ||
+        isDirty('have_skill') ||
+        isDirty('have_topic') ||
+        isDirty('want_position') ||
+        isDirty('want_skill') ||
+        isDirty('want_topic') ||
         isDirty('work_experiences');
 
       const workDirty = isDirty('work_experiences');
@@ -144,7 +144,6 @@ export function useProfileSubmit({
         isDirty('twitter') ||
         isDirty('youtube') ||
         isDirty('website');
-      const whatIOfferDirty = isDirty('what_i_offer');
 
       // Mentor's top-level job_title / company mirror the primary work
       // experience so consumers (profile page, mentor pool card, reservations)
@@ -224,19 +223,6 @@ export function useProfileSubmit({
                   })),
                 },
                 order: 3,
-              })
-            : Promise.resolve(),
-
-          whatIOfferDirty && values.what_i_offer?.length > 0
-            ? upsertMentorExperience(ExperienceType.WHAT_I_OFFER, true, {
-                id: 4,
-                category: ExperienceType.WHAT_I_OFFER,
-                mentor_experiences_metadata: {
-                  data: values.what_i_offer.map((item) => ({
-                    subject_group: item,
-                  })),
-                },
-                order: 4,
               })
             : Promise.resolve(),
         ]);

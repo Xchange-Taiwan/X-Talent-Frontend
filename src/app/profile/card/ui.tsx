@@ -45,9 +45,9 @@ export default function ProfileCardUI({
             company={userData.company}
             jobTitle={userData.job_title}
             linkedinUrl={linkedinUrl}
-            interestedRole={userData.interested_positions}
-            skillEnhancementTarget={userData.skills}
-            talkTopic={userData.topics}
+            interestedRole={userData.want_position}
+            skillEnhancementTarget={userData.want_skill}
+            talkTopic={userData.want_topic}
           />
         )}
 
@@ -58,8 +58,8 @@ export default function ProfileCardUI({
             company={userData.company}
             jobTitle={userData.job_title}
             linkedinUrl={linkedinUrl}
-            expertise={userData.expertises}
-            whatIOffer={userData.what_i_offers}
+            expertise={userData.have_skill}
+            whatIOffer={userData.have_topic}
           />
         )}
       </div>

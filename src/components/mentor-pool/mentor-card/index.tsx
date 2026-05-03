@@ -13,7 +13,7 @@ export interface MentorCardProps {
   job_title: string;
   company: string;
   about: string;
-  whatIOffers: string[];
+  haveTopicLabels: string[];
 }
 
 const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
@@ -26,7 +26,7 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
       job_title,
       company,
       about,
-      whatIOffers,
+      haveTopicLabels,
     }: MentorCardProps,
     ref
   ) => {
@@ -47,7 +47,7 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
             job_title={job_title}
             company={company}
             about={about}
-            whatIOffers={whatIOffers}
+            haveTopicLabels={haveTopicLabels}
           />
         </div>
       </article>

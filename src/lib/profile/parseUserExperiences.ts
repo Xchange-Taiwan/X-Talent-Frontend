@@ -12,7 +12,6 @@ type WorkExperienceFormValue = z.infer<typeof jobSchema>;
 type EducationFormValue = z.infer<typeof educationSchema>;
 
 type MentorExperienceMetadata<T> = { data?: T[] };
-type WhatIOfferMetadata = { subject_group: string };
 
 export function parseLinks(
   experiences: MentorExperiencePayload[]
@@ -58,16 +57,6 @@ export function parseLinks(
     });
 
   return result;
-}
-
-export function parseWhatIOffer(
-  experiences: MentorExperiencePayload[]
-): string[] {
-  const whatIOffer = experiences.find((e) => e.category === 'WHAT_I_OFFER');
-  const metadata =
-    whatIOffer?.mentor_experiences_metadata as MentorExperienceMetadata<WhatIOfferMetadata>;
-
-  return metadata?.data?.map((item) => item.subject_group) || [];
 }
 
 export function parseWorkExperiences(

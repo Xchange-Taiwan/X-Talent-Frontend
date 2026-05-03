@@ -17,10 +17,8 @@ import {
 } from '@/components/onboarding/steps';
 import useLocations from '@/hooks/user/country/useLocations';
 import useIndustries from '@/hooks/user/industry/useIndustries';
-import useInterests, {
-  type InterestsResult,
-} from '@/hooks/user/interests/useInterests';
 import { buildOnboardingDtoStub } from '@/hooks/user/onboarding/buildOnboardingDtoStub';
+import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import {
   clearUserDataCache,
   primeUserDataCache,
@@ -28,6 +26,7 @@ import {
 import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import type { ProfessionVO } from '@/services/profile/industries';
+import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
 
@@ -36,20 +35,21 @@ import OnboardingUI from './ui';
 
 interface Props {
   initialIndustries: ProfessionVO[];
-  initialInterests: InterestsResult;
+  initialTagCatalog: TagCatalogsByBucket;
 }
 
 export default function OnboardingContainer({
   initialIndustries,
-  initialInterests,
+  initialTagCatalog,
 }: Props) {
   const router = useRouter();
   const { locations } = useLocations('zh_TW');
   const { industries } = useIndustries('zh_TW', initialIndustries);
-  const { interestedPositions, skills, topics } = useInterests(
-    'zh_TW',
-    initialInterests
-  );
+  const {
+    want_position: wantPositionGroups,
+    want_skill: wantSkillGroups,
+    want_topic: wantTopicGroups,
+  } = useTagCatalog('zh_TW', initialTagCatalog);
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { data: session, status, update: updateSession } = useSession();
@@ -161,7 +161,7 @@ export default function OnboardingContainer({
   const step3Form = useForm<z.infer<typeof step3Schema>>({
     resolver: zodResolver(step3Schema),
     defaultValues: {
-      interested_positions: [],
+      want_position: [],
     },
   });
   const onSubmitStep3 = (data: z.infer<typeof step3Schema>) => {
@@ -173,7 +173,7 @@ export default function OnboardingContainer({
   const step4Form = useForm<z.infer<typeof step4Schema>>({
     resolver: zodResolver(step4Schema),
     defaultValues: {
-      skills: [],
+      want_skill: [],
     },
   });
   const onSubmitStep4 = (data: z.infer<typeof step4Schema>) => {
@@ -185,7 +185,7 @@ export default function OnboardingContainer({
   const step5Form = useForm<z.infer<typeof step5Schema>>({
     resolver: zodResolver(step5Schema),
     defaultValues: {
-      topics: [],
+      want_topic: [],
     },
   });
 
@@ -228,17 +228,20 @@ export default function OnboardingContainer({
         const validatedData = formSchema.parse(allData);
         await updateProfile(validatedData);
 
-        // Prime the user-profile cache from the form values + interest
-        // pools we already have in memory, so /profile/card mounts from
+        // Prime the user-profile cache from the form values + tag pools
+        // we already have in memory, so /profile/card mounts from
         // cache instead of refetching the same DTO. Falls back to
-        // clearUserDataCache if the userId is not a finite number, which
-        // matches the historical behaviour for unexpected session shapes.
+        // clearUserDataCache if the userId is not a finite number.
         const sessionUserId = session?.user?.id ? Number(session.user.id) : NaN;
         if (Number.isFinite(sessionUserId)) {
           const stub = buildOnboardingDtoStub({
             userId: sessionUserId,
             formData: validatedData,
-            pools: { interestedPositions, skills, topics },
+            pools: {
+              want_position: wantPositionGroups,
+              want_skill: wantSkillGroups,
+              want_topic: wantTopicGroups,
+            },
             isMentor: session?.user?.isMentor ?? false,
           });
           primeUserDataCache(sessionUserId, 'zh_TW', stub);
@@ -248,7 +251,7 @@ export default function OnboardingContainer({
 
         // Optimistic session update — server-side `is_mentor` is taken from
         // the existing DB value (onboarding payload doesn't carry it), and
-        // server-side `onboarding` is derived from the interests we just
+        // server-side `onboarding` is derived from the tags we just
         // submitted, so both values are predictable without a fetch.
         await updateSession({
           user: {
@@ -298,9 +301,9 @@ export default function OnboardingContainer({
       step5Form={step5Form}
       locations={locations}
       industries={industries}
-      interestedPositions={interestedPositions}
-      skills={skills}
-      topics={topics}
+      wantPositionGroups={wantPositionGroups}
+      wantSkillGroups={wantSkillGroups}
+      wantTopicGroups={wantTopicGroups}
       isSubmitting={isSubmitting}
       onGoToPrev={handleGoToPrev}
       onSubmitStep1={onSubmitStep1}

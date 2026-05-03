@@ -2,7 +2,7 @@
 
 import type { FC, ReactNode } from 'react';
 
-import { InterestType } from '@/hooks/user/user-data/useUserData';
+import { TagDisplay } from '@/hooks/user/user-data/useUserData';
 
 import { AvatarCard } from '../avatar-card';
 
@@ -27,16 +27,16 @@ interface Props {
   company?: string;
   linkedinUrl?: string;
 
-  interestedRole?: InterestType[];
-  skillEnhancementTarget?: InterestType[];
-  talkTopic?: InterestType[];
-  expertise?: InterestType[];
-  whatIOffer?: InterestType[];
+  interestedRole?: TagDisplay[];
+  skillEnhancementTarget?: TagDisplay[];
+  talkTopic?: TagDisplay[];
+  expertise?: TagDisplay[];
+  whatIOffer?: TagDisplay[];
 }
 
 function renderTagList(
   title: string,
-  items?: InterestType[],
+  items?: TagDisplay[],
   keyPrefix?: string
 ) {
   if (!Array.isArray(items) || items.length === 0) return null;
