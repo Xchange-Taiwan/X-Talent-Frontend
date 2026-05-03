@@ -5,14 +5,6 @@ vi.mock('@/services/profile/user', () => ({
   fetchUserById: vi.fn(),
 }));
 
-vi.mock('@/hooks/user/interests/useInterests', () => ({
-  getInterestsCached: vi.fn(),
-  // The lazy-init read is mocked to always miss; tests cover the async
-  // useEffect parse path via getInterestsCached.
-  getInterestsCachedSync: vi.fn(() => undefined),
-}));
-
-import { getInterestsCached } from '@/hooks/user/interests/useInterests';
 import { fetchUserById, type MentorProfileVO } from '@/services/profile/user';
 
 import useUserData, {
@@ -22,7 +14,6 @@ import useUserData, {
 } from './useUserData';
 
 const mockFetchUserById = vi.mocked(fetchUserById);
-const mockGetInterestsCached = vi.mocked(getInterestsCached);
 
 const makeUserDto = (id: number): MentorProfileVO =>
   ({
@@ -31,21 +22,16 @@ const makeUserDto = (id: number): MentorProfileVO =>
     avatar: '',
     is_mentor: false,
     experiences: [],
+    want_position: [],
+    want_skill: [],
+    want_topic: [],
+    have_skill: [],
+    have_topic: [],
   }) as unknown as MentorProfileVO;
-
-const emptyInterests = {
-  interestedPositions: [],
-  skills: [],
-  topics: [],
-  expertises: [],
-  whatIOffers: [],
-};
 
 describe('useUserData caching', () => {
   beforeEach(() => {
     mockFetchUserById.mockReset();
-    mockGetInterestsCached.mockReset();
-    mockGetInterestsCached.mockResolvedValue(emptyInterests);
   });
 
   afterEach(() => {

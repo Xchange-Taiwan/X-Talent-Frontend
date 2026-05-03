@@ -11,31 +11,28 @@ import {
   FormItem,
   FormMessage,
 } from '@/components/ui/form';
-import { groupAsPlaceholderCategories } from '@/lib/profile/categoryGrouping';
+import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
 import { cn } from '@/lib/utils';
-import { InterestVO } from '@/services/profile/interests';
+import { TagCatalogGroupVO } from '@/services/profile/tagCatalog';
 
 import { GroupedSelections } from './GroupedSelections';
 import { step3Schema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step3Schema>>>;
-  interestedPositionOptions: InterestVO[];
+  wantPositionGroups: TagCatalogGroupVO[];
 }
 
-export const InterestedPosition: FC<Props> = ({
-  form,
-  interestedPositionOptions,
-}) => {
+export const InterestedPosition: FC<Props> = ({ form, wantPositionGroups }) => {
   const categories = useMemo(
-    () => groupAsPlaceholderCategories(interestedPositionOptions),
-    [interestedPositionOptions]
+    () => tagGroupsToCategories(wantPositionGroups),
+    [wantPositionGroups]
   );
 
   return (
     <FormField
       control={form.control}
-      name="interested_positions"
+      name="want_position"
       render={({ field }) => (
         <FormItem>
           <FormControl>

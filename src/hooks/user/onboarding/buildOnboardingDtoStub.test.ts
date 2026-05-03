@@ -1,22 +1,47 @@
 import { describe, expect, it } from 'vitest';
 
-import { type InterestVO } from '@/services/profile/interests';
+import type { TagCatalogGroupVO } from '@/services/profile/tagCatalog';
 
 import {
   buildOnboardingDtoStub,
-  type InterestPools,
+  type TagPools,
 } from './buildOnboardingDtoStub';
 
-const vo = (subject_group: string, subject: string): InterestVO => ({
-  id: 1,
-  subject_group,
-  subject,
+const group = (
+  groupKey: string,
+  groupLabel: string,
+  leaves: { subject_group: string; subject: string }[]
+): TagCatalogGroupVO => ({
+  subject_group: groupKey,
+  subject: groupLabel,
+  language: 'zh_TW',
+  leaves: leaves.map((l, idx) => ({
+    tag_id: idx + 1,
+    subject_group: l.subject_group,
+    subject: l.subject,
+    language: 'zh_TW',
+  })),
 });
 
-const pools: InterestPools = {
-  interestedPositions: [vo('engineer', '工程師'), vo('designer', '設計師')],
-  skills: [vo('typescript', 'TypeScript'), vo('react', 'React')],
-  topics: [vo('career', '職涯規劃'), vo('frontend', '前端')],
+const pools: TagPools = {
+  want_position: [
+    group('positions', '職位', [
+      { subject_group: 'engineer', subject: '工程師' },
+      { subject_group: 'designer', subject: '設計師' },
+    ]),
+  ],
+  want_skill: [
+    group('skills', '技能', [
+      { subject_group: 'typescript', subject: 'TypeScript' },
+      { subject_group: 'react', subject: 'React' },
+    ]),
+  ],
+  want_topic: [
+    group('topics', '主題', [
+      { subject_group: 'career', subject: '職涯規劃' },
+      { subject_group: 'frontend', subject: '前端' },
+    ]),
+  ],
 };
 
 const baseFormData = {
@@ -24,27 +49,45 @@ const baseFormData = {
   avatar: 'https://cdn.example.com/a.jpg',
   location: 'TWN',
   years_of_experience: '1_3',
-  interested_positions: ['engineer'],
-  skills: ['typescript'],
-  topics: ['career'],
+  want_position: ['engineer'],
+  want_skill: ['typescript'],
+  want_topic: ['career'],
 };
 
 describe('buildOnboardingDtoStub', () => {
-  it('hydrates form ID arrays into InterestVO[] using the pool lookup', () => {
+  it('hydrates form ID arrays into TagVO[] using the catalog leaf lookup', () => {
     const dto = buildOnboardingDtoStub({
       userId: 42,
       formData: baseFormData,
       pools,
     });
 
-    expect(dto.interested_positions?.interests).toEqual([
-      { id: 1, subject_group: 'engineer', subject: '工程師' },
+    expect(dto.want_position).toEqual([
+      {
+        id: 1,
+        kind: '',
+        subject_group: 'engineer',
+        language: 'zh_TW',
+        subject: '工程師',
+      },
     ]);
-    expect(dto.skills?.interests).toEqual([
-      { id: 1, subject_group: 'typescript', subject: 'TypeScript' },
+    expect(dto.want_skill).toEqual([
+      {
+        id: 1,
+        kind: '',
+        subject_group: 'typescript',
+        language: 'zh_TW',
+        subject: 'TypeScript',
+      },
     ]);
-    expect(dto.topics?.interests).toEqual([
-      { id: 1, subject_group: 'career', subject: '職涯規劃' },
+    expect(dto.want_topic).toEqual([
+      {
+        id: 1,
+        kind: '',
+        subject_group: 'career',
+        language: 'zh_TW',
+        subject: '職涯規劃',
+      },
     ]);
   });
 
@@ -80,36 +123,52 @@ describe('buildOnboardingDtoStub', () => {
     expect(dto.seniority_level).toBeNull();
     expect(dto.expertises).toBeNull();
     expect(dto.experiences).toEqual([]);
+    expect(dto.have_skill).toBeNull();
+    expect(dto.have_topic).toBeNull();
   });
 
   it('lookup miss → keeps the raw ID as both subject_group and subject so the chip is not silently dropped', () => {
     const dto = buildOnboardingDtoStub({
       userId: 42,
-      formData: { ...baseFormData, skills: ['typescript', 'unknown_skill'] },
-      pools,
-    });
-
-    expect(dto.skills?.interests).toEqual([
-      { id: 1, subject_group: 'typescript', subject: 'TypeScript' },
-      { id: 0, subject_group: 'unknown_skill', subject: 'unknown_skill' },
-    ]);
-  });
-
-  it('empty / undefined ID arrays → produce empty interest lists, no crash', () => {
-    const dto = buildOnboardingDtoStub({
-      userId: 42,
       formData: {
-        name: 'Empty',
-        interested_positions: [],
-        skills: undefined,
-        topics: undefined,
+        ...baseFormData,
+        want_skill: ['typescript', 'unknown_skill'],
       },
       pools,
     });
 
-    expect(dto.interested_positions?.interests).toEqual([]);
-    expect(dto.skills?.interests).toEqual([]);
-    expect(dto.topics?.interests).toEqual([]);
+    expect(dto.want_skill).toEqual([
+      {
+        id: 1,
+        kind: '',
+        subject_group: 'typescript',
+        language: 'zh_TW',
+        subject: 'TypeScript',
+      },
+      {
+        id: 0,
+        kind: '',
+        subject_group: 'unknown_skill',
+        subject: 'unknown_skill',
+      },
+    ]);
+  });
+
+  it('empty / undefined ID arrays → produce empty tag lists, no crash', () => {
+    const dto = buildOnboardingDtoStub({
+      userId: 42,
+      formData: {
+        name: 'Empty',
+        want_position: [],
+        want_skill: undefined,
+        want_topic: undefined,
+      },
+      pools,
+    });
+
+    expect(dto.want_position).toEqual([]);
+    expect(dto.want_skill).toEqual([]);
+    expect(dto.want_topic).toEqual([]);
   });
 
   it('isMentor=true is honoured (default false)', () => {
