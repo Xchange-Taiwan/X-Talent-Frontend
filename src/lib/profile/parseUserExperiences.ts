@@ -72,17 +72,17 @@ export function parseWorkExperiences(
         id: typeof e.id === 'number' ? e.id : -1,
         job: item.job || '',
         company: item.company || '',
-        jobPeriodStart: item.jobPeriodStart || '',
-        jobPeriodEnd: item.jobPeriodEnd || '',
+        job_period_start: item.job_period_start || '',
+        job_period_end: item.job_period_end || '',
         industry: item.industry || '',
-        jobLocation: item.jobLocation || '',
+        job_location: item.job_location || '',
         description: item.description || '',
-        isPrimary: item.isPrimary ?? false,
+        is_primary: item.is_primary ?? false,
       }));
     });
 
-  if (flattened.length > 0 && !flattened.some((item) => item.isPrimary)) {
-    flattened[0].isPrimary = true;
+  if (flattened.length > 0 && !flattened.some((item) => item.is_primary)) {
+    flattened[0].is_primary = true;
   }
 
   return flattened;
@@ -101,8 +101,8 @@ export function parseEducations(
         id: typeof e.id === 'number' ? e.id : -1,
         subject: item.subject || '',
         school: item.school || '',
-        educationPeriodStart: item.educationPeriodStart || '',
-        educationPeriodEnd: item.educationPeriodEnd || '',
+        education_period_start: item.education_period_start || '',
+        education_period_end: item.education_period_end || '',
       }));
     });
 }

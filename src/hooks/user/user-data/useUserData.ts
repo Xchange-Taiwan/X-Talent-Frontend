@@ -24,19 +24,19 @@ export interface TagDisplay {
 export interface WorkExperienceMetadata {
   job?: string;
   company?: string;
-  jobPeriodStart?: string;
-  jobPeriodEnd?: string;
-  jobLocation?: string;
+  job_period_start?: string;
+  job_period_end?: string;
+  job_location?: string;
   description?: string;
   industry?: string;
-  isPrimary?: boolean;
+  is_primary?: boolean;
 }
 
 export interface EducationExperienceMetadata {
   subject?: string;
   school?: string;
-  educationPeriodStart?: string;
-  educationPeriodEnd?: string;
+  education_period_start?: string;
+  education_period_end?: string;
 }
 
 export interface PersonalLinkMetadata {

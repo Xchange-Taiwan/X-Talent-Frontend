@@ -74,7 +74,7 @@ export const JobExperienceSection = ({
   const setPrimary = (targetIndex: number) => {
     const experiences = getValues('work_experiences') ?? [];
     experiences.forEach((_, i) => {
-      setValue(`work_experiences.${i}.isPrimary`, i === targetIndex, {
+      setValue(`work_experiences.${i}.is_primary`, i === targetIndex, {
         shouldDirty: true,
       });
     });
@@ -82,13 +82,13 @@ export const JobExperienceSection = ({
 
   const removeAndReassignPrimary = (index: number) => {
     const experiences = getValues('work_experiences') ?? [];
-    const removingPrimary = experiences[index]?.isPrimary === true;
+    const removingPrimary = experiences[index]?.is_primary === true;
     remove(index);
 
     if (!removingPrimary) return;
     const next = getValues('work_experiences') ?? [];
     if (next.length > 0) {
-      setValue(`work_experiences.0.isPrimary`, true, { shouldDirty: true });
+      setValue(`work_experiences.0.is_primary`, true, { shouldDirty: true });
     }
   };
 
@@ -97,15 +97,15 @@ export const JobExperienceSection = ({
     name: 'work_experiences',
   }) as
     | Array<{
-        jobPeriodStart?: string;
-        jobPeriodEnd?: string;
+        job_period_start?: string;
+        job_period_end?: string;
       }>
     | undefined;
 
   useEffect(() => {
     const hasError = watchedExperiences?.some((exp) => {
-      const start = exp.jobPeriodStart;
-      const end = exp.jobPeriodEnd;
+      const start = exp.job_period_start;
+      const end = exp.job_period_end;
       return start && end && end !== 'now' && Number(start) > Number(end);
     });
     onValidationChange(!!hasError);
@@ -118,8 +118,8 @@ export const JobExperienceSection = ({
       experiences.length &&
       (!last?.job ||
         !last?.company ||
-        !last?.jobPeriodStart ||
-        !last?.jobPeriodEnd)
+        !last?.job_period_start ||
+        !last?.job_period_end)
     ) {
       alert('請先完成上一筆工作經驗再新增');
       return;
@@ -129,12 +129,12 @@ export const JobExperienceSection = ({
       id: -1,
       job: '',
       company: '',
-      jobPeriodStart: '',
-      jobPeriodEnd: 'now',
+      job_period_start: '',
+      job_period_end: 'now',
       industry: '',
-      jobLocation: 'TWN',
+      job_location: 'TWN',
       description: '',
-      isPrimary: experiences.length === 0,
+      is_primary: experiences.length === 0,
     });
   };
 
@@ -149,8 +149,8 @@ export const JobExperienceSection = ({
     >
       {fields.map((field, index) => {
         const watched = watchedExperiences?.[index] ?? {};
-        const start = watched.jobPeriodStart;
-        const end = watched.jobPeriodEnd;
+        const start = watched.job_period_start;
+        const end = watched.job_period_end;
         const isInvalidPeriod =
           start && end && end !== 'now' && Number(start) > Number(end);
 
@@ -212,7 +212,7 @@ export const JobExperienceSection = ({
             <div className="mb-2 gap-2 md:flex">
               <FormField
                 control={control}
-                name={`work_experiences.${index}.jobPeriodStart`}
+                name={`work_experiences.${index}.job_period_start`}
                 render={({ field }) => (
                   <FormItem className="mb-4 grow basis-1/2 md:mb-0">
                     <FormLabel>開始年份</FormLabel>
@@ -245,7 +245,7 @@ export const JobExperienceSection = ({
               </p>
               <FormField
                 control={control}
-                name={`work_experiences.${index}.jobPeriodEnd`}
+                name={`work_experiences.${index}.job_period_end`}
                 render={({ field }) => (
                   <FormItem className="grow basis-1/2">
                     <FormLabel className="invisible md:visible">
@@ -300,7 +300,7 @@ export const JobExperienceSection = ({
                 <FormLabel>地點</FormLabel>
                 <SelectField
                   form={form}
-                  name={`work_experiences.${index}.jobLocation`}
+                  name={`work_experiences.${index}.job_location`}
                   placeholder="請選擇地區"
                   options={locations.map((loc) => ({
                     value: loc.value,
@@ -328,7 +328,7 @@ export const JobExperienceSection = ({
             {/* Primary toggle */}
             <FormField
               control={control}
-              name={`work_experiences.${index}.isPrimary`}
+              name={`work_experiences.${index}.is_primary`}
               render={({ field }) => (
                 <FormItem className="mb-6 flex items-center gap-2 space-y-0">
                   <FormControl>

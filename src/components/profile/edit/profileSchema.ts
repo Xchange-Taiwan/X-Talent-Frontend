@@ -8,20 +8,20 @@ export const educationSchema = z.object({
   id: z.number().int(),
   subject: z.string().min(1, '請輸入主修'),
   school: z.string().min(1, '請選擇學校'),
-  educationPeriodStart: z.string().min(1, '請選擇開始年份'),
-  educationPeriodEnd: z.string().min(1, '請選擇結束年份'),
+  education_period_start: z.string().min(1, '請選擇開始年份'),
+  education_period_end: z.string().min(1, '請選擇結束年份'),
 });
 
 export const jobSchema = z.object({
   id: z.number().int(),
   job: z.string().min(1, '請輸入職稱'),
   company: z.string().min(1, '請輸入公司名稱'),
-  jobPeriodStart: z.string().min(1, '請選擇開始年份'),
-  jobPeriodEnd: z.string().min(1, '請選擇結束年份'),
+  job_period_start: z.string().min(1, '請選擇開始年份'),
+  job_period_end: z.string().min(1, '請選擇結束年份'),
   industry: z.string().min(1, '請輸入產業類別'),
-  jobLocation: z.string().min(1, '請輸入工作地點'),
+  job_location: z.string().min(1, '請輸入工作地點'),
   description: z.string().min(1, '請輸入工作內容'),
-  isPrimary: z.boolean().optional(),
+  is_primary: z.boolean().optional(),
 });
 
 export const personLinkSchema = z.object({
