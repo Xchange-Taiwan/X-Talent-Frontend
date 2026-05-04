@@ -76,8 +76,8 @@ export const WorkExperienceSection = ({
       title: experience.job ?? '',
       subtitle: experience.company ?? '',
       description: experience.description ?? '',
-      startDate: experience.jobPeriodStart ?? '',
-      endDate: experience.jobPeriodEnd ?? '',
+      startDate: experience.job_period_start ?? '',
+      endDate: experience.job_period_end ?? '',
     })
   );
 
@@ -93,8 +93,8 @@ export const EducationSection = ({ educations }: EducationSectionProps) => {
     (education) => ({
       title: education.subject ?? '',
       subtitle: education.school ?? '',
-      startDate: education.educationPeriodStart ?? '',
-      endDate: education.educationPeriodEnd ?? '',
+      startDate: education.education_period_start ?? '',
+      endDate: education.education_period_end ?? '',
     })
   );
 
