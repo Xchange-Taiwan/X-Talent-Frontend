@@ -240,10 +240,10 @@ describe('useProfileSubmit', () => {
           id: 1,
           job: 'Engineer',
           company: 'Acme',
-          jobPeriodStart: '2020',
-          jobPeriodEnd: '2023',
+          job_period_start: '2020',
+          job_period_end: '2023',
           industry: 'tech',
-          jobLocation: 'Taiwan',
+          job_location: 'Taiwan',
           description: 'Built things',
         },
       ],
@@ -560,12 +560,12 @@ describe('useProfileSubmit', () => {
           id: 1,
           job: 'Engineer',
           company: 'Acme',
-          jobPeriodStart: '2020',
-          jobPeriodEnd: 'now',
+          job_period_start: '2020',
+          job_period_end: 'now',
           industry: 'tech',
-          jobLocation: 'TWN',
+          job_location: 'TWN',
           description: 'desc',
-          isPrimary: true,
+          is_primary: true,
         },
       ],
     };
@@ -632,10 +632,10 @@ describe('useProfileSubmit', () => {
           id: 1,
           job: 'Engineer',
           company: 'Acme',
-          jobPeriodStart: '2020',
-          jobPeriodEnd: 'now',
+          job_period_start: '2020',
+          job_period_end: 'now',
           industry: 'tech',
-          jobLocation: 'TWN',
+          job_location: 'TWN',
           description: 'desc',
         },
       ],
@@ -644,8 +644,8 @@ describe('useProfileSubmit', () => {
           id: 1,
           school: 'NTU',
           subject: 'CS',
-          educationPeriodStart: '2015',
-          educationPeriodEnd: '2019',
+          education_period_start: '2015',
+          education_period_end: '2019',
         },
       ],
       have_topic: ['mentoring'],
@@ -674,10 +674,10 @@ describe('useProfileSubmit', () => {
           id: 1,
           job: 'Engineer',
           company: 'Acme',
-          jobPeriodStart: '2020',
-          jobPeriodEnd: 'now',
+          job_period_start: '2020',
+          job_period_end: 'now',
           industry: 'tech',
-          jobLocation: 'TWN',
+          job_location: 'TWN',
           description: 'desc',
         },
       ],
@@ -784,23 +784,23 @@ describe('useProfileSubmit', () => {
           id: 1,
           job: 'Engineer',
           company: 'Acme',
-          jobPeriodStart: '2020',
-          jobPeriodEnd: 'now',
+          job_period_start: '2020',
+          job_period_end: 'now',
           industry: 'tech',
-          jobLocation: 'TWN',
+          job_location: 'TWN',
           description: 'desc',
-          isPrimary: false,
+          is_primary: false,
         },
         {
           id: 2,
           job: 'Senior Engineer',
           company: 'Dell',
-          jobPeriodStart: '2015',
-          jobPeriodEnd: '2019',
+          job_period_start: '2015',
+          job_period_end: '2019',
           industry: 'tech',
-          jobLocation: 'TWN',
+          job_location: 'TWN',
           description: 'desc',
-          isPrimary: true,
+          is_primary: true,
         },
       ],
     };
@@ -827,20 +827,20 @@ describe('useProfileSubmit', () => {
           id: 1,
           job: 'Engineer',
           company: 'Acme',
-          jobPeriodStart: '2020',
-          jobPeriodEnd: 'now',
+          job_period_start: '2020',
+          job_period_end: 'now',
           industry: 'tech',
-          jobLocation: 'TWN',
+          job_location: 'TWN',
           description: 'desc',
         },
         {
           id: 2,
           job: 'Senior Engineer',
           company: 'Dell',
-          jobPeriodStart: '2015',
-          jobPeriodEnd: '2019',
+          job_period_start: '2015',
+          job_period_end: '2019',
           industry: 'tech',
-          jobLocation: 'TWN',
+          job_location: 'TWN',
           description: 'desc',
         },
       ],
@@ -880,12 +880,12 @@ describe('useProfileSubmit', () => {
           id: 1,
           job: 'Engineer',
           company: 'Acme',
-          jobPeriodStart: '2020',
-          jobPeriodEnd: 'now',
+          job_period_start: '2020',
+          job_period_end: 'now',
           industry: 'tech',
-          jobLocation: 'TWN',
+          job_location: 'TWN',
           description: 'desc',
-          isPrimary: true,
+          is_primary: true,
         },
       ],
     };
@@ -894,7 +894,7 @@ describe('useProfileSubmit', () => {
 
     await act(async () => {
       await result.current.onSubmit(valuesWithWork, {
-        work_experiences: [{ isPrimary: true }],
+        work_experiences: [{ is_primary: true }],
       });
     });
 
@@ -904,7 +904,7 @@ describe('useProfileSubmit', () => {
     );
   });
 
-  it('work experience upsert includes isPrimary in payload', async () => {
+  it('work experience upsert includes is_primary in payload', async () => {
     const valuesWithPrimary = {
       ...baseValues,
       work_experiences: [
@@ -912,23 +912,23 @@ describe('useProfileSubmit', () => {
           id: 1,
           job: 'Engineer',
           company: 'Acme',
-          jobPeriodStart: '2020',
-          jobPeriodEnd: 'now',
+          job_period_start: '2020',
+          job_period_end: 'now',
           industry: 'tech',
-          jobLocation: 'TWN',
+          job_location: 'TWN',
           description: 'desc',
-          isPrimary: false,
+          is_primary: false,
         },
         {
           id: 2,
           job: 'Senior Engineer',
           company: 'Dell',
-          jobPeriodStart: '2015',
-          jobPeriodEnd: '2019',
+          job_period_start: '2015',
+          job_period_end: '2019',
           industry: 'tech',
-          jobLocation: 'TWN',
+          job_location: 'TWN',
           description: 'desc',
-          isPrimary: true,
+          is_primary: true,
         },
       ],
     };
@@ -946,10 +946,10 @@ describe('useProfileSubmit', () => {
     const payload = workCall![2];
     const data = (
       payload.mentor_experiences_metadata as {
-        data: { isPrimary?: boolean }[];
+        data: { is_primary?: boolean }[];
       }
     ).data;
-    expect(data[0].isPrimary).toBe(false);
-    expect(data[1].isPrimary).toBe(true);
+    expect(data[0].is_primary).toBe(false);
+    expect(data[1].is_primary).toBe(true);
   });
 });

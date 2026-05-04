@@ -139,8 +139,8 @@ export const EducationSection = ({
       educations.length > 0 &&
       (!last?.subject ||
         !last?.school ||
-        !last?.educationPeriodStart ||
-        !last?.educationPeriodEnd)
+        !last?.education_period_start ||
+        !last?.education_period_end)
     ) {
       alert('請先完成上一筆教育資料再新增');
       return;
@@ -150,8 +150,8 @@ export const EducationSection = ({
       id: -1,
       subject: '',
       school: '',
-      educationPeriodStart: '',
-      educationPeriodEnd: 'now',
+      education_period_start: '',
+      education_period_end: 'now',
     });
   };
 
@@ -160,15 +160,15 @@ export const EducationSection = ({
     name: 'educations',
   }) as
     | Array<{
-        educationPeriodStart?: string;
-        educationPeriodEnd?: string;
+        education_period_start?: string;
+        education_period_end?: string;
       }>
     | undefined;
 
   useEffect(() => {
     const hasError = watchedEducations?.some((edu) => {
-      const start = edu.educationPeriodStart;
-      const end = edu.educationPeriodEnd;
+      const start = edu.education_period_start;
+      const end = edu.education_period_end;
       return start && end && end !== 'now' && Number(start) > Number(end);
     });
     onValidationChange(!!hasError);
@@ -185,8 +185,8 @@ export const EducationSection = ({
     >
       {fields.map((field, index) => {
         const watched = watchedEducations?.[index] ?? {};
-        const start = watched.educationPeriodStart;
-        const end = watched.educationPeriodEnd;
+        const start = watched.education_period_start;
+        const end = watched.education_period_end;
         const isInvalidPeriod =
           start && end && end !== 'now' && Number(start) > Number(end);
 
@@ -238,7 +238,7 @@ export const EducationSection = ({
             <div className="mb-2 gap-2 md:flex md:basis-1/2">
               <FormField
                 control={control}
-                name={`educations.${index}.educationPeriodStart`}
+                name={`educations.${index}.education_period_start`}
                 render={({ field }) => (
                   <FormItem className="mb-4 grow basis-1/2 md:mb-0">
                     <FormLabel>開始年份</FormLabel>
@@ -271,7 +271,7 @@ export const EducationSection = ({
               </p>
               <FormField
                 control={control}
-                name={`educations.${index}.educationPeriodEnd`}
+                name={`educations.${index}.education_period_end`}
                 render={({ field }) => (
                   <FormItem className="grow basis-1/2">
                     <FormLabel className="invisible md:visible">

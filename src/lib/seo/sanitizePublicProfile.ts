@@ -45,7 +45,7 @@ interface ExperienceBlock {
 interface WorkMetadata {
   job?: string;
   company?: string;
-  isPrimary?: boolean;
+  is_primary?: boolean;
 }
 
 interface LinkMetadata {
@@ -93,7 +93,7 @@ function pickCurrentJob(profile: MentorProfileVO): {
   }
 
   const current =
-    workEntries.find((entry) => entry.isPrimary) ?? workEntries[0];
+    workEntries.find((entry) => entry.is_primary) ?? workEntries[0];
 
   return {
     jobTitle: current.job ?? profile.job_title ?? '',

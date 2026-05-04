@@ -115,7 +115,7 @@ export function useProfileSubmit({
       // edit triggers it. `isMentorOnboarding` forces it through so the
       // backend onboarding flag flips even when the user submits without
       // touching anything. A new avatar file also counts.
-      // `work_experiences` is included so toggling `isPrimary` (or editing
+      // `work_experiences` is included so toggling `is_primary` (or editing
       // the primary entry's job/company) re-syncs `mentor.job_title` /
       // `mentor.company`, which are derived from the primary entry below.
       const profileDirty =
@@ -151,7 +151,7 @@ export function useProfileSubmit({
       // from the experience list. Falls back to the first entry when no
       // primary is flagged, matching the JobExperienceSection UI invariant.
       const primaryWork =
-        values.work_experiences?.find((w) => w.isPrimary) ??
+        values.work_experiences?.find((w) => w.is_primary) ??
         values.work_experiences?.[0];
       const job_title = primaryWork?.job ?? '';
       const companyFromPrimary = primaryWork?.company ?? '';
@@ -184,12 +184,12 @@ export function useProfileSubmit({
                   data: values.work_experiences.map((item) => ({
                     job: item.job,
                     company: item.company,
-                    jobPeriodStart: item.jobPeriodStart,
-                    jobPeriodEnd: item.jobPeriodEnd,
+                    job_period_start: item.job_period_start,
+                    job_period_end: item.job_period_end,
                     industry: item.industry,
-                    jobLocation: item.jobLocation,
+                    job_location: item.job_location,
                     description: item.description,
-                    isPrimary: item.isPrimary ?? false,
+                    is_primary: item.is_primary ?? false,
                   })),
                 },
                 order: 1,
@@ -204,8 +204,8 @@ export function useProfileSubmit({
                   data: values.educations.map((item) => ({
                     school: item.school,
                     subject: item.subject,
-                    educationPeriodStart: item.educationPeriodStart,
-                    educationPeriodEnd: item.educationPeriodEnd,
+                    education_period_start: item.education_period_start,
+                    education_period_end: item.education_period_end,
                   })),
                 },
                 order: 2,
