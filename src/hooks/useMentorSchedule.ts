@@ -9,8 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookingSlot,
   buildDateTime,
-  buildRrule,
-  expandRrule,
+  expandBlockSubSlots,
   formatTimeslot,
   hasOverlapAt,
   MonthKey,
@@ -144,6 +143,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         rrule: r.rrule,
         timezone: 'UTC',
         exdate: r.exdate,
+        meeting_duration_minutes: r.meetingDurationMinutes,
       };
       if (r.id > 0 && persistedIdSet.has(r.id)) slot.id = r.id;
       return slot;
@@ -197,11 +197,8 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         return next;
       });
       const firstAllow = raws.find((r) => r.type === 'ALLOW');
-      if (firstAllow) {
-        const derived = Math.round(
-          (firstAllow.dtend - firstAllow.dtstart) / 60
-        );
-        if (derived > 0) setMeetingDurationMinutes(derived);
+      if (firstAllow && firstAllow.meetingDurationMinutes > 0) {
+        setMeetingDurationMinutes(firstAllow.meetingDurationMinutes);
       }
     };
 
@@ -298,7 +295,11 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     const dates = new Set<string>();
     for (const slot of allDraftRaws) {
       if (slot.type !== 'ALLOW') continue;
-      const occurrences = expandRrule(slot.dtstart, slot.rrule);
+      const occurrences = expandBlockSubSlots(
+        slot.dtstart,
+        slot.dtend,
+        slot.meetingDurationMinutes
+      );
       for (const occ of occurrences) {
         if (slot.exdate.includes(occ)) continue;
         dates.add(dayjs(occ * 1000).format('YYYY-MM-DD'));
@@ -320,8 +321,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         const slotDateKey = dayjs(slot.dtstart * 1000).format('YYYY-MM-DD');
         if (slotDateKey !== dateKey) continue;
 
-        const occurrences = expandRrule(slot.dtstart, slot.rrule);
-        const slotDuration = slot.dtend - slot.dtstart;
+        const occurrences = expandBlockSubSlots(
+          slot.dtstart,
+          slot.dtend,
+          slot.meetingDurationMinutes
+        );
+        const slotDuration = slot.meetingDurationMinutes * 60;
 
         for (const occ of occurrences) {
           if (slot.exdate.includes(occ)) continue;
@@ -398,8 +403,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         const newDtstart = Math.floor(s.valueOf() / 1000);
         const blockDurationSeconds =
           Math.floor(e.valueOf() / 1000) - newDtstart;
-        const slotDurationSeconds = meetingDurationMinutes * 60;
-        const newDtend = newDtstart + slotDurationSeconds;
 
         const monthKey = monthKeyFromDateStr(selectedDate);
 
@@ -416,20 +419,16 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
             return prev;
           }
 
-          const rrule =
-            blockDurationSeconds > slotDurationSeconds
-              ? buildRrule(blockDurationSeconds, slotDurationSeconds)
-              : undefined;
-
           return [
             ...prev,
             {
               id: nextTempId(prev),
               type: 'ALLOW' as const,
               dtstart: newDtstart,
-              dtend: newDtend,
-              rrule,
+              dtend: newDtstart + blockDurationSeconds,
+              rrule: undefined,
               exdate: [],
+              meetingDurationMinutes,
             },
           ];
         });
@@ -452,11 +451,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           const baseDate = dayjs(target.dtstart * 1000).format('YYYY-MM-DD');
           const fmtHM = (sec: number) => dayjs(sec * 1000).format('HH:mm');
           const startHM = patch.startTime ?? fmtHM(target.dtstart);
-
-          const occs = expandRrule(target.dtstart, target.rrule);
-          const lastOcc = occs[occs.length - 1] ?? target.dtstart;
-          const endHM =
-            patch.endTime ?? fmtHM(lastOcc + (target.dtend - target.dtstart));
+          const endHM = patch.endTime ?? fmtHM(target.dtend);
 
           const s = buildDateTime(baseDate, startHM);
           const e = buildDateTime(baseDate, endHM);
@@ -465,19 +460,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           const newDtstart = Math.floor(s.valueOf() / 1000);
           const blockDurationSeconds =
             Math.floor(e.valueOf() / 1000) - newDtstart;
-          const slotDurationSeconds = target.dtend - target.dtstart;
-          const newDtend = newDtstart + slotDurationSeconds;
 
           if (
             hasOverlapAt(prev, id, baseDate, newDtstart, blockDurationSeconds)
           ) {
             return prev;
           }
-
-          const newRrule =
-            blockDurationSeconds > slotDurationSeconds
-              ? buildRrule(blockDurationSeconds, slotDurationSeconds)
-              : undefined;
 
           const newBlockEnd = newDtstart + blockDurationSeconds;
           const cleanedExdate = target.exdate.filter(
@@ -489,8 +477,8 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
               ? {
                   ...r,
                   dtstart: newDtstart,
-                  dtend: newDtend,
-                  rrule: newRrule,
+                  dtend: newBlockEnd,
+                  rrule: undefined,
                   exdate: cleanedExdate,
                 }
               : r
