@@ -11,6 +11,8 @@ export type DtType = 'ALLOW' | 'BOOKED' | 'PENDING';
 /** 'YYYY-MM' — used to bucket per-month draft state in useMentorSchedule. */
 export type MonthKey = string;
 
+export const DEFAULT_MEETING_DURATION_MINUTES = 30;
+
 export function monthKeyFromUnix(unix: number): MonthKey {
   return dayjs(unix * 1000).format('YYYY-MM');
 }
@@ -31,6 +33,11 @@ export function parseMonthKey(key: MonthKey): { year: number; month: number } {
 // id: negative values are temporary local ids for new slots (-1, -2, ...)
 // type: narrowed from SegmentVO.dt_type
 // exdate: nulls excluded from SegmentVO.exdate
+// meetingDurationMinutes: new-format marker. null = legacy MINUTELY-rrule row
+//   where (dtstart, dtend) is one sub-slot and `rrule` iterates sub-slots.
+//   When set: (dtstart, dtend) is the whole block and sub-slots are derived
+//   by dividing the block by this length — `rrule` is reserved for true
+//   weekly/daily recurrence (not yet exposed in the UI).
 export type RawMentorTimeslot = Pick<
   SegmentVO,
   'dtstart' | 'dtend' | 'rrule'
@@ -38,19 +45,21 @@ export type RawMentorTimeslot = Pick<
   id: number;
   type: DtType;
   exdate: number[];
+  meetingDurationMinutes: number | null;
 };
 
 export type ParsedMentorTimeslot = {
   id: number;
   type: DtType;
   start: Date; // block start (= dtstart for all types)
-  end: Date; // block end: last occurrence end for ALLOW (derived from rrule), dtend for others
+  end: Date; // block end: derived via getBlockEnd to handle both formats
   durationMinutes: number;
   formatted: string;
   dateKey: string; // YYYY-MM-DD (local)
   rrule?: string;
   exdate: number[];
-  slotDurationSeconds: number; // duration of one sub-slot (dtend - dtstart)
+  slotDurationSeconds: number; // duration of one sub-slot
+  meetingDurationMinutes: number | null;
 };
 
 export type BookingSlot = {
@@ -76,6 +85,78 @@ export function expandRrule(
   }
 }
 
+/**
+ * Subdivide a block [start, end) into sub-slot start timestamps. Trailing
+ * remainder shorter than one slot is dropped.
+ */
+export function subdivideBlock(
+  blockStart: number,
+  blockEnd: number,
+  slotMinutes: number
+): number[] {
+  if (slotMinutes <= 0 || blockEnd <= blockStart) return [];
+  const slotSec = slotMinutes * 60;
+  const out: number[] = [];
+  for (let t = blockStart; t + slotSec <= blockEnd; t += slotSec) {
+    out.push(t);
+  }
+  return out;
+}
+
+type SubSlotInput = Pick<
+  RawMentorTimeslot,
+  'dtstart' | 'dtend' | 'rrule' | 'meetingDurationMinutes'
+>;
+
+/**
+ * Return all sub-slot start timestamps for a slot, hiding the new vs. legacy
+ * format split. New format divides (dtstart, dtend) by meetingDurationMinutes;
+ * legacy expands the FREQ=MINUTELY rrule.
+ */
+export function getSubSlotStarts(slot: SubSlotInput): number[] {
+  if (slot.meetingDurationMinutes != null && slot.meetingDurationMinutes > 0) {
+    return subdivideBlock(
+      slot.dtstart,
+      slot.dtend,
+      slot.meetingDurationMinutes
+    );
+  }
+  return expandRrule(slot.dtstart, slot.rrule);
+}
+
+/** Block end timestamp for a slot. New format: dtend. Legacy: last sub-slot end. */
+export function getBlockEnd(slot: SubSlotInput): number {
+  if (slot.meetingDurationMinutes != null && slot.meetingDurationMinutes > 0) {
+    return slot.dtend;
+  }
+  const occs = expandRrule(slot.dtstart, slot.rrule);
+  const last = occs[occs.length - 1] ?? slot.dtstart;
+  return last + (slot.dtend - slot.dtstart);
+}
+
+/** Sub-slot length in seconds. New format reads meetingDurationMinutes; legacy uses dtend-dtstart. */
+export function getSubSlotDurationSeconds(slot: SubSlotInput): number {
+  if (slot.meetingDurationMinutes != null && slot.meetingDurationMinutes > 0) {
+    return slot.meetingDurationMinutes * 60;
+  }
+  return slot.dtend - slot.dtstart;
+}
+
+/**
+ * Sub-slot starts derived from a ParsedMentorTimeslot. Convenience wrapper
+ * for UI code that holds parsed slots (the dialog) so it doesn't need to
+ * re-derive raw fields. p.end is treated as the block end in both formats —
+ * see formatTimeslot for how that's computed.
+ */
+export function parsedSubSlotStarts(p: ParsedMentorTimeslot): number[] {
+  const startSec = Math.floor(p.start.getTime() / 1000);
+  if (p.meetingDurationMinutes != null && p.meetingDurationMinutes > 0) {
+    const endSec = Math.floor(p.end.getTime() / 1000);
+    return subdivideBlock(startSec, endSec, p.meetingDurationMinutes);
+  }
+  return expandRrule(startSec, p.rrule);
+}
+
 export function segmentToRaw(t: SegmentVO): RawMentorTimeslot {
   return {
     id: t.id ?? Math.floor(Math.random() * 1e9),
@@ -84,21 +165,14 @@ export function segmentToRaw(t: SegmentVO): RawMentorTimeslot {
     dtend: t.dtend,
     rrule: t.rrule ?? undefined,
     exdate: (t.exdate ?? []).filter((x): x is number => x !== null),
+    meetingDurationMinutes: t.meeting_duration_minutes ?? null,
   };
 }
 
 export function formatTimeslot(r: RawMentorTimeslot): ParsedMentorTimeslot {
   const start = new Date(r.dtstart * 1000);
-  const slotDurationSeconds = r.dtend - r.dtstart;
-
-  let end: Date;
-  if (r.type === 'ALLOW' && r.rrule) {
-    const occurrences = expandRrule(r.dtstart, r.rrule);
-    const lastOccDtstart = occurrences[occurrences.length - 1] ?? r.dtstart;
-    end = new Date((lastOccDtstart + slotDurationSeconds) * 1000);
-  } else {
-    end = new Date(r.dtend * 1000);
-  }
+  const slotDurationSeconds = getSubSlotDurationSeconds(r);
+  const end = new Date(getBlockEnd(r) * 1000);
 
   const durationMinutes = Math.round(
     (end.getTime() - start.getTime()) / (1000 * 60)
@@ -115,21 +189,13 @@ export function formatTimeslot(r: RawMentorTimeslot): ParsedMentorTimeslot {
     rrule: r.rrule ?? undefined,
     exdate: r.exdate,
     slotDurationSeconds,
+    meetingDurationMinutes: r.meetingDurationMinutes,
   };
 }
 
 export function nextTempId(rows: RawMentorTimeslot[]): number {
   const negatives = rows.filter((r) => r.id < 0).map((r) => r.id);
   return negatives.length ? Math.min(...negatives) - 1 : -1;
-}
-
-export function buildRrule(
-  blockDurationSeconds: number,
-  slotDurationSeconds: number
-): string {
-  const count = Math.round(blockDurationSeconds / slotDurationSeconds);
-  const intervalMinutes = Math.round(slotDurationSeconds / 60);
-  return `FREQ=MINUTELY;INTERVAL=${intervalMinutes};COUNT=${count}`;
 }
 
 /** Build a dayjs from a YYYY-MM-DD date and HH:mm time. */
@@ -160,8 +226,7 @@ export function hasOverlapAt(
     if (r.type !== 'ALLOW') return false;
     const rDate = dayjs(r.dtstart * 1000).format('YYYY-MM-DD');
     if (rDate !== dateKey) return false;
-    const occs = expandRrule(r.dtstart, r.rrule);
-    const rEnd = (occs[occs.length - 1] ?? r.dtstart) + (r.dtend - r.dtstart);
+    const rEnd = getBlockEnd(r);
     return dtstart < rEnd && blockEnd > r.dtstart;
   });
 }
