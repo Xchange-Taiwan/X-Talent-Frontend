@@ -22,15 +22,13 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
-import {
-  expandRrule,
-  UseMentorScheduleReturn,
-} from '@/hooks/useMentorSchedule';
+import { UseMentorScheduleReturn } from '@/hooks/useMentorSchedule';
 import { trackEvent } from '@/lib/analytics';
 import {
   buildDateTime,
-  buildRrule,
   DtType,
+  parsedSubSlotStarts,
+  subdivideBlock,
 } from '@/lib/profile/scheduleHelpers';
 
 import { ScheduleCalendar } from './ScheduleCalendar';
@@ -127,10 +125,7 @@ export default function MentorScheduleDialog({
   const nowSec = Math.floor(Date.now() / 1000);
   const editableSlotsForDate = draftForSelectedDate.filter((s) => {
     if (s.type !== 'ALLOW') return false;
-    const occurrences = s.rrule
-      ? expandRrule(Math.floor(s.start.getTime() / 1000), s.rrule)
-      : [Math.floor(s.start.getTime() / 1000)];
-    return occurrences.some((occ) => occ > nowSec);
+    return parsedSubSlotStarts(s).some((occ) => occ > nowSec);
   });
 
   // Collect booked dtstart values for the selected date (for locking sub-slots)
@@ -157,10 +152,7 @@ export default function MentorScheduleDialog({
     const parsed = editableSlotsForDate.find((s) => s.id === slotId);
     if (!parsed || parsed.type !== 'ALLOW') return null;
 
-    const occurrences = parsed.rrule
-      ? expandRrule(Math.floor(parsed.start.getTime() / 1000), parsed.rrule)
-      : [Math.floor(parsed.start.getTime() / 1000)];
-
+    const occurrences = parsedSubSlotStarts(parsed);
     if (occurrences.some((occ) => bookedStartsForDate.has(occ)))
       return 'BOOKED';
     if (occurrences.some((occ) => pendingStartsForDate.has(occ)))
@@ -197,17 +189,14 @@ export default function MentorScheduleDialog({
       return null;
 
     const newDtstart = Math.floor(candStart.valueOf() / 1000);
-    const blockDur = Math.floor(candEnd.valueOf() / 1000) - newDtstart;
-    const slotDur = parsed.slotDurationSeconds;
-    const newRrule =
-      blockDur > slotDur ? buildRrule(blockDur, slotDur) : undefined;
-    const newStarts = new Set(expandRrule(newDtstart, newRrule));
-
-    const oldStarts = new Set(
-      parsed.rrule
-        ? expandRrule(Math.floor(parsed.start.getTime() / 1000), parsed.rrule)
-        : [Math.floor(parsed.start.getTime() / 1000)]
+    const newDtend = Math.floor(candEnd.valueOf() / 1000);
+    const slotMinutes =
+      parsed.meetingDurationMinutes ??
+      Math.round(parsed.slotDurationSeconds / 60);
+    const newStarts = new Set(
+      subdivideBlock(newDtstart, newDtend, slotMinutes)
     );
+    const oldStarts = new Set(parsedSubSlotStarts(parsed));
 
     const ownedBooked = Array.from(bookedStartsForDate).filter((occ) =>
       oldStarts.has(occ)
@@ -442,12 +431,10 @@ export default function MentorScheduleDialog({
   /** Render the sub-slot chips for an ALLOW block so mentor can toggle individual occurrences. */
   const renderSubSlots = (slotId: number) => {
     const parsed = editableSlotsForDate.find((s) => s.id === slotId);
-    if (!parsed || parsed.type !== 'ALLOW' || !parsed.rrule) return null;
+    if (!parsed || parsed.type !== 'ALLOW') return null;
 
-    const allOccurrences = expandRrule(
-      Math.floor(parsed.start.getTime() / 1000),
-      parsed.rrule
-    );
+    const allOccurrences = parsedSubSlotStarts(parsed);
+    // Single-slot blocks (e.g. exactly one meeting fits) don't need chips.
     if (allOccurrences.length <= 1) return null;
 
     // Hide sub-slots that have already started today; the parent block filter
