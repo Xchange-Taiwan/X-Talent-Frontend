@@ -5,7 +5,12 @@ import type { MentorProfileVO } from './user';
 type ApiResponseMentorProfileVO =
   components['schemas']['ApiResponse_MentorProfileVO_'];
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
+// SSR_API_URL is preferred when set, so server-side fetches inside a
+// Docker container can reach the BFF via the docker network DNS name
+// (e.g. http://bff:8000/api), while the browser bundle still uses
+// NEXT_PUBLIC_API_URL (e.g. http://localhost:8006/api).
+const BASE_URL =
+  process.env.SSR_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? '';
 // Profile pages are read-heavy and per-user-id; ISR caches each id for 60s so
 // concurrent visitors share one BFF call. Edit submit calls revalidatePath to
 // invalidate this entry on demand.
