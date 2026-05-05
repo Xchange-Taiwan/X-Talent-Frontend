@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+playwright-report
+test-results
+.vscode
+.eslintcache
+*.log
+.env.local
