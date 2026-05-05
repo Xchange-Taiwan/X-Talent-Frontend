@@ -1634,6 +1634,11 @@ export interface components {
        * @example 100
        */
       source_id?: number | null;
+      /**
+       * Meeting Duration Minutes
+       * @example 30
+       */
+      meeting_duration_minutes?: number | null;
     };
     /** MentorScheduleVO */
     MentorScheduleVO: {
@@ -2274,6 +2279,11 @@ export interface components {
        *     ]
        */
       exdate: (number | null)[];
+      /**
+       * Meeting Duration Minutes
+       * @example 30
+       */
+      meeting_duration_minutes?: number | null;
     };
     /**
      * TimeSlotType
@@ -2334,6 +2344,11 @@ export interface components {
        *     ]
        */
       exdate: (number | null)[];
+      /**
+       * Meeting Duration Minutes
+       * @example 30
+       */
+      meeting_duration_minutes?: number | null;
     };
     /** TokenRefreshAuthVO */
     TokenRefreshAuthVO: {

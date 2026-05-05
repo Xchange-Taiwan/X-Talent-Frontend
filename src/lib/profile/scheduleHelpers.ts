@@ -31,6 +31,8 @@ export function parseMonthKey(key: MonthKey): { year: number; month: number } {
 // id: negative values are temporary local ids for new slots (-1, -2, ...)
 // type: narrowed from SegmentVO.dt_type
 // exdate: nulls excluded from SegmentVO.exdate
+// dtstart/dtend: block bounds (entire window). Sub-slots are derived via
+//   expandBlockSubSlots(dtstart, dtend, meetingDurationMinutes).
 export type RawMentorTimeslot = Pick<
   SegmentVO,
   'dtstart' | 'dtend' | 'rrule'
@@ -38,19 +40,21 @@ export type RawMentorTimeslot = Pick<
   id: number;
   type: DtType;
   exdate: number[];
+  meetingDurationMinutes: number;
 };
 
 export type ParsedMentorTimeslot = {
   id: number;
   type: DtType;
-  start: Date; // block start (= dtstart for all types)
-  end: Date; // block end: last occurrence end for ALLOW (derived from rrule), dtend for others
+  start: Date; // block start
+  end: Date; // block end
   durationMinutes: number;
   formatted: string;
   dateKey: string; // YYYY-MM-DD (local)
   rrule?: string;
   exdate: number[];
-  slotDurationSeconds: number; // duration of one sub-slot (dtend - dtstart)
+  slotDurationSeconds: number; // duration of one sub-slot (meetingDurationMinutes * 60)
+  meetingDurationMinutes: number;
 };
 
 export type BookingSlot = {
@@ -76,30 +80,62 @@ export function expandRrule(
   }
 }
 
+/** Sub-slot start times within a block, derived from meetingDurationMinutes. */
+export function expandBlockSubSlots(
+  dtstart: number,
+  dtend: number,
+  meetingDurationMinutes: number
+): number[] {
+  if (meetingDurationMinutes <= 0 || dtend <= dtstart) return [dtstart];
+  const step = meetingDurationMinutes * 60;
+  const result: number[] = [];
+  for (let t = dtstart; t < dtend; t += step) result.push(t);
+  return result;
+}
+
 export function segmentToRaw(t: SegmentVO): RawMentorTimeslot {
+  const id = t.id ?? Math.floor(Math.random() * 1e9);
+  const type = t.dt_type as RawMentorTimeslot['type'];
+  const exdate = (t.exdate ?? []).filter((x): x is number => x !== null);
+
+  if (t.meeting_duration_minutes != null) {
+    return {
+      id,
+      type,
+      dtstart: t.dtstart,
+      dtend: t.dtend,
+      rrule: t.rrule ?? undefined,
+      exdate,
+      meetingDurationMinutes: t.meeting_duration_minutes,
+    };
+  }
+
+  // Legacy fallback: backend pre-Phase-1-4 row with no meeting_duration_minutes.
+  // Old MINUTELY rrule encoded sub-slots; block end was lastOcc + (dtend-dtstart).
+  const subSlotSeconds = Math.max(0, t.dtend - t.dtstart);
+  const isMinutely = t.rrule?.includes('FREQ=MINUTELY');
+  let blockEnd = t.dtend;
+  if (isMinutely) {
+    const occs = expandRrule(t.dtstart, t.rrule);
+    const lastOcc = occs[occs.length - 1] ?? t.dtstart;
+    blockEnd = lastOcc + subSlotSeconds;
+  }
   return {
-    id: t.id ?? Math.floor(Math.random() * 1e9),
-    type: t.dt_type as RawMentorTimeslot['type'],
+    id,
+    type,
     dtstart: t.dtstart,
-    dtend: t.dtend,
-    rrule: t.rrule ?? undefined,
-    exdate: (t.exdate ?? []).filter((x): x is number => x !== null),
+    dtend: blockEnd,
+    rrule: isMinutely ? undefined : (t.rrule ?? undefined),
+    exdate,
+    meetingDurationMinutes:
+      subSlotSeconds > 0 ? Math.round(subSlotSeconds / 60) : 0,
   };
 }
 
 export function formatTimeslot(r: RawMentorTimeslot): ParsedMentorTimeslot {
   const start = new Date(r.dtstart * 1000);
-  const slotDurationSeconds = r.dtend - r.dtstart;
-
-  let end: Date;
-  if (r.type === 'ALLOW' && r.rrule) {
-    const occurrences = expandRrule(r.dtstart, r.rrule);
-    const lastOccDtstart = occurrences[occurrences.length - 1] ?? r.dtstart;
-    end = new Date((lastOccDtstart + slotDurationSeconds) * 1000);
-  } else {
-    end = new Date(r.dtend * 1000);
-  }
-
+  const end = new Date(r.dtend * 1000);
+  const slotDurationSeconds = r.meetingDurationMinutes * 60;
   const durationMinutes = Math.round(
     (end.getTime() - start.getTime()) / (1000 * 60)
   );
@@ -115,21 +151,13 @@ export function formatTimeslot(r: RawMentorTimeslot): ParsedMentorTimeslot {
     rrule: r.rrule ?? undefined,
     exdate: r.exdate,
     slotDurationSeconds,
+    meetingDurationMinutes: r.meetingDurationMinutes,
   };
 }
 
 export function nextTempId(rows: RawMentorTimeslot[]): number {
   const negatives = rows.filter((r) => r.id < 0).map((r) => r.id);
   return negatives.length ? Math.min(...negatives) - 1 : -1;
-}
-
-export function buildRrule(
-  blockDurationSeconds: number,
-  slotDurationSeconds: number
-): string {
-  const count = Math.round(blockDurationSeconds / slotDurationSeconds);
-  const intervalMinutes = Math.round(slotDurationSeconds / 60);
-  return `FREQ=MINUTELY;INTERVAL=${intervalMinutes};COUNT=${count}`;
 }
 
 /** Build a dayjs from a YYYY-MM-DD date and HH:mm time. */
@@ -160,8 +188,6 @@ export function hasOverlapAt(
     if (r.type !== 'ALLOW') return false;
     const rDate = dayjs(r.dtstart * 1000).format('YYYY-MM-DD');
     if (rDate !== dateKey) return false;
-    const occs = expandRrule(r.dtstart, r.rrule);
-    const rEnd = (occs[occs.length - 1] ?? r.dtstart) + (r.dtend - r.dtstart);
-    return dtstart < rEnd && blockEnd > r.dtstart;
+    return dtstart < r.dtend && blockEnd > r.dtstart;
   });
 }
