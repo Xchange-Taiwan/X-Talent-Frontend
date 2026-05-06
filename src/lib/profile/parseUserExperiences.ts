@@ -5,11 +5,21 @@ import {
   jobSchema,
   personLinkSchema,
 } from '@/components/profile/edit/profileSchema';
-import { MentorExperiencePayload } from '@/services/profile/upsertExperience';
+import { ExperienceType } from '@/services/profile/experienceType';
 
 type PersonalLinkFormValue = z.infer<typeof personLinkSchema>;
 type WorkExperienceFormValue = z.infer<typeof jobSchema>;
 type EducationFormValue = z.infer<typeof educationSchema>;
+
+// Wire shape for experiences. Mirrors the inline batch on
+// MentorProfileVO/DTO: backend stores them as JSONB[] on profiles.experiences.
+// No row id — each category packs its items in metadata.data, and RHF gets
+// a stable per-form-item id from the array index when we hydrate the form.
+export interface MentorExperiencePayload {
+  category: ExperienceType | string;
+  mentor_experiences_metadata: Record<string, unknown>;
+  order: number;
+}
 
 type MentorExperienceMetadata<T> = { data?: T[] };
 
@@ -35,10 +45,12 @@ export function parseLinks(
         e.mentor_experiences_metadata as MentorExperienceMetadata<PersonalLinkFormValue>;
       const entries = metadata?.data || [];
 
-      entries.forEach((entry) => {
+      entries.forEach((entry, idx) => {
         const platform = entry.platform as keyof typeof result;
         const url = entry.url || '';
-        const id = e.id ?? -1;
+        // RHF only needs a stable numeric id for the form item; array index
+        // suffices now that experiences no longer carry a DB row id.
+        const id = idx;
 
         if (
           platform &&
@@ -68,8 +80,8 @@ export function parseWorkExperiences(
       const metadata =
         e.mentor_experiences_metadata as MentorExperienceMetadata<WorkExperienceFormValue>;
       const entries = metadata?.data || [];
-      return entries.map((item) => ({
-        id: typeof e.id === 'number' ? e.id : -1,
+      return entries.map((item, idx) => ({
+        id: idx,
         job: item.job || '',
         company: item.company || '',
         job_period_start: item.job_period_start || '',
@@ -97,8 +109,8 @@ export function parseEducations(
       const metadata =
         e.mentor_experiences_metadata as MentorExperienceMetadata<EducationFormValue>;
       const entries = metadata?.data || [];
-      return entries.map((item) => ({
-        id: typeof e.id === 'number' ? e.id : -1,
+      return entries.map((item, idx) => ({
+        id: idx,
         subject: item.subject || '',
         school: item.school || '',
         education_period_start: item.education_period_start || '',
