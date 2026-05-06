@@ -8,11 +8,11 @@ import {
 } from '@/components/profile/edit/profileSchema';
 import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
 import {
+  MentorExperiencePayload,
   parseEducations,
   parseLinks,
   parseWorkExperiences,
 } from '@/lib/profile/parseUserExperiences';
-import { MentorExperiencePayload } from '@/services/profile/upsertExperience';
 import type { components } from '@/types/api';
 
 type TagVO = components['schemas']['TagVO'];

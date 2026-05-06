@@ -4,6 +4,7 @@ import * as z from 'zod';
 import { formSchema } from '@/components/onboarding/steps';
 import { createProfileFormSchema } from '@/components/profile/edit/profileSchema';
 import { apiClient } from '@/lib/apiClient';
+import { MentorExperiencePayload } from '@/lib/profile/parseUserExperiences';
 
 export const unionformSchema = z.union([
   formSchema,
@@ -15,6 +16,9 @@ export type UpdateProfileInput = z.infer<typeof unionformSchema> & {
   // backend mentor record carries the canonical job_title / company.
   job_title?: string;
   company?: string;
+  // Inline experiences batch — same three-state semantics the backend uses
+  // for tag buckets (omitted = leave alone, [] = clear, [...] = replace).
+  experiences?: MentorExperiencePayload[];
 };
 
 export async function updateProfile(
