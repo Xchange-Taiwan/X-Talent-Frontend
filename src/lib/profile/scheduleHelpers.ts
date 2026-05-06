@@ -123,15 +123,6 @@ export function nextTempId(rows: RawMentorTimeslot[]): number {
   return negatives.length ? Math.min(...negatives) - 1 : -1;
 }
 
-export function buildRrule(
-  blockDurationSeconds: number,
-  slotDurationSeconds: number
-): string {
-  const count = Math.round(blockDurationSeconds / slotDurationSeconds);
-  const intervalMinutes = Math.round(slotDurationSeconds / 60);
-  return `FREQ=MINUTELY;INTERVAL=${intervalMinutes};COUNT=${count}`;
-}
-
 /** Build a dayjs from a YYYY-MM-DD date and HH:mm time. */
 export function buildDateTime(dateStr: string, timeStr: string) {
   const [h, m] = timeStr.split(':').map(Number);
