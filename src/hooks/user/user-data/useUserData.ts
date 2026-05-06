@@ -1,7 +1,12 @@
 import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
+import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { ExperienceType } from '@/services/profile/experienceType';
+import {
+  buildTagLabelMap,
+  type TagCatalogsByBucket,
+} from '@/services/profile/tagCatalog';
 import { MentorProfileVO } from '@/services/profile/user';
-import type { components } from '@/types/api';
+import type { TagVO } from '@/types/tag';
 
 import {
   clearUserProfileDtoCache,
@@ -69,16 +74,21 @@ type ExperienceBlock = {
   mentor_experiences_metadata?: { data?: unknown[] };
 };
 
-type TagVO = components['schemas']['TagVO'];
-
-function toTagDisplay(tags: TagVO[] | null | undefined): TagDisplay[] {
-  if (!tags) return [];
-  return tags
-    .map((t) => ({
-      subject_group: t.subject_group ?? '',
-      subject: t.subject ?? t.subject_group ?? '',
-    }))
-    .filter((t) => t.subject_group);
+// Subject_group codes shipped by the BFF round-trip directly back to writes,
+// so resolve them to display labels via the localized catalog. Catalog miss
+// (legacy or unpublished tag) falls back to the raw code rather than dropping
+// the chip silently.
+function toTagDisplay(
+  codes: ReadonlyArray<string> | null | undefined,
+  labelMap: Map<string, string>
+): TagDisplay[] {
+  if (!codes) return [];
+  return codes
+    .filter((c): c is string => Boolean(c))
+    .map((subject_group) => ({
+      subject_group,
+      subject: labelMap.get(subject_group) ?? subject_group,
+    }));
 }
 
 function getBlocksByCategory(
@@ -95,7 +105,12 @@ function getMetadataArray<T>(block: ExperienceBlock): T[] {
   return (block.mentor_experiences_metadata?.data ?? []) as T[];
 }
 
-function parseUserDtoToUserType(userDto: MentorProfileVO): UserType {
+function parseUserDtoToUserType(
+  userDto: MentorProfileVO,
+  catalogs: TagCatalogsByBucket
+): UserType {
+  const labelMap = buildTagLabelMap(catalogs);
+
   const workBlocks = getBlocksByCategory(
     userDto.experiences,
     ExperienceType.WORK
@@ -119,6 +134,10 @@ function parseUserDtoToUserType(userDto: MentorProfileVO): UserType {
     .flatMap((b) => getMetadataArray<PersonalLinkMetadata>(b))
     .filter((l) => Boolean(l.url));
 
+  // BFF emits industry enriched (TagVO-shaped); OpenAPI types it as
+  // `Record<string, never>`. Pull subject through the local TagVO type.
+  const industryTag = userDto.industry as unknown as TagVO | null | undefined;
+
   return {
     user_id: userDto.user_id,
     name: userDto.name ?? '',
@@ -132,12 +151,12 @@ function parseUserDtoToUserType(userDto: MentorProfileVO): UserType {
           userDto.years_of_experience as keyof typeof TotalWorkSpanEnum
         ] ?? userDto.years_of_experience)
       : undefined,
-    industry: userDto.industry?.subject ?? undefined,
-    want_position: toTagDisplay(userDto.want_position),
-    want_skill: toTagDisplay(userDto.want_skill),
-    want_topic: toTagDisplay(userDto.want_topic),
-    have_skill: toTagDisplay(userDto.have_skill),
-    have_topic: toTagDisplay(userDto.have_topic),
+    industry: industryTag?.subject ?? undefined,
+    want_position: toTagDisplay(userDto.want_position, labelMap),
+    want_skill: toTagDisplay(userDto.want_skill, labelMap),
+    want_topic: toTagDisplay(userDto.want_topic, labelMap),
+    have_skill: toTagDisplay(userDto.have_skill, labelMap),
+    have_topic: toTagDisplay(userDto.have_topic, labelMap),
     workExperiences,
     educations,
     personalLinks,
@@ -150,9 +169,13 @@ function useUserData(userId: number, language: string) {
     isLoading: dtoLoading,
     error,
   } = useUserProfileDto(userId, language);
+  // Catalog supplies localized labels for the raw subject_group arrays
+  // (want_*, have_*) and for the enriched industry. Loads in parallel with
+  // the user dto and is cached app-wide via getTagCatalogCached.
+  const tagCatalog = useTagCatalog(language);
 
   const userData: UserType | null = userDto
-    ? parseUserDtoToUserType(userDto)
+    ? parseUserDtoToUserType(userDto, tagCatalog)
     : null;
 
   return { userData, isLoading: dtoLoading, error };

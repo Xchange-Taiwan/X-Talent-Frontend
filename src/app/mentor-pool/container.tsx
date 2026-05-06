@@ -8,10 +8,8 @@ import type {
   FilterOptions,
   SelectFilters,
 } from '@/components/filter/MentorFilterDropdown';
-import useIndustries from '@/hooks/user/industry/useIndustries';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { trackEvent } from '@/lib/analytics';
-import type { ProfessionVO } from '@/services/profile/industries';
 import type {
   TagCatalogGroupVO,
   TagCatalogsByBucket,
@@ -59,7 +57,6 @@ interface Props {
   initialMentors: MentorType[];
   initialCursor: string;
   initialMentorCount: number;
-  initialIndustries: ProfessionVO[];
   initialTagCatalog: TagCatalogsByBucket;
 }
 
@@ -67,7 +64,6 @@ export default function MentorPoolContainer({
   initialMentors,
   initialCursor,
   initialMentorCount,
-  initialIndustries,
   initialTagCatalog,
 }: Props) {
   const router = useRouter();
@@ -75,7 +71,6 @@ export default function MentorPoolContainer({
   const [isPending, startTransition] = useTransition();
   const selectedFilters = parseFiltersFromParams(params);
   const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
-  const { industries } = useIndustries('zh_TW', initialIndustries);
 
   const dynamicFilterOptions = useMemo<FilterOptions>(
     () => ({
@@ -90,10 +85,10 @@ export default function MentorPoolContainer({
       },
       filter_industries: {
         ...filterOptions.filter_industries,
-        options: subjectsToOptions(industries),
+        options: subjectsToOptions(tagCatalog.industry),
       },
     }),
-    [tagCatalog.have_skill, tagCatalog.have_topic, industries]
+    [tagCatalog.have_skill, tagCatalog.have_topic, tagCatalog.industry]
   );
 
   // /v1/mentors returns have_topic as subject_group codes (e.g.

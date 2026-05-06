@@ -4,7 +4,6 @@ import type { WorkExperienceMetadata } from '@/hooks/user/user-data/useUserData'
 import type { components } from '@/types/api';
 
 type RawMentor = components['schemas']['SearchMentorProfileVO'];
-type TagVO = components['schemas']['TagVO'];
 
 export type MentorListResponse =
   components['schemas']['ApiResponse_SearchMentorProfileListVO_'];
@@ -31,19 +30,9 @@ export interface MentorType {
   updated_at: number | null;
 }
 
-// OpenAPI types these as TagVO[], but the search index actually returns a
-// flat string[] of subject_group codes (e.g. ["promotion_review"]). Accept
-// both — for codes, the consumer is responsible for translating to a
-// localized label via the tag catalog.
-function readTagLabels(
-  tags: ReadonlyArray<TagVO | string> | null | undefined
-): string[] {
-  if (!tags) return [];
-  return tags
-    .map((t) =>
-      typeof t === 'string' ? t : (t.subject ?? t.subject_group ?? '')
-    )
-    .filter((s): s is string => Boolean(s));
+function readCodes(codes: ReadonlyArray<string> | null | undefined): string[] {
+  if (!codes) return [];
+  return codes.filter((c): c is string => Boolean(c));
 }
 
 export type MentorsType = components['schemas']['SearchMentorProfileListVO'];
@@ -58,6 +47,12 @@ export interface MentorRequest {
 }
 
 export function mapMentor(raw: RawMentor): MentorType {
+  // Search emits industry as a flat subject_group string (OpenSearch keyword
+  // mapping); the OpenAPI generator types it as `Record<string, never>`
+  // because BFF inherits from MentorProfileVO whose industry is a Dict on
+  // the User-service GET response. The runtime value is a string here.
+  const industry = raw.industry as unknown as string | null | undefined;
+
   return {
     user_id: raw.user_id,
     name: raw.name ?? '',
@@ -69,18 +64,12 @@ export function mapMentor(raw: RawMentor): MentorType {
     personal_statement: raw.personal_statement ?? '',
     about: raw.about ?? '',
     seniority_level: raw.seniority_level ?? '',
-    // OpenAPI schema types `industry` as ProfessionVO, but the search index
-    // returns it as a flat subject_group code string (e.g. "culture_education").
-    // Handle both shapes so we don't silently drop the value.
-    industry:
-      typeof raw.industry === 'string'
-        ? raw.industry
-        : (raw.industry?.subject_group ?? null),
-    want_position: readTagLabels(raw.want_position),
-    want_skill: readTagLabels(raw.want_skill),
-    want_topic: readTagLabels(raw.want_topic),
-    have_skill: readTagLabels(raw.have_skill),
-    have_topic: readTagLabels(raw.have_topic),
+    industry: industry ?? null,
+    want_position: readCodes(raw.want_position),
+    want_skill: readCodes(raw.want_skill),
+    want_topic: readCodes(raw.want_topic),
+    have_skill: readCodes(raw.have_skill),
+    have_topic: readCodes(raw.have_topic),
     updated_at: raw.updated_at ?? null,
   };
 }

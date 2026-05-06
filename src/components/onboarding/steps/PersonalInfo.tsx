@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select';
 import { flattenAsSingleCategory } from '@/lib/profile/categoryGrouping';
 import { LocationType } from '@/services/profile/countries';
-import { ProfessionVO } from '@/services/profile/industries';
+import { type IndustryOption } from '@/services/profile/tagCatalog';
 
 import { totalWorkSpanOptions } from './constant';
 import { step2Schema } from './index';
@@ -29,7 +29,7 @@ import { step2Schema } from './index';
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step2Schema>>>;
   locationOptions: LocationType[];
-  industryOptions: ProfessionVO[];
+  industryOptions: IndustryOption[];
 }
 
 export const PersonalInfo: FC<Props> = ({

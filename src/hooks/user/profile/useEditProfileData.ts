@@ -13,16 +13,7 @@ import {
   parseLinks,
   parseWorkExperiences,
 } from '@/lib/profile/parseUserExperiences';
-import type { components } from '@/types/api';
-
-type TagVO = components['schemas']['TagVO'];
-
-function tagsToSubjectGroups(tags: TagVO[] | null | undefined): string[] {
-  if (!tags) return [];
-  return tags
-    .map((t) => t.subject_group ?? '')
-    .filter((g): g is string => Boolean(g));
-}
+import type { TagVO } from '@/types/tag';
 
 interface Options {
   userId: number;
@@ -61,6 +52,12 @@ export function useEditProfileData({
     const parsedEducations = parseEducations(experiences);
     const parsedLinks = parseLinks(experiences);
 
+    // BFF returns industry enriched as a TagVO-shaped object; the OpenAPI
+    // generator types it as `Record<string, never>` because the BFF model
+    // declares it as `Optional[Dict[str, Any]]`.
+    const industryTag = userDto.industry as unknown as TagVO | null | undefined;
+    const industrySg = industryTag?.subject_group ?? '';
+
     // Reset must include every server-driven field so RHF treats them as the
     // new defaults; otherwise dirtyFields starts non-empty and submit-time
     // skip optimisations cannot tell what the user actually changed.
@@ -72,9 +69,7 @@ export function useEditProfileData({
       location: userDto.location || '',
       statement: userDto.personal_statement || '',
       about: userDto.about || '',
-      industry: userDto.industry?.subject_group
-        ? [userDto.industry.subject_group]
-        : [],
+      industry: industrySg ? [industrySg] : [],
       years_of_experience: userDto.years_of_experience || '',
       work_experiences: parsedExperiences || defaultValues.work_experiences,
       educations: parsedEducations || defaultValues.educations,
@@ -84,11 +79,11 @@ export function useEditProfileData({
       twitter: parsedLinks.twitter || defaultValues.twitter,
       youtube: parsedLinks.youtube || defaultValues.youtube,
       website: parsedLinks.website || defaultValues.website,
-      have_topic: tagsToSubjectGroups(userDto.have_topic),
-      have_skill: tagsToSubjectGroups(userDto.have_skill),
-      want_position: tagsToSubjectGroups(userDto.want_position),
-      want_skill: tagsToSubjectGroups(userDto.want_skill),
-      want_topic: tagsToSubjectGroups(userDto.want_topic),
+      have_topic: userDto.have_topic ?? [],
+      have_skill: userDto.have_skill ?? [],
+      want_position: userDto.want_position ?? [],
+      want_skill: userDto.want_skill ?? [],
+      want_topic: userDto.want_topic ?? [],
     });
 
     setIsMentor(mentorFlag);

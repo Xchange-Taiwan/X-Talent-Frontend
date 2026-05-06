@@ -214,40 +214,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/users/{language}/interests': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get Interests */
-    get: operations['get_interests_api_v1_users__language__interests_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/users/{language}/industries': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get Industries */
-    get: operations['get_industries_api_v1_users__language__industries_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/api/v1/users/{language}/countries': {
     parameters: {
       query?: never;
@@ -257,6 +223,23 @@ export interface paths {
     };
     /** Get Countries */
     get: operations['get_countries_api_v1_users__language__countries_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/users/{language}/tags/catalog': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Tag Catalog */
+    get: operations['get_tag_catalog_api_v1_users__language__tags_catalog_get'];
     put?: never;
     post?: never;
     delete?: never;
@@ -293,23 +276,6 @@ export interface paths {
     get?: never;
     /** Update Reservation Status */
     put: operations['update_reservation_status_api_v1_users__user_id__reservations__reservation_id__put'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/users/{language}/tags/catalog': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get Tag Catalog */
-    get: operations['get_tag_catalog_api_v1_users__language__tags_catalog_get'];
-    put?: never;
     post?: never;
     delete?: never;
     options?: never;
@@ -360,57 +326,6 @@ export interface paths {
     };
     /** Get Universities */
     get: operations['get_universities_api_v1_mentors__language__universities_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/mentors/{user_id}/experiences/{experience_type}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    /** Upsert Experience */
-    put: operations['upsert_experience_api_v1_mentors__user_id__experiences__experience_type__put'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/mentors/{user_id}/experiences/{experience_type}/{experience_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Delete Experience */
-    delete: operations['delete_experience_api_v1_mentors__user_id__experiences__experience_type___experience_id__delete'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/mentors/{language}/expertises': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get Expertises */
-    get: operations['get_expertises_api_v1_mentors__language__expertises_get'];
     put?: never;
     post?: never;
     delete?: never;
@@ -746,20 +661,6 @@ export interface components {
       msg: string;
       data?: components['schemas']['EmailSentVO'] | null;
     };
-    /** ApiResponse[ExperienceVO] */
-    ApiResponse_ExperienceVO_: {
-      /**
-       * Code
-       * @default 0
-       */
-      code: string;
-      /**
-       * Msg
-       * @default ok
-       */
-      msg: string;
-      data?: components['schemas']['ExperienceVO'] | null;
-    };
     /** ApiResponse[FileInfoListVO] */
     ApiResponse_FileInfoListVO_: {
       /**
@@ -815,20 +716,6 @@ export interface components {
        */
       msg: string;
       data?: components['schemas']['GoogleCallbackVO'] | null;
-    };
-    /** ApiResponse[InterestListVO] */
-    ApiResponse_InterestListVO_: {
-      /**
-       * Code
-       * @default 0
-       */
-      code: string;
-      /**
-       * Msg
-       * @default ok
-       */
-      msg: string;
-      data?: components['schemas']['InterestListVO'] | null;
     };
     /** ApiResponse[LoginResponseVO] */
     ApiResponse_LoginResponseVO_: {
@@ -900,20 +787,6 @@ export interface components {
       msg: string;
       /** Data */
       data?: null;
-    };
-    /** ApiResponse[ProfessionListVO] */
-    ApiResponse_ProfessionListVO_: {
-      /**
-       * Code
-       * @default 0
-       */
-      code: string;
-      /**
-       * Msg
-       * @default ok
-       */
-      msg: string;
-      data?: components['schemas']['ProfessionListVO'] | null;
     };
     /** ApiResponse[ProfileVO] */
     ApiResponse_ProfileVO_: {
@@ -1199,27 +1072,9 @@ export interface components {
      * ExperienceCategory
      * @enum {string}
      */
-    ExperienceCategory: 'WORK' | 'EDUCATION' | 'LINK' | 'WHAT_I_OFFER';
-    /** ExperienceDTO */
-    ExperienceDTO: {
-      /** Id */
-      id?: number | null;
-      category?: components['schemas']['ExperienceCategory'];
-      /**
-       * Mentor Experiences Metadata
-       * @default {}
-       */
-      mentor_experiences_metadata: Record<string, never>;
-      /**
-       * Order
-       * @default 0
-       */
-      order: number;
-    };
+    ExperienceCategory: 'WORK' | 'EDUCATION' | 'LINK';
     /** ExperienceVO */
     ExperienceVO: {
-      /** Id */
-      id: number;
       category?: components['schemas']['ExperienceCategory'];
       /**
        * Mentor Experiences Metadata
@@ -1277,12 +1132,12 @@ export interface components {
       url: string | null;
       /**
        * Create Time
-       * @default 2026-05-03T02:22:14.496113Z
+       * @default 2026-05-06T22:19:33.029003Z
        */
       create_time: string | null;
       /**
        * Update Time
-       * @default 2026-05-03T02:22:14.496128Z
+       * @default 2026-05-06T22:19:33.029011Z
        */
       update_time: string | null;
       /** Create User Id */
@@ -1337,40 +1192,6 @@ export interface components {
     HTTPValidationError: {
       /** Detail */
       detail?: components['schemas']['ValidationError'][];
-    };
-    /**
-     * InterestCategory
-     * @enum {string}
-     */
-    InterestCategory: 'INTERESTED_POSITION' | 'SKILL' | 'TOPIC';
-    /** InterestListVO */
-    InterestListVO: {
-      /**
-       * Interests
-       * @default []
-       */
-      interests: components['schemas']['InterestVO'][];
-      /** Language */
-      language?: string | null;
-    };
-    /** InterestVO */
-    InterestVO: {
-      /** Id */
-      id: number;
-      category?: components['schemas']['InterestCategory'];
-      /** Language */
-      language?: string | null;
-      /**
-       * Subject Group
-       * @default unknown
-       */
-      subject_group: string;
-      /**
-       * Subject
-       * @default
-       */
-      subject: string | null;
-      desc?: components['schemas']['MetadataVO'] | null;
     };
     /**
      * Language
@@ -1435,12 +1256,6 @@ export interface components {
        * @default
        */
       location: string | null;
-      /** Interested Positions */
-      interested_positions?: string[] | null;
-      /** Skills */
-      skills?: string[] | null;
-      /** Topics */
-      topics?: string[] | null;
       /**
        * Industry
        * @default
@@ -1462,8 +1277,6 @@ export interface components {
       about?: string | null;
       /** @default NO REVEAL */
       seniority_level: components['schemas']['SeniorityLevel'] | null;
-      /** Expertises */
-      expertises?: string[] | null;
       /** Want Position */
       want_position?: string[] | null;
       /** Want Skill */
@@ -1474,6 +1287,8 @@ export interface components {
       have_skill?: string[] | null;
       /** Have Topic */
       have_topic?: string[] | null;
+      /** Experiences */
+      experiences?: components['schemas']['ExperienceVO'][] | null;
     };
     /** MentorProfileVO */
     MentorProfileVO: {
@@ -1509,10 +1324,8 @@ export interface components {
        * @default
        */
       location: string | null;
-      interested_positions?: components['schemas']['InterestListVO'] | null;
-      skills?: components['schemas']['InterestListVO'] | null;
-      topics?: components['schemas']['InterestListVO'] | null;
-      industry?: components['schemas']['ProfessionVO'] | null;
+      /** Industry */
+      industry?: Record<string, never> | null;
       /**
        * Onboarding
        * @default false
@@ -1540,19 +1353,18 @@ export interface components {
       about: string | null;
       /** @default NO REVEAL */
       seniority_level: components['schemas']['SeniorityLevel'] | null;
-      expertises?: components['schemas']['ProfessionListVO'] | null;
       /** Experiences */
       experiences?: components['schemas']['ExperienceVO'][] | null;
       /** Want Position */
-      want_position?: components['schemas']['TagVO'][] | null;
+      want_position?: string[] | null;
       /** Want Skill */
-      want_skill?: components['schemas']['TagVO'][] | null;
+      want_skill?: string[] | null;
       /** Want Topic */
-      want_topic?: components['schemas']['TagVO'][] | null;
+      want_topic?: string[] | null;
       /** Have Skill */
-      have_skill?: components['schemas']['TagVO'][] | null;
+      have_skill?: string[] | null;
       /** Have Topic */
-      have_topic?: components['schemas']['TagVO'][] | null;
+      have_topic?: string[] | null;
     };
     /** MentorScheduleDTO */
     MentorScheduleDTO: {
@@ -1648,13 +1460,6 @@ export interface components {
        */
       next_dtstart?: number | null;
     };
-    /** MetadataVO */
-    MetadataVO: {
-      /** Desc */
-      desc?: string | null;
-      /** Icon */
-      icon?: string | null;
-    };
     /** PreviousReserveRef */
     PreviousReserveRef: {
       /**
@@ -1662,42 +1467,6 @@ export interface components {
        * @example 0
        */
       reserve_id?: number | null;
-    };
-    /**
-     * ProfessionCategory
-     * @enum {string}
-     */
-    ProfessionCategory: 'EXPERTISE' | 'INDUSTRY';
-    /** ProfessionListVO */
-    ProfessionListVO: {
-      /**
-       * Professions
-       * @default []
-       */
-      professions: components['schemas']['ProfessionVO'][];
-    };
-    /** ProfessionVO */
-    ProfessionVO: {
-      /** Id */
-      id: number;
-      category: components['schemas']['ProfessionCategory'];
-      /**
-       * Language
-       * @default
-       */
-      language: string | null;
-      /**
-       * Subject Group
-       * @default unknown
-       */
-      subject_group: string;
-      /**
-       * Subject
-       * @default
-       */
-      subject: string;
-      /** @default {} */
-      profession_metadata: components['schemas']['MetadataVO'];
     };
     /** ProfileDTO */
     ProfileDTO: {
@@ -1733,12 +1502,6 @@ export interface components {
        * @default
        */
       location: string | null;
-      /** Interested Positions */
-      interested_positions?: string[] | null;
-      /** Skills */
-      skills?: string[] | null;
-      /** Topics */
-      topics?: string[] | null;
       /**
        * Industry
        * @default
@@ -1789,10 +1552,8 @@ export interface components {
        * @default
        */
       location: string | null;
-      interested_positions?: components['schemas']['InterestListVO'] | null;
-      skills?: components['schemas']['InterestListVO'] | null;
-      topics?: components['schemas']['InterestListVO'] | null;
-      industry?: components['schemas']['ProfessionVO'] | null;
+      /** Industry */
+      industry?: Record<string, never> | null;
       /**
        * Onboarding
        * @default false
@@ -2055,10 +1816,8 @@ export interface components {
        * @default
        */
       location: string | null;
-      interested_positions?: components['schemas']['InterestListVO'] | null;
-      skills?: components['schemas']['InterestListVO'] | null;
-      topics?: components['schemas']['InterestListVO'] | null;
-      industry?: components['schemas']['ProfessionVO'] | null;
+      /** Industry */
+      industry?: Record<string, never> | null;
       /**
        * Onboarding
        * @default false
@@ -2086,19 +1845,18 @@ export interface components {
       about: string | null;
       /** @default NO REVEAL */
       seniority_level: components['schemas']['SeniorityLevel'] | null;
-      expertises?: components['schemas']['ProfessionListVO'] | null;
       /** Experiences */
       experiences?: components['schemas']['ExperienceVO'][] | null;
       /** Want Position */
-      want_position?: components['schemas']['TagVO'][] | null;
+      want_position?: string[] | null;
       /** Want Skill */
-      want_skill?: components['schemas']['TagVO'][] | null;
+      want_skill?: string[] | null;
       /** Want Topic */
-      want_topic?: components['schemas']['TagVO'][] | null;
+      want_topic?: string[] | null;
       /** Have Skill */
-      have_skill?: components['schemas']['TagVO'][] | null;
+      have_skill?: string[] | null;
       /** Have Topic */
-      have_topic?: components['schemas']['TagVO'][] | null;
+      have_topic?: string[] | null;
       /** Updated At */
       updated_at: number | null;
       /** Views */
@@ -2195,31 +1953,7 @@ export interface components {
      * TagKind
      * @enum {string}
      */
-    TagKind: 'skill' | 'position' | 'topic';
-    /**
-     * TagVO
-     * @description Mirror of X-Career-User TagVO. Each enriched bucket on
-     *     MentorProfileVO is a list of these.
-     */
-    TagVO: {
-      /** Id */
-      id: number;
-      /** Kind */
-      kind: string;
-      /** Subject Group */
-      subject_group?: string | null;
-      /** Language */
-      language?: string | null;
-      /**
-       * Subject
-       * @default
-       */
-      subject: string | null;
-      /** Desc */
-      desc?: Record<string, never> | null;
-      /** Parent Subject Group */
-      parent_subject_group?: string | null;
-    };
+    TagKind: 'skill' | 'position' | 'topic' | 'industry';
     /** TimeSlotDTO */
     TimeSlotDTO: {
       /**
@@ -2916,84 +2650,6 @@ export interface operations {
       };
     };
   };
-  get_interests_api_v1_users__language__interests_get: {
-    parameters: {
-      query: {
-        interest: components['schemas']['InterestCategory'];
-      };
-      header?: never;
-      path: {
-        language: components['schemas']['Language'];
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_InterestListVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_industries_api_v1_users__language__industries_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        language: components['schemas']['Language'];
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_ProfessionListVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
   get_countries_api_v1_users__language__countries_get: {
     parameters: {
       query?: never;
@@ -3012,6 +2668,47 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ApiResponse_CountryListVO_'];
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_tag_catalog_api_v1_users__language__tags_catalog_get: {
+    parameters: {
+      query?: {
+        kind?: components['schemas']['TagKind'][] | null;
+      };
+      header?: never;
+      path: {
+        /** @example zh_TW */
+        language: components['schemas']['Language'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_TagCatalogsVO_'];
         };
       };
       /** @description Not found */
@@ -3159,46 +2856,6 @@ export interface operations {
       };
     };
   };
-  get_tag_catalog_api_v1_users__language__tags_catalog_get: {
-    parameters: {
-      query?: {
-        kind?: components['schemas']['TagKind'][] | null;
-      };
-      header?: never;
-      path: {
-        language: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_TagCatalogsVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
   upsert_mentor_profile_api_v1_mentors__user_id__profile_put: {
     parameters: {
       query?: never;
@@ -3300,131 +2957,6 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ApiResponse_UniversityListVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  upsert_experience_api_v1_mentors__user_id__experiences__experience_type__put: {
-    parameters: {
-      query?: never;
-      header?: {
-        'is-mentor'?: boolean;
-      };
-      path: {
-        user_id: number;
-        experience_type: components['schemas']['ExperienceCategory'];
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ExperienceDTO'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_ExperienceVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  delete_experience_api_v1_mentors__user_id__experiences__experience_type___experience_id__delete: {
-    parameters: {
-      query?: never;
-      header?: {
-        'is-mentor'?: boolean;
-      };
-      path: {
-        user_id: number;
-        experience_type: components['schemas']['ExperienceCategory'];
-        experience_id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_ExperienceVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_expertises_api_v1_mentors__language__expertises_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        language: components['schemas']['Language'];
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_ProfessionListVO_'];
         };
       };
       /** @description Not found */
