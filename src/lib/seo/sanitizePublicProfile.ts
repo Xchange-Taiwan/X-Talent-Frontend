@@ -1,5 +1,6 @@
 import { ExperienceType } from '@/services/profile/experienceType';
 import type { MentorProfileVO } from '@/services/profile/user';
+import type { TagVO } from '@/types/tag';
 
 export type SocialPlatform =
   | 'linkedin'
@@ -126,16 +127,36 @@ function pickPublicLinks(profile: MentorProfileVO): PublicPersonalLink[] {
   return result;
 }
 
+function resolveLabels(
+  codes: ReadonlyArray<string> | null | undefined,
+  labelMap?: Map<string, string>
+): string[] {
+  if (!codes) return [];
+  return codes
+    .filter((c): c is string => Boolean(c))
+    .map((code) => labelMap?.get(code) ?? code);
+}
+
+/**
+ * Build a sanitized public projection of the mentor profile for SEO/JSON-LD.
+ * Pass `labelMap` to translate raw subject_group codes (the wire format for
+ * have_skill/have_topic) into localized labels; without it the codes pass
+ * through, which still works for crawlers but degrades zh_TW relevance.
+ */
 export function sanitizePublicProfile(
-  profile: MentorProfileVO
+  profile: MentorProfileVO,
+  labelMap?: Map<string, string>
 ): PublicMentorProfile {
   const { jobTitle, company } = pickCurrentJob(profile);
 
-  const expertises =
-    profile.have_skill?.map((t) => t.subject ?? '').filter(Boolean) ?? [];
+  const expertises = resolveLabels(profile.have_skill, labelMap);
+  const topics = resolveLabels(profile.have_topic, labelMap);
 
-  const topics =
-    profile.have_topic?.map((t) => t.subject ?? '').filter(Boolean) ?? [];
+  // BFF emits industry as an enriched TagVO-shaped object even though the
+  // OpenAPI generator types it as `Record<string, never>`. Fall back to the
+  // raw subject_group key when the localized subject is missing.
+  const industryTag = profile.industry as unknown as TagVO | null | undefined;
+  const industry = industryTag?.subject ?? industryTag?.subject_group ?? null;
 
   return {
     userId: profile.user_id,
@@ -144,7 +165,7 @@ export function sanitizePublicProfile(
     jobTitle,
     company,
     about: profile.about ?? '',
-    industry: profile.industry?.subject ?? null,
+    industry,
     expertises,
     topics,
     isMentor: Boolean(profile.is_mentor),

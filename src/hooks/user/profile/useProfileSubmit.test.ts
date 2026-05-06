@@ -66,23 +66,28 @@ const mockUserDTO: MentorProfileVO = {
   company: 'Acme',
   years_of_experience: '1_3',
   location: 'Taiwan',
-  interested_positions: { interests: [], language: null },
-  skills: { interests: [], language: null },
-  topics: { interests: [], language: null },
+  // BFF emits industry as the enriched TagVO-shape Dict on read; OpenAPI
+  // generator normalises it to `Record<string, never>` because the BFF
+  // model annotates it `Optional[Dict[str, Any]]`. Cast through to express
+  // the runtime shape without committing the test to the TagVO interface.
   industry: {
     id: 1,
-    category: 'INDUSTRY',
+    kind: 'industry',
     subject_group: 'tech',
     subject: 'software',
     language: 'zh_TW',
-    profession_metadata: { desc: '', icon: '' },
-  },
+  } as unknown as MentorProfileVO['industry'],
   onboarding: true,
   is_mentor: true,
   language: 'zh_TW',
   personal_statement: null,
   about: null,
   seniority_level: null,
+  want_position: null,
+  want_skill: null,
+  want_topic: null,
+  have_skill: null,
+  have_topic: null,
 };
 
 const mockSession: Session = {

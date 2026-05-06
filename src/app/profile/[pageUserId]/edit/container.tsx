@@ -35,7 +35,6 @@ import { Form } from '@/components/ui/form';
 import { PageLoading } from '@/components/ui/loading-spinner';
 import { useProfileAuth } from '@/hooks/user/auth/useProfileAuth';
 import useLocations from '@/hooks/user/country/useLocations';
-import useIndustries from '@/hooks/user/industry/useIndustries';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { useEditProfileData } from '@/hooks/user/profile/useEditProfileData';
 import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
@@ -45,7 +44,6 @@ import {
   flattenAsSingleCategory,
   tagGroupsToCategories,
 } from '@/lib/profile/categoryGrouping';
-import type { ProfessionVO } from '@/services/profile/industries';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import { prefetchPresignedUrl } from '@/services/profile/updateAvatar';
 
@@ -67,13 +65,11 @@ const LinksSection = dynamic(async () => {
 
 interface Props {
   pageUserId: string;
-  initialIndustries: ProfessionVO[];
   initialTagCatalog: TagCatalogsByBucket;
 }
 
 export default function EditProfileContainer({
   pageUserId,
-  initialIndustries,
   initialTagCatalog,
 }: Props) {
   const router = useRouter();
@@ -90,8 +86,8 @@ export default function EditProfileContainer({
   const [educationSectionError, setEducationSectionError] = useState(false);
 
   const { locations } = useLocations('zh_TW');
-  const { industries } = useIndustries('zh_TW', initialIndustries);
   const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
+  const industries = tagCatalog.industry;
 
   const isMentorRef = useRef(isMentor);
   isMentorRef.current = isMentor;

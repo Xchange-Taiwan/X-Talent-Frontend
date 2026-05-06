@@ -1,5 +1,4 @@
 import avatarImage from '@/assets/default-avatar.png';
-import { fetchIndustriesServer } from '@/services/profile/industries.server';
 import { fetchTagCatalogServer } from '@/services/profile/tagCatalog.server';
 import type { MentorType } from '@/services/search-mentor/mentors';
 import { fetchMentorsServer } from '@/services/search-mentor/mentors.server';
@@ -30,13 +29,12 @@ export default async function MentorPoolWithData({ searchParams }: Props) {
   const urlParams = toURLSearchParams(searchParams);
   const conditions = paramsToFetchConditions(urlParams);
 
-  const [mentors, initialIndustries, initialTagCatalog] = await Promise.all([
+  const [mentors, initialTagCatalog] = await Promise.all([
     fetchMentorsServer({
       ...conditions,
       limit: PAGE_LIMIT,
       cursor: '',
     }),
-    fetchIndustriesServer('zh_TW'),
     fetchTagCatalogServer('zh_TW'),
   ]);
   const initialMentors = mentors.map(resolveAvatar);
@@ -48,7 +46,6 @@ export default async function MentorPoolWithData({ searchParams }: Props) {
       initialMentors={initialMentors}
       initialCursor={initialCursor}
       initialMentorCount={initialMentors.length}
-      initialIndustries={initialIndustries}
       initialTagCatalog={initialTagCatalog}
     />
   );
