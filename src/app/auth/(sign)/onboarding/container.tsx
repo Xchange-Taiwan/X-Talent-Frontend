@@ -16,7 +16,6 @@ import {
   step5Schema,
 } from '@/components/onboarding/steps';
 import useLocations from '@/hooks/user/country/useLocations';
-import useIndustries from '@/hooks/user/industry/useIndustries';
 import { buildOnboardingDtoStub } from '@/hooks/user/onboarding/buildOnboardingDtoStub';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import {
@@ -25,7 +24,6 @@ import {
 } from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
-import type { ProfessionVO } from '@/services/profile/industries';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
@@ -34,21 +32,17 @@ import { STEP_TITLE, STEPS_TOTAL } from './data';
 import OnboardingUI from './ui';
 
 interface Props {
-  initialIndustries: ProfessionVO[];
   initialTagCatalog: TagCatalogsByBucket;
 }
 
-export default function OnboardingContainer({
-  initialIndustries,
-  initialTagCatalog,
-}: Props) {
+export default function OnboardingContainer({ initialTagCatalog }: Props) {
   const router = useRouter();
   const { locations } = useLocations('zh_TW');
-  const { industries } = useIndustries('zh_TW', initialIndustries);
   const {
     want_position: wantPositionGroups,
     want_skill: wantSkillGroups,
     want_topic: wantTopicGroups,
+    industry: industries,
   } = useTagCatalog('zh_TW', initialTagCatalog);
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -237,11 +231,6 @@ export default function OnboardingContainer({
           const stub = buildOnboardingDtoStub({
             userId: sessionUserId,
             formData: validatedData,
-            pools: {
-              want_position: wantPositionGroups,
-              want_skill: wantSkillGroups,
-              want_topic: wantTopicGroups,
-            },
             isMentor: session?.user?.isMentor ?? false,
           });
           primeUserDataCache(sessionUserId, 'zh_TW', stub);

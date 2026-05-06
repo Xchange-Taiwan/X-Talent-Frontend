@@ -16,8 +16,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
 import { LocationType } from '@/services/profile/countries';
-import { ProfessionVO } from '@/services/profile/industries';
-import { TagCatalogGroupVO } from '@/services/profile/tagCatalog';
+import {
+  type IndustryOption,
+  type TagCatalogGroupVO,
+} from '@/services/profile/tagCatalog';
 
 // Steps 2-5 are only rendered after the user completes step 1.
 // Lazy-load them so their code is excluded from the initial bundle and
@@ -54,7 +56,7 @@ interface Props {
   step4Form: UseFormReturn<z.infer<typeof step4Schema>>;
   step5Form: UseFormReturn<z.infer<typeof step5Schema>>;
   locations: LocationType[];
-  industries: ProfessionVO[];
+  industries: IndustryOption[];
   wantPositionGroups: TagCatalogGroupVO[];
   wantSkillGroups: TagCatalogGroupVO[];
   wantTopicGroups: TagCatalogGroupVO[];
