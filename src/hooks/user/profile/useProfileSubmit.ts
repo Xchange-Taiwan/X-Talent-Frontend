@@ -13,6 +13,7 @@ import {
 import { trackEvent } from '@/lib/analytics';
 import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { MentorExperiencePayload } from '@/lib/profile/parseUserExperiences';
 import {
   firstSyncedFetch,
   pollUntilSynced,
@@ -20,7 +21,6 @@ import {
 import { ExperienceType } from '@/services/profile/experienceType';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
-import { upsertMentorExperience } from '@/services/profile/upsertExperience';
 import { MentorProfileVO } from '@/services/profile/user';
 
 // RHF's dirtyFields is a deep partial where leaves are `true`. Nested fields
@@ -98,26 +98,32 @@ export function useProfileSubmit({
         }
       }
 
-      // 2) profile + experience writes — fire only the PUTs whose section
-      //    actually changed. When `dirtyFields` is omitted we fall back to
-      //    the legacy "send everything" behaviour so existing callers and
-      //    tests are unaffected.
-      //
-      //    Backend tables are independent (Profile vs MentorExperience, no
-      //    FK, no shared rows; is_mentor flag is only written by the profile
-      //    endpoint), so concurrent merges don't race.
+      // 2) profile + experience writes — experiences ride inline on the
+      //    profile PUT (backend stores them as JSONB[] on profiles.experiences).
+      //    When `dirtyFields` is omitted we fall back to the legacy
+      //    "send everything" behaviour so existing callers and tests are
+      //    unaffected.
       const isDirty = (key: keyof ProfileFormValues): boolean => {
         if (!dirtyFields) return true;
         return hasDirtyValue(dirtyFields[key]);
       };
 
+      const workDirty = isDirty('work_experiences');
+      const educationDirty = isDirty('educations');
+      const linksDirty =
+        isDirty('linkedin') ||
+        isDirty('facebook') ||
+        isDirty('instagram') ||
+        isDirty('twitter') ||
+        isDirty('youtube') ||
+        isDirty('website');
+      const experiencesDirty = workDirty || educationDirty || linksDirty;
+
       // updateProfile sends every form field, so any non-experience profile
       // edit triggers it. `isMentorOnboarding` forces it through so the
       // backend onboarding flag flips even when the user submits without
-      // touching anything. A new avatar file also counts.
-      // `work_experiences` is included so toggling `is_primary` (or editing
-      // the primary entry's job/company) re-syncs `mentor.job_title` /
-      // `mentor.company`, which are derived from the primary entry below.
+      // touching anything. A new avatar file also counts. Any dirty
+      // experience section also triggers it because experiences travel inline.
       const profileDirty =
         isMentorOnboarding ||
         Boolean(values.avatarFile) ||
@@ -133,17 +139,7 @@ export function useProfileSubmit({
         isDirty('want_position') ||
         isDirty('want_skill') ||
         isDirty('want_topic') ||
-        isDirty('work_experiences');
-
-      const workDirty = isDirty('work_experiences');
-      const educationDirty = isDirty('educations');
-      const linksDirty =
-        isDirty('linkedin') ||
-        isDirty('facebook') ||
-        isDirty('instagram') ||
-        isDirty('twitter') ||
-        isDirty('youtube') ||
-        isDirty('website');
+        experiencesDirty;
 
       // Mentor's top-level job_title / company mirror the primary work
       // experience so consumers (profile page, mentor pool card, reservations)
@@ -156,13 +152,6 @@ export function useProfileSubmit({
       const job_title = primaryWork?.job ?? '';
       const companyFromPrimary = primaryWork?.company ?? '';
 
-      const payload = {
-        ...values,
-        avatar,
-        avatarFile: undefined,
-        job_title,
-        company: companyFromPrimary,
-      };
       const links = [
         values.linkedin,
         values.facebook,
@@ -172,68 +161,72 @@ export function useProfileSubmit({
         values.website,
       ].filter((l) => l && l.url);
 
+      // Replace semantics: send the full experiences set every time any
+      // section is dirty. Backend overwrites profiles.experiences wholesale.
+      // Sections without dirty form items still ride along with their
+      // current values to avoid clobbering them.
+      const buildExperiences = (): MentorExperiencePayload[] => [
+        {
+          category: ExperienceType.WORK,
+          order: 1,
+          mentor_experiences_metadata: {
+            data: (values.work_experiences ?? []).map((item) => ({
+              job: item.job,
+              company: item.company,
+              job_period_start: item.job_period_start,
+              job_period_end: item.job_period_end,
+              industry: item.industry,
+              job_location: item.job_location,
+              description: item.description,
+              is_primary: item.is_primary ?? false,
+            })),
+          },
+        },
+        {
+          category: ExperienceType.EDUCATION,
+          order: 2,
+          mentor_experiences_metadata: {
+            data: (values.educations ?? []).map((item) => ({
+              school: item.school,
+              subject: item.subject,
+              education_period_start: item.education_period_start,
+              education_period_end: item.education_period_end,
+            })),
+          },
+        },
+        {
+          category: ExperienceType.LINK,
+          order: 3,
+          mentor_experiences_metadata: {
+            data: links.map((link) => ({
+              platform: link.platform,
+              url: link.url,
+            })),
+          },
+        },
+      ];
+
+      const payload = {
+        ...values,
+        avatar,
+        avatarFile: undefined,
+        job_title,
+        company: companyFromPrimary,
+        // Three-state semantic on the wire: omit when no experience section
+        // changed (backend leaves the column alone); include the full set
+        // when any section is dirty (backend overwrites).
+        ...(experiencesDirty ? { experiences: buildExperiences() } : {}),
+      };
+
       try {
-        await Promise.all([
-          profileDirty ? updateProfile(payload) : Promise.resolve(),
-
-          workDirty && values.work_experiences?.length > 0
-            ? upsertMentorExperience(ExperienceType.WORK, true, {
-                id: 1,
-                category: ExperienceType.WORK,
-                mentor_experiences_metadata: {
-                  data: values.work_experiences.map((item) => ({
-                    job: item.job,
-                    company: item.company,
-                    job_period_start: item.job_period_start,
-                    job_period_end: item.job_period_end,
-                    industry: item.industry,
-                    job_location: item.job_location,
-                    description: item.description,
-                    is_primary: item.is_primary ?? false,
-                  })),
-                },
-                order: 1,
-              })
-            : Promise.resolve(),
-
-          educationDirty && values.educations?.length > 0
-            ? upsertMentorExperience(ExperienceType.EDUCATION, true, {
-                id: 2,
-                category: ExperienceType.EDUCATION,
-                mentor_experiences_metadata: {
-                  data: values.educations.map((item) => ({
-                    school: item.school,
-                    subject: item.subject,
-                    education_period_start: item.education_period_start,
-                    education_period_end: item.education_period_end,
-                  })),
-                },
-                order: 2,
-              })
-            : Promise.resolve(),
-
-          linksDirty && links.length > 0
-            ? upsertMentorExperience(ExperienceType.LINK, true, {
-                id: 3,
-                category: ExperienceType.LINK,
-                mentor_experiences_metadata: {
-                  data: links.map((link) => ({
-                    platform: link.platform,
-                    url: link.url,
-                  })),
-                },
-                order: 3,
-              })
-            : Promise.resolve(),
-        ]);
+        if (profileDirty) {
+          await updateProfile(payload);
+        }
       } catch (err) {
         captureFlowFailure({
           flow: 'profile_update',
-          step: 'parallel_write',
-          message:
-            err instanceof Error
-              ? err.message
-              : 'Profile parallel write failed',
+          step: 'profile_write',
+          message: err instanceof Error ? err.message : 'Profile write failed',
         });
         throw err;
       }

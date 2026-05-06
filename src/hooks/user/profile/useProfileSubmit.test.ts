@@ -20,10 +20,6 @@ vi.mock('@/services/profile/updateProfile', () => ({
   updateProfile: vi.fn(),
 }));
 
-vi.mock('@/services/profile/upsertExperience', () => ({
-  upsertMentorExperience: vi.fn(),
-}));
-
 vi.mock('@/lib/profile/pollUntilSynced', () => ({
   pollUntilSynced: vi.fn(),
   firstSyncedFetch: vi.fn(),
@@ -49,7 +45,6 @@ import {
 import { ExperienceType } from '@/services/profile/experienceType';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
-import { upsertMentorExperience } from '@/services/profile/upsertExperience';
 import type { MentorProfileVO } from '@/services/profile/user';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
@@ -58,7 +53,6 @@ import { useProfileSubmit } from './useProfileSubmit';
 
 const mockUpdateAvatar = vi.mocked(updateAvatar);
 const mockUpdateProfile = vi.mocked(updateProfile);
-const mockUpsertMentorExperience = vi.mocked(upsertMentorExperience);
 const mockPollUntilSynced = vi.mocked(pollUntilSynced);
 const mockFirstSyncedFetch = vi.mocked(firstSyncedFetch);
 const mockPrimeUserDataCache = vi.mocked(primeUserDataCache);
@@ -128,11 +122,26 @@ const makeOptions = (
   ...overrides,
 });
 
+// Pull the experiences array from the most-recent updateProfile call. Tests
+// assert against this shape rather than counting separate experience PUTs;
+// experiences travel inline now.
+function lastExperiences(): unknown[] | undefined {
+  const lastCall =
+    mockUpdateProfile.mock.calls[mockUpdateProfile.mock.calls.length - 1];
+  if (!lastCall) return undefined;
+  const arg = lastCall[0] as { experiences?: unknown[] };
+  return arg.experiences;
+}
+
+function categoriesIn(payload: unknown): string[] {
+  if (!Array.isArray(payload)) return [];
+  return (payload as { category?: string }[]).map((e) => e.category ?? '');
+}
+
 describe('useProfileSubmit', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUpdateProfile.mockResolvedValue(undefined);
-    mockUpsertMentorExperience.mockResolvedValue(undefined);
     mockPollUntilSynced.mockResolvedValue(mockUserDTO);
     // Default: backend has not synced fast enough → exercise the historical
     // clear-cache + background-poll fallback. Tests covering the new prime
@@ -152,7 +161,6 @@ describe('useProfileSubmit', () => {
     });
 
     expect(mockUpdateProfile).not.toHaveBeenCalled();
-    expect(mockUpsertMentorExperience).not.toHaveBeenCalled();
     expect(mockPollUntilSynced).not.toHaveBeenCalled();
     expect(mockRouter.push).not.toHaveBeenCalled();
   });
@@ -167,7 +175,6 @@ describe('useProfileSubmit', () => {
     });
 
     expect(mockUpdateProfile).not.toHaveBeenCalled();
-    expect(mockUpsertMentorExperience).not.toHaveBeenCalled();
     expect(mockPollUntilSynced).not.toHaveBeenCalled();
     expect(mockRouter.push).not.toHaveBeenCalled();
   });
@@ -228,36 +235,6 @@ describe('useProfileSubmit', () => {
     expect(result.current.isSaving).toBe(false);
   });
 
-  it('upsertMentorExperience throws → isSaving returns to false', async () => {
-    mockUpsertMentorExperience.mockRejectedValueOnce(
-      new Error('Upsert failed')
-    );
-
-    const valuesWithWork = {
-      ...baseValues,
-      work_experiences: [
-        {
-          id: 1,
-          job: 'Engineer',
-          company: 'Acme',
-          job_period_start: '2020',
-          job_period_end: '2023',
-          industry: 'tech',
-          job_location: 'Taiwan',
-          description: 'Built things',
-        },
-      ],
-    };
-
-    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
-
-    await act(async () => {
-      await result.current.onSubmit(valuesWithWork);
-    });
-
-    expect(result.current.isSaving).toBe(false);
-  });
-
   // ── Error feedback (toast) ────────────────────────────────────────────────
 
   it('updateProfile throws → destructive toast with generic save-failed message', async () => {
@@ -302,32 +279,111 @@ describe('useProfileSubmit', () => {
     expect(mockToast).not.toHaveBeenCalled();
   });
 
-  // ── Conditional upserts ────────────────────────────────────────────────────
+  // ── Inline experiences ────────────────────────────────────────────────────
 
-  it('work_experiences is empty → work experience upsert is NOT called', async () => {
+  it('no dirtyFields → updateProfile fires with full experiences inline (legacy callers send everything)', async () => {
     const { result } = renderHook(() => useProfileSubmit(makeOptions()));
 
     await act(async () => {
-      await result.current.onSubmit({ ...baseValues, work_experiences: [] });
+      await result.current.onSubmit(baseValues);
     });
 
-    const workCalls = mockUpsertMentorExperience.mock.calls.filter(
-      ([type]) => type === ExperienceType.WORK
-    );
-    expect(workCalls).toHaveLength(0);
+    expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+    // baseValues has empty work/edu/links → still send all 3 categories so
+    // backend overwrites with empty data arrays.
+    expect(categoriesIn(lastExperiences())).toEqual([
+      ExperienceType.WORK,
+      ExperienceType.EDUCATION,
+      ExperienceType.LINK,
+    ]);
   });
 
-  it('educations is empty → education upsert is NOT called', async () => {
+  it('work_experiences dirty → experiences batch in payload reflects work data', async () => {
+    const valuesWithWork = {
+      ...baseValues,
+      work_experiences: [
+        {
+          id: 0,
+          job: 'Engineer',
+          company: 'Acme',
+          job_period_start: '2020',
+          job_period_end: 'now',
+          industry: 'tech',
+          job_location: 'TWN',
+          description: 'desc',
+          is_primary: true,
+        },
+      ],
+    };
+
     const { result } = renderHook(() => useProfileSubmit(makeOptions()));
 
     await act(async () => {
-      await result.current.onSubmit({ ...baseValues, educations: [] });
+      await result.current.onSubmit(valuesWithWork, {
+        work_experiences: [{ job: true }],
+      });
     });
 
-    const educationCalls = mockUpsertMentorExperience.mock.calls.filter(
-      ([type]) => type === ExperienceType.EDUCATION
-    );
-    expect(educationCalls).toHaveLength(0);
+    const exp = lastExperiences() as
+      | { category: string; mentor_experiences_metadata: { data: unknown[] } }[]
+      | undefined;
+    expect(exp).toBeDefined();
+    const work = exp!.find((e) => e.category === ExperienceType.WORK);
+    expect(work?.mentor_experiences_metadata.data).toHaveLength(1);
+  });
+
+  it('only `name` dirty → experiences are NOT sent (backend leaves the column alone)', async () => {
+    const valuesWithEverything = {
+      ...baseValues,
+      work_experiences: [
+        {
+          id: 0,
+          job: 'Engineer',
+          company: 'Acme',
+          job_period_start: '2020',
+          job_period_end: 'now',
+          industry: 'tech',
+          job_location: 'TWN',
+          description: 'desc',
+        },
+      ],
+    };
+
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(valuesWithEverything, { name: true });
+    });
+
+    expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+    expect(lastExperiences()).toBeUndefined();
+  });
+
+  it('dirty link field triggers experiences inline (nested dirtyFields shape)', async () => {
+    const valuesWithLink = {
+      ...baseValues,
+      linkedin: {
+        id: -1,
+        url: 'https://linkedin.com/in/me',
+        platform: 'linkedin',
+      },
+    };
+
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(valuesWithLink, {
+        // RHF reports nested dirty as { url: true } for object fields.
+        linkedin: { url: true },
+      });
+    });
+
+    const exp = lastExperiences() as
+      | { category: string; mentor_experiences_metadata: { data: unknown[] } }[]
+      | undefined;
+    expect(exp).toBeDefined();
+    const links = exp!.find((e) => e.category === ExperienceType.LINK);
+    expect(links?.mentor_experiences_metadata.data).toHaveLength(1);
   });
 
   // ── Navigation on success ──────────────────────────────────────────────────
@@ -536,59 +592,6 @@ describe('useProfileSubmit', () => {
     expect(reconcileArg.user.onBoarding).toBe(true);
   });
 
-  // ── Parallel writes ────────────────────────────────────────────────────────
-
-  it('updateProfile and experience upserts run concurrently (no sequential wait)', async () => {
-    let resolveProfile: () => void = () => {};
-    let profileStartedAt = 0;
-    let experienceStartedAt = 0;
-
-    mockUpdateProfile.mockImplementationOnce(() => {
-      profileStartedAt = performance.now();
-      return new Promise<void>((resolve) => {
-        resolveProfile = () => resolve();
-      });
-    });
-    mockUpsertMentorExperience.mockImplementationOnce(async () => {
-      experienceStartedAt = performance.now();
-    });
-
-    const valuesWithWork = {
-      ...baseValues,
-      work_experiences: [
-        {
-          id: 1,
-          job: 'Engineer',
-          company: 'Acme',
-          job_period_start: '2020',
-          job_period_end: 'now',
-          industry: 'tech',
-          job_location: 'TWN',
-          description: 'desc',
-          is_primary: true,
-        },
-      ],
-    };
-
-    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
-
-    const submitPromise = act(async () => {
-      await result.current.onSubmit(valuesWithWork);
-    });
-
-    // Let microtasks drain so both PUTs have a chance to be invoked.
-    await Promise.resolve();
-    await Promise.resolve();
-
-    // Experience upsert must NOT be gated on updateProfile resolving.
-    expect(mockUpsertMentorExperience).toHaveBeenCalled();
-    expect(experienceStartedAt).toBeGreaterThan(0);
-    expect(profileStartedAt).toBeGreaterThan(0);
-
-    resolveProfile();
-    await submitPromise;
-  });
-
   // ── Background avatar upload ──────────────────────────────────────────────
 
   it('consumeAvatarUpload, when provided, is used instead of direct updateAvatar', async () => {
@@ -621,82 +624,6 @@ describe('useProfileSubmit', () => {
     });
 
     expect(mockUpdateProfile).not.toHaveBeenCalled();
-    expect(mockUpsertMentorExperience).not.toHaveBeenCalled();
-  });
-
-  it('dirtyFields with only `name` → only updateProfile fires, no upserts', async () => {
-    const valuesWithEverything = {
-      ...baseValues,
-      work_experiences: [
-        {
-          id: 1,
-          job: 'Engineer',
-          company: 'Acme',
-          job_period_start: '2020',
-          job_period_end: 'now',
-          industry: 'tech',
-          job_location: 'TWN',
-          description: 'desc',
-        },
-      ],
-      educations: [
-        {
-          id: 1,
-          school: 'NTU',
-          subject: 'CS',
-          education_period_start: '2015',
-          education_period_end: '2019',
-        },
-      ],
-      have_topic: ['mentoring'],
-      linkedin: {
-        id: -1,
-        url: 'https://linkedin.com/in/me',
-        platform: 'linkedin',
-      },
-    };
-
-    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
-
-    await act(async () => {
-      await result.current.onSubmit(valuesWithEverything, { name: true });
-    });
-
-    expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
-    expect(mockUpsertMentorExperience).not.toHaveBeenCalled();
-  });
-
-  it('dirtyFields = { work_experiences: [...] } → work upsert fires AND updateProfile mirrors job_title / company', async () => {
-    const valuesWithWork = {
-      ...baseValues,
-      work_experiences: [
-        {
-          id: 1,
-          job: 'Engineer',
-          company: 'Acme',
-          job_period_start: '2020',
-          job_period_end: 'now',
-          industry: 'tech',
-          job_location: 'TWN',
-          description: 'desc',
-        },
-      ],
-    };
-
-    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
-
-    await act(async () => {
-      await result.current.onSubmit(valuesWithWork, {
-        work_experiences: [{ job: true }],
-      });
-    });
-
-    expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
-    expect(mockUpdateProfile).toHaveBeenCalledWith(
-      expect.objectContaining({ job_title: 'Engineer', company: 'Acme' })
-    );
-    const calls = mockUpsertMentorExperience.mock.calls.map(([type]) => type);
-    expect(calls).toEqual([ExperienceType.WORK]);
   });
 
   it('isMentorOnboarding: true forces updateProfile even with empty dirtyFields', async () => {
@@ -727,32 +654,6 @@ describe('useProfileSubmit', () => {
     );
   });
 
-  it('dirty link field triggers links upsert (nested dirtyFields shape)', async () => {
-    const valuesWithLink = {
-      ...baseValues,
-      linkedin: {
-        id: -1,
-        url: 'https://linkedin.com/in/me',
-        platform: 'linkedin',
-      },
-    };
-
-    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
-
-    await act(async () => {
-      await result.current.onSubmit(valuesWithLink, {
-        // RHF reports nested dirty as { url: true } for object fields.
-        linkedin: { url: true },
-      });
-    });
-
-    const linkCalls = mockUpsertMentorExperience.mock.calls.filter(
-      ([type]) => type === ExperienceType.LINK
-    );
-    expect(linkCalls).toHaveLength(1);
-    expect(mockUpdateProfile).not.toHaveBeenCalled();
-  });
-
   it('navigation does not wait for firstSyncedFetch to resolve', async () => {
     // Background prime must not block router.push — even a slow first-sync
     // fetch leaves the user on the loading screen too long.
@@ -781,7 +682,7 @@ describe('useProfileSubmit', () => {
       ...baseValues,
       work_experiences: [
         {
-          id: 1,
+          id: 0,
           job: 'Engineer',
           company: 'Acme',
           job_period_start: '2020',
@@ -792,7 +693,7 @@ describe('useProfileSubmit', () => {
           is_primary: false,
         },
         {
-          id: 2,
+          id: 1,
           job: 'Senior Engineer',
           company: 'Dell',
           job_period_start: '2015',
@@ -824,7 +725,7 @@ describe('useProfileSubmit', () => {
       ...baseValues,
       work_experiences: [
         {
-          id: 1,
+          id: 0,
           job: 'Engineer',
           company: 'Acme',
           job_period_start: '2020',
@@ -834,7 +735,7 @@ describe('useProfileSubmit', () => {
           description: 'desc',
         },
         {
-          id: 2,
+          id: 1,
           job: 'Senior Engineer',
           company: 'Dell',
           job_period_start: '2015',
@@ -877,7 +778,7 @@ describe('useProfileSubmit', () => {
       ...baseValues,
       work_experiences: [
         {
-          id: 1,
+          id: 0,
           job: 'Engineer',
           company: 'Acme',
           job_period_start: '2020',
@@ -904,12 +805,12 @@ describe('useProfileSubmit', () => {
     );
   });
 
-  it('work experience upsert includes is_primary in payload', async () => {
+  it('work experiences inline batch includes is_primary in payload', async () => {
     const valuesWithPrimary = {
       ...baseValues,
       work_experiences: [
         {
-          id: 1,
+          id: 0,
           job: 'Engineer',
           company: 'Acme',
           job_period_start: '2020',
@@ -920,7 +821,7 @@ describe('useProfileSubmit', () => {
           is_primary: false,
         },
         {
-          id: 2,
+          id: 1,
           job: 'Senior Engineer',
           company: 'Dell',
           job_period_start: '2015',
@@ -939,17 +840,14 @@ describe('useProfileSubmit', () => {
       await result.current.onSubmit(valuesWithPrimary);
     });
 
-    const workCall = mockUpsertMentorExperience.mock.calls.find(
-      ([type]) => type === ExperienceType.WORK
-    );
-    expect(workCall).toBeDefined();
-    const payload = workCall![2];
-    const data = (
-      payload.mentor_experiences_metadata as {
-        data: { is_primary?: boolean }[];
-      }
-    ).data;
-    expect(data[0].is_primary).toBe(false);
-    expect(data[1].is_primary).toBe(true);
+    const exp = lastExperiences() as
+      | {
+          category: string;
+          mentor_experiences_metadata: { data: { is_primary?: boolean }[] };
+        }[]
+      | undefined;
+    const work = exp!.find((e) => e.category === ExperienceType.WORK);
+    expect(work?.mentor_experiences_metadata.data[0].is_primary).toBe(false);
+    expect(work?.mentor_experiences_metadata.data[1].is_primary).toBe(true);
   });
 });
