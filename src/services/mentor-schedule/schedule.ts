@@ -72,7 +72,6 @@ export async function saveMentorSchedule(params: {
         rrule: t.rrule,
         timezone: 'UTC',
         exdate: t.exdate,
-        meeting_duration_minutes: t.meeting_duration_minutes,
       })
     ),
   });
