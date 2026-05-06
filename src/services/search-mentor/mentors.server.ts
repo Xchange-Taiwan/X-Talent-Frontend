@@ -5,7 +5,12 @@ import { mapMentor, type MentorRequest, type MentorType } from './mapMentor';
 type MentorListResponse =
   components['schemas']['ApiResponse_SearchMentorProfileListVO_'];
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
+// SSR_API_URL is preferred when set, so server-side fetches inside a
+// Docker container can reach the BFF via the docker network DNS name
+// (e.g. http://bff:8000/api), while the browser bundle still uses
+// NEXT_PUBLIC_API_URL (e.g. http://localhost:8006/api).
+const BASE_URL =
+  process.env.SSR_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? '';
 // Unfiltered listing is shared by every visitor — keep ISR so LCP stays fast.
 // Filtered/searched listings have unbounded cache-key combinations, so we
 // bypass the data cache to avoid blowing up Next's fetch cache and the BFF.
