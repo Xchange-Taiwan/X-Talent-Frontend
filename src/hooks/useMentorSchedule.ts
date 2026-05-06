@@ -9,7 +9,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookingSlot,
   buildDateTime,
-  buildRrule,
   expandRrule,
   formatTimeslot,
   hasOverlapAt,
@@ -44,6 +43,8 @@ type Options = {
   };
 };
 
+export type SlotDurationMinutes = 30 | 45 | 60;
+
 export type UseMentorScheduleReturn = {
   /** Sticky: true once any month has resolved. Use this for first-paint skeletons. */
   loaded: boolean;
@@ -58,27 +59,29 @@ export type UseMentorScheduleReturn = {
   /** All local dates (YYYY-MM-DD) that have at least one ALLOW occurrence after expanding rrules. */
   allowedDates: string[];
 
-  meetingDurationMinutes: number;
   generateBookingSlots: (dateKey: string) => BookingSlot[];
 
+  /**
+   * Add one ALLOW slot at `startTime` for `durationMinutes`. If `weeklyWithinMonth`
+   * is true, also create slots for every same-weekday date remaining in the
+   * selected date's month. Each generated slot is an independent row (no rrule).
+   * Returns counts so callers can surface "added N, skipped M" to the user.
+   */
   addSlotForSelectedDate: (opts: {
-    type: 'ALLOW';
     startTime: string; // HH:mm
-    endTime: string; // HH:mm
-  }) => void;
+    durationMinutes: SlotDurationMinutes;
+    weeklyWithinMonth?: boolean;
+  }) => { added: number; skipped: number };
 
   updateDraftSlot: (
     id: number,
     patch: {
       startTime?: string; // HH:mm
-      endTime?: string; // HH:mm
+      durationMinutes?: SlotDurationMinutes;
     }
-  ) => void;
+  ) => boolean;
 
   deleteDraftSlot: (id: number) => void;
-
-  /** Toggle a single sub-slot occurrence in/out of exdate for an ALLOW slot. */
-  toggleOccurrence: (slotId: number, occurrenceDtstart: number) => void;
 
   confirmChanges: () => Promise<SyncResult>;
   resetChanges: () => void;
@@ -110,8 +113,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const [selectedDate, setSelectedDate] = useState<string | null>(
     dayjs().format('YYYY-MM-DD')
   );
-  const [meetingDurationMinutes, setMeetingDurationMinutes] =
-    useState<number>(30);
 
   const currentMonthKey = monthKeyFromYearMonth(backend.year, backend.month);
 
@@ -196,13 +197,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         next.set(monthKey, raws);
         return next;
       });
-      const firstAllow = raws.find((r) => r.type === 'ALLOW');
-      if (firstAllow) {
-        const derived = Math.round(
-          (firstAllow.dtend - firstAllow.dtstart) / 60
-        );
-        if (derived > 0) setMeetingDurationMinutes(derived);
-      }
     };
 
     const hasBuffer = draftByMonth.has(monthKey);
@@ -388,64 +382,77 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   const addSlotForSelectedDate: UseMentorScheduleReturn['addSlotForSelectedDate'] =
     useCallback(
-      ({ startTime, endTime }) => {
-        if (!selectedDate || !startTime || !endTime) return;
+      ({ startTime, durationMinutes, weeklyWithinMonth }) => {
+        if (!selectedDate || !startTime) return { added: 0, skipped: 0 };
 
-        const s = buildDateTime(selectedDate, startTime);
-        const e = buildDateTime(selectedDate, endTime);
-        if (!s.isValid() || !e.isValid() || e.isSameOrBefore(s)) return;
-
-        const newDtstart = Math.floor(s.valueOf() / 1000);
-        const blockDurationSeconds =
-          Math.floor(e.valueOf() / 1000) - newDtstart;
-        const slotDurationSeconds = meetingDurationMinutes * 60;
-        const newDtend = newDtstart + slotDurationSeconds;
+        const startDayjs = buildDateTime(selectedDate, startTime);
+        if (!startDayjs.isValid()) return { added: 0, skipped: 0 };
 
         const monthKey = monthKeyFromDateStr(selectedDate);
+        const durationSeconds = durationMinutes * 60;
 
-        const didMutate = updateMonthDraft(monthKey, (prev) => {
-          if (
-            hasOverlapAt(
-              prev,
-              null,
-              selectedDate,
-              newDtstart,
-              blockDurationSeconds
-            )
-          ) {
-            return prev;
+        // Target dates in the same calendar month as `selectedDate`. Weekly
+        // mode walks 7 days at a time from the selected date until the month
+        // boundary; non-recurring mode is just the selected date itself.
+        const targetDates: string[] = [];
+        if (weeklyWithinMonth) {
+          const selectedDay = dayjs(selectedDate);
+          let cursor = selectedDay;
+          while (cursor.month() === selectedDay.month()) {
+            targetDates.push(cursor.format('YYYY-MM-DD'));
+            cursor = cursor.add(7, 'day');
           }
+        } else {
+          targetDates.push(selectedDate);
+        }
 
-          const rrule =
-            blockDurationSeconds > slotDurationSeconds
-              ? buildRrule(blockDurationSeconds, slotDurationSeconds)
-              : undefined;
-
-          return [
-            ...prev,
-            {
-              id: nextTempId(prev),
-              type: 'ALLOW' as const,
-              dtstart: newDtstart,
-              dtend: newDtend,
-              rrule,
-              exdate: [],
-            },
-          ];
+        let added = 0;
+        let skipped = 0;
+        updateMonthDraft(monthKey, (prev) => {
+          let next = prev;
+          for (const dateStr of targetDates) {
+            const d = buildDateTime(dateStr, startTime);
+            if (!d.isValid()) {
+              skipped++;
+              continue;
+            }
+            const newDtstart = Math.floor(d.valueOf() / 1000);
+            if (
+              hasOverlapAt(next, null, dateStr, newDtstart, durationSeconds)
+            ) {
+              skipped++;
+              continue;
+            }
+            next = [
+              ...next,
+              {
+                id: nextTempId(next),
+                type: 'ALLOW' as const,
+                dtstart: newDtstart,
+                dtend: newDtstart + durationSeconds,
+                rrule: undefined,
+                exdate: [],
+              },
+            ];
+            added++;
+          }
+          return next === prev ? prev : next;
         });
 
-        if (didMutate) markDirty(monthKey);
+        if (added > 0) markDirty(monthKey);
+        return { added, skipped };
       },
-      [selectedDate, meetingDurationMinutes, updateMonthDraft, markDirty]
+      [selectedDate, updateMonthDraft, markDirty]
     );
 
   const updateDraftSlot: UseMentorScheduleReturn['updateDraftSlot'] =
     useCallback(
       (id, patch) => {
         const monthKey = findMonthForSlotId(id);
-        if (!monthKey) return;
+        if (!monthKey) return false;
 
-        const didMutate = updateMonthDraft(monthKey, (prev) => {
+        let succeeded = false;
+        updateMonthDraft(monthKey, (prev) => {
           const target = prev.find((r) => r.id === id);
           if (!target) return prev;
 
@@ -453,51 +460,35 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           const fmtHM = (sec: number) => dayjs(sec * 1000).format('HH:mm');
           const startHM = patch.startTime ?? fmtHM(target.dtstart);
 
-          const occs = expandRrule(target.dtstart, target.rrule);
-          const lastOcc = occs[occs.length - 1] ?? target.dtstart;
-          const endHM =
-            patch.endTime ?? fmtHM(lastOcc + (target.dtend - target.dtstart));
-
           const s = buildDateTime(baseDate, startHM);
-          const e = buildDateTime(baseDate, endHM);
-          if (!s.isValid() || !e.isValid() || e.isSameOrBefore(s)) return prev;
+          if (!s.isValid()) return prev;
 
           const newDtstart = Math.floor(s.valueOf() / 1000);
-          const blockDurationSeconds =
-            Math.floor(e.valueOf() / 1000) - newDtstart;
-          const slotDurationSeconds = target.dtend - target.dtstart;
-          const newDtend = newDtstart + slotDurationSeconds;
+          const oldDurationSeconds = target.dtend - target.dtstart;
+          const durationSeconds =
+            (patch.durationMinutes ?? Math.round(oldDurationSeconds / 60)) * 60;
+          const newDtend = newDtstart + durationSeconds;
 
-          if (
-            hasOverlapAt(prev, id, baseDate, newDtstart, blockDurationSeconds)
-          ) {
+          if (hasOverlapAt(prev, id, baseDate, newDtstart, durationSeconds)) {
             return prev;
           }
 
-          const newRrule =
-            blockDurationSeconds > slotDurationSeconds
-              ? buildRrule(blockDurationSeconds, slotDurationSeconds)
-              : undefined;
-
-          const newBlockEnd = newDtstart + blockDurationSeconds;
-          const cleanedExdate = target.exdate.filter(
-            (occ) => occ >= newDtstart && occ < newBlockEnd
-          );
-
+          succeeded = true;
           return prev.map((r) =>
             r.id === id
               ? {
                   ...r,
                   dtstart: newDtstart,
                   dtend: newDtend,
-                  rrule: newRrule,
-                  exdate: cleanedExdate,
+                  rrule: undefined,
+                  exdate: [],
                 }
               : r
           );
         });
 
-        if (didMutate) markDirty(monthKey);
+        if (succeeded) markDirty(monthKey);
+        return succeeded;
       },
       [findMonthForSlotId, updateMonthDraft, markDirty]
     );
@@ -518,28 +509,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         });
       }
       markDirty(monthKey);
-    },
-    [findMonthForSlotId, updateMonthDraft, markDirty]
-  );
-
-  const toggleOccurrence = useCallback(
-    (slotId: number, occurrenceDtstart: number) => {
-      const monthKey = findMonthForSlotId(slotId);
-      if (!monthKey) return;
-
-      const didMutate = updateMonthDraft(monthKey, (prev) =>
-        prev.map((r) => {
-          if (r.id !== slotId || r.type !== 'ALLOW') return r;
-          const isExcluded = r.exdate.includes(occurrenceDtstart);
-          return {
-            ...r,
-            exdate: isExcluded
-              ? r.exdate.filter((d) => d !== occurrenceDtstart)
-              : [...r.exdate, occurrenceDtstart],
-          };
-        })
-      );
-      if (didMutate) markDirty(monthKey);
     },
     [findMonthForSlotId, updateMonthDraft, markDirty]
   );
@@ -669,12 +638,10 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     parsedDraft,
     draftForSelectedDate,
     allowedDates,
-    meetingDurationMinutes,
     generateBookingSlots,
     addSlotForSelectedDate,
     updateDraftSlot,
     deleteDraftSlot,
-    toggleOccurrence,
     confirmChanges,
     resetChanges,
   };
