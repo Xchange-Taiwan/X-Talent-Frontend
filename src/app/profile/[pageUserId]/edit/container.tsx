@@ -40,10 +40,7 @@ import { useEditProfileData } from '@/hooks/user/profile/useEditProfileData';
 import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
-import {
-  flattenAsSingleCategory,
-  tagGroupsToCategories,
-} from '@/lib/profile/categoryGrouping';
+import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import { prefetchPresignedUrl } from '@/services/profile/updateAvatar';
 
@@ -120,7 +117,6 @@ export default function EditProfileContainer({
   // submit doesn't pay the round trip — see useBackgroundAvatarUpload.
   const avatarUpload = useBackgroundAvatarUpload();
 
-  const industryCategories = flattenAsSingleCategory(industries);
   const haveTopicCategories = tagGroupsToCategories(tagCatalog.have_topic);
   const haveSkillCategories = tagGroupsToCategories(tagCatalog.have_skill);
   const wantPositionCategories = tagGroupsToCategories(
@@ -308,13 +304,14 @@ export default function EditProfileContainer({
               </>
             }
           >
-            <CategoryMultiSelectField
+            <SelectField
               form={form}
               name="industry"
-              categories={industryCategories}
-              flat
-              maxSelected={10}
-              searchPlaceholder="搜尋產業"
+              placeholder="請選擇產業"
+              options={industries.map((i) => ({
+                value: i.subject_group,
+                label: i.subject,
+              }))}
             />
           </Section>
 

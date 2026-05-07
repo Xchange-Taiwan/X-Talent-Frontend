@@ -20,7 +20,7 @@ const baseValues = {
   about: 'about-me',
   statement: 'statement',
   years_of_experience: '1_3',
-  industry: ['tech'],
+  industry: 'tech',
 };
 
 const makeSyncedDto = (avatar = ''): MentorProfileVO =>

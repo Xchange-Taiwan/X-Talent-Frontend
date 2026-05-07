@@ -143,7 +143,7 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
     defaultValues: {
       location: 'TWN',
       years_of_experience: '',
-      industry: [],
+      industry: '',
     },
   });
   const onSubmitStep2 = (data: z.infer<typeof step2Schema>) => {
