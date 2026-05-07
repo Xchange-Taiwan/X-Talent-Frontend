@@ -94,6 +94,7 @@ export async function pollUntilSynced(
       flow: 'profile_update',
       step: 'background_sync',
       message: 'pollUntilSynced exhausted retries without sync',
+      level: 'warning',
     });
   }
 

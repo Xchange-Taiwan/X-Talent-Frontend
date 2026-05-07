@@ -68,6 +68,7 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
         flow: 'delete_account',
         step: 'submit',
         message: result.message,
+        level: 'info',
       });
       toast({
         variant: 'destructive',
