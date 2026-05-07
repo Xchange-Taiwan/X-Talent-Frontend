@@ -7,11 +7,12 @@ dayjs.extend(isSameOrBefore);
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  activeOccurrences,
   BookingSlot,
   buildDateTime,
   expandRrule,
   formatTimeslot,
-  hasOverlapAt,
+  hasAnyOccurrenceOverlap,
   MonthKey,
   monthKeyFromDateStr,
   monthKeyFromYearMonth,
@@ -62,10 +63,11 @@ export type UseMentorScheduleReturn = {
   generateBookingSlots: (dateKey: string) => BookingSlot[];
 
   /**
-   * Add one ALLOW slot at `startTime` for `durationMinutes`. If `weeklyWithinMonth`
-   * is true, also create slots for every same-weekday date remaining in the
-   * selected date's month. Each generated slot is an independent row (no rrule).
-   * Returns counts so callers can surface "added N, skipped M" to the user.
+   * Add one ALLOW entry at `startTime` for `durationMinutes`. If
+   * `weeklyWithinMonth` is true, the entry is a single row with a weekly
+   * `FREQ=WEEKLY;COUNT=N` rrule covering every same-weekday date remaining in
+   * the selected date's month; otherwise it's a non-recurring row. Returns
+   * counts of created occurrences so callers can show "added N, skipped M".
    */
   addSlotForSelectedDate: (opts: {
     startTime: string; // HH:mm
@@ -73,15 +75,27 @@ export type UseMentorScheduleReturn = {
     weeklyWithinMonth?: boolean;
   }) => { added: number; skipped: number };
 
+  /**
+   * Edit a single occurrence. For non-recurring rows this updates the row
+   * directly. For recurring rows the targeted occurrence is detached: it is
+   * added to the parent's exdate and a new non-recurring row is created with
+   * the patch applied — leaving sibling occurrences untouched.
+   */
   updateDraftSlot: (
     id: number,
+    occurrenceUnix: number,
     patch: {
       startTime?: string; // HH:mm
       durationMinutes?: SlotDurationMinutes;
     }
   ) => boolean;
 
-  deleteDraftSlot: (id: number) => void;
+  /**
+   * Delete a single occurrence. Non-recurring rows are removed entirely; on
+   * recurring rows the occurrence is added to exdate, and the row is removed
+   * only when no active occurrences remain.
+   */
+  deleteDraftSlot: (id: number, occurrenceUnix: number) => void;
 
   confirmChanges: () => Promise<SyncResult>;
   resetChanges: () => void;
@@ -275,7 +289,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const parsedDraft = useMemo(
     () =>
       allDraftRaws
-        .map(formatTimeslot)
+        .flatMap(formatTimeslot)
         .sort((a, b) => a.start.getTime() - b.start.getTime()),
     [allDraftRaws]
   );
@@ -391,52 +405,62 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         const monthKey = monthKeyFromDateStr(selectedDate);
         const durationSeconds = durationMinutes * 60;
 
-        // Target dates in the same calendar month as `selectedDate`. Weekly
-        // mode walks 7 days at a time from the selected date until the month
-        // boundary; non-recurring mode is just the selected date itself.
-        const targetDates: string[] = [];
+        // Walk same-weekday dates from selectedDate to month-end. The first
+        // entry is always the selected date itself; subsequent entries exist
+        // only when weeklyWithinMonth is true.
+        const candidateOccurrences: number[] = [];
         if (weeklyWithinMonth) {
           const selectedDay = dayjs(selectedDate);
           let cursor = selectedDay;
           while (cursor.month() === selectedDay.month()) {
-            targetDates.push(cursor.format('YYYY-MM-DD'));
+            const d = buildDateTime(cursor.format('YYYY-MM-DD'), startTime);
+            if (d.isValid()) {
+              candidateOccurrences.push(Math.floor(d.valueOf() / 1000));
+            }
             cursor = cursor.add(7, 'day');
           }
         } else {
-          targetDates.push(selectedDate);
+          candidateOccurrences.push(Math.floor(startDayjs.valueOf() / 1000));
+        }
+
+        if (candidateOccurrences.length === 0) {
+          return { added: 0, skipped: 0 };
         }
 
         let added = 0;
         let skipped = 0;
         updateMonthDraft(monthKey, (prev) => {
-          let next = prev;
-          for (const dateStr of targetDates) {
-            const d = buildDateTime(dateStr, startTime);
-            if (!d.isValid()) {
-              skipped++;
-              continue;
-            }
-            const newDtstart = Math.floor(d.valueOf() / 1000);
-            if (
-              hasOverlapAt(next, null, dateStr, newDtstart, durationSeconds)
-            ) {
-              skipped++;
-              continue;
-            }
-            next = [
-              ...next,
-              {
-                id: nextTempId(next),
-                type: 'ALLOW' as const,
-                dtstart: newDtstart,
-                dtend: newDtstart + durationSeconds,
-                rrule: undefined,
-                exdate: [],
-              },
-            ];
-            added++;
+          // Reject the whole entry if any candidate occurrence overlaps an
+          // existing slot. This keeps weekly add atomic — we don't silently
+          // create a partial recurrence.
+          if (
+            hasAnyOccurrenceOverlap(
+              prev,
+              null,
+              candidateOccurrences,
+              durationSeconds
+            )
+          ) {
+            skipped = candidateOccurrences.length;
+            return prev;
           }
-          return next === prev ? prev : next;
+
+          const dtstart = candidateOccurrences[0];
+          const count = candidateOccurrences.length;
+          const rrule = count > 1 ? `FREQ=WEEKLY;COUNT=${count}` : undefined;
+
+          added = count;
+          return [
+            ...prev,
+            {
+              id: nextTempId(prev),
+              type: 'ALLOW' as const,
+              dtstart,
+              dtend: dtstart + durationSeconds,
+              rrule,
+              exdate: [],
+            },
+          ];
         });
 
         if (added > 0) markDirty(monthKey);
@@ -447,7 +471,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   const updateDraftSlot: UseMentorScheduleReturn['updateDraftSlot'] =
     useCallback(
-      (id, patch) => {
+      (id, occurrenceUnix, patch) => {
         const monthKey = findMonthForSlotId(id);
         if (!monthKey) return false;
 
@@ -456,9 +480,9 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           const target = prev.find((r) => r.id === id);
           if (!target) return prev;
 
-          const baseDate = dayjs(target.dtstart * 1000).format('YYYY-MM-DD');
+          const baseDate = dayjs(occurrenceUnix * 1000).format('YYYY-MM-DD');
           const fmtHM = (sec: number) => dayjs(sec * 1000).format('HH:mm');
-          const startHM = patch.startTime ?? fmtHM(target.dtstart);
+          const startHM = patch.startTime ?? fmtHM(occurrenceUnix);
 
           const s = buildDateTime(baseDate, startHM);
           if (!s.isValid()) return prev;
@@ -467,9 +491,59 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           const oldDurationSeconds = target.dtend - target.dtstart;
           const durationSeconds =
             (patch.durationMinutes ?? Math.round(oldDurationSeconds / 60)) * 60;
-          const newDtend = newDtstart + durationSeconds;
 
-          if (hasOverlapAt(prev, id, baseDate, newDtstart, durationSeconds)) {
+          // Recurring row: detach this occurrence (exdate it on the parent,
+          // emit a new non-recurring row with the patch) so sibling weeks
+          // stay untouched. Non-recurring row: mutate it in place.
+          const isRecurring = !!target.rrule;
+          const noChange =
+            newDtstart === occurrenceUnix &&
+            durationSeconds === oldDurationSeconds;
+          if (isRecurring && noChange) {
+            // Submitting the edit modal without changes shouldn't surface
+            // an overlap error — report success and skip the mutation.
+            succeeded = true;
+            return prev;
+          }
+
+          // Build the prospective next state and overlap-check it against
+          // candidate occurrences (excluding the parent row, whose own
+          // occurrence at occurrenceUnix is being replaced/exdated).
+          if (isRecurring) {
+            const updatedParent: RawMentorTimeslot = {
+              ...target,
+              exdate: target.exdate.includes(occurrenceUnix)
+                ? target.exdate
+                : [...target.exdate, occurrenceUnix],
+            };
+            const detachedRow: RawMentorTimeslot = {
+              id: nextTempId(prev),
+              type: 'ALLOW' as const,
+              dtstart: newDtstart,
+              dtend: newDtstart + durationSeconds,
+              rrule: undefined,
+              exdate: [],
+            };
+            const intermediate = prev.map((r) =>
+              r.id === id ? updatedParent : r
+            );
+            if (
+              hasAnyOccurrenceOverlap(
+                intermediate,
+                null,
+                [newDtstart],
+                durationSeconds
+              )
+            ) {
+              return prev;
+            }
+            succeeded = true;
+            return [...intermediate, detachedRow];
+          }
+
+          if (
+            hasAnyOccurrenceOverlap(prev, id, [newDtstart], durationSeconds)
+          ) {
             return prev;
           }
 
@@ -479,7 +553,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
               ? {
                   ...r,
                   dtstart: newDtstart,
-                  dtend: newDtend,
+                  dtend: newDtstart + durationSeconds,
                   rrule: undefined,
                   exdate: [],
                 }
@@ -494,12 +568,39 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     );
 
   const deleteDraftSlot = useCallback(
-    (id: number) => {
+    (id: number, occurrenceUnix: number) => {
       const monthKey = findMonthForSlotId(id);
       if (!monthKey) return;
 
-      updateMonthDraft(monthKey, (prev) => prev.filter((r) => r.id !== id));
-      if (id > 0) {
+      let removedFromDraft = false;
+      updateMonthDraft(monthKey, (prev) => {
+        const target = prev.find((r) => r.id === id);
+        if (!target) return prev;
+
+        // Recurring row: only this occurrence is removed via exdate. If that
+        // would empty the row of active occurrences, drop the row entirely.
+        if (target.rrule) {
+          const updatedExdate = target.exdate.includes(occurrenceUnix)
+            ? target.exdate
+            : [...target.exdate, occurrenceUnix];
+          const updated: RawMentorTimeslot = {
+            ...target,
+            exdate: updatedExdate,
+          };
+          if (activeOccurrences(updated).length === 0) {
+            removedFromDraft = true;
+            return prev.filter((r) => r.id !== id);
+          }
+          return prev.map((r) => (r.id === id ? updated : r));
+        }
+
+        removedFromDraft = true;
+        return prev.filter((r) => r.id !== id);
+      });
+
+      // Only persisted rows that were fully removed need a backend DELETE.
+      // Detached/exdated rrule rows ride the next save via rrule + exdate.
+      if (removedFromDraft && id > 0) {
         setPendingDeleteByMonth((prev) => {
           const current = prev.get(monthKey) ?? [];
           if (current.includes(id)) return prev;
