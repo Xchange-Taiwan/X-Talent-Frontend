@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 import { match } from 'path-to-regexp';
 
 import { apiAuthPrefix, DEFAULT_LOGIN, publicRoutes } from '@/routes';
@@ -8,17 +9,18 @@ function normalizeRoute(route: string): string {
   return route.replace(/\[([^\]]+)\]/g, ':$1');
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { nextUrl } = req;
   const pathname = nextUrl.pathname;
 
-  // -------- 1. Determine auth state by reading the session cookie directly --------
-  // NextAuth v4 session token cookie
-  const token =
-    req.cookies.get('next-auth.session-token')?.value ||
-    req.cookies.get('__Secure-next-auth.session-token')?.value;
+  // -------- 1. Verify session via NextAuth getToken (JWT signature + exp) --------
+  const token = await getToken({
+    req,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
 
-  const isLoggedIn = !!token;
+  const hasRefreshError = token?.error === 'RefreshTokenError';
+  const isLoggedIn = !!token && !hasRefreshError;
 
   // -------- 2. Allow NextAuth API routes through unconditionally --------
   const isApiAuthRoute = pathname.startsWith(apiAuthPrefix);
@@ -42,7 +44,16 @@ export function middleware(req: NextRequest) {
   // -------- 4. Redirect unauthenticated users away from protected routes --------
   if (!isPublicRoute && !isLoggedIn) {
     const redirectUrl = new URL(DEFAULT_LOGIN, nextUrl);
-    return NextResponse.redirect(redirectUrl);
+    const response = NextResponse.redirect(redirectUrl);
+
+    // Stale cookie would make middleware re-evaluate the same error on every
+    // request; clearing it lets the next request start from a clean state.
+    if (hasRefreshError) {
+      response.cookies.delete('next-auth.session-token');
+      response.cookies.delete('__Secure-next-auth.session-token');
+    }
+
+    return response;
   }
 
   return NextResponse.next();
