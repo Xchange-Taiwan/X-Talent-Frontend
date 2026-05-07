@@ -40,17 +40,26 @@ export type RawMentorTimeslot = Pick<
   exdate: number[];
 };
 
+/**
+ * Represents a SINGLE occurrence of an ALLOW/BOOKED/PENDING entry. A non-rrule
+ * row produces exactly one entry; a weekly-rrule row produces one entry per
+ * non-exdated occurrence. The pair (id, occurrenceUnix) uniquely identifies
+ * each card the user sees in the editor and is what mutator callbacks use to
+ * scope edits/deletes back to the right occurrence of the underlying row.
+ */
 export type ParsedMentorTimeslot = {
-  id: number;
+  id: number; // = parent row id; shared by all occurrences of an rrule row
+  occurrenceUnix: number; // dtstart of THIS occurrence (= row.dtstart for non-recurring)
   type: DtType;
-  start: Date; // block start (= dtstart for all types)
-  end: Date; // block end: last occurrence end for ALLOW (derived from rrule), dtend for others
+  start: Date; // = new Date(occurrenceUnix * 1000)
+  end: Date; // = start + slotDurationSeconds
   durationMinutes: number;
   formatted: string;
-  dateKey: string; // YYYY-MM-DD (local)
-  rrule?: string;
-  exdate: number[];
-  slotDurationSeconds: number; // duration of one sub-slot (dtend - dtstart)
+  dateKey: string; // YYYY-MM-DD (local) of this occurrence
+  rrule?: string; // copied from parent row
+  exdate: number[]; // copied from parent row
+  slotDurationSeconds: number;
+  isRecurringInstance: boolean; // true if parent row has rrule
 };
 
 export type BookingSlot = {
@@ -76,6 +85,15 @@ export function expandRrule(
   }
 }
 
+/**
+ * Active occurrences of a row = rrule expansion minus exdate. For non-recurring
+ * rows this returns `[dtstart]` (or `[]` if dtstart is exdated, which shouldn't
+ * happen in practice).
+ */
+export function activeOccurrences(r: RawMentorTimeslot): number[] {
+  return expandRrule(r.dtstart, r.rrule).filter((o) => !r.exdate.includes(o));
+}
+
 export function segmentToRaw(t: SegmentVO): RawMentorTimeslot {
   return {
     id: t.id ?? Math.floor(Math.random() * 1e9),
@@ -87,35 +105,35 @@ export function segmentToRaw(t: SegmentVO): RawMentorTimeslot {
   };
 }
 
-export function formatTimeslot(r: RawMentorTimeslot): ParsedMentorTimeslot {
-  const start = new Date(r.dtstart * 1000);
+/**
+ * Expand a row into one ParsedMentorTimeslot per active occurrence. A
+ * non-recurring row yields a length-1 array; a weekly-rrule row yields one
+ * entry per non-exdated occurrence so the UI can render and act on each
+ * occurrence independently.
+ */
+export function formatTimeslot(r: RawMentorTimeslot): ParsedMentorTimeslot[] {
   const slotDurationSeconds = r.dtend - r.dtstart;
-
-  let end: Date;
-  if (r.type === 'ALLOW' && r.rrule) {
-    const occurrences = expandRrule(r.dtstart, r.rrule);
-    const lastOccDtstart = occurrences[occurrences.length - 1] ?? r.dtstart;
-    end = new Date((lastOccDtstart + slotDurationSeconds) * 1000);
-  } else {
-    end = new Date(r.dtend * 1000);
-  }
-
-  const durationMinutes = Math.round(
-    (end.getTime() - start.getTime()) / (1000 * 60)
-  );
-  const dateKey = dayjs(start).format('YYYY-MM-DD');
-  return {
-    id: r.id,
-    type: r.type,
-    start,
-    end,
-    durationMinutes,
-    formatted: `${dayjs(start).format('YYYY-MM-DD hh:mm A')} ~ ${dayjs(end).format('hh:mm A')}`,
-    dateKey,
-    rrule: r.rrule ?? undefined,
-    exdate: r.exdate,
-    slotDurationSeconds,
-  };
+  const durationMinutes = Math.round(slotDurationSeconds / 60);
+  const isRecurring = !!r.rrule;
+  return activeOccurrences(r).map((occ) => {
+    const start = new Date(occ * 1000);
+    const end = new Date((occ + slotDurationSeconds) * 1000);
+    const dateKey = dayjs(start).format('YYYY-MM-DD');
+    return {
+      id: r.id,
+      occurrenceUnix: occ,
+      type: r.type,
+      start,
+      end,
+      durationMinutes,
+      formatted: `${dayjs(start).format('YYYY-MM-DD hh:mm A')} ~ ${dayjs(end).format('hh:mm A')}`,
+      dateKey,
+      rrule: r.rrule ?? undefined,
+      exdate: r.exdate,
+      slotDurationSeconds,
+      isRecurringInstance: isRecurring,
+    };
+  });
 }
 
 export function nextTempId(rows: RawMentorTimeslot[]): number {
@@ -134,25 +152,29 @@ export function buildDateTime(dateStr: string, timeStr: string) {
 }
 
 /**
- * Whether [dtstart, dtstart+blockDurationSeconds) overlaps any other ALLOW
- * block on the same local date in `rows`. Pass `ignoreId` to skip the slot
- * being edited; pass `null` when adding a brand-new slot.
+ * Whether any of the candidate occurrences (each `[unix, unix+durationSeconds)`)
+ * overlap any active occurrence of an existing ALLOW row in `rows`. Pass
+ * `ignoreRowId` to skip a row being edited (its current occurrences are
+ * excluded entirely); pass `null` when adding a brand-new slot.
  */
-export function hasOverlapAt(
+export function hasAnyOccurrenceOverlap(
   rows: RawMentorTimeslot[],
-  ignoreId: number | null,
-  dateKey: string,
-  dtstart: number,
-  blockDurationSeconds: number
+  ignoreRowId: number | null,
+  candidateOccurrences: number[],
+  durationSeconds: number
 ): boolean {
-  const blockEnd = dtstart + blockDurationSeconds;
+  if (candidateOccurrences.length === 0) return false;
   return rows.some((r) => {
-    if (r.id === ignoreId) return false;
+    if (r.id === ignoreRowId) return false;
     if (r.type !== 'ALLOW') return false;
-    const rDate = dayjs(r.dtstart * 1000).format('YYYY-MM-DD');
-    if (rDate !== dateKey) return false;
-    const occs = expandRrule(r.dtstart, r.rrule);
-    const rEnd = (occs[occs.length - 1] ?? r.dtstart) + (r.dtend - r.dtstart);
-    return dtstart < rEnd && blockEnd > r.dtstart;
+    const existingDur = r.dtend - r.dtstart;
+    const existingOccs = activeOccurrences(r);
+    return existingOccs.some((eo) => {
+      const eEnd = eo + existingDur;
+      return candidateOccurrences.some((no) => {
+        const nEnd = no + durationSeconds;
+        return no < eEnd && nEnd > eo;
+      });
+    });
   });
 }
