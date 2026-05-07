@@ -232,6 +232,7 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
             userId: sessionUserId,
             formData: validatedData,
             isMentor: session?.user?.isMentor ?? false,
+            industryCatalog: industries,
           });
           primeUserDataCache(sessionUserId, 'zh_TW', stub);
         } else if (session?.user?.id) {
