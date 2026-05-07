@@ -465,6 +465,70 @@ describe('useProfileSubmit', () => {
     expect(firstCallArg.user.onBoarding).toBe(true);
   });
 
+  it('isMentorOnboarding: true with mentee session → optimistic update flips isMentor/onBoarding to true', async () => {
+    // Repro for the dropdown bug: an existing mentee submits the "成為導師"
+    // onboarding form, but the header keeps showing "成為導師" because the
+    // optimistic update preserved the stale isMentor=false until the
+    // background poll reconciled (up to 60s later). Onboarding is a known
+    // mentee → mentor transition, so we flip both flags immediately.
+    const menteeSession: Session = {
+      ...mockSession,
+      user: { ...mockSession.user!, isMentor: false, onBoarding: false },
+    };
+    const updateSession = vi.fn().mockResolvedValue(menteeSession);
+    const { result } = renderHook(() =>
+      useProfileSubmit(
+        makeOptions({
+          session: menteeSession,
+          updateSession,
+          isMentorOnboarding: true,
+        })
+      )
+    );
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+    });
+
+    const firstCallArg = updateSession.mock.calls[0][0] as {
+      user: { isMentor?: boolean; onBoarding?: boolean };
+    };
+    expect(firstCallArg.user.isMentor).toBe(true);
+    expect(firstCallArg.user.onBoarding).toBe(true);
+  });
+
+  it('isMentorOnboarding: true with mentee session → reconcile is a no-op when backend confirms is_mentor=true', async () => {
+    // Backend has caught up and reports is_mentor=true, matching our
+    // optimistic flip — no second updateSession call needed.
+    const menteeSession: Session = {
+      ...mockSession,
+      user: { ...mockSession.user!, isMentor: false, onBoarding: false },
+    };
+    mockPollUntilSynced.mockResolvedValueOnce({
+      ...mockUserDTO,
+      is_mentor: true,
+      onboarding: true,
+    });
+    const updateSession = vi.fn().mockResolvedValue(menteeSession);
+    const { result } = renderHook(() =>
+      useProfileSubmit(
+        makeOptions({
+          session: menteeSession,
+          updateSession,
+          isMentorOnboarding: true,
+        })
+      )
+    );
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(updateSession).toHaveBeenCalledTimes(1);
+  });
+
   it('background reconcile patches session when latest disagrees with optimistic role', async () => {
     // Optimistic session: isMentor=true. Backend poll says isMentor=false.
     mockPollUntilSynced.mockResolvedValueOnce({
