@@ -14,6 +14,7 @@ type ApiResponse = components['schemas']['ApiResponse_TagCatalogsVO_'];
 // NEXT_PUBLIC_API_URL (e.g. http://localhost:8006/api).
 const BASE_URL =
   process.env.SSR_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? '';
+const REVALIDATE_SECONDS = 86400;
 
 export async function fetchTagCatalogServer(
   language: string
@@ -21,7 +22,7 @@ export async function fetchTagCatalogServer(
   if (!BASE_URL) return EMPTY_TAG_CATALOGS;
   try {
     const res = await fetch(`${BASE_URL}/v1/users/${language}/tags/catalog`, {
-      cache: 'no-store',
+      next: { revalidate: REVALIDATE_SECONDS },
     });
     if (!res.ok) {
       console.error(`SSR fetchTagCatalog failed: ${res.status}`);
