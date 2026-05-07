@@ -6,6 +6,7 @@ import authOptions from '@/auth.config';
 import { PersonJsonLd } from '@/components/seo/PersonJsonLd';
 import { buildMentorMetadata } from '@/lib/seo/buildMentorMetadata';
 import { sanitizePublicProfile } from '@/lib/seo/sanitizePublicProfile';
+import { getSiteUrl } from '@/lib/site-url';
 import { buildTagLabelMap } from '@/services/profile/tagCatalog';
 import { fetchTagCatalogServer } from '@/services/profile/tagCatalog.server';
 import { fetchUserByIdServer } from '@/services/profile/user.server';
@@ -57,7 +58,7 @@ export default async function Page({ params: { pageUserId } }: PageProps) {
     initialDto,
     buildTagLabelMap(catalogs)
   );
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+  const siteUrl = getSiteUrl();
 
   return (
     <>

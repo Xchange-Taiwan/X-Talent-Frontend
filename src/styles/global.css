@@ -14,7 +14,9 @@
     --popover-foreground: 222.2 84% 4.9%;
 
     --primary: 180 64% 48%;
-    --primary-foreground: 210 40% 98%;
+    /* Dark foreground on the bright teal brand color: white-ish gives a
+       1.94:1 contrast ratio (WCAG AA fails). Dark gray gives ~9:1. */
+    --primary-foreground: 222.2 47.4% 11.2%;
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
