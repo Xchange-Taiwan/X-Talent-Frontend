@@ -7,12 +7,14 @@ interface AvatarWithBadgeProps {
   avatar: string | StaticImageData;
   years: string;
   name: string;
+  priority?: boolean;
 }
 
 export const AvatarWithBadge = ({
   avatar,
   years,
   name,
+  priority = false,
 }: AvatarWithBadgeProps) => {
   const displayYears =
     TotalWorkSpanEnum[years as keyof typeof TotalWorkSpanEnum] ?? years;
@@ -25,6 +27,8 @@ export const AvatarWithBadge = ({
         fill
         sizes="(max-width: 768px) 334px, 413px"
         className="h-full object-cover"
+        priority={priority}
+        loading={priority ? 'eager' : 'lazy'}
       />
       <figcaption className="absolute bottom-[30px] right-[30px] rounded-lg bg-[#000000]/30 px-2.5 py-1 text-text-white">
         {displayYears}工作經驗
