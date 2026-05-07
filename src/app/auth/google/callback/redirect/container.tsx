@@ -50,20 +50,14 @@ export default function GoogleOAuthRedirectPage() {
           return;
         }
 
-        const refreshToken = response.refreshToken;
-
         const deleteEmail = sessionStorage.getItem('delete_account_email');
         if (deleteEmail) {
           sessionStorage.removeItem('delete_account_email');
-          await handleDeleteAccountFlow(
-            callbackData,
-            deleteEmail,
-            refreshToken
-          );
+          await handleDeleteAccountFlow(callbackData, deleteEmail);
           return;
         }
 
-        await proceedWithSignIn(callbackData, refreshToken);
+        await proceedWithSignIn(callbackData);
       } catch (err) {
         toast({
           variant: 'destructive',
@@ -81,8 +75,7 @@ export default function GoogleOAuthRedirectPage() {
 
   const handleDeleteAccountFlow = async (
     data: GoogleCallbackVO,
-    email: string,
-    refreshToken: string | null
+    email: string
   ) => {
     if (data.auth_type !== 'LOGIN') {
       toast({
@@ -111,7 +104,6 @@ export default function GoogleOAuthRedirectPage() {
       token: auth.token,
       email: auth.email ?? '',
       user: JSON.stringify(user),
-      refreshToken: refreshToken ?? '',
     });
 
     const result = await deleteAccount({ email, id_token });
@@ -143,10 +135,7 @@ export default function GoogleOAuthRedirectPage() {
     router.push('/auth/signin');
   };
 
-  const proceedWithSignIn = async (
-    data: GoogleCallbackVO,
-    refreshToken: string | null
-  ) => {
+  const proceedWithSignIn = async (data: GoogleCallbackVO) => {
     if (data.auth_type === 'SIGNUP') {
       sessionStorage.setItem('email', data.auth.email ?? '');
       router.push('/auth/email-verify');
@@ -168,7 +157,6 @@ export default function GoogleOAuthRedirectPage() {
       token: data.auth.token,
       email: data.auth.email ?? '',
       user: JSON.stringify(data.user),
-      refreshToken: refreshToken ?? '',
     });
 
     const session = await getSession();

@@ -1,5 +1,11 @@
 'use server';
 
+import { cookies } from 'next/headers';
+
+import {
+  OAUTH_REFRESH_BRIDGE_COOKIE,
+  OAUTH_REFRESH_BRIDGE_TTL_SECONDS,
+} from '@/lib/auth/oauthRefreshBridge';
 import type { components } from '@/types/api';
 
 type OAuthCallbackResponse =
@@ -15,7 +21,7 @@ function extractRefreshToken(headers: Headers): string | null {
 export async function googleCallback(
   code: string,
   state: string
-): Promise<OAuthCallbackResponse & { refreshToken: string | null }> {
+): Promise<OAuthCallbackResponse> {
   const res = await fetch(`${BFF_URL}/v2/oauth/google/callback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -24,5 +30,16 @@ export async function googleCallback(
 
   const data = (await res.json()) as OAuthCallbackResponse;
 
-  return { ...data, refreshToken: extractRefreshToken(res.headers) };
+  const refreshToken = extractRefreshToken(res.headers);
+  if (refreshToken) {
+    cookies().set(OAUTH_REFRESH_BRIDGE_COOKIE, refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: OAUTH_REFRESH_BRIDGE_TTL_SECONDS,
+    });
+  }
+
+  return data;
 }

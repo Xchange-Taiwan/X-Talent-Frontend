@@ -1,6 +1,8 @@
 import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import { cookies } from 'next/headers';
 
+import { OAUTH_REFRESH_BRIDGE_COOKIE } from '@/lib/auth/oauthRefreshBridge';
 import { SignInSchema } from '@/schemas/auth';
 import { refreshAccessToken } from '@/services/auth/refreshToken';
 
@@ -93,13 +95,18 @@ const authOptions = {
         token: { label: 'Token', type: 'text' },
         email: { label: 'Email', type: 'text' },
         user: { label: 'User JSON', type: 'text' },
-        refreshToken: { label: 'Refresh Token', type: 'text' },
       },
       async authorize(credentials) {
         if (!credentials?.token || !credentials?.user) return null;
 
         try {
           const user = JSON.parse(credentials.user as string);
+
+          const cookieStore = cookies();
+          const refreshToken = cookieStore.get(
+            OAUTH_REFRESH_BRIDGE_COOKIE
+          )?.value;
+          cookieStore.delete(OAUTH_REFRESH_BRIDGE_COOKIE);
 
           const experiences: {
             category: string;
@@ -119,7 +126,7 @@ const authOptions = {
           return {
             id: String(user.user_id),
             token: credentials.token,
-            refreshToken: (credentials.refreshToken as string) || undefined,
+            refreshToken: refreshToken || undefined,
             email: (credentials.email as string) || undefined,
             name: user.name,
             avatar: user.avatar,
