@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import type { IndustryOption } from '@/services/profile/tagCatalog';
+
 import { buildOnboardingDtoStub } from './buildOnboardingDtoStub';
 
 const baseFormData = {
@@ -11,6 +13,11 @@ const baseFormData = {
   want_skill: ['typescript'],
   want_topic: ['career'],
 };
+
+const industryCatalog: IndustryOption[] = [
+  { subject_group: 'tech', subject: '科技 / 軟體' },
+  { subject_group: 'finance', subject: '金融 / 投資' },
+];
 
 describe('buildOnboardingDtoStub', () => {
   it('passes raw subject_group codes through onto the stubbed buckets', () => {
@@ -86,5 +93,41 @@ describe('buildOnboardingDtoStub', () => {
       formData: baseFormData,
     });
     expect(menteeStub.is_mentor).toBe(false);
+  });
+
+  // Regression: prior to this fix, industry was hardcoded to null in the
+  // stub, so navigating from /onboarding → /profile/edit through the primed
+  // cache rendered an empty industry field even when one was just selected.
+  it('resolves the submitted industry against the catalog into a TagVO-shaped object', () => {
+    const dto = buildOnboardingDtoStub({
+      userId: 42,
+      formData: { ...baseFormData, industry: 'tech' },
+      industryCatalog,
+    });
+
+    expect(dto.industry).toEqual({
+      subject_group: 'tech',
+      subject: '科技 / 軟體',
+    });
+  });
+
+  it('returns industry=null when the submitted code is not in the catalog', () => {
+    const dto = buildOnboardingDtoStub({
+      userId: 42,
+      formData: { ...baseFormData, industry: 'unknown' },
+      industryCatalog,
+    });
+
+    expect(dto.industry).toBeNull();
+  });
+
+  it('returns industry=null when no industry was submitted, even if a catalog is provided', () => {
+    const dto = buildOnboardingDtoStub({
+      userId: 42,
+      formData: baseFormData,
+      industryCatalog,
+    });
+
+    expect(dto.industry).toBeNull();
   });
 });
