@@ -50,6 +50,7 @@ CLAUDE.md
 # Test reports and screenshots
 /reports/
 /.playwright-mcp/
+/lighthouse-reports/
 
 # Playwright E2E
 /playwright-report/

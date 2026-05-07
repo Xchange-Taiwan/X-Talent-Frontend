@@ -14,6 +14,7 @@ export interface MentorCardProps {
   company: string;
   about: string;
   haveTopicLabels: string[];
+  priority?: boolean;
 }
 
 const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
@@ -27,6 +28,7 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
       company,
       about,
       haveTopicLabels,
+      priority = false,
     }: MentorCardProps,
     ref
   ) => {
@@ -40,7 +42,12 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
           aria-label={`前往 ${name} 的個人頁面`}
           className="absolute bottom-0 left-0 right-0 top-0 z-10"
         ></Link>
-        <AvatarWithBadge avatar={avatar} years={years} name={name} />
+        <AvatarWithBadge
+          avatar={avatar}
+          years={years}
+          name={name}
+          priority={priority}
+        />
         <div className="px-4 pb-6 pt-4">
           <Information
             name={name}

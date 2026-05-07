@@ -1,11 +1,12 @@
 import type { MetadataRoute } from 'next';
 
+import { getSiteUrl } from '@/lib/site-url';
 import type { components } from '@/types/api';
 
 type MentorListResponse =
   components['schemas']['ApiResponse_SearchMentorProfileListVO_'];
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+const SITE_URL = getSiteUrl();
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 // Single-page fetch keeps build-time work bounded. Bump or add cursor pagination

@@ -51,6 +51,7 @@ const MentorCardListBase = ({
             company={mentor.company}
             about={mentor.about}
             haveTopicLabels={mentor.have_topic}
+            priority={index === 0}
           />
         ))}
       </div>

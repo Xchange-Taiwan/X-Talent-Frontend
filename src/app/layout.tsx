@@ -10,10 +10,11 @@ import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import Providers from '@/components/Providers';
 import { Toaster } from '@/components/ui/toaster';
+import { getSiteUrl } from '@/lib/site-url';
 
 import { notoSansTC } from './font';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
+const SITE_URL = getSiteUrl();
 const SITE_DESCRIPTION =
   'XChange Talent Pool 是連結業界導師與職涯探索者的 mentorship 平台，協助你在轉職、升遷、跨界探索時，找到對的人聊對的事。';
 
@@ -82,6 +83,31 @@ export default async function RootLayout({
             imageSrcSet={avatarSrcSet}
             imageSizes="160px"
             fetchPriority="high"
+          />
+        )}
+        {/* Preconnect to third-party origins so the TLS handshake overlaps with
+            HTML parse instead of blocking the first script byte. crossOrigin
+            is required so the warmed connection is reused for the actual
+            (CORS-credentialed) script fetch. */}
+        {process.env.NEXT_PUBLIC_CLARITY_ID && (
+          <>
+            <link
+              rel="preconnect"
+              href="https://www.clarity.ms"
+              crossOrigin="anonymous"
+            />
+            <link
+              rel="preconnect"
+              href="https://c.clarity.ms"
+              crossOrigin="anonymous"
+            />
+          </>
+        )}
+        {process.env.NEXT_PUBLIC_SENTRY_DSN && (
+          <link
+            rel="preconnect"
+            href="https://browser.sentry-cdn.com"
+            crossOrigin="anonymous"
           />
         )}
       </head>
