@@ -292,6 +292,8 @@ export function useProfileSubmit({
           onBoarding: optimisticOnBoarding,
           msg: sessionUser?.msg,
           personalLinks,
+          jobTitle: job_title || sessionUser?.jobTitle,
+          company: companyFromPrimary || sessionUser?.company,
         },
       });
 
