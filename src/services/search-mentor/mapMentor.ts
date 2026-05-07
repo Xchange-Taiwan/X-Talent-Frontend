@@ -38,7 +38,11 @@ function readCodes(codes: ReadonlyArray<string> | null | undefined): string[] {
 export type MentorsType = components['schemas']['SearchMentorProfileListVO'];
 
 export interface MentorRequest {
-  searchPattern?: string;
+  // snake_case to match the BFF/Search query param exactly. Object.entries
+  // in mentors.server.ts / mentors.ts forwards keys verbatim into the URL,
+  // so a camelCase key here would silently be dropped by FastAPI's
+  // search_pattern: str = Query(None) and the keyword would have no effect.
+  search_pattern?: string;
   filter_skills?: string;
   filter_topics?: string;
   filter_industries?: string;

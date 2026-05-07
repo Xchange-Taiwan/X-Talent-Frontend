@@ -13,7 +13,10 @@ export type ServerSearchParams = Record<string, string | string[] | undefined>;
 type AnyParams = URLSearchParams | ReadonlyURLSearchParams;
 
 export interface MentorPoolFetchConditions {
-  searchPattern: string;
+  // Key name matches the BFF/Search query param so that spreading these
+  // conditions into a MentorRequest preserves snake_case all the way out
+  // to the URL. See MentorRequest in services/search-mentor/mapMentor.ts.
+  search_pattern: string;
   filter_skills?: string;
   filter_topics?: string;
   filter_industries?: string;
@@ -58,7 +61,7 @@ export function paramsToFetchConditions(
   params: AnyParams | null
 ): MentorPoolFetchConditions {
   const conditions: MentorPoolFetchConditions = {
-    searchPattern: getSearchPatternFromParams(params),
+    search_pattern: getSearchPatternFromParams(params),
   };
   if (!params) return conditions;
   const writable = conditions as MentorPoolFetchConditions &

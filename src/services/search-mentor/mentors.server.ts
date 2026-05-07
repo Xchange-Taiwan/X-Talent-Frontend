@@ -40,7 +40,7 @@ function buildUrl(
 
 function hasMentorRequestConditions(param: MentorRequest): boolean {
   return Boolean(
-    param.searchPattern ||
+    param.search_pattern ||
     param.filter_skills ||
     param.filter_topics ||
     param.filter_industries
