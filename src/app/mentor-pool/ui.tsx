@@ -67,28 +67,36 @@ export default function MentorPoolUI({
           </div>
         </div>
         <div className="mb-5 flex flex-wrap gap-3">
-          {Object.entries(selectedFilters).map(([key, filter]) => (
-            <Badge
-              key={key}
-              variant={'filter'}
-              className="text-sm font-medium leading-5"
-            >
-              <span>
-                {filter.name}: {filter.value}
-              </span>
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onRemoveFilter(key);
-                }}
-                aria-label={`移除「${filter.name}：${filter.value}」篩選`}
-                className="bg-transparent inline-flex items-center rounded-sm p-0 hover:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          {Object.entries(selectedFilters).map(([key, filter]) => {
+            // URL params persist the BE `subject_group` code; resolve back to
+            // the localized `subject` label for display, falling back to the
+            // code if the tag isn't in the current catalog.
+            const label =
+              filterOptions[key]?.options.find((o) => o.value === filter.value)
+                ?.label ?? filter.value;
+            return (
+              <Badge
+                key={key}
+                variant={'filter'}
+                className="text-sm font-medium leading-5"
               >
-                <XIcon className="h-4 w-4" aria-hidden />
-              </button>
-            </Badge>
-          ))}
+                <span>
+                  {filter.name}: {label}
+                </span>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onRemoveFilter(key);
+                  }}
+                  aria-label={`移除「${filter.name}：${label}」篩選`}
+                  className="bg-transparent inline-flex items-center rounded-sm p-0 hover:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <XIcon className="h-4 w-4" aria-hidden />
+                </button>
+              </Badge>
+            );
+          })}
         </div>
         {hasMentors && (
           <div className="relative mb-6">
