@@ -8,8 +8,10 @@ import { useEffect, useState } from 'react';
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
+import { primeTagCatalogCacheIfEmpty } from '@/hooks/user/tags/useTagCatalog';
 import useUserData from '@/hooks/user/user-data/useUserData';
 import { primeUserProfileDtoCacheIfEmpty } from '@/hooks/user/user-data/useUserProfileDto';
+import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import type { MentorProfileVO } from '@/services/profile/user';
 
 import { ProfilePageSkeleton } from './skeleton';
@@ -21,12 +23,14 @@ const ProfilePageUI = dynamic(() => import('./ui'), {
 interface Props {
   pageUserId: string;
   initialDto: MentorProfileVO;
+  initialCatalogs: TagCatalogsByBucket;
   initialLoginUserId: string;
 }
 
 export default function ProfilePageContainer({
   pageUserId,
   initialDto,
+  initialCatalogs,
   initialLoginUserId,
 }: Props) {
   const router = useRouter();
@@ -41,6 +45,10 @@ export default function ProfilePageContainer({
   if (Number.isFinite(pageUserIdNumber)) {
     primeUserProfileDtoCacheIfEmpty(pageUserIdNumber, 'zh_TW', initialDto);
   }
+  // Same idea for the tag catalog: SSR already fetched the localized labels,
+  // so seed the client cache here so useTagCatalog resolves subject_group
+  // codes to Chinese labels on first paint instead of flashing raw codes.
+  primeTagCatalogCacheIfEmpty('zh_TW', initialCatalogs);
 
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth() + 1);
