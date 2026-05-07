@@ -19,6 +19,7 @@ import {
   formatSelectedDate,
   toDateKey,
 } from '@/lib/profile/scheduleFormatters';
+import { isSafeUrl } from '@/lib/url/isSafeUrl';
 
 import {
   ProfileContentSkeleton,
@@ -103,21 +104,23 @@ export default function ProfilePageUI({
                 </p>
                 {!!userData.personalLinks?.length && (
                   <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                    {userData.personalLinks.map((link) => (
-                      <a
-                        key={link.platform}
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:text-blue-600 text-gray-600"
-                        title={
-                          platformLabelMap[link.platform]?.label ||
-                          link.platform
-                        }
-                      >
-                        {platformLabelMap[link.platform]?.icon}
-                      </a>
-                    ))}
+                    {userData.personalLinks
+                      .filter((link) => isSafeUrl(link.url))
+                      .map((link) => (
+                        <a
+                          key={link.platform}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-blue-600 text-gray-600"
+                          title={
+                            platformLabelMap[link.platform]?.label ||
+                            link.platform
+                          }
+                        >
+                          {platformLabelMap[link.platform]?.icon}
+                        </a>
+                      ))}
                   </div>
                 )}
               </div>
