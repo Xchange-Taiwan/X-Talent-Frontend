@@ -69,7 +69,7 @@ export function useEditProfileData({
       location: userDto.location || '',
       statement: userDto.personal_statement || '',
       about: userDto.about || '',
-      industry: industrySg ? [industrySg] : [],
+      industry: industrySg,
       years_of_experience: userDto.years_of_experience || '',
       work_experiences: parsedExperiences || defaultValues.work_experiences,
       educations: parsedEducations || defaultValues.educations,

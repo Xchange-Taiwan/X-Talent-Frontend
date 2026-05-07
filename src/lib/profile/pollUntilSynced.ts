@@ -14,10 +14,8 @@ function isProfileSynced(
   if ((latest.about ?? '') !== (values.about ?? '')) return false;
   if ((latest.years_of_experience ?? '') !== (values.years_of_experience ?? ''))
     return false;
-  const industryFirst = Array.isArray(values.industry)
-    ? (values.industry[0] ?? '')
-    : (values.industry ?? '');
-  if ((latest.industry?.subject_group ?? '') !== industryFirst) return false;
+  if ((latest.industry?.subject_group ?? '') !== (values.industry ?? ''))
+    return false;
   if (avatar && latest.avatar !== avatar) return false;
   return true;
 }
