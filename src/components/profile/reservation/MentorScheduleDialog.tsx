@@ -613,7 +613,7 @@ function AddSlotModal({
               checked={weekly}
               onCheckedChange={(v) => setWeekly(v === true)}
             />
-            此月每週{weekdayLabel}都重複
+            套用至本月剩餘的每週{weekdayLabel}
           </label>
 
           {weekly && previewDates.length > 0 && (
