@@ -325,8 +325,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
       for (const slot of allDraftRaws) {
         if (slot.type !== 'ALLOW') continue;
-        const slotDateKey = dayjs(slot.dtstart * 1000).format('YYYY-MM-DD');
-        if (slotDateKey !== dateKey) continue;
 
         const occurrences = expandRrule(slot.dtstart, slot.rrule);
         const slotDuration = slot.dtend - slot.dtstart;
@@ -334,6 +332,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         for (const occ of occurrences) {
           if (slot.exdate.includes(occ)) continue;
           if (occ <= nowSec) continue;
+          if (dayjs(occ * 1000).format('YYYY-MM-DD') !== dateKey) continue;
           result.push({
             start: new Date(occ * 1000),
             end: new Date((occ + slotDuration) * 1000),
