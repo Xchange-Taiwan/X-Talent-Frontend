@@ -264,13 +264,22 @@ export function useProfileSubmit({
         setAvatarOverride(String(sessionUser.id), avatar);
       }
 
-      // 5) optimistic session update — keep role/onboarding from current
-      //    session so we never flicker mentor → mentee while the backend
-      //    catches up. The reconcile in step 7 corrects them if the user
-      //    actually transitioned during this submit.
+      // 5) optimistic session update — for the mentor onboarding flow we
+      //    know the user is becoming a mentor, so flip role/onboarding to
+      //    true immediately. Otherwise keep them from the current session
+      //    to avoid flickering mentor → mentee while the backend catches
+      //    up. The reconcile in step 7 corrects them if the backend
+      //    disagrees.
       //    Fire-and-forget: navigation no longer waits for NextAuth's
       //    /api/auth/session round trip. The avatar override above keeps
       //    the header in sync until the JWT update lands.
+      const optimisticIsMentor = isMentorOnboarding
+        ? true
+        : (sessionUser?.isMentor ?? false);
+      const optimisticOnBoarding = isMentorOnboarding
+        ? true
+        : (sessionUser?.onBoarding ?? false);
+
       void updateSession({
         user: {
           id: sessionUser?.id,
@@ -279,8 +288,8 @@ export function useProfileSubmit({
           avatarUpdatedAt: values.avatarFile
             ? Date.now()
             : sessionUser?.avatarUpdatedAt,
-          isMentor: sessionUser?.isMentor,
-          onBoarding: sessionUser?.onBoarding,
+          isMentor: optimisticIsMentor,
+          onBoarding: optimisticOnBoarding,
           msg: sessionUser?.msg,
           personalLinks,
         },
@@ -302,8 +311,6 @@ export function useProfileSubmit({
       //    optimistic value.
       const reconcileSession = (latest: MentorProfileVO | null) => {
         if (!latest) return;
-        const optimisticIsMentor = sessionUser?.isMentor ?? false;
-        const optimisticOnBoarding = sessionUser?.onBoarding ?? false;
         const latestIsMentor = Boolean(latest.is_mentor);
         const latestOnBoarding = Boolean(latest.onboarding);
         if (
