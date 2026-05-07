@@ -24,7 +24,7 @@ declare module 'next-auth' {
   }
 
   interface Session {
-    user: Omit<User, 'token'> & DefaultSession['user']; // TEST: temporarily expose refreshToken (restore Omit after testing)
+    user: Omit<User, 'token' | 'refreshToken'> & DefaultSession['user'];
     accessToken?: string;
     error?: 'RefreshTokenError';
   }
