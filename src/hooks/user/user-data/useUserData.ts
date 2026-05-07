@@ -1,5 +1,6 @@
 import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
+import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import { ExperienceType } from '@/services/profile/experienceType';
 import {
   buildTagLabelMap,
@@ -130,9 +131,13 @@ function parseUserDtoToUserType(
   const educations = educationBlocks.flatMap((b) =>
     getMetadataArray<EducationExperienceMetadata>(b)
   );
+  // Drop links whose URL doesn't pass the scheme allow-list. The form schema
+  // already blocks javascript:, but profiles can be written via direct BFF
+  // calls — render-time filtering closes that bypass before <a href> ever
+  // sees the value.
   const personalLinks = linkBlocks
     .flatMap((b) => getMetadataArray<PersonalLinkMetadata>(b))
-    .filter((l) => Boolean(l.url));
+    .filter((l) => isSafeUrl(l.url));
 
   // BFF emits industry enriched (TagVO-shaped); OpenAPI types it as
   // `Record<string, never>`. Pull subject through the local TagVO type.

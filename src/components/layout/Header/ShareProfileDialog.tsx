@@ -8,6 +8,7 @@ import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { platformLabelMap } from '@/components/profile/social-links/platformLabelMap';
 import { Button } from '@/components/ui/button';
 import { trackEvent } from '@/lib/analytics';
+import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import type { PersonalLink } from '@/types/types';
 
 async function copyToClipboard(text: string): Promise<boolean> {
@@ -128,18 +129,20 @@ export function ShareProfileDialog({
                       {name}
                     </p>
 
-                    {personalLinks?.map((link) => (
-                      <a
-                        key={link.platform}
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`前往 ${platformLabelMap[link.platform]?.label ?? link.platform} 頁面`}
-                        className="shrink-0"
-                      >
-                        {platformLabelMap[link.platform]?.icon}
-                      </a>
-                    ))}
+                    {personalLinks
+                      ?.filter((link) => isSafeUrl(link.url))
+                      .map((link) => (
+                        <a
+                          key={link.platform}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`前往 ${platformLabelMap[link.platform]?.label ?? link.platform} 頁面`}
+                          className="shrink-0"
+                        >
+                          {platformLabelMap[link.platform]?.icon}
+                        </a>
+                      ))}
                   </div>
 
                   {subtitle ? (

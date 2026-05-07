@@ -1,3 +1,4 @@
+import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import { ExperienceType } from '@/services/profile/experienceType';
 import type { MentorProfileVO } from '@/services/profile/user';
 import type { TagVO } from '@/types/tag';
@@ -54,15 +55,6 @@ interface LinkMetadata {
   url?: string;
 }
 
-function isHttpsUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
 function getBlocks(
   experiences: MentorProfileVO['experiences'] | null | undefined,
   category: string
@@ -116,7 +108,7 @@ function pickPublicLinks(profile: MentorProfileVO): PublicPersonalLink[] {
     if (
       platform &&
       SOCIAL_PLATFORMS.includes(platform) &&
-      isHttpsUrl(url) &&
+      isSafeUrl(url) &&
       !seen.has(platform)
     ) {
       seen.add(platform);
