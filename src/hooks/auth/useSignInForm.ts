@@ -37,6 +37,7 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
           flow: 'sign_in',
           step: 'validate_credentials',
           message: validated.error,
+          level: 'info',
         });
         toast({
           variant: 'destructive',
@@ -58,6 +59,7 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
           step: 'authenticate',
           message: 'Invalid credentials',
           errorCode: login.error,
+          level: 'info',
         });
         toast({
           variant: 'destructive',

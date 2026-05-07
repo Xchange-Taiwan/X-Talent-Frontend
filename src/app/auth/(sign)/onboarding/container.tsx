@@ -208,6 +208,7 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
             step: 'avatar_upload',
             message:
               err instanceof Error ? err.message : 'Avatar upload failed',
+            level: 'warning',
           });
           // Drop the failed job so the next Step 1 submit starts a fresh upload
           avatarUploadRef.current = null;
