@@ -13,6 +13,13 @@ export async function middleware(req: NextRequest) {
   const { nextUrl } = req;
   const pathname = nextUrl.pathname;
 
+  // Sentry tunnel route — bypass middleware so anonymous-user envelope POSTs
+  // aren't redirected to /auth/signin (defined by withSentryConfig
+  // tunnelRoute in next.config.js).
+  if (pathname === '/monitoring' || pathname.startsWith('/monitoring/')) {
+    return NextResponse.next();
+  }
+
   // -------- 1. Verify session via NextAuth getToken (JWT signature + exp) --------
   const token = await getToken({
     req,
