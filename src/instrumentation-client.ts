@@ -4,9 +4,12 @@
 
 import * as Sentry from '@sentry/nextjs';
 
+const sentryEnv = process.env.NEXT_PUBLIC_SENTRY_ENV;
+
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-  enabled: process.env.NODE_ENV === 'production',
+  enabled: sentryEnv === 'production' || sentryEnv === 'staging',
+  environment: sentryEnv ?? 'local',
 
   // Trace 10% of requests in production; increase temporarily for debugging
   tracesSampleRate: 0.1,
