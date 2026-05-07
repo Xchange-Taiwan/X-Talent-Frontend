@@ -3,7 +3,7 @@
 import dayjs from 'dayjs';
 import { Clock, Plus, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { KeyboardEvent, useEffect, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -131,7 +131,12 @@ export default function MentorScheduleDialog({
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [editingSlotId, setEditingSlotId] = useState<number | null>(null);
+  // Track both row id and occurrence so editing a single occurrence of a
+  // recurring row routes back to the correct exdate-and-detach call.
+  const [editingTarget, setEditingTarget] = useState<{
+    id: number;
+    occurrenceUnix: number;
+  } | null>(null);
   const [reservationPrompt, setReservationPrompt] =
     useState<ReservationPromptType>(null);
 
@@ -145,12 +150,16 @@ export default function MentorScheduleDialog({
     }
   }, [open]);
 
-  // Hide ALLOW slots that have already started — past slots can't be booked or
-  // meaningfully edited. BOOKED/PENDING are filtered out separately because we
-  // only manage reservation lifecycle on a different page.
+  // Show all ALLOW slots (including past) so the editor stays consistent with
+  // what was scheduled; past slots render disabled to make it clear they
+  // can't be edited or deleted. BOOKED/PENDING are tracked separately below
+  // because reservation lifecycle is managed on a different page.
   const nowSec = Math.floor(Date.now() / 1000);
-  const editableSlots = draftForSelectedDate.filter(
-    (s) => s.type === 'ALLOW' && Math.floor(s.start.getTime() / 1000) > nowSec
+  const visibleSlots = draftForSelectedDate.filter((s) => s.type === 'ALLOW');
+  // Future-only subset used for the AddSlotModal "next slot" default — we
+  // don't want the picker to suggest a time that's already in the past.
+  const futureSlots = visibleSlots.filter(
+    (s) => Math.floor(s.start.getTime() / 1000) > nowSec
   );
 
   // Block deletion/edit when a BOOKED or PENDING reservation exists at this
@@ -201,10 +210,13 @@ export default function MentorScheduleDialog({
     onOpenChange(false);
   };
 
-  const editingSlot =
-    editingSlotId !== null
-      ? (editableSlots.find((s) => s.id === editingSlotId) ?? null)
-      : null;
+  const editingSlot = editingTarget
+    ? (visibleSlots.find(
+        (s) =>
+          s.id === editingTarget.id &&
+          s.occurrenceUnix === editingTarget.occurrenceUnix
+      ) ?? null)
+    : null;
 
   return (
     <>
@@ -248,7 +260,7 @@ export default function MentorScheduleDialog({
                 </div>
               ) : (
                 <div className="mt-3 flex flex-col gap-3">
-                  {editableSlots.map((slot) => {
+                  {visibleSlots.map((slot) => {
                     const startLabel = fmtTime(
                       Math.floor(slot.start.getTime() / 1000)
                     );
@@ -256,29 +268,46 @@ export default function MentorScheduleDialog({
                       Math.floor(slot.end.getTime() / 1000)
                     );
                     const reservationBlock = getReservationBlock(slot);
+                    const isPast =
+                      Math.floor(slot.start.getTime() / 1000) <= nowSec;
                     return (
                       <div
-                        key={slot.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => {
-                          if (reservationBlock) {
-                            setReservationPrompt(reservationBlock);
-                            return;
-                          }
-                          setEditingSlotId(slot.id);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            if (reservationBlock) {
-                              setReservationPrompt(reservationBlock);
-                              return;
-                            }
-                            setEditingSlotId(slot.id);
-                          }
-                        }}
-                        className="flex cursor-pointer flex-col gap-2 rounded-lg border bg-background p-3 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:p-4"
+                        key={`${slot.id}-${slot.occurrenceUnix}`}
+                        {...(isPast
+                          ? { 'aria-disabled': true }
+                          : {
+                              role: 'button',
+                              tabIndex: 0,
+                              onClick: () => {
+                                if (reservationBlock) {
+                                  setReservationPrompt(reservationBlock);
+                                  return;
+                                }
+                                setEditingTarget({
+                                  id: slot.id,
+                                  occurrenceUnix: slot.occurrenceUnix,
+                                });
+                              },
+                              onKeyDown: (e: KeyboardEvent) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  if (reservationBlock) {
+                                    setReservationPrompt(reservationBlock);
+                                    return;
+                                  }
+                                  setEditingTarget({
+                                    id: slot.id,
+                                    occurrenceUnix: slot.occurrenceUnix,
+                                  });
+                                }
+                              },
+                            })}
+                        className={cn(
+                          'flex flex-col gap-2 rounded-lg border bg-background p-3 transition-colors lg:p-4',
+                          isPast
+                            ? 'cursor-not-allowed opacity-50'
+                            : 'cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                        )}
                       >
                         <div className="flex flex-row flex-nowrap items-center justify-between gap-2 lg:gap-3">
                           <div className="flex items-center gap-2">
@@ -288,23 +317,26 @@ export default function MentorScheduleDialog({
                             </span>
                             <span className="text-sm text-muted-foreground">
                               ({slot.durationMinutes} 分)
+                              {isPast ? ' · 已過' : ''}
                             </span>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 lg:h-10 lg:w-10"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (reservationBlock) {
-                                setReservationPrompt(reservationBlock);
-                                return;
-                              }
-                              deleteDraftSlot(slot.id);
-                            }}
-                          >
-                            <X className="h-4 w-4 lg:h-5 lg:w-5" />
-                          </Button>
+                          {!isPast && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 lg:h-10 lg:w-10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (reservationBlock) {
+                                  setReservationPrompt(reservationBlock);
+                                  return;
+                                }
+                                deleteDraftSlot(slot.id, slot.occurrenceUnix);
+                              }}
+                            >
+                              <X className="h-4 w-4 lg:h-5 lg:w-5" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     );
@@ -344,7 +376,7 @@ export default function MentorScheduleDialog({
         open={addModalOpen}
         onOpenChange={setAddModalOpen}
         selectedDate={selectedDate}
-        existingSlots={editableSlots}
+        existingSlots={futureSlots}
         onSubmit={(form, weekly) => {
           const result = addSlotForSelectedDate({
             startTime: `${form.startHour}:${form.startMinute}`,
@@ -369,13 +401,17 @@ export default function MentorScheduleDialog({
 
       <EditSlotModal
         slot={editingSlot}
-        onClose={() => setEditingSlotId(null)}
+        onClose={() => setEditingTarget(null)}
         onSubmit={(form) => {
-          if (!editingSlotId) return;
-          const ok = updateDraftSlot(editingSlotId, {
-            startTime: `${form.startHour}:${form.startMinute}`,
-            durationMinutes: form.durationMinutes,
-          });
+          if (!editingTarget) return;
+          const ok = updateDraftSlot(
+            editingTarget.id,
+            editingTarget.occurrenceUnix,
+            {
+              startTime: `${form.startHour}:${form.startMinute}`,
+              durationMinutes: form.durationMinutes,
+            }
+          );
           if (!ok) {
             toast({
               variant: 'destructive',
@@ -383,7 +419,7 @@ export default function MentorScheduleDialog({
             });
             return;
           }
-          setEditingSlotId(null);
+          setEditingTarget(null);
         }}
       />
 
