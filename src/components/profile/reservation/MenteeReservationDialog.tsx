@@ -144,15 +144,19 @@ export default function MenteeReservationDialog({
     } catch (error) {
       console.error('Failed to create reservation:', error);
       const msg = error instanceof Error ? error.message : 'Unknown error';
-      captureFlowFailure({
-        flow: 'reservation_create',
-        step: msg.includes('logged in') ? 'get_session' : 'create_reservation',
-        message: msg,
-      });
       const isDuplicate =
         msg.includes('409') ||
         msg.toLowerCase().includes('conflict') ||
         msg.toLowerCase().includes('already');
+      captureFlowFailure({
+        flow: 'reservation_create',
+        step: msg.includes('logged in') ? 'get_session' : 'create_reservation',
+        message: msg,
+        // Slot conflicts are an expected user-side outcome (the user picked a
+        // slot they already booked) — downgrade so they don't trigger error
+        // alerts on Sentry.
+        ...(isDuplicate ? { level: 'info' as const } : {}),
+      });
       if (isDuplicate) {
         setView('conflict');
       } else {

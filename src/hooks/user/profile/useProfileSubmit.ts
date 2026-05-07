@@ -93,6 +93,7 @@ export function useProfileSubmit({
             step: 'avatar_upload',
             message:
               err instanceof Error ? err.message : 'Avatar upload failed',
+            level: 'warning',
           });
           throw err;
         }
