@@ -65,6 +65,7 @@ export default async function Page({ params: { pageUserId } }: PageProps) {
       <ProfilePageContainer
         pageUserId={pageUserId}
         initialDto={initialDto}
+        initialCatalogs={catalogs}
         initialLoginUserId={initialLoginUserId}
       />
     </>
