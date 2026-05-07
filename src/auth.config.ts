@@ -1,6 +1,6 @@
+import { cookies } from 'next/headers';
 import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { cookies } from 'next/headers';
 
 import { OAUTH_REFRESH_BRIDGE_COOKIE } from '@/lib/auth/oauthRefreshBridge';
 import { SignInSchema } from '@/schemas/auth';
@@ -24,6 +24,27 @@ function decodeJwtExp(jwtString: string): number | null {
 function extractRefreshToken(headers: Headers): string | undefined {
   const setCookie = headers.get('set-cookie') ?? '';
   return setCookie.match(/refresh_token=([^;,]+)/)?.[1] ?? undefined;
+}
+
+// BFF rotates the refresh_token on every /v1/auth/token call (revokes the old
+// rt:* index immediately). Concurrent jwt callbacks reading the same stored
+// refresh token would all POST it; first wins, the rest get invalid_grant.
+// Coalesce in-flight refreshes by token so parallel callers share one result.
+const inflightRefresh = new Map<
+  string,
+  ReturnType<typeof refreshAccessToken>
+>();
+
+function refreshAccessTokenSingleflight(
+  currentRefreshToken: string
+): ReturnType<typeof refreshAccessToken> {
+  const existing = inflightRefresh.get(currentRefreshToken);
+  if (existing) return existing;
+  const promise = refreshAccessToken(currentRefreshToken).finally(() => {
+    inflightRefresh.delete(currentRefreshToken);
+  });
+  inflightRefresh.set(currentRefreshToken, promise);
+  return promise;
 }
 
 const authOptions = {
@@ -171,7 +192,7 @@ const authOptions = {
         if (isExpiringSoon) {
           try {
             const { token: newToken, refreshToken: newRefreshToken } =
-              await refreshAccessToken(storedRefreshToken);
+              await refreshAccessTokenSingleflight(storedRefreshToken);
             return {
               ...token,
               token: newToken,
