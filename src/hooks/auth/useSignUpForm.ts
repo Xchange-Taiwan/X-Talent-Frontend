@@ -53,6 +53,7 @@ export default function useSignUpForm(): AuthFormProps<SignUpValues> {
         message:
           error instanceof Error ? error.message : 'Unexpected sign-up error',
         errorCode: (error as AuthResponse)?.code,
+        level: 'info',
       });
       handleSignUpError(error as AuthResponse, toast);
     } finally {

@@ -169,6 +169,14 @@ export function buildBaseEvent(
 // ─── Flow failure capture ─────────────────────────────────────────────────────
 
 /**
+ * Severity for flow-failure events.
+ * - 'error' (default): unexpected system or network failure
+ * - 'warning': expected-but-abnormal (rate limits, sync timeouts, conflicts)
+ * - 'info': expected user-input failure (wrong password, email already taken)
+ */
+export type FlowFailureLevel = 'error' | 'warning' | 'info';
+
+/**
  * Structured event for a failure in a critical user flow.
  * Distinguishable from generic runtime errors and API failures by the
  * flow + step fields, which identify exactly where in a user journey
@@ -193,6 +201,8 @@ export interface FlowFailureEvent {
   message: string;
   /** Optional error/status code from the API or SDK */
   errorCode?: string | number;
+  /** Severity forwarded to Sentry; defaults to 'error' when omitted */
+  level?: FlowFailureLevel;
 }
 
 /**
@@ -222,11 +232,12 @@ export function captureFlowFailure(
     step: event.step,
     message: sanitize(event.message) ?? event.message,
     errorCode: event.errorCode,
+    level: event.level ?? 'error',
   };
 
   Sentry.captureEvent({
     message: fullEvent.name,
-    level: 'error',
+    level: fullEvent.level,
     tags: {
       event_name: fullEvent.name,
       flow: fullEvent.flow,
