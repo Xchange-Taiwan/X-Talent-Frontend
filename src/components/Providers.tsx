@@ -7,7 +7,6 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import GlobalErrorMonitor from '@/components/GlobalErrorMonitor';
 import PageViewTracker from '@/components/PageViewTracker';
 import SessionErrorWatcher from '@/components/SessionErrorWatcher';
-import WebVitalsMonitor from '@/components/WebVitalsMonitor';
 
 export default function Providers({
   children,
@@ -19,7 +18,6 @@ export default function Providers({
   return (
     <SessionProvider session={session}>
       <GlobalErrorMonitor />
-      <WebVitalsMonitor />
       <PageViewTracker />
       <SessionErrorWatcher />
       <ErrorBoundary>{children}</ErrorBoundary>
