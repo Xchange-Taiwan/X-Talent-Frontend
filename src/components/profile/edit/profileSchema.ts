@@ -95,11 +95,8 @@ export const createProfileFormSchema = (isMentor: boolean) =>
         ? z.string().min(1, '請填寫關於我')
         : z.string().optional(),
       industry: isMentor
-        ? z
-            .array(z.string())
-            .min(1, '請至少選擇一個產業')
-            .max(10, '最多選 10 個')
-        : z.array(z.string()).max(10, '最多選 10 個'),
+        ? z.string().min(1, '請選擇產業')
+        : z.string().optional().default(''),
       years_of_experience: z.string({ required_error: '請選擇經驗' }),
       work_experiences: z.array(jobSchema),
       educations: z.array(educationSchema),
@@ -165,7 +162,7 @@ export const defaultValues: ProfileFormValues = {
   location: '',
   statement: '',
   about: '',
-  industry: [],
+  industry: '',
   years_of_experience: '',
   work_experiences: [],
   educations: [],
