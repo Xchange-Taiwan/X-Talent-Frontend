@@ -37,7 +37,6 @@ export default function GoogleOAuthRedirectPage() {
 
       try {
         const response = await googleCallback(code, state);
-        console.log('[Google OAuth] backend response:', response);
 
         const callbackData = response.data;
         if (!callbackData) {
