@@ -248,9 +248,12 @@ export function useProfileSubmit({
 
       // Invalidate the SSR ISR cache for /profile/[userId] so other
       // visitors (and the editor on navigation) don't see up-to-60s-stale
-      // server-rendered HTML. Fire-and-forget — never block navigation on
-      // a failed revalidation.
-      void revalidateProfilePath(pageUserId).catch((e) => {
+      // server-rendered HTML. Awaited (not fire-and-forget) so the cache
+      // is marked stale BEFORE we router.push — otherwise the next-page
+      // SSR fires while the cache is still fresh and serves the old
+      // avatar in the first paint. .catch keeps a server-action failure
+      // from breaking submit.
+      await revalidateProfilePath(pageUserId).catch((e) => {
         console.error('revalidateProfilePath failed:', e);
       });
 
@@ -270,9 +273,14 @@ export function useProfileSubmit({
       //    to avoid flickering mentor → mentee while the backend catches
       //    up. The reconcile in step 7 corrects them if the backend
       //    disagrees.
-      //    Fire-and-forget: navigation no longer waits for NextAuth's
-      //    /api/auth/session round trip. The avatar override above keeps
-      //    the header in sync until the JWT update lands.
+      //    Awaited (not fire-and-forget) so the JWT cookie holds the new
+      //    avatar before we router.push. Otherwise the next page's SSR
+      //    getServerSession reads the old JWT, seeds SessionProvider
+      //    with the old avatar, and the header renders the old image
+      //    until the client-side update finally lands. Wrapped in
+      //    try/catch so a session-refresh failure doesn't surface as
+      //    "儲存失敗" — the override + step-7 reconcile heal client
+      //    state regardless.
       const optimisticIsMentor = isMentorOnboarding
         ? true
         : (sessionUser?.isMentor ?? false);
@@ -280,22 +288,26 @@ export function useProfileSubmit({
         ? true
         : (sessionUser?.onBoarding ?? false);
 
-      void updateSession({
-        user: {
-          id: sessionUser?.id,
-          name: values.name ?? sessionUser?.name,
-          avatar: avatar ?? sessionUser?.avatar,
-          avatarUpdatedAt: values.avatarFile
-            ? Date.now()
-            : sessionUser?.avatarUpdatedAt,
-          isMentor: optimisticIsMentor,
-          onBoarding: optimisticOnBoarding,
-          msg: sessionUser?.msg,
-          personalLinks,
-          jobTitle: job_title || sessionUser?.jobTitle,
-          company: companyFromPrimary || sessionUser?.company,
-        },
-      });
+      try {
+        await updateSession({
+          user: {
+            id: sessionUser?.id,
+            name: values.name ?? sessionUser?.name,
+            avatar: avatar ?? sessionUser?.avatar,
+            avatarUpdatedAt: values.avatarFile
+              ? Date.now()
+              : sessionUser?.avatarUpdatedAt,
+            isMentor: optimisticIsMentor,
+            onBoarding: optimisticOnBoarding,
+            msg: sessionUser?.msg,
+            personalLinks,
+            jobTitle: job_title || sessionUser?.jobTitle,
+            company: companyFromPrimary || sessionUser?.company,
+          },
+        });
+      } catch (e) {
+        console.error('updateSession failed:', e);
+      }
 
       // 6) navigate immediately — user no longer waits for backend sync.
       trackEvent({ name: 'profile_update_submitted', feature: 'profile' });
