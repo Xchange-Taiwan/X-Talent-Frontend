@@ -13,6 +13,9 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
+import { trackEvent } from '@/lib/analytics';
+
+import { FEEDBACK_FORM_URL } from './constants';
 
 export type HamburgerMenuProps = {
   isLoading: boolean;
@@ -79,6 +82,20 @@ export function HamburgerMenu({
             <Link href="/about" onClick={close} className="text-black">
               關於 X-Talent
             </Link>
+
+            <a
+              href={FEEDBACK_FORM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="提供回饋（另開新分頁）"
+              onClick={() => {
+                trackEvent({ name: 'feedback_open' });
+                close();
+              }}
+              className="text-black"
+            >
+              提供回饋
+            </a>
           </div>
 
           {!isLoggedIn && (

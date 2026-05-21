@@ -8,7 +8,9 @@ import { memo, useRef } from 'react';
 import LogoImgUrl from '@/assets/logo.svg';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { trackEvent } from '@/lib/analytics';
 
+import { FEEDBACK_FORM_URL } from './constants';
 import { HamburgerMenu } from './HamburgerMenu';
 import { MobileUserMenu } from './MobileUserMenu';
 import { UserDropdown } from './UserDropdown';
@@ -68,6 +70,17 @@ function HeaderComponent(): JSX.Element {
             >
               關於 X-Talent
             </Link>
+
+            <a
+              href={FEEDBACK_FORM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="提供回饋（另開新分頁）"
+              onClick={() => trackEvent({ name: 'feedback_open' })}
+              className="text-black font-['Open_Sans'] text-base"
+            >
+              提供回饋
+            </a>
           </nav>
         </div>
 
