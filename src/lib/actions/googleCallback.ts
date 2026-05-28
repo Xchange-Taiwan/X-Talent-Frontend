@@ -23,9 +23,9 @@ export async function googleCallback(
   state: string
 ): Promise<OAuthCallbackResponse> {
   console.log('[GoogleAuth][server] POST /v2/oauth/google/callback', {
-    hasCode: Boolean(code),
-    hasState: Boolean(state),
-    codeLen: code?.length ?? 0,
+    code,
+    state,
+    BFF_URL,
   });
 
   const res = await fetch(`${BFF_URL}/v2/oauth/google/callback`, {
@@ -37,24 +37,19 @@ export async function googleCallback(
   console.log('[GoogleAuth][server] BFF callback response', {
     status: res.status,
     ok: res.ok,
+    headers: Object.fromEntries(res.headers.entries()),
   });
 
   const data = (await res.json()) as OAuthCallbackResponse;
 
-  console.log('[GoogleAuth][server] BFF callback payload', {
-    authType: data?.data?.auth_type,
-    hasAuthToken: Boolean(data?.data?.auth?.token),
-    hasIdToken: Boolean(data?.data?.id_token),
-    hasUser: Boolean(data?.data?.user),
-    userId: data?.data?.user?.user_id,
-    isMentor: data?.data?.user?.is_mentor,
-    onBoarding: data?.data?.user?.onboarding,
-    msg: data?.msg,
-  });
+  console.log(
+    '[GoogleAuth][server] BFF callback payload (full):',
+    JSON.stringify(data, null, 2)
+  );
 
   const refreshToken = extractRefreshToken(res.headers);
   console.log('[GoogleAuth][server] refresh token bridge', {
-    hasRefreshToken: Boolean(refreshToken),
+    refreshToken,
   });
   if (refreshToken) {
     cookies().set(OAUTH_REFRESH_BRIDGE_COOKIE, refreshToken, {

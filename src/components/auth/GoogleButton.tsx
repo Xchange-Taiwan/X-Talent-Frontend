@@ -32,8 +32,7 @@ export default function GoogleSignUpButton({
         : await getGoogleAuthorizeSignupUrl();
       console.log('[GoogleAuth] authorize URL received', {
         mode: isSignIn ? 'login' : 'signup',
-        hasUrl: Boolean(authorization_url),
-        urlPreview: authorization_url?.slice(0, 80),
+        authorization_url,
       });
       router.push(authorization_url);
     } catch (error) {
