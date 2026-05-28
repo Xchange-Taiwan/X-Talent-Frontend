@@ -26,8 +26,9 @@ export default function GoogleOAuthRedirectPage() {
       const state = searchParams.get('state');
 
       console.log('[GoogleAuth] redirect page mounted', {
-        hasCode: Boolean(code),
-        hasState: Boolean(state),
+        code,
+        state,
+        fullUrl: window.location.href,
       });
 
       if (!code || !state) {
@@ -43,10 +44,10 @@ export default function GoogleOAuthRedirectPage() {
 
       try {
         const response = await googleCallback(code, state);
-        console.log('[GoogleAuth] googleCallback returned', {
-          hasData: Boolean(response?.data),
-          authType: response?.data?.auth_type,
-        });
+        console.log(
+          '[GoogleAuth] googleCallback returned (full response):',
+          JSON.stringify(response, null, 2)
+        );
 
         const callbackData = response.data;
         if (!callbackData) {
@@ -150,14 +151,13 @@ export default function GoogleOAuthRedirectPage() {
   };
 
   const proceedWithSignIn = async (data: GoogleCallbackVO) => {
-    console.log('[GoogleAuth] proceedWithSignIn', {
-      authType: data.auth_type,
-      hasUser: Boolean(data.user),
-      hasAuthToken: Boolean(data.auth?.token),
-      userId: data.user?.user_id,
-      isMentor: data.user?.is_mentor,
-      onBoarding: data.user?.onboarding,
-    });
+    console.log(
+      '[GoogleAuth] proceedWithSignIn data (full):',
+      JSON.stringify(data, null, 2)
+    );
+    console.log('[GoogleAuth] proceedWithSignIn auth.token:', data.auth?.token);
+    console.log('[GoogleAuth] proceedWithSignIn id_token:', data.id_token);
+    console.log('[GoogleAuth] proceedWithSignIn user:', data.user);
 
     if (data.auth_type === 'SIGNUP') {
       console.log('[GoogleAuth] SIGNUP flow → redirect to /auth/email-verify');
@@ -168,8 +168,8 @@ export default function GoogleOAuthRedirectPage() {
 
     if (!data.user || !data.auth.token) {
       console.warn('[GoogleAuth] LOGIN flow missing user or auth token', {
-        hasUser: Boolean(data.user),
-        hasAuthToken: Boolean(data.auth?.token),
+        user: data.user,
+        authToken: data.auth?.token,
       });
       toast({
         variant: 'destructive',
@@ -180,23 +180,27 @@ export default function GoogleOAuthRedirectPage() {
       return;
     }
 
+    console.log('[GoogleAuth] calling signIn with:', {
+      token: data.auth.token,
+      email: data.auth.email ?? '',
+      user: data.user,
+    });
     const signInResult = await signIn('custom-google-token', {
       redirect: false,
       token: data.auth.token,
       email: data.auth.email ?? '',
       user: JSON.stringify(data.user),
     });
-    console.log('[GoogleAuth] custom-google-token signIn result', signInResult);
+    console.log(
+      '[GoogleAuth] custom-google-token signIn result (full):',
+      JSON.stringify(signInResult, null, 2)
+    );
 
     const session = await getSession();
-    console.log('[GoogleAuth] session after signIn', {
-      hasSession: Boolean(session),
-      hasUser: Boolean(session?.user),
-      onBoarding: session?.user?.onBoarding,
-      isMentor: session?.user?.isMentor,
-      hasAccessToken: Boolean(session?.accessToken),
-      error: session?.error,
-    });
+    console.log(
+      '[GoogleAuth] session after signIn (full):',
+      JSON.stringify(session, null, 2)
+    );
 
     if (session?.user?.onBoarding === false) {
       console.log('[GoogleAuth] onBoarding=false → /auth/onboarding');
