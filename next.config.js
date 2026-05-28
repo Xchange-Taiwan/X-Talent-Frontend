@@ -40,7 +40,7 @@ function buildCsp() {
       "'self'",
       "'unsafe-inline'",
       'https://www.googletagmanager.com',
-      'https://www.clarity.ms',
+      'https://*.clarity.ms',
     ],
     'style-src': ["'self'", "'unsafe-inline'"],
     'img-src': [
