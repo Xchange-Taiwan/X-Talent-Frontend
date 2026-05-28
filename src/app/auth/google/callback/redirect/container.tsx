@@ -25,7 +25,13 @@ export default function GoogleOAuthRedirectPage() {
       const code = searchParams.get('code');
       const state = searchParams.get('state');
 
+      console.log('[GoogleAuth] redirect page mounted', {
+        hasCode: Boolean(code),
+        hasState: Boolean(state),
+      });
+
       if (!code || !state) {
+        console.warn('[GoogleAuth] missing code or state in URL');
         toast({
           variant: 'destructive',
           title: 'Missing Google OAuth parameters',
@@ -37,9 +43,14 @@ export default function GoogleOAuthRedirectPage() {
 
       try {
         const response = await googleCallback(code, state);
+        console.log('[GoogleAuth] googleCallback returned', {
+          hasData: Boolean(response?.data),
+          authType: response?.data?.auth_type,
+        });
 
         const callbackData = response.data;
         if (!callbackData) {
+          console.warn('[GoogleAuth] callback response has no data');
           toast({
             variant: 'destructive',
             title: 'Login failed',
@@ -51,6 +62,9 @@ export default function GoogleOAuthRedirectPage() {
 
         const deleteEmail = sessionStorage.getItem('delete_account_email');
         if (deleteEmail) {
+          console.log(
+            '[GoogleAuth] delete_account_email present, entering delete flow'
+          );
           sessionStorage.removeItem('delete_account_email');
           await handleDeleteAccountFlow(callbackData, deleteEmail);
           return;
@@ -58,6 +72,7 @@ export default function GoogleOAuthRedirectPage() {
 
         await proceedWithSignIn(callbackData);
       } catch (err) {
+        console.error('[GoogleAuth] handleOAuthFlow error:', err);
         toast({
           variant: 'destructive',
           title: 'Login failed',
@@ -135,13 +150,27 @@ export default function GoogleOAuthRedirectPage() {
   };
 
   const proceedWithSignIn = async (data: GoogleCallbackVO) => {
+    console.log('[GoogleAuth] proceedWithSignIn', {
+      authType: data.auth_type,
+      hasUser: Boolean(data.user),
+      hasAuthToken: Boolean(data.auth?.token),
+      userId: data.user?.user_id,
+      isMentor: data.user?.is_mentor,
+      onBoarding: data.user?.onboarding,
+    });
+
     if (data.auth_type === 'SIGNUP') {
+      console.log('[GoogleAuth] SIGNUP flow → redirect to /auth/email-verify');
       sessionStorage.setItem('email', data.auth.email ?? '');
       router.push('/auth/email-verify');
       return;
     }
 
     if (!data.user || !data.auth.token) {
+      console.warn('[GoogleAuth] LOGIN flow missing user or auth token', {
+        hasUser: Boolean(data.user),
+        hasAuthToken: Boolean(data.auth?.token),
+      });
       toast({
         variant: 'destructive',
         title: 'Missing login data',
@@ -151,18 +180,29 @@ export default function GoogleOAuthRedirectPage() {
       return;
     }
 
-    await signIn('custom-google-token', {
+    const signInResult = await signIn('custom-google-token', {
       redirect: false,
       token: data.auth.token,
       email: data.auth.email ?? '',
       user: JSON.stringify(data.user),
     });
+    console.log('[GoogleAuth] custom-google-token signIn result', signInResult);
 
     const session = await getSession();
+    console.log('[GoogleAuth] session after signIn', {
+      hasSession: Boolean(session),
+      hasUser: Boolean(session?.user),
+      onBoarding: session?.user?.onBoarding,
+      isMentor: session?.user?.isMentor,
+      hasAccessToken: Boolean(session?.accessToken),
+      error: session?.error,
+    });
 
     if (session?.user?.onBoarding === false) {
+      console.log('[GoogleAuth] onBoarding=false → /auth/onboarding');
       router.push('/auth/onboarding');
     } else {
+      console.log('[GoogleAuth] onBoarding=true → /mentor-pool');
       router.push('/mentor-pool');
     }
   };

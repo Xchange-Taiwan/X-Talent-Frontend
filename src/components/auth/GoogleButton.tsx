@@ -23,13 +23,21 @@ export default function GoogleSignUpButton({
   const router = useRouter();
 
   const handleGoogleSignUp = async () => {
+    console.log('[GoogleAuth] button clicked', {
+      mode: isSignIn ? 'login' : 'signup',
+    });
     try {
       const { authorization_url } = isSignIn
         ? await getGoogleAuthorizeLoginUrl()
         : await getGoogleAuthorizeSignupUrl();
+      console.log('[GoogleAuth] authorize URL received', {
+        mode: isSignIn ? 'login' : 'signup',
+        hasUrl: Boolean(authorization_url),
+        urlPreview: authorization_url?.slice(0, 80),
+      });
       router.push(authorization_url);
     } catch (error) {
-      console.error('[GoogleAuth] error:', error);
+      console.error('[GoogleAuth] authorize error:', error);
       toast({
         variant: 'destructive',
         title: '註冊失敗',
