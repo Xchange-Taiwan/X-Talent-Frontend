@@ -25,14 +25,7 @@ export default function GoogleOAuthRedirectPage() {
       const code = searchParams.get('code');
       const state = searchParams.get('state');
 
-      console.log('[GoogleAuth] redirect page mounted', {
-        code,
-        state,
-        fullUrl: window.location.href,
-      });
-
       if (!code || !state) {
-        console.warn('[GoogleAuth] missing code or state in URL');
         toast({
           variant: 'destructive',
           title: 'Missing Google OAuth parameters',
@@ -44,14 +37,9 @@ export default function GoogleOAuthRedirectPage() {
 
       try {
         const response = await googleCallback(code, state);
-        console.log(
-          '[GoogleAuth] googleCallback returned (full response):',
-          JSON.stringify(response, null, 2)
-        );
 
         const callbackData = response.data;
         if (!callbackData) {
-          console.warn('[GoogleAuth] callback response has no data');
           toast({
             variant: 'destructive',
             title: 'Login failed',
@@ -63,17 +51,13 @@ export default function GoogleOAuthRedirectPage() {
 
         const deleteEmail = sessionStorage.getItem('delete_account_email');
         if (deleteEmail) {
-          console.log(
-            '[GoogleAuth] delete_account_email present, entering delete flow'
-          );
           sessionStorage.removeItem('delete_account_email');
           await handleDeleteAccountFlow(callbackData, deleteEmail);
           return;
         }
 
         await proceedWithSignIn(callbackData);
-      } catch (err) {
-        console.error('[GoogleAuth] handleOAuthFlow error:', err);
+      } catch {
         toast({
           variant: 'destructive',
           title: 'Login failed',
@@ -151,26 +135,13 @@ export default function GoogleOAuthRedirectPage() {
   };
 
   const proceedWithSignIn = async (data: GoogleCallbackVO) => {
-    console.log(
-      '[GoogleAuth] proceedWithSignIn data (full):',
-      JSON.stringify(data, null, 2)
-    );
-    console.log('[GoogleAuth] proceedWithSignIn auth.token:', data.auth?.token);
-    console.log('[GoogleAuth] proceedWithSignIn id_token:', data.id_token);
-    console.log('[GoogleAuth] proceedWithSignIn user:', data.user);
-
     if (data.auth_type === 'SIGNUP') {
-      console.log('[GoogleAuth] SIGNUP flow → redirect to /auth/email-verify');
       sessionStorage.setItem('email', data.auth.email ?? '');
       router.push('/auth/email-verify');
       return;
     }
 
     if (!data.user || !data.auth.token) {
-      console.warn('[GoogleAuth] LOGIN flow missing user or auth token', {
-        user: data.user,
-        authToken: data.auth?.token,
-      });
       toast({
         variant: 'destructive',
         title: 'Missing login data',
@@ -180,33 +151,18 @@ export default function GoogleOAuthRedirectPage() {
       return;
     }
 
-    console.log('[GoogleAuth] calling signIn with:', {
-      token: data.auth.token,
-      email: data.auth.email ?? '',
-      user: data.user,
-    });
-    const signInResult = await signIn('custom-google-token', {
+    await signIn('custom-google-token', {
       redirect: false,
       token: data.auth.token,
       email: data.auth.email ?? '',
       user: JSON.stringify(data.user),
     });
-    console.log(
-      '[GoogleAuth] custom-google-token signIn result (full):',
-      JSON.stringify(signInResult, null, 2)
-    );
 
     const session = await getSession();
-    console.log(
-      '[GoogleAuth] session after signIn (full):',
-      JSON.stringify(session, null, 2)
-    );
 
     if (session?.user?.onBoarding === false) {
-      console.log('[GoogleAuth] onBoarding=false → /auth/onboarding');
       router.push('/auth/onboarding');
     } else {
-      console.log('[GoogleAuth] onBoarding=true → /mentor-pool');
       router.push('/mentor-pool');
     }
   };

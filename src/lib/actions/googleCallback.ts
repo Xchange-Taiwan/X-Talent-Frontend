@@ -22,35 +22,15 @@ export async function googleCallback(
   code: string,
   state: string
 ): Promise<OAuthCallbackResponse> {
-  console.log('[GoogleAuth][server] POST /v2/oauth/google/callback', {
-    code,
-    state,
-    BFF_URL,
-  });
-
   const res = await fetch(`${BFF_URL}/v2/oauth/google/callback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code, state }),
   });
 
-  console.log('[GoogleAuth][server] BFF callback response', {
-    status: res.status,
-    ok: res.ok,
-    headers: Object.fromEntries(res.headers.entries()),
-  });
-
   const data = (await res.json()) as OAuthCallbackResponse;
 
-  console.log(
-    '[GoogleAuth][server] BFF callback payload (full):',
-    JSON.stringify(data, null, 2)
-  );
-
   const refreshToken = extractRefreshToken(res.headers);
-  console.log('[GoogleAuth][server] refresh token bridge', {
-    refreshToken,
-  });
   if (refreshToken) {
     cookies().set(OAUTH_REFRESH_BRIDGE_COOKIE, refreshToken, {
       httpOnly: true,
