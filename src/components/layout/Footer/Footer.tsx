@@ -51,21 +51,25 @@ export const Footer: FC = () => {
             sizes="146px"
             className="h-[39px] w-[146px]"
           />
-
-          <div className="mt-6 flex flex-col items-center gap-3 text-[#FFFFFF] md:items-start">
-            {LEGAL_LINKS.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="block font-normal hover:underline"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
         </div>
 
         <div className="mt-8 flex flex-col gap-8 text-[#FFFFFF] md:mt-0 md:flex-row md:gap-x-16">
+          <div className="flex flex-col items-center md:items-start">
+            <p className="mb-5 text-xl font-bold tracking-[0.085em]">關於</p>
+
+            <div className="flex flex-col items-center gap-3 md:items-start">
+              {LEGAL_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="block font-normal hover:underline"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-col items-center md:items-start">
             <p className="mb-5 text-xl font-bold tracking-[0.085em]">
               相關連結
