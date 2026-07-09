@@ -21,12 +21,8 @@ export const metadata: Metadata = {
   },
 };
 
-// The page no longer reads `searchParams`, so Next.js can serve this ISR
-// snapshot from the CDN instead of invoking the function per request.
-// Filtered/search results are fetched client-side (see MentorPoolContainer);
-// profile edits purge this via revalidatePath('/mentor-pool').
-export const revalidate = 600;
-
+// No `export const revalidate` here on purpose — Next.js infers the ISR
+// window from fetchMentorsServer's `next.revalidate` (mentors.server.ts).
 export default function Page() {
   return (
     <>

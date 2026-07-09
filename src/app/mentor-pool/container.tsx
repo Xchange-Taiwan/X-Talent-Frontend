@@ -111,10 +111,8 @@ export default function MentorPoolContainer({
     return map;
   }, [tagCatalog.have_topic]);
 
-  // MentorPoolWithData always fetches the unfiltered list (for ISR), so a
-  // deep link that already has filters (e.g. a shared search URL) must not
-  // render `initialMentors` even for a frame — start empty/loading instead
-  // and let the effect below fetch the real filtered result.
+  // initialMentors is always the unfiltered list — a filtered deep link
+  // must not render it even for a frame, so start empty/loading instead.
   const hasInitialFilters = hasAnyCondition(params);
   const [mentorCount, setMentorCount] = useState<number>(
     hasInitialFilters ? 0 : initialMentorCount
@@ -134,11 +132,9 @@ export default function MentorPoolContainer({
   // longer matches the current value are stale and must not touch state.
   const requestIdRef = useRef(0);
 
-  // Owns the mentor list for every URL state: the initial mount (covers a
-  // deep-linked filtered URL) and every later filter/search change, since
-  // MentorPoolWithData no longer refetches per request under ISR. Clearing
-  // filters resets to the `initial*` props — that snapshot already is the
-  // unfiltered list, so no network round-trip is needed.
+  // Refetches on every params change, including initial mount, since
+  // MentorPoolWithData no longer refetches per request. Clearing filters
+  // reuses `initial*` (already the unfiltered snapshot) instead of a fetch.
   useEffect(() => {
     const myRequestId = ++requestIdRef.current;
 

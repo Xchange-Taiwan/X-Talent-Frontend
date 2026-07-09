@@ -79,10 +79,8 @@ export function mapMentor(raw: RawMentor): MentorType {
   };
 }
 
-// Cache-bust the avatar URL by updated_at so a re-uploaded photo doesn't
-// serve a stale CDN copy; falls back to the local placeholder when a mentor
-// has no avatar. Shared by both the SSR listing fetch and client-side
-// (filtered / load-more) fetches so the two paths render identically.
+// Cache-busts the avatar URL by updated_at so a re-uploaded photo isn't
+// served stale; shared by SSR and client fetches so both render identically.
 export function resolveMentorAvatar(mentor: MentorType): MentorType {
   return {
     ...mentor,
