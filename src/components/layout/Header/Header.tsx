@@ -7,7 +7,6 @@ import { memo, useRef } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { trackEvent } from '@/lib/analytics';
 
 import { FEEDBACK_FORM_URL } from './constants';
@@ -40,88 +39,83 @@ function HeaderComponent(): JSX.Element {
   return (
     <header className="fixed inset-x-0 z-50 bg-light px-5">
       <div className="flex h-[70px] items-center justify-between">
-        <div className="flex items-center gap-10">
-          <Link href="/" aria-label="Go to homepage">
-            <Image src={LogoImgUrl} alt="logo" />
-          </Link>
-
-          <nav className="hidden items-center gap-7 md:flex">
-            <Link
-              href={findMentorHref}
-              className="text-black font-['Open_Sans'] text-base"
-            >
-              尋找導師
-            </Link>
-
-            {isLoading ? (
-              <Skeleton className="h-4 w-20" />
-            ) : (
-              <Link
-                href={leftSecondNav.href}
-                className="text-black font-['Open_Sans'] text-base"
-              >
-                {leftSecondNav.label}
+        {!isLoading && (
+          <>
+            <div className="flex items-center gap-10">
+              <Link href="/" aria-label="Go to homepage">
+                <Image src={LogoImgUrl} alt="logo" />
               </Link>
-            )}
 
-            <Link
-              href="/about"
-              className="text-black font-['Open_Sans'] text-base"
-            >
-              關於 X-Talent
-            </Link>
-
-            <a
-              href={FEEDBACK_FORM_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="提供回饋（另開新分頁）"
-              onClick={() => trackEvent({ name: 'feedback_open' })}
-              className="text-black font-['Open_Sans'] text-base"
-            >
-              提供回饋
-            </a>
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-3 md:mr-20">
-          <div className="hidden items-center gap-3 md:flex">
-            {isLoading ? (
-              <Skeleton className="h-8 w-20 rounded-full" />
-            ) : !isLoggedIn ? (
-              <>
-                <Link href="/auth/signup">
-                  <Button
-                    variant="outline"
-                    className="border-primary text-primary hover:text-primary"
-                  >
-                    註冊
-                  </Button>
+              <nav className="hidden items-center gap-7 md:flex">
+                <Link
+                  href={findMentorHref}
+                  className="text-black font-['Open_Sans'] text-base"
+                >
+                  尋找導師
                 </Link>
 
-                <Link href="/auth/signin">
-                  <Button className="bg-primary hover:bg-primary">登入</Button>
+                <Link
+                  href={leftSecondNav.href}
+                  className="text-black font-['Open_Sans'] text-base"
+                >
+                  {leftSecondNav.label}
                 </Link>
-              </>
-            ) : (
-              <UserDropdown user={session!.user} />
-            )}
-          </div>
 
-          <div className="flex items-center gap-3 md:hidden">
-            {isLoading ? (
-              <Skeleton className="h-8 w-8 rounded-full" />
-            ) : isLoggedIn ? (
-              <MobileUserMenu user={session!.user} />
-            ) : null}
-            <HamburgerMenu
-              isLoading={isLoading}
-              isLoggedIn={isLoggedIn}
-              isMentor={isMentor}
-              userId={userId}
-            />
-          </div>
-        </div>
+                <Link
+                  href="/about"
+                  className="text-black font-['Open_Sans'] text-base"
+                >
+                  關於 X-Talent
+                </Link>
+
+                <a
+                  href={FEEDBACK_FORM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="提供回饋（另開新分頁）"
+                  onClick={() => trackEvent({ name: 'feedback_open' })}
+                  className="text-black font-['Open_Sans'] text-base"
+                >
+                  提供回饋
+                </a>
+              </nav>
+            </div>
+
+            <div className="flex items-center gap-3 md:mr-20">
+              <div className="hidden items-center gap-3 md:flex">
+                {!isLoggedIn ? (
+                  <>
+                    <Link href="/auth/signup">
+                      <Button
+                        variant="outline"
+                        className="border-primary text-primary hover:text-primary"
+                      >
+                        註冊
+                      </Button>
+                    </Link>
+
+                    <Link href="/auth/signin">
+                      <Button className="bg-primary hover:bg-primary">
+                        登入
+                      </Button>
+                    </Link>
+                  </>
+                ) : (
+                  <UserDropdown user={session!.user} />
+                )}
+              </div>
+
+              <div className="flex items-center gap-3 md:hidden">
+                {isLoggedIn ? <MobileUserMenu user={session!.user} /> : null}
+                <HamburgerMenu
+                  isLoggedIn={isLoggedIn}
+                  isMentor={isMentor}
+                  userId={userId}
+                />
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </header>
   );
