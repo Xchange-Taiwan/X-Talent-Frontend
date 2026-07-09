@@ -5,7 +5,6 @@ import MentorGridSkeleton from './MentorGridSkeleton';
 import MentorPoolHero from './MentorPoolHero';
 import MentorPoolSearchBar from './MentorPoolSearchBar';
 import MentorPoolWithData from './MentorPoolWithData';
-import type { ServerSearchParams } from './searchParams';
 
 // canonical points to the bare path so search engines collapse all
 // `?keyword=...` / filter variants onto a single indexable URL.
@@ -22,11 +21,13 @@ export const metadata: Metadata = {
   },
 };
 
-interface PageProps {
-  searchParams: ServerSearchParams;
-}
+// The page no longer reads `searchParams`, so Next.js can serve this ISR
+// snapshot from the CDN instead of invoking the function per request.
+// Filtered/search results are fetched client-side (see MentorPoolContainer);
+// profile edits purge this via revalidatePath('/mentor-pool').
+export const revalidate = 600;
 
-export default function Page({ searchParams }: PageProps) {
+export default function Page() {
   return (
     <>
       <div className="relative">
@@ -36,7 +37,7 @@ export default function Page({ searchParams }: PageProps) {
         </Suspense>
       </div>
       <Suspense fallback={<MentorGridSkeleton />}>
-        <MentorPoolWithData searchParams={searchParams} />
+        <MentorPoolWithData />
       </Suspense>
     </>
   );

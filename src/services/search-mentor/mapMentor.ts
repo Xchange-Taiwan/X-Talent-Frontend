@@ -1,5 +1,6 @@
 import type { StaticImageData } from 'next/image';
 
+import avatarImage from '@/assets/default-avatar.png';
 import type { WorkExperienceMetadata } from '@/hooks/user/user-data/useUserData';
 import type { components } from '@/types/api';
 
@@ -75,5 +76,19 @@ export function mapMentor(raw: RawMentor): MentorType {
     have_skill: readCodes(raw.have_skill),
     have_topic: readCodes(raw.have_topic),
     updated_at: raw.updated_at ?? null,
+  };
+}
+
+// Cache-bust the avatar URL by updated_at so a re-uploaded photo doesn't
+// serve a stale CDN copy; falls back to the local placeholder when a mentor
+// has no avatar. Shared by both the SSR listing fetch and client-side
+// (filtered / load-more) fetches so the two paths render identically.
+export function resolveMentorAvatar(mentor: MentorType): MentorType {
+  return {
+    ...mentor,
+    avatar:
+      typeof mentor.avatar === 'string' && mentor.avatar
+        ? `${mentor.avatar}${mentor.updated_at ? `?cb=${mentor.updated_at}` : ''}`
+        : avatarImage,
   };
 }
