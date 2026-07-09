@@ -5,9 +5,8 @@ import { fetchMentorsServer } from '@/services/search-mentor/mentors.server';
 import { PAGE_LIMIT } from './constants';
 import MentorPoolContainer from './container';
 
-// Always fetches the unfiltered listing so this stays cacheable under ISR
-// (see `revalidate` in page.tsx). Filtered/search results are fetched
-// client-side by MentorPoolContainer once the URL's search params resolve.
+// Always fetches the unfiltered listing so this route stays ISR-cacheable;
+// filtered/search results are fetched client-side by MentorPoolContainer.
 export default async function MentorPoolWithData() {
   const [mentors, initialTagCatalog] = await Promise.all([
     fetchMentorsServer({
