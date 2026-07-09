@@ -76,6 +76,14 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* iOS WebKit can dispatch duplicate synthetic click events for a single
+     tap on an anchor/button; manipulation disables double-tap-to-zoom
+     handling on the tap target, which is the primary source of that. */
+  a,
+  button {
+    touch-action: manipulation;
+  }
 }
 
 /* =========================
