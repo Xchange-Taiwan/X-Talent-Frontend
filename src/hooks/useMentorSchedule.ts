@@ -303,12 +303,18 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   );
 
   const allowedDates = useMemo(() => {
+    const bookedStarts = new Set(
+      allDraftRaws.filter((s) => s.type === 'BOOKED').map((s) => s.dtstart)
+    );
+    const nowSec = Math.floor(Date.now() / 1000);
     const dates = new Set<string>();
     for (const slot of allDraftRaws) {
       if (slot.type !== 'ALLOW') continue;
       const occurrences = expandRrule(slot.dtstart, slot.rrule);
       for (const occ of occurrences) {
         if (slot.exdate.includes(occ)) continue;
+        if (occ <= nowSec) continue;
+        if (bookedStarts.has(occ)) continue;
         dates.add(dayjs(occ * 1000).format('YYYY-MM-DD'));
       }
     }
