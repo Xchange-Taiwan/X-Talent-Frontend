@@ -133,6 +133,13 @@ export const createProfileFormSchema = (isMentor: boolean) =>
     })
     .superRefine((data, ctx) => {
       if (isMentor) {
+        if (!data.avatar && !data.avatarFile) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['avatarFile'],
+            message: '請上傳個人頭像',
+          });
+        }
         if (data.work_experiences.length < 1) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,

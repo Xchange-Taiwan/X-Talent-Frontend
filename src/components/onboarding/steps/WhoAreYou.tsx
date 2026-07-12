@@ -30,6 +30,9 @@ export const WhoAreYou: FC<Props> = ({ form, avatarError }) => {
     ? `${watchedAvatar}?cb=${session?.user?.avatarUpdatedAt ?? stableCacheBust}`
     : '';
 
+  const avatarErrorMessage =
+    form.formState.errors.avatarFile?.message || avatarError;
+
   return (
     <>
       <AvatarUpload
@@ -37,9 +40,9 @@ export const WhoAreYou: FC<Props> = ({ form, avatarError }) => {
         name="avatarFile"
         avatarUrl={avatarDisplayUrl}
       />
-      {avatarError && (
+      {avatarErrorMessage && (
         <p className="-mt-6 text-center text-sm font-medium text-destructive lg:text-left">
-          {avatarError}
+          {avatarErrorMessage}
         </p>
       )}
 
