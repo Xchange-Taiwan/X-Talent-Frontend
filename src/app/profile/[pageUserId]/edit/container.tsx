@@ -132,6 +132,7 @@ export default function EditProfileContainer({
   };
 
   const FIELD_SCROLL_ORDER: (keyof ProfileFormValues)[] = [
+    'avatarFile',
     'name',
     'about',
     'have_topic',
@@ -192,6 +193,7 @@ export default function EditProfileContainer({
           className="space-y-10"
         >
           <AvatarSection
+            id="avatarFile"
             control={form.control}
             name="avatarFile"
             isMentor={isMentor}

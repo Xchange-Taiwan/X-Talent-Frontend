@@ -15,6 +15,7 @@ interface AvatarUploadProps<T extends FieldValues> {
   name: Path<T>;
   avatarUrl?: string;
   onFileChange?: (file: File) => void;
+  hasError?: boolean;
 }
 
 const AvatarUpload = <T extends FieldValues>({
@@ -22,6 +23,7 @@ const AvatarUpload = <T extends FieldValues>({
   name,
   avatarUrl,
   onFileChange,
+  hasError,
 }: AvatarUploadProps<T>) => {
   const { field } = useController({ control, name });
 
@@ -57,7 +59,9 @@ const AvatarUpload = <T extends FieldValues>({
   return (
     <div className="mb-10 flex justify-center lg:justify-start">
       <div
-        className="group relative flex h-36 w-36 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 border-[#B7CBCB] bg-[#F4FCFC] lg:h-[150px] lg:w-[150px]"
+        className={`group relative flex h-36 w-36 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 bg-[#F4FCFC] lg:h-[150px] lg:w-[150px] ${
+          hasError ? 'border-destructive' : 'border-[#B7CBCB]'
+        }`}
         onClick={() => document.getElementById('fileInput')?.click()}
       >
         <input

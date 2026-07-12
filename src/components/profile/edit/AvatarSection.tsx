@@ -13,6 +13,7 @@ interface AvatarSectionProps<T extends FieldValues> {
   name: Path<T>;
   onFileChange?: (file: File) => void;
   isMentor?: boolean;
+  id?: string;
 }
 
 export const AvatarSection = <T extends FieldValues>({
@@ -20,6 +21,7 @@ export const AvatarSection = <T extends FieldValues>({
   name,
   onFileChange,
   isMentor,
+  id,
 }: AvatarSectionProps<T>) => {
   const { data: session } = useSession();
   const { errors } = useFormState({ control });
@@ -30,6 +32,7 @@ export const AvatarSection = <T extends FieldValues>({
 
   return (
     <Section
+      id={id}
       title={
         <>
           {isMentor && <span className="text-status-200">* </span>}
@@ -42,6 +45,7 @@ export const AvatarSection = <T extends FieldValues>({
         name={name}
         avatarUrl={avatarUrl}
         onFileChange={onFileChange}
+        hasError={!!avatarErrorMessage}
       />
       {avatarErrorMessage && (
         <p className="mt-2 text-center text-sm font-medium text-destructive lg:text-left">

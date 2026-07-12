@@ -39,6 +39,7 @@ export const WhoAreYou: FC<Props> = ({ form, avatarError }) => {
         control={form.control}
         name="avatarFile"
         avatarUrl={avatarDisplayUrl}
+        hasError={!!avatarErrorMessage}
       />
       {avatarErrorMessage && (
         <p className="-mt-6 text-center text-sm font-medium text-destructive lg:text-left">
