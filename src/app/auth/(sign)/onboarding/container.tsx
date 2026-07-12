@@ -47,6 +47,7 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { data: session, status, update: updateSession } = useSession();
+  const isMentor = session?.user?.isMentor ?? false;
 
   const [tempData, setTempData] = useState<{
     step1?: z.infer<typeof step1Schema>;
@@ -111,6 +112,14 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
   }, []);
 
   const onSubmitStep1 = (data: z.infer<typeof step1Schema>) => {
+    if (isMentor && !data.avatar && !data.avatarFile) {
+      step1Form.setError('avatarFile', {
+        type: 'custom',
+        message: '請上傳個人頭像',
+      });
+      return;
+    }
+
     setTempData((prev) => ({ ...prev, step1: data }));
 
     const file = data.avatarFile;

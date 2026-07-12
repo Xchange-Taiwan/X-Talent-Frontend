@@ -194,6 +194,7 @@ export default function EditProfileContainer({
           <AvatarSection
             control={form.control}
             name="avatarFile"
+            isMentor={isMentor}
             onFileChange={(file) =>
               avatarUpload.kickOff(file, form.getValues('avatar'))
             }
