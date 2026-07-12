@@ -31,7 +31,8 @@ export const WhoAreYou: FC<Props> = ({ form, avatarError }) => {
     : '';
 
   const avatarErrorMessage =
-    form.formState.errors.avatarFile?.message || avatarError;
+    (form.formState.errors.avatarFile?.message as string | undefined) ||
+    avatarError;
 
   return (
     <>
