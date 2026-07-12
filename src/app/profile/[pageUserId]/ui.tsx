@@ -1,18 +1,22 @@
 'use client';
 
+import { Loader2 } from 'lucide-react';
 import Image, { type StaticImageData } from 'next/image';
 
 import {
   EducationSection,
   WorkExperienceSection,
 } from '@/components/profile/experience-section/ExperienceSection';
-import MenteeReservationDialog from '@/components/profile/reservation/MenteeReservationDialog';
 import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
 import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalendar';
 import { platformLabelMap } from '@/components/profile/social-links/platformLabelMap';
 import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
 import { Button } from '@/components/ui/button';
-import { UseMentorScheduleReturn } from '@/hooks/useMentorSchedule';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  BookingSlot,
+  UseMentorScheduleReturn,
+} from '@/hooks/useMentorSchedule';
 import { UserType } from '@/hooks/user/user-data/useUserData';
 import {
   formatBookingSlotTime,
@@ -39,12 +43,16 @@ interface Props {
   allowedDates: string[];
   openReservationDialog: boolean;
   setOpenReservationDialog: (open: boolean) => void;
-  openMenteeReservationDialog: boolean;
-  setOpenMenteeReservationDialog: (open: boolean) => void;
   onScheduleMonthChange: (date: Date) => void;
   onReservation: () => void;
   onEditProfile: () => void;
   onBecomeMentor: () => void;
+  selectedSlot: BookingSlot | null;
+  setSelectedSlot: (slot: BookingSlot | null) => void;
+  bookingQuestion: string;
+  setBookingQuestion: (question: string) => void;
+  isSubmitting: boolean;
+  onConfirmReservation: () => void;
 }
 
 export default function ProfilePageUI({
@@ -59,12 +67,16 @@ export default function ProfilePageUI({
   allowedDates,
   openReservationDialog,
   setOpenReservationDialog,
-  openMenteeReservationDialog,
-  setOpenMenteeReservationDialog,
   onScheduleMonthChange,
   onReservation,
   onEditProfile,
   onBecomeMentor,
+  selectedSlot,
+  setSelectedSlot,
+  bookingQuestion,
+  setBookingQuestion,
+  isSubmitting,
+  onConfirmReservation,
 }: Props) {
   const { selectedDate, setSelectedDate, generateBookingSlots } = schedule;
 
@@ -311,47 +323,97 @@ export default function ProfilePageUI({
                       }
                       return (
                         <div className="grid w-full grid-cols-2 gap-2">
-                          {slots.map((slot) => (
-                            <div
-                              key={slot.start.getTime()}
-                              className={`flex h-10 select-none items-center justify-center rounded-lg border text-sm font-medium ${
-                                slot.isBooked
-                                  ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
-                                  : 'border-[#E6E8EA]'
-                              }`}
-                            >
-                              {formatBookingSlotTime(slot)}
-                            </div>
-                          ))}
+                          {slots.map((slot) => {
+                            const isSelected =
+                              selectedSlot?.start.getTime() ===
+                              slot.start.getTime();
+                            if (isOwnMentorProfile) {
+                              return (
+                                <div
+                                  key={slot.start.getTime()}
+                                  className={`flex h-10 select-none items-center justify-center rounded-lg border text-sm font-medium ${
+                                    slot.isBooked
+                                      ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                                      : 'border-[#E6E8EA]'
+                                  }`}
+                                >
+                                  {formatBookingSlotTime(slot)}
+                                </div>
+                              );
+                            }
+                            return (
+                              <Button
+                                key={slot.start.getTime()}
+                                variant={isSelected ? 'default' : 'outline'}
+                                disabled={slot.isBooked}
+                                onClick={() => setSelectedSlot(slot)}
+                                className={`h-10 w-full text-sm ${
+                                  slot.isBooked
+                                    ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 disabled:opacity-100'
+                                    : ''
+                                }`}
+                              >
+                                {formatBookingSlotTime(slot)}
+                              </Button>
+                            );
+                          })}
                         </div>
                       );
                     })()}
                   </div>
+                  {!isOwnMentorProfile && (
+                    <div className="flex flex-col gap-2">
+                      <label
+                        htmlFor="booking-question"
+                        className="text-sm font-semibold"
+                      >
+                        你想問導師的問題
+                      </label>
+                      <Textarea
+                        id="booking-question"
+                        placeholder="請在此輸入你的問題..."
+                        className="min-h-[100px] rounded-lg border-[#E6E8EA] focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
+                        value={bookingQuestion}
+                        onChange={(e) => setBookingQuestion(e.target.value)}
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                  )}
                   <Button
                     variant="default"
                     className="w-full rounded-full px-6 py-3"
-                    onClick={onReservation}
-                    disabled={!userData}
+                    onClick={
+                      isOwnMentorProfile ? onReservation : onConfirmReservation
+                    }
+                    disabled={
+                      isOwnMentorProfile
+                        ? !userData
+                        : isSubmitting ||
+                          !userData ||
+                          !selectedDate ||
+                          !selectedSlot ||
+                          !bookingQuestion.trim()
+                    }
                   >
-                    {isOwnMentorProfile ? '預約設定' : '預約時間'}
-                  </Button>
-                  {userData &&
-                    (loginUserId === pageUserId ? (
-                      <MentorScheduleDialog
-                        open={openReservationDialog}
-                        onOpenChange={setOpenReservationDialog}
-                        schedule={schedule}
-                        onMonthChange={onScheduleMonthChange}
-                      />
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        處理中...
+                      </>
+                    ) : isOwnMentorProfile ? (
+                      '預約設定'
                     ) : (
-                      <MenteeReservationDialog
-                        open={openMenteeReservationDialog}
-                        onOpenChange={setOpenMenteeReservationDialog}
-                        schedule={schedule}
-                        userData={userData}
-                        onMonthChange={onScheduleMonthChange}
-                      />
-                    ))}
+                      '預約時間'
+                    )}
+                  </Button>
+                  {userData && loginUserId === pageUserId && (
+                    <MentorScheduleDialog
+                      open={openReservationDialog}
+                      onOpenChange={setOpenReservationDialog}
+                      schedule={schedule}
+                      onMonthChange={onScheduleMonthChange}
+                    />
+                  )}
                 </div>
               )}
             </div>
