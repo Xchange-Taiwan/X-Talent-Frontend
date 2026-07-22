@@ -167,3 +167,66 @@ jobs:
           CORRECTNESS_FINDINGS_B64: ${{ needs.correctness.outputs.findings }}
           PERFORMANCE_FINDINGS_B64: ${{ needs.performance.outputs.findings }}
         run: node scripts/ai-review/testing.mjs
+
+  architecture:
+    needs: [planner, security, correctness, performance, testing]
+    runs-on: ubuntu-latest
+    name: 'AI Review: Architecture (+ Final Summary)'
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run architecture agent
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          PLAN_B64: ${{ needs.planner.outputs.plan }}
+          SECURITY_FINDINGS_B64: ${{ needs.security.outputs.findings }}
+          CORRECTNESS_FINDINGS_B64: ${{ needs.correctness.outputs.findings }}
+          PERFORMANCE_FINDINGS_B64: ${{ needs.performance.outputs.findings }}
+          TESTING_FINDINGS_B64: ${{ needs.testing.outputs.findings }}
+        run: node scripts/ai-review/architecture.mjs
+
+      - name: Post PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('ai-review-comment.md', 'utf8');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            const existing = comments.find(
+              (c) => c.user.login === 'github-actions[bot]' && c.body.includes('<!-- ai-review-pipeline -->')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                comment_id: existing.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            }
