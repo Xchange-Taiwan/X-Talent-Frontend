@@ -1,0 +1,47 @@
+name: AI Review Pipeline
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches: ['**']
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  GEMINI_MODEL: gemini-3.1-pro-preview
+
+jobs:
+  planner:
+    runs-on: ubuntu-latest
+    name: 'AI Review: Planner'
+    outputs:
+      plan: ${{ steps.run.outputs.plan }}
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run planner agent
+        id: run
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: node scripts/ai-review/planner.mjs
