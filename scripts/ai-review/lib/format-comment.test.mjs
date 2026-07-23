@@ -197,6 +197,48 @@ describe('formatComment', () => {
     );
   });
 
+  it('renders Business Logic findings under their own section', () => {
+    const businessLogic = oneFinding({
+      summary: '發現 1 個業務規則違反',
+      findings: [
+        {
+          file: 'src/app/auth/(sign)/onboarding/container.tsx',
+          line: 115,
+          category: 'Unreachable Logic',
+          issue: 'onboarding 流程裡加了 isMentor 分支，但這裡永遠是 mentee',
+          why: 'onboarding 尚未完成前使用者不可能是 mentor，這段永遠不會執行',
+          fix: '移除此分支，mentor 專屬的頭像必填邏輯已在 profile/edit 實作',
+        },
+      ],
+    });
+    const comment = formatComment({
+      plan: basePlan,
+      security: noFindings,
+      correctness: noFindings,
+      businessLogic,
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+    });
+    expect(comment).toContain('### 🧭 Business Logic / Requirements');
+    expect(comment).toContain('[Unreachable Logic]');
+    expect(comment).toContain(
+      'onboarding 流程裡加了 isMentor 分支，但這裡永遠是 mentee'
+    );
+  });
+
+  it('renders "not run" for Business Logic when it is undefined, without affecting other sections', () => {
+    const comment = formatComment({
+      plan: basePlan,
+      security: noFindings,
+      correctness: noFindings,
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+    });
+    expect(comment).toContain('### 🧭 Business Logic / Requirements\n_（未執行）_');
+  });
+
   it('falls back to a placeholder merge recommendation when the final-judgment summary is missing entirely (e.g. that Gemini call failed)', () => {
     const comment = formatComment({
       plan: basePlan,

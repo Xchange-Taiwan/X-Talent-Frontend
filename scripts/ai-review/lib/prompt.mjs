@@ -12,6 +12,10 @@ function loadShared() {
       new URL('review-discipline.md', SHARED_DIR),
       'utf-8'
     ),
+    businessRules: readFileSync(
+      new URL('business-rules.md', SHARED_DIR),
+      'utf-8'
+    ),
   };
 }
 
@@ -21,12 +25,13 @@ function loadShared() {
  * Placeholders are `{{NAME}}` tokens; unknown placeholders are left as-is.
  */
 export function buildPrompt(templateUrl, replacements = {}) {
-  const { projectContext, reviewDiscipline } = loadShared();
+  const { projectContext, reviewDiscipline, businessRules } = loadShared();
   let template = readFileSync(templateUrl, 'utf-8');
 
   const all = {
     PROJECT_CONTEXT: projectContext,
     REVIEW_DISCIPLINE: reviewDiscipline,
+    BUSINESS_RULES: businessRules,
     ...replacements,
   };
   for (const [key, value] of Object.entries(all)) {
