@@ -191,8 +191,46 @@ jobs:
           PLAN_B64: ${{ needs.planner.outputs.plan }}
         run: node scripts/ai-review/architecture.mjs
 
+  review_guide:
+    needs: planner
+    runs-on: ubuntu-latest
+    name: 'AI Review: Review Guide'
+    outputs:
+      guide: ${{ steps.run.outputs.guide }}
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run review-guide agent
+        id: run
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          PLAN_B64: ${{ needs.planner.outputs.plan }}
+        run: node scripts/ai-review/review-guide.mjs
+
   summary:
-    needs: [planner, security, correctness, performance, testing, architecture]
+    needs:
+      [
+        planner,
+        security,
+        correctness,
+        performance,
+        testing,
+        architecture,
+        review_guide,
+      ]
     runs-on: ubuntu-latest
     name: 'AI Review: Final Summary'
     steps:
@@ -216,6 +254,7 @@ jobs:
           PERFORMANCE_FINDINGS_B64: ${{ needs.performance.outputs.findings }}
           TESTING_FINDINGS_B64: ${{ needs.testing.outputs.findings }}
           ARCHITECTURE_FINDINGS_B64: ${{ needs.architecture.outputs.findings }}
+          REVIEW_GUIDE_B64: ${{ needs.review_guide.outputs.guide }}
         run: node scripts/ai-review/generate-summary.mjs
 
       - name: Post PR comment
