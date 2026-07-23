@@ -15,25 +15,32 @@ import {
 import { trackEvent } from '@/lib/analytics';
 
 import { FEEDBACK_FORM_URL } from './constants';
+import { DisabledAwareLink } from './DisabledAwareLink';
+import { getBecomeMentorHref, getProfileHref } from './navHrefs';
 
 export type HamburgerMenuProps = {
   isLoggedIn: boolean;
   isMentor: boolean;
   userId?: string;
+  /**
+   * Logged in per the fast session hint, but `userId` hasn't landed yet —
+   * owned by Header's `useAuthStatus()`, passed down rather than re-derived
+   * here so the two never drift out of sync.
+   */
+  isResolvingUser: boolean;
 };
 
 export function HamburgerMenu({
   isLoggedIn,
   isMentor,
   userId,
+  isResolvingUser,
 }: HamburgerMenuProps): JSX.Element {
   const [open, setOpen] = React.useState(false);
   const close = (): void => setOpen(false);
 
-  const profilePath = userId ? `/profile/${userId}` : '/';
-  const becomeMentorPath = !isLoggedIn
-    ? '/auth/signup'
-    : `/profile/${userId}/edit?onboarding=true`;
+  const profilePath = getProfileHref(userId);
+  const becomeMentorPath = getBecomeMentorHref(userId);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -61,17 +68,23 @@ export function HamburgerMenu({
             </Link>
 
             {isMentor ? (
-              <Link href={profilePath} onClick={close} className="text-black">
+              <DisabledAwareLink
+                href={profilePath}
+                onClick={close}
+                disabled={isResolvingUser}
+                className="text-black"
+              >
                 我的導師頁面
-              </Link>
+              </DisabledAwareLink>
             ) : (
-              <Link
+              <DisabledAwareLink
                 href={becomeMentorPath}
                 onClick={close}
+                disabled={isResolvingUser}
                 className="text-black"
               >
                 成為導師
-              </Link>
+              </DisabledAwareLink>
             )}
 
             <Link href="/about" onClick={close} className="text-black">

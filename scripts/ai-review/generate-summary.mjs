@@ -23,6 +23,10 @@ function decodeUpstream(name, envVar) {
 const plan = decodeUpstream('plan', 'PLAN_B64');
 const security = decodeUpstream('security', 'SECURITY_FINDINGS_B64');
 const correctness = decodeUpstream('correctness', 'CORRECTNESS_FINDINGS_B64');
+const businessLogic = decodeUpstream(
+  'businessLogic',
+  'BUSINESS_LOGIC_FINDINGS_B64'
+);
 const performance = decodeUpstream('performance', 'PERFORMANCE_FINDINGS_B64');
 const testing = decodeUpstream('testing', 'TESTING_FINDINGS_B64');
 const architecture = decodeUpstream(
@@ -37,6 +41,11 @@ try {
     PLAN_JSON: JSON.stringify(plan ?? null, null, 2),
     SECURITY_FINDINGS_JSON: JSON.stringify(security ?? null, null, 2),
     CORRECTNESS_FINDINGS_JSON: JSON.stringify(correctness ?? null, null, 2),
+    BUSINESS_LOGIC_FINDINGS_JSON: JSON.stringify(
+      businessLogic ?? null,
+      null,
+      2
+    ),
     PERFORMANCE_FINDINGS_JSON: JSON.stringify(performance ?? null, null, 2),
     TESTING_FINDINGS_JSON: JSON.stringify(testing ?? null, null, 2),
     ARCHITECTURE_FINDINGS_JSON: JSON.stringify(architecture ?? null, null, 2),
@@ -57,6 +66,7 @@ const comment = formatComment({
   reviewGuide,
   security,
   correctness,
+  businessLogic,
   performance,
   testing,
   architecture,
