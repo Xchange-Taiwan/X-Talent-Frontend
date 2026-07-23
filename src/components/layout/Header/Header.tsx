@@ -15,6 +15,7 @@ import { FEEDBACK_FORM_URL } from './constants';
 import { DisabledAwareLink } from './DisabledAwareLink';
 import { HamburgerMenu } from './HamburgerMenu';
 import { MobileUserMenu } from './MobileUserMenu';
+import { getBecomeMentorHref, getProfileHref } from './navHrefs';
 import { UserDropdown } from './UserDropdown';
 
 function HeaderComponent(): JSX.Element {
@@ -32,15 +33,9 @@ function HeaderComponent(): JSX.Element {
 
   // `userId` only ever comes from the real session, never the hint — while
   // isResolvingUser is true these hrefs are unused (the link is disabled).
-  const becomeMentorHref = userId
-    ? `/profile/${userId}/edit?onboarding=true`
-    : '/auth/signup';
-
-  const profileHref = userId ? `/profile/${userId}` : '/';
-
   const leftSecondNav = isMentor
-    ? { label: '我的導師頁面', href: profileHref }
-    : { label: '成為導師', href: becomeMentorHref };
+    ? { label: '我的導師頁面', href: getProfileHref(userId) }
+    : { label: '成為導師', href: getBecomeMentorHref(userId) };
 
   return (
     <header className="fixed inset-x-0 z-50 bg-light px-5">

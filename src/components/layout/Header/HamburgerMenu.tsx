@@ -16,6 +16,7 @@ import { trackEvent } from '@/lib/analytics';
 
 import { FEEDBACK_FORM_URL } from './constants';
 import { DisabledAwareLink } from './DisabledAwareLink';
+import { getBecomeMentorHref, getProfileHref } from './navHrefs';
 
 export type HamburgerMenuProps = {
   isLoggedIn: boolean;
@@ -38,10 +39,8 @@ export function HamburgerMenu({
   const [open, setOpen] = React.useState(false);
   const close = (): void => setOpen(false);
 
-  const profilePath = userId ? `/profile/${userId}` : '/';
-  const becomeMentorPath = userId
-    ? `/profile/${userId}/edit?onboarding=true`
-    : '/auth/signup';
+  const profilePath = getProfileHref(userId);
+  const becomeMentorPath = getBecomeMentorHref(userId);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
