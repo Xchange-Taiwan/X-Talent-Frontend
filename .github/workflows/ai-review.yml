@@ -104,6 +104,35 @@ jobs:
           PLAN_B64: ${{ needs.planner.outputs.plan }}
         run: node scripts/ai-review/correctness.mjs
 
+  business_logic:
+    needs: planner
+    runs-on: ubuntu-latest
+    name: 'AI Review: Business Logic'
+    outputs:
+      findings: ${{ steps.run.outputs.findings }}
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run business-logic agent
+        id: run
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          PLAN_B64: ${{ needs.planner.outputs.plan }}
+        run: node scripts/ai-review/business-logic.mjs
+
   performance:
     needs: planner
     runs-on: ubuntu-latest
@@ -226,6 +255,7 @@ jobs:
         planner,
         security,
         correctness,
+        business_logic,
         performance,
         testing,
         architecture,
@@ -251,6 +281,7 @@ jobs:
           PLAN_B64: ${{ needs.planner.outputs.plan }}
           SECURITY_FINDINGS_B64: ${{ needs.security.outputs.findings }}
           CORRECTNESS_FINDINGS_B64: ${{ needs.correctness.outputs.findings }}
+          BUSINESS_LOGIC_FINDINGS_B64: ${{ needs.business_logic.outputs.findings }}
           PERFORMANCE_FINDINGS_B64: ${{ needs.performance.outputs.findings }}
           TESTING_FINDINGS_B64: ${{ needs.testing.outputs.findings }}
           ARCHITECTURE_FINDINGS_B64: ${{ needs.architecture.outputs.findings }}
