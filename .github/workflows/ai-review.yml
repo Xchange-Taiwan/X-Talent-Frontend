@@ -161,3 +161,65 @@ jobs:
           BASE_REF: origin/${{ github.event.pull_request.base.ref }}
           PLAN_B64: ${{ needs.planner.outputs.plan }}
         run: node scripts/ai-review/testing.mjs
+
+  architecture:
+    needs: planner
+    runs-on: ubuntu-latest
+    name: 'AI Review: Architecture'
+    outputs:
+      findings: ${{ steps.run.outputs.findings }}
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run architecture agent
+        id: run
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          PLAN_B64: ${{ needs.planner.outputs.plan }}
+        run: node scripts/ai-review/architecture.mjs
+
+  summary:
+    needs: [planner, security, correctness, performance, testing, architecture]
+    runs-on: ubuntu-latest
+    name: 'AI Review: Final Summary'
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Generate final summary comment
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PLAN_B64: ${{ needs.planner.outputs.plan }}
+          SECURITY_FINDINGS_B64: ${{ needs.security.outputs.findings }}
+          CORRECTNESS_FINDINGS_B64: ${{ needs.correctness.outputs.findings }}
+          PERFORMANCE_FINDINGS_B64: ${{ needs.performance.outputs.findings }}
+          TESTING_FINDINGS_B64: ${{ needs.testing.outputs.findings }}
+          ARCHITECTURE_FINDINGS_B64: ${{ needs.architecture.outputs.findings }}
+        run: node scripts/ai-review/generate-summary.mjs
+
+      - name: Post PR comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/ai-review/post-comment.mjs
