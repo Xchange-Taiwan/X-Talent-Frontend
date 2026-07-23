@@ -53,13 +53,17 @@ function HeaderComponent(): JSX.Element {
               尋找導師
             </Link>
 
-            <DisabledAwareLink
-              href={leftSecondNav.href}
-              disabled={isResolvingUser}
-              className="text-black font-['Open_Sans'] text-base"
-            >
-              {leftSecondNav.label}
-            </DisabledAwareLink>
+            {!authKnown ? (
+              <Skeleton className="h-6 w-24" />
+            ) : (
+              <DisabledAwareLink
+                href={leftSecondNav.href}
+                disabled={isResolvingUser}
+                className="text-black font-['Open_Sans'] text-base"
+              >
+                {leftSecondNav.label}
+              </DisabledAwareLink>
+            )}
 
             <Link
               href="/about"
