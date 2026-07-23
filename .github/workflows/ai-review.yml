@@ -134,7 +134,7 @@ jobs:
         run: node scripts/ai-review/performance.mjs
 
   testing:
-    needs: [planner, security, correctness, performance]
+    needs: planner
     runs-on: ubuntu-latest
     name: 'AI Review: Testing'
     outputs:
@@ -160,7 +160,4 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BASE_REF: origin/${{ github.event.pull_request.base.ref }}
           PLAN_B64: ${{ needs.planner.outputs.plan }}
-          SECURITY_FINDINGS_B64: ${{ needs.security.outputs.findings }}
-          CORRECTNESS_FINDINGS_B64: ${{ needs.correctness.outputs.findings }}
-          PERFORMANCE_FINDINGS_B64: ${{ needs.performance.outputs.findings }}
         run: node scripts/ai-review/testing.mjs
