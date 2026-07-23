@@ -114,4 +114,28 @@ describe('Header', () => {
       screen.queryByRole('link', { name: '註冊' })
     ).not.toBeInTheDocument();
   });
+
+  it('does not flash the mentee-default "成為導師" label for a mentor before auth is known', () => {
+    // `useAuthStatus` defaults `isMentor` to false until it can be
+    // determined — this must not leak into the rendered nav link before
+    // `authKnown` is true, or a mentor briefly sees the wrong role's label.
+    mockUseSession.mockReturnValue({ data: null, status: 'loading' });
+    mockUseAuthStatus.mockReturnValue({
+      authKnown: false,
+      isLoggedIn: false,
+      isMentor: false,
+      userId: undefined,
+      hasFullUser: false,
+      isResolvingUser: false,
+    });
+
+    render(<Header />);
+
+    expect(
+      screen.queryByRole('link', { name: '成為導師' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: '我的導師頁面' })
+    ).not.toBeInTheDocument();
+  });
 });
