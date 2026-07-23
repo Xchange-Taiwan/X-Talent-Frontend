@@ -31,9 +31,12 @@ export function HamburgerMenu({
   const close = (): void => setOpen(false);
 
   const profilePath = userId ? `/profile/${userId}` : '/';
-  const becomeMentorPath = !isLoggedIn
-    ? '/auth/signup'
-    : `/profile/${userId}/edit?onboarding=true`;
+  // Keyed on `userId` (not `isLoggedIn`) — `isLoggedIn` can be true from the
+  // fast session hint before the real user id has loaded, which would
+  // otherwise build a `/profile/undefined/...` URL.
+  const becomeMentorPath = userId
+    ? `/profile/${userId}/edit?onboarding=true`
+    : '/auth/signup';
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>

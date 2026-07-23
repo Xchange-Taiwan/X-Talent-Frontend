@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { match } from 'path-to-regexp';
 
+import {
+  encodeSessionHint,
+  SESSION_HINT_COOKIE,
+  SESSION_HINT_COOKIE_OPTIONS,
+} from '@/lib/auth/sessionHint';
 import { apiAuthPrefix, DEFAULT_LOGIN, publicRoutes } from '@/routes';
 
 // Convert Next.js dynamic route → express style (:id)
@@ -60,10 +65,25 @@ export async function middleware(req: NextRequest) {
       response.cookies.delete('__Secure-next-auth.session-token');
     }
 
+    response.cookies.delete(SESSION_HINT_COOKIE);
     return response;
   }
 
-  return NextResponse.next();
+  // -------- 5. Keep the client-readable hint in sync with the verified token --------
+  // UI-only signal for instant header rendering — never used for auth decisions.
+  const response = NextResponse.next();
+
+  if (isLoggedIn) {
+    response.cookies.set(
+      SESSION_HINT_COOKIE,
+      encodeSessionHint({ isMentor: Boolean(token?.isMentor) }),
+      SESSION_HINT_COOKIE_OPTIONS
+    );
+  } else {
+    response.cookies.delete(SESSION_HINT_COOKIE);
+  }
+
+  return response;
 }
 
 export const config = {
