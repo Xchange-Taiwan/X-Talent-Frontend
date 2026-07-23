@@ -76,7 +76,7 @@ jobs:
         run: node scripts/ai-review/security.mjs
 
   correctness:
-    needs: [planner, security]
+    needs: planner
     runs-on: ubuntu-latest
     name: 'AI Review: Correctness / Regression'
     outputs:
@@ -102,5 +102,4 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BASE_REF: origin/${{ github.event.pull_request.base.ref }}
           PLAN_B64: ${{ needs.planner.outputs.plan }}
-          SECURITY_FINDINGS_B64: ${{ needs.security.outputs.findings }}
         run: node scripts/ai-review/correctness.mjs
