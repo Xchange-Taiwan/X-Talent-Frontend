@@ -138,8 +138,7 @@ describe('formatComment', () => {
   });
 
   it('renders each requirement-coverage entry with a check or warning icon', () => {
-    const architecture = {
-      ...noFindings,
+    const summary = {
       requirementCoverage: [
         {
           criterion: '只有三個測試帳號可以刪除',
@@ -161,7 +160,8 @@ describe('formatComment', () => {
       correctness: noFindings,
       performance: noFindings,
       testing: noFindings,
-      architecture,
+      architecture: noFindings,
+      summary,
     });
     expect(comment).toContain(
       '- ✅ 只有三個測試帳號可以刪除 — 有檢查 email allowlist'
@@ -197,15 +197,19 @@ describe('formatComment', () => {
     );
   });
 
-  it('falls back to a placeholder merge recommendation when Architecture gave none', () => {
+  it('falls back to a placeholder merge recommendation when the final-judgment summary is missing entirely (e.g. that Gemini call failed)', () => {
     const comment = formatComment({
       plan: basePlan,
       security: noFindings,
       correctness: noFindings,
       performance: noFindings,
       testing: noFindings,
-      architecture: { ...noFindings },
+      architecture: noFindings,
+      summary: undefined,
     });
     expect(comment).toContain('### ✅ Merge Recommendation\n_（未提供）_');
+    expect(comment).toContain('### ⚠️ Overall Risk\n_（未提供）_');
+    // the rest of the comment (each agent's own findings) must still render
+    expect(comment).toContain('### 🔒 Security\n✅ 未發現需要人工關注的問題');
   });
 });

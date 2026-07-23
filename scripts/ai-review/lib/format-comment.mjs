@@ -23,9 +23,9 @@ function renderFindingsSection(title, result) {
   return `### ${title}\n${result.summary}\n\n${rows}`;
 }
 
-function renderRequirementCoverage(plan, architecture) {
-  if (architecture?.requirementCoverage?.length) {
-    return architecture.requirementCoverage
+function renderRequirementCoverage(plan, summary) {
+  if (summary?.requirementCoverage?.length) {
+    return summary.requirementCoverage
       .map(
         (c) =>
           `- ${c.covered ? '✅' : '⚠️'} ${c.criterion}${c.note ? ` — ${c.note}` : ''}`
@@ -50,6 +50,11 @@ function renderMissingTests(testing) {
  * Assembles the single PR comment the pipeline posts: Planner's requirement
  * summary, each agent's findings, then the final Requirement Coverage /
  * Overall Risk / Missing Tests / Merge Recommendation block.
+ *
+ * Every field is read defensively (optional chaining, `!result` fallbacks):
+ * a stage that never ran, whose output failed to decode, or whose final
+ * judgment call failed should still result in a postable comment covering
+ * whatever *did* succeed, rather than the whole thing blowing up.
  */
 export function formatComment({
   plan,
@@ -58,6 +63,7 @@ export function formatComment({
   performance,
   testing,
   architecture,
+  summary,
 }) {
   const sections = [
     renderFindingsSection('🔒 Security', security),
@@ -67,12 +73,11 @@ export function formatComment({
     renderFindingsSection('🏗️ Architecture / Code Smell', architecture),
   ];
 
-  const overallRisk = architecture?.overallRisk
-    ? `**${architecture.overallRisk.level}** — ${architecture.overallRisk.reason}`
+  const overallRisk = summary?.overallRisk
+    ? `**${summary.overallRisk.level}** — ${summary.overallRisk.reason}`
     : '_（未提供）_';
 
-  const mergeRecommendation =
-    architecture?.mergeRecommendation ?? '_（未提供）_';
+  const mergeRecommendation = summary?.mergeRecommendation ?? '_（未提供）_';
 
   return [
     AI_REVIEW_COMMENT_MARKER,
@@ -85,7 +90,7 @@ export function formatComment({
     '---',
     '',
     '### 📋 Requirement Coverage',
-    renderRequirementCoverage(plan, architecture),
+    renderRequirementCoverage(plan, summary),
     '',
     '### ⚠️ Overall Risk',
     overallRisk,
