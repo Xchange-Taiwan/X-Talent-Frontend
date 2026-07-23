@@ -13,6 +13,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { trackEvent } from '@/lib/analytics';
+import { cn } from '@/lib/utils';
 
 import { FEEDBACK_FORM_URL } from './constants';
 
@@ -30,10 +31,12 @@ export function HamburgerMenu({
   const [open, setOpen] = React.useState(false);
   const close = (): void => setOpen(false);
 
+  // `isLoggedIn` can be true from the fast session hint before `userId` has
+  // loaded. During that window neither `/profile/${userId}` nor a
+  // signed-out fallback (`/`, `/auth/signup`) is correct, so the link is
+  // disabled instead of navigating anywhere.
+  const isResolvingUser = isLoggedIn && !userId;
   const profilePath = userId ? `/profile/${userId}` : '/';
-  // Keyed on `userId` (not `isLoggedIn`) — `isLoggedIn` can be true from the
-  // fast session hint before the real user id has loaded, which would
-  // otherwise build a `/profile/undefined/...` URL.
   const becomeMentorPath = userId
     ? `/profile/${userId}/edit?onboarding=true`
     : '/auth/signup';
@@ -64,14 +67,26 @@ export function HamburgerMenu({
             </Link>
 
             {isMentor ? (
-              <Link href={profilePath} onClick={close} className="text-black">
+              <Link
+                href={isResolvingUser ? '#' : profilePath}
+                onClick={isResolvingUser ? (e) => e.preventDefault() : close}
+                aria-disabled={isResolvingUser}
+                className={cn(
+                  'text-black',
+                  isResolvingUser && 'pointer-events-none opacity-50'
+                )}
+              >
                 我的導師頁面
               </Link>
             ) : (
               <Link
-                href={becomeMentorPath}
-                onClick={close}
-                className="text-black"
+                href={isResolvingUser ? '#' : becomeMentorPath}
+                onClick={isResolvingUser ? (e) => e.preventDefault() : close}
+                aria-disabled={isResolvingUser}
+                className={cn(
+                  'text-black',
+                  isResolvingUser && 'pointer-events-none opacity-50'
+                )}
               >
                 成為導師
               </Link>
