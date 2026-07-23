@@ -85,12 +85,14 @@ export function formatComment({
   reviewGuide,
   security,
   correctness,
+  businessLogic,
   performance,
   testing,
   architecture,
   summary,
 }) {
   const sections = [
+    renderFindingsSection('🧭 Business Logic / Requirements', businessLogic),
     renderFindingsSection('🔒 Security', security),
     renderFindingsSection('🧩 Correctness / Regression', correctness),
     renderFindingsSection('⚡ Performance', performance),
