@@ -10,9 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthStatus } from '@/hooks/user/auth/useAuthStatus';
 import { trackEvent } from '@/lib/analytics';
-import { cn } from '@/lib/utils';
 
 import { FEEDBACK_FORM_URL } from './constants';
+import { DisabledAwareLink } from './DisabledAwareLink';
 import { HamburgerMenu } from './HamburgerMenu';
 import { MobileUserMenu } from './MobileUserMenu';
 import { UserDropdown } from './UserDropdown';
@@ -58,17 +58,13 @@ function HeaderComponent(): JSX.Element {
               尋找導師
             </Link>
 
-            <Link
-              href={isResolvingUser ? '#' : leftSecondNav.href}
-              aria-disabled={isResolvingUser}
-              onClick={isResolvingUser ? (e) => e.preventDefault() : undefined}
-              className={cn(
-                "text-black font-['Open_Sans'] text-base",
-                isResolvingUser && 'pointer-events-none opacity-50'
-              )}
+            <DisabledAwareLink
+              href={leftSecondNav.href}
+              disabled={isResolvingUser}
+              className="text-black font-['Open_Sans'] text-base"
             >
               {leftSecondNav.label}
-            </Link>
+            </DisabledAwareLink>
 
             <Link
               href="/about"
@@ -122,6 +118,7 @@ function HeaderComponent(): JSX.Element {
               isLoggedIn={isLoggedIn}
               isMentor={isMentor}
               userId={userId}
+              isResolvingUser={isResolvingUser}
             />
           </div>
         </div>
