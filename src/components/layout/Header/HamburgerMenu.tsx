@@ -13,29 +13,31 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { trackEvent } from '@/lib/analytics';
-import { cn } from '@/lib/utils';
 
 import { FEEDBACK_FORM_URL } from './constants';
+import { DisabledAwareLink } from './DisabledAwareLink';
 
 export type HamburgerMenuProps = {
   isLoggedIn: boolean;
   isMentor: boolean;
   userId?: string;
+  /**
+   * Logged in per the fast session hint, but `userId` hasn't landed yet —
+   * owned by Header's `useAuthStatus()`, passed down rather than re-derived
+   * here so the two never drift out of sync.
+   */
+  isResolvingUser: boolean;
 };
 
 export function HamburgerMenu({
   isLoggedIn,
   isMentor,
   userId,
+  isResolvingUser,
 }: HamburgerMenuProps): JSX.Element {
   const [open, setOpen] = React.useState(false);
   const close = (): void => setOpen(false);
 
-  // `isLoggedIn` can be true from the fast session hint before `userId` has
-  // loaded. During that window neither `/profile/${userId}` nor a
-  // signed-out fallback (`/`, `/auth/signup`) is correct, so the link is
-  // disabled instead of navigating anywhere.
-  const isResolvingUser = isLoggedIn && !userId;
   const profilePath = userId ? `/profile/${userId}` : '/';
   const becomeMentorPath = userId
     ? `/profile/${userId}/edit?onboarding=true`
@@ -67,29 +69,23 @@ export function HamburgerMenu({
             </Link>
 
             {isMentor ? (
-              <Link
-                href={isResolvingUser ? '#' : profilePath}
-                onClick={isResolvingUser ? (e) => e.preventDefault() : close}
-                aria-disabled={isResolvingUser}
-                className={cn(
-                  'text-black',
-                  isResolvingUser && 'pointer-events-none opacity-50'
-                )}
+              <DisabledAwareLink
+                href={profilePath}
+                onClick={close}
+                disabled={isResolvingUser}
+                className="text-black"
               >
                 我的導師頁面
-              </Link>
+              </DisabledAwareLink>
             ) : (
-              <Link
-                href={isResolvingUser ? '#' : becomeMentorPath}
-                onClick={isResolvingUser ? (e) => e.preventDefault() : close}
-                aria-disabled={isResolvingUser}
-                className={cn(
-                  'text-black',
-                  isResolvingUser && 'pointer-events-none opacity-50'
-                )}
+              <DisabledAwareLink
+                href={becomeMentorPath}
+                onClick={close}
+                disabled={isResolvingUser}
+                className="text-black"
               >
                 成為導師
-              </Link>
+              </DisabledAwareLink>
             )}
 
             <Link href="/about" onClick={close} className="text-black">
