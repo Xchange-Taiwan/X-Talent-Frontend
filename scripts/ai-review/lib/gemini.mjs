@@ -1,5 +1,7 @@
 const DEFAULT_MODEL = 'gemini-3.1-pro-preview';
 const DEFAULT_MAX_OUTPUT_TOKENS = 16384;
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 1500;
 
 /**
  * Scans from the first `{` and returns the substring up to its matching
@@ -45,19 +47,11 @@ function extractFirstJsonObject(text) {
   return null;
 }
 
-/**
- * Calls the Gemini API with a text prompt and expects a JSON response.
- * The prompt itself is responsible for instructing the model to return JSON.
- */
-export async function callGemini(promptText) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not set');
-  }
-  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
-  const maxOutputTokens =
-    Number(process.env.GEMINI_MAX_OUTPUT_TOKENS) || DEFAULT_MAX_OUTPUT_TOKENS;
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
+async function callGeminiOnce(promptText, { model, maxOutputTokens, apiKey }) {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
@@ -78,7 +72,10 @@ export async function callGemini(promptText) {
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Gemini API error (${res.status}): ${errText}`);
+    const err = new Error(`Gemini API error (${res.status}): ${errText}`);
+    // 5xx is almost always transient; 4xx (bad key, bad request) won't be fixed by retrying.
+    err.retryable = res.status >= 500;
+    throw err;
   }
 
   const data = await res.json();
@@ -86,12 +83,15 @@ export async function callGemini(promptText) {
   const text = candidate?.content?.parts?.[0]?.text;
 
   if (!text) {
-    throw new Error(
+    const err = new Error(
       `Gemini API returned no content (finishReason: ${candidate?.finishReason ?? 'unknown'})`
     );
+    err.retryable = true;
+    throw err;
   }
 
   if (candidate.finishReason === 'MAX_TOKENS') {
+    // Retrying won't help — the same prompt will hit the same cap again.
     throw new Error(
       `Gemini response was truncated (finishReason: MAX_TOKENS, maxOutputTokens: ${maxOutputTokens}). ` +
         'Set GEMINI_MAX_OUTPUT_TOKENS higher or shorten the prompt/diff.'
@@ -100,7 +100,7 @@ export async function callGemini(promptText) {
 
   try {
     return JSON.parse(text);
-  } catch (parseErr) {
+  } catch {
     const recovered = extractFirstJsonObject(text);
     if (recovered) {
       try {
@@ -109,8 +109,53 @@ export async function callGemini(promptText) {
         // fall through to the error below
       }
     }
-    throw new Error(
-      `Failed to parse Gemini response as JSON (finishReason: ${candidate.finishReason}): ${text.slice(0, 500)}`
+    // Log the full response (not just a truncated excerpt) so an
+    // unparseable output is actually debuggable if every retry fails.
+    console.error(
+      `[gemini] unparsable response (finishReason: ${candidate.finishReason}):\n${text}`
     );
+    const err = new Error(
+      `Failed to parse Gemini response as JSON (finishReason: ${candidate.finishReason}); full response logged above`
+    );
+    err.retryable = true;
+    throw err;
   }
+}
+
+/**
+ * Calls the Gemini API with a text prompt and expects a JSON response.
+ * The prompt itself is responsible for instructing the model to return JSON.
+ *
+ * Retries a few times on transient failures (malformed/empty output, 5xx)
+ * since these have empirically been "fails once, succeeds on the next
+ * identical call" — not worth failing an entire pipeline run over.
+ */
+export async function callGemini(promptText) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY is not set');
+  }
+  const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;
+  const maxOutputTokens =
+    Number(process.env.GEMINI_MAX_OUTPUT_TOKENS) || DEFAULT_MAX_OUTPUT_TOKENS;
+
+  let lastErr;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      return await callGeminiOnce(promptText, {
+        model,
+        maxOutputTokens,
+        apiKey,
+      });
+    } catch (err) {
+      lastErr = err;
+      const canRetry = err.retryable && attempt < MAX_ATTEMPTS;
+      console.warn(
+        `[gemini] attempt ${attempt}/${MAX_ATTEMPTS} failed: ${err.message}${canRetry ? ' — retrying' : ''}`
+      );
+      if (!canRetry) break;
+      await sleep(RETRY_DELAY_MS * attempt);
+    }
+  }
+  throw lastErr;
 }
