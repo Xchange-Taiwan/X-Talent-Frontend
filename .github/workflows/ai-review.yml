@@ -132,3 +132,32 @@ jobs:
           BASE_REF: origin/${{ github.event.pull_request.base.ref }}
           PLAN_B64: ${{ needs.planner.outputs.plan }}
         run: node scripts/ai-review/performance.mjs
+
+  testing:
+    needs: planner
+    runs-on: ubuntu-latest
+    name: 'AI Review: Testing'
+    outputs:
+      findings: ${{ steps.run.outputs.findings }}
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run testing agent
+        id: run
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          PLAN_B64: ${{ needs.planner.outputs.plan }}
+        run: node scripts/ai-review/testing.mjs
