@@ -21,12 +21,17 @@ export function DisabledAwareLink({
   href,
   onClick,
   className,
+  tabIndex,
   ...props
 }: DisabledAwareLinkProps): JSX.Element {
   return (
     <Link
       href={disabled ? '#' : href}
       aria-disabled={disabled}
+      // `href` keeps the element focusable even with pointer-events-none, so
+      // keyboard/screen-reader users would still tab onto an inert link
+      // without this — remove it from the tab order while disabled.
+      tabIndex={disabled ? -1 : tabIndex}
       onClick={
         disabled
           ? (e: MouseEvent<HTMLAnchorElement>) => e.preventDefault()
