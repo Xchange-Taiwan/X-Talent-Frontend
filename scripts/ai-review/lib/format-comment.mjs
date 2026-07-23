@@ -46,8 +46,31 @@ function renderMissingTests(testing) {
     .join('\n');
 }
 
+function renderReviewGuide(reviewGuide) {
+  if (!reviewGuide) {
+    return null;
+  }
+
+  const order = reviewGuide.readingOrder?.length
+    ? reviewGuide.readingOrder
+        .slice()
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        .map((f) => `${f.order}. \`${f.file}\` — ${f.why}`)
+        .join('\n')
+    : null;
+
+  return [
+    '### 🧭 Review Guide',
+    reviewGuide.overview ?? '',
+    order ? '\n**建議閱讀順序：**\n' + order : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
 /**
- * Assembles the single PR comment the pipeline posts: Planner's requirement
+ * Assembles the single PR comment the pipeline posts: a review guide
+ * (overview + suggested reading order) up top, Planner's requirement
  * summary, each agent's findings, then the final Requirement Coverage /
  * Overall Risk / Missing Tests / Merge Recommendation block.
  *
@@ -58,6 +81,7 @@ function renderMissingTests(testing) {
  */
 export function formatComment({
   plan,
+  reviewGuide,
   security,
   correctness,
   performance,
@@ -78,12 +102,17 @@ export function formatComment({
     : '_（未提供）_';
 
   const mergeRecommendation = summary?.mergeRecommendation ?? '_（未提供）_';
+  const guideSection = renderReviewGuide(reviewGuide);
 
   return [
     AI_REVIEW_COMMENT_MARKER,
     '## 🤖 AI Review Pipeline',
     '',
     plan?.requirementSummary ? `> ${plan.requirementSummary}` : '',
+    '',
+    guideSection ?? '### 🧭 Review Guide\n_（未執行）_',
+    '',
+    '---',
     '',
     sections.join('\n\n'),
     '',
