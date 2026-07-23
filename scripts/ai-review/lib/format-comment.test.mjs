@@ -260,4 +260,35 @@ describe('formatComment', () => {
     expect(comment).toContain('### 🧭 Review Guide\n_（未執行）_');
     expect(comment).toContain('### 🔒 Security\n✅ 未發現需要人工關注的問題');
   });
+
+  it('does not crash when the LLM returns readingOrder as a non-array (e.g. a string) instead of following the schema', () => {
+    const reviewGuide = {
+      overview: '這次變更把 X 功能拆成三層。',
+      readingOrder: 'src/schemas/foo.ts, src/hooks/useFoo.ts',
+    };
+
+    expect(() =>
+      formatComment({
+        plan: basePlan,
+        reviewGuide,
+        security: noFindings,
+        correctness: noFindings,
+        performance: noFindings,
+        testing: noFindings,
+        architecture: noFindings,
+      })
+    ).not.toThrow();
+
+    const comment = formatComment({
+      plan: basePlan,
+      reviewGuide,
+      security: noFindings,
+      correctness: noFindings,
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+    });
+    expect(comment).toContain('這次變更把 X 功能拆成三層。');
+    expect(comment).not.toContain('建議閱讀順序');
+  });
 });

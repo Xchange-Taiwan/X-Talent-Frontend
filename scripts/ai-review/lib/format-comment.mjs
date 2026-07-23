@@ -51,13 +51,14 @@ function renderReviewGuide(reviewGuide) {
     return null;
   }
 
-  const order = reviewGuide.readingOrder?.length
-    ? reviewGuide.readingOrder
-        .slice()
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-        .map((f) => `${f.order}. \`${f.file}\` — ${f.why}`)
-        .join('\n')
-    : null;
+  const order =
+    Array.isArray(reviewGuide.readingOrder) && reviewGuide.readingOrder.length
+      ? reviewGuide.readingOrder
+          .slice()
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          .map((f) => `${f.order}. \`${f.file}\` — ${f.why}`)
+          .join('\n')
+      : null;
 
   return [
     '### 🧭 Review Guide',
