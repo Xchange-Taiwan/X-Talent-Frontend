@@ -8,8 +8,9 @@ import { memo } from 'react';
 import LogoImgUrl from '@/assets/logo.svg';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useSessionHint } from '@/hooks/user/auth/useSessionHint';
+import { useAuthStatus } from '@/hooks/user/auth/useAuthStatus';
 import { trackEvent } from '@/lib/analytics';
+import { cn } from '@/lib/utils';
 
 import { FEEDBACK_FORM_URL } from './constants';
 import { HamburgerMenu } from './HamburgerMenu';
@@ -18,27 +19,19 @@ import { UserDropdown } from './UserDropdown';
 
 function HeaderComponent(): JSX.Element {
   const { data: session } = useSession();
-  const hint = useSessionHint();
-
-  // `session` (from useSession) is the only source ever used for hrefs that
-  // need a real user id — the hint cookie intentionally carries no id, so a
-  // hint-only "logged in" state must never build a `/profile/${userId}` URL.
-  const userId = session?.user?.id;
-  const hasFullUser = Boolean(userId);
-
-  // Before the full session lands, fall back to the hint cookie (written by
-  // middleware from a fast local JWT check) so the header doesn't sit blank
-  // for the length of the /api/auth/session round trip — which can itself be
-  // blocked on a backend token-refresh call. Once the real session resolves
-  // it always wins over a possibly-stale hint.
-  const authKnown = hasFullUser || hint.status !== 'unknown';
-  const isLoggedIn = hasFullUser ? true : hint.status === 'authenticated';
-  const isMentor = hasFullUser
-    ? Boolean(session?.user?.isMentor)
-    : hint.status === 'authenticated' && hint.isMentor;
+  const {
+    authKnown,
+    isLoggedIn,
+    isMentor,
+    userId,
+    hasFullUser,
+    isResolvingUser,
+  } = useAuthStatus();
 
   const findMentorHref = '/mentor-pool';
 
+  // `userId` only ever comes from the real session, never the hint — while
+  // isResolvingUser is true these hrefs are unused (the link is disabled).
   const becomeMentorHref = userId
     ? `/profile/${userId}/edit?onboarding=true`
     : '/auth/signup';
@@ -66,8 +59,13 @@ function HeaderComponent(): JSX.Element {
             </Link>
 
             <Link
-              href={leftSecondNav.href}
-              className="text-black font-['Open_Sans'] text-base"
+              href={isResolvingUser ? '#' : leftSecondNav.href}
+              aria-disabled={isResolvingUser}
+              onClick={isResolvingUser ? (e) => e.preventDefault() : undefined}
+              className={cn(
+                "text-black font-['Open_Sans'] text-base",
+                isResolvingUser && 'pointer-events-none opacity-50'
+              )}
             >
               {leftSecondNav.label}
             </Link>
