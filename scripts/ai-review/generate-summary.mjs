@@ -29,6 +29,7 @@ const architecture = decodeUpstream(
   'architecture',
   'ARCHITECTURE_FINDINGS_B64'
 );
+const reviewGuide = decodeUpstream('reviewGuide', 'REVIEW_GUIDE_B64');
 
 let summary;
 try {
@@ -53,6 +54,7 @@ try {
 
 const comment = formatComment({
   plan,
+  reviewGuide,
   security,
   correctness,
   performance,

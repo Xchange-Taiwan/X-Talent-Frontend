@@ -212,4 +212,83 @@ describe('formatComment', () => {
     // the rest of the comment (each agent's own findings) must still render
     expect(comment).toContain('### 🔒 Security\n✅ 未發現需要人工關注的問題');
   });
+
+  it('renders the review guide overview and reading order, sorted by the declared order field', () => {
+    const reviewGuide = {
+      overview: '這次變更把 X 功能拆成三層。',
+      readingOrder: [
+        {
+          file: 'src/components/Foo.tsx',
+          order: 3,
+          why: '最後看畫面怎麼消費資料',
+        },
+        { file: 'src/schemas/foo.ts', order: 1, why: '先看資料形狀' },
+        { file: 'src/hooks/useFoo.ts', order: 2, why: '再看怎麼用 schema' },
+      ],
+    };
+    const comment = formatComment({
+      plan: basePlan,
+      reviewGuide,
+      security: noFindings,
+      correctness: noFindings,
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+    });
+
+    expect(comment).toContain('### 🧭 Review Guide');
+    expect(comment).toContain('這次變更把 X 功能拆成三層。');
+
+    const order1 = comment.indexOf('1. `src/schemas/foo.ts`');
+    const order2 = comment.indexOf('2. `src/hooks/useFoo.ts`');
+    const order3 = comment.indexOf('3. `src/components/Foo.tsx`');
+    expect(order1).toBeGreaterThan(-1);
+    expect(order1).toBeLessThan(order2);
+    expect(order2).toBeLessThan(order3);
+  });
+
+  it('renders a "not run" placeholder for the review guide when it is missing, without affecting the rest of the comment', () => {
+    const comment = formatComment({
+      plan: basePlan,
+      reviewGuide: undefined,
+      security: noFindings,
+      correctness: noFindings,
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+    });
+    expect(comment).toContain('### 🧭 Review Guide\n_（未執行）_');
+    expect(comment).toContain('### 🔒 Security\n✅ 未發現需要人工關注的問題');
+  });
+
+  it('does not crash when the LLM returns readingOrder as a non-array (e.g. a string) instead of following the schema', () => {
+    const reviewGuide = {
+      overview: '這次變更把 X 功能拆成三層。',
+      readingOrder: 'src/schemas/foo.ts, src/hooks/useFoo.ts',
+    };
+
+    expect(() =>
+      formatComment({
+        plan: basePlan,
+        reviewGuide,
+        security: noFindings,
+        correctness: noFindings,
+        performance: noFindings,
+        testing: noFindings,
+        architecture: noFindings,
+      })
+    ).not.toThrow();
+
+    const comment = formatComment({
+      plan: basePlan,
+      reviewGuide,
+      security: noFindings,
+      correctness: noFindings,
+      performance: noFindings,
+      testing: noFindings,
+      architecture: noFindings,
+    });
+    expect(comment).toContain('這次變更把 X 功能拆成三層。');
+    expect(comment).not.toContain('建議閱讀順序');
+  });
 });
