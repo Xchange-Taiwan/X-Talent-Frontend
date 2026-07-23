@@ -236,7 +236,9 @@ describe('formatComment', () => {
       testing: noFindings,
       architecture: noFindings,
     });
-    expect(comment).toContain('### 🧭 Business Logic / Requirements\n_（未執行）_');
+    expect(comment).toContain(
+      '### 🧭 Business Logic / Requirements\n_（未執行）_'
+    );
   });
 
   it('falls back to a placeholder merge recommendation when the final-judgment summary is missing entirely (e.g. that Gemini call failed)', () => {
