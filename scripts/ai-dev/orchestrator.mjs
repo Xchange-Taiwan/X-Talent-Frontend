@@ -311,11 +311,10 @@ function printFinalReport(finalState, prResult) {
 }
 
 /**
- * Opt-in path (`--auto-pr`): only called once the gating condition (passed,
- * low risk, zero findings) already holds. Every failure here falls back to
- * the default "leave it staged" behavior instead of leaving a broken
- * half-done state — see README for the exact gating condition and risk
- * trade-off.
+ * Only called once the gating condition (passed, low risk, zero findings)
+ * already holds. Every failure here falls back to the "leave it staged"
+ * behavior instead of leaving a broken half-done state — see README for the
+ * exact gating condition and risk trade-off.
  */
 async function attemptAutoPr({ ticket }) {
   if (!hasStagedChanges()) {
@@ -463,11 +462,9 @@ async function runFollowUpSession({ ticket, systemPrompt, typeCheckBaseline }) {
 }
 
 async function main() {
-  const cliArgs = process.argv.slice(2);
-  const autoPr = cliArgs.includes('--auto-pr');
-  const ticketArg = cliArgs.find((arg) => !arg.startsWith('--'));
+  const ticketArg = process.argv[2];
   if (!ticketArg) {
-    console.error('Usage: pnpm ai:dev <ticket-number> [--auto-pr]');
+    console.error('Usage: pnpm ai:dev <ticket-number>');
     process.exitCode = 1;
     return;
   }
@@ -478,7 +475,9 @@ async function main() {
     '[ai:dev] ⚠️  This runs an AI agent with local file write + command execution against ticket ' +
       "content you don't fully control. Only use this on tickets from trusted sources — a malicious " +
       'ticket could attempt prompt injection. Reviewed mitigations exist (path sandboxing, no ' +
-      'dependency/config changes, no test/build execution) but this is not a full sandbox.'
+      'dependency/config changes, no test/build execution) but this is not a full sandbox. If the ' +
+      'review pipeline judges the result low risk with zero findings, it will automatically commit, ' +
+      'push, and open a real PR — no manual step required.'
   );
 
   log('running preflight checks...');
@@ -643,8 +642,7 @@ async function main() {
     finalState.review?.overallRisk?.level === 'low' &&
     (finalState.review?.findings?.length ?? 0) === 0;
 
-  const prResult =
-    autoPr && gatePassed ? await attemptAutoPr({ ticket }) : null;
+  const prResult = gatePassed ? await attemptAutoPr({ ticket }) : null;
 
   printFinalReport(finalState, prResult);
 
