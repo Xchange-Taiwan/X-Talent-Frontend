@@ -20,6 +20,12 @@ const BLOCKED_PREFIXES = [
 // automatically every iteration, before a human ever looks at the diff)
 // auto-loads and executes as code — overwriting one of these is effectively
 // arbitrary code execution on the developer's machine, not just a file edit.
+// `.env.example` is a tracked, secret-free template — legitimate feature
+// work often needs to document a new env var there (this PR did exactly
+// that). Every other `.env*` variant may hold real secrets and stays
+// blocked via BLOCKED_PREFIXES below.
+const ALLOWED_EXACT_EXCEPTIONS = new Set(['.env.example']);
+
 const BLOCKED_EXACT = new Set([
   'package.json',
   'tsconfig.json',
@@ -90,6 +96,10 @@ export function guardPath(inputPath) {
   // file as the lowercase blocklist entry — compare case-folded, but keep
   // the original-case relPosix for the actual filesystem operation.
   const matchPath = relPosix.toLowerCase();
+
+  if (ALLOWED_EXACT_EXCEPTIONS.has(matchPath)) {
+    return { absolutePath: resolve(REPO_ROOT, relPosix), relativePath: relPosix };
+  }
 
   if (BLOCKED_EXACT.has(matchPath)) {
     throw new PathGuardError(
