@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { createInterface } from 'node:readline/promises';
 
 import { config } from 'dotenv';
 
@@ -156,6 +157,19 @@ function buildRetryTask({ baseRef, failureText, reviewFindings }) {
   return sections.join('\n\n');
 }
 
+/** Same idea as buildRetryTask, but driven by a human's free-form follow-up message instead of an automatic lint/type-check/review failure. */
+function buildFollowUpTask({ baseRef, userMessage }) {
+  const { diff, truncated } = getDiff(baseRef);
+  const sections = [
+    `## 目前累積的完整 Diff${truncated ? '（已截斷）' : ''}`,
+    '```diff\n' + diff + '\n```',
+    '## 使用者的追加指示',
+    userMessage,
+    '請根據上面的追加指示修改，完成後呼叫 submitForReview。',
+  ];
+  return sections.join('\n\n');
+}
+
 /**
  * Runs the dev agent until it calls submitForReview (or the per-iteration
  * turn cap is hit). Fresh `contents` every call — Round 2: no cross-iteration
@@ -280,6 +294,85 @@ function printFinalReport(finalState) {
         '  git diff --cached   # review before committing\n' +
         '  # ai:dev never commits or pushes anything real — that part is still on you'
     );
+  }
+}
+
+/**
+ * Interactive follow-up mode: after the automatic dev→lint→review loop
+ * finishes, keep the process alive and let a human give free-form follow-up
+ * instructions on top of whatever's already there, instead of forcing a full
+ * re-run (re-preflight, re-fetch ticket, re-baseline) for every small tweak.
+ *
+ * Each round still goes through the same stage → lint → type-check → commit
+ * → reviewer pipeline as an automatic iteration — a human driving it round
+ * by round doesn't relax those gates. After every round the WIP commit is
+ * immediately collapsed back to staged/uncommitted (resetSoft), so the
+ * working tree is always in the same "ready to review" state between
+ * prompts, and the next round's diff still includes everything accepted so
+ * far.
+ */
+async function runFollowUpSession({ ticket, systemPrompt, typeCheckBaseline }) {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  log(
+    'follow-up mode — type an instruction to keep going, or "exit"/"quit" to finish.'
+  );
+
+  try {
+    let round = 1;
+    for (;;) {
+      const userMessage = (await rl.question('> ')).trim();
+      if (!userMessage || ['exit', 'quit'].includes(userMessage.toLowerCase())) {
+        break;
+      }
+
+      const task = buildFollowUpTask({
+        baseRef: resolvedBaseRef,
+        userMessage,
+      });
+      const devResult = await runDevAgentTurn({ systemPrompt, task });
+
+      stageAll();
+      if (!hasStagedChanges()) {
+        log(
+          devResult.submitted
+            ? 'agent 呼叫了 submitForReview，但沒有任何檔案變更。'
+            : `用完 ${MAX_TURNS_PER_ITERATION} 輪工具呼叫但沒有任何檔案變更。`
+        );
+        continue;
+      }
+
+      const lintResult = await autoFixAndLintStaged();
+      commitWip(`wip: ai:dev follow-up ${round}`);
+      hasCommittedThisRun = true;
+
+      const typeCheckResult = await diffTypeCheckErrors(typeCheckBaseline);
+      if (!lintResult.ok || !typeCheckResult.ok) {
+        if (!lintResult.ok) log(`Lint errors:\n${lintResult.output}`);
+        if (!typeCheckResult.ok) {
+          log(`New type-check errors:\n${typeCheckResult.newErrors.join('\n')}`);
+        }
+        resetSoft(resolvedBaseRef);
+        round++;
+        continue;
+      }
+
+      log('running reviewer...');
+      const review = await reviewDiff({ baseRef: resolvedBaseRef, ticket });
+      log(`overall risk: ${review.summary}`);
+      if (review.findings?.length) {
+        log('findings:');
+        for (const f of review.findings) {
+          log(
+            `  - [${f.source ?? f.category}] ${f.file}:${f.line ?? '?'} — ${f.issue}`
+          );
+        }
+      }
+
+      resetSoft(resolvedBaseRef);
+      round++;
+    }
+  } finally {
+    rl.close();
   }
 }
 
@@ -458,6 +551,20 @@ async function main() {
   }
 
   printFinalReport(finalState);
+
+  await runFollowUpSession({ ticket, systemPrompt, typeCheckBaseline });
+
+  // The follow-up session may have made more changes since printFinalReport
+  // ran; collapse those too and print a closing summary before exiting.
+  if (hasCommittedThisRun) {
+    resetSoft(resolvedBaseRef);
+    log(
+      `follow-up session ended — changes are staged and uncommitted on branch "${currentBranch()}". ` +
+        'git diff --cached to review, then commit yourself.'
+    );
+  } else {
+    log('follow-up session ended — no changes were made.');
+  }
 }
 
 /** Round 8/10: if this round's failure signature (or the diff itself) is unchanged from last round, the agent isn't making progress — stop before burning the rest of the iteration cap. */
