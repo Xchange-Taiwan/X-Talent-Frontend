@@ -48,7 +48,9 @@ function appendTruncated(buffer, chunk, maxChars) {
   // truncates every 'data' event, that chains into holding the entire
   // untruncated output (however large) for the process's whole lifetime.
   // Round-tripping through Buffer forces a real flat copy.
-  return Buffer.from(combined.slice(combined.length - maxChars)).toString('utf-8');
+  return Buffer.from(combined.slice(combined.length - maxChars)).toString(
+    'utf-8'
+  );
 }
 
 /**
