@@ -80,7 +80,12 @@ export function checkoutBranch(branch) {
 }
 
 export function fetchAndCheckoutRemoteBranch(branch) {
-  run(['fetch', 'origin', `${branch}:${branch}`]);
+  // `fetch origin branch:branch` creates the local ref directly via a
+  // refspec, which does NOT set branch.<name>.remote/.merge — the developer
+  // taking over afterwards would hit "no upstream branch" on a plain
+  // `git push`. Fetching into the remote-tracking ref and letting
+  // `checkout` DWIM-create the local branch sets upstream tracking correctly.
+  run(['fetch', 'origin', branch]);
   run(['checkout', branch]);
 }
 
