@@ -180,8 +180,9 @@ test('資料載入中 → Skeleton 顯示且不閃爍錯誤內容', async ({ pag
     timeout: 10_000,
   });
 
-  // Tabs (real content) must not be visible yet
-  await expect(page.getByRole('tab', { name: /即將到來/ })).not.toBeVisible();
+  // Note: ReservationTabs.tsx always renders the TabsList chrome immediately
+  // — only TabsContent (the panel body) is skeleton-gated per tab — so the
+  // 即將到來 tab trigger itself is visible from first paint, not hidden here.
 
   // Release the delayed responses and wait for real content to appear
   resolveDelay();
