@@ -14,6 +14,12 @@ const BLOCKED_PREFIXES = [
   'pnpm-lock.yaml',
   'package-lock.json',
   'yarn.lock',
+  // The tool's own implementation, including this file. Without this, an
+  // agent (steered by a prompt-injected ticket, or just hallucinating) could
+  // overwrite path-guard.mjs to empty out the blocklist, or gemini-agent.mjs
+  // to add code that exfiltrates GEMINI_API_KEY — and that gets committed
+  // into the WIP history, persisting into whatever a human later merges.
+  'scripts/ai-dev/',
 ];
 
 // Anything the orchestrator's own tooling (eslint/vitest/husky, all invoked

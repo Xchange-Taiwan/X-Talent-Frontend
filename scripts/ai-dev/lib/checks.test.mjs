@@ -4,13 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('node:fs', () => ({ readFileSync: vi.fn() }));
 vi.mock('./proc.mjs', () => ({ runProcess: vi.fn() }));
 vi.mock('./git.mjs', () => ({
-  stageAll: vi.fn(),
+  stageFiles: vi.fn(),
   stagedFilesExcludingDeleted: vi.fn(),
 }));
 
 const { readFileSync } = await import('node:fs');
 const { runProcess } = await import('./proc.mjs');
-const { stageAll, stagedFilesExcludingDeleted } = await import('./git.mjs');
+const { stageFiles, stagedFilesExcludingDeleted } = await import('./git.mjs');
 const {
   ChecksError,
   verifyRequiredScripts,
@@ -92,11 +92,11 @@ describe('autoFixAndLintStaged', () => {
     );
   });
 
-  it('re-stages after --fix so any auto-fixed changes get picked up', async () => {
-    stagedFilesExcludingDeleted.mockReturnValue(['src/a.ts']);
+  it('re-stages exactly the touched files after --fix, not the whole working tree', async () => {
+    stagedFilesExcludingDeleted.mockReturnValue(['src/a.ts', 'src/b.tsx']);
     runProcess.mockResolvedValue({ code: 0, stdout: '', stderr: '' });
     await autoFixAndLintStaged();
-    expect(stageAll).toHaveBeenCalledTimes(1);
+    expect(stageFiles).toHaveBeenCalledWith(['src/a.ts', 'src/b.tsx']);
   });
 
   it('reports ok:false and combined output when eslint exits non-zero', async () => {
@@ -148,6 +148,22 @@ describe('captureTypeCheckBaseline', () => {
       timedOut: true,
     });
     await expect(captureTypeCheckBaseline()).rejects.toThrow(ChecksError);
+  });
+
+  it('treats a multi-line error (primary line + indented continuation) as a single entry, not several', async () => {
+    runProcess.mockResolvedValue({
+      code: 1,
+      stdout: tscOutput(
+        "src/foo.ts(42,10): error TS2322: Type 'Foo' is not assignable to type 'Bar'.",
+        "  Property 'baz' is missing in type 'Foo' but required in type 'Bar'.",
+        '',
+        "src/other.ts(5,1): error TS2304: Cannot find name 'x'."
+      ),
+      stderr: '',
+      timedOut: false,
+    });
+    const baseline = await captureTypeCheckBaseline();
+    expect(baseline.size).toBe(2);
   });
 });
 
@@ -217,6 +233,22 @@ describe('diffTypeCheckErrors', () => {
     expect(result.ok).toBe(false);
     expect(result.newErrors).toHaveLength(1);
     expect(result.newErrors[0]).toContain('TS7006');
+  });
+
+  it('includes indented continuation lines in newErrors, not just the terse summary line', async () => {
+    const baseline = new Set();
+    runProcess.mockResolvedValue({
+      code: 1,
+      stdout: tscOutput(
+        "src/foo.ts(42,10): error TS2322: Type 'Foo' is not assignable to type 'Bar'.",
+        "  Property 'baz' is missing in type 'Foo' but required in type 'Bar'."
+      ),
+      stderr: '',
+      timedOut: false,
+    });
+    const result = await diffTypeCheckErrors(baseline);
+    expect(result.newErrors).toHaveLength(1);
+    expect(result.newErrors[0]).toContain("Property 'baz' is missing");
   });
 
   it('does not require exit code 0 when every current error is already in the baseline (pre-existing tech debt)', async () => {

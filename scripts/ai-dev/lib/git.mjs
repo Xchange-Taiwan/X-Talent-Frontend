@@ -97,6 +97,13 @@ export function stageAll() {
   run(['add', '-A']);
 }
 
+/** Stages exactly the given files — narrower than stageAll()'s `git add -A`, which would
+ * sweep in anything else that happened to change in the working tree in the meantime. */
+export function stageFiles(files) {
+  if (files.length === 0) return;
+  run(['add', '--', ...files]);
+}
+
 export function hasStagedChanges() {
   return run(['diff', '--cached', '--quiet'], { allowFailure: true }) === null;
 }
