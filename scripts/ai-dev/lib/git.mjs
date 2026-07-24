@@ -123,6 +123,16 @@ export function commitWip(message) {
   run(['commit', '-m', message, '--no-verify']);
 }
 
+/** A real (non-WIP) commit for the auto-PR path — hooks run normally since this is what actually gets pushed. */
+export function commit(message) {
+  run(['commit', '-m', message]);
+}
+
+/** Pushes the current branch and sets upstream tracking. */
+export function pushBranch(branch) {
+  run(['push', '-u', 'origin', branch]);
+}
+
 /** Collapses every WIP commit back into uncommitted (staged) changes against `ref`, leaving HEAD at `ref`. */
 export function resetSoft(ref) {
   run(['reset', '--soft', ref]);

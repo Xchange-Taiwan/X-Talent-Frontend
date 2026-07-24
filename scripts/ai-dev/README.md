@@ -27,6 +27,7 @@ AI coding tool (if any) they otherwise use.
 pnpm ai:dev 306          # ticket number
 pnpm ai:dev "#306"       # also accepted
 pnpm ai:dev "https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/306"
+pnpm ai:dev 306 --auto-pr  # opt-in: see "Auto-PR mode" below
 ```
 
 There are no other required arguments. The tool:
@@ -76,6 +77,49 @@ git reset --soft <baseRef>
 
 If it hits the iteration cap with unresolved findings, the last diff and the
 final findings are left exactly as-is for you to take over manually.
+
+## Auto-PR mode (`--auto-pr`, opt-in)
+
+Without `--auto-pr`, behavior is exactly as described above — no commit, no
+push, no PR, ever. Passing `--auto-pr` adds one extra, gated step after the
+loop ends:
+
+**Gating condition** — all three must hold:
+
+- `finalState.status === 'passed'` (the loop ended cleanly, not stuck/capped)
+- `review.overallRisk.level === 'low'`
+- `review.findings.length === 0`
+
+If the gate passes: the staged diff is committed for real (no `wip:` prefix,
+Conventional-Commits style, hooks run normally — this is what actually gets
+pushed), pushed to `origin/<branch>`, and opened as a PR against `develop`
+via `gh pr create` (auto-linked to the tracker issue through the existing
+linked-branch relationship). The interactive follow-up prompt is skipped —
+further changes belong as additional commits on the now-open PR, not another
+local WIP/reset loop.
+
+If the gate fails — `medium`/`high` risk, any findings, or a non-`passed`
+final status — `--auto-pr` is a no-op: same staged-diff hand-off as default
+behavior.
+
+**Failure handling** — any failure during the auto-PR sequence itself falls
+back to the default hand-off instead of leaving a broken state:
+
+- commit fails (e.g. a hook rejects it) → nothing committed, fall back
+- push fails → the local commit is rolled back (`git reset --soft`), fall back
+- an open PR already exists for the branch → skipped before attempting
+  anything, fall back
+- push succeeds but `gh pr create` fails → the commit is already on
+  `origin/<branch>`; this one case is **not** rolled back (there is no
+  non-destructive way to un-push), so you'll see a printed pointer to open
+  the PR manually from that branch
+
+**Risk trade-off** — the risk level gating this is itself an LLM judgment
+call over untrusted ticket content. A crafted/misleading ticket could in
+theory get its own change misjudged as `low` risk with zero findings, and
+this mode would then push it and open a real PR unattended. Only use
+`--auto-pr` on tickets from trusted sources, same as the general prompt-
+injection caveat printed at startup.
 
 ## v1 limitations (by design, not oversights)
 

@@ -11,8 +11,8 @@ import {
 
 export class TicketError extends Error {}
 
-const TRACKER_OWNER = 'Xchange-Taiwan';
-const TRACKER_REPO = 'X-Talent-Tracker';
+export const TRACKER_OWNER = 'Xchange-Taiwan';
+export const TRACKER_REPO = 'X-Talent-Tracker';
 
 /** Accepts `306`, `#306`, or a full issue URL and returns the bare number. */
 export function normalizeTicketNumber(input) {
