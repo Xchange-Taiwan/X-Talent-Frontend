@@ -40,19 +40,18 @@ export async function autoFixAndLintStaged() {
   // `--` terminates option parsing — without it, a file name starting with
   // `-` (e.g. a dev-agent-created "--config=malicious.js") would be parsed
   // as an eslint flag instead of a path (argument injection).
-  await runProcess('pnpm', ['exec', 'eslint', '--fix', '--', ...files], {
-    timeoutMs: 60_000,
-  });
+  // `--fix` already reports remaining (non-auto-fixable) errors in its own
+  // output and exit code — a second bare `eslint` pass on the same files
+  // would just re-lint already-fixed content for the same answer, doubling
+  // this step's time every iteration for nothing.
+  const { code, stdout, stderr } = await runProcess(
+    'pnpm',
+    ['exec', 'eslint', '--fix', '--', ...files],
+    { timeoutMs: 60_000 }
+  );
   // --fix may have rewritten files on disk — re-stage so the WIP commit picks up the fixes.
   stageAll();
 
-  const { code, stdout, stderr } = await runProcess(
-    'pnpm',
-    ['exec', 'eslint', '--', ...files],
-    {
-      timeoutMs: 60_000,
-    }
-  );
   return {
     skipped: false,
     ok: code === 0,

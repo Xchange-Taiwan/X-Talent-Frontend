@@ -42,9 +42,13 @@ function buildChildEnv() {
  * tsc/eslint land at the end of the output, so the tail is what matters. */
 function appendTruncated(buffer, chunk, maxChars) {
   const combined = buffer + chunk;
-  return combined.length > maxChars
-    ? combined.slice(combined.length - maxChars)
-    : combined;
+  if (combined.length <= maxChars) return combined;
+  // V8 can implement String.slice() as a SlicedString that keeps the full
+  // parent string alive in memory rather than copying — on a stream that
+  // truncates every 'data' event, that chains into holding the entire
+  // untruncated output (however large) for the process's whole lifetime.
+  // Round-tripping through Buffer forces a real flat copy.
+  return Buffer.from(combined.slice(combined.length - maxChars)).toString('utf-8');
 }
 
 /**
