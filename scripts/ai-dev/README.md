@@ -1,9 +1,11 @@
 # ai:dev — local AI dev automation
 
 `pnpm ai:dev <ticket-number>` runs a local dev → review → fix loop against a
-`X-Talent-Tracker` issue using Gemini, entirely on your machine. It never
-commits anything you'd actually push and never opens a PR — it stops once the
-diff passes review (or hits its iteration cap) and hands control back to you.
+`X-Talent-Tracker` issue using Gemini, entirely on your machine. If the review
+pipeline judges the result **low risk with zero findings**, it automatically
+commits, pushes, and opens a real PR for you — see "Auto-PR" below for the
+exact gating condition. Otherwise it stops once it hits its iteration cap (or
+gets stuck) and hands control back to you with the diff staged, uncommitted.
 
 This tool is intentionally independent of Claude Code / `.claude/commands` —
 anyone with Node, `gh`, and a Gemini API key can run it, regardless of which
@@ -27,7 +29,6 @@ AI coding tool (if any) they otherwise use.
 pnpm ai:dev 306          # ticket number
 pnpm ai:dev "#306"       # also accepted
 pnpm ai:dev "https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/306"
-pnpm ai:dev 306 --auto-pr  # opt-in: see "Auto-PR mode" below
 ```
 
 There are no other required arguments. The tool:
@@ -67,22 +68,26 @@ There are no other required arguments. The tool:
 
 ## When it stops
 
-Either way, nothing is pushed and no real commit is made — you'll see WIP
-commits on the branch and a printed reminder:
+Once the loop ends, exactly one of two things happens:
 
-```
-git reset --soft <baseRef>
-# review the diff, then commit it yourself
-```
+- **Gate passes** → see "Auto-PR" below: a real commit, a push, and an opened
+  PR, automatically
+- **Gate fails** (or it got stuck / hit the iteration cap) → nothing is
+  pushed and no real commit is made; you'll see WIP commits on the branch and
+  a printed reminder:
+
+  ```
+  git reset --soft <baseRef>
+  # review the diff, then commit it yourself
+  ```
 
 If it hits the iteration cap with unresolved findings, the last diff and the
 final findings are left exactly as-is for you to take over manually.
 
-## Auto-PR mode (`--auto-pr`, opt-in)
+## Auto-PR
 
-Without `--auto-pr`, behavior is exactly as described above — no commit, no
-push, no PR, ever. Passing `--auto-pr` adds one extra, gated step after the
-loop ends:
+After the loop ends, one extra step runs automatically — there is no flag to
+opt in or out:
 
 **Gating condition** — all three must hold:
 
@@ -99,11 +104,10 @@ further changes belong as additional commits on the now-open PR, not another
 local WIP/reset loop.
 
 If the gate fails — `medium`/`high` risk, any findings, or a non-`passed`
-final status — `--auto-pr` is a no-op: same staged-diff hand-off as default
-behavior.
+final status — auto-PR is a no-op: same staged-diff hand-off described above.
 
 **Failure handling** — any failure during the auto-PR sequence itself falls
-back to the default hand-off instead of leaving a broken state:
+back to the staged-diff hand-off instead of leaving a broken state:
 
 - commit fails (e.g. a hook rejects it) → nothing committed, fall back
 - push fails → the local commit is rolled back (`git reset --soft`), fall back
@@ -116,10 +120,10 @@ back to the default hand-off instead of leaving a broken state:
 
 **Risk trade-off** — the risk level gating this is itself an LLM judgment
 call over untrusted ticket content. A crafted/misleading ticket could in
-theory get its own change misjudged as `low` risk with zero findings, and
-this mode would then push it and open a real PR unattended. Only use
-`--auto-pr` on tickets from trusted sources, same as the general prompt-
-injection caveat printed at startup.
+theory get its own change misjudged as `low` risk with zero findings, which
+would then get pushed and opened as a real PR unattended. Only run this tool
+on tickets from trusted sources, same as the general prompt-injection caveat
+printed at startup.
 
 ## v1 limitations (by design, not oversights)
 
