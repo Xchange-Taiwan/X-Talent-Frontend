@@ -60,26 +60,24 @@ test.beforeEach(async ({ page }) => {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 test('page loads → mentor cards are displayed', async ({ page }) => {
-  const mentors = Array.from({ length: 3 }, (_, i) => makeMentor(i + 1));
-  await page.route(/\/v1\/mentors/, (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(mentorResponse(mentors)),
-    })
-  );
-
+  // The initial listing is server-rendered in MentorPoolWithData (RSC) —
+  // page.route() only intercepts browser-initiated requests, so it can't mock
+  // this fetch. Assert internal consistency (heading count matches rendered
+  // cards) against whatever the real dev backend returns, instead of a
+  // hardcoded mock-driven count.
   await page.goto('/mentor-pool');
 
-  await expect(page.locator('article')).toHaveCount(3);
-  await expect(page.getByText('找到 3 位導師')).toBeVisible();
+  const articles = page.locator('article');
+  await expect(articles.first()).toBeVisible({ timeout: 15_000 });
+  const count = await articles.count();
+  await expect(page.getByText(`找到 ${count} 位導師`)).toBeVisible();
 });
 
 test('type keyword in search bar → mentor list updates to match results', async ({
   page,
 }) => {
   await page.route(/\/v1\/mentors/, (route, request) => {
-    const keyword = new URL(request.url()).searchParams.get('searchPattern');
+    const keyword = new URL(request.url()).searchParams.get('search_pattern');
     const data = keyword
       ? [makeMentor(10), makeMentor(11)]
       : [makeMentor(1), makeMentor(2), makeMentor(3)];
@@ -90,8 +88,12 @@ test('type keyword in search bar → mentor list updates to match results', asyn
     });
   });
 
+  // Initial render comes from the unmocked SSR fetch — only wait for cards to
+  // exist, then verify the mocked client-side search actually replaces them.
   await page.goto('/mentor-pool');
-  await expect(page.locator('article')).toHaveCount(3);
+  await expect(page.locator('article').first()).toBeVisible({
+    timeout: 15_000,
+  });
 
   const responsePromise = page.waitForResponse(/\/v1\/mentors/);
   await page.fill(
@@ -108,10 +110,11 @@ test('apply a filter → mentor list updates to show only filtered results', asy
   page,
 }) => {
   await page.route(/\/v1\/mentors/, (route, request) => {
-    const position = new URL(request.url()).searchParams.get(
-      'filter_positions'
-    );
-    const data = position
+    // There is no position filter in the current UI (mentor-pool/data.ts
+    // only defines filter_skills / filter_topics / filter_industries, in
+    // that order) — filter_skills is the first combobox the test opens.
+    const skill = new URL(request.url()).searchParams.get('filter_skills');
+    const data = skill
       ? [makeMentor(20)]
       : [makeMentor(1), makeMentor(2), makeMentor(3)];
     route.fulfill({
@@ -121,15 +124,21 @@ test('apply a filter → mentor list updates to show only filtered results', asy
     });
   });
 
+  // Initial render comes from the unmocked SSR fetch — only wait for cards to
+  // exist, then verify the mocked client-side filter actually replaces them.
   await page.goto('/mentor-pool');
-  await expect(page.locator('article')).toHaveCount(3);
+  await expect(page.locator('article').first()).toBeVisible({
+    timeout: 15_000,
+  });
 
   // Open filter popover
   await page.getByRole('button', { name: /篩選/ }).click();
 
-  // Position is the first filter — click its SelectTrigger (role=combobox)
+  // filter_skills options come from the tag catalog, itself SSR-fetched (see
+  // fetchTagCatalogServer) and therefore unmockable here — select whichever
+  // real option renders first instead of a hardcoded label.
   await page.getByRole('combobox').first().click();
-  await page.getByRole('option', { name: 'Frontend Developer' }).click();
+  await page.getByRole('option').first().click();
 
   const responsePromise = page.waitForResponse(/\/v1\/mentors/);
   await page.getByRole('button', { name: '套用' }).click();
@@ -156,7 +165,11 @@ test('scroll to bottom → additional mentors are loaded and appended', async ({
     });
   });
 
-  await page.goto('/mentor-pool');
+  // Force the client-side (mockable) fetch path — via any search condition —
+  // instead of the unmocked SSR listing, so mentors.length is a deterministic
+  // multiple of PAGE_LIMIT and container.tsx's scroll-trigger guard
+  // (mentors.length % PAGE_LIMIT === 0) reliably fires fetchMoreMentors.
+  await page.goto('/mentor-pool?q=test');
   await expect(page.locator('article')).toHaveCount(PAGE_LIMIT);
 
   // Bring the last card into the viewport — IntersectionObserver fires and
@@ -172,7 +185,7 @@ test('search returns no results → empty state message is shown', async ({
   page,
 }) => {
   await page.route(/\/v1\/mentors/, (route, request) => {
-    const keyword = new URL(request.url()).searchParams.get('searchPattern');
+    const keyword = new URL(request.url()).searchParams.get('search_pattern');
     const data = keyword ? [] : [makeMentor(1)];
     route.fulfill({
       status: 200,
@@ -181,8 +194,12 @@ test('search returns no results → empty state message is shown', async ({
     });
   });
 
+  // Initial render comes from the unmocked SSR fetch — only wait for a card
+  // to exist, then verify the mocked no-results search actually clears it.
   await page.goto('/mentor-pool');
-  await expect(page.locator('article')).toHaveCount(1);
+  await expect(page.locator('article').first()).toBeVisible({
+    timeout: 15_000,
+  });
 
   const responsePromise = page.waitForResponse(/\/v1\/mentors/);
   await page.fill(

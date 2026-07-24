@@ -323,19 +323,19 @@ test('點擊拒絕並填入原因後確認 → 卡片從待您回復消失', asy
   await page.getByRole('tab', { name: /待您回復/ }).click();
   await expect(page.getByText('Mentee Lee')).toBeVisible({ timeout: 10_000 });
 
-  await page.getByRole('button', { name: /接受/ }).click();
+  // 接受/拒絕 are two independent dialogs (AcceptReservationDialog /
+  // RejectReservationDialog), not one dialog with internal steps — open the
+  // reject dialog directly via its own trigger button on the card.
+  await page.getByRole('button', { name: '拒絕' }).click();
 
-  // Dialog opens at step 'check'; click 拒絕 to go to step 'reject'
-  await expect(page.getByRole('button', { name: /拒絕/ }).first()).toBeVisible({
-    timeout: 5_000,
+  const rejectDialog = page.getByRole('dialog', {
+    name: '拒絕學員預約的原因',
   });
-  await page.getByRole('button', { name: /拒絕/ }).first().click();
+  await expect(rejectDialog).toBeVisible({ timeout: 5_000 });
 
-  // Step 'reject': textarea must be filled before confirming
-  await page.getByPlaceholder(/請在此輸入原因/).fill('時間不符');
-
-  // Confirm rejection
-  await page.getByRole('button', { name: /拒絕/ }).click();
+  // Reason textarea must be filled before the dialog's own 拒絕 button submits
+  await rejectDialog.getByPlaceholder(/請在此輸入原因/).fill('時間不符');
+  await rejectDialog.getByRole('button', { name: '拒絕' }).click();
 
   // Page reloads; wait for tabs to re-render
   await expect(page.getByRole('tab', { name: /待您回復/ })).toBeVisible({
@@ -382,8 +382,9 @@ test('資料載入中 → Skeleton 顯示且不閃爍錯誤內容', async ({ pag
     timeout: 10_000,
   });
 
-  // Real tabs must not be visible yet
-  await expect(page.getByRole('tab', { name: /即將到來/ })).not.toBeVisible();
+  // Note: ReservationTabs.tsx always renders the TabsList chrome immediately
+  // — only TabsContent (the panel body) is skeleton-gated per tab — so the
+  // 即將到來 tab trigger itself is visible from first paint, not hidden here.
 
   // Release responses and wait for real content
   resolveDelay();
