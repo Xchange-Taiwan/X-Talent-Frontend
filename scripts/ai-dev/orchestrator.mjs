@@ -321,7 +321,10 @@ async function runFollowUpSession({ ticket, systemPrompt, typeCheckBaseline }) {
     let round = 1;
     for (;;) {
       const userMessage = (await rl.question('> ')).trim();
-      if (!userMessage || ['exit', 'quit'].includes(userMessage.toLowerCase())) {
+      if (
+        !userMessage ||
+        ['exit', 'quit'].includes(userMessage.toLowerCase())
+      ) {
         break;
       }
 
@@ -349,7 +352,9 @@ async function runFollowUpSession({ ticket, systemPrompt, typeCheckBaseline }) {
       if (!lintResult.ok || !typeCheckResult.ok) {
         if (!lintResult.ok) log(`Lint errors:\n${lintResult.output}`);
         if (!typeCheckResult.ok) {
-          log(`New type-check errors:\n${typeCheckResult.newErrors.join('\n')}`);
+          log(
+            `New type-check errors:\n${typeCheckResult.newErrors.join('\n')}`
+          );
         }
         resetSoft(resolvedBaseRef);
         round++;
