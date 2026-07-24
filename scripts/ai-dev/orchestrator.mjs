@@ -2,6 +2,8 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
+import { config } from 'dotenv';
+
 import { getDiff } from '../ai-review/lib/diff.mjs';
 import { buildPrompt } from '../ai-review/lib/prompt.mjs';
 import {
@@ -39,6 +41,9 @@ import {
   SUBMIT_FOR_REVIEW_TOOL,
   TOOL_DECLARATIONS,
 } from './lib/tools.mjs';
+
+config();
+config({ path: '.env.development.local', override: true });
 
 const MAX_ITERATIONS = 10;
 const MAX_TURNS_PER_ITERATION = 25;
