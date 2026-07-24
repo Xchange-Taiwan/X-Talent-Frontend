@@ -46,7 +46,10 @@ config();
 config({ path: '.env.development.local', override: true });
 
 const MAX_ITERATIONS = 10;
-const MAX_TURNS_PER_ITERATION = 25;
+const MAX_TURNS_PER_ITERATION = 40;
+// When this few turns remain, nudge the agent to wrap up instead of letting
+// it keep investigating until the hard cutoff.
+const WRAP_UP_WARNING_TURNS_REMAINING = 5;
 const EXPECTED_ORG = 'Xchange-Taiwan';
 const SYSTEM_PROMPT_URL = new URL(
   './prompts/dev-agent-system.md',
@@ -152,11 +155,29 @@ function buildRetryTask({ baseRef, failureText, reviewFindings }) {
   return sections.join('\n\n');
 }
 
-/** Runs the dev agent until it calls submitForReview (or the per-iteration turn cap is hit). Fresh `contents` every call — Round 2: no cross-iteration history, only the current diff/findings carry state forward. */
+/**
+ * Runs the dev agent until it calls submitForReview (or the per-iteration
+ * turn cap is hit). Fresh `contents` every call — Round 2: no cross-iteration
+ * history, only the current diff/findings carry state forward.
+ *
+ * Never throws on running out of turns — any file edits already made by tool
+ * calls are real (writeFile executes immediately), so exhausting the budget
+ * returns `{ submitted: false }` and lets the caller preserve that partial
+ * progress as a WIP commit instead of losing it to an uncaught crash.
+ */
 async function runDevAgentTurn({ systemPrompt, task }) {
   const contents = [userTurn(task)];
 
   for (let turn = 1; turn <= MAX_TURNS_PER_ITERATION; turn++) {
+    const turnsRemaining = MAX_TURNS_PER_ITERATION - turn;
+    if (turnsRemaining === WRAP_UP_WARNING_TURNS_REMAINING) {
+      contents.push(
+        userTurn(
+          `Only ${WRAP_UP_WARNING_TURNS_REMAINING} tool-call turns remain in this iteration. Stop investigating and wrap up now: make your remaining edits and call submitForReview before the budget runs out.`
+        )
+      );
+    }
+
     const candidate = await callGeminiAgent({
       systemInstruction: systemPrompt,
       contents,
@@ -209,12 +230,15 @@ async function runDevAgentTurn({ systemPrompt, task }) {
     // silently doesn't contain the edit the agent thinks it made. Keep the
     // iteration going so the agent sees the error and can react to it.
     const hasError = results.some((r) => r.response?.error);
-    if (submitSummary !== null && !hasError) return submitSummary;
+    if (submitSummary !== null && !hasError) {
+      return { submitted: true, summary: submitSummary };
+    }
   }
 
-  throw new Error(
-    `Dev agent exceeded ${MAX_TURNS_PER_ITERATION} tool-call turns without calling submitForReview.`
+  log(
+    `  turn budget exhausted (${MAX_TURNS_PER_ITERATION}/${MAX_TURNS_PER_ITERATION}) without calling submitForReview`
   );
+  return { submitted: false, summary: null };
 }
 
 function summarizeCallArgs(call) {
@@ -318,12 +342,13 @@ async function main() {
             reviewFindings,
           });
 
-    await runDevAgentTurn({ systemPrompt, task });
+    const devResult = await runDevAgentTurn({ systemPrompt, task });
 
     stageAll();
     if (!hasStagedChanges()) {
-      failureText =
-        '你呼叫了 submitForReview，但 working tree 沒有任何檔案變更。請先完成實際的程式碼修改再 submit。';
+      failureText = devResult.submitted
+        ? '你呼叫了 submitForReview，但 working tree 沒有任何檔案變更。請先完成實際的程式碼修改再 submit。'
+        : `你在 ${MAX_TURNS_PER_ITERATION} 輪工具呼叫內都沒有完成任何檔案修改就用完輪數。請減少讀檔／搜尋的輪數，優先動手修改檔案，並在完成後盡快呼叫 submitForReview。`;
       reviewFindings = null;
       const stuck = checkCircuitBreaker({
         signature: failureText,
@@ -353,6 +378,27 @@ async function main() {
           `New type-check errors:\n${typeCheckResult.newErrors.join('\n')}`
         );
       failureText = parts.join('\n\n');
+      reviewFindings = null;
+
+      const hash = diffHash(resolvedBaseRef);
+      if (
+        checkCircuitBreaker({
+          signature: failureText,
+          priorSignature,
+          hash,
+          priorDiffHash,
+        })
+      ) {
+        finalState = { status: 'stuck-no-progress', iteration };
+        break;
+      }
+      priorSignature = failureText;
+      priorDiffHash = hash;
+      continue;
+    }
+
+    if (!devResult.submitted) {
+      failureText = `你在 ${MAX_TURNS_PER_ITERATION} 輪工具呼叫內沒有呼叫 submitForReview，但已完成的修改通過 lint/type-check 並保留為 WIP commit。請延續之前的進度，優先完成剩餘修改並盡快呼叫 submitForReview，避免再花太多輪數在讀檔／搜尋上。`;
       reviewFindings = null;
 
       const hash = diffHash(resolvedBaseRef);
