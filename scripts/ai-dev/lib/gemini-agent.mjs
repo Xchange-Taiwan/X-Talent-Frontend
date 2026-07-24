@@ -90,6 +90,19 @@ export async function callGeminiAgent({ systemInstruction, contents, tools }) {
             'too much output for a single turn — ask for a smaller/narrower change.'
         );
       }
+      if (candidate.finishReason && candidate.finishReason !== 'STOP') {
+        // Most commonly SAFETY (content filter blocked the response) or
+        // OTHER — the candidate exists (so the earlier !candidate check
+        // doesn't catch it) but content/parts is typically empty, which
+        // the orchestrator's "no function calls, nudge and retry" fallback
+        // can't distinguish from the model just needing a push — it would
+        // silently loop on the same blocked input until MAX_TURNS_PER_ITERATION.
+        // Not retryable: the same input will very likely get blocked the same way.
+        throw new Error(
+          `Gemini response was blocked or incomplete (finishReason: ${candidate.finishReason}). ` +
+            'This usually means the safety filter triggered — check the ticket content.'
+        );
+      }
       return candidate;
     } catch (err) {
       lastErr = err;
