@@ -40,7 +40,7 @@ import {
   TOOL_DECLARATIONS,
 } from './lib/tools.mjs';
 
-const MAX_ITERATIONS = 3;
+const MAX_ITERATIONS = 10;
 const MAX_TURNS_PER_ITERATION = 25;
 const EXPECTED_ORG = 'Xchange-Taiwan';
 const SYSTEM_PROMPT_URL = new URL(
@@ -139,7 +139,7 @@ function buildRetryTask({ baseRef, failureText, reviewFindings }) {
   }
   if (reviewFindings) {
     sections.push(
-      '## Reviewer 的 Blocking Findings',
+      '## Reviewer Findings（overall risk: high，需要修正）',
       JSON.stringify(reviewFindings, null, 2)
     );
   }
@@ -216,13 +216,13 @@ function printFinalReport(finalState) {
     `[ai:dev] status: ${finalState.status} (iteration ${finalState.iteration}/${MAX_ITERATIONS})`
   );
   if (finalState.review?.summary)
-    console.log(`[ai:dev] reviewer summary: ${finalState.review.summary}`);
+    console.log(`[ai:dev] overall risk: ${finalState.review.summary}`);
+  if (finalState.review?.mergeRecommendation)
+    console.log(`[ai:dev] merge recommendation: ${finalState.review.mergeRecommendation}`);
   if (finalState.review?.findings?.length) {
     console.log('[ai:dev] outstanding findings:');
     for (const f of finalState.review.findings) {
-      console.log(
-        `  - [${f.severity}] ${f.file}:${f.line ?? '?'} — ${f.issue}`
-      );
+      console.log(`  - [${f.source ?? f.category}] ${f.file}:${f.line ?? '?'} — ${f.issue}`);
     }
   }
   console.log(
