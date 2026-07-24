@@ -98,7 +98,10 @@ export function guardPath(inputPath) {
   }
 
   for (const prefix of BLOCKED_PREFIXES) {
-    if (matchPath === prefix.replace(/\/$/, '') || matchPath.startsWith(prefix)) {
+    if (
+      matchPath === prefix.replace(/\/$/, '') ||
+      matchPath.startsWith(prefix)
+    ) {
       throw new PathGuardError(
         `"${relPosix}" is not editable by ai:dev (blocked path) — matches "${prefix}".`
       );
