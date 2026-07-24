@@ -93,7 +93,9 @@ export async function captureTypeCheckBaseline() {
   if (timedOut) {
     throw new ChecksError('type-check baseline run timed out.');
   }
-  return new Set(parseTypeCheckErrors(`${stdout}\n${stderr}`).map((e) => e.key));
+  return new Set(
+    parseTypeCheckErrors(`${stdout}\n${stderr}`).map((e) => e.key)
+  );
 }
 
 /** Returns only the error lines that are new since the baseline, regardless of which file they're in. */
@@ -103,7 +105,9 @@ export async function diffTypeCheckErrors(baselineSet) {
     return { ok: false, newErrors: ['type-check timed out'] };
   }
   const current = parseTypeCheckErrors(`${stdout}\n${stderr}`);
-  const newErrors = current.filter((e) => !baselineSet.has(e.key)).map((e) => e.raw);
+  const newErrors = current
+    .filter((e) => !baselineSet.has(e.key))
+    .map((e) => e.raw);
   // tsc exits non-zero whenever ANY error exists, including pre-existing
   // baseline ones — requiring code === 0 would make this permanently fail
   // on any repo that already had type errors before the agent started,

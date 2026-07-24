@@ -38,7 +38,8 @@ export function killActiveChildren() {
 // case-insensitive lookup — the key keeps whatever case it was actually set
 // with (e.g. `$env:Gemini_Api_Key` in PowerShell), so an exact-case
 // `delete env.GEMINI_API_KEY` can silently miss it.
-const SENSITIVE_ENV_NAME_PATTERN = /(SECRET|TOKEN|PASSWORD|_KEY$|API_KEY|ACCESS_KEY)/i;
+const SENSITIVE_ENV_NAME_PATTERN =
+  /(SECRET|TOKEN|PASSWORD|_KEY$|API_KEY|ACCESS_KEY)/i;
 
 function buildChildEnv() {
   const env = { ...process.env, CI: 'true' };
