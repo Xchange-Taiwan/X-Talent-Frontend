@@ -123,6 +123,11 @@ export function commitWip(message) {
   run(['commit', '-m', message, '--no-verify']);
 }
 
+/** Collapses every WIP commit back into uncommitted (staged) changes against `ref`, leaving HEAD at `ref`. */
+export function resetSoft(ref) {
+  run(['reset', '--soft', ref]);
+}
+
 /** Files changed between baseRef and HEAD (committed history only — WIP commits included). */
 export function diffNameOnly(baseRef) {
   const out = run(['diff', '--name-only', '-z', `${baseRef}...HEAD`]);
