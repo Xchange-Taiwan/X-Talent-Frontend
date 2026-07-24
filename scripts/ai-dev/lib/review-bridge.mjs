@@ -132,14 +132,16 @@ export async function reviewDiff({ baseRef, ticket }) {
   if (!summary) {
     return {
       hasBlockingFindings: true,
-      summary: 'Summary reviewer call failed — no risk verdict available, treating as blocking.',
+      summary:
+        'Summary reviewer call failed — no risk verdict available, treating as blocking.',
       findings: [
         ...findings,
         {
           file: '(review infrastructure)',
           line: null,
           category: 'Review Infrastructure Failure',
-          issue: 'The Summary judgment call failed, so no overall risk verdict could be produced.',
+          issue:
+            'The Summary judgment call failed, so no overall risk verdict could be produced.',
           why: 'Without it there is no way to tell whether this round is safe to accept — defaulting to blocking is safer than a false pass.',
           fix: 'Check network connectivity / GEMINI_API_KEY / API status and retry.',
           source: '⚠️ Review Infrastructure',
