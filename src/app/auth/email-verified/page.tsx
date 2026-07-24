@@ -1,11 +1,7 @@
-import { Suspense } from 'react';
+export const dynamic = 'force-dynamic';
 
 import EmailVerifiedContainer from './container';
 
 export default function Page() {
-  return (
-    <Suspense>
-      <EmailVerifiedContainer />
-    </Suspense>
-  );
+  return <EmailVerifiedContainer />;
 }

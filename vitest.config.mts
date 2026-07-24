@@ -16,7 +16,7 @@ export default defineConfig({
       TZ: 'UTC',
     },
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.{test,spec}.{ts,tsx}', 'scripts/**/*.{test,spec}.mjs'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
     typecheck: {
       tsconfig: './tsconfig.test.json',
     },
