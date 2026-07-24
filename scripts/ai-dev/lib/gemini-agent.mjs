@@ -6,6 +6,12 @@
 
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 1500;
+// Node's native fetch has no default timeout — a network black hole or a
+// hung server would leave this Promise pending forever, which means the
+// retry loop below never even gets a chance to run. Generous ceiling since
+// dev-agent turns (large maxOutputTokens) can legitimately take a while to
+// generate.
+const REQUEST_TIMEOUT_MS = 120_000;
 const DEFAULT_MODEL =
   process.env.GEMINI_DEV_MODEL ||
   process.env.GEMINI_MODEL ||
@@ -31,25 +37,46 @@ async function callOnce(body, { apiKey, model }) {
           'x-goog-api-key': apiKey,
         },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       }
     );
   } catch (err) {
-    // fetch() itself throwing (DNS failure, connection reset, timeout) never
-    // reaches the res.ok check below, so it needs its own retryable tag —
-    // otherwise a network blip aborts the whole run on the first hiccup.
+    // fetch() itself throwing (DNS failure, connection reset, our own
+    // AbortSignal.timeout firing) never reaches the res.ok check below, so
+    // it needs its own retryable tag — otherwise a network blip aborts the
+    // whole run on the first hiccup.
     const wrapped = new Error(`Gemini API request failed: ${err.message}`);
     wrapped.retryable = true;
     throw wrapped;
   }
 
   if (!res.ok) {
-    const errText = await res.text();
+    let errText;
+    try {
+      errText = await res.text();
+    } catch (err) {
+      // Reading the body can itself fail (connection dropped mid-read) —
+      // without this, that raw error skips the retryable flag entirely and
+      // aborts the run instead of retrying.
+      const wrapped = new Error(`Gemini API error (${res.status}), and failed to read the error body: ${err.message}`);
+      wrapped.retryable = true;
+      throw wrapped;
+    }
     const err = new Error(`Gemini API error (${res.status}): ${errText}`);
     err.retryable = res.status >= 500 || res.status === 429;
     throw err;
   }
 
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch (err) {
+    // A 200 that isn't valid JSON (truncated body, proxy returning HTML,
+    // etc.) is almost certainly transient — same reasoning as above.
+    const wrapped = new Error(`Failed to parse Gemini API response as JSON: ${err.message}`);
+    wrapped.retryable = true;
+    throw wrapped;
+  }
   const candidate = data?.candidates?.[0];
   if (!candidate) {
     const err = new Error('Gemini API returned no candidate.');

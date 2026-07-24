@@ -193,6 +193,78 @@ describe('callGeminiAgent — retryable failure modes', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('retries when the request times out (AbortSignal.timeout firing) then succeeds', async () => {
+    vi.useFakeTimers();
+    const timeoutError = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(timeoutError)
+      .mockResolvedValueOnce(jsonResponse(stopCandidateWithText('ok')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const promise = callGeminiAgent(baseArgs);
+    await vi.advanceTimersByTimeAsync(1500);
+    await promise;
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('passes an AbortSignal to fetch so a hung request cannot block forever', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(stopCandidateWithText('ok')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await callGeminiAgent(baseArgs);
+
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('retries when the response body fails to parse as JSON on an otherwise-200 response', async () => {
+    vi.useFakeTimers();
+    const malformedResponse = {
+      ok: true,
+      status: 200,
+      text: async () => 'not json',
+      json: async () => {
+        throw new SyntaxError('Unexpected token n in JSON');
+      },
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(malformedResponse)
+      .mockResolvedValueOnce(jsonResponse(stopCandidateWithText('ok')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const promise = callGeminiAgent(baseArgs);
+    await vi.advanceTimersByTimeAsync(1500);
+    await promise;
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries when reading the error body itself fails on a non-2xx response', async () => {
+    vi.useFakeTimers();
+    const brokenErrorResponse = {
+      ok: false,
+      status: 503,
+      text: async () => {
+        throw new Error('connection reset while reading body');
+      },
+      json: async () => ({}),
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(brokenErrorResponse)
+      .mockResolvedValueOnce(jsonResponse(stopCandidateWithText('ok')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const promise = callGeminiAgent(baseArgs);
+    await vi.advanceTimersByTimeAsync(1500);
+    await promise;
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('gives up after exhausting all retry attempts', async () => {
     vi.useFakeTimers();
     const fetchMock = vi
