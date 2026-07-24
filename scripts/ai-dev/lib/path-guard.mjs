@@ -10,11 +10,16 @@ const BLOCKED_PREFIXES = [
   'node_modules/',
   '.env',
   '.github/',
+  '.husky/',
   'pnpm-lock.yaml',
   'package-lock.json',
   'yarn.lock',
 ];
 
+// Anything the orchestrator's own tooling (eslint/vitest/husky, all invoked
+// automatically every iteration, before a human ever looks at the diff)
+// auto-loads and executes as code — overwriting one of these is effectively
+// arbitrary code execution on the developer's machine, not just a file edit.
 const BLOCKED_EXACT = new Set([
   'package.json',
   'tsconfig.json',
@@ -22,6 +27,28 @@ const BLOCKED_EXACT = new Set([
   'next.config.mjs',
   '.npmrc',
   '.nvmrc',
+  '.eslintrc.json',
+  '.eslintrc.js',
+  '.eslintrc.cjs',
+  '.eslintrc.yml',
+  '.eslintrc.yaml',
+  'eslint.config.js',
+  'eslint.config.mjs',
+  'eslint.config.cjs',
+  'vitest.config.mts',
+  'vitest.config.ts',
+  'vitest.config.js',
+  'vitest.config.mjs',
+  'playwright.config.ts',
+  'postcss.config.js',
+  'tailwind.config.js',
+  'prettier.config.js',
+  '.prettierrc',
+  '.prettierrc.json',
+  '.prettierrc.js',
+  'sentry.edge.config.ts',
+  'sentry.server.config.ts',
+  'sentry.client.config.ts',
 ]);
 
 export class PathGuardError extends Error {}
