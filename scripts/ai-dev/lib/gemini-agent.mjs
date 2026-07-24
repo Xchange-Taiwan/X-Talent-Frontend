@@ -58,7 +58,9 @@ async function callOnce(body, { apiKey, model }) {
       // Reading the body can itself fail (connection dropped mid-read) —
       // without this, that raw error skips the retryable flag entirely and
       // aborts the run instead of retrying.
-      const wrapped = new Error(`Gemini API error (${res.status}), and failed to read the error body: ${err.message}`);
+      const wrapped = new Error(
+        `Gemini API error (${res.status}), and failed to read the error body: ${err.message}`
+      );
       wrapped.retryable = true;
       throw wrapped;
     }
@@ -73,7 +75,9 @@ async function callOnce(body, { apiKey, model }) {
   } catch (err) {
     // A 200 that isn't valid JSON (truncated body, proxy returning HTML,
     // etc.) is almost certainly transient — same reasoning as above.
-    const wrapped = new Error(`Failed to parse Gemini API response as JSON: ${err.message}`);
+    const wrapped = new Error(
+      `Failed to parse Gemini API response as JSON: ${err.message}`
+    );
     wrapped.retryable = true;
     throw wrapped;
   }

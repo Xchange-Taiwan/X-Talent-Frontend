@@ -195,7 +195,10 @@ describe('callGeminiAgent — retryable failure modes', () => {
 
   it('retries when the request times out (AbortSignal.timeout firing) then succeeds', async () => {
     vi.useFakeTimers();
-    const timeoutError = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+    const timeoutError = new DOMException(
+      'The operation was aborted due to timeout',
+      'TimeoutError'
+    );
     const fetchMock = vi
       .fn()
       .mockRejectedValueOnce(timeoutError)
@@ -210,7 +213,9 @@ describe('callGeminiAgent — retryable failure modes', () => {
   });
 
   it('passes an AbortSignal to fetch so a hung request cannot block forever', async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(stopCandidateWithText('ok')));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(stopCandidateWithText('ok')));
     vi.stubGlobal('fetch', fetchMock);
 
     await callGeminiAgent(baseArgs);
