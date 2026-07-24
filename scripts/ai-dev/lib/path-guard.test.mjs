@@ -119,9 +119,12 @@ describe('guardPath — refuses to let the agent modify its own implementation',
     'scripts/ai-dev/lib/gemini-agent.mjs',
     'scripts/ai-dev/orchestrator.mjs',
     'scripts/ai-dev/README.md',
-  ])('blocks %s — an agent must never be able to weaken its own sandbox', (path) => {
-    expect(() => guardPath(path)).toThrow(PathGuardError);
-  });
+  ])(
+    'blocks %s — an agent must never be able to weaken its own sandbox',
+    (path) => {
+      expect(() => guardPath(path)).toThrow(PathGuardError);
+    }
+  );
 
   it('does not block an unrelated scripts/ directory', () => {
     expect(() => guardPath('scripts/generate-types.mjs')).not.toThrow();

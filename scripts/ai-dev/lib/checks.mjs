@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import { stagedFilesExcludingDeleted,stageFiles } from './git.mjs';
+import { stagedFilesExcludingDeleted, stageFiles } from './git.mjs';
 import { runProcess } from './proc.mjs';
 
 export class ChecksError extends Error {}
