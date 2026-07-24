@@ -2,6 +2,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createInterface } from 'node:readline/promises';
+import { fileURLToPath } from 'node:url';
 
 import { config } from 'dotenv';
 
@@ -68,9 +69,9 @@ const SYSTEM_PROMPT_URL = new URL(
 );
 
 // Module-scope on purpose: set once in main() after the ticket branch is
-// checked out, then read via closure from attemptAutoPr() and the retry/
-// follow-up task builders below — all in this same file. Not a bug, not a
-// missing parameter; every function in this module can see these.
+// checked out, then read via closure from the retry/follow-up task builders
+// below — all in this same file. (attemptAutoPr takes resolvedBaseRef as an
+// explicit parameter instead, for testability — see orchestrator.test.mjs.)
 let hasCommittedThisRun = false;
 let resolvedBaseRef = null;
 
@@ -326,8 +327,12 @@ function printFinalReport(finalState, prResult) {
  * already holds. Every failure here falls back to the "leave it staged"
  * behavior instead of leaving a broken half-done state — see README for the
  * exact gating condition and risk trade-off.
+ *
+ * `resolvedBaseRef` is passed explicitly (rather than read off the
+ * module-scope variable of the same name) so this function stays testable
+ * in isolation — see orchestrator.test.mjs.
  */
-async function attemptAutoPr({ ticket }) {
+export async function attemptAutoPr({ ticket, resolvedBaseRef }) {
   if (!hasStagedChanges()) {
     log('auto-pr: nothing staged after collapsing WIP commits, skipping.');
     return { created: false };
@@ -366,8 +371,6 @@ async function attemptAutoPr({ ticket }) {
     log(
       `auto-pr: push failed (${err.message}) — rolling back the local commit, falling back to manual hand-off.`
     );
-    // resolvedBaseRef is the module-scope variable declared near the top of
-    // this file (set by main()), not an undefined local — see the comment there.
     resetSoft(resolvedBaseRef);
     return { created: false };
   }
@@ -660,7 +663,9 @@ async function main() {
     finalState.review?.overallRisk?.level === 'low' &&
     (finalState.review?.findings?.length ?? 0) === 0;
 
-  const prResult = gatePassed ? await attemptAutoPr({ ticket }) : null;
+  const prResult = gatePassed
+    ? await attemptAutoPr({ ticket, resolvedBaseRef })
+    : null;
 
   printFinalReport(finalState, prResult);
 
@@ -704,19 +709,24 @@ function checkCircuitBreaker({
   );
 }
 
-main().catch((err) => {
-  if (err instanceof FileTooLargeError) {
-    fail(`stopped early: ${err.message}`);
-    return;
-  }
-  if (
-    err instanceof GitError ||
-    err instanceof TicketError ||
-    err instanceof ChecksError ||
-    err instanceof PrError
-  ) {
-    fail(err.message);
-    return;
-  }
-  fail(err.stack || err.message);
-});
+// Only auto-run when this file is the actual entry point (`node
+// orchestrator.mjs ...` / `pnpm ai:dev`) — not when it's imported, e.g. by
+// orchestrator.test.mjs importing attemptAutoPr for unit testing.
+if (process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    if (err instanceof FileTooLargeError) {
+      fail(`stopped early: ${err.message}`);
+      return;
+    }
+    if (
+      err instanceof GitError ||
+      err instanceof TicketError ||
+      err instanceof ChecksError ||
+      err instanceof PrError
+    ) {
+      fail(err.message);
+      return;
+    }
+    fail(err.stack || err.message);
+  });
+}
