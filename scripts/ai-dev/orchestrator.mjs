@@ -218,11 +218,15 @@ function printFinalReport(finalState) {
   if (finalState.review?.summary)
     console.log(`[ai:dev] overall risk: ${finalState.review.summary}`);
   if (finalState.review?.mergeRecommendation)
-    console.log(`[ai:dev] merge recommendation: ${finalState.review.mergeRecommendation}`);
+    console.log(
+      `[ai:dev] merge recommendation: ${finalState.review.mergeRecommendation}`
+    );
   if (finalState.review?.findings?.length) {
     console.log('[ai:dev] outstanding findings:');
     for (const f of finalState.review.findings) {
-      console.log(`  - [${f.source ?? f.category}] ${f.file}:${f.line ?? '?'} — ${f.issue}`);
+      console.log(
+        `  - [${f.source ?? f.category}] ${f.file}:${f.line ?? '?'} — ${f.issue}`
+      );
     }
   }
   console.log(

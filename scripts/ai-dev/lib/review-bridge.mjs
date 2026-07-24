@@ -23,9 +23,14 @@ function formatTicketSection(ticket) {
   const commentsText = ticket.comments.length
     ? ticket.comments.map((c) => `- ${c.author}: ${c.body}`).join('\n')
     : '(無留言)';
-  return [`**#${ticket.number} ${ticket.title}**`, '', ticket.body, '', '### Comments', commentsText].join(
-    '\n'
-  );
+  return [
+    `**#${ticket.number} ${ticket.title}**`,
+    '',
+    ticket.body,
+    '',
+    '### Comments',
+    commentsText,
+  ].join('\n');
 }
 
 // Round 6 risk: warn well before diff.mjs's own 60000-char hard truncation.
@@ -60,10 +65,18 @@ async function runSummary(plan, findingsByKey) {
   try {
     const replacements = { PLAN_JSON: JSON.stringify(plan, null, 2) };
     for (const { key } of SPECIALISTS) {
-      const placeholder = key.toUpperCase().replace(/-/g, '_') + '_FINDINGS_JSON';
-      replacements[placeholder] = JSON.stringify(findingsByKey[key] ?? null, null, 2);
+      const placeholder =
+        key.toUpperCase().replace(/-/g, '_') + '_FINDINGS_JSON';
+      replacements[placeholder] = JSON.stringify(
+        findingsByKey[key] ?? null,
+        null,
+        2
+      );
     }
-    const prompt = buildPrompt(new URL('summary.md', PROMPTS_DIR), replacements);
+    const prompt = buildPrompt(
+      new URL('summary.md', PROMPTS_DIR),
+      replacements
+    );
     return await callGemini(prompt);
   } catch (err) {
     console.warn(`[review-bridge] summary judgment failed: ${err.message}`);
@@ -90,12 +103,18 @@ export async function reviewDiff({ baseRef, ticket }) {
     );
   }
 
-  const plan = await runPlanner({ ticketSection: formatTicketSection(ticket), diff, truncatedNote });
+  const plan = await runPlanner({
+    ticketSection: formatTicketSection(ticket),
+    diff,
+    truncatedNote,
+  });
 
   const results = await Promise.all(
     SPECIALISTS.map(({ key }) => runSpecialist(key, plan, diff, truncatedNote))
   );
-  const findingsByKey = Object.fromEntries(SPECIALISTS.map(({ key }, i) => [key, results[i]]));
+  const findingsByKey = Object.fromEntries(
+    SPECIALISTS.map(({ key }, i) => [key, results[i]])
+  );
 
   const summary = await runSummary(plan, findingsByKey);
 
@@ -110,7 +129,9 @@ export async function reviewDiff({ baseRef, ticket }) {
 
   return {
     hasBlockingFindings,
-    summary: overallRisk ? `${overallRisk.level} — ${overallRisk.reason}` : plan?.requirementSummary ?? '',
+    summary: overallRisk
+      ? `${overallRisk.level} — ${overallRisk.reason}`
+      : (plan?.requirementSummary ?? ''),
     findings,
     overallRisk,
     mergeRecommendation: summary?.mergeRecommendation ?? null,
