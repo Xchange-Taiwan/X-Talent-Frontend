@@ -1,7 +1,7 @@
 import { expect, Page, test } from '@playwright/test';
 
 import { mockApiRoute } from '../../helpers/route';
-import { setRawSessionCookie } from '../../helpers/session';
+import { setSignedSessionCookie } from '../../helpers/session';
 
 // ─── Mock payloads ───────────────────────────────────────────────────────────
 
@@ -88,11 +88,18 @@ const MOCK_CLIENT_SESSION = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-// Onboarding middleware only checks for cookie existence. The server-side
-// layout guard calls getServerSession(), which tries to decode the cookie;
-// decode failure returns null and the guard does NOT redirect.
+// middleware.ts verifies the session cookie via next-auth's getToken() (see
+// PR #263) — a raw/garbage cookie no longer passes and gets redirected to
+// /auth/signin, since /auth/onboarding is not in publicRoutes. Forge a
+// properly signed cookie instead so middleware's isLoggedIn check succeeds.
 async function setFakeSessionCookie(page: Page): Promise<void> {
-  await setRawSessionCookie(page, 'e2e-fake-session-token');
+  await setSignedSessionCookie(page, {
+    id: '1',
+    name: 'Test User',
+    onBoarding: false,
+    isMentor: false,
+    token: 'mock-access-token',
+  });
 }
 
 /**
@@ -164,11 +171,9 @@ test('submit Step 1 with empty name → inline validation error shown, does NOT 
 }) => {
   await gotoOnboarding(page);
 
-  // Clear the name field so validation fires on submit. Whether the session-
-  // driven useEffect has already pre-filled it (local) or never fires because
-  // the SessionProvider sees a null server-side session and skips the
-  // refetch (remote SSR with the intentionally-invalid fake cookie),
-  // fill('') normalises both cases.
+  // Clear the name field so validation fires on submit, regardless of
+  // whether the session-driven useEffect already pre-filled it from the
+  // mocked client session.
   const nameInput = page.locator('input[name="name"]');
   await expect(nameInput).toBeVisible();
   await nameInput.fill('');
@@ -234,19 +239,25 @@ test('complete all 5 steps (happy path) → redirects to /profile/card', async (
   await page.getByRole('option', { name: '1 年以下' }).click();
   await page.getByRole('button', { name: '下一步' }).click();
 
+  // Steps 3-5's option catalogs (want_position/want_skill/want_topic) come
+  // from fetchTagCatalogServer — a server-side (RSC) fetch that page.route()
+  // cannot mock, so the mocked '測試職位' etc. text never renders here (same
+  // SSR-vs-browser-mock gap as mentor-pool.spec.ts). Select whichever real
+  // option renders first instead of matching mocked text.
+
   // Step 3 — select one interested position
   await expect(page.getByText('步驟 3 / 5')).toBeVisible();
-  await page.getByText('測試職位').click();
+  await page.getByRole('checkbox').first().click();
   await page.getByRole('button', { name: '下一步' }).click();
 
   // Step 4 — select one skill
   await expect(page.getByText('步驟 4 / 5')).toBeVisible();
-  await page.getByText('測試技能').click();
+  await page.getByRole('checkbox').first().click();
   await page.getByRole('button', { name: '下一步' }).click();
 
   // Step 5 — select one topic and submit
   await expect(page.getByText('步驟 5 / 5')).toBeVisible();
-  await page.getByText('測試主題').click();
+  await page.getByRole('checkbox').first().click();
   await page.getByRole('button', { name: '提交' }).click();
 
   await expect(page).toHaveURL('/profile/card', { timeout: 15_000 });
