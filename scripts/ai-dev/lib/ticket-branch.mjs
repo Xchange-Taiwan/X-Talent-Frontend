@@ -53,7 +53,21 @@ function ghGraphql(query, variables) {
       `gh api graphql failed: ${err.stderr || err.message}`
     );
   }
-  return JSON.parse(raw);
+
+  const parsed = JSON.parse(raw);
+  // GraphQL application-level errors (bad input, permission denied on a
+  // field, etc.) come back as HTTP 200 with `gh` exiting 0 — the failure
+  // only shows up as an `errors` array inside the body. Left unchecked,
+  // e.g. createLinkedBranch's return value is discarded entirely, so a
+  // failed mutation silently no-ops and the branch never actually gets
+  // created — the caller finds out later as a confusing unrelated `git
+  // fetch` failure instead of the real cause.
+  if (parsed.errors?.length) {
+    throw new TicketError(
+      `GitHub GraphQL error: ${parsed.errors.map((e) => e.message).join('; ')}`
+    );
+  }
+  return parsed;
 }
 
 const ISSUE_QUERY = `
