@@ -11,7 +11,7 @@ export type DeleteAccountResult =
 export async function deleteAccount(
   payload: DeleteAccountDTO
 ): Promise<DeleteAccountResult> {
-  if (process.env.NEXT_PUBLIC_APP_ENV === 'production') {
+  if (process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT !== 'true') {
     return { status: 'error', message: '此環境不支援帳號刪除' };
   }
 

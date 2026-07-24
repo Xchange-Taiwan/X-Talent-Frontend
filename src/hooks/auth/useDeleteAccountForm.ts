@@ -42,7 +42,7 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
   });
 
   const onSubmitXC = async (values: XCValues): Promise<void> => {
-    if (process.env.NEXT_PUBLIC_APP_ENV === 'production') {
+    if (process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT !== 'true') {
       toast({
         variant: 'destructive',
         description: '此環境不支援帳號刪除',
@@ -90,7 +90,7 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
   };
 
   const initiateGoogleReauth = async (): Promise<void> => {
-    if (process.env.NEXT_PUBLIC_APP_ENV === 'production') {
+    if (process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT !== 'true') {
       toast({
         variant: 'destructive',
         description: '此環境不支援帳號刪除',
