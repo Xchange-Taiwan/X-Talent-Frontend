@@ -29,6 +29,7 @@ import {
   mergeBase,
   parseOwnerRepo,
   remoteOriginUrl,
+  resetSoft,
   stageAll,
   updateDevelopFastForward,
 } from './lib/git.mjs';
@@ -272,11 +273,14 @@ function printFinalReport(finalState) {
       );
     }
   }
-  console.log(
-    `\n[ai:dev] WIP commits are on branch "${currentBranch()}". Next step:\n` +
-      `  git reset --soft ${resolvedBaseRef}\n` +
-      '  # review the diff, then commit it yourself (ai:dev never pushes or commits for real)'
-  );
+  if (hasCommittedThisRun) {
+    console.log(
+      `\n[ai:dev] collapsed the WIP commit(s) back onto branch "${currentBranch()}" — ` +
+        'your changes are staged and uncommitted, ready to review.\n' +
+        '  git diff --cached   # review before committing\n' +
+        '  # ai:dev never commits or pushes anything real — that part is still on you'
+    );
+  }
 }
 
 async function main() {
@@ -444,6 +448,13 @@ async function main() {
 
   if (!finalState) {
     finalState = { status: 'iteration-cap-reached', iteration: MAX_ITERATIONS };
+  }
+
+  // Collapse the per-iteration WIP commits back into uncommitted staged
+  // changes so the run ends with something ready to review, not a WIP commit
+  // you have to manually reset yourself every time.
+  if (hasCommittedThisRun) {
+    resetSoft(resolvedBaseRef);
   }
 
   printFinalReport(finalState);
