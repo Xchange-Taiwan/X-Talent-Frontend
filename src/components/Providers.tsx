@@ -1,6 +1,5 @@
 'use client';
 
-import type { Session } from 'next-auth';
 import { SessionProvider } from 'next-auth/react';
 
 import ErrorBoundary from '@/components/ErrorBoundary';
@@ -8,15 +7,9 @@ import GlobalErrorMonitor from '@/components/GlobalErrorMonitor';
 import PageViewTracker from '@/components/PageViewTracker';
 import SessionErrorWatcher from '@/components/SessionErrorWatcher';
 
-export default function Providers({
-  children,
-  session,
-}: {
-  children: React.ReactNode;
-  session: Session | null;
-}) {
+export default function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider session={session}>
+    <SessionProvider>
       <GlobalErrorMonitor />
       <PageViewTracker />
       <SessionErrorWatcher />

@@ -42,6 +42,15 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
   });
 
   const onSubmitXC = async (values: XCValues): Promise<void> => {
+    if (process.env.NEXT_PUBLIC_APP_ENV === 'production') {
+      toast({
+        variant: 'destructive',
+        description: '此環境不支援帳號刪除',
+        duration: 3000,
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     setBlockedByReservations(false);
     try {
@@ -81,6 +90,15 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
   };
 
   const initiateGoogleReauth = async (): Promise<void> => {
+    if (process.env.NEXT_PUBLIC_APP_ENV === 'production') {
+      toast({
+        variant: 'destructive',
+        description: '此環境不支援帳號刪除',
+        duration: 3000,
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       sessionStorage.setItem(
