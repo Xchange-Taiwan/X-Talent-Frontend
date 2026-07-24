@@ -113,7 +113,7 @@ describe('autoFixAndLintStaged', () => {
 });
 
 describe('captureTypeCheckBaseline', () => {
-  it('parses tsc error lines into a set of position-independent keys', async () => {
+  it('parses tsc error lines into a map of position-independent keys to occurrence counts', async () => {
     runProcess.mockResolvedValue({
       code: 1,
       stdout: tscOutput(
@@ -124,9 +124,11 @@ describe('captureTypeCheckBaseline', () => {
     });
     const baseline = await captureTypeCheckBaseline();
     expect(baseline.size).toBe(1);
-    expect([...baseline][0]).not.toMatch(/\(\d+,\d+\)/);
-    expect([...baseline][0]).toContain('src/foo.ts');
-    expect([...baseline][0]).toContain('TS2345');
+    const [key] = [...baseline.keys()];
+    expect(key).not.toMatch(/\(\d+,\d+\)/);
+    expect(key).toContain('src/foo.ts');
+    expect(key).toContain('TS2345');
+    expect(baseline.get(key)).toBe(1);
   });
 
   it('ignores non-error output (banners, summary lines)', async () => {
@@ -236,7 +238,7 @@ describe('diffTypeCheckErrors', () => {
   });
 
   it('includes indented continuation lines in newErrors, not just the terse summary line', async () => {
-    const baseline = new Set();
+    const baseline = new Map();
     runProcess.mockResolvedValue({
       code: 1,
       stdout: tscOutput(
@@ -249,6 +251,47 @@ describe('diffTypeCheckErrors', () => {
     const result = await diffTypeCheckErrors(baseline);
     expect(result.newErrors).toHaveLength(1);
     expect(result.newErrors[0]).toContain("Property 'baz' is missing");
+  });
+
+  it('detects a second occurrence of an identically-worded error as new (count-based, not a plain Set)', async () => {
+    const line = "src/foo.ts(10,5): error TS2322: Type 'string' is not assignable to type 'number'.";
+    runProcess.mockResolvedValue({ code: 1, stdout: line, stderr: '', timedOut: false });
+    const baseline = await captureTypeCheckBaseline();
+
+    // same exact wording, but now appears twice — e.g. the agent copy-pasted
+    // the same buggy pattern into a second call site in the same file
+    const otherLine = "src/foo.ts(88,5): error TS2322: Type 'string' is not assignable to type 'number'.";
+    runProcess.mockResolvedValue({
+      code: 1,
+      stdout: tscOutput(line, otherLine),
+      stderr: '',
+      timedOut: false,
+    });
+    const result = await diffTypeCheckErrors(baseline);
+    expect(result.ok).toBe(false);
+    expect(result.newErrors).toHaveLength(1);
+    expect(result.newErrors[0]).toContain('(88,5)');
+  });
+
+  it('does not flag anything new when the current run has the same count as the baseline', async () => {
+    const line = "src/foo.ts(10,5): error TS2322: Type 'string' is not assignable to type 'number'.";
+    runProcess.mockResolvedValue({
+      code: 1,
+      stdout: tscOutput(line, line),
+      stderr: '',
+      timedOut: false,
+    });
+    const baseline = await captureTypeCheckBaseline();
+
+    runProcess.mockResolvedValue({
+      code: 1,
+      stdout: tscOutput(line, line),
+      stderr: '',
+      timedOut: false,
+    });
+    const result = await diffTypeCheckErrors(baseline);
+    expect(result.ok).toBe(true);
+    expect(result.newErrors).toEqual([]);
   });
 
   it('does not require exit code 0 when every current error is already in the baseline (pre-existing tech debt)', async () => {
@@ -272,7 +315,7 @@ describe('diffTypeCheckErrors', () => {
   });
 
   it('reports ok:false when tsc exits non-zero with no parseable errors (a real crash, not explained by TS errors)', async () => {
-    const baseline = new Set();
+    const baseline = new Map();
     runProcess.mockResolvedValue({
       code: 2,
       stdout: '',
@@ -284,7 +327,7 @@ describe('diffTypeCheckErrors', () => {
   });
 
   it('reports ok:false with an explanatory message when the run times out', async () => {
-    const baseline = new Set();
+    const baseline = new Map();
     runProcess.mockResolvedValue({
       code: -1,
       stdout: '',
