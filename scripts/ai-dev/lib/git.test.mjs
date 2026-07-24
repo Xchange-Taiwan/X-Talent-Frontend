@@ -21,6 +21,8 @@ const {
   stagedFilesExcludingDeleted,
   diffNameOnly,
   commitWip,
+  commit,
+  pushBranch,
   remoteOriginUrl,
   parseOwnerRepo,
 } = await import('./git.mjs');
@@ -184,6 +186,33 @@ describe('stageAll / commitWip', () => {
       ['commit', '-m', 'wip: iteration 1', '--no-verify'],
       expect.anything()
     );
+  });
+});
+
+describe('commit / pushBranch', () => {
+  it('commit runs without --no-verify so hooks run normally', () => {
+    mockGit({ 'commit -m feat: do the thing': '' });
+    commit('feat: do the thing');
+    expect(execFileSync).toHaveBeenCalledWith(
+      'git',
+      ['commit', '-m', 'feat: do the thing'],
+      expect.anything()
+    );
+  });
+
+  it('pushBranch pushes with -u to set upstream tracking', () => {
+    mockGit({ 'push -u origin feat/x': '' });
+    pushBranch('feat/x');
+    expect(execFileSync).toHaveBeenCalledWith(
+      'git',
+      ['push', '-u', 'origin', 'feat/x'],
+      expect.anything()
+    );
+  });
+
+  it('pushBranch throws GitError on failure', () => {
+    mockGit({ 'push -u origin feat/x': failure('rejected') });
+    expect(() => pushBranch('feat/x')).toThrow(GitError);
   });
 });
 

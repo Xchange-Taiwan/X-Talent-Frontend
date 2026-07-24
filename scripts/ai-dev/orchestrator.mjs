@@ -22,6 +22,7 @@ import {
   userTurn,
 } from './lib/gemini-agent.mjs';
 import {
+  commit,
   commitWip,
   currentBranch,
   GitError,
@@ -29,11 +30,19 @@ import {
   isWorkingTreeClean,
   mergeBase,
   parseOwnerRepo,
+  pushBranch,
   remoteOriginUrl,
   resetSoft,
   stageAll,
   updateDevelopFastForward,
 } from './lib/git.mjs';
+import {
+  buildCommitSubject,
+  buildPrBody,
+  createPr,
+  findOpenPrForBranch,
+  PrError,
+} from './lib/pr.mjs';
 import { killActiveChildren } from './lib/proc.mjs';
 import { reviewDiff } from './lib/review-bridge.mjs';
 import { setupTicketBranch, TicketError } from './lib/ticket-branch.mjs';
@@ -268,7 +277,7 @@ function diffHash(baseRef) {
   return createHash('sha256').update(getDiff(baseRef).diff).digest('hex');
 }
 
-function printFinalReport(finalState) {
+function printFinalReport(finalState, prResult) {
   console.log('\n[ai:dev] ' + '='.repeat(40));
   console.log(
     `[ai:dev] status: ${finalState.status} (iteration ${finalState.iteration}/${MAX_ITERATIONS})`
@@ -287,6 +296,10 @@ function printFinalReport(finalState) {
       );
     }
   }
+  if (prResult?.created) {
+    console.log(`\n[ai:dev] opened PR: ${prResult.url}`);
+    return;
+  }
   if (hasCommittedThisRun) {
     console.log(
       `\n[ai:dev] collapsed the WIP commit(s) back onto branch "${currentBranch()}" — ` +
@@ -294,6 +307,74 @@ function printFinalReport(finalState) {
         '  git diff --cached   # review before committing\n' +
         '  # ai:dev never commits or pushes anything real — that part is still on you'
     );
+  }
+}
+
+/**
+ * Opt-in path (`--auto-pr`): only called once the gating condition (passed,
+ * low risk, zero findings) already holds. Every failure here falls back to
+ * the default "leave it staged" behavior instead of leaving a broken
+ * half-done state — see README for the exact gating condition and risk
+ * trade-off.
+ */
+async function attemptAutoPr({ ticket }) {
+  if (!hasStagedChanges()) {
+    log('auto-pr: nothing staged after collapsing WIP commits, skipping.');
+    return { created: false };
+  }
+
+  let existingPrUrl;
+  try {
+    existingPrUrl = findOpenPrForBranch(ticket.branchName);
+  } catch (err) {
+    log(
+      `auto-pr: could not check for an existing PR (${err.message}) — falling back to manual hand-off.`
+    );
+    return { created: false };
+  }
+  if (existingPrUrl) {
+    log(
+      `auto-pr: branch "${ticket.branchName}" already has an open PR (${existingPrUrl}) — falling back to manual hand-off.`
+    );
+    return { created: false };
+  }
+
+  const subject = buildCommitSubject(ticket);
+
+  try {
+    commit(subject);
+  } catch (err) {
+    log(
+      `auto-pr: commit failed (${err.message}) — falling back to manual hand-off.`
+    );
+    return { created: false };
+  }
+
+  try {
+    pushBranch(ticket.branchName);
+  } catch (err) {
+    log(
+      `auto-pr: push failed (${err.message}) — rolling back the local commit, falling back to manual hand-off.`
+    );
+    resetSoft(resolvedBaseRef);
+    return { created: false };
+  }
+
+  try {
+    const url = createPr({
+      branch: ticket.branchName,
+      title: subject,
+      body: buildPrBody(ticket),
+    });
+    hasCommittedThisRun = false; // it's a real, already-pushed commit now — nothing left to collapse
+    return { created: true, url };
+  } catch (err) {
+    log(
+      `auto-pr: branch was pushed but \`gh pr create\` failed (${err.message}). ` +
+        `The commit is already on origin/${ticket.branchName} — open the PR manually or re-run.`
+    );
+    hasCommittedThisRun = false; // already pushed; a local reset here would not undo the remote commit
+    return { created: false };
   }
 }
 
@@ -382,9 +463,11 @@ async function runFollowUpSession({ ticket, systemPrompt, typeCheckBaseline }) {
 }
 
 async function main() {
-  const ticketArg = process.argv[2];
+  const cliArgs = process.argv.slice(2);
+  const autoPr = cliArgs.includes('--auto-pr');
+  const ticketArg = cliArgs.find((arg) => !arg.startsWith('--'));
   if (!ticketArg) {
-    console.error('Usage: pnpm ai:dev <ticket-number>');
+    console.error('Usage: pnpm ai:dev <ticket-number> [--auto-pr]');
     process.exitCode = 1;
     return;
   }
@@ -555,7 +638,22 @@ async function main() {
     resetSoft(resolvedBaseRef);
   }
 
-  printFinalReport(finalState);
+  const gatePassed =
+    finalState.status === 'passed' &&
+    finalState.review?.overallRisk?.level === 'low' &&
+    (finalState.review?.findings?.length ?? 0) === 0;
+
+  const prResult =
+    autoPr && gatePassed ? await attemptAutoPr({ ticket }) : null;
+
+  printFinalReport(finalState, prResult);
+
+  if (prResult?.created) {
+    log(
+      `further changes should be pushed as additional commits to branch "${ticket.branchName}" — not through another local WIP loop.`
+    );
+    return;
+  }
 
   await runFollowUpSession({ ticket, systemPrompt, typeCheckBaseline });
 
@@ -593,7 +691,8 @@ main().catch((err) => {
   if (
     err instanceof GitError ||
     err instanceof TicketError ||
-    err instanceof ChecksError
+    err instanceof ChecksError ||
+    err instanceof PrError
   ) {
     fail(err.message);
     return;
