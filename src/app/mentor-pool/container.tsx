@@ -1,15 +1,9 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useTransition,
-} from 'react';
+import { useCallback, useMemo, useRef, useState, useTransition } from 'react';
 
+import avatarImage from '@/assets/default-avatar.png';
 import type {
   FilterOptions,
   SelectFilters,
@@ -20,7 +14,6 @@ import type {
   TagCatalogGroupVO,
   TagCatalogsByBucket,
 } from '@/services/profile/tagCatalog';
-import { resolveMentorAvatar } from '@/services/search-mentor/mapMentor';
 import { fetchMentors, MentorType } from '@/services/search-mentor/mentors';
 
 import { PAGE_LIMIT } from './constants';
@@ -28,7 +21,6 @@ import { filterOptions } from './data';
 import {
   buildHref,
   clearAllConditions,
-  hasAnyCondition,
   paramsToFetchConditions,
   parseFiltersFromParams,
   removeFilterFromParams,
@@ -111,62 +103,15 @@ export default function MentorPoolContainer({
     return map;
   }, [tagCatalog.have_topic]);
 
-  // initialMentors is always the unfiltered list — a filtered deep link
-  // must not render it even for a frame, so start empty/loading instead.
-  const hasInitialFilters = hasAnyCondition(params);
-  const [mentorCount, setMentorCount] = useState<number>(
-    hasInitialFilters ? 0 : initialMentorCount
-  );
-  const [mentors, setMentors] = useState<MentorType[]>(
-    hasInitialFilters ? [] : initialMentors
-  );
-  const [isNoResults, setIsNoResults] = useState(
-    hasInitialFilters ? false : initialMentors.length === 0
-  );
-  const [isLoading, setIsLoading] = useState(hasInitialFilters);
-  const [cursor, setCursor] = useState<string | undefined>(
-    hasInitialFilters ? undefined : initialCursor
-  );
+  const [mentorCount, setMentorCount] = useState<number>(initialMentorCount);
+  const [mentors, setMentors] = useState<MentorType[]>(initialMentors);
+  const [isNoResults, setIsNoResults] = useState(initialMentors.length === 0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [cursor, setCursor] = useState<string | undefined>(initialCursor);
   const isLoadingRef = useRef(false);
   // Monotonic counter — every fetch claims an id. Late responses whose id no
   // longer matches the current value are stale and must not touch state.
   const requestIdRef = useRef(0);
-
-  // Refetches on every params change, including initial mount, since
-  // MentorPoolWithData no longer refetches per request. Clearing filters
-  // reuses `initial*` (already the unfiltered snapshot) instead of a fetch.
-  useEffect(() => {
-    const myRequestId = ++requestIdRef.current;
-
-    if (!hasAnyCondition(params)) {
-      setMentors(initialMentors);
-      setMentorCount(initialMentorCount);
-      setCursor(initialCursor);
-      setIsNoResults(initialMentors.length === 0);
-      setIsLoading(false);
-      isLoadingRef.current = false;
-      return;
-    }
-
-    const conditions = paramsToFetchConditions(params);
-    setIsLoading(true);
-    isLoadingRef.current = true;
-    setIsNoResults(false);
-
-    fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' }).then(
-      (list) => {
-        if (myRequestId !== requestIdRef.current) return;
-        const resolved = list.map(resolveMentorAvatar);
-        setMentors(resolved);
-        setMentorCount(resolved.length);
-        setCursor(resolved.at(-1)?.updated_at?.toString());
-        setIsNoResults(resolved.length === 0);
-        setIsLoading(false);
-        isLoadingRef.current = false;
-      }
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.toString()]);
 
   const fetchMoreMentors = useCallback(async () => {
     const myRequestId = ++requestIdRef.current;
@@ -180,7 +125,13 @@ export default function MentorPoolContainer({
     isLoadingRef.current = true;
     let rtnList: MentorType[] = [];
     try {
-      rtnList = (await fetchMentors(param)).map(resolveMentorAvatar);
+      rtnList = (await fetchMentors(param)).map((mentor) => ({
+        ...mentor,
+        avatar:
+          typeof mentor.avatar === 'string' && mentor.avatar
+            ? `${mentor.avatar}${mentor.updated_at ? `?cb=${mentor.updated_at}` : ''}`
+            : avatarImage,
+      }));
     } finally {
       if (myRequestId === requestIdRef.current) {
         setIsLoading(false);

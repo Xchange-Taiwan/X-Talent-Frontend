@@ -8,6 +8,8 @@ export const SEARCH_PARAM_KEY = 'q';
 
 export const FILTER_KEYS: ReadonlyArray<string> = Object.keys(filterOptions);
 
+export type ServerSearchParams = Record<string, string | string[] | undefined>;
+
 type AnyParams = URLSearchParams | ReadonlyURLSearchParams;
 
 export interface MentorPoolFetchConditions {
@@ -18,6 +20,22 @@ export interface MentorPoolFetchConditions {
   filter_skills?: string;
   filter_topics?: string;
   filter_industries?: string;
+}
+
+function pickString(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+export function toURLSearchParams(
+  searchParams: ServerSearchParams
+): URLSearchParams {
+  const next = new URLSearchParams();
+  Object.entries(searchParams).forEach(([key, value]) => {
+    const v = pickString(value);
+    if (v) next.set(key, v);
+  });
+  return next;
 }
 
 export function getSearchPatternFromParams(params: AnyParams | null): string {

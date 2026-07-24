@@ -15,10 +15,12 @@ const BASE_URL =
 // Filtered/searched listings have unbounded cache-key combinations, so we
 // bypass the data cache to avoid blowing up Next's fetch cache and the BFF.
 //
-// 24h TTL is safe because profile submits fire revalidatePath('/mentor-pool')
-// (profile/[pageUserId]/actions.ts) on user-driven changes; this TTL only
-// bounds staleness for out-of-band changes (admin actions, index lag).
-const REVALIDATE_SECONDS = 60 * 60 * 24;
+// 10-minute TTL (vs the original 60s) is safe because profile submits now
+// fire `revalidatePath('/mentor-pool')` (see profile/[pageUserId]/actions.ts),
+// so any user-driven change is invalidated on demand. The TTL only bounds
+// the staleness window for non-frontend-triggered changes (admin actions,
+// search-index lag, account deletions that don't yet revalidate this path).
+const REVALIDATE_SECONDS = 600;
 
 function buildUrl(
   path: string,

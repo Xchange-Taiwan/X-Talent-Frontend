@@ -3,39 +3,39 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { memo } from 'react';
+import { memo, useRef } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuthStatus } from '@/hooks/user/auth/useAuthStatus';
 import { trackEvent } from '@/lib/analytics';
 
 import { FEEDBACK_FORM_URL } from './constants';
-import { DisabledAwareLink } from './DisabledAwareLink';
 import { HamburgerMenu } from './HamburgerMenu';
 import { MobileUserMenu } from './MobileUserMenu';
-import { getBecomeMentorHref, getProfileHref } from './navHrefs';
 import { UserDropdown } from './UserDropdown';
 
 function HeaderComponent(): JSX.Element {
-  const { data: session } = useSession();
-  const {
-    authKnown,
-    isLoggedIn,
-    isMentor,
-    userId,
-    hasFullUser,
-    isResolvingUser,
-  } = useAuthStatus();
+  const { data: session, status } = useSession();
+  const wasAuthenticated = useRef(false);
+  if (status === 'authenticated') wasAuthenticated.current = true;
+  const isLoading = status === 'loading' && !wasAuthenticated.current;
+
+  const isLoggedIn = Boolean(session?.user?.id);
+  const isMentor = Boolean(session?.user?.isMentor);
+  const userId = session?.user?.id;
 
   const findMentorHref = '/mentor-pool';
 
-  // `userId` only ever comes from the real session, never the hint — while
-  // isResolvingUser is true these hrefs are unused (the link is disabled).
+  const becomeMentorHref = !isLoggedIn
+    ? '/auth/signup'
+    : `/profile/${userId}/edit?onboarding=true`;
+
+  const profileHref = userId ? `/profile/${userId}` : '/';
+
   const leftSecondNav = isMentor
-    ? { label: '我的導師頁面', href: getProfileHref(userId) }
-    : { label: '成為導師', href: getBecomeMentorHref(userId) };
+    ? { label: '我的導師頁面', href: profileHref }
+    : { label: '成為導師', href: becomeMentorHref };
 
   return (
     <header className="fixed inset-x-0 z-50 bg-light px-5">
@@ -53,16 +53,15 @@ function HeaderComponent(): JSX.Element {
               尋找導師
             </Link>
 
-            {!authKnown ? (
-              <Skeleton className="h-6 w-24" />
+            {isLoading ? (
+              <Skeleton className="h-4 w-20" />
             ) : (
-              <DisabledAwareLink
+              <Link
                 href={leftSecondNav.href}
-                disabled={isResolvingUser}
                 className="text-black font-['Open_Sans'] text-base"
               >
                 {leftSecondNav.label}
-              </DisabledAwareLink>
+              </Link>
             )}
 
             <Link
@@ -87,8 +86,8 @@ function HeaderComponent(): JSX.Element {
 
         <div className="flex items-center gap-3 md:mr-20">
           <div className="hidden items-center gap-3 md:flex">
-            {!authKnown ? (
-              <Skeleton className="h-9 w-9 rounded-full" />
+            {isLoading ? (
+              <Skeleton className="h-8 w-20 rounded-full" />
             ) : !isLoggedIn ? (
               <>
                 <Link href="/auth/signup">
@@ -104,20 +103,22 @@ function HeaderComponent(): JSX.Element {
                   <Button className="bg-primary hover:bg-primary">登入</Button>
                 </Link>
               </>
-            ) : hasFullUser ? (
-              <UserDropdown user={session!.user} />
             ) : (
-              <Skeleton className="h-9 w-9 rounded-full" />
+              <UserDropdown user={session!.user} />
             )}
           </div>
 
           <div className="flex items-center gap-3 md:hidden">
-            {hasFullUser ? <MobileUserMenu user={session!.user} /> : null}
+            {isLoading ? (
+              <Skeleton className="h-8 w-8 rounded-full" />
+            ) : isLoggedIn ? (
+              <MobileUserMenu user={session!.user} />
+            ) : null}
             <HamburgerMenu
+              isLoading={isLoading}
               isLoggedIn={isLoggedIn}
               isMentor={isMentor}
               userId={userId}
-              isResolvingUser={isResolvingUser}
             />
           </div>
         </div>
