@@ -47,6 +47,13 @@ const MAX_SEARCH_CHARS = 8_000;
 const LARGE_FILE_LINE_LIMIT = 400;
 const LARGE_FILE_CHAR_LIMIT = 15_000;
 
+// The large-deletion guard below used to tell the agent to "confirm via a
+// comment" without any code actually checking for one — a dead-end error
+// message that could never be satisfied, burning iterations forever on any
+// legitimate large deletion/refactor. This is the literal marker it checks for.
+const INTENTIONAL_DELETION_MARKER_TEXT = 'ai-dev: intentional-deletion';
+const INTENTIONAL_DELETION_MARKER = /ai-dev:\s*intentional-deletion/i;
+
 export class FileTooLargeError extends Error {}
 export class BinaryFileError extends Error {}
 
@@ -135,11 +142,16 @@ export function writeFile({ path, content }) {
 
     const originalLines = originalContent.split('\n').length;
     const newLines = content.split('\n').length;
-    if (originalLines > 20 && newLines < originalLines * 0.5) {
+    if (
+      originalLines > 20 &&
+      newLines < originalLines * 0.5 &&
+      !INTENTIONAL_DELETION_MARKER.test(content)
+    ) {
       throw new PathGuardError(
         `Refused: new content for "${relativePath}" has ${newLines} lines vs the original's ${originalLines} — ` +
           'this looks like truncated/lazy output, not an intentional large deletion. ' +
-          'Re-read the file and supply the full content, or confirm this deletion is intentional by writing again with a comment noting so.'
+          `Re-read the file and supply the full content, or if this deletion is intentional, include the ` +
+          `literal marker "${INTENTIONAL_DELETION_MARKER_TEXT}" anywhere in the content and write again.`
       );
     }
   }
@@ -303,7 +315,9 @@ export const TOOL_DECLARATIONS = [
   {
     name: 'writeFile',
     description:
-      'Overwrite (or create) a text file with the complete new content. Never use omission placeholders — always supply the full file.',
+      'Overwrite (or create) a text file with the complete new content. Never use omission placeholders — always supply the full file. ' +
+      'If intentionally deleting more than half of an existing file (20+ lines), include the literal string ' +
+      '"ai-dev: intentional-deletion" anywhere in content, or the write will be refused as suspected truncation.',
     parameters: {
       type: 'object',
       properties: {
