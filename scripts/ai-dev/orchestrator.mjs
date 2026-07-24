@@ -67,6 +67,10 @@ const SYSTEM_PROMPT_URL = new URL(
   import.meta.url
 );
 
+// Module-scope on purpose: set once in main() after the ticket branch is
+// checked out, then read via closure from attemptAutoPr() and the retry/
+// follow-up task builders below — all in this same file. Not a bug, not a
+// missing parameter; every function in this module can see these.
 let hasCommittedThisRun = false;
 let resolvedBaseRef = null;
 
@@ -355,6 +359,8 @@ async function attemptAutoPr({ ticket }) {
     log(
       `auto-pr: push failed (${err.message}) — rolling back the local commit, falling back to manual hand-off.`
     );
+    // resolvedBaseRef is the module-scope variable declared near the top of
+    // this file (set by main()), not an undefined local — see the comment there.
     resetSoft(resolvedBaseRef);
     return { created: false };
   }
