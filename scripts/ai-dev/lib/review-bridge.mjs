@@ -124,7 +124,34 @@ export async function reviewDiff({ baseRef, ticket }) {
     return (result.findings ?? []).map((f) => ({ ...f, source: title }));
   });
 
-  const overallRisk = summary?.overallRisk ?? null;
+  // Fail-closed: if the Summary call itself failed, we have no real risk
+  // verdict — treating that as "overallRisk is null, so not high, so not
+  // blocking" would let a broken review call masquerade as a clean pass.
+  // Force another round instead; if the failure is persistent this just
+  // burns iterations honestly rather than silently reporting success.
+  if (!summary) {
+    return {
+      hasBlockingFindings: true,
+      summary: 'Summary reviewer call failed — no risk verdict available, treating as blocking.',
+      findings: [
+        ...findings,
+        {
+          file: '(review infrastructure)',
+          line: null,
+          category: 'Review Infrastructure Failure',
+          issue: 'The Summary judgment call failed, so no overall risk verdict could be produced.',
+          why: 'Without it there is no way to tell whether this round is safe to accept — defaulting to blocking is safer than a false pass.',
+          fix: 'Check network connectivity / GEMINI_API_KEY / API status and retry.',
+          source: '⚠️ Review Infrastructure',
+        },
+      ],
+      overallRisk: null,
+      mergeRecommendation: null,
+      plan,
+    };
+  }
+
+  const overallRisk = summary.overallRisk ?? null;
   const hasBlockingFindings = overallRisk?.level === 'high';
 
   return {
@@ -134,7 +161,7 @@ export async function reviewDiff({ baseRef, ticket }) {
       : (plan?.requirementSummary ?? ''),
     findings,
     overallRisk,
-    mergeRecommendation: summary?.mergeRecommendation ?? null,
+    mergeRecommendation: summary.mergeRecommendation ?? null,
     plan,
   };
 }

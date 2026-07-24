@@ -1,4 +1,5 @@
 import crossSpawn from 'cross-spawn';
+import treeKill from 'tree-kill';
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_OUTPUT_CHARS = 8_000;
@@ -8,9 +9,22 @@ const DEFAULT_MAX_OUTPUT_CHARS = 8_000;
 // mid-check (see orchestrator.mjs's SIGINT handler).
 const activeChildren = new Set();
 
+// `child.kill()` only signals the top-level process cross-spawn started —
+// on Windows that's a `.cmd` wrapper, on POSIX `pnpm` itself may exec a
+// further child. Neither reliably propagates to the actual eslint/tsc
+// process underneath, leaving it orphaned to keep running (and holding file
+// locks) after a timeout or Ctrl+C. tree-kill walks the whole process tree.
+function killTree(child) {
+  if (child.pid) {
+    treeKill(child.pid, 'SIGTERM');
+  } else {
+    child.kill();
+  }
+}
+
 export function killActiveChildren() {
   for (const child of activeChildren) {
-    child.kill();
+    killTree(child);
   }
 }
 
@@ -61,7 +75,7 @@ export function runProcess(
 
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill();
+      killTree(child);
     }, timeoutMs);
 
     child.stdout?.on('data', (chunk) => {
