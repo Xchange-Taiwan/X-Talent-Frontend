@@ -12,31 +12,35 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { Skeleton } from '@/components/ui/skeleton';
 import { trackEvent } from '@/lib/analytics';
 
 import { FEEDBACK_FORM_URL } from './constants';
+import { DisabledAwareLink } from './DisabledAwareLink';
+import { getBecomeMentorHref, getProfileHref } from './navHrefs';
 
 export type HamburgerMenuProps = {
-  isLoading: boolean;
   isLoggedIn: boolean;
   isMentor: boolean;
   userId?: string;
+  /**
+   * Logged in per the fast session hint, but `userId` hasn't landed yet —
+   * owned by Header's `useAuthStatus()`, passed down rather than re-derived
+   * here so the two never drift out of sync.
+   */
+  isResolvingUser: boolean;
 };
 
 export function HamburgerMenu({
-  isLoading,
   isLoggedIn,
   isMentor,
   userId,
+  isResolvingUser,
 }: HamburgerMenuProps): JSX.Element {
   const [open, setOpen] = React.useState(false);
   const close = (): void => setOpen(false);
 
-  const profilePath = userId ? `/profile/${userId}` : '/';
-  const becomeMentorPath = !isLoggedIn
-    ? '/auth/signup'
-    : `/profile/${userId}/edit?onboarding=true`;
+  const profilePath = getProfileHref(userId);
+  const becomeMentorPath = getBecomeMentorHref(userId);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -63,20 +67,24 @@ export function HamburgerMenu({
               尋找導師
             </Link>
 
-            {isLoading ? (
-              <Skeleton className="h-5 w-24" />
-            ) : isMentor ? (
-              <Link href={profilePath} onClick={close} className="text-black">
+            {isMentor ? (
+              <DisabledAwareLink
+                href={profilePath}
+                onClick={close}
+                disabled={isResolvingUser}
+                className="text-black"
+              >
                 我的導師頁面
-              </Link>
+              </DisabledAwareLink>
             ) : (
-              <Link
+              <DisabledAwareLink
                 href={becomeMentorPath}
                 onClick={close}
+                disabled={isResolvingUser}
                 className="text-black"
               >
                 成為導師
-              </Link>
+              </DisabledAwareLink>
             )}
 
             <Link href="/about" onClick={close} className="text-black">
@@ -100,28 +108,19 @@ export function HamburgerMenu({
 
           {!isLoggedIn && (
             <div className="mt-auto flex flex-col items-center gap-6 pb-6">
-              {isLoading ? (
-                <>
-                  <Skeleton className="h-10 w-40 rounded-md" />
-                  <Skeleton className="h-10 w-40 rounded-md" />
-                </>
-              ) : (
-                <>
-                  <Link href="/auth/signin" onClick={close}>
-                    <Button className="w-40 bg-primary hover:bg-primary">
-                      登入
-                    </Button>
-                  </Link>
-                  <Link href="/auth/signup" onClick={close}>
-                    <Button
-                      variant="outline"
-                      className="w-40 border-primary text-primary hover:text-primary"
-                    >
-                      註冊
-                    </Button>
-                  </Link>
-                </>
-              )}
+              <Link href="/auth/signin" onClick={close}>
+                <Button className="w-40 bg-primary hover:bg-primary">
+                  登入
+                </Button>
+              </Link>
+              <Link href="/auth/signup" onClick={close}>
+                <Button
+                  variant="outline"
+                  className="w-40 border-primary text-primary hover:text-primary"
+                >
+                  註冊
+                </Button>
+              </Link>
             </div>
           )}
         </div>
