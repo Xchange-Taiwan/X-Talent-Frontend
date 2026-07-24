@@ -205,12 +205,16 @@ export function searchFiles({ pattern, path = '.' }) {
       'git',
       // --untracked: the agent's own new files aren't committed yet, and a
       // search that silently skips them would be worse than useless.
+      // -e forces the next arg to be treated as the pattern, not an option —
+      // without it a pattern starting with `-` (LLM-generated or injected
+      // via ticket content) would be parsed as a git grep flag.
       [
         'grep',
         '-n',
         '-I',
         '--untracked',
         '-E',
+        '-e',
         pattern,
         '--',
         relativePath || '.',

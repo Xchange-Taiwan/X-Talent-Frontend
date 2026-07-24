@@ -20,14 +20,24 @@ function sleep(ms) {
 }
 
 async function callOnce(body, { apiKey, model }) {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify(body),
-    }
-  );
+  let res;
+  try {
+    res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify(body),
+      }
+    );
+  } catch (err) {
+    // fetch() itself throwing (DNS failure, connection reset, timeout) never
+    // reaches the res.ok check below, so it needs its own retryable tag —
+    // otherwise a network blip aborts the whole run on the first hiccup.
+    const wrapped = new Error(`Gemini API request failed: ${err.message}`);
+    wrapped.retryable = true;
+    throw wrapped;
+  }
 
   if (!res.ok) {
     const errText = await res.text();

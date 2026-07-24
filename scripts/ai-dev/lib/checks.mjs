@@ -90,5 +90,12 @@ export async function diffTypeCheckErrors(baselineSet) {
   }
   const current = parseTypeCheckErrorLines(`${stdout}\n${stderr}`);
   const newErrors = current.filter((line) => !baselineSet.has(line));
-  return { ok: code === 0 && newErrors.length === 0, newErrors };
+  // tsc exits non-zero whenever ANY error exists, including pre-existing
+  // baseline ones — requiring code === 0 would make this permanently fail
+  // on any repo that already had type errors before the agent started,
+  // even when the agent introduced nothing new. `current.length > 0`
+  // confirms the non-zero exit is explained by parseable TS errors (not a
+  // tsc crash for some other reason) before treating it as a pass.
+  const ok = newErrors.length === 0 && (code === 0 || current.length > 0);
+  return { ok, newErrors };
 }
