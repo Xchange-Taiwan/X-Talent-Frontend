@@ -125,7 +125,7 @@ describe('writeFile — lazy omission placeholder guard', () => {
 describe('writeFile — large file guard', () => {
   it('refuses to overwrite an existing file over the line-count limit', () => {
     const bigFile = Array.from(
-      { length: 401 },
+      { length: 2_001 },
       (_, i) => `const x${i} = ${i};`
     ).join('\n');
     writeFileSync(`${SCRATCH}/huge.ts`, bigFile, 'utf-8');
@@ -135,7 +135,7 @@ describe('writeFile — large file guard', () => {
   });
 
   it('refuses to overwrite an existing file over the char-count limit even with few lines', () => {
-    const bigFile = 'x'.repeat(16_000);
+    const bigFile = 'x'.repeat(76_000);
     writeFileSync(`${SCRATCH}/hugechars.ts`, bigFile, 'utf-8');
     expect(() =>
       writeFile({ path: `${SCRATCH}/hugechars.ts`, content: 'x' })
