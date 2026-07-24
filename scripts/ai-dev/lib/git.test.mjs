@@ -19,6 +19,7 @@ const {
   stageAll,
   hasStagedChanges,
   stagedFilesExcludingDeleted,
+  diffNameOnly,
   commitWip,
   remoteOriginUrl,
   parseOwnerRepo,
@@ -199,16 +200,37 @@ describe('hasStagedChanges', () => {
 });
 
 describe('stagedFilesExcludingDeleted', () => {
-  it('splits newline-separated output into a file list', () => {
+  it('splits NUL-delimited output into a file list', () => {
     mockGit({
-      'diff --cached --name-only --diff-filter=d': 'src/a.ts\nsrc/b.ts\n',
+      'diff --cached --name-only --diff-filter=d -z': 'src/a.ts\0src/b.ts\0',
     });
     expect(stagedFilesExcludingDeleted()).toEqual(['src/a.ts', 'src/b.ts']);
   });
 
   it('returns an empty array when there is no output', () => {
-    mockGit({ 'diff --cached --name-only --diff-filter=d': '' });
+    mockGit({ 'diff --cached --name-only --diff-filter=d -z': '' });
     expect(stagedFilesExcludingDeleted()).toEqual([]);
+  });
+
+  it('uses -z so a non-ASCII filename comes back raw instead of quoted/escaped', () => {
+    mockGit({
+      'diff --cached --name-only --diff-filter=d -z': 'src/檔案.ts\0',
+    });
+    expect(stagedFilesExcludingDeleted()).toEqual(['src/檔案.ts']);
+  });
+});
+
+describe('diffNameOnly', () => {
+  it('splits NUL-delimited output into a file list', () => {
+    mockGit({
+      'diff --name-only -z abc123...HEAD': 'src/a.ts\0src/b.ts\0',
+    });
+    expect(diffNameOnly('abc123')).toEqual(['src/a.ts', 'src/b.ts']);
+  });
+
+  it('uses -z so a non-ASCII filename comes back raw instead of quoted/escaped', () => {
+    mockGit({ 'diff --name-only -z abc123...HEAD': 'src/檔案.ts\0' });
+    expect(diffNameOnly('abc123')).toEqual(['src/檔案.ts']);
   });
 });
 

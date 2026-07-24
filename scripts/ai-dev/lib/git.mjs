@@ -109,9 +109,14 @@ export function hasStagedChanges() {
 }
 
 /** Staged files, excluding deletions (Round 10: a deleted file must not be handed to eslint). */
+/** `-z`: git's default core.quotePath=true wraps and C-escapes any filename with
+ * non-ASCII characters in the porcelain output (e.g. `"src/檔案.ts"`) — splitting
+ * that on '\n' would hand a literal-but-wrong quoted string to callers like
+ * stageFiles/eslint, which then fail on "no such file". -z switches to raw,
+ * unquoted, NUL-delimited output instead. */
 export function stagedFilesExcludingDeleted() {
-  const out = run(['diff', '--cached', '--name-only', '--diff-filter=d']);
-  return out ? out.split('\n').filter(Boolean) : [];
+  const out = run(['diff', '--cached', '--name-only', '--diff-filter=d', '-z']);
+  return out ? out.split('\0').filter(Boolean) : [];
 }
 
 export function commitWip(message) {
@@ -120,8 +125,8 @@ export function commitWip(message) {
 
 /** Files changed between baseRef and HEAD (committed history only — WIP commits included). */
 export function diffNameOnly(baseRef) {
-  const out = run(['diff', '--name-only', `${baseRef}...HEAD`]);
-  return out ? out.split('\n').filter(Boolean) : [];
+  const out = run(['diff', '--name-only', '-z', `${baseRef}...HEAD`]);
+  return out ? out.split('\0').filter(Boolean) : [];
 }
 
 export function remoteOriginUrl() {
