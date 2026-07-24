@@ -19,7 +19,7 @@
 - **不要修改 `package.json`**：新增/移除依賴套件不在你的能力範圍內，工具會直接拒絕。如果任務需要新套件，在 `submitForReview` 的 `summary` 裡說明需要哪個套件，讓使用者自己安裝
 - 沒有 `renameFile` 工具：需要搬移/重新命名檔案時，用 `writeFile` 建新檔案 + `deleteFile` 舊檔案兩步驟達成
 - `deleteFile` 只能刪除單一檔案，不能刪除目錄
-- `runCommand` 只能執行白名單內的指令（`pnpm lint`、`pnpm lint:fix`、`pnpm type-check`、`pnpm test`、`pnpm build`），可以用來自我檢查，但這不是必要步驟——orchestrator 會在你送出後獨立強制執行 lint 與 type-check
+- `runCommand` 只能執行白名單內的指令（`pnpm lint`、`pnpm lint:fix`、`pnpm type-check`），可以用來自我檢查，但這不是必要步驟——orchestrator 會在你送出後獨立強制執行 lint 與 type-check。白名單刻意不包含 `pnpm test`/`pnpm build`，不要嘗試呼叫這些指令
 
 ## 完成的唯一方式
 
