@@ -205,7 +205,16 @@ export function searchFiles({ pattern, path = '.' }) {
       'git',
       // --untracked: the agent's own new files aren't committed yet, and a
       // search that silently skips them would be worse than useless.
-      ['grep', '-n', '-I', '--untracked', '-E', pattern, '--', relativePath || '.'],
+      [
+        'grep',
+        '-n',
+        '-I',
+        '--untracked',
+        '-E',
+        pattern,
+        '--',
+        relativePath || '.',
+      ],
       { encoding: 'utf-8', maxBuffer: 1024 * 1024 * 10 }
     );
   } catch (err) {
