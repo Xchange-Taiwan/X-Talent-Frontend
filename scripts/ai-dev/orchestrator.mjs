@@ -166,6 +166,7 @@ async function runDevAgentTurn({ systemPrompt, task }) {
 
     const calls = extractFunctionCalls(candidate);
     if (calls.length === 0) {
+      log(`  turn ${turn}/${MAX_TURNS_PER_ITERATION}: no tool call — nudging`);
       contents.push(
         userTurn(
           'You must call a tool to make progress; plain text is not read by anyone. Call submitForReview when your changes are complete.'
@@ -173,6 +174,10 @@ async function runDevAgentTurn({ systemPrompt, task }) {
       );
       continue;
     }
+    log(
+      `  turn ${turn}/${MAX_TURNS_PER_ITERATION}: ` +
+        calls.map((c) => `${c.name}(${summarizeCallArgs(c)})`).join(', ')
+    );
 
     // Round 8: if the model returns multiple parallel calls in one turn, run
     // every non-submit call first so all edits land before we hand off — and
@@ -193,6 +198,7 @@ async function runDevAgentTurn({ systemPrompt, task }) {
         }
       } catch (err) {
         if (err instanceof FileTooLargeError) throw err; // Round 10: abort the whole run, don't loop on it
+        log(`    ${call.name} failed: ${err.message}`);
         results.push({ name: call.name, response: { error: err.message } });
       }
     }
@@ -209,6 +215,14 @@ async function runDevAgentTurn({ systemPrompt, task }) {
   throw new Error(
     `Dev agent exceeded ${MAX_TURNS_PER_ITERATION} tool-call turns without calling submitForReview.`
   );
+}
+
+function summarizeCallArgs(call) {
+  const { path, command, pattern } = call.args ?? {};
+  if (path) return path;
+  if (command) return command;
+  if (pattern) return pattern;
+  return '';
 }
 
 function diffHash(baseRef) {
