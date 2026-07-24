@@ -104,13 +104,11 @@ describe('callGeminiAgent — success paths', () => {
 
 describe('callGeminiAgent — non-retryable failure modes', () => {
   it('throws a clear error on MAX_TOKENS without retrying', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        jsonResponse({
-          candidates: [{ finishReason: 'MAX_TOKENS', content: {} }],
-        })
-      );
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse({
+        candidates: [{ finishReason: 'MAX_TOKENS', content: {} }],
+      })
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(callGeminiAgent(baseArgs)).rejects.toThrow(/MAX_TOKENS/);
