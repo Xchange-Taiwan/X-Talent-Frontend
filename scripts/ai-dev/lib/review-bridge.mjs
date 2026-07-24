@@ -57,7 +57,9 @@ async function runSpecialist(key, title, plan, diff, truncatedNote) {
       TRUNCATED_NOTE: truncatedNote,
     });
     const result = await callGemini(prompt);
-    const findingsCount = result?.hasFindings ? (result.findings ?? []).length : 0;
+    const findingsCount = result?.hasFindings
+      ? (result.findings ?? []).length
+      : 0;
     console.log(`[review] ${title}: done (${findingsCount} finding(s))`);
     return result;
   } catch (err) {
