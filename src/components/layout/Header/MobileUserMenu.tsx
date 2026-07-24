@@ -35,11 +35,8 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
 
   const userId = user.id;
   const isMentor = Boolean(user.isMentor);
-  const canDeleteAccount = [
-    'testing_visitor@xchange.com.tw',
-    'testing_mentee@xchange.com.tw',
-    'testing_mentor@xchange.com.tw',
-  ].includes(user.email ?? '');
+  const canDeleteAccount =
+    process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT === 'true';
   const name = user.name ?? '';
   // Read through useCurrentAvatar so a just-uploaded avatar shows up before
   // NextAuth's session round-trip lands. URL already carries its own `?v=`
