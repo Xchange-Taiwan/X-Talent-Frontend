@@ -254,13 +254,20 @@ describe('diffTypeCheckErrors', () => {
   });
 
   it('detects a second occurrence of an identically-worded error as new (count-based, not a plain Set)', async () => {
-    const line = "src/foo.ts(10,5): error TS2322: Type 'string' is not assignable to type 'number'.";
-    runProcess.mockResolvedValue({ code: 1, stdout: line, stderr: '', timedOut: false });
+    const line =
+      "src/foo.ts(10,5): error TS2322: Type 'string' is not assignable to type 'number'.";
+    runProcess.mockResolvedValue({
+      code: 1,
+      stdout: line,
+      stderr: '',
+      timedOut: false,
+    });
     const baseline = await captureTypeCheckBaseline();
 
     // same exact wording, but now appears twice — e.g. the agent copy-pasted
     // the same buggy pattern into a second call site in the same file
-    const otherLine = "src/foo.ts(88,5): error TS2322: Type 'string' is not assignable to type 'number'.";
+    const otherLine =
+      "src/foo.ts(88,5): error TS2322: Type 'string' is not assignable to type 'number'.";
     runProcess.mockResolvedValue({
       code: 1,
       stdout: tscOutput(line, otherLine),
@@ -274,7 +281,8 @@ describe('diffTypeCheckErrors', () => {
   });
 
   it('does not flag anything new when the current run has the same count as the baseline', async () => {
-    const line = "src/foo.ts(10,5): error TS2322: Type 'string' is not assignable to type 'number'.";
+    const line =
+      "src/foo.ts(10,5): error TS2322: Type 'string' is not assignable to type 'number'.";
     runProcess.mockResolvedValue({
       code: 1,
       stdout: tscOutput(line, line),
