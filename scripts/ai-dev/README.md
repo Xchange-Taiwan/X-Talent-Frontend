@@ -85,7 +85,7 @@ final findings are left exactly as-is for you to take over manually.
   path) yourself if the agent doesn't
 - **No directory deletion.** `deleteFile` only removes single files
 - **Full-file rewrites only** — there's no patch/diff-based edit tool yet, so
-  files over ~400 lines / 15KB are refused outright rather than risking a
+  files over ~2000 lines / 75KB are refused outright rather than risking a
   truncated rewrite. Planned for a v2 `editFile` tool
 - **Don't hand-edit files while a run is in progress** — there's no file
   locking; concurrent edits can be silently overwritten by the next WIP commit

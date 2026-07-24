@@ -44,8 +44,8 @@ const MAX_SEARCH_CHARS = 8_000;
 // than refusing up front — the agent ends up in an unrecoverable parse-error
 // loop. v1 has no patch-based edit tool, so large files are simply out of
 // scope (tracked as a v2 follow-up).
-const LARGE_FILE_LINE_LIMIT = 400;
-const LARGE_FILE_CHAR_LIMIT = 15_000;
+const LARGE_FILE_LINE_LIMIT = 2_000;
+const LARGE_FILE_CHAR_LIMIT = 75_000;
 
 // The large-deletion guard below used to tell the agent to "confirm via a
 // comment" without any code actually checking for one — a dead-end error
