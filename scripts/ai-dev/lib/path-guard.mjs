@@ -1,4 +1,4 @@
-import { resolve, sep } from 'node:path';
+import { basename, resolve, sep } from 'node:path';
 
 const REPO_ROOT = process.cwd();
 
@@ -57,6 +57,26 @@ const BLOCKED_EXACT = new Set([
   'sentry.client.config.ts',
 ]);
 
+// ESLint (and Prettier's JS config format) cascade: a config file found in
+// ANY ancestor directory of a linted file gets require()'d and executed,
+// not just one at the repo root. BLOCKED_EXACT above only stops the
+// root-level copy — `src/components/.eslintrc.js` would sail straight
+// through and then get auto-executed the next time `checks.mjs` force-runs
+// eslint, with no human ever having reviewed the diff first. Block these by
+// basename, at any depth.
+const BLOCKED_BASENAMES = new Set([
+  '.eslintrc.js',
+  '.eslintrc.cjs',
+  '.eslintrc.json',
+  '.eslintrc.yml',
+  '.eslintrc.yaml',
+  'eslint.config.js',
+  'eslint.config.mjs',
+  'eslint.config.cjs',
+  'prettier.config.js',
+  '.prettierrc.js',
+]);
+
 export class PathGuardError extends Error {}
 
 /** Converts any path (Windows `\` or POSIX `/`) to a forward-slash form for comparison. */
@@ -107,6 +127,12 @@ export function guardPath(inputPath) {
   if (BLOCKED_EXACT.has(matchPath)) {
     throw new PathGuardError(
       `"${relPosix}" is not editable by ai:dev (blocked file) — v1 does not support dependency or config changes.`
+    );
+  }
+
+  if (BLOCKED_BASENAMES.has(basename(matchPath))) {
+    throw new PathGuardError(
+      `"${relPosix}" is not editable by ai:dev (blocked file — auto-loaded tool config, blocked at any directory depth).`
     );
   }
 

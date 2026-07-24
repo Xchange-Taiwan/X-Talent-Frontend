@@ -14,6 +14,16 @@ export function killActiveChildren() {
   }
 }
 
+// Everything spawned here (eslint, tsc, and anything the agent runs via its
+// own runCommand whitelist) is potentially executing code the agent just
+// wrote, which a prompt-injected ticket could have steered. Don't hand that
+// code a live copy of our own secret.
+function buildChildEnv() {
+  const env = { ...process.env, CI: 'true' };
+  delete env.GEMINI_API_KEY;
+  return env;
+}
+
 /** Keeps only the last `maxChars` of `buffer + chunk` — errors/summaries from
  * tsc/eslint land at the end of the output, so the tail is what matters. */
 function appendTruncated(buffer, chunk, maxChars) {
@@ -41,7 +51,7 @@ export function runProcess(
   return new Promise((resolvePromise) => {
     const child = crossSpawn(command, args, {
       cwd,
-      env: { ...process.env, CI: 'true' },
+      env: buildChildEnv(),
     });
     activeChildren.add(child);
 

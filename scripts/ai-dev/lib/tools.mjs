@@ -258,12 +258,18 @@ export function submitForReview({ summary }) {
 // The agent may self-check with these before submitting; the orchestrator
 // also force-runs lint/type-check independently regardless (see checks.mjs) —
 // this is a self-serve convenience, not the enforcement mechanism.
+//
+// `pnpm test` / `pnpm build` are deliberately NOT in this list. Node has no
+// process-level sandbox, and `writeFile` already lets the agent create test
+// files — letting it also self-trigger `pnpm test` means agent-authored code
+// (potentially steered by a prompt-injected ticket) executes immediately,
+// with no human having reviewed the diff yet. Removing them here doesn't
+// weaken the enforcement gate (that's checks.mjs, untouched); it only
+// removes an optional self-check the agent never strictly needed.
 const ALLOWED_COMMANDS = {
   'pnpm lint': ['pnpm', ['lint']],
   'pnpm lint:fix': ['pnpm', ['lint:fix']],
   'pnpm type-check': ['pnpm', ['type-check']],
-  'pnpm test': ['pnpm', ['test']],
-  'pnpm build': ['pnpm', ['build']],
 };
 
 export async function runCommand({ command }) {
@@ -274,10 +280,7 @@ export async function runCommand({ command }) {
     );
   }
   const [bin, args] = entry;
-  const { code, stdout, stderr, timedOut } = await runProcess(bin, args, {
-    timeoutMs:
-      command === 'pnpm test' || command === 'pnpm build' ? 120_000 : 60_000,
-  });
+  const { code, stdout, stderr, timedOut } = await runProcess(bin, args, { timeoutMs: 60_000 });
   return { command, exitCode: code, stdout, stderr, timedOut };
 }
 
