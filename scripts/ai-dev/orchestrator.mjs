@@ -304,6 +304,13 @@ function printFinalReport(finalState, prResult) {
     console.log(`\n[ai:dev] opened PR: ${prResult.url}`);
     return;
   }
+  if (prResult?.pushed) {
+    console.log(
+      `\n[ai:dev] commit was pushed to origin/${currentBranch()} but no PR was opened — ` +
+        'open one manually, or re-run.'
+    );
+    return;
+  }
   if (hasCommittedThisRun) {
     console.log(
       `\n[ai:dev] collapsed the WIP commit(s) back onto branch "${currentBranch()}" — ` +
@@ -372,14 +379,19 @@ async function attemptAutoPr({ ticket }) {
       body: buildPrBody(ticket),
     });
     hasCommittedThisRun = false; // it's a real, already-pushed commit now — nothing left to collapse
-    return { created: true, url };
+    return { created: true, pushed: true, url };
   } catch (err) {
     log(
       `auto-pr: branch was pushed but \`gh pr create\` failed (${err.message}). ` +
         `The commit is already on origin/${ticket.branchName} — open the PR manually or re-run.`
     );
     hasCommittedThisRun = false; // already pushed; a local reset here would not undo the remote commit
-    return { created: false };
+    // pushed: true is load-bearing — main() must skip runFollowUpSession in
+    // this case too, not just when created is true. Once a real commit is
+    // pushed, resolvedBaseRef no longer represents "nothing has happened
+    // yet"; letting the follow-up loop's resetSoft(resolvedBaseRef) run
+    // would erase this already-pushed commit from local history.
+    return { created: false, pushed: true };
   }
 }
 
@@ -652,7 +664,12 @@ async function main() {
 
   printFinalReport(finalState, prResult);
 
-  if (prResult?.created) {
+  if (prResult?.created || prResult?.pushed) {
+    // A real commit is on origin/<branch> in both cases — skip the follow-up
+    // loop entirely. Its resetSoft(resolvedBaseRef) is only safe when nothing
+    // has been pushed yet; running it here would erase that pushed commit
+    // from local history (see attemptAutoPr's push-succeeded-but-create-
+    // failed branch).
     log(
       `further changes should be pushed as additional commits to branch "${ticket.branchName}" — not through another local WIP loop.`
     );
