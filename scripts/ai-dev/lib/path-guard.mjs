@@ -98,7 +98,10 @@ export function guardPath(inputPath) {
   const matchPath = relPosix.toLowerCase();
 
   if (ALLOWED_EXACT_EXCEPTIONS.has(matchPath)) {
-    return { absolutePath: resolve(REPO_ROOT, relPosix), relativePath: relPosix };
+    return {
+      absolutePath: resolve(REPO_ROOT, relPosix),
+      relativePath: relPosix,
+    };
   }
 
   if (BLOCKED_EXACT.has(matchPath)) {
