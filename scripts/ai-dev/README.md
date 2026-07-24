@@ -52,9 +52,14 @@ There are no other required arguments. The tool:
    blamed on the agent
 4. If lint/type-check fails, those errors go back to the dev agent as the
    next round's task — the Gemini reviewer isn't even called
-5. Otherwise, the cumulative diff (`baseRef...HEAD`) goes to a Gemini
-   reviewer. Blocking findings go back to the dev agent; a clean pass ends
-   the run successfully
+5. Otherwise, the cumulative diff (`baseRef...HEAD`) goes through the same
+   review pipeline CI runs on every PR: a Planner, then 6 specialist
+   reviewers (Security / Correctness / Business Logic / Performance /
+   Testing / Architecture) in parallel, then a Summary judgment call that
+   assigns an overall risk level. A `high` risk sends the findings back to
+   the dev agent for another round; `medium`/`low` end the run successfully
+   (their findings are still shown in the final report, just not treated as
+   blocking)
 6. A circuit breaker stops the run early (before the iteration cap) if two
    consecutive rounds produce the same findings or an identical diff — the
    agent isn't making progress
