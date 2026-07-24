@@ -37,7 +37,10 @@ export async function autoFixAndLintStaged() {
     return { skipped: true, ok: true, output: '' };
   }
 
-  await runProcess('pnpm', ['exec', 'eslint', '--fix', ...files], {
+  // `--` terminates option parsing — without it, a file name starting with
+  // `-` (e.g. a dev-agent-created "--config=malicious.js") would be parsed
+  // as an eslint flag instead of a path (argument injection).
+  await runProcess('pnpm', ['exec', 'eslint', '--fix', '--', ...files], {
     timeoutMs: 60_000,
   });
   // --fix may have rewritten files on disk — re-stage so the WIP commit picks up the fixes.
@@ -45,7 +48,7 @@ export async function autoFixAndLintStaged() {
 
   const { code, stdout, stderr } = await runProcess(
     'pnpm',
-    ['exec', 'eslint', ...files],
+    ['exec', 'eslint', '--', ...files],
     {
       timeoutMs: 60_000,
     }
