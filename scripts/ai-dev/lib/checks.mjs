@@ -59,13 +59,28 @@ export async function autoFixAndLintStaged() {
   };
 }
 
-const TSC_ERROR_LINE = /^.+?\(\d+,\d+\): error TS\d+: .+$/;
+const TSC_ERROR_LINE = /^(.+?)\(\d+,\d+\): (error TS\d+: .+)$/;
 
-function parseTypeCheckErrorLines(output) {
-  return output
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => TSC_ERROR_LINE.test(line));
+/**
+ * Parses tsc output into `{ raw, key }` pairs. `key` deliberately drops the
+ * line/column — if the agent inserts a line above a pre-existing error
+ * (e.g. a new import), every baseline error below it shifts by one line and
+ * would no longer string-match the baseline, getting misclassified as "new"
+ * even though it's the same pre-existing issue. Comparing by file+code+message
+ * instead survives line shifts; `raw` (with the real line number) is kept
+ * for what actually gets shown to the agent.
+ */
+function parseTypeCheckErrors(output) {
+  const errors = [];
+  for (const rawLine of output.split('\n')) {
+    const line = rawLine.trim();
+    const match = line.match(TSC_ERROR_LINE);
+    if (match) {
+      const [, file, rest] = match;
+      errors.push({ raw: line, key: `${file}: ${rest}` });
+    }
+  }
+  return errors;
 }
 
 async function runTypeCheck() {
@@ -78,7 +93,7 @@ export async function captureTypeCheckBaseline() {
   if (timedOut) {
     throw new ChecksError('type-check baseline run timed out.');
   }
-  return new Set(parseTypeCheckErrorLines(`${stdout}\n${stderr}`));
+  return new Set(parseTypeCheckErrors(`${stdout}\n${stderr}`).map((e) => e.key));
 }
 
 /** Returns only the error lines that are new since the baseline, regardless of which file they're in. */
@@ -87,8 +102,8 @@ export async function diffTypeCheckErrors(baselineSet) {
   if (timedOut) {
     return { ok: false, newErrors: ['type-check timed out'] };
   }
-  const current = parseTypeCheckErrorLines(`${stdout}\n${stderr}`);
-  const newErrors = current.filter((line) => !baselineSet.has(line));
+  const current = parseTypeCheckErrors(`${stdout}\n${stderr}`);
+  const newErrors = current.filter((e) => !baselineSet.has(e.key)).map((e) => e.raw);
   // tsc exits non-zero whenever ANY error exists, including pre-existing
   // baseline ones — requiring code === 0 would make this permanently fail
   // on any repo that already had type errors before the agent started,

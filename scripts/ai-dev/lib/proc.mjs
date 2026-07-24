@@ -30,11 +30,23 @@ export function killActiveChildren() {
 
 // Everything spawned here (eslint, tsc, and anything the agent runs via its
 // own runCommand whitelist) is potentially executing code the agent just
-// wrote, which a prompt-injected ticket could have steered. Don't hand that
-// code a live copy of our own secret.
+// wrote, which a prompt-injected ticket could have steered. Filter by
+// name pattern rather than deleting one exact key: (1) that only ever
+// protected GEMINI_API_KEY, leaving every other secret in the developer's
+// shell (E2E_PASSWORD, any personal GITHUB_TOKEN, etc.) fully exposed; (2)
+// on Windows, spreading `process.env` into a plain object loses its
+// case-insensitive lookup — the key keeps whatever case it was actually set
+// with (e.g. `$env:Gemini_Api_Key` in PowerShell), so an exact-case
+// `delete env.GEMINI_API_KEY` can silently miss it.
+const SENSITIVE_ENV_NAME_PATTERN = /(SECRET|TOKEN|PASSWORD|_KEY$|API_KEY|ACCESS_KEY)/i;
+
 function buildChildEnv() {
   const env = { ...process.env, CI: 'true' };
-  delete env.GEMINI_API_KEY;
+  for (const key of Object.keys(env)) {
+    if (SENSITIVE_ENV_NAME_PATTERN.test(key)) {
+      delete env[key];
+    }
+  }
   return env;
 }
 
