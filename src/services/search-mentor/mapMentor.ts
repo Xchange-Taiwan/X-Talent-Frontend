@@ -1,6 +1,5 @@
 import type { StaticImageData } from 'next/image';
 
-import avatarImage from '@/assets/default-avatar.png';
 import type { WorkExperienceMetadata } from '@/hooks/user/user-data/useUserData';
 import type { components } from '@/types/api';
 
@@ -76,17 +75,5 @@ export function mapMentor(raw: RawMentor): MentorType {
     have_skill: readCodes(raw.have_skill),
     have_topic: readCodes(raw.have_topic),
     updated_at: raw.updated_at ?? null,
-  };
-}
-
-// Cache-busts the avatar URL by updated_at so a re-uploaded photo isn't
-// served stale; shared by SSR and client fetches so both render identically.
-export function resolveMentorAvatar(mentor: MentorType): MentorType {
-  return {
-    ...mentor,
-    avatar:
-      typeof mentor.avatar === 'string' && mentor.avatar
-        ? `${mentor.avatar}${mentor.updated_at ? `?cb=${mentor.updated_at}` : ''}`
-        : avatarImage,
   };
 }

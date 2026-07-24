@@ -78,11 +78,17 @@ function buildCsp() {
 
 const nextConfig = {
   images: {
-    // Avatar URLs are versioned at write time (`?v=` baked in by
-    // `updateAvatar.ts:buildS3ObjectUrl`, `?cb=` appended from
-    // `SearchMentorProfileVO.updated_at` in `MentorPoolWithData.tsx`), so a
-    // new avatar always resolves to a new cache key — safe to cache long.
-    minimumCacheTTL: 60 * 60 * 24 * 30,
+    // TEMP: disabled the 30-day Image Optimizer cache.
+    // Avatar URLs from the profile API are stable keys (re-uploads overwrite
+    // the same S3 object), and `MentorProfileVO` does not yet return an
+    // `updated_at` we can append as `?cb=`. Caching long-term means visitors
+    // see stale avatars after another user updates theirs. Setting TTL to 0
+    // makes the optimizer revalidate every request — accepts higher S3
+    // egress in exchange for correctness.
+    // Revert to `60 * 60 * 24 * 30` once the backend adds `updated_at` to
+    // `MentorProfileVO` and profile pages can use `?cb=${updated_at}` like
+    // mentor-pool already does (see `MentorPoolWithData.tsx:resolveAvatar`).
+    minimumCacheTTL: 0,
     remotePatterns: [
       {
         protocol: 'https',

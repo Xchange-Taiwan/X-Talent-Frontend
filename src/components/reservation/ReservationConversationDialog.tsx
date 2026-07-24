@@ -115,17 +115,16 @@ export default function ReservationConversationDialog({
               尚無對話內容
             </p>
           ) : (
-            [...reservation.messages]
-              .reverse()
-              .map((message, index, array) => (
-                <MessageBubble
-                  key={index}
-                  message={message}
-                  isPrevSameRole={
-                    index > 0 && array[index - 1].role === message.role
-                  }
-                />
-              ))
+            reservation.messages.map((message, index) => (
+              <MessageBubble
+                key={index}
+                message={message}
+                isPrevSameRole={
+                  index > 0 &&
+                  reservation.messages[index - 1].role === message.role
+                }
+              />
+            ))
           )}
         </div>
       </DialogContent>

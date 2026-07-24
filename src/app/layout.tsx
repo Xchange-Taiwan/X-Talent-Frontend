@@ -3,7 +3,9 @@ import '../styles/global.css';
 import * as Sentry from '@sentry/nextjs';
 import type { Metadata } from 'next';
 import Script from 'next/script';
+import { getServerSession } from 'next-auth/next';
 
+import authOptions from '@/auth.config';
 import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import Providers from '@/components/Providers';
@@ -47,14 +49,42 @@ export function generateMetadata(): Metadata {
   };
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await getServerSession(authOptions);
+
+  // Preload the logged-in user's avatar through the next/image optimizer so the
+  // profile view / edit page's first paint does not wait on a cold S3 fetch.
+  // imageSrcSet + imageSizes lets the browser pick the same width that
+  // <Image sizes="150-160px" /> will request (w=256 at 1x DPR, w=384 at 2x),
+  // avoiding the cache-miss caused by a fixed-width preload.
+  // Skip preload entirely when the avatar URL carries no `?v=` query — the
+  // upload pipeline always bakes in a cache buster, so a bare URL means
+  // legacy data we'd rather refetch live than cache for 30 days.
+  const sessionAvatar = session?.user?.avatar ?? null;
+  const avatarSrc =
+    sessionAvatar && sessionAvatar.includes('?v=') ? sessionAvatar : null;
+  const buildOptimizerUrl = (w: number) =>
+    `/_next/image?url=${encodeURIComponent(avatarSrc ?? '')}&w=${w}&q=75`;
+  const avatarSrcSet = avatarSrc
+    ? `${buildOptimizerUrl(256)} 256w, ${buildOptimizerUrl(384)} 384w`
+    : null;
+
   return (
     <html lang="zh-TW" className={notoSansTC.className}>
       <head>
+        {avatarSrcSet && (
+          <link
+            rel="preload"
+            as="image"
+            imageSrcSet={avatarSrcSet}
+            imageSizes="160px"
+            fetchPriority="high"
+          />
+        )}
         {/* Preconnect to third-party origins so the TLS handshake overlaps with
             HTML parse instead of blocking the first script byte. crossOrigin
             is required so the warmed connection is reused for the actual
@@ -128,7 +158,7 @@ export default function RootLayout({
             }}
           />
         )}
-        <Providers>
+        <Providers session={session}>
           <div className="flex min-h-screen flex-col">
             <Header />
             <main

@@ -20,8 +20,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "prepare": "husky install",
-    "generate:types": "node scripts/generate-types.mjs",
-    "ai:dev": "node scripts/ai-dev/orchestrator.mjs"
+    "generate:types": "node scripts/generate-types.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.11.3",
@@ -49,7 +48,7 @@
     "dayjs": "^1.11.13",
     "lucide-react": "^0.316.0",
     "next": "14.2.35",
-    "next-auth": "4.24.15",
+    "next-auth": "4.24.13",
     "path-to-regexp": "^8.2.0",
     "react": "18.2.0",
     "react-avatar-editor": "^13.0.2",
@@ -78,7 +77,6 @@
     "@typescript-eslint/parser": "^6.19.1",
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.4.17",
-    "cross-spawn": "^7.0.6",
     "dotenv": "^17.4.2",
     "eslint": "^8.56.0",
     "eslint-config-next": "14.2.35",
@@ -93,7 +91,6 @@
     "prettier": "^3.2.4",
     "prettier-plugin-tailwindcss": "^0.5.11",
     "tailwindcss": "^3.4.1",
-    "tree-kill": "^1.2.2",
     "typescript": "^5.3.3",
     "vitest": "^4.1.4"
   },

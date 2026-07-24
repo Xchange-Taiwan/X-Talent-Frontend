@@ -2,11 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { match } from 'path-to-regexp';
 
-import {
-  encodeSessionHint,
-  SESSION_HINT_COOKIE,
-  SESSION_HINT_COOKIE_OPTIONS,
-} from '@/lib/auth/sessionHint';
 import { apiAuthPrefix, DEFAULT_LOGIN, publicRoutes } from '@/routes';
 
 // Convert Next.js dynamic route → express style (:id)
@@ -33,7 +28,6 @@ export async function middleware(req: NextRequest) {
 
   const hasRefreshError = token?.error === 'RefreshTokenError';
   const isLoggedIn = !!token && !hasRefreshError;
-  const currentHint = req.cookies.get(SESSION_HINT_COOKIE)?.value;
 
   // -------- 2. Allow NextAuth API routes through unconditionally --------
   const isApiAuthRoute = pathname.startsWith(apiAuthPrefix);
@@ -66,33 +60,10 @@ export async function middleware(req: NextRequest) {
       response.cookies.delete('__Secure-next-auth.session-token');
     }
 
-    if (currentHint !== undefined) {
-      response.cookies.delete(SESSION_HINT_COOKIE);
-    }
     return response;
   }
 
-  // -------- 5. Keep the client-readable hint in sync with the verified token --------
-  // UI-only signal for instant header rendering — never used for auth decisions.
-  // Only emit Set-Cookie when the value actually changes: writing on every
-  // request would mark otherwise-cacheable public responses (e.g. `/`)
-  // as uncacheable for CDNs and Next's route cache.
-  const response = NextResponse.next();
-
-  if (isLoggedIn) {
-    const nextHint = encodeSessionHint({ isMentor: Boolean(token?.isMentor) });
-    if (currentHint !== nextHint) {
-      response.cookies.set(
-        SESSION_HINT_COOKIE,
-        nextHint,
-        SESSION_HINT_COOKIE_OPTIONS
-      );
-    }
-  } else if (currentHint !== undefined) {
-    response.cookies.delete(SESSION_HINT_COOKIE);
-  }
-
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {
