@@ -113,6 +113,21 @@ describe('guardPath — blocked prefixes', () => {
   });
 });
 
+describe('guardPath — refuses to let the agent modify its own implementation', () => {
+  it.each([
+    'scripts/ai-dev/lib/path-guard.mjs',
+    'scripts/ai-dev/lib/gemini-agent.mjs',
+    'scripts/ai-dev/orchestrator.mjs',
+    'scripts/ai-dev/README.md',
+  ])('blocks %s — an agent must never be able to weaken its own sandbox', (path) => {
+    expect(() => guardPath(path)).toThrow(PathGuardError);
+  });
+
+  it('does not block an unrelated scripts/ directory', () => {
+    expect(() => guardPath('scripts/generate-types.mjs')).not.toThrow();
+  });
+});
+
 describe('guardPath — .env.example allowlist exception', () => {
   it('allows .env.example even though it matches the .env prefix block', () => {
     const { relativePath } = guardPath('.env.example');

@@ -21,7 +21,10 @@ import {
   writeFile,
 } from './tools.mjs';
 
-const SCRATCH = 'scripts/ai-dev/.test-scratch-tools';
+// Deliberately NOT under scripts/ai-dev/ — that whole directory is now
+// blocked by path-guard.mjs (the tool must never be able to modify its own
+// implementation), so a scratch dir there would fail every test below.
+const SCRATCH = '.ai-dev-test-scratch-tools';
 
 beforeEach(() => {
   rmSync(SCRATCH, { recursive: true, force: true });

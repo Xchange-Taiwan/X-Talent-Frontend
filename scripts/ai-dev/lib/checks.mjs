@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import { stageAll, stagedFilesExcludingDeleted } from './git.mjs';
+import { stagedFilesExcludingDeleted,stageFiles } from './git.mjs';
 import { runProcess } from './proc.mjs';
 
 export class ChecksError extends Error {}
@@ -49,8 +49,11 @@ export async function autoFixAndLintStaged() {
     ['exec', 'eslint', '--fix', '--', ...files],
     { timeoutMs: 60_000 }
   );
-  // --fix may have rewritten files on disk — re-stage so the WIP commit picks up the fixes.
-  stageAll();
+  // --fix may have rewritten files on disk — re-stage so the WIP commit
+  // picks up the fixes. Scoped to exactly `files`, not stageAll()'s
+  // `git add -A`, which would also sweep in anything unrelated that
+  // happened to change in the working tree between the agent's turn and now.
+  stageFiles(files);
 
   return {
     skipped: false,
@@ -67,20 +70,33 @@ const TSC_ERROR_LINE = /^(.+?)\(\d+,\d+\): (error TS\d+: .+)$/;
  * (e.g. a new import), every baseline error below it shifts by one line and
  * would no longer string-match the baseline, getting misclassified as "new"
  * even though it's the same pre-existing issue. Comparing by file+code+message
- * instead survives line shifts; `raw` (with the real line number) is kept
- * for what actually gets shown to the agent.
+ * instead survives line shifts; `raw` keeps the real line number *and* any
+ * indented continuation lines tsc prints below complex errors (e.g. nested
+ * "Property 'x' is missing in type 'Y'" explanations) — dropping those left
+ * the agent with only the terse summary line, not enough context to actually
+ * fix non-trivial type errors. Continuation lines are excluded from `key`
+ * on purpose: it stays anchored to the primary line only, so it doesn't
+ * gain new instability from wrapped text.
  */
 function parseTypeCheckErrors(output) {
-  const errors = [];
+  const entries = [];
+  let current = null;
+
   for (const rawLine of output.split('\n')) {
-    const line = rawLine.trim();
-    const match = line.match(TSC_ERROR_LINE);
+    const trimmed = rawLine.trim();
+    const match = trimmed.match(TSC_ERROR_LINE);
     if (match) {
       const [, file, rest] = match;
-      errors.push({ raw: line, key: `${file}: ${rest}` });
+      current = { key: `${file}: ${rest}`, lines: [trimmed] };
+      entries.push(current);
+    } else if (trimmed === '') {
+      current = null;
+    } else if (current) {
+      current.lines.push(rawLine.trimEnd());
     }
   }
-  return errors;
+
+  return entries.map((e) => ({ raw: e.lines.join('\n'), key: e.key }));
 }
 
 async function runTypeCheck() {
