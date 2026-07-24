@@ -100,6 +100,17 @@ describe('callGeminiAgent — success paths', () => {
     expect(body.tools).toEqual([{ functionDeclarations: [{ name: 'x' }] }]);
     expect(body.contents).toEqual([userTurn('do it')]);
   });
+
+  it('omits the tools field entirely when given an empty array, instead of sending an invalid empty functionDeclarations', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(stopCandidateWithText('ok')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await callGeminiAgent({ systemInstruction: 'sys', contents: [userTurn('hi')], tools: [] });
+
+    const [, options] = fetchMock.mock.calls[0];
+    const body = JSON.parse(options.body);
+    expect(body).not.toHaveProperty('tools');
+  });
 });
 
 describe('callGeminiAgent — non-retryable failure modes', () => {

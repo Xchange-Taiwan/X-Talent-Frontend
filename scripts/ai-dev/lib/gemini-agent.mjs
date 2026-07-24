@@ -103,9 +103,15 @@ export async function callGeminiAgent({ systemInstruction, contents, tools }) {
   const body = {
     contents,
     systemInstruction: { parts: [{ text: systemInstruction }] },
-    tools: [{ functionDeclarations: tools }],
     generationConfig: { maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS },
   };
+  // The Gemini API rejects an empty functionDeclarations array with a 400 —
+  // omit the whole `tools` field rather than sending `[{ functionDeclarations: [] }]`.
+  // Not currently reachable via orchestrator.mjs (it always passes the full
+  // TOOL_DECLARATIONS), but this is an exported, general-purpose function.
+  if (tools && tools.length > 0) {
+    body.tools = [{ functionDeclarations: tools }];
+  }
 
   let lastErr;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
