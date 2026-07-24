@@ -1,0 +1,80 @@
+import { resolve, sep } from 'node:path';
+
+const REPO_ROOT = process.cwd();
+
+// Substring/prefix checks below all run against POSIX-normalized paths, so a
+// single blocklist works regardless of whether the path came in with `\` (Windows)
+// or `/` (everywhere else).
+const BLOCKED_PREFIXES = [
+  '.git/',
+  'node_modules/',
+  '.env',
+  '.github/',
+  'pnpm-lock.yaml',
+  'package-lock.json',
+  'yarn.lock',
+];
+
+const BLOCKED_EXACT = new Set([
+  'package.json',
+  'tsconfig.json',
+  'next.config.js',
+  'next.config.mjs',
+  '.npmrc',
+  '.nvmrc',
+]);
+
+export class PathGuardError extends Error {}
+
+/** Converts any path (Windows `\` or POSIX `/`) to a forward-slash form for comparison. */
+export function normalizePath(inputPath) {
+  return String(inputPath).replace(/\\/g, '/');
+}
+
+function relativePosixPath(inputPath) {
+  const absolute = resolve(REPO_ROOT, inputPath);
+  const rootWithSep = REPO_ROOT.endsWith(sep) ? REPO_ROOT : REPO_ROOT + sep;
+
+  if (absolute !== REPO_ROOT && !absolute.startsWith(rootWithSep)) {
+    throw new PathGuardError(
+      `Path "${inputPath}" resolves outside the repository root — refused.`
+    );
+  }
+
+  const rel = absolute.slice(REPO_ROOT.length).replace(/^[/\\]/, '');
+  return normalizePath(rel);
+}
+
+/**
+ * Resolves a tool-supplied path against the repo root, rejects anything that
+ * escapes the root (`../../etc/passwd`, `~/.ssh/...`) or hits a blocklisted
+ * file — sensitive config, lockfiles, and package.json (dependency changes
+ * are out of scope for v1, see README). Every tool that touches the filesystem
+ * must go through this before doing anything with the path.
+ */
+export function guardPath(inputPath) {
+  if (!inputPath || typeof inputPath !== 'string') {
+    throw new PathGuardError('Path must be a non-empty string.');
+  }
+
+  const relPosix = relativePosixPath(inputPath);
+
+  if (BLOCKED_EXACT.has(relPosix)) {
+    throw new PathGuardError(
+      `"${relPosix}" is not editable by ai:dev (blocked file) — v1 does not support dependency or config changes.`
+    );
+  }
+
+  for (const prefix of BLOCKED_PREFIXES) {
+    if (relPosix === prefix.replace(/\/$/, '') || relPosix.startsWith(prefix)) {
+      throw new PathGuardError(
+        `"${relPosix}" is not editable by ai:dev (blocked path) — matches "${prefix}".`
+      );
+    }
+  }
+
+  return {
+    absolutePath: resolve(REPO_ROOT, relPosix),
+    relativePath: relPosix,
+  };
+}
