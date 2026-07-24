@@ -85,15 +85,20 @@ export function guardPath(inputPath) {
   }
 
   const relPosix = relativePosixPath(inputPath);
+  // Windows and macOS default filesystems are case-insensitive, so
+  // `Package.json` or `.GIT/hooks/pre-commit` would land on the exact same
+  // file as the lowercase blocklist entry — compare case-folded, but keep
+  // the original-case relPosix for the actual filesystem operation.
+  const matchPath = relPosix.toLowerCase();
 
-  if (BLOCKED_EXACT.has(relPosix)) {
+  if (BLOCKED_EXACT.has(matchPath)) {
     throw new PathGuardError(
       `"${relPosix}" is not editable by ai:dev (blocked file) — v1 does not support dependency or config changes.`
     );
   }
 
   for (const prefix of BLOCKED_PREFIXES) {
-    if (relPosix === prefix.replace(/\/$/, '') || relPosix.startsWith(prefix)) {
+    if (matchPath === prefix.replace(/\/$/, '') || matchPath.startsWith(prefix)) {
       throw new PathGuardError(
         `"${relPosix}" is not editable by ai:dev (blocked path) — matches "${prefix}".`
       );

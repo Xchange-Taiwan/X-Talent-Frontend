@@ -193,7 +193,12 @@ async function runDevAgentTurn({ systemPrompt, task }) {
     }
 
     contents.push(functionResponseTurn(results));
-    if (submitSummary !== null) return submitSummary;
+    // If a non-submit call in this same turn failed (e.g. writeFile refused),
+    // honoring submitForReview anyway would hand a diff to the reviewer that
+    // silently doesn't contain the edit the agent thinks it made. Keep the
+    // iteration going so the agent sees the error and can react to it.
+    const hasError = results.some((r) => r.response?.error);
+    if (submitSummary !== null && !hasError) return submitSummary;
   }
 
   throw new Error(
