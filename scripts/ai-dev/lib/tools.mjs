@@ -280,7 +280,9 @@ export async function runCommand({ command }) {
     );
   }
   const [bin, args] = entry;
-  const { code, stdout, stderr, timedOut } = await runProcess(bin, args, { timeoutMs: 60_000 });
+  const { code, stdout, stderr, timedOut } = await runProcess(bin, args, {
+    timeoutMs: 60_000,
+  });
   return { command, exitCode: code, stdout, stderr, timedOut };
 }
 

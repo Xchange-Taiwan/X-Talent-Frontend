@@ -248,7 +248,7 @@ async function main() {
 
   console.log(
     '[ai:dev] ⚠️  This runs an AI agent with local file write + command execution against ticket ' +
-      'content you don\'t fully control. Only use this on tickets from trusted sources — a malicious ' +
+      "content you don't fully control. Only use this on tickets from trusted sources — a malicious " +
       'ticket could attempt prompt injection. Reviewed mitigations exist (path sandboxing, no ' +
       'dependency/config changes, no test/build execution) but this is not a full sandbox.'
   );
