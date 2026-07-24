@@ -48,10 +48,10 @@ config();
 config({ path: '.env.development.local', override: true });
 
 const MAX_ITERATIONS = 10;
-const MAX_TURNS_PER_ITERATION = 40;
+const MAX_TURNS_PER_ITERATION = 200;
 // When this few turns remain, nudge the agent to wrap up instead of letting
 // it keep investigating until the hard cutoff.
-const WRAP_UP_WARNING_TURNS_REMAINING = 5;
+const WRAP_UP_WARNING_TURNS_REMAINING = 25;
 const EXPECTED_ORG = 'Xchange-Taiwan';
 const SYSTEM_PROMPT_URL = new URL(
   './prompts/dev-agent-system.md',

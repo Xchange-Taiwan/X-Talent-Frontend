@@ -37,22 +37,29 @@ function formatTicketSection(ticket) {
 const DIFF_SIZE_WARNING_THRESHOLD = 40_000;
 
 async function runPlanner({ ticketSection, diff, truncatedNote }) {
+  console.log('[review] planner: analyzing ticket + diff...');
   const prompt = buildPrompt(new URL('planner.md', PROMPTS_DIR), {
     TICKET_SECTION: ticketSection,
     DIFF: diff,
     TRUNCATED_NOTE: truncatedNote,
   });
-  return callGemini(prompt);
+  const plan = await callGemini(prompt);
+  console.log('[review] planner: done');
+  return plan;
 }
 
-async function runSpecialist(key, plan, diff, truncatedNote) {
+async function runSpecialist(key, title, plan, diff, truncatedNote) {
+  console.log(`[review] ${title}: running...`);
   try {
     const prompt = buildPrompt(new URL(`${key}.md`, PROMPTS_DIR), {
       PLAN_JSON: JSON.stringify(plan, null, 2),
       DIFF: diff,
       TRUNCATED_NOTE: truncatedNote,
     });
-    return await callGemini(prompt);
+    const result = await callGemini(prompt);
+    const findingsCount = result?.hasFindings ? (result.findings ?? []).length : 0;
+    console.log(`[review] ${title}: done (${findingsCount} finding(s))`);
+    return result;
   } catch (err) {
     // One specialist failing must not kill the whole review round — the
     // others still have useful findings, and this one shows up as "not run".
@@ -62,6 +69,7 @@ async function runSpecialist(key, plan, diff, truncatedNote) {
 }
 
 async function runSummary(plan, findingsByKey) {
+  console.log('[review] summary: judging overall risk...');
   try {
     const replacements = { PLAN_JSON: JSON.stringify(plan, null, 2) };
     for (const { key } of SPECIALISTS) {
@@ -77,7 +85,11 @@ async function runSummary(plan, findingsByKey) {
       new URL('summary.md', PROMPTS_DIR),
       replacements
     );
-    return await callGemini(prompt);
+    const summary = await callGemini(prompt);
+    console.log(
+      `[review] summary: done (overall risk: ${summary?.overallRisk?.level ?? 'unknown'})`
+    );
+    return summary;
   } catch (err) {
     console.warn(`[review-bridge] summary judgment failed: ${err.message}`);
     return null;
@@ -110,7 +122,9 @@ export async function reviewDiff({ baseRef, ticket }) {
   });
 
   const results = await Promise.all(
-    SPECIALISTS.map(({ key }) => runSpecialist(key, plan, diff, truncatedNote))
+    SPECIALISTS.map(({ key, title }) =>
+      runSpecialist(key, title, plan, diff, truncatedNote)
+    )
   );
   const findingsByKey = Object.fromEntries(
     SPECIALISTS.map(({ key }, i) => [key, results[i]])
