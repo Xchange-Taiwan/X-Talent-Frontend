@@ -103,27 +103,52 @@ async function runTypeCheck() {
   return runProcess('pnpm', ['type-check'], { timeoutMs: 120_000 });
 }
 
-/** Captures the pre-existing type-check error set before the agent touches anything, so later rounds can tell "the agent broke this" apart from "this was already broken" — including errors in files the agent never directly edited (Round 10: type errors cascade downstream). */
+/**
+ * Captures the pre-existing type-check error set before the agent touches
+ * anything, so later rounds can tell "the agent broke this" apart from
+ * "this was already broken" — including errors in files the agent never
+ * directly edited (Round 10: type errors cascade downstream).
+ *
+ * Counts occurrences per key rather than just tracking presence in a Set:
+ * if the baseline already has one instance of some error shape and the
+ * agent introduces a second, identically-worded instance elsewhere (e.g.
+ * copy-pasting the same buggy pattern into a new call site), a plain Set
+ * would treat both as "already known" and silently swallow the genuinely
+ * new one. Each occurrence in the current run consumes one baseline
+ * "budget" slot; anything beyond that count is new.
+ */
 export async function captureTypeCheckBaseline() {
   const { stdout, stderr, timedOut } = await runTypeCheck();
   if (timedOut) {
     throw new ChecksError('type-check baseline run timed out.');
   }
-  return new Set(
-    parseTypeCheckErrors(`${stdout}\n${stderr}`).map((e) => e.key)
-  );
+  const counts = new Map();
+  for (const e of parseTypeCheckErrors(`${stdout}\n${stderr}`)) {
+    counts.set(e.key, (counts.get(e.key) ?? 0) + 1);
+  }
+  return counts;
 }
 
 /** Returns only the error lines that are new since the baseline, regardless of which file they're in. */
-export async function diffTypeCheckErrors(baselineSet) {
+export async function diffTypeCheckErrors(baselineCounts) {
   const { code, stdout, stderr, timedOut } = await runTypeCheck();
   if (timedOut) {
     return { ok: false, newErrors: ['type-check timed out'] };
   }
   const current = parseTypeCheckErrors(`${stdout}\n${stderr}`);
-  const newErrors = current
-    .filter((e) => !baselineSet.has(e.key))
-    .map((e) => e.raw);
+  // Local copy — must not mutate the caller's baseline, since the same
+  // baseline object gets passed to this function again on every subsequent
+  // iteration of the orchestrator's loop.
+  const remaining = new Map(baselineCounts);
+  const newErrors = [];
+  for (const e of current) {
+    const budget = remaining.get(e.key) ?? 0;
+    if (budget > 0) {
+      remaining.set(e.key, budget - 1);
+    } else {
+      newErrors.push(e.raw);
+    }
+  }
   // tsc exits non-zero whenever ANY error exists, including pre-existing
   // baseline ones — requiring code === 0 would make this permanently fail
   // on any repo that already had type errors before the agent started,
