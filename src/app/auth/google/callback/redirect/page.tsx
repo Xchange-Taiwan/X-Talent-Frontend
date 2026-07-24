@@ -1,11 +1,7 @@
-import { Suspense } from 'react';
+export const dynamic = 'force-dynamic';
 
 import GoogleOAuthRedirectPage from './container';
 
 export default function Page() {
-  return (
-    <Suspense>
-      <GoogleOAuthRedirectPage />
-    </Suspense>
-  );
+  return <GoogleOAuthRedirectPage />;
 }

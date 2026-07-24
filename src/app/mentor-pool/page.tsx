@@ -5,6 +5,7 @@ import MentorGridSkeleton from './MentorGridSkeleton';
 import MentorPoolHero from './MentorPoolHero';
 import MentorPoolSearchBar from './MentorPoolSearchBar';
 import MentorPoolWithData from './MentorPoolWithData';
+import type { ServerSearchParams } from './searchParams';
 
 // canonical points to the bare path so search engines collapse all
 // `?keyword=...` / filter variants onto a single indexable URL.
@@ -21,9 +22,11 @@ export const metadata: Metadata = {
   },
 };
 
-// No `export const revalidate` here on purpose — Next.js infers the ISR
-// window from fetchMentorsServer's `next.revalidate` (mentors.server.ts).
-export default function Page() {
+interface PageProps {
+  searchParams: ServerSearchParams;
+}
+
+export default function Page({ searchParams }: PageProps) {
   return (
     <>
       <div className="relative">
@@ -33,7 +36,7 @@ export default function Page() {
         </Suspense>
       </div>
       <Suspense fallback={<MentorGridSkeleton />}>
-        <MentorPoolWithData />
+        <MentorPoolWithData searchParams={searchParams} />
       </Suspense>
     </>
   );
