@@ -99,9 +99,8 @@ If the gate passes: the staged diff is committed for real (no `wip:` prefix,
 Conventional-Commits style, hooks run normally — this is what actually gets
 pushed), pushed to `origin/<branch>`, and opened as a PR against `develop`
 via `gh pr create` (auto-linked to the tracker issue through the existing
-linked-branch relationship). The interactive follow-up prompt is skipped —
-further changes belong as additional commits on the now-open PR, not another
-local WIP/reset loop.
+linked-branch relationship). Further changes belong as additional commits on
+the now-open PR, not another local WIP/reset loop.
 
 If the gate fails — `medium`/`high` risk, any findings, or a non-`passed`
 final status — auto-PR is a no-op: same staged-diff hand-off described above.
