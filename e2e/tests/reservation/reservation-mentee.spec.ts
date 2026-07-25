@@ -194,3 +194,94 @@ test('資料載入中 → Skeleton 顯示且不閃爍錯誤內容', async ({ pag
   // Skeleton should be gone once data has loaded
   await expect(page.locator('.animate-pulse').first()).not.toBeVisible();
 });
+
+test.describe('歷史紀錄 Tab 測試', () => {
+  test('歷史紀錄 Tab 中有/無訊息的預約卡片與取消 badge 顯示', async ({
+    page,
+  }) => {
+    await setSignedSessionCookie(page);
+    await mockSessionGet(page);
+
+    const withMsg = {
+      ...makeReservation(10, 'Mentor Wang'),
+      messages: [
+        {
+          id: 101,
+          user_id: Number(USER_ID),
+          role: 'MENTEE',
+          content: '學員提問：React 勾子問題',
+        },
+        {
+          id: 102,
+          user_id: 99,
+          role: 'MENTOR',
+          content: '導師回覆：沒問題，週二見',
+        },
+      ],
+    };
+
+    const noMsg = makeReservation(11, 'Mentor Zhang');
+
+    // 已由導師(participant)取消
+    const cancelledByMentor = makeReservation(12, 'Mentor CancelA');
+    cancelledByMentor.participant.status = 'REJECT';
+
+    // 已由學員(sender)取消
+    const cancelledByMentee = makeReservation(13, 'Mentor CancelB');
+    cancelledByMentee.sender.status = 'REJECT';
+
+    await mockReservationEndpoints(page, {
+      MENTEE_HISTORY: [withMsg, noMsg, cancelledByMentor, cancelledByMentee],
+    });
+
+    await page.goto(PAGE_URL);
+
+    // 切換到歷史紀錄 Tab
+    await expect(page.getByRole('tab', { name: /歷史紀錄/ })).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.getByRole('tab', { name: /歷史紀錄/ }).click();
+
+    // 1. 驗證有訊息的預約卡片 → 顯示對話按鈕，點擊後開啟對話框並顯示內容
+    const cardWithMsg = page.locator('div.rounded-lg', {
+      hasText: 'Mentor Wang',
+    });
+    const viewChatBtn = cardWithMsg.getByRole('button', {
+      name: '查看完整對話',
+    });
+    await expect(viewChatBtn).toBeVisible();
+
+    // 點擊開啟對話框
+    await viewChatBtn.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.getByRole('heading', { name: '完整對話紀錄' })
+    ).toBeVisible();
+    await expect(dialog.getByText('學員提問：React 勾子問題')).toBeVisible();
+    await expect(dialog.getByText('導師回覆：沒問題，週二見')).toBeVisible();
+
+    // 關閉對話框
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+
+    // 2. 驗證沒有訊息的預約卡片 → 不顯示對話按鈕
+    const cardNoMsg = page.locator('div.rounded-lg', {
+      hasText: 'Mentor Zhang',
+    });
+    await expect(
+      cardNoMsg.getByRole('button', { name: '查看完整對話' })
+    ).not.toBeVisible();
+
+    // 3. 驗證取消 badge 顯示
+    const cardByMentor = page.locator('div.rounded-lg', {
+      hasText: 'Mentor CancelA',
+    });
+    await expect(cardByMentor.getByRole('status')).toHaveText('已由導師取消');
+
+    const cardByMentee = page.locator('div.rounded-lg', {
+      hasText: 'Mentor CancelB',
+    });
+    await expect(cardByMentee.getByRole('status')).toHaveText('已由學員取消');
+  });
+});
