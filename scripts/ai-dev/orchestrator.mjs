@@ -19,6 +19,7 @@ import {
   callGeminiAgent,
   extractFunctionCalls,
   functionResponseTurn,
+  modelTextTurn,
   modelTurnFromCandidate,
   userTurn,
 } from './lib/gemini-agent.mjs';
@@ -40,12 +41,14 @@ import {
 import {
   buildCommitSubject,
   buildPrBody,
+  commentOnPr,
   createPr,
   findOpenPrForBranch,
   PrError,
 } from './lib/pr.mjs';
 import { killActiveChildren } from './lib/proc.mjs';
 import { reviewDiff } from './lib/review-bridge.mjs';
+import { runQa } from '../ai-qa/lib/qa-bridge.mjs';
 import { setupTicketBranch, TicketError } from './lib/ticket-branch.mjs';
 import {
   executeTool,
@@ -152,7 +155,12 @@ function buildDevAgentSystemPrompt(ticket) {
   return buildPrompt(SYSTEM_PROMPT_URL, { TICKET_SECTION: ticketSection });
 }
 
-function buildRetryTask({ baseRef, failureText, reviewFindings }) {
+export function buildRetryTask({
+  baseRef,
+  failureText,
+  reviewFindings,
+  qaFindings,
+}) {
   const { diff, truncated } = getDiff(baseRef);
   const sections = [
     `## 目前累積的完整 Diff${truncated ? '（已截斷）' : ''}`,
@@ -167,35 +175,44 @@ function buildRetryTask({ baseRef, failureText, reviewFindings }) {
       JSON.stringify(reviewFindings, null, 2)
     );
   }
+  if (qaFindings) {
+    sections.push(
+      '## QA Agent 執行失敗的情境（需要修正）',
+      JSON.stringify(qaFindings, null, 2)
+    );
+  }
   sections.push('請根據上面的資訊修正問題，完成後呼叫 submitForReview。');
   return sections.join('\n\n');
 }
 
 /** Same idea as buildRetryTask, but driven by a human's free-form follow-up message instead of an automatic lint/type-check/review failure. */
-function buildFollowUpTask({ baseRef, userMessage }) {
+export function buildFollowUpTask({ baseRef, userMessage }) {
   const { diff, truncated } = getDiff(baseRef);
   const sections = [
     `## 目前累積的完整 Diff${truncated ? '（已截斷）' : ''}`,
     '```diff\n' + diff + '\n```',
     '## 使用者的追加指示',
     userMessage,
-    '請根據上面的追加指示修改，完成後呼叫 submitForReview。',
+    '如果這是問題，調查後在 submitForReview 的 summary 裡回答；如果是修改需求，才動手改程式碼。完成後呼叫 submitForReview。',
   ];
   return sections.join('\n\n');
 }
 
 /**
  * Runs the dev agent until it calls submitForReview (or the per-iteration
- * turn cap is hit). Fresh `contents` every call — Round 2: no cross-iteration
- * history, only the current diff/findings carry state forward.
+ * turn cap is hit). Fresh `contents` every call in the main iteration loop —
+ * no cross-iteration history, only the current diff/findings carry state
+ * forward. `priorContents` lets the follow-up session (runFollowUpSession)
+ * seed a running conversation instead — see its own comment for why that
+ * history is kept to lightweight Q&A turns, not full tool-call traces.
  *
  * Never throws on running out of turns — any file edits already made by tool
  * calls are real (writeFile executes immediately), so exhausting the budget
  * returns `{ submitted: false }` and lets the caller preserve that partial
  * progress as a WIP commit instead of losing it to an uncaught crash.
  */
-async function runDevAgentTurn({ systemPrompt, task }) {
-  const contents = [userTurn(task)];
+async function runDevAgentTurn({ systemPrompt, task, priorContents = [] }) {
+  const contents = [...priorContents, userTurn(task)];
 
   for (let turn = 1; turn <= MAX_TURNS_PER_ITERATION; turn++) {
     const turnsRemaining = MAX_TURNS_PER_ITERATION - turn;
@@ -282,6 +299,47 @@ function diffHash(baseRef) {
   return createHash('sha256').update(getDiff(baseRef).diff).digest('hex');
 }
 
+/** Runs the QA stage (scripts/ai-qa/lib/qa-bridge.mjs), honoring the
+ * SKIP_QA escape hatch and never letting an unexpected crash in the QA stage
+ * itself abort the whole ai:dev run — same "infra trouble isn't a code bug"
+ * rule the stage applies internally to its own dev-server/session failures. */
+async function runQaStage({ ticket, baseRef }) {
+  if (process.env.SKIP_QA === '1') {
+    log('QA: skipped (SKIP_QA=1)');
+    return { status: 'skipped', findings: [], reportMarkdown: null };
+  }
+  log('running QA agent...');
+  try {
+    const qa = await runQa({ ticket, baseRef });
+    log(`QA: ${qa.status}${qa.reason ? ` — ${qa.reason}` : ''}`);
+    return qa;
+  } catch (err) {
+    log(`QA: unexpected error, treating as infra-error (${err.message})`);
+    return {
+      status: 'infra-error',
+      reason: err.message,
+      findings: [],
+      reportMarkdown: null,
+    };
+  }
+}
+
+/**
+ * The "does this QA result stop the loop and force a retry round" decision —
+ * the sharp end of issue #318's "無限重試與回饋迴圈" risk area, so it's
+ * pulled out on its own to be directly unit-testable rather than only
+ * reachable by driving the whole main() loop. Only a confirmed `failed`
+ * (a genuine scenario assertion mismatch) can block, and only when
+ * explicitly opted into via AI_QA_BLOCKING — `infra-error` / `not-applicable`
+ * / `skipped` must never trigger a retry no matter what the flag says,
+ * since retrying can't fix an environment problem and would just burn
+ * iterations (or worse, feed the dev agent a "fix" for something that was
+ * never actually broken).
+ */
+export function isQaBlocking(qa) {
+  return process.env.AI_QA_BLOCKING === 'true' && qa.status === 'failed';
+}
+
 function printFinalReport(finalState, prResult) {
   console.log('\n[ai:dev] ' + '='.repeat(40));
   console.log(
@@ -299,6 +357,12 @@ function printFinalReport(finalState, prResult) {
       console.log(
         `  - [${f.source ?? f.category}] ${f.file}:${f.line ?? '?'} — ${f.issue}`
       );
+    }
+  }
+  if (finalState.qa) {
+    console.log(`[ai:dev] QA: ${finalState.qa.status}`);
+    for (const f of finalState.qa.findings ?? []) {
+      console.log(`  - [${f.source}] ${f.file} — ${f.issue}`);
     }
   }
   if (prResult?.created) {
@@ -332,7 +396,7 @@ function printFinalReport(finalState, prResult) {
  * module-scope variable of the same name) so this function stays testable
  * in isolation — see orchestrator.test.mjs.
  */
-export async function attemptAutoPr({ ticket, resolvedBaseRef }) {
+export async function attemptAutoPr({ ticket, resolvedBaseRef, qa }) {
   if (!hasStagedChanges()) {
     log('auto-pr: nothing staged after collapsing WIP commits, skipping.');
     return { created: false };
@@ -382,6 +446,19 @@ export async function attemptAutoPr({ ticket, resolvedBaseRef }) {
       body: buildPrBody(ticket),
     });
     hasCommittedThisRun = false; // it's a real, already-pushed commit now — nothing left to collapse
+
+    if (qa?.reportMarkdown) {
+      try {
+        commentOnPr({ branch: ticket.branchName, body: qa.reportMarkdown });
+      } catch (err) {
+        // Best-effort — the PR itself already exists and is the important
+        // part; a failed follow-up comment must never look like a failed PR.
+        log(
+          `auto-pr: posting QA report comment failed (${err.message}) — PR was still created.`
+        );
+      }
+    }
+
     return { created: true, pushed: true, url };
   } catch (err) {
     log(
@@ -411,12 +488,25 @@ export async function attemptAutoPr({ ticket, resolvedBaseRef }) {
  * working tree is always in the same "ready to review" state between
  * prompts, and the next round's diff still includes everything accepted so
  * far.
+ *
+ * Conversation memory: `history` carries across rounds so you can ask
+ * follow-up questions that reference earlier answers ("有記憶的對話"). It's
+ * deliberately kept to just each round's user message + the agent's final
+ * text answer (two turns per round) — never the round's internal
+ * readFile/searchFiles/writeFile trace. Persisting that raw trace too would
+ * make every subsequent round resend the accumulated tool output from every
+ * prior round, which balloons token cost/context fast and buys nothing:
+ * dev-agent-system.md already tells the agent to never trust remembered
+ * file content and re-`readFile` before writing regardless of what's in
+ * `history`.
  */
 async function runFollowUpSession({ ticket, systemPrompt, typeCheckBaseline }) {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   log(
-    'follow-up mode — type an instruction to keep going, or "exit"/"quit" to finish.'
+    'follow-up mode — type an instruction or ask a question to keep going, or "exit"/"quit" to finish.'
   );
+
+  let history = [];
 
   try {
     let round = 1;
@@ -433,15 +523,30 @@ async function runFollowUpSession({ ticket, systemPrompt, typeCheckBaseline }) {
         baseRef: resolvedBaseRef,
         userMessage,
       });
-      const devResult = await runDevAgentTurn({ systemPrompt, task });
+      const devResult = await runDevAgentTurn({
+        systemPrompt,
+        task,
+        priorContents: history,
+      });
+
+      history = [
+        ...history,
+        userTurn(userMessage),
+        modelTextTurn(devResult.summary || '（沒有回應內容）'),
+      ];
+      if (devResult.summary) {
+        log(`agent: ${devResult.summary}`);
+      }
 
       stageAll();
       if (!hasStagedChanges()) {
-        log(
-          devResult.submitted
-            ? 'agent 呼叫了 submitForReview，但沒有任何檔案變更。'
-            : `用完 ${MAX_TURNS_PER_ITERATION} 輪工具呼叫但沒有任何檔案變更。`
-        );
+        if (!devResult.summary) {
+          log(
+            devResult.submitted
+              ? 'agent 呼叫了 submitForReview，但沒有任何檔案變更，也沒有留下說明。'
+              : `用完 ${MAX_TURNS_PER_ITERATION} 輪工具呼叫但沒有任何檔案變更。`
+          );
+        }
         continue;
       }
 
@@ -496,7 +601,9 @@ async function main() {
     '[ai:dev] ⚠️  This runs an AI agent with local file write + command execution against ticket ' +
       "content you don't fully control. Only use this on tickets from trusted sources — a malicious " +
       'ticket could attempt prompt injection. Reviewed mitigations exist (path sandboxing, no ' +
-      'dependency/config changes, no test/build execution) but this is not a full sandbox. If the ' +
+      'dependency/config changes) but this is not a full sandbox. Once the static reviewer passes, ' +
+      'the QA stage boots a real `pnpm dev` server and drives it with a real browser under a ' +
+      'dedicated QA test account (see scripts/ai-qa/README.md) — set SKIP_QA=1 to skip this. If the ' +
       'review pipeline judges the result low risk with zero findings, it will automatically commit, ' +
       'push, and open a real PR — no manual step required.'
   );
@@ -531,6 +638,7 @@ async function main() {
 
   let failureText = null;
   let reviewFindings = null;
+  let qaFindings = null;
   let priorSignature = null;
   let priorDiffHash = null;
   let finalState = null;
@@ -545,6 +653,7 @@ async function main() {
             baseRef: resolvedBaseRef,
             failureText,
             reviewFindings,
+            qaFindings,
           });
 
     const devResult = await runDevAgentTurn({ systemPrompt, task });
@@ -555,6 +664,7 @@ async function main() {
         ? '你呼叫了 submitForReview，但 working tree 沒有任何檔案變更。請先完成實際的程式碼修改再 submit。'
         : `你在 ${MAX_TURNS_PER_ITERATION} 輪工具呼叫內都沒有完成任何檔案修改就用完輪數。請減少讀檔／搜尋的輪數，優先動手修改檔案，並在完成後盡快呼叫 submitForReview。`;
       reviewFindings = null;
+      qaFindings = null;
       const stuck = checkCircuitBreaker({
         signature: failureText,
         priorSignature,
@@ -584,6 +694,7 @@ async function main() {
         );
       failureText = parts.join('\n\n');
       reviewFindings = null;
+      qaFindings = null;
 
       const hash = diffHash(resolvedBaseRef);
       if (
@@ -605,6 +716,7 @@ async function main() {
     if (!devResult.submitted) {
       failureText = `你在 ${MAX_TURNS_PER_ITERATION} 輪工具呼叫內沒有呼叫 submitForReview，但已完成的修改通過 lint/type-check 並保留為 WIP commit。請延續之前的進度，優先完成剩餘修改並盡快呼叫 submitForReview，避免再花太多輪數在讀檔／搜尋上。`;
       reviewFindings = null;
+      qaFindings = null;
 
       const hash = diffHash(resolvedBaseRef);
       if (
@@ -627,12 +739,46 @@ async function main() {
     const review = await reviewDiff({ baseRef: resolvedBaseRef, ticket });
 
     if (!review.hasBlockingFindings) {
-      finalState = { status: 'passed', iteration, review };
+      // QA only runs once the (cheaper) static review already passed —
+      // no point spending a dev-server boot + browser turns on a diff
+      // that's about to get reworked anyway.
+      const qa = await runQaStage({ ticket, baseRef: resolvedBaseRef });
+
+      if (isQaBlocking(qa)) {
+        failureText = null;
+        reviewFindings = null;
+        qaFindings = qa.findings;
+        const signature = JSON.stringify(
+          (qa.findings ?? []).map((f) => `${f.file}:${f.issue}`).sort()
+        );
+        const hash = diffHash(resolvedBaseRef);
+        if (
+          checkCircuitBreaker({
+            signature,
+            priorSignature,
+            hash,
+            priorDiffHash,
+          })
+        ) {
+          finalState = { status: 'stuck-no-progress', iteration, review, qa };
+          break;
+        }
+        priorSignature = signature;
+        priorDiffHash = hash;
+        continue;
+      }
+
+      // Non-blocking by default (see issue #318: v1 QA runs and reports but
+      // doesn't gate) — `infra-error`/`not-applicable`/`skipped` never block
+      // regardless of AI_QA_BLOCKING; only a confirmed `failed` does, and
+      // only when explicitly opted in.
+      finalState = { status: 'passed', iteration, review, qa };
       break;
     }
 
     failureText = null;
     reviewFindings = review.findings;
+    qaFindings = null;
     const signature = JSON.stringify(
       review.findings.map((f) => `${f.file}:${f.issue}`).sort()
     );
@@ -664,7 +810,7 @@ async function main() {
     (finalState.review?.findings?.length ?? 0) === 0;
 
   const prResult = gatePassed
-    ? await attemptAutoPr({ ticket, resolvedBaseRef })
+    ? await attemptAutoPr({ ticket, resolvedBaseRef, qa: finalState.qa })
     : null;
 
   printFinalReport(finalState, prResult);

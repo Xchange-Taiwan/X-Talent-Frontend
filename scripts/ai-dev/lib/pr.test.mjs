@@ -10,6 +10,7 @@ const {
   PrError,
   buildCommitSubject,
   buildPrBody,
+  commentOnPr,
   findOpenPrForBranch,
   createPr,
 } = await import('./pr.mjs');
@@ -106,6 +107,24 @@ describe('createPr', () => {
     });
     expect(() =>
       createPr({ branch: 'feat/x', title: 'feat: thing', body: 'body text' })
+    ).toThrow(PrError);
+  });
+});
+
+describe('commentOnPr', () => {
+  it("posts a comment to the branch's PR", () => {
+    mockGh({ 'pr comment feat/x --body report text': '' });
+    expect(() =>
+      commentOnPr({ branch: 'feat/x', body: 'report text' })
+    ).not.toThrow();
+  });
+
+  it('throws PrError when the gh call fails', () => {
+    mockGh({
+      'pr comment feat/x --body report text': failure('no such PR'),
+    });
+    expect(() =>
+      commentOnPr({ branch: 'feat/x', body: 'report text' })
     ).toThrow(PrError);
   });
 });

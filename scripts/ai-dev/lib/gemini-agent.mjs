@@ -162,6 +162,14 @@ export function modelTurnFromCandidate(candidate) {
   return { role: 'model', parts: candidate.content?.parts ?? [] };
 }
 
+/** Synthesizes a model turn from plain text rather than a live API candidate —
+ * used to persist a compressed "what the agent answered" turn across
+ * follow-up rounds without replaying its full tool-call trace (see
+ * orchestrator.mjs's runFollowUpSession). */
+export function modelTextTurn(text) {
+  return { role: 'model', parts: [{ text }] };
+}
+
 export function functionResponseTurn(results) {
   return {
     role: 'function',
