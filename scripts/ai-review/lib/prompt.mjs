@@ -29,7 +29,8 @@ function loadShared() {
  * Placeholders are `{{NAME}}` tokens; unknown placeholders are left as-is.
  */
 export function buildPrompt(templateUrl, replacements = {}) {
-  const { projectContext, reviewDiscipline, businessRules, codeSmellBaseline } = loadShared();
+  const { projectContext, reviewDiscipline, businessRules, codeSmellBaseline } =
+    loadShared();
   let template = readFileSync(templateUrl, 'utf-8');
 
   const all = {
