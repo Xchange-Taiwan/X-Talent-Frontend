@@ -68,5 +68,11 @@ export async function planFixtures({ ticket, baseRef }) {
     return [];
   }
 
-  return (plan?.fixtures ?? []).filter(isValidFixture).slice(0, MAX_FIXTURES);
+  // plan.fixtures being present but not an array (e.g. the model returned a
+  // string or object instead of a list) must degrade to "no fixtures", not
+  // throw — this function's contract is "never throws on a malformed
+  // planner response", and an uncaught TypeError here would abort the whole
+  // QA run instead of just falling back to the baseline login mock.
+  const fixtures = Array.isArray(plan?.fixtures) ? plan.fixtures : [];
+  return fixtures.filter(isValidFixture).slice(0, MAX_FIXTURES);
 }

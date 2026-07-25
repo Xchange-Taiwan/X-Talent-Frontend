@@ -90,4 +90,14 @@ describe('planFixtures', () => {
       []
     );
   });
+
+  it('returns an empty array (not a throw) when plan.fixtures is not an array', async () => {
+    // A model that returns a malformed shape (string/object instead of a
+    // list) must degrade gracefully — this used to call .filter() directly
+    // on whatever came back and threw a TypeError, aborting the whole QA run.
+    callGemini.mockResolvedValue({ fixtures: 'not-an-array' });
+    await expect(planFixtures({ ticket, baseRef: 'HEAD' })).resolves.toEqual(
+      []
+    );
+  });
 });
