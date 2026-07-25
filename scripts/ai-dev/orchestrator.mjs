@@ -321,6 +321,25 @@ export function isQaBlocking(qa) {
   return process.env.AI_QA_BLOCKING === 'true' && qa.status === 'failed';
 }
 
+const RISK_RANK = { low: 0, medium: 1, high: 2 };
+
+/**
+ * Auto-PR gate. `high` risk never actually reaches this check — it's
+ * already `hasBlockingFindings` in review-bridge.mjs, which forces another
+ * retry iteration, so `finalState.status` only becomes `'passed'` once risk
+ * is `low` or `medium`. Individual findings no longer block auto-PR on
+ * their own (only the aggregate risk level does) — the human reviewing the
+ * resulting PR is expected to triage any findings a `medium`-risk merge
+ * still carries.
+ */
+export function isAutoPrGatePassed(finalState) {
+  const level = finalState?.review?.overallRisk?.level;
+  return (
+    finalState?.status === 'passed' &&
+    (RISK_RANK[level] ?? Infinity) <= RISK_RANK.medium
+  );
+}
+
 function printFinalReport(finalState, prResult) {
   console.log('\n[ai:dev] ' + '='.repeat(40));
   console.log(
@@ -368,10 +387,11 @@ function printFinalReport(finalState, prResult) {
 }
 
 /**
- * Only called once the gating condition (passed, low risk, zero findings)
- * already holds. Every failure here falls back to the "leave it staged"
- * behavior instead of leaving a broken half-done state — see README for the
- * exact gating condition and risk trade-off.
+ * Only called once the gating condition (passed, risk low or medium —
+ * findings don't factor in, see isAutoPrGatePassed) already holds. Every
+ * failure here falls back to the "leave it staged" behavior instead of
+ * leaving a broken half-done state — see README for the exact gating
+ * condition and risk trade-off.
  *
  * `resolvedBaseRef` is passed explicitly (rather than read off the
  * module-scope variable of the same name) so this function stays testable
@@ -468,8 +488,8 @@ async function main() {
       'dependency/config changes) but this is not a full sandbox. Once the static reviewer passes, ' +
       'the QA stage boots a real `pnpm dev` server and drives it with a real browser under a ' +
       'dedicated QA test account (see scripts/ai-qa/README.md) — set SKIP_QA=1 to skip this. If the ' +
-      'review pipeline judges the result low risk with zero findings, it will automatically commit, ' +
-      'push, and open a real PR — no manual step required.'
+      'review pipeline judges the overall risk low or medium, it will automatically commit, push, ' +
+      'and open a real PR — no manual step required.'
   );
 
   log('running preflight checks...');
@@ -668,10 +688,7 @@ async function main() {
     resetSoft(resolvedBaseRef);
   }
 
-  const gatePassed =
-    finalState.status === 'passed' &&
-    finalState.review?.overallRisk?.level === 'low' &&
-    (finalState.review?.findings?.length ?? 0) === 0;
+  const gatePassed = isAutoPrGatePassed(finalState);
 
   const prResult = gatePassed
     ? await attemptAutoPr({ ticket, resolvedBaseRef, qa: finalState.qa })

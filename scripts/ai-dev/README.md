@@ -2,10 +2,10 @@
 
 `pnpm ai:dev <ticket-number>` runs a local dev → review → fix loop against a
 `X-Talent-Tracker` issue using Gemini, entirely on your machine. If the review
-pipeline judges the result **low risk with zero findings**, it automatically
-commits, pushes, and opens a real PR for you — see "Auto-PR" below for the
-exact gating condition. Otherwise it stops once it hits its iteration cap (or
-gets stuck) and hands control back to you with the diff staged, uncommitted.
+pipeline judges the overall risk **low or medium**, it automatically commits,
+pushes, and opens a real PR for you — see "Auto-PR" below for the exact
+gating condition. Otherwise it stops once it hits its iteration cap (or gets
+stuck) and hands control back to you with the diff staged, uncommitted.
 
 This tool is intentionally independent of Claude Code / `.claude/commands` —
 anyone with Node, `gh`, and a Gemini API key can run it, regardless of which
@@ -89,11 +89,18 @@ final findings are left exactly as-is for you to take over manually.
 After the loop ends, one extra step runs automatically — there is no flag to
 opt in or out:
 
-**Gating condition** — all three must hold:
+**Gating condition** (`isAutoPrGatePassed` in `orchestrator.mjs`) — both must hold:
 
 - `finalState.status === 'passed'` (the loop ended cleanly, not stuck/capped)
-- `review.overallRisk.level === 'low'`
-- `review.findings.length === 0`
+- `review.overallRisk.level` is `low` or `medium` — `high` never actually
+  reaches this check, since it already forces another retry iteration
+  upstream (`hasBlockingFindings`), so in practice this excludes runs that
+  never got past `high` risk
+
+Individual findings no longer gate auto-PR — a `medium`-risk merge can still
+carry findings (shown in the final report and, once opened, on the PR
+itself); triaging those is on whoever reviews the resulting PR, not a reason
+to withhold it.
 
 If the gate passes: the staged diff is committed for real (no `wip:` prefix,
 Conventional-Commits style, hooks run normally — this is what actually gets
@@ -102,8 +109,8 @@ via `gh pr create` (auto-linked to the tracker issue through the existing
 linked-branch relationship). Further changes belong as additional commits on
 the now-open PR, not another local WIP/reset loop.
 
-If the gate fails — `medium`/`high` risk, any findings, or a non-`passed`
-final status — auto-PR is a no-op: same staged-diff hand-off described above.
+If the gate fails — `high` risk or a non-`passed` final status — auto-PR is a
+no-op: same staged-diff hand-off described above.
 
 **Failure handling** — any failure during the auto-PR sequence itself falls
 back to the staged-diff hand-off instead of leaving a broken state:
@@ -119,10 +126,10 @@ back to the staged-diff hand-off instead of leaving a broken state:
 
 **Risk trade-off** — the risk level gating this is itself an LLM judgment
 call over untrusted ticket content. A crafted/misleading ticket could in
-theory get its own change misjudged as `low` risk with zero findings, which
-would then get pushed and opened as a real PR unattended. Only run this tool
-on tickets from trusted sources, same as the general prompt-injection caveat
-printed at startup.
+theory get its own change misjudged as `low`/`medium` risk, which would then
+get pushed and opened as a real PR unattended. Only run this tool on tickets
+from trusted sources, same as the general prompt-injection caveat printed at
+startup.
 
 ## v1 limitations (by design, not oversights)
 
