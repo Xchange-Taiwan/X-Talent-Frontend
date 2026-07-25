@@ -25,7 +25,7 @@ function formatTicketSection(ticket) {
   ].join('\n');
 }
 
-function isValidFixture(f) {
+export function isValidFixture(f) {
   return (
     f &&
     VALID_METHODS.has(f.method) &&

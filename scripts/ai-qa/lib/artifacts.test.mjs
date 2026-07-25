@@ -113,6 +113,21 @@ describe('publishArtifacts', () => {
     expect(calledArgs).not.toContain(expect.stringContaining('repo create'));
   });
 
+  it('commits with --allow-empty so an unchanged screenshot on a retry round does not fail the publish', async () => {
+    mockGitAndGh({ repoExists: true });
+
+    await publishArtifacts({
+      owner: 'Xchange-Taiwan',
+      ticketNumber: 318,
+      files,
+    });
+
+    const commitCall = execFileSync.mock.calls.find(
+      ([cmd, args]) => cmd === 'git' && args[0] === 'commit'
+    );
+    expect(commitCall[1]).toContain('--allow-empty');
+  });
+
   it('creates the dedicated repo the first time it is missing', async () => {
     mockGitAndGh({ repoExists: false });
 

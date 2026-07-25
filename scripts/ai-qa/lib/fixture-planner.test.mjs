@@ -6,7 +6,7 @@ vi.mock('../../ai-review/lib/gemini.mjs', () => ({
 }));
 
 const { callGemini } = await import('../../ai-review/lib/gemini.mjs');
-const { planFixtures } = await import('./fixture-planner.mjs');
+const { isValidFixture, planFixtures } = await import('./fixture-planner.mjs');
 
 const ticket = {
   number: 318,
@@ -99,5 +99,46 @@ describe('planFixtures', () => {
     await expect(planFixtures({ ticket, baseRef: 'HEAD' })).resolves.toEqual(
       []
     );
+  });
+});
+
+describe('isValidFixture', () => {
+  const valid = {
+    method: 'GET',
+    path: '/v1/jobs/1',
+    status: 200,
+    body: { data: {} },
+  };
+
+  it('accepts a well-formed fixture', () => {
+    expect(isValidFixture(valid)).toBe(true);
+  });
+
+  it('rejects an unsupported HTTP method', () => {
+    expect(isValidFixture({ ...valid, method: 'TRACE' })).toBe(false);
+  });
+
+  it('rejects a path missing the leading slash', () => {
+    expect(isValidFixture({ ...valid, path: 'v1/jobs/1' })).toBe(false);
+  });
+
+  it('rejects the reserved /v1/auth/login path (baseline handler owns it)', () => {
+    expect(isValidFixture({ ...valid, path: '/v1/auth/login' })).toBe(false);
+  });
+
+  it.each([99, 600, -1, '200'])('rejects an invalid status %p', (status) => {
+    expect(isValidFixture({ ...valid, status })).toBe(false);
+  });
+
+  it.each([undefined, null, 'a string body', 42])(
+    'rejects a missing/non-object body %p',
+    (body) => {
+      expect(isValidFixture({ ...valid, body })).toBe(false);
+    }
+  );
+
+  it('rejects a null/undefined fixture', () => {
+    expect(isValidFixture(null)).toBeFalsy();
+    expect(isValidFixture(undefined)).toBeFalsy();
   });
 });

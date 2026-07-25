@@ -101,3 +101,30 @@ describe('mintSessionCookies — real backend opt-in', () => {
     ).rejects.toThrow(AuthFixtureError);
   });
 });
+
+describe('mintSessionCookies — non-JSON login response', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('raises a clear AuthFixtureError (with the HTTP status) instead of a bare SyntaxError', async () => {
+    global.fetch = async () => ({
+      ok: false,
+      status: 502,
+      json: async () => {
+        throw new SyntaxError("Unexpected token '<'");
+      },
+    });
+
+    const rejection = mintSessionCookies({
+      role: 'mentor',
+      apiBaseUrl: 'http://bad-gateway.invalid',
+      useRealBackend: false,
+    });
+
+    await expect(rejection).rejects.toThrow(AuthFixtureError);
+    await expect(rejection).rejects.toThrow(/502/);
+  });
+});

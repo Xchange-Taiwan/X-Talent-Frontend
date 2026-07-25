@@ -324,6 +324,22 @@ async function runQaStage({ ticket, baseRef }) {
   }
 }
 
+/**
+ * The "does this QA result stop the loop and force a retry round" decision —
+ * the sharp end of issue #318's "無限重試與回饋迴圈" risk area, so it's
+ * pulled out on its own to be directly unit-testable rather than only
+ * reachable by driving the whole main() loop. Only a confirmed `failed`
+ * (a genuine scenario assertion mismatch) can block, and only when
+ * explicitly opted into via AI_QA_BLOCKING — `infra-error` / `not-applicable`
+ * / `skipped` must never trigger a retry no matter what the flag says,
+ * since retrying can't fix an environment problem and would just burn
+ * iterations (or worse, feed the dev agent a "fix" for something that was
+ * never actually broken).
+ */
+export function isQaBlocking(qa) {
+  return process.env.AI_QA_BLOCKING === 'true' && qa.status === 'failed';
+}
+
 function printFinalReport(finalState, prResult) {
   console.log('\n[ai:dev] ' + '='.repeat(40));
   console.log(
@@ -728,9 +744,7 @@ async function main() {
       // that's about to get reworked anyway.
       const qa = await runQaStage({ ticket, baseRef: resolvedBaseRef });
 
-      const qaBlocking =
-        process.env.AI_QA_BLOCKING === 'true' && qa.status === 'failed';
-      if (qaBlocking) {
+      if (isQaBlocking(qa)) {
         failureText = null;
         reviewFindings = null;
         qaFindings = qa.findings;

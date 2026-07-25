@@ -68,7 +68,18 @@ async function loginAndBuildUser({ apiBaseUrl, email, password }) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
-  const response = await res.json();
+  let response;
+  try {
+    response = await res.json();
+  } catch (err) {
+    // A non-JSON body (HTML error page from a 502/404, empty body, etc.)
+    // would otherwise surface as a bare "Unexpected token '<'" SyntaxError
+    // with no indication it was actually an HTTP-level failure — wrapping
+    // it here keeps the status code in the message instead of losing it.
+    throw new AuthFixtureError(
+      `QA account login against ${apiBaseUrl} returned a non-JSON response (${res.status}): ${err.message}`
+    );
+  }
   if (!res.ok || !response?.data) {
     throw new AuthFixtureError(
       `QA account login failed against ${apiBaseUrl} (${res.status}): ${JSON.stringify(response).slice(0, 300)}`
