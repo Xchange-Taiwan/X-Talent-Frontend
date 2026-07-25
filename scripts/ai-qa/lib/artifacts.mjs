@@ -193,9 +193,14 @@ export async function publishArtifacts({ owner, ticketNumber, files }) {
     }
 
     git(['add', '.'], { cwd: scratchDir });
-    git(['commit', '-m', `qa: screenshots for #${ticketNumber}`], {
-      cwd: scratchDir,
-    });
+    // --allow-empty: a retry round whose screenshot is byte-identical to a
+    // prior round's (same ticketNumber + filename, unchanged content) stages
+    // nothing new — without this flag `git commit` exits 1 with "nothing to
+    // commit", turning an unremarkable no-op into a publish failure.
+    git(
+      ['commit', '--allow-empty', '-m', `qa: screenshots for #${ticketNumber}`],
+      { cwd: scratchDir }
+    );
     git(['push', 'origin', 'HEAD'], { cwd: scratchDir });
 
     const branch = git(['branch', '--show-current'], { cwd: scratchDir });

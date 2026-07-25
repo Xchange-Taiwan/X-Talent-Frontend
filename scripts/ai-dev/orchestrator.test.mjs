@@ -1,12 +1,12 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('node:child_process', () => ({
   execFileSync: vi.fn(),
 }));
 
 const { execFileSync } = await import('node:child_process');
-const { attemptAutoPr, buildFollowUpTask, buildRetryTask } =
+const { attemptAutoPr, buildFollowUpTask, buildRetryTask, isQaBlocking } =
   await import('./orchestrator.mjs');
 
 function failure(message = 'command failed') {
@@ -296,5 +296,49 @@ describe('buildFollowUpTask', () => {
 
     expect(task).toContain('如果這是問題');
     expect(task).toContain('summary');
+  });
+});
+
+describe('isQaBlocking', () => {
+  const originalFlag = process.env.AI_QA_BLOCKING;
+
+  afterEach(() => {
+    if (originalFlag === undefined) delete process.env.AI_QA_BLOCKING;
+    else process.env.AI_QA_BLOCKING = originalFlag;
+  });
+
+  it('blocks on a failed QA result when AI_QA_BLOCKING=true', () => {
+    process.env.AI_QA_BLOCKING = 'true';
+    expect(isQaBlocking({ status: 'failed' })).toBe(true);
+  });
+
+  it('does not block on a failed QA result when AI_QA_BLOCKING is unset (default)', () => {
+    delete process.env.AI_QA_BLOCKING;
+    expect(isQaBlocking({ status: 'failed' })).toBe(false);
+  });
+
+  it('never blocks on infra-error, even with AI_QA_BLOCKING=true', () => {
+    process.env.AI_QA_BLOCKING = 'true';
+    expect(isQaBlocking({ status: 'infra-error' })).toBe(false);
+  });
+
+  it('never blocks on not-applicable, even with AI_QA_BLOCKING=true', () => {
+    process.env.AI_QA_BLOCKING = 'true';
+    expect(isQaBlocking({ status: 'not-applicable' })).toBe(false);
+  });
+
+  it('never blocks on skipped, even with AI_QA_BLOCKING=true', () => {
+    process.env.AI_QA_BLOCKING = 'true';
+    expect(isQaBlocking({ status: 'skipped' })).toBe(false);
+  });
+
+  it('never blocks on passed', () => {
+    process.env.AI_QA_BLOCKING = 'true';
+    expect(isQaBlocking({ status: 'passed' })).toBe(false);
+  });
+
+  it('treats any value other than the literal string "true" as unset', () => {
+    process.env.AI_QA_BLOCKING = '1';
+    expect(isQaBlocking({ status: 'failed' })).toBe(false);
   });
 });
