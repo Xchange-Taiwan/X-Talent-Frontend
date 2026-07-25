@@ -1,11 +1,10 @@
-#!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 
 import { config } from 'dotenv';
 
+import { runQa } from '../ai-qa/lib/qa-bridge.mjs';
 import { getDiff } from '../ai-review/lib/diff.mjs';
 import { buildPrompt } from '../ai-review/lib/prompt.mjs';
 import {
@@ -19,7 +18,6 @@ import {
   callGeminiAgent,
   extractFunctionCalls,
   functionResponseTurn,
-  modelTextTurn,
   modelTurnFromCandidate,
   userTurn,
 } from './lib/gemini-agent.mjs';
@@ -48,7 +46,6 @@ import {
 } from './lib/pr.mjs';
 import { killActiveChildren } from './lib/proc.mjs';
 import { reviewDiff } from './lib/review-bridge.mjs';
-import { runQa } from '../ai-qa/lib/qa-bridge.mjs';
 import { setupTicketBranch, TicketError } from './lib/ticket-branch.mjs';
 import {
   executeTool,
@@ -72,9 +69,9 @@ const SYSTEM_PROMPT_URL = new URL(
 );
 
 // Module-scope on purpose: set once in main() after the ticket branch is
-// checked out, then read via closure from the retry/follow-up task builders
-// below — all in this same file. (attemptAutoPr takes resolvedBaseRef as an
-// explicit parameter instead, for testability — see orchestrator.test.mjs.)
+// checked out, then read via closure from the retry task builder below — all
+// in this same file. (attemptAutoPr takes resolvedBaseRef as an explicit
+// parameter instead, for testability — see orchestrator.test.mjs.)
 let hasCommittedThisRun = false;
 let resolvedBaseRef = null;
 
@@ -185,34 +182,18 @@ export function buildRetryTask({
   return sections.join('\n\n');
 }
 
-/** Same idea as buildRetryTask, but driven by a human's free-form follow-up message instead of an automatic lint/type-check/review failure. */
-export function buildFollowUpTask({ baseRef, userMessage }) {
-  const { diff, truncated } = getDiff(baseRef);
-  const sections = [
-    `## 目前累積的完整 Diff${truncated ? '（已截斷）' : ''}`,
-    '```diff\n' + diff + '\n```',
-    '## 使用者的追加指示',
-    userMessage,
-    '如果這是問題，調查後在 submitForReview 的 summary 裡回答；如果是修改需求，才動手改程式碼。完成後呼叫 submitForReview。',
-  ];
-  return sections.join('\n\n');
-}
-
 /**
  * Runs the dev agent until it calls submitForReview (or the per-iteration
- * turn cap is hit). Fresh `contents` every call in the main iteration loop —
- * no cross-iteration history, only the current diff/findings carry state
- * forward. `priorContents` lets the follow-up session (runFollowUpSession)
- * seed a running conversation instead — see its own comment for why that
- * history is kept to lightweight Q&A turns, not full tool-call traces.
+ * turn cap is hit). Fresh `contents` every call — no cross-iteration
+ * history, only the current diff/findings carry state forward.
  *
  * Never throws on running out of turns — any file edits already made by tool
  * calls are real (writeFile executes immediately), so exhausting the budget
  * returns `{ submitted: false }` and lets the caller preserve that partial
  * progress as a WIP commit instead of losing it to an uncaught crash.
  */
-async function runDevAgentTurn({ systemPrompt, task, priorContents = [] }) {
-  const contents = [...priorContents, userTurn(task)];
+async function runDevAgentTurn({ systemPrompt, task }) {
+  const contents = [userTurn(task)];
 
   for (let turn = 1; turn <= MAX_TURNS_PER_ITERATION; turn++) {
     const turnsRemaining = MAX_TURNS_PER_ITERATION - turn;
@@ -466,124 +447,7 @@ export async function attemptAutoPr({ ticket, resolvedBaseRef, qa }) {
         `The commit is already on origin/${ticket.branchName} — open the PR manually or re-run.`
     );
     hasCommittedThisRun = false; // already pushed; a local reset here would not undo the remote commit
-    // pushed: true is load-bearing — main() must skip runFollowUpSession in
-    // this case too, not just when created is true. Once a real commit is
-    // pushed, resolvedBaseRef no longer represents "nothing has happened
-    // yet"; letting the follow-up loop's resetSoft(resolvedBaseRef) run
-    // would erase this already-pushed commit from local history.
     return { created: false, pushed: true };
-  }
-}
-
-/**
- * Interactive follow-up mode: after the automatic dev→lint→review loop
- * finishes, keep the process alive and let a human give free-form follow-up
- * instructions on top of whatever's already there, instead of forcing a full
- * re-run (re-preflight, re-fetch ticket, re-baseline) for every small tweak.
- *
- * Each round still goes through the same stage → lint → type-check → commit
- * → reviewer pipeline as an automatic iteration — a human driving it round
- * by round doesn't relax those gates. After every round the WIP commit is
- * immediately collapsed back to staged/uncommitted (resetSoft), so the
- * working tree is always in the same "ready to review" state between
- * prompts, and the next round's diff still includes everything accepted so
- * far.
- *
- * Conversation memory: `history` carries across rounds so you can ask
- * follow-up questions that reference earlier answers ("有記憶的對話"). It's
- * deliberately kept to just each round's user message + the agent's final
- * text answer (two turns per round) — never the round's internal
- * readFile/searchFiles/writeFile trace. Persisting that raw trace too would
- * make every subsequent round resend the accumulated tool output from every
- * prior round, which balloons token cost/context fast and buys nothing:
- * dev-agent-system.md already tells the agent to never trust remembered
- * file content and re-`readFile` before writing regardless of what's in
- * `history`.
- */
-async function runFollowUpSession({ ticket, systemPrompt, typeCheckBaseline }) {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  log(
-    'follow-up mode — type an instruction or ask a question to keep going, or "exit"/"quit" to finish.'
-  );
-
-  let history = [];
-
-  try {
-    let round = 1;
-    for (;;) {
-      const userMessage = (await rl.question('> ')).trim();
-      if (
-        !userMessage ||
-        ['exit', 'quit'].includes(userMessage.toLowerCase())
-      ) {
-        break;
-      }
-
-      const task = buildFollowUpTask({
-        baseRef: resolvedBaseRef,
-        userMessage,
-      });
-      const devResult = await runDevAgentTurn({
-        systemPrompt,
-        task,
-        priorContents: history,
-      });
-
-      history = [
-        ...history,
-        userTurn(userMessage),
-        modelTextTurn(devResult.summary || '（沒有回應內容）'),
-      ];
-      if (devResult.summary) {
-        log(`agent: ${devResult.summary}`);
-      }
-
-      stageAll();
-      if (!hasStagedChanges()) {
-        if (!devResult.summary) {
-          log(
-            devResult.submitted
-              ? 'agent 呼叫了 submitForReview，但沒有任何檔案變更，也沒有留下說明。'
-              : `用完 ${MAX_TURNS_PER_ITERATION} 輪工具呼叫但沒有任何檔案變更。`
-          );
-        }
-        continue;
-      }
-
-      const lintResult = await autoFixAndLintStaged();
-      commitWip(`wip: ai:dev follow-up ${round}`);
-      hasCommittedThisRun = true;
-
-      const typeCheckResult = await diffTypeCheckErrors(typeCheckBaseline);
-      if (!lintResult.ok || !typeCheckResult.ok) {
-        if (!lintResult.ok) log(`Lint errors:\n${lintResult.output}`);
-        if (!typeCheckResult.ok) {
-          log(
-            `New type-check errors:\n${typeCheckResult.newErrors.join('\n')}`
-          );
-        }
-        resetSoft(resolvedBaseRef);
-        round++;
-        continue;
-      }
-
-      log('running reviewer...');
-      const review = await reviewDiff({ baseRef: resolvedBaseRef, ticket });
-      log(`overall risk: ${review.summary}`);
-      if (review.findings?.length) {
-        log('findings:');
-        for (const f of review.findings) {
-          log(
-            `  - [${f.source ?? f.category}] ${f.file}:${f.line ?? '?'} — ${f.issue}`
-          );
-        }
-      }
-
-      resetSoft(resolvedBaseRef);
-      round++;
-    }
-  } finally {
-    rl.close();
   }
 }
 
@@ -816,29 +680,9 @@ async function main() {
   printFinalReport(finalState, prResult);
 
   if (prResult?.created || prResult?.pushed) {
-    // A real commit is on origin/<branch> in both cases — skip the follow-up
-    // loop entirely. Its resetSoft(resolvedBaseRef) is only safe when nothing
-    // has been pushed yet; running it here would erase that pushed commit
-    // from local history (see attemptAutoPr's push-succeeded-but-create-
-    // failed branch).
     log(
       `further changes should be pushed as additional commits to branch "${ticket.branchName}" — not through another local WIP loop.`
     );
-    return;
-  }
-
-  await runFollowUpSession({ ticket, systemPrompt, typeCheckBaseline });
-
-  // The follow-up session may have made more changes since printFinalReport
-  // ran; collapse those too and print a closing summary before exiting.
-  if (hasCommittedThisRun) {
-    resetSoft(resolvedBaseRef);
-    log(
-      `follow-up session ended — changes are staged and uncommitted on branch "${currentBranch()}". ` +
-        'git diff --cached to review, then commit yourself.'
-    );
-  } else {
-    log('follow-up session ended — no changes were made.');
   }
 }
 
