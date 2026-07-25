@@ -6,7 +6,7 @@ vi.mock('node:child_process', () => ({
 }));
 
 const { execFileSync } = await import('node:child_process');
-const { attemptAutoPr, buildFollowUpTask, buildRetryTask, isQaBlocking } =
+const { attemptAutoPr, buildRetryTask, isQaBlocking } =
   await import('./orchestrator.mjs');
 
 function failure(message = 'command failed') {
@@ -268,34 +268,6 @@ describe('buildRetryTask', () => {
     });
 
     expect(task).not.toContain('QA Agent 執行失敗的情境');
-  });
-});
-
-describe('buildFollowUpTask', () => {
-  const DIFF_KEY = `diff ${RESOLVED_BASE_REF}...HEAD -- . :(exclude)pnpm-lock.yaml :(exclude)package-lock.json :(exclude)yarn.lock :(exclude)*.snap :(exclude)public/**`;
-
-  it('includes the diff and the raw user message', () => {
-    mockCalls({ [DIFF_KEY]: 'diff --git a/x b/x' });
-
-    const task = buildFollowUpTask({
-      baseRef: RESOLVED_BASE_REF,
-      userMessage: '這段邏輯為什麼這樣寫？',
-    });
-
-    expect(task).toContain('diff --git a/x b/x');
-    expect(task).toContain('這段邏輯為什麼這樣寫？');
-  });
-
-  it('tells the agent a question can be answered without editing files', () => {
-    mockCalls({ [DIFF_KEY]: 'diff --git a/x b/x' });
-
-    const task = buildFollowUpTask({
-      baseRef: RESOLVED_BASE_REF,
-      userMessage: 'anything',
-    });
-
-    expect(task).toContain('如果這是問題');
-    expect(task).toContain('summary');
   });
 });
 
