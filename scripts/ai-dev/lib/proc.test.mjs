@@ -1,7 +1,30 @@
 // @vitest-environment node
+import crossSpawn from 'cross-spawn';
 import { describe, expect, it } from 'vitest';
 
-import { killActiveChildren, runProcess } from './proc.mjs';
+import {
+  killActiveChildren,
+  registerChild,
+  runProcess,
+  unregisterChild,
+} from './proc.mjs';
+
+function longLivedChild() {
+  return crossSpawn('node', ['-e', 'setTimeout(() => {}, 30000)']);
+}
+
+function waitForExit(child, timeoutMs = 10_000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error('timed out waiting for child to exit')),
+      timeoutMs
+    );
+    child.once('exit', () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
 
 describe('runProcess — basic execution', () => {
   it('captures stdout and a zero exit code on success', async () => {
@@ -134,4 +157,33 @@ describe('killActiveChildren', () => {
   it('does not throw when there are no active children', () => {
     expect(() => killActiveChildren()).not.toThrow();
   });
+
+  it('kills a child registered via registerChild', async () => {
+    const child = longLivedChild();
+    registerChild(child);
+
+    killActiveChildren();
+    await waitForExit(child);
+
+    expect(child.exitCode !== null || child.signalCode !== null).toBe(true);
+  }, 15_000);
+
+  it('does not touch a child after it has been unregisterChild()-ed', async () => {
+    const child = longLivedChild();
+    registerChild(child);
+    unregisterChild(child);
+
+    killActiveChildren();
+
+    // Still alive after a short wait is exactly what "not touched" looks
+    // like — a real assertion (not just "didn't throw") that unregistering
+    // actually removed it from the kill set.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(child.exitCode).toBeNull();
+    expect(child.signalCode).toBeNull();
+
+    // Clean up manually — this process was deliberately spared above.
+    child.kill();
+    await waitForExit(child);
+  }, 15_000);
 });

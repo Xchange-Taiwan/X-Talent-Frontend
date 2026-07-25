@@ -49,7 +49,10 @@ export async function planScenarios({ ticket, baseRef }) {
     };
   }
 
-  const scenarios = (plan.scenarios ?? [])
+  // Same defensive guard as fixture-planner.mjs: plan.scenarios being
+  // present but not an array must degrade gracefully, not throw.
+  const rawScenarios = Array.isArray(plan.scenarios) ? plan.scenarios : [];
+  const scenarios = rawScenarios
     .filter(
       (s) => s?.id && VALID_ROLES.has(s.role) && s.description && s.expected
     )
