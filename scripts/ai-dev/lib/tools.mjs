@@ -386,7 +386,8 @@ export const TOOL_DECLARATIONS = [
       properties: {
         summary: {
           type: 'string',
-          description: 'One-paragraph summary of what changed.',
+          description:
+            'One-paragraph summary of what changed, written in Traditional Chinese (繁體中文).',
         },
       },
       required: ['summary'],
