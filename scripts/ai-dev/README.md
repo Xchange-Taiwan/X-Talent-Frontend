@@ -1,9 +1,11 @@
 # ai:dev — local AI dev automation
 
 `pnpm ai:dev <ticket-number>` runs a local dev → review → fix loop against a
-`X-Talent-Tracker` issue using Gemini, entirely on your machine. It never
-commits anything you'd actually push and never opens a PR — it stops once the
-diff passes review (or hits its iteration cap) and hands control back to you.
+`X-Talent-Tracker` issue using Gemini, entirely on your machine. If the review
+pipeline judges the result **low risk with zero findings**, it automatically
+commits, pushes, and opens a real PR for you — see "Auto-PR" below for the
+exact gating condition. Otherwise it stops once it hits its iteration cap (or
+gets stuck) and hands control back to you with the diff staged, uncommitted.
 
 This tool is intentionally independent of Claude Code / `.claude/commands` —
 anyone with Node, `gh`, and a Gemini API key can run it, regardless of which
@@ -66,16 +68,62 @@ There are no other required arguments. The tool:
 
 ## When it stops
 
-Either way, nothing is pushed and no real commit is made — you'll see WIP
-commits on the branch and a printed reminder:
+Once the loop ends, exactly one of two things happens:
 
-```
-git reset --soft <baseRef>
-# review the diff, then commit it yourself
-```
+- **Gate passes** → see "Auto-PR" below: a real commit, a push, and an opened
+  PR, automatically
+- **Gate fails** (or it got stuck / hit the iteration cap) → nothing is
+  pushed and no real commit is made; you'll see WIP commits on the branch and
+  a printed reminder:
+
+  ```
+  git reset --soft <baseRef>
+  # review the diff, then commit it yourself
+  ```
 
 If it hits the iteration cap with unresolved findings, the last diff and the
 final findings are left exactly as-is for you to take over manually.
+
+## Auto-PR
+
+After the loop ends, one extra step runs automatically — there is no flag to
+opt in or out:
+
+**Gating condition** — all three must hold:
+
+- `finalState.status === 'passed'` (the loop ended cleanly, not stuck/capped)
+- `review.overallRisk.level === 'low'`
+- `review.findings.length === 0`
+
+If the gate passes: the staged diff is committed for real (no `wip:` prefix,
+Conventional-Commits style, hooks run normally — this is what actually gets
+pushed), pushed to `origin/<branch>`, and opened as a PR against `develop`
+via `gh pr create` (auto-linked to the tracker issue through the existing
+linked-branch relationship). The interactive follow-up prompt is skipped —
+further changes belong as additional commits on the now-open PR, not another
+local WIP/reset loop.
+
+If the gate fails — `medium`/`high` risk, any findings, or a non-`passed`
+final status — auto-PR is a no-op: same staged-diff hand-off described above.
+
+**Failure handling** — any failure during the auto-PR sequence itself falls
+back to the staged-diff hand-off instead of leaving a broken state:
+
+- commit fails (e.g. a hook rejects it) → nothing committed, fall back
+- push fails → the local commit is rolled back (`git reset --soft`), fall back
+- an open PR already exists for the branch → skipped before attempting
+  anything, fall back
+- push succeeds but `gh pr create` fails → the commit is already on
+  `origin/<branch>`; this one case is **not** rolled back (there is no
+  non-destructive way to un-push), so you'll see a printed pointer to open
+  the PR manually from that branch
+
+**Risk trade-off** — the risk level gating this is itself an LLM judgment
+call over untrusted ticket content. A crafted/misleading ticket could in
+theory get its own change misjudged as `low` risk with zero findings, which
+would then get pushed and opened as a real PR unattended. Only run this tool
+on tickets from trusted sources, same as the general prompt-injection caveat
+printed at startup.
 
 ## v1 limitations (by design, not oversights)
 

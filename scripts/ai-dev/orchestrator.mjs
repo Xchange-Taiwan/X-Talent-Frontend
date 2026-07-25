@@ -2,6 +2,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createInterface } from 'node:readline/promises';
+import { fileURLToPath } from 'node:url';
 
 import { config } from 'dotenv';
 
@@ -22,6 +23,7 @@ import {
   userTurn,
 } from './lib/gemini-agent.mjs';
 import {
+  commit,
   commitWip,
   currentBranch,
   GitError,
@@ -29,11 +31,19 @@ import {
   isWorkingTreeClean,
   mergeBase,
   parseOwnerRepo,
+  pushBranch,
   remoteOriginUrl,
   resetSoft,
   stageAll,
   updateDevelopFastForward,
 } from './lib/git.mjs';
+import {
+  buildCommitSubject,
+  buildPrBody,
+  createPr,
+  findOpenPrForBranch,
+  PrError,
+} from './lib/pr.mjs';
 import { killActiveChildren } from './lib/proc.mjs';
 import { reviewDiff } from './lib/review-bridge.mjs';
 import { setupTicketBranch, TicketError } from './lib/ticket-branch.mjs';
@@ -58,6 +68,10 @@ const SYSTEM_PROMPT_URL = new URL(
   import.meta.url
 );
 
+// Module-scope on purpose: set once in main() after the ticket branch is
+// checked out, then read via closure from the retry/follow-up task builders
+// below — all in this same file. (attemptAutoPr takes resolvedBaseRef as an
+// explicit parameter instead, for testability — see orchestrator.test.mjs.)
 let hasCommittedThisRun = false;
 let resolvedBaseRef = null;
 
@@ -268,7 +282,7 @@ function diffHash(baseRef) {
   return createHash('sha256').update(getDiff(baseRef).diff).digest('hex');
 }
 
-function printFinalReport(finalState) {
+function printFinalReport(finalState, prResult) {
   console.log('\n[ai:dev] ' + '='.repeat(40));
   console.log(
     `[ai:dev] status: ${finalState.status} (iteration ${finalState.iteration}/${MAX_ITERATIONS})`
@@ -287,6 +301,17 @@ function printFinalReport(finalState) {
       );
     }
   }
+  if (prResult?.created) {
+    console.log(`\n[ai:dev] opened PR: ${prResult.url}`);
+    return;
+  }
+  if (prResult?.pushed) {
+    console.log(
+      `\n[ai:dev] commit was pushed to origin/${currentBranch()} but no PR was opened — ` +
+        'open one manually, or re-run.'
+    );
+    return;
+  }
   if (hasCommittedThisRun) {
     console.log(
       `\n[ai:dev] collapsed the WIP commit(s) back onto branch "${currentBranch()}" — ` +
@@ -294,6 +319,82 @@ function printFinalReport(finalState) {
         '  git diff --cached   # review before committing\n' +
         '  # ai:dev never commits or pushes anything real — that part is still on you'
     );
+  }
+}
+
+/**
+ * Only called once the gating condition (passed, low risk, zero findings)
+ * already holds. Every failure here falls back to the "leave it staged"
+ * behavior instead of leaving a broken half-done state — see README for the
+ * exact gating condition and risk trade-off.
+ *
+ * `resolvedBaseRef` is passed explicitly (rather than read off the
+ * module-scope variable of the same name) so this function stays testable
+ * in isolation — see orchestrator.test.mjs.
+ */
+export async function attemptAutoPr({ ticket, resolvedBaseRef }) {
+  if (!hasStagedChanges()) {
+    log('auto-pr: nothing staged after collapsing WIP commits, skipping.');
+    return { created: false };
+  }
+
+  let existingPrUrl;
+  try {
+    existingPrUrl = findOpenPrForBranch(ticket.branchName);
+  } catch (err) {
+    log(
+      `auto-pr: could not check for an existing PR (${err.message}) — falling back to manual hand-off.`
+    );
+    return { created: false };
+  }
+  if (existingPrUrl) {
+    log(
+      `auto-pr: branch "${ticket.branchName}" already has an open PR (${existingPrUrl}) — falling back to manual hand-off.`
+    );
+    return { created: false };
+  }
+
+  const subject = buildCommitSubject(ticket);
+
+  try {
+    commit(subject);
+  } catch (err) {
+    log(
+      `auto-pr: commit failed (${err.message}) — falling back to manual hand-off.`
+    );
+    return { created: false };
+  }
+
+  try {
+    pushBranch(ticket.branchName);
+  } catch (err) {
+    log(
+      `auto-pr: push failed (${err.message}) — rolling back the local commit, falling back to manual hand-off.`
+    );
+    resetSoft(resolvedBaseRef);
+    return { created: false };
+  }
+
+  try {
+    const url = createPr({
+      branch: ticket.branchName,
+      title: subject,
+      body: buildPrBody(ticket),
+    });
+    hasCommittedThisRun = false; // it's a real, already-pushed commit now — nothing left to collapse
+    return { created: true, pushed: true, url };
+  } catch (err) {
+    log(
+      `auto-pr: branch was pushed but \`gh pr create\` failed (${err.message}). ` +
+        `The commit is already on origin/${ticket.branchName} — open the PR manually or re-run.`
+    );
+    hasCommittedThisRun = false; // already pushed; a local reset here would not undo the remote commit
+    // pushed: true is load-bearing — main() must skip runFollowUpSession in
+    // this case too, not just when created is true. Once a real commit is
+    // pushed, resolvedBaseRef no longer represents "nothing has happened
+    // yet"; letting the follow-up loop's resetSoft(resolvedBaseRef) run
+    // would erase this already-pushed commit from local history.
+    return { created: false, pushed: true };
   }
 }
 
@@ -395,7 +496,9 @@ async function main() {
     '[ai:dev] ⚠️  This runs an AI agent with local file write + command execution against ticket ' +
       "content you don't fully control. Only use this on tickets from trusted sources — a malicious " +
       'ticket could attempt prompt injection. Reviewed mitigations exist (path sandboxing, no ' +
-      'dependency/config changes, no test/build execution) but this is not a full sandbox.'
+      'dependency/config changes, no test/build execution) but this is not a full sandbox. If the ' +
+      'review pipeline judges the result low risk with zero findings, it will automatically commit, ' +
+      'push, and open a real PR — no manual step required.'
   );
 
   log('running preflight checks...');
@@ -555,7 +658,28 @@ async function main() {
     resetSoft(resolvedBaseRef);
   }
 
-  printFinalReport(finalState);
+  const gatePassed =
+    finalState.status === 'passed' &&
+    finalState.review?.overallRisk?.level === 'low' &&
+    (finalState.review?.findings?.length ?? 0) === 0;
+
+  const prResult = gatePassed
+    ? await attemptAutoPr({ ticket, resolvedBaseRef })
+    : null;
+
+  printFinalReport(finalState, prResult);
+
+  if (prResult?.created || prResult?.pushed) {
+    // A real commit is on origin/<branch> in both cases — skip the follow-up
+    // loop entirely. Its resetSoft(resolvedBaseRef) is only safe when nothing
+    // has been pushed yet; running it here would erase that pushed commit
+    // from local history (see attemptAutoPr's push-succeeded-but-create-
+    // failed branch).
+    log(
+      `further changes should be pushed as additional commits to branch "${ticket.branchName}" — not through another local WIP loop.`
+    );
+    return;
+  }
 
   await runFollowUpSession({ ticket, systemPrompt, typeCheckBaseline });
 
@@ -585,18 +709,24 @@ function checkCircuitBreaker({
   );
 }
 
-main().catch((err) => {
-  if (err instanceof FileTooLargeError) {
-    fail(`stopped early: ${err.message}`);
-    return;
-  }
-  if (
-    err instanceof GitError ||
-    err instanceof TicketError ||
-    err instanceof ChecksError
-  ) {
-    fail(err.message);
-    return;
-  }
-  fail(err.stack || err.message);
-});
+// Only auto-run when this file is the actual entry point (`node
+// orchestrator.mjs ...` / `pnpm ai:dev`) — not when it's imported, e.g. by
+// orchestrator.test.mjs importing attemptAutoPr for unit testing.
+if (process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    if (err instanceof FileTooLargeError) {
+      fail(`stopped early: ${err.message}`);
+      return;
+    }
+    if (
+      err instanceof GitError ||
+      err instanceof TicketError ||
+      err instanceof ChecksError ||
+      err instanceof PrError
+    ) {
+      fail(err.message);
+      return;
+    }
+    fail(err.stack || err.message);
+  });
+}
