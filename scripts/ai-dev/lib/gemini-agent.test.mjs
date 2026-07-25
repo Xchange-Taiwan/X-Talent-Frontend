@@ -6,6 +6,7 @@ import {
   extractFunctionCalls,
   extractText,
   functionResponseTurn,
+  modelTextTurn,
   modelTurnFromCandidate,
   userTurn,
 } from './gemini-agent.mjs';
@@ -331,6 +332,13 @@ describe('conversation-shaping helpers', () => {
 
   it('modelTurnFromCandidate tolerates a candidate with no content', () => {
     expect(modelTurnFromCandidate({})).toEqual({ role: 'model', parts: [] });
+  });
+
+  it('modelTextTurn wraps plain text in a model-role content object', () => {
+    expect(modelTextTurn('the answer')).toEqual({
+      role: 'model',
+      parts: [{ text: 'the answer' }],
+    });
   });
 
   it('functionResponseTurn wraps results as a function-role turn', () => {

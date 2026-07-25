@@ -68,3 +68,11 @@ export function createPr({ branch, title, body }) {
     body,
   ]);
 }
+
+/** Posts a follow-up comment on the branch's open PR — used by the QA stage
+ * to attach its report right after auto-PR creates the PR (see orchestrator.mjs's
+ * attemptAutoPr). Best-effort from the caller's side: a failure here should
+ * never undo an already-successful PR creation. */
+export function commentOnPr({ branch, body }) {
+  ghRun(['pr', 'comment', branch, '--body', body]);
+}
