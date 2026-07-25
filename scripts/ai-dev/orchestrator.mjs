@@ -22,6 +22,7 @@ import {
   userTurn,
 } from './lib/gemini-agent.mjs';
 import {
+  captureCleanEnv,
   commit,
   commitWip,
   currentBranch,
@@ -54,6 +55,9 @@ import {
   TOOL_DECLARATIONS,
 } from './lib/tools.mjs';
 
+// Snapshot before loading dev-only config below, so git subprocesses (and
+// any .husky hooks they trigger) don't inherit it — see git.mjs.
+captureCleanEnv();
 config();
 config({ path: '.env.development.local', override: true });
 
