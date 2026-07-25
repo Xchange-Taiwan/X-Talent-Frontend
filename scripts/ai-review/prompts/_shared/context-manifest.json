@@ -4,22 +4,17 @@
     {
       "path": "project-context.md",
       "purpose": "前端技術棧與程式慣例（架構、資料流向、styling、role-based UI 等），判斷 diff 是否符合既有慣例的依據",
-      "consumers": ["ai-dev", "ai-review", "ai-qa"]
+      "consumers": ["ai-review"]
     },
     {
       "path": "business-rules.md",
       "purpose": "跨頁面、跨 PR 都成立的業務不變量（domain invariants），判斷 diff 是不是技術上邏輯正確、但業務上根本不該存在",
-      "consumers": [
-        "ai-dev",
-        "ai-review",
-        "ai-qa",
-        "X-Talent-Tracker:ai-ticket-review"
-      ]
+      "consumers": ["ai-review", "X-Talent-Tracker:ai-ticket-review"]
     },
     {
       "path": "review-discipline.md",
       "purpose": "AI reviewer 輸出格式與紀律（語言、finding 格式、style 評論限制）",
-      "consumers": ["ai-dev", "ai-review", "ai-qa"]
+      "consumers": ["ai-review"]
     }
   ],
   "externalConsumers": [
