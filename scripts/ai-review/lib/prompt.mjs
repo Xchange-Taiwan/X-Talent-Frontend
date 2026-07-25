@@ -16,6 +16,10 @@ function loadShared() {
       new URL('business-rules.md', SHARED_DIR),
       'utf-8'
     ),
+    codeSmellBaseline: readFileSync(
+      new URL('code-smell-baseline.md', SHARED_DIR),
+      'utf-8'
+    ),
   };
 }
 
@@ -25,13 +29,15 @@ function loadShared() {
  * Placeholders are `{{NAME}}` tokens; unknown placeholders are left as-is.
  */
 export function buildPrompt(templateUrl, replacements = {}) {
-  const { projectContext, reviewDiscipline, businessRules } = loadShared();
+  const { projectContext, reviewDiscipline, businessRules, codeSmellBaseline } =
+    loadShared();
   let template = readFileSync(templateUrl, 'utf-8');
 
   const all = {
     PROJECT_CONTEXT: projectContext,
     REVIEW_DISCIPLINE: reviewDiscipline,
     BUSINESS_RULES: businessRules,
+    CODE_SMELL_BASELINE: codeSmellBaseline,
     ...replacements,
   };
   for (const [key, value] of Object.entries(all)) {
