@@ -61,7 +61,10 @@ export function ReservationCard({
   const profileAriaLabel = `查看 ${item.name} 的個人資料`;
 
   return (
-    <Card className="border-muted/40 transition-shadow hover:shadow-sm">
+    <Card
+      className="border-muted/40 transition-shadow hover:shadow-sm"
+      data-testid="reservation-card"
+    >
       <CardContent className="p-3 sm:p-4">
         <div className="flex items-start gap-3 sm:gap-4">
           {/* Avatar */}
