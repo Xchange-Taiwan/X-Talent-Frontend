@@ -16,8 +16,7 @@ export default defineConfig({
       TZ: 'UTC',
       // Pinned so URL-building tests get a deterministic relative-path
       // BASE_URL regardless of what's leaked into process.env by whatever
-      // invoked vitest (e.g. ai:dev's orchestrator loading
-      // .env.development.local for the QA dev server).
+      // invoked vitest (e.g. a process that loaded .env.development.local).
       NEXT_PUBLIC_API_URL: '',
     },
     setupFiles: ['./src/test/setup.ts'],
