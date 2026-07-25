@@ -6,7 +6,8 @@ vi.mock('node:child_process', () => ({
 }));
 
 const { execFileSync } = await import('node:child_process');
-const { attemptAutoPr } = await import('./orchestrator.mjs');
+const { attemptAutoPr, buildFollowUpTask, buildRetryTask } =
+  await import('./orchestrator.mjs');
 
 function failure(message = 'command failed') {
   return Object.assign(new Error(message), { stderr: message });
@@ -165,5 +166,135 @@ describe('attemptAutoPr', () => {
       pushed: true,
       url: 'https://github.com/Xchange-Taiwan/X-Talent-Frontend/pull/999',
     });
+  });
+
+  it('posts the QA report as a PR comment after a full success when qa.reportMarkdown is present', async () => {
+    mockCalls({
+      'diff --cached --quiet': failure(),
+      'pr list --head feat/312-test-branch --state open --json url': '[]',
+      'commit -m feat: ai:dev: auto create PR': '',
+      'push -u origin feat/312-test-branch': '',
+      [PR_CREATE_KEY]:
+        'https://github.com/Xchange-Taiwan/X-Talent-Frontend/pull/999\n',
+      'pr comment feat/312-test-branch --body ## QA report': '',
+    });
+
+    const result = await attemptAutoPr({
+      ticket,
+      resolvedBaseRef: RESOLVED_BASE_REF,
+      qa: { reportMarkdown: '## QA report' },
+    });
+
+    expect(result.created).toBe(true);
+    const calledArgs = execFileSync.mock.calls.map(([, args]) =>
+      args.join(' ')
+    );
+    expect(calledArgs).toContain(
+      'pr comment feat/312-test-branch --body ## QA report'
+    );
+  });
+
+  it('still reports created:true even when posting the QA comment fails', async () => {
+    mockCalls({
+      'diff --cached --quiet': failure(),
+      'pr list --head feat/312-test-branch --state open --json url': '[]',
+      'commit -m feat: ai:dev: auto create PR': '',
+      'push -u origin feat/312-test-branch': '',
+      [PR_CREATE_KEY]:
+        'https://github.com/Xchange-Taiwan/X-Talent-Frontend/pull/999\n',
+      'pr comment feat/312-test-branch --body ## QA report':
+        failure('comment failed'),
+    });
+
+    const result = await attemptAutoPr({
+      ticket,
+      resolvedBaseRef: RESOLVED_BASE_REF,
+      qa: { reportMarkdown: '## QA report' },
+    });
+
+    expect(result).toEqual({
+      created: true,
+      pushed: true,
+      url: 'https://github.com/Xchange-Taiwan/X-Talent-Frontend/pull/999',
+    });
+  });
+
+  it('never attempts to comment when qa is absent', async () => {
+    mockCalls({
+      'diff --cached --quiet': failure(),
+      'pr list --head feat/312-test-branch --state open --json url': '[]',
+      'commit -m feat: ai:dev: auto create PR': '',
+      'push -u origin feat/312-test-branch': '',
+      [PR_CREATE_KEY]:
+        'https://github.com/Xchange-Taiwan/X-Talent-Frontend/pull/999\n',
+    });
+
+    // mockCalls throws on any unregistered invocation — a stray `pr comment`
+    // call here would fail the test even without an explicit assertion.
+    const result = await attemptAutoPr({
+      ticket,
+      resolvedBaseRef: RESOLVED_BASE_REF,
+    });
+
+    expect(result.created).toBe(true);
+  });
+});
+
+describe('buildRetryTask', () => {
+  const DIFF_KEY = `diff ${RESOLVED_BASE_REF}...HEAD -- . :(exclude)pnpm-lock.yaml :(exclude)package-lock.json :(exclude)yarn.lock :(exclude)*.snap :(exclude)public/**`;
+
+  it('includes a QA findings section when qaFindings is provided', () => {
+    mockCalls({ [DIFF_KEY]: 'diff --git a/x b/x' });
+
+    const task = buildRetryTask({
+      baseRef: RESOLVED_BASE_REF,
+      failureText: null,
+      reviewFindings: null,
+      qaFindings: [{ file: '/jobs/1', issue: '沒有出現成功訊息' }],
+    });
+
+    expect(task).toContain('## QA Agent 執行失敗的情境（需要修正）');
+    expect(task).toContain('沒有出現成功訊息');
+  });
+
+  it('omits the QA findings section when qaFindings is not provided', () => {
+    mockCalls({ [DIFF_KEY]: 'diff --git a/x b/x' });
+
+    const task = buildRetryTask({
+      baseRef: RESOLVED_BASE_REF,
+      failureText: null,
+      reviewFindings: null,
+      qaFindings: null,
+    });
+
+    expect(task).not.toContain('QA Agent 執行失敗的情境');
+  });
+});
+
+describe('buildFollowUpTask', () => {
+  const DIFF_KEY = `diff ${RESOLVED_BASE_REF}...HEAD -- . :(exclude)pnpm-lock.yaml :(exclude)package-lock.json :(exclude)yarn.lock :(exclude)*.snap :(exclude)public/**`;
+
+  it('includes the diff and the raw user message', () => {
+    mockCalls({ [DIFF_KEY]: 'diff --git a/x b/x' });
+
+    const task = buildFollowUpTask({
+      baseRef: RESOLVED_BASE_REF,
+      userMessage: '這段邏輯為什麼這樣寫？',
+    });
+
+    expect(task).toContain('diff --git a/x b/x');
+    expect(task).toContain('這段邏輯為什麼這樣寫？');
+  });
+
+  it('tells the agent a question can be answered without editing files', () => {
+    mockCalls({ [DIFF_KEY]: 'diff --git a/x b/x' });
+
+    const task = buildFollowUpTask({
+      baseRef: RESOLVED_BASE_REF,
+      userMessage: 'anything',
+    });
+
+    expect(task).toContain('如果這是問題');
+    expect(task).toContain('summary');
   });
 });

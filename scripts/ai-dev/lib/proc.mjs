@@ -28,6 +28,20 @@ export function killActiveChildren() {
   }
 }
 
+// Long-lived children that outlive a single runProcess() call (the QA
+// stage's dev servers, MCP-driven browser sessions) register themselves here
+// so the same SIGINT handler that cleans up lint/tsc children also sweeps
+// them, instead of each caller needing its own tracking set.
+export function registerChild(child) {
+  activeChildren.add(child);
+}
+
+export function unregisterChild(child) {
+  activeChildren.delete(child);
+}
+
+export { killTree };
+
 // Everything spawned here (eslint, tsc, and anything the agent runs via its
 // own runCommand whitelist) is potentially executing code the agent just
 // wrote, which a prompt-injected ticket could have steered. Filter by
