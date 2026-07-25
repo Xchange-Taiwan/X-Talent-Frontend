@@ -33,7 +33,7 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import sharp from 'sharp';
 
@@ -188,7 +188,22 @@ export async function publishArtifacts({ owner, ticketNumber, files }) {
   try {
     const destDir = join(scratchDir, String(ticketNumber));
     mkdirSync(destDir, { recursive: true });
-    for (const file of files) {
+
+    // file.filename traces back to an AI-generated scenario id
+    // (scenario-planner.mjs), which is only checked for truthiness, not
+    // sanitized — a ticket-injected id like "../../../../.ssh/id_rsa" would
+    // otherwise let writeFileSync escape destDir entirely. basename() strips
+    // any directory components, so the write always lands inside destDir no
+    // matter what the untrusted string contains. Sanitized once and reused
+    // below for the returned URL too — building the URL from the original,
+    // unsanitized filename would point at a path that was never actually
+    // written (the file landed at the sanitized name on disk).
+    const safeFiles = files.map((file) => ({
+      ...file,
+      filename: basename(file.filename),
+    }));
+
+    for (const file of safeFiles) {
       writeFileSync(join(destDir, file.filename), file.buffer);
     }
 
@@ -205,7 +220,7 @@ export async function publishArtifacts({ owner, ticketNumber, files }) {
 
     const branch = git(['branch', '--show-current'], { cwd: scratchDir });
 
-    return files.map((file) => ({
+    return safeFiles.map((file) => ({
       filename: file.filename,
       url: `https://raw.githubusercontent.com/${owner}/${ARTIFACTS_REPO_NAME}/${branch}/${ticketNumber}/${file.filename}`,
     }));

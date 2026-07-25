@@ -128,3 +128,45 @@ describe('mintSessionCookies — non-JSON login response', () => {
     await expect(rejection).rejects.toThrow(/502/);
   });
 });
+
+describe('mintSessionCookies — unexpected (but valid JSON) response shape', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('raises AuthFixtureError instead of a raw TypeError when data.user is missing', async () => {
+    global.fetch = async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ data: { auth: { user_id: 1, token: 'x' } } }), // no `user`
+    });
+
+    await expect(
+      mintSessionCookies({
+        role: 'mentor',
+        apiBaseUrl: 'http://unexpected-shape.invalid',
+        useRealBackend: false,
+      })
+    ).rejects.toThrow(AuthFixtureError);
+  });
+
+  it('raises AuthFixtureError instead of a raw TypeError when data.auth is missing', async () => {
+    global.fetch = async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ data: { user: { name: 'x' } } }), // no `auth`
+    });
+
+    await expect(
+      mintSessionCookies({
+        role: 'mentor',
+        apiBaseUrl: 'http://unexpected-shape.invalid',
+        useRealBackend: false,
+      })
+    ).rejects.toThrow(AuthFixtureError);
+  });
+});

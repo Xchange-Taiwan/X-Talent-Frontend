@@ -80,7 +80,12 @@ async function loginAndBuildUser({ apiBaseUrl, email, password }) {
       `QA account login against ${apiBaseUrl} returned a non-JSON response (${res.status}): ${err.message}`
     );
   }
-  if (!res.ok || !response?.data) {
+  // Checking response?.data alone isn't enough — a valid-but-unexpected
+  // shape (e.g. `{ data: {} }` from a backend contract change) would pass
+  // this and then throw a raw "Cannot read properties of undefined" a few
+  // lines below instead of a clear AuthFixtureError, making an infra-error
+  // QA result much harder to diagnose.
+  if (!res.ok || !response?.data?.user || !response?.data?.auth) {
     throw new AuthFixtureError(
       `QA account login failed against ${apiBaseUrl} (${res.status}): ${JSON.stringify(response).slice(0, 300)}`
     );

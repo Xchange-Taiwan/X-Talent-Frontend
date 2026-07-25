@@ -113,6 +113,37 @@ describe('publishArtifacts', () => {
     expect(calledArgs).not.toContain(expect.stringContaining('repo create'));
   });
 
+  it('sanitizes a path-traversal filename to a plain basename instead of writing outside destDir', async () => {
+    mockGitAndGh({ repoExists: true });
+
+    const maliciousFiles = [
+      {
+        filename: '../../../../.ssh/id_rsa-desktop.png',
+        buffer: Buffer.from('fake-png-bytes'),
+      },
+    ];
+
+    const result = await publishArtifacts({
+      owner: 'Xchange-Taiwan',
+      ticketNumber: 318,
+      files: maliciousFiles,
+    });
+
+    // The write itself (writeFileSync, not mocked here) landing inside the
+    // scratch dir rather than escaping it is implied by publishArtifacts
+    // resolving without an ENOENT/EACCES trying to reach a nonexistent
+    // ../../../../.ssh directory. Both the returned `filename` and the URL
+    // must reflect the *sanitized* basename, not the original traversal
+    // string — otherwise the URL would point at a path that was never
+    // actually written (the file landed at the sanitized name on disk).
+    expect(result).toEqual([
+      {
+        filename: 'id_rsa-desktop.png',
+        url: 'https://raw.githubusercontent.com/Xchange-Taiwan/X-Talent-Frontend-PR-Image-Public/main/318/id_rsa-desktop.png',
+      },
+    ]);
+  });
+
   it('commits with --allow-empty so an unchanged screenshot on a retry round does not fail the publish', async () => {
     mockGitAndGh({ repoExists: true });
 
