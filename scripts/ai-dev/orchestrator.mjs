@@ -310,15 +310,21 @@ async function runQaStage({ ticket, baseRef }) {
  * the sharp end of issue #318's "無限重試與回饋迴圈" risk area, so it's
  * pulled out on its own to be directly unit-testable rather than only
  * reachable by driving the whole main() loop. Only a confirmed `failed`
- * (a genuine scenario assertion mismatch) can block, and only when
- * explicitly opted into via AI_QA_BLOCKING — `infra-error` / `not-applicable`
- * / `skipped` must never trigger a retry no matter what the flag says,
+ * (a genuine scenario assertion mismatch) can block — `infra-error` /
+ * `not-applicable` / `skipped` must never trigger a retry no matter what,
  * since retrying can't fix an environment problem and would just burn
  * iterations (or worse, feed the dev agent a "fix" for something that was
  * never actually broken).
+ *
+ * Blocking by default, matching issue #318's original gating rule (any
+ * failed scenario blocks auto-PR and feeds back to the dev agent, same as
+ * reviewer findings) — the existing `checkCircuitBreaker` already covers
+ * "when to stop retrying" so this doesn't need its own runaway-loop logic.
+ * Set `AI_QA_BLOCKING=false` to opt back out to report-only mode, e.g. while
+ * chasing a suspected false positive from an incomplete mock fixture.
  */
 export function isQaBlocking(qa) {
-  return process.env.AI_QA_BLOCKING === 'true' && qa.status === 'failed';
+  return process.env.AI_QA_BLOCKING !== 'false' && qa.status === 'failed';
 }
 
 function printFinalReport(finalState, prResult) {
@@ -632,10 +638,10 @@ async function main() {
         continue;
       }
 
-      // Non-blocking by default (see issue #318: v1 QA runs and reports but
-      // doesn't gate) — `infra-error`/`not-applicable`/`skipped` never block
-      // regardless of AI_QA_BLOCKING; only a confirmed `failed` does, and
-      // only when explicitly opted in.
+      // Reaching here means isQaBlocking(qa) was false: either qa.status
+      // isn't a confirmed `failed` (`infra-error`/`not-applicable`/`skipped`
+      // never block, regardless of AI_QA_BLOCKING), or the run opted out via
+      // AI_QA_BLOCKING=false.
       finalState = { status: 'passed', iteration, review, qa };
       break;
     }

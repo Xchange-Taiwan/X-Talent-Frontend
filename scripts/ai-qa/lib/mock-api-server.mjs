@@ -12,6 +12,8 @@
 // calls with zero changes to app source. See qa-bridge.mjs for the wiring.
 import { createServer } from 'node:http';
 
+import { getSchemaMockFixture } from './schema-mock.mjs';
+
 // Shared with auth-fixtures.mjs, which logs in with these fixed emails when
 // no real QA_TEST_ACCOUNT_* credentials are configured — the mock server
 // doesn't check passwords, only which sentinel email decides the role.
@@ -71,10 +73,15 @@ function loginResponseFor(email) {
 /**
  * `routes` is a Map keyed by `METHOD path` (exact match — scenario/fixture
  * paths are concrete, not patterns) to a handler `(parsedBody, req) => { status, body }`.
- * Unmatched routes 404 loudly instead of returning a generic empty-but-valid
- * body — a silently "successful" wrong-shaped response is exactly the
- * "ghost mock masking a real bug" risk flagged in issue #318's Risks
- * section; a clear 404 makes a missing fixture obvious instead of plausible.
+ * Lookup order per request: (1) an exact-match registered route (login, or
+ * one the fixture planner/a scenario registered — realistic, scenario-aware
+ * data); (2) a generic baseline sampled from the OpenAPI contract (see
+ * schema-mock.mjs) for any endpoint the contract defines but nobody
+ * registered a fixture for; (3) 404. Only a path the contract doesn't define
+ * at all reaches the 404 — a silently "successful" wrong-shaped response for
+ * an endpoint that isn't even real is the "ghost mock masking a real bug"
+ * risk flagged in issue #318's Risks section, so that case still 404s loudly
+ * instead of returning a generic empty-but-valid body.
  */
 export function createMockApiServer() {
   const routes = new Map();
@@ -99,14 +106,25 @@ export function createMockApiServer() {
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
     const key = `${req.method} ${url.pathname}`;
-    const handler = routes.get(key);
+    let handler = routes.get(key);
+
+    if (!handler) {
+      const schemaFixture = getSchemaMockFixture(req.method, url.pathname);
+      if (schemaFixture) {
+        console.log(
+          `[ai-qa] mock-api-server: no fixture registered for ${key}, serving a generic ` +
+            'schema-sampled baseline from the OpenAPI contract (see schema-mock.mjs)'
+        );
+        handler = async () => schemaFixture;
+      }
+    }
 
     if (!handler) {
       console.warn(`[ai-qa] mock-api-server: no fixture registered for ${key}`);
       sendJson(res, 404, {
         msg:
-          `No mock fixture registered for ${key}. Add one via the fixture planner, or this ` +
-          'endpoint is unexpected for this ticket.',
+          `No mock fixture registered for ${key}, and it isn't in the OpenAPI contract either. ` +
+          'Add one via the fixture planner, or this endpoint is unexpected for this ticket.',
       });
       return;
     }

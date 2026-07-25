@@ -88,3 +88,33 @@ describe('mock API server — dynamic fixtures', () => {
     expect(loginRes.status).toBe(200);
   });
 });
+
+describe('mock API server — OpenAPI schema-sampled baseline fallback', () => {
+  it('serves a generic baseline for a real contract endpoint with no registered fixture', async () => {
+    mock = await startMockApiServer();
+    const res = await fetch(`${mock.url}/v1/users/zh_TW/tags/catalog`);
+    const json = await res.json();
+    expect(res.status).toBe(200);
+    expect(json).toEqual(expect.objectContaining({ data: expect.anything() }));
+  });
+
+  it('an exact-match registered fixture still wins over the schema baseline', async () => {
+    mock = await startMockApiServer();
+    mock.registerHandler('GET', '/v1/users/zh_TW/tags/catalog', async () => ({
+      status: 200,
+      body: {
+        data: { language: 'zh_TW', catalogs: { skill: { kind: 'skill' } } },
+      },
+    }));
+
+    const res = await fetch(`${mock.url}/v1/users/zh_TW/tags/catalog`);
+    const json = await res.json();
+    expect(json.data.catalogs.skill.kind).toBe('skill');
+  });
+
+  it('still 404s for a path that is not in the OpenAPI contract at all', async () => {
+    mock = await startMockApiServer();
+    const res = await fetch(`${mock.url}/v1/nonexistent`);
+    expect(res.status).toBe(404);
+  });
+});

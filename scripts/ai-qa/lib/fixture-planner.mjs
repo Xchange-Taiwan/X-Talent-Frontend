@@ -44,9 +44,10 @@ export function isValidFixture(f) {
 /**
  * Returns a validated `{ method, path, status, body }[]`, capped at
  * MAX_FIXTURES. Never throws on a malformed planner response — an empty
- * array just means scenarios only get the baseline login mock, and any
- * endpoint they actually need 404s loudly (see mock-api-server.mjs) rather
- * than silently serving something wrong-shaped.
+ * array just means scenarios fall back to the OpenAPI-schema-sampled
+ * baseline for any endpoint the contract defines (see schema-mock.mjs), or
+ * 404 loudly (see mock-api-server.mjs) for one the contract doesn't define,
+ * rather than silently serving something wrong-shaped.
  */
 export async function planFixtures({ ticket, baseRef }) {
   const { diff, truncated } = getDiff(baseRef);

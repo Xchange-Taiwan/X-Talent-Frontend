@@ -279,38 +279,38 @@ describe('isQaBlocking', () => {
     else process.env.AI_QA_BLOCKING = originalFlag;
   });
 
-  it('blocks on a failed QA result when AI_QA_BLOCKING=true', () => {
+  it('blocks on a failed QA result when AI_QA_BLOCKING is unset (default)', () => {
+    delete process.env.AI_QA_BLOCKING;
+    expect(isQaBlocking({ status: 'failed' })).toBe(true);
+  });
+
+  it('blocks on a failed QA result when AI_QA_BLOCKING is any value other than "false"', () => {
     process.env.AI_QA_BLOCKING = 'true';
     expect(isQaBlocking({ status: 'failed' })).toBe(true);
   });
 
-  it('does not block on a failed QA result when AI_QA_BLOCKING is unset (default)', () => {
-    delete process.env.AI_QA_BLOCKING;
+  it('does not block on a failed QA result when explicitly opted out via AI_QA_BLOCKING=false', () => {
+    process.env.AI_QA_BLOCKING = 'false';
     expect(isQaBlocking({ status: 'failed' })).toBe(false);
   });
 
-  it('never blocks on infra-error, even with AI_QA_BLOCKING=true', () => {
-    process.env.AI_QA_BLOCKING = 'true';
+  it('never blocks on infra-error, even by default', () => {
+    delete process.env.AI_QA_BLOCKING;
     expect(isQaBlocking({ status: 'infra-error' })).toBe(false);
   });
 
-  it('never blocks on not-applicable, even with AI_QA_BLOCKING=true', () => {
-    process.env.AI_QA_BLOCKING = 'true';
+  it('never blocks on not-applicable, even by default', () => {
+    delete process.env.AI_QA_BLOCKING;
     expect(isQaBlocking({ status: 'not-applicable' })).toBe(false);
   });
 
-  it('never blocks on skipped, even with AI_QA_BLOCKING=true', () => {
-    process.env.AI_QA_BLOCKING = 'true';
+  it('never blocks on skipped, even by default', () => {
+    delete process.env.AI_QA_BLOCKING;
     expect(isQaBlocking({ status: 'skipped' })).toBe(false);
   });
 
   it('never blocks on passed', () => {
-    process.env.AI_QA_BLOCKING = 'true';
+    delete process.env.AI_QA_BLOCKING;
     expect(isQaBlocking({ status: 'passed' })).toBe(false);
-  });
-
-  it('treats any value other than the literal string "true" as unset', () => {
-    process.env.AI_QA_BLOCKING = '1';
-    expect(isQaBlocking({ status: 'failed' })).toBe(false);
   });
 });
