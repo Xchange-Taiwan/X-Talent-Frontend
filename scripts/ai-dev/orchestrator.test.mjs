@@ -6,9 +6,8 @@ vi.mock('node:child_process', () => ({
 }));
 
 const { execFileSync } = await import('node:child_process');
-const { attemptAutoPr, buildRetryTask, isQaBlocking } = await import(
-  './orchestrator.mjs'
-);
+const { attemptAutoPr, buildRetryTask, isQaBlocking } =
+  await import('./orchestrator.mjs');
 
 function failure(message = 'command failed') {
   return Object.assign(new Error(message), { stderr: message });
