@@ -2,11 +2,27 @@ import { execFileSync } from 'node:child_process';
 
 export class GitError extends Error {}
 
+// orchestrator.mjs loads .env.development.local into its own process.env
+// with override:true so ai-qa/lib/server.mjs can spread it into the QA dev
+// server's child env — but `git push`/`commit` here can trigger the
+// developer's real .husky hooks (pre-commit's lint-staged, pre-push's
+// `pnpm test`), which have no business inheriting dev-only config or
+// GEMINI_API_KEY. captureCleanEnv() lets orchestrator.mjs snapshot
+// process.env before those config() calls so git subprocesses (and
+// anything the hooks they trigger spawn) see the same environment a
+// developer's own shell would have.
+let cleanEnv = null;
+
+export function captureCleanEnv() {
+  cleanEnv = { ...process.env };
+}
+
 function run(args, { allowFailure = false } = {}) {
   try {
     return execFileSync('git', args, {
       encoding: 'utf-8',
       maxBuffer: 1024 * 1024 * 20,
+      env: cleanEnv ?? process.env,
     }).trim();
   } catch (err) {
     if (allowFailure) return null;

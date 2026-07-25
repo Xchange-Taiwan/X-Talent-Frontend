@@ -7,6 +7,7 @@ vi.mock('node:child_process', () => ({
 
 const { execFileSync } = await import('node:child_process');
 const {
+  captureCleanEnv,
   GitError,
   isWorkingTreeClean,
   currentBranch,
@@ -57,6 +58,34 @@ describe('isWorkingTreeClean', () => {
   it('is false when there is uncommitted output', () => {
     mockGit({ 'status --porcelain': ' M some/file.ts\n' });
     expect(isWorkingTreeClean()).toBe(false);
+  });
+});
+
+describe('captureCleanEnv', () => {
+  it('before capture, git subprocesses inherit live process.env', () => {
+    mockGit({ 'rev-parse --abbrev-ref HEAD': 'develop' });
+    currentBranch();
+    const [, , opts] = execFileSync.mock.calls[0];
+    expect(opts.env).toBe(process.env);
+  });
+
+  it('after capture, git subprocesses get the pre-capture snapshot, not live process.env — so dev-only vars .env.development.local injects afterwards (NEXT_PUBLIC_API_URL, GEMINI_API_KEY, etc.) never reach a `git push`/`commit` and the .husky hooks they can trigger', () => {
+    const before = process.env.NEXT_PUBLIC_API_URL;
+    delete process.env.NEXT_PUBLIC_API_URL;
+    try {
+      captureCleanEnv();
+      process.env.NEXT_PUBLIC_API_URL = 'https://leaked.example.com/api';
+
+      mockGit({ 'rev-parse --abbrev-ref HEAD': 'develop' });
+      currentBranch();
+
+      const [, , opts] = execFileSync.mock.calls[0];
+      expect(opts.env).not.toBe(process.env);
+      expect(opts.env.NEXT_PUBLIC_API_URL).toBeUndefined();
+    } finally {
+      delete process.env.NEXT_PUBLIC_API_URL;
+      if (before !== undefined) process.env.NEXT_PUBLIC_API_URL = before;
+    }
   });
 });
 
