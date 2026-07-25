@@ -1,5 +1,7 @@
 這份文件收錄「不會寫在單一 ticket 裡、但整個平台都要遵守」的業務規則（domain invariants）。目的是讓 Business Logic Reviewer 不需要靠 tribal knowledge，也能判斷一個 PR 是不是做了「技術上邏輯正確、但業務上根本不該存在」的事。
 
+> **這份檔案被 `X-Talent-Tracker` 的 `ai-ticket-review` 跨 repo 讀取（見 [`context-manifest.json`](./context-manifest.json) 的 `externalConsumers`）。搬動或改名這份檔案前，先同步更新該 repo 的 `config/context-manifest.json`，否則對方的 workflow 會直接 fail。**
+
 **維護方式**：只要 AI reviewer（或人類 reviewer）事後發現漏掉一個「因為不懂平台業務規則而犯的錯」，就把那條規則寫進來，避免同一類錯誤在下一個 PR 又發生一次。每條規則都要附上「為什麼」跟「reviewer 該怎麼做」，單純條列規則但沒有依據，之後很容易被誤用或誤判成過時。
 
 ---
