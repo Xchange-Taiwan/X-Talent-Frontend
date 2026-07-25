@@ -65,7 +65,6 @@ export default function ProfilePageContainer({
 
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
-  const [bookingQuestion, setBookingQuestion] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -173,12 +172,14 @@ export default function ProfilePageContainer({
     }
   };
 
-  const handleConfirmReservation = async () => {
+  const handleConfirmReservation = async (
+    question: string
+  ): Promise<boolean> => {
     if (!loginUserId) {
       router.push('/auth/signin');
-      return;
+      return false;
     }
-    if (!selectedSlot || !userData) return;
+    if (!selectedSlot || !userData) return false;
 
     setIsSubmitting(true);
     try {
@@ -192,7 +193,7 @@ export default function ProfilePageContainer({
           schedule_id: selectedSlot.scheduleId,
           dtstart: Math.floor(selectedSlot.start.getTime() / 1000),
           dtend: Math.floor(selectedSlot.end.getTime() / 1000),
-          messages: [{ user_id: menteeId, content: bookingQuestion }],
+          messages: [{ user_id: menteeId, content: question }],
         },
         debug: process.env.NODE_ENV === 'development',
       });
@@ -208,7 +209,7 @@ export default function ProfilePageContainer({
       });
 
       setSelectedSlot(null);
-      setBookingQuestion('');
+      return true;
     } catch (error) {
       console.error('Failed to create reservation:', error);
       const msg = error instanceof Error ? error.message : 'Unknown error';
@@ -237,6 +238,7 @@ export default function ProfilePageContainer({
           variant: 'destructive',
         });
       }
+      return false;
     } finally {
       setIsSubmitting(false);
     }
@@ -259,8 +261,6 @@ export default function ProfilePageContainer({
       onScheduleMonthChange={handleScheduleMonthChange}
       selectedSlot={selectedSlot}
       setSelectedSlot={setSelectedSlot}
-      bookingQuestion={bookingQuestion}
-      setBookingQuestion={setBookingQuestion}
       isSubmitting={isSubmitting}
       onConfirmReservation={handleConfirmReservation}
       onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}
