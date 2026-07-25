@@ -749,7 +749,7 @@ async function main() {
         reviewFindings = null;
         qaFindings = qa.findings;
         const signature = JSON.stringify(
-          qa.findings.map((f) => `${f.file}:${f.issue}`).sort()
+          (qa.findings ?? []).map((f) => `${f.file}:${f.issue}`).sort()
         );
         const hash = diffHash(resolvedBaseRef);
         if (
