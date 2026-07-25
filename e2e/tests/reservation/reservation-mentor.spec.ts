@@ -396,3 +396,102 @@ test('資料載入中 → Skeleton 顯示且不閃爍錯誤內容', async ({ pag
   // Skeleton should be gone
   await expect(page.locator('.animate-pulse').first()).not.toBeVisible();
 });
+
+test.describe('歷史紀錄 Tab 測試', () => {
+  test('歷史紀錄 Tab 中有/無訊息的預約卡片與取消 badge 顯示', async ({
+    page,
+  }) => {
+    await setSignedSessionCookie(page, {
+      id: USER_ID,
+      name: 'Test Mentor',
+      isMentor: true,
+      onBoarding: true,
+      token: 'mock-access-token',
+    });
+    await mockSessionGet(page);
+
+    const withMsg = {
+      ...makeReservation(20, 'Mentee Lee'),
+      messages: [
+        {
+          id: 201,
+          user_id: 99,
+          role: 'MENTEE',
+          content: '學員提問：React 效能問題',
+        },
+        {
+          id: 202,
+          user_id: Number(USER_ID),
+          role: 'MENTOR',
+          content: '導師回覆：好的，我們週三討論',
+        },
+      ],
+    };
+
+    const noMsg = makeReservation(21, 'Mentee Chang');
+
+    // 已由導師(sender)取消
+    const cancelledByMentor = makeReservation(22, 'Mentee CancelA');
+    cancelledByMentor.sender.status = 'REJECT';
+
+    // 已由學員(participant)取消
+    const cancelledByMentee = makeReservation(23, 'Mentee CancelB');
+    cancelledByMentee.participant.status = 'REJECT';
+
+    await mockReservationListEndpoints(page, {
+      MENTOR_HISTORY: [withMsg, noMsg, cancelledByMentor, cancelledByMentee],
+    });
+
+    await page.goto(PAGE_URL);
+
+    // 切換到歷史紀錄 Tab
+    await expect(page.getByRole('tab', { name: /歷史紀錄/ })).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.getByRole('tab', { name: /歷史紀錄/ }).click();
+
+    // 1. 驗證有訊息的預約卡片 → 顯示對話按鈕，點擊後開啟對話框並顯示內容
+    const cardWithMsg = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Mentee Lee' });
+    const viewChatBtn = cardWithMsg.getByRole('button', {
+      name: '查看完整對話',
+    });
+    await expect(viewChatBtn).toBeVisible();
+
+    // 點擊開啟對話框
+    await viewChatBtn.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.getByRole('heading', { name: '完整對話紀錄' })
+    ).toBeVisible();
+    await expect(dialog.getByText('學員提問：React 效能問題')).toBeVisible();
+    await expect(
+      dialog.getByText('導師回覆：好的，我們週三討論')
+    ).toBeVisible();
+
+    // 關閉對話框
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+
+    // 2. 驗證沒有訊息的預約卡片 → 不顯示對話按鈕
+    const cardNoMsg = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Mentee Chang' });
+    await expect(
+      cardNoMsg.getByRole('button', { name: '查看完整對話' })
+    ).not.toBeVisible();
+
+    // 3. 驗證取消 badge 顯示
+    const cardByMentor = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Mentee CancelA' });
+    await expect(cardByMentor.getByRole('status')).toHaveText('已由導師取消');
+
+    const cardByMentee = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Mentee CancelB' });
+    await expect(cardByMentee.getByRole('status')).toHaveText('已由學員取消');
+  });
+});
