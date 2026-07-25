@@ -6,7 +6,7 @@ vi.mock('node:child_process', () => ({
 }));
 
 const { execFileSync } = await import('node:child_process');
-const { attemptAutoPr, buildRetryTask, isQaBlocking } =
+const { attemptAutoPr, buildRetryTask, isAutoPrGatePassed, isQaBlocking } =
   await import('./orchestrator.mjs');
 
 function failure(message = 'command failed') {
@@ -33,7 +33,7 @@ const ticket = {
 };
 const RESOLVED_BASE_REF = 'abc123';
 const PR_CREATE_KEY =
-  'pr create --base develop --head feat/312-test-branch --title feat: ai:dev: auto create PR --body Auto-created by `pnpm ai:dev --auto-pr` — the review pipeline judged this change low risk with zero findings.\n\nCloses Xchange-Taiwan/X-Talent-Tracker#312';
+  'pr create --base develop --head feat/312-test-branch --title feat: ai:dev: auto create PR --body Auto-created by `pnpm ai:dev --auto-pr` — the review pipeline judged this change low or medium risk.\n\nCloses Xchange-Taiwan/X-Talent-Tracker#312';
 
 beforeEach(() => {
   execFileSync.mockReset();
@@ -312,5 +312,46 @@ describe('isQaBlocking', () => {
   it('never blocks on passed', () => {
     delete process.env.AI_QA_BLOCKING;
     expect(isQaBlocking({ status: 'passed' })).toBe(false);
+  });
+});
+
+describe('isAutoPrGatePassed', () => {
+  function state(status, level, findingsCount = 0) {
+    return {
+      status,
+      review: {
+        overallRisk: level ? { level } : null,
+        findings: Array.from({ length: findingsCount }, (_, i) => ({
+          file: `f${i}.ts`,
+          issue: `issue ${i}`,
+        })),
+      },
+    };
+  }
+
+  it('passes on low risk with no findings', () => {
+    expect(isAutoPrGatePassed(state('passed', 'low', 0))).toBe(true);
+  });
+
+  it('passes on medium risk, regardless of findings count', () => {
+    expect(isAutoPrGatePassed(state('passed', 'medium', 4))).toBe(true);
+  });
+
+  it('passes on low risk even with findings present', () => {
+    expect(isAutoPrGatePassed(state('passed', 'low', 2))).toBe(true);
+  });
+
+  it('fails on high risk', () => {
+    expect(isAutoPrGatePassed(state('passed', 'high', 0))).toBe(false);
+  });
+
+  it('fails when status is not passed, even with low risk', () => {
+    expect(isAutoPrGatePassed(state('stuck-no-progress', 'low', 0))).toBe(
+      false
+    );
+  });
+
+  it('fails when overallRisk is missing entirely', () => {
+    expect(isAutoPrGatePassed(state('passed', null, 0))).toBe(false);
   });
 });
