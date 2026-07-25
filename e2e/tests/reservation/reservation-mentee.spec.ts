@@ -243,9 +243,9 @@ test.describe('歷史紀錄 Tab 測試', () => {
     await page.getByRole('tab', { name: /歷史紀錄/ }).click();
 
     // 1. 驗證有訊息的預約卡片 → 顯示對話按鈕，點擊後開啟對話框並顯示內容
-    const cardWithMsg = page.locator('div.rounded-lg', {
-      hasText: 'Mentor Wang',
-    });
+    const cardWithMsg = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Mentor Wang' });
     const viewChatBtn = cardWithMsg.getByRole('button', {
       name: '查看完整對話',
     });
@@ -266,22 +266,22 @@ test.describe('歷史紀錄 Tab 測試', () => {
     await expect(dialog).not.toBeVisible();
 
     // 2. 驗證沒有訊息的預約卡片 → 不顯示對話按鈕
-    const cardNoMsg = page.locator('div.rounded-lg', {
-      hasText: 'Mentor Zhang',
-    });
+    const cardNoMsg = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Mentor Zhang' });
     await expect(
       cardNoMsg.getByRole('button', { name: '查看完整對話' })
     ).not.toBeVisible();
 
     // 3. 驗證取消 badge 顯示
-    const cardByMentor = page.locator('div.rounded-lg', {
-      hasText: 'Mentor CancelA',
-    });
+    const cardByMentor = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Mentor CancelA' });
     await expect(cardByMentor.getByRole('status')).toHaveText('已由導師取消');
 
-    const cardByMentee = page.locator('div.rounded-lg', {
-      hasText: 'Mentor CancelB',
-    });
+    const cardByMentee = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Mentor CancelB' });
     await expect(cardByMentee.getByRole('status')).toHaveText('已由學員取消');
   });
 });
