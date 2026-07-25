@@ -31,7 +31,7 @@ export function buildCommitSubject(ticket) {
 
 export function buildPrBody(ticket) {
   return [
-    'Auto-created by `pnpm ai:dev --auto-pr` — the review pipeline judged this change low risk with zero findings.',
+    'Auto-created by `pnpm ai:dev --auto-pr` — the review pipeline judged this change low or medium risk.',
     '',
     `Closes ${TRACKER_OWNER}/${TRACKER_REPO}#${ticket.number}`,
   ].join('\n');
