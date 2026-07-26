@@ -5,7 +5,7 @@ import { resolveOtherId, updateReservationStatus } from './reservationService';
 
 interface PerformStatusUpdateParams {
   text: string;
-  myUserId: string;
+  myUserId: string | undefined;
   status: 'ACCEPT' | 'REJECT';
   flowName: 'reservation_accept' | 'reservation_reject';
   reservation: Reservation;
@@ -60,7 +60,7 @@ async function performStatusUpdate({
 export interface AcceptParams {
   message: string;
   reservation: Reservation;
-  myUserId: string;
+  myUserId: string | undefined;
 }
 
 /**
@@ -83,7 +83,7 @@ export async function acceptReservation({
 export interface RejectOrCancelParams {
   text: string;
   reservation: Reservation;
-  myUserId: string;
+  myUserId: string | undefined;
 }
 
 /**
