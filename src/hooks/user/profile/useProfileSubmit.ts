@@ -5,7 +5,6 @@ import { useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { trackEvent } from '@/lib/analytics';
-import { captureFlowFailure } from '@/lib/monitoring';
 import {
   type ProfileDirtyFields,
   saveProfileWorkflow,
@@ -58,7 +57,16 @@ export function useProfileSubmit({
       );
 
       if (!result.ok) {
-        throw result.error;
+        // saveProfileWorkflow has already called captureFlowFailure with the specific step.
+        // We log locally and present the failure toast directly to avoid double Sentry logging.
+        console.error('saveProfileWorkflow failed:', result.step, result.error);
+        toast({
+          variant: 'destructive',
+          description: '儲存失敗，請稍後再試',
+          duration: 5000,
+        });
+        setIsSaving(false);
+        return;
       }
 
       trackEvent({ name: 'profile_update_submitted', feature: 'profile' });
@@ -68,15 +76,8 @@ export function useProfileSubmit({
         router.push(`/profile/${pageUserId}`);
       }
     } catch (err) {
-      captureFlowFailure({
-        flow: 'profile_update',
-        step: 'unexpected',
-        message:
-          err instanceof Error
-            ? err.message
-            : 'Unexpected profile update error',
-      });
-      console.error('Update Profile Error:', err);
+      // This catch block will only catch unexpected sync exceptions, if any
+      console.error('Update Profile Unexpected Error:', err);
       toast({
         variant: 'destructive',
         description: '儲存失敗，請稍後再試',

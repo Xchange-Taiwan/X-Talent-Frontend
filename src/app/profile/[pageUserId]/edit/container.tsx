@@ -185,7 +185,7 @@ export default function EditProfileContainer({
               );
               return;
             }
-            onSubmit(values, form.formState.dirtyFields);
+            return onSubmit(values, form.formState.dirtyFields);
           }, onError)}
           className="space-y-10"
         >
