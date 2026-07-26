@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useToast } from '@/components/ui/use-toast';
 import { useOnboardingSubmit } from '@/hooks/user/onboarding/useOnboardingSubmit';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { trackEvent } from '@/lib/analytics';
@@ -16,6 +17,10 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('next-auth/react', () => ({
   useSession: vi.fn(),
+}));
+
+vi.mock('@/components/ui/use-toast', () => ({
+  useToast: vi.fn(),
 }));
 
 vi.mock('@/hooks/user/onboarding/useOnboardingSubmit', () => ({
@@ -35,6 +40,7 @@ const mockUseSession = vi.mocked(useSession);
 const mockUseOnboardingSubmit = vi.mocked(useOnboardingSubmit);
 const mockUseBackgroundAvatarUpload = vi.mocked(useBackgroundAvatarUpload);
 const mockTrackEvent = vi.mocked(trackEvent);
+const mockUseToast = vi.mocked(useToast);
 
 describe('useOnboardingForm', () => {
   const mockPush = vi.fn();
@@ -43,6 +49,7 @@ describe('useOnboardingForm', () => {
   const mockConsume = vi.fn();
   const mockRollback = vi.fn();
   const mockAbort = vi.fn();
+  const mockToast = vi.fn();
 
   const mockIndustries = [] as unknown as TagCatalogsByBucket['industry'];
 
@@ -68,6 +75,12 @@ describe('useOnboardingForm', () => {
       rollback: mockRollback,
       abort: mockAbort,
     } as unknown as ReturnType<typeof useBackgroundAvatarUpload>);
+
+    mockUseToast.mockReturnValue({
+      toast: mockToast,
+      toasts: [],
+      dismiss: vi.fn(),
+    });
   });
 
   it('should initialize at Step 1 and allow step-by-step submission accumulating draftData', async () => {
@@ -276,5 +289,48 @@ describe('useOnboardingForm', () => {
     );
     expect(result.current.currentStep).toBe(1);
     expect(mockSubmitProfile).not.toHaveBeenCalled();
+  });
+
+  it('should handle profile submission failure on Step 5 by triggering a destructive toast', async () => {
+    const { result } = renderHook(() =>
+      useOnboardingForm({ industries: mockIndustries })
+    );
+
+    // Prepare steps 1 to 4 data
+    await act(async () => {
+      result.current.onSubmitStep1({
+        name: 'John Doe',
+        avatar: '',
+        language: 'zh_TW',
+      });
+    });
+    await act(async () => {
+      result.current.onSubmitStep2({
+        location: 'TWN',
+        years_of_experience: '1_3',
+        industry: 'TECH',
+      });
+    });
+    await act(async () => {
+      result.current.onSubmitStep3({ want_position: ['pos1'] });
+    });
+    await act(async () => {
+      result.current.onSubmitStep4({ want_skill: ['skill1'] });
+    });
+
+    // Mock submit profile failure
+    mockSubmitProfile.mockRejectedValue(new Error('Submit Error'));
+
+    // Step 5 submit
+    await act(async () => {
+      await result.current.onSubmitStep5({ want_topic: ['topic1'] });
+    });
+
+    expect(mockSubmitProfile).toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      description: '儲存失敗，請稍後再試。',
+      duration: 5000,
+    });
   });
 });
