@@ -40,15 +40,24 @@ describe('sanitizePublicProfile', () => {
     expect(sanitized.isMentor).toBe(true);
   });
 
-  it('should fallback to outer job_title and company when experiences is empty or null', () => {
-    const profile: MentorProfileVO = {
+  it('should fallback to outer job_title and company when experiences is empty, null, or contains no WORK experiences', () => {
+    // Case 1: Null
+    const profileNull: MentorProfileVO = {
       ...baseProfile,
       experiences: null,
     };
-    const sanitized = sanitizePublicProfile(profile);
+    const sanitizedNull = sanitizePublicProfile(profileNull);
+    expect(sanitizedNull.jobTitle).toBe('Global Developer');
+    expect(sanitizedNull.company).toBe('Base Inc');
 
-    expect(sanitized.jobTitle).toBe('Global Developer');
-    expect(sanitized.company).toBe('Base Inc');
+    // Case 2: Empty Array []
+    const profileEmpty: MentorProfileVO = {
+      ...baseProfile,
+      experiences: [],
+    };
+    const sanitizedEmpty = sanitizePublicProfile(profileEmpty);
+    expect(sanitizedEmpty.jobTitle).toBe('Global Developer');
+    expect(sanitizedEmpty.company).toBe('Base Inc');
   });
 
   it('should use primary work experience from experiences if available', () => {
@@ -120,9 +129,11 @@ describe('sanitizePublicProfile', () => {
     expect(sanitized.company).toBe('');
   });
 
-  it('should filter, deduplicate and check safe URLs for public links', () => {
+  it('should filter, deduplicate and check safe URLs for public links, and fallback jobTitle/company if no WORK category exists', () => {
     const profile: MentorProfileVO = {
       ...baseProfile,
+      job_title: 'Global Developer',
+      company: 'Base Inc',
       experiences: [
         {
           category: ExperienceType.LINK,
@@ -144,6 +155,11 @@ describe('sanitizePublicProfile', () => {
     };
 
     const sanitized = sanitizePublicProfile(profile);
+
+    // Verify correct fallback because there are no WORK experiences in profile
+    expect(sanitized.jobTitle).toBe('Global Developer');
+    expect(sanitized.company).toBe('Base Inc');
+
     expect(sanitized.personalLinks).toEqual([
       { platform: 'linkedin', url: 'https://linkedin.com/in/first' },
       { platform: 'facebook', url: 'https://facebook.com/me' },
