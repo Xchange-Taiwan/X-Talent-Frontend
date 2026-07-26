@@ -147,17 +147,16 @@ export default function MentorPoolContainer({
     fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' }).then(
       (list) => {
         if (myRequestId !== requestIdRef.current) return;
-        const resolved = list.map((m) => resolveMentor(m, labelMap));
-        setMentors(resolved);
-        setMentorCount(resolved.length);
-        setCursor(resolved.at(-1)?.updated_at?.toString());
-        setIsNoResults(resolved.length === 0);
+        setMentors(list);
+        setMentorCount(list.length);
+        setCursor(list.at(-1)?.updated_at?.toString());
+        setIsNoResults(list.length === 0);
         setIsLoading(false);
         isLoadingRef.current = false;
       }
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.toString(), labelMap]);
+  }, [params.toString()]);
 
   const fetchMoreMentors = useCallback(async () => {
     const myRequestId = ++requestIdRef.current;
@@ -171,9 +170,7 @@ export default function MentorPoolContainer({
     isLoadingRef.current = true;
     let rtnList: MentorType[] = [];
     try {
-      rtnList = (await fetchMentors(param)).map((m) =>
-        resolveMentor(m, labelMap)
-      );
+      rtnList = await fetchMentors(param);
     } finally {
       if (myRequestId === requestIdRef.current) {
         setIsLoading(false);
@@ -196,7 +193,7 @@ export default function MentorPoolContainer({
       return;
     }
     setIsNoResults(true);
-  }, [params, cursor, labelMap]);
+  }, [params, cursor]);
 
   const handleScrollToBottom = useCallback(async () => {
     if (mentors.length % PAGE_LIMIT || isLoadingRef.current) return;
@@ -231,9 +228,14 @@ export default function MentorPoolContainer({
     });
   }, [params, router]);
 
+  const resolvedMentors = useMemo(
+    () => mentors.map((m) => resolveMentor(m, labelMap)),
+    [mentors, labelMap]
+  );
+
   return (
     <MentorPoolUI
-      mentors={mentors}
+      mentors={resolvedMentors}
       mentorCount={mentorCount}
       isLoading={isLoading}
       isReplacing={isPending}
