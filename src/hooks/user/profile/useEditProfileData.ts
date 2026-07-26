@@ -29,7 +29,10 @@ export function useEditProfileData({ userId }: Options) {
   }, [error]);
 
   const isMentor = userDto ? Boolean(userDto.is_mentor) : false;
-  const isError = Boolean(error);
+  // Fatal isError is only true if we have an error AND no existing userDto has been resolved.
+  // This allows background revalidations (e.g. SWR revalidateOnFocus) to fail silently
+  // without triggering a fatal error unmount that would wipe out the user's unsaved form inputs.
+  const isError = Boolean(error) && !userDto;
 
   return { userDto, isMentor, isError };
 }

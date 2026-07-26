@@ -167,4 +167,46 @@ describe('useEditProfileData', () => {
 
     consoleSpy.mockRestore();
   });
+
+  it('keeps isError as false when background focus revalidation fails but we already have userDto loaded', () => {
+    const mockUserDto = {
+      id: 1,
+      username: 'test_user',
+      is_mentor: false,
+    } as unknown as MentorProfileVO;
+
+    // 1) First render succeeds with data
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: mockUserDto,
+      isLoading: false,
+      error: null,
+    });
+
+    const { result, rerender } = renderHook(
+      (props) => useEditProfileData(props),
+      {
+        initialProps: {
+          userId: 1,
+        },
+      }
+    );
+
+    expect(result.current.isError).toBe(false);
+    expect(result.current.userDto).toEqual(mockUserDto);
+
+    // 2) SWR triggers background revalidation on window focus and fails with network error, but keeps cached userDto
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: mockUserDto,
+      isLoading: false,
+      error: 'Background Focus Sync Timeout',
+    });
+
+    rerender({
+      userId: 1,
+    });
+
+    // It should tolerate background error, keeping isError=false so the form does not unmount!
+    expect(result.current.isError).toBe(false);
+    expect(result.current.userDto).toEqual(mockUserDto);
+  });
 });
