@@ -13,7 +13,6 @@ export const resolveOtherId = (
   String(it.senderUserId) === myUserId ? it.participantUserId : it.senderUserId;
 
 interface PerformStatusUpdateParams {
-  id: string;
   myUserId: string;
   status: 'ACCEPT' | 'REJECT';
   messages: { user_id: number; content: string }[];
@@ -24,7 +23,6 @@ interface PerformStatusUpdateParams {
  * Common internal helper to perform reservation status updates
  */
 async function performStatusUpdate({
-  id,
   myUserId,
   status,
   messages,
@@ -38,7 +36,7 @@ async function performStatusUpdate({
 
   await updateReservationStatus({
     userId: myUserId,
-    reservationId: id,
+    reservationId: reservation.id,
     body: {
       my_user_id: myIdNum,
       user_id: otherIdNum,
@@ -52,7 +50,6 @@ async function performStatusUpdate({
 }
 
 export interface AcceptParams {
-  id: string;
   message: string;
   reservation: Reservation;
   myUserId: string;
@@ -62,7 +59,6 @@ export interface AcceptParams {
  * Accept a booking request (mentor side, pending-mentor variant)
  */
 export async function acceptReservation({
-  id,
   message,
   reservation,
   myUserId,
@@ -74,7 +70,6 @@ export async function acceptReservation({
       : [];
 
     await performStatusUpdate({
-      id,
       myUserId,
       status: 'ACCEPT',
       messages,
@@ -92,7 +87,6 @@ export async function acceptReservation({
 }
 
 export interface RejectOrCancelParams {
-  id: string;
   text: string;
   reservation: Reservation;
   myUserId: string;
@@ -102,7 +96,6 @@ export interface RejectOrCancelParams {
  * Shared handler for both reject and cancel (same API call)
  */
 export async function rejectOrCancelReservation({
-  id,
   text,
   reservation,
   myUserId,
@@ -114,7 +107,6 @@ export async function rejectOrCancelReservation({
       : [];
 
     await performStatusUpdate({
-      id,
       myUserId,
       status: 'REJECT',
       messages,

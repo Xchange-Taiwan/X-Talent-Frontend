@@ -32,7 +32,10 @@ import {
   rejectOrCancelReservation,
 } from '@/services/reservations';
 
-import { useReservationActions } from './useReservationActions';
+import {
+  buildRejectOrCancelAffectedTabs,
+  useReservationActions,
+} from './useReservationActions';
 
 const mockAcceptService = vi.mocked(acceptReservation);
 const mockRejectService = vi.mocked(rejectOrCancelReservation);
@@ -55,6 +58,33 @@ const mockItems: Reservation[] = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe('buildRejectOrCancelAffectedTabs', () => {
+  it('should return upcoming and history for upcoming variant', () => {
+    expect(buildRejectOrCancelAffectedTabs('upcoming')).toEqual([
+      'upcoming',
+      'history',
+    ]);
+  });
+
+  it('should return pending and history for pending-mentor variant', () => {
+    expect(buildRejectOrCancelAffectedTabs('pending-mentor')).toEqual([
+      'pending',
+      'history',
+    ]);
+  });
+
+  it('should return pending and history for pending-mentee variant', () => {
+    expect(buildRejectOrCancelAffectedTabs('pending-mentee')).toEqual([
+      'pending',
+      'history',
+    ]);
+  });
+
+  it('should return empty list for history variant', () => {
+    expect(buildRejectOrCancelAffectedTabs('history')).toEqual([]);
+  });
 });
 
 describe('useReservationActions', () => {
@@ -87,7 +117,6 @@ describe('useReservationActions', () => {
 
       expect(mockAcceptService).toHaveBeenCalledTimes(1);
       expect(mockAcceptService).toHaveBeenCalledWith({
-        id: 'res-abc',
         message: 'hello message',
         reservation: mockItems[0],
         myUserId: 'user-123',
@@ -102,6 +131,42 @@ describe('useReservationActions', () => {
         'pending',
         'upcoming',
       ]);
+      expect(result.current.isMutating).toBe(false);
+    });
+
+    it('should set isMutating to true while the accept request is in-flight', async () => {
+      let resolveAccept: () => void = () => {};
+      const acceptPromise = new Promise<void>((resolve) => {
+        resolveAccept = resolve;
+      });
+      mockAcceptService.mockReturnValue(acceptPromise);
+
+      const { result } = renderHook(() =>
+        useReservationActions({
+          items: mockItems,
+          myUserId: 'user-123',
+          variant: 'pending-mentor',
+          onMutationSuccess: mockOnMutationSuccess,
+        })
+      );
+
+      expect(result.current.isMutating).toBe(false);
+
+      let promise;
+      await act(async () => {
+        promise = result.current.accept({
+          id: 'res-abc',
+          message: 'hello',
+        });
+      });
+
+      expect(result.current.isMutating).toBe(true);
+
+      await act(async () => {
+        resolveAccept();
+      });
+      await promise;
+
       expect(result.current.isMutating).toBe(false);
     });
 
@@ -198,7 +263,6 @@ describe('useReservationActions', () => {
 
       expect(mockRejectService).toHaveBeenCalledTimes(1);
       expect(mockRejectService).toHaveBeenCalledWith({
-        id: 'res-abc',
         text: 'Reject reason text',
         reservation: mockItems[0],
         myUserId: 'user-123',
@@ -217,6 +281,43 @@ describe('useReservationActions', () => {
         'pending',
         'history',
       ]);
+      expect(result.current.isMutating).toBe(false);
+    });
+
+    it('should set isMutating to true while the rejectOrCancel request is in-flight', async () => {
+      let resolveReject: () => void = () => {};
+      const rejectPromise = new Promise<void>((resolve) => {
+        resolveReject = resolve;
+      });
+      mockRejectService.mockReturnValue(rejectPromise);
+
+      const { result } = renderHook(() =>
+        useReservationActions({
+          items: mockItems,
+          myUserId: 'user-123',
+          variant: 'pending-mentor',
+          onMutationSuccess: mockOnMutationSuccess,
+        })
+      );
+
+      expect(result.current.isMutating).toBe(false);
+
+      let promise;
+      await act(async () => {
+        promise = result.current.rejectOrCancel(
+          'res-abc',
+          'reason text',
+          '已拒絕預約'
+        );
+      });
+
+      expect(result.current.isMutating).toBe(true);
+
+      await act(async () => {
+        resolveReject();
+      });
+      await promise;
+
       expect(result.current.isMutating).toBe(false);
     });
 

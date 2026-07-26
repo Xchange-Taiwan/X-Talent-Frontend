@@ -102,7 +102,6 @@ describe('acceptReservation', () => {
     });
 
     await acceptReservation({
-      id: 'res-123',
       message: 'Looking forward to meeting you!',
       reservation,
       myUserId: '10',
@@ -133,7 +132,6 @@ describe('acceptReservation', () => {
     });
 
     await acceptReservation({
-      id: 'res-123',
       message: '  ',
       reservation,
       myUserId: '10',
@@ -154,7 +152,6 @@ describe('acceptReservation', () => {
 
     await expect(
       acceptReservation({
-        id: 'res-123',
         message: 'hello',
         reservation,
         myUserId: '10',
@@ -173,7 +170,6 @@ describe('acceptReservation', () => {
     const reservation = makeMockReservation();
     await expect(
       acceptReservation({
-        id: 'res-123',
         message: 'hello',
         reservation,
         myUserId: '',
@@ -199,7 +195,6 @@ describe('rejectOrCancelReservation', () => {
     });
 
     await rejectOrCancelReservation({
-      id: 'res-123',
       text: 'Sorry, I am busy',
       reservation,
       myUserId: '10',
@@ -224,7 +219,6 @@ describe('rejectOrCancelReservation', () => {
 
     await expect(
       rejectOrCancelReservation({
-        id: 'res-123',
         text: 'reason',
         reservation,
         myUserId: '10',
@@ -243,7 +237,6 @@ describe('rejectOrCancelReservation', () => {
     const reservation = makeMockReservation();
     await expect(
       rejectOrCancelReservation({
-        id: 'res-123',
         text: 'cancel',
         reservation,
         myUserId: '',
