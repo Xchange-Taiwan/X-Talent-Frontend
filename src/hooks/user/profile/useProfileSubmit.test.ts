@@ -1,5 +1,4 @@
 import { act, renderHook } from '@testing-library/react';
-import { Session } from 'next-auth';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', async () => {
@@ -12,36 +11,32 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-vi.mock('@/lib/profile/saveProfile', () => ({
-  saveProfile: vi.fn(),
+vi.mock('@/lib/profile/saveProfile', () => {
+  class LoggedError extends Error {
+    constructor(message?: string) {
+      super(message);
+      this.name = 'LoggedError';
+    }
+  }
+  return {
+    saveProfile: vi.fn(),
+    LoggedError,
+  };
+});
+
+vi.mock('@/lib/monitoring', () => ({
+  captureFlowFailure: vi.fn(),
 }));
 
-import { saveProfile } from '@/lib/profile/saveProfile';
-import { defaultValues } from '@/schemas/profileSchema';
+import { captureFlowFailure } from '@/lib/monitoring';
+import { LoggedError, saveProfile } from '@/lib/profile/saveProfile';
+import { baseValues, mockSession } from '@/test/fixtures/profile';
 import { mockToast } from '@/test/mocks/useToast';
 
 import { useProfileSubmit } from './useProfileSubmit';
 
 const mockSaveProfile = vi.mocked(saveProfile);
-
-const mockSession: Session = {
-  user: {
-    id: '1',
-    name: 'Test User',
-    email: 'test@example.com',
-    onBoarding: true,
-    isMentor: true,
-  },
-  accessToken: 'mock-token',
-  expires: '2099-01-01T00:00:00.000Z',
-};
-
-const baseValues = {
-  ...defaultValues,
-  name: 'Test User',
-  location: 'Taiwan',
-  years_of_experience: '1_3',
-};
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 const makeOptions = (
   overrides: Partial<Parameters<typeof useProfileSubmit>[0]> = {}
@@ -104,7 +99,7 @@ describe('useProfileSubmit (Hook Layer)', () => {
     expect(result.current.isSaving).toBe(true);
   });
 
-  it('saveProfile throws → error is caught, toast is called, and isSaving becomes false', async () => {
+  it('saveProfile throws unlogged Error instance → error is caught, captureFlowFailure reports unexpected error to Sentry, toast is called, and isSaving becomes false', async () => {
     mockSaveProfile.mockRejectedValueOnce(new Error('Save failed'));
     const { result } = renderHook(() => useProfileSubmit(makeOptions()));
 
@@ -114,6 +109,52 @@ describe('useProfileSubmit (Hook Layer)', () => {
 
     expect(mockSaveProfile).toHaveBeenCalled();
     expect(result.current.isSaving).toBe(false);
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'profile_update',
+        step: 'unexpected',
+        message: 'Save failed',
+      })
+    );
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        description: '儲存失敗，請稍後再試',
+      })
+    );
+  });
+
+  it('saveProfile throws unlogged primitive string → error is caught, captureFlowFailure reports raw string to Sentry, toast is called, and isSaving becomes false', async () => {
+    mockSaveProfile.mockRejectedValueOnce('Some string error');
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+    });
+
+    expect(mockSaveProfile).toHaveBeenCalled();
+    expect(result.current.isSaving).toBe(false);
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'profile_update',
+        step: 'unexpected',
+        message: 'Some string error',
+      })
+    );
+  });
+
+  it('saveProfile throws an already logged LoggedError → error is caught, captureFlowFailure is NOT called (deduplicated), toast is called, and isSaving becomes false', async () => {
+    const loggedError = new LoggedError('Save failed');
+    mockSaveProfile.mockRejectedValueOnce(loggedError);
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+    });
+
+    expect(mockSaveProfile).toHaveBeenCalled();
+    expect(result.current.isSaving).toBe(false);
+    expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: 'destructive',
