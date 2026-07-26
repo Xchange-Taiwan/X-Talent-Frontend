@@ -79,14 +79,20 @@ export function mapMentor(raw: RawMentor): MentorType {
   };
 }
 
-// Cache-busts the avatar URL by updated_at so a re-uploaded photo isn't
-// served stale; shared by SSR and client fetches so both render identically.
-export function resolveMentorAvatar(mentor: MentorType): MentorType {
+// Cache-busts the avatar URL by updated_at and resolves subject_group codes
+// to localized labels using the tag catalog so cards display the localized
+// name (e.g. "升遷考核制度"). Shared by SSR and client fetches to ensure
+// identical, stable rendering.
+export function resolveMentor(
+  mentor: MentorType,
+  labelMap?: Map<string, string>
+): MentorType {
   return {
     ...mentor,
     avatar:
       typeof mentor.avatar === 'string' && mentor.avatar
         ? `${mentor.avatar}${mentor.updated_at ? `?cb=${mentor.updated_at}` : ''}`
         : avatarImage,
+    have_topic: mentor.have_topic.map((c) => labelMap?.get(c) ?? c),
   };
 }
