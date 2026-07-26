@@ -89,4 +89,95 @@ describe('firstSyncedFetch', () => {
 
     expect(await promise).toBeNull();
   });
+
+  describe('isProfileSynced industry boundary conditions', () => {
+    it('syncs successfully when latest.industry matching values.industry', async () => {
+      mockFetchUser.mockResolvedValueOnce({
+        ...makeSyncedDto(),
+        industry: { subject_group: 'tech' },
+      } as unknown as MentorProfileVO);
+
+      const result = await firstSyncedFetch(
+        { ...baseValues, industry: 'tech' },
+        ''
+      );
+      expect(result).not.toBeNull();
+    });
+
+    it('does not sync when latest.industry does not match values.industry', async () => {
+      mockFetchUser.mockResolvedValueOnce({
+        ...makeSyncedDto(),
+        industry: { subject_group: 'design' },
+      } as unknown as MentorProfileVO);
+
+      const result = await firstSyncedFetch(
+        { ...baseValues, industry: 'tech' },
+        ''
+      );
+      expect(result).toBeNull();
+    });
+
+    it('syncs successfully when latest.industry is null and values.industry is undefined or empty', async () => {
+      mockFetchUser.mockResolvedValueOnce({
+        ...makeSyncedDto(),
+        industry: null,
+      } as MentorProfileVO);
+
+      const result = await firstSyncedFetch(
+        { ...baseValues, industry: '' },
+        ''
+      );
+      expect(result).not.toBeNull();
+    });
+
+    it('does not sync when latest.industry is null but values.industry has a value', async () => {
+      mockFetchUser.mockResolvedValueOnce({
+        ...makeSyncedDto(),
+        industry: null,
+      } as MentorProfileVO);
+
+      const result = await firstSyncedFetch(
+        { ...baseValues, industry: 'tech' },
+        ''
+      );
+      expect(result).toBeNull();
+    });
+
+    it('syncs successfully when latest.industry is undefined and values.industry is empty', async () => {
+      const dto = makeSyncedDto();
+      delete dto.industry;
+      mockFetchUser.mockResolvedValueOnce(dto);
+
+      const result = await firstSyncedFetch(
+        { ...baseValues, industry: '' },
+        ''
+      );
+      expect(result).not.toBeNull();
+    });
+
+    it('does not sync when latest.industry is undefined but values.industry has a value', async () => {
+      const dto = makeSyncedDto();
+      delete dto.industry;
+      mockFetchUser.mockResolvedValueOnce(dto);
+
+      const result = await firstSyncedFetch(
+        { ...baseValues, industry: 'tech' },
+        ''
+      );
+      expect(result).toBeNull();
+    });
+
+    it('does not sync when latest.industry is a primitive invalid value', async () => {
+      mockFetchUser.mockResolvedValueOnce({
+        ...makeSyncedDto(),
+        industry: 'not-an-object' as unknown,
+      } as unknown as MentorProfileVO);
+
+      const result = await firstSyncedFetch(
+        { ...baseValues, industry: 'tech' },
+        ''
+      );
+      expect(result).toBeNull();
+    });
+  });
 });
