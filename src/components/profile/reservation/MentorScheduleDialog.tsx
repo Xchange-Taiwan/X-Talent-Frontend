@@ -132,7 +132,7 @@ export default function MentorScheduleDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   // Track both row id and occurrence so editing a single occurrence of a
-  // recurring row routes back to the correct exdate-and-detach call.
+  // recurring row correctly detaches it.
   const [editingTarget, setEditingTarget] = useState<{
     id: number;
     occurrenceUnix: number;
@@ -272,7 +272,7 @@ export default function MentorScheduleDialog({
                       Math.floor(slot.start.getTime() / 1000) <= nowSec;
                     return (
                       <div
-                        key={`${slot.id}-${slot.occurrenceUnix}`}
+                        key={slot.occurrenceId}
                         {...(isPast
                           ? { 'aria-disabled': true }
                           : {
