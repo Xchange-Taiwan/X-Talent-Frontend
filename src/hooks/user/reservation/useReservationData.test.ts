@@ -137,6 +137,24 @@ describe('useReservationData (mentee)', () => {
     });
   });
 
+  it('onMutationSuccess filters out (removes) the operated item from active lists in local state', async () => {
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // Initially, there's a reservation in pending
+    expect(result.current.data?.pending).toHaveLength(1);
+    expect(result.current.data?.pending[0].id).toBe('MENTEE_PENDING');
+
+    // Mock next fetch to return empty list so refetch doesn't add it back
+    mockFetch.mockResolvedValue({ items: [], next_dtend: 0 });
+
+    await act(async () => {
+      result.current.onMutationSuccess('MENTEE_PENDING', ['pending']);
+    });
+
+    expect(result.current.data?.pending).toHaveLength(0);
+  });
+
   it('onMutationSuccess refetches history when it has been loaded', async () => {
     const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));

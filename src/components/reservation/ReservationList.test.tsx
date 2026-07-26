@@ -5,6 +5,11 @@ import { updateReservationStatus } from '@/services/reservations';
 
 import { ReservationList } from './ReservationList';
 
+vi.mock('next-auth/react', async () => {
+  const { nextAuthMockFactory } = await import('@/test/mocks/nextAuth');
+  return nextAuthMockFactory();
+});
+
 // Mock dialogs to render a simple button for callback execution
 vi.mock('@/components/reservation/AcceptReservationDialog', () => ({
   __esModule: true,
@@ -52,9 +57,38 @@ vi.mock('@/components/reservation/ReservationConversationDialog', () => ({
 }));
 
 // Mock the API client
-vi.mock('@/services/reservations', () => ({
-  updateReservationStatus: vi.fn().mockResolvedValue({}),
-}));
+const { mockUpdateReservationStatus } = vi.hoisted(() => {
+  return { mockUpdateReservationStatus: vi.fn().mockResolvedValue({}) };
+});
+
+vi.mock('@/services/reservations', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/services/reservations')>();
+  return {
+    ...actual,
+    updateReservationStatus: mockUpdateReservationStatus,
+    acceptReservation: vi.fn().mockImplementation(async ({ id, myUserId }) => {
+      await mockUpdateReservationStatus({
+        userId: myUserId,
+        reservationId: id,
+        body: {},
+      });
+      return { affectedTabs: ['pending', 'upcoming'] };
+    }),
+    rejectOrCancelReservation: vi
+      .fn()
+      .mockImplementation(async ({ id, myUserId, variant }) => {
+        await mockUpdateReservationStatus({
+          userId: myUserId,
+          reservationId: id,
+          body: {},
+        });
+        return {
+          affectedTabs: actual.buildRejectOrCancelAffectedTabs(variant),
+        };
+      }),
+  };
+});
 
 // Mock toast and other modules
 vi.mock('@/components/ui/use-toast', () => ({
@@ -63,13 +97,22 @@ vi.mock('@/components/ui/use-toast', () => ({
   }),
 }));
 
-vi.mock('@/lib/monitoring', () => ({
-  captureFlowFailure: vi.fn(),
-}));
+vi.mock('@/lib/monitoring', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/monitoring')>();
+  return {
+    ...actual,
+    captureFlowFailure: vi.fn(),
+    captureApiFailure: vi.fn(),
+  };
+});
 
-vi.mock('@/lib/analytics', () => ({
-  trackEvent: vi.fn(),
-}));
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    trackEvent: vi.fn(),
+  };
+});
 
 // Mock ReservationCard for fully isolated testing
 vi.mock('./ReservationCard', () => ({
