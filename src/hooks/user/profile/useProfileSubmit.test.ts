@@ -41,6 +41,7 @@ import {
   firstSyncedFetch,
   pollUntilSynced,
 } from '@/lib/profile/pollUntilSynced';
+import * as saveProfileWorkflowModule from '@/lib/profile/saveProfileWorkflow';
 import { defaultValues } from '@/schemas/profileSchema';
 import { ExperienceType } from '@/services/profile/experienceType';
 import { updateAvatar } from '@/services/profile/updateAvatar';
@@ -886,5 +887,33 @@ describe('useProfileSubmit', () => {
     const work = exp!.find((e) => e.category === ExperienceType.WORK);
     expect(work?.mentor_experiences_metadata.data[0].is_primary).toBe(false);
     expect(work?.mentor_experiences_metadata.data[1].is_primary).toBe(true);
+  });
+
+  it('should display destructive toast and set isSaving to false on workflow failure', async () => {
+    const mockWorkflow = vi.spyOn(
+      saveProfileWorkflowModule,
+      'saveProfileWorkflow'
+    );
+    mockWorkflow.mockResolvedValueOnce({
+      ok: false,
+      step: 'profile_write',
+      error: new Error('Database down'),
+    });
+
+    const { result } = renderHook(() => useProfileSubmit(makeOptions()));
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+    });
+
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        description: '儲存失敗，請稍後再試',
+      })
+    );
+    expect(result.current.isSaving).toBe(false);
+
+    mockWorkflow.mockRestore();
   });
 });

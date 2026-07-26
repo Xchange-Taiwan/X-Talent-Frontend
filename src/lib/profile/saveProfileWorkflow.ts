@@ -7,6 +7,7 @@ import {
   type ProfileDirtyFields,
 } from '@/lib/profile/profileSaveAdapter';
 import { ProfileFormValues } from '@/schemas/profileSchema';
+import type { UpdateProfileInput } from '@/services/profile/updateProfile';
 import { MentorProfileVO } from '@/services/profile/user';
 
 export type { ProfileDirtyFields };
@@ -18,7 +19,7 @@ export type SaveProfileResult =
 export interface SaveProfileDeps {
   updateSession: (data: unknown) => Promise<Session | null>;
   consumeAvatarUpload?: (file: File | undefined) => Promise<string | undefined>;
-  updateProfile: (payload: any) => Promise<void>;
+  updateProfile: (payload: UpdateProfileInput) => Promise<void>;
   updateAvatar: (file: File) => Promise<string | undefined>;
   revalidateProfilePath: (pageUserId: string) => Promise<void>;
   clearUserDataCache: (sessionUserId: number, lang: string) => void;
@@ -40,7 +41,7 @@ export interface SaveProfileDeps {
     flow: string;
     step: string;
     message: string;
-    level?: any;
+    level?: 'error' | 'warning' | 'info';
   }) => void;
 }
 
