@@ -3,6 +3,7 @@ export interface UseOverflowFitParams {
   containerWidth: number | null;
   gapPx: number;
   reservePx?: number;
+  defaultVisibleCount?: number;
 }
 
 export interface UseOverflowFitResult {
@@ -15,6 +16,7 @@ export function useOverflowFit({
   containerWidth,
   gapPx,
   reservePx = 0,
+  defaultVisibleCount,
 }: UseOverflowFitParams): UseOverflowFitResult {
   const isMeasuring =
     containerWidth === null ||
@@ -23,7 +25,7 @@ export function useOverflowFit({
 
   if (isMeasuring) {
     return {
-      visibleCount: itemWidths.length,
+      visibleCount: defaultVisibleCount ?? itemWidths.length,
       isMeasuring: true,
     };
   }

@@ -36,6 +36,7 @@ export default function PopularPositionChips() {
     containerWidth: DESKTOP_WIDTH,
     gapPx: GAP_PX,
     reservePx: 0,
+    defaultVisibleCount: POPULAR_POSITIONS.length,
   });
 
   useEffect(() => {
