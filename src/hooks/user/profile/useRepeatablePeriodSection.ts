@@ -1,11 +1,7 @@
 import { useEffect } from 'react';
-import {
-  FieldPath,
-  useFieldArray,
-  UseFormReturn,
-  useWatch,
-} from 'react-hook-form';
+import { useFieldArray, UseFormReturn, useWatch } from 'react-hook-form';
 
+import { useToast } from '@/components/ui/use-toast';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 
 export type RepeatableArrayPath = 'work_experiences' | 'educations';
@@ -38,40 +34,49 @@ export function useRepeatablePeriodSection<K extends RepeatableArrayPath>(
   onValidationChange: (hasError: boolean) => void
 ) {
   const { control } = form;
+  const { toast } = useToast();
 
   const { fields, append, remove, move } = useFieldArray<ProfileFormValues, K>({
     control,
     name: config.arrayName,
   });
 
-  // Optimize re-renders by only watching start and end keys of the items
-  const watchPaths = fields.flatMap((_, index) => [
-    `${config.arrayName}.${index}.${config.periodStartKey}`,
-    `${config.arrayName}.${index}.${config.periodEndKey}`,
-  ]);
-
-  const watchedValues = useWatch({
+  const watchedItems = useWatch({
     control,
-    name: watchPaths as unknown as readonly FieldPath<ProfileFormValues>[],
-  }) as string[] | undefined;
+    name: config.arrayName,
+  }) as ProfileFormValues[K] | undefined;
 
   useEffect(() => {
     let hasError = false;
-    for (let i = 0; i < fields.length; i++) {
-      const start = watchedValues?.[i * 2];
-      const end = watchedValues?.[i * 2 + 1];
-      if (checkIsInvalid(start, end)) {
-        hasError = true;
-        break;
+    const items = watchedItems as unknown as
+      | Array<Record<string, unknown>>
+      | undefined;
+    if (items) {
+      for (const item of items) {
+        const start = item?.[config.periodStartKey] as string | undefined;
+        const end = item?.[config.periodEndKey] as string | undefined;
+        if (checkIsInvalid(start, end)) {
+          hasError = true;
+          break;
+        }
       }
     }
     onValidationChange(hasError);
-  }, [watchedValues, fields.length, onValidationChange]);
+  }, [
+    watchedItems,
+    config.periodStartKey,
+    config.periodEndKey,
+    onValidationChange,
+  ]);
 
   const isInvalidPeriod = (index: number): boolean => {
-    if (!watchedValues) return false;
-    const start = watchedValues[index * 2];
-    const end = watchedValues[index * 2 + 1];
+    const items = watchedItems as unknown as
+      | Array<Record<string, unknown>>
+      | undefined;
+    const item = items?.[index];
+    if (!item) return false;
+    const start = item[config.periodStartKey] as string | undefined;
+    const end = item[config.periodEndKey] as string | undefined;
     return checkIsInvalid(start, end);
   };
 
@@ -80,7 +85,10 @@ export function useRepeatablePeriodSection<K extends RepeatableArrayPath>(
     const last = items.at(-1);
 
     if (items.length > 0 && config.isIncompleteForAppend(last)) {
-      alert(config.incompleteAlertMessage);
+      toast({
+        variant: 'destructive',
+        description: config.incompleteAlertMessage,
+      });
       return;
     }
 
