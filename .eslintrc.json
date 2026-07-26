@@ -37,6 +37,12 @@
                 "name": "next-auth/react",
                 "message": "saveProfile.ts is a deep module and should not import next-auth/react."
               }
+            ],
+            "patterns": [
+              {
+                "group": ["@/hooks/**"],
+                "message": "saveProfile.ts is a deep module and should not import from the hooks layer."
+              }
             ]
           }
         ]

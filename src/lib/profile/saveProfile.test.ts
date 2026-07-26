@@ -14,15 +14,9 @@ vi.mock('@/lib/profile/pollUntilSynced', () => ({
   firstSyncedFetch: vi.fn(),
 }));
 
-vi.mock('@/hooks/user/user-data/useUserData', () => ({
-  clearUserDataCache: vi.fn(),
-  primeUserDataCache: vi.fn(),
-}));
-
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 
-import { clearUserDataCache } from '@/hooks/user/user-data/useUserData';
 import {
   firstSyncedFetch,
   pollUntilSynced,
@@ -39,7 +33,6 @@ const mockUpdateAvatar = vi.mocked(updateAvatar);
 const mockUpdateProfile = vi.mocked(updateProfile);
 const mockPollUntilSynced = vi.mocked(pollUntilSynced);
 const mockFirstSyncedFetch = vi.mocked(firstSyncedFetch);
-const mockClearUserDataCache = vi.mocked(clearUserDataCache);
 
 const mockUserDTO: MentorProfileVO = {
   user_id: 1,
@@ -100,6 +93,8 @@ const makeDeps = (
   updateSession: vi.fn().mockResolvedValue(mockSession),
   navigate: vi.fn(),
   revalidateProfilePath: vi.fn().mockResolvedValue(undefined),
+  clearUserDataCache: vi.fn(),
+  primeUserDataCache: vi.fn(),
   ...overrides,
 });
 
@@ -399,9 +394,11 @@ describe('saveProfile (Deep Module)', () => {
   it('firstSyncedFetch returns dto → primeUserDataCache called, pollUntilSynced NOT called', async () => {
     mockFirstSyncedFetch.mockResolvedValueOnce(mockUserDTO);
 
+    const customClearUserDataCache = vi.fn();
     const customPrimeUserDataCache = vi.fn();
     const deps = makeDeps({
       isMentorOnboarding: true,
+      clearUserDataCache: customClearUserDataCache,
       primeUserDataCache: customPrimeUserDataCache,
     });
     await saveProfile(baseValues, deps);
@@ -409,7 +406,7 @@ describe('saveProfile (Deep Module)', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(mockClearUserDataCache).toHaveBeenCalledWith(
+    expect(customClearUserDataCache).toHaveBeenCalledWith(
       Number(mockSession.user!.id),
       'zh_TW'
     );
@@ -424,9 +421,11 @@ describe('saveProfile (Deep Module)', () => {
   it('firstSyncedFetch returns null → falls back to clearUserDataCache + pollUntilSynced', async () => {
     mockFirstSyncedFetch.mockResolvedValueOnce(null);
 
+    const customClearUserDataCache = vi.fn();
     const customPrimeUserDataCache = vi.fn();
     const deps = makeDeps({
       isMentorOnboarding: true,
+      clearUserDataCache: customClearUserDataCache,
       primeUserDataCache: customPrimeUserDataCache,
     });
     await saveProfile(baseValues, deps);
@@ -435,7 +434,7 @@ describe('saveProfile (Deep Module)', () => {
     await Promise.resolve();
 
     expect(customPrimeUserDataCache).not.toHaveBeenCalled();
-    expect(mockClearUserDataCache).toHaveBeenCalledWith(
+    expect(customClearUserDataCache).toHaveBeenCalledWith(
       Number(mockSession.user!.id),
       'zh_TW'
     );
