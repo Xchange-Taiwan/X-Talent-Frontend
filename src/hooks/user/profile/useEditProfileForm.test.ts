@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { useEditProfileForm } from './useEditProfileForm';
 
 describe('useEditProfileForm', () => {
-  it('initializes form with default values and isMentorRef as false', () => {
+  it('initializes form with default values and is_mentor as false', () => {
     const { result } = renderHook(() => {
       const hookRes = useEditProfileForm();
       void hookRes.form.formState.errors; // subscribe to errors proxy
@@ -22,8 +22,10 @@ describe('useEditProfileForm', () => {
       return hookRes;
     });
 
-    // By default, mode is non-mentor (mentee)
-    result.current.syncMentorStatus(false);
+    // Set is_mentor to false
+    await act(async () => {
+      result.current.form.setValue('is_mentor', false);
+    });
 
     await act(async () => {
       // name is required, so validating empty name should fail
@@ -43,8 +45,10 @@ describe('useEditProfileForm', () => {
       return hookRes;
     });
 
-    // Sync mentor mode
-    result.current.syncMentorStatus(true);
+    // Set is_mentor to true
+    await act(async () => {
+      result.current.form.setValue('is_mentor', true);
+    });
 
     await act(async () => {
       // about is required for mentors, so validating empty about should fail

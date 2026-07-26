@@ -83,7 +83,7 @@ export default function EditProfileContainer({
   const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
   const industries = tagCatalog.industry;
 
-  const { form, syncMentorStatus } = useEditProfileForm();
+  const { form } = useEditProfileForm();
 
   const { isMentor, isPageLoading, isError } = useEditProfileData({
     userId: Number(pageUserId),
@@ -91,11 +91,6 @@ export default function EditProfileContainer({
     isAuthorized,
     isMentorOnboarding,
   });
-
-  // Synchronize mentor status to form ref inside useEffect during commit phase to comply with React rendering rules.
-  useEffect(() => {
-    syncMentorStatus(isMentor);
-  }, [isMentor, syncMentorStatus]);
 
   // Warm up the avatar presigned URL once authorized. Saves a serial round
   // trip from the submit waterfall when the user uploads a new avatar.
