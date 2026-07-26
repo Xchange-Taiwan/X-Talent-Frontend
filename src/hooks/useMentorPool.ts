@@ -34,6 +34,11 @@ export function useMentorPool({
 
   const hasInitialFilters = hasAnyCondition(params);
 
+  // Use a mutable ref to store the latest labelMap to prevent background catalog revalidations
+  // from triggering redundant API requests or resetting the user's scrolled pagination state.
+  const labelMapRef = useRef(labelMap);
+  labelMapRef.current = labelMap;
+
   // Helper function to resolve avatar cache busting and localize tags inside render-free state update
   const resolveMentorItem = useCallback(
     (m: MentorType, map: Map<string, string>) => {
@@ -94,7 +99,7 @@ export function useMentorPool({
 
     if (!hasAnyCondition(params)) {
       const resolvedInitial = initialMentors.map((m) =>
-        resolveMentorItem(m, labelMap)
+        resolveMentorItem(m, labelMapRef.current)
       );
       setMentors(resolvedInitial);
       setMentorCount(initialMentorCount);
@@ -114,7 +119,9 @@ export function useMentorPool({
     fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' })
       .then((list) => {
         if (myRequestId !== requestIdRef.current) return;
-        const resolvedList = list.map((m) => resolveMentorItem(m, labelMap));
+        const resolvedList = list.map((m) =>
+          resolveMentorItem(m, labelMapRef.current)
+        );
         setMentors(resolvedList);
         setMentorCount(resolvedList.length);
         setCursor(resolvedList.at(-1)?.updated_at?.toString());
@@ -127,7 +134,7 @@ export function useMentorPool({
         handleError(myRequestId, 'Fetch mentors error:', error);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.toString(), labelMap, resolveMentorItem]);
+  }, [params.toString()]);
 
   const fetchMoreMentors = useCallback(async () => {
     const myRequestId = ++requestIdRef.current;
@@ -147,7 +154,7 @@ export function useMentorPool({
           setHasMore(false);
         } else {
           const resolvedList = rtnList.map((m) =>
-            resolveMentorItem(m, labelMap)
+            resolveMentorItem(m, labelMapRef.current)
           );
           setMentors((prevMentors) => {
             const newMentors = resolvedList.filter(
@@ -171,7 +178,7 @@ export function useMentorPool({
         isLoadingRef.current = false;
       }
     }
-  }, [params, cursor, labelMap, resolveMentorItem, handleError]);
+  }, [params, cursor, resolveMentorItem, handleError]);
 
   const handleScrollToBottom = useCallback(async () => {
     if (!hasMore || isLoadingRef.current) return;
