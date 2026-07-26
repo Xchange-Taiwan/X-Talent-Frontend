@@ -16,17 +16,12 @@ import {
   step5Schema,
 } from '@/components/onboarding/steps';
 import useLocations from '@/hooks/user/country/useLocations';
-import { buildOnboardingDtoStub } from '@/hooks/user/onboarding/buildOnboardingDtoStub';
+import { useOnboardingSubmit } from '@/hooks/user/onboarding/useOnboardingSubmit';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
-import {
-  clearUserDataCache,
-  primeUserDataCache,
-} from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
-import { updateProfile } from '@/services/profile/updateProfile';
 
 import { STEP_TITLE, STEPS_TOTAL } from './data';
 import OnboardingUI from './ui';
@@ -44,9 +39,10 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
     want_topic: wantTopicGroups,
     industry: industries,
   } = useTagCatalog('zh_TW', initialTagCatalog);
+  const { submitProfile } = useOnboardingSubmit({ industries });
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { data: session, status, update: updateSession } = useSession();
+  const { data: session, status } = useSession();
 
   const [tempData, setTempData] = useState<{
     step1?: z.infer<typeof step1Schema>;
@@ -184,50 +180,8 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
         }
       }
 
-      try {
-        const validatedData = formSchema.parse(allData);
-        await updateProfile(validatedData);
-
-        // Prime the user-profile cache from the form values + tag pools
-        // we already have in memory, so /profile/card mounts from
-        // cache instead of refetching the same DTO. Falls back to
-        // clearUserDataCache if the userId is not a finite number.
-        const sessionUserId = session?.user?.id ? Number(session.user.id) : NaN;
-        if (Number.isFinite(sessionUserId)) {
-          const stub = buildOnboardingDtoStub({
-            userId: sessionUserId,
-            formData: validatedData,
-            industryCatalog: industries,
-          });
-          primeUserDataCache(sessionUserId, 'zh_TW', stub);
-        } else if (session?.user?.id) {
-          clearUserDataCache(Number(session.user.id), 'zh_TW');
-        }
-
-        // Optimistic session update — server-side `onboarding` is derived from
-        // the tags we just submitted, so values are predictable without a fetch.
-        await updateSession({
-          user: {
-            ...session?.user,
-            name: validatedData.name ?? session?.user?.name,
-            avatar: validatedData.avatar ?? session?.user?.avatar,
-            onBoarding: true,
-            ...(tempData.step1?.avatarFile
-              ? { avatarUpdatedAt: Date.now() }
-              : {}),
-          },
-        });
-      } catch (err) {
-        captureFlowFailure({
-          flow: 'onboarding_submit',
-          step: 'submit_profile',
-          message:
-            err instanceof Error
-              ? err.message
-              : 'Onboarding profile submit failed',
-        });
-        throw err;
-      }
+      const validatedData = formSchema.parse(allData);
+      await submitProfile(validatedData, Boolean(tempData.step1?.avatarFile));
 
       trackEvent({ name: 'onboarding_completed', feature: 'onboarding' });
       router.push('/profile/card');
