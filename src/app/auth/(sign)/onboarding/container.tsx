@@ -172,6 +172,8 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
               err instanceof Error ? err.message : 'Avatar upload failed',
             level: 'warning',
           });
+          // Clear the background upload state so retrying with the same file starts a fresh upload
+          avatarUpload.kickOff(undefined, step1Form.getValues('avatar'));
           step1Form.setError('avatarFile', {
             type: 'custom',
             message: '頭像上傳失敗，請重新選擇。',
