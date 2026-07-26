@@ -15,12 +15,10 @@ export default async function MentorPoolWithData() {
     }),
     fetchTagCatalogServer('zh_TW'),
   ]);
-  const initialCursor = initialMentors.at(-1)?.updated_at?.toString() ?? '';
 
   return (
     <MentorPoolContainer
       initialMentors={initialMentors}
-      initialCursor={initialCursor}
       initialMentorCount={initialMentors.length}
       initialTagCatalog={initialTagCatalog}
     />
