@@ -76,6 +76,11 @@ describe('getPendingDeleteAccountEmail & clearPendingDeleteAccountEmail', () => 
 
 describe('signInWithGoogleToken', () => {
   it('calls next-auth signIn with correct custom-google-token options', async () => {
+    mockSignIn.mockResolvedValue({
+      error: undefined,
+      ok: true,
+    } as unknown as Awaited<ReturnType<typeof signIn>>);
+
     await signInWithGoogleToken('token123', 'user@example.com', {
       id: 'user-1',
     });
@@ -86,6 +91,17 @@ describe('signInWithGoogleToken', () => {
       email: 'user@example.com',
       user: '{"id":"user-1"}',
     });
+  });
+
+  it('throws an error if NextAuth signIn returns an error', async () => {
+    mockSignIn.mockResolvedValue({
+      error: 'OAuthSigninError',
+      ok: false,
+    } as unknown as Awaited<ReturnType<typeof signIn>>);
+
+    await expect(
+      signInWithGoogleToken('token123', 'user@example.com', { id: 'user-1' })
+    ).rejects.toThrow('OAuthSigninError');
   });
 });
 
