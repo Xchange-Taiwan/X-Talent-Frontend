@@ -19,10 +19,9 @@ import { step1Schema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step1Schema>>>;
-  onFileChange?: (file: File) => void;
 }
 
-export const WhoAreYou: FC<Props> = ({ form, onFileChange }) => {
+export const WhoAreYou: FC<Props> = ({ form }) => {
   const watchedAvatar = useWatch({ control: form.control, name: 'avatar' });
   const { data: session } = useSession();
   const stableCacheBust = useRef(Date.now()).current;
@@ -36,7 +35,6 @@ export const WhoAreYou: FC<Props> = ({ form, onFileChange }) => {
         control={form.control}
         name="avatarFile"
         avatarUrl={avatarDisplayUrl}
-        onFileChange={onFileChange}
       />
 
       <FormField

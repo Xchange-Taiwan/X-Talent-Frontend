@@ -66,7 +66,6 @@ interface Props {
   onSubmitStep3: (data: z.infer<typeof step3Schema>) => void;
   onSubmitStep4: (data: z.infer<typeof step4Schema>) => void;
   onSubmitStep5: (data: z.infer<typeof step5Schema>) => Promise<void>;
-  onFileChange: (file: File) => void;
 }
 
 function StepHeader({
@@ -121,7 +120,6 @@ export default function OnboardingUI({
   onSubmitStep3,
   onSubmitStep4,
   onSubmitStep5,
-  onFileChange,
 }: Props) {
   return (
     <div className="flex-1">
@@ -139,7 +137,7 @@ export default function OnboardingUI({
                 showBack={false}
                 onGoToPrev={onGoToPrev}
               />
-              <WhoAreYou form={step1Form} onFileChange={onFileChange} />
+              <WhoAreYou form={step1Form} />
               <Button className="rounded-xl px-12" type="submit">
                 下一步
               </Button>
