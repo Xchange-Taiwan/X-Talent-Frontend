@@ -41,18 +41,25 @@ export function clearPendingDeleteAccountEmail(): void {
 /**
  * Unified helper for building signIn options and invoking NextAuth signIn
  * for the custom custom-google-token credentials provider.
+ * Checks for signIn errors and throws them to prevent silent failures.
  */
 export async function signInWithGoogleToken(
   token: string,
   email: string,
   user: Record<string, unknown>
 ) {
-  return signIn('custom-google-token', {
+  const res = await signIn('custom-google-token', {
     redirect: false,
     token,
     email,
     user: JSON.stringify(user),
   });
+
+  if (!res || res.error || !res.ok) {
+    throw new Error(res?.error || 'Sign-in failed');
+  }
+
+  return res;
 }
 
 /**

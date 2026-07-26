@@ -113,6 +113,20 @@ describe('GoogleOAuthRedirectPage Component', () => {
     ).toBeInTheDocument();
   });
 
+  it('prevents duplicate side-effect executions when component re-renders (Strict Mode)', async () => {
+    mockResolveOAuthOutcome.mockResolvedValue({
+      type: 'INVALID',
+      errorType: 'MISSING_PARAMS',
+    });
+
+    const { rerender } = render(<GoogleOAuthRedirectPage />);
+    rerender(<GoogleOAuthRedirectPage />);
+
+    await waitFor(() => {
+      expect(mockResolveOAuthOutcome).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('Invalid Outcome', () => {
     it('handles MISSING_PARAMS correctly and clears pending email', async () => {
       mockResolveOAuthOutcome.mockResolvedValue({
