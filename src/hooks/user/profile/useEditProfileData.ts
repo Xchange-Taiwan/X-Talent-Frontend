@@ -2,30 +2,31 @@
 import { useEffect } from 'react';
 
 import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
+import { getSafeErrorMessage } from '@/lib/errorUtils';
+import { prefetchPresignedUrl } from '@/services/profile/updateAvatar';
 
 interface Options {
   userId: number;
+  isAuthorized: boolean;
 }
 
-export function useEditProfileData({ userId }: Options) {
+export function useEditProfileData({ userId, isAuthorized }: Options) {
   // Fire the user fetch in parallel with auth resolution.
   const { userDto, error } = useUserProfileDto(userId, 'zh_TW');
 
+  // Warm up the avatar presigned URL once authorized. Saves a serial round
+  // trip from the submit waterfall when the user uploads a new avatar.
+  useEffect(() => {
+    if (!isAuthorized) return;
+    const uId = Number(userId);
+    if (!Number.isFinite(uId)) return;
+    prefetchPresignedUrl(uId);
+  }, [isAuthorized, userId]);
+
   useEffect(() => {
     if (!error) return;
-
-    // Safely serialize and extract error message without exposing full Axios config / PII headers to Sentry
-    const errObj = error as unknown;
-    console.error(
-      'Failed to fetch user data:',
-      typeof error === 'string'
-        ? error
-        : errObj instanceof Error
-          ? errObj.message
-          : typeof errObj === 'object' && errObj && 'message' in errObj
-            ? String((errObj as Record<string, unknown>).message)
-            : 'Unknown error'
-    );
+    // Sanitized to prevent PII / secret leak to Sentry console capture
+    console.error('Failed to fetch user data:', getSafeErrorMessage(error));
   }, [error]);
 
   const isMentor = userDto ? Boolean(userDto.is_mentor) : false;

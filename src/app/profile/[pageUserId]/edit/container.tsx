@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 
 import { totalWorkSpanOptions } from '@/components/onboarding/steps/constant';
 import { AvatarSection } from '@/components/profile/edit/AvatarSection';
@@ -40,7 +40,6 @@ import { mapVoToFormValues } from '@/lib/profile/profileSaveAdapter';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
-import { prefetchPresignedUrl } from '@/services/profile/updateAvatar';
 
 const JobExperienceSection = dynamic(async () => {
   const m = await import('@/components/profile/edit/JobExperienceSection');
@@ -88,6 +87,7 @@ export default function EditProfileContainer({
 
   const { userDto, isMentor, isError } = useEditProfileData({
     userId: Number(pageUserId),
+    isAuthorized,
   });
 
   const { form } = useEditProfileForm(isMentorOnboarding || isMentor);
@@ -98,20 +98,12 @@ export default function EditProfileContainer({
   // Reset form when user profile data successfully loads or updates
   useLayoutEffect(() => {
     if (!isAuthorized || !userDto) return;
+    if (!isContainerLoading) return; // Only allow form reset during initial loading!
 
     const formValues = mapVoToFormValues(userDto, isMentorOnboarding);
     form.reset(formValues);
     setIsContainerLoading(false);
-  }, [userDto, isAuthorized, isMentorOnboarding, form]);
-
-  // Warm up the avatar presigned URL once authorized. Saves a serial round
-  // trip from the submit waterfall when the user uploads a new avatar.
-  useEffect(() => {
-    if (!isAuthorized) return;
-    const userId = Number(pageUserId);
-    if (!Number.isFinite(userId)) return;
-    prefetchPresignedUrl(userId);
-  }, [isAuthorized, pageUserId]);
+  }, [userDto, isAuthorized, isMentorOnboarding, form, isContainerLoading]);
 
   // Kicks off the S3 upload the moment the user crops a new avatar so
   // submit doesn't pay the round trip — see useBackgroundAvatarUpload.

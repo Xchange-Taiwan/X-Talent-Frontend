@@ -1,5 +1,14 @@
 import { renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  MockInstance,
+  vi,
+} from 'vitest';
 
 import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
 import { MentorProfileVO } from '@/services/profile/user';
@@ -14,6 +23,28 @@ vi.mock('@/hooks/user/user-data/useUserProfileDto', () => ({
 const mockUseUserProfileDto = vi.mocked(useUserProfileDto);
 
 describe('useEditProfileData', () => {
+  let originalFetch: typeof global.fetch;
+  let consoleSpy: MockInstance;
+
+  beforeAll(() => {
+    // Suppress console.error during hook tests and prevent next-auth log rejections
+    consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    originalFetch = global.fetch;
+    global.fetch = vi.fn().mockImplementation((url) => {
+      if (String(url).includes('/api/auth/_log')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({}), { status: 200 })
+        );
+      }
+      return originalFetch(url);
+    });
+  });
+
+  afterAll(() => {
+    consoleSpy.mockRestore();
+    global.fetch = originalFetch;
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -28,6 +59,7 @@ describe('useEditProfileData', () => {
     const { result } = renderHook(() =>
       useEditProfileData({
         userId: 1,
+        isAuthorized: true,
       })
     );
 
@@ -52,6 +84,7 @@ describe('useEditProfileData', () => {
     const { result } = renderHook(() =>
       useEditProfileData({
         userId: 1,
+        isAuthorized: true,
       })
     );
 
@@ -76,6 +109,7 @@ describe('useEditProfileData', () => {
     const { result } = renderHook(() =>
       useEditProfileData({
         userId: 1,
+        isAuthorized: false,
       })
     );
 
@@ -93,6 +127,7 @@ describe('useEditProfileData', () => {
     const { result } = renderHook(() =>
       useEditProfileData({
         userId: 1,
+        isAuthorized: true,
       })
     );
 
@@ -119,6 +154,7 @@ describe('useEditProfileData', () => {
       {
         initialProps: {
           userId: 1,
+          isAuthorized: true,
         },
       }
     );
@@ -134,6 +170,7 @@ describe('useEditProfileData', () => {
 
     rerender({
       userId: 1,
+      isAuthorized: true,
     });
 
     expect(result.current.isError).toBe(false);
@@ -141,8 +178,6 @@ describe('useEditProfileData', () => {
   });
 
   it('safely serializes object errors to prevent Sentry PII capturing while preserving message debugging value', () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
     const mockErrorObject = {
       message: 'Failed to fetch',
       config: { headers: { Authorization: 'Bearer token123' } },
@@ -157,6 +192,7 @@ describe('useEditProfileData', () => {
     renderHook(() =>
       useEditProfileData({
         userId: 1,
+        isAuthorized: true,
       })
     );
 
@@ -164,8 +200,6 @@ describe('useEditProfileData', () => {
       'Failed to fetch user data:',
       'Failed to fetch'
     );
-
-    consoleSpy.mockRestore();
   });
 
   it('keeps isError as false when background focus revalidation fails but we already have userDto loaded', () => {
@@ -187,6 +221,7 @@ describe('useEditProfileData', () => {
       {
         initialProps: {
           userId: 1,
+          isAuthorized: true,
         },
       }
     );
@@ -203,6 +238,7 @@ describe('useEditProfileData', () => {
 
     rerender({
       userId: 1,
+      isAuthorized: true,
     });
 
     // It should tolerate background error, keeping isError=false so the form does not unmount!
