@@ -186,4 +186,77 @@ describe('createKeyedCache', () => {
     expect(r2).toBe(42);
     expect(cache.get('key1')).toBe(42); // Should be in cache
   });
+
+  it('prevents in-flight fetch from overwriting a newer primed/set value (Race Condition protection)', async () => {
+    const cache = createKeyedCache<string, number>();
+
+    let resolveFetcher: (val: number) => void = () => {};
+    const fetcherPromise = new Promise<number>((resolve) => {
+      resolveFetcher = resolve;
+    });
+
+    const fetcher = vi.fn(() => fetcherPromise);
+
+    // Start a fetch (in-flight)
+    const p1 = cache.fetch('key1', fetcher);
+
+    // While fetch is in-flight, we prime the cache with a newer/fresh value
+    cache.prime('key1', 999);
+
+    // Resolve the original fetcher with old data
+    resolveFetcher(100);
+
+    const result = await p1;
+    expect(result).toBe(100);
+
+    // The cache should still contain the newer primed value (999), NOT the old resolved value (100)
+    expect(cache.get('key1')).toBe(999);
+  });
+
+  it('prevents in-flight fetch from overwriting cache after clear()', async () => {
+    const cache = createKeyedCache<string, number>();
+
+    let resolveFetcher: (val: number) => void = () => {};
+    const fetcherPromise = new Promise<number>((resolve) => {
+      resolveFetcher = resolve;
+    });
+
+    const fetcher = vi.fn(() => fetcherPromise);
+
+    const p1 = cache.fetch('key1', fetcher);
+
+    cache.clear();
+
+    resolveFetcher(100);
+    await p1;
+
+    expect(cache.get('key1')).toBeUndefined();
+  });
+
+  it('does not prematurely delete expired cache during background fetch (SWR preservation)', async () => {
+    const cache = createKeyedCache<string, number>({ ttlMs: 1000 });
+
+    cache.set('key1', 42);
+    vi.advanceTimersByTime(1001); // Expiry passed
+
+    // Initiating fetch() on expired key
+    let resolveFetcher: (val: number) => void = () => {};
+    const fetcherPromise = new Promise<number>((resolve) => {
+      resolveFetcher = resolve;
+    });
+    const fetcher = vi.fn(() => fetcherPromise);
+
+    const p1 = cache.fetch('key1', fetcher);
+
+    // During in-flight request, calling getWithStatus() should still return the stale value, not undefined!
+    const status = cache.getWithStatus('key1');
+    expect(status).toEqual({ value: 42, isStale: true });
+
+    // Resolve the revalidation request with 100
+    resolveFetcher(100);
+    await p1;
+
+    // After resolving, getWithStatus() returns the fresh value with isStale: false
+    expect(cache.getWithStatus('key1')).toEqual({ value: 100, isStale: false });
+  });
 });

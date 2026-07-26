@@ -136,9 +136,11 @@ export function createKeyedCache<K, V>(
     fetcher: () => Promise<V>,
     options?: { ttlMs?: number; shouldCache?: (value: V) => boolean }
   ): Promise<V> {
-    const cached = get(key);
-    if (cached !== undefined) {
-      return Promise.resolve(cached);
+    // Correctness fix: Use dataCache directly rather than calling get(key),
+    // to avoid deleting the expired cache prematurely and ruining SWR.
+    const entry = dataCache.get(key);
+    if (entry && !isExpired(entry)) {
+      return Promise.resolve(entry.value);
     }
 
     const inflight = getInflight(key);
@@ -146,14 +148,21 @@ export function createKeyedCache<K, V>(
       return inflight;
     }
 
+    // eslint-disable-next-line prefer-const
+    let finalPromise: Promise<V>;
+
     const promise = fetcher().then((value) => {
-      if (!options?.shouldCache || options.shouldCache(value)) {
-        set(key, value, options?.ttlMs);
+      // Race Condition fix: Only write to cache if this is still the current inflight promise
+      if (getInflight(key) === finalPromise) {
+        if (!options?.shouldCache || options.shouldCache(value)) {
+          set(key, value, options?.ttlMs);
+        }
       }
       return value;
     });
 
-    return setInflight(key, promise);
+    finalPromise = setInflight(key, promise);
+    return finalPromise;
   }
 
   return {
