@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
@@ -17,6 +17,7 @@ import {
 } from '@/components/onboarding/steps';
 import useLocations from '@/hooks/user/country/useLocations';
 import { buildOnboardingDtoStub } from '@/hooks/user/onboarding/buildOnboardingDtoStub';
+import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import {
   clearUserDataCache,
@@ -25,7 +26,6 @@ import {
 import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
-import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
 
 import { STEP_TITLE, STEPS_TOTAL } from './data';
@@ -56,14 +56,7 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
     step5?: z.infer<typeof step5Schema>;
   }>({});
 
-  // Tracks the in-flight background avatar upload kicked off after Step 1.
-  // The promise is consumed at Step 5 submit so the user doesn't wait for S3
-  // round-trip; replaced (with abort) when the user picks a new file.
-  const avatarUploadRef = useRef<{
-    file: File;
-    controller: AbortController;
-    promise: Promise<string | undefined>;
-  } | null>(null);
+  const avatarUpload = useBackgroundAvatarUpload();
 
   const step1Form = useForm<z.infer<typeof step1Schema>>({
     resolver: zodResolver(step1Schema),
@@ -101,36 +94,8 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
     if (watchedAvatarFile) step1Form.clearErrors('avatarFile');
   }, [watchedAvatarFile, step1Form]);
 
-  useEffect(() => {
-    return () => {
-      avatarUploadRef.current?.controller.abort();
-    };
-  }, []);
-
   const onSubmitStep1 = (data: z.infer<typeof step1Schema>) => {
     setTempData((prev) => ({ ...prev, step1: data }));
-
-    const file = data.avatarFile;
-    const currentJob = avatarUploadRef.current;
-
-    if (file) {
-      // Same File ref (user advanced without re-cropping) — keep existing job
-      if (currentJob?.file !== file) {
-        currentJob?.controller.abort();
-        const controller = new AbortController();
-        const promise = updateAvatar(file, controller.signal).catch((err) => {
-          // Aborts are expected when the user picks a new file or unmounts —
-          // swallow so they don't show up as upload failures at Step 5
-          if (controller.signal.aborted) return undefined;
-          throw err;
-        });
-        avatarUploadRef.current = { file, controller, promise };
-      }
-    } else if (currentJob) {
-      currentJob.controller.abort();
-      avatarUploadRef.current = null;
-    }
-
     trackEvent({ name: 'onboarding_step_1_completed', feature: 'onboarding' });
     setCurrentStep(2);
   };
@@ -193,10 +158,9 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
     try {
       setIsSubmitting(true);
 
-      const job = avatarUploadRef.current;
-      if (job) {
+      if (allData.avatarFile) {
         try {
-          const newUrl = await job.promise;
+          const newUrl = await avatarUpload.consume(allData.avatarFile);
           allData.avatar = newUrl ?? allData.avatar;
           allData.avatarFile = undefined;
         } catch (err) {
@@ -207,8 +171,6 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
               err instanceof Error ? err.message : 'Avatar upload failed',
             level: 'warning',
           });
-          // Drop the failed job so the next Step 1 submit starts a fresh upload
-          avatarUploadRef.current = null;
           step1Form.setError('avatarFile', {
             type: 'custom',
             message: '頭像上傳失敗，請重新選擇。',
@@ -247,7 +209,9 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
             name: validatedData.name ?? session?.user?.name,
             avatar: validatedData.avatar ?? session?.user?.avatar,
             onBoarding: true,
-            ...(job ? { avatarUpdatedAt: Date.now() } : {}),
+            ...(tempData.step1?.avatarFile
+              ? { avatarUpdatedAt: Date.now() }
+              : {}),
           },
         });
       } catch (err) {
@@ -297,6 +261,9 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
       onSubmitStep3={onSubmitStep3}
       onSubmitStep4={onSubmitStep4}
       onSubmitStep5={onSubmitStep5}
+      onFileChange={(file) =>
+        avatarUpload.kickOff(file, step1Form.getValues('avatar'))
+      }
     />
   );
 }
