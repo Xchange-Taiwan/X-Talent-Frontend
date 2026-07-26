@@ -12,12 +12,14 @@ import {
   buildDateTime,
   expandRrule,
   formatTimeslot,
+  hasAnyOccurrenceOverlap,
   MonthKey,
   monthKeyFromDateStr,
   monthKeyFromYearMonth,
   nextTempId,
   ParsedMentorTimeslot,
   parseMonthKey,
+  parseOccurrenceId,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
 import { TimeSlotDTO } from '@/services/mentor-schedule/schedule';
@@ -34,41 +36,6 @@ import {
 
 export type { BookingSlot } from '@/lib/profile/scheduleHelpers';
 export { expandRrule } from '@/lib/profile/scheduleHelpers';
-
-function parseOccurrenceId(occurrenceId: string): {
-  id: number;
-  occurrenceUnix: number;
-} | null {
-  if (!occurrenceId || !occurrenceId.includes('_')) return null;
-  const parts = occurrenceId.split('_');
-  if (parts.length !== 2) return null;
-  const id = Number(parts[0]);
-  const occurrenceUnix = Number(parts[1]);
-  if (Number.isNaN(id) || Number.isNaN(occurrenceUnix)) return null;
-  return { id, occurrenceUnix };
-}
-
-function hasAnyOccurrenceOverlap(
-  rows: RawMentorTimeslot[],
-  ignoreRowId: number | null,
-  candidateOccurrences: number[],
-  durationSeconds: number
-): boolean {
-  if (candidateOccurrences.length === 0) return false;
-  return rows.some((r) => {
-    if (r.id === ignoreRowId) return false;
-    if (r.type !== 'ALLOW') return false;
-    const existingDur = r.dtend - r.dtstart;
-    const existingOccs = activeOccurrences(r);
-    return existingOccs.some((eo) => {
-      const eEnd = eo + existingDur;
-      return candidateOccurrences.some((no) => {
-        const nEnd = no + durationSeconds;
-        return no < eEnd && nEnd > eo;
-      });
-    });
-  });
-}
 
 type Options = {
   backend: {
