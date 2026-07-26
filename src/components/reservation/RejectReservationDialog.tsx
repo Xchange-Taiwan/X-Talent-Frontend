@@ -24,12 +24,14 @@ import type { Reservation } from './types';
 interface Props {
   reservation: Reservation;
   className?: string;
+  disabled?: boolean;
   onReject?: (payload: { id: string; reason: string }) => Promise<void> | void;
 }
 
 export default function RejectReservationDialog({
   reservation,
   className,
+  disabled = false,
   onReject,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -75,6 +77,7 @@ export default function RejectReservationDialog({
           size="sm"
           variant="destructive"
           className={cn('min-h-9 px-3', className)}
+          disabled={disabled}
         >
           拒絕
         </Button>

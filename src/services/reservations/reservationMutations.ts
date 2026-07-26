@@ -1,7 +1,7 @@
 import { Reservation } from '@/components/reservation/types';
 import { captureFlowFailure } from '@/lib/monitoring';
 
-import { updateReservationStatus } from './index';
+import { updateReservationStatus } from './reservationService';
 
 /**
  * Resolve the other party's user_id based on who is currently logged in.
@@ -13,40 +13,57 @@ export const resolveOtherId = (
   String(it.senderUserId) === myUserId ? it.participantUserId : it.senderUserId;
 
 interface PerformStatusUpdateParams {
+  text: string;
   myUserId: string;
   status: 'ACCEPT' | 'REJECT';
-  messages: { user_id: number; content: string }[];
+  flowName: 'reservation_accept' | 'reservation_reject';
   reservation: Reservation;
 }
 
 /**
- * Common internal helper to perform reservation status updates
+ * Common internal helper to perform reservation status updates, Sentry monitoring, and payload construction
  */
 async function performStatusUpdate({
+  text,
   myUserId,
   status,
-  messages,
+  flowName,
   reservation,
 }: PerformStatusUpdateParams): Promise<void> {
-  if (!myUserId) {
-    throw new Error('[reservationMutations] missing current user id');
-  }
-  const myIdNum = Number(myUserId);
-  const otherIdNum = Number(resolveOtherId(reservation, myUserId));
+  try {
+    if (!myUserId) {
+      throw new Error('[reservationMutations] missing current user id');
+    }
+    const myIdNum = Number(myUserId);
+    const otherIdNum = Number(resolveOtherId(reservation, myUserId));
+    const messages = text.trim()
+      ? [{ user_id: myIdNum, content: text.trim() }]
+      : [];
 
-  await updateReservationStatus({
-    userId: myUserId,
-    reservationId: reservation.id,
-    body: {
-      my_user_id: myIdNum,
-      user_id: otherIdNum,
-      my_status: status,
-      schedule_id: reservation.scheduleId,
-      dtstart: reservation.dtstart,
-      dtend: reservation.dtend,
-      messages,
-    },
-  });
+    await updateReservationStatus({
+      userId: myUserId,
+      reservationId: reservation.id,
+      body: {
+        my_user_id: myIdNum,
+        user_id: otherIdNum,
+        my_status: status,
+        schedule_id: reservation.scheduleId,
+        dtstart: reservation.dtstart,
+        dtend: reservation.dtend,
+        messages,
+      },
+    });
+  } catch (err) {
+    captureFlowFailure({
+      flow: flowName,
+      step: 'update_status',
+      message:
+        err instanceof Error
+          ? err.message
+          : `Failed to execute ${flowName} status update`,
+    });
+    throw err;
+  }
 }
 
 export interface AcceptParams {
@@ -63,27 +80,13 @@ export async function acceptReservation({
   reservation,
   myUserId,
 }: AcceptParams): Promise<void> {
-  try {
-    const myIdNum = Number(myUserId);
-    const messages = message.trim()
-      ? [{ user_id: myIdNum, content: message.trim() }]
-      : [];
-
-    await performStatusUpdate({
-      myUserId,
-      status: 'ACCEPT',
-      messages,
-      reservation,
-    });
-  } catch (err) {
-    captureFlowFailure({
-      flow: 'reservation_accept',
-      step: 'update_status',
-      message:
-        err instanceof Error ? err.message : 'Failed to accept reservation',
-    });
-    throw err;
-  }
+  await performStatusUpdate({
+    text: message,
+    myUserId,
+    status: 'ACCEPT',
+    flowName: 'reservation_accept',
+    reservation,
+  });
 }
 
 export interface RejectOrCancelParams {
@@ -100,27 +103,11 @@ export async function rejectOrCancelReservation({
   reservation,
   myUserId,
 }: RejectOrCancelParams): Promise<void> {
-  try {
-    const myIdNum = Number(myUserId);
-    const messages = text.trim()
-      ? [{ user_id: myIdNum, content: text.trim() }]
-      : [];
-
-    await performStatusUpdate({
-      myUserId,
-      status: 'REJECT',
-      messages,
-      reservation,
-    });
-  } catch (err) {
-    captureFlowFailure({
-      flow: 'reservation_reject',
-      step: 'update_status',
-      message:
-        err instanceof Error
-          ? err.message
-          : 'Failed to reject/cancel reservation',
-    });
-    throw err;
-  }
+  await performStatusUpdate({
+    text,
+    myUserId,
+    status: 'REJECT',
+    flowName: 'reservation_reject',
+    reservation,
+  });
 }

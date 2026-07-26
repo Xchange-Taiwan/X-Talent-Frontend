@@ -49,12 +49,13 @@ export function ReservationList({
   // states in the background.
   onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
 }) {
-  const { accept, rejectOrCancel, buildProfileHref } = useReservationActions({
-    items,
-    myUserId,
-    variant,
-    onMutationSuccess,
-  });
+  const { accept, rejectOrCancel, buildProfileHref, isMutating } =
+    useReservationActions({
+      items,
+      myUserId,
+      variant,
+      onMutationSuccess,
+    });
 
   const handleProfileClick = (): void => {
     trackEvent({
@@ -84,15 +85,21 @@ export function ReservationList({
               <div className="flex gap-2">
                 <RejectReservationDialog
                   reservation={it}
+                  disabled={isMutating}
                   onReject={async ({ id, reason }) =>
                     rejectOrCancel(id, reason, '已拒絕預約')
                   }
                 />
-                <AcceptReservationDialog reservation={it} onAccept={accept} />
+                <AcceptReservationDialog
+                  reservation={it}
+                  disabled={isMutating}
+                  onAccept={accept}
+                />
               </div>
             ) : (
               <CancelReservationDialog
                 reservation={it}
+                disabled={isMutating}
                 onConfirmCancel={async ({ id, reason }) =>
                   rejectOrCancel(id, reason, '已取消預約')
                 }
