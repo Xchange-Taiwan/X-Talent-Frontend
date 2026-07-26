@@ -77,7 +77,7 @@ describe('mapMentor', () => {
     expect(mapped).toEqual({
       user_id: 123,
       name: 'John Doe',
-      avatar: 'https://example.com/avatar.jpg',
+      avatar: 'https://example.com/avatar.jpg?cb=1610000000',
       job_title: 'Software Engineer',
       company: 'Tech Corp',
       years_of_experience: '3_5',
@@ -105,7 +105,7 @@ describe('mapMentor', () => {
     expect(mapped).toEqual({
       user_id: 456,
       name: '',
-      avatar: '',
+      avatar: avatarImage,
       job_title: '',
       company: '',
       years_of_experience: '',
@@ -121,6 +121,33 @@ describe('mapMentor', () => {
       have_topic: [],
       updated_at: null,
     });
+  });
+
+  it('combines resolveMentorAvatar behavior inside mapMentor', () => {
+    // 1. empty avatar falls back to default image
+    const rawNoAvatar = createRawMentor({ user_id: 777, avatar: null });
+    const mappedNoAvatar = mapMentor(rawNoAvatar);
+    expect(mappedNoAvatar.avatar).toBe(avatarImage);
+
+    // 2. presence of avatar without updated_at does not cache-bust
+    const rawNoUpdated = createRawMentor({
+      user_id: 888,
+      avatar: 'https://example.com/avatar.jpg',
+      updated_at: null,
+    });
+    const mappedNoUpdated = mapMentor(rawNoUpdated);
+    expect(mappedNoUpdated.avatar).toBe('https://example.com/avatar.jpg');
+
+    // 3. presence of avatar with updated_at applies cache-busting
+    const rawWithUpdated = createRawMentor({
+      user_id: 999,
+      avatar: 'https://example.com/avatar.jpg',
+      updated_at: 1620000000,
+    });
+    const mappedWithUpdated = mapMentor(rawWithUpdated);
+    expect(mappedWithUpdated.avatar).toBe(
+      'https://example.com/avatar.jpg?cb=1620000000'
+    );
   });
 });
 

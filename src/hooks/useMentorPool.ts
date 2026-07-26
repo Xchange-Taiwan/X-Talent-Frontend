@@ -9,7 +9,6 @@ import {
   paramsToFetchConditions,
 } from '@/app/mentor-pool/searchParams';
 import { useToast } from '@/components/ui/use-toast';
-import { resolveMentorAvatar } from '@/services/search-mentor/mapMentor';
 import {
   fetchMentors,
   type MentorType,
@@ -93,23 +92,17 @@ export function useMentorPool({
 
   const hasInitialFilters = hasAnyCondition(params);
 
-  // Cache resolved initial mentors to trigger React's state bailout on mount, preventing redundant list re-renders.
-  const resolvedInitialMentors = useMemo(
-    () => initialMentors.map(resolveMentorAvatar),
-    [initialMentors]
-  );
-
   const getInitialUnfilteredState = useCallback(
     (): MentorPoolPageState => ({
-      mentors: resolvedInitialMentors,
-      cursor: resolvedInitialMentors.at(-1)?.updated_at?.toString(),
-      hasMore: resolvedInitialMentors.length === PAGE_LIMIT,
+      mentors: initialMentors,
+      cursor: initialMentors.at(-1)?.updated_at?.toString(),
+      hasMore: initialMentors.length === PAGE_LIMIT,
       mentorCount: initialMentorCount,
-      isNoResults: resolvedInitialMentors.length === 0,
+      isNoResults: initialMentors.length === 0,
       hasError: hasInitialFilters ? false : (initialError ?? false),
     }),
     [
-      resolvedInitialMentors,
+      initialMentors,
       initialMentorCount,
       hasInitialFilters,
       initialError,
@@ -206,9 +199,8 @@ export function useMentorPool({
     fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' })
       .then((list) => {
         if (myRequestId !== requestIdRef.current) return;
-        const resolvedList = list.map(resolveMentorAvatar);
         setPageState((prev) =>
-          applyMentorPage(prev, { type: 'replace', page: resolvedList })
+          applyMentorPage(prev, { type: 'replace', page: list })
         );
         setIsLoading(false);
         isLoadingRef.current = false;
@@ -233,9 +225,8 @@ export function useMentorPool({
     try {
       const rtnList = await fetchMentors(param);
       if (myRequestId === requestIdRef.current) {
-        const resolvedList = rtnList.map(resolveMentorAvatar);
         setPageState((prev) =>
-          applyMentorPage(prev, { type: 'append', page: resolvedList })
+          applyMentorPage(prev, { type: 'append', page: rtnList })
         );
       }
     } catch (error) {
