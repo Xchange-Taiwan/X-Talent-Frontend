@@ -2,7 +2,6 @@
 
 import { useSession } from 'next-auth/react';
 import { useState } from 'react';
-import * as z from 'zod';
 
 import { buildOnboardingDtoStub } from '@/hooks/user/onboarding/buildOnboardingDtoStub';
 import {
@@ -18,19 +17,15 @@ interface Options {
   industries: TagCatalogsByBucket['industry'];
 }
 
-type OnboardingFormData = z.infer<typeof formSchema>;
-
 export function useOnboardingSubmit({ industries }: Options) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { data: session, update: updateSession } = useSession();
 
-  const submitProfile = async (
-    allData: OnboardingFormData,
-    hasAvatarFile: boolean
-  ) => {
+  const submitProfile = async (allData: unknown, hasAvatarFile: boolean) => {
     try {
       setIsSubmitting(true);
-      await updateProfile(allData);
+      const validatedData = formSchema.parse(allData);
+      await updateProfile(validatedData);
 
       // Prime the user-profile cache from the form values + tag pools
       // we already have in memory, so /profile/card mounts from
@@ -40,7 +35,7 @@ export function useOnboardingSubmit({ industries }: Options) {
       if (Number.isFinite(sessionUserId)) {
         const stub = buildOnboardingDtoStub({
           userId: sessionUserId,
-          formData: allData,
+          formData: validatedData,
           industryCatalog: industries,
         });
         primeUserDataCache(sessionUserId, 'zh_TW', stub);
@@ -53,8 +48,8 @@ export function useOnboardingSubmit({ industries }: Options) {
       await updateSession({
         user: {
           ...session?.user,
-          name: allData.name ?? session?.user?.name,
-          avatar: allData.avatar ?? session?.user?.avatar,
+          name: validatedData.name ?? session?.user?.name,
+          avatar: validatedData.avatar ?? session?.user?.avatar,
           onBoarding: true,
           ...(hasAvatarFile ? { avatarUpdatedAt: Date.now() } : {}),
         },

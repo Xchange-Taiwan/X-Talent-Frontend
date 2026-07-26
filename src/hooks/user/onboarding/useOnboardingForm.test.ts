@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useOnboardingSubmit } from '@/hooks/user/onboarding/useOnboardingSubmit';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { trackEvent } from '@/lib/analytics';
+import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 
 import { useOnboardingForm } from './useOnboardingForm';
 
@@ -43,31 +44,33 @@ describe('useOnboardingForm', () => {
   const mockRollback = vi.fn();
   const mockAbort = vi.fn();
 
-  const mockIndustries = [] as any;
+  const mockIndustries = [] as unknown as TagCatalogsByBucket['industry'];
 
   beforeEach(() => {
     vi.resetAllMocks();
 
-    mockUseRouter.mockReturnValue({ push: mockPush } as any);
+    mockUseRouter.mockReturnValue({ push: mockPush } as unknown as ReturnType<
+      typeof useRouter
+    >);
     mockUseSession.mockReturnValue({
       data: { user: { name: 'John Doe', avatar: '' } },
       status: 'authenticated',
-    } as any);
+    } as unknown as ReturnType<typeof useSession>);
 
     mockUseOnboardingSubmit.mockReturnValue({
       submitProfile: mockSubmitProfile,
       isSubmitting: false,
-    } as any);
+    } as unknown as ReturnType<typeof useOnboardingSubmit>);
 
     mockUseBackgroundAvatarUpload.mockReturnValue({
       kickOff: mockKickOff,
       consume: mockConsume,
       rollback: mockRollback,
       abort: mockAbort,
-    } as any);
+    } as unknown as ReturnType<typeof useBackgroundAvatarUpload>);
   });
 
-  it('should initialize at Step 1 and allow step-by-step submission accumulating tempData', async () => {
+  it('should initialize at Step 1 and allow step-by-step submission accumulating draftData', async () => {
     const { result } = renderHook(() =>
       useOnboardingForm({ industries: mockIndustries })
     );
@@ -183,17 +186,23 @@ describe('useOnboardingForm', () => {
         avatarFile: file,
         language: 'zh_TW',
       });
+    });
+    await act(async () => {
       result.current.onSubmitStep2({
         location: 'TWN',
         years_of_experience: '1_3',
         industry: 'TECH',
       });
+    });
+    await act(async () => {
       result.current.onSubmitStep3({ want_position: ['pos1'] });
+    });
+    await act(async () => {
       result.current.onSubmitStep4({ want_skill: ['skill1'] });
     });
 
     mockConsume.mockResolvedValue('https://s3.amazonaws.com/new-avatar.png');
-    mockSubmitProfile.mockResolvedValue({} as any);
+    mockSubmitProfile.mockResolvedValue(undefined as unknown as void);
 
     // Step 5 submit
     await act(async () => {
@@ -237,12 +246,18 @@ describe('useOnboardingForm', () => {
         avatarFile: file,
         language: 'zh_TW',
       });
+    });
+    await act(async () => {
       result.current.onSubmitStep2({
         location: 'TWN',
         years_of_experience: '1_3',
         industry: 'TECH',
       });
+    });
+    await act(async () => {
       result.current.onSubmitStep3({ want_position: ['pos1'] });
+    });
+    await act(async () => {
       result.current.onSubmitStep4({ want_skill: ['skill1'] });
     });
 
