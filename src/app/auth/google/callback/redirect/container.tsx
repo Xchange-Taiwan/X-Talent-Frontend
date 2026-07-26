@@ -9,7 +9,8 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { useToast } from '@/components/ui/use-toast';
 import { trackEvent } from '@/lib/analytics';
 import {
-  consumePendingDeleteAccountEmail,
+  clearPendingDeleteAccountEmail,
+  getPendingDeleteAccountEmail,
   resolveOAuthOutcome,
   signInWithGoogleToken,
 } from '@/lib/auth/oauthOutcome';
@@ -36,7 +37,11 @@ export default function GoogleOAuthRedirectPage() {
             : 'Something went wrong during login.';
 
       const title =
-        errorType === 'DELETE_FLOW_INVALID' ? '刪除帳號失敗' : 'Login failed';
+        errorType === 'MISSING_PARAMS'
+          ? 'Missing Google OAuth parameters'
+          : errorType === 'DELETE_FLOW_INVALID'
+            ? '刪除帳號失敗'
+            : 'Login failed';
 
       toast({
         variant: 'destructive',
@@ -93,6 +98,9 @@ export default function GoogleOAuthRedirectPage() {
         return;
       }
 
+      // Safe clearance of sessionStorage only when starting execution of account deletion.
+      clearPendingDeleteAccountEmail();
+
       await signInWithGoogleToken(auth.token, auth.email ?? '', user);
 
       const result = await deleteAccount({ email, id_token });
@@ -128,7 +136,7 @@ export default function GoogleOAuthRedirectPage() {
       const code = searchParams.get('code');
       const state = searchParams.get('state');
 
-      const pendingDeleteAccountEmail = consumePendingDeleteAccountEmail();
+      const pendingDeleteAccountEmail = getPendingDeleteAccountEmail();
       const outcome = await resolveOAuthOutcome(code, state, {
         pendingDeleteAccountEmail,
       });
