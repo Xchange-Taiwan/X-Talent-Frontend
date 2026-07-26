@@ -45,9 +45,6 @@ const makeOptions = (
   isMentorOnboarding: false,
   session: mockSession,
   updateSession: vi.fn().mockResolvedValue(mockSession),
-  jobSectionError: false,
-  educationSectionError: false,
-  onScrollToError: vi.fn(),
   consumeAvatarUpload: vi.fn(),
   ...overrides,
 });
@@ -55,36 +52,6 @@ const makeOptions = (
 describe('useProfileSubmit (Hook Layer)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it('jobSectionError: true → returns early, onScrollToError is called, and saveProfile is NOT called', async () => {
-    const onScrollToError = vi.fn();
-    const { result } = renderHook(() =>
-      useProfileSubmit(makeOptions({ jobSectionError: true, onScrollToError }))
-    );
-
-    await act(async () => {
-      await result.current.onSubmit(baseValues);
-    });
-
-    expect(onScrollToError).toHaveBeenCalledWith('work_experiences');
-    expect(mockSaveProfile).not.toHaveBeenCalled();
-  });
-
-  it('educationSectionError: true → returns early, onScrollToError is called, and saveProfile is NOT called', async () => {
-    const onScrollToError = vi.fn();
-    const { result } = renderHook(() =>
-      useProfileSubmit(
-        makeOptions({ educationSectionError: true, onScrollToError })
-      )
-    );
-
-    await act(async () => {
-      await result.current.onSubmit(baseValues);
-    });
-
-    expect(onScrollToError).toHaveBeenCalledWith('educations');
-    expect(mockSaveProfile).not.toHaveBeenCalled();
   });
 
   it('saveProfile resolves successfully → isSaving remains true (simulating in-flight navigation)', async () => {
