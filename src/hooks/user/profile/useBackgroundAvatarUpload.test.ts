@@ -229,6 +229,68 @@ describe('useBackgroundAvatarUpload', () => {
     expect(restoredFile.type).toBe('image/jpeg');
   });
 
+  it('should handle getExternalBlob failure gracefully and not crash on rollback', async () => {
+    const file = new File(['avatar-bytes'], 'avatar.png', {
+      type: 'image/png',
+    });
+    const mockUrl = 'https://s3.amazonaws.com/bucket/avatar.png?v=123';
+    mockUpdateAvatar.mockResolvedValueOnce(mockUrl);
+
+    // Force snapshot fetch to fail
+    mockApiClient.getExternalBlob.mockRejectedValue(new Error('Network error'));
+
+    const { result } = renderHook(() => useBackgroundAvatarUpload());
+
+    await act(async () => {
+      result.current.kickOff(file, 'https://old-avatar.com/old.png');
+    });
+
+    // Wait for upload and snapshot fetch failure to settle
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // Rollback should complete gracefully without throwing or restoring
+    await act(async () => {
+      await expect(result.current.rollback()).resolves.toBeUndefined();
+    });
+
+    expect(mockApiClient.getExternalBlob).toHaveBeenCalledWith(
+      'https://old-avatar.com/old.png'
+    );
+    // It should NOT call updateAvatar a second time because snapshot was null
+    expect(mockUpdateAvatar).toHaveBeenCalledTimes(1);
+  });
+
+  it('should not fetch snapshot when currentAvatarUrl is null or undefined, and rollback gracefully skips restore', async () => {
+    const file = new File(['avatar-bytes'], 'avatar.png', {
+      type: 'image/png',
+    });
+    const mockUrl = 'https://s3.amazonaws.com/bucket/avatar.png?v=123';
+    mockUpdateAvatar.mockResolvedValueOnce(mockUrl);
+
+    const { result } = renderHook(() => useBackgroundAvatarUpload());
+
+    await act(async () => {
+      result.current.kickOff(file, null);
+    });
+
+    // Wait for upload to complete
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // Rollback should resolve to undefined without trying to restore (as there was no old avatar)
+    await act(async () => {
+      await expect(result.current.rollback()).resolves.toBeUndefined();
+    });
+
+    // Verified that getExternalBlob is never called because the URL was null
+    expect(mockApiClient.getExternalBlob).not.toHaveBeenCalled();
+    // updateAvatar should only be called once (for the upload, not for restoration)
+    expect(mockUpdateAvatar).toHaveBeenCalledTimes(1);
+  });
+
   it('should abort active upload automatically when hook is unmounted', async () => {
     const file = new File(['avatar-bytes'], 'avatar.png', {
       type: 'image/png',
