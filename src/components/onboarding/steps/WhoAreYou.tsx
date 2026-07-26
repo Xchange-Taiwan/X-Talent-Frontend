@@ -19,10 +19,9 @@ import { step1Schema } from './index';
 
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step1Schema>>>;
-  avatarError?: string | null;
 }
 
-export const WhoAreYou: FC<Props> = ({ form, avatarError }) => {
+export const WhoAreYou: FC<Props> = ({ form }) => {
   const watchedAvatar = useWatch({ control: form.control, name: 'avatar' });
   const { data: session } = useSession();
   const stableCacheBust = useRef(Date.now()).current;
@@ -30,23 +29,13 @@ export const WhoAreYou: FC<Props> = ({ form, avatarError }) => {
     ? `${watchedAvatar}?cb=${session?.user?.avatarUpdatedAt ?? stableCacheBust}`
     : '';
 
-  const avatarErrorMessage =
-    (form.formState.errors.avatarFile?.message as string | undefined) ||
-    avatarError;
-
   return (
     <>
       <AvatarUpload
         control={form.control}
         name="avatarFile"
         avatarUrl={avatarDisplayUrl}
-        hasError={!!avatarErrorMessage}
       />
-      {avatarErrorMessage && (
-        <p className="-mt-6 text-center text-sm font-medium text-destructive lg:text-left">
-          {avatarErrorMessage}
-        </p>
-      )}
 
       <FormField
         control={form.control}
