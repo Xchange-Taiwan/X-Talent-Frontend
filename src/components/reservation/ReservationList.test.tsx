@@ -73,19 +73,15 @@ vi.mock('@/services/reservations', async (importOriginal) => {
         reservationId: id,
         body: {},
       });
-      return { affectedTabs: ['pending', 'upcoming'] };
     }),
     rejectOrCancelReservation: vi
       .fn()
-      .mockImplementation(async ({ id, myUserId, variant }) => {
+      .mockImplementation(async ({ id, myUserId }) => {
         await mockUpdateReservationStatus({
           userId: myUserId,
           reservationId: id,
           body: {},
         });
-        return {
-          affectedTabs: actual.buildRejectOrCancelAffectedTabs(variant),
-        };
       }),
   };
 });

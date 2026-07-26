@@ -3,28 +3,48 @@ import { useCallback, useState } from 'react';
 import { Reservation } from '@/components/reservation/types';
 import { useToast } from '@/components/ui/use-toast';
 import { ListKey } from '@/hooks/user/reservation/useReservationData';
-import { captureFlowFailure } from '@/lib/monitoring';
+import { trackEvent } from '@/lib/analytics';
 import {
-  ACCEPT_AFFECTED_TABS,
   acceptReservation,
   rejectOrCancelReservation,
-  Variant,
+  resolveOtherId,
 } from '@/services/reservations';
 
-export interface UseReservationActionsProps {
+export type Variant =
+  | 'upcoming'
+  | 'pending-mentee'
+  | 'pending-mentor'
+  | 'history';
+
+export const ACCEPT_AFFECTED_TABS: ListKey[] = ['pending', 'upcoming'];
+
+export const buildRejectOrCancelAffectedTabs = (
+  variant: Variant
+): ListKey[] => {
+  const sourceTab: ListKey | null =
+    variant === 'upcoming'
+      ? 'upcoming'
+      : variant === 'pending-mentor' || variant === 'pending-mentee'
+        ? 'pending'
+        : null;
+  return sourceTab ? [sourceTab, 'history'] : [];
+};
+
+interface UseReservationActionsProps {
   items: Reservation[];
-  myUserId: string;
+  myUserId: string | undefined;
   variant: Variant;
   onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
 }
 
-export interface UseReservationActionsReturn {
+interface UseReservationActionsReturn {
   accept: (payload: { id: string; message: string }) => Promise<void>;
   rejectOrCancel: (
     id: string,
     text: string,
     successMessage: string
   ) => Promise<void>;
+  buildProfileHref: (it: Reservation) => string | undefined;
   isMutating: boolean;
 }
 
@@ -50,6 +70,9 @@ export function useReservationActions({
 
   const accept = useCallback(
     async ({ id, message }: { id: string; message: string }) => {
+      if (!myUserId) {
+        throw new Error('[useReservationActions] missing current user id');
+      }
       setIsMutating(true);
       try {
         const it = findItem(id);
@@ -65,14 +88,6 @@ export function useReservationActions({
         });
         onMutationSuccess?.(id, ACCEPT_AFFECTED_TABS);
       } catch (err) {
-        captureFlowFailure({
-          flow: 'reservation_accept',
-          step: 'component_handler',
-          message:
-            err instanceof Error
-              ? err.message
-              : 'Component accept handler failed',
-        });
         toast({
           variant: 'destructive',
           title: '錯誤',
@@ -88,27 +103,22 @@ export function useReservationActions({
 
   const rejectOrCancel = useCallback(
     async (id: string, text: string, successMessage: string) => {
+      if (!myUserId) {
+        throw new Error('[useReservationActions] missing current user id');
+      }
       setIsMutating(true);
       try {
         const it = findItem(id);
-        const { affectedTabs } = await rejectOrCancelReservation({
+        await rejectOrCancelReservation({
           id,
           text,
           reservation: it,
           myUserId,
-          variant,
         });
+        trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
         toast({ description: successMessage });
-        onMutationSuccess?.(id, affectedTabs);
+        onMutationSuccess?.(id, buildRejectOrCancelAffectedTabs(variant));
       } catch (err) {
-        captureFlowFailure({
-          flow: 'reservation_reject',
-          step: 'component_handler',
-          message:
-            err instanceof Error
-              ? err.message
-              : 'Component reject/cancel handler failed',
-        });
         toast({
           variant: 'destructive',
           title: '錯誤',
@@ -122,9 +132,20 @@ export function useReservationActions({
     [findItem, myUserId, variant, toast, onMutationSuccess]
   );
 
+  const buildProfileHref = useCallback(
+    (it: Reservation): string | undefined => {
+      if (!myUserId) return undefined;
+      const otherId = resolveOtherId(it, myUserId);
+      if (!otherId || String(otherId) === myUserId) return undefined;
+      return `/profile/${otherId}`;
+    },
+    [myUserId]
+  );
+
   return {
     accept,
     rejectOrCancel,
+    buildProfileHref,
     isMutating,
   };
 }
