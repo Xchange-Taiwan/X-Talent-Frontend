@@ -18,7 +18,7 @@ describe('useEditProfileData', () => {
     vi.clearAllMocks();
   });
 
-  it('initially returns default loading states and false for isMentor/isError', () => {
+  it('initially returns false for isMentor/isError and null for userDto', () => {
     mockUseUserProfileDto.mockReturnValue({
       userDto: null,
       isLoading: true,
@@ -28,17 +28,15 @@ describe('useEditProfileData', () => {
     const { result } = renderHook(() =>
       useEditProfileData({
         userId: 1,
-        isAuthorized: true,
       })
     );
 
     expect(result.current.isMentor).toBe(false);
-    expect(result.current.isPageLoading).toBe(true);
     expect(result.current.isError).toBe(false);
     expect(result.current.userDto).toBeNull();
   });
 
-  it('sets loaded states and derives correct isMentor when isAuthorized is true and userDto is successfully fetched', () => {
+  it('sets loaded states and derives correct isMentor when userDto is successfully fetched', () => {
     const mockUserDto = {
       id: 1,
       username: 'test_user',
@@ -54,17 +52,15 @@ describe('useEditProfileData', () => {
     const { result } = renderHook(() =>
       useEditProfileData({
         userId: 1,
-        isAuthorized: true,
       })
     );
 
     expect(result.current.isMentor).toBe(true);
-    expect(result.current.isPageLoading).toBe(false);
     expect(result.current.isError).toBe(false);
     expect(result.current.userDto).toEqual(mockUserDto);
   });
 
-  it('keeps isPageLoading=true when unauthorized even if userDto is fetched', () => {
+  it('derives correct states even if userDto is fetched with different role', () => {
     const mockUserDto = {
       id: 1,
       username: 'test_user',
@@ -80,16 +76,14 @@ describe('useEditProfileData', () => {
     const { result } = renderHook(() =>
       useEditProfileData({
         userId: 1,
-        isAuthorized: false,
       })
     );
 
-    expect(result.current.isMentor).toBe(true); // Derived directly, but page remains in loading
-    expect(result.current.isPageLoading).toBe(true);
+    expect(result.current.isMentor).toBe(true);
     expect(result.current.isError).toBe(false);
   });
 
-  it('sets isError to true and finishes loading when fetching fails with an error', () => {
+  it('sets isError to true when fetching fails with an error', () => {
     mockUseUserProfileDto.mockReturnValue({
       userDto: null,
       isLoading: false,
@@ -99,12 +93,10 @@ describe('useEditProfileData', () => {
     const { result } = renderHook(() =>
       useEditProfileData({
         userId: 1,
-        isAuthorized: true,
       })
     );
 
     expect(result.current.isMentor).toBe(false);
-    expect(result.current.isPageLoading).toBe(false);
     expect(result.current.isError).toBe(true);
   });
 
@@ -127,13 +119,11 @@ describe('useEditProfileData', () => {
       {
         initialProps: {
           userId: 1,
-          isAuthorized: true,
         },
       }
     );
 
     expect(result.current.isError).toBe(true);
-    expect(result.current.isPageLoading).toBe(false);
 
     // 2) Mock resolution
     mockUseUserProfileDto.mockReturnValue({
@@ -144,15 +134,13 @@ describe('useEditProfileData', () => {
 
     rerender({
       userId: 1,
-      isAuthorized: true,
     });
 
     expect(result.current.isError).toBe(false);
-    expect(result.current.isPageLoading).toBe(false);
     expect(result.current.userDto).toEqual(mockUserDto);
   });
 
-  it('safely serializes object errors to prevent Sentry PII capturing', () => {
+  it('safely serializes object errors to prevent Sentry PII capturing while preserving message debugging value', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const mockErrorObject = {
@@ -169,13 +157,12 @@ describe('useEditProfileData', () => {
     renderHook(() =>
       useEditProfileData({
         userId: 1,
-        isAuthorized: true,
       })
     );
 
     expect(consoleSpy).toHaveBeenCalledWith(
       'Failed to fetch user data:',
-      '[object Object]'
+      'Failed to fetch'
     );
 
     consoleSpy.mockRestore();
