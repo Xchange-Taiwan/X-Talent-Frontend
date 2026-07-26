@@ -262,12 +262,13 @@ export default function ProfilePageUI({
               {!scheduleLoaded ? (
                 <ScheduleSkeleton />
               ) : (
-                <div className="flex w-full flex-col gap-4">
-                  <p className="text-xl font-bold">可預約日期</p>
-
-                  <div className="w-full rounded-lg border p-3 shadow-md md:p-5 2xl:p-3">
-                    <div className="px-3 pb-4 pt-1 md:pb-6 2xl:pb-3">
-                      <h2 className="text-2xl font-semibold tracking-tight md:text-3xl 2xl:text-2xl">
+                <div className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] 2xl:max-w-[414px]">
+                  <div className="bg-white w-full rounded-2xl border border-gray-200/80 p-5 shadow-sm">
+                    <div className="mb-3 border-b border-gray-100 pb-3">
+                      <p className="mb-1 text-xs font-medium text-gray-500">
+                        可預約日期
+                      </p>
+                      <h2 className="text-2xl font-semibold tracking-tight text-gray-900 md:text-3xl 2xl:text-2xl">
                         {formatSelectedDate(
                           selectedDate
                             ? new Date(selectedDate + 'T00:00:00')

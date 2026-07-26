@@ -44,8 +44,8 @@ export function BookingForm({
   };
 
   return (
-    <>
-      <div className="flex flex-col items-start gap-4">
+    <div className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] 2xl:max-w-[414px]">
+      <div className="flex w-full flex-col items-start gap-4">
         <p>當日可預約時段</p>
         {!monthLoaded ? (
           <div
@@ -99,14 +99,14 @@ export function BookingForm({
       </div>
 
       {!isOwnMentorProfile && (
-        <div className="flex flex-col gap-2">
+        <div className="flex w-full flex-col gap-2">
           <label htmlFor="booking-question" className="text-sm font-semibold">
             你想問導師的問題
           </label>
           <Textarea
             id="booking-question"
             placeholder="請在此輸入你的問題..."
-            className="min-h-[100px] rounded-lg border-[#E6E8EA] focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
+            className="h-[156px] w-full max-w-[335px] rounded-lg border-[#E6E8EA] focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0 md:max-w-[695px] 2xl:max-w-[404px]"
             value={bookingQuestion}
             onChange={(e) => setBookingQuestion(e.target.value)}
             disabled={isSubmitting}
@@ -139,6 +139,6 @@ export function BookingForm({
           '預約時間'
         )}
       </Button>
-    </>
+    </div>
   );
 }
