@@ -101,7 +101,7 @@ export function useMentorPool({
   useEffect(() => {
     const myRequestId = ++requestIdRef.current;
 
-    if (!hasAnyCondition(params)) {
+    if (!hasAnyCondition(params) && !(initialError && retryCount > 0)) {
       setMentors(resolvedInitialMentors);
       setMentorCount(initialMentorCount);
       setCursor(initialCursor);
