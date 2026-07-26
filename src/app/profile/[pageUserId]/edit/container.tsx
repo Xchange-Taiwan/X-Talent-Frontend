@@ -176,7 +176,7 @@ export default function EditProfileContainer({
         <p className="text-lg font-medium text-destructive">
           載入失敗，請稍後再試。
         </p>
-        <Button onClick={() => window.location.reload()} variant="outline">
+        <Button onClick={() => router.refresh()} variant="outline">
           重新整理
         </Button>
       </div>
