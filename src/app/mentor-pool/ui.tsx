@@ -1,6 +1,6 @@
 'use client';
 
-import { SearchXIcon, XIcon } from 'lucide-react';
+import { AlertCircle, SearchXIcon, XIcon } from 'lucide-react';
 
 import {
   FilterOptions,
@@ -21,12 +21,14 @@ interface Props {
   isLoading: boolean;
   isReplacing: boolean;
   isNoResults: boolean;
+  hasError: boolean;
   selectedFilters: SelectFilters;
   filterOptions: FilterOptions;
   onFilterChange: (opts: SelectFilters) => void;
   onRemoveFilter: (key: string) => void;
   onClearAll: () => void;
   onScrollToBottom: () => Promise<void>;
+  onRetry: () => void;
 }
 
 export default function MentorPoolUI({
@@ -35,18 +37,21 @@ export default function MentorPoolUI({
   isLoading,
   isReplacing,
   isNoResults,
+  hasError,
   selectedFilters,
   filterOptions,
   onFilterChange,
   onRemoveFilter,
   onClearAll,
   onScrollToBottom,
+  onRetry,
 }: Props) {
   const hasMentors = mentors.length > 0;
   const showOverlay = hasMentors && isReplacing;
-  const showFullSpinner = !hasMentors && isLoading;
+  const showFullSpinner = !hasMentors && isLoading && !hasError;
   const showLoadMoreSpinner = hasMentors && isLoading && !isReplacing;
-  const showNoResults = !hasMentors && !isLoading && isNoResults;
+  const showNoResults = !hasMentors && !isLoading && isNoResults && !hasError;
+  const showErrors = !hasMentors && !isLoading && hasError;
   return (
     <section className="mt-[80px] px-5 pb-10 md:px-10 xl:px-20">
       <div className="mx-auto w-full max-w-[1280px] ">
@@ -143,6 +148,22 @@ export default function MentorPoolUI({
               onClick={onClearAll}
             >
               清除所有條件
+            </Button>
+          </div>
+        )}
+        {showErrors && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="mt-6 flex w-full flex-col items-center justify-center gap-4 py-12 text-center"
+          >
+            <AlertCircle
+              className="h-12 w-12 text-muted-foreground md:h-16 md:w-16"
+              aria-hidden
+            />
+            <p className="text-xl md:text-3xl">載入失敗，請重試</p>
+            <Button type="button" variant="outline" size="lg" onClick={onRetry}>
+              重新嘗試
             </Button>
           </div>
         )}

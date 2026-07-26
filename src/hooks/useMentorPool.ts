@@ -21,6 +21,7 @@ interface UseMentorPoolProps {
   initialMentorCount: number;
   params: ReturnType<typeof useSearchParams>;
   labelMap: Map<string, string>;
+  initialError?: boolean;
 }
 
 export function useMentorPool({
@@ -29,6 +30,7 @@ export function useMentorPool({
   initialMentorCount,
   params,
   labelMap,
+  initialError,
 }: UseMentorPoolProps) {
   const { toast } = useToast();
 
@@ -60,6 +62,10 @@ export function useMentorPool({
   const [hasMore, setHasMore] = useState<boolean>(
     hasInitialFilters ? true : initialMentors.length === PAGE_LIMIT
   );
+  const [hasError, setHasError] = useState<boolean>(() =>
+    hasInitialFilters ? false : (initialError ?? false)
+  );
+  const [retryCount, setRetryCount] = useState<number>(0);
 
   const isLoadingRef = useRef(false);
   const requestIdRef = useRef(0);
@@ -79,6 +85,12 @@ export function useMentorPool({
         title: '載入失敗',
         description: '無法獲取導師，請稍後再試。',
       });
+      setMentors((prev) => {
+        if (prev.length === 0) {
+          setHasError(true);
+        }
+        return prev;
+      });
     },
     [toast]
   );
@@ -95,6 +107,7 @@ export function useMentorPool({
       setCursor(initialCursor);
       setIsNoResults(initialMentors.length === 0);
       setHasMore(initialMentors.length === PAGE_LIMIT);
+      setHasError(initialError ?? false);
       setIsLoading(false);
       isLoadingRef.current = false;
       return;
@@ -105,6 +118,7 @@ export function useMentorPool({
     isLoadingRef.current = true;
     setIsNoResults(false);
     setHasMore(false);
+    setHasError(false);
 
     fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' })
       .then((list) => {
@@ -115,6 +129,7 @@ export function useMentorPool({
         setCursor(resolvedList.at(-1)?.updated_at?.toString());
         setIsNoResults(resolvedList.length === 0);
         setHasMore(resolvedList.length === PAGE_LIMIT);
+        setHasError(false);
         setIsLoading(false);
         isLoadingRef.current = false;
       })
@@ -122,7 +137,7 @@ export function useMentorPool({
         handleError(myRequestId, 'Fetch mentors error:', error);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.toString()]);
+  }, [params.toString(), retryCount]);
 
   const fetchMoreMentors = useCallback(async () => {
     const myRequestId = ++requestIdRef.current;
@@ -171,6 +186,10 @@ export function useMentorPool({
     await fetchMoreMentors();
   }, [hasMore, fetchMoreMentors]);
 
+  const handleRetry = useCallback(() => {
+    setRetryCount((prev) => prev + 1);
+  }, []);
+
   // Dynamically translate tag labels inside useMemo on return. This preserves dynamic localization
   // updates (e.g. language switching) without coupling translation state updates to useEffect fetching.
   const mentorsForUI = useMemo(
@@ -187,6 +206,8 @@ export function useMentorPool({
     mentorCount,
     isLoading,
     isNoResults,
+    hasError,
     handleScrollToBottom,
+    handleRetry,
   };
 }
