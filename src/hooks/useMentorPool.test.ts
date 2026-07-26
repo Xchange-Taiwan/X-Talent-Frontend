@@ -722,6 +722,7 @@ describe('applyMentorPage', () => {
     hasMore: true,
     mentorCount: 0,
     isNoResults: false,
+    hasError: false,
   };
 
   const sampleMentor: MentorType = {
@@ -753,6 +754,7 @@ describe('applyMentorPage', () => {
     expect(nextState.hasMore).toBe(false); // as page length 1 !== PAGE_LIMIT (9)
     expect(nextState.mentorCount).toBe(1);
     expect(nextState.isNoResults).toBe(false);
+    expect(nextState.hasError).toBe(false);
   });
 
   it('handles replace action with empty page', () => {
@@ -764,6 +766,7 @@ describe('applyMentorPage', () => {
     expect(nextState.hasMore).toBe(false);
     expect(nextState.mentorCount).toBe(0);
     expect(nextState.isNoResults).toBe(true);
+    expect(nextState.hasError).toBe(false);
   });
 
   it('handles append action with empty page by setting hasMore to false', () => {
@@ -773,6 +776,7 @@ describe('applyMentorPage', () => {
       hasMore: true,
       mentorCount: 1,
       isNoResults: false,
+      hasError: false,
     };
     const action = { type: 'append' as const, page: [] };
     const nextState = applyMentorPage(state, action);
@@ -782,6 +786,7 @@ describe('applyMentorPage', () => {
     expect(nextState.hasMore).toBe(false);
     expect(nextState.mentorCount).toBe(1);
     expect(nextState.isNoResults).toBe(false);
+    expect(nextState.hasError).toBe(false);
   });
 
   it('handles append action with non-empty page, filters duplicates, and updates count/cursor', () => {
@@ -791,6 +796,7 @@ describe('applyMentorPage', () => {
       hasMore: true,
       mentorCount: 1,
       isNoResults: false,
+      hasError: false,
     };
 
     const duplicateMentor = { ...sampleMentor };
@@ -807,5 +813,6 @@ describe('applyMentorPage', () => {
     expect(nextState.cursor).toBe('1100'); // taken from last element of action.page, which is newMentor
     expect(nextState.mentorCount).toBe(3); // count is accumulated based on raw page length (1 + 2 = 3)
     expect(nextState.hasMore).toBe(false);
+    expect(nextState.hasError).toBe(false);
   });
 });
