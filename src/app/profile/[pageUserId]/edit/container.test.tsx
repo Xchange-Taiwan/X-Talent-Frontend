@@ -217,7 +217,7 @@ describe('EditProfileContainer error handling and scrolling', () => {
     const getBoundingClientRectSpy = vi
       .spyOn(Element.prototype, 'getBoundingClientRect')
       .mockImplementation(function (this: Element) {
-        if (this.id === 'about') {
+        if (this.id === 'want_position') {
           return {
             top: 150,
             left: 0,
@@ -265,10 +265,10 @@ describe('EditProfileContainer error handling and scrolling', () => {
       );
 
       const nameEl = container.querySelector('#name');
-      const aboutEl = container.querySelector('#about');
+      const wantPositionEl = container.querySelector('#want_position');
 
       expect(nameEl).not.toBeNull();
-      expect(aboutEl).not.toBeNull();
+      expect(wantPositionEl).not.toBeNull();
 
       const formEl = container.querySelector('form');
       if (formEl) {
@@ -281,8 +281,8 @@ describe('EditProfileContainer error handling and scrolling', () => {
         expect(scrolledIds.length).toBeGreaterThan(0);
       });
 
-      // It should have scrolled to 'about' first because 150 < 300 (it's higher up in the layout)
-      expect(scrolledIds[0]).toBe('about');
+      // It should have scrolled to 'want_position' first because 150 < 300 (it's higher up in the layout)
+      expect(scrolledIds[0]).toBe('want_position');
     } finally {
       delete (Element.prototype as unknown as Record<string, unknown>)
         .scrollIntoView;
