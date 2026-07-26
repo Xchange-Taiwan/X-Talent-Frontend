@@ -193,7 +193,7 @@ export default function AcceptReservationDialog({
               type="button"
               className="w-full sm:w-auto"
               onClick={handleAccept}
-              disabled={isSubmitting}
+              disabled={isSubmitting || disabled}
             >
               {isSubmitting && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
