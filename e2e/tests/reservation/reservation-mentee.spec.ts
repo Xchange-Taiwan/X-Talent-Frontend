@@ -60,7 +60,12 @@ function makeReservation(id: number, mentorName: string) {
     dtstart: 1704099600,
     dtend: 1704103200,
     previous_reserve: null,
-    messages: [],
+    messages: [] as {
+      id: number;
+      user_id: number;
+      role: string;
+      content: string;
+    }[],
   };
 }
 
@@ -115,6 +120,63 @@ async function mockReservationEndpoints(
       body: JSON.stringify(makeReservationResponse(reservations)),
     });
   });
+}
+
+/**
+ * Helper to mock/intercept the reservation cancellation PUT API.
+ * Triggers a callback (e.g. setting putCalled = true) upon a successful PUT.
+ */
+async function mockCancelReservationApi(
+  page: Page,
+  options: {
+    status: number;
+    reservationId?: number;
+    onSuccess?: () => void;
+  }
+): Promise<void> {
+  const { status, reservationId = 1, onSuccess } = options;
+  await page.route(
+    new RegExp(`/v1/users/${USER_ID}/reservations/\\d+`),
+    (route) => {
+      if (route.request().method() === 'PUT') {
+        if (status === 200) {
+          onSuccess?.();
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              code: '0',
+              msg: 'ok',
+              data: {
+                id: reservationId,
+                status: 'REJECT',
+                my_user_id: Number(USER_ID),
+                my_status: 'REJECT',
+                my_role: 'MENTEE',
+                user_id: 99,
+                schedule_id: reservationId,
+                dtstart: 1704099600,
+                dtend: 1704103200,
+                messages: [],
+                previous_reserve: {},
+              },
+            }),
+          });
+        } else {
+          return route.fulfill({
+            status,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              code: String(status),
+              msg: 'error',
+              data: null,
+            }),
+          });
+        }
+      }
+      return route.continue();
+    }
+  );
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -315,36 +377,13 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
     let putCalled = false;
 
     // 攔截取消 PUT 請求
-    await page.route(
-      new RegExp(`/v1/users/${USER_ID}/reservations/\\d+`),
-      (route) => {
-        if (route.request().method() === 'PUT') {
-          putCalled = true;
-          return route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({
-              code: '0',
-              msg: 'ok',
-              data: {
-                id: 1,
-                status: 'REJECT',
-                my_user_id: Number(USER_ID),
-                my_status: 'REJECT',
-                my_role: 'MENTEE',
-                user_id: 99,
-                schedule_id: 1,
-                dtstart: 1704099600,
-                dtend: 1704103200,
-                messages: [],
-                previous_reserve: {},
-              },
-            }),
-          });
-        }
-        return route.continue();
-      }
-    );
+    await mockCancelReservationApi(page, {
+      status: 200,
+      reservationId: 1,
+      onSuccess: () => {
+        putCalled = true;
+      },
+    });
 
     // 依據是否取消回傳資料
     await page.route(
@@ -404,36 +443,13 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
     let putCalled = false;
 
     // 攔截取消 PUT 請求
-    await page.route(
-      new RegExp(`/v1/users/${USER_ID}/reservations/\\d+`),
-      (route) => {
-        if (route.request().method() === 'PUT') {
-          putCalled = true;
-          return route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({
-              code: '0',
-              msg: 'ok',
-              data: {
-                id: 2,
-                status: 'REJECT',
-                my_user_id: Number(USER_ID),
-                my_status: 'REJECT',
-                my_role: 'MENTEE',
-                user_id: 99,
-                schedule_id: 2,
-                dtstart: 1704099600,
-                dtend: 1704103200,
-                messages: [],
-                previous_reserve: {},
-              },
-            }),
-          });
-        }
-        return route.continue();
-      }
-    );
+    await mockCancelReservationApi(page, {
+      status: 200,
+      reservationId: 2,
+      onSuccess: () => {
+        putCalled = true;
+      },
+    });
 
     // 模擬已取消的預約，移入歷史紀錄並包含取消原因
     const cancelledReservation = {
@@ -454,7 +470,7 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
       (route) => {
         const url = new URL(route.request().url());
         const state = url.searchParams.get('state') ?? '';
-        let reservations: any[] = [];
+        let reservations: ReturnType<typeof makeReservation>[] = [];
         if (!putCalled && state === 'MENTEE_UPCOMING') {
           reservations = [makeReservation(2, 'Mentor Chen')];
         } else if (putCalled && state === 'MENTEE_HISTORY') {
@@ -519,23 +535,7 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
     await mockSessionGet(page);
 
     // 攔截取消 PUT 請求並回傳 500 錯誤
-    await page.route(
-      new RegExp(`/v1/users/${USER_ID}/reservations/\\d+`),
-      (route) => {
-        if (route.request().method() === 'PUT') {
-          return route.fulfill({
-            status: 500,
-            contentType: 'application/json',
-            body: JSON.stringify({
-              code: '500',
-              msg: 'internal server error',
-              data: null,
-            }),
-          });
-        }
-        return route.continue();
-      }
-    );
+    await mockCancelReservationApi(page, { status: 500 });
 
     await page.route(
       new RegExp(`/v1/users/${USER_ID}/reservations\\?`),
