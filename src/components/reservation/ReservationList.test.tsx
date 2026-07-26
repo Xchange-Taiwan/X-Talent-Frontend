@@ -1,16 +1,37 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { updateReservationStatus } from '@/services/reservations';
+import type { Reservation } from '@/services/reservations/types';
 
 import { ReservationList } from './ReservationList';
+
+vi.mock('next-auth/react', async () => {
+  const { nextAuthMockFactory } = await import('@/test/mocks/nextAuth');
+  return nextAuthMockFactory();
+});
 
 // Mock dialogs to render a simple button for callback execution
 vi.mock('@/components/reservation/AcceptReservationDialog', () => ({
   __esModule: true,
-  default: ({ onAccept, reservation }: any) => (
+  default: ({
+    onAccept,
+    reservation,
+    disabled,
+  }: {
+    onAccept: (payload: { id: string; message: string }) => void;
+    reservation: Reservation;
+    disabled?: boolean;
+  }) => (
     <button
       data-testid="accept-btn"
+      disabled={disabled}
       onClick={() =>
         onAccept({ id: reservation.id, message: 'Accept Message' })
       }
@@ -22,9 +43,18 @@ vi.mock('@/components/reservation/AcceptReservationDialog', () => ({
 
 vi.mock('@/components/reservation/RejectReservationDialog', () => ({
   __esModule: true,
-  default: ({ onReject, reservation }: any) => (
+  default: ({
+    onReject,
+    reservation,
+    disabled,
+  }: {
+    onReject: (payload: { id: string; reason: string }) => void;
+    reservation: Reservation;
+    disabled?: boolean;
+  }) => (
     <button
       data-testid="reject-btn"
+      disabled={disabled}
       onClick={() => onReject({ id: reservation.id, reason: 'Reject Reason' })}
     >
       Reject Button
@@ -34,9 +64,18 @@ vi.mock('@/components/reservation/RejectReservationDialog', () => ({
 
 vi.mock('@/components/reservation/CancelReservationDialog', () => ({
   __esModule: true,
-  default: ({ onConfirmCancel, reservation }: any) => (
+  default: ({
+    onConfirmCancel,
+    reservation,
+    disabled,
+  }: {
+    onConfirmCancel: (payload: { id: string; reason: string }) => void;
+    reservation: Reservation;
+    disabled?: boolean;
+  }) => (
     <button
       data-testid="cancel-btn"
+      disabled={disabled}
       onClick={() =>
         onConfirmCancel({ id: reservation.id, reason: 'Cancel Reason' })
       }
@@ -52,9 +91,36 @@ vi.mock('@/components/reservation/ReservationConversationDialog', () => ({
 }));
 
 // Mock the API client
-vi.mock('@/services/reservations', () => ({
-  updateReservationStatus: vi.fn().mockResolvedValue({}),
-}));
+const { mockUpdateReservationStatus } = vi.hoisted(() => {
+  return { mockUpdateReservationStatus: vi.fn().mockResolvedValue({}) };
+});
+
+vi.mock('@/services/reservations', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/services/reservations')>();
+  return {
+    ...actual,
+    updateReservationStatus: mockUpdateReservationStatus,
+    acceptReservation: vi
+      .fn()
+      .mockImplementation(async ({ reservation, myUserId }) => {
+        await mockUpdateReservationStatus({
+          userId: myUserId,
+          reservationId: reservation.id,
+          body: {},
+        });
+      }),
+    rejectOrCancelReservation: vi
+      .fn()
+      .mockImplementation(async ({ reservation, myUserId }) => {
+        await mockUpdateReservationStatus({
+          userId: myUserId,
+          reservationId: reservation.id,
+          body: {},
+        });
+      }),
+  };
+});
 
 // Mock toast and other modules
 vi.mock('@/components/ui/use-toast', () => ({
@@ -63,13 +129,22 @@ vi.mock('@/components/ui/use-toast', () => ({
   }),
 }));
 
-vi.mock('@/lib/monitoring', () => ({
-  captureFlowFailure: vi.fn(),
-}));
+vi.mock('@/lib/monitoring', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/monitoring')>();
+  return {
+    ...actual,
+    captureFlowFailure: vi.fn(),
+    captureApiFailure: vi.fn(),
+  };
+});
 
-vi.mock('@/lib/analytics', () => ({
-  trackEvent: vi.fn(),
-}));
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    trackEvent: vi.fn(),
+  };
+});
 
 // Mock ReservationCard for fully isolated testing
 vi.mock('./ReservationCard', () => ({
@@ -196,5 +271,46 @@ describe('ReservationList', () => {
       'upcoming',
       'history',
     ]);
+  });
+
+  it('disables dialog buttons while the mutation request is in-flight to prevent double submission', async () => {
+    let resolveMutation: (v: unknown) => void = () => {};
+    const mutationPromise = new Promise<unknown>((resolve) => {
+      resolveMutation = resolve;
+    });
+    mockUpdateReservationStatus.mockReturnValue(mutationPromise);
+
+    render(
+      <ReservationList
+        items={[mockReservation]}
+        variant="pending-mentor"
+        sourceRole="mentor"
+        myUserId="user-123"
+        onMutationSuccess={mockOnMutationSuccess}
+      />
+    );
+
+    const acceptBtn = screen.getByTestId('accept-btn');
+    const rejectBtn = screen.getByTestId('reject-btn');
+
+    expect(acceptBtn).not.toBeDisabled();
+    expect(rejectBtn).not.toBeDisabled();
+
+    // Trigger accept mutation
+    fireEvent.click(acceptBtn);
+
+    // During the in-flight mutation, BOTH buttons should be disabled for this item!
+    expect(acceptBtn).toBeDisabled();
+    expect(rejectBtn).toBeDisabled();
+
+    // Resolve the mutation
+    await act(async () => {
+      resolveMutation({});
+    });
+
+    await waitFor(() => {
+      expect(acceptBtn).not.toBeDisabled();
+      expect(rejectBtn).not.toBeDisabled();
+    });
   });
 });

@@ -7,11 +7,10 @@ import ReservationConversationDialog from '@/components/reservation/ReservationC
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { useToast } from '@/components/ui/use-toast';
+import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { ListKey } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
-import { captureFlowFailure } from '@/lib/monitoring';
-import { updateReservationStatus } from '@/services/reservations';
+import { resolveOtherId } from '@/services/reservations';
 
 import {
   ReservationCard,
@@ -29,6 +28,96 @@ const cardVariantOf = (variant: Variant): ReservationCardVariant =>
       ? 'history'
       : 'pending';
 
+/**
+ * Individual Reservation List Item holding its own independent loading and action state.
+ */
+function ReservationItem({
+  reservation,
+  variant,
+  sourceRole,
+  myUserId,
+  onMutationSuccess,
+}: {
+  reservation: Reservation;
+  variant: Variant;
+  sourceRole: SourceRole;
+  myUserId: string | undefined;
+  onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
+}) {
+  const { accept, rejectOrCancel, isMutating } = useReservationActions({
+    myUserId,
+    variant,
+    onMutationSuccess,
+  });
+
+  const handleProfileClick = (): void => {
+    trackEvent({
+      name: 'reservation_profile_viewed',
+      feature: 'reservation',
+      metadata: { source_role: sourceRole },
+    });
+  };
+
+  // Build a profile link to the *other* party. Skip when we don't have
+  // a logged-in user (link would be ambiguous) or when the other id would
+  // resolve to the current user (defensive — shouldn't happen in practice).
+  const buildProfileHref = (item: Reservation): string | undefined => {
+    if (!myUserId) return undefined;
+    const otherId = resolveOtherId(item, myUserId);
+    if (!otherId || String(otherId) === myUserId) return undefined;
+    return `/profile/${otherId}`;
+  };
+
+  return (
+    <ReservationCard
+      item={reservation}
+      variant={cardVariantOf(variant)}
+      profileHref={buildProfileHref(reservation)}
+      onProfileClick={handleProfileClick}
+      actions={
+        variant === 'history' ? (
+          reservation.cancelledBy ? (
+            <Badge variant="secondary" role="status">
+              已由{reservation.cancelledBy === 'MENTOR' ? '導師' : '學員'}取消
+            </Badge>
+          ) : null
+        ) : variant === 'pending-mentor' ? (
+          <div className="flex gap-2">
+            <RejectReservationDialog
+              reservation={reservation}
+              disabled={isMutating}
+              onReject={async ({ reason }) =>
+                rejectOrCancel(reservation, reason, 'reject')
+              }
+            />
+            <AcceptReservationDialog
+              reservation={reservation}
+              disabled={isMutating}
+              onAccept={async ({ message }) => accept(reservation, message)}
+            />
+          </div>
+        ) : (
+          <CancelReservationDialog
+            reservation={reservation}
+            disabled={isMutating}
+            onConfirmCancel={async ({ reason }) =>
+              rejectOrCancel(reservation, reason, 'cancel')
+            }
+          />
+        )
+      }
+      footer={
+        variant === 'history' && reservation.messages.length > 0 ? (
+          <ReservationConversationDialog
+            reservation={reservation}
+            sourceRole={sourceRole}
+          />
+        ) : null
+      }
+    />
+  );
+}
+
 export function ReservationList({
   items,
   variant,
@@ -42,7 +131,7 @@ export function ReservationList({
   items: Reservation[];
   variant: Variant;
   sourceRole: SourceRole;
-  myUserId: string;
+  myUserId: string | undefined;
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
@@ -51,193 +140,16 @@ export function ReservationList({
   // states in the background.
   onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
 }) {
-  const { toast } = useToast();
-
-  // Accept on pending-mentor: pending-mentor → upcoming-mentor.
-  const ACCEPT_AFFECTED_TABS: ListKey[] = ['pending', 'upcoming'];
-
-  // Reject / cancel always lands the reservation in the role's HISTORY list.
-  // The source state depends on the variant.
-  const buildRejectOrCancelAffectedTabs = (): ListKey[] => {
-    const sourceTab: ListKey | null =
-      variant === 'upcoming'
-        ? 'upcoming'
-        : variant === 'pending-mentor' || variant === 'pending-mentee'
-          ? 'pending'
-          : null;
-    return sourceTab ? [sourceTab, 'history'] : [];
-  };
-
-  const findItem = (id: string): Reservation => {
-    const found = items.find((x) => x.id === id);
-    if (!found)
-      throw new Error(`[ReservationList] item not found for id=${id}`);
-    return found;
-  };
-
-  // Resolve the other party's user_id based on who is currently logged in
-  const resolveOtherId = (it: Reservation): string | number =>
-    String(it.senderUserId) === myUserId
-      ? it.participantUserId
-      : it.senderUserId;
-
-  // Accept a booking request (mentor side, pending-mentor variant)
-  const accept = async ({ id, message }: { id: string; message: string }) => {
-    try {
-      if (!myUserId)
-        throw new Error('[ReservationList] missing current user id');
-      const myIdNum = Number(myUserId);
-
-      const it = findItem(id);
-      const otherIdNum = Number(resolveOtherId(it));
-
-      await updateReservationStatus({
-        userId: myUserId,
-        reservationId: id,
-        body: {
-          my_user_id: myIdNum,
-          user_id: otherIdNum,
-          my_status: 'ACCEPT',
-          schedule_id: it.scheduleId,
-          dtstart: it.dtstart,
-          dtend: it.dtend,
-          messages: message.trim()
-            ? [{ user_id: myIdNum, content: message.trim() }]
-            : [],
-        },
-      });
-
-      // TODO: block the accepted time slot so other mentees can't book it.
-      // Blocked by backend: PUT /mentors/:id/schedule returns 422 when a BLOCK
-      // slot overlaps an existing ALLOW slot. Re-enable once backend supports it,
-      // or once GET schedule returns booked_slots so the frontend can filter them.
-
-      toast({
-        title: '已接受預約',
-        description: '會議連結將於數分鐘內寄至雙方信箱',
-      });
-      onMutationSuccess?.(id, ACCEPT_AFFECTED_TABS);
-    } catch (err) {
-      captureFlowFailure({
-        flow: 'reservation_accept',
-        step: 'update_status',
-        message:
-          err instanceof Error ? err.message : 'Failed to accept reservation',
-      });
-      throw err;
-    }
-  };
-
-  // Shared handler for both reject and cancel (same API call)
-  const rejectOrCancel = async (
-    id: string,
-    text: string,
-    successMessage: string
-  ) => {
-    try {
-      if (!myUserId)
-        throw new Error('[ReservationList] missing current user id');
-      const myIdNum = Number(myUserId);
-
-      const it = findItem(id);
-      const otherIdNum = Number(resolveOtherId(it));
-
-      await updateReservationStatus({
-        userId: myUserId,
-        reservationId: id,
-        body: {
-          my_user_id: myIdNum,
-          user_id: otherIdNum,
-          my_status: 'REJECT',
-          schedule_id: it.scheduleId,
-          dtstart: it.dtstart,
-          dtend: it.dtend,
-          messages: text.trim()
-            ? [{ user_id: myIdNum, content: text.trim() }]
-            : [],
-        },
-      });
-
-      // TODO: remove the BLOCK slot when cancelling an accepted reservation.
-      // Blocked by the same backend limitation as above.
-
-      trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
-      toast({ description: successMessage });
-      onMutationSuccess?.(id, buildRejectOrCancelAffectedTabs());
-    } catch (err) {
-      captureFlowFailure({
-        flow: 'reservation_reject',
-        step: 'update_status',
-        message:
-          err instanceof Error
-            ? err.message
-            : 'Failed to reject/cancel reservation',
-      });
-      throw err;
-    }
-  };
-
-  // Build a profile link to the *other* party. Skip when we don't have
-  // a logged-in user (link would be ambiguous) or when the other id would
-  // resolve to the current user (defensive — shouldn't happen in practice).
-  const buildProfileHref = (it: Reservation): string | undefined => {
-    if (!myUserId) return undefined;
-    const otherId = resolveOtherId(it);
-    if (!otherId || String(otherId) === myUserId) return undefined;
-    return `/profile/${otherId}`;
-  };
-
-  const handleProfileClick = (): void => {
-    trackEvent({
-      name: 'reservation_profile_viewed',
-      feature: 'reservation',
-      metadata: { source_role: sourceRole },
-    });
-  };
-
   return (
     <div className="space-y-3 sm:space-y-4">
       {items.map((it) => (
-        <ReservationCard
+        <ReservationItem
           key={it.id}
-          item={it}
-          variant={cardVariantOf(variant)}
-          profileHref={buildProfileHref(it)}
-          onProfileClick={handleProfileClick}
-          actions={
-            variant === 'history' ? (
-              it.cancelledBy ? (
-                <Badge variant="secondary" role="status">
-                  已由{it.cancelledBy === 'MENTOR' ? '導師' : '學員'}取消
-                </Badge>
-              ) : null
-            ) : variant === 'pending-mentor' ? (
-              <div className="flex gap-2">
-                <RejectReservationDialog
-                  reservation={it}
-                  onReject={async ({ id, reason }) =>
-                    rejectOrCancel(id, reason, '已拒絕預約')
-                  }
-                />
-                <AcceptReservationDialog reservation={it} onAccept={accept} />
-              </div>
-            ) : (
-              <CancelReservationDialog
-                reservation={it}
-                onConfirmCancel={async ({ id, reason }) =>
-                  rejectOrCancel(id, reason, '已取消預約')
-                }
-              />
-            )
-          }
-          footer={
-            variant === 'history' && it.messages.length > 0 ? (
-              <ReservationConversationDialog
-                reservation={it}
-                sourceRole={sourceRole}
-              />
-            ) : null
-          }
+          reservation={it}
+          variant={variant}
+          sourceRole={sourceRole}
+          myUserId={myUserId}
+          onMutationSuccess={onMutationSuccess}
         />
       ))}
 
