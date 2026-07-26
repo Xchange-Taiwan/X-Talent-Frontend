@@ -4,7 +4,7 @@ import {
   educationSchema,
   jobSchema,
   personLinkSchema,
-} from '@/components/profile/edit/profileSchema';
+} from '@/schemas/profileSchema';
 
 import { decode, type MentorExperiencePayload } from './experienceCodec';
 

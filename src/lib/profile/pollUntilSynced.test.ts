@@ -6,7 +6,7 @@ vi.mock('@/services/profile/user', () => ({
 
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 
-import { defaultValues } from '@/components/profile/edit/profileSchema';
+import { defaultValues } from '@/schemas/profileSchema';
 import { fetchUser, type MentorProfileVO } from '@/services/profile/user';
 
 import { firstSyncedFetch } from './pollUntilSynced';
