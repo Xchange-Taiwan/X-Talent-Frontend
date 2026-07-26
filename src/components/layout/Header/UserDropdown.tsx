@@ -38,7 +38,6 @@ export const UserDropdown = React.memo(function UserDropdown({
     subtitle,
     personalLinks,
     profilePath,
-    profileUrl,
     shareDialogOpen,
     setShareDialogOpen,
     deleteDialogOpen,
@@ -178,7 +177,7 @@ export const UserDropdown = React.memo(function UserDropdown({
         name={name || '我的個人頁面'}
         avatarSrc={avatarSrc}
         subtitle={subtitle}
-        profileUrl={profileUrl}
+        profilePath={profilePath}
         personalLinks={personalLinks}
       />
     </>

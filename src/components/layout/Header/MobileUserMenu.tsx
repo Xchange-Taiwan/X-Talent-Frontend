@@ -35,7 +35,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
     avatarSrc,
     subtitle,
     personalLinks,
-    profileUrl,
+    profilePath,
     shareDialogOpen,
     setShareDialogOpen,
     deleteDialogOpen,
@@ -178,7 +178,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
         name={name || '我的個人頁面'}
         avatarSrc={avatarSrc}
         subtitle={subtitle}
-        profileUrl={profileUrl}
+        profilePath={profilePath}
         personalLinks={personalLinks}
       />
     </>
