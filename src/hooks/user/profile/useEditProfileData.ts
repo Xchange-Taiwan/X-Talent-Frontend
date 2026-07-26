@@ -5,9 +5,7 @@ import { UseFormReturn } from 'react-hook-form';
 import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
 import {
   MentorExperiencePayload,
-  parseEducations,
-  parseLinks,
-  parseWorkExperiences,
+  toFormValues,
 } from '@/lib/profile/parseUserExperiences';
 import { defaultValues, ProfileFormValues } from '@/schemas/profileSchema';
 import type { TagVO } from '@/types/tag';
@@ -45,9 +43,11 @@ export function useEditProfileData({
     const experiences =
       userDto.experiences as unknown as MentorExperiencePayload[];
 
-    const parsedExperiences = parseWorkExperiences(experiences);
-    const parsedEducations = parseEducations(experiences);
-    const parsedLinks = parseLinks(experiences);
+    const {
+      workExperiences: parsedExperiences,
+      educations: parsedEducations,
+      links: parsedLinks,
+    } = toFormValues(experiences);
 
     // BFF returns industry enriched as a TagVO-shaped object; the OpenAPI
     // generator types it as `Record<string, never>` because the BFF model

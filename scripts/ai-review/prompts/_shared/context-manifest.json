@@ -1,0 +1,28 @@
+{
+  "description": "Index of shared prompt fragments in this folder — what each file is for and who reads it. Update this file whenever a file here is added, removed, or renamed; see externalConsumers for the cross-repo dependency that also needs updating.",
+  "files": [
+    {
+      "path": "project-context.md",
+      "purpose": "前端技術棧與程式慣例（架構、資料流向、styling、role-based UI 等），判斷 diff 是否符合既有慣例的依據",
+      "consumers": ["ai-review"]
+    },
+    {
+      "path": "business-rules.md",
+      "purpose": "跨頁面、跨 PR 都成立的業務不變量（domain invariants），判斷 diff 是不是技術上邏輯正確、但業務上根本不該存在",
+      "consumers": ["ai-review", "X-Talent-Tracker:ai-ticket-review"]
+    },
+    {
+      "path": "review-discipline.md",
+      "purpose": "AI reviewer 輸出格式與紀律（語言、finding 格式、style 評論限制）",
+      "consumers": ["ai-review"]
+    }
+  ],
+  "externalConsumers": [
+    {
+      "repo": "Xchange-Taiwan/X-Talent-Tracker",
+      "reads": ["business-rules.md"],
+      "via": "scripts/ticket-review/index.mjs，透過 GitHub Contents API 抓取，repo/path 記在該 repo 的 config/context-manifest.json",
+      "note": "改動 business-rules.md 的檔名或路徑前，先同步更新 X-Talent-Tracker 的 config/context-manifest.json；沒有同步更新的話，ai-ticket-review 這個 workflow 會直接 fail（fail-fast，不會靜默 fallback 成無業務規則的 prompt）。"
+    }
+  ]
+}

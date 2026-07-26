@@ -49,45 +49,15 @@ function makeProfile(name: string, isMentor: boolean) {
         language: 'zh_TW',
         profession_metadata: { desc: '', icon: '' },
       },
-      interested_positions: {
-        interests: [
-          {
-            id: 1,
-            subject_group: 'TEST_POS',
-            subject: '測試職位',
-            category: 'INTERESTED_POSITION',
-            language: 'zh_TW',
-            desc: { icon: '', desc: '' },
-          },
-        ],
-        language: 'zh_TW',
-      },
-      skills: {
-        interests: [
-          {
-            id: 2,
-            subject_group: 'TEST_SKILL',
-            subject: '測試技能',
-            category: 'SKILL',
-            language: 'zh_TW',
-            desc: { icon: '', desc: '' },
-          },
-        ],
-        language: 'zh_TW',
-      },
-      topics: {
-        interests: [
-          {
-            id: 3,
-            subject_group: 'TEST_TOPIC',
-            subject: '測試主題',
-            category: 'TOPIC',
-            language: 'zh_TW',
-            desc: { icon: '', desc: '' },
-          },
-        ],
-        language: 'zh_TW',
-      },
+      // useEditProfileData.ts reads these as flat subject_group string
+      // arrays directly off MentorProfileVO (form.reset({ want_position:
+      // userDto.want_position ?? [], ... })) — not the nested
+      // { interests: [...] } shape used elsewhere for catalog responses.
+      want_position: ['TEST_POS'],
+      want_skill: ['TEST_SKILL'],
+      want_topic: ['TEST_TOPIC'],
+      have_skill: isMentor ? ['TEST_SKILL'] : [],
+      have_topic: isMentor ? ['TEST_TOPIC'] : [],
       expertises: {
         professions: isMentor
           ? [
