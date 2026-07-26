@@ -4,13 +4,13 @@ import { useSession } from 'next-auth/react';
 import { useState } from 'react';
 import * as z from 'zod';
 
-import { formSchema } from '@/components/onboarding/steps';
 import { buildOnboardingDtoStub } from '@/hooks/user/onboarding/buildOnboardingDtoStub';
 import {
   clearUserDataCache,
   primeUserDataCache,
 } from '@/hooks/user/user-data/useUserData';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { formSchema } from '@/schemas/onboarding';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import { updateProfile } from '@/services/profile/updateProfile';
 

@@ -81,7 +81,7 @@ describe('useBackgroundAvatarUpload', () => {
     expect(signals[1].aborted).toBe(false);
   });
 
-  it('should abort current upload when kickOff is called with undefined', async () => {
+  it('should abort current upload when abort is called', async () => {
     const file = new File(['avatar-bytes'], 'avatar.png', {
       type: 'image/png',
     });
@@ -109,7 +109,7 @@ describe('useBackgroundAvatarUpload', () => {
     expect(signals[0].aborted).toBe(false);
 
     await act(async () => {
-      result.current.kickOff(undefined, 'https://old-avatar.com/old.png');
+      result.current.abort();
     });
 
     expect(signals[0].aborted).toBe(true);
@@ -319,7 +319,7 @@ describe('useBackgroundAvatarUpload', () => {
     expect(signals[0].aborted).toBe(true);
   });
 
-  it('should swallow AbortError gracefully when aborted via kickOff(undefined)', async () => {
+  it('should swallow AbortError gracefully when aborted via abort()', async () => {
     const file = new File(['avatar-bytes'], 'avatar.png', {
       type: 'image/png',
     });
@@ -340,10 +340,9 @@ describe('useBackgroundAvatarUpload', () => {
       result.current.kickOff(file, 'https://old-avatar.com/old.png');
     });
 
-    // Abort the job's controller by kicking off with undefined,
-    // which triggers the signal's abort event and rejects the promise.
+    // Abort the job's controller by calling abort()
     await act(async () => {
-      result.current.kickOff(undefined, 'https://old-avatar.com/old.png');
+      result.current.abort();
     });
 
     // Let the microtasks settle to ensure the internal catch/swallow block executes
