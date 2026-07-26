@@ -6,8 +6,6 @@ export type TagCatalogVO = components['schemas']['TagCatalogVO'];
 export type TagCatalogGroupVO = components['schemas']['TagCatalogGroupVO'];
 export type TagCatalogLeafVO = components['schemas']['TagCatalogLeafVO'];
 
-type ApiResponse = components['schemas']['ApiResponse_TagCatalogsVO_'];
-
 export type TagBucketKey =
   | 'want_position'
   | 'want_skill'
@@ -85,15 +83,10 @@ export async function fetchTagCatalog(
   language: string
 ): Promise<TagCatalogsByBucket> {
   try {
-    const data = await apiClient.get<ApiResponse>(
-      `/v1/users/${language}/tags/catalog`,
-      { auth: false }
-    );
-    if (data.code !== '0') {
-      console.error(`API Error: ${data.msg}`);
-      return EMPTY_TAG_CATALOGS;
-    }
-    return splitCatalogsByBucket(data.data);
+    const data = await apiClient.getUnwrapped<
+      components['schemas']['TagCatalogsVO']
+    >(`/v1/users/${language}/tags/catalog`, { auth: false });
+    return splitCatalogsByBucket(data);
   } catch (error) {
     console.error('獲取 tag catalog 失敗:', error);
     return EMPTY_TAG_CATALOGS;
