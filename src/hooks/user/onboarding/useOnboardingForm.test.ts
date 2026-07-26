@@ -333,4 +333,60 @@ describe('useOnboardingForm', () => {
       duration: 5000,
     });
   });
+
+  it('should not call consume again on Step 5 submission retry if upload was already consumed', async () => {
+    const { result } = renderHook(() =>
+      useOnboardingForm({ industries: mockIndustries })
+    );
+
+    // Prepare steps 1 to 4 data with avatarFile
+    const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
+    await act(async () => {
+      result.current.onSubmitStep1({
+        name: 'John Doe',
+        avatar: '',
+        avatarFile: file,
+        language: 'zh_TW',
+      });
+    });
+    await act(async () => {
+      result.current.onSubmitStep2({
+        location: 'TWN',
+        years_of_experience: '1_3',
+        industry: 'TECH',
+      });
+    });
+    await act(async () => {
+      result.current.onSubmitStep3({ want_position: ['pos1'] });
+    });
+    await act(async () => {
+      result.current.onSubmitStep4({ want_skill: ['skill1'] });
+    });
+
+    // Mock consume to succeed, but submit profile to fail
+    mockConsume.mockResolvedValue('https://s3.amazonaws.com/new-avatar.png');
+    mockSubmitProfile.mockRejectedValue(new Error('Submit Error'));
+
+    // Step 5 submit (First attempt)
+    await act(async () => {
+      await result.current.onSubmitStep5({ want_topic: ['topic1'] });
+    });
+
+    expect(mockConsume).toHaveBeenCalledTimes(1);
+    expect(mockSubmitProfile).toHaveBeenCalledTimes(1);
+
+    // Reset mocks to track call count on retry
+    mockConsume.mockClear();
+    mockSubmitProfile.mockClear();
+    mockSubmitProfile.mockResolvedValue(undefined as unknown as void);
+
+    // Step 5 submit (Second attempt - Retry)
+    await act(async () => {
+      await result.current.onSubmitStep5({ want_topic: ['topic1'] });
+    });
+
+    // Verify that consume was NOT called on retry (since avatarFile was cleared from accumulatedFormData)
+    expect(mockConsume).not.toHaveBeenCalled();
+    expect(mockSubmitProfile).toHaveBeenCalledTimes(1);
+  });
 });

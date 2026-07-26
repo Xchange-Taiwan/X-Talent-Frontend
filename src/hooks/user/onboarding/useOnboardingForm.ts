@@ -160,6 +160,14 @@ export function useOnboardingForm({ industries }: Options) {
           const newUrl = await avatarUpload.consume(allData.avatarFile);
           allData.avatar = newUrl ?? allData.avatar;
           allData.avatarFile = undefined;
+
+          // Clear the file from accumulatedFormData to prevent re-uploading on retry
+          setAccumulatedFormData((prev) => ({
+            ...prev,
+            step1: prev.step1
+              ? { ...prev.step1, avatar: allData.avatar, avatarFile: undefined }
+              : undefined,
+          }));
         } catch (err) {
           captureFlowFailure({
             flow: 'onboarding_submit',
