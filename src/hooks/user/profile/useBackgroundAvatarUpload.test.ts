@@ -259,4 +259,65 @@ describe('useBackgroundAvatarUpload', () => {
 
     expect(signals[0].aborted).toBe(true);
   });
+
+  it('should swallow AbortError gracefully when aborted via kickOff(undefined)', async () => {
+    const file = new File(['avatar-bytes'], 'avatar.png', {
+      type: 'image/png',
+    });
+
+    let abortCallback: (() => void) | undefined;
+    mockUpdateAvatar.mockImplementation((_file, signal) => {
+      return new Promise((resolve, reject) => {
+        abortCallback = () => {
+          reject(new DOMException('Aborted', 'AbortError'));
+        };
+        signal?.addEventListener('abort', abortCallback);
+      });
+    });
+
+    const { result } = renderHook(() => useBackgroundAvatarUpload());
+
+    await act(async () => {
+      result.current.kickOff(file, 'https://old-avatar.com/old.png');
+    });
+
+    // Abort the job's controller by kicking off with undefined,
+    // which triggers the signal's abort event and rejects the promise.
+    await act(async () => {
+      result.current.kickOff(undefined, 'https://old-avatar.com/old.png');
+    });
+
+    // Let the microtasks settle to ensure the internal catch/swallow block executes
+    await act(async () => {
+      await Promise.resolve();
+    });
+  });
+
+  it('should bubble up general upload errors on consume', async () => {
+    const file = new File(['avatar-bytes'], 'avatar.png', {
+      type: 'image/png',
+    });
+    const mockError = new Error('S3 Network Error');
+
+    let rejectPromise: ((err: Error) => void) | undefined;
+    mockUpdateAvatar.mockImplementation(() => {
+      return new Promise((_, reject) => {
+        rejectPromise = reject;
+      });
+    });
+
+    const { result } = renderHook(() => useBackgroundAvatarUpload());
+
+    await act(async () => {
+      result.current.kickOff(file, 'https://old-avatar.com/old.png');
+    });
+
+    // Now call consume (which returns the pending promise), and THEN reject the promise
+    const consumePromise = result.current.consume(file);
+
+    await act(async () => {
+      rejectPromise?.(mockError);
+      await expect(consumePromise).rejects.toThrow('S3 Network Error');
+    });
+  });
 });
