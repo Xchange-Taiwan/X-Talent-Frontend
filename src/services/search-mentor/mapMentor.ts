@@ -58,7 +58,7 @@ export function mapMentor(raw: RawMentor): MentorType {
   // the User-service GET response. The runtime value is a string here.
   const industry = raw.industry as unknown as string | null | undefined;
 
-  return {
+  const mapped: MentorType = {
     user_id: raw.user_id,
     name: raw.name ?? '',
     avatar: raw.avatar ?? '',
@@ -77,6 +77,8 @@ export function mapMentor(raw: RawMentor): MentorType {
     have_topic: readCodes(raw.have_topic),
     updated_at: raw.updated_at ?? null,
   };
+
+  return resolveMentorAvatar(mapped);
 }
 
 // Cache-busts the avatar URL by updated_at so a re-uploaded photo isn't
