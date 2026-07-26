@@ -1,4 +1,5 @@
 import { render } from '@testing-library/react';
+import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 // mock navigate & searchParams
@@ -16,14 +17,14 @@ vi.mock('next-auth/react', () => ({
 // mock other hooks to isolate our container test
 const mockUseEditProfileData = vi.fn();
 vi.mock('@/hooks/user/profile/useEditProfileData', () => ({
-  useEditProfileData: (options: any) => mockUseEditProfileData(options),
+  useEditProfileData: (options: unknown) => mockUseEditProfileData(options),
 }));
 
 const mockUseProfileSubmit = vi
   .fn()
   .mockReturnValue({ onSubmit: vi.fn(), isSaving: false });
 vi.mock('@/hooks/user/profile/useProfileSubmit', () => ({
-  useProfileSubmit: (options: any) => mockUseProfileSubmit(options),
+  useProfileSubmit: (options: unknown) => mockUseProfileSubmit(options),
 }));
 
 const mockUseProfileAuth = vi.fn().mockReturnValue({ isAuthorized: true });
@@ -79,10 +80,13 @@ vi.mock('@/components/profile/edit/CategoryMultiSelectField', () => ({
   CategoryMultiSelectField: () => <div />,
 }));
 vi.mock('@/components/profile/edit/Section', () => ({
-  Section: ({ children }: any) => <div>{children}</div>,
+  Section: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
 }));
 
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
+import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 
 import EditProfileContainer from './container';
 
@@ -94,7 +98,10 @@ describe('EditProfileContainer isMentorOnboarding parsing', () => {
     });
 
     render(
-      <EditProfileContainer pageUserId="1" initialTagCatalog={{} as any} />
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
     );
 
     // Check that useEditProfileData was called with isMentorOnboarding: true
@@ -112,11 +119,40 @@ describe('EditProfileContainer isMentorOnboarding parsing', () => {
     );
   });
 
+  it('correctly parses isMentorOnboarding as true when the legacy onboarding query param is true (backwards compatibility)', () => {
+    mockSearchParamsGet.mockImplementation((key) => {
+      if (key === 'onboarding') return 'true';
+      return null;
+    });
+
+    render(
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
+    );
+
+    expect(mockUseEditProfileData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isMentorOnboarding: true,
+      })
+    );
+
+    expect(mockUseProfileSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isMentorOnboarding: true,
+      })
+    );
+  });
+
   it('correctly parses isMentorOnboarding as false when query param is absent', () => {
     mockSearchParamsGet.mockImplementation(() => null);
 
     render(
-      <EditProfileContainer pageUserId="1" initialTagCatalog={{} as any} />
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
     );
 
     expect(mockUseEditProfileData).toHaveBeenCalledWith(
