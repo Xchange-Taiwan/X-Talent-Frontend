@@ -274,8 +274,8 @@ describe('ReservationList', () => {
   });
 
   it('disables dialog buttons while the mutation request is in-flight to prevent double submission', async () => {
-    let resolveMutation: (v: any) => void = () => {};
-    const mutationPromise = new Promise<any>((resolve) => {
+    let resolveMutation: (v: unknown) => void = () => {};
+    const mutationPromise = new Promise<unknown>((resolve) => {
       resolveMutation = resolve;
     });
     mockUpdateReservationStatus.mockReturnValue(mutationPromise);
