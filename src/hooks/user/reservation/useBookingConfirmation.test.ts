@@ -24,12 +24,14 @@ vi.mock('@/services/reservations', () => ({
 }));
 
 import { BookingSlot } from '@/hooks/useMentorSchedule';
+import { UserType } from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
 import { FetchApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { createReservation } from '@/services/reservations';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
+import { components } from '@/types/api';
 
 import { useBookingConfirmation } from './useBookingConfirmation';
 
@@ -41,7 +43,7 @@ describe('useBookingConfirmation', () => {
   const mockUserData = {
     user_id: 123,
     is_mentor: true,
-  } as any;
+  } as unknown as UserType;
 
   const mockSlot: BookingSlot = {
     scheduleId: 456,
@@ -117,7 +119,9 @@ describe('useBookingConfirmation', () => {
 
   it('should successfully book a reservation and clean up states', async () => {
     const setSelectedSlot = vi.fn();
-    mockCreateReservation.mockResolvedValue({} as any);
+    mockCreateReservation.mockResolvedValue(
+      {} as unknown as components['schemas']['ReservationVO']
+    );
 
     const { result } = renderHook(() =>
       useBookingConfirmation({
