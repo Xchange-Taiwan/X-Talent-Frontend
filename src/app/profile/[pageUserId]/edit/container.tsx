@@ -1,11 +1,9 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useRef, useState } from 'react';
-import { FieldErrors, useForm } from 'react-hook-form';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 import { totalWorkSpanOptions } from '@/components/onboarding/steps/constant';
 import { AvatarSection } from '@/components/profile/edit/AvatarSection';
@@ -32,18 +30,16 @@ import { useProfileAuth } from '@/hooks/user/auth/useProfileAuth';
 import useLocations from '@/hooks/user/country/useLocations';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { useEditProfileData } from '@/hooks/user/profile/useEditProfileData';
+import { useEditProfileForm } from '@/hooks/user/profile/useEditProfileForm';
+import { useFormErrorScroll } from '@/hooks/user/profile/useFormErrorScroll';
 import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
+import { mapVoToFormValues } from '@/lib/profile/profileSaveAdapter';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
-import {
-  createProfileFormSchema,
-  defaultValues,
-  ProfileFormValues,
-} from '@/schemas/profileSchema';
+import { ProfileFormValues } from '@/schemas/profileSchema';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
-import { prefetchPresignedUrl } from '@/services/profile/updateAvatar';
 
 const JobExperienceSection = dynamic(async () => {
   const m = await import('@/components/profile/edit/JobExperienceSection');
@@ -80,8 +76,6 @@ export default function EditProfileContainer({
 
   const { isAuthorized } = useProfileAuth(pageUserId);
 
-  const [isMentor, setIsMentor] = useState(false);
-  const [isPageLoading, setIsPageLoading] = useState(true);
   const [jobSectionError, setJobSectionError] = useState(false);
   const [educationSectionError, setEducationSectionError] = useState(false);
 
@@ -89,32 +83,39 @@ export default function EditProfileContainer({
   const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
   const industries = tagCatalog.industry;
 
-  const isMentorRef = useRef(isMentor);
-  isMentorRef.current = isMentor;
+  const [isContainerLoading, setIsContainerLoading] = useState(true);
+  const [prevPageUserId, setPrevPageUserId] = useState(pageUserId);
 
-  const form = useForm<ProfileFormValues>({
-    resolver: (...args) =>
-      zodResolver(createProfileFormSchema(isMentorRef.current))(...args),
-    defaultValues,
-  });
+  // Synchronously reset container loading state back to true when route switches to a different pageUserId.
+  // This satisfies React's standard prop-sync guidelines and prevents old user data leaks during swaps.
+  if (pageUserId !== prevPageUserId) {
+    setPrevPageUserId(pageUserId);
+    setIsContainerLoading(true);
+  }
 
-  useEditProfileData({
+  const { userDto, isMentor, isError } = useEditProfileData({
     userId: Number(pageUserId),
-    form,
     isAuthorized,
-    isMentorOnboarding,
-    setIsMentor,
-    setIsPageLoading,
   });
 
-  // Warm up the avatar presigned URL once authorized. Saves a serial round
-  // trip from the submit waterfall when the user uploads a new avatar.
-  useEffect(() => {
-    if (!isAuthorized) return;
-    const userId = Number(pageUserId);
-    if (!Number.isFinite(userId)) return;
-    prefetchPresignedUrl(userId);
-  }, [isAuthorized, pageUserId]);
+  const { form } = useEditProfileForm(isMentorOnboarding || isMentor);
+
+  const { formRef, onError, scrollToField } =
+    useFormErrorScroll<ProfileFormValues>();
+
+  const lastResetUserIdRef = useRef<number | null>(null);
+
+  // Reset form when user profile data successfully loads or updates
+  useLayoutEffect(() => {
+    if (!isAuthorized || !userDto) return;
+    if (lastResetUserIdRef.current === userDto.user_id && !isContainerLoading)
+      return; // Tolerates SWR focus revalidation successes silently without resetting active inputs.
+
+    const formValues = mapVoToFormValues(userDto, isMentorOnboarding);
+    form.reset(formValues);
+    lastResetUserIdRef.current = userDto.user_id;
+    setIsContainerLoading(false);
+  }, [userDto, isAuthorized, isMentorOnboarding, form, isContainerLoading]);
 
   // Kicks off the S3 upload the moment the user crops a new avatar so
   // submit doesn't pay the round trip — see useBackgroundAvatarUpload.
@@ -128,33 +129,9 @@ export default function EditProfileContainer({
   const wantSkillCategories = tagGroupsToCategories(tagCatalog.want_skill);
   const wantTopicCategories = tagGroupsToCategories(tagCatalog.want_topic);
 
-  const scrollToField = (fieldId: string) => {
-    document
-      .getElementById(fieldId)
-      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
-
-  const FIELD_SCROLL_ORDER: (keyof ProfileFormValues)[] = [
-    'avatarFile',
-    'name',
-    'about',
-    'have_topic',
-    'have_skill',
-    'location',
-    'years_of_experience',
-    'industry',
-    'want_position',
-    'want_skill',
-    'want_topic',
-    'work_experiences',
-    'educations',
-  ];
-
-  const onError = (errors: FieldErrors<ProfileFormValues>) => {
-    const firstKey = FIELD_SCROLL_ORDER.find((key) => key in errors);
-    if (firstKey) scrollToField(firstKey);
-  };
-
+  // NOTE: document.getElementById/formRef querySelector is used to query dynamic error-bearing section container boundaries.
+  // This approach bypasses standard React refs to avoid inflating complexity with dozens of sub-component
+  // ref callback dictionaries, while cleanly retaining declarative styling structures.
   const { onSubmit, isSaving } = useProfileSubmit({
     pageUserId,
     isMentorOnboarding,
@@ -172,7 +149,21 @@ export default function EditProfileContainer({
   const unsaved = useUnsavedChangesPrompt(form.formState.isDirty && !isSaving);
 
   if (!isAuthorized) return null;
-  if (isPageLoading) return <PageLoading />;
+
+  if (isError) {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center space-y-4">
+        <p className="text-lg font-medium text-destructive">
+          載入失敗，請稍後再試。
+        </p>
+        <Button onClick={() => window.location.reload()} variant="outline">
+          重新整理
+        </Button>
+      </div>
+    );
+  }
+
+  if (isContainerLoading) return <PageLoading />;
 
   const handleGoToPrev = () => {
     unsaved.guardNavigate(() => router.push(`/profile/${pageUserId}`));
@@ -188,6 +179,7 @@ export default function EditProfileContainer({
 
       <Form {...form}>
         <form
+          ref={formRef}
           id="edit-profile-form"
           onSubmit={form.handleSubmit(
             (values) => onSubmit(values, form.formState.dirtyFields),
