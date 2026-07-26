@@ -1,6 +1,7 @@
 import type { MentorExperiencePayload } from '@/lib/profile/experienceCodec';
 import { decode } from '@/lib/profile/experienceCodec';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
+import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import type { MentorProfileVO } from '@/services/profile/user';
 
 export type SocialPlatform =
@@ -45,10 +46,8 @@ function mapExperiences(
   if (!experiences) return undefined;
   return experiences.map((exp) => ({
     category: exp.category ?? '',
-    mentor_experiences_metadata: exp.mentor_experiences_metadata as Record<
-      string,
-      unknown
-    >,
+    mentor_experiences_metadata: (exp.mentor_experiences_metadata ??
+      {}) as Record<string, unknown>,
     order: exp.order ?? 0,
   }));
 }
@@ -88,6 +87,8 @@ function pickPublicLinks(
     if (
       platform &&
       SOCIAL_PLATFORMS.includes(platform) &&
+      url &&
+      isSafeUrl(url) &&
       !seen.has(platform)
     ) {
       seen.add(platform);

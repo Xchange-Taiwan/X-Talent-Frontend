@@ -129,6 +129,32 @@ describe('sanitizePublicProfile', () => {
     expect(sanitized.company).toBe('');
   });
 
+  it('should handle experiences with null or missing mentor_experiences_metadata gracefully without throwing', () => {
+    const profile: MentorProfileVO = {
+      ...baseProfile,
+      job_title: 'Global Developer',
+      company: 'Base Inc',
+      experiences: [
+        {
+          category: ExperienceType.WORK,
+          order: 1,
+          mentor_experiences_metadata: null as any,
+        },
+        {
+          category: ExperienceType.LINK,
+          order: 2,
+        } as unknown as NonNullable<MentorProfileVO['experiences']>[number],
+      ] as unknown as MentorProfileVO['experiences'],
+    };
+
+    expect(() => sanitizePublicProfile(profile)).not.toThrow();
+
+    const sanitized = sanitizePublicProfile(profile);
+    expect(sanitized.jobTitle).toBe('Global Developer');
+    expect(sanitized.company).toBe('Base Inc');
+    expect(sanitized.personalLinks).toEqual([]);
+  });
+
   it('should filter, deduplicate and check safe URLs for public links, and fallback jobTitle/company if no WORK category exists', () => {
     const profile: MentorProfileVO = {
       ...baseProfile,
