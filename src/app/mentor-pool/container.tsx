@@ -22,7 +22,7 @@ import {
   type TagCatalogGroupVO,
   type TagCatalogsByBucket,
 } from '@/services/profile/tagCatalog';
-import { resolveMentor } from '@/services/search-mentor/mapMentor';
+import { resolveMentorAvatar } from '@/services/search-mentor/mapMentor';
 import { fetchMentors, MentorType } from '@/services/search-mentor/mentors';
 
 import { PAGE_LIMIT } from './constants';
@@ -257,7 +257,14 @@ export default function MentorPoolContainer({
   }, [params, router]);
 
   const resolvedMentors = useMemo(
-    () => mentors.map((m) => resolveMentor(m, labelMap)),
+    () =>
+      mentors.map((m) => {
+        const resolved = resolveMentorAvatar(m);
+        return {
+          ...resolved,
+          have_topic: resolved.have_topic.map((c) => labelMap.get(c) ?? c),
+        };
+      }),
     [mentors, labelMap]
   );
 

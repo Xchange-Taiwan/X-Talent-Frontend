@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import avatarImage from '@/assets/default-avatar.png';
 import type { components } from '@/types/api';
 
-import { mapMentor, type MentorType, resolveMentor } from './mapMentor';
+import { mapMentor, type MentorType,resolveMentorAvatar } from './mapMentor';
 
 type RawMentor = components['schemas']['SearchMentorProfileVO'];
 
@@ -124,7 +124,7 @@ describe('mapMentor', () => {
   });
 });
 
-describe('resolveMentor', () => {
+describe('resolveMentorAvatar', () => {
   const baseMentor: MentorType = {
     user_id: 123,
     name: 'John Doe',
@@ -146,7 +146,7 @@ describe('resolveMentor', () => {
   };
 
   it('applies avatar cache-busting when updated_at is present', () => {
-    const resolved = resolveMentor(baseMentor);
+    const resolved = resolveMentorAvatar(baseMentor);
     expect(resolved.avatar).toBe(
       'https://example.com/avatar.jpg?cb=1610000000'
     );
@@ -154,38 +154,13 @@ describe('resolveMentor', () => {
 
   it('does not apply avatar cache-busting when updated_at is null', () => {
     const mentor = { ...baseMentor, updated_at: null };
-    const resolved = resolveMentor(mentor);
+    const resolved = resolveMentorAvatar(mentor);
     expect(resolved.avatar).toBe('https://example.com/avatar.jpg');
   });
 
   it('falls back to default avatar image when avatar is empty', () => {
     const mentor = { ...baseMentor, avatar: '' };
-    const resolved = resolveMentor(mentor);
+    const resolved = resolveMentorAvatar(mentor);
     expect(resolved.avatar).toBe(avatarImage);
-  });
-
-  it('resolves have_topic codes using the provided labelMap', () => {
-    const labelMap = new Map<string, string>([
-      ['topic_a', 'Topic A Localized'],
-      ['topic_b', 'Topic B Localized'],
-    ]);
-
-    const resolved = resolveMentor(baseMentor, labelMap);
-    expect(resolved.have_topic).toEqual([
-      'Topic A Localized',
-      'Topic B Localized',
-    ]);
-  });
-
-  it('falls back to the code when the labelMap is missing or does not contain the key', () => {
-    const labelMap = new Map<string, string>([
-      ['topic_a', 'Topic A Localized'],
-    ]);
-
-    const resolved = resolveMentor(baseMentor, labelMap);
-    expect(resolved.have_topic).toEqual(['Topic A Localized', 'topic_b']);
-
-    const resolvedNoMap = resolveMentor(baseMentor);
-    expect(resolvedNoMap.have_topic).toEqual(['topic_a', 'topic_b']);
   });
 });
