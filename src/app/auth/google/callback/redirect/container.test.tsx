@@ -129,10 +129,12 @@ describe('GoogleOAuthRedirectPage Component', () => {
           description: 'Authorization failed. Please try again.',
         });
         expect(pushMock).toHaveBeenCalledWith('/auth/signin');
+        // Does NOT clear pending email for missing params
+        expect(mockClearPendingDeleteEmail).not.toHaveBeenCalled();
       });
     });
 
-    it('handles DELETE_FLOW_INVALID correctly', async () => {
+    it('handles DELETE_FLOW_INVALID correctly and clears pending email', async () => {
       mockResolveOAuthOutcome.mockResolvedValue({
         type: 'INVALID',
         errorType: 'DELETE_FLOW_INVALID',
@@ -147,6 +149,8 @@ describe('GoogleOAuthRedirectPage Component', () => {
           description: '無法取得 Google 憑證，請稍後再試',
         });
         expect(pushMock).toHaveBeenCalledWith('/auth/signin');
+        // Clears pending email to prevent landmines
+        expect(mockClearPendingDeleteEmail).toHaveBeenCalledTimes(1);
       });
     });
   });
@@ -222,6 +226,31 @@ describe('GoogleOAuthRedirectPage Component', () => {
 
       await waitFor(() => {
         expect(pushMock).toHaveBeenCalledWith('/mentor-pool');
+      });
+    });
+
+    it('intercepts missing user or auth token during login execution', async () => {
+      const mockDataMissingToken = {
+        auth_type: 'LOGIN' as const,
+        auth: { token: null, email: 'user@example.com' },
+        user: { user_id: 456 } as unknown as ProfileVO,
+      };
+
+      mockResolveOAuthOutcome.mockResolvedValue({
+        type: 'LOGIN',
+        data: mockDataMissingToken,
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(mockToast).toHaveBeenCalledWith({
+          variant: 'destructive',
+          title: 'Missing login data',
+          description: 'OAuth response is missing required fields.',
+        });
+        expect(pushMock).toHaveBeenCalledWith('/auth/signin');
+        expect(mockSignInWithGoogleToken).not.toHaveBeenCalled();
       });
     });
   });
@@ -322,6 +351,36 @@ describe('GoogleOAuthRedirectPage Component', () => {
           description: 'Database error',
         });
         expect(pushMock).toHaveBeenCalledWith('/auth/signin');
+      });
+    });
+
+    it('handles missing required token in deletion flow by aborting and clearing marker at top', async () => {
+      const mockDataMissingIdToken = {
+        auth_type: 'LOGIN' as const,
+        auth: { token: 'tok_3', email: 'user@example.com' },
+        user: { user_id: 789 } as unknown as ProfileVO,
+        id_token: null, // missing id_token
+      };
+
+      mockResolveOAuthOutcome.mockResolvedValue({
+        type: 'RESUME_DELETE_ACCOUNT',
+        data: mockDataMissingIdToken,
+        email: 'delete@example.com',
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        // Clears email marker at the absolute top of execution first
+        expect(mockClearPendingDeleteEmail).toHaveBeenCalledTimes(1);
+        expect(mockToast).toHaveBeenCalledWith({
+          variant: 'destructive',
+          title: '刪除帳號失敗',
+          description: '無法取得 Google 憑證，請稍後再試',
+        });
+        expect(pushMock).toHaveBeenCalledWith('/auth/signin');
+        expect(mockSignInWithGoogleToken).not.toHaveBeenCalled();
+        expect(mockDeleteAccount).not.toHaveBeenCalled();
       });
     });
   });

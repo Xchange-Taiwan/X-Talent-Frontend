@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSession, signOut } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
@@ -24,11 +24,20 @@ export default function GoogleOAuthRedirectPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const hasExecuted = useRef(false);
 
   useEffect(() => {
+    if (hasExecuted.current) return;
+    hasExecuted.current = true;
+
     const executeInvalid = (
       errorType: 'MISSING_PARAMS' | 'CALLBACK_FAILED' | 'DELETE_FLOW_INVALID'
     ) => {
+      // If delete account flow failed due to invalid auth state, clear the marker immediately to prevent landmines
+      if (errorType === 'DELETE_FLOW_INVALID') {
+        clearPendingDeleteAccountEmail();
+      }
+
       const description =
         errorType === 'MISSING_PARAMS'
           ? 'Authorization failed. Please try again.'
@@ -86,6 +95,9 @@ export default function GoogleOAuthRedirectPage() {
       data: GoogleCallbackVO,
       email: string
     ) => {
+      // Safe clearance of sessionStorage at the absolute top of execution to prevent zombie states
+      clearPendingDeleteAccountEmail();
+
       const { id_token, auth, user } = data;
 
       if (!id_token || !auth.token || !user) {
@@ -97,9 +109,6 @@ export default function GoogleOAuthRedirectPage() {
         router.push('/auth/signin');
         return;
       }
-
-      // Safe clearance of sessionStorage only when starting execution of account deletion.
-      clearPendingDeleteAccountEmail();
 
       await signInWithGoogleToken(auth.token, auth.email ?? '', user);
 
