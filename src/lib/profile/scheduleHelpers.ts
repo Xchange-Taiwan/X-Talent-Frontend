@@ -153,22 +153,6 @@ export function buildDateTime(dateStr: string, timeStr: string) {
     .millisecond(0);
 }
 
-export function parseOccurrenceId(occurrenceId: string): {
-  id: number;
-  occurrenceUnix: number;
-} | null {
-  if (!occurrenceId || !occurrenceId.includes('_')) return null;
-  const parts = occurrenceId.split('_');
-  if (parts.length !== 2) return null;
-  if (!parts[0].trim() || !parts[1].trim()) return null;
-  const id = Number(parts[0]);
-  const occurrenceUnix = Number(parts[1]);
-  if (!Number.isSafeInteger(id) || !Number.isSafeInteger(occurrenceUnix)) {
-    return null;
-  }
-  return { id, occurrenceUnix };
-}
-
 /**
  * Whether any of the candidate occurrences (each `[unix, unix+durationSeconds)`)
  * overlap any active occurrence of an existing ALLOW row in `rows`. Pass
