@@ -39,13 +39,15 @@ export function toDateKey(d: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+const SNAP_MINUTE_STEPS = [0, 15, 30, 45];
+
 export function fmtTime(unix: number): string {
   const d = new Date(unix * 1000);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 export function snapMinute(m: number): string {
-  const snapped = [0, 15, 30, 45].reduce((prev, curr) =>
+  const snapped = SNAP_MINUTE_STEPS.reduce((prev, curr) =>
     Math.abs(curr - m) < Math.abs(prev - m) ? curr : prev
   );
   return String(snapped).padStart(2, '0');
@@ -68,10 +70,9 @@ export function defaultFormForDate(
   let startH = 9;
   let startM = 0;
   if (existingSlots.length > 0) {
-    const sorted = [...existingSlots].sort(
-      (a, b) => a.end.getTime() - b.end.getTime()
-    );
-    const lastEnd = sorted[sorted.length - 1].end;
+    const lastEnd = existingSlots.reduce((latest, current) =>
+      current.end.getTime() > latest.end.getTime() ? current : latest
+    ).end;
     startH = lastEnd.getHours();
     startM = lastEnd.getMinutes();
     const snapped = Math.ceil(startM / 15) * 15;
