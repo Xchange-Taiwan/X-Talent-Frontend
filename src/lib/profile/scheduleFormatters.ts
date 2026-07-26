@@ -83,8 +83,8 @@ export function defaultFormForDate(
     }
   }
   if (startH >= 24) {
-    startH = 9;
-    startM = 0;
+    startH = 23;
+    startM = 45;
   }
   return {
     startHour: String(startH).padStart(2, '0'),

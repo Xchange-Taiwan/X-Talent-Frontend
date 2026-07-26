@@ -1,3 +1,6 @@
+// Force timezone to UTC for this test suite to ensure consistent, timezone-agnostic results
+process.env.TZ = 'UTC';
+
 import { describe, expect, it } from 'vitest';
 
 import { ParsedMentorTimeslot } from '@/lib/profile/scheduleHelpers';
@@ -123,12 +126,12 @@ describe('scheduleFormatters', () => {
       });
     });
 
-    it('resets to 09:00 if the rolled over startHour is 24 or greater', () => {
-      // Slot ends at 23:50 -> startH becomes 23 -> snapped startM is 60 -> startH increases to 24 -> resets to 09:00
+    it('caps at 23:45 if the rolled over startHour is 24 or greater', () => {
+      // Slot ends at 23:50 -> startH becomes 23 -> snapped startM is 60 -> startH increases to 24 -> caps to 23:45
       const lastSlot = createMockTimeslot(new Date('2026-07-26T23:50:00.000Z'));
       expect(defaultFormForDate([lastSlot])).toEqual({
-        startHour: '09',
-        startMinute: '00',
+        startHour: '23',
+        startMinute: '45',
         durationMinutes: 30,
       });
     });
