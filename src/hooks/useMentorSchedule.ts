@@ -38,12 +38,14 @@ export { expandRrule } from '@/lib/profile/scheduleHelpers';
 function parseOccurrenceId(occurrenceId: string): {
   id: number;
   occurrenceUnix: number;
-} {
-  const [idStr, occStr] = occurrenceId.split('_');
-  return {
-    id: Number(idStr),
-    occurrenceUnix: Number(occStr),
-  };
+} | null {
+  if (!occurrenceId || !occurrenceId.includes('_')) return null;
+  const parts = occurrenceId.split('_');
+  if (parts.length !== 2) return null;
+  const id = Number(parts[0]);
+  const occurrenceUnix = Number(parts[1]);
+  if (Number.isNaN(id) || Number.isNaN(occurrenceUnix)) return null;
+  return { id, occurrenceUnix };
 }
 
 function hasAnyOccurrenceOverlap(
@@ -508,7 +510,9 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const updateDraftSlot: UseMentorScheduleReturn['updateDraftSlot'] =
     useCallback(
       (occurrenceId, patch) => {
-        const { id, occurrenceUnix } = parseOccurrenceId(occurrenceId);
+        const parsed = parseOccurrenceId(occurrenceId);
+        if (!parsed) return false;
+        const { id, occurrenceUnix } = parsed;
         const monthKey = findMonthForSlotId(id);
         if (!monthKey) return false;
 
@@ -606,7 +610,9 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   const deleteDraftSlot = useCallback(
     (occurrenceId: string) => {
-      const { id, occurrenceUnix } = parseOccurrenceId(occurrenceId);
+      const parsed = parseOccurrenceId(occurrenceId);
+      if (!parsed) return;
+      const { id, occurrenceUnix } = parsed;
       const monthKey = findMonthForSlotId(id);
       if (!monthKey) return;
 
