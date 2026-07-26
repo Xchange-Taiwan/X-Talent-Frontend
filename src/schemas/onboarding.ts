@@ -5,7 +5,9 @@ const isBrowser = typeof window !== 'undefined';
 export const step1Schema = z.object({
   name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
   avatar: z.string().optional(),
-  avatarFile: isBrowser ? z.instanceof(File).optional() : z.any().optional(),
+  avatarFile: isBrowser
+    ? z.instanceof(File).optional()
+    : z.custom<File>().optional(),
   language: z.string().optional(),
 });
 
