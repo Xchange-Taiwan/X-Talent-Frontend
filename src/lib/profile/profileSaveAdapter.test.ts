@@ -65,7 +65,7 @@ describe('profileSaveAdapter', () => {
         subject_group: 'tech',
         subject: 'Software',
         language: 'zh_TW',
-      } as any,
+      } as unknown as MentorProfileVO['industry'],
       experiences: [
         {
           category: 'WORK',
@@ -83,7 +83,7 @@ describe('profileSaveAdapter', () => {
                 is_primary: true,
               },
             ],
-          } as any,
+          } as unknown as Record<string, never>,
         },
       ],
       onboarding: true,
@@ -156,6 +156,19 @@ describe('profileSaveAdapter', () => {
       const { profileDirty } = computeDirtyStates(valuesWithAvatar, {}, false);
       expect(profileDirty).toBe(true);
     });
+
+    it('returns experiencesDirty and profileDirty as true when a single social link is dirty', () => {
+      const dirtyFields = {
+        linkedin: true,
+      };
+      const { experiencesDirty, profileDirty } = computeDirtyStates(
+        mockValues,
+        dirtyFields,
+        false
+      );
+      expect(experiencesDirty).toBe(true);
+      expect(profileDirty).toBe(true);
+    });
   });
 
   describe('mapFormValuesToPayload', () => {
@@ -189,6 +202,37 @@ describe('profileSaveAdapter', () => {
       expect(payload.company).toBe('Apple');
       expect(payload.experiences).toHaveLength(3);
     });
+
+    it('filters out invalid/empty personal links', () => {
+      const mockValues: ProfileFormValues = {
+        ...defaultValues,
+        linkedin: {
+          id: 1,
+          platform: 'linkedin',
+          url: 'https://linkedin.com/in/bob',
+        },
+        facebook: { id: 2, platform: 'facebook', url: '' },
+      };
+
+      const payload = mapFormValuesToPayload(mockValues, undefined, true);
+      const linkExperience = payload.experiences?.find(
+        (e) => e.category === 'LINK'
+      );
+      const linksData = linkExperience?.mentor_experiences_metadata
+        ?.data as unknown as { platform: string; url: string }[];
+      expect(linksData).toHaveLength(1);
+      expect(linksData[0].platform).toBe('linkedin');
+      expect(linksData[0].url).toBe('https://linkedin.com/in/bob');
+    });
+
+    it('retains undefined avatar to avoid clearing existing avatar in the backend', () => {
+      const mockValues: ProfileFormValues = {
+        ...defaultValues,
+        avatar: 'https://existing-avatar.com/bob',
+      };
+      const payload = mapFormValuesToPayload(mockValues, undefined, false);
+      expect(payload.avatar).toBeUndefined();
+    });
   });
 
   describe('isProfileSynced', () => {
@@ -218,7 +262,7 @@ describe('profileSaveAdapter', () => {
         subject_group: 'tech',
         subject: 'Software',
         language: 'zh_TW',
-      } as any,
+      } as unknown as MentorProfileVO['industry'],
       experiences: [],
       onboarding: true,
       is_mentor: true,
@@ -246,6 +290,35 @@ describe('profileSaveAdapter', () => {
 
     it('returns false if location differs', () => {
       const differentVo = { ...mockVo, location: 'Hsinchu' };
+      expect(
+        isProfileSynced(mockValues, differentVo, 'https://avatar.com/bob')
+      ).toBe(false);
+    });
+
+    it('returns false if avatar differs', () => {
+      expect(
+        isProfileSynced(mockValues, mockVo, 'https://avatar.com/new-bob')
+      ).toBe(false);
+    });
+
+    it('returns true if avatar is empty or matches', () => {
+      expect(isProfileSynced(mockValues, mockVo, '')).toBe(true);
+      expect(
+        isProfileSynced(mockValues, mockVo, 'https://avatar.com/bob')
+      ).toBe(true);
+    });
+
+    it('returns false if industry differs', () => {
+      const differentVo = {
+        ...mockVo,
+        industry: {
+          id: 1,
+          kind: 'industry',
+          subject_group: 'finance',
+          subject: 'Banking',
+          language: 'zh_TW',
+        } as unknown as MentorProfileVO['industry'],
+      };
       expect(
         isProfileSynced(mockValues, differentVo, 'https://avatar.com/bob')
       ).toBe(false);
