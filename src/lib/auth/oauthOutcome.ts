@@ -21,16 +21,21 @@ export type OAuthOutcome =
     };
 
 /**
- * Consumes the pending delete account email from sessionStorage if it exists.
- * This is a client-side safe named adapter.
+ * Retrieves the pending delete account email from sessionStorage if it exists.
+ * Does NOT clear sessionStorage to prevent state loss in React Strict Mode.
  */
-export function consumePendingDeleteAccountEmail(): string | null {
+export function getPendingDeleteAccountEmail(): string | null {
   if (typeof window === 'undefined') return null;
-  const email = sessionStorage.getItem('delete_account_email');
-  if (email) {
-    sessionStorage.removeItem('delete_account_email');
-  }
-  return email;
+  return sessionStorage.getItem('delete_account_email');
+}
+
+/**
+ * Clears the pending delete account email from sessionStorage.
+ * Call this when actually starting/completing the deletion flow to prevent zombie states.
+ */
+export function clearPendingDeleteAccountEmail(): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.removeItem('delete_account_email');
 }
 
 /**
@@ -40,7 +45,7 @@ export function consumePendingDeleteAccountEmail(): string | null {
 export async function signInWithGoogleToken(
   token: string,
   email: string,
-  user: Record<string, any>
+  user: Record<string, unknown>
 ) {
   return signIn('custom-google-token', {
     redirect: false,

@@ -2,12 +2,19 @@ import { signIn } from 'next-auth/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { googleCallback } from '@/lib/actions/googleCallback';
+import type { components } from '@/types/api';
 
 import {
-  consumePendingDeleteAccountEmail,
+  clearPendingDeleteAccountEmail,
+  getPendingDeleteAccountEmail,
   resolveOAuthOutcome,
   signInWithGoogleToken,
 } from './oauthOutcome';
+
+type GoogleCallbackVO = components['schemas']['GoogleCallbackVO'];
+type ProfileVO = components['schemas']['ProfileVO'];
+type OAuthCallbackResponse =
+  components['schemas']['ApiResponse_GoogleCallbackVO_'];
 
 vi.mock('@/lib/actions/googleCallback', () => ({
   googleCallback: vi.fn(),
@@ -20,7 +27,7 @@ vi.mock('next-auth/react', () => ({
 const mockGoogleCallback = vi.mocked(googleCallback);
 const mockSignIn = vi.mocked(signIn);
 
-describe('consumePendingDeleteAccountEmail', () => {
+describe('getPendingDeleteAccountEmail & clearPendingDeleteAccountEmail', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     // Stub sessionStorage in JSDOM
@@ -43,16 +50,26 @@ describe('consumePendingDeleteAccountEmail', () => {
 
   it('returns null if window/sessionStorage is not found or empty', () => {
     sessionStorage.clear();
-    const result = consumePendingDeleteAccountEmail();
+    const result = getPendingDeleteAccountEmail();
     expect(result).toBeNull();
   });
 
-  it('retrieves the email and immediately removes it from sessionStorage', () => {
+  it('retrieves the email but does not remove it from sessionStorage', () => {
     sessionStorage.setItem('delete_account_email', 'user@example.com');
 
-    const result = consumePendingDeleteAccountEmail();
+    const result = getPendingDeleteAccountEmail();
 
     expect(result).toBe('user@example.com');
+    expect(sessionStorage.getItem('delete_account_email')).toBe(
+      'user@example.com'
+    );
+  });
+
+  it('removes the email when clearPendingDeleteAccountEmail is called', () => {
+    sessionStorage.setItem('delete_account_email', 'user@example.com');
+
+    clearPendingDeleteAccountEmail();
+
     expect(sessionStorage.getItem('delete_account_email')).toBeNull();
   });
 });
@@ -86,7 +103,9 @@ describe('resolveOAuthOutcome', () => {
   });
 
   it('returns INVALID if googleCallback fails or returns no data', async () => {
-    mockGoogleCallback.mockResolvedValue({ code: '1' } as any); // no data property
+    mockGoogleCallback.mockResolvedValue({
+      code: '1',
+    } as unknown as OAuthCallbackResponse);
 
     const res = await resolveOAuthOutcome('code', 'state');
     expect(res).toEqual({ type: 'INVALID', errorType: 'CALLBACK_FAILED' });
@@ -101,12 +120,14 @@ describe('resolveOAuthOutcome', () => {
 
   describe('with pending delete account email flow', () => {
     it('returns RESUME_DELETE_ACCOUNT if auth_type is LOGIN', async () => {
-      const mockData = {
+      const mockData: GoogleCallbackVO = {
         auth_type: 'LOGIN',
         auth: { token: 'tok_123', email: 'user@example.com' },
-        user: { id: 'u_1' },
+        user: { user_id: 123 } as unknown as ProfileVO,
       };
-      mockGoogleCallback.mockResolvedValue({ data: mockData } as any);
+      mockGoogleCallback.mockResolvedValue({
+        data: mockData,
+      } as unknown as OAuthCallbackResponse);
 
       const res = await resolveOAuthOutcome('code', 'state', {
         pendingDeleteAccountEmail: 'delete@example.com',
@@ -120,12 +141,14 @@ describe('resolveOAuthOutcome', () => {
     });
 
     it('returns INVALID with DELETE_FLOW_INVALID error if auth_type is SIGNUP', async () => {
-      const mockData = {
+      const mockData: GoogleCallbackVO = {
         auth_type: 'SIGNUP',
         auth: { token: 'tok_123', email: 'user@example.com' },
         user: null,
       };
-      mockGoogleCallback.mockResolvedValue({ data: mockData } as any);
+      mockGoogleCallback.mockResolvedValue({
+        data: mockData,
+      } as unknown as OAuthCallbackResponse);
 
       const res = await resolveOAuthOutcome('code', 'state', {
         pendingDeleteAccountEmail: 'delete@example.com',
@@ -140,12 +163,14 @@ describe('resolveOAuthOutcome', () => {
 
   describe('standard oauth flow (no delete email)', () => {
     it('returns SIGNUP if auth_type is SIGNUP', async () => {
-      const mockData = {
+      const mockData: GoogleCallbackVO = {
         auth_type: 'SIGNUP',
         auth: { token: 'tok_123', email: 'user@example.com' },
         user: null,
       };
-      mockGoogleCallback.mockResolvedValue({ data: mockData } as any);
+      mockGoogleCallback.mockResolvedValue({
+        data: mockData,
+      } as unknown as OAuthCallbackResponse);
 
       const res = await resolveOAuthOutcome('code', 'state');
 
@@ -156,12 +181,14 @@ describe('resolveOAuthOutcome', () => {
     });
 
     it('returns LOGIN if auth_type is LOGIN', async () => {
-      const mockData = {
+      const mockData: GoogleCallbackVO = {
         auth_type: 'LOGIN',
         auth: { token: 'tok_123', email: 'user@example.com' },
-        user: { id: 'u_1' },
+        user: { user_id: 123 } as unknown as ProfileVO,
       };
-      mockGoogleCallback.mockResolvedValue({ data: mockData } as any);
+      mockGoogleCallback.mockResolvedValue({
+        data: mockData,
+      } as unknown as OAuthCallbackResponse);
 
       const res = await resolveOAuthOutcome('code', 'state');
 
