@@ -1,6 +1,6 @@
-import { ProfileFormValues } from '@/components/profile/edit/profileSchema';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
+import { ProfileFormValues } from '@/schemas/profileSchema';
 import { fetchUser, MentorProfileVO } from '@/services/profile/user';
 
 function isProfileSynced(

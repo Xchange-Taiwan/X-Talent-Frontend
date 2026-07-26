@@ -2,16 +2,13 @@
 import { useEffect, useLayoutEffect } from 'react';
 import { UseFormReturn } from 'react-hook-form';
 
-import {
-  defaultValues,
-  ProfileFormValues,
-} from '@/components/profile/edit/profileSchema';
 import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
 import {
   MentorExperiencePayload,
   toFormValues,
 } from '@/lib/profile/parseUserExperiences';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
+import { defaultValues, ProfileFormValues } from '@/schemas/profileSchema';
 
 interface Options {
   userId: number;
