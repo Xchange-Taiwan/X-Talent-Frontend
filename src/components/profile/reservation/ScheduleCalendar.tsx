@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useSwipeable } from 'react-swipeable';
 
-import { Calendar } from '@/components/ui/calendar';
+import { Calendar, CalendarVariant } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 
 type ScheduleCalendarSize = 'compact' | 'profile';
@@ -27,6 +27,7 @@ interface ScheduleCalendarProps {
    */
   isMonthLoading?: boolean;
   size?: ScheduleCalendarSize;
+  variant?: CalendarVariant;
   className?: string;
 }
 
@@ -116,9 +117,13 @@ export const ScheduleCalendar = ({
   highlightAvailableDates = false,
   isMonthLoading = false,
   size = 'compact',
+  variant,
   className,
 }: ScheduleCalendarProps) => {
   const [displayMonth, setDisplayMonth] = useState<Date>(selected);
+
+  const calendarVariant =
+    variant ?? (size === 'profile' ? 'profile' : 'default');
 
   const handleSelect = (d: Date | undefined) => {
     if (readOnly || !d) return;
@@ -162,6 +167,7 @@ export const ScheduleCalendar = ({
       >
         <Calendar
           mode="single"
+          variant={calendarVariant}
           captionLayout="dropdown"
           month={displayMonth}
           selected={selected}
