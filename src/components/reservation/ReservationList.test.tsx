@@ -8,6 +8,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { updateReservationStatus } from '@/services/reservations';
+import type { Reservation } from '@/services/reservations/types';
 
 import { ReservationList } from './ReservationList';
 
@@ -19,7 +20,15 @@ vi.mock('next-auth/react', async () => {
 // Mock dialogs to render a simple button for callback execution
 vi.mock('@/components/reservation/AcceptReservationDialog', () => ({
   __esModule: true,
-  default: ({ onAccept, reservation, disabled }: any) => (
+  default: ({
+    onAccept,
+    reservation,
+    disabled,
+  }: {
+    onAccept: (payload: { id: string; message: string }) => void;
+    reservation: Reservation;
+    disabled?: boolean;
+  }) => (
     <button
       data-testid="accept-btn"
       disabled={disabled}
@@ -34,7 +43,15 @@ vi.mock('@/components/reservation/AcceptReservationDialog', () => ({
 
 vi.mock('@/components/reservation/RejectReservationDialog', () => ({
   __esModule: true,
-  default: ({ onReject, reservation, disabled }: any) => (
+  default: ({
+    onReject,
+    reservation,
+    disabled,
+  }: {
+    onReject: (payload: { id: string; reason: string }) => void;
+    reservation: Reservation;
+    disabled?: boolean;
+  }) => (
     <button
       data-testid="reject-btn"
       disabled={disabled}
@@ -47,7 +64,15 @@ vi.mock('@/components/reservation/RejectReservationDialog', () => ({
 
 vi.mock('@/components/reservation/CancelReservationDialog', () => ({
   __esModule: true,
-  default: ({ onConfirmCancel, reservation, disabled }: any) => (
+  default: ({
+    onConfirmCancel,
+    reservation,
+    disabled,
+  }: {
+    onConfirmCancel: (payload: { id: string; reason: string }) => void;
+    reservation: Reservation;
+    disabled?: boolean;
+  }) => (
     <button
       data-testid="cancel-btn"
       disabled={disabled}
