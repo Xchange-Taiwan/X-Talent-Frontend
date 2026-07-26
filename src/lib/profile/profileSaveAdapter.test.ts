@@ -278,6 +278,16 @@ describe('profileSaveAdapter', () => {
       const payload = mapFormValuesToPayload(mockValues, undefined, false);
       expect(payload.avatar).toBeUndefined();
     });
+
+    it('omits experiences property when experiencesDirty is false to respect three-state semantics', () => {
+      const mockValues: ProfileFormValues = {
+        ...defaultValues,
+        name: 'Bob',
+      };
+      const payload = mapFormValuesToPayload(mockValues, undefined, false);
+      expect(payload).not.toHaveProperty('experiences');
+      expect(payload.experiences).toBeUndefined();
+    });
   });
 
   describe('isProfileSynced', () => {
