@@ -7,8 +7,8 @@ import {
   TrashIcon,
 } from '@radix-ui/react-icons';
 import { Check, ChevronsUpDown } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
-import { useFieldArray, UseFormReturn, useWatch } from 'react-hook-form';
+import React, { useState } from 'react';
+import { UseFormReturn } from 'react-hook-form';
 
 import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
 import { Button } from '@/components/ui/button';
@@ -40,16 +40,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  useRepeatablePeriodSection,
+  YEAR_OPTIONS,
+} from '@/hooks/user/profile/useRepeatablePeriodSection';
 import { cn } from '@/lib/utils';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 
 import { Section } from '../Section';
 import { taiwanSchools } from './schoolData';
-
-const CURRENT_YEAR = new Date().getFullYear();
-const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR - 1940 + 1 }, (_, i) =>
-  (CURRENT_YEAR - i).toString()
-);
 
 function SchoolComboboxField({
   field,
@@ -123,30 +122,28 @@ export const EducationSection = ({
 }: Props) => {
   const {
     control,
-    getValues,
     formState: { errors },
   } = form;
 
-  const { fields, append, remove, move } = useFieldArray({
-    control,
-    name: 'educations',
-  });
+  const { fields, move, isInvalidPeriod, tryAppend, remove } =
+    useRepeatablePeriodSection(
+      form,
+      {
+        arrayName: 'educations',
+        periodStartKey: 'education_period_start',
+        periodEndKey: 'education_period_end',
+        isIncompleteForAppend: (last) =>
+          !last?.subject ||
+          !last?.school ||
+          !last?.education_period_start ||
+          !last?.education_period_end,
+        incompleteAlertMessage: '請先完成上一筆教育資料再新增',
+      },
+      onValidationChange
+    );
 
   const addEducation = () => {
-    const educations = getValues('educations');
-    const last = educations?.at(-1);
-    if (
-      educations.length > 0 &&
-      (!last?.subject ||
-        !last?.school ||
-        !last?.education_period_start ||
-        !last?.education_period_end)
-    ) {
-      alert('請先完成上一筆教育資料再新增');
-      return;
-    }
-
-    append({
+    tryAppend({
       id: -1,
       subject: '',
       school: '',
@@ -154,25 +151,6 @@ export const EducationSection = ({
       education_period_end: 'now',
     });
   };
-
-  const watchedEducations = useWatch({
-    control,
-    name: 'educations',
-  }) as
-    | Array<{
-        education_period_start?: string;
-        education_period_end?: string;
-      }>
-    | undefined;
-
-  useEffect(() => {
-    const hasError = watchedEducations?.some((edu) => {
-      const start = edu.education_period_start;
-      const end = edu.education_period_end;
-      return start && end && end !== 'now' && Number(start) > Number(end);
-    });
-    onValidationChange(!!hasError);
-  }, [watchedEducations, onValidationChange]);
 
   return (
     <Section
@@ -184,11 +162,7 @@ export const EducationSection = ({
       }
     >
       {fields.map((field, index) => {
-        const watched = watchedEducations?.[index] ?? {};
-        const start = watched.education_period_start;
-        const end = watched.education_period_end;
-        const isInvalidPeriod =
-          start && end && end !== 'now' && Number(start) > Number(end);
+        const invalidPeriod = isInvalidPeriod(index);
 
         return (
           <div key={field.id} className="mb-4 rounded-lg border p-4">
@@ -301,7 +275,7 @@ export const EducationSection = ({
               />
             </div>
 
-            {isInvalidPeriod && (
+            {invalidPeriod && (
               <p className="mb-4 text-sm font-medium text-status-200">
                 開始年份不可大於結束年份
               </p>
