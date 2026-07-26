@@ -43,7 +43,7 @@ export default function ProfileCardContainer() {
       isMentor={isMentor}
       linkedinUrl={linkedinUrl}
       onBecomeMentor={() =>
-        router.push(`/profile/${loginUserId}/edit?onboarding=true`)
+        router.push(`/profile/${loginUserId}/edit?mentor-onboarding=true`)
       }
       onGoToMentorPool={() => router.push('/mentor-pool')}
       onBackToProfile={() => router.push(`/profile/${loginUserId}`)}

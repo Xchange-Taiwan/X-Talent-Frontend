@@ -17,7 +17,7 @@
 
 - **「onboarding」在這個專案裡其實是兩個語意完全不同的入口，不能只看名字判斷。**
   1. `/auth/(sign)/onboarding`（`src/app/auth/(sign)/onboarding/**`）—— 新用戶「註冊後」的初次填寫個人資料流程，就是上面那條規則講的、永遠是 mentee 的那個。
-  2. `/profile/[pageUserId]/edit?onboarding=true` —— 既有使用者「成為導師」的流程。所有「成為導師」按鈕（Header、HamburgerMenu、UserDropdown、MobileUserMenu）都導到這裡；`isMentorOnboarding` 這個 query flag 會傳進 `useEditProfileData` / `useProfileSubmit`，讓既有的 profile edit 頁面切換成「導師專屬必填欄位」模式。沒有任何入口導到 `/auth/onboarding`。
+  2. `/profile/[pageUserId]/edit?mentor-onboarding=true` —— 既有使用者「成為導師」的流程。所有「成為導師」按鈕（Header、HamburgerMenu、UserDropdown、MobileUserMenu）都導到這裡；`isMentorOnboarding` 這個 query flag 會傳進 `useEditProfileData` / `useProfileSubmit`，讓既有的 profile edit 頁面切換成「導師專屬必填欄位」模式。沒有任何入口導到 `/auth/onboarding`。
   - **因此**：PR 描述或 ticket 只寫「onboarding」時不能假設是指哪一個，要看 diff 實際動到 `src/app/auth/(sign)/onboarding/**` 還是 `src/app/profile/[pageUserId]/edit/**` 才能判斷。
   - **案例**：PR #641「mentor 需強制上傳頭像」正確位置是入口 2（`/profile/edit`，該 PR 也確實這樣做了），但同一份 PR 把同樣的邏輯又加了一份到入口 1（`/auth/onboarding`）——很可能就是把這兩個「onboarding」搞混了，這正是本文件最上面那條規則的真正成因。
   - **Reviewer 該做的事**：如果同一個「只該屬於某一邊」的需求同時出現在兩個入口，視為 Misplaced Implementation。

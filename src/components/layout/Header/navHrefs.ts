@@ -6,5 +6,7 @@ export function getProfileHref(userId: string | undefined): string {
 }
 
 export function getBecomeMentorHref(userId: string | undefined): string {
-  return userId ? `/profile/${userId}/edit?onboarding=true` : '/auth/signup';
+  return userId
+    ? `/profile/${userId}/edit?mentor-onboarding=true`
+    : '/auth/signup';
 }
