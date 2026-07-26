@@ -284,8 +284,70 @@ describe('EditProfileContainer error handling and scrolling', () => {
       // It should have scrolled to 'about' first because 150 < 300 (it's higher up in the layout)
       expect(scrolledIds[0]).toBe('about');
     } finally {
-      delete (Element.prototype as any).scrollIntoView;
+      delete (Element.prototype as unknown as Record<string, unknown>)
+        .scrollIntoView;
       getBoundingClientRectSpy.mockRestore();
+    }
+  });
+
+  it('does not crash or scroll if validation fails but corresponding DOM element does not exist', async () => {
+    mockUseEditProfileData.mockReturnValue({
+      isMentor: true,
+      isPageLoading: false,
+      isError: false,
+    });
+
+    const scrolledIds: string[] = [];
+    Element.prototype.scrollIntoView = function (this: HTMLElement) {
+      if (this.id) scrolledIds.push(this.id);
+    };
+
+    const getBoundingClientRectSpy = vi
+      .spyOn(Element.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: Element) {
+        return {
+          top: 9999,
+          left: 0,
+          bottom: 0,
+          right: 0,
+          width: 0,
+          height: 0,
+          x: 0,
+          y: 0,
+          toJSON: () => {},
+        } as DOMRect;
+      });
+
+    const originalGetElementById = document.getElementById;
+    document.getElementById = (id: string) => {
+      if (id === 'about' || id === 'name') return null;
+      return originalGetElementById.call(document, id);
+    };
+
+    try {
+      const { container } = render(
+        <EditProfileContainer
+          pageUserId="1"
+          initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+        />
+      );
+
+      const formEl = container.querySelector('form');
+      if (formEl) {
+        const { fireEvent } = await import('@testing-library/react');
+        fireEvent.submit(formEl);
+      }
+
+      const { waitFor } = await import('@testing-library/react');
+      await waitFor(() => {
+        expect(scrolledIds).not.toContain('about');
+        expect(scrolledIds).not.toContain('name');
+      });
+    } finally {
+      delete (Element.prototype as unknown as Record<string, unknown>)
+        .scrollIntoView;
+      getBoundingClientRectSpy.mockRestore();
+      document.getElementById = originalGetElementById;
     }
   });
 });

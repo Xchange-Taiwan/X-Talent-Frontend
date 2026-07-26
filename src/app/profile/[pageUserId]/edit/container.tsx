@@ -1,11 +1,10 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useRef, useState } from 'react';
-import { FieldErrors, useForm } from 'react-hook-form';
+import { useEffect, useState } from 'react';
+import { FieldErrors } from 'react-hook-form';
 
 import { totalWorkSpanOptions } from '@/components/onboarding/steps/constant';
 import { AvatarSection } from '@/components/profile/edit/AvatarSection';
@@ -32,16 +31,13 @@ import { useProfileAuth } from '@/hooks/user/auth/useProfileAuth';
 import useLocations from '@/hooks/user/country/useLocations';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { useEditProfileData } from '@/hooks/user/profile/useEditProfileData';
+import { useEditProfileForm } from '@/hooks/user/profile/useEditProfileForm';
 import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
-import {
-  createProfileFormSchema,
-  defaultValues,
-  ProfileFormValues,
-} from '@/schemas/profileSchema';
+import { ProfileFormValues } from '@/schemas/profileSchema';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import { prefetchPresignedUrl } from '@/services/profile/updateAvatar';
 
@@ -87,13 +83,7 @@ export default function EditProfileContainer({
   const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
   const industries = tagCatalog.industry;
 
-  const isMentorRef = useRef(false);
-
-  const form = useForm<ProfileFormValues>({
-    resolver: (...args) =>
-      zodResolver(createProfileFormSchema(isMentorRef.current))(...args),
-    defaultValues,
-  });
+  const { form, isMentorRef } = useEditProfileForm();
 
   const { isMentor, isPageLoading, isError } = useEditProfileData({
     userId: Number(pageUserId),
@@ -176,7 +166,7 @@ export default function EditProfileContainer({
         <p className="text-lg font-medium text-destructive">
           載入失敗，請稍後再試。
         </p>
-        <Button onClick={() => router.refresh()} variant="outline">
+        <Button onClick={() => window.location.reload()} variant="outline">
           重新整理
         </Button>
       </div>

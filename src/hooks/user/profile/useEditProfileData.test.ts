@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
 import { mapVoToFormValues } from '@/lib/profile/profileSaveAdapter';
 import { ProfileFormValues } from '@/schemas/profileSchema';
+import { MentorProfileVO } from '@/services/profile/user';
 
 import { useEditProfileData } from './useEditProfileData';
 
@@ -54,8 +55,11 @@ describe('useEditProfileData', () => {
   });
 
   it('populates form and sets loaded states when isAuthorized is true and userDto is successfully fetched', () => {
-    const mockUserDto = { id: 1, username: 'test_user' } as any;
-    const mockFormValues = { is_mentor: true } as any;
+    const mockUserDto = {
+      id: 1,
+      username: 'test_user',
+    } as unknown as MentorProfileVO;
+    const mockFormValues = { is_mentor: true } as unknown as ProfileFormValues;
 
     mockUseUserProfileDto.mockReturnValue({
       userDto: mockUserDto,
@@ -81,7 +85,10 @@ describe('useEditProfileData', () => {
   });
 
   it('keeps isPageLoading=true and does not reset form when unauthorized even if userDto is fetched', () => {
-    const mockUserDto = { id: 1, username: 'test_user' } as any;
+    const mockUserDto = {
+      id: 1,
+      username: 'test_user',
+    } as unknown as MentorProfileVO;
 
     mockUseUserProfileDto.mockReturnValue({
       userDto: mockUserDto,
@@ -126,8 +133,11 @@ describe('useEditProfileData', () => {
   });
 
   it('clears isError status and sets values on successful background retry/resolution', () => {
-    const mockUserDto = { id: 1, username: 'test_user' } as any;
-    const mockFormValues = { is_mentor: false } as any;
+    const mockUserDto = {
+      id: 1,
+      username: 'test_user',
+    } as unknown as MentorProfileVO;
+    const mockFormValues = { is_mentor: false } as unknown as ProfileFormValues;
 
     // 1) First render starts with error
     mockUseUserProfileDto.mockReturnValue({
