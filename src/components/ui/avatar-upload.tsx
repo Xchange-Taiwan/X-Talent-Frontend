@@ -59,8 +59,8 @@ const AvatarUpload = <T extends FieldValues>({
   return (
     <div className="mb-10 flex justify-center lg:justify-start">
       <div
-        className={`group relative flex h-36 w-36 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 bg-[#F4FCFC] lg:h-[150px] lg:w-[150px] ${
-          hasError ? 'border-destructive' : 'border-[#B7CBCB]'
+        className={`group relative flex h-36 w-36 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 bg-avatar-background lg:h-[150px] lg:w-[150px] ${
+          hasError ? 'border-destructive' : 'border-avatar-border'
         }`}
         onClick={() => document.getElementById('fileInput')?.click()}
       >
@@ -73,8 +73,8 @@ const AvatarUpload = <T extends FieldValues>({
         />
 
         {/* Hover show upload icon */}
-        <div className="absolute inset-0 flex items-center justify-center bg-[#6f6f6f] opacity-0 transition-opacity duration-200 group-hover:opacity-75">
-          <Camera size={50} color="#B7CBCB" />
+        <div className="absolute inset-0 flex items-center justify-center bg-avatar-overlay opacity-0 transition-opacity duration-200 group-hover:opacity-75">
+          <Camera size={50} className="text-avatar-border" />
         </div>
 
         {/* Modal for cropping image — lazy-loaded on first open */}
@@ -99,7 +99,7 @@ const AvatarUpload = <T extends FieldValues>({
           />
         ) : (
           // Show default avatar if no image is selected
-          <ImageIcon size={50} color="#B7CBCB" />
+          <ImageIcon size={50} className="text-avatar-border" />
         )}
       </div>
     </div>

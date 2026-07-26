@@ -29,8 +29,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { ProfileFormValues } from '@/schemas/profileSchema';
 
-import { ProfileFormValues } from './profileSchema';
 import { Section } from './Section';
 
 const CURRENT_YEAR = new Date().getFullYear();

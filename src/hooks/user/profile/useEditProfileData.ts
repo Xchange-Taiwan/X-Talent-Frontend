@@ -2,10 +2,6 @@
 import { useEffect, useLayoutEffect } from 'react';
 import { UseFormReturn } from 'react-hook-form';
 
-import {
-  defaultValues,
-  ProfileFormValues,
-} from '@/components/profile/edit/profileSchema';
 import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
 import {
   MentorExperiencePayload,
@@ -13,6 +9,7 @@ import {
   parseLinks,
   parseWorkExperiences,
 } from '@/lib/profile/parseUserExperiences';
+import { defaultValues, ProfileFormValues } from '@/schemas/profileSchema';
 import type { TagVO } from '@/types/tag';
 
 interface Options {

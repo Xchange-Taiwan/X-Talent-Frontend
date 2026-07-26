@@ -2,9 +2,9 @@ import { getSession } from 'next-auth/react';
 import * as z from 'zod';
 
 import { formSchema } from '@/components/onboarding/steps';
-import { createProfileFormSchema } from '@/components/profile/edit/profileSchema';
 import { apiClient } from '@/lib/apiClient';
 import { MentorExperiencePayload } from '@/lib/profile/parseUserExperiences';
+import { createProfileFormSchema } from '@/schemas/profileSchema';
 
 export const unionformSchema = z.union([
   formSchema,

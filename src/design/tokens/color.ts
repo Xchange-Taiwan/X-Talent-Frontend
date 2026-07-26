@@ -75,4 +75,9 @@ module.exports = {
   },
   light: '#FFFFFF',
   dark: '#282828',
+  avatar: {
+    background: '#F4FCFC',
+    border: '#B7CBCB',
+    overlay: '#6F6F6F',
+  },
 };

@@ -33,7 +33,6 @@ vi.mock('@/hooks/user/user-data/useUserData', () => ({
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 
-import { defaultValues } from '@/components/profile/edit/profileSchema';
 import {
   clearUserDataCache,
   primeUserDataCache,
@@ -42,6 +41,7 @@ import {
   firstSyncedFetch,
   pollUntilSynced,
 } from '@/lib/profile/pollUntilSynced';
+import { defaultValues } from '@/schemas/profileSchema';
 import { ExperienceType } from '@/services/profile/experienceType';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
