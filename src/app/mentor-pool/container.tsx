@@ -192,6 +192,7 @@ export default function MentorPoolContainer({
           description: '無法獲取更多導師，請稍後再試。',
         });
       }
+      return;
     } finally {
       if (myRequestId === requestIdRef.current) {
         setIsLoading(false);
