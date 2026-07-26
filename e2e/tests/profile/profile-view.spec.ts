@@ -9,19 +9,19 @@ import { setSignedSessionCookie } from '../../helpers/session';
 const REAL_MENTOR_ID = '7468899508961767'; // Jonas Lo (Mentor)
 const REAL_MENTEE_ID = '7462904718734737'; // Visitor (Mentee)
 
-function makeSession(userId: string, isMentor: boolean) {
+// Helper to construct a flat NextAuth JWT Payload matching e2e/helpers/session.ts's SessionPayload.
+// NextAuth stores the flat JWT payload inside the encrypted cookie, which is then decrypted
+// and mapped to a nested { user, accessToken, expires } session object client-side.
+function makeJWTPayload(userId: string, isMentor: boolean) {
   return {
-    user: {
-      id: userId,
-      name: 'Test Own User',
-      isMentor,
-      onBoarding: true,
-      jobTitle: 'Software Engineer',
-      company: 'Own Company',
-      personalLinks: [],
-    },
-    accessToken: 'mock-token',
-    expires: '2099-01-01T00:00:00.000Z',
+    id: userId,
+    name: 'Test Own User',
+    isMentor,
+    onBoarding: true,
+    jobTitle: 'Software Engineer',
+    company: 'Own Company',
+    personalLinks: [],
+    token: 'mock-access-token',
   };
 }
 
@@ -67,10 +67,7 @@ test('檢視自己的個人檔案（isOwnMentorProfile 為 true 時）→ 顯示
   const mentorId = REAL_MENTOR_ID;
 
   // Sign in and set signed session cookie matching the pageUserId (own profile)
-  await setSignedSessionCookie(page, {
-    ...makeSession(mentorId, true).user,
-    token: 'mock-access-token',
-  });
+  await setSignedSessionCookie(page, makeJWTPayload(mentorId, true));
 
   await page.goto(`/profile/${mentorId}`);
 
