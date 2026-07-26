@@ -510,6 +510,53 @@ describe('useMentorPool', () => {
     spyConsoleError.mockRestore();
   });
 
+  it('clears existing mentors and sets hasError=true when changing filters fails', async () => {
+    // 1. Start with initial mentors pre-loaded (unfiltered state)
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+
+    const { result, rerender } = renderHook(() =>
+      useMentorPool({
+        initialMentors: mockInitialMentors,
+        initialMentorCount: 1,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+      })
+    );
+
+    expect(result.current.mentors.length).toBe(1);
+    expect(result.current.hasError).toBe(false);
+
+    // 2. Change filters, mock query failure
+    mockSearchParams.toString.mockReturnValue('q=react');
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'q') return 'react';
+      return null;
+    });
+
+    mockFetchMentors.mockRejectedValueOnce(new Error('Filter Query Failed'));
+    const spyConsoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    rerender();
+
+    // Settle the mock failure promise
+    await act(async () => {});
+
+    expect(result.current.isLoading).toBe(false);
+    // CRITICAL ASSERTIONS: mentors must be empty, and hasError must be true!
+    expect(result.current.mentors).toEqual([]);
+    expect(result.current.hasError).toBe(true);
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      title: '載入失敗',
+      description: '無法獲取導師，請稍後再試。',
+    });
+
+    spyConsoleError.mockRestore();
+  });
+
   it('does not set hasError=true when client-side scroll query fails and mentors list is not empty', async () => {
     mockSearchParams.toString.mockReturnValue('');
     mockSearchParams.get.mockReturnValue(null);
