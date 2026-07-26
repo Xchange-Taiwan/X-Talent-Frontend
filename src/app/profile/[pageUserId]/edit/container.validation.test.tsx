@@ -2,6 +2,9 @@ import { fireEvent, render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
+import { MentorProfileVO } from '@/services/profile/user';
+
 // mock navigate & searchParams
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -15,7 +18,7 @@ vi.mock('next-auth/react', () => ({
 
 // mock other hooks to isolate our container test
 const mockUseEditProfileData = vi.fn().mockReturnValue({
-  userDto: { user_id: 1, name: 'Test User' },
+  userDto: { user_id: 1, name: 'Test User' } as unknown as MentorProfileVO,
   isMentor: false,
   isError: false,
 });
@@ -68,8 +71,9 @@ const mockForm = {
   reset: vi.fn(),
   control: {},
   formState: { dirtyFields: {} },
-  handleSubmit: vi.fn().mockImplementation((onSuccess) => (e: any) => {
-    if (e && e.preventDefault) e.preventDefault();
+  handleSubmit: vi.fn().mockImplementation((onSuccess) => (e: unknown) => {
+    const ev = e as { preventDefault?: () => void } | undefined;
+    if (ev && ev.preventDefault) ev.preventDefault();
     return onSuccess({});
   }),
 };
@@ -152,7 +156,10 @@ describe('EditProfileContainer section validation guards (Isolated)', () => {
     };
 
     const { getByTestId, container } = render(
-      <EditProfileContainer pageUserId="1" initialTagCatalog={{} as any} />
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
     );
 
     const triggerBtn = await waitFor(() => getByTestId('trigger-job-error'));
@@ -182,7 +189,10 @@ describe('EditProfileContainer section validation guards (Isolated)', () => {
     };
 
     const { getByTestId, container } = render(
-      <EditProfileContainer pageUserId="1" initialTagCatalog={{} as any} />
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
     );
 
     const triggerBtn = await waitFor(() => getByTestId('trigger-edu-error'));

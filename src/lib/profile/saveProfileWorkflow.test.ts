@@ -2,8 +2,9 @@ import { Session } from 'next-auth';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultValues } from '@/schemas/profileSchema';
+import { MentorProfileVO } from '@/services/profile/user';
 
-import { saveProfileWorkflow } from './saveProfileWorkflow';
+import { SaveProfileDeps, saveProfileWorkflow } from './saveProfileWorkflow';
 
 const mockSession: Session = {
   user: {
@@ -27,7 +28,9 @@ const baseValues = {
   want_topic: ['frontend'],
 };
 
-const makeMockDeps = (overrides: Partial<any> = {}) => ({
+const makeMockDeps = (
+  overrides: Partial<SaveProfileDeps> = {}
+): SaveProfileDeps => ({
   updateSession: vi.fn().mockResolvedValue(mockSession),
   updateProfile: vi.fn().mockResolvedValue(undefined),
   updateAvatar: vi.fn().mockResolvedValue('https://example.com/new-avatar.jpg'),
@@ -169,7 +172,7 @@ describe('saveProfileWorkflow', () => {
       user_id: 1,
       is_mentor: false, // Disagrees with optimistic isMentor: true
       onboarding: true,
-    } as any;
+    } as unknown as MentorProfileVO;
     const firstSyncedFetch = vi.fn().mockResolvedValue(syncedDTO);
 
     const deps = makeMockDeps({
