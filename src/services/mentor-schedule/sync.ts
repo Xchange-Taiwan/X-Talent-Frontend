@@ -54,13 +54,18 @@ export function loadMonthScheduleCached(ref: ScheduleMonthRef): {
 
   let revalidate = scheduleCache.getInflight(key);
   if (!revalidate) {
-    revalidate = scheduleCache.setInflight(
-      key,
-      loadMonthSchedule(ref).then((raws) => {
+    // eslint-disable-next-line prefer-const
+    let finalPromise: Promise<RawMentorTimeslot[]>;
+
+    const promise = loadMonthSchedule(ref).then((raws) => {
+      if (scheduleCache.getInflight(key) === finalPromise) {
         scheduleCache.set(key, raws);
-        return raws;
-      })
-    );
+      }
+      return raws;
+    });
+
+    finalPromise = scheduleCache.setInflight(key, promise);
+    revalidate = finalPromise;
   }
 
   return { cached, revalidate };
@@ -82,17 +87,8 @@ export async function loadMonthScheduleFresh(
  */
 export function prefetchMonthSchedule(ref: ScheduleMonthRef): void {
   const key = cacheKey(ref);
-  if (scheduleCache.get(key) !== undefined) return;
-  if (scheduleCache.getInflight(key) !== undefined) return;
-
   scheduleCache
-    .setInflight(
-      key,
-      loadMonthSchedule(ref).then((raws) => {
-        scheduleCache.set(key, raws);
-        return raws;
-      })
-    )
+    .fetch(key, () => loadMonthSchedule(ref))
     .catch(() => {
       // Silent: prefetch failures shouldn't surface to the user.
     });
