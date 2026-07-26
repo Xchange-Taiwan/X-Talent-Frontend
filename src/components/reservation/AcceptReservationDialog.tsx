@@ -25,12 +25,14 @@ import type { Reservation } from './types';
 interface Props {
   reservation: Reservation;
   className?: string;
+  disabled?: boolean;
   onAccept?: (payload: { id: string; message: string }) => Promise<void> | void;
 }
 
 export default function AcceptReservationDialog({
   reservation,
   className,
+  disabled = false,
   onAccept,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -85,7 +87,11 @@ export default function AcceptReservationDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button size="sm" className={cn('min-h-9 px-3', className)}>
+        <Button
+          size="sm"
+          className={cn('min-h-9 px-3', className)}
+          disabled={disabled}
+        >
           接受
         </Button>
       </DialogTrigger>
@@ -187,7 +193,7 @@ export default function AcceptReservationDialog({
               type="button"
               className="w-full sm:w-auto"
               onClick={handleAccept}
-              disabled={isSubmitting}
+              disabled={isSubmitting || disabled}
             >
               {isSubmitting && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -24,6 +24,7 @@ import type { Reservation } from './types';
 interface Props {
   reservation: Reservation;
   className?: string;
+  disabled?: boolean;
   onConfirmCancel?: (payload: {
     id: string;
     reason: string;
@@ -33,6 +34,7 @@ interface Props {
 export default function CancelReservationDialog({
   reservation,
   className,
+  disabled = false,
   onConfirmCancel,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -77,6 +79,7 @@ export default function CancelReservationDialog({
           size="sm"
           variant="destructive"
           className={cn('min-h-9 px-3', className)}
+          disabled={disabled}
         >
           取消預約
         </Button>
@@ -112,7 +115,7 @@ export default function CancelReservationDialog({
               </Button>
             </DialogClose>
             <Button
-              disabled={!canSubmit}
+              disabled={!canSubmit || disabled}
               className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto"
               onClick={handleConfirm}
             >
