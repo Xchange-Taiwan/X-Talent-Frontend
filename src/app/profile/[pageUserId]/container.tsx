@@ -14,6 +14,7 @@ import useUserData from '@/hooks/user/user-data/useUserData';
 import { primeUserProfileDtoCacheIfEmpty } from '@/hooks/user/user-data/useUserProfileDto';
 import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { getMentorOnboardingUrl } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import type { MentorProfileVO } from '@/services/profile/user';
 import { createReservation } from '@/services/reservations';
@@ -264,9 +265,7 @@ export default function ProfilePageContainer({
       isSubmitting={isSubmitting}
       onConfirmReservation={handleConfirmReservation}
       onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}
-      onBecomeMentor={() =>
-        router.push(`/profile/${pageUserId}/edit?onboarding=true`)
-      }
+      onBecomeMentor={() => router.push(getMentorOnboardingUrl(pageUserId))}
     />
   );
 }

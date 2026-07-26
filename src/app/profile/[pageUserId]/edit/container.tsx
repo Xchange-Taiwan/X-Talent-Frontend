@@ -36,6 +36,7 @@ import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
+import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
 import {
   createProfileFormSchema,
   defaultValues,
@@ -71,7 +72,9 @@ export default function EditProfileContainer({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isMentorOnboarding = searchParams?.get('onboarding') === 'true';
+  const isMentorOnboarding =
+    searchParams?.get(MENTOR_ONBOARDING_KEY) === 'true' ||
+    searchParams?.get('onboarding') === 'true';
 
   const { data: session, update: updateSession } = useSession();
 
