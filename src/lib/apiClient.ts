@@ -207,6 +207,22 @@ export const apiClient = {
 
   delete: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('DELETE', path, body, options),
+
+  getExternalBlob: async (
+    url: string,
+    options?: RequestOptions
+  ): Promise<Blob> => {
+    const { signal, ...restOptions } = options ?? {};
+    const response = await fetch(url, {
+      method: 'GET',
+      ...(signal ? { signal } : {}),
+      ...restOptions,
+    });
+    if (!response.ok) {
+      throw new Error(`fetch external blob failed: ${response.status}`);
+    }
+    return response.blob();
+  },
 };
 
 // ─── Shared Server Helper ────────────────────────────────────────────────────

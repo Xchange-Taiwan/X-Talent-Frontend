@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 
+import { getAvatarSnapshot } from '@/services/profile/getAvatarSnapshot';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 
 interface AvatarUploadJob {
@@ -20,6 +21,7 @@ export interface UseBackgroundAvatarUpload {
   kickOff: (file: File, currentAvatarUrl: string | null | undefined) => void;
   consume: (file: File | undefined) => Promise<string | undefined>;
   rollback: () => Promise<void>;
+  abort: () => void;
 }
 
 async function snapshotAvatarBytes(
@@ -27,9 +29,7 @@ async function snapshotAvatarBytes(
 ): Promise<Blob | null> {
   if (!url) return null;
   try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    return await res.blob();
+    return await getAvatarSnapshot(url);
   } catch {
     return null;
   }
@@ -102,6 +102,11 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
     []
   );
 
+  const abort = useCallback(() => {
+    jobRef.current?.controller.abort();
+    jobRef.current = null;
+  }, []);
+
   const consume = useCallback(
     async (file: File | undefined): Promise<string | undefined> => {
       if (!file) return undefined;
@@ -160,5 +165,5 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
     }
   }, []);
 
-  return { kickOff, consume, rollback };
+  return { kickOff, consume, rollback, abort };
 }
