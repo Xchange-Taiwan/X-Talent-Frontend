@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { updateReservationStatus } from '@/services/reservations';
@@ -13,9 +19,10 @@ vi.mock('next-auth/react', async () => {
 // Mock dialogs to render a simple button for callback execution
 vi.mock('@/components/reservation/AcceptReservationDialog', () => ({
   __esModule: true,
-  default: ({ onAccept, reservation }: any) => (
+  default: ({ onAccept, reservation, disabled }: any) => (
     <button
       data-testid="accept-btn"
+      disabled={disabled}
       onClick={() =>
         onAccept({ id: reservation.id, message: 'Accept Message' })
       }
@@ -27,9 +34,10 @@ vi.mock('@/components/reservation/AcceptReservationDialog', () => ({
 
 vi.mock('@/components/reservation/RejectReservationDialog', () => ({
   __esModule: true,
-  default: ({ onReject, reservation }: any) => (
+  default: ({ onReject, reservation, disabled }: any) => (
     <button
       data-testid="reject-btn"
+      disabled={disabled}
       onClick={() => onReject({ id: reservation.id, reason: 'Reject Reason' })}
     >
       Reject Button
@@ -39,9 +47,10 @@ vi.mock('@/components/reservation/RejectReservationDialog', () => ({
 
 vi.mock('@/components/reservation/CancelReservationDialog', () => ({
   __esModule: true,
-  default: ({ onConfirmCancel, reservation }: any) => (
+  default: ({ onConfirmCancel, reservation, disabled }: any) => (
     <button
       data-testid="cancel-btn"
+      disabled={disabled}
       onClick={() =>
         onConfirmCancel({ id: reservation.id, reason: 'Cancel Reason' })
       }
@@ -237,5 +246,46 @@ describe('ReservationList', () => {
       'upcoming',
       'history',
     ]);
+  });
+
+  it('disables dialog buttons while the mutation request is in-flight to prevent double submission', async () => {
+    let resolveMutation: (v: any) => void = () => {};
+    const mutationPromise = new Promise<any>((resolve) => {
+      resolveMutation = resolve;
+    });
+    mockUpdateReservationStatus.mockReturnValue(mutationPromise);
+
+    render(
+      <ReservationList
+        items={[mockReservation]}
+        variant="pending-mentor"
+        sourceRole="mentor"
+        myUserId="user-123"
+        onMutationSuccess={mockOnMutationSuccess}
+      />
+    );
+
+    const acceptBtn = screen.getByTestId('accept-btn');
+    const rejectBtn = screen.getByTestId('reject-btn');
+
+    expect(acceptBtn).not.toBeDisabled();
+    expect(rejectBtn).not.toBeDisabled();
+
+    // Trigger accept mutation
+    fireEvent.click(acceptBtn);
+
+    // During the in-flight mutation, BOTH buttons should be disabled for this item!
+    expect(acceptBtn).toBeDisabled();
+    expect(rejectBtn).toBeDisabled();
+
+    // Resolve the mutation
+    await act(async () => {
+      resolveMutation({});
+    });
+
+    await waitFor(() => {
+      expect(acceptBtn).not.toBeDisabled();
+      expect(rejectBtn).not.toBeDisabled();
+    });
   });
 });
