@@ -138,4 +138,82 @@ describe('saveProfileWorkflow', () => {
       expect(result.error).toBe(error);
     }
   });
+
+  it('should continue on soft errors and return warnings (DI test)', async () => {
+    mockUpdateProfile.mockResolvedValueOnce(undefined as unknown as void);
+    const updateSession = vi
+      .fn()
+      .mockRejectedValue(new Error('Session save failed'));
+    const revalidateProfilePath = vi
+      .fn()
+      .mockRejectedValue(new Error('Revalidate failed'));
+
+    const result = await saveProfileWorkflow(
+      baseValues,
+      {
+        pageUserId: 'test-user',
+        isMentorOnboarding: false,
+        session: mockSession,
+      },
+      {
+        updateSession,
+        revalidateProfilePath,
+      }
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.warnings).toContain('Session save failed');
+      expect(result.warnings).toContain('Revalidate failed');
+    }
+  });
+
+  it('should run background reconcile and update session when synced state disagrees (DI test)', async () => {
+    mockUpdateProfile.mockResolvedValueOnce(undefined as unknown as void);
+
+    let resolveReconcile: (value: unknown) => void = () => {};
+    const reconcilePromise = new Promise((resolve) => {
+      resolveReconcile = resolve;
+    });
+
+    let callCount = 0;
+    const updateSession = vi.fn().mockImplementation(async (data: unknown) => {
+      callCount++;
+      if (callCount === 2) {
+        resolveReconcile(data);
+      }
+      return mockSession;
+    });
+
+    const syncedDTO = {
+      user_id: 1,
+      is_mentor: false, // Disagrees with optimistic isMentor: true
+      onboarding: true,
+    };
+    const firstSyncedFetch = vi.fn().mockResolvedValue(syncedDTO);
+
+    const result = await saveProfileWorkflow(
+      baseValues,
+      {
+        pageUserId: 'test-user',
+        isMentorOnboarding: true, // Optimistic isMentor: true, onboarding: true
+        session: mockSession,
+      },
+      {
+        updateSession,
+        firstSyncedFetch,
+      }
+    );
+
+    expect(result.ok).toBe(true);
+
+    const reconcileData = await reconcilePromise;
+    expect(updateSession).toHaveBeenCalledTimes(2);
+    expect(reconcileData).toEqual({
+      user: {
+        isMentor: false,
+        onBoarding: true,
+      },
+    });
+  });
 });
