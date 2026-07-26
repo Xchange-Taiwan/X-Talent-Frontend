@@ -1,7 +1,7 @@
 import type { StaticImageData } from 'next/image';
 
 import avatarImage from '@/assets/default-avatar.png';
-import type { WorkExperienceMetadata } from '@/hooks/user/user-data/useUserData';
+import type { WorkExperienceMetadata } from '@/lib/profile/experienceCodec';
 import type { components } from '@/types/api';
 
 type RawMentor = components['schemas']['SearchMentorProfileVO'];
