@@ -97,8 +97,7 @@ export default function MentorPoolContainer({
     mentors,
     mentorCount,
     isLoading,
-    isNoResults,
-    hasError,
+    listStatus,
     handleScrollToBottom,
     handleRetry,
   } = useMentorPool({
@@ -143,8 +142,7 @@ export default function MentorPoolContainer({
       mentorCount={mentorCount}
       isLoading={isLoading}
       isReplacing={isPending}
-      isNoResults={isNoResults}
-      hasError={hasError}
+      listStatus={listStatus}
       selectedFilters={selectedFilters}
       filterOptions={dynamicFilterOptions}
       onFilterChange={handleFilterChange}

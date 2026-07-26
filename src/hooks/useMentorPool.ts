@@ -128,6 +128,7 @@ export function useMentorPool({
 
   const isLoadingRef = useRef(false);
   const requestIdRef = useRef(0);
+  const hasClientFetched = useRef(false);
 
   // Consolidated error handler helper to eliminate duplicated code
   const handleError = useCallback(
@@ -160,7 +161,10 @@ export function useMentorPool({
   useEffect(() => {
     const myRequestId = ++requestIdRef.current;
 
-    if (!hasAnyCondition(params) && !(initialError && retryCount > 0)) {
+    if (
+      !hasAnyCondition(params) &&
+      !(initialError && (retryCount > 0 || hasClientFetched.current))
+    ) {
       setPageState(getInitialUnfilteredState());
       setHasError(initialError ?? false);
       setIsLoading(false);
@@ -177,6 +181,7 @@ export function useMentorPool({
       hasMore: false,
     }));
     setHasError(false);
+    hasClientFetched.current = true;
 
     fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' })
       .then((list) => {
@@ -243,12 +248,21 @@ export function useMentorPool({
     [pageState.mentors, labelMap]
   );
 
+  const listStatus = useMemo<'loading' | 'error' | 'empty' | 'success'>(() => {
+    if (pageState.mentors.length > 0) return 'success';
+    if (isLoading && !hasError) return 'loading';
+    if (hasError) return 'error';
+    if (pageState.isNoResults) return 'empty';
+    return 'loading';
+  }, [pageState.mentors.length, isLoading, hasError, pageState.isNoResults]);
+
   return {
     mentors: mentorsForUI,
     mentorCount: pageState.mentorCount,
     isLoading,
     isNoResults: pageState.isNoResults,
     hasError,
+    listStatus,
     handleScrollToBottom,
     handleRetry,
   };

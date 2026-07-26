@@ -21,8 +21,7 @@ const defaultProps = {
   mentorCount: 0,
   isLoading: false,
   isReplacing: false,
-  isNoResults: false,
-  hasError: false,
+  listStatus: 'loading' as const,
   selectedFilters: {},
   filterOptions: mockFilterOptions,
   onFilterChange: vi.fn(),
@@ -34,14 +33,7 @@ const defaultProps = {
 
 describe('MentorPoolUI Mutual Exclusion', () => {
   it('renders ONLY the error state when hasError is true (mutually exclusive with loading/noResults)', () => {
-    render(
-      <MentorPoolUI
-        {...defaultProps}
-        hasError={true}
-        isLoading={false}
-        isNoResults={false}
-      />
-    );
+    render(<MentorPoolUI {...defaultProps} listStatus="error" />);
 
     // Should render the error text "載入失敗，請重試"
     expect(screen.getByText('載入失敗，請重試')).toBeInTheDocument();
@@ -57,14 +49,7 @@ describe('MentorPoolUI Mutual Exclusion', () => {
   });
 
   it('renders ONLY the loading state when isLoading is true (mutually exclusive with error/noResults)', () => {
-    render(
-      <MentorPoolUI
-        {...defaultProps}
-        hasError={false}
-        isLoading={true}
-        isNoResults={false}
-      />
-    );
+    render(<MentorPoolUI {...defaultProps} listStatus="loading" />);
 
     // Should render loading spinner
     expect(
@@ -77,14 +62,7 @@ describe('MentorPoolUI Mutual Exclusion', () => {
   });
 
   it('renders ONLY the no-results state when isNoResults is true (mutually exclusive with error/loading)', () => {
-    render(
-      <MentorPoolUI
-        {...defaultProps}
-        hasError={false}
-        isLoading={false}
-        isNoResults={true}
-      />
-    );
+    render(<MentorPoolUI {...defaultProps} listStatus="empty" />);
 
     // Should render "找不到符合的導師"
     expect(screen.getByText('找不到符合的導師')).toBeInTheDocument();
