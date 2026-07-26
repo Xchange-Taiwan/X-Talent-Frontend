@@ -15,7 +15,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/components/ui/use-toast';
+import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
 import { trackEvent } from '@/lib/analytics';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { cn } from '@/lib/utils';
@@ -35,16 +35,12 @@ export default function AcceptReservationDialog({
   disabled = false,
   onAccept,
 }: Props) {
-  const [open, setOpen] = useState(false);
   const [replyOpen, setReplyOpen] = useState(false);
   const [reply, setReply] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const { toast } = useToast();
 
-  function onOpenChange(next: boolean) {
-    if (isSubmitting) return;
-    setOpen(next);
-    if (next) {
+  const { open, isSubmitting, onOpenChange, execute } = useConfirmActionDialog({
+    errorMessage: '接受預約失敗,請稍後再試',
+    onOpen: () => {
       setReply('');
       setReplyOpen(false);
       trackEvent({
@@ -52,28 +48,19 @@ export default function AcceptReservationDialog({
         feature: 'reservation',
         metadata: { dialog: 'accept_reservation' },
       });
-    }
-  }
+    },
+  });
 
-  async function handleAccept() {
-    setIsSubmitting(true);
-    try {
+  const handleAccept = () => {
+    execute(async () => {
       await onAccept?.({ id: reservation.id, message: reply.trim() });
       trackEvent({
         name: 'reservation_accepted',
         feature: 'reservation',
         metadata: { has_reply: reply.trim().length > 0 },
       });
-      setIsSubmitting(false);
-      setOpen(false);
-    } catch {
-      toast({
-        variant: 'destructive',
-        description: '接受預約失敗,請稍後再試',
-      });
-      setIsSubmitting(false);
-    }
-  }
+    });
+  };
 
   const menteeMessage = reservation.menteeMessage?.content;
 
