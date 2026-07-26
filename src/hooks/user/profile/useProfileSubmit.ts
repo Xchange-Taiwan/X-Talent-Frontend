@@ -5,6 +5,11 @@ import { useState } from 'react';
 
 import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useToast } from '@/components/ui/use-toast';
+import {
+  clearUserDataCache,
+  primeUserDataCache,
+} from '@/hooks/user/user-data/useUserData';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { type ProfileDirtyFields } from '@/lib/profile/profileSaveAdapter';
 import { saveProfile } from '@/lib/profile/saveProfile';
 import { ProfileFormValues } from '@/schemas/profileSchema';
@@ -59,8 +64,18 @@ export function useProfileSubmit({
         updateSession,
         navigate: router.push,
         revalidateProfilePath,
+        clearUserDataCache,
+        primeUserDataCache,
       });
     } catch (err) {
+      captureFlowFailure({
+        flow: 'profile_update',
+        step: 'unexpected',
+        message:
+          err instanceof Error
+            ? err.message
+            : 'Unexpected profile update error',
+      });
       console.error('Update Profile Error:', err);
       toast({
         variant: 'destructive',

@@ -1,9 +1,5 @@
 import { Session } from 'next-auth';
 
-import {
-  clearUserDataCache,
-  primeUserDataCache,
-} from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
 import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 import { captureFlowFailure } from '@/lib/monitoring';
@@ -31,6 +27,12 @@ export interface SaveProfileDeps {
   updateSession: (data: unknown) => Promise<Session | null>;
   navigate: (path: string) => void;
   revalidateProfilePath: (id: string) => Promise<void>;
+  clearUserDataCache: (userId: number, language: string) => void;
+  primeUserDataCache: (
+    userId: number,
+    language: string,
+    data: MentorProfileVO
+  ) => void;
   // Optional dependency injections to ease testing
   firstSyncedFetch?: (
     values: ProfileFormValues,
@@ -40,11 +42,6 @@ export interface SaveProfileDeps {
     values: ProfileFormValues,
     avatar: string
   ) => Promise<MentorProfileVO | null>;
-  primeUserDataCache?: (
-    userId: number,
-    language: string,
-    data: MentorProfileVO
-  ) => void;
 }
 
 export async function saveProfile(
@@ -60,9 +57,10 @@ export async function saveProfile(
     updateSession,
     navigate,
     revalidateProfilePath,
+    clearUserDataCache,
+    primeUserDataCache,
     firstSyncedFetch = defaultFirstSyncedFetch,
     pollUntilSynced = defaultPollUntilSynced,
-    primeUserDataCache: customPrimeUserDataCache,
   } = deps;
 
   // 1) avatar — consume background upload if wired, else upload now.
@@ -191,11 +189,7 @@ export async function saveProfile(
       if (sessionUserId) {
         latest = await firstSyncedFetch(values, avatar ?? '');
         if (latest) {
-          if (customPrimeUserDataCache) {
-            customPrimeUserDataCache(sessionUserId, 'zh_TW', latest);
-          } else {
-            primeUserDataCache(sessionUserId, 'zh_TW', latest);
-          }
+          primeUserDataCache(sessionUserId, 'zh_TW', latest);
         }
       }
       if (!latest) {
