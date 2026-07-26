@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useForm } from 'react-hook-form';
-import { describe, expect, it } from 'vitest';
+import { beforeEach,describe, expect, it, vi } from 'vitest';
 import * as z from 'zod';
 
 import { Form } from '@/components/ui/form';
@@ -54,17 +54,31 @@ const TestComponent = ({ maxSelected = 2 }: { maxSelected?: number }) => {
 
   return (
     <Form {...form}>
-      <TagMultiSelect
-        control={form.control}
-        name="test_field"
-        groups={mockGroups}
-        maxSelected={maxSelected}
-      />
+      <form onSubmit={form.handleSubmit(() => {})}>
+        <TagMultiSelect
+          control={form.control}
+          name="test_field"
+          groups={mockGroups}
+          maxSelected={maxSelected}
+        />
+        <button type="submit">提交</button>
+      </form>
     </Form>
   );
 };
 
 describe('TagMultiSelect', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe(): void {}
+        unobserve(): void {}
+        disconnect(): void {}
+      }
+    );
+  });
+
   it('renders correctly and toggles selection', async () => {
     render(<TestComponent />);
 
@@ -114,5 +128,17 @@ describe('TagMultiSelect', () => {
     // Check Tag 3
     fireEvent.click(checkbox3);
     expect(checkbox3).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('shows error message when validation fails upon submission', async () => {
+    render(<TestComponent />);
+
+    const submitBtn = screen.getByRole('button', { name: '提交' });
+
+    // Click submit with empty selection to trigger validation
+    fireEvent.click(submitBtn);
+
+    // Verify validation error message is rendered
+    expect(await screen.findByText('請至少選擇一個項目')).toBeInTheDocument();
   });
 });
