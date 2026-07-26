@@ -19,7 +19,6 @@ vi.mock('next-auth/react', () => ({
 const mockUseEditProfileData = vi.fn().mockReturnValue({
   userDto: null,
   isMentor: false,
-  isPageLoading: false,
   isError: false,
 });
 vi.mock('@/hooks/user/profile/useEditProfileData', () => ({
@@ -167,7 +166,6 @@ describe('EditProfileContainer error handling and scrolling', () => {
     mockUseEditProfileData.mockReturnValue({
       userDto: null,
       isMentor: false,
-      isPageLoading: false,
       isError: false,
     });
   });
@@ -176,7 +174,6 @@ describe('EditProfileContainer error handling and scrolling', () => {
     mockUseEditProfileData.mockReturnValue({
       userDto: null,
       isMentor: false,
-      isPageLoading: false,
       isError: true,
     });
 
@@ -194,7 +191,6 @@ describe('EditProfileContainer error handling and scrolling', () => {
     mockUseEditProfileData.mockReturnValue({
       userDto: {} as unknown as MentorProfileVO,
       isMentor: true,
-      isPageLoading: false,
       isError: false,
     });
 
@@ -283,7 +279,6 @@ describe('EditProfileContainer error handling and scrolling', () => {
     mockUseEditProfileData.mockReturnValue({
       userDto: {} as unknown as MentorProfileVO,
       isMentor: true,
-      isPageLoading: false,
       isError: false,
     });
 
@@ -351,7 +346,6 @@ describe('EditProfileContainer error handling and scrolling', () => {
     mockUseEditProfileData.mockReturnValue({
       userDto: mockUserDto,
       isMentor: false,
-      isPageLoading: false,
       isError: false,
     });
 
@@ -381,6 +375,71 @@ describe('EditProfileContainer error handling and scrolling', () => {
         name: 'Loaded Test Name',
       })
     );
+
+    useEditProfileFormSpy.mockRestore();
+  });
+
+  it('does not trigger form reset a second time when userDto updates after initial loading', () => {
+    const mockUserDtoFirst = {
+      id: 1,
+      name: 'Initial Loaded Name',
+      is_mentor: false,
+    };
+
+    const mockUserDtoSecond = {
+      id: 1,
+      name: 'Background Revalidated Name',
+      is_mentor: false,
+    };
+
+    mockUseEditProfileData.mockReturnValue({
+      userDto: mockUserDtoFirst,
+      isMentor: false,
+      isError: false,
+    });
+
+    const mockReset = vi.fn();
+    const mockForm = {
+      reset: mockReset,
+      control: {},
+      formState: { dirtyFields: {} },
+      handleSubmit: vi.fn().mockReturnValue(vi.fn()),
+    } as unknown as UseFormReturn<ProfileFormValues>;
+
+    const useEditProfileFormSpy = vi
+      .spyOn(useEditProfileFormModule, 'useEditProfileForm')
+      .mockReturnValue({ form: mockForm });
+
+    const { rerender } = render(
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
+    );
+
+    expect(mockReset).toHaveBeenCalledTimes(1);
+    expect(mockReset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Initial Loaded Name',
+      })
+    );
+
+    // Mock background revalidation success
+    mockUseEditProfileData.mockReturnValue({
+      userDto: mockUserDtoSecond,
+      isMentor: false,
+      isError: false,
+    });
+
+    rerender(
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
+    );
+
+    // It should not reset the form a second time
+    expect(mockReset).toHaveBeenCalledTimes(1);
 
     useEditProfileFormSpy.mockRestore();
   });
