@@ -40,18 +40,9 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
   const upcomingTabValue = isMentee ? 'upcoming-mentee' : 'upcoming-mentor';
   const pendingTabValue = isMentee ? 'pending-mentee' : 'pending-mentor';
 
-  const loadMoreUpcoming = useCallback(
-    () => loadMore(isMentee ? 'MENTEE_UPCOMING' : 'MENTOR_UPCOMING'),
-    [loadMore, isMentee]
-  );
-  const loadMorePending = useCallback(
-    () => loadMore(isMentee ? 'MENTEE_PENDING' : 'MENTOR_PENDING'),
-    [loadMore, isMentee]
-  );
-  const loadMoreHistory = useCallback(
-    () => loadMore(isMentee ? 'MENTEE_HISTORY' : 'MENTOR_HISTORY'),
-    [loadMore, isMentee]
-  );
+  const loadMoreUpcoming = useCallback(() => loadMore('upcoming'), [loadMore]);
+  const loadMorePending = useCallback(() => loadMore('pending'), [loadMore]);
+  const loadMoreHistory = useCallback(() => loadMore('history'), [loadMore]);
 
   const triggerClass =
     'group shrink-0 rounded-full border border-border px-3 py-1.5 text-sm ' +
@@ -141,11 +132,7 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
                     myUserId={myUserId}
                     hasMore={nextTokens.upcoming !== 0}
                     onLoadMore={loadMoreUpcoming}
-                    isLoadingMore={
-                      loadingMoreStates[
-                        isMentee ? 'MENTEE_UPCOMING' : 'MENTOR_UPCOMING'
-                      ]
-                    }
+                    isLoadingMore={loadingMoreStates.upcoming}
                     onMutationSuccess={onMutationSuccess}
                   />
                 )}
@@ -162,11 +149,7 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
                     myUserId={myUserId}
                     hasMore={nextTokens.pending !== 0}
                     onLoadMore={loadMorePending}
-                    isLoadingMore={
-                      loadingMoreStates[
-                        isMentee ? 'MENTEE_PENDING' : 'MENTOR_PENDING'
-                      ]
-                    }
+                    isLoadingMore={loadingMoreStates.pending}
                     onMutationSuccess={onMutationSuccess}
                   />
                 )}
@@ -183,11 +166,7 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
                     myUserId={myUserId}
                     hasMore={nextTokens.history !== 0}
                     onLoadMore={loadMoreHistory}
-                    isLoadingMore={
-                      loadingMoreStates[
-                        isMentee ? 'MENTEE_HISTORY' : 'MENTOR_HISTORY'
-                      ]
-                    }
+                    isLoadingMore={loadingMoreStates.history}
                     onMutationSuccess={onMutationSuccess}
                   />
                 )}

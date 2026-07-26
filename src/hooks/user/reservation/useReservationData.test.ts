@@ -127,10 +127,7 @@ describe('useReservationData (mentee)', () => {
     mockFetch.mockClear();
 
     await act(async () => {
-      result.current.onMutationSuccess('any-id', [
-        'MENTEE_PENDING',
-        'MENTEE_HISTORY',
-      ]);
+      result.current.onMutationSuccess('any-id', ['pending', 'history']);
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -149,10 +146,7 @@ describe('useReservationData (mentee)', () => {
     mockFetch.mockClear();
 
     await act(async () => {
-      result.current.onMutationSuccess('any-id', [
-        'MENTEE_PENDING',
-        'MENTEE_HISTORY',
-      ]);
+      result.current.onMutationSuccess('any-id', ['pending', 'history']);
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
@@ -164,21 +158,6 @@ describe('useReservationData (mentee)', () => {
       userId: mockSession.user.id,
       state: 'MENTEE_HISTORY',
     });
-  });
-
-  it('onMutationSuccess ignores affectedStates that belong to the other role', async () => {
-    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    mockFetch.mockClear();
-
-    await act(async () => {
-      result.current.onMutationSuccess('any-id', [
-        'MENTOR_PENDING',
-        'MENTOR_UPCOMING',
-      ]);
-    });
-
-    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it('initial fetch failure → data stays null, isLoading becomes false', async () => {
@@ -230,16 +209,16 @@ describe('useReservationData (mentee)', () => {
     });
 
     await act(async () => {
-      void result.current.loadMore('MENTEE_UPCOMING');
+      void result.current.loadMore('upcoming');
     });
-    expect(result.current.loadingMoreStates.MENTEE_UPCOMING).toBe(true);
-    expect(result.current.loadingMoreStates.MENTEE_PENDING).toBe(false);
+    expect(result.current.loadingMoreStates.upcoming).toBe(true);
+    expect(result.current.loadingMoreStates.pending).toBe(false);
 
     await act(async () => {
-      void result.current.loadMore('MENTEE_PENDING');
+      void result.current.loadMore('pending');
     });
-    expect(result.current.loadingMoreStates.MENTEE_UPCOMING).toBe(true);
-    expect(result.current.loadingMoreStates.MENTEE_PENDING).toBe(true);
+    expect(result.current.loadingMoreStates.upcoming).toBe(true);
+    expect(result.current.loadingMoreStates.pending).toBe(true);
 
     await act(async () => {
       resolveUpcoming({
@@ -247,8 +226,8 @@ describe('useReservationData (mentee)', () => {
         next_dtend: 0,
       });
     });
-    expect(result.current.loadingMoreStates.MENTEE_UPCOMING).toBe(false);
-    expect(result.current.loadingMoreStates.MENTEE_PENDING).toBe(true);
+    expect(result.current.loadingMoreStates.upcoming).toBe(false);
+    expect(result.current.loadingMoreStates.pending).toBe(true);
 
     await act(async () => {
       resolvePending({
@@ -256,7 +235,7 @@ describe('useReservationData (mentee)', () => {
         next_dtend: 0,
       });
     });
-    expect(result.current.loadingMoreStates.MENTEE_PENDING).toBe(false);
+    expect(result.current.loadingMoreStates.pending).toBe(false);
   });
 
   it('component unmounts before fetch resolves → state is NOT updated', async () => {
@@ -315,10 +294,7 @@ describe('useReservationData (mentor)', () => {
     mockFetch.mockClear();
 
     await act(async () => {
-      result.current.onMutationSuccess('any-id', [
-        'MENTOR_PENDING',
-        'MENTOR_UPCOMING',
-      ]);
+      result.current.onMutationSuccess('any-id', ['pending', 'upcoming']);
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
@@ -338,7 +314,7 @@ describe('useReservationData (mentor)', () => {
     mockFetch.mockClear();
 
     await act(async () => {
-      result.current.onMutationSuccess('any-id', ['MENTOR_PENDING']);
+      result.current.onMutationSuccess('any-id', ['pending']);
     });
 
     expect(mockFetch).toHaveBeenCalledWith({
