@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { updateAvatar } from '@/services/profile/updateAvatar';
 
@@ -9,19 +9,21 @@ vi.mock('@/services/profile/updateAvatar', () => ({
   updateAvatar: vi.fn(),
 }));
 
+vi.mock('@/lib/apiClient', () => ({
+  apiClient: {
+    getExternalBlob: vi.fn(),
+  },
+}));
+
+import { apiClient } from '@/lib/apiClient';
+
 const mockUpdateAvatar = vi.mocked(updateAvatar);
+const mockApiClient = vi.mocked(apiClient);
 
 describe('useBackgroundAvatarUpload', () => {
-  let mockFetch: typeof global.fetch;
-
   beforeEach(() => {
-    mockFetch = global.fetch;
-    global.fetch = vi.fn();
+    mockApiClient.getExternalBlob.mockReset();
     mockUpdateAvatar.mockReset();
-  });
-
-  afterEach(() => {
-    global.fetch = mockFetch;
   });
 
   it('should start S3 upload when kickOff is called with a file', async () => {
@@ -200,11 +202,7 @@ describe('useBackgroundAvatarUpload', () => {
     mockUpdateAvatar.mockResolvedValueOnce(mockUrl);
 
     const mockOldBlob = new Blob(['old-avatar-bytes'], { type: 'image/jpeg' });
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      blob: () => Promise.resolve(mockOldBlob),
-    });
-    global.fetch = fetchMock;
+    mockApiClient.getExternalBlob.mockResolvedValue(mockOldBlob);
 
     const { result } = renderHook(() => useBackgroundAvatarUpload());
 
@@ -221,9 +219,8 @@ describe('useBackgroundAvatarUpload', () => {
       await result.current.rollback();
     });
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://old-avatar.com/old.png',
-      expect.any(Object)
+    expect(mockApiClient.getExternalBlob).toHaveBeenCalledWith(
+      'https://old-avatar.com/old.png'
     );
     expect(mockUpdateAvatar).toHaveBeenCalledTimes(2);
 
