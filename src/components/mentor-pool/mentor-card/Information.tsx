@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 
-import { useOverflowFit } from '@/hooks/useOverflowFit';
+import { computeOverflowFit } from '@/hooks/useOverflowFit';
 
 import { Tag } from './Tag';
 
@@ -24,8 +24,10 @@ export const Information = ({
 }: InformationProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
-  const [containerWidth, setContainerWidth] = useState<number | null>(null);
-  const [itemWidths, setItemWidths] = useState<number[]>([]);
+  const widthsRef = useRef<number[]>([]);
+  const [visibleTagsCount, setVisibleTagsCount] = useState(
+    haveTopicLabels.length
+  );
 
   useLayoutEffect(() => {
     if (!measureRef.current || !containerRef.current) return;
@@ -33,39 +35,30 @@ export const Information = ({
     const widths = Array.from(measureRef.current.children).map(
       (child) => (child as HTMLElement).getBoundingClientRect().width
     );
-    setItemWidths(widths);
-    setContainerWidth(containerRef.current.getBoundingClientRect().width);
+    widthsRef.current = widths;
 
-    let animationFrameId: number | null = null;
+    const computeVisible = (width: number) => {
+      const { visibleCount } = computeOverflowFit({
+        itemWidths: widthsRef.current,
+        containerWidth: width,
+        gapPx: TAG_GAP_PX,
+        reservePx: EXTRA_BADGE_RESERVE_PX,
+        defaultVisibleCount: haveTopicLabels.length,
+      });
+      setVisibleTagsCount(visibleCount);
+    };
+
+    computeVisible(containerRef.current.getBoundingClientRect().width);
+
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
-
-      if (animationFrameId !== null) {
-        cancelAnimationFrame(animationFrameId);
-      }
-
-      animationFrameId = requestAnimationFrame(() => {
-        setContainerWidth(entry.contentRect.width);
-      });
+      computeVisible(entry.contentRect.width);
     });
     observer.observe(containerRef.current);
 
-    return () => {
-      observer.disconnect();
-      if (animationFrameId !== null) {
-        cancelAnimationFrame(animationFrameId);
-      }
-    };
+    return () => observer.disconnect();
   }, [haveTopicLabels]);
-
-  const { visibleCount: visibleTagsCount } = useOverflowFit({
-    itemWidths,
-    containerWidth,
-    gapPx: TAG_GAP_PX,
-    reservePx: EXTRA_BADGE_RESERVE_PX,
-    defaultVisibleCount: haveTopicLabels.length,
-  });
 
   const visibleOffers = haveTopicLabels.slice(0, visibleTagsCount);
   const extraOffersCount = haveTopicLabels.length - visibleTagsCount;
