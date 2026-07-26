@@ -64,9 +64,6 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
     controller: AbortController;
     promise: Promise<string | undefined>;
   } | null>(null);
-  const [avatarUploadError, setAvatarUploadError] = useState<string | null>(
-    null
-  );
 
   const step1Form = useForm<z.infer<typeof step1Schema>>({
     resolver: zodResolver(step1Schema),
@@ -101,8 +98,8 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
 
   const watchedAvatarFile = step1Form.watch('avatarFile');
   useEffect(() => {
-    if (watchedAvatarFile) setAvatarUploadError(null);
-  }, [watchedAvatarFile]);
+    if (watchedAvatarFile) step1Form.clearErrors('avatarFile');
+  }, [watchedAvatarFile, step1Form]);
 
   useEffect(() => {
     return () => {
@@ -212,7 +209,10 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
           });
           // Drop the failed job so the next Step 1 submit starts a fresh upload
           avatarUploadRef.current = null;
-          setAvatarUploadError('頭像上傳失敗，請重新選擇。');
+          step1Form.setError('avatarFile', {
+            type: 'custom',
+            message: '頭像上傳失敗，請重新選擇。',
+          });
           setCurrentStep(1);
           setIsSubmitting(false);
           return;
@@ -232,7 +232,6 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
           const stub = buildOnboardingDtoStub({
             userId: sessionUserId,
             formData: validatedData,
-            isMentor: session?.user?.isMentor ?? false,
             industryCatalog: industries,
           });
           primeUserDataCache(sessionUserId, 'zh_TW', stub);
@@ -240,16 +239,13 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
           clearUserDataCache(Number(session.user.id), 'zh_TW');
         }
 
-        // Optimistic session update — server-side `is_mentor` is taken from
-        // the existing DB value (onboarding payload doesn't carry it), and
-        // server-side `onboarding` is derived from the tags we just
-        // submitted, so both values are predictable without a fetch.
+        // Optimistic session update — server-side `onboarding` is derived from
+        // the tags we just submitted, so values are predictable without a fetch.
         await updateSession({
           user: {
             ...session?.user,
             name: validatedData.name ?? session?.user?.name,
             avatar: validatedData.avatar ?? session?.user?.avatar,
-            isMentor: session?.user?.isMentor ?? false,
             onBoarding: true,
             ...(job ? { avatarUpdatedAt: Date.now() } : {}),
           },
@@ -284,7 +280,6 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
       currentStep={currentStep}
       stepsTotal={STEPS_TOTAL}
       stepTitle={STEP_TITLE}
-      avatarError={avatarUploadError}
       step1Form={step1Form}
       step2Form={step2Form}
       step3Form={step3Form}
