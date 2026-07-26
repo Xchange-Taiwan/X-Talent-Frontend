@@ -88,7 +88,6 @@ export default function EditProfileContainer({
 
   const { userDto, isMentor, isError } = useEditProfileData({
     userId: Number(pageUserId),
-    isAuthorized,
   });
 
   const { form } = useEditProfileForm(isMentorOnboarding || isMentor);
