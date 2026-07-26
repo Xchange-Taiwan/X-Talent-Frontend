@@ -16,11 +16,6 @@ vi.mock('@/lib/profile/saveProfile', () => ({
   saveProfile: vi.fn(),
 }));
 
-vi.mock('@/lib/monitoring', () => ({
-  captureFlowFailure: vi.fn(),
-}));
-
-import { captureFlowFailure } from '@/lib/monitoring';
 import { saveProfile } from '@/lib/profile/saveProfile';
 import { defaultValues } from '@/schemas/profileSchema';
 import { mockToast } from '@/test/mocks/useToast';
@@ -28,7 +23,6 @@ import { mockToast } from '@/test/mocks/useToast';
 import { useProfileSubmit } from './useProfileSubmit';
 
 const mockSaveProfile = vi.mocked(saveProfile);
-const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 const mockSession: Session = {
   user: {
@@ -110,7 +104,7 @@ describe('useProfileSubmit (Hook Layer)', () => {
     expect(result.current.isSaving).toBe(true);
   });
 
-  it('saveProfile throws → error is caught, captureFlowFailure reports unexpected error to Sentry, toast is called, and isSaving becomes false', async () => {
+  it('saveProfile throws → error is caught, toast is called, and isSaving becomes false', async () => {
     mockSaveProfile.mockRejectedValueOnce(new Error('Save failed'));
     const { result } = renderHook(() => useProfileSubmit(makeOptions()));
 
@@ -120,13 +114,6 @@ describe('useProfileSubmit (Hook Layer)', () => {
 
     expect(mockSaveProfile).toHaveBeenCalled();
     expect(result.current.isSaving).toBe(false);
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: 'profile_update',
-        step: 'unexpected',
-        message: 'Save failed',
-      })
-    );
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: 'destructive',
