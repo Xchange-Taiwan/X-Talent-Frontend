@@ -170,8 +170,8 @@ describe('firstSyncedFetch', () => {
     it('does not sync when latest.industry is a primitive invalid value', async () => {
       mockFetchUser.mockResolvedValueOnce({
         ...makeSyncedDto(),
-        industry: 'not-an-object' as any,
-      } as MentorProfileVO);
+        industry: 'not-an-object' as unknown,
+      } as unknown as MentorProfileVO);
 
       const result = await firstSyncedFetch(
         { ...baseValues, industry: 'tech' },
