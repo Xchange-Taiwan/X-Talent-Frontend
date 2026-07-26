@@ -39,6 +39,20 @@ export interface PublicMentorProfile {
   personalLinks: PublicPersonalLink[];
 }
 
+function mapExperiences(
+  experiences: MentorProfileVO['experiences'] | null | undefined
+): MentorExperiencePayload[] | undefined {
+  if (!experiences) return undefined;
+  return experiences.map((exp) => ({
+    category: exp.category ?? '',
+    mentor_experiences_metadata: exp.mentor_experiences_metadata as Record<
+      string,
+      unknown
+    >,
+    order: exp.order ?? 0,
+  }));
+}
+
 function pickCurrentJob(
   profile: MentorProfileVO,
   workExperiences: ReturnType<typeof decode>['workExperiences']
@@ -104,11 +118,7 @@ export function sanitizePublicProfile(
   profile: MentorProfileVO,
   labelMap?: Map<string, string>
 ): PublicMentorProfile {
-  const decoded = decode(
-    (profile.experiences ?? undefined) as unknown as
-      | MentorExperiencePayload[]
-      | undefined
-  );
+  const decoded = decode(mapExperiences(profile.experiences));
 
   const { jobTitle, company } = pickCurrentJob(
     profile,
