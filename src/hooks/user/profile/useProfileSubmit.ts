@@ -3,13 +3,26 @@ import { useRouter } from 'next/navigation';
 import { Session } from 'next-auth';
 import { useState } from 'react';
 
+import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useToast } from '@/components/ui/use-toast';
+import {
+  clearUserDataCache,
+  primeUserDataCache,
+} from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
+import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
+import { captureFlowFailure } from '@/lib/monitoring';
+import {
+  firstSyncedFetch,
+  pollUntilSynced,
+} from '@/lib/profile/pollUntilSynced';
 import {
   type ProfileDirtyFields,
   saveProfileWorkflow,
 } from '@/lib/profile/saveProfileWorkflow';
 import { ProfileFormValues } from '@/schemas/profileSchema';
+import { updateAvatar } from '@/services/profile/updateAvatar';
+import { updateProfile } from '@/services/profile/updateProfile';
 
 export type { ProfileDirtyFields };
 
@@ -53,6 +66,15 @@ export function useProfileSubmit({
         {
           updateSession,
           consumeAvatarUpload,
+          updateProfile,
+          updateAvatar,
+          revalidateProfilePath,
+          clearUserDataCache,
+          primeUserDataCache,
+          setAvatarOverride,
+          firstSyncedFetch,
+          pollUntilSynced,
+          captureFlowFailure,
         }
       );
 
@@ -76,7 +98,15 @@ export function useProfileSubmit({
         router.push(`/profile/${pageUserId}`);
       }
     } catch (err) {
-      // This catch block will only catch unexpected sync exceptions, if any
+      // Catch genuine unexpected exceptions in the process (e.g. payload mapping) and log to Sentry
+      captureFlowFailure({
+        flow: 'profile_update',
+        step: 'unexpected',
+        message:
+          err instanceof Error
+            ? err.message
+            : 'Unexpected profile update error',
+      });
       console.error('Update Profile Unexpected Error:', err);
       toast({
         variant: 'destructive',

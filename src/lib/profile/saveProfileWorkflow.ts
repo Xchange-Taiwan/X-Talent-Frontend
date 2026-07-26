@@ -1,16 +1,5 @@
 import { Session } from 'next-auth';
 
-import { revalidateProfilePath as defaultRevalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
-import {
-  clearUserDataCache as defaultClearUserDataCache,
-  primeUserDataCache as defaultPrimeUserDataCache,
-} from '@/hooks/user/user-data/useUserData';
-import { setAvatarOverride as defaultSetAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
-import { captureFlowFailure } from '@/lib/monitoring';
-import {
-  firstSyncedFetch as defaultFirstSyncedFetch,
-  pollUntilSynced as defaultPollUntilSynced,
-} from '@/lib/profile/pollUntilSynced';
 import {
   computeDirtyStates,
   extractValidLinks,
@@ -18,8 +7,6 @@ import {
   type ProfileDirtyFields,
 } from '@/lib/profile/profileSaveAdapter';
 import { ProfileFormValues } from '@/schemas/profileSchema';
-import { updateAvatar as defaultUpdateAvatar } from '@/services/profile/updateAvatar';
-import { updateProfile as defaultUpdateProfile } from '@/services/profile/updateProfile';
 import { MentorProfileVO } from '@/services/profile/user';
 
 export type { ProfileDirtyFields };
@@ -27,6 +14,35 @@ export type { ProfileDirtyFields };
 export type SaveProfileResult =
   | { ok: true; avatar?: string; warnings: string[] }
   | { ok: false; step: 'avatar_upload' | 'profile_write'; error: unknown };
+
+export interface SaveProfileDeps {
+  updateSession: (data: unknown) => Promise<Session | null>;
+  consumeAvatarUpload?: (file: File | undefined) => Promise<string | undefined>;
+  updateProfile: (payload: unknown) => Promise<void>;
+  updateAvatar: (file: File) => Promise<string | undefined>;
+  revalidateProfilePath: (pageUserId: string) => Promise<void>;
+  clearUserDataCache: (sessionUserId: number, lang: string) => void;
+  primeUserDataCache: (
+    sessionUserId: number,
+    lang: string,
+    data: MentorProfileVO
+  ) => void;
+  setAvatarOverride: (sessionUserId: string, avatar: string) => void;
+  firstSyncedFetch: (
+    values: ProfileFormValues,
+    avatar: string
+  ) => Promise<MentorProfileVO | null>;
+  pollUntilSynced: (
+    values: ProfileFormValues,
+    avatar: string
+  ) => Promise<MentorProfileVO | null>;
+  captureFlowFailure: (options: {
+    flow: string;
+    step: string;
+    message: string;
+    level?: 'info' | 'warning' | 'error' | 'fatal';
+  }) => void;
+}
 
 export async function saveProfileWorkflow(
   values: ProfileFormValues,
@@ -36,32 +52,20 @@ export async function saveProfileWorkflow(
     session: Session | null;
     dirtyFields?: ProfileDirtyFields;
   },
-  deps: {
-    updateSession: (data: unknown) => Promise<Session | null>;
-    consumeAvatarUpload?: (
-      file: File | undefined
-    ) => Promise<string | undefined>;
-    updateProfile?: typeof defaultUpdateProfile;
-    updateAvatar?: typeof defaultUpdateAvatar;
-    revalidateProfilePath?: typeof defaultRevalidateProfilePath;
-    clearUserDataCache?: typeof defaultClearUserDataCache;
-    primeUserDataCache?: typeof defaultPrimeUserDataCache;
-    setAvatarOverride?: typeof defaultSetAvatarOverride;
-    firstSyncedFetch?: typeof defaultFirstSyncedFetch;
-    pollUntilSynced?: typeof defaultPollUntilSynced;
-  }
+  deps: SaveProfileDeps
 ): Promise<SaveProfileResult> {
   const {
     updateSession,
     consumeAvatarUpload,
-    updateProfile = defaultUpdateProfile,
-    updateAvatar = defaultUpdateAvatar,
-    revalidateProfilePath = defaultRevalidateProfilePath,
-    clearUserDataCache = defaultClearUserDataCache,
-    primeUserDataCache = defaultPrimeUserDataCache,
-    setAvatarOverride = defaultSetAvatarOverride,
-    firstSyncedFetch = defaultFirstSyncedFetch,
-    pollUntilSynced = defaultPollUntilSynced,
+    updateProfile,
+    updateAvatar,
+    revalidateProfilePath,
+    clearUserDataCache,
+    primeUserDataCache,
+    setAvatarOverride,
+    firstSyncedFetch,
+    pollUntilSynced,
+    captureFlowFailure,
   } = deps;
 
   // 1) avatar — consume background upload if wired, else upload now.
