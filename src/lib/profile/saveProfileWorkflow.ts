@@ -18,7 +18,7 @@ export type SaveProfileResult =
 export interface SaveProfileDeps {
   updateSession: (data: unknown) => Promise<Session | null>;
   consumeAvatarUpload?: (file: File | undefined) => Promise<string | undefined>;
-  updateProfile: (payload: unknown) => Promise<void>;
+  updateProfile: (payload: any) => Promise<void>;
   updateAvatar: (file: File) => Promise<string | undefined>;
   revalidateProfilePath: (pageUserId: string) => Promise<void>;
   clearUserDataCache: (sessionUserId: number, lang: string) => void;
@@ -40,7 +40,7 @@ export interface SaveProfileDeps {
     flow: string;
     step: string;
     message: string;
-    level?: 'info' | 'warning' | 'error' | 'fatal';
+    level?: any;
   }) => void;
 }
 
