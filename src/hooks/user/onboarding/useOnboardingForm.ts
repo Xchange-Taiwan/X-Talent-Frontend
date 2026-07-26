@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
+import { useToast } from '@/components/ui/use-toast';
 import { useOnboardingSubmit } from '@/hooks/user/onboarding/useOnboardingSubmit';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { trackEvent } from '@/lib/analytics';
@@ -26,6 +27,7 @@ interface Options {
 
 export function useOnboardingForm({ industries }: Options) {
   const router = useRouter();
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { data: session, status } = useSession();
@@ -185,7 +187,11 @@ export function useOnboardingForm({ industries }: Options) {
       trackEvent({ name: 'onboarding_completed', feature: 'onboarding' });
       router.push('/profile/card');
     } catch {
-      // submit failed silently — user stays on page
+      toast({
+        variant: 'destructive',
+        description: '儲存失敗，請稍後再試。',
+        duration: 5000,
+      });
     } finally {
       setIsSubmitting(false);
     }
