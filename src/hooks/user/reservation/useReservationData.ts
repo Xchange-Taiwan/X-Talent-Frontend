@@ -21,7 +21,7 @@ export interface ReservationData {
   nextTokens: NextTokens;
 }
 
-type ListKey = 'upcoming' | 'pending' | 'history';
+export type ListKey = 'upcoming' | 'pending' | 'history';
 
 const ROLE_STATES: Record<
   ReservationRole,
@@ -52,15 +52,12 @@ export type ListLoadState = 'idle' | 'loading' | 'ready';
 
 export type InitialListState = Record<ListKey, ListLoadState>;
 
-export type LoadingMoreStates = Record<ReservationState, boolean>;
+export type LoadingMoreStates = Record<ListKey, boolean>;
 
 const EMPTY_LOADING_MORE: LoadingMoreStates = {
-  MENTEE_UPCOMING: false,
-  MENTEE_PENDING: false,
-  MENTEE_HISTORY: false,
-  MENTOR_UPCOMING: false,
-  MENTOR_PENDING: false,
-  MENTOR_HISTORY: false,
+  upcoming: false,
+  pending: false,
+  history: false,
 };
 
 const EMPTY_DATA: ReservationData = {
@@ -85,9 +82,9 @@ export interface UseReservationDataReturn {
   isLoadingHistory: boolean;
   isHistoryLoaded: boolean;
   myUserId: string;
-  loadMore: (state: ReservationState) => Promise<void>;
+  loadMore: (tab: ListKey) => Promise<void>;
   loadHistory: () => Promise<void>;
-  onMutationSuccess: (id: string, affectedStates: ReservationState[]) => void;
+  onMutationSuccess: (id: string, affectedTabs: ListKey[]) => void;
 }
 
 export function useReservationData({
@@ -261,11 +258,12 @@ export function useReservationData({
   );
 
   const onMutationSuccess = useCallback(
-    (id: string, affectedStates: ReservationState[]) => {
+    (id: string, affectedTabs: ListKey[]) => {
       removeItem(id);
+      const affectedStates = affectedTabs.map((tab) => states[tab]);
       void refetchStates(affectedStates);
     },
-    [removeItem, refetchStates]
+    [removeItem, refetchStates, states]
   );
 
   const loadHistory = useCallback(async () => {
@@ -305,15 +303,15 @@ export function useReservationData({
   }, [myUserId, states.history, isHistoryLoaded, isLoadingHistory, updateData]);
 
   const loadMore = useCallback(
-    async (state: ReservationState): Promise<void> => {
+    async (tab: ListKey): Promise<void> => {
       if (!myUserId) return;
       const currentData = dataRef.current;
       if (!currentData) return;
-      const key = STATE_TO_LIST_KEY[state];
-      const cursor = currentData.nextTokens[key];
+      const state = states[tab];
+      const cursor = currentData.nextTokens[tab];
       if (cursor === 0) return;
 
-      setLoadingMoreStates((prev) => ({ ...prev, [state]: true }));
+      setLoadingMoreStates((prev) => ({ ...prev, [tab]: true }));
       try {
         const result = await fetchReservations({
           userId: myUserId,
@@ -323,13 +321,13 @@ export function useReservationData({
 
         updateData((prev) => {
           if (!prev) return prev;
-          const merged = [...prev[key], ...result.items];
+          const merged = [...prev[tab], ...result.items];
           return {
             ...prev,
-            [key]: key === 'history' ? merged : sortByDtstartAsc(merged),
+            [tab]: tab === 'history' ? merged : sortByDtstartAsc(merged),
             nextTokens: {
               ...prev.nextTokens,
-              [key]: result.next_dtend,
+              [tab]: result.next_dtend,
             },
           };
         });
@@ -346,10 +344,10 @@ export function useReservationData({
         });
         console.error('[useReservationData] loadMore error:', err);
       } finally {
-        setLoadingMoreStates((prev) => ({ ...prev, [state]: false }));
+        setLoadingMoreStates((prev) => ({ ...prev, [tab]: false }));
       }
     },
-    [myUserId, updateData]
+    [myUserId, states, updateData]
   );
 
   const historyState: ListLoadState = isHistoryLoaded

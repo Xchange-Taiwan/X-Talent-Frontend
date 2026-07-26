@@ -8,12 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
+import { ListKey } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
-import {
-  ReservationState,
-  updateReservationStatus,
-} from '@/services/reservations';
+import { updateReservationStatus } from '@/services/reservations';
 
 import {
   ReservationCard,
@@ -51,26 +49,23 @@ export function ReservationList({
   // Called after a successful accept / reject / cancel so the parent hook can
   // optimistically remove the operated item and refetch only the affected
   // states in the background.
-  onMutationSuccess?: (id: string, affectedStates: ReservationState[]) => void;
+  onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
 }) {
   const { toast } = useToast();
 
   // Accept on pending-mentor: pending-mentor → upcoming-mentor.
-  const ACCEPT_AFFECTED_STATES: ReservationState[] = [
-    'MENTOR_PENDING',
-    'MENTOR_UPCOMING',
-  ];
+  const ACCEPT_AFFECTED_TABS: ListKey[] = ['pending', 'upcoming'];
 
   // Reject / cancel always lands the reservation in the role's HISTORY list.
   // The source state depends on the variant.
-  const buildRejectOrCancelAffectedStates = (): ReservationState[] => {
-    const upper = sourceRole === 'mentor' ? 'MENTOR' : 'MENTEE';
-    const history = `${upper}_HISTORY` as ReservationState;
-    if (variant === 'upcoming')
-      return [`${upper}_UPCOMING` as ReservationState, history];
-    if (variant === 'pending-mentor') return ['MENTOR_PENDING', history];
-    if (variant === 'pending-mentee') return ['MENTEE_PENDING', history];
-    return [];
+  const buildRejectOrCancelAffectedTabs = (): ListKey[] => {
+    const sourceTab: ListKey | null =
+      variant === 'upcoming'
+        ? 'upcoming'
+        : variant === 'pending-mentor' || variant === 'pending-mentee'
+          ? 'pending'
+          : null;
+    return sourceTab ? [sourceTab, 'history'] : [];
   };
 
   const findItem = (id: string): Reservation => {
@@ -121,7 +116,7 @@ export function ReservationList({
         title: '已接受預約',
         description: '會議連結將於數分鐘內寄至雙方信箱',
       });
-      onMutationSuccess?.(id, ACCEPT_AFFECTED_STATES);
+      onMutationSuccess?.(id, ACCEPT_AFFECTED_TABS);
     } catch (err) {
       captureFlowFailure({
         flow: 'reservation_accept',
@@ -168,7 +163,7 @@ export function ReservationList({
 
       trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
       toast({ description: successMessage });
-      onMutationSuccess?.(id, buildRejectOrCancelAffectedStates());
+      onMutationSuccess?.(id, buildRejectOrCancelAffectedTabs());
     } catch (err) {
       captureFlowFailure({
         flow: 'reservation_reject',

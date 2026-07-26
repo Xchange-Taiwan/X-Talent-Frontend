@@ -101,12 +101,9 @@ describe('ReservationDashboard', () => {
       history: 'ready',
     },
     loadingMoreStates: {
-      MENTEE_UPCOMING: false,
-      MENTEE_PENDING: false,
-      MENTEE_HISTORY: false,
-      MENTOR_UPCOMING: false,
-      MENTOR_PENDING: false,
-      MENTOR_HISTORY: false,
+      upcoming: false,
+      pending: false,
+      history: false,
     },
     isLoading: false,
     isLoadingHistory: false,
@@ -219,21 +216,21 @@ describe('ReservationDashboard', () => {
     // --- Tab 1: Upcoming ---
     const upcomingLoadMore = screen.getByTestId('load-more-upcoming');
     fireEvent.click(upcomingLoadMore);
-    expect(mockLoadMore).toHaveBeenCalledWith('MENTEE_UPCOMING');
+    expect(mockLoadMore).toHaveBeenCalledWith('upcoming');
 
     // --- Tab 2: Pending ---
     const pendingTrigger = screen.getByTestId('trigger-pending-mentee');
     fireEvent.click(pendingTrigger);
     const pendingLoadMore = screen.getByTestId('load-more-pending-mentee');
     fireEvent.click(pendingLoadMore);
-    expect(mockLoadMore).toHaveBeenCalledWith('MENTEE_PENDING');
+    expect(mockLoadMore).toHaveBeenCalledWith('pending');
 
     // --- Tab 3: History ---
     const historyTrigger = screen.getByTestId('trigger-history');
     fireEvent.click(historyTrigger);
     const historyLoadMore = screen.getByTestId('load-more-history');
     fireEvent.click(historyLoadMore);
-    expect(mockLoadMore).toHaveBeenCalledWith('MENTEE_HISTORY');
+    expect(mockLoadMore).toHaveBeenCalledWith('history');
   });
 
   it('correctly maps and triggers onLoadMore params for role "mentor"', () => {
@@ -246,20 +243,20 @@ describe('ReservationDashboard', () => {
     // --- Tab 1: Upcoming ---
     const upcomingLoadMore = screen.getByTestId('load-more-upcoming');
     fireEvent.click(upcomingLoadMore);
-    expect(mockLoadMore).toHaveBeenCalledWith('MENTOR_UPCOMING');
+    expect(mockLoadMore).toHaveBeenCalledWith('upcoming');
 
     // --- Tab 2: Pending ---
     const pendingTrigger = screen.getByTestId('trigger-pending-mentor');
     fireEvent.click(pendingTrigger);
     const pendingLoadMore = screen.getByTestId('load-more-pending-mentor');
     fireEvent.click(pendingLoadMore);
-    expect(mockLoadMore).toHaveBeenCalledWith('MENTOR_PENDING');
+    expect(mockLoadMore).toHaveBeenCalledWith('pending');
 
     // --- Tab 3: History ---
     const historyTrigger = screen.getByTestId('trigger-history');
     fireEvent.click(historyTrigger);
     const historyLoadMore = screen.getByTestId('load-more-history');
     fireEvent.click(historyLoadMore);
-    expect(mockLoadMore).toHaveBeenCalledWith('MENTOR_HISTORY');
+    expect(mockLoadMore).toHaveBeenCalledWith('history');
   });
 });
