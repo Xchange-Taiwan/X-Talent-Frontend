@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
+import type { ReadonlyURLSearchParams } from 'next/navigation';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/navigation', async () => {
@@ -67,7 +68,7 @@ describe('useMentorPool', () => {
         initialMentors: mockInitialMentors,
         initialCursor: '100',
         initialMentorCount: 1,
-        params: mockSearchParams as any,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
       })
     );
@@ -119,7 +120,7 @@ describe('useMentorPool', () => {
         initialMentors: mockInitialMentors,
         initialCursor: '100',
         initialMentorCount: 1,
-        params: mockSearchParams as any,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
       })
     );
@@ -146,7 +147,7 @@ describe('useMentorPool', () => {
       return null;
     });
 
-    let rejectFetch!: (reason: any) => void;
+    let rejectFetch!: (reason: Error) => void;
     const fetchPromise = new Promise<MentorType[]>((_, reject) => {
       rejectFetch = reject;
     });
@@ -161,7 +162,7 @@ describe('useMentorPool', () => {
         initialMentors: mockInitialMentors,
         initialCursor: '100',
         initialMentorCount: 1,
-        params: mockSearchParams as any,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
       })
     );
@@ -215,7 +216,7 @@ describe('useMentorPool', () => {
         initialMentors: mockInitialMentors,
         initialCursor: '100',
         initialMentorCount: 1,
-        params: mockSearchParams as any,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
       })
     );
@@ -273,7 +274,7 @@ describe('useMentorPool', () => {
         initialMentors: largeInitialMentors,
         initialCursor: '100',
         initialMentorCount: PAGE_LIMIT,
-        params: mockSearchParams as any,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
       })
     );
@@ -307,7 +308,7 @@ describe('useMentorPool', () => {
         initialMentors: largeInitialMentors,
         initialCursor: '100',
         initialMentorCount: PAGE_LIMIT,
-        params: mockSearchParams as any,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
       })
     );
