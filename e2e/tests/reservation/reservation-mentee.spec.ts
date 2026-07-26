@@ -285,3 +285,299 @@ test.describe('歷史紀錄 Tab 測試', () => {
     await expect(cardByMentee.getByRole('status')).toHaveText('已由學員取消');
   });
 });
+
+test.describe('學員取消預約與即將到來 Tab 測試', () => {
+  test('即將到來 Tab 的卡片內容渲染', async ({ page }) => {
+    await setSignedSessionCookie(page);
+    await mockSessionGet(page);
+    await mockReservationEndpoints(page, {
+      MENTEE_UPCOMING: [makeReservation(1, 'Mentor Wang')],
+    });
+
+    await page.goto(PAGE_URL);
+
+    await expect(page.getByRole('tab', { name: /即將到來/ })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // 驗證卡片內容
+    await expect(page.getByText('Mentor Wang')).toBeVisible();
+    await expect(page.getByText('Senior Engineer')).toBeVisible();
+    await expect(page.getByRole('button', { name: '取消預約' })).toBeVisible();
+  });
+
+  test('在「等待回復」tab 點擊取消 → 填寫取消原因並確認 → 卡片從 pending 列表消失', async ({
+    page,
+  }) => {
+    await setSignedSessionCookie(page);
+    await mockSessionGet(page);
+
+    let putCalled = false;
+
+    // 攔截取消 PUT 請求
+    await page.route(
+      new RegExp(`/v1/users/${USER_ID}/reservations/\\d+`),
+      (route) => {
+        if (route.request().method() === 'PUT') {
+          putCalled = true;
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              code: '0',
+              msg: 'ok',
+              data: {
+                id: 1,
+                status: 'REJECT',
+                my_user_id: Number(USER_ID),
+                my_status: 'REJECT',
+                my_role: 'MENTEE',
+                user_id: 99,
+                schedule_id: 1,
+                dtstart: 1704099600,
+                dtend: 1704103200,
+                messages: [],
+                previous_reserve: {},
+              },
+            }),
+          });
+        }
+        return route.continue();
+      }
+    );
+
+    // 依據是否取消回傳資料
+    await page.route(
+      new RegExp(`/v1/users/${USER_ID}/reservations\\?`),
+      (route) => {
+        const url = new URL(route.request().url());
+        const state = url.searchParams.get('state') ?? '';
+        const reservations =
+          !putCalled && state === 'MENTEE_PENDING'
+            ? [makeReservation(1, 'Mentor Wang')]
+            : [];
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(makeReservationResponse(reservations)),
+        });
+      }
+    );
+
+    await page.goto(PAGE_URL);
+
+    // 前往「等待回復」tab
+    await expect(page.getByRole('tab', { name: /等待回復/ })).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.getByRole('tab', { name: /等待回復/ }).click();
+    await expect(page.getByText('Mentor Wang')).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // 點擊「取消預約」打開對話框
+    await page.getByRole('button', { name: '取消預約' }).click();
+
+    const cancelDialog = page.getByRole('dialog');
+    await expect(cancelDialog).toBeVisible({ timeout: 5_000 });
+    await expect(
+      cancelDialog.getByRole('heading', { name: '取消預約' })
+    ).toBeVisible();
+
+    // 填寫取消原因並確認
+    await cancelDialog.locator('textarea').fill('取消原因：臨時有事');
+    await cancelDialog.getByRole('button', { name: '取消預約' }).click();
+
+    // 確認對話框關閉，且卡片從列表中消失
+    await expect(cancelDialog).not.toBeVisible();
+    await expect(page.getByText('Mentor Wang')).not.toBeVisible({
+      timeout: 10_000,
+    });
+  });
+
+  test('在「即將到來」tab 點擊取消已接受的預約 → 卡片從 upcoming 列表消失，並移入 history（含取消原因）', async ({
+    page,
+  }) => {
+    await setSignedSessionCookie(page);
+    await mockSessionGet(page);
+
+    let putCalled = false;
+
+    // 攔截取消 PUT 請求
+    await page.route(
+      new RegExp(`/v1/users/${USER_ID}/reservations/\\d+`),
+      (route) => {
+        if (route.request().method() === 'PUT') {
+          putCalled = true;
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              code: '0',
+              msg: 'ok',
+              data: {
+                id: 2,
+                status: 'REJECT',
+                my_user_id: Number(USER_ID),
+                my_status: 'REJECT',
+                my_role: 'MENTEE',
+                user_id: 99,
+                schedule_id: 2,
+                dtstart: 1704099600,
+                dtend: 1704103200,
+                messages: [],
+                previous_reserve: {},
+              },
+            }),
+          });
+        }
+        return route.continue();
+      }
+    );
+
+    // 模擬已取消的預約，移入歷史紀錄並包含取消原因
+    const cancelledReservation = {
+      ...makeReservation(2, 'Mentor Chen'),
+      messages: [
+        {
+          id: 101,
+          user_id: Number(USER_ID),
+          role: 'MENTEE',
+          content: '取消原因：時間不合',
+        },
+      ],
+    };
+    cancelledReservation.sender.status = 'REJECT';
+
+    await page.route(
+      new RegExp(`/v1/users/${USER_ID}/reservations\\?`),
+      (route) => {
+        const url = new URL(route.request().url());
+        const state = url.searchParams.get('state') ?? '';
+        let reservations: any[] = [];
+        if (!putCalled && state === 'MENTEE_UPCOMING') {
+          reservations = [makeReservation(2, 'Mentor Chen')];
+        } else if (putCalled && state === 'MENTEE_HISTORY') {
+          reservations = [cancelledReservation];
+        }
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(makeReservationResponse(reservations)),
+        });
+      }
+    );
+
+    await page.goto(PAGE_URL);
+
+    // 驗證「即將到來」tab
+    await expect(page.getByRole('tab', { name: /即將到來/ })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText('Mentor Chen')).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // 點擊「取消預約」
+    await page.getByRole('button', { name: '取消預約' }).click();
+
+    const cancelDialog = page.getByRole('dialog');
+    await expect(cancelDialog).toBeVisible({ timeout: 5_000 });
+
+    // 填寫取消原因並送出
+    await cancelDialog.locator('textarea').fill('取消原因：時間不合');
+    await cancelDialog.getByRole('button', { name: '取消預約' }).click();
+
+    // 驗證「即將到來」中的卡片消失
+    await expect(cancelDialog).not.toBeVisible();
+    await expect(page.getByText('Mentor Chen')).not.toBeVisible({
+      timeout: 10_000,
+    });
+
+    // 切換到「歷史紀錄」驗證
+    await page.getByRole('tab', { name: /歷史紀錄/ }).click();
+    const cardInHistory = page
+      .getByTestId('reservation-card')
+      .filter({ hasText: 'Mentor Chen' });
+    await expect(cardInHistory).toBeVisible({ timeout: 10_000 });
+    await expect(cardInHistory.getByRole('status')).toHaveText('已由學員取消');
+
+    // 驗證取消原因是否正確呈現於對話框
+    const viewChatBtn = cardInHistory.getByRole('button', {
+      name: '查看完整對話',
+    });
+    await expect(viewChatBtn).toBeVisible();
+    await viewChatBtn.click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText('取消原因：時間不合')).toBeVisible();
+  });
+
+  test('取消 API 失敗 → 顯示錯誤提示，卡片維持原狀', async ({ page }) => {
+    await setSignedSessionCookie(page);
+    await mockSessionGet(page);
+
+    // 攔截取消 PUT 請求並回傳 500 錯誤
+    await page.route(
+      new RegExp(`/v1/users/${USER_ID}/reservations/\\d+`),
+      (route) => {
+        if (route.request().method() === 'PUT') {
+          return route.fulfill({
+            status: 500,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              code: '500',
+              msg: 'internal server error',
+              data: null,
+            }),
+          });
+        }
+        return route.continue();
+      }
+    );
+
+    await page.route(
+      new RegExp(`/v1/users/${USER_ID}/reservations\\?`),
+      (route) => {
+        const url = new URL(route.request().url());
+        const state = url.searchParams.get('state') ?? '';
+        const reservations =
+          state === 'MENTEE_PENDING' ? [makeReservation(1, 'Mentor Wang')] : [];
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(makeReservationResponse(reservations)),
+        });
+      }
+    );
+
+    await page.goto(PAGE_URL);
+
+    await expect(page.getByRole('tab', { name: /等待回復/ })).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.getByRole('tab', { name: /等待回復/ }).click();
+    await expect(page.getByText('Mentor Wang')).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // 點擊取消預約並送出
+    await page.getByRole('button', { name: '取消預約' }).click();
+    const cancelDialog = page.getByRole('dialog');
+    await expect(cancelDialog).toBeVisible({ timeout: 5_000 });
+
+    await cancelDialog.locator('textarea').fill('隨便填寫');
+    await cancelDialog.getByRole('button', { name: '取消預約' }).click();
+
+    // 驗證是否顯示錯誤 Toast 提示（取消預約失敗,請稍後再試）
+    await expect(
+      page.getByText('取消預約失敗,請稍後再試', { exact: true })
+    ).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // 驗證卡片仍留在列表，並未消失
+    await expect(page.getByText('Mentor Wang')).toBeVisible();
+  });
+});
