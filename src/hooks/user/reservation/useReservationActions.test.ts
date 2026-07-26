@@ -337,42 +337,4 @@ describe('useReservationActions', () => {
       ).rejects.toThrow('[useReservationActions] missing current user id');
     });
   });
-
-  describe('resolveOtherId', () => {
-    it('should return empty string if myUserId is missing', () => {
-      const { result } = renderHook(() =>
-        useReservationActions({
-          myUserId: undefined,
-          variant: 'pending-mentor',
-        })
-      );
-
-      const otherId = result.current.resolveOtherId(mockReservation);
-      expect(otherId).toBe('');
-    });
-
-    it('should resolve counterparty user ID if myUserId is sender', () => {
-      const { result } = renderHook(() =>
-        useReservationActions({
-          myUserId: 'user-123',
-          variant: 'pending-mentor',
-        })
-      );
-
-      const otherId = result.current.resolveOtherId(mockReservation);
-      expect(otherId).toBe('user-456');
-    });
-
-    it('should resolve sender user ID if myUserId is participant', () => {
-      const { result } = renderHook(() =>
-        useReservationActions({
-          myUserId: 'user-456',
-          variant: 'pending-mentor',
-        })
-      );
-
-      const otherId = result.current.resolveOtherId(mockReservation);
-      expect(otherId).toBe('user-123');
-    });
-  });
 });
