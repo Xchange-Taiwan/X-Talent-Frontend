@@ -1,7 +1,7 @@
+import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import { ExperienceType } from '@/services/profile/experienceType';
 import type { MentorProfileVO } from '@/services/profile/user';
-import type { TagVO } from '@/types/tag';
 
 export type SocialPlatform =
   | 'linkedin'
@@ -147,7 +147,7 @@ export function sanitizePublicProfile(
   // BFF emits industry as an enriched TagVO-shaped object even though the
   // OpenAPI generator types it as `Record<string, never>`. Fall back to the
   // raw subject_group key when the localized subject is missing.
-  const industryTag = profile.industry as unknown as TagVO | null | undefined;
+  const industryTag = readIndustryTag(profile.industry);
   const industry = industryTag?.subject ?? industryTag?.subject_group ?? null;
 
   return {

@@ -1,5 +1,6 @@
 import { ProfileFormValues } from '@/components/profile/edit/profileSchema';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import { fetchUser, MentorProfileVO } from '@/services/profile/user';
 
 function isProfileSynced(
@@ -14,7 +15,10 @@ function isProfileSynced(
   if ((latest.about ?? '') !== (values.about ?? '')) return false;
   if ((latest.years_of_experience ?? '') !== (values.years_of_experience ?? ''))
     return false;
-  if ((latest.industry?.subject_group ?? '') !== (values.industry ?? ''))
+  if (
+    (readIndustryTag(latest.industry)?.subject_group ?? '') !==
+    (values.industry ?? '')
+  )
     return false;
   if (avatar && latest.avatar !== avatar) return false;
   return true;

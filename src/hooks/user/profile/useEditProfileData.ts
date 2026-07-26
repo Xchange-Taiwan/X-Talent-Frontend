@@ -11,7 +11,7 @@ import {
   MentorExperiencePayload,
   toFormValues,
 } from '@/lib/profile/parseUserExperiences';
-import type { TagVO } from '@/types/tag';
+import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 
 interface Options {
   userId: number;
@@ -55,7 +55,7 @@ export function useEditProfileData({
     // BFF returns industry enriched as a TagVO-shaped object; the OpenAPI
     // generator types it as `Record<string, never>` because the BFF model
     // declares it as `Optional[Dict[str, Any]]`.
-    const industryTag = userDto.industry as unknown as TagVO | null | undefined;
+    const industryTag = readIndustryTag(userDto.industry);
     const industrySg = industryTag?.subject_group ?? '';
 
     // Reset must include every server-driven field so RHF treats them as the
