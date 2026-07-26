@@ -15,9 +15,64 @@ import {
   type MentorType,
 } from '@/services/search-mentor/mentors';
 
+export interface MentorPoolPageState {
+  mentors: MentorType[];
+  cursor: string | undefined;
+  hasMore: boolean;
+  mentorCount: number;
+  isNoResults: boolean;
+}
+
+export type MentorPageAction =
+  | { type: 'replace'; page: MentorType[] }
+  | { type: 'append'; page: MentorType[] };
+
+export function applyMentorPage(
+  state: MentorPoolPageState,
+  action: MentorPageAction
+): MentorPoolPageState {
+  switch (action.type) {
+    case 'replace': {
+      const { page } = action;
+      return {
+        mentors: page,
+        cursor: page.at(-1)?.updated_at?.toString(),
+        hasMore: page.length === PAGE_LIMIT,
+        mentorCount: page.length,
+        isNoResults: page.length === 0,
+      };
+    }
+    case 'append': {
+      const { page } = action;
+      if (page.length === 0) {
+        return {
+          ...state,
+          hasMore: false,
+        };
+      }
+
+      const newMentors = page.filter(
+        (newMentor) =>
+          !state.mentors.some(
+            (prevMentor) => prevMentor.user_id === newMentor.user_id
+          )
+      );
+
+      return {
+        mentors: [...state.mentors, ...newMentors],
+        cursor: page.at(-1)?.updated_at?.toString(),
+        hasMore: page.length === PAGE_LIMIT,
+        mentorCount: state.mentorCount + page.length,
+        isNoResults: false,
+      };
+    }
+    default:
+      return state;
+  }
+}
+
 interface UseMentorPoolProps {
   initialMentors: MentorType[];
-  initialCursor: string;
   initialMentorCount: number;
   params: ReturnType<typeof useSearchParams>;
   labelMap: Map<string, string>;
@@ -25,7 +80,6 @@ interface UseMentorPoolProps {
 
 export function useMentorPool({
   initialMentors,
-  initialCursor,
   initialMentorCount,
   params,
   labelMap,
@@ -40,26 +94,31 @@ export function useMentorPool({
     [initialMentors]
   );
 
-  const [mentorCount, setMentorCount] = useState<number>(
-    hasInitialFilters ? 0 : initialMentorCount
+  const getInitialUnfilteredState = useCallback(
+    (): MentorPoolPageState => ({
+      mentors: resolvedInitialMentors,
+      cursor: resolvedInitialMentors.at(-1)?.updated_at?.toString(),
+      hasMore: resolvedInitialMentors.length === PAGE_LIMIT,
+      mentorCount: initialMentorCount,
+      isNoResults: resolvedInitialMentors.length === 0,
+    }),
+    [resolvedInitialMentors, initialMentorCount]
   );
 
-  // mentors state holds the fetched mentors with only resolveMentorAvatar applied.
-  // This keeps avatar calculation cached but preserves raw have_topic codes in state for dynamic localization.
-  const [mentors, setMentors] = useState<MentorType[]>(() =>
-    hasInitialFilters ? [] : resolvedInitialMentors
-  );
+  const [pageState, setPageState] = useState<MentorPoolPageState>(() => {
+    if (hasInitialFilters) {
+      return {
+        mentors: [],
+        cursor: undefined,
+        hasMore: true,
+        mentorCount: 0,
+        isNoResults: false,
+      };
+    }
+    return getInitialUnfilteredState();
+  });
 
-  const [isNoResults, setIsNoResults] = useState(
-    hasInitialFilters ? false : initialMentors.length === 0
-  );
   const [isLoading, setIsLoading] = useState(hasInitialFilters);
-  const [cursor, setCursor] = useState<string | undefined>(
-    hasInitialFilters ? undefined : initialCursor
-  );
-  const [hasMore, setHasMore] = useState<boolean>(
-    hasInitialFilters ? true : initialMentors.length === PAGE_LIMIT
-  );
 
   const isLoadingRef = useRef(false);
   const requestIdRef = useRef(0);
@@ -90,11 +149,7 @@ export function useMentorPool({
     const myRequestId = ++requestIdRef.current;
 
     if (!hasAnyCondition(params)) {
-      setMentors(resolvedInitialMentors);
-      setMentorCount(initialMentorCount);
-      setCursor(initialCursor);
-      setIsNoResults(initialMentors.length === 0);
-      setHasMore(initialMentors.length === PAGE_LIMIT);
+      setPageState(getInitialUnfilteredState());
       setIsLoading(false);
       isLoadingRef.current = false;
       return;
@@ -103,18 +158,19 @@ export function useMentorPool({
     const conditions = paramsToFetchConditions(params);
     setIsLoading(true);
     isLoadingRef.current = true;
-    setIsNoResults(false);
-    setHasMore(false);
+    setPageState((prev) => ({
+      ...prev,
+      isNoResults: false,
+      hasMore: false,
+    }));
 
     fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' })
       .then((list) => {
         if (myRequestId !== requestIdRef.current) return;
         const resolvedList = list.map(resolveMentorAvatar);
-        setMentors(resolvedList);
-        setMentorCount(resolvedList.length);
-        setCursor(resolvedList.at(-1)?.updated_at?.toString());
-        setIsNoResults(resolvedList.length === 0);
-        setHasMore(resolvedList.length === PAGE_LIMIT);
+        setPageState((prev) =>
+          applyMentorPage(prev, { type: 'replace', page: resolvedList })
+        );
         setIsLoading(false);
         isLoadingRef.current = false;
       })
@@ -130,31 +186,17 @@ export function useMentorPool({
     const param = {
       ...conditions,
       limit: PAGE_LIMIT,
-      cursor,
+      cursor: pageState.cursor,
     };
     setIsLoading(true);
     isLoadingRef.current = true;
-    let rtnList: MentorType[] = [];
     try {
-      rtnList = await fetchMentors(param);
+      const rtnList = await fetchMentors(param);
       if (myRequestId === requestIdRef.current) {
-        if (rtnList.length === 0) {
-          setHasMore(false);
-        } else {
-          const resolvedList = rtnList.map(resolveMentorAvatar);
-          setMentors((prevMentors) => {
-            const newMentors = resolvedList.filter(
-              (newMentor) =>
-                !prevMentors.some(
-                  (prevMentor) => prevMentor.user_id === newMentor.user_id
-                )
-            );
-            return [...prevMentors, ...newMentors];
-          });
-          setMentorCount((prev) => prev + rtnList.length);
-          setCursor(rtnList.at(-1)?.updated_at?.toString());
-          setHasMore(rtnList.length === PAGE_LIMIT);
-        }
+        const resolvedList = rtnList.map(resolveMentorAvatar);
+        setPageState((prev) =>
+          applyMentorPage(prev, { type: 'append', page: resolvedList })
+        );
       }
     } catch (error) {
       handleError(myRequestId, 'Fetch more mentors error:', error);
@@ -164,29 +206,29 @@ export function useMentorPool({
         isLoadingRef.current = false;
       }
     }
-  }, [params, cursor, handleError]);
+  }, [params, pageState.cursor, handleError]);
 
   const handleScrollToBottom = useCallback(async () => {
-    if (!hasMore || isLoadingRef.current) return;
+    if (!pageState.hasMore || isLoadingRef.current) return;
     await fetchMoreMentors();
-  }, [hasMore, fetchMoreMentors]);
+  }, [pageState.hasMore, fetchMoreMentors]);
 
   // Dynamically translate tag labels inside useMemo on return. This preserves dynamic localization
   // updates (e.g. language switching) without coupling translation state updates to useEffect fetching.
   const mentorsForUI = useMemo(
     () =>
-      mentors.map((m) => ({
+      pageState.mentors.map((m) => ({
         ...m,
         have_topic: m.have_topic.map((c) => labelMap.get(c) ?? c),
       })),
-    [mentors, labelMap]
+    [pageState.mentors, labelMap]
   );
 
   return {
     mentors: mentorsForUI,
-    mentorCount,
+    mentorCount: pageState.mentorCount,
     isLoading,
-    isNoResults,
+    isNoResults: pageState.isNoResults,
     handleScrollToBottom,
   };
 }
