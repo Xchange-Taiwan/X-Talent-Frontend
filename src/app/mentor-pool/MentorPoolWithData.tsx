@@ -15,8 +15,11 @@ export default async function MentorPoolWithData() {
       search_pattern: '',
       limit: PAGE_LIMIT,
       cursor: '',
-    }).catch((err) => {
-      console.error('SSR fetchMentors error captured:', err);
+    }).catch((err: unknown) => {
+      console.error(
+        'SSR fetchMentors error captured:',
+        err instanceof Error ? err.message : String(err)
+      );
       // Opt-out of static/ISR caching for this failed run to preserve healthy cache
       unstable_noStore();
       initialError = true;
