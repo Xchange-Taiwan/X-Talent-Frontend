@@ -9,15 +9,16 @@ interface RefreshResult {
   refreshToken: string | null;
 }
 
-function extractRefreshToken(headers: Headers): string | null {
+export function extractRefreshToken(headers: Headers): string | null {
   const setCookie = headers.get('set-cookie') ?? '';
   return setCookie.match(/refresh_token=([^;,]+)/)?.[1] ?? null;
 }
 
 export async function refreshAccessToken(
-  currentRefreshToken: string
+  currentRefreshToken: string,
+  customFetch: typeof fetch = fetch
 ): Promise<RefreshResult> {
-  const res = await fetch(`${BFF_URL}/v1/auth/token`, {
+  const res = await customFetch(`${BFF_URL}/v1/auth/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({

@@ -3,8 +3,12 @@ import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
 import { OAUTH_REFRESH_BRIDGE_COOKIE } from '@/lib/auth/oauthRefreshBridge';
+import { singleFlight } from '@/lib/singleFlight';
 import { SignInSchema } from '@/schemas/auth';
-import { refreshAccessToken } from '@/services/auth/refreshToken';
+import {
+  refreshAccessToken,
+  extractRefreshToken,
+} from '@/services/auth/refreshToken';
 
 function decodeJwtExp(jwtString: string): number | null {
   try {
@@ -21,11 +25,6 @@ function decodeJwtExp(jwtString: string): number | null {
   }
 }
 
-function extractRefreshToken(headers: Headers): string | undefined {
-  const setCookie = headers.get('set-cookie') ?? '';
-  return setCookie.match(/refresh_token=([^;,]+)/)?.[1] ?? undefined;
-}
-
 // BFF rotates the refresh_token on every /v1/auth/token call (revokes the old
 // rt:* index immediately). Concurrent jwt callbacks reading the same stored
 // refresh token would all POST it; first wins, the rest get invalid_grant.
@@ -38,13 +37,9 @@ const inflightRefresh = new Map<
 function refreshAccessTokenSingleflight(
   currentRefreshToken: string
 ): ReturnType<typeof refreshAccessToken> {
-  const existing = inflightRefresh.get(currentRefreshToken);
-  if (existing) return existing;
-  const promise = refreshAccessToken(currentRefreshToken).finally(() => {
-    inflightRefresh.delete(currentRefreshToken);
-  });
-  inflightRefresh.set(currentRefreshToken, promise);
-  return promise;
+  return singleFlight(inflightRefresh, currentRefreshToken, () =>
+    refreshAccessToken(currentRefreshToken)
+  );
 }
 
 const authOptions = {
@@ -95,7 +90,7 @@ const authOptions = {
         return {
           id: String(response.data.auth.user_id),
           token: response.data.auth.token,
-          refreshToken: extractRefreshToken(res.headers),
+          refreshToken: extractRefreshToken(res.headers) ?? undefined,
           email: response.data.auth.email,
           onBoarding: response.data.user.onboarding,
           isMentor: response.data.user.is_mentor,
