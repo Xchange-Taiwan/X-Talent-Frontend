@@ -138,7 +138,7 @@ describe('sanitizePublicProfile', () => {
         {
           category: ExperienceType.WORK,
           order: 1,
-          mentor_experiences_metadata: null as any,
+          mentor_experiences_metadata: null as unknown as Record<string, never>,
         },
         {
           category: ExperienceType.LINK,
