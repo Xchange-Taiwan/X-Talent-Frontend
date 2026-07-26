@@ -1,6 +1,6 @@
+import type { MentorExperiencePayload } from '@/lib/profile/experienceCodec';
+import { decode } from '@/lib/profile/experienceCodec';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
-import { isSafeUrl } from '@/lib/url/isSafeUrl';
-import { ExperienceType } from '@/services/profile/experienceType';
 import type { MentorProfileVO } from '@/services/profile/user';
 
 export type SocialPlatform =
@@ -39,46 +39,14 @@ export interface PublicMentorProfile {
   personalLinks: PublicPersonalLink[];
 }
 
-interface ExperienceBlock {
-  category?: string | null;
-  mentor_experiences_metadata?: { data?: unknown[] } | null;
-}
-
-interface WorkMetadata {
-  job?: string;
-  company?: string;
-  is_primary?: boolean;
-}
-
-interface LinkMetadata {
-  platform?: string;
-  url?: string;
-}
-
-function getBlocks(
-  experiences: MentorProfileVO['experiences'] | null | undefined,
-  category: string
-): ExperienceBlock[] {
-  if (!experiences) return [];
-  return (experiences as unknown as ExperienceBlock[]).filter(
-    (e) => e.category === category
-  );
-}
-
-function getMetadataItems<T>(block: ExperienceBlock): T[] {
-  return (block.mentor_experiences_metadata?.data ?? []) as T[];
-}
-
-function pickCurrentJob(profile: MentorProfileVO): {
+function pickCurrentJob(
+  profile: MentorProfileVO,
+  workExperiences: ReturnType<typeof decode>['workExperiences']
+): {
   jobTitle: string;
   company: string;
 } {
-  const workEntries = getBlocks(
-    profile.experiences,
-    ExperienceType.WORK
-  ).flatMap((block) => getMetadataItems<WorkMetadata>(block));
-
-  if (workEntries.length === 0) {
+  if (workExperiences.length === 0) {
     return {
       jobTitle: profile.job_title ?? '',
       company: profile.company ?? '',
@@ -86,29 +54,26 @@ function pickCurrentJob(profile: MentorProfileVO): {
   }
 
   const current =
-    workEntries.find((entry) => entry.is_primary) ?? workEntries[0];
+    workExperiences.find((entry) => entry.is_primary) ?? workExperiences[0];
 
   return {
-    jobTitle: current.job ?? profile.job_title ?? '',
-    company: current.company ?? profile.company ?? '',
+    jobTitle: current.job || profile.job_title || '',
+    company: current.company || profile.company || '',
   };
 }
 
-function pickPublicLinks(profile: MentorProfileVO): PublicPersonalLink[] {
-  const links = getBlocks(profile.experiences, ExperienceType.LINK).flatMap(
-    (block) => getMetadataItems<LinkMetadata>(block)
-  );
-
+function pickPublicLinks(
+  decodedLinks: ReturnType<typeof decode>['personalLinks']
+): PublicPersonalLink[] {
   const seen = new Set<SocialPlatform>();
   const result: PublicPersonalLink[] = [];
 
-  for (const link of links) {
+  for (const link of decodedLinks) {
     const platform = link.platform as SocialPlatform | undefined;
-    const url = link.url ?? '';
+    const url = link.url;
     if (
       platform &&
       SOCIAL_PLATFORMS.includes(platform) &&
-      isSafeUrl(url) &&
       !seen.has(platform)
     ) {
       seen.add(platform);
@@ -139,7 +104,14 @@ export function sanitizePublicProfile(
   profile: MentorProfileVO,
   labelMap?: Map<string, string>
 ): PublicMentorProfile {
-  const { jobTitle, company } = pickCurrentJob(profile);
+  const decoded = decode(
+    profile.experiences as unknown as MentorExperiencePayload[] | undefined
+  );
+
+  const { jobTitle, company } = pickCurrentJob(
+    profile,
+    decoded.workExperiences
+  );
 
   const expertises = resolveLabels(profile.have_skill, labelMap);
   const topics = resolveLabels(profile.have_topic, labelMap);
@@ -161,6 +133,6 @@ export function sanitizePublicProfile(
     expertises,
     topics,
     isMentor: Boolean(profile.is_mentor),
-    personalLinks: pickPublicLinks(profile),
+    personalLinks: pickPublicLinks(decoded.personalLinks),
   };
 }
