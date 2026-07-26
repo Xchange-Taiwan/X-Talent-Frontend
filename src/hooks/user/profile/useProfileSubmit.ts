@@ -13,12 +13,11 @@ import {
 import { trackEvent } from '@/lib/analytics';
 import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 import { captureFlowFailure } from '@/lib/monitoring';
-import { MentorExperiencePayload } from '@/lib/profile/parseUserExperiences';
+import { encode } from '@/lib/profile/experienceCodec';
 import {
   firstSyncedFetch,
   pollUntilSynced,
 } from '@/lib/profile/pollUntilSynced';
-import { ExperienceType } from '@/services/profile/experienceType';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
 import { MentorProfileVO } from '@/services/profile/user';
@@ -142,17 +141,6 @@ export function useProfileSubmit({
         isDirty('want_topic') ||
         experiencesDirty;
 
-      // Mentor's top-level job_title / company mirror the primary work
-      // experience so consumers (profile page, mentor pool card, reservations)
-      // can read them directly from the mentor record without re-deriving
-      // from the experience list. Falls back to the first entry when no
-      // primary is flagged, matching the JobExperienceSection UI invariant.
-      const primaryWork =
-        values.work_experiences?.find((w) => w.is_primary) ??
-        values.work_experiences?.[0];
-      const job_title = primaryWork?.job ?? '';
-      const companyFromPrimary = primaryWork?.company ?? '';
-
       const links = [
         values.linkedin,
         values.facebook,
@@ -162,50 +150,20 @@ export function useProfileSubmit({
         values.website,
       ].filter((l) => l && l.url);
 
-      // Replace semantics: send the full experiences set every time any
-      // section is dirty. Backend overwrites profiles.experiences wholesale.
-      // Sections without dirty form items still ride along with their
-      // current values to avoid clobbering them.
-      const buildExperiences = (): MentorExperiencePayload[] => [
-        {
-          category: ExperienceType.WORK,
-          order: 1,
-          mentor_experiences_metadata: {
-            data: (values.work_experiences ?? []).map((item) => ({
-              job: item.job,
-              company: item.company,
-              job_period_start: item.job_period_start,
-              job_period_end: item.job_period_end,
-              industry: item.industry,
-              job_location: item.job_location,
-              description: item.description,
-              is_primary: item.is_primary ?? false,
-            })),
-          },
-        },
-        {
-          category: ExperienceType.EDUCATION,
-          order: 2,
-          mentor_experiences_metadata: {
-            data: (values.educations ?? []).map((item) => ({
-              school: item.school,
-              subject: item.subject,
-              education_period_start: item.education_period_start,
-              education_period_end: item.education_period_end,
-            })),
-          },
-        },
-        {
-          category: ExperienceType.LINK,
-          order: 3,
-          mentor_experiences_metadata: {
-            data: links.map((link) => ({
-              platform: link.platform,
-              url: link.url,
-            })),
-          },
-        },
-      ];
+      // The codec derives both the wire-format experiences batch and the
+      // top-level job_title/company mirror (which consumers like the
+      // profile page, mentor pool card, and reservations read directly
+      // without re-deriving from the experience list) from the same form
+      // values — see experienceCodec.ts.
+      const {
+        experiences,
+        job_title,
+        company: companyFromPrimary,
+      } = encode({
+        workExperiences: values.work_experiences ?? [],
+        educations: values.educations ?? [],
+        personalLinks: links,
+      });
 
       const payload = {
         ...values,
@@ -215,8 +173,9 @@ export function useProfileSubmit({
         company: companyFromPrimary,
         // Three-state semantic on the wire: omit when no experience section
         // changed (backend leaves the column alone); include the full set
-        // when any section is dirty (backend overwrites).
-        ...(experiencesDirty ? { experiences: buildExperiences() } : {}),
+        // when any section is dirty (backend overwrites). Replace semantics:
+        // backend overwrites profiles.experiences wholesale with this batch.
+        ...(experiencesDirty ? { experiences } : {}),
       };
 
       try {
