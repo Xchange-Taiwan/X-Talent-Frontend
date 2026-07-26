@@ -122,8 +122,6 @@ const makeOptions = (
   isMentorOnboarding: false,
   session: mockSession,
   updateSession: vi.fn().mockResolvedValue(mockSession),
-  jobSectionError: false,
-  educationSectionError: false,
   ...overrides,
 });
 
@@ -152,36 +150,6 @@ describe('useProfileSubmit', () => {
     // clear-cache + background-poll fallback. Tests covering the new prime
     // path override this per-case.
     mockFirstSyncedFetch.mockResolvedValue(null);
-  });
-
-  // ── Guard clauses ──────────────────────────────────────────────────────────
-
-  it('jobSectionError: true → returns early, no service is called', async () => {
-    const { result } = renderHook(() =>
-      useProfileSubmit(makeOptions({ jobSectionError: true }))
-    );
-
-    await act(async () => {
-      await result.current.onSubmit(baseValues);
-    });
-
-    expect(mockUpdateProfile).not.toHaveBeenCalled();
-    expect(mockPollUntilSynced).not.toHaveBeenCalled();
-    expect(mockRouter.push).not.toHaveBeenCalled();
-  });
-
-  it('educationSectionError: true → returns early, no service is called', async () => {
-    const { result } = renderHook(() =>
-      useProfileSubmit(makeOptions({ educationSectionError: true }))
-    );
-
-    await act(async () => {
-      await result.current.onSubmit(baseValues);
-    });
-
-    expect(mockUpdateProfile).not.toHaveBeenCalled();
-    expect(mockPollUntilSynced).not.toHaveBeenCalled();
-    expect(mockRouter.push).not.toHaveBeenCalled();
   });
 
   // ── Avatar upload ──────────────────────────────────────────────────────────
