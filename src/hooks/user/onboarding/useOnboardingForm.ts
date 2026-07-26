@@ -187,10 +187,8 @@ export function useOnboardingForm({ industries }: Options) {
         }
       }
 
-      await submitProfile(
-        allData,
-        Boolean(accumulatedFormData.step1?.avatarFile)
-      );
+      const hasNewAvatar = allData.avatar !== session?.user?.avatar;
+      await submitProfile(allData, hasNewAvatar);
 
       trackEvent({ name: 'onboarding_completed', feature: 'onboarding' });
       router.push('/profile/card');

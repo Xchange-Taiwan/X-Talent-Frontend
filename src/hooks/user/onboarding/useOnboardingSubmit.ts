@@ -1,7 +1,6 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { useState } from 'react';
 
 import { buildOnboardingDtoStub } from '@/hooks/user/onboarding/buildOnboardingDtoStub';
 import {
@@ -18,12 +17,10 @@ interface Options {
 }
 
 export function useOnboardingSubmit({ industries }: Options) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const { data: session, update: updateSession } = useSession();
 
   const submitProfile = async (allData: unknown, hasAvatarFile: boolean) => {
     try {
-      setIsSubmitting(true);
       const validatedData = formSchema.parse(allData);
       await updateProfile(validatedData);
 
@@ -64,10 +61,8 @@ export function useOnboardingSubmit({ industries }: Options) {
             : 'Onboarding profile submit failed',
       });
       throw err;
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
-  return { submitProfile, isSubmitting };
+  return { submitProfile };
 }
