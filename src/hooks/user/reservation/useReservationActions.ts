@@ -68,16 +68,36 @@ export function useReservationActions({
     [items]
   );
 
-  const accept = useCallback(
-    async ({ id, message }: { id: string; message: string }) => {
-      if (!myUserId) {
-        throw new Error('[useReservationActions] missing current user id');
-      }
+  /**
+   * Internal async wrapper to centralize lifecycle management and error handling
+   */
+  const executeMutation = useCallback(
+    async (action: () => Promise<void>) => {
       setIsMutating(true);
       try {
+        await action();
+      } catch (err) {
+        toast({
+          variant: 'destructive',
+          title: '錯誤',
+          description: '操作失敗，請稍後再試。',
+        });
+        throw err;
+      } finally {
+        setIsMutating(false);
+      }
+    },
+    [toast]
+  );
+
+  const accept = useCallback(
+    async ({ id, message }: { id: string; message: string }) => {
+      await executeMutation(async () => {
+        if (!myUserId) {
+          throw new Error('[useReservationActions] missing current user id');
+        }
         const it = findItem(id);
         await acceptReservation({
-          id,
           message,
           reservation: it,
           myUserId,
@@ -87,30 +107,19 @@ export function useReservationActions({
           description: '會議連結將於數分鐘內寄至雙方信箱',
         });
         onMutationSuccess?.(id, ACCEPT_AFFECTED_TABS);
-      } catch (err) {
-        toast({
-          variant: 'destructive',
-          title: '錯誤',
-          description: '操作失敗，請稍後再試。',
-        });
-        throw err;
-      } finally {
-        setIsMutating(false);
-      }
+      });
     },
-    [findItem, myUserId, toast, onMutationSuccess]
+    [executeMutation, findItem, myUserId, toast, onMutationSuccess]
   );
 
   const rejectOrCancel = useCallback(
     async (id: string, text: string, successMessage: string) => {
-      if (!myUserId) {
-        throw new Error('[useReservationActions] missing current user id');
-      }
-      setIsMutating(true);
-      try {
+      await executeMutation(async () => {
+        if (!myUserId) {
+          throw new Error('[useReservationActions] missing current user id');
+        }
         const it = findItem(id);
         await rejectOrCancelReservation({
-          id,
           text,
           reservation: it,
           myUserId,
@@ -118,18 +127,9 @@ export function useReservationActions({
         trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
         toast({ description: successMessage });
         onMutationSuccess?.(id, buildRejectOrCancelAffectedTabs(variant));
-      } catch (err) {
-        toast({
-          variant: 'destructive',
-          title: '錯誤',
-          description: '操作失敗，請稍後再試。',
-        });
-        throw err;
-      } finally {
-        setIsMutating(false);
-      }
+      });
     },
-    [findItem, myUserId, variant, toast, onMutationSuccess]
+    [executeMutation, findItem, myUserId, variant, toast, onMutationSuccess]
   );
 
   const buildProfileHref = useCallback(
