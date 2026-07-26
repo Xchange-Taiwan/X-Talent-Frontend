@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+
 export interface UseOverflowFitParams {
   itemWidths: number[];
   containerWidth: number | null;
@@ -56,9 +58,22 @@ export function computeOverflowFit({
 
 /**
  * Custom React Hook that wraps computeOverflowFit for easy use in rendering path.
+ * Leverages useMemo to prevent unneeded recalculations during component re-renders.
  */
-export function useOverflowFit(
-  params: UseOverflowFitParams
-): UseOverflowFitResult {
-  return computeOverflowFit(params);
+export function useOverflowFit({
+  itemWidths,
+  containerWidth,
+  gapPx,
+  reservePx = 0,
+  defaultVisibleCount,
+}: UseOverflowFitParams): UseOverflowFitResult {
+  return useMemo(() => {
+    return computeOverflowFit({
+      itemWidths,
+      containerWidth,
+      gapPx,
+      reservePx,
+      defaultVisibleCount,
+    });
+  }, [itemWidths, containerWidth, gapPx, reservePx, defaultVisibleCount]);
 }
