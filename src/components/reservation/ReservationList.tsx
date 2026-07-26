@@ -10,8 +10,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { ListKey } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
-import { captureFlowFailure } from '@/lib/monitoring';
-import { updateReservationStatus } from '@/services/reservations';
+import {
+  ACCEPT_AFFECTED_TABS,
+  acceptReservation,
+  rejectOrCancelReservation,
+  resolveOtherId,
+} from '@/services/reservations';
 
 import {
   ReservationCard,
@@ -53,21 +57,6 @@ export function ReservationList({
 }) {
   const { toast } = useToast();
 
-  // Accept on pending-mentor: pending-mentor → upcoming-mentor.
-  const ACCEPT_AFFECTED_TABS: ListKey[] = ['pending', 'upcoming'];
-
-  // Reject / cancel always lands the reservation in the role's HISTORY list.
-  // The source state depends on the variant.
-  const buildRejectOrCancelAffectedTabs = (): ListKey[] => {
-    const sourceTab: ListKey | null =
-      variant === 'upcoming'
-        ? 'upcoming'
-        : variant === 'pending-mentor' || variant === 'pending-mentee'
-          ? 'pending'
-          : null;
-    return sourceTab ? [sourceTab, 'history'] : [];
-  };
-
   const findItem = (id: string): Reservation => {
     const found = items.find((x) => x.id === id);
     if (!found)
@@ -75,57 +64,20 @@ export function ReservationList({
     return found;
   };
 
-  // Resolve the other party's user_id based on who is currently logged in
-  const resolveOtherId = (it: Reservation): string | number =>
-    String(it.senderUserId) === myUserId
-      ? it.participantUserId
-      : it.senderUserId;
-
   // Accept a booking request (mentor side, pending-mentor variant)
   const accept = async ({ id, message }: { id: string; message: string }) => {
-    try {
-      if (!myUserId)
-        throw new Error('[ReservationList] missing current user id');
-      const myIdNum = Number(myUserId);
-
-      const it = findItem(id);
-      const otherIdNum = Number(resolveOtherId(it));
-
-      await updateReservationStatus({
-        userId: myUserId,
-        reservationId: id,
-        body: {
-          my_user_id: myIdNum,
-          user_id: otherIdNum,
-          my_status: 'ACCEPT',
-          schedule_id: it.scheduleId,
-          dtstart: it.dtstart,
-          dtend: it.dtend,
-          messages: message.trim()
-            ? [{ user_id: myIdNum, content: message.trim() }]
-            : [],
-        },
-      });
-
-      // TODO: block the accepted time slot so other mentees can't book it.
-      // Blocked by backend: PUT /mentors/:id/schedule returns 422 when a BLOCK
-      // slot overlaps an existing ALLOW slot. Re-enable once backend supports it,
-      // or once GET schedule returns booked_slots so the frontend can filter them.
-
-      toast({
-        title: '已接受預約',
-        description: '會議連結將於數分鐘內寄至雙方信箱',
-      });
-      onMutationSuccess?.(id, ACCEPT_AFFECTED_TABS);
-    } catch (err) {
-      captureFlowFailure({
-        flow: 'reservation_accept',
-        step: 'update_status',
-        message:
-          err instanceof Error ? err.message : 'Failed to accept reservation',
-      });
-      throw err;
-    }
+    const it = findItem(id);
+    await acceptReservation({
+      id,
+      message,
+      reservation: it,
+      myUserId,
+    });
+    toast({
+      title: '已接受預約',
+      description: '會議連結將於數分鐘內寄至雙方信箱',
+    });
+    onMutationSuccess?.(id, ACCEPT_AFFECTED_TABS);
   };
 
   // Shared handler for both reject and cancel (same API call)
@@ -134,47 +86,16 @@ export function ReservationList({
     text: string,
     successMessage: string
   ) => {
-    try {
-      if (!myUserId)
-        throw new Error('[ReservationList] missing current user id');
-      const myIdNum = Number(myUserId);
-
-      const it = findItem(id);
-      const otherIdNum = Number(resolveOtherId(it));
-
-      await updateReservationStatus({
-        userId: myUserId,
-        reservationId: id,
-        body: {
-          my_user_id: myIdNum,
-          user_id: otherIdNum,
-          my_status: 'REJECT',
-          schedule_id: it.scheduleId,
-          dtstart: it.dtstart,
-          dtend: it.dtend,
-          messages: text.trim()
-            ? [{ user_id: myIdNum, content: text.trim() }]
-            : [],
-        },
-      });
-
-      // TODO: remove the BLOCK slot when cancelling an accepted reservation.
-      // Blocked by the same backend limitation as above.
-
-      trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
-      toast({ description: successMessage });
-      onMutationSuccess?.(id, buildRejectOrCancelAffectedTabs());
-    } catch (err) {
-      captureFlowFailure({
-        flow: 'reservation_reject',
-        step: 'update_status',
-        message:
-          err instanceof Error
-            ? err.message
-            : 'Failed to reject/cancel reservation',
-      });
-      throw err;
-    }
+    const it = findItem(id);
+    const { affectedTabs } = await rejectOrCancelReservation({
+      id,
+      text,
+      reservation: it,
+      myUserId,
+      variant,
+    });
+    toast({ description: successMessage });
+    onMutationSuccess?.(id, affectedTabs);
   };
 
   // Build a profile link to the *other* party. Skip when we don't have
@@ -182,7 +103,7 @@ export function ReservationList({
   // resolve to the current user (defensive — shouldn't happen in practice).
   const buildProfileHref = (it: Reservation): string | undefined => {
     if (!myUserId) return undefined;
-    const otherId = resolveOtherId(it);
+    const otherId = resolveOtherId(it, myUserId);
     if (!otherId || String(otherId) === myUserId) return undefined;
     return `/profile/${otherId}`;
   };
