@@ -3,12 +3,8 @@ import { useEffect, useLayoutEffect } from 'react';
 import { UseFormReturn } from 'react-hook-form';
 
 import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
-import {
-  MentorExperiencePayload,
-  toFormValues,
-} from '@/lib/profile/parseUserExperiences';
-import { readIndustryTag } from '@/lib/profile/readIndustryTag';
-import { defaultValues, ProfileFormValues } from '@/schemas/profileSchema';
+import { mapVoToFormValues } from '@/lib/profile/profileSaveAdapter';
+import { ProfileFormValues } from '@/schemas/profileSchema';
 
 interface Options {
   userId: number;
@@ -39,51 +35,10 @@ export function useEditProfileData({
   useLayoutEffect(() => {
     if (!isAuthorized || !userDto) return;
 
-    const mentorFlag = Boolean(userDto.is_mentor || isMentorOnboarding);
-    const experiences =
-      userDto.experiences as unknown as MentorExperiencePayload[];
+    const formValues = mapVoToFormValues(userDto, isMentorOnboarding);
+    form.reset(formValues);
 
-    const {
-      workExperiences: parsedExperiences,
-      educations: parsedEducations,
-      links: parsedLinks,
-    } = toFormValues(experiences);
-
-    // BFF returns industry enriched as a TagVO-shaped object; the OpenAPI
-    // generator types it as `Record<string, never>` because the BFF model
-    // declares it as `Optional[Dict[str, Any]]`.
-    const industryTag = readIndustryTag(userDto.industry);
-    const industrySg = industryTag?.subject_group ?? '';
-
-    // Reset must include every server-driven field so RHF treats them as the
-    // new defaults; otherwise dirtyFields starts non-empty and submit-time
-    // skip optimisations cannot tell what the user actually changed.
-    form.reset({
-      is_mentor: mentorFlag,
-      avatar: userDto.avatar || '',
-      avatarFile: undefined,
-      name: userDto.name || '',
-      location: userDto.location || '',
-      statement: userDto.personal_statement || '',
-      about: userDto.about || '',
-      industry: industrySg,
-      years_of_experience: userDto.years_of_experience || '',
-      work_experiences: parsedExperiences || defaultValues.work_experiences,
-      educations: parsedEducations || defaultValues.educations,
-      linkedin: parsedLinks.linkedin || defaultValues.linkedin,
-      facebook: parsedLinks.facebook || defaultValues.facebook,
-      instagram: parsedLinks.instagram || defaultValues.instagram,
-      twitter: parsedLinks.twitter || defaultValues.twitter,
-      youtube: parsedLinks.youtube || defaultValues.youtube,
-      website: parsedLinks.website || defaultValues.website,
-      have_topic: userDto.have_topic ?? [],
-      have_skill: userDto.have_skill ?? [],
-      want_position: userDto.want_position ?? [],
-      want_skill: userDto.want_skill ?? [],
-      want_topic: userDto.want_topic ?? [],
-    });
-
-    setIsMentor(mentorFlag);
+    setIsMentor(formValues.is_mentor);
     setIsPageLoading(false);
   }, [
     userDto,
