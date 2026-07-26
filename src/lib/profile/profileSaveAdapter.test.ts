@@ -111,6 +111,51 @@ describe('profileSaveAdapter', () => {
       expect(result.work_experiences[0].job).toBe('Engineer');
       expect(result.want_position).toEqual(['Developer']);
     });
+
+    it('correctly falls back to defaults when optional API fields are null or empty', () => {
+      const incompleteVo: MentorProfileVO = {
+        user_id: 99,
+        name: null,
+        avatar: null,
+        job_title: null,
+        company: null,
+        location: null,
+        personal_statement: null,
+        about: null,
+        years_of_experience: null,
+        industry: null,
+        experiences: [],
+        onboarding: false,
+        is_mentor: false,
+        language: 'zh_TW',
+        seniority_level: null,
+        want_position: null,
+        want_skill: null,
+        want_topic: null,
+        have_skill: null,
+        have_topic: null,
+      };
+
+      const result = mapVoToFormValues(incompleteVo, false);
+
+      expect(result.name).toBe('');
+      expect(result.avatar).toBe('');
+      expect(result.location).toBe('');
+      expect(result.statement).toBe('');
+      expect(result.about).toBe('');
+      expect(result.industry).toBe('');
+      expect(result.years_of_experience).toBe('');
+      expect(result.work_experiences).toEqual([]);
+      expect(result.educations).toEqual([]);
+      expect(result.linkedin.url).toBe('');
+      expect(result.facebook.url).toBe('');
+      expect(result.instagram.url).toBe('');
+      expect(result.twitter.url).toBe('');
+      expect(result.youtube.url).toBe('');
+      expect(result.website.url).toBe('');
+      expect(result.have_topic).toEqual([]);
+      expect(result.have_skill).toEqual([]);
+    });
   });
 
   describe('computeDirtyStates', () => {
