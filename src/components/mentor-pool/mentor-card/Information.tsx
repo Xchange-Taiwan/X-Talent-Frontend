@@ -36,14 +36,27 @@ export const Information = ({
     setItemWidths(widths);
     setContainerWidth(containerRef.current.getBoundingClientRect().width);
 
+    let animationFrameId: number | null = null;
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
-      setContainerWidth(entry.contentRect.width);
+
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+      }
+
+      animationFrameId = requestAnimationFrame(() => {
+        setContainerWidth(entry.contentRect.width);
+      });
     });
     observer.observe(containerRef.current);
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
   }, [haveTopicLabels]);
 
   const { visibleCount: visibleTagsCount } = useOverflowFit({
@@ -51,6 +64,7 @@ export const Information = ({
     containerWidth,
     gapPx: TAG_GAP_PX,
     reservePx: EXTRA_BADGE_RESERVE_PX,
+    defaultVisibleCount: haveTopicLabels.length,
   });
 
   const visibleOffers = haveTopicLabels.slice(0, visibleTagsCount);
