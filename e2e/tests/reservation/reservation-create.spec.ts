@@ -11,7 +11,18 @@ const timeFormat: Intl.DateTimeFormatOptions = {
   hour: '2-digit',
   minute: '2-digit',
   hour12: true,
+  timeZone: 'Asia/Taipei',
 };
+
+// Deterministic mock schedule parameters using frozen clock in July 2026
+const DATE_KEY = '2026-07-17';
+// 2026-07-17 15:00:00 in Asia/Taipei timezone is 1784281200 unix seconds
+const DTSTART = 1784281200;
+const DTEND = 1784284800; // 1 hour slot, 16:00:00
+
+// Second slot: 2026-07-17 17:00:00 in Asia/Taipei (1784288400)
+const DTSTART2 = 1784288400;
+const DTEND2 = 1784292000; // 1 hour slot, 18:00:00
 
 // Helper to construct a flat NextAuth JWT Payload
 function makeJWTPayload(userId: string, isMentor: boolean) {
@@ -54,54 +65,17 @@ async function mockSessionGet(page: Page, isMentor: boolean): Promise<void> {
   });
 }
 
-/**
- * Returns a future Date object in the current month.
- * This ensures the slot occurs after Date.now() and is not filtered out as a past slot,
- * whilst keeping it within the current calendar month view.
- */
-function getFutureTimestamp(): Date {
-  const now = new Date();
-  const lastDayOfCurrentMonth = new Date(
-    now.getFullYear(),
-    now.getMonth() + 1,
-    0
-  ).getDate();
-
-  let targetDate = now.getDate() + 1;
-  let targetHour = 15; // 3:00 PM
-
-  if (targetDate > lastDayOfCurrentMonth) {
-    // Today is the last day of the month. Use today but 2 hours in the future.
-    targetDate = now.getDate();
-    targetHour = now.getHours() + 2;
-    if (targetHour >= 24) {
-      targetHour = 23; // Clamp to end of day
-    }
-  }
-
-  return new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    targetDate,
-    targetHour,
-    0,
-    0
-  );
-}
-
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 test.describe('從個人檔案頁建立預約流程', () => {
+  test.beforeEach(async ({ page }) => {
+    // Freeze environment time to July 15, 2026 to prevent end-of-month and timezone flakiness
+    await page.clock.setFixedTime(new Date('2026-07-15T10:00:00+08:00'));
+  });
+
   test('Mentee 選擇一個可預約時段並送出 → 顯示成功狀態且重置輸入', async ({
     page,
   }) => {
-    const futureDate = getFutureTimestamp();
-    const year = futureDate.getFullYear();
-    const month = futureDate.getMonth() + 1;
-
-    const dtstart = Math.floor(futureDate.getTime() / 1000);
-    const dtend = dtstart + 3600; // 1 hour slot
-
     // Sign in as mentee
     await setSignedSessionCookie(page, makeJWTPayload(REAL_MENTEE_ID, false));
     await mockSessionGet(page, false);
@@ -112,8 +86,8 @@ test.describe('從個人檔案頁建立預約流程', () => {
         {
           id: 101,
           dt_type: 'ALLOW',
-          dtstart,
-          dtend,
+          dtstart: DTSTART,
+          dtend: DTEND,
           rrule: null,
           exdate: [],
         },
@@ -121,7 +95,7 @@ test.describe('從個人檔案頁建立預約流程', () => {
     };
     await mockApiRoute(
       page,
-      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/${year}/m/${month}`),
+      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/2026/m/7`),
       { body: { code: '0', msg: 'ok', data: mockScheduleData } }
     );
 
@@ -135,19 +109,20 @@ test.describe('從個人檔案頁建立預約流程', () => {
     // Navigate to mentor profile
     await page.goto(`/profile/${REAL_MENTOR_ID}`);
 
-    // Select the date on calendar (evaluating in browser context to get exact local string format)
-    const dataDayValue = await page.evaluate((ms) => {
-      return new Date(ms).toLocaleDateString();
-    }, futureDate.getTime());
-    const dayButton = page.locator(`button[data-day="${dataDayValue}"]`);
+    // Select the date on calendar (utilizing precise, stable YYYY-MM-DD custom attribute)
+    const dayButton = page.locator(`button[data-day="${DATE_KEY}"]`);
     await expect(dayButton).toBeVisible({ timeout: 15_000 });
     await dayButton.click();
 
     // Find slot button and click
-    const startStr = futureDate.toLocaleTimeString('en-US', timeFormat);
-    const endStr = new Date(
-      futureDate.getTime() + 3600 * 1000
-    ).toLocaleTimeString('en-US', timeFormat);
+    const startStr = new Date(DTSTART * 1000).toLocaleTimeString(
+      'en-US',
+      timeFormat
+    );
+    const endStr = new Date(DTEND * 1000).toLocaleTimeString(
+      'en-US',
+      timeFormat
+    );
     const slotText = `${startStr} – ${endStr}`;
     const slotButton = page.getByRole('button', { name: slotText });
     await expect(slotButton).toBeVisible();
@@ -174,46 +149,34 @@ test.describe('從個人檔案頁建立預約流程', () => {
   test('已被預約的時段（isBooked: true）在日曆/時段列表中不可選', async ({
     page,
   }) => {
-    const futureDate = getFutureTimestamp();
-    const year = futureDate.getFullYear();
-    const month = futureDate.getMonth() + 1;
-
-    // First slot: ALLOW only (available, so the day itself remains enabled)
-    const dtstart = Math.floor(futureDate.getTime() / 1000);
-    const dtend = dtstart + 3600;
-
-    // Second slot: ALLOW + BOOKED (already booked, should show as disabled in timeslot list)
-    const dtstart2 = dtstart + 7200; // 2 hours later
-    const dtend2 = dtstart2 + 3600;
-
     // Sign in as mentee
     await setSignedSessionCookie(page, makeJWTPayload(REAL_MENTEE_ID, false));
     await mockSessionGet(page, false);
 
-    // Mock schedule API
+    // Mock schedule API with an available slot (ALLOW) and a booked slot (ALLOW + BOOKED)
     const mockScheduleData = {
       segments: [
         {
           id: 101,
           dt_type: 'ALLOW',
-          dtstart,
-          dtend,
+          dtstart: DTSTART,
+          dtend: DTEND,
           rrule: null,
           exdate: [],
         },
         {
           id: 102,
           dt_type: 'ALLOW',
-          dtstart: dtstart2,
-          dtend: dtend2,
+          dtstart: DTSTART2,
+          dtend: DTEND2,
           rrule: null,
           exdate: [],
         },
         {
           id: 103,
           dt_type: 'BOOKED',
-          dtstart: dtstart2,
-          dtend: dtend2,
+          dtstart: DTSTART2,
+          dtend: DTEND2,
           rrule: null,
           exdate: [],
         },
@@ -221,27 +184,24 @@ test.describe('從個人檔案頁建立預約流程', () => {
     };
     await mockApiRoute(
       page,
-      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/${year}/m/${month}`),
+      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/2026/m/7`),
       { body: { code: '0', msg: 'ok', data: mockScheduleData } }
     );
 
     // Navigate to mentor profile
     await page.goto(`/profile/${REAL_MENTOR_ID}`);
 
-    // Click on date (evaluating in browser context to get exact local string format)
-    const dataDayValue = await page.evaluate((ms) => {
-      return new Date(ms).toLocaleDateString();
-    }, futureDate.getTime());
-    const dayButton = page.locator(`button[data-day="${dataDayValue}"]`);
+    // Click on date
+    const dayButton = page.locator(`button[data-day="${DATE_KEY}"]`);
     await expect(dayButton).toBeVisible({ timeout: 15_000 });
     await dayButton.click();
 
     // Verify the booked slot button is disabled
-    const startStr = new Date(dtstart2 * 1000).toLocaleTimeString(
+    const startStr = new Date(DTSTART2 * 1000).toLocaleTimeString(
       'en-US',
       timeFormat
     );
-    const endStr = new Date(dtend2 * 1000).toLocaleTimeString(
+    const endStr = new Date(DTEND2 * 1000).toLocaleTimeString(
       'en-US',
       timeFormat
     );
@@ -255,13 +215,6 @@ test.describe('從個人檔案頁建立預約流程', () => {
   test('建立失敗（API 回傳非 code: "0"）→ 顯示錯誤提示且表單維持原狀', async ({
     page,
   }) => {
-    const futureDate = getFutureTimestamp();
-    const year = futureDate.getFullYear();
-    const month = futureDate.getMonth() + 1;
-
-    const dtstart = Math.floor(futureDate.getTime() / 1000);
-    const dtend = dtstart + 3600; // 1 hour slot
-
     // Sign in as mentee
     await setSignedSessionCookie(page, makeJWTPayload(REAL_MENTEE_ID, false));
     await mockSessionGet(page, false);
@@ -272,8 +225,8 @@ test.describe('從個人檔案頁建立預約流程', () => {
         {
           id: 101,
           dt_type: 'ALLOW',
-          dtstart,
-          dtend,
+          dtstart: DTSTART,
+          dtend: DTEND,
           rrule: null,
           exdate: [],
         },
@@ -281,7 +234,7 @@ test.describe('從個人檔案頁建立預約流程', () => {
     };
     await mockApiRoute(
       page,
-      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/${year}/m/${month}`),
+      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/2026/m/7`),
       { body: { code: '0', msg: 'ok', data: mockScheduleData } }
     );
 
@@ -298,19 +251,20 @@ test.describe('從個人檔案頁建立預約流程', () => {
     // Navigate to mentor profile
     await page.goto(`/profile/${REAL_MENTOR_ID}`);
 
-    // Select date (evaluating in browser context to get exact local string format)
-    const dataDayValue = await page.evaluate((ms) => {
-      return new Date(ms).toLocaleDateString();
-    }, futureDate.getTime());
-    const dayButton = page.locator(`button[data-day="${dataDayValue}"]`);
+    // Select date
+    const dayButton = page.locator(`button[data-day="${DATE_KEY}"]`);
     await expect(dayButton).toBeVisible({ timeout: 15_000 });
     await dayButton.click();
 
     // Find slot button and click
-    const startStr = futureDate.toLocaleTimeString('en-US', timeFormat);
-    const endStr = new Date(
-      futureDate.getTime() + 3600 * 1000
-    ).toLocaleTimeString('en-US', timeFormat);
+    const startStr = new Date(DTSTART * 1000).toLocaleTimeString(
+      'en-US',
+      timeFormat
+    );
+    const endStr = new Date(DTEND * 1000).toLocaleTimeString(
+      'en-US',
+      timeFormat
+    );
     const slotText = `${startStr} – ${endStr}`;
     const slotButton = page.getByRole('button', { name: slotText });
     await expect(slotButton).toBeVisible();
@@ -335,10 +289,6 @@ test.describe('從個人檔案頁建立預約流程', () => {
   test('Mentor 檢視自己的個人頁 → 按鈕文案為「預約設定」且開啟的是 MentorScheduleDialog', async ({
     page,
   }) => {
-    const futureDate = getFutureTimestamp();
-    const year = futureDate.getFullYear();
-    const month = futureDate.getMonth() + 1;
-
     // Sign in as mentor (own profile)
     await setSignedSessionCookie(page, makeJWTPayload(REAL_MENTOR_ID, true));
     await mockSessionGet(page, true);
@@ -349,7 +299,7 @@ test.describe('從個人檔案頁建立預約流程', () => {
     };
     await mockApiRoute(
       page,
-      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/${year}/m/${month}`),
+      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/2026/m/7`),
       { body: { code: '0', msg: 'ok', data: mockScheduleData } }
     );
 
