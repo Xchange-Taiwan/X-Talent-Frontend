@@ -21,6 +21,7 @@ export interface MentorPoolPageState {
   hasMore: boolean;
   mentorCount: number;
   isNoResults: boolean;
+  hasError: boolean;
 }
 
 export type MentorPageAction =
@@ -40,6 +41,7 @@ export function applyMentorPage(
         hasMore: page.length === PAGE_LIMIT,
         mentorCount: page.length,
         isNoResults: page.length === 0,
+        hasError: false,
       };
     }
     case 'append': {
@@ -64,6 +66,7 @@ export function applyMentorPage(
         hasMore: page.length === PAGE_LIMIT,
         mentorCount: state.mentorCount + page.length,
         isNoResults: false,
+        hasError: false,
       };
     }
     default:
@@ -76,6 +79,7 @@ interface UseMentorPoolProps {
   initialMentorCount: number;
   params: ReturnType<typeof useSearchParams>;
   labelMap: Map<string, string>;
+  initialError?: boolean;
 }
 
 export function useMentorPool({
@@ -83,6 +87,7 @@ export function useMentorPool({
   initialMentorCount,
   params,
   labelMap,
+  initialError,
 }: UseMentorPoolProps) {
   const { toast } = useToast();
 
@@ -101,8 +106,14 @@ export function useMentorPool({
       hasMore: resolvedInitialMentors.length === PAGE_LIMIT,
       mentorCount: initialMentorCount,
       isNoResults: resolvedInitialMentors.length === 0,
+      hasError: hasInitialFilters ? false : (initialError ?? false),
     }),
-    [resolvedInitialMentors, initialMentorCount]
+    [
+      resolvedInitialMentors,
+      initialMentorCount,
+      hasInitialFilters,
+      initialError,
+    ]
   );
 
   const [pageState, setPageState] = useState<MentorPoolPageState>(() => {
@@ -113,19 +124,27 @@ export function useMentorPool({
         hasMore: true,
         mentorCount: 0,
         isNoResults: false,
+        hasError: false,
       };
     }
     return getInitialUnfilteredState();
   });
 
   const [isLoading, setIsLoading] = useState(hasInitialFilters);
+  const [retryCount, setRetryCount] = useState<number>(0);
 
   const isLoadingRef = useRef(false);
   const requestIdRef = useRef(0);
+  const hasClientFetched = useRef(false);
 
   // Consolidated error handler helper to eliminate duplicated code
   const handleError = useCallback(
-    (myRequestId: number, message: string, error: unknown) => {
+    (
+      myRequestId: number,
+      message: string,
+      error: unknown,
+      isLoadMore = false
+    ) => {
       if (myRequestId !== requestIdRef.current) return;
       console.error(
         message,
@@ -138,6 +157,21 @@ export function useMentorPool({
         title: '載入失敗',
         description: '無法獲取導師，請稍後再試。',
       });
+      setPageState((prev) => {
+        if (!isLoadMore) {
+          return {
+            ...prev,
+            mentors: [],
+            mentorCount: 0,
+            hasError: true,
+            isNoResults: false,
+          };
+        }
+        return {
+          ...prev,
+          hasError: prev.mentors.length === 0,
+        };
+      });
     },
     [toast]
   );
@@ -148,7 +182,10 @@ export function useMentorPool({
   useEffect(() => {
     const myRequestId = ++requestIdRef.current;
 
-    if (!hasAnyCondition(params)) {
+    if (
+      !hasAnyCondition(params) &&
+      !(initialError && (retryCount > 0 || hasClientFetched.current))
+    ) {
       setPageState(getInitialUnfilteredState());
       setIsLoading(false);
       isLoadingRef.current = false;
@@ -162,7 +199,9 @@ export function useMentorPool({
       ...prev,
       isNoResults: false,
       hasMore: false,
+      hasError: false,
     }));
+    hasClientFetched.current = true;
 
     fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' })
       .then((list) => {
@@ -178,9 +217,10 @@ export function useMentorPool({
         handleError(myRequestId, 'Fetch mentors error:', error);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.toString()]);
+  }, [params.toString(), retryCount]);
 
   const fetchMoreMentors = useCallback(async () => {
+    if (isLoadingRef.current) return;
     const myRequestId = ++requestIdRef.current;
     const conditions = paramsToFetchConditions(params);
     const param = {
@@ -199,7 +239,7 @@ export function useMentorPool({
         );
       }
     } catch (error) {
-      handleError(myRequestId, 'Fetch more mentors error:', error);
+      handleError(myRequestId, 'Fetch more mentors error:', error, true);
     } finally {
       if (myRequestId === requestIdRef.current) {
         setIsLoading(false);
@@ -213,6 +253,10 @@ export function useMentorPool({
     await fetchMoreMentors();
   }, [pageState.hasMore, fetchMoreMentors]);
 
+  const handleRetry = useCallback(() => {
+    setRetryCount((prev) => prev + 1);
+  }, []);
+
   // Dynamically translate tag labels inside useMemo on return. This preserves dynamic localization
   // updates (e.g. language switching) without coupling translation state updates to useEffect fetching.
   const mentorsForUI = useMemo(
@@ -224,11 +268,27 @@ export function useMentorPool({
     [pageState.mentors, labelMap]
   );
 
+  const listStatus = useMemo<'loading' | 'error' | 'empty' | 'success'>(() => {
+    if (pageState.mentors.length > 0) return 'success';
+    if (isLoading && !pageState.hasError) return 'loading';
+    if (pageState.hasError) return 'error';
+    if (pageState.isNoResults) return 'empty';
+    return 'loading';
+  }, [
+    pageState.mentors.length,
+    isLoading,
+    pageState.hasError,
+    pageState.isNoResults,
+  ]);
+
   return {
     mentors: mentorsForUI,
     mentorCount: pageState.mentorCount,
     isLoading,
     isNoResults: pageState.isNoResults,
+    hasError: pageState.hasError,
+    listStatus,
     handleScrollToBottom,
+    handleRetry,
   };
 }

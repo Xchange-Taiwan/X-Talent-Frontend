@@ -22,24 +22,20 @@ export async function fetchMentorsServer(
   // with the proper env, instead of throwing a noisy "Invalid URL" during
   // build prerender.
   if (!BASE_URL) return [];
-  try {
-    const fetchOptions = hasMentorRequestConditions(param)
-      ? { cache: 'no-store' as const }
-      : { next: { revalidate: REVALIDATE_SECONDS } };
 
-    const data = await fetchServerJson<
-      components['schemas']['SearchMentorProfileListVO']
-    >('/v1/mentors', {
-      params: param as unknown as Record<
-        string,
-        string | number | boolean | undefined | null
-      >,
-      ...fetchOptions,
-    });
+  const fetchOptions = hasMentorRequestConditions(param)
+    ? { cache: 'no-store' as const }
+    : { next: { revalidate: REVALIDATE_SECONDS } };
 
-    return (data?.mentors ?? []).map(mapMentor);
-  } catch (error) {
-    console.error('SSR fetchMentors error:', error);
-    return [];
-  }
+  const data = await fetchServerJson<
+    components['schemas']['SearchMentorProfileListVO']
+  >('/v1/mentors', {
+    params: param as unknown as Record<
+      string,
+      string | number | boolean | undefined | null
+    >,
+    ...fetchOptions,
+  });
+
+  return (data?.mentors ?? []).map(mapMentor);
 }
