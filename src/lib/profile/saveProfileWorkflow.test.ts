@@ -2,43 +2,8 @@ import { Session } from 'next-auth';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultValues } from '@/schemas/profileSchema';
-import { updateAvatar } from '@/services/profile/updateAvatar';
-import { updateProfile } from '@/services/profile/updateProfile';
 
 import { saveProfileWorkflow } from './saveProfileWorkflow';
-
-vi.mock('@/services/profile/updateProfile', () => ({
-  updateProfile: vi.fn(),
-}));
-
-vi.mock('@/services/profile/updateAvatar', () => ({
-  updateAvatar: vi.fn(),
-}));
-
-vi.mock('@/lib/monitoring', () => ({
-  captureFlowFailure: vi.fn(),
-}));
-
-vi.mock('@/app/profile/[pageUserId]/actions', () => ({
-  revalidateProfilePath: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('@/hooks/user/user-data/useUserData', () => ({
-  clearUserDataCache: vi.fn(),
-  primeUserDataCache: vi.fn(),
-}));
-
-vi.mock('@/lib/avatar/avatarOverrideStore', () => ({
-  setAvatarOverride: vi.fn(),
-}));
-
-vi.mock('@/lib/profile/pollUntilSynced', () => ({
-  firstSyncedFetch: vi.fn().mockResolvedValue(null),
-  pollUntilSynced: vi.fn().mockResolvedValue(null),
-}));
-
-const mockUpdateProfile = vi.mocked(updateProfile);
-const mockUpdateAvatar = vi.mocked(updateAvatar);
 
 const mockSession: Session = {
   user: {
@@ -62,14 +27,27 @@ const baseValues = {
   want_topic: ['frontend'],
 };
 
+const makeMockDeps = (overrides: Partial<any> = {}) => ({
+  updateSession: vi.fn().mockResolvedValue(mockSession),
+  updateProfile: vi.fn().mockResolvedValue(undefined),
+  updateAvatar: vi.fn().mockResolvedValue('https://example.com/new-avatar.jpg'),
+  revalidateProfilePath: vi.fn().mockResolvedValue(undefined),
+  clearUserDataCache: vi.fn(),
+  primeUserDataCache: vi.fn(),
+  setAvatarOverride: vi.fn(),
+  firstSyncedFetch: vi.fn().mockResolvedValue(null),
+  pollUntilSynced: vi.fn().mockResolvedValue(null),
+  captureFlowFailure: vi.fn(),
+  ...overrides,
+});
+
 describe('saveProfileWorkflow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('should successfully run the profile update workflow', async () => {
-    mockUpdateProfile.mockResolvedValueOnce(undefined as unknown as void);
-    const updateSession = vi.fn().mockResolvedValue(mockSession);
+    const deps = makeMockDeps();
 
     const result = await saveProfileWorkflow(
       baseValues,
@@ -78,23 +56,22 @@ describe('saveProfileWorkflow', () => {
         isMentorOnboarding: false,
         session: mockSession,
       },
-      {
-        updateSession,
-      }
+      deps
     );
 
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.warnings).toEqual([]);
     }
-    expect(mockUpdateProfile).toHaveBeenCalled();
-    expect(updateSession).toHaveBeenCalled();
+    expect(deps.updateProfile).toHaveBeenCalled();
+    expect(deps.updateSession).toHaveBeenCalled();
   });
 
   it('should handle avatar upload failure and return error step', async () => {
     const error = new Error('Upload error');
-    mockUpdateAvatar.mockRejectedValueOnce(error);
-    const updateSession = vi.fn().mockResolvedValue(mockSession);
+    const deps = makeMockDeps({
+      updateAvatar: vi.fn().mockRejectedValue(error),
+    });
 
     const result = await saveProfileWorkflow(
       { ...baseValues, avatarFile: new File([], 'avatar.png') },
@@ -103,9 +80,7 @@ describe('saveProfileWorkflow', () => {
         isMentorOnboarding: false,
         session: mockSession,
       },
-      {
-        updateSession,
-      }
+      deps
     );
 
     expect(result.ok).toBe(false);
@@ -113,12 +88,18 @@ describe('saveProfileWorkflow', () => {
       expect(result.step).toBe('avatar_upload');
       expect(result.error).toBe(error);
     }
+    expect(deps.captureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        step: 'avatar_upload',
+      })
+    );
   });
 
   it('should handle profile write failure and return error step', async () => {
     const error = new Error('Database error');
-    mockUpdateProfile.mockRejectedValueOnce(error);
-    const updateSession = vi.fn().mockResolvedValue(mockSession);
+    const deps = makeMockDeps({
+      updateProfile: vi.fn().mockRejectedValue(error),
+    });
 
     const result = await saveProfileWorkflow(
       baseValues,
@@ -127,9 +108,7 @@ describe('saveProfileWorkflow', () => {
         isMentorOnboarding: false,
         session: mockSession,
       },
-      {
-        updateSession,
-      }
+      deps
     );
 
     expect(result.ok).toBe(false);
@@ -137,16 +116,22 @@ describe('saveProfileWorkflow', () => {
       expect(result.step).toBe('profile_write');
       expect(result.error).toBe(error);
     }
+    expect(deps.captureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        step: 'profile_write',
+      })
+    );
   });
 
   it('should continue on soft errors and return warnings (DI test)', async () => {
-    mockUpdateProfile.mockResolvedValueOnce(undefined as unknown as void);
-    const updateSession = vi
-      .fn()
-      .mockRejectedValue(new Error('Session save failed'));
-    const revalidateProfilePath = vi
-      .fn()
-      .mockRejectedValue(new Error('Revalidate failed'));
+    const deps = makeMockDeps({
+      updateSession: vi
+        .fn()
+        .mockRejectedValue(new Error('Session save failed')),
+      revalidateProfilePath: vi
+        .fn()
+        .mockRejectedValue(new Error('Revalidate failed')),
+    });
 
     const result = await saveProfileWorkflow(
       baseValues,
@@ -155,10 +140,7 @@ describe('saveProfileWorkflow', () => {
         isMentorOnboarding: false,
         session: mockSession,
       },
-      {
-        updateSession,
-        revalidateProfilePath,
-      }
+      deps
     );
 
     expect(result.ok).toBe(true);
@@ -169,8 +151,6 @@ describe('saveProfileWorkflow', () => {
   });
 
   it('should run background reconcile and update session when synced state disagrees (DI test)', async () => {
-    mockUpdateProfile.mockResolvedValueOnce(undefined as unknown as void);
-
     let resolveReconcile: (value: unknown) => void = () => {};
     const reconcilePromise = new Promise((resolve) => {
       resolveReconcile = resolve;
@@ -189,8 +169,13 @@ describe('saveProfileWorkflow', () => {
       user_id: 1,
       is_mentor: false, // Disagrees with optimistic isMentor: true
       onboarding: true,
-    };
+    } as any;
     const firstSyncedFetch = vi.fn().mockResolvedValue(syncedDTO);
+
+    const deps = makeMockDeps({
+      updateSession,
+      firstSyncedFetch,
+    });
 
     const result = await saveProfileWorkflow(
       baseValues,
@@ -199,10 +184,7 @@ describe('saveProfileWorkflow', () => {
         isMentorOnboarding: true, // Optimistic isMentor: true, onboarding: true
         session: mockSession,
       },
-      {
-        updateSession,
-        firstSyncedFetch,
-      }
+      deps
     );
 
     expect(result.ok).toBe(true);
@@ -215,5 +197,41 @@ describe('saveProfileWorkflow', () => {
         onBoarding: true,
       },
     });
+  });
+
+  it('should robustly handle exceptions in fire-and-forget background sync task without crash (DI test)', async () => {
+    const firstSyncedFetch = vi
+      .fn()
+      .mockRejectedValue(new Error('Background fetch crashed'));
+    const pollUntilSynced = vi
+      .fn()
+      .mockRejectedValue(new Error('Background poll crashed'));
+    const updateSession = vi.fn().mockResolvedValue(mockSession);
+
+    const deps = makeMockDeps({
+      updateSession,
+      firstSyncedFetch,
+      pollUntilSynced,
+    });
+
+    const result = await saveProfileWorkflow(
+      baseValues,
+      {
+        pageUserId: 'test-user',
+        isMentorOnboarding: false,
+        session: mockSession,
+      },
+      deps
+    );
+
+    expect(result.ok).toBe(true); // Outer workflow must succeed and not be disrupted by fire-and-forget background failure
+
+    // Allow the microtasks of fire-and-forget background async task to execute
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Reconcile or session shouldn't be updated on crashed sync fetch
+    expect(updateSession).toHaveBeenCalledTimes(1); // Only optimistic update is called
   });
 });
