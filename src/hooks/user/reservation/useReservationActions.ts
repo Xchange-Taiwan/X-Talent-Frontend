@@ -11,11 +11,21 @@ import {
   Variant,
 } from '@/services/reservations';
 
-interface UseReservationActionsProps {
+export interface UseReservationActionsProps {
   items: Reservation[];
   myUserId: string;
   variant: Variant;
   onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
+}
+
+export interface UseReservationActionsReturn {
+  accept: (payload: { id: string; message: string }) => Promise<void>;
+  rejectOrCancel: (
+    id: string,
+    text: string,
+    successMessage: string
+  ) => Promise<void>;
+  isMutating: boolean;
 }
 
 export function useReservationActions({
@@ -23,7 +33,7 @@ export function useReservationActions({
   myUserId,
   variant,
   onMutationSuccess,
-}: UseReservationActionsProps) {
+}: UseReservationActionsProps): UseReservationActionsReturn {
   const { toast } = useToast();
   const [isMutating, setIsMutating] = useState(false);
 
@@ -68,6 +78,7 @@ export function useReservationActions({
           title: '錯誤',
           description: '操作失敗，請稍後再試。',
         });
+        throw err;
       } finally {
         setIsMutating(false);
       }
@@ -103,6 +114,7 @@ export function useReservationActions({
           title: '錯誤',
           description: '操作失敗，請稍後再試。',
         });
+        throw err;
       } finally {
         setIsMutating(false);
       }
