@@ -9,8 +9,9 @@ import {
   clearUserDataCache,
   primeUserDataCache,
 } from '@/hooks/user/user-data/useUserData';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { type ProfileDirtyFields } from '@/lib/profile/profileSaveAdapter';
-import { saveProfile } from '@/lib/profile/saveProfile';
+import { LoggedError, saveProfile } from '@/lib/profile/saveProfile';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 
 export type { ProfileDirtyFields };
@@ -67,6 +68,18 @@ export function useProfileSubmit({
         primeUserDataCache,
       });
     } catch (err) {
+      if (!(err instanceof LoggedError)) {
+        captureFlowFailure({
+          flow: 'profile_update',
+          step: 'unexpected',
+          message:
+            err instanceof Error
+              ? err.message
+              : typeof err === 'string'
+                ? err
+                : 'Unexpected profile update error',
+        });
+      }
       console.error('Update Profile Error:', err);
       toast({
         variant: 'destructive',

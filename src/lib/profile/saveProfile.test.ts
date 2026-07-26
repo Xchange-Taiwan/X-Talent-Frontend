@@ -22,15 +22,16 @@ vi.mock('@/lib/avatar/avatarOverrideStore', () => ({
 }));
 
 import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
+import { captureFlowFailure } from '@/lib/monitoring';
 import {
   firstSyncedFetch,
   pollUntilSynced,
 } from '@/lib/profile/pollUntilSynced';
-import { defaultValues } from '@/schemas/profileSchema';
 import { ExperienceType } from '@/services/profile/experienceType';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
 import type { MentorProfileVO } from '@/services/profile/user';
+import { baseValues, mockSession, mockUserDTO } from '@/test/fixtures/profile';
 
 import { saveProfile, SaveProfileDeps } from './saveProfile';
 
@@ -39,56 +40,7 @@ const mockUpdateProfile = vi.mocked(updateProfile);
 const mockPollUntilSynced = vi.mocked(pollUntilSynced);
 const mockFirstSyncedFetch = vi.mocked(firstSyncedFetch);
 const mockSetAvatarOverride = vi.mocked(setAvatarOverride);
-
-const mockUserDTO: MentorProfileVO = {
-  user_id: 1,
-  name: 'Test User',
-  avatar: 'https://example.com/avatar.jpg',
-  job_title: 'Engineer',
-  company: 'Acme',
-  years_of_experience: '1_3',
-  location: 'Taiwan',
-  industry: {
-    id: 1,
-    kind: 'industry',
-    subject_group: 'tech',
-    subject: 'software',
-    language: 'zh_TW',
-  } as unknown as MentorProfileVO['industry'],
-  onboarding: true,
-  is_mentor: true,
-  language: 'zh_TW',
-  personal_statement: null,
-  about: null,
-  seniority_level: null,
-  want_position: null,
-  want_skill: null,
-  want_topic: null,
-  have_skill: null,
-  have_topic: null,
-};
-
-const mockSession: Session = {
-  user: {
-    id: '1',
-    name: 'Test User',
-    email: 'test@example.com',
-    onBoarding: true,
-    isMentor: true,
-  },
-  accessToken: 'mock-token',
-  expires: '2099-01-01T00:00:00.000Z',
-};
-
-const baseValues = {
-  ...defaultValues,
-  name: 'Test User',
-  location: 'Taiwan',
-  years_of_experience: '1_3',
-  want_position: ['engineer'],
-  want_skill: ['TypeScript'],
-  want_topic: ['frontend'],
-};
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 const makeDeps = (
   overrides: Partial<SaveProfileDeps> = {}
@@ -288,24 +240,32 @@ describe('saveProfile (Deep Module)', () => {
 
   // ── Navigation & Sequence ──────────────────────────────────────────────────
 
-  it('isMentorOnboarding: false → deps.navigate("/profile/:pageUserId") and revalidateProfilePath is called before navigate', async () => {
+  it('isMentorOnboarding: false → deps.navigate("/profile/:pageUserId"), and both revalidateProfilePath & updateSession are called before navigate', async () => {
     const navigate = vi.fn();
     const revalidateProfilePath = vi.fn().mockResolvedValue(undefined);
+    const updateSession = vi.fn().mockResolvedValue(mockSession);
     const deps = makeDeps({
       isMentorOnboarding: false,
       navigate,
       revalidateProfilePath,
+      updateSession,
     });
     await saveProfile(baseValues, deps);
 
     expect(navigate).toHaveBeenCalledWith('/profile/test-user-id');
     expect(revalidateProfilePath).toHaveBeenCalledWith('test-user-id');
+    expect(updateSession).toHaveBeenCalled();
+
+    const navigateCallIndex = navigate.mock.invocationCallOrder[0];
 
     // Assert that revalidateProfilePath was invoked before navigate
     const revalidateCallIndex =
       revalidateProfilePath.mock.invocationCallOrder[0];
-    const navigateCallIndex = navigate.mock.invocationCallOrder[0];
     expect(revalidateCallIndex).toBeLessThan(navigateCallIndex);
+
+    // Assert that updateSession was invoked and completed before navigate
+    const updateSessionCallIndex = updateSession.mock.invocationCallOrder[0];
+    expect(updateSessionCallIndex).toBeLessThan(navigateCallIndex);
 
     await Promise.resolve();
     await Promise.resolve();
@@ -581,6 +541,89 @@ describe('saveProfile (Deep Module)', () => {
         company: 'Dell',
       })
     );
+
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  // ── Background task failure handling ───────────────────────────────────────
+
+  it('background reconciliation failure (firstSyncedFetch throws) → quietly caught and logged', async () => {
+    mockFirstSyncedFetch.mockRejectedValueOnce(new Error('Sync fetch failed'));
+
+    const deps = makeDeps({
+      session: {
+        ...mockSession,
+        user: { ...mockSession.user!, id: '1' },
+      },
+    });
+    await saveProfile(baseValues, deps);
+
+    // Let background IIFE task execute
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'profile_update',
+        step: 'background_reconcile',
+        message: 'Error: Sync fetch failed',
+      })
+    );
+  });
+
+  it('background reconciliation failure (pollUntilSynced throws) → quietly caught and logged', async () => {
+    mockFirstSyncedFetch.mockResolvedValueOnce(null);
+    mockPollUntilSynced.mockRejectedValueOnce(new Error('Polling failed'));
+
+    const deps = makeDeps({
+      session: {
+        ...mockSession,
+        user: { ...mockSession.user!, id: '1' },
+      },
+    });
+    await saveProfile(baseValues, deps);
+
+    // Let background IIFE task execute
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'profile_update',
+        step: 'background_reconcile',
+        message: 'Error: Polling failed',
+      })
+    );
+  });
+
+  // ── Fault Tolerance for non-blocking secondary operations ──────────────────
+
+  it('revalidateProfilePath throws → does not block saveProfile main flow or navigation', async () => {
+    const navigate = vi.fn();
+    const revalidateProfilePath = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Revalidate failed'));
+    const deps = makeDeps({ navigate, revalidateProfilePath });
+
+    await expect(saveProfile(baseValues, deps)).resolves.not.toThrow();
+
+    expect(navigate).toHaveBeenCalledWith('/profile/test-user-id');
+
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  it('updateSession throws → does not block saveProfile main flow or navigation', async () => {
+    const navigate = vi.fn();
+    const updateSession = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Update session failed'));
+    const deps = makeDeps({ navigate, updateSession });
+
+    await expect(saveProfile(baseValues, deps)).resolves.not.toThrow();
+
+    expect(navigate).toHaveBeenCalledWith('/profile/test-user-id');
 
     await Promise.resolve();
     await Promise.resolve();
