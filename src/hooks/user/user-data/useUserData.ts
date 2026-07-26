@@ -7,12 +7,12 @@ import {
   type PersonalLinkMetadata,
   type WorkExperienceMetadata,
 } from '@/lib/profile/experienceCodec';
+import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import {
   buildTagLabelMap,
   type TagCatalogsByBucket,
 } from '@/services/profile/tagCatalog';
 import { MentorProfileVO } from '@/services/profile/user';
-import type { TagVO } from '@/types/tag';
 
 import {
   clearUserProfileDtoCache,
@@ -81,7 +81,7 @@ function parseUserDtoToUserType(
 
   // BFF emits industry enriched (TagVO-shaped); OpenAPI types it as
   // `Record<string, never>`. Pull subject through the local TagVO type.
-  const industryTag = userDto.industry as unknown as TagVO | null | undefined;
+  const industryTag = readIndustryTag(userDto.industry);
 
   return {
     user_id: userDto.user_id,
