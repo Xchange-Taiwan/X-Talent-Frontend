@@ -1,35 +1,26 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useTransition,
-} from 'react';
+import { useCallback, useMemo, useTransition } from 'react';
 
 import type {
   FilterOptions,
   SelectFilters,
 } from '@/components/filter/MentorFilterDropdown';
+import { useMentorPool } from '@/hooks/useMentorPool';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { trackEvent } from '@/lib/analytics';
-import type {
-  TagCatalogGroupVO,
-  TagCatalogsByBucket,
+import {
+  buildTagLabelMap,
+  type TagCatalogGroupVO,
+  type TagCatalogsByBucket,
 } from '@/services/profile/tagCatalog';
-import { resolveMentorAvatar } from '@/services/search-mentor/mapMentor';
-import { fetchMentors, MentorType } from '@/services/search-mentor/mentors';
+import type { MentorType } from '@/services/search-mentor/mentors';
 
-import { PAGE_LIMIT } from './constants';
 import { filterOptions } from './data';
 import {
   buildHref,
   clearAllConditions,
-  hasAnyCondition,
-  paramsToFetchConditions,
   parseFiltersFromParams,
   removeFilterFromParams,
   setSelectedFiltersOnParams,
@@ -99,116 +90,17 @@ export default function MentorPoolContainer({
     [tagCatalog.have_skill, tagCatalog.have_topic, tagCatalog.industry]
   );
 
-  // /v1/mentors returns have_topic as subject_group codes (e.g.
-  // "promotion_review"), not the localized labels — translate via the catalog
-  // so cards show the zh_TW subject (e.g. "升遷考核制度"). Falls back to the
-  // code if a tag isn't in the catalog (legacy or unpublished tag).
-  const haveTopicLabelMap = useMemo(() => {
-    const map = new Map<string, string>();
-    tagCatalog.have_topic.forEach((g) =>
-      g.leaves.forEach((l) => map.set(l.subject_group, l.subject))
-    );
-    return map;
-  }, [tagCatalog.have_topic]);
+  const labelMap = useMemo(() => buildTagLabelMap(tagCatalog), [tagCatalog]);
 
-  // initialMentors is always the unfiltered list — a filtered deep link
-  // must not render it even for a frame, so start empty/loading instead.
-  const hasInitialFilters = hasAnyCondition(params);
-  const [mentorCount, setMentorCount] = useState<number>(
-    hasInitialFilters ? 0 : initialMentorCount
-  );
-  const [mentors, setMentors] = useState<MentorType[]>(
-    hasInitialFilters ? [] : initialMentors
-  );
-  const [isNoResults, setIsNoResults] = useState(
-    hasInitialFilters ? false : initialMentors.length === 0
-  );
-  const [isLoading, setIsLoading] = useState(hasInitialFilters);
-  const [cursor, setCursor] = useState<string | undefined>(
-    hasInitialFilters ? undefined : initialCursor
-  );
-  const isLoadingRef = useRef(false);
-  // Monotonic counter — every fetch claims an id. Late responses whose id no
-  // longer matches the current value are stale and must not touch state.
-  const requestIdRef = useRef(0);
-
-  // Refetches on every params change, including initial mount, since
-  // MentorPoolWithData no longer refetches per request. Clearing filters
-  // reuses `initial*` (already the unfiltered snapshot) instead of a fetch.
-  useEffect(() => {
-    const myRequestId = ++requestIdRef.current;
-
-    if (!hasAnyCondition(params)) {
-      setMentors(initialMentors);
-      setMentorCount(initialMentorCount);
-      setCursor(initialCursor);
-      setIsNoResults(initialMentors.length === 0);
-      setIsLoading(false);
-      isLoadingRef.current = false;
-      return;
-    }
-
-    const conditions = paramsToFetchConditions(params);
-    setIsLoading(true);
-    isLoadingRef.current = true;
-    setIsNoResults(false);
-
-    fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' }).then(
-      (list) => {
-        if (myRequestId !== requestIdRef.current) return;
-        const resolved = list.map(resolveMentorAvatar);
-        setMentors(resolved);
-        setMentorCount(resolved.length);
-        setCursor(resolved.at(-1)?.updated_at?.toString());
-        setIsNoResults(resolved.length === 0);
-        setIsLoading(false);
-        isLoadingRef.current = false;
-      }
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.toString()]);
-
-  const fetchMoreMentors = useCallback(async () => {
-    const myRequestId = ++requestIdRef.current;
-    const conditions = paramsToFetchConditions(params);
-    const param = {
-      ...conditions,
-      limit: PAGE_LIMIT,
-      cursor,
-    };
-    setIsLoading(true);
-    isLoadingRef.current = true;
-    let rtnList: MentorType[] = [];
-    try {
-      rtnList = (await fetchMentors(param)).map(resolveMentorAvatar);
-    } finally {
-      if (myRequestId === requestIdRef.current) {
-        setIsLoading(false);
-        isLoadingRef.current = false;
-      }
-    }
-    if (myRequestId !== requestIdRef.current) return;
-    if (rtnList.length > 0) {
-      setMentors((prevMentors) => {
-        const newMentors = rtnList.filter(
-          (newMentor) =>
-            !prevMentors.some(
-              (prevMentor) => prevMentor.user_id === newMentor.user_id
-            )
-        );
-        return [...prevMentors, ...newMentors];
-      });
-      setMentorCount((prev) => prev + rtnList.length);
-      setCursor(rtnList.at(-1)?.updated_at?.toString());
-      return;
-    }
-    setIsNoResults(true);
-  }, [params, cursor]);
-
-  const handleScrollToBottom = useCallback(async () => {
-    if (mentors.length % PAGE_LIMIT || isLoadingRef.current) return;
-    await fetchMoreMentors();
-  }, [mentors.length, fetchMoreMentors]);
+  // All state management, pagination tracking, and error handling are delegated to custom hook
+  const { mentors, mentorCount, isLoading, isNoResults, handleScrollToBottom } =
+    useMentorPool({
+      initialMentors,
+      initialCursor,
+      initialMentorCount,
+      params,
+      labelMap,
+    });
 
   const handleFilterChange = useCallback(
     (filters: SelectFilters) => {
@@ -238,18 +130,9 @@ export default function MentorPoolContainer({
     });
   }, [params, router]);
 
-  const mentorsForUI = useMemo(
-    () =>
-      mentors.map((m) => ({
-        ...m,
-        have_topic: m.have_topic.map((c) => haveTopicLabelMap.get(c) ?? c),
-      })),
-    [mentors, haveTopicLabelMap]
-  );
-
   return (
     <MentorPoolUI
-      mentors={mentorsForUI}
+      mentors={mentors}
       mentorCount={mentorCount}
       isLoading={isLoading}
       isReplacing={isPending}

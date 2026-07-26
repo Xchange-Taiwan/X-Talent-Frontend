@@ -1,5 +1,4 @@
 import { fetchTagCatalogServer } from '@/services/profile/tagCatalog.server';
-import { resolveMentorAvatar } from '@/services/search-mentor/mapMentor';
 import { fetchMentorsServer } from '@/services/search-mentor/mentors.server';
 
 import { PAGE_LIMIT } from './constants';
@@ -8,7 +7,7 @@ import MentorPoolContainer from './container';
 // Always fetches the unfiltered listing so this route stays ISR-cacheable;
 // filtered/search results are fetched client-side by MentorPoolContainer.
 export default async function MentorPoolWithData() {
-  const [mentors, initialTagCatalog] = await Promise.all([
+  const [initialMentors, initialTagCatalog] = await Promise.all([
     fetchMentorsServer({
       search_pattern: '',
       limit: PAGE_LIMIT,
@@ -16,7 +15,6 @@ export default async function MentorPoolWithData() {
     }),
     fetchTagCatalogServer('zh_TW'),
   ]);
-  const initialMentors = mentors.map(resolveMentorAvatar);
   const initialCursor = initialMentors.at(-1)?.updated_at?.toString() ?? '';
 
   return (
