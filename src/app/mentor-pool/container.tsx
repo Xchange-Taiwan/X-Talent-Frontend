@@ -16,11 +16,12 @@ import type {
 } from '@/components/filter/MentorFilterDropdown';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { trackEvent } from '@/lib/analytics';
-import type {
-  TagCatalogGroupVO,
-  TagCatalogsByBucket,
+import {
+  buildTagLabelMap,
+  type TagCatalogGroupVO,
+  type TagCatalogsByBucket,
 } from '@/services/profile/tagCatalog';
-import { resolveMentorAvatar } from '@/services/search-mentor/mapMentor';
+import { resolveMentor } from '@/services/search-mentor/mapMentor';
 import { fetchMentors, MentorType } from '@/services/search-mentor/mentors';
 
 import { PAGE_LIMIT } from './constants';
@@ -99,17 +100,7 @@ export default function MentorPoolContainer({
     [tagCatalog.have_skill, tagCatalog.have_topic, tagCatalog.industry]
   );
 
-  // /v1/mentors returns have_topic as subject_group codes (e.g.
-  // "promotion_review"), not the localized labels — translate via the catalog
-  // so cards show the zh_TW subject (e.g. "升遷考核制度"). Falls back to the
-  // code if a tag isn't in the catalog (legacy or unpublished tag).
-  const haveTopicLabelMap = useMemo(() => {
-    const map = new Map<string, string>();
-    tagCatalog.have_topic.forEach((g) =>
-      g.leaves.forEach((l) => map.set(l.subject_group, l.subject))
-    );
-    return map;
-  }, [tagCatalog.have_topic]);
+  const labelMap = useMemo(() => buildTagLabelMap(tagCatalog), [tagCatalog]);
 
   // initialMentors is always the unfiltered list — a filtered deep link
   // must not render it even for a frame, so start empty/loading instead.
@@ -156,7 +147,7 @@ export default function MentorPoolContainer({
     fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' }).then(
       (list) => {
         if (myRequestId !== requestIdRef.current) return;
-        const resolved = list.map(resolveMentorAvatar);
+        const resolved = list.map((m) => resolveMentor(m, labelMap));
         setMentors(resolved);
         setMentorCount(resolved.length);
         setCursor(resolved.at(-1)?.updated_at?.toString());
@@ -166,7 +157,7 @@ export default function MentorPoolContainer({
       }
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.toString()]);
+  }, [params.toString(), labelMap]);
 
   const fetchMoreMentors = useCallback(async () => {
     const myRequestId = ++requestIdRef.current;
@@ -180,7 +171,9 @@ export default function MentorPoolContainer({
     isLoadingRef.current = true;
     let rtnList: MentorType[] = [];
     try {
-      rtnList = (await fetchMentors(param)).map(resolveMentorAvatar);
+      rtnList = (await fetchMentors(param)).map((m) =>
+        resolveMentor(m, labelMap)
+      );
     } finally {
       if (myRequestId === requestIdRef.current) {
         setIsLoading(false);
@@ -203,7 +196,7 @@ export default function MentorPoolContainer({
       return;
     }
     setIsNoResults(true);
-  }, [params, cursor]);
+  }, [params, cursor, labelMap]);
 
   const handleScrollToBottom = useCallback(async () => {
     if (mentors.length % PAGE_LIMIT || isLoadingRef.current) return;
@@ -238,18 +231,9 @@ export default function MentorPoolContainer({
     });
   }, [params, router]);
 
-  const mentorsForUI = useMemo(
-    () =>
-      mentors.map((m) => ({
-        ...m,
-        have_topic: m.have_topic.map((c) => haveTopicLabelMap.get(c) ?? c),
-      })),
-    [mentors, haveTopicLabelMap]
-  );
-
   return (
     <MentorPoolUI
-      mentors={mentorsForUI}
+      mentors={mentors}
       mentorCount={mentorCount}
       isLoading={isLoading}
       isReplacing={isPending}

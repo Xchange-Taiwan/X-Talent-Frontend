@@ -1,5 +1,6 @@
+import { buildTagLabelMap } from '@/services/profile/tagCatalog';
 import { fetchTagCatalogServer } from '@/services/profile/tagCatalog.server';
-import { resolveMentorAvatar } from '@/services/search-mentor/mapMentor';
+import { resolveMentor } from '@/services/search-mentor/mapMentor';
 import { fetchMentorsServer } from '@/services/search-mentor/mentors.server';
 
 import { PAGE_LIMIT } from './constants';
@@ -16,7 +17,8 @@ export default async function MentorPoolWithData() {
     }),
     fetchTagCatalogServer('zh_TW'),
   ]);
-  const initialMentors = mentors.map(resolveMentorAvatar);
+  const labelMap = buildTagLabelMap(initialTagCatalog);
+  const initialMentors = mentors.map((m) => resolveMentor(m, labelMap));
   const initialCursor = initialMentors.at(-1)?.updated_at?.toString() ?? '';
 
   return (
