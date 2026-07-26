@@ -548,6 +548,7 @@ describe('useMentorPool', () => {
     // CRITICAL ASSERTIONS: mentors must be empty, and hasError must be true!
     expect(result.current.mentors).toEqual([]);
     expect(result.current.hasError).toBe(true);
+    expect(result.current.mentorCount).toBe(0);
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
       title: '載入失敗',

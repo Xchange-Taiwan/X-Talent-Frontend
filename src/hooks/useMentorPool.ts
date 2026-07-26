@@ -162,6 +162,7 @@ export function useMentorPool({
           return {
             ...prev,
             mentors: [],
+            mentorCount: 0,
             hasError: true,
             isNoResults: false,
           };
