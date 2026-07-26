@@ -17,8 +17,9 @@ export interface RepeatablePeriodConfig<K extends RepeatableArrayPath> {
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
-const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR - 1940 + 1 }, (_, i) =>
-  (CURRENT_YEAR - i).toString()
+export const YEAR_OPTIONS = Array.from(
+  { length: CURRENT_YEAR - 1940 + 1 },
+  (_, i) => (CURRENT_YEAR - i).toString()
 );
 
 const checkIsInvalid = (
@@ -26,6 +27,14 @@ const checkIsInvalid = (
   end: string | undefined
 ): boolean => {
   return !!(start && end && end !== 'now' && Number(start) > Number(end));
+};
+
+const getPeriodString = (item: unknown, key: string): string | undefined => {
+  if (item && typeof item === 'object' && key in item) {
+    const val = (item as Record<string, unknown>)[key];
+    return typeof val === 'string' ? val : undefined;
+  }
+  return undefined;
 };
 
 export function useRepeatablePeriodSection<K extends RepeatableArrayPath>(
@@ -48,13 +57,10 @@ export function useRepeatablePeriodSection<K extends RepeatableArrayPath>(
 
   useEffect(() => {
     let hasError = false;
-    const items = watchedItems as unknown as
-      | Array<Record<string, unknown>>
-      | undefined;
-    if (items) {
-      for (const item of items) {
-        const start = item?.[config.periodStartKey] as string | undefined;
-        const end = item?.[config.periodEndKey] as string | undefined;
+    if (watchedItems) {
+      for (const item of watchedItems) {
+        const start = getPeriodString(item, config.periodStartKey);
+        const end = getPeriodString(item, config.periodEndKey);
         if (checkIsInvalid(start, end)) {
           hasError = true;
           break;
@@ -70,13 +76,10 @@ export function useRepeatablePeriodSection<K extends RepeatableArrayPath>(
   ]);
 
   const isInvalidPeriod = (index: number): boolean => {
-    const items = watchedItems as unknown as
-      | Array<Record<string, unknown>>
-      | undefined;
-    const item = items?.[index];
+    const item = watchedItems?.[index];
     if (!item) return false;
-    const start = item[config.periodStartKey] as string | undefined;
-    const end = item[config.periodEndKey] as string | undefined;
+    const start = getPeriodString(item, config.periodStartKey);
+    const end = getPeriodString(item, config.periodEndKey);
     return checkIsInvalid(start, end);
   };
 
@@ -98,7 +101,6 @@ export function useRepeatablePeriodSection<K extends RepeatableArrayPath>(
   return {
     fields,
     move,
-    YEAR_OPTIONS,
     isInvalidPeriod,
     tryAppend,
     remove,
