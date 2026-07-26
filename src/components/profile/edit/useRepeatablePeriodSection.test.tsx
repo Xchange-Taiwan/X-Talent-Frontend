@@ -159,4 +159,48 @@ describe('useRepeatablePeriodSection', () => {
     expect(onValidationChange).toHaveBeenCalledWith(true);
     expect(result.current.hookResult.isInvalidPeriod(0)).toBe(true);
   });
+
+  it('allows "now" as a valid end period without triggering error', () => {
+    const onValidationChange = vi.fn();
+    const result = setupHook(
+      {
+        work_experiences: [
+          {
+            id: 1,
+            job: 'Engineer',
+            company: 'X',
+            job_period_start: '2022',
+            job_period_end: 'now',
+          } as unknown as ProfileFormValues['work_experiences'][number],
+        ],
+      },
+      {},
+      onValidationChange
+    );
+
+    expect(onValidationChange).toHaveBeenCalledWith(false);
+    expect(result.current.hookResult.isInvalidPeriod(0)).toBe(false);
+  });
+
+  it('allows valid sequential year periods without triggering error', () => {
+    const onValidationChange = vi.fn();
+    const result = setupHook(
+      {
+        work_experiences: [
+          {
+            id: 1,
+            job: 'Engineer',
+            company: 'X',
+            job_period_start: '2020',
+            job_period_end: '2025',
+          } as unknown as ProfileFormValues['work_experiences'][number],
+        ],
+      },
+      {},
+      onValidationChange
+    );
+
+    expect(onValidationChange).toHaveBeenCalledWith(false);
+    expect(result.current.hookResult.isInvalidPeriod(0)).toBe(false);
+  });
 });

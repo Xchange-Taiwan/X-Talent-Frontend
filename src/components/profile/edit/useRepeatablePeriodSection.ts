@@ -1,5 +1,10 @@
 import { useEffect } from 'react';
-import { useFieldArray, UseFormReturn, useWatch } from 'react-hook-form';
+import {
+  FieldPath,
+  useFieldArray,
+  UseFormReturn,
+  useWatch,
+} from 'react-hook-form';
 
 import { ProfileFormValues } from '@/schemas/profileSchema';
 
@@ -20,6 +25,13 @@ const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR - 1940 + 1 }, (_, i) =>
   (CURRENT_YEAR - i).toString()
 );
 
+const checkIsInvalid = (
+  start: string | undefined,
+  end: string | undefined
+): boolean => {
+  return !!(start && end && end !== 'now' && Number(start) > Number(end));
+};
+
 export function useRepeatablePeriodSection<K extends RepeatableArrayPath>(
   form: UseFormReturn<ProfileFormValues>,
   config: RepeatablePeriodConfig<K>,
@@ -32,35 +44,35 @@ export function useRepeatablePeriodSection<K extends RepeatableArrayPath>(
     name: config.arrayName,
   });
 
-  const watchedItems = useWatch({
-    control,
-    name: config.arrayName,
-  }) as ProfileFormValues[K] | undefined;
-
-  useEffect(() => {
-    const hasError = (
-      watchedItems as unknown as Array<Record<string, unknown>> | undefined
-    )?.some((item) => {
-      const start = item?.[config.periodStartKey] as string | undefined;
-      const end = item?.[config.periodEndKey] as string | undefined;
-      return start && end && end !== 'now' && Number(start) > Number(end);
-    });
-    onValidationChange(!!hasError);
-  }, [
-    watchedItems,
-    config.periodStartKey,
-    config.periodEndKey,
-    onValidationChange,
+  // Optimize re-renders by only watching start and end keys of the items
+  const watchPaths = fields.flatMap((_, index) => [
+    `${config.arrayName}.${index}.${config.periodStartKey}`,
+    `${config.arrayName}.${index}.${config.periodEndKey}`,
   ]);
 
+  const watchedValues = useWatch({
+    control,
+    name: watchPaths as unknown as readonly FieldPath<ProfileFormValues>[],
+  }) as string[] | undefined;
+
+  useEffect(() => {
+    let hasError = false;
+    for (let i = 0; i < fields.length; i++) {
+      const start = watchedValues?.[i * 2];
+      const end = watchedValues?.[i * 2 + 1];
+      if (checkIsInvalid(start, end)) {
+        hasError = true;
+        break;
+      }
+    }
+    onValidationChange(hasError);
+  }, [watchedValues, fields.length, onValidationChange]);
+
   const isInvalidPeriod = (index: number): boolean => {
-    const item = (
-      watchedItems as unknown as Array<Record<string, unknown>> | undefined
-    )?.[index];
-    if (!item) return false;
-    const start = item[config.periodStartKey] as string | undefined;
-    const end = item[config.periodEndKey] as string | undefined;
-    return !!(start && end && end !== 'now' && Number(start) > Number(end));
+    if (!watchedValues) return false;
+    const start = watchedValues[index * 2];
+    const end = watchedValues[index * 2 + 1];
+    return checkIsInvalid(start, end);
   };
 
   const tryAppend = (defaultValue: ProfileFormValues[K][number]) => {
