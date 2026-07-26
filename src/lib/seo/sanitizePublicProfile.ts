@@ -57,8 +57,8 @@ function pickCurrentJob(
     workExperiences.find((entry) => entry.is_primary) ?? workExperiences[0];
 
   return {
-    jobTitle: current.job || profile.job_title || '',
-    company: current.company || profile.company || '',
+    jobTitle: current.job ?? profile.job_title ?? '',
+    company: current.company ?? profile.company ?? '',
   };
 }
 
@@ -105,7 +105,9 @@ export function sanitizePublicProfile(
   labelMap?: Map<string, string>
 ): PublicMentorProfile {
   const decoded = decode(
-    profile.experiences as unknown as MentorExperiencePayload[] | undefined
+    (profile.experiences ?? undefined) as unknown as
+      | MentorExperiencePayload[]
+      | undefined
   );
 
   const { jobTitle, company } = pickCurrentJob(
