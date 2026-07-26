@@ -24,7 +24,11 @@ import {
 import { mockSearchParams } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
 
-import { useMentorPool } from './useMentorPool';
+import {
+  applyMentorPage,
+  type MentorPoolPageState,
+  useMentorPool,
+} from './useMentorPool';
 
 const mockFetchMentors = vi.mocked(fetchMentors);
 
@@ -66,7 +70,6 @@ describe('useMentorPool', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: mockInitialMentors,
-        initialCursor: '100',
         initialMentorCount: 1,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -118,7 +121,6 @@ describe('useMentorPool', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: mockInitialMentors,
-        initialCursor: '100',
         initialMentorCount: 1,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -160,7 +162,6 @@ describe('useMentorPool', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: mockInitialMentors,
-        initialCursor: '100',
         initialMentorCount: 1,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -214,7 +215,6 @@ describe('useMentorPool', () => {
     const { result, rerender } = renderHook(() =>
       useMentorPool({
         initialMentors: mockInitialMentors,
-        initialCursor: '100',
         initialMentorCount: 1,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -272,7 +272,6 @@ describe('useMentorPool', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: largeInitialMentors,
-        initialCursor: '100',
         initialMentorCount: PAGE_LIMIT,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -306,7 +305,6 @@ describe('useMentorPool', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: largeInitialMentors,
-        initialCursor: '100',
         initialMentorCount: PAGE_LIMIT,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -350,7 +348,6 @@ describe('useMentorPool', () => {
     const { result, rerender } = renderHook(() =>
       useMentorPool({
         initialMentors: mockInitialMentors,
-        initialCursor: '100',
         initialMentorCount: 1,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -408,7 +405,6 @@ describe('useMentorPool', () => {
     const { result, rerender } = renderHook(() =>
       useMentorPool({
         initialMentors: mockInitialMentors,
-        initialCursor: '100',
         initialMentorCount: 1,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -454,7 +450,6 @@ describe('useMentorPool', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: [],
-        initialCursor: '',
         initialMentorCount: 0,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -486,7 +481,6 @@ describe('useMentorPool', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: [],
-        initialCursor: '',
         initialMentorCount: 0,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -528,7 +522,6 @@ describe('useMentorPool', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: largeInitialMentors,
-        initialCursor: '100',
         initialMentorCount: PAGE_LIMIT,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -573,7 +566,6 @@ describe('useMentorPool', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: [],
-        initialCursor: '',
         initialMentorCount: 0,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -620,7 +612,6 @@ describe('useMentorPool', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: [],
-        initialCursor: '',
         initialMentorCount: 0,
         params: mockSearchParams as unknown as ReadonlyURLSearchParams,
         labelMap: testLabelMap,
@@ -658,5 +649,100 @@ describe('useMentorPool', () => {
     expect(result.current.mentors.length).toBe(1);
     expect(result.current.mentors[0].name).toBe('Initial Mentor');
     expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('applyMentorPage', () => {
+  const initialPageState: MentorPoolPageState = {
+    mentors: [],
+    cursor: undefined,
+    hasMore: true,
+    mentorCount: 0,
+    isNoResults: false,
+  };
+
+  const sampleMentor: MentorType = {
+    user_id: 10,
+    name: 'Sample',
+    avatar: '',
+    job_title: '',
+    company: '',
+    years_of_experience: '',
+    location: '',
+    personal_statement: '',
+    about: '',
+    seniority_level: '',
+    industry: null,
+    want_position: [],
+    want_skill: [],
+    want_topic: [],
+    have_skill: [],
+    have_topic: [],
+    updated_at: 1000,
+  };
+
+  it('handles replace action with non-empty page', () => {
+    const action = { type: 'replace' as const, page: [sampleMentor] };
+    const nextState = applyMentorPage(initialPageState, action);
+
+    expect(nextState.mentors).toEqual([sampleMentor]);
+    expect(nextState.cursor).toBe('1000');
+    expect(nextState.hasMore).toBe(false); // as page length 1 !== PAGE_LIMIT (9)
+    expect(nextState.mentorCount).toBe(1);
+    expect(nextState.isNoResults).toBe(false);
+  });
+
+  it('handles replace action with empty page', () => {
+    const action = { type: 'replace' as const, page: [] };
+    const nextState = applyMentorPage(initialPageState, action);
+
+    expect(nextState.mentors).toEqual([]);
+    expect(nextState.cursor).toBeUndefined();
+    expect(nextState.hasMore).toBe(false);
+    expect(nextState.mentorCount).toBe(0);
+    expect(nextState.isNoResults).toBe(true);
+  });
+
+  it('handles append action with empty page by setting hasMore to false', () => {
+    const state: MentorPoolPageState = {
+      mentors: [sampleMentor],
+      cursor: '1000',
+      hasMore: true,
+      mentorCount: 1,
+      isNoResults: false,
+    };
+    const action = { type: 'append' as const, page: [] };
+    const nextState = applyMentorPage(state, action);
+
+    expect(nextState.mentors).toEqual([sampleMentor]);
+    expect(nextState.cursor).toBe('1000');
+    expect(nextState.hasMore).toBe(false);
+    expect(nextState.mentorCount).toBe(1);
+    expect(nextState.isNoResults).toBe(false);
+  });
+
+  it('handles append action with non-empty page, filters duplicates, and updates count/cursor', () => {
+    const state: MentorPoolPageState = {
+      mentors: [sampleMentor],
+      cursor: '1000',
+      hasMore: true,
+      mentorCount: 1,
+      isNoResults: false,
+    };
+
+    const duplicateMentor = { ...sampleMentor };
+    const newMentor = { ...sampleMentor, user_id: 11, updated_at: 1100 };
+
+    const action = {
+      type: 'append' as const,
+      page: [duplicateMentor, newMentor],
+    };
+    const nextState = applyMentorPage(state, action);
+
+    // Should deduplicate, adding only newMentor (user_id 11)
+    expect(nextState.mentors).toEqual([sampleMentor, newMentor]);
+    expect(nextState.cursor).toBe('1100'); // taken from last element of action.page, which is newMentor
+    expect(nextState.mentorCount).toBe(3); // count is accumulated based on raw page length (1 + 2 = 3)
+    expect(nextState.hasMore).toBe(false);
   });
 });
