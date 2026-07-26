@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { getAvatarSnapshot } from '@/services/profile/getAvatarSnapshot';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 
 import { useBackgroundAvatarUpload } from './useBackgroundAvatarUpload';
@@ -9,20 +10,16 @@ vi.mock('@/services/profile/updateAvatar', () => ({
   updateAvatar: vi.fn(),
 }));
 
-vi.mock('@/lib/apiClient', () => ({
-  apiClient: {
-    getExternalBlob: vi.fn(),
-  },
+vi.mock('@/services/profile/getAvatarSnapshot', () => ({
+  getAvatarSnapshot: vi.fn(),
 }));
 
-import { apiClient } from '@/lib/apiClient';
-
 const mockUpdateAvatar = vi.mocked(updateAvatar);
-const mockApiClient = vi.mocked(apiClient);
+const mockGetAvatarSnapshot = vi.mocked(getAvatarSnapshot);
 
 describe('useBackgroundAvatarUpload', () => {
   beforeEach(() => {
-    mockApiClient.getExternalBlob.mockReset();
+    mockGetAvatarSnapshot.mockReset();
     mockUpdateAvatar.mockReset();
   });
 
@@ -202,7 +199,7 @@ describe('useBackgroundAvatarUpload', () => {
     mockUpdateAvatar.mockResolvedValueOnce(mockUrl);
 
     const mockOldBlob = new Blob(['old-avatar-bytes'], { type: 'image/jpeg' });
-    mockApiClient.getExternalBlob.mockResolvedValue(mockOldBlob);
+    mockGetAvatarSnapshot.mockResolvedValue(mockOldBlob);
 
     const { result } = renderHook(() => useBackgroundAvatarUpload());
 
@@ -219,7 +216,7 @@ describe('useBackgroundAvatarUpload', () => {
       await result.current.rollback();
     });
 
-    expect(mockApiClient.getExternalBlob).toHaveBeenCalledWith(
+    expect(mockGetAvatarSnapshot).toHaveBeenCalledWith(
       'https://old-avatar.com/old.png'
     );
     expect(mockUpdateAvatar).toHaveBeenCalledTimes(2);
@@ -237,7 +234,7 @@ describe('useBackgroundAvatarUpload', () => {
     mockUpdateAvatar.mockResolvedValueOnce(mockUrl);
 
     // Force snapshot fetch to fail
-    mockApiClient.getExternalBlob.mockRejectedValue(new Error('Network error'));
+    mockGetAvatarSnapshot.mockRejectedValue(new Error('Network error'));
 
     const { result } = renderHook(() => useBackgroundAvatarUpload());
 
@@ -255,7 +252,7 @@ describe('useBackgroundAvatarUpload', () => {
       await expect(result.current.rollback()).resolves.toBeUndefined();
     });
 
-    expect(mockApiClient.getExternalBlob).toHaveBeenCalledWith(
+    expect(mockGetAvatarSnapshot).toHaveBeenCalledWith(
       'https://old-avatar.com/old.png'
     );
     // It should NOT call updateAvatar a second time because snapshot was null
@@ -285,8 +282,8 @@ describe('useBackgroundAvatarUpload', () => {
       await expect(result.current.rollback()).resolves.toBeUndefined();
     });
 
-    // Verified that getExternalBlob is never called because the URL was null
-    expect(mockApiClient.getExternalBlob).not.toHaveBeenCalled();
+    // Verified that getAvatarSnapshot is never called because the URL was null
+    expect(mockGetAvatarSnapshot).not.toHaveBeenCalled();
     // updateAvatar should only be called once (for the upload, not for restoration)
     expect(mockUpdateAvatar).toHaveBeenCalledTimes(1);
   });
