@@ -8,7 +8,7 @@ import * as React from 'react';
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import type { PersonalLink } from '@/types/types';
 
-export type UseAccountMenuOptions = {
+export interface UseAccountMenuOptions {
   user: Session['user'];
   /**
    * Closes whatever outer container (dropdown/sheet) the caller is
@@ -18,16 +18,14 @@ export type UseAccountMenuOptions = {
    * own choreography around `handleShareProfile` instead.
    */
   closeMenu: () => void;
-};
+}
 
-export type UseAccountMenuResult = {
+export interface UseAccountMenuResult {
   userId: string | undefined;
   isMentor: boolean;
   canDeleteAccount: boolean;
   name: string;
   avatarSrc: string;
-  jobTitle: string;
-  company: string;
   subtitle: string;
   personalLinks: PersonalLink[];
   profilePath: string;
@@ -42,7 +40,7 @@ export type UseAccountMenuResult = {
   handleMyReservation: () => void;
   handleDeleteAccount: () => void;
   handleLogout: () => void;
-};
+}
 
 export function useAccountMenu({
   user,
@@ -116,8 +114,6 @@ export function useAccountMenu({
     canDeleteAccount,
     name,
     avatarSrc,
-    jobTitle,
-    company,
     subtitle,
     personalLinks,
     profilePath,
