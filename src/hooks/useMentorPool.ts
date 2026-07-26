@@ -100,6 +100,7 @@ export function useMentorPool({
     setIsLoading(true);
     isLoadingRef.current = true;
     setIsNoResults(false);
+    setHasMore(false);
 
     fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' })
       .then((list) => {
