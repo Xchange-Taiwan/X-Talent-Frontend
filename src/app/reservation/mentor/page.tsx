@@ -1,5 +1,5 @@
-import ReservationContainer from './container';
+import { ReservationDashboard } from '@/components/reservation/ReservationDashboard';
 
 export default function Page() {
-  return <ReservationContainer />;
+  return <ReservationDashboard role="mentor" />;
 }
