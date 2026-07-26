@@ -151,4 +151,33 @@ describe('useEditProfileData', () => {
     expect(result.current.isPageLoading).toBe(false);
     expect(result.current.userDto).toEqual(mockUserDto);
   });
+
+  it('safely serializes object errors to prevent Sentry PII capturing', () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const mockErrorObject = {
+      message: 'Failed to fetch',
+      config: { headers: { Authorization: 'Bearer token123' } },
+    };
+
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: null,
+      isLoading: false,
+      error: mockErrorObject as unknown as string,
+    });
+
+    renderHook(() =>
+      useEditProfileData({
+        userId: 1,
+        isAuthorized: true,
+      })
+    );
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      'Failed to fetch user data:',
+      '[object Object]'
+    );
+
+    consoleSpy.mockRestore();
+  });
 });
