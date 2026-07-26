@@ -5,9 +5,6 @@ import type { components } from '@/types/api';
 
 export type MentorProfileVO = components['schemas']['MentorProfileVO'];
 
-type ApiResponseMentorProfileVO =
-  components['schemas']['ApiResponse_MentorProfileVO_'];
-
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
 }
@@ -32,17 +29,11 @@ export async function fetchUserById(
   signal?: AbortSignal
 ): Promise<MentorProfileVO | null> {
   try {
-    const result = await apiClient.get<ApiResponseMentorProfileVO>(
-      `/v1/mentors/${userId}/${language}/profile`,
-      { auth: false, signal }
-    );
+    const data = await apiClient.getUnwrapped<
+      components['schemas']['MentorProfileVO']
+    >(`/v1/mentors/${userId}/${language}/profile`, { auth: false, signal });
 
-    if (result.code !== '0') {
-      console.error(`API Error: ${result.msg}`);
-      return null;
-    }
-
-    return result.data ?? null;
+    return data ?? null;
   } catch (error) {
     if (isAbortError(error)) throw error;
     console.error('Fetch User Error:', error);

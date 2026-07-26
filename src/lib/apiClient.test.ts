@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { apiClient, ApiError } from '@/lib/apiClient';
+import {
+  apiClient,
+  ApiError,
+  FetchApiError,
+  FetchHttpError,
+  fetchServerJson,
+} from '@/lib/apiClient';
 import { captureApiFailure } from '@/lib/monitoring';
 
 vi.mock('next-auth/react', () => ({
@@ -145,6 +151,151 @@ describe('apiClient', () => {
       );
 
       expect(captureApiFailure).toHaveBeenCalled();
+    });
+  });
+
+  /* ================================
+   * getUnwrapped
+   * ================================ */
+
+  describe('getUnwrapped', () => {
+    it('unwraps data successfully when code is "0"', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: '0',
+            msg: 'success',
+            data: { key: 'value' },
+          }),
+          { status: 200 }
+        )
+      );
+
+      const result = await apiClient.getUnwrapped<{ key: string }>('/v1/test', {
+        auth: false,
+      });
+
+      expect(result).toEqual({ key: 'value' });
+    });
+
+    it('throws FetchApiError when code is not "0"', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: 'ERR_123',
+            msg: 'error msg',
+            data: null,
+          }),
+          { status: 200 }
+        )
+      );
+
+      await expect(
+        apiClient.getUnwrapped('/v1/test', { auth: false })
+      ).rejects.toThrow(FetchApiError);
+    });
+  });
+
+  /* ================================
+   * fetchServerJson
+   * ================================ */
+
+  describe('fetchServerJson', () => {
+    it('unwraps data successfully when status is ok and code is "0"', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: '0',
+            msg: 'success',
+            data: { items: [1, 2] },
+          }),
+          { status: 200 }
+        )
+      );
+
+      const result = await fetchServerJson<{ items: number[] }>('/v1/test');
+
+      expect(result).toEqual({ items: [1, 2] });
+    });
+
+    it('throws FetchHttpError when status is not ok', async () => {
+      mockFetch.mockResolvedValue(new Response('', { status: 500 }));
+
+      await expect(fetchServerJson('/v1/test')).rejects.toThrow(FetchHttpError);
+    });
+
+    it('throws FetchApiError when status is ok but code is not "0"', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: '999',
+            msg: 'invalid request',
+            data: null,
+          }),
+          { status: 200 }
+        )
+      );
+
+      await expect(fetchServerJson('/v1/test')).rejects.toThrow(FetchApiError);
+    });
+
+    it('forwards custom caching and ISR options (cache, next) to raw fetch', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: '0',
+            msg: 'success',
+            data: 'test',
+          }),
+          { status: 200 }
+        )
+      );
+
+      await fetchServerJson('/v1/test', {
+        cache: 'no-store',
+        next: { revalidate: 60 },
+      });
+
+      expect(mockFetch.mock.calls[0][1]).toMatchObject({
+        cache: 'no-store',
+        next: { revalidate: 60 },
+      });
+    });
+  });
+
+  /* ================================
+   * Server-side Environment (window is undefined)
+   * ================================ */
+
+  describe('Server-side Environment (window is undefined)', () => {
+    beforeEach(() => {
+      vi.stubGlobal('window', undefined);
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('throws an error if an authenticated request is made on the server', async () => {
+      await expect(apiClient.get('/v1/test', { auth: true })).rejects.toThrow(
+        'Server-side authenticated requests are not supported'
+      );
+    });
+
+    it('allows fetchServerJson (auth: false) to succeed on the server side', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: '0',
+            msg: 'success',
+            data: 'ssr-data',
+          }),
+          { status: 200 }
+        )
+      );
+
+      const result = await fetchServerJson<string>('/v1/test');
+      expect(result).toBe('ssr-data');
     });
   });
 });
