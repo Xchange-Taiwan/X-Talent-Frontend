@@ -1,9 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import type { Session } from 'next-auth';
-import { signOut } from 'next-auth/react';
 import * as React from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
@@ -15,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
+import { useAccountMenu } from '@/hooks/layout/useAccountMenu';
 
 import { ShareProfileDialog } from './ShareProfileDialog';
 
@@ -26,82 +25,43 @@ export type UserDropdownProps = {
 export const UserDropdown = React.memo(function UserDropdown({
   user,
 }: UserDropdownProps): JSX.Element {
-  const router = useRouter();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = React.useState(false);
-  const [shareDialogOpen, setShareDialogOpen] = React.useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
 
-  const userId = user.id;
-  const isMentor = Boolean(user.isMentor);
-  const canDeleteAccount =
-    process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT === 'true';
-  const name = user.name ?? '';
-  // Read through useCurrentAvatar so a just-uploaded avatar shows up before
-  // NextAuth's session round-trip lands. Falls back to user.avatar once the
-  // session catches up. URLs carry their own `?v=<upload-timestamp>` cache
-  // buster from updateAvatar, so they're rendered as-is.
-  const avatarSrc = useCurrentAvatar() ?? '';
-  const jobTitle = user.jobTitle ?? '';
-  const company = user.company ?? '';
+  const closeMenu = React.useCallback(() => setMenuOpen(false), []);
+  const {
+    userId,
+    isMentor,
+    canDeleteAccount,
+    name,
+    avatarSrc,
+    subtitle,
+    personalLinks,
+    profilePath,
+    shareDialogOpen,
+    setShareDialogOpen,
+    deleteDialogOpen,
+    setDeleteDialogOpen,
+    handleGoProfile,
+    handleShareProfile,
+    handleAsMentor,
+    handleMyReservation,
+    handleDeleteAccount,
+    handleLogout,
+  } = useAccountMenu({ user, closeMenu });
 
-  const personalLinks = user.personalLinks ?? [];
-
-  const profilePath = userId ? `/profile/${userId}` : '/';
   const isOnProfile = Boolean(userId) && pathname === profilePath;
   const isOnMentorReservation =
     pathname?.startsWith('/reservation/mentor') ?? false;
   const isOnMenteeReservation =
     pathname?.startsWith('/reservation/mentee') ?? false;
-  const profileUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}${profilePath}`
-      : profilePath;
 
-  const subtitle =
-    jobTitle && company
-      ? `${jobTitle} at ${company}`
-      : jobTitle || company || '';
-
-  const handleGoProfile = React.useCallback((): void => {
-    setMenuOpen(false);
-    router.push(profilePath);
-  }, [router, profilePath]);
-
-  const handleShareProfile = React.useCallback((): void => {
-    if (!userId) return;
-    setMenuOpen(false);
-    requestAnimationFrame(() => {
-      setShareDialogOpen(true);
-    });
-  }, [userId]);
-
-  const handleAsMentor = React.useCallback((): void => {
-    if (!userId) return;
-    setMenuOpen(false);
-    if (isMentor) {
-      router.push('/reservation/mentor');
-    } else {
-      router.push(`/profile/${userId}/edit?onboarding=true`);
-    }
-  }, [router, userId, isMentor]);
-
-  const handleMyReservation = React.useCallback((): void => {
-    setMenuOpen(false);
-    router.push('/reservation/mentee');
-  }, [router]);
-
-  const handleDeleteAccount = React.useCallback((): void => {
-    setMenuOpen(false);
-    requestAnimationFrame(() => {
-      setDeleteDialogOpen(true);
-    });
-  }, []);
-
-  const handleLogout = React.useCallback((): void => {
-    setMenuOpen(false);
-    signOut();
-  }, []);
+  // The share dialog mounts on top of the closing dropdown, so open it a
+  // frame after the close starts to avoid the two animations racing.
+  const handleShareProfileClick = React.useCallback((): void => {
+    closeMenu();
+    requestAnimationFrame(handleShareProfile);
+  }, [closeMenu, handleShareProfile]);
 
   return (
     <>
@@ -158,7 +118,7 @@ export const UserDropdown = React.memo(function UserDropdown({
             <Button
               variant="outline"
               className="h-14 w-full rounded-2xl text-2xl font-semibold"
-              onClick={handleShareProfile}
+              onClick={handleShareProfileClick}
               disabled={!userId}
             >
               分享個人頁面
@@ -217,7 +177,7 @@ export const UserDropdown = React.memo(function UserDropdown({
         name={name || '我的個人頁面'}
         avatarSrc={avatarSrc}
         subtitle={subtitle}
-        profileUrl={profileUrl}
+        profilePath={profilePath}
         personalLinks={personalLinks}
       />
     </>
