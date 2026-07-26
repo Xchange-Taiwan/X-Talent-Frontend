@@ -38,7 +38,7 @@ type ShareProfileDialogProps = {
   name: string;
   avatarSrc?: string;
   subtitle?: string;
-  profileUrl: string;
+  profilePath: string;
   personalLinks?: PersonalLink[];
 };
 
@@ -48,10 +48,17 @@ export function ShareProfileDialog({
   name,
   avatarSrc,
   subtitle,
-  profileUrl,
+  profilePath,
   personalLinks,
 }: ShareProfileDialogProps): JSX.Element {
   const [copied, setCopied] = React.useState(false);
+  // Seed with the SSR-safe relative path so the server and the first client
+  // render agree, then swap in the absolute URL once `window` exists.
+  const [profileUrl, setProfileUrl] = React.useState(profilePath);
+
+  React.useEffect(() => {
+    setProfileUrl(`${window.location.origin}${profilePath}`);
+  }, [profilePath]);
 
   React.useEffect(() => {
     if (open) {

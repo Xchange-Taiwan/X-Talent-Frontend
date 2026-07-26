@@ -2,9 +2,7 @@
 
 import { Cross2Icon } from '@radix-ui/react-icons';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import type { Session } from 'next-auth';
-import { signOut } from 'next-auth/react';
 import * as React from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
@@ -17,7 +15,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
+import { useAccountMenu } from '@/hooks/layout/useAccountMenu';
 
 import { ShareProfileDialog } from './ShareProfileDialog';
 
@@ -26,74 +24,29 @@ export type MobileUserMenuProps = {
 };
 
 export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
-  const router = useRouter();
   const [open, setOpen] = React.useState(false);
-  const [shareDialogOpen, setShareDialogOpen] = React.useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
 
-  const close = (): void => setOpen(false);
-
-  const userId = user.id;
-  const isMentor = Boolean(user.isMentor);
-  const canDeleteAccount =
-    process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT === 'true';
-  const name = user.name ?? '';
-  // Read through useCurrentAvatar so a just-uploaded avatar shows up before
-  // NextAuth's session round-trip lands. URL already carries its own `?v=`
-  // cache buster from upload time.
-  const avatarSrc = useCurrentAvatar() ?? '';
-  const jobTitle = user.jobTitle ?? '';
-  const company = user.company ?? '';
-  const personalLinks = user.personalLinks ?? [];
-
-  const profilePath = userId ? `/profile/${userId}` : '/';
-  const profileUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}${profilePath}`
-      : profilePath;
-
-  const subtitle =
-    jobTitle && company
-      ? `${jobTitle} at ${company}`
-      : jobTitle || company || '';
-
-  const handleGoProfile = (): void => {
-    close();
-    router.push(profilePath);
-  };
-
-  const handleShareProfile = (): void => {
-    if (!userId) return;
-    // Open dialog directly on top of the sheet (z-[101] > sheet z-50).
-    // Closing the sheet first causes a timing issue where the sheet's close
-    // animation is still running when the dialog tries to mount.
-    setShareDialogOpen(true);
-  };
-
-  const handleAsMentor = (): void => {
-    if (!userId) return;
-    close();
-    router.push(
-      isMentor
-        ? '/reservation/mentor'
-        : `/profile/${userId}/edit?onboarding=true`
-    );
-  };
-
-  const handleMyReservation = (): void => {
-    close();
-    router.push('/reservation/mentee');
-  };
-
-  const handleDeleteAccount = (): void => {
-    close();
-    requestAnimationFrame(() => setDeleteDialogOpen(true));
-  };
-
-  const handleLogout = (): void => {
-    close();
-    signOut();
-  };
+  const closeMenu = React.useCallback(() => setOpen(false), []);
+  const {
+    userId,
+    isMentor,
+    canDeleteAccount,
+    name,
+    avatarSrc,
+    subtitle,
+    personalLinks,
+    profilePath,
+    shareDialogOpen,
+    setShareDialogOpen,
+    deleteDialogOpen,
+    setDeleteDialogOpen,
+    handleGoProfile,
+    handleShareProfile,
+    handleAsMentor,
+    handleMyReservation,
+    handleDeleteAccount,
+    handleLogout,
+  } = useAccountMenu({ user, closeMenu });
 
   return (
     <>
@@ -220,12 +173,12 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
         open={shareDialogOpen}
         onOpenChange={(nextOpen) => {
           setShareDialogOpen(nextOpen);
-          if (!nextOpen) close();
+          if (!nextOpen) closeMenu();
         }}
         name={name || '我的個人頁面'}
         avatarSrc={avatarSrc}
         subtitle={subtitle}
-        profileUrl={profileUrl}
+        profilePath={profilePath}
         personalLinks={personalLinks}
       />
     </>
