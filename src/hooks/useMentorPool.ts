@@ -9,6 +9,7 @@ import {
   paramsToFetchConditions,
 } from '@/app/mentor-pool/searchParams';
 import { useToast } from '@/components/ui/use-toast';
+import { resolveMentorAvatar } from '@/services/search-mentor/mapMentor';
 import {
   fetchMentors,
   type MentorType,
@@ -18,30 +19,49 @@ interface UseMentorPoolProps {
   initialMentors: MentorType[];
   initialCursor: string;
   initialMentorCount: number;
+  params: ReturnType<typeof useSearchParams>;
+  labelMap: Map<string, string>;
 }
 
 export function useMentorPool({
   initialMentors,
   initialCursor,
   initialMentorCount,
+  params,
+  labelMap,
 }: UseMentorPoolProps) {
-  const params = useSearchParams();
   const { toast } = useToast();
 
   const hasInitialFilters = hasAnyCondition(params);
 
+  // Helper function to resolve avatar cache busting and localize tags inside render-free state update
+  const resolveMentorItem = useCallback(
+    (m: MentorType, map: Map<string, string>) => {
+      const resolved = resolveMentorAvatar(m);
+      return {
+        ...resolved,
+        have_topic: resolved.have_topic.map((c) => map.get(c) ?? c),
+      };
+    },
+    []
+  );
+
   const [mentorCount, setMentorCount] = useState<number>(
     hasInitialFilters ? 0 : initialMentorCount
   );
-  const [mentors, setMentors] = useState<MentorType[]>(
-    hasInitialFilters ? [] : initialMentors
-  );
+  const [mentors, setMentors] = useState<MentorType[]>(() => {
+    const initial = hasInitialFilters ? [] : initialMentors;
+    return initial.map((m) => resolveMentorItem(m, labelMap));
+  });
   const [isNoResults, setIsNoResults] = useState(
     hasInitialFilters ? false : initialMentors.length === 0
   );
   const [isLoading, setIsLoading] = useState(hasInitialFilters);
   const [cursor, setCursor] = useState<string | undefined>(
     hasInitialFilters ? undefined : initialCursor
+  );
+  const [hasMore, setHasMore] = useState<boolean>(
+    hasInitialFilters ? true : initialMentors.length === PAGE_LIMIT
   );
 
   const isLoadingRef = useRef(false);
@@ -73,10 +93,14 @@ export function useMentorPool({
     const myRequestId = ++requestIdRef.current;
 
     if (!hasAnyCondition(params)) {
-      setMentors(initialMentors);
+      const resolvedInitial = initialMentors.map((m) =>
+        resolveMentorItem(m, labelMap)
+      );
+      setMentors(resolvedInitial);
       setMentorCount(initialMentorCount);
       setCursor(initialCursor);
       setIsNoResults(initialMentors.length === 0);
+      setHasMore(initialMentors.length === PAGE_LIMIT);
       setIsLoading(false);
       isLoadingRef.current = false;
       return;
@@ -90,10 +114,12 @@ export function useMentorPool({
     fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' })
       .then((list) => {
         if (myRequestId !== requestIdRef.current) return;
-        setMentors(list);
-        setMentorCount(list.length);
-        setCursor(list.at(-1)?.updated_at?.toString());
-        setIsNoResults(list.length === 0);
+        const resolvedList = list.map((m) => resolveMentorItem(m, labelMap));
+        setMentors(resolvedList);
+        setMentorCount(resolvedList.length);
+        setCursor(resolvedList.at(-1)?.updated_at?.toString());
+        setIsNoResults(resolvedList.length === 0);
+        setHasMore(resolvedList.length === PAGE_LIMIT);
         setIsLoading(false);
         isLoadingRef.current = false;
       })
@@ -101,7 +127,7 @@ export function useMentorPool({
         handleError(myRequestId, 'Fetch mentors error:', error);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.toString()]);
+  }, [params.toString(), labelMap, resolveMentorItem]);
 
   const fetchMoreMentors = useCallback(async () => {
     const myRequestId = ++requestIdRef.current;
@@ -118,10 +144,13 @@ export function useMentorPool({
       rtnList = await fetchMentors(param);
       if (myRequestId === requestIdRef.current) {
         if (rtnList.length === 0) {
-          setIsNoResults(true);
+          setHasMore(false);
         } else {
+          const resolvedList = rtnList.map((m) =>
+            resolveMentorItem(m, labelMap)
+          );
           setMentors((prevMentors) => {
-            const newMentors = rtnList.filter(
+            const newMentors = resolvedList.filter(
               (newMentor) =>
                 !prevMentors.some(
                   (prevMentor) => prevMentor.user_id === newMentor.user_id
@@ -131,6 +160,7 @@ export function useMentorPool({
           });
           setMentorCount((prev) => prev + rtnList.length);
           setCursor(rtnList.at(-1)?.updated_at?.toString());
+          setHasMore(rtnList.length === PAGE_LIMIT);
         }
       }
     } catch (error) {
@@ -141,12 +171,12 @@ export function useMentorPool({
         isLoadingRef.current = false;
       }
     }
-  }, [params, cursor, handleError]);
+  }, [params, cursor, labelMap, resolveMentorItem, handleError]);
 
   const handleScrollToBottom = useCallback(async () => {
-    if (mentors.length % PAGE_LIMIT || isLoadingRef.current) return;
+    if (!hasMore || isLoadingRef.current) return;
     await fetchMoreMentors();
-  }, [mentors.length, fetchMoreMentors]);
+  }, [hasMore, fetchMoreMentors]);
 
   return {
     mentors,

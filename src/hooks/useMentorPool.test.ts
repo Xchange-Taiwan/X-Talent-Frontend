@@ -15,6 +15,7 @@ vi.mock('@/services/search-mentor/mentors', () => ({
   fetchMentors: vi.fn(),
 }));
 
+import { PAGE_LIMIT } from '@/app/mentor-pool/constants';
 import {
   fetchMentors,
   type MentorType,
@@ -43,10 +44,15 @@ const mockInitialMentors: MentorType[] = [
     want_skill: [],
     want_topic: [],
     have_skill: [],
-    have_topic: [],
+    have_topic: ['topic_a'],
     updated_at: 100,
   },
 ];
+
+const testLabelMap = new Map<string, string>([
+  ['topic_a', 'Localized Topic A'],
+  ['topic_b', 'Localized Topic B'],
+]);
 
 describe('useMentorPool', () => {
   beforeEach(() => {
@@ -55,16 +61,19 @@ describe('useMentorPool', () => {
     mockSearchParams.get.mockReturnValue(null);
   });
 
-  it('initializes with raw initial mentors when no filters are present', () => {
+  it('initializes and translates initial mentors when no filters are present', () => {
     const { result } = renderHook(() =>
       useMentorPool({
         initialMentors: mockInitialMentors,
         initialCursor: '100',
         initialMentorCount: 1,
+        params: mockSearchParams as any,
+        labelMap: testLabelMap,
       })
     );
 
-    expect(result.current.mentors).toEqual(mockInitialMentors);
+    expect(result.current.mentors[0].name).toBe('Initial Mentor');
+    expect(result.current.mentors[0].have_topic).toEqual(['Localized Topic A']);
     expect(result.current.mentorCount).toBe(1);
     expect(result.current.isLoading).toBe(false);
     expect(result.current.isNoResults).toBe(false);
@@ -94,7 +103,7 @@ describe('useMentorPool', () => {
         want_skill: [],
         want_topic: [],
         have_skill: [],
-        have_topic: [],
+        have_topic: ['topic_b'],
         updated_at: 200,
       },
     ];
@@ -110,6 +119,8 @@ describe('useMentorPool', () => {
         initialMentors: mockInitialMentors,
         initialCursor: '100',
         initialMentorCount: 1,
+        params: mockSearchParams as any,
+        labelMap: testLabelMap,
       })
     );
 
@@ -123,7 +134,8 @@ describe('useMentorPool', () => {
     });
 
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.mentors).toEqual(fetchedMentors);
+    expect(result.current.mentors[0].name).toBe('Fetched Mentor');
+    expect(result.current.mentors[0].have_topic).toEqual(['Localized Topic B']);
     expect(result.current.mentorCount).toBe(1);
   });
 
@@ -149,6 +161,8 @@ describe('useMentorPool', () => {
         initialMentors: mockInitialMentors,
         initialCursor: '100',
         initialMentorCount: 1,
+        params: mockSearchParams as any,
+        labelMap: testLabelMap,
       })
     );
 
@@ -201,6 +215,8 @@ describe('useMentorPool', () => {
         initialMentors: mockInitialMentors,
         initialCursor: '100',
         initialMentorCount: 1,
+        params: mockSearchParams as any,
+        labelMap: testLabelMap,
       })
     );
 
@@ -228,6 +244,87 @@ describe('useMentorPool', () => {
       await fetchPromise2;
     });
 
-    expect(result.current.mentors).toEqual(latestMentors);
+    expect(result.current.mentors[0].user_id).toBe(100);
+  });
+
+  it('scrolls to load more, appends results, and deduplicates existing user_id items', async () => {
+    // We want the mock initial state to think hasMore is true, so set initialMentors.length to PAGE_LIMIT
+    const largeInitialMentors = Array.from({ length: PAGE_LIMIT }, (_, i) => ({
+      ...mockInitialMentors[0],
+      user_id: i + 1,
+    }));
+
+    const paginatedMentors: MentorType[] = [
+      {
+        ...mockInitialMentors[0],
+        user_id: 5, // Duplicate user_id (already exists in initial)
+      },
+      {
+        ...mockInitialMentors[0],
+        user_id: 21, // New user_id
+        have_topic: ['topic_b'],
+      },
+    ];
+
+    mockFetchMentors.mockResolvedValue(paginatedMentors);
+
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: largeInitialMentors,
+        initialCursor: '100',
+        initialMentorCount: PAGE_LIMIT,
+        params: mockSearchParams as any,
+        labelMap: testLabelMap,
+      })
+    );
+
+    await act(async () => {
+      await result.current.handleScrollToBottom();
+    });
+
+    // Should filter out duplicate user_id 5, appending only user_id 21. Total mentors = PAGE_LIMIT + 1 = 10.
+    expect(result.current.mentors.length).toBe(PAGE_LIMIT + 1);
+    expect(result.current.mentors.find((m) => m.user_id === 21)).toBeDefined();
+    expect(
+      result.current.mentors.find((m) => m.user_id === 21)?.have_topic
+    ).toEqual(['Localized Topic B']);
+    expect(result.current.mentorCount).toBe(PAGE_LIMIT + 2); // API count includes both
+  });
+
+  it('retains infinite scroll retry availability (hasMore) when scroll fetch fails', async () => {
+    const largeInitialMentors = Array.from({ length: PAGE_LIMIT }, (_, i) => ({
+      ...mockInitialMentors[0],
+      user_id: i + 1,
+    }));
+
+    mockFetchMentors.mockRejectedValue(new Error('Scroll Fetch Failed'));
+    const spyConsoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: largeInitialMentors,
+        initialCursor: '100',
+        initialMentorCount: PAGE_LIMIT,
+        params: mockSearchParams as any,
+        labelMap: testLabelMap,
+      })
+    );
+
+    await act(async () => {
+      await result.current.handleScrollToBottom();
+    });
+
+    // Loading should be reset to false
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isNoResults).toBe(false); // Should NOT lock infinite scroll
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      title: '載入失敗',
+      description: '無法獲取導師，請稍後再試。',
+    });
+
+    spyConsoleError.mockRestore();
   });
 });

@@ -15,7 +15,6 @@ import {
   type TagCatalogGroupVO,
   type TagCatalogsByBucket,
 } from '@/services/profile/tagCatalog';
-import { resolveMentorAvatar } from '@/services/search-mentor/mapMentor';
 import type { MentorType } from '@/services/search-mentor/mentors';
 
 import { filterOptions } from './data';
@@ -99,6 +98,8 @@ export default function MentorPoolContainer({
       initialMentors,
       initialCursor,
       initialMentorCount,
+      params,
+      labelMap,
     });
 
   const handleFilterChange = useCallback(
@@ -129,21 +130,9 @@ export default function MentorPoolContainer({
     });
   }, [params, router]);
 
-  const resolvedMentors = useMemo(
-    () =>
-      mentors.map((m) => {
-        const resolved = resolveMentorAvatar(m);
-        return {
-          ...resolved,
-          have_topic: resolved.have_topic.map((c) => labelMap.get(c) ?? c),
-        };
-      }),
-    [mentors, labelMap]
-  );
-
   return (
     <MentorPoolUI
-      mentors={resolvedMentors}
+      mentors={mentors}
       mentorCount={mentorCount}
       isLoading={isLoading}
       isReplacing={isPending}
