@@ -131,12 +131,9 @@ export default function MentorScheduleDialog({
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
-  // Track both row id and occurrence so editing a single occurrence of a
-  // recurring row routes back to the correct exdate-and-detach call.
-  const [editingTarget, setEditingTarget] = useState<{
-    id: number;
-    occurrenceUnix: number;
-  } | null>(null);
+  // Track the unified occurrence ID so editing a single occurrence of a
+  // recurring row correctly identifies and detaches it.
+  const [editingTargetId, setEditingTargetId] = useState<string | null>(null);
   const [reservationPrompt, setReservationPrompt] =
     useState<ReservationPromptType>(null);
 
@@ -210,12 +207,8 @@ export default function MentorScheduleDialog({
     onOpenChange(false);
   };
 
-  const editingSlot = editingTarget
-    ? (visibleSlots.find(
-        (s) =>
-          s.id === editingTarget.id &&
-          s.occurrenceUnix === editingTarget.occurrenceUnix
-      ) ?? null)
+  const editingSlot = editingTargetId
+    ? (visibleSlots.find((s) => s.occurrenceId === editingTargetId) ?? null)
     : null;
 
   return (
@@ -272,7 +265,7 @@ export default function MentorScheduleDialog({
                       Math.floor(slot.start.getTime() / 1000) <= nowSec;
                     return (
                       <div
-                        key={`${slot.id}-${slot.occurrenceUnix}`}
+                        key={slot.occurrenceId}
                         {...(isPast
                           ? { 'aria-disabled': true }
                           : {
@@ -283,10 +276,7 @@ export default function MentorScheduleDialog({
                                   setReservationPrompt(reservationBlock);
                                   return;
                                 }
-                                setEditingTarget({
-                                  id: slot.id,
-                                  occurrenceUnix: slot.occurrenceUnix,
-                                });
+                                setEditingTargetId(slot.occurrenceId);
                               },
                               onKeyDown: (e: KeyboardEvent) => {
                                 if (e.key === 'Enter' || e.key === ' ') {
@@ -295,10 +285,7 @@ export default function MentorScheduleDialog({
                                     setReservationPrompt(reservationBlock);
                                     return;
                                   }
-                                  setEditingTarget({
-                                    id: slot.id,
-                                    occurrenceUnix: slot.occurrenceUnix,
-                                  });
+                                  setEditingTargetId(slot.occurrenceId);
                                 }
                               },
                             })}
@@ -331,7 +318,7 @@ export default function MentorScheduleDialog({
                                   setReservationPrompt(reservationBlock);
                                   return;
                                 }
-                                deleteDraftSlot(slot.id, slot.occurrenceUnix);
+                                deleteDraftSlot(slot.occurrenceId);
                               }}
                             >
                               <X className="h-4 w-4 lg:h-5 lg:w-5" />
@@ -401,17 +388,13 @@ export default function MentorScheduleDialog({
 
       <EditSlotModal
         slot={editingSlot}
-        onClose={() => setEditingTarget(null)}
+        onClose={() => setEditingTargetId(null)}
         onSubmit={(form) => {
-          if (!editingTarget) return;
-          const ok = updateDraftSlot(
-            editingTarget.id,
-            editingTarget.occurrenceUnix,
-            {
-              startTime: `${form.startHour}:${form.startMinute}`,
-              durationMinutes: form.durationMinutes,
-            }
-          );
+          if (!editingTargetId) return;
+          const ok = updateDraftSlot(editingTargetId, {
+            startTime: `${form.startHour}:${form.startMinute}`,
+            durationMinutes: form.durationMinutes,
+          });
           if (!ok) {
             toast({
               variant: 'destructive',
@@ -419,7 +402,7 @@ export default function MentorScheduleDialog({
             });
             return;
           }
-          setEditingTarget(null);
+          setEditingTargetId(null);
         }}
       />
 

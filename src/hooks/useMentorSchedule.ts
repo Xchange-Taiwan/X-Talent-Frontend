@@ -12,7 +12,6 @@ import {
   buildDateTime,
   expandRrule,
   formatTimeslot,
-  hasAnyOccurrenceOverlap,
   MonthKey,
   monthKeyFromDateStr,
   monthKeyFromYearMonth,
@@ -35,6 +34,39 @@ import {
 
 export type { BookingSlot } from '@/lib/profile/scheduleHelpers';
 export { expandRrule } from '@/lib/profile/scheduleHelpers';
+
+function parseOccurrenceId(occurrenceId: string): {
+  id: number;
+  occurrenceUnix: number;
+} {
+  const [idStr, occStr] = occurrenceId.split('_');
+  return {
+    id: Number(idStr),
+    occurrenceUnix: Number(occStr),
+  };
+}
+
+function hasAnyOccurrenceOverlap(
+  rows: RawMentorTimeslot[],
+  ignoreRowId: number | null,
+  candidateOccurrences: number[],
+  durationSeconds: number
+): boolean {
+  if (candidateOccurrences.length === 0) return false;
+  return rows.some((r) => {
+    if (r.id === ignoreRowId) return false;
+    if (r.type !== 'ALLOW') return false;
+    const existingDur = r.dtend - r.dtstart;
+    const existingOccs = activeOccurrences(r);
+    return existingOccs.some((eo) => {
+      const eEnd = eo + existingDur;
+      return candidateOccurrences.some((no) => {
+        const nEnd = no + durationSeconds;
+        return no < eEnd && nEnd > eo;
+      });
+    });
+  });
+}
 
 type Options = {
   backend: {
@@ -82,8 +114,7 @@ export type UseMentorScheduleReturn = {
    * the patch applied — leaving sibling occurrences untouched.
    */
   updateDraftSlot: (
-    id: number,
-    occurrenceUnix: number,
+    occurrenceId: string,
     patch: {
       startTime?: string; // HH:mm
       durationMinutes?: SlotDurationMinutes;
@@ -95,7 +126,7 @@ export type UseMentorScheduleReturn = {
    * recurring rows the occurrence is added to exdate, and the row is removed
    * only when no active occurrences remain.
    */
-  deleteDraftSlot: (id: number, occurrenceUnix: number) => void;
+  deleteDraftSlot: (occurrenceId: string) => void;
 
   confirmChanges: () => Promise<SyncResult>;
   resetChanges: () => void;
@@ -476,7 +507,8 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   const updateDraftSlot: UseMentorScheduleReturn['updateDraftSlot'] =
     useCallback(
-      (id, occurrenceUnix, patch) => {
+      (occurrenceId, patch) => {
+        const { id, occurrenceUnix } = parseOccurrenceId(occurrenceId);
         const monthKey = findMonthForSlotId(id);
         if (!monthKey) return false;
 
@@ -573,7 +605,8 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     );
 
   const deleteDraftSlot = useCallback(
-    (id: number, occurrenceUnix: number) => {
+    (occurrenceId: string) => {
+      const { id, occurrenceUnix } = parseOccurrenceId(occurrenceId);
       const monthKey = findMonthForSlotId(id);
       if (!monthKey) return;
 
