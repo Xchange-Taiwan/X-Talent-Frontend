@@ -17,6 +17,11 @@ vi.mock('@/lib/profile/pollUntilSynced', () => ({
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 
+vi.mock('@/lib/avatar/avatarOverrideStore', () => ({
+  setAvatarOverride: vi.fn(),
+}));
+
+import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 import {
   firstSyncedFetch,
   pollUntilSynced,
@@ -33,6 +38,7 @@ const mockUpdateAvatar = vi.mocked(updateAvatar);
 const mockUpdateProfile = vi.mocked(updateProfile);
 const mockPollUntilSynced = vi.mocked(pollUntilSynced);
 const mockFirstSyncedFetch = vi.mocked(firstSyncedFetch);
+const mockSetAvatarOverride = vi.mocked(setAvatarOverride);
 
 const mockUserDTO: MentorProfileVO = {
   user_id: 1,
@@ -125,9 +131,12 @@ describe('saveProfile (Deep Module)', () => {
     const deps = makeDeps();
     await saveProfile({ ...baseValues, avatarFile: undefined }, deps);
     expect(mockUpdateAvatar).not.toHaveBeenCalled();
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
-  it('avatarFile present + upload succeeds → returned URL is used in profile payload', async () => {
+  it('avatarFile present + upload succeeds → returned URL is used in profile payload and setAvatarOverride is called', async () => {
     const newAvatarUrl = 'https://example.com/new-avatar.jpg';
     mockUpdateAvatar.mockResolvedValueOnce(newAvatarUrl);
 
@@ -139,6 +148,10 @@ describe('saveProfile (Deep Module)', () => {
     expect(mockUpdateProfile).toHaveBeenCalledWith(
       expect.objectContaining({ avatar: newAvatarUrl })
     );
+    expect(mockSetAvatarOverride).toHaveBeenCalledWith('1', newAvatarUrl);
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   it('avatarFile present + updateAvatar throws → throws error', async () => {
@@ -150,6 +163,9 @@ describe('saveProfile (Deep Module)', () => {
     await expect(
       saveProfile({ ...baseValues, avatarFile: file }, deps)
     ).rejects.toThrow('Upload failed');
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   // ── Service failures ───────────────────────────────────────────────────────
@@ -161,6 +177,9 @@ describe('saveProfile (Deep Module)', () => {
     await expect(saveProfile(baseValues, deps)).rejects.toThrow(
       'Profile update failed'
     );
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   // ── Inline experiences ────────────────────────────────────────────────────
@@ -175,6 +194,9 @@ describe('saveProfile (Deep Module)', () => {
       ExperienceType.EDUCATION,
       ExperienceType.LINK,
     ]);
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   it('work_experiences dirty → experiences batch in payload reflects work data', async () => {
@@ -206,6 +228,9 @@ describe('saveProfile (Deep Module)', () => {
     expect(exp).toBeDefined();
     const work = exp!.find((e) => e.category === ExperienceType.WORK);
     expect(work?.mentor_experiences_metadata.data).toHaveLength(1);
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   it('only `name` dirty → experiences are NOT sent (backend leaves the column alone)', async () => {
@@ -230,6 +255,9 @@ describe('saveProfile (Deep Module)', () => {
 
     expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
     expect(lastExperiences()).toBeUndefined();
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   it('dirty link field triggers experiences inline (nested dirtyFields shape)', async () => {
@@ -253,16 +281,34 @@ describe('saveProfile (Deep Module)', () => {
     expect(exp).toBeDefined();
     const links = exp!.find((e) => e.category === ExperienceType.LINK);
     expect(links?.mentor_experiences_metadata.data).toHaveLength(1);
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
-  // ── Navigation on success ──────────────────────────────────────────────────
+  // ── Navigation & Sequence ──────────────────────────────────────────────────
 
-  it('isMentorOnboarding: false → deps.navigate("/profile/:pageUserId")', async () => {
+  it('isMentorOnboarding: false → deps.navigate("/profile/:pageUserId") and revalidateProfilePath is called before navigate', async () => {
     const navigate = vi.fn();
-    const deps = makeDeps({ isMentorOnboarding: false, navigate });
+    const revalidateProfilePath = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({
+      isMentorOnboarding: false,
+      navigate,
+      revalidateProfilePath,
+    });
     await saveProfile(baseValues, deps);
 
     expect(navigate).toHaveBeenCalledWith('/profile/test-user-id');
+    expect(revalidateProfilePath).toHaveBeenCalledWith('test-user-id');
+
+    // Assert that revalidateProfilePath was invoked before navigate
+    const revalidateCallIndex =
+      revalidateProfilePath.mock.invocationCallOrder[0];
+    const navigateCallIndex = navigate.mock.invocationCallOrder[0];
+    expect(revalidateCallIndex).toBeLessThan(navigateCallIndex);
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   it('isMentorOnboarding: true → deps.navigate("/profile/card")', async () => {
@@ -271,6 +317,9 @@ describe('saveProfile (Deep Module)', () => {
     await saveProfile(baseValues, deps);
 
     expect(navigate).toHaveBeenCalledWith('/profile/card');
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   // ── Optimistic flow: poll runs in the background ───────────────────────────
@@ -289,6 +338,9 @@ describe('saveProfile (Deep Module)', () => {
 
     expect(navigate).toHaveBeenCalledWith('/profile/test-user-id');
     resolvePoll(null);
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   it('optimistic session update preserves current isMentor / onBoarding (does not flicker from latest=null)', async () => {
@@ -304,6 +356,9 @@ describe('saveProfile (Deep Module)', () => {
     };
     expect(firstCallArg.user.isMentor).toBe(true);
     expect(firstCallArg.user.onBoarding).toBe(true);
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   it('isMentorOnboarding: true with mentee session → optimistic update flips isMentor/onBoarding to true', async () => {
@@ -324,6 +379,9 @@ describe('saveProfile (Deep Module)', () => {
     };
     expect(firstCallArg.user.isMentor).toBe(true);
     expect(firstCallArg.user.onBoarding).toBe(true);
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   it('isMentorOnboarding: true with mentee session → reconcile is a no-op when backend confirms is_mentor=true', async () => {
@@ -456,6 +514,9 @@ describe('saveProfile (Deep Module)', () => {
     expect(mockUpdateProfile).toHaveBeenCalledWith(
       expect.objectContaining({ avatar: consumed })
     );
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   // ── Dirty-field skip ───────────────────────────────────────────────────────
@@ -465,6 +526,9 @@ describe('saveProfile (Deep Module)', () => {
     await saveProfile(baseValues, deps);
 
     expect(mockUpdateProfile).not.toHaveBeenCalled();
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   it('isMentorOnboarding: true forces updateProfile even with empty dirtyFields', async () => {
@@ -472,6 +536,9 @@ describe('saveProfile (Deep Module)', () => {
     await saveProfile(baseValues, deps);
 
     expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   // ── Primary job persistence ────────────────────────────────────────────────
@@ -514,5 +581,8 @@ describe('saveProfile (Deep Module)', () => {
         company: 'Dell',
       })
     );
+
+    await Promise.resolve();
+    await Promise.resolve();
   });
 });
