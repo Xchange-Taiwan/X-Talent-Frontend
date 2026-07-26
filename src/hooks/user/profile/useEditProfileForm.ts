@@ -13,11 +13,17 @@ import {
 export function useEditProfileForm() {
   const isMentorRef = useRef(false);
 
+  const syncMentorStatus = (isMentor: boolean) => {
+    isMentorRef.current = isMentor;
+  };
+
   const form = useForm<ProfileFormValues>({
-    resolver: (...args) =>
-      zodResolver(createProfileFormSchema(isMentorRef.current))(...args),
+    resolver: (values, context, options) => {
+      const activeSchema = createProfileFormSchema(isMentorRef.current);
+      return zodResolver(activeSchema)(values, context, options);
+    },
     defaultValues,
   });
 
-  return { form, isMentorRef };
+  return { form, syncMentorStatus };
 }

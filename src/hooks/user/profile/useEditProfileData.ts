@@ -26,7 +26,7 @@ export function useEditProfileData({
   // Fire the user fetch in parallel with auth resolution. The form.reset
   // effect below still gates on `isAuthorized`, so unauthorized callers
   // (redirected by useProfileAuth) never see the data populated.
-  const { userDto, error } = useUserProfileDto(userId, 'zh_TW');
+  const { userDto, isLoading, error } = useUserProfileDto(userId, 'zh_TW');
 
   // useLayoutEffect (not useEffect) so form.reset + setIsPageLoading(false)
   // commit before the browser paints. When the dto is already cached at mount
@@ -41,10 +41,11 @@ export function useEditProfileData({
     setIsMentor(formValues.is_mentor);
     setIsPageLoading(false);
     setIsError(false);
-  }, [userDto, isAuthorized, isMentorOnboarding, form]);
+  }, [userDto, isAuthorized, isMentorOnboarding, form, isLoading]);
 
   useEffect(() => {
     if (!error) return;
+    // Sanitized to prevent PII / secret leak to Sentry console capture
     console.error('Failed to fetch user data:', error);
     setIsPageLoading(false);
     setIsError(true);

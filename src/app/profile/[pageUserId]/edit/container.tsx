@@ -83,7 +83,7 @@ export default function EditProfileContainer({
   const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
   const industries = tagCatalog.industry;
 
-  const { form, isMentorRef } = useEditProfileForm();
+  const { form, syncMentorStatus } = useEditProfileForm();
 
   const { isMentor, isPageLoading, isError } = useEditProfileData({
     userId: Number(pageUserId),
@@ -92,7 +92,10 @@ export default function EditProfileContainer({
     isMentorOnboarding,
   });
 
-  isMentorRef.current = isMentor;
+  // Synchronize mentor status to form ref inside useEffect during commit phase to comply with React rendering rules.
+  useEffect(() => {
+    syncMentorStatus(isMentor);
+  }, [isMentor, syncMentorStatus]);
 
   // Warm up the avatar presigned URL once authorized. Saves a serial round
   // trip from the submit waterfall when the user uploads a new avatar.
@@ -115,6 +118,9 @@ export default function EditProfileContainer({
   const wantSkillCategories = tagGroupsToCategories(tagCatalog.want_skill);
   const wantTopicCategories = tagGroupsToCategories(tagCatalog.want_topic);
 
+  // NOTE: document.getElementById is used to query dynamic error-bearing section container boundaries.
+  // This approach bypasses standard React refs to avoid inflating complexity with dozens of sub-component
+  // ref callback dictionaries, while cleanly retaining declarative styling structures.
   const scrollToField = (fieldId: string) => {
     document
       .getElementById(fieldId)
