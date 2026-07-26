@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 
-import { useOverflowFit } from '@/hooks/useOverflowFit';
+import { computeOverflowFit } from '@/hooks/useOverflowFit';
 
 import { POPULAR_POSITIONS } from './data';
 import { buildHref, setSearchPattern } from './searchParams';
@@ -22,22 +22,21 @@ export default function PopularPositionChips() {
   const [, startTransition] = useTransition();
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const [itemWidths, setItemWidths] = useState<number[]>([]);
+  const [visibleCount, setVisibleCount] = useState(POPULAR_POSITIONS.length);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
 
   useEffect(() => {
     const widths = buttonRefs.current.map((b) => b?.offsetWidth ?? 0);
-    setItemWidths(widths);
+    const { visibleCount: computedCount } = computeOverflowFit({
+      itemWidths: widths,
+      containerWidth: DESKTOP_WIDTH,
+      gapPx: GAP_PX,
+      reservePx: 0,
+      defaultVisibleCount: POPULAR_POSITIONS.length,
+    });
+    setVisibleCount(computedCount);
   }, []);
-
-  const { visibleCount } = useOverflowFit({
-    itemWidths,
-    containerWidth: DESKTOP_WIDTH,
-    gapPx: GAP_PX,
-    reservePx: 0,
-    defaultVisibleCount: POPULAR_POSITIONS.length,
-  });
 
   useEffect(() => {
     const el = scrollRef.current;
