@@ -1,5 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 
+import { useOverflowFit } from '@/hooks/useOverflowFit';
+
 import { Tag } from './Tag';
 
 interface InformationProps {
@@ -22,46 +24,34 @@ export const Information = ({
 }: InformationProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
-  const widthsRef = useRef<number[]>([]);
-  const [visibleTagsCount, setVisibleTagsCount] = useState(
-    haveTopicLabels.length
-  );
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
+  const [itemWidths, setItemWidths] = useState<number[]>([]);
 
   useLayoutEffect(() => {
     if (!measureRef.current || !containerRef.current) return;
 
-    widthsRef.current = Array.from(measureRef.current.children).map(
+    const widths = Array.from(measureRef.current.children).map(
       (child) => (child as HTMLElement).getBoundingClientRect().width
     );
-
-    const computeVisible = (containerWidth: number) => {
-      const widths = widthsRef.current;
-      let total = EXTRA_BADGE_RESERVE_PX;
-      let lastIndex = widths.length - 1;
-      for (let i = 0; i < widths.length; i++) {
-        const gap = i > 0 ? TAG_GAP_PX : 0;
-        total += widths[i] + gap;
-        if (total > containerWidth) {
-          lastIndex = i - 1;
-          break;
-        }
-      }
-      setVisibleTagsCount(
-        Math.max(0, Math.min(lastIndex + 1, haveTopicLabels.length))
-      );
-    };
-
-    computeVisible(containerRef.current.getBoundingClientRect().width);
+    setItemWidths(widths);
+    setContainerWidth(containerRef.current.getBoundingClientRect().width);
 
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
-      computeVisible(entry.contentRect.width);
+      setContainerWidth(entry.contentRect.width);
     });
     observer.observe(containerRef.current);
 
     return () => observer.disconnect();
   }, [haveTopicLabels]);
+
+  const { visibleCount: visibleTagsCount } = useOverflowFit({
+    itemWidths,
+    containerWidth,
+    gapPx: TAG_GAP_PX,
+    reservePx: EXTRA_BADGE_RESERVE_PX,
+  });
 
   const visibleOffers = haveTopicLabels.slice(0, visibleTagsCount);
   const extraOffersCount = haveTopicLabels.length - visibleTagsCount;

@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 
-import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
+import { TotalWorkSpanEnum } from '@/constant/seniority';
 import { apiClient, FetchApiError } from '@/lib/apiClient';
 import { Reservation, ReservationMessage } from '@/services/reservations/types';
 import { components } from '@/types/api';
