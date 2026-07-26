@@ -6,13 +6,17 @@ import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
-import { useMentorSchedule } from '@/hooks/useMentorSchedule';
+import { useToast } from '@/components/ui/use-toast';
+import { BookingSlot, useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { primeTagCatalogCacheIfEmpty } from '@/hooks/user/tags/useTagCatalog';
 import useUserData from '@/hooks/user/user-data/useUserData';
 import { primeUserProfileDtoCacheIfEmpty } from '@/hooks/user/user-data/useUserProfileDto';
+import { trackEvent } from '@/lib/analytics';
+import { captureFlowFailure } from '@/lib/monitoring';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import type { MentorProfileVO } from '@/services/profile/user';
+import { createReservation } from '@/services/reservations';
 
 import { ProfilePageSkeleton } from './skeleton';
 
@@ -60,8 +64,13 @@ export default function ProfilePageContainer({
     schedule;
 
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
-  const [openMenteeReservationDialog, setOpenMenteeReservationDialog] =
-    useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    setSelectedSlot(null);
+  }, [selectedDate]);
 
   const handleScheduleMonthChange = (date: Date) => {
     const newYear = date.getFullYear();
@@ -74,7 +83,7 @@ export default function ProfilePageContainer({
     // Clamp to today so a past month never anchors to an un-editable
     // past day (which would let the dialog render its slot editor on
     // a date the mentor cannot configure).
-    if (!openReservationDialog && !openMenteeReservationDialog) {
+    if (!openReservationDialog) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const monthStart = new Date(newYear, newMonth - 1, 1);
@@ -161,9 +170,77 @@ export default function ProfilePageContainer({
       setOpenReservationDialog(true);
       return;
     }
-    if (userData.is_mentor && pageUserId !== loginUserId) {
-      setOpenMenteeReservationDialog(true);
-      return;
+  };
+
+  const handleConfirmReservation = async (
+    question: string
+  ): Promise<boolean> => {
+    if (!loginUserId) {
+      router.push('/auth/signin');
+      return false;
+    }
+    if (!selectedSlot || !userData) return false;
+
+    setIsSubmitting(true);
+    try {
+      const menteeId = Number(loginUserId);
+      await createReservation({
+        userId: menteeId,
+        body: {
+          my_user_id: menteeId,
+          my_status: 'PENDING',
+          user_id: userData.user_id,
+          schedule_id: selectedSlot.scheduleId,
+          dtstart: Math.floor(selectedSlot.start.getTime() / 1000),
+          dtend: Math.floor(selectedSlot.end.getTime() / 1000),
+          messages: [{ user_id: menteeId, content: question }],
+        },
+        debug: process.env.NODE_ENV === 'development',
+      });
+
+      trackEvent({
+        name: 'reservation_booking_confirmed',
+        feature: 'reservation',
+      });
+
+      toast({
+        title: '預約已送出，等待導師回復',
+        description: '導師接受後預約才會成立，可至「我的預約」追蹤狀態。',
+      });
+
+      setSelectedSlot(null);
+      return true;
+    } catch (error) {
+      console.error('Failed to create reservation:', error);
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      const isDuplicate =
+        msg.includes('409') ||
+        msg.toLowerCase().includes('conflict') ||
+        msg.toLowerCase().includes('already');
+
+      captureFlowFailure({
+        flow: 'reservation_create',
+        step: 'create_reservation',
+        message: msg,
+        ...(isDuplicate ? { level: 'info' as const } : {}),
+      });
+
+      if (isDuplicate) {
+        toast({
+          title: '預約時間重疊',
+          description: '該時段您已有其他預約，請重新選擇其他時段。',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: '預約失敗',
+          description: msg,
+          variant: 'destructive',
+        });
+      }
+      return false;
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -180,10 +257,12 @@ export default function ProfilePageContainer({
       allowedDates={allowedDates}
       openReservationDialog={openReservationDialog}
       setOpenReservationDialog={setOpenReservationDialog}
-      openMenteeReservationDialog={openMenteeReservationDialog}
-      setOpenMenteeReservationDialog={setOpenMenteeReservationDialog}
       onReservation={reservationHandler}
       onScheduleMonthChange={handleScheduleMonthChange}
+      selectedSlot={selectedSlot}
+      setSelectedSlot={setSelectedSlot}
+      isSubmitting={isSubmitting}
+      onConfirmReservation={handleConfirmReservation}
       onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}
       onBecomeMentor={() =>
         router.push(`/profile/${pageUserId}/edit?onboarding=true`)
