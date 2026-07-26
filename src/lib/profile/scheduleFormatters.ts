@@ -70,11 +70,18 @@ export function defaultFormForDate(
   let startH = 9;
   let startM = 0;
   if (existingSlots.length > 0) {
-    const lastEnd = existingSlots.reduce((latest, current) =>
+    const lastSlot = existingSlots.reduce((latest, current) =>
       current.end.getTime() > latest.end.getTime() ? current : latest
-    ).end;
+    );
+    const lastEnd = lastSlot.end;
     startH = lastEnd.getHours();
     startM = lastEnd.getMinutes();
+
+    // If the slot ends on the next day, add 24 hours to trigger capping logic
+    if (lastEnd.getDate() !== lastSlot.start.getDate()) {
+      startH += 24;
+    }
+
     const snapped = Math.ceil(startM / 15) * 15;
     if (snapped >= 60) {
       startH += 1;
