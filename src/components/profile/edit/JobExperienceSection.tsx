@@ -29,7 +29,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useRepeatablePeriodSection } from '@/hooks/user/profile/useRepeatablePeriodSection';
+import {
+  useRepeatablePeriodSection,
+  YEAR_OPTIONS,
+} from '@/hooks/user/profile/useRepeatablePeriodSection';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 
 import { Section } from './Section';
@@ -62,7 +65,7 @@ export const JobExperienceSection = ({
     formState: { errors },
   } = form;
 
-  const { fields, move, YEAR_OPTIONS, isInvalidPeriod, tryAppend, remove } =
+  const { fields, move, isInvalidPeriod, tryAppend, remove } =
     useRepeatablePeriodSection(
       form,
       {
@@ -101,7 +104,7 @@ export const JobExperienceSection = ({
   };
 
   const addJob = () => {
-    const experiences = getValues('work_experiences') ?? [];
+    const hasNoExperiences = (getValues('work_experiences') ?? []).length === 0;
     tryAppend({
       id: -1,
       job: '',
@@ -111,7 +114,7 @@ export const JobExperienceSection = ({
       industry: '',
       job_location: 'TWN',
       description: '',
-      is_primary: experiences.length === 0,
+      is_primary: hasNoExperiences,
     });
   };
 

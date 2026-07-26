@@ -8,6 +8,7 @@ import { ProfileFormValues } from '@/schemas/profileSchema';
 import {
   RepeatablePeriodConfig,
   useRepeatablePeriodSection,
+  YEAR_OPTIONS,
 } from './useRepeatablePeriodSection';
 
 vi.mock('@/components/ui/use-toast', () => {
@@ -57,13 +58,10 @@ describe('useRepeatablePeriodSection', () => {
     return result;
   };
 
-  it('generates the correct YEAR_OPTIONS', () => {
-    const result = setupHook();
+  it('exports correct static YEAR_OPTIONS', () => {
     const currentYear = new Date().getFullYear();
-    expect(result.current.hookResult.YEAR_OPTIONS).toContain(
-      currentYear.toString()
-    );
-    expect(result.current.hookResult.YEAR_OPTIONS).toContain('1940');
+    expect(YEAR_OPTIONS).toContain(currentYear.toString());
+    expect(YEAR_OPTIONS).toContain('1940');
   });
 
   it('handles field appending, removal, and moving', () => {

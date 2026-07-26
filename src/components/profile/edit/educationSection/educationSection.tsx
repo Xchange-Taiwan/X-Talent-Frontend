@@ -40,7 +40,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useRepeatablePeriodSection } from '@/hooks/user/profile/useRepeatablePeriodSection';
+import {
+  useRepeatablePeriodSection,
+  YEAR_OPTIONS,
+} from '@/hooks/user/profile/useRepeatablePeriodSection';
 import { cn } from '@/lib/utils';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 
@@ -122,7 +125,7 @@ export const EducationSection = ({
     formState: { errors },
   } = form;
 
-  const { fields, move, YEAR_OPTIONS, isInvalidPeriod, tryAppend, remove } =
+  const { fields, move, isInvalidPeriod, tryAppend, remove } =
     useRepeatablePeriodSection(
       form,
       {
