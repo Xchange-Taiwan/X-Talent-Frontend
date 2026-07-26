@@ -1,5 +1,12 @@
 import { Session } from 'next-auth';
 
+import { trackEvent } from '@/lib/analytics';
+import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
+import { captureFlowFailure } from '@/lib/monitoring';
+import {
+  firstSyncedFetch as defaultFirstSyncedFetch,
+  pollUntilSynced as defaultPollUntilSynced,
+} from '@/lib/profile/pollUntilSynced';
 import {
   computeDirtyStates,
   extractValidLinks,
@@ -7,66 +14,63 @@ import {
   type ProfileDirtyFields,
 } from '@/lib/profile/profileSaveAdapter';
 import { ProfileFormValues } from '@/schemas/profileSchema';
-import type { UpdateProfileInput } from '@/services/profile/updateProfile';
+import { updateAvatar } from '@/services/profile/updateAvatar';
+import { updateProfile } from '@/services/profile/updateProfile';
 import { MentorProfileVO } from '@/services/profile/user';
 
-export type { ProfileDirtyFields };
-
-export type SaveProfileResult =
-  | { ok: true; avatar?: string; warnings: string[] }
-  | { ok: false; step: 'avatar_upload' | 'profile_write'; error: unknown };
-
-export interface SaveProfileDeps {
-  updateSession: (data: unknown) => Promise<Session | null>;
-  consumeAvatarUpload?: (file: File | undefined) => Promise<string | undefined>;
-  updateProfile: (payload: UpdateProfileInput) => Promise<void>;
-  updateAvatar: (file: File) => Promise<string | undefined>;
-  revalidateProfilePath: (pageUserId: string) => Promise<void>;
-  clearUserDataCache: (sessionUserId: number, lang: string) => void;
-  primeUserDataCache: (
-    sessionUserId: number,
-    lang: string,
-    data: MentorProfileVO
-  ) => void;
-  setAvatarOverride: (sessionUserId: string, avatar: string) => void;
-  firstSyncedFetch: (
-    values: ProfileFormValues,
-    avatar: string
-  ) => Promise<MentorProfileVO | null>;
-  pollUntilSynced: (
-    values: ProfileFormValues,
-    avatar: string
-  ) => Promise<MentorProfileVO | null>;
-  captureFlowFailure: (options: {
-    flow: string;
-    step: string;
-    message: string;
-    level?: 'error' | 'warning' | 'info';
-  }) => void;
+export class LoggedError extends Error {
+  constructor(message?: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'LoggedError';
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, LoggedError);
+    }
+  }
 }
 
-export async function saveProfileWorkflow(
+export interface SaveProfileDeps {
+  pageUserId: string;
+  isMentorOnboarding: boolean;
+  session: Session | null;
+  dirtyFields?: ProfileDirtyFields;
+  consumeAvatarUpload?: (file: File | undefined) => Promise<string | undefined>;
+  updateSession: (data: unknown) => Promise<Session | null>;
+  navigate: (path: string) => void;
+  revalidateProfilePath: (id: string) => Promise<void>;
+  clearUserDataCache: (userId: number, language: string) => void;
+  primeUserDataCache: (
+    userId: number,
+    language: string,
+    data: MentorProfileVO
+  ) => void;
+  // Optional dependency injections to ease testing
+  firstSyncedFetch?: (
+    values: ProfileFormValues,
+    avatar: string
+  ) => Promise<MentorProfileVO | null>;
+  pollUntilSynced?: (
+    values: ProfileFormValues,
+    avatar: string
+  ) => Promise<MentorProfileVO | null>;
+}
+
+export async function saveProfile(
   values: ProfileFormValues,
-  ctx: {
-    pageUserId: string;
-    isMentorOnboarding: boolean;
-    session: Session | null;
-    dirtyFields?: ProfileDirtyFields;
-  },
   deps: SaveProfileDeps
-): Promise<SaveProfileResult> {
+): Promise<void> {
   const {
-    updateSession,
+    pageUserId,
+    isMentorOnboarding,
+    session,
+    dirtyFields,
     consumeAvatarUpload,
-    updateProfile,
-    updateAvatar,
+    updateSession,
+    navigate,
     revalidateProfilePath,
     clearUserDataCache,
     primeUserDataCache,
-    setAvatarOverride,
-    firstSyncedFetch,
-    pollUntilSynced,
-    captureFlowFailure,
+    firstSyncedFetch = defaultFirstSyncedFetch,
+    pollUntilSynced = defaultPollUntilSynced,
   } = deps;
 
   // 1) avatar — consume background upload if wired, else upload now.
@@ -85,15 +89,18 @@ export async function saveProfileWorkflow(
         message: err instanceof Error ? err.message : 'Avatar upload failed',
         level: 'warning',
       });
-      return { ok: false, step: 'avatar_upload', error: err };
+      throw new LoggedError(
+        err instanceof Error ? err.message : 'Avatar upload failed',
+        { cause: err }
+      );
     }
   }
 
   // 2) profile + experience writes
   const { experiencesDirty, profileDirty } = computeDirtyStates(
     values,
-    ctx.dirtyFields,
-    ctx.isMentorOnboarding
+    dirtyFields,
+    isMentorOnboarding
   );
 
   const payload = mapFormValuesToPayload(values, avatar, experiencesDirty);
@@ -109,51 +116,38 @@ export async function saveProfileWorkflow(
       step: 'profile_write',
       message: err instanceof Error ? err.message : 'Profile write failed',
     });
-    return { ok: false, step: 'profile_write', error: err };
+    throw new LoggedError(
+      err instanceof Error ? err.message : 'Profile write failed',
+      { cause: err }
+    );
   }
 
-  // 3) optimistic cache + navigation (soft failures)
-  const warnings: string[] = [];
-  const sessionUserId = ctx.session?.user?.id
-    ? Number(ctx.session.user.id)
-    : null;
-  const sessionUser = ctx.session?.user;
+  // 3) optimistic cache + navigation
+  const sessionUserId = session?.user?.id ? Number(session.user.id) : null;
+  const sessionUser = session?.user;
   const personalLinks = extractValidLinks(values).map((link) => ({
     platform: link.platform,
     url: link.url,
   }));
 
   if (sessionUserId) {
-    try {
-      clearUserDataCache(sessionUserId, 'zh_TW');
-    } catch (err) {
-      console.error('clearUserDataCache failed:', err);
-      warnings.push(err instanceof Error ? err.message : String(err));
-    }
+    clearUserDataCache(sessionUserId, 'zh_TW');
   }
 
-  try {
-    await revalidateProfilePath(ctx.pageUserId);
-  } catch (err) {
-    console.error('revalidateProfilePath failed:', err);
-    warnings.push(err instanceof Error ? err.message : String(err));
-  }
+  await revalidateProfilePath(pageUserId).catch((e) => {
+    console.error('revalidateProfilePath failed:', e);
+  });
 
-  // 4) optimistic avatar override (soft failure)
+  // 4) optimistic avatar override
   if (values.avatarFile && avatar && sessionUser?.id) {
-    try {
-      setAvatarOverride(String(sessionUser.id), avatar);
-    } catch (err) {
-      console.error('setAvatarOverride failed:', err);
-      warnings.push(err instanceof Error ? err.message : String(err));
-    }
+    setAvatarOverride(String(sessionUser.id), avatar);
   }
 
-  // 5) optimistic session update (soft failure)
-  const optimisticIsMentor = ctx.isMentorOnboarding
+  // 5) optimistic session update
+  const optimisticIsMentor = isMentorOnboarding
     ? true
     : (sessionUser?.isMentor ?? false);
-  const optimisticOnBoarding = ctx.isMentorOnboarding
+  const optimisticOnBoarding = isMentorOnboarding
     ? true
     : (sessionUser?.onBoarding ?? false);
 
@@ -174,12 +168,19 @@ export async function saveProfileWorkflow(
         company: companyFromPrimary || sessionUser?.company,
       },
     });
-  } catch (err) {
-    console.error('updateSession failed:', err);
-    warnings.push(err instanceof Error ? err.message : String(err));
+  } catch (e) {
+    console.error('updateSession failed:', e);
   }
 
-  // 7) background prime + reconcile (runs in background, errors caught inside)
+  // 6) navigate immediately — user no longer waits for backend sync.
+  trackEvent({ name: 'profile_update_submitted', feature: 'profile' });
+  if (isMentorOnboarding) {
+    navigate('/profile/card');
+  } else {
+    navigate(`/profile/${pageUserId}`);
+  }
+
+  // 7) background prime + reconcile
   const reconcileSession = (latest: MentorProfileVO | null) => {
     if (!latest) return;
     const latestIsMentor = Boolean(latest.is_mentor);
@@ -211,10 +212,12 @@ export async function saveProfileWorkflow(
         latest = await pollUntilSynced(values, avatar ?? '');
       }
       reconcileSession(latest);
-    } catch (err) {
-      console.error('Background cache prime / reconcile failed:', err);
+    } catch (e) {
+      captureFlowFailure({
+        flow: 'profile_update',
+        step: 'background_reconcile',
+        message: String(e),
+      });
     }
   })();
-
-  return { ok: true, avatar, warnings };
 }

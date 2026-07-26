@@ -9,20 +9,10 @@ import {
   clearUserDataCache,
   primeUserDataCache,
 } from '@/hooks/user/user-data/useUserData';
-import { trackEvent } from '@/lib/analytics';
-import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 import { captureFlowFailure } from '@/lib/monitoring';
-import {
-  firstSyncedFetch,
-  pollUntilSynced,
-} from '@/lib/profile/pollUntilSynced';
-import {
-  type ProfileDirtyFields,
-  saveProfileWorkflow,
-} from '@/lib/profile/saveProfileWorkflow';
+import { type ProfileDirtyFields } from '@/lib/profile/profileSaveAdapter';
+import { LoggedError, saveProfile } from '@/lib/profile/saveProfile';
 import { ProfileFormValues } from '@/schemas/profileSchema';
-import { updateAvatar } from '@/services/profile/updateAvatar';
-import { updateProfile } from '@/services/profile/updateProfile';
 
 export type { ProfileDirtyFields };
 
@@ -54,60 +44,32 @@ export function useProfileSubmit({
   ) => {
     try {
       setIsSaving(true);
-
-      const result = await saveProfileWorkflow(
-        values,
-        {
-          pageUserId,
-          isMentorOnboarding,
-          session,
-          dirtyFields,
-        },
-        {
-          updateSession,
-          consumeAvatarUpload,
-          updateProfile,
-          updateAvatar,
-          revalidateProfilePath,
-          clearUserDataCache,
-          primeUserDataCache,
-          setAvatarOverride,
-          firstSyncedFetch,
-          pollUntilSynced,
-          captureFlowFailure,
-        }
-      );
-
-      if (!result.ok) {
-        // saveProfileWorkflow has already called captureFlowFailure with the specific step.
-        // We log locally and present the failure toast directly to avoid double Sentry logging.
-        console.error('saveProfileWorkflow failed:', result.step, result.error);
-        toast({
-          variant: 'destructive',
-          description: '儲存失敗，請稍後再試',
-          duration: 5000,
-        });
-        setIsSaving(false);
-        return;
-      }
-
-      trackEvent({ name: 'profile_update_submitted', feature: 'profile' });
-      if (isMentorOnboarding) {
-        router.push('/profile/card');
-      } else {
-        router.push(`/profile/${pageUserId}`);
-      }
-    } catch (err) {
-      // Catch genuine unexpected exceptions in the process (e.g. payload mapping) and log to Sentry
-      captureFlowFailure({
-        flow: 'profile_update',
-        step: 'unexpected',
-        message:
-          err instanceof Error
-            ? err.message
-            : 'Unexpected profile update error',
+      await saveProfile(values, {
+        pageUserId,
+        isMentorOnboarding,
+        session,
+        dirtyFields,
+        consumeAvatarUpload,
+        updateSession,
+        navigate: router.push,
+        revalidateProfilePath,
+        clearUserDataCache,
+        primeUserDataCache,
       });
-      console.error('Update Profile Unexpected Error:', err);
+    } catch (err) {
+      if (!(err instanceof LoggedError)) {
+        captureFlowFailure({
+          flow: 'profile_update',
+          step: 'unexpected',
+          message:
+            err instanceof Error
+              ? err.message
+              : typeof err === 'string'
+                ? err
+                : 'Unexpected profile update error',
+        });
+      }
+      console.error('Update Profile Error:', err);
       toast({
         variant: 'destructive',
         description: '儲存失敗，請稍後再試',
