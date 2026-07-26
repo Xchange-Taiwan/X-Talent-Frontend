@@ -8,6 +8,7 @@ import {
   primeUserDataCache,
 } from '@/hooks/user/user-data/useUserData';
 import { captureFlowFailure } from '@/lib/monitoring';
+import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import { updateProfile } from '@/services/profile/updateProfile';
 
 import { useOnboardingSubmit } from './useOnboardingSubmit';
@@ -58,7 +59,7 @@ describe('useOnboardingSubmit', () => {
       category: 'INDUSTRY',
       language: 'zh_TW',
     },
-  ] as any;
+  ] as unknown as TagCatalogsByBucket['industry'];
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -66,7 +67,7 @@ describe('useOnboardingSubmit', () => {
       data: mockSession,
       status: 'authenticated',
       update: mockUpdateSession,
-    } as any);
+    } as unknown as ReturnType<typeof useSession>);
   });
 
   it('should successfully submit profile, prime cache, and optimistically update session', async () => {
@@ -81,8 +82,10 @@ describe('useOnboardingSubmit', () => {
       want_topic: ['topic1'],
     };
 
-    mockUpdateProfile.mockResolvedValue({} as any);
-    const mockStub = { user_id: 123 } as any;
+    mockUpdateProfile.mockResolvedValue(undefined as unknown as void);
+    const mockStub = { user_id: 123 } as unknown as ReturnType<
+      typeof buildOnboardingDtoStub
+    >;
     mockBuildOnboardingDtoStub.mockReturnValue(mockStub);
 
     const { result } = renderHook(() =>
@@ -127,9 +130,9 @@ describe('useOnboardingSubmit', () => {
       data: { user: { id: 'invalid-non-numeric' } },
       status: 'authenticated',
       update: mockUpdateSession,
-    } as any);
+    } as unknown as ReturnType<typeof useSession>);
 
-    mockUpdateProfile.mockResolvedValue({} as any);
+    mockUpdateProfile.mockResolvedValue(undefined as unknown as void);
 
     const { result } = renderHook(() =>
       useOnboardingSubmit({ industries: mockIndustries })

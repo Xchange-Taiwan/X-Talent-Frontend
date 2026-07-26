@@ -12,7 +12,6 @@ import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAva
 import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
-  formSchema,
   step1Schema,
   step2Schema,
   step3Schema,
@@ -31,7 +30,7 @@ export function useOnboardingForm({ industries }: Options) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { data: session, status } = useSession();
 
-  const [tempData, setTempData] = useState<{
+  const [accumulatedFormData, setAccumulatedFormData] = useState<{
     step1?: z.infer<typeof step1Schema>;
     step2?: z.infer<typeof step2Schema>;
     step3?: z.infer<typeof step3Schema>;
@@ -79,7 +78,7 @@ export function useOnboardingForm({ industries }: Options) {
   }, [watchedAvatarFile, step1Form]);
 
   const onSubmitStep1 = (data: z.infer<typeof step1Schema>) => {
-    setTempData((prev) => ({ ...prev, step1: data }));
+    setAccumulatedFormData((prev) => ({ ...prev, step1: data }));
     if (data.avatarFile) {
       avatarUpload.kickOff(data.avatarFile, step1Form.getValues('avatar'));
     } else {
@@ -94,7 +93,7 @@ export function useOnboardingForm({ industries }: Options) {
     stepNum: number,
     data: T
   ) => {
-    setTempData((prev) => ({ ...prev, [stepKey]: data }));
+    setAccumulatedFormData((prev) => ({ ...prev, [stepKey]: data }));
     trackEvent({
       name: `onboarding_step_${stepNum}_completed`,
       feature: 'onboarding',
@@ -142,12 +141,12 @@ export function useOnboardingForm({ industries }: Options) {
   });
 
   const onSubmitStep5 = async (data: z.infer<typeof step5Schema>) => {
-    setTempData((prev) => ({ ...prev, step5: data }));
+    setAccumulatedFormData((prev) => ({ ...prev, step5: data }));
     const allData = {
-      ...tempData.step1,
-      ...tempData.step2,
-      ...tempData.step3,
-      ...tempData.step4,
+      ...accumulatedFormData.step1,
+      ...accumulatedFormData.step2,
+      ...accumulatedFormData.step3,
+      ...accumulatedFormData.step4,
       ...data,
     };
 
@@ -178,8 +177,10 @@ export function useOnboardingForm({ industries }: Options) {
         }
       }
 
-      const validatedData = formSchema.parse(allData);
-      await submitProfile(validatedData, Boolean(tempData.step1?.avatarFile));
+      await submitProfile(
+        allData,
+        Boolean(accumulatedFormData.step1?.avatarFile)
+      );
 
       trackEvent({ name: 'onboarding_completed', feature: 'onboarding' });
       router.push('/profile/card');
