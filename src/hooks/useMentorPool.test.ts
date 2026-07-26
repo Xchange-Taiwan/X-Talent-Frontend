@@ -445,6 +445,322 @@ describe('useMentorPool', () => {
 
     spyConsoleError.mockRestore();
   });
+
+  it('initializes with hasError=true when initialError is true', () => {
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: [],
+        initialMentorCount: 0,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+        initialError: true,
+      })
+    );
+
+    expect(result.current.hasError).toBe(true);
+    expect(result.current.mentors).toEqual([]);
+  });
+
+  it('sets hasError=true when client-side query fails and mentors list is empty', async () => {
+    mockSearchParams.toString.mockReturnValue('q=react');
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'q') return 'react';
+      return null;
+    });
+
+    let rejectFetch!: (reason: Error) => void;
+    const fetchPromise = new Promise<MentorType[]>((_, reject) => {
+      rejectFetch = reject;
+    });
+    mockFetchMentors.mockReturnValue(fetchPromise);
+
+    const spyConsoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: [],
+        initialMentorCount: 0,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+      })
+    );
+
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.hasError).toBe(false);
+
+    await act(async () => {
+      rejectFetch(new Error('Network error'));
+      try {
+        await fetchPromise;
+      } catch {
+        // ignore reject
+      }
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasError).toBe(true);
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      title: '載入失敗',
+      description: '無法獲取導師，請稍後再試。',
+    });
+
+    spyConsoleError.mockRestore();
+  });
+
+  it('clears existing mentors and sets hasError=true when changing filters fails', async () => {
+    // 1. Start with initial mentors pre-loaded (unfiltered state)
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+
+    const { result, rerender } = renderHook(() =>
+      useMentorPool({
+        initialMentors: mockInitialMentors,
+        initialMentorCount: 1,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+      })
+    );
+
+    expect(result.current.mentors.length).toBe(1);
+    expect(result.current.hasError).toBe(false);
+
+    // 2. Change filters, mock query failure
+    mockSearchParams.toString.mockReturnValue('q=react');
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'q') return 'react';
+      return null;
+    });
+
+    mockFetchMentors.mockRejectedValueOnce(new Error('Filter Query Failed'));
+    const spyConsoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    rerender();
+
+    // Settle the mock failure promise
+    await act(async () => {});
+
+    expect(result.current.isLoading).toBe(false);
+    // CRITICAL ASSERTIONS: mentors must be empty, and hasError must be true!
+    expect(result.current.mentors).toEqual([]);
+    expect(result.current.hasError).toBe(true);
+    expect(result.current.mentorCount).toBe(0);
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      title: '載入失敗',
+      description: '無法獲取導師，請稍後再試。',
+    });
+
+    spyConsoleError.mockRestore();
+  });
+
+  it('does not set hasError=true when client-side scroll query fails and mentors list is not empty', async () => {
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+
+    const largeInitialMentors = Array.from({ length: PAGE_LIMIT }, (_, i) => ({
+      ...mockInitialMentors[0],
+      user_id: i + 1,
+    }));
+
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: largeInitialMentors,
+        initialMentorCount: PAGE_LIMIT,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+      })
+    );
+
+    expect(result.current.mentors.length).toBe(PAGE_LIMIT);
+    expect(result.current.hasError).toBe(false);
+
+    mockFetchMentors.mockRejectedValue(new Error('Scroll Fetch Failed'));
+    const spyConsoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    await act(async () => {
+      await result.current.handleScrollToBottom();
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasError).toBe(false);
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      title: '載入失敗',
+      description: '無法獲取導師，請稍後再試。',
+    });
+
+    spyConsoleError.mockRestore();
+  });
+
+  it('clears hasError on successful retry', async () => {
+    mockSearchParams.toString.mockReturnValue('q=react');
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'q') return 'react';
+      return null;
+    });
+
+    mockFetchMentors.mockRejectedValueOnce(new Error('First failure'));
+    const spyConsoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: [],
+        initialMentorCount: 0,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+      })
+    );
+
+    await act(async () => {});
+
+    expect(result.current.hasError).toBe(true);
+    expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+
+    // Use a manual pending promise for the second fetch (retry) to test transition states
+    let resolveRetryFetch!: (value: MentorType[]) => void;
+    const retryPromise = new Promise<MentorType[]>((resolve) => {
+      resolveRetryFetch = resolve;
+    });
+    mockFetchMentors.mockReturnValueOnce(retryPromise);
+
+    await act(async () => {
+      result.current.handleRetry();
+    });
+
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.hasError).toBe(false);
+
+    await act(async () => {
+      resolveRetryFetch(mockInitialMentors);
+      await retryPromise;
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasError).toBe(false);
+    expect(result.current.mentors.length).toBe(1);
+    expect(mockFetchMentors).toHaveBeenCalledTimes(2);
+
+    spyConsoleError.mockRestore();
+  });
+
+  it('triggers a fetch on retry when no parameters are present if initialError is true', async () => {
+    // 1. Initialized with SSR error and no filters
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: [],
+        initialMentorCount: 0,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+        initialError: true,
+      })
+    );
+
+    expect(result.current.hasError).toBe(true);
+    expect(result.current.mentors).toEqual([]);
+    expect(mockFetchMentors).not.toHaveBeenCalled();
+
+    // Use a manual pending promise for the retry fetch to test transition states
+    let resolveRetryFetch!: (value: MentorType[]) => void;
+    const retryPromise = new Promise<MentorType[]>((resolve) => {
+      resolveRetryFetch = resolve;
+    });
+    mockFetchMentors.mockReturnValueOnce(retryPromise);
+
+    // 2. Click retry
+    await act(async () => {
+      result.current.handleRetry();
+    });
+
+    // Should not early return, but instead trigger API fetch
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.hasError).toBe(false);
+
+    await act(async () => {
+      resolveRetryFetch(mockInitialMentors);
+      await retryPromise;
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasError).toBe(false);
+    expect(result.current.mentors.length).toBe(1);
+    expect(result.current.mentors[0].name).toBe('Initial Mentor');
+    expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fall back to SSR error state on clearing filters if client-side fetches have been performed', async () => {
+    // 1. Initialized with SSR error and no filters
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+
+    const { result, rerender } = renderHook(() =>
+      useMentorPool({
+        initialMentors: [],
+        initialMentorCount: 0,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+        initialError: true,
+      })
+    );
+
+    expect(result.current.hasError).toBe(true);
+    expect(result.current.mentors).toEqual([]);
+
+    // 2. Simulate client-side query by adding query params
+    mockSearchParams.toString.mockReturnValue('q=react');
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'q') return 'react';
+      return null;
+    });
+
+    const clientFetchedMentors = [
+      { ...mockInitialMentors[0], name: 'Client Mentor' },
+    ];
+    mockFetchMentors.mockResolvedValueOnce(clientFetchedMentors);
+
+    rerender();
+
+    // Settle the mock promise
+    await act(async () => {});
+
+    expect(result.current.hasError).toBe(false);
+    expect(result.current.mentors[0].name).toBe('Client Mentor');
+    expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+
+    // 3. Clear parameters (go back to empty params)
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+    mockFetchMentors.mockClear();
+
+    // Since client fetch was performed, it should NOT early return to SSR error.
+    // It should perform a fresh fetch client-side for unfiltered listing!
+    mockFetchMentors.mockResolvedValueOnce(mockInitialMentors);
+
+    rerender();
+
+    // Fetching starts
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.hasError).toBe(false);
+
+    // Settle the fetch
+    await act(async () => {});
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasError).toBe(false);
+    expect(result.current.mentors[0].name).toBe('Initial Mentor');
+    expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('applyMentorPage', () => {
@@ -454,6 +770,7 @@ describe('applyMentorPage', () => {
     hasMore: true,
     mentorCount: 0,
     isNoResults: false,
+    hasError: false,
   };
 
   const sampleMentor: MentorType = {
@@ -485,6 +802,7 @@ describe('applyMentorPage', () => {
     expect(nextState.hasMore).toBe(false); // as page length 1 !== PAGE_LIMIT (9)
     expect(nextState.mentorCount).toBe(1);
     expect(nextState.isNoResults).toBe(false);
+    expect(nextState.hasError).toBe(false);
   });
 
   it('handles replace action with empty page', () => {
@@ -496,6 +814,7 @@ describe('applyMentorPage', () => {
     expect(nextState.hasMore).toBe(false);
     expect(nextState.mentorCount).toBe(0);
     expect(nextState.isNoResults).toBe(true);
+    expect(nextState.hasError).toBe(false);
   });
 
   it('handles append action with empty page by setting hasMore to false', () => {
@@ -505,6 +824,7 @@ describe('applyMentorPage', () => {
       hasMore: true,
       mentorCount: 1,
       isNoResults: false,
+      hasError: false,
     };
     const action = { type: 'append' as const, page: [] };
     const nextState = applyMentorPage(state, action);
@@ -514,6 +834,7 @@ describe('applyMentorPage', () => {
     expect(nextState.hasMore).toBe(false);
     expect(nextState.mentorCount).toBe(1);
     expect(nextState.isNoResults).toBe(false);
+    expect(nextState.hasError).toBe(false);
   });
 
   it('handles append action with non-empty page, filters duplicates, and updates count/cursor', () => {
@@ -523,6 +844,7 @@ describe('applyMentorPage', () => {
       hasMore: true,
       mentorCount: 1,
       isNoResults: false,
+      hasError: false,
     };
 
     const duplicateMentor = { ...sampleMentor };
@@ -539,5 +861,6 @@ describe('applyMentorPage', () => {
     expect(nextState.cursor).toBe('1100'); // taken from last element of action.page, which is newMentor
     expect(nextState.mentorCount).toBe(3); // count is accumulated based on raw page length (1 + 2 = 3)
     expect(nextState.hasMore).toBe(false);
+    expect(nextState.hasError).toBe(false);
   });
 });
