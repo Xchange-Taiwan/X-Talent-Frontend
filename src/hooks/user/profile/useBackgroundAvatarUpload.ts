@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 
+import { apiClient } from '@/lib/apiClient';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 
 interface AvatarUploadJob {
@@ -30,9 +31,7 @@ async function snapshotAvatarBytes(
 ): Promise<Blob | null> {
   if (!url) return null;
   try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    return await res.blob();
+    return await apiClient.getExternalBlob(url);
   } catch {
     return null;
   }

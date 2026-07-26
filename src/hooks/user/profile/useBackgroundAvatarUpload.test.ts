@@ -221,7 +221,10 @@ describe('useBackgroundAvatarUpload', () => {
       await result.current.rollback();
     });
 
-    expect(fetchMock).toHaveBeenCalledWith('https://old-avatar.com/old.png');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://old-avatar.com/old.png',
+      expect.any(Object)
+    );
     expect(mockUpdateAvatar).toHaveBeenCalledTimes(2);
 
     const restoredFile = mockUpdateAvatar.mock.calls[1][0];
