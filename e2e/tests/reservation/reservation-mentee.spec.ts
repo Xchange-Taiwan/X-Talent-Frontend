@@ -131,14 +131,21 @@ async function mockCancelReservationApi(
   options: {
     status: number;
     reservationId?: number;
+    expectedReason?: string;
     onSuccess?: () => void;
   }
 ): Promise<void> {
-  const { status, reservationId = 1, onSuccess } = options;
+  const { status, reservationId = 1, expectedReason, onSuccess } = options;
   await page.route(
     new RegExp(`/v1/users/${USER_ID}/reservations/\\d+`),
     (route) => {
       if (route.request().method() === 'PUT') {
+        if (expectedReason !== undefined) {
+          const postData = route.request().postDataJSON();
+          const firstMsg = postData?.messages?.[0];
+          expect(firstMsg?.content).toBe(expectedReason);
+        }
+
         if (status === 200) {
           onSuccess?.();
           return route.fulfill({
@@ -380,6 +387,7 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
     await mockCancelReservationApi(page, {
       status: 200,
       reservationId: 1,
+      expectedReason: '取消原因：臨時有事',
       onSuccess: () => {
         putCalled = true;
       },
@@ -446,6 +454,7 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
     await mockCancelReservationApi(page, {
       status: 200,
       reservationId: 2,
+      expectedReason: '取消原因：時間不合',
       onSuccess: () => {
         putCalled = true;
       },
@@ -535,7 +544,10 @@ test.describe('學員取消預約與即將到來 Tab 測試', () => {
     await mockSessionGet(page);
 
     // 攔截取消 PUT 請求並回傳 500 錯誤
-    await mockCancelReservationApi(page, { status: 500 });
+    await mockCancelReservationApi(page, {
+      status: 500,
+      expectedReason: '隨便填寫',
+    });
 
     await page.route(
       new RegExp(`/v1/users/${USER_ID}/reservations\\?`),
