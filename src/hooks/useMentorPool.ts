@@ -139,7 +139,12 @@ export function useMentorPool({
 
   // Consolidated error handler helper to eliminate duplicated code
   const handleError = useCallback(
-    (myRequestId: number, message: string, error: unknown) => {
+    (
+      myRequestId: number,
+      message: string,
+      error: unknown,
+      isLoadMore = false
+    ) => {
       if (myRequestId !== requestIdRef.current) return;
       console.error(
         message,
@@ -152,10 +157,20 @@ export function useMentorPool({
         title: '載入失敗',
         description: '無法獲取導師，請稍後再試。',
       });
-      setPageState((prev) => ({
-        ...prev,
-        hasError: prev.mentors.length === 0,
-      }));
+      setPageState((prev) => {
+        if (!isLoadMore) {
+          return {
+            ...prev,
+            mentors: [],
+            hasError: true,
+            isNoResults: false,
+          };
+        }
+        return {
+          ...prev,
+          hasError: prev.mentors.length === 0,
+        };
+      });
     },
     [toast]
   );
@@ -222,7 +237,7 @@ export function useMentorPool({
         );
       }
     } catch (error) {
-      handleError(myRequestId, 'Fetch more mentors error:', error);
+      handleError(myRequestId, 'Fetch more mentors error:', error, true);
     } finally {
       if (myRequestId === requestIdRef.current) {
         setIsLoading(false);
