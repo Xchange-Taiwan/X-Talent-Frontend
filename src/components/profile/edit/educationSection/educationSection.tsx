@@ -41,8 +41,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { ProfileFormValues } from '@/schemas/profileSchema';
 
-import { ProfileFormValues } from '../profileSchema';
 import { Section } from '../Section';
 import { taiwanSchools } from './schoolData';
 
