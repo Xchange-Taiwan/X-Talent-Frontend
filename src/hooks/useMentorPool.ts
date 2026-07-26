@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo,useRef, useState } from 'react';
 
 import { PAGE_LIMIT } from '@/app/mentor-pool/constants';
 import {
@@ -34,30 +34,17 @@ export function useMentorPool({
 
   const hasInitialFilters = hasAnyCondition(params);
 
-  // Use a mutable ref to store the latest labelMap to prevent background catalog revalidations
-  // from triggering redundant API requests or resetting the user's scrolled pagination state.
-  const labelMapRef = useRef(labelMap);
-  labelMapRef.current = labelMap;
-
-  // Helper function to resolve avatar cache busting and localize tags inside render-free state update
-  const resolveMentorItem = useCallback(
-    (m: MentorType, map: Map<string, string>) => {
-      const resolved = resolveMentorAvatar(m);
-      return {
-        ...resolved,
-        have_topic: resolved.have_topic.map((c) => map.get(c) ?? c),
-      };
-    },
-    []
-  );
-
   const [mentorCount, setMentorCount] = useState<number>(
     hasInitialFilters ? 0 : initialMentorCount
   );
+
+  // mentors state holds the fetched mentors with only resolveMentorAvatar applied.
+  // This keeps avatar calculation cached but preserves raw have_topic codes in state for dynamic localization.
   const [mentors, setMentors] = useState<MentorType[]>(() => {
     const initial = hasInitialFilters ? [] : initialMentors;
-    return initial.map((m) => resolveMentorItem(m, labelMap));
+    return initial.map(resolveMentorAvatar);
   });
+
   const [isNoResults, setIsNoResults] = useState(
     hasInitialFilters ? false : initialMentors.length === 0
   );
@@ -98,9 +85,7 @@ export function useMentorPool({
     const myRequestId = ++requestIdRef.current;
 
     if (!hasAnyCondition(params)) {
-      const resolvedInitial = initialMentors.map((m) =>
-        resolveMentorItem(m, labelMapRef.current)
-      );
+      const resolvedInitial = initialMentors.map(resolveMentorAvatar);
       setMentors(resolvedInitial);
       setMentorCount(initialMentorCount);
       setCursor(initialCursor);
@@ -119,9 +104,7 @@ export function useMentorPool({
     fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' })
       .then((list) => {
         if (myRequestId !== requestIdRef.current) return;
-        const resolvedList = list.map((m) =>
-          resolveMentorItem(m, labelMapRef.current)
-        );
+        const resolvedList = list.map(resolveMentorAvatar);
         setMentors(resolvedList);
         setMentorCount(resolvedList.length);
         setCursor(resolvedList.at(-1)?.updated_at?.toString());
@@ -153,9 +136,7 @@ export function useMentorPool({
         if (rtnList.length === 0) {
           setHasMore(false);
         } else {
-          const resolvedList = rtnList.map((m) =>
-            resolveMentorItem(m, labelMapRef.current)
-          );
+          const resolvedList = rtnList.map(resolveMentorAvatar);
           setMentors((prevMentors) => {
             const newMentors = resolvedList.filter(
               (newMentor) =>
@@ -178,15 +159,26 @@ export function useMentorPool({
         isLoadingRef.current = false;
       }
     }
-  }, [params, cursor, resolveMentorItem, handleError]);
+  }, [params, cursor, handleError]);
 
   const handleScrollToBottom = useCallback(async () => {
     if (!hasMore || isLoadingRef.current) return;
     await fetchMoreMentors();
   }, [hasMore, fetchMoreMentors]);
 
+  // Dynamically translate tag labels inside useMemo on return. This preserves dynamic localization
+  // updates (e.g. language switching) without coupling translation state updates to useEffect fetching.
+  const mentorsForUI = useMemo(
+    () =>
+      mentors.map((m) => ({
+        ...m,
+        have_topic: m.have_topic.map((c) => labelMap.get(c) ?? c),
+      })),
+    [mentors, labelMap]
+  );
+
   return {
-    mentors,
+    mentors: mentorsForUI,
     mentorCount,
     isLoading,
     isNoResults,
