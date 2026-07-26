@@ -18,12 +18,10 @@ interface AvatarUploadJob {
 }
 
 export interface UseBackgroundAvatarUpload {
-  kickOff: (
-    file: File | undefined,
-    currentAvatarUrl: string | null | undefined
-  ) => void;
+  kickOff: (file: File, currentAvatarUrl: string | null | undefined) => void;
   consume: (file: File | undefined) => Promise<string | undefined>;
   rollback: () => Promise<void>;
+  abort: () => void;
 }
 
 async function snapshotAvatarBytes(
@@ -60,13 +58,7 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
   }, []);
 
   const kickOff = useCallback(
-    (file: File | undefined, currentAvatarUrl: string | null | undefined) => {
-      if (!file) {
-        jobRef.current?.controller.abort();
-        jobRef.current = null;
-        return;
-      }
-
+    (file: File, currentAvatarUrl: string | null | undefined) => {
       const current = jobRef.current;
       if (current?.file === file) return;
 
@@ -109,6 +101,11 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
     },
     []
   );
+
+  const abort = useCallback(() => {
+    jobRef.current?.controller.abort();
+    jobRef.current = null;
+  }, []);
 
   const consume = useCallback(
     async (file: File | undefined): Promise<string | undefined> => {
@@ -168,5 +165,5 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
     }
   }, []);
 
-  return { kickOff, consume, rollback };
+  return { kickOff, consume, rollback, abort };
 }
