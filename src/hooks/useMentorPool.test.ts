@@ -328,4 +328,125 @@ describe('useMentorPool', () => {
 
     spyConsoleError.mockRestore();
   });
+
+  it('directly restores initialMentors and bypasses API fetch when filters are cleared', async () => {
+    // 1. Mount with parameters (filtered conditions)
+    mockSearchParams.toString.mockReturnValue('q=react');
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'q') return 'react';
+      return null;
+    });
+
+    const fetchedMentors: MentorType[] = [
+      {
+        ...mockInitialMentors[0],
+        user_id: 2,
+        name: 'Filtered Mentor',
+      },
+    ];
+
+    mockFetchMentors.mockResolvedValue(fetchedMentors);
+
+    const { result, rerender } = renderHook(() =>
+      useMentorPool({
+        initialMentors: mockInitialMentors,
+        initialCursor: '100',
+        initialMentorCount: 1,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+      })
+    );
+
+    // Wait for the query load to complete
+    await act(async () => {});
+
+    expect(result.current.mentors[0].name).toBe('Filtered Mentor');
+    expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+
+    // 2. Clear filters (go from filtered to unfiltered)
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+    mockFetchMentors.mockClear();
+
+    rerender();
+
+    // It should synchronously restore initialMentors
+    expect(result.current.mentors[0].name).toBe('Initial Mentor');
+    expect(result.current.mentors[0].have_topic).toEqual(['Localized Topic A']);
+    expect(result.current.isLoading).toBe(false);
+
+    // API fetch should NOT be called during filter-clearing
+    expect(mockFetchMentors).not.toHaveBeenCalled();
+  });
+
+  it('ignores obsolete out-of-order API errors and does not trigger toast or reset loading', async () => {
+    mockSearchParams.toString.mockReturnValue('q=react');
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'q') return 'react';
+      return null;
+    });
+
+    let rejectFetch1!: (reason: Error) => void;
+    const fetchPromise1 = new Promise<MentorType[]>((_, reject) => {
+      rejectFetch1 = reject;
+    });
+
+    let resolveFetch2!: (value: MentorType[]) => void;
+    const fetchPromise2 = new Promise<MentorType[]>((resolve) => {
+      resolveFetch2 = resolve;
+    });
+
+    // Mock first (failing) and second (successful) fetches
+    mockFetchMentors
+      .mockReturnValueOnce(fetchPromise1)
+      .mockReturnValueOnce(fetchPromise2);
+
+    const spyConsoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    const { result, rerender } = renderHook(() =>
+      useMentorPool({
+        initialMentors: mockInitialMentors,
+        initialCursor: '100',
+        initialMentorCount: 1,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+      })
+    );
+
+    // Trigger second request immediately
+    mockSearchParams.toString.mockReturnValue('q=nextjs');
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'q') return 'nextjs';
+      return null;
+    });
+    rerender();
+
+    // Reject first (obsolete) fetch
+    await act(async () => {
+      rejectFetch1(new Error('Obsolete request failure'));
+      try {
+        await fetchPromise1;
+      } catch {
+        // ignore reject in promise chain
+      }
+    });
+
+    // Error should be ignored: no toast shown, isLoading remains true
+    expect(mockToast).not.toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(true);
+
+    // Resolve second (latest) fetch
+    const latestMentors = [{ ...mockInitialMentors[0], user_id: 100 }];
+    await act(async () => {
+      resolveFetch2(latestMentors);
+      await fetchPromise2;
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.mentors[0].user_id).toBe(100);
+
+    spyConsoleError.mockRestore();
+  });
 });
