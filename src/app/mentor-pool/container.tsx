@@ -14,6 +14,7 @@ import type {
   FilterOptions,
   SelectFilters,
 } from '@/components/filter/MentorFilterDropdown';
+import { useToast } from '@/components/ui/use-toast';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { trackEvent } from '@/lib/analytics';
 import {
@@ -75,6 +76,7 @@ export default function MentorPoolContainer({
   initialMentorCount,
   initialTagCatalog,
 }: Props) {
+  const { toast } = useToast();
   const router = useRouter();
   const params = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -144,8 +146,8 @@ export default function MentorPoolContainer({
     isLoadingRef.current = true;
     setIsNoResults(false);
 
-    fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' }).then(
-      (list) => {
+    fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' })
+      .then((list) => {
         if (myRequestId !== requestIdRef.current) return;
         setMentors(list);
         setMentorCount(list.length);
@@ -153,8 +155,18 @@ export default function MentorPoolContainer({
         setIsNoResults(list.length === 0);
         setIsLoading(false);
         isLoadingRef.current = false;
-      }
-    );
+      })
+      .catch((error) => {
+        if (myRequestId !== requestIdRef.current) return;
+        console.error('Fetch mentors error:', error);
+        setIsLoading(false);
+        isLoadingRef.current = false;
+        toast({
+          variant: 'destructive',
+          title: '載入失敗',
+          description: '無法獲取導師列表，請稍後再試。',
+        });
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.toString()]);
 
@@ -171,6 +183,15 @@ export default function MentorPoolContainer({
     let rtnList: MentorType[] = [];
     try {
       rtnList = await fetchMentors(param);
+    } catch (error) {
+      if (myRequestId === requestIdRef.current) {
+        console.error('Fetch more mentors error:', error);
+        toast({
+          variant: 'destructive',
+          title: '載入失敗',
+          description: '無法獲取更多導師，請稍後再試。',
+        });
+      }
     } finally {
       if (myRequestId === requestIdRef.current) {
         setIsLoading(false);
@@ -193,7 +214,7 @@ export default function MentorPoolContainer({
       return;
     }
     setIsNoResults(true);
-  }, [params, cursor]);
+  }, [params, cursor, toast]);
 
   const handleScrollToBottom = useCallback(async () => {
     if (mentors.length % PAGE_LIMIT || isLoadingRef.current) return;
