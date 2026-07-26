@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { UseFormReturn } from 'react-hook-form';
 
 import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
@@ -11,8 +11,6 @@ interface Options {
   form: UseFormReturn<ProfileFormValues>;
   isAuthorized: boolean;
   isMentorOnboarding: boolean;
-  setIsMentor: (v: boolean) => void;
-  setIsPageLoading: (v: boolean) => void;
 }
 
 export function useEditProfileData({
@@ -20,9 +18,11 @@ export function useEditProfileData({
   form,
   isAuthorized,
   isMentorOnboarding,
-  setIsMentor,
-  setIsPageLoading,
 }: Options) {
+  const [isMentor, setIsMentor] = useState(false);
+  const [isPageLoading, setIsPageLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+
   // Fire the user fetch in parallel with auth resolution. The form.reset
   // effect below still gates on `isAuthorized`, so unauthorized callers
   // (redirected by useProfileAuth) never see the data populated.
@@ -40,18 +40,14 @@ export function useEditProfileData({
 
     setIsMentor(formValues.is_mentor);
     setIsPageLoading(false);
-  }, [
-    userDto,
-    isAuthorized,
-    isMentorOnboarding,
-    form,
-    setIsMentor,
-    setIsPageLoading,
-  ]);
+  }, [userDto, isAuthorized, isMentorOnboarding, form]);
 
   useEffect(() => {
     if (!error) return;
     console.error('Failed to fetch user data:', error);
     setIsPageLoading(false);
-  }, [error, setIsPageLoading]);
+    setIsError(true);
+  }, [error]);
+
+  return { isMentor, isPageLoading, isError };
 }
