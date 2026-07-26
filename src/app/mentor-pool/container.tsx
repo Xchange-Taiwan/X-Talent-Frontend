@@ -1,20 +1,13 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useTransition,
-} from 'react';
+import { useCallback, useMemo, useTransition } from 'react';
 
 import type {
   FilterOptions,
   SelectFilters,
 } from '@/components/filter/MentorFilterDropdown';
-import { useToast } from '@/components/ui/use-toast';
+import { useMentorPool } from '@/hooks/useMentorPool';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { trackEvent } from '@/lib/analytics';
 import {
@@ -23,15 +16,12 @@ import {
   type TagCatalogsByBucket,
 } from '@/services/profile/tagCatalog';
 import { resolveMentorAvatar } from '@/services/search-mentor/mapMentor';
-import { fetchMentors, MentorType } from '@/services/search-mentor/mentors';
+import type { MentorType } from '@/services/search-mentor/mentors';
 
-import { PAGE_LIMIT } from './constants';
 import { filterOptions } from './data';
 import {
   buildHref,
   clearAllConditions,
-  hasAnyCondition,
-  paramsToFetchConditions,
   parseFiltersFromParams,
   removeFilterFromParams,
   setSelectedFiltersOnParams,
@@ -76,7 +66,6 @@ export default function MentorPoolContainer({
   initialMentorCount,
   initialTagCatalog,
 }: Props) {
-  const { toast } = useToast();
   const router = useRouter();
   const params = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -104,129 +93,13 @@ export default function MentorPoolContainer({
 
   const labelMap = useMemo(() => buildTagLabelMap(tagCatalog), [tagCatalog]);
 
-  // initialMentors is always the unfiltered list — a filtered deep link
-  // must not render it even for a frame, so start empty/loading instead.
-  const hasInitialFilters = hasAnyCondition(params);
-  const [mentorCount, setMentorCount] = useState<number>(
-    hasInitialFilters ? 0 : initialMentorCount
-  );
-  const [mentors, setMentors] = useState<MentorType[]>(
-    hasInitialFilters ? [] : initialMentors
-  );
-  const [isNoResults, setIsNoResults] = useState(
-    hasInitialFilters ? false : initialMentors.length === 0
-  );
-  const [isLoading, setIsLoading] = useState(hasInitialFilters);
-  const [cursor, setCursor] = useState<string | undefined>(
-    hasInitialFilters ? undefined : initialCursor
-  );
-  const isLoadingRef = useRef(false);
-  // Monotonic counter — every fetch claims an id. Late responses whose id no
-  // longer matches the current value are stale and must not touch state.
-  const requestIdRef = useRef(0);
-
-  // Refetches on every params change, including initial mount, since
-  // MentorPoolWithData no longer refetches per request. Clearing filters
-  // reuses `initial*` (already the unfiltered snapshot) instead of a fetch.
-  useEffect(() => {
-    const myRequestId = ++requestIdRef.current;
-
-    if (!hasAnyCondition(params)) {
-      setMentors(initialMentors);
-      setMentorCount(initialMentorCount);
-      setCursor(initialCursor);
-      setIsNoResults(initialMentors.length === 0);
-      setIsLoading(false);
-      isLoadingRef.current = false;
-      return;
-    }
-
-    const conditions = paramsToFetchConditions(params);
-    setIsLoading(true);
-    isLoadingRef.current = true;
-    setIsNoResults(false);
-
-    fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' })
-      .then((list) => {
-        if (myRequestId !== requestIdRef.current) return;
-        setMentors(list);
-        setMentorCount(list.length);
-        setCursor(list.at(-1)?.updated_at?.toString());
-        setIsNoResults(list.length === 0);
-        setIsLoading(false);
-        isLoadingRef.current = false;
-      })
-      .catch((error) => {
-        if (myRequestId !== requestIdRef.current) return;
-        console.error(
-          'Fetch mentors error:',
-          error instanceof Error ? error.message : String(error)
-        );
-        setIsLoading(false);
-        isLoadingRef.current = false;
-        toast({
-          variant: 'destructive',
-          title: '載入失敗',
-          description: '無法獲取導師列表，請稍後再試。',
-        });
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.toString()]);
-
-  const fetchMoreMentors = useCallback(async () => {
-    const myRequestId = ++requestIdRef.current;
-    const conditions = paramsToFetchConditions(params);
-    const param = {
-      ...conditions,
-      limit: PAGE_LIMIT,
-      cursor,
-    };
-    setIsLoading(true);
-    isLoadingRef.current = true;
-    let rtnList: MentorType[] = [];
-    try {
-      rtnList = await fetchMentors(param);
-    } catch (error) {
-      if (myRequestId === requestIdRef.current) {
-        console.error(
-          'Fetch more mentors error:',
-          error instanceof Error ? error.message : String(error)
-        );
-        toast({
-          variant: 'destructive',
-          title: '載入失敗',
-          description: '無法獲取更多導師，請稍後再試。',
-        });
-      }
-      return;
-    } finally {
-      if (myRequestId === requestIdRef.current) {
-        setIsLoading(false);
-        isLoadingRef.current = false;
-      }
-    }
-    if (myRequestId !== requestIdRef.current) return;
-    if (rtnList.length > 0) {
-      setMentors((prevMentors) => {
-        const newMentors = rtnList.filter(
-          (newMentor) =>
-            !prevMentors.some(
-              (prevMentor) => prevMentor.user_id === newMentor.user_id
-            )
-        );
-        return [...prevMentors, ...newMentors];
-      });
-      setMentorCount((prev) => prev + rtnList.length);
-      setCursor(rtnList.at(-1)?.updated_at?.toString());
-      return;
-    }
-    setIsNoResults(true);
-  }, [params, cursor, toast]);
-
-  const handleScrollToBottom = useCallback(async () => {
-    if (mentors.length % PAGE_LIMIT || isLoadingRef.current) return;
-    await fetchMoreMentors();
-  }, [mentors.length, fetchMoreMentors]);
+  // All state management, pagination tracking, and error handling are delegated to custom hook
+  const { mentors, mentorCount, isLoading, isNoResults, handleScrollToBottom } =
+    useMentorPool({
+      initialMentors,
+      initialCursor,
+      initialMentorCount,
+    });
 
   const handleFilterChange = useCallback(
     (filters: SelectFilters) => {
