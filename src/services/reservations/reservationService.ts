@@ -1,7 +1,7 @@
 import dayjs from 'dayjs';
 
 import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, FetchApiError } from '@/lib/apiClient';
 import { Reservation, ReservationMessage } from '@/services/reservations/types';
 import { components } from '@/types/api';
 
@@ -156,16 +156,16 @@ export async function fetchReservations(
   if (debug)
     console.debug('[reservations] GET', { userId, state, batch, nextDtend });
 
+  const path = `/v1/users/${userId}/reservations`;
   const json = await apiClient.get<
     components['schemas']['ApiResponse_ReservationInfoListVO_']
-  >(`/v1/users/${userId}/reservations`, {
+  >(path, {
     params: { state, batch, next_dtend: nextDtend },
   });
 
   if (debug) console.debug('[reservations] GET parsed', json);
 
-  if (json.code !== '0')
-    throw new Error(`API error: code=${json.code}, msg=${json.msg}`);
+  if (json.code !== '0') throw new FetchApiError(json.code, json.msg, path);
 
   const items = (json.data?.reservations ?? []).map((reservation) =>
     mapToReservation(reservation)
@@ -192,14 +192,14 @@ export async function updateReservationStatus(opts: {
       body,
     });
 
+  const path = `/v1/users/${userId}/reservations/${reservationId}`;
   const json = await apiClient.put<
     components['schemas']['ApiResponse_ReservationVO_']
-  >(`/v1/users/${userId}/reservations/${reservationId}`, body);
+  >(path, body);
 
   if (debug) console.debug('[reservations] PUT parsed', json);
 
-  if (json.code !== '0')
-    throw new Error(`API error: code=${json.code}, msg=${json.msg}`);
+  if (json.code !== '0') throw new FetchApiError(json.code, json.msg, path);
 
   if (!json.data) throw new Error('API error: missing data in response');
 
@@ -225,14 +225,14 @@ export async function createReservation(opts: {
 
   if (debug) console.debug('[reservations] POST request', { userId, body });
 
+  const path = `/v1/users/${userId}/reservations`;
   const json = await apiClient.post<
     components['schemas']['ApiResponse_ReservationVO_']
-  >(`/v1/users/${userId}/reservations`, body);
+  >(path, body);
 
   if (debug) console.debug('[reservations] POST parsed', json);
 
-  if (json.code !== '0')
-    throw new Error(`API error: code=${json.code}, msg=${json.msg}`);
+  if (json.code !== '0') throw new FetchApiError(json.code, json.msg, path);
 
   if (!json.data) throw new Error('API error: missing data in response');
 
