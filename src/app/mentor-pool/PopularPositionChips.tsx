@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 
 import { useOverflowFit } from '@/hooks/useOverflowFit';
+import { cn } from '@/lib/utils';
 
 import { POPULAR_POSITIONS } from './data';
 import { buildHref, setSearchPattern } from './searchParams';
@@ -31,7 +32,7 @@ export default function PopularPositionChips() {
     setItemWidths(widths);
   }, []);
 
-  const { visibleCount } = useOverflowFit({
+  const { visibleCount, isMeasuring } = useOverflowFit({
     itemWidths,
     containerWidth: DESKTOP_WIDTH,
     gapPx: GAP_PX,
@@ -64,7 +65,12 @@ export default function PopularPositionChips() {
   };
 
   return (
-    <div className="relative">
+    <div
+      className={cn(
+        'relative transition-opacity duration-150',
+        isMeasuring ? 'opacity-0' : 'opacity-100'
+      )}
+    >
       <div
         ref={scrollRef}
         className="flex gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] xl:mx-auto xl:w-[846px] xl:justify-center xl:overflow-x-visible [&::-webkit-scrollbar]:hidden"
