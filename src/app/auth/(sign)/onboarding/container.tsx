@@ -47,7 +47,6 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { data: session, status, update: updateSession } = useSession();
-  const isMentor = session?.user?.isMentor ?? false;
 
   const [tempData, setTempData] = useState<{
     step1?: z.infer<typeof step1Schema>;
@@ -112,14 +111,6 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
   }, []);
 
   const onSubmitStep1 = (data: z.infer<typeof step1Schema>) => {
-    if (isMentor && !data.avatar && !data.avatarFile) {
-      step1Form.setError('avatarFile', {
-        type: 'custom',
-        message: '請上傳個人頭像',
-      });
-      return;
-    }
-
     setTempData((prev) => ({ ...prev, step1: data }));
 
     const file = data.avatarFile;
@@ -241,7 +232,6 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
           const stub = buildOnboardingDtoStub({
             userId: sessionUserId,
             formData: validatedData,
-            isMentor: session?.user?.isMentor ?? false,
             industryCatalog: industries,
           });
           primeUserDataCache(sessionUserId, 'zh_TW', stub);
@@ -249,16 +239,13 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
           clearUserDataCache(Number(session.user.id), 'zh_TW');
         }
 
-        // Optimistic session update — server-side `is_mentor` is taken from
-        // the existing DB value (onboarding payload doesn't carry it), and
-        // server-side `onboarding` is derived from the tags we just
-        // submitted, so both values are predictable without a fetch.
+        // Optimistic session update — server-side `onboarding` is derived from
+        // the tags we just submitted, so values are predictable without a fetch.
         await updateSession({
           user: {
             ...session?.user,
             name: validatedData.name ?? session?.user?.name,
             avatar: validatedData.avatar ?? session?.user?.avatar,
-            isMentor: session?.user?.isMentor ?? false,
             onBoarding: true,
             ...(job ? { avatarUpdatedAt: Date.now() } : {}),
           },
