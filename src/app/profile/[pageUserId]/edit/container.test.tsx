@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // mock navigate & searchParams
 const mockSearchParamsGet = vi.fn().mockReturnValue(null);
@@ -15,7 +15,11 @@ vi.mock('next-auth/react', () => ({
 }));
 
 // mock other hooks to isolate our container test
-const mockUseEditProfileData = vi.fn();
+const mockUseEditProfileData = vi.fn().mockReturnValue({
+  isMentor: false,
+  isPageLoading: false,
+  isError: false,
+});
 vi.mock('@/hooks/user/profile/useEditProfileData', () => ({
   useEditProfileData: (options: unknown) => mockUseEditProfileData(options),
 }));
@@ -69,7 +73,9 @@ vi.mock('@/components/profile/edit/EditPageHeader', () => ({
   EditPageHeader: () => <div data-testid="edit-header" />,
 }));
 vi.mock('@/components/profile/edit/AvatarSection', () => ({
-  AvatarSection: () => <div data-testid="avatar-section" />,
+  AvatarSection: ({ id }: { id?: string }) => (
+    <div id={id} data-testid="avatar-section" />
+  ),
 }));
 vi.mock('@/components/profile/edit/Fields', () => ({
   TextField: () => <div />,
@@ -80,8 +86,8 @@ vi.mock('@/components/profile/edit/CategoryMultiSelectField', () => ({
   CategoryMultiSelectField: () => <div />,
 }));
 vi.mock('@/components/profile/edit/Section', () => ({
-  Section: ({ children }: { children: React.ReactNode }) => (
-    <div>{children}</div>
+  Section: ({ id, children }: { id?: string; children: React.ReactNode }) => (
+    <div id={id}>{children}</div>
   ),
 }));
 
@@ -166,5 +172,119 @@ describe('EditProfileContainer isMentorOnboarding parsing', () => {
         isMentorOnboarding: false,
       })
     );
+  });
+});
+
+describe('EditProfileContainer error handling and scrolling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseEditProfileData.mockReturnValue({
+      isMentor: false,
+      isPageLoading: false,
+      isError: false,
+    });
+  });
+
+  it('shows error screen when useEditProfileData returns isError: true', () => {
+    mockUseEditProfileData.mockReturnValue({
+      isMentor: false,
+      isPageLoading: false,
+      isError: true,
+    });
+
+    const { getByText } = render(
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
+    );
+
+    expect(getByText('載入失敗，請稍後再試。')).toBeInTheDocument();
+  });
+
+  it('triggers scroll to the correct topmost error element when validation fails', async () => {
+    mockUseEditProfileData.mockReturnValue({
+      isMentor: true,
+      isPageLoading: false,
+      isError: false,
+    });
+
+    const scrolledIds: string[] = [];
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: HTMLElement) {
+      if (this.id) scrolledIds.push(this.id);
+    };
+
+    const originalGetBoundingClientRect =
+      Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      if (this.id === 'about') {
+        return {
+          top: 150,
+          left: 0,
+          bottom: 0,
+          right: 0,
+          width: 0,
+          height: 0,
+          x: 0,
+          y: 0,
+          toJSON: () => {},
+        } as DOMRect;
+      }
+      if (this.id === 'name') {
+        return {
+          top: 300,
+          left: 0,
+          bottom: 0,
+          right: 0,
+          width: 0,
+          height: 0,
+          x: 0,
+          y: 0,
+          toJSON: () => {},
+        } as DOMRect;
+      }
+      return {
+        top: 9999,
+        left: 0,
+        bottom: 0,
+        right: 0,
+        width: 0,
+        height: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => {},
+      } as DOMRect;
+    };
+
+    const { container } = render(
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
+    );
+
+    const nameEl = container.querySelector('#name');
+    const aboutEl = container.querySelector('#about');
+
+    expect(nameEl).not.toBeNull();
+    expect(aboutEl).not.toBeNull();
+
+    const formEl = container.querySelector('form');
+    if (formEl) {
+      const { fireEvent } = await import('@testing-library/react');
+      fireEvent.submit(formEl);
+    }
+
+    const { waitFor } = await import('@testing-library/react');
+    await waitFor(() => {
+      expect(scrolledIds.length).toBeGreaterThan(0);
+    });
+
+    // It should have scrolled to 'about' first because 150 < 300 (it's higher up in the layout)
+    expect(scrolledIds[0]).toBe('about');
+
+    Element.prototype.scrollIntoView = originalScrollIntoView;
+    HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
   });
 });

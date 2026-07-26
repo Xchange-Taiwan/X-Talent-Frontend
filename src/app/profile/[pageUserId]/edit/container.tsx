@@ -80,8 +80,6 @@ export default function EditProfileContainer({
 
   const { isAuthorized } = useProfileAuth(pageUserId);
 
-  const [isMentor, setIsMentor] = useState(false);
-  const [isPageLoading, setIsPageLoading] = useState(true);
   const [jobSectionError, setJobSectionError] = useState(false);
   const [educationSectionError, setEducationSectionError] = useState(false);
 
@@ -89,8 +87,7 @@ export default function EditProfileContainer({
   const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
   const industries = tagCatalog.industry;
 
-  const isMentorRef = useRef(isMentor);
-  isMentorRef.current = isMentor;
+  const isMentorRef = useRef(false);
 
   const form = useForm<ProfileFormValues>({
     resolver: (...args) =>
@@ -98,14 +95,14 @@ export default function EditProfileContainer({
     defaultValues,
   });
 
-  useEditProfileData({
+  const { isMentor, isPageLoading, isError } = useEditProfileData({
     userId: Number(pageUserId),
     form,
     isAuthorized,
     isMentorOnboarding,
-    setIsMentor,
-    setIsPageLoading,
   });
+
+  isMentorRef.current = isMentor;
 
   // Warm up the avatar presigned URL once authorized. Saves a serial round
   // trip from the submit waterfall when the user uploads a new avatar.
@@ -134,25 +131,24 @@ export default function EditProfileContainer({
       ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
-  const FIELD_SCROLL_ORDER: (keyof ProfileFormValues)[] = [
-    'avatarFile',
-    'name',
-    'about',
-    'have_topic',
-    'have_skill',
-    'location',
-    'years_of_experience',
-    'industry',
-    'want_position',
-    'want_skill',
-    'want_topic',
-    'work_experiences',
-    'educations',
-  ];
-
   const onError = (errors: FieldErrors<ProfileFormValues>) => {
-    const firstKey = FIELD_SCROLL_ORDER.find((key) => key in errors);
-    if (firstKey) scrollToField(firstKey);
+    const errorKeys = Object.keys(errors) as (keyof ProfileFormValues)[];
+
+    const elementsWithErrors = errorKeys
+      .map((key) => {
+        const element = document.getElementById(key);
+        if (!element) return null;
+        return { key, rect: element.getBoundingClientRect() };
+      })
+      .filter(
+        (item): item is { key: keyof ProfileFormValues; rect: DOMRect } =>
+          item !== null
+      );
+
+    if (elementsWithErrors.length > 0) {
+      elementsWithErrors.sort((a, b) => a.rect.top - b.rect.top);
+      scrollToField(elementsWithErrors[0].key);
+    }
   };
 
   const { onSubmit, isSaving } = useProfileSubmit({
@@ -173,6 +169,19 @@ export default function EditProfileContainer({
 
   if (!isAuthorized) return null;
   if (isPageLoading) return <PageLoading />;
+
+  if (isError) {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center space-y-4">
+        <p className="text-lg font-medium text-destructive">
+          載入失敗，請稍後再試。
+        </p>
+        <Button onClick={() => window.location.reload()} variant="outline">
+          重新整理
+        </Button>
+      </div>
+    );
+  }
 
   const handleGoToPrev = () => {
     unsaved.guardNavigate(() => router.push(`/profile/${pageUserId}`));
