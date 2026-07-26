@@ -17,6 +17,7 @@ vi.mock('@/services/search-mentor/mentors', () => ({
 }));
 
 import { PAGE_LIMIT } from '@/app/mentor-pool/constants';
+import avatarImage from '@/assets/default-avatar.png';
 import {
   fetchMentors,
   type MentorType,
@@ -36,7 +37,7 @@ const mockInitialMentors: MentorType[] = [
   {
     user_id: 1,
     name: 'Initial Mentor',
-    avatar: '',
+    avatar: avatarImage,
     job_title: '',
     company: '',
     years_of_experience: '3_5',
@@ -94,7 +95,7 @@ describe('useMentorPool', () => {
       {
         user_id: 2,
         name: 'Fetched Mentor',
-        avatar: '',
+        avatar: avatarImage,
         job_title: '',
         company: '',
         years_of_experience: '5_8',
@@ -761,6 +762,19 @@ describe('useMentorPool', () => {
     expect(result.current.mentors[0].name).toBe('Initial Mentor');
     expect(mockFetchMentors).toHaveBeenCalledTimes(1);
   });
+
+  it('preserves the resolved avatar and other fields of initial mentors without double-processing', () => {
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: mockInitialMentors,
+        initialMentorCount: 1,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+      })
+    );
+
+    expect(result.current.mentors[0].avatar).toBe(avatarImage);
+  });
 });
 
 describe('applyMentorPage', () => {
@@ -776,7 +790,7 @@ describe('applyMentorPage', () => {
   const sampleMentor: MentorType = {
     user_id: 10,
     name: 'Sample',
-    avatar: '',
+    avatar: avatarImage,
     job_title: '',
     company: '',
     years_of_experience: '',
