@@ -7,7 +7,6 @@ import { trackEvent } from '@/lib/analytics';
 import {
   acceptReservation,
   rejectOrCancelReservation,
-  resolveOtherId,
 } from '@/services/reservations';
 
 export type Variant =
@@ -31,42 +30,28 @@ export const buildRejectOrCancelAffectedTabs = (
 };
 
 interface UseReservationActionsProps {
-  items: Reservation[];
   myUserId: string | undefined;
   variant: Variant;
   onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
 }
 
 interface UseReservationActionsReturn {
-  accept: (payload: { id: string; message: string }) => Promise<void>;
+  accept: (reservation: Reservation, message: string) => Promise<void>;
   rejectOrCancel: (
-    id: string,
+    reservation: Reservation,
     text: string,
     successMessage: string
   ) => Promise<void>;
-  buildProfileHref: (it: Reservation) => string | undefined;
   isMutating: boolean;
 }
 
 export function useReservationActions({
-  items,
   myUserId,
   variant,
   onMutationSuccess,
 }: UseReservationActionsProps): UseReservationActionsReturn {
   const { toast } = useToast();
   const [isMutating, setIsMutating] = useState(false);
-
-  const findItem = useCallback(
-    (id: string): Reservation => {
-      const found = items.find((x) => x.id === id);
-      if (!found) {
-        throw new Error(`[ReservationList] item not found for id=${id}`);
-      }
-      return found;
-    },
-    [items]
-  );
 
   /**
    * Internal async wrapper to centralize lifecycle management and error handling
@@ -91,61 +76,51 @@ export function useReservationActions({
   );
 
   const accept = useCallback(
-    async ({ id, message }: { id: string; message: string }) => {
+    async (reservation: Reservation, message: string) => {
       await executeMutation(async () => {
         if (!myUserId) {
           throw new Error('[useReservationActions] missing current user id');
         }
-        const it = findItem(id);
         await acceptReservation({
           message,
-          reservation: it,
+          reservation,
           myUserId,
         });
         toast({
           title: '已接受預約',
           description: '會議連結將於數分鐘內寄至雙方信箱',
         });
-        onMutationSuccess?.(id, ACCEPT_AFFECTED_TABS);
+        onMutationSuccess?.(reservation.id, ACCEPT_AFFECTED_TABS);
       });
     },
-    [executeMutation, findItem, myUserId, toast, onMutationSuccess]
+    [executeMutation, myUserId, toast, onMutationSuccess]
   );
 
   const rejectOrCancel = useCallback(
-    async (id: string, text: string, successMessage: string) => {
+    async (reservation: Reservation, text: string, successMessage: string) => {
       await executeMutation(async () => {
         if (!myUserId) {
           throw new Error('[useReservationActions] missing current user id');
         }
-        const it = findItem(id);
         await rejectOrCancelReservation({
           text,
-          reservation: it,
+          reservation,
           myUserId,
         });
         trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
         toast({ description: successMessage });
-        onMutationSuccess?.(id, buildRejectOrCancelAffectedTabs(variant));
+        onMutationSuccess?.(
+          reservation.id,
+          buildRejectOrCancelAffectedTabs(variant)
+        );
       });
     },
-    [executeMutation, findItem, myUserId, variant, toast, onMutationSuccess]
-  );
-
-  const buildProfileHref = useCallback(
-    (it: Reservation): string | undefined => {
-      if (!myUserId) return undefined;
-      const otherId = resolveOtherId(it, myUserId);
-      if (!otherId || String(otherId) === myUserId) return undefined;
-      return `/profile/${otherId}`;
-    },
-    [myUserId]
+    [executeMutation, myUserId, variant, toast, onMutationSuccess]
   );
 
   return {
     accept,
     rejectOrCancel,
-    buildProfileHref,
     isMutating,
   };
 }

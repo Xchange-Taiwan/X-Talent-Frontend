@@ -67,19 +67,21 @@ vi.mock('@/services/reservations', async (importOriginal) => {
   return {
     ...actual,
     updateReservationStatus: mockUpdateReservationStatus,
-    acceptReservation: vi.fn().mockImplementation(async ({ id, myUserId }) => {
-      await mockUpdateReservationStatus({
-        userId: myUserId,
-        reservationId: id,
-        body: {},
-      });
-    }),
-    rejectOrCancelReservation: vi
+    acceptReservation: vi
       .fn()
-      .mockImplementation(async ({ id, myUserId }) => {
+      .mockImplementation(async ({ reservation, myUserId }) => {
         await mockUpdateReservationStatus({
           userId: myUserId,
-          reservationId: id,
+          reservationId: reservation.id,
+          body: {},
+        });
+      }),
+    rejectOrCancelReservation: vi
+      .fn()
+      .mockImplementation(async ({ reservation, myUserId }) => {
+        await mockUpdateReservationStatus({
+          userId: myUserId,
+          reservationId: reservation.id,
           body: {},
         });
       }),
