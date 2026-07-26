@@ -6,8 +6,8 @@ import {
   PlusIcon,
   TrashIcon,
 } from '@radix-ui/react-icons';
-import React, { useEffect } from 'react';
-import { useFieldArray, UseFormReturn, useWatch } from 'react-hook-form';
+import React from 'react';
+import { UseFormReturn } from 'react-hook-form';
 
 import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
 import { SelectField } from '@/components/profile/edit/Fields';
@@ -32,11 +32,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 
 import { Section } from './Section';
-
-const CURRENT_YEAR = new Date().getFullYear();
-const YEAR_OPTIONS = Array.from({ length: CURRENT_YEAR - 1940 + 1 }, (_, i) =>
-  (CURRENT_YEAR - i).toString()
-);
+import { useRepeatablePeriodSection } from './useRepeatablePeriodSection';
 
 interface Props {
   industries: {
@@ -66,10 +62,22 @@ export const JobExperienceSection = ({
     formState: { errors },
   } = form;
 
-  const { fields, append, remove, move } = useFieldArray({
-    control,
-    name: 'work_experiences',
-  });
+  const { fields, move, YEAR_OPTIONS, isInvalidPeriod, tryAppend, remove } =
+    useRepeatablePeriodSection(
+      form,
+      {
+        arrayName: 'work_experiences',
+        periodStartKey: 'job_period_start',
+        periodEndKey: 'job_period_end',
+        isIncompleteForAppend: (last) =>
+          !last?.job ||
+          !last?.company ||
+          !last?.job_period_start ||
+          !last?.job_period_end,
+        incompleteAlertMessage: '請先完成上一筆工作經驗再新增',
+      },
+      onValidationChange
+    );
 
   const setPrimary = (targetIndex: number) => {
     const experiences = getValues('work_experiences') ?? [];
@@ -92,40 +100,9 @@ export const JobExperienceSection = ({
     }
   };
 
-  const watchedExperiences = useWatch({
-    control,
-    name: 'work_experiences',
-  }) as
-    | Array<{
-        job_period_start?: string;
-        job_period_end?: string;
-      }>
-    | undefined;
-
-  useEffect(() => {
-    const hasError = watchedExperiences?.some((exp) => {
-      const start = exp.job_period_start;
-      const end = exp.job_period_end;
-      return start && end && end !== 'now' && Number(start) > Number(end);
-    });
-    onValidationChange(!!hasError);
-  }, [watchedExperiences, onValidationChange]);
-
   const addJob = () => {
-    const experiences = getValues('work_experiences');
-    const last = experiences?.at(-1);
-    if (
-      experiences.length &&
-      (!last?.job ||
-        !last?.company ||
-        !last?.job_period_start ||
-        !last?.job_period_end)
-    ) {
-      alert('請先完成上一筆工作經驗再新增');
-      return;
-    }
-
-    append({
+    const experiences = getValues('work_experiences') ?? [];
+    tryAppend({
       id: -1,
       job: '',
       company: '',
@@ -148,11 +125,7 @@ export const JobExperienceSection = ({
       }
     >
       {fields.map((field, index) => {
-        const watched = watchedExperiences?.[index] ?? {};
-        const start = watched.job_period_start;
-        const end = watched.job_period_end;
-        const isInvalidPeriod =
-          start && end && end !== 'now' && Number(start) > Number(end);
+        const invalidPeriod = isInvalidPeriod(index);
 
         return (
           <div key={field.id} className="mb-4 rounded-lg border p-4">
@@ -275,7 +248,7 @@ export const JobExperienceSection = ({
               />
             </div>
 
-            {isInvalidPeriod && (
+            {invalidPeriod && (
               <p className="mb-4 text-sm font-medium text-status-200">
                 開始年份不可大於結束年份
               </p>
