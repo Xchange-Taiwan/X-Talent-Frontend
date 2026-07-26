@@ -1,27 +1,9 @@
-'use client';
-
-/**
- * Centralized API client with automatic JWT token management.
- *
- * Usage:
- *   import { apiClient } from '@/lib/apiClient';
- *
- *   // Authenticated (default — Bearer token injected from NextAuth session)
- *   const data = await apiClient.get<UserDTO>('/v1/mentors/123/en/profile');
- *
- *   // Public endpoint (no token)
- *   const data = await apiClient.get<MentorType[]>('/v1/mentors', { auth: false });
- *
- *   // With query params
- *   const mentors = await apiClient.get<MentorType[]>('/v1/mentors', { params: { limit: 10 } });
- */
-
 import type { Session } from 'next-auth';
 import { getSession } from 'next-auth/react';
 
 import { captureApiFailure } from '@/lib/monitoring';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Custom Errors ───────────────────────────────────────────────────────────
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -33,29 +15,53 @@ export class ApiError extends Error {
   }
 }
 
-type RequestOptions = {
+export class FetchHttpError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly path: string
+  ) {
+    super(`fetch ${path} failed: ${status}`);
+    this.name = 'FetchHttpError';
+  }
+}
+
+export class FetchApiError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly path: string
+  ) {
+    super(`fetch ${path} API error (${code}): ${message}`);
+    this.name = 'FetchApiError';
+  }
+}
+
+// SSR_API_URL is preferred when set, so server-side fetches inside a
+// Docker container can reach the BFF via the docker network DNS name
+// (e.g. http://bff:8000/api), while the browser bundle still uses
+// NEXT_PUBLIC_API_URL (e.g. http://localhost:8006/api).
+export const BASE_URL =
+  process.env.SSR_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? '';
+
+export type RequestOptions = Omit<RequestInit, 'body' | 'headers'> & {
   /** Attach Bearer token from NextAuth session. Respects JWT_ENABLED flag. Default: true */
   auth?: boolean;
-  /** Extra headers merged on top of defaults */
-  headers?: Record<string, string>;
   /** Query string params — undefined/null values are omitted */
   params?: Record<string, string | number | boolean | undefined | null>;
-  /** AbortSignal forwarded to fetch — caller controls cancellation */
-  signal?: AbortSignal;
+  /** Extra headers merged on top of defaults */
+  headers?: Record<string, string>;
 };
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
 }
 
-// ─── Internals ───────────────────────────────────────────────────────────────
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
-
 // Deduplicate concurrent 401 refresh calls — if multiple requests fail at once,
 // they all wait on the same refresh rather than each triggering a new one.
 let pendingRefresh: Promise<Session | null> | null = null;
 
 function refreshSession(): Promise<Session | null> {
+  if (typeof window === 'undefined') return Promise.resolve(null);
   if (!pendingRefresh) {
     pendingRefresh = getSession().finally(() => {
       pendingRefresh = null;
@@ -80,6 +86,7 @@ function buildUrl(path: string, params?: RequestOptions['params']): string {
 }
 
 async function getAuthHeader(): Promise<Record<string, string>> {
+  if (typeof window === 'undefined') return {};
   const session = await getSession();
   const token = session?.accessToken;
   if (!token) return {};
@@ -93,7 +100,13 @@ async function request<T>(
   options: RequestOptions = {},
   isRetry = false
 ): Promise<T> {
-  const { auth = true, headers = {}, params, signal } = options;
+  const { auth = true, headers = {}, params, signal, ...restOptions } = options;
+
+  if (typeof window === 'undefined' && auth) {
+    throw new Error(
+      'Server-side authenticated requests are not supported. Use auth: false.'
+    );
+  }
 
   const authHeader = auth ? await getAuthHeader() : {};
 
@@ -110,6 +123,7 @@ async function request<T>(
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       ...(signal ? { signal } : {}),
+      ...restOptions,
     });
   } catch (networkError) {
     // Caller-driven cancellation — not an error worth reporting.
@@ -165,6 +179,23 @@ export const apiClient = {
   get: <T>(path: string, options?: RequestOptions) =>
     request<T>('GET', path, undefined, options),
 
+  getUnwrapped: async <T>(
+    path: string,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    const result = await request<{
+      code: string;
+      msg: string;
+      data: T | null | undefined;
+    }>('GET', path, undefined, options);
+
+    if (result.code !== '0') {
+      throw new FetchApiError(result.code, result.msg, path);
+    }
+
+    return result.data;
+  },
+
   post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('POST', path, body, options),
 
@@ -177,3 +208,19 @@ export const apiClient = {
   delete: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('DELETE', path, body, options),
 };
+
+// ─── Shared Server Helper ────────────────────────────────────────────────────
+export async function fetchServerJson<T>(
+  path: string,
+  options?: RequestOptions
+): Promise<T | null | undefined> {
+  const { auth = false, ...rest } = options ?? {};
+  try {
+    return await apiClient.getUnwrapped<T>(path, { auth, ...rest });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw new FetchHttpError(error.status, path);
+    }
+    throw error;
+  }
+}
