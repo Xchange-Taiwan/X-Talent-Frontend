@@ -10,22 +10,25 @@ export interface MentorExperiencePayload {
   order: number;
 }
 
+// Fields are guaranteed present (never undefined) on decode()'s output —
+// decode() fills every field with a safe default, so callers can consume
+// the result directly without re-declaring fallback logic of their own.
 export interface WorkExperienceMetadata {
-  job?: string;
-  company?: string;
-  job_period_start?: string;
-  job_period_end?: string;
-  job_location?: string;
-  description?: string;
-  industry?: string;
-  is_primary?: boolean;
+  job: string;
+  company: string;
+  job_period_start: string;
+  job_period_end: string;
+  job_location: string;
+  description: string;
+  industry: string;
+  is_primary: boolean;
 }
 
 export interface EducationExperienceMetadata {
-  subject?: string;
-  school?: string;
-  education_period_start?: string;
-  education_period_end?: string;
+  subject: string;
+  school: string;
+  education_period_start: string;
+  education_period_end: string;
 }
 
 export interface PersonalLinkMetadata {
@@ -39,10 +42,14 @@ export interface DecodedExperiences {
   personalLinks: PersonalLinkMetadata[];
 }
 
-// encode() accepts the same flat domain shape decode() produces, so callers
-// on both sides of the wire share one set of types instead of re-declaring
-// per-category fields.
-export type EncodeInput = DecodedExperiences;
+// encode() tolerates partial per-item data (legacy rows, in-progress edits)
+// and fills the same wire defaults decode() does on the way back — so its
+// input is intentionally looser than decode()'s guaranteed output shape.
+export interface EncodeInput {
+  workExperiences: Partial<WorkExperienceMetadata>[];
+  educations: Partial<EducationExperienceMetadata>[];
+  personalLinks: PersonalLinkMetadata[];
+}
 
 export interface EncodeResult {
   experiences: MentorExperiencePayload[];
@@ -68,7 +75,7 @@ function getMetadataArray<T>(
 export function decode(
   experiences: MentorExperiencePayload[] | undefined
 ): DecodedExperiences {
-  const workExperiences = getMetadataArray<WorkExperienceMetadata>(
+  const workExperiences = getMetadataArray<Partial<WorkExperienceMetadata>>(
     experiences,
     ExperienceType.WORK
   ).map((item) => ({
@@ -92,7 +99,7 @@ export function decode(
     workExperiences[0].is_primary = true;
   }
 
-  const educations = getMetadataArray<EducationExperienceMetadata>(
+  const educations = getMetadataArray<Partial<EducationExperienceMetadata>>(
     experiences,
     ExperienceType.EDUCATION
   ).map((item) => ({

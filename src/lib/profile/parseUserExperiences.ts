@@ -59,24 +59,8 @@ export function toFormValues(
   });
 
   return {
-    workExperiences: workExperiences.map((item, idx) => ({
-      id: idx,
-      job: item.job || '',
-      company: item.company || '',
-      job_period_start: item.job_period_start || '',
-      job_period_end: item.job_period_end || '',
-      industry: item.industry || '',
-      job_location: item.job_location || '',
-      description: item.description || '',
-      is_primary: item.is_primary ?? false,
-    })),
-    educations: educations.map((item, idx) => ({
-      id: idx,
-      subject: item.subject || '',
-      school: item.school || '',
-      education_period_start: item.education_period_start || '',
-      education_period_end: item.education_period_end || '',
-    })),
+    workExperiences: workExperiences.map((item, idx) => ({ id: idx, ...item })),
+    educations: educations.map((item, idx) => ({ id: idx, ...item })),
     links,
   };
 }
