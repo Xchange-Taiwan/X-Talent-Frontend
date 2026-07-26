@@ -12,30 +12,22 @@ import {
 import { trackEvent } from '@/lib/analytics';
 import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 import { captureFlowFailure } from '@/lib/monitoring';
-import { encode } from '@/lib/profile/experienceCodec';
 import {
   firstSyncedFetch,
   pollUntilSynced,
 } from '@/lib/profile/pollUntilSynced';
+import {
+  computeDirtyStates,
+  extractValidLinks,
+  mapFormValuesToPayload,
+  type ProfileDirtyFields,
+} from '@/lib/profile/profileSaveAdapter';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
 import { MentorProfileVO } from '@/services/profile/user';
 
-// RHF's dirtyFields is a deep partial where leaves are `true`. Nested fields
-// (objects, arrays) carry the same shape, so we recurse to detect "anything
-// dirty inside" without enumerating every leaf.
-export type ProfileDirtyFields = Partial<
-  Record<keyof ProfileFormValues, unknown>
->;
-
-function hasDirtyValue(v: unknown): boolean {
-  if (!v) return false;
-  if (typeof v === 'boolean') return v;
-  if (Array.isArray(v)) return v.some(hasDirtyValue);
-  if (typeof v === 'object') return Object.values(v).some(hasDirtyValue);
-  return Boolean(v);
-}
+export type { ProfileDirtyFields };
 
 interface Options {
   pageUserId: string;
@@ -103,80 +95,15 @@ export function useProfileSubmit({
       //    When `dirtyFields` is omitted we fall back to the legacy
       //    "send everything" behaviour so existing callers and tests are
       //    unaffected.
-      const isDirty = (key: keyof ProfileFormValues): boolean => {
-        if (!dirtyFields) return true;
-        return hasDirtyValue(dirtyFields[key]);
-      };
+      const { experiencesDirty, profileDirty } = computeDirtyStates(
+        values,
+        dirtyFields,
+        isMentorOnboarding
+      );
 
-      const workDirty = isDirty('work_experiences');
-      const educationDirty = isDirty('educations');
-      const linksDirty =
-        isDirty('linkedin') ||
-        isDirty('facebook') ||
-        isDirty('instagram') ||
-        isDirty('twitter') ||
-        isDirty('youtube') ||
-        isDirty('website');
-      const experiencesDirty = workDirty || educationDirty || linksDirty;
+      const payload = mapFormValuesToPayload(values, avatar, experiencesDirty);
 
-      // updateProfile sends every form field, so any non-experience profile
-      // edit triggers it. `isMentorOnboarding` forces it through so the
-      // backend onboarding flag flips even when the user submits without
-      // touching anything. A new avatar file also counts. Any dirty
-      // experience section also triggers it because experiences travel inline.
-      const profileDirty =
-        isMentorOnboarding ||
-        Boolean(values.avatarFile) ||
-        isDirty('avatar') ||
-        isDirty('name') ||
-        isDirty('about') ||
-        isDirty('location') ||
-        isDirty('industry') ||
-        isDirty('years_of_experience') ||
-        isDirty('statement') ||
-        isDirty('have_skill') ||
-        isDirty('have_topic') ||
-        isDirty('want_position') ||
-        isDirty('want_skill') ||
-        isDirty('want_topic') ||
-        experiencesDirty;
-
-      const links = [
-        values.linkedin,
-        values.facebook,
-        values.instagram,
-        values.twitter,
-        values.youtube,
-        values.website,
-      ].filter((l) => l && l.url);
-
-      // The codec derives both the wire-format experiences batch and the
-      // top-level job_title/company mirror (which consumers like the
-      // profile page, mentor pool card, and reservations read directly
-      // without re-deriving from the experience list) from the same form
-      // values — see experienceCodec.ts.
-      const {
-        experiences,
-        job_title,
-        company: companyFromPrimary,
-      } = encode({
-        workExperiences: values.work_experiences ?? [],
-        educations: values.educations ?? [],
-        personalLinks: links,
-      });
-
-      const payload = {
-        ...values,
-        avatar,
-        avatarFile: undefined,
-        job_title,
-        company: companyFromPrimary,
-        // Three-state semantic on the wire: omit when no experience section
-        // changed (backend leaves the column alone); include the full set
-        // when any section is dirty (backend overwrites). Replace semantics:
-        // backend overwrites profiles.experiences wholesale with this batch.
-        ...(experiencesDirty ? { experiences } : {}),
-      };
+      const { job_title, company: companyFromPrimary } = payload;
 
       try {
         if (profileDirty) {
@@ -197,7 +124,7 @@ export function useProfileSubmit({
       //    blocking the user behind a ~800ms timeout.
       const sessionUserId = session?.user?.id ? Number(session.user.id) : null;
       const sessionUser = session?.user;
-      const personalLinks = links.map((link) => ({
+      const personalLinks = extractValidLinks(values).map((link) => ({
         platform: link.platform,
         url: link.url,
       }));
