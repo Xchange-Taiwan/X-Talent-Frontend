@@ -1,4 +1,4 @@
-import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
+import { TotalWorkSpanEnum } from '@/constant/seniority';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import {
   decode,

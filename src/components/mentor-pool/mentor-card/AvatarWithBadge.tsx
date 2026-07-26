@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import { StaticImageData } from 'next/image';
 
-import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
+import { TotalWorkSpanEnum } from '@/constant/seniority';
 
 interface AvatarWithBadgeProps {
   avatar: string | StaticImageData;
