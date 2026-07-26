@@ -7,9 +7,7 @@ import { expect, test } from '@playwright/test';
 test('logged-in user sees the user menu on the homepage', async ({ page }) => {
   await page.goto('/');
 
-  await expect(
-    page.getByRole('button', { name: /open user menu/i })
-  ).toBeVisible({
+  await expect(page.getByRole('button', { name: /開啟用戶選單/ })).toBeVisible({
     timeout: 15_000,
   });
   await expect(page.getByRole('link', { name: /^登入$/ })).toHaveCount(0);
@@ -22,9 +20,7 @@ test('logged-in user can open the mentor pool without redirect', async ({
   await page.goto('/mentor-pool');
 
   await expect(page).toHaveURL(/\/mentor-pool/);
-  await expect(
-    page.getByRole('button', { name: /open user menu/i })
-  ).toBeVisible({
+  await expect(page.getByRole('button', { name: /開啟用戶選單/ })).toBeVisible({
     timeout: 15_000,
   });
 });

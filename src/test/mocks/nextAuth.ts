@@ -23,9 +23,11 @@ export const mockGetSession = vi.fn().mockResolvedValue(mockSession);
 
 export const mockSignIn = vi.fn().mockResolvedValue({ error: null });
 
+export const mockSignOut = vi.fn();
+
 export const nextAuthMockFactory = () => ({
   useSession: mockUseSession,
   getSession: mockGetSession,
   signIn: mockSignIn,
-  signOut: vi.fn(),
+  signOut: mockSignOut,
 });

@@ -6,16 +6,18 @@ import {
   EducationSection,
   WorkExperienceSection,
 } from '@/components/profile/experience-section/ExperienceSection';
-import MenteeReservationDialog from '@/components/profile/reservation/MenteeReservationDialog';
+import { BookingForm } from '@/components/profile/reservation/BookingForm';
 import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
 import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalendar';
 import { platformLabelMap } from '@/components/profile/social-links/platformLabelMap';
 import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
 import { Button } from '@/components/ui/button';
-import { UseMentorScheduleReturn } from '@/hooks/useMentorSchedule';
+import {
+  BookingSlot,
+  UseMentorScheduleReturn,
+} from '@/hooks/useMentorSchedule';
 import { UserType } from '@/hooks/user/user-data/useUserData';
 import {
-  formatBookingSlotTime,
   formatSelectedDate,
   toDateKey,
 } from '@/lib/profile/scheduleFormatters';
@@ -39,12 +41,14 @@ interface Props {
   allowedDates: string[];
   openReservationDialog: boolean;
   setOpenReservationDialog: (open: boolean) => void;
-  openMenteeReservationDialog: boolean;
-  setOpenMenteeReservationDialog: (open: boolean) => void;
   onScheduleMonthChange: (date: Date) => void;
   onReservation: () => void;
   onEditProfile: () => void;
   onBecomeMentor: () => void;
+  selectedSlot: BookingSlot | null;
+  setSelectedSlot: (slot: BookingSlot | null) => void;
+  isSubmitting: boolean;
+  onConfirmReservation: (question: string) => Promise<boolean>;
 }
 
 export default function ProfilePageUI({
@@ -59,12 +63,14 @@ export default function ProfilePageUI({
   allowedDates,
   openReservationDialog,
   setOpenReservationDialog,
-  openMenteeReservationDialog,
-  setOpenMenteeReservationDialog,
   onScheduleMonthChange,
   onReservation,
   onEditProfile,
   onBecomeMentor,
+  selectedSlot,
+  setSelectedSlot,
+  isSubmitting,
+  onConfirmReservation,
 }: Props) {
   const { selectedDate, setSelectedDate, generateBookingSlots } = schedule;
 
@@ -256,12 +262,13 @@ export default function ProfilePageUI({
               {!scheduleLoaded ? (
                 <ScheduleSkeleton />
               ) : (
-                <div className="flex w-full flex-col gap-4">
-                  <p className="text-xl font-bold">可預約日期</p>
-
-                  <div className="w-full rounded-lg border p-3 shadow-md md:p-5 2xl:p-3">
-                    <div className="px-3 pb-4 pt-1 md:pb-6 2xl:pb-3">
-                      <h2 className="text-2xl font-semibold tracking-tight md:text-3xl 2xl:text-2xl">
+                <div className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] 2xl:max-w-[414px]">
+                  <div className="bg-white w-full rounded-2xl border border-gray-200/80 p-5 shadow-sm">
+                    <div className="mb-3 border-b border-gray-100 pb-3">
+                      <p className="mb-1 text-xs font-medium text-gray-500">
+                        可預約日期
+                      </p>
+                      <h2 className="text-2xl font-semibold tracking-tight text-gray-900 md:text-3xl 2xl:text-2xl">
                         {formatSelectedDate(
                           selectedDate
                             ? new Date(selectedDate + 'T00:00:00')
@@ -285,73 +292,28 @@ export default function ProfilePageUI({
                       isMonthLoading={!schedule.monthLoaded}
                     />
                   </div>
-                  <div className="flex flex-col items-start gap-4">
-                    <p>當日可預約時段</p>
-                    {(() => {
-                      const slots = selectedDate
-                        ? generateBookingSlots(selectedDate)
-                        : [];
-                      if (!schedule.monthLoaded) {
-                        return (
-                          <div
-                            aria-busy="true"
-                            aria-live="polite"
-                            className="flex min-h-10 items-center text-gray-400"
-                          >
-                            讀取中…
-                          </div>
-                        );
-                      }
-                      if (slots.length === 0) {
-                        return (
-                          <div className="flex min-h-10 items-center text-gray-400">
-                            無可預約的時段
-                          </div>
-                        );
-                      }
-                      return (
-                        <div className="grid w-full grid-cols-2 gap-2">
-                          {slots.map((slot) => (
-                            <div
-                              key={slot.start.getTime()}
-                              className={`flex h-10 select-none items-center justify-center rounded-lg border text-sm font-medium ${
-                                slot.isBooked
-                                  ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
-                                  : 'border-[#E6E8EA]'
-                              }`}
-                            >
-                              {formatBookingSlotTime(slot)}
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                  <Button
-                    variant="default"
-                    className="w-full rounded-full px-6 py-3"
-                    onClick={onReservation}
-                    disabled={!userData}
-                  >
-                    {isOwnMentorProfile ? '預約設定' : '預約時間'}
-                  </Button>
-                  {userData &&
-                    (loginUserId === pageUserId ? (
-                      <MentorScheduleDialog
-                        open={openReservationDialog}
-                        onOpenChange={setOpenReservationDialog}
-                        schedule={schedule}
-                        onMonthChange={onScheduleMonthChange}
-                      />
-                    ) : (
-                      <MenteeReservationDialog
-                        open={openMenteeReservationDialog}
-                        onOpenChange={setOpenMenteeReservationDialog}
-                        schedule={schedule}
-                        userData={userData}
-                        onMonthChange={onScheduleMonthChange}
-                      />
-                    ))}
+                  <BookingForm
+                    isOwnMentorProfile={isOwnMentorProfile}
+                    slots={
+                      selectedDate ? generateBookingSlots(selectedDate) : []
+                    }
+                    monthLoaded={schedule.monthLoaded}
+                    selectedSlot={selectedSlot}
+                    setSelectedSlot={setSelectedSlot}
+                    isSubmitting={isSubmitting}
+                    userData={userData}
+                    selectedDate={selectedDate}
+                    onReservation={onReservation}
+                    onConfirmReservation={onConfirmReservation}
+                  />
+                  {userData && loginUserId === pageUserId && (
+                    <MentorScheduleDialog
+                      open={openReservationDialog}
+                      onOpenChange={setOpenReservationDialog}
+                      schedule={schedule}
+                      onMonthChange={onScheduleMonthChange}
+                    />
+                  )}
                 </div>
               )}
             </div>
