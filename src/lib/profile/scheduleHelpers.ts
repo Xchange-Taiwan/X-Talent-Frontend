@@ -48,6 +48,7 @@ export type RawMentorTimeslot = Pick<
  * scope edits/deletes back to the right occurrence of the underlying row.
  */
 export type ParsedMentorTimeslot = {
+  occurrenceId: string; // unique composite key for the occurrence, e.g. `${id}_${occurrenceUnix}`
   id: number; // = parent row id; shared by all occurrences of an rrule row
   occurrenceUnix: number; // dtstart of THIS occurrence (= row.dtstart for non-recurring)
   type: DtType;
@@ -120,6 +121,7 @@ export function formatTimeslot(r: RawMentorTimeslot): ParsedMentorTimeslot[] {
     const end = new Date((occ + slotDurationSeconds) * 1000);
     const dateKey = dayjs(start).format('YYYY-MM-DD');
     return {
+      occurrenceId: `${r.id}_${occ}`,
       id: r.id,
       occurrenceUnix: occ,
       type: r.type,
@@ -149,32 +151,4 @@ export function buildDateTime(dateStr: string, timeStr: string) {
     .minute(m ?? 0)
     .second(0)
     .millisecond(0);
-}
-
-/**
- * Whether any of the candidate occurrences (each `[unix, unix+durationSeconds)`)
- * overlap any active occurrence of an existing ALLOW row in `rows`. Pass
- * `ignoreRowId` to skip a row being edited (its current occurrences are
- * excluded entirely); pass `null` when adding a brand-new slot.
- */
-export function hasAnyOccurrenceOverlap(
-  rows: RawMentorTimeslot[],
-  ignoreRowId: number | null,
-  candidateOccurrences: number[],
-  durationSeconds: number
-): boolean {
-  if (candidateOccurrences.length === 0) return false;
-  return rows.some((r) => {
-    if (r.id === ignoreRowId) return false;
-    if (r.type !== 'ALLOW') return false;
-    const existingDur = r.dtend - r.dtstart;
-    const existingOccs = activeOccurrences(r);
-    return existingOccs.some((eo) => {
-      const eEnd = eo + existingDur;
-      return candidateOccurrences.some((no) => {
-        const nEnd = no + durationSeconds;
-        return no < eEnd && nEnd > eo;
-      });
-    });
-  });
 }
