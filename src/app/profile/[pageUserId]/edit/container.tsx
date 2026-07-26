@@ -41,6 +41,7 @@ import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
+import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import { prefetchPresignedUrl } from '@/services/profile/updateAvatar';
 
@@ -71,7 +72,8 @@ export default function EditProfileContainer({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isMentorOnboarding = searchParams?.get('mentor-onboarding') === 'true';
+  const isMentorOnboarding =
+    searchParams?.get(MENTOR_ONBOARDING_KEY) === 'true';
 
   const { data: session, update: updateSession } = useSession();
 

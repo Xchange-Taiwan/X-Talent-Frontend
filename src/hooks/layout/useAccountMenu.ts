@@ -6,6 +6,7 @@ import { signOut } from 'next-auth/react';
 import * as React from 'react';
 
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
+import { getMentorOnboardingUrl } from '@/lib/routes';
 import type { PersonalLink } from '@/types/types';
 
 export interface UseAccountMenuOptions {
@@ -82,7 +83,7 @@ export function useAccountMenu({
     if (isMentor) {
       router.push('/reservation/mentor');
     } else {
-      router.push(`/profile/${userId}/edit?mentor-onboarding=true`);
+      router.push(getMentorOnboardingUrl(userId));
     }
   }, [closeMenu, router, userId, isMentor]);
 

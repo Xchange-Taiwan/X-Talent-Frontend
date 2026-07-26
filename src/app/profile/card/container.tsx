@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 
 import { PageLoading } from '@/components/ui/loading-spinner';
 import useUserData from '@/hooks/user/user-data/useUserData';
+import { getMentorOnboardingUrl } from '@/lib/routes';
 
 const ProfileCardUI = dynamic(() => import('./ui'));
 
@@ -42,9 +43,7 @@ export default function ProfileCardContainer() {
       userData={userData}
       isMentor={isMentor}
       linkedinUrl={linkedinUrl}
-      onBecomeMentor={() =>
-        router.push(`/profile/${loginUserId}/edit?mentor-onboarding=true`)
-      }
+      onBecomeMentor={() => router.push(getMentorOnboardingUrl(loginUserId))}
       onGoToMentorPool={() => router.push('/mentor-pool')}
       onBackToProfile={() => router.push(`/profile/${loginUserId}`)}
     />
