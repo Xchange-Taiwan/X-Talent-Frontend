@@ -40,21 +40,19 @@ import {
 const mockAcceptService = vi.mocked(acceptReservation);
 const mockRejectService = vi.mocked(rejectOrCancelReservation);
 
-const mockItems: Reservation[] = [
-  {
-    id: 'res-abc',
-    name: 'Test Partner',
-    roleLine: 'Designer',
-    date: 'Mon, Jan 01, 2024',
-    time: '10:00 am – 11:00 am',
-    messages: [],
-    scheduleId: 101,
-    dtstart: 1700000000,
-    dtend: 1700003600,
-    senderUserId: 'user-123',
-    participantUserId: 'user-456',
-  },
-];
+const mockReservation: Reservation = {
+  id: 'res-abc',
+  name: 'Test Partner',
+  roleLine: 'Designer',
+  date: 'Mon, Jan 01, 2024',
+  time: '10:00 am – 11:00 am',
+  messages: [],
+  scheduleId: 101,
+  dtstart: 1700000000,
+  dtend: 1700003600,
+  senderUserId: 'user-123',
+  participantUserId: 'user-456',
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -96,7 +94,6 @@ describe('useReservationActions', () => {
 
       const { result } = renderHook(() =>
         useReservationActions({
-          items: mockItems,
           myUserId: 'user-123',
           variant: 'pending-mentor',
           onMutationSuccess: mockOnMutationSuccess,
@@ -107,10 +104,7 @@ describe('useReservationActions', () => {
 
       let promise;
       await act(async () => {
-        promise = result.current.accept({
-          id: 'res-abc',
-          message: 'hello message',
-        });
+        promise = result.current.accept(mockReservation, 'hello message');
       });
 
       await promise;
@@ -118,7 +112,7 @@ describe('useReservationActions', () => {
       expect(mockAcceptService).toHaveBeenCalledTimes(1);
       expect(mockAcceptService).toHaveBeenCalledWith({
         message: 'hello message',
-        reservation: mockItems[0],
+        reservation: mockReservation,
         myUserId: 'user-123',
       });
 
@@ -143,7 +137,6 @@ describe('useReservationActions', () => {
 
       const { result } = renderHook(() =>
         useReservationActions({
-          items: mockItems,
           myUserId: 'user-123',
           variant: 'pending-mentor',
           onMutationSuccess: mockOnMutationSuccess,
@@ -154,10 +147,7 @@ describe('useReservationActions', () => {
 
       let promise;
       await act(async () => {
-        promise = result.current.accept({
-          id: 'res-abc',
-          message: 'hello',
-        });
+        promise = result.current.accept(mockReservation, 'hello');
       });
 
       expect(result.current.isMutating).toBe(true);
@@ -176,7 +166,6 @@ describe('useReservationActions', () => {
 
       const { result } = renderHook(() =>
         useReservationActions({
-          items: mockItems,
           myUserId: 'user-123',
           variant: 'pending-mentor',
           onMutationSuccess: mockOnMutationSuccess,
@@ -185,7 +174,7 @@ describe('useReservationActions', () => {
 
       await expect(
         act(async () => {
-          await result.current.accept({ id: 'res-abc', message: 'hello' });
+          await result.current.accept(mockReservation, 'hello');
         })
       ).rejects.toThrow('API Accept Failed');
 
@@ -202,7 +191,6 @@ describe('useReservationActions', () => {
     it('should throw if myUserId is missing', async () => {
       const { result } = renderHook(() =>
         useReservationActions({
-          items: mockItems,
           myUserId: undefined,
           variant: 'pending-mentor',
         })
@@ -210,30 +198,9 @@ describe('useReservationActions', () => {
 
       await expect(
         act(async () => {
-          await result.current.accept({ id: 'res-abc', message: 'hello' });
+          await result.current.accept(mockReservation, 'hello');
         })
       ).rejects.toThrow('[useReservationActions] missing current user id');
-    });
-
-    it('should throw error if item is not found in items array', async () => {
-      const { result } = renderHook(() =>
-        useReservationActions({
-          items: mockItems,
-          myUserId: 'user-123',
-          variant: 'pending-mentor',
-        })
-      );
-
-      await expect(
-        act(async () => {
-          await result.current.accept({
-            id: 'non-existent-id',
-            message: 'hello',
-          });
-        })
-      ).rejects.toThrow(
-        '[ReservationList] item not found for id=non-existent-id'
-      );
     });
   });
 
@@ -243,7 +210,6 @@ describe('useReservationActions', () => {
 
       const { result } = renderHook(() =>
         useReservationActions({
-          items: mockItems,
           myUserId: 'user-123',
           variant: 'pending-mentor',
           onMutationSuccess: mockOnMutationSuccess,
@@ -253,7 +219,7 @@ describe('useReservationActions', () => {
       let promise;
       await act(async () => {
         promise = result.current.rejectOrCancel(
-          'res-abc',
+          mockReservation,
           'Reject reason text',
           '已拒絕預約'
         );
@@ -264,7 +230,7 @@ describe('useReservationActions', () => {
       expect(mockRejectService).toHaveBeenCalledTimes(1);
       expect(mockRejectService).toHaveBeenCalledWith({
         text: 'Reject reason text',
-        reservation: mockItems[0],
+        reservation: mockReservation,
         myUserId: 'user-123',
       });
 
@@ -293,7 +259,6 @@ describe('useReservationActions', () => {
 
       const { result } = renderHook(() =>
         useReservationActions({
-          items: mockItems,
           myUserId: 'user-123',
           variant: 'pending-mentor',
           onMutationSuccess: mockOnMutationSuccess,
@@ -305,7 +270,7 @@ describe('useReservationActions', () => {
       let promise;
       await act(async () => {
         promise = result.current.rejectOrCancel(
-          'res-abc',
+          mockReservation,
           'reason text',
           '已拒絕預約'
         );
@@ -327,7 +292,6 @@ describe('useReservationActions', () => {
 
       const { result } = renderHook(() =>
         useReservationActions({
-          items: mockItems,
           myUserId: 'user-123',
           variant: 'pending-mentor',
           onMutationSuccess: mockOnMutationSuccess,
@@ -337,7 +301,7 @@ describe('useReservationActions', () => {
       await expect(
         act(async () => {
           await result.current.rejectOrCancel(
-            'res-abc',
+            mockReservation,
             'reason',
             '已拒絕預約'
           );
@@ -357,7 +321,6 @@ describe('useReservationActions', () => {
     it('should throw if myUserId is missing', async () => {
       const { result } = renderHook(() =>
         useReservationActions({
-          items: mockItems,
           myUserId: undefined,
           variant: 'pending-mentor',
         })
@@ -366,53 +329,12 @@ describe('useReservationActions', () => {
       await expect(
         act(async () => {
           await result.current.rejectOrCancel(
-            'res-abc',
+            mockReservation,
             'reason',
             'Cancel message'
           );
         })
       ).rejects.toThrow('[useReservationActions] missing current user id');
-    });
-  });
-
-  describe('buildProfileHref', () => {
-    it('should return undefined if myUserId is missing', () => {
-      const { result } = renderHook(() =>
-        useReservationActions({
-          items: mockItems,
-          myUserId: undefined,
-          variant: 'pending-mentor',
-        })
-      );
-
-      const href = result.current.buildProfileHref(mockItems[0]);
-      expect(href).toBeUndefined();
-    });
-
-    it('should resolve the partner profile link if myUserId is sender user ID', () => {
-      const { result } = renderHook(() =>
-        useReservationActions({
-          items: mockItems,
-          myUserId: 'user-123',
-          variant: 'pending-mentor',
-        })
-      );
-
-      const href = result.current.buildProfileHref(mockItems[0]);
-      expect(href).toBe('/profile/user-456');
-    });
-
-    it('should resolve the sender profile link if myUserId is participant user ID', () => {
-      const { result } = renderHook(() =>
-        useReservationActions({
-          items: mockItems,
-          myUserId: 'user-456',
-          variant: 'pending-mentor',
-        })
-      );
-
-      const href = result.current.buildProfileHref(mockItems[0]);
-      expect(href).toBe('/profile/user-123');
     });
   });
 });

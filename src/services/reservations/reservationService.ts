@@ -43,6 +43,15 @@ export function formatDateTime(dtstart: number, dtend: number) {
   };
 }
 
+/**
+ * Resolve the other party's user_id based on who is currently logged in.
+ */
+export const resolveOtherId = (
+  it: Reservation,
+  myUserId: string
+): string | number =>
+  String(it.senderUserId) === myUserId ? it.participantUserId : it.senderUserId;
+
 /* ================================
  * Mapping
  * ================================ */

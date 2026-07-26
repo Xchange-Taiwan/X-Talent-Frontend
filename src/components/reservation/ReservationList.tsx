@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { ListKey } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
+import { resolveOtherId } from '@/services/reservations';
 
 import {
   ReservationCard,
@@ -49,13 +50,21 @@ export function ReservationList({
   // states in the background.
   onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
 }) {
-  const { accept, rejectOrCancel, buildProfileHref, isMutating } =
-    useReservationActions({
-      items,
-      myUserId,
-      variant,
-      onMutationSuccess,
-    });
+  const { accept, rejectOrCancel, isMutating } = useReservationActions({
+    myUserId,
+    variant,
+    onMutationSuccess,
+  });
+
+  // Build a profile link to the *other* party. Skip when we don't have
+  // a logged-in user (link would be ambiguous) or when the other id would
+  // resolve to the current user (defensive — shouldn't happen in practice).
+  const buildProfileHref = (it: Reservation): string | undefined => {
+    if (!myUserId) return undefined;
+    const otherId = resolveOtherId(it, myUserId);
+    if (!otherId || String(otherId) === myUserId) return undefined;
+    return `/profile/${otherId}`;
+  };
 
   const handleProfileClick = (): void => {
     trackEvent({
@@ -86,22 +95,22 @@ export function ReservationList({
                 <RejectReservationDialog
                   reservation={it}
                   disabled={isMutating}
-                  onReject={async ({ id, reason }) =>
-                    rejectOrCancel(id, reason, '已拒絕預約')
+                  onReject={async ({ reason }) =>
+                    rejectOrCancel(it, reason, '已拒絕預約')
                   }
                 />
                 <AcceptReservationDialog
                   reservation={it}
                   disabled={isMutating}
-                  onAccept={accept}
+                  onAccept={async ({ message }) => accept(it, message)}
                 />
               </div>
             ) : (
               <CancelReservationDialog
                 reservation={it}
                 disabled={isMutating}
-                onConfirmCancel={async ({ id, reason }) =>
-                  rejectOrCancel(id, reason, '已取消預約')
+                onConfirmCancel={async ({ reason }) =>
+                  rejectOrCancel(it, reason, '已取消預約')
                 }
               />
             )

@@ -1,16 +1,7 @@
 import { Reservation } from '@/components/reservation/types';
 import { captureFlowFailure } from '@/lib/monitoring';
 
-import { updateReservationStatus } from './reservationService';
-
-/**
- * Resolve the other party's user_id based on who is currently logged in.
- */
-export const resolveOtherId = (
-  it: Reservation,
-  myUserId: string
-): string | number =>
-  String(it.senderUserId) === myUserId ? it.participantUserId : it.senderUserId;
+import { resolveOtherId, updateReservationStatus } from './reservationService';
 
 interface PerformStatusUpdateParams {
   text: string;
