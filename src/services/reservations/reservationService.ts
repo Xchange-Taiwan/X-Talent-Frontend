@@ -1,11 +1,8 @@
 import dayjs from 'dayjs';
 
 import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
-import {
-  Reservation,
-  ReservationMessage,
-} from '@/components/reservation/types';
 import { apiClient } from '@/lib/apiClient';
+import { Reservation, ReservationMessage } from '@/services/reservations/types';
 import { components } from '@/types/api';
 
 export type ReservationState =

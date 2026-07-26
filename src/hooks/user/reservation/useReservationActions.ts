@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
 
-import { Reservation } from '@/components/reservation/types';
 import { useToast } from '@/components/ui/use-toast';
 import { ListKey } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
@@ -9,6 +8,7 @@ import {
   rejectOrCancelReservation,
   resolveOtherId,
 } from '@/services/reservations';
+import { Reservation } from '@/services/reservations/types';
 
 export type Variant =
   | 'upcoming'

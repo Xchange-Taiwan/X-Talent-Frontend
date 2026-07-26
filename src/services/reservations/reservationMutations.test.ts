@@ -32,7 +32,6 @@ vi.mock('@/lib/analytics', async (importActual) => {
   };
 });
 
-import type { Reservation } from '@/components/reservation/types';
 import { apiClient } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
@@ -40,6 +39,7 @@ import {
   rejectOrCancelReservation,
   resolveOtherId,
 } from '@/services/reservations';
+import type { Reservation } from '@/services/reservations/types';
 
 const mockPut = vi.mocked(apiClient.put);
 const mockCaptureFailure = vi.mocked(captureFlowFailure);
