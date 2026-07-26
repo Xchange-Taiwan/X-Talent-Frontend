@@ -1,7 +1,12 @@
 import { TotalWorkSpanEnum } from '@/components/onboarding/steps/constant';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
-import { isSafeUrl } from '@/lib/url/isSafeUrl';
-import { ExperienceType } from '@/services/profile/experienceType';
+import {
+  decode,
+  type EducationExperienceMetadata,
+  type MentorExperiencePayload,
+  type PersonalLinkMetadata,
+  type WorkExperienceMetadata,
+} from '@/lib/profile/experienceCodec';
 import {
   buildTagLabelMap,
   type TagCatalogsByBucket,
@@ -27,29 +32,6 @@ export interface TagDisplay {
   subject: string;
 }
 
-export interface WorkExperienceMetadata {
-  job?: string;
-  company?: string;
-  job_period_start?: string;
-  job_period_end?: string;
-  job_location?: string;
-  description?: string;
-  industry?: string;
-  is_primary?: boolean;
-}
-
-export interface EducationExperienceMetadata {
-  subject?: string;
-  school?: string;
-  education_period_start?: string;
-  education_period_end?: string;
-}
-
-export interface PersonalLinkMetadata {
-  platform: string;
-  url: string;
-}
-
 export interface UserType {
   user_id: number;
   name: string;
@@ -70,11 +52,6 @@ export interface UserType {
   personalLinks?: PersonalLinkMetadata[];
 }
 
-type ExperienceBlock = {
-  category: ExperienceType;
-  mentor_experiences_metadata?: { data?: unknown[] };
-};
-
 // Subject_group codes shipped by the BFF round-trip directly back to writes,
 // so resolve them to display labels via the localized catalog. Catalog miss
 // (legacy or unpublished tag) falls back to the raw code rather than dropping
@@ -92,52 +69,15 @@ function toTagDisplay(
     }));
 }
 
-function getBlocksByCategory(
-  experiences: MentorProfileVO['experiences'],
-  category: ExperienceType
-): ExperienceBlock[] {
-  if (!experiences) return [];
-  return (experiences as unknown as ExperienceBlock[]).filter(
-    (exp) => exp.category === category
-  );
-}
-
-function getMetadataArray<T>(block: ExperienceBlock): T[] {
-  return (block.mentor_experiences_metadata?.data ?? []) as T[];
-}
-
 function parseUserDtoToUserType(
   userDto: MentorProfileVO,
   catalogs: TagCatalogsByBucket
 ): UserType {
   const labelMap = buildTagLabelMap(catalogs);
 
-  const workBlocks = getBlocksByCategory(
-    userDto.experiences,
-    ExperienceType.WORK
+  const { workExperiences, educations, personalLinks } = decode(
+    userDto.experiences as unknown as MentorExperiencePayload[]
   );
-  const educationBlocks = getBlocksByCategory(
-    userDto.experiences,
-    ExperienceType.EDUCATION
-  );
-  const linkBlocks = getBlocksByCategory(
-    userDto.experiences,
-    ExperienceType.LINK
-  );
-
-  const workExperiences = workBlocks.flatMap((b) =>
-    getMetadataArray<WorkExperienceMetadata>(b)
-  );
-  const educations = educationBlocks.flatMap((b) =>
-    getMetadataArray<EducationExperienceMetadata>(b)
-  );
-  // Drop links whose URL doesn't pass the scheme allow-list. The form schema
-  // already blocks javascript:, but profiles can be written via direct BFF
-  // calls — render-time filtering closes that bypass before <a href> ever
-  // sees the value.
-  const personalLinks = linkBlocks
-    .flatMap((b) => getMetadataArray<PersonalLinkMetadata>(b))
-    .filter((l) => isSafeUrl(l.url));
 
   // BFF emits industry enriched (TagVO-shaped); OpenAPI types it as
   // `Record<string, never>`. Pull subject through the local TagVO type.
