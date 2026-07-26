@@ -21,9 +21,6 @@ interface Options {
   isMentorOnboarding: boolean;
   session: Session | null;
   updateSession: (data: unknown) => Promise<Session | null>;
-  jobSectionError: boolean;
-  educationSectionError: boolean;
-  onScrollToError?: (fieldId: string) => void;
   // Optional: lets the page hand back an already-in-flight S3 upload (kicked
   // off when the user picked the file) so submit doesn't pay the round trip.
   // Falls back to a direct upload when omitted, preserving legacy callers.
@@ -35,9 +32,6 @@ export function useProfileSubmit({
   isMentorOnboarding,
   session,
   updateSession,
-  jobSectionError,
-  educationSectionError,
-  onScrollToError,
   consumeAvatarUpload,
 }: Options) {
   const router = useRouter();
@@ -48,11 +42,6 @@ export function useProfileSubmit({
     values: ProfileFormValues,
     dirtyFields?: ProfileDirtyFields
   ) => {
-    if (jobSectionError || educationSectionError) {
-      onScrollToError?.(jobSectionError ? 'work_experiences' : 'educations');
-      return;
-    }
-
     try {
       setIsSaving(true);
       await saveProfile(values, {

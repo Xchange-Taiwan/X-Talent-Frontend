@@ -92,6 +92,10 @@ vi.mock('@/components/profile/edit/Section', () => ({
   ),
 }));
 
+vi.mock('@/components/profile/edit/LinkSection', () => ({
+  LinksSection: () => <div data-testid="links-section" />,
+}));
+
 import * as useEditProfileFormModule from '@/hooks/user/profile/useEditProfileForm';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
 import { ProfileFormValues } from '@/schemas/profileSchema';

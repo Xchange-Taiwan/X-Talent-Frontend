@@ -137,9 +137,6 @@ export default function EditProfileContainer({
     isMentorOnboarding,
     session,
     updateSession,
-    jobSectionError,
-    educationSectionError,
-    onScrollToError: scrollToField,
     consumeAvatarUpload: avatarUpload.consume,
   });
 
@@ -181,10 +178,15 @@ export default function EditProfileContainer({
         <form
           ref={formRef}
           id="edit-profile-form"
-          onSubmit={form.handleSubmit(
-            (values) => onSubmit(values, form.formState.dirtyFields),
-            onError
-          )}
+          onSubmit={form.handleSubmit((values) => {
+            if (jobSectionError || educationSectionError) {
+              scrollToField(
+                jobSectionError ? 'work_experiences' : 'educations'
+              );
+              return;
+            }
+            return onSubmit(values, form.formState.dirtyFields);
+          }, onError)}
           className="space-y-10"
         >
           <AvatarSection
