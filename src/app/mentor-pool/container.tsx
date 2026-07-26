@@ -57,6 +57,7 @@ interface Props {
   initialCursor: string;
   initialMentorCount: number;
   initialTagCatalog: TagCatalogsByBucket;
+  initialError?: boolean;
 }
 
 export default function MentorPoolContainer({
@@ -64,6 +65,7 @@ export default function MentorPoolContainer({
   initialCursor,
   initialMentorCount,
   initialTagCatalog,
+  initialError,
 }: Props) {
   const router = useRouter();
   const params = useSearchParams();
@@ -93,14 +95,22 @@ export default function MentorPoolContainer({
   const labelMap = useMemo(() => buildTagLabelMap(tagCatalog), [tagCatalog]);
 
   // All state management, pagination tracking, and error handling are delegated to custom hook
-  const { mentors, mentorCount, isLoading, isNoResults, handleScrollToBottom } =
-    useMentorPool({
-      initialMentors,
-      initialCursor,
-      initialMentorCount,
-      params,
-      labelMap,
-    });
+  const {
+    mentors,
+    mentorCount,
+    isLoading,
+    isNoResults,
+    hasError,
+    handleScrollToBottom,
+    handleRetry,
+  } = useMentorPool({
+    initialMentors,
+    initialCursor,
+    initialMentorCount,
+    params,
+    labelMap,
+    initialError,
+  });
 
   const handleFilterChange = useCallback(
     (filters: SelectFilters) => {
@@ -137,12 +147,14 @@ export default function MentorPoolContainer({
       isLoading={isLoading}
       isReplacing={isPending}
       isNoResults={isNoResults}
+      hasError={hasError}
       selectedFilters={selectedFilters}
       filterOptions={dynamicFilterOptions}
       onFilterChange={handleFilterChange}
       onRemoveFilter={handleRemoveFilter}
       onClearAll={handleClearAll}
       onScrollToBottom={handleScrollToBottom}
+      onRetry={handleRetry}
     />
   );
 }

@@ -21,17 +21,12 @@ export type {
 export async function fetchMentors(
   param: MentorRequest
 ): Promise<MentorType[]> {
-  try {
-    const data = await apiClient.getUnwrapped<
-      components['schemas']['SearchMentorProfileListVO']
-    >('/v1/mentors', {
-      auth: false,
-      params: param as unknown as Record<string, string | number | undefined>,
-    });
+  const data = await apiClient.getUnwrapped<
+    components['schemas']['SearchMentorProfileListVO']
+  >('/v1/mentors', {
+    auth: false,
+    params: param as unknown as Record<string, string | number | undefined>,
+  });
 
-    return (data?.mentors ?? []).map(mapMentor);
-  } catch (error) {
-    console.error('Fetch Mentors Error:', error);
-    return [];
-  }
+  return (data?.mentors ?? []).map(mapMentor);
 }
