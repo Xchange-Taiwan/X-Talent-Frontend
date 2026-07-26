@@ -89,6 +89,19 @@ export function useOnboardingForm({ industries }: Options) {
     setCurrentStep(2);
   };
 
+  const handleStepSubmit = <T>(
+    stepKey: 'step2' | 'step3' | 'step4',
+    stepNum: number,
+    data: T
+  ) => {
+    setTempData((prev) => ({ ...prev, [stepKey]: data }));
+    trackEvent({
+      name: `onboarding_step_${stepNum}_completed`,
+      feature: 'onboarding',
+    });
+    setCurrentStep(stepNum + 1);
+  };
+
   const step2Form = useForm<z.infer<typeof step2Schema>>({
     resolver: zodResolver(step2Schema),
     defaultValues: {
@@ -98,9 +111,7 @@ export function useOnboardingForm({ industries }: Options) {
     },
   });
   const onSubmitStep2 = (data: z.infer<typeof step2Schema>) => {
-    setTempData((prev) => ({ ...prev, step2: data }));
-    trackEvent({ name: 'onboarding_step_2_completed', feature: 'onboarding' });
-    setCurrentStep(3);
+    handleStepSubmit('step2', 2, data);
   };
 
   const step3Form = useForm<z.infer<typeof step3Schema>>({
@@ -110,9 +121,7 @@ export function useOnboardingForm({ industries }: Options) {
     },
   });
   const onSubmitStep3 = (data: z.infer<typeof step3Schema>) => {
-    setTempData((prev) => ({ ...prev, step3: data }));
-    trackEvent({ name: 'onboarding_step_3_completed', feature: 'onboarding' });
-    setCurrentStep(4);
+    handleStepSubmit('step3', 3, data);
   };
 
   const step4Form = useForm<z.infer<typeof step4Schema>>({
@@ -122,9 +131,7 @@ export function useOnboardingForm({ industries }: Options) {
     },
   });
   const onSubmitStep4 = (data: z.infer<typeof step4Schema>) => {
-    setTempData((prev) => ({ ...prev, step4: data }));
-    trackEvent({ name: 'onboarding_step_4_completed', feature: 'onboarding' });
-    setCurrentStep(5);
+    handleStepSubmit('step4', 4, data);
   };
 
   const step5Form = useForm<z.infer<typeof step5Schema>>({
