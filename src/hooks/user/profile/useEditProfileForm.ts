@@ -1,6 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
 import {
@@ -9,13 +10,13 @@ import {
   ProfileFormValues,
 } from '@/schemas/profileSchema';
 
-export function useEditProfileForm() {
+export function useEditProfileForm(isMentor: boolean) {
+  const resolver = useMemo(() => {
+    return zodResolver(createProfileFormSchema(isMentor));
+  }, [isMentor]);
+
   const form = useForm<ProfileFormValues>({
-    resolver: (values, context, options) => {
-      // Dynamically resolve schema based on form values (values.is_mentor) passed by react-hook-form during validation.
-      const activeSchema = createProfileFormSchema(values.is_mentor);
-      return zodResolver(activeSchema)(values, context, options);
-    },
+    resolver,
     defaultValues,
   });
 

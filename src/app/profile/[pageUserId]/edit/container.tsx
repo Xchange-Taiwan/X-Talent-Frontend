@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { FieldErrors } from 'react-hook-form';
 
 import { totalWorkSpanOptions } from '@/components/onboarding/steps/constant';
@@ -36,6 +36,7 @@ import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
+import { mapVoToFormValues } from '@/lib/profile/profileSaveAdapter';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
@@ -83,14 +84,20 @@ export default function EditProfileContainer({
   const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
   const industries = tagCatalog.industry;
 
-  const { form } = useEditProfileForm();
-
-  const { isMentor, isPageLoading, isError } = useEditProfileData({
+  const { userDto, isMentor, isPageLoading, isError } = useEditProfileData({
     userId: Number(pageUserId),
-    form,
     isAuthorized,
-    isMentorOnboarding,
   });
+
+  const { form } = useEditProfileForm(isMentor);
+
+  // Reset form when user profile data successfully loads or updates
+  useLayoutEffect(() => {
+    if (!isAuthorized || !userDto) return;
+
+    const formValues = mapVoToFormValues(userDto, isMentorOnboarding);
+    form.reset(formValues);
+  }, [userDto, isAuthorized, isMentorOnboarding, form]);
 
   // Warm up the avatar presigned URL once authorized. Saves a serial round
   // trip from the submit waterfall when the user uploads a new avatar.

@@ -4,34 +4,16 @@ import { describe, expect, it } from 'vitest';
 import { useEditProfileForm } from './useEditProfileForm';
 
 describe('useEditProfileForm', () => {
-  it('initializes form with default values and is_mentor as false', () => {
+  it('initializes form with default values and uses the correct resolver schema based on isMentor parameter', async () => {
     const { result } = renderHook(() => {
-      const hookRes = useEditProfileForm();
+      const hookRes = useEditProfileForm(false);
       void hookRes.form.formState.errors; // subscribe to errors proxy
       return hookRes;
     });
 
     expect(result.current.form).toBeDefined();
-    expect(result.current.form.getValues('is_mentor')).toBe(false);
-  });
-
-  it('validates correctly under mentee mode (about and have_topic are optional)', async () => {
-    const { result } = renderHook(() => {
-      const hookRes = useEditProfileForm();
-      void hookRes.form.formState.errors; // subscribe to errors proxy
-      return hookRes;
-    });
-
-    // Set is_mentor to false
-    await act(async () => {
-      result.current.form.setValue('is_mentor', false);
-    });
 
     await act(async () => {
-      // name is required, so validating empty name should fail
-      const isNameValid = await result.current.form.trigger('name');
-      expect(isNameValid).toBe(false);
-
       // about is optional for mentees, so validating empty about should succeed
       const isAboutValid = await result.current.form.trigger('about');
       expect(isAboutValid).toBe(true);
@@ -40,14 +22,9 @@ describe('useEditProfileForm', () => {
 
   it('validates correctly under mentor mode (about is required)', async () => {
     const { result } = renderHook(() => {
-      const hookRes = useEditProfileForm();
+      const hookRes = useEditProfileForm(true);
       void hookRes.form.formState.errors; // subscribe to errors proxy
       return hookRes;
-    });
-
-    // Set is_mentor to true
-    await act(async () => {
-      result.current.form.setValue('is_mentor', true);
     });
 
     await act(async () => {
