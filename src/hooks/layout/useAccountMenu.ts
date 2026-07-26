@@ -29,7 +29,6 @@ export interface UseAccountMenuResult {
   subtitle: string;
   personalLinks: PersonalLink[];
   profilePath: string;
-  profileUrl: string;
   shareDialogOpen: boolean;
   setShareDialogOpen: (open: boolean) => void;
   deleteDialogOpen: boolean;
@@ -61,10 +60,6 @@ export function useAccountMenu({
   const personalLinks = user.personalLinks ?? [];
 
   const profilePath = userId ? `/profile/${userId}` : '/';
-  const profileUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}${profilePath}`
-      : profilePath;
 
   const subtitle =
     jobTitle && company
@@ -117,7 +112,6 @@ export function useAccountMenu({
     subtitle,
     personalLinks,
     profilePath,
-    profileUrl,
     shareDialogOpen,
     setShareDialogOpen,
     deleteDialogOpen,
