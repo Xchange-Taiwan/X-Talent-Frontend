@@ -73,7 +73,8 @@ export default function EditProfileContainer({
   const router = useRouter();
   const searchParams = useSearchParams();
   const isMentorOnboarding =
-    searchParams?.get(MENTOR_ONBOARDING_KEY) === 'true';
+    searchParams?.get(MENTOR_ONBOARDING_KEY) === 'true' ||
+    searchParams?.get('onboarding') === 'true';
 
   const { data: session, update: updateSession } = useSession();
 
