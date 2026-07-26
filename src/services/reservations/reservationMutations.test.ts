@@ -33,18 +33,15 @@ vi.mock('@/lib/analytics', async (importActual) => {
 });
 
 import type { Reservation } from '@/components/reservation/types';
-import { trackEvent } from '@/lib/analytics';
 import { apiClient } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   acceptReservation,
-  buildRejectOrCancelAffectedTabs,
   rejectOrCancelReservation,
   resolveOtherId,
 } from '@/services/reservations';
 
 const mockPut = vi.mocked(apiClient.put);
-const mockTrackEvent = vi.mocked(trackEvent);
 const mockCaptureFailure = vi.mocked(captureFlowFailure);
 
 const makeMockReservation = (
@@ -88,35 +85,8 @@ describe('resolveOtherId', () => {
   });
 });
 
-describe('buildRejectOrCancelAffectedTabs', () => {
-  it('should return upcoming and history for upcoming variant', () => {
-    expect(buildRejectOrCancelAffectedTabs('upcoming')).toEqual([
-      'upcoming',
-      'history',
-    ]);
-  });
-
-  it('should return pending and history for pending-mentor variant', () => {
-    expect(buildRejectOrCancelAffectedTabs('pending-mentor')).toEqual([
-      'pending',
-      'history',
-    ]);
-  });
-
-  it('should return pending and history for pending-mentee variant', () => {
-    expect(buildRejectOrCancelAffectedTabs('pending-mentee')).toEqual([
-      'pending',
-      'history',
-    ]);
-  });
-
-  it('should return empty list for history or unknown variant', () => {
-    expect(buildRejectOrCancelAffectedTabs('history')).toEqual([]);
-  });
-});
-
 describe('acceptReservation', () => {
-  it('should call updateReservationStatus with ACCEPT status and return pending and upcoming tabs', async () => {
+  it('should call updateReservationStatus with ACCEPT status', async () => {
     const reservation = makeMockReservation({
       scheduleId: 101,
       dtstart: 1704099600,
@@ -131,7 +101,7 @@ describe('acceptReservation', () => {
       data: {},
     });
 
-    const result = await acceptReservation({
+    await acceptReservation({
       id: 'res-123',
       message: 'Looking forward to meeting you!',
       reservation,
@@ -148,8 +118,6 @@ describe('acceptReservation', () => {
       dtend: 1704103200,
       messages: [{ user_id: 10, content: 'Looking forward to meeting you!' }],
     });
-
-    expect(result).toEqual({ affectedTabs: ['pending', 'upcoming'] });
   });
 
   it('should omit messages array if accepted without a message', async () => {
@@ -215,7 +183,7 @@ describe('acceptReservation', () => {
 });
 
 describe('rejectOrCancelReservation', () => {
-  it('should call updateReservationStatus with REJECT status and track rejection event', async () => {
+  it('should call updateReservationStatus with REJECT status', async () => {
     const reservation = makeMockReservation({
       scheduleId: 101,
       dtstart: 1704099600,
@@ -230,12 +198,11 @@ describe('rejectOrCancelReservation', () => {
       data: {},
     });
 
-    const result = await rejectOrCancelReservation({
+    await rejectOrCancelReservation({
       id: 'res-123',
       text: 'Sorry, I am busy',
       reservation,
       myUserId: '10',
-      variant: 'pending-mentor',
     });
 
     expect(mockPut).toHaveBeenCalledTimes(1);
@@ -248,60 +215,6 @@ describe('rejectOrCancelReservation', () => {
       dtend: 1704103200,
       messages: [{ user_id: 10, content: 'Sorry, I am busy' }],
     });
-
-    expect(mockTrackEvent).toHaveBeenCalledTimes(1);
-    expect(mockTrackEvent).toHaveBeenCalledWith({
-      name: 'reservation_rejected',
-      feature: 'reservation',
-    });
-
-    expect(result).toEqual({ affectedTabs: ['pending', 'history'] });
-  });
-
-  it('should work correctly for upcoming variant and return correct affected tabs', async () => {
-    const reservation = makeMockReservation({
-      senderUserId: '10',
-      participantUserId: '20',
-    });
-
-    mockPut.mockResolvedValue({
-      code: '0',
-      msg: 'success',
-      data: {},
-    });
-
-    const result = await rejectOrCancelReservation({
-      id: 'res-123',
-      text: 'Cancel reason',
-      reservation,
-      myUserId: '10',
-      variant: 'upcoming',
-    });
-
-    expect(result).toEqual({ affectedTabs: ['upcoming', 'history'] });
-  });
-
-  it('should work correctly for pending-mentee variant', async () => {
-    const reservation = makeMockReservation({
-      senderUserId: '10',
-      participantUserId: '20',
-    });
-
-    mockPut.mockResolvedValue({
-      code: '0',
-      msg: 'success',
-      data: {},
-    });
-
-    const result = await rejectOrCancelReservation({
-      id: 'res-123',
-      text: 'Cancel reason',
-      reservation,
-      myUserId: '10',
-      variant: 'pending-mentee',
-    });
-
-    expect(result).toEqual({ affectedTabs: ['pending', 'history'] });
   });
 
   it('should capture failure and rethrow when API fails on rejectOrCancel', async () => {
@@ -315,7 +228,6 @@ describe('rejectOrCancelReservation', () => {
         text: 'reason',
         reservation,
         myUserId: '10',
-        variant: 'upcoming',
       })
     ).rejects.toThrow('Reject failed');
 
@@ -335,7 +247,6 @@ describe('rejectOrCancelReservation', () => {
         text: 'cancel',
         reservation,
         myUserId: '',
-        variant: 'upcoming',
       })
     ).rejects.toThrow('[reservationMutations] missing current user id');
   });

@@ -10,7 +10,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { ListKey } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
-import { resolveOtherId } from '@/services/reservations';
 
 import {
   ReservationCard,
@@ -41,7 +40,7 @@ export function ReservationList({
   items: Reservation[];
   variant: Variant;
   sourceRole: SourceRole;
-  myUserId: string;
+  myUserId: string | undefined;
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
@@ -50,22 +49,12 @@ export function ReservationList({
   // states in the background.
   onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
 }) {
-  const { accept, rejectOrCancel } = useReservationActions({
+  const { accept, rejectOrCancel, buildProfileHref } = useReservationActions({
     items,
     myUserId,
     variant,
     onMutationSuccess,
   });
-
-  // Build a profile link to the *other* party. Skip when we don't have
-  // a logged-in user (link would be ambiguous) or when the other id would
-  // resolve to the current user (defensive — shouldn't happen in practice).
-  const buildProfileHref = (it: Reservation): string | undefined => {
-    if (!myUserId) return undefined;
-    const otherId = resolveOtherId(it, myUserId);
-    if (!otherId || String(otherId) === myUserId) return undefined;
-    return `/profile/${otherId}`;
-  };
 
   const handleProfileClick = (): void => {
     trackEvent({

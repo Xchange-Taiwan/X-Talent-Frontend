@@ -1,17 +1,7 @@
 import { Reservation } from '@/components/reservation/types';
-import { ListKey } from '@/hooks/user/reservation/useReservationData';
-import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 
 import { updateReservationStatus } from './index';
-
-export type Variant =
-  | 'upcoming'
-  | 'pending-mentee'
-  | 'pending-mentor'
-  | 'history';
-
-export const ACCEPT_AFFECTED_TABS: ListKey[] = ['pending', 'upcoming'];
 
 /**
  * Resolve the other party's user_id based on who is currently logged in.
@@ -21,22 +11,6 @@ export const resolveOtherId = (
   myUserId: string
 ): string | number =>
   String(it.senderUserId) === myUserId ? it.participantUserId : it.senderUserId;
-
-/**
- * Reject / cancel always lands the reservation in the role's HISTORY list.
- * The source state depends on the variant.
- */
-export const buildRejectOrCancelAffectedTabs = (
-  variant: Variant
-): ListKey[] => {
-  const sourceTab: ListKey | null =
-    variant === 'upcoming'
-      ? 'upcoming'
-      : variant === 'pending-mentor' || variant === 'pending-mentee'
-        ? 'pending'
-        : null;
-  return sourceTab ? [sourceTab, 'history'] : [];
-};
 
 interface PerformStatusUpdateParams {
   id: string;
@@ -92,7 +66,7 @@ export async function acceptReservation({
   message,
   reservation,
   myUserId,
-}: AcceptParams): Promise<{ affectedTabs: ListKey[] }> {
+}: AcceptParams): Promise<void> {
   try {
     const myIdNum = Number(myUserId);
     const messages = message.trim()
@@ -106,8 +80,6 @@ export async function acceptReservation({
       messages,
       reservation,
     });
-
-    return { affectedTabs: ACCEPT_AFFECTED_TABS };
   } catch (err) {
     captureFlowFailure({
       flow: 'reservation_accept',
@@ -124,7 +96,6 @@ export interface RejectOrCancelParams {
   text: string;
   reservation: Reservation;
   myUserId: string;
-  variant: Variant;
 }
 
 /**
@@ -135,8 +106,7 @@ export async function rejectOrCancelReservation({
   text,
   reservation,
   myUserId,
-  variant,
-}: RejectOrCancelParams): Promise<{ affectedTabs: ListKey[] }> {
+}: RejectOrCancelParams): Promise<void> {
   try {
     const myIdNum = Number(myUserId);
     const messages = text.trim()
@@ -150,9 +120,6 @@ export async function rejectOrCancelReservation({
       messages,
       reservation,
     });
-
-    trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
-    return { affectedTabs: buildRejectOrCancelAffectedTabs(variant) };
   } catch (err) {
     captureFlowFailure({
       flow: 'reservation_reject',

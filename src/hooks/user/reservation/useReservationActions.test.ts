@@ -1,0 +1,317 @@
+import { act, renderHook } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { mockToast, mockTrackEvent } = vi.hoisted(() => ({
+  mockToast: vi.fn(),
+  mockTrackEvent: vi.fn(),
+}));
+
+vi.mock('@/components/ui/use-toast', () => ({
+  useToast: () => ({
+    toast: mockToast,
+  }),
+}));
+
+vi.mock('@/lib/analytics', () => ({
+  trackEvent: mockTrackEvent,
+}));
+
+vi.mock('@/services/reservations', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/services/reservations')>();
+  return {
+    ...actual,
+    acceptReservation: vi.fn(),
+    rejectOrCancelReservation: vi.fn(),
+  };
+});
+
+import type { Reservation } from '@/components/reservation/types';
+import {
+  acceptReservation,
+  rejectOrCancelReservation,
+} from '@/services/reservations';
+
+import { useReservationActions } from './useReservationActions';
+
+const mockAcceptService = vi.mocked(acceptReservation);
+const mockRejectService = vi.mocked(rejectOrCancelReservation);
+
+const mockItems: Reservation[] = [
+  {
+    id: 'res-abc',
+    name: 'Test Partner',
+    roleLine: 'Designer',
+    date: 'Mon, Jan 01, 2024',
+    time: '10:00 am – 11:00 am',
+    messages: [],
+    scheduleId: 101,
+    dtstart: 1700000000,
+    dtend: 1700003600,
+    senderUserId: 'user-123',
+    participantUserId: 'user-456',
+  },
+];
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe('useReservationActions', () => {
+  const mockOnMutationSuccess = vi.fn();
+
+  describe('accept', () => {
+    it('should set isMutating, call acceptReservation service, trigger toast and onMutationSuccess on success', async () => {
+      mockAcceptService.mockResolvedValue();
+
+      const { result } = renderHook(() =>
+        useReservationActions({
+          items: mockItems,
+          myUserId: 'user-123',
+          variant: 'pending-mentor',
+          onMutationSuccess: mockOnMutationSuccess,
+        })
+      );
+
+      expect(result.current.isMutating).toBe(false);
+
+      let promise;
+      await act(async () => {
+        promise = result.current.accept({
+          id: 'res-abc',
+          message: 'hello message',
+        });
+      });
+
+      await promise;
+
+      expect(mockAcceptService).toHaveBeenCalledTimes(1);
+      expect(mockAcceptService).toHaveBeenCalledWith({
+        id: 'res-abc',
+        message: 'hello message',
+        reservation: mockItems[0],
+        myUserId: 'user-123',
+      });
+
+      expect(mockToast).toHaveBeenCalledWith({
+        title: '已接受預約',
+        description: '會議連結將於數分鐘內寄至雙方信箱',
+      });
+
+      expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', [
+        'pending',
+        'upcoming',
+      ]);
+      expect(result.current.isMutating).toBe(false);
+    });
+
+    it('should throw error, trigger destructive toast, and reset isMutating if service fails', async () => {
+      const apiError = new Error('API Accept Failed');
+      mockAcceptService.mockRejectedValue(apiError);
+
+      const { result } = renderHook(() =>
+        useReservationActions({
+          items: mockItems,
+          myUserId: 'user-123',
+          variant: 'pending-mentor',
+          onMutationSuccess: mockOnMutationSuccess,
+        })
+      );
+
+      await expect(
+        act(async () => {
+          await result.current.accept({ id: 'res-abc', message: 'hello' });
+        })
+      ).rejects.toThrow('API Accept Failed');
+
+      expect(mockToast).toHaveBeenCalledWith({
+        variant: 'destructive',
+        title: '錯誤',
+        description: '操作失敗，請稍後再試。',
+      });
+
+      expect(mockOnMutationSuccess).not.toHaveBeenCalled();
+      expect(result.current.isMutating).toBe(false);
+    });
+
+    it('should throw if myUserId is missing', async () => {
+      const { result } = renderHook(() =>
+        useReservationActions({
+          items: mockItems,
+          myUserId: undefined,
+          variant: 'pending-mentor',
+        })
+      );
+
+      await expect(
+        act(async () => {
+          await result.current.accept({ id: 'res-abc', message: 'hello' });
+        })
+      ).rejects.toThrow('[useReservationActions] missing current user id');
+    });
+
+    it('should throw error if item is not found in items array', async () => {
+      const { result } = renderHook(() =>
+        useReservationActions({
+          items: mockItems,
+          myUserId: 'user-123',
+          variant: 'pending-mentor',
+        })
+      );
+
+      await expect(
+        act(async () => {
+          await result.current.accept({
+            id: 'non-existent-id',
+            message: 'hello',
+          });
+        })
+      ).rejects.toThrow(
+        '[ReservationList] item not found for id=non-existent-id'
+      );
+    });
+  });
+
+  describe('rejectOrCancel', () => {
+    it('should set isMutating, call rejectOrCancelReservation, trigger success toast, onMutationSuccess, and track event', async () => {
+      mockRejectService.mockResolvedValue();
+
+      const { result } = renderHook(() =>
+        useReservationActions({
+          items: mockItems,
+          myUserId: 'user-123',
+          variant: 'pending-mentor',
+          onMutationSuccess: mockOnMutationSuccess,
+        })
+      );
+
+      let promise;
+      await act(async () => {
+        promise = result.current.rejectOrCancel(
+          'res-abc',
+          'Reject reason text',
+          '已拒絕預約'
+        );
+      });
+
+      await promise;
+
+      expect(mockRejectService).toHaveBeenCalledTimes(1);
+      expect(mockRejectService).toHaveBeenCalledWith({
+        id: 'res-abc',
+        text: 'Reject reason text',
+        reservation: mockItems[0],
+        myUserId: 'user-123',
+      });
+
+      expect(mockTrackEvent).toHaveBeenCalledWith({
+        name: 'reservation_rejected',
+        feature: 'reservation',
+      });
+
+      expect(mockToast).toHaveBeenCalledWith({
+        description: '已拒絕預約',
+      });
+
+      expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', [
+        'pending',
+        'history',
+      ]);
+      expect(result.current.isMutating).toBe(false);
+    });
+
+    it('should throw error, trigger destructive toast, and reset isMutating if rejectOrCancel fails', async () => {
+      const apiError = new Error('API Reject Failed');
+      mockRejectService.mockRejectedValue(apiError);
+
+      const { result } = renderHook(() =>
+        useReservationActions({
+          items: mockItems,
+          myUserId: 'user-123',
+          variant: 'pending-mentor',
+          onMutationSuccess: mockOnMutationSuccess,
+        })
+      );
+
+      await expect(
+        act(async () => {
+          await result.current.rejectOrCancel(
+            'res-abc',
+            'reason',
+            '已拒絕預約'
+          );
+        })
+      ).rejects.toThrow('API Reject Failed');
+
+      expect(mockToast).toHaveBeenCalledWith({
+        variant: 'destructive',
+        title: '錯誤',
+        description: '操作失敗，請稍後再試。',
+      });
+
+      expect(mockOnMutationSuccess).not.toHaveBeenCalled();
+      expect(result.current.isMutating).toBe(false);
+    });
+
+    it('should throw if myUserId is missing', async () => {
+      const { result } = renderHook(() =>
+        useReservationActions({
+          items: mockItems,
+          myUserId: undefined,
+          variant: 'pending-mentor',
+        })
+      );
+
+      await expect(
+        act(async () => {
+          await result.current.rejectOrCancel(
+            'res-abc',
+            'reason',
+            'Cancel message'
+          );
+        })
+      ).rejects.toThrow('[useReservationActions] missing current user id');
+    });
+  });
+
+  describe('buildProfileHref', () => {
+    it('should return undefined if myUserId is missing', () => {
+      const { result } = renderHook(() =>
+        useReservationActions({
+          items: mockItems,
+          myUserId: undefined,
+          variant: 'pending-mentor',
+        })
+      );
+
+      const href = result.current.buildProfileHref(mockItems[0]);
+      expect(href).toBeUndefined();
+    });
+
+    it('should resolve the partner profile link if myUserId is sender user ID', () => {
+      const { result } = renderHook(() =>
+        useReservationActions({
+          items: mockItems,
+          myUserId: 'user-123',
+          variant: 'pending-mentor',
+        })
+      );
+
+      const href = result.current.buildProfileHref(mockItems[0]);
+      expect(href).toBe('/profile/user-456');
+    });
+
+    it('should resolve the sender profile link if myUserId is participant user ID', () => {
+      const { result } = renderHook(() =>
+        useReservationActions({
+          items: mockItems,
+          myUserId: 'user-456',
+          variant: 'pending-mentor',
+        })
+      );
+
+      const href = result.current.buildProfileHref(mockItems[0]);
+      expect(href).toBe('/profile/user-123');
+    });
+  });
+});
