@@ -219,6 +219,7 @@ export function useMentorPool({
   }, [params.toString(), retryCount]);
 
   const fetchMoreMentors = useCallback(async () => {
+    if (isLoadingRef.current) return;
     const myRequestId = ++requestIdRef.current;
     const conditions = paramsToFetchConditions(params);
     const param = {
