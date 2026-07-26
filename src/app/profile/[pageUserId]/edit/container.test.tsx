@@ -97,6 +97,7 @@ import * as useEditProfileFormModule from '@/hooks/user/profile/useEditProfileFo
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
+import { MentorProfileVO } from '@/services/profile/user';
 
 import EditProfileContainer from './container';
 
@@ -191,7 +192,7 @@ describe('EditProfileContainer error handling and scrolling', () => {
 
   it('triggers scroll to the correct topmost error element when validation fails', async () => {
     mockUseEditProfileData.mockReturnValue({
-      userDto: null,
+      userDto: {} as unknown as MentorProfileVO,
       isMentor: true,
       isPageLoading: false,
       isError: false,
@@ -280,7 +281,7 @@ describe('EditProfileContainer error handling and scrolling', () => {
 
   it('does not crash or scroll if validation fails but corresponding DOM element does not exist', async () => {
     mockUseEditProfileData.mockReturnValue({
-      userDto: null,
+      userDto: {} as unknown as MentorProfileVO,
       isMentor: true,
       isPageLoading: false,
       isError: false,
