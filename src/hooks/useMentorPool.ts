@@ -101,12 +101,7 @@ export function useMentorPool({
       isNoResults: initialMentors.length === 0,
       hasError: hasInitialFilters ? false : (initialError ?? false),
     }),
-    [
-      initialMentors,
-      initialMentorCount,
-      hasInitialFilters,
-      initialError,
-    ]
+    [initialMentors, initialMentorCount, hasInitialFilters, initialError]
   );
 
   const [pageState, setPageState] = useState<MentorPoolPageState>(() => {
