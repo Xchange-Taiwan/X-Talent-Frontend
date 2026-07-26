@@ -113,14 +113,10 @@ export function computeDirtyStates(
 }
 
 /**
- * Maps ProfileFormValues into the payload needed for the updateProfile API.
+ * Filters and extracts the valid personal links that have a non-empty URL.
  */
-export function mapFormValuesToPayload(
-  values: ProfileFormValues,
-  avatar: string,
-  experiencesDirty: boolean
-) {
-  const links = [
+export function extractValidLinks(values: ProfileFormValues) {
+  return [
     values.linkedin,
     values.facebook,
     values.instagram,
@@ -128,6 +124,17 @@ export function mapFormValuesToPayload(
     values.youtube,
     values.website,
   ].filter((l) => l && l.url);
+}
+
+/**
+ * Maps ProfileFormValues into the payload needed for the updateProfile API.
+ */
+export function mapFormValuesToPayload(
+  values: ProfileFormValues,
+  avatar: string | undefined,
+  experiencesDirty: boolean
+) {
+  const links = extractValidLinks(values);
 
   const {
     experiences,
@@ -145,6 +152,10 @@ export function mapFormValuesToPayload(
     avatarFile: undefined,
     job_title,
     company: companyFromPrimary,
+    // Three-state semantic on the wire: omit when no experience section
+    // changed (backend leaves the column alone); include the full set
+    // when any section is dirty (backend overwrites). Replace semantics:
+    // backend overwrites profiles.experiences wholesale with this batch.
     ...(experiencesDirty ? { experiences } : {}),
   };
 }

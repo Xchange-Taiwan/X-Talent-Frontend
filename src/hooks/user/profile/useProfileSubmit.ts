@@ -18,6 +18,7 @@ import {
 } from '@/lib/profile/pollUntilSynced';
 import {
   computeDirtyStates,
+  extractValidLinks,
   mapFormValuesToPayload,
   type ProfileDirtyFields,
 } from '@/lib/profile/profileSaveAdapter';
@@ -100,11 +101,7 @@ export function useProfileSubmit({
         isMentorOnboarding
       );
 
-      const payload = mapFormValuesToPayload(
-        values,
-        avatar ?? '',
-        experiencesDirty
-      );
+      const payload = mapFormValuesToPayload(values, avatar, experiencesDirty);
 
       const { job_title, company: companyFromPrimary } = payload;
 
@@ -127,19 +124,10 @@ export function useProfileSubmit({
       //    blocking the user behind a ~800ms timeout.
       const sessionUserId = session?.user?.id ? Number(session.user.id) : null;
       const sessionUser = session?.user;
-      const personalLinks = [
-        values.linkedin,
-        values.facebook,
-        values.instagram,
-        values.twitter,
-        values.youtube,
-        values.website,
-      ]
-        .filter((l) => l && l.url)
-        .map((link) => ({
-          platform: link.platform,
-          url: link.url,
-        }));
+      const personalLinks = extractValidLinks(values).map((link) => ({
+        platform: link.platform,
+        url: link.url,
+      }));
 
       if (sessionUserId) {
         clearUserDataCache(sessionUserId, 'zh_TW');
