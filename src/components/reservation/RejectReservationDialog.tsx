@@ -15,7 +15,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/components/ui/use-toast';
+import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
 import { trackEvent } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 
@@ -34,38 +34,25 @@ export default function RejectReservationDialog({
   disabled = false,
   onReject,
 }: Props) {
-  const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const { toast } = useToast();
 
-  function onOpenChange(next: boolean) {
-    if (isSubmitting) return;
-    setOpen(next);
-    if (next) {
+  const { open, isSubmitting, onOpenChange, execute } = useConfirmActionDialog({
+    errorMessage: '拒絕預約失敗,請稍後再試',
+    onOpen: () => {
       setReason('');
       trackEvent({
         name: 'feature_opened',
         feature: 'reservation',
         metadata: { dialog: 'reject_reservation' },
       });
-    }
-  }
+    },
+  });
 
-  async function handleReject() {
-    setIsSubmitting(true);
-    try {
+  const handleReject = () => {
+    execute(async () => {
       await onReject?.({ id: reservation.id, reason });
-      setIsSubmitting(false);
-      setOpen(false);
-    } catch {
-      toast({
-        variant: 'destructive',
-        description: '拒絕預約失敗,請稍後再試',
-      });
-      setIsSubmitting(false);
-    }
-  }
+    });
+  };
 
   const trimmedReason = reason.trim();
   const canSubmit = trimmedReason.length > 0 && !isSubmitting;
