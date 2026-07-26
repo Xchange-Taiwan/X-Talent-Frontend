@@ -69,7 +69,7 @@ describe('sanitizePublicProfile', () => {
             ],
           },
         },
-      ] as any,
+      ] as unknown as MentorProfileVO['experiences'],
     };
 
     const sanitized = sanitizePublicProfile(profile);
@@ -91,12 +91,33 @@ describe('sanitizePublicProfile', () => {
             ],
           },
         },
-      ] as any,
+      ] as unknown as MentorProfileVO['experiences'],
     };
 
     const sanitized = sanitizePublicProfile(profile);
     expect(sanitized.jobTitle).toBe('First Job');
     expect(sanitized.company).toBe('First Co');
+  });
+
+  it('should preserve empty string for jobTitle or company from experiences and not fallback to outer profile', () => {
+    const profile: MentorProfileVO = {
+      ...baseProfile,
+      job_title: 'Global Developer',
+      company: 'Base Inc',
+      experiences: [
+        {
+          category: ExperienceType.WORK,
+          order: 1,
+          mentor_experiences_metadata: {
+            data: [{ job: '', company: '', is_primary: true }],
+          },
+        },
+      ] as unknown as MentorProfileVO['experiences'],
+    };
+
+    const sanitized = sanitizePublicProfile(profile);
+    expect(sanitized.jobTitle).toBe('');
+    expect(sanitized.company).toBe('');
   });
 
   it('should filter, deduplicate and check safe URLs for public links', () => {
@@ -119,7 +140,7 @@ describe('sanitizePublicProfile', () => {
             ],
           },
         },
-      ] as any,
+      ] as unknown as MentorProfileVO['experiences'],
     };
 
     const sanitized = sanitizePublicProfile(profile);
