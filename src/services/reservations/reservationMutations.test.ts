@@ -200,6 +200,18 @@ describe('acceptReservation', () => {
       message: 'API failed',
     });
   });
+
+  it('should throw error if myUserId is missing', async () => {
+    const reservation = makeMockReservation();
+    await expect(
+      acceptReservation({
+        id: 'res-123',
+        message: 'hello',
+        reservation,
+        myUserId: '',
+      })
+    ).rejects.toThrow('[reservationMutations] missing current user id');
+  });
 });
 
 describe('rejectOrCancelReservation', () => {
@@ -313,5 +325,18 @@ describe('rejectOrCancelReservation', () => {
       step: 'update_status',
       message: 'Reject failed',
     });
+  });
+
+  it('should throw error if myUserId is missing', async () => {
+    const reservation = makeMockReservation();
+    await expect(
+      rejectOrCancelReservation({
+        id: 'res-123',
+        text: 'cancel',
+        reservation,
+        myUserId: '',
+        variant: 'upcoming',
+      })
+    ).rejects.toThrow('[reservationMutations] missing current user id');
   });
 });

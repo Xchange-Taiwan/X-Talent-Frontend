@@ -38,6 +38,45 @@ export const buildRejectOrCancelAffectedTabs = (
   return sourceTab ? [sourceTab, 'history'] : [];
 };
 
+interface PerformStatusUpdateParams {
+  id: string;
+  myUserId: string;
+  status: 'ACCEPT' | 'REJECT';
+  messages: { user_id: number; content: string }[];
+  reservation: Reservation;
+}
+
+/**
+ * Common internal helper to perform reservation status updates
+ */
+async function performStatusUpdate({
+  id,
+  myUserId,
+  status,
+  messages,
+  reservation,
+}: PerformStatusUpdateParams): Promise<void> {
+  if (!myUserId) {
+    throw new Error('[reservationMutations] missing current user id');
+  }
+  const myIdNum = Number(myUserId);
+  const otherIdNum = Number(resolveOtherId(reservation, myUserId));
+
+  await updateReservationStatus({
+    userId: myUserId,
+    reservationId: id,
+    body: {
+      my_user_id: myIdNum,
+      user_id: otherIdNum,
+      my_status: status,
+      schedule_id: reservation.scheduleId,
+      dtstart: reservation.dtstart,
+      dtend: reservation.dtend,
+      messages,
+    },
+  });
+}
+
 export interface AcceptParams {
   id: string;
   message: string;
@@ -55,26 +94,17 @@ export async function acceptReservation({
   myUserId,
 }: AcceptParams): Promise<{ affectedTabs: ListKey[] }> {
   try {
-    if (!myUserId) {
-      throw new Error('[reservationMutations] missing current user id');
-    }
     const myIdNum = Number(myUserId);
-    const otherIdNum = Number(resolveOtherId(reservation, myUserId));
+    const messages = message.trim()
+      ? [{ user_id: myIdNum, content: message.trim() }]
+      : [];
 
-    await updateReservationStatus({
-      userId: myUserId,
-      reservationId: id,
-      body: {
-        my_user_id: myIdNum,
-        user_id: otherIdNum,
-        my_status: 'ACCEPT',
-        schedule_id: reservation.scheduleId,
-        dtstart: reservation.dtstart,
-        dtend: reservation.dtend,
-        messages: message.trim()
-          ? [{ user_id: myIdNum, content: message.trim() }]
-          : [],
-      },
+    await performStatusUpdate({
+      id,
+      myUserId,
+      status: 'ACCEPT',
+      messages,
+      reservation,
     });
 
     return { affectedTabs: ACCEPT_AFFECTED_TABS };
@@ -108,26 +138,17 @@ export async function rejectOrCancelReservation({
   variant,
 }: RejectOrCancelParams): Promise<{ affectedTabs: ListKey[] }> {
   try {
-    if (!myUserId) {
-      throw new Error('[reservationMutations] missing current user id');
-    }
     const myIdNum = Number(myUserId);
-    const otherIdNum = Number(resolveOtherId(reservation, myUserId));
+    const messages = text.trim()
+      ? [{ user_id: myIdNum, content: text.trim() }]
+      : [];
 
-    await updateReservationStatus({
-      userId: myUserId,
-      reservationId: id,
-      body: {
-        my_user_id: myIdNum,
-        user_id: otherIdNum,
-        my_status: 'REJECT',
-        schedule_id: reservation.scheduleId,
-        dtstart: reservation.dtstart,
-        dtend: reservation.dtend,
-        messages: text.trim()
-          ? [{ user_id: myIdNum, content: text.trim() }]
-          : [],
-      },
+    await performStatusUpdate({
+      id,
+      myUserId,
+      status: 'REJECT',
+      messages,
+      reservation,
     });
 
     trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
