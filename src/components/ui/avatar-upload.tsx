@@ -15,7 +15,6 @@ interface AvatarUploadProps<T extends FieldValues> {
   name: Path<T>;
   avatarUrl?: string;
   onFileChange?: (file: File) => void;
-  hasError?: boolean;
 }
 
 const AvatarUpload = <T extends FieldValues>({
@@ -23,9 +22,9 @@ const AvatarUpload = <T extends FieldValues>({
   name,
   avatarUrl,
   onFileChange,
-  hasError,
 }: AvatarUploadProps<T>) => {
-  const { field } = useController({ control, name });
+  const { field, fieldState } = useController({ control, name });
+  const errorMessage = fieldState.error?.message;
 
   const imagePreviewUrl = field.value
     ? URL.createObjectURL(field.value)
@@ -57,10 +56,10 @@ const AvatarUpload = <T extends FieldValues>({
   };
 
   return (
-    <div className="mb-10 flex justify-center lg:justify-start">
+    <div className="mb-10 flex flex-col items-center lg:items-start">
       <div
         className={`group relative flex h-36 w-36 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 bg-avatar-background lg:h-[150px] lg:w-[150px] ${
-          hasError ? 'border-destructive' : 'border-avatar-border'
+          errorMessage ? 'border-destructive' : 'border-avatar-border'
         }`}
         onClick={() => document.getElementById('fileInput')?.click()}
       >
@@ -102,6 +101,11 @@ const AvatarUpload = <T extends FieldValues>({
           <ImageIcon size={50} className="text-avatar-border" />
         )}
       </div>
+      {errorMessage && (
+        <p className="mt-2 text-center text-sm font-medium text-destructive lg:text-left">
+          {errorMessage}
+        </p>
+      )}
     </div>
   );
 };
