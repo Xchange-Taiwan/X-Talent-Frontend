@@ -1,5 +1,5 @@
-import { Reservation } from '@/components/reservation/types';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { Reservation } from '@/services/reservations/types';
 
 import { resolveOtherId, updateReservationStatus } from './reservationService';
 
