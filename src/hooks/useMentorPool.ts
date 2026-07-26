@@ -34,16 +34,21 @@ export function useMentorPool({
 
   const hasInitialFilters = hasAnyCondition(params);
 
+  // Cache resolved initial mentors to trigger React's state bailout on mount, preventing redundant list re-renders.
+  const resolvedInitialMentors = useMemo(
+    () => initialMentors.map(resolveMentorAvatar),
+    [initialMentors]
+  );
+
   const [mentorCount, setMentorCount] = useState<number>(
     hasInitialFilters ? 0 : initialMentorCount
   );
 
   // mentors state holds the fetched mentors with only resolveMentorAvatar applied.
   // This keeps avatar calculation cached but preserves raw have_topic codes in state for dynamic localization.
-  const [mentors, setMentors] = useState<MentorType[]>(() => {
-    const initial = hasInitialFilters ? [] : initialMentors;
-    return initial.map(resolveMentorAvatar);
-  });
+  const [mentors, setMentors] = useState<MentorType[]>(() =>
+    hasInitialFilters ? [] : resolvedInitialMentors
+  );
 
   const [isNoResults, setIsNoResults] = useState(
     hasInitialFilters ? false : initialMentors.length === 0
@@ -85,8 +90,7 @@ export function useMentorPool({
     const myRequestId = ++requestIdRef.current;
 
     if (!hasAnyCondition(params)) {
-      const resolvedInitial = initialMentors.map(resolveMentorAvatar);
-      setMentors(resolvedInitial);
+      setMentors(resolvedInitialMentors);
       setMentorCount(initialMentorCount);
       setCursor(initialCursor);
       setIsNoResults(initialMentors.length === 0);
