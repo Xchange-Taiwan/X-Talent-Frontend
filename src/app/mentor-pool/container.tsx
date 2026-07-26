@@ -158,7 +158,10 @@ export default function MentorPoolContainer({
       })
       .catch((error) => {
         if (myRequestId !== requestIdRef.current) return;
-        console.error('Fetch mentors error:', error);
+        console.error(
+          'Fetch mentors error:',
+          error instanceof Error ? error.message : String(error)
+        );
         setIsLoading(false);
         isLoadingRef.current = false;
         toast({
@@ -185,7 +188,10 @@ export default function MentorPoolContainer({
       rtnList = await fetchMentors(param);
     } catch (error) {
       if (myRequestId === requestIdRef.current) {
-        console.error('Fetch more mentors error:', error);
+        console.error(
+          'Fetch more mentors error:',
+          error instanceof Error ? error.message : String(error)
+        );
         toast({
           variant: 'destructive',
           title: '載入失敗',
