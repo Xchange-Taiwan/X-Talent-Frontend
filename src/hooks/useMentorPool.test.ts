@@ -611,4 +611,52 @@ describe('useMentorPool', () => {
 
     spyConsoleError.mockRestore();
   });
+
+  it('triggers a fetch on retry when no parameters are present if initialError is true', async () => {
+    // 1. Initialized with SSR error and no filters
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: [],
+        initialCursor: '',
+        initialMentorCount: 0,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+        initialError: true,
+      })
+    );
+
+    expect(result.current.hasError).toBe(true);
+    expect(result.current.mentors).toEqual([]);
+    expect(mockFetchMentors).not.toHaveBeenCalled();
+
+    // Use a manual pending promise for the retry fetch to test transition states
+    let resolveRetryFetch!: (value: MentorType[]) => void;
+    const retryPromise = new Promise<MentorType[]>((resolve) => {
+      resolveRetryFetch = resolve;
+    });
+    mockFetchMentors.mockReturnValueOnce(retryPromise);
+
+    // 2. Click retry
+    await act(async () => {
+      result.current.handleRetry();
+    });
+
+    // Should not early return, but instead trigger API fetch
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.hasError).toBe(false);
+
+    await act(async () => {
+      resolveRetryFetch(mockInitialMentors);
+      await retryPromise;
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasError).toBe(false);
+    expect(result.current.mentors.length).toBe(1);
+    expect(result.current.mentors[0].name).toBe('Initial Mentor');
+    expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+  });
 });
