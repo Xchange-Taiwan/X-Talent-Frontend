@@ -298,4 +298,37 @@ describe('apiClient', () => {
       expect(result).toBe('ssr-data');
     });
   });
+
+  /* ================================
+   * getExternalBlob
+   * ================================ */
+
+  describe('getExternalBlob', () => {
+    it('handles successful response and returns a Blob', async () => {
+      const mockBlob = new Blob(['blob-bytes'], { type: 'image/png' });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        blob: vi.fn().mockResolvedValue(mockBlob),
+      });
+
+      const result = await apiClient.getExternalBlob(
+        'https://example.com/image.png'
+      );
+      expect(result).toBe(mockBlob);
+      expect(mockFetch).toHaveBeenCalledWith('https://example.com/image.png', {
+        method: 'GET',
+      });
+    });
+
+    it('throws an error if the response is not ok', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+      });
+
+      await expect(
+        apiClient.getExternalBlob('https://example.com/image.png')
+      ).rejects.toThrow('fetch external blob failed: 500');
+    });
+  });
 });
