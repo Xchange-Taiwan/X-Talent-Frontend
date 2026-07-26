@@ -16,9 +16,12 @@ vi.mock('@/hooks/user/reservation/useReservationData', () => ({
 
 // Mock ReservationList to isolate the dashboard test
 vi.mock('@/components/reservation/ReservationList', () => ({
-  ReservationList: vi.fn(({ items, variant, sourceRole }) => (
+  ReservationList: vi.fn(({ items, variant, sourceRole, onLoadMore }) => (
     <div data-testid={`reservation-list-${variant}-${sourceRole}`}>
       Mock List: {items.length} items
+      <button data-testid={`load-more-${variant}`} onClick={onLoadMore}>
+        Load More
+      </button>
     </div>
   )),
 }));
@@ -204,5 +207,59 @@ describe('ReservationDashboard', () => {
 
     // Should call loadHistory
     expect(mockLoadHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it('correctly maps and triggers onLoadMore params for role "mentee"', () => {
+    vi.mocked(useReservationData).mockReturnValue(
+      baseHookReturnValue as unknown as UseReservationDataReturn
+    );
+
+    render(<ReservationDashboard role="mentee" />);
+
+    // --- Tab 1: Upcoming ---
+    const upcomingLoadMore = screen.getByTestId('load-more-upcoming');
+    fireEvent.click(upcomingLoadMore);
+    expect(mockLoadMore).toHaveBeenCalledWith('MENTEE_UPCOMING');
+
+    // --- Tab 2: Pending ---
+    const pendingTrigger = screen.getByTestId('trigger-pending-mentee');
+    fireEvent.click(pendingTrigger);
+    const pendingLoadMore = screen.getByTestId('load-more-pending-mentee');
+    fireEvent.click(pendingLoadMore);
+    expect(mockLoadMore).toHaveBeenCalledWith('MENTEE_PENDING');
+
+    // --- Tab 3: History ---
+    const historyTrigger = screen.getByTestId('trigger-history');
+    fireEvent.click(historyTrigger);
+    const historyLoadMore = screen.getByTestId('load-more-history');
+    fireEvent.click(historyLoadMore);
+    expect(mockLoadMore).toHaveBeenCalledWith('MENTEE_HISTORY');
+  });
+
+  it('correctly maps and triggers onLoadMore params for role "mentor"', () => {
+    vi.mocked(useReservationData).mockReturnValue(
+      baseHookReturnValue as unknown as UseReservationDataReturn
+    );
+
+    render(<ReservationDashboard role="mentor" />);
+
+    // --- Tab 1: Upcoming ---
+    const upcomingLoadMore = screen.getByTestId('load-more-upcoming');
+    fireEvent.click(upcomingLoadMore);
+    expect(mockLoadMore).toHaveBeenCalledWith('MENTOR_UPCOMING');
+
+    // --- Tab 2: Pending ---
+    const pendingTrigger = screen.getByTestId('trigger-pending-mentor');
+    fireEvent.click(pendingTrigger);
+    const pendingLoadMore = screen.getByTestId('load-more-pending-mentor');
+    fireEvent.click(pendingLoadMore);
+    expect(mockLoadMore).toHaveBeenCalledWith('MENTOR_PENDING');
+
+    // --- Tab 3: History ---
+    const historyTrigger = screen.getByTestId('trigger-history');
+    fireEvent.click(historyTrigger);
+    const historyLoadMore = screen.getByTestId('load-more-history');
+    fireEvent.click(historyLoadMore);
+    expect(mockLoadMore).toHaveBeenCalledWith('MENTOR_HISTORY');
   });
 });

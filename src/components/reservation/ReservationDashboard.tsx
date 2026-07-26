@@ -56,7 +56,7 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
   const triggerClass =
     'group shrink-0 rounded-full border border-border px-3 py-1.5 text-sm ' +
     'bg-transparent text-foreground ' +
-    'data-[state=active]:bg-[#000] data-[state=active]:text-[#fff] data-[state=active]:border-black';
+    'data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:border-black';
 
   const countClass =
     'ml-1 text-xs text-muted-foreground group-data-[state=active]:text-white/80';
@@ -77,7 +77,7 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
   return (
     <div className="flex min-h-[calc(100vh-70px)] justify-center pb-12">
       <div className="w-full max-w-[90%] rounded-2xl md:max-w-[800px]">
-        <div className="font-roboto mx-auto mb-6 text-center text-2xl font-semibold leading-tight tracking-[0%] text-[#1D1B20] md:text-[36px]">
+        <div className="font-roboto mx-auto mb-6 text-center text-2xl font-semibold leading-tight tracking-[0%] text-foreground md:text-[36px]">
           {title}
         </div>
 
