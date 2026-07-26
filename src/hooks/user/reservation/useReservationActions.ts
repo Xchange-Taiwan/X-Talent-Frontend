@@ -7,6 +7,7 @@ import { trackEvent } from '@/lib/analytics';
 import {
   acceptReservation,
   rejectOrCancelReservation,
+  resolveOtherId,
 } from '@/services/reservations';
 
 export type Variant =
@@ -42,6 +43,7 @@ interface UseReservationActionsReturn {
     text: string,
     successMessage: string
   ) => Promise<void>;
+  resolveOtherId: (it: Reservation) => string | number;
   isMutating: boolean;
 }
 
@@ -118,9 +120,18 @@ export function useReservationActions({
     [executeMutation, myUserId, variant, toast, onMutationSuccess]
   );
 
+  const resolveOtherIdHelper = useCallback(
+    (it: Reservation): string | number => {
+      if (!myUserId) return '';
+      return resolveOtherId(it, myUserId);
+    },
+    [myUserId]
+  );
+
   return {
     accept,
     rejectOrCancel,
+    resolveOtherId: resolveOtherIdHelper,
     isMutating,
   };
 }
