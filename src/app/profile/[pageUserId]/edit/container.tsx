@@ -3,8 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { FieldErrors } from 'react-hook-form';
+import { useEffect, useLayoutEffect, useState } from 'react';
 
 import { totalWorkSpanOptions } from '@/components/onboarding/steps/constant';
 import { AvatarSection } from '@/components/profile/edit/AvatarSection';
@@ -32,6 +31,7 @@ import useLocations from '@/hooks/user/country/useLocations';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { useEditProfileData } from '@/hooks/user/profile/useEditProfileData';
 import { useEditProfileForm } from '@/hooks/user/profile/useEditProfileForm';
+import { useFormErrorScroll } from '@/hooks/user/profile/useFormErrorScroll';
 import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
@@ -84,14 +84,17 @@ export default function EditProfileContainer({
   const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
   const industries = tagCatalog.industry;
 
-  const { userDto, isMentor, isPageLoading, isError } = useEditProfileData({
+  const [isContainerLoading, setIsContainerLoading] = useState(true);
+
+  const { userDto, isMentor, isError } = useEditProfileData({
     userId: Number(pageUserId),
     isAuthorized,
   });
 
   const { form } = useEditProfileForm(isMentorOnboarding || isMentor);
 
-  const formRef = useRef<HTMLFormElement>(null);
+  const { formRef, onError, scrollToField } =
+    useFormErrorScroll<ProfileFormValues>();
 
   // Reset form when user profile data successfully loads or updates
   useLayoutEffect(() => {
@@ -99,6 +102,7 @@ export default function EditProfileContainer({
 
     const formValues = mapVoToFormValues(userDto, isMentorOnboarding);
     form.reset(formValues);
+    setIsContainerLoading(false);
   }, [userDto, isAuthorized, isMentorOnboarding, form]);
 
   // Warm up the avatar presigned URL once authorized. Saves a serial round
@@ -125,36 +129,6 @@ export default function EditProfileContainer({
   // NOTE: document.getElementById/formRef querySelector is used to query dynamic error-bearing section container boundaries.
   // This approach bypasses standard React refs to avoid inflating complexity with dozens of sub-component
   // ref callback dictionaries, while cleanly retaining declarative styling structures.
-  const scrollToField = (fieldId: string) => {
-    const element = formRef.current
-      ? formRef.current.querySelector('#' + fieldId)
-      : null;
-    element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
-
-  const onError = (errors: FieldErrors<ProfileFormValues>) => {
-    const errorKeys = Object.keys(errors) as (keyof ProfileFormValues)[];
-    const formEl = formRef.current;
-
-    const elementsWithErrors = errorKeys
-      .map((key) => {
-        const element = formEl
-          ? (formEl.querySelector('#' + key) as HTMLElement)
-          : null;
-        if (!element) return null;
-        return { key, rect: element.getBoundingClientRect() };
-      })
-      .filter(
-        (item): item is { key: keyof ProfileFormValues; rect: DOMRect } =>
-          item !== null
-      );
-
-    if (elementsWithErrors.length > 0) {
-      elementsWithErrors.sort((a, b) => a.rect.top - b.rect.top);
-      scrollToField(elementsWithErrors[0].key);
-    }
-  };
-
   const { onSubmit, isSaving } = useProfileSubmit({
     pageUserId,
     isMentorOnboarding,
@@ -172,7 +146,6 @@ export default function EditProfileContainer({
   const unsaved = useUnsavedChangesPrompt(form.formState.isDirty && !isSaving);
 
   if (!isAuthorized) return null;
-  if (isPageLoading) return <PageLoading />;
 
   if (isError) {
     return (
@@ -186,6 +159,8 @@ export default function EditProfileContainer({
       </div>
     );
   }
+
+  if (isContainerLoading) return <PageLoading />;
 
   const handleGoToPrev = () => {
     unsaved.guardNavigate(() => router.push(`/profile/${pageUserId}`));
