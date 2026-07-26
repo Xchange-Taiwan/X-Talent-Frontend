@@ -66,7 +66,6 @@ describe('useOnboardingForm', () => {
 
     mockUseOnboardingSubmit.mockReturnValue({
       submitProfile: mockSubmitProfile,
-      isSubmitting: false,
     } as unknown as ReturnType<typeof useOnboardingSubmit>);
 
     mockUseBackgroundAvatarUpload.mockReturnValue({
