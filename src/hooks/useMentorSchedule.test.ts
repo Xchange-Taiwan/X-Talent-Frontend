@@ -55,7 +55,7 @@ describe('useMentorSchedule', () => {
     expect(slot.occurrenceUnix).toBe(1774390000);
   });
 
-  it('correctly updates a draft slot using its occurrenceId', async () => {
+  it('correctly updates a draft slot', async () => {
     const mockRaws = [
       {
         id: 101,
@@ -83,7 +83,7 @@ describe('useMentorSchedule', () => {
     });
 
     act(() => {
-      const success = result.current.updateDraftSlot('101_1774390000', {
+      const success = result.current.updateDraftSlot(101, 1774390000, {
         startTime: '13:00',
         durationMinutes: 45,
       });
@@ -93,15 +93,14 @@ describe('useMentorSchedule', () => {
     const baseDate = dayjs(1774390000 * 1000).format('YYYY-MM-DD');
     const expectedTime = buildDateTime(baseDate, '13:00');
     const expectedUnix = Math.floor(expectedTime.valueOf() / 1000);
-    const expectedId = `101_${expectedUnix}`;
 
     expect(result.current.parsedDraft).toHaveLength(1);
     const updatedSlot = result.current.parsedDraft[0];
-    expect(updatedSlot.occurrenceId).toBe(expectedId);
+    expect(updatedSlot.occurrenceUnix).toBe(expectedUnix);
     expect(updatedSlot.durationMinutes).toBe(45);
   });
 
-  it('correctly deletes a draft slot using its occurrenceId', async () => {
+  it('correctly deletes a draft slot', async () => {
     const mockRaws = [
       {
         id: 101,
@@ -131,51 +130,10 @@ describe('useMentorSchedule', () => {
     expect(result.current.parsedDraft).toHaveLength(1);
 
     act(() => {
-      result.current.deleteDraftSlot('101_1774390000');
+      result.current.deleteDraftSlot(101, 1774390000);
     });
 
     expect(result.current.parsedDraft).toHaveLength(0);
-  });
-
-  it('handles invalid occurrenceId formats gracefully', async () => {
-    const mockRaws = [
-      {
-        id: 101,
-        type: 'ALLOW' as const,
-        dtstart: 1774390000,
-        dtend: 1774391800,
-        rrule: undefined,
-        exdate: [],
-      },
-    ];
-
-    mockLoadMonthScheduleCached.mockReturnValue({
-      cached: mockRaws,
-      revalidate: Promise.resolve(mockRaws),
-    });
-
-    const { result } = renderHook(() =>
-      useMentorSchedule({
-        backend: { userId: '123', year: 2026, month: 7 },
-      })
-    );
-
-    await waitFor(() => {
-      expect(result.current.loaded).toBe(true);
-    });
-
-    act(() => {
-      const success = result.current.updateDraftSlot('invalid_format', {
-        startTime: '13:00',
-      });
-      expect(success).toBe(false);
-    });
-
-    act(() => {
-      result.current.deleteDraftSlot('invalid_format');
-    });
-
-    expect(result.current.parsedDraft).toHaveLength(1);
   });
 
   it('prevents updateDraftSlot when it causes an overlap conflict', async () => {
@@ -223,7 +181,7 @@ describe('useMentorSchedule', () => {
       // Slot 101 starts at 13:30, ends at 14:15 (45 mins duration).
       // Slot 102 starts at 13:45, ends at 14:15.
       // This is a direct overlap conflict!
-      const success = result.current.updateDraftSlot('101_1774390000', {
+      const success = result.current.updateDraftSlot(101, 1774390000, {
         startTime: '13:30',
         durationMinutes: 45,
       });

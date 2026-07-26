@@ -19,7 +19,6 @@ import {
   nextTempId,
   ParsedMentorTimeslot,
   parseMonthKey,
-  parseOccurrenceId,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
 import { TimeSlotDTO } from '@/services/mentor-schedule/schedule';
@@ -83,7 +82,8 @@ export type UseMentorScheduleReturn = {
    * the patch applied — leaving sibling occurrences untouched.
    */
   updateDraftSlot: (
-    occurrenceId: string,
+    id: number,
+    occurrenceUnix: number,
     patch: {
       startTime?: string; // HH:mm
       durationMinutes?: SlotDurationMinutes;
@@ -95,7 +95,7 @@ export type UseMentorScheduleReturn = {
    * recurring rows the occurrence is added to exdate, and the row is removed
    * only when no active occurrences remain.
    */
-  deleteDraftSlot: (occurrenceId: string) => void;
+  deleteDraftSlot: (id: number, occurrenceUnix: number) => void;
 
   confirmChanges: () => Promise<SyncResult>;
   resetChanges: () => void;
@@ -476,10 +476,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   const updateDraftSlot: UseMentorScheduleReturn['updateDraftSlot'] =
     useCallback(
-      (occurrenceId, patch) => {
-        const parsed = parseOccurrenceId(occurrenceId);
-        if (!parsed) return false;
-        const { id, occurrenceUnix } = parsed;
+      (id, occurrenceUnix, patch) => {
         const monthKey = findMonthForSlotId(id);
         if (!monthKey) return false;
 
@@ -576,10 +573,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     );
 
   const deleteDraftSlot = useCallback(
-    (occurrenceId: string) => {
-      const parsed = parseOccurrenceId(occurrenceId);
-      if (!parsed) return;
-      const { id, occurrenceUnix } = parsed;
+    (id: number, occurrenceUnix: number) => {
       const monthKey = findMonthForSlotId(id);
       if (!monthKey) return;
 

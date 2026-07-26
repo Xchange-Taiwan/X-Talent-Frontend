@@ -131,9 +131,12 @@ export default function MentorScheduleDialog({
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
-  // Track the unified occurrence ID so editing a single occurrence of a
-  // recurring row correctly identifies and detaches it.
-  const [editingTargetId, setEditingTargetId] = useState<string | null>(null);
+  // Track both row id and occurrence so editing a single occurrence of a
+  // recurring row correctly detaches it.
+  const [editingTarget, setEditingTarget] = useState<{
+    id: number;
+    occurrenceUnix: number;
+  } | null>(null);
   const [reservationPrompt, setReservationPrompt] =
     useState<ReservationPromptType>(null);
 
@@ -207,8 +210,12 @@ export default function MentorScheduleDialog({
     onOpenChange(false);
   };
 
-  const editingSlot = editingTargetId
-    ? (visibleSlots.find((s) => s.occurrenceId === editingTargetId) ?? null)
+  const editingSlot = editingTarget
+    ? (visibleSlots.find(
+        (s) =>
+          s.id === editingTarget.id &&
+          s.occurrenceUnix === editingTarget.occurrenceUnix
+      ) ?? null)
     : null;
 
   return (
@@ -276,7 +283,10 @@ export default function MentorScheduleDialog({
                                   setReservationPrompt(reservationBlock);
                                   return;
                                 }
-                                setEditingTargetId(slot.occurrenceId);
+                                setEditingTarget({
+                                  id: slot.id,
+                                  occurrenceUnix: slot.occurrenceUnix,
+                                });
                               },
                               onKeyDown: (e: KeyboardEvent) => {
                                 if (e.key === 'Enter' || e.key === ' ') {
@@ -285,7 +295,10 @@ export default function MentorScheduleDialog({
                                     setReservationPrompt(reservationBlock);
                                     return;
                                   }
-                                  setEditingTargetId(slot.occurrenceId);
+                                  setEditingTarget({
+                                    id: slot.id,
+                                    occurrenceUnix: slot.occurrenceUnix,
+                                  });
                                 }
                               },
                             })}
@@ -318,7 +331,7 @@ export default function MentorScheduleDialog({
                                   setReservationPrompt(reservationBlock);
                                   return;
                                 }
-                                deleteDraftSlot(slot.occurrenceId);
+                                deleteDraftSlot(slot.id, slot.occurrenceUnix);
                               }}
                             >
                               <X className="h-4 w-4 lg:h-5 lg:w-5" />
@@ -388,13 +401,17 @@ export default function MentorScheduleDialog({
 
       <EditSlotModal
         slot={editingSlot}
-        onClose={() => setEditingTargetId(null)}
+        onClose={() => setEditingTarget(null)}
         onSubmit={(form) => {
-          if (!editingTargetId) return;
-          const ok = updateDraftSlot(editingTargetId, {
-            startTime: `${form.startHour}:${form.startMinute}`,
-            durationMinutes: form.durationMinutes,
-          });
+          if (!editingTarget) return;
+          const ok = updateDraftSlot(
+            editingTarget.id,
+            editingTarget.occurrenceUnix,
+            {
+              startTime: `${form.startHour}:${form.startMinute}`,
+              durationMinutes: form.durationMinutes,
+            }
+          );
           if (!ok) {
             toast({
               variant: 'destructive',
@@ -402,7 +419,7 @@ export default function MentorScheduleDialog({
             });
             return;
           }
-          setEditingTargetId(null);
+          setEditingTarget(null);
         }}
       />
 
