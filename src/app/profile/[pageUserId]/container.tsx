@@ -265,7 +265,7 @@ export default function ProfilePageContainer({
       onConfirmReservation={handleConfirmReservation}
       onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}
       onBecomeMentor={() =>
-        router.push(`/profile/${pageUserId}/edit?onboarding=true`)
+        router.push(`/profile/${pageUserId}/edit?mentor-onboarding=true`)
       }
     />
   );

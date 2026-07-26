@@ -16,7 +16,7 @@ describe('navHrefs', () => {
   describe('getBecomeMentorHref', () => {
     it('returns the onboarding edit URL when userId is present', () => {
       expect(getBecomeMentorHref('user-123')).toBe(
-        '/profile/user-123/edit?onboarding=true'
+        '/profile/user-123/edit?mentor-onboarding=true'
       );
     });
 

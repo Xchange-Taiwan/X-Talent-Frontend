@@ -82,7 +82,7 @@ export function useAccountMenu({
     if (isMentor) {
       router.push('/reservation/mentor');
     } else {
-      router.push(`/profile/${userId}/edit?onboarding=true`);
+      router.push(`/profile/${userId}/edit?mentor-onboarding=true`);
     }
   }, [closeMenu, router, userId, isMentor]);
 

@@ -71,7 +71,7 @@ export default function EditProfileContainer({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isMentorOnboarding = searchParams?.get('onboarding') === 'true';
+  const isMentorOnboarding = searchParams?.get('mentor-onboarding') === 'true';
 
   const { data: session, update: updateSession } = useSession();
 
