@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { ListKey } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
+import { resolveOtherId } from '@/services/reservations';
 
 import {
   ReservationCard,
@@ -26,6 +27,96 @@ const cardVariantOf = (variant: Variant): ReservationCardVariant =>
     : variant === 'history'
       ? 'history'
       : 'pending';
+
+/**
+ * Individual Reservation List Item holding its own independent loading and action state.
+ */
+function ReservationItem({
+  it,
+  variant,
+  sourceRole,
+  myUserId,
+  onMutationSuccess,
+}: {
+  it: Reservation;
+  variant: Variant;
+  sourceRole: SourceRole;
+  myUserId: string | undefined;
+  onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
+}) {
+  const { accept, rejectOrCancel, isMutating } = useReservationActions({
+    myUserId,
+    variant,
+    onMutationSuccess,
+  });
+
+  const handleProfileClick = (): void => {
+    trackEvent({
+      name: 'reservation_profile_viewed',
+      feature: 'reservation',
+      metadata: { source_role: sourceRole },
+    });
+  };
+
+  // Build a profile link to the *other* party. Skip when we don't have
+  // a logged-in user (link would be ambiguous) or when the other id would
+  // resolve to the current user (defensive — shouldn't happen in practice).
+  const buildProfileHref = (item: Reservation): string | undefined => {
+    if (!myUserId) return undefined;
+    const otherId = resolveOtherId(item, myUserId);
+    if (!otherId || String(otherId) === myUserId) return undefined;
+    return `/profile/${otherId}`;
+  };
+
+  return (
+    <ReservationCard
+      item={it}
+      variant={cardVariantOf(variant)}
+      profileHref={buildProfileHref(it)}
+      onProfileClick={handleProfileClick}
+      actions={
+        variant === 'history' ? (
+          it.cancelledBy ? (
+            <Badge variant="secondary" role="status">
+              已由{it.cancelledBy === 'MENTOR' ? '導師' : '學員'}取消
+            </Badge>
+          ) : null
+        ) : variant === 'pending-mentor' ? (
+          <div className="flex gap-2">
+            <RejectReservationDialog
+              reservation={it}
+              disabled={isMutating}
+              onReject={async ({ reason }) =>
+                rejectOrCancel(it, reason, '已拒絕預約')
+              }
+            />
+            <AcceptReservationDialog
+              reservation={it}
+              disabled={isMutating}
+              onAccept={async ({ message }) => accept(it, message)}
+            />
+          </div>
+        ) : (
+          <CancelReservationDialog
+            reservation={it}
+            disabled={isMutating}
+            onConfirmCancel={async ({ reason }) =>
+              rejectOrCancel(it, reason, '已取消預約')
+            }
+          />
+        )
+      }
+      footer={
+        variant === 'history' && it.messages.length > 0 ? (
+          <ReservationConversationDialog
+            reservation={it}
+            sourceRole={sourceRole}
+          />
+        ) : null
+      }
+    />
+  );
+}
 
 export function ReservationList({
   items,
@@ -49,80 +140,16 @@ export function ReservationList({
   // states in the background.
   onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
 }) {
-  const { accept, rejectOrCancel, resolveOtherId, isMutating } =
-    useReservationActions({
-      myUserId,
-      variant,
-      onMutationSuccess,
-    });
-
-  // Build a profile link to the *other* party. Skip when we don't have
-  // a logged-in user (link would be ambiguous) or when the other id would
-  // resolve to the current user (defensive — shouldn't happen in practice).
-  const buildProfileHref = (it: Reservation): string | undefined => {
-    if (!myUserId) return undefined;
-    const otherId = resolveOtherId(it);
-    if (!otherId || String(otherId) === myUserId) return undefined;
-    return `/profile/${otherId}`;
-  };
-
-  const handleProfileClick = (): void => {
-    trackEvent({
-      name: 'reservation_profile_viewed',
-      feature: 'reservation',
-      metadata: { source_role: sourceRole },
-    });
-  };
-
   return (
     <div className="space-y-3 sm:space-y-4">
       {items.map((it) => (
-        <ReservationCard
+        <ReservationItem
           key={it.id}
-          item={it}
-          variant={cardVariantOf(variant)}
-          profileHref={buildProfileHref(it)}
-          onProfileClick={handleProfileClick}
-          actions={
-            variant === 'history' ? (
-              it.cancelledBy ? (
-                <Badge variant="secondary" role="status">
-                  已由{it.cancelledBy === 'MENTOR' ? '導師' : '學員'}取消
-                </Badge>
-              ) : null
-            ) : variant === 'pending-mentor' ? (
-              <div className="flex gap-2">
-                <RejectReservationDialog
-                  reservation={it}
-                  disabled={isMutating}
-                  onReject={async ({ reason }) =>
-                    rejectOrCancel(it, reason, '已拒絕預約')
-                  }
-                />
-                <AcceptReservationDialog
-                  reservation={it}
-                  disabled={isMutating}
-                  onAccept={async ({ message }) => accept(it, message)}
-                />
-              </div>
-            ) : (
-              <CancelReservationDialog
-                reservation={it}
-                disabled={isMutating}
-                onConfirmCancel={async ({ reason }) =>
-                  rejectOrCancel(it, reason, '已取消預約')
-                }
-              />
-            )
-          }
-          footer={
-            variant === 'history' && it.messages.length > 0 ? (
-              <ReservationConversationDialog
-                reservation={it}
-                sourceRole={sourceRole}
-              />
-            ) : null
-          }
+          it={it}
+          variant={variant}
+          sourceRole={sourceRole}
+          myUserId={myUserId}
+          onMutationSuccess={onMutationSuccess}
         />
       ))}
 

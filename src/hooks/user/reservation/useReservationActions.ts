@@ -1,14 +1,13 @@
 import { useCallback, useState } from 'react';
 
+import { Reservation } from '@/components/reservation/types';
 import { useToast } from '@/components/ui/use-toast';
 import { ListKey } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
 import {
   acceptReservation,
   rejectOrCancelReservation,
-  resolveOtherId,
 } from '@/services/reservations';
-import { Reservation } from '@/services/reservations/types';
 
 export type Variant =
   | 'upcoming'
@@ -43,7 +42,6 @@ interface UseReservationActionsReturn {
     text: string,
     successMessage: string
   ) => Promise<void>;
-  resolveOtherId: (it: Reservation) => string | number;
   isMutating: boolean;
 }
 
@@ -120,18 +118,9 @@ export function useReservationActions({
     [executeMutation, myUserId, variant, toast, onMutationSuccess]
   );
 
-  const resolveOtherIdHelper = useCallback(
-    (it: Reservation): string | number => {
-      if (!myUserId) return '';
-      return resolveOtherId(it, myUserId);
-    },
-    [myUserId]
-  );
-
   return {
     accept,
     rejectOrCancel,
-    resolveOtherId: resolveOtherIdHelper,
     isMutating,
   };
 }
