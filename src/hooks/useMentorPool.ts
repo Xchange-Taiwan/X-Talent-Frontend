@@ -21,6 +21,7 @@ export interface MentorPoolPageState {
   hasMore: boolean;
   mentorCount: number;
   isNoResults: boolean;
+  hasError: boolean;
 }
 
 export type MentorPageAction =
@@ -40,6 +41,7 @@ export function applyMentorPage(
         hasMore: page.length === PAGE_LIMIT,
         mentorCount: page.length,
         isNoResults: page.length === 0,
+        hasError: false,
       };
     }
     case 'append': {
@@ -64,6 +66,7 @@ export function applyMentorPage(
         hasMore: page.length === PAGE_LIMIT,
         mentorCount: state.mentorCount + page.length,
         isNoResults: false,
+        hasError: false,
       };
     }
     default:
@@ -103,8 +106,14 @@ export function useMentorPool({
       hasMore: resolvedInitialMentors.length === PAGE_LIMIT,
       mentorCount: initialMentorCount,
       isNoResults: resolvedInitialMentors.length === 0,
+      hasError: hasInitialFilters ? false : (initialError ?? false),
     }),
-    [resolvedInitialMentors, initialMentorCount]
+    [
+      resolvedInitialMentors,
+      initialMentorCount,
+      hasInitialFilters,
+      initialError,
+    ]
   );
 
   const [pageState, setPageState] = useState<MentorPoolPageState>(() => {
@@ -115,15 +124,13 @@ export function useMentorPool({
         hasMore: true,
         mentorCount: 0,
         isNoResults: false,
+        hasError: false,
       };
     }
     return getInitialUnfilteredState();
   });
 
   const [isLoading, setIsLoading] = useState(hasInitialFilters);
-  const [hasError, setHasError] = useState<boolean>(() =>
-    hasInitialFilters ? false : (initialError ?? false)
-  );
   const [retryCount, setRetryCount] = useState<number>(0);
 
   const isLoadingRef = useRef(false);
@@ -145,12 +152,10 @@ export function useMentorPool({
         title: '載入失敗',
         description: '無法獲取導師，請稍後再試。',
       });
-      setPageState((prev) => {
-        if (prev.mentors.length === 0) {
-          setHasError(true);
-        }
-        return prev;
-      });
+      setPageState((prev) => ({
+        ...prev,
+        hasError: prev.mentors.length === 0,
+      }));
     },
     [toast]
   );
@@ -166,7 +171,6 @@ export function useMentorPool({
       !(initialError && (retryCount > 0 || hasClientFetched.current))
     ) {
       setPageState(getInitialUnfilteredState());
-      setHasError(initialError ?? false);
       setIsLoading(false);
       isLoadingRef.current = false;
       return;
@@ -179,8 +183,8 @@ export function useMentorPool({
       ...prev,
       isNoResults: false,
       hasMore: false,
+      hasError: false,
     }));
-    setHasError(false);
     hasClientFetched.current = true;
 
     fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' })
@@ -190,7 +194,6 @@ export function useMentorPool({
         setPageState((prev) =>
           applyMentorPage(prev, { type: 'replace', page: resolvedList })
         );
-        setHasError(false);
         setIsLoading(false);
         isLoadingRef.current = false;
       })
@@ -250,18 +253,23 @@ export function useMentorPool({
 
   const listStatus = useMemo<'loading' | 'error' | 'empty' | 'success'>(() => {
     if (pageState.mentors.length > 0) return 'success';
-    if (isLoading && !hasError) return 'loading';
-    if (hasError) return 'error';
+    if (isLoading && !pageState.hasError) return 'loading';
+    if (pageState.hasError) return 'error';
     if (pageState.isNoResults) return 'empty';
     return 'loading';
-  }, [pageState.mentors.length, isLoading, hasError, pageState.isNoResults]);
+  }, [
+    pageState.mentors.length,
+    isLoading,
+    pageState.hasError,
+    pageState.isNoResults,
+  ]);
 
   return {
     mentors: mentorsForUI,
     mentorCount: pageState.mentorCount,
     isLoading,
     isNoResults: pageState.isNoResults,
-    hasError,
+    hasError: pageState.hasError,
     listStatus,
     handleScrollToBottom,
     handleRetry,

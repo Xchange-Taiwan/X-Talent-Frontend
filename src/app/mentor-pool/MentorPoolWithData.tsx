@@ -1,3 +1,5 @@
+import { unstable_noStore } from 'next/cache';
+
 import { fetchTagCatalogServer } from '@/services/profile/tagCatalog.server';
 import { fetchMentorsServer } from '@/services/search-mentor/mentors.server';
 
@@ -15,6 +17,8 @@ export default async function MentorPoolWithData() {
       cursor: '',
     }).catch((err) => {
       console.error('SSR fetchMentors error captured:', err);
+      // Opt-out of static/ISR caching for this failed run to preserve healthy cache
+      unstable_noStore();
       initialError = true;
       return [];
     }),
