@@ -1,3 +1,5 @@
+process.env.TZ = 'UTC';
+
 import { act, renderHook, waitFor } from '@testing-library/react';
 import dayjs from 'dayjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -20,28 +22,32 @@ describe('useMentorSchedule', () => {
     vi.restoreAllMocks();
   });
 
-  it('correctly maps occurrenceId in parsedDraft on load', async () => {
-    const mockRaws = [
-      {
-        id: 101,
-        type: 'ALLOW' as const,
-        dtstart: 1774390000,
-        dtend: 1774391800,
-        rrule: undefined,
-        exdate: [],
-      },
-    ];
+  const defaultMockRaws = [
+    {
+      id: 101,
+      type: 'ALLOW' as const,
+      dtstart: 1774390000,
+      dtend: 1774391800,
+      rrule: undefined,
+      exdate: [],
+    },
+  ];
 
+  function setupSchedule(mockRaws = defaultMockRaws) {
     mockLoadMonthScheduleCached.mockReturnValue({
       cached: mockRaws,
       revalidate: Promise.resolve(mockRaws),
     });
 
-    const { result } = renderHook(() =>
+    return renderHook(() =>
       useMentorSchedule({
         backend: { userId: '123', year: 2026, month: 7 },
       })
     );
+  }
+
+  it('correctly maps occurrenceId in parsedDraft on load', async () => {
+    const { result } = setupSchedule();
 
     // Initial load from cache
     await waitFor(() => {
@@ -56,27 +62,7 @@ describe('useMentorSchedule', () => {
   });
 
   it('correctly updates a draft slot', async () => {
-    const mockRaws = [
-      {
-        id: 101,
-        type: 'ALLOW' as const,
-        dtstart: 1774390000,
-        dtend: 1774391800,
-        rrule: undefined,
-        exdate: [],
-      },
-    ];
-
-    mockLoadMonthScheduleCached.mockReturnValue({
-      cached: mockRaws,
-      revalidate: Promise.resolve(mockRaws),
-    });
-
-    const { result } = renderHook(() =>
-      useMentorSchedule({
-        backend: { userId: '123', year: 2026, month: 7 },
-      })
-    );
+    const { result } = setupSchedule();
 
     await waitFor(() => {
       expect(result.current.loaded).toBe(true);
@@ -101,27 +87,7 @@ describe('useMentorSchedule', () => {
   });
 
   it('correctly deletes a draft slot', async () => {
-    const mockRaws = [
-      {
-        id: 101,
-        type: 'ALLOW' as const,
-        dtstart: 1774390000,
-        dtend: 1774391800,
-        rrule: undefined,
-        exdate: [],
-      },
-    ];
-
-    mockLoadMonthScheduleCached.mockReturnValue({
-      cached: mockRaws,
-      revalidate: Promise.resolve(mockRaws),
-    });
-
-    const { result } = renderHook(() =>
-      useMentorSchedule({
-        backend: { userId: '123', year: 2026, month: 7 },
-      })
-    );
+    const { result } = setupSchedule();
 
     await waitFor(() => {
       expect(result.current.loaded).toBe(true);
@@ -162,16 +128,7 @@ describe('useMentorSchedule', () => {
       },
     ];
 
-    mockLoadMonthScheduleCached.mockReturnValue({
-      cached: mockRaws,
-      revalidate: Promise.resolve(mockRaws),
-    });
-
-    const { result } = renderHook(() =>
-      useMentorSchedule({
-        backend: { userId: '123', year: 2026, month: 7 },
-      })
-    );
+    const { result } = setupSchedule(mockRaws);
 
     await waitFor(() => {
       expect(result.current.loaded).toBe(true);
