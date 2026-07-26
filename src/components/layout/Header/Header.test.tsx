@@ -72,7 +72,7 @@ describe('Header', () => {
     const link = screen.getByRole('link', { name: '成為導師' });
     expect(link).toHaveAttribute(
       'href',
-      '/profile/user-123/edit?onboarding=true'
+      '/profile/user-123/edit?mentor-onboarding=true'
     );
     expect(link).toHaveAttribute('aria-disabled', 'false');
   });

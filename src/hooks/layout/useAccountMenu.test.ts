@@ -207,7 +207,7 @@ describe('useAccountMenu', () => {
       });
 
       expect(mockRouter.push).toHaveBeenCalledWith(
-        '/profile/user-1/edit?onboarding=true'
+        '/profile/user-1/edit?mentor-onboarding=true'
       );
     });
   });
