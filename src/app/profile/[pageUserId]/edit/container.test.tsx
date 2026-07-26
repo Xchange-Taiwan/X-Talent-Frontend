@@ -1,5 +1,6 @@
 import { render } from '@testing-library/react';
 import React from 'react';
+import { UseFormReturn } from 'react-hook-form';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // mock navigate & searchParams
@@ -92,7 +93,9 @@ vi.mock('@/components/profile/edit/Section', () => ({
   ),
 }));
 
+import * as useEditProfileFormModule from '@/hooks/user/profile/useEditProfileForm';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
+import { ProfileFormValues } from '@/schemas/profileSchema';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 
 import EditProfileContainer from './container';
@@ -335,5 +338,49 @@ describe('EditProfileContainer error handling and scrolling', () => {
       getBoundingClientRectSpy.mockRestore();
       document.getElementById = originalGetElementById;
     }
+  });
+
+  it('resets the form with mapped values when userDto is successfully fetched', () => {
+    const mockUserDto = {
+      id: 1,
+      name: 'Loaded Test Name',
+      is_mentor: false,
+    };
+
+    mockUseEditProfileData.mockReturnValue({
+      userDto: mockUserDto,
+      isMentor: false,
+      isPageLoading: false,
+      isError: false,
+    });
+
+    const mockReset = vi.fn();
+    const mockForm = {
+      reset: mockReset,
+      control: {},
+      formState: { dirtyFields: {} },
+      handleSubmit: vi.fn().mockReturnValue(vi.fn()),
+    } as unknown as UseFormReturn<ProfileFormValues>;
+
+    const useEditProfileFormSpy = vi
+      .spyOn(useEditProfileFormModule, 'useEditProfileForm')
+      .mockReturnValue({ form: mockForm });
+
+    render(
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
+    );
+
+    // Verify form.reset was called with values mapped from mockUserDto
+    expect(mockReset).toHaveBeenCalled();
+    expect(mockReset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Loaded Test Name',
+      })
+    );
+
+    useEditProfileFormSpy.mockRestore();
   });
 });

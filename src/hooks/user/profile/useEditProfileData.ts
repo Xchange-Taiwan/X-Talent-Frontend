@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
 
@@ -9,33 +9,23 @@ interface Options {
 }
 
 export function useEditProfileData({ userId, isAuthorized }: Options) {
-  const [isPageLoading, setIsPageLoading] = useState(true);
-  const [isError, setIsError] = useState(false);
-
   // Fire the user fetch in parallel with auth resolution.
   const { userDto, error } = useUserProfileDto(userId, 'zh_TW');
 
   useEffect(() => {
-    if (!isAuthorized) return;
-
-    if (userDto) {
-      setIsPageLoading(false);
-      setIsError(false);
-    }
-  }, [userDto, isAuthorized]);
-
-  useEffect(() => {
     if (!error) return;
-    // Sanitized to prevent PII / secret leak to Sentry console capture
+    // Sanitized with String() to prevent raw object/header leaks to Sentry console capturing
     console.error(
       'Failed to fetch user data:',
       typeof error === 'string' ? error : String(error)
     );
-    setIsPageLoading(false);
-    setIsError(true);
   }, [error]);
 
   const isMentor = userDto ? Boolean(userDto.is_mentor) : false;
+  const isError = Boolean(error);
+  // Derived page loading state: isPageLoading is false synchronously on the very first render if data is already cached,
+  // completely eliminating first-frame loading flashes and layout effects.
+  const isPageLoading = !isAuthorized || (!userDto && !error);
 
   return { userDto, isMentor, isPageLoading, isError };
 }

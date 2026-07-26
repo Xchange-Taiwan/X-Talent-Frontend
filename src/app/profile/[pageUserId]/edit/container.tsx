@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FieldErrors } from 'react-hook-form';
 
 import { totalWorkSpanOptions } from '@/components/onboarding/steps/constant';
@@ -89,7 +89,9 @@ export default function EditProfileContainer({
     isAuthorized,
   });
 
-  const { form } = useEditProfileForm(isMentor);
+  const { form } = useEditProfileForm(isMentorOnboarding || isMentor);
+
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Reset form when user profile data successfully loads or updates
   useLayoutEffect(() => {
@@ -120,21 +122,25 @@ export default function EditProfileContainer({
   const wantSkillCategories = tagGroupsToCategories(tagCatalog.want_skill);
   const wantTopicCategories = tagGroupsToCategories(tagCatalog.want_topic);
 
-  // NOTE: document.getElementById is used to query dynamic error-bearing section container boundaries.
+  // NOTE: document.getElementById/formRef querySelector is used to query dynamic error-bearing section container boundaries.
   // This approach bypasses standard React refs to avoid inflating complexity with dozens of sub-component
   // ref callback dictionaries, while cleanly retaining declarative styling structures.
   const scrollToField = (fieldId: string) => {
-    document
-      .getElementById(fieldId)
-      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const element = formRef.current
+      ? formRef.current.querySelector('#' + fieldId)
+      : null;
+    element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   const onError = (errors: FieldErrors<ProfileFormValues>) => {
     const errorKeys = Object.keys(errors) as (keyof ProfileFormValues)[];
+    const formEl = formRef.current;
 
     const elementsWithErrors = errorKeys
       .map((key) => {
-        const element = document.getElementById(key);
+        const element = formEl
+          ? (formEl.querySelector('#' + key) as HTMLElement)
+          : null;
         if (!element) return null;
         return { key, rect: element.getBoundingClientRect() };
       })
@@ -195,6 +201,7 @@ export default function EditProfileContainer({
 
       <Form {...form}>
         <form
+          ref={formRef}
           id="edit-profile-form"
           onSubmit={form.handleSubmit(
             (values) => onSubmit(values, form.formState.dirtyFields),
