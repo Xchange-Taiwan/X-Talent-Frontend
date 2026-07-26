@@ -17,7 +17,10 @@ interface AvatarUploadJob {
 }
 
 export interface UseBackgroundAvatarUpload {
-  kickOff: (file: File, currentAvatarUrl: string | null | undefined) => void;
+  kickOff: (
+    file: File | undefined,
+    currentAvatarUrl: string | null | undefined
+  ) => void;
   consume: (file: File | undefined) => Promise<string | undefined>;
   rollback: () => Promise<void>;
 }
@@ -58,7 +61,13 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
   }, []);
 
   const kickOff = useCallback(
-    (file: File, currentAvatarUrl: string | null | undefined) => {
+    (file: File | undefined, currentAvatarUrl: string | null | undefined) => {
+      if (!file) {
+        jobRef.current?.controller.abort();
+        jobRef.current = null;
+        return;
+      }
+
       const current = jobRef.current;
       if (current?.file === file) return;
 

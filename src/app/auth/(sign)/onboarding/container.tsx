@@ -96,6 +96,7 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
 
   const onSubmitStep1 = (data: z.infer<typeof step1Schema>) => {
     setTempData((prev) => ({ ...prev, step1: data }));
+    avatarUpload.kickOff(data.avatarFile, step1Form.getValues('avatar'));
     trackEvent({ name: 'onboarding_step_1_completed', feature: 'onboarding' });
     setCurrentStep(2);
   };
@@ -261,9 +262,6 @@ export default function OnboardingContainer({ initialTagCatalog }: Props) {
       onSubmitStep3={onSubmitStep3}
       onSubmitStep4={onSubmitStep4}
       onSubmitStep5={onSubmitStep5}
-      onFileChange={(file) =>
-        avatarUpload.kickOff(file, step1Form.getValues('avatar'))
-      }
     />
   );
 }
