@@ -1,6 +1,3 @@
-// Force timezone to UTC for this test suite to ensure consistent, timezone-agnostic results
-process.env.TZ = 'UTC';
-
 import { describe, expect, it } from 'vitest';
 
 import { ParsedMentorTimeslot } from '@/lib/profile/scheduleHelpers';
