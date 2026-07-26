@@ -40,6 +40,7 @@ export function useEditProfileData({
 
     setIsMentor(formValues.is_mentor);
     setIsPageLoading(false);
+    setIsError(false);
   }, [userDto, isAuthorized, isMentorOnboarding, form]);
 
   useEffect(() => {

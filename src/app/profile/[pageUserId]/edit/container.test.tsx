@@ -210,17 +210,41 @@ describe('EditProfileContainer error handling and scrolling', () => {
     });
 
     const scrolledIds: string[] = [];
-    const originalScrollIntoView = Element.prototype.scrollIntoView;
     Element.prototype.scrollIntoView = function (this: HTMLElement) {
       if (this.id) scrolledIds.push(this.id);
     };
 
-    const originalGetBoundingClientRect =
-      Element.prototype.getBoundingClientRect;
-    Element.prototype.getBoundingClientRect = function (this: Element) {
-      if (this.id === 'about') {
+    const getBoundingClientRectSpy = vi
+      .spyOn(Element.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: Element) {
+        if (this.id === 'about') {
+          return {
+            top: 150,
+            left: 0,
+            bottom: 0,
+            right: 0,
+            width: 0,
+            height: 0,
+            x: 0,
+            y: 0,
+            toJSON: () => {},
+          } as DOMRect;
+        }
+        if (this.id === 'name') {
+          return {
+            top: 300,
+            left: 0,
+            bottom: 0,
+            right: 0,
+            width: 0,
+            height: 0,
+            x: 0,
+            y: 0,
+            toJSON: () => {},
+          } as DOMRect;
+        }
         return {
-          top: 150,
+          top: 9999,
           left: 0,
           bottom: 0,
           right: 0,
@@ -230,61 +254,38 @@ describe('EditProfileContainer error handling and scrolling', () => {
           y: 0,
           toJSON: () => {},
         } as DOMRect;
+      });
+
+    try {
+      const { container } = render(
+        <EditProfileContainer
+          pageUserId="1"
+          initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+        />
+      );
+
+      const nameEl = container.querySelector('#name');
+      const aboutEl = container.querySelector('#about');
+
+      expect(nameEl).not.toBeNull();
+      expect(aboutEl).not.toBeNull();
+
+      const formEl = container.querySelector('form');
+      if (formEl) {
+        const { fireEvent } = await import('@testing-library/react');
+        fireEvent.submit(formEl);
       }
-      if (this.id === 'name') {
-        return {
-          top: 300,
-          left: 0,
-          bottom: 0,
-          right: 0,
-          width: 0,
-          height: 0,
-          x: 0,
-          y: 0,
-          toJSON: () => {},
-        } as DOMRect;
-      }
-      return {
-        top: 9999,
-        left: 0,
-        bottom: 0,
-        right: 0,
-        width: 0,
-        height: 0,
-        x: 0,
-        y: 0,
-        toJSON: () => {},
-      } as DOMRect;
-    };
 
-    const { container } = render(
-      <EditProfileContainer
-        pageUserId="1"
-        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
-      />
-    );
+      const { waitFor } = await import('@testing-library/react');
+      await waitFor(() => {
+        expect(scrolledIds.length).toBeGreaterThan(0);
+      });
 
-    const nameEl = container.querySelector('#name');
-    const aboutEl = container.querySelector('#about');
-
-    expect(nameEl).not.toBeNull();
-    expect(aboutEl).not.toBeNull();
-
-    const formEl = container.querySelector('form');
-    if (formEl) {
-      const { fireEvent } = await import('@testing-library/react');
-      fireEvent.submit(formEl);
+      // It should have scrolled to 'about' first because 150 < 300 (it's higher up in the layout)
+      expect(scrolledIds[0]).toBe('about');
+    } finally {
+      delete (Element.prototype as any).scrollIntoView;
+      getBoundingClientRectSpy.mockRestore();
     }
-
-    const { waitFor } = await import('@testing-library/react');
-    await waitFor(() => {
-      expect(scrolledIds.length).toBeGreaterThan(0);
-    });
-
-    // It should have scrolled to 'about' first because 150 < 300 (it's higher up in the layout)
-    expect(scrolledIds[0]).toBe('about');
-
-    Element.prototype.scrollIntoView = originalScrollIntoView;
-    HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
   });
 });
