@@ -17,6 +17,32 @@
     "prefer-const": "error",
     "no-var": "error"
   },
+  "overrides": [
+    {
+      "files": ["src/lib/profile/saveProfile.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "react",
+                "message": "saveProfile.ts is a deep module and should not import react."
+              },
+              {
+                "name": "next/navigation",
+                "message": "saveProfile.ts is a deep module and should not import next/navigation."
+              },
+              {
+                "name": "next-auth/react",
+                "message": "saveProfile.ts is a deep module and should not import next-auth/react."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
   "ignorePatterns": [
     "node_modules/",
     ".next/",
