@@ -7,15 +7,10 @@ import ReservationConversationDialog from '@/components/reservation/ReservationC
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { useToast } from '@/components/ui/use-toast';
+import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { ListKey } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
-import {
-  ACCEPT_AFFECTED_TABS,
-  acceptReservation,
-  rejectOrCancelReservation,
-  resolveOtherId,
-} from '@/services/reservations';
+import { resolveOtherId } from '@/services/reservations';
 
 import {
   ReservationCard,
@@ -55,48 +50,12 @@ export function ReservationList({
   // states in the background.
   onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
 }) {
-  const { toast } = useToast();
-
-  const findItem = (id: string): Reservation => {
-    const found = items.find((x) => x.id === id);
-    if (!found)
-      throw new Error(`[ReservationList] item not found for id=${id}`);
-    return found;
-  };
-
-  // Accept a booking request (mentor side, pending-mentor variant)
-  const accept = async ({ id, message }: { id: string; message: string }) => {
-    const it = findItem(id);
-    await acceptReservation({
-      id,
-      message,
-      reservation: it,
-      myUserId,
-    });
-    toast({
-      title: '已接受預約',
-      description: '會議連結將於數分鐘內寄至雙方信箱',
-    });
-    onMutationSuccess?.(id, ACCEPT_AFFECTED_TABS);
-  };
-
-  // Shared handler for both reject and cancel (same API call)
-  const rejectOrCancel = async (
-    id: string,
-    text: string,
-    successMessage: string
-  ) => {
-    const it = findItem(id);
-    const { affectedTabs } = await rejectOrCancelReservation({
-      id,
-      text,
-      reservation: it,
-      myUserId,
-      variant,
-    });
-    toast({ description: successMessage });
-    onMutationSuccess?.(id, affectedTabs);
-  };
+  const { accept, rejectOrCancel } = useReservationActions({
+    items,
+    myUserId,
+    variant,
+    onMutationSuccess,
+  });
 
   // Build a profile link to the *other* party. Skip when we don't have
   // a logged-in user (link would be ambiguous) or when the other id would
