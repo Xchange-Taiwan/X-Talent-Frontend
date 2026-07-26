@@ -1,6 +1,4 @@
-import { useMemo } from 'react';
-
-export interface UseOverflowFitParams {
+export interface ComputeOverflowFitParams {
   itemWidths: number[];
   containerWidth: number | null;
   gapPx: number;
@@ -8,14 +6,15 @@ export interface UseOverflowFitParams {
   defaultVisibleCount?: number;
 }
 
-export interface UseOverflowFitResult {
+export interface ComputeOverflowFitResult {
   visibleCount: number;
   isMeasuring: boolean;
 }
 
 /**
  * Pure calculation function for overflow fit.
- * Does not depend on React rendering cycle or trigger React state updates itself.
+ * Given item widths, container width, gaps, and reserved space,
+ * calculates how many items can fit.
  */
 export function computeOverflowFit({
   itemWidths,
@@ -23,7 +22,7 @@ export function computeOverflowFit({
   gapPx,
   reservePx = 0,
   defaultVisibleCount,
-}: UseOverflowFitParams): UseOverflowFitResult {
+}: ComputeOverflowFitParams): ComputeOverflowFitResult {
   const isMeasuring =
     containerWidth === null ||
     itemWidths.length === 0 ||
@@ -54,26 +53,4 @@ export function computeOverflowFit({
     visibleCount,
     isMeasuring: false,
   };
-}
-
-/**
- * Custom React Hook that wraps computeOverflowFit for easy use in rendering path.
- * Leverages useMemo to prevent unneeded recalculations during component re-renders.
- */
-export function useOverflowFit({
-  itemWidths,
-  containerWidth,
-  gapPx,
-  reservePx = 0,
-  defaultVisibleCount,
-}: UseOverflowFitParams): UseOverflowFitResult {
-  return useMemo(() => {
-    return computeOverflowFit({
-      itemWidths,
-      containerWidth,
-      gapPx,
-      reservePx,
-      defaultVisibleCount,
-    });
-  }, [itemWidths, containerWidth, gapPx, reservePx, defaultVisibleCount]);
 }

@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 
-import { computeOverflowFit } from '@/hooks/useOverflowFit';
+import { computeOverflowFit } from '@/lib/overflowFit';
 
 import { Tag } from './Tag';
 
