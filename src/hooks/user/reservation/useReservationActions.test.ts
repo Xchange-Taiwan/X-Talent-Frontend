@@ -26,11 +26,11 @@ vi.mock('@/services/reservations', async (importOriginal) => {
   };
 });
 
+import type { Reservation } from '@/components/reservation/types';
 import {
   acceptReservation,
   rejectOrCancelReservation,
 } from '@/services/reservations';
-import type { Reservation } from '@/services/reservations/types';
 
 import {
   buildRejectOrCancelAffectedTabs,
@@ -56,6 +56,16 @@ const mockReservation: Reservation = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockAcceptService.mockImplementation(async ({ myUserId }) => {
+    if (!myUserId) {
+      throw new Error('[reservationMutations] missing current user id');
+    }
+  });
+  mockRejectService.mockImplementation(async ({ myUserId }) => {
+    if (!myUserId) {
+      throw new Error('[reservationMutations] missing current user id');
+    }
+  });
 });
 
 describe('buildRejectOrCancelAffectedTabs', () => {
@@ -200,7 +210,7 @@ describe('useReservationActions', () => {
         act(async () => {
           await result.current.accept(mockReservation, 'hello');
         })
-      ).rejects.toThrow('[useReservationActions] missing current user id');
+      ).rejects.toThrow('[reservationMutations] missing current user id');
     });
   });
 
@@ -221,7 +231,7 @@ describe('useReservationActions', () => {
         promise = result.current.rejectOrCancel(
           mockReservation,
           'Reject reason text',
-          '已拒絕預約'
+          'reject'
         );
       });
 
@@ -250,6 +260,33 @@ describe('useReservationActions', () => {
       expect(result.current.isMutating).toBe(false);
     });
 
+    it('should trigger correct cancel success toast when action is cancel', async () => {
+      mockRejectService.mockResolvedValue();
+
+      const { result } = renderHook(() =>
+        useReservationActions({
+          myUserId: 'user-123',
+          variant: 'pending-mentor',
+          onMutationSuccess: mockOnMutationSuccess,
+        })
+      );
+
+      let promise;
+      await act(async () => {
+        promise = result.current.rejectOrCancel(
+          mockReservation,
+          'Cancel reason text',
+          'cancel'
+        );
+      });
+
+      await promise;
+
+      expect(mockToast).toHaveBeenCalledWith({
+        description: '已取消預約',
+      });
+    });
+
     it('should set isMutating to true while the rejectOrCancel request is in-flight', async () => {
       let resolveReject: () => void = () => {};
       const rejectPromise = new Promise<void>((resolve) => {
@@ -272,7 +309,7 @@ describe('useReservationActions', () => {
         promise = result.current.rejectOrCancel(
           mockReservation,
           'reason text',
-          '已拒絕預約'
+          'reject'
         );
       });
 
@@ -303,7 +340,7 @@ describe('useReservationActions', () => {
           await result.current.rejectOrCancel(
             mockReservation,
             'reason',
-            '已拒絕預約'
+            'reject'
           );
         })
       ).rejects.toThrow('API Reject Failed');
@@ -331,10 +368,10 @@ describe('useReservationActions', () => {
           await result.current.rejectOrCancel(
             mockReservation,
             'reason',
-            'Cancel message'
+            'cancel'
           );
         })
-      ).rejects.toThrow('[useReservationActions] missing current user id');
+      ).rejects.toThrow('[reservationMutations] missing current user id');
     });
   });
 });

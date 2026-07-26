@@ -32,13 +32,13 @@ const cardVariantOf = (variant: Variant): ReservationCardVariant =>
  * Individual Reservation List Item holding its own independent loading and action state.
  */
 function ReservationItem({
-  it,
+  reservation,
   variant,
   sourceRole,
   myUserId,
   onMutationSuccess,
 }: {
-  it: Reservation;
+  reservation: Reservation;
   variant: Variant;
   sourceRole: SourceRole;
   myUserId: string | undefined;
@@ -70,46 +70,46 @@ function ReservationItem({
 
   return (
     <ReservationCard
-      item={it}
+      item={reservation}
       variant={cardVariantOf(variant)}
-      profileHref={buildProfileHref(it)}
+      profileHref={buildProfileHref(reservation)}
       onProfileClick={handleProfileClick}
       actions={
         variant === 'history' ? (
-          it.cancelledBy ? (
+          reservation.cancelledBy ? (
             <Badge variant="secondary" role="status">
-              已由{it.cancelledBy === 'MENTOR' ? '導師' : '學員'}取消
+              已由{reservation.cancelledBy === 'MENTOR' ? '導師' : '學員'}取消
             </Badge>
           ) : null
         ) : variant === 'pending-mentor' ? (
           <div className="flex gap-2">
             <RejectReservationDialog
-              reservation={it}
+              reservation={reservation}
               disabled={isMutating}
               onReject={async ({ reason }) =>
-                rejectOrCancel(it, reason, '已拒絕預約')
+                rejectOrCancel(reservation, reason, 'reject')
               }
             />
             <AcceptReservationDialog
-              reservation={it}
+              reservation={reservation}
               disabled={isMutating}
-              onAccept={async ({ message }) => accept(it, message)}
+              onAccept={async ({ message }) => accept(reservation, message)}
             />
           </div>
         ) : (
           <CancelReservationDialog
-            reservation={it}
+            reservation={reservation}
             disabled={isMutating}
             onConfirmCancel={async ({ reason }) =>
-              rejectOrCancel(it, reason, '已取消預約')
+              rejectOrCancel(reservation, reason, 'cancel')
             }
           />
         )
       }
       footer={
-        variant === 'history' && it.messages.length > 0 ? (
+        variant === 'history' && reservation.messages.length > 0 ? (
           <ReservationConversationDialog
-            reservation={it}
+            reservation={reservation}
             sourceRole={sourceRole}
           />
         ) : null
@@ -145,7 +145,7 @@ export function ReservationList({
       {items.map((it) => (
         <ReservationItem
           key={it.id}
-          it={it}
+          reservation={it}
           variant={variant}
           sourceRole={sourceRole}
           myUserId={myUserId}

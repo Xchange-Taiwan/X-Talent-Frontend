@@ -40,7 +40,7 @@ interface UseReservationActionsReturn {
   rejectOrCancel: (
     reservation: Reservation,
     text: string,
-    successMessage: string
+    action: 'reject' | 'cancel'
   ) => Promise<void>;
   isMutating: boolean;
 }
@@ -78,9 +78,6 @@ export function useReservationActions({
   const accept = useCallback(
     async (reservation: Reservation, message: string) => {
       await executeMutation(async () => {
-        if (!myUserId) {
-          throw new Error('[useReservationActions] missing current user id');
-        }
         await acceptReservation({
           message,
           reservation,
@@ -97,17 +94,20 @@ export function useReservationActions({
   );
 
   const rejectOrCancel = useCallback(
-    async (reservation: Reservation, text: string, successMessage: string) => {
+    async (
+      reservation: Reservation,
+      text: string,
+      action: 'reject' | 'cancel'
+    ) => {
       await executeMutation(async () => {
-        if (!myUserId) {
-          throw new Error('[useReservationActions] missing current user id');
-        }
         await rejectOrCancelReservation({
           text,
           reservation,
           myUserId,
         });
         trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
+        const successMessage =
+          action === 'reject' ? '已拒絕預約' : '已取消預約';
         toast({ description: successMessage });
         onMutationSuccess?.(
           reservation.id,
