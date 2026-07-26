@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useLayoutEffect, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 import { totalWorkSpanOptions } from '@/components/onboarding/steps/constant';
 import { AvatarSection } from '@/components/profile/edit/AvatarSection';
@@ -84,6 +84,14 @@ export default function EditProfileContainer({
   const industries = tagCatalog.industry;
 
   const [isContainerLoading, setIsContainerLoading] = useState(true);
+  const [prevPageUserId, setPrevPageUserId] = useState(pageUserId);
+
+  // Synchronously reset container loading state back to true when route switches to a different pageUserId.
+  // This satisfies React's standard prop-sync guidelines and prevents old user data leaks during swaps.
+  if (pageUserId !== prevPageUserId) {
+    setPrevPageUserId(pageUserId);
+    setIsContainerLoading(true);
+  }
 
   const { userDto, isMentor, isError } = useEditProfileData({
     userId: Number(pageUserId),
@@ -95,13 +103,17 @@ export default function EditProfileContainer({
   const { formRef, onError, scrollToField } =
     useFormErrorScroll<ProfileFormValues>();
 
+  const lastResetUserIdRef = useRef<number | null>(null);
+
   // Reset form when user profile data successfully loads or updates
   useLayoutEffect(() => {
     if (!isAuthorized || !userDto) return;
-    if (!isContainerLoading) return; // Only allow form reset during initial loading!
+    if (lastResetUserIdRef.current === userDto.user_id && !isContainerLoading)
+      return; // Tolerates SWR focus revalidation successes silently without resetting active inputs.
 
     const formValues = mapVoToFormValues(userDto, isMentorOnboarding);
     form.reset(formValues);
+    lastResetUserIdRef.current = userDto.user_id;
     setIsContainerLoading(false);
   }, [userDto, isAuthorized, isMentorOnboarding, form, isContainerLoading]);
 

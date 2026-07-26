@@ -381,13 +381,13 @@ describe('EditProfileContainer error handling and scrolling', () => {
 
   it('does not trigger form reset a second time when userDto updates after initial loading', () => {
     const mockUserDtoFirst = {
-      id: 1,
+      user_id: 1,
       name: 'Initial Loaded Name',
       is_mentor: false,
     };
 
     const mockUserDtoSecond = {
-      id: 1,
+      user_id: 1,
       name: 'Background Revalidated Name',
       is_mentor: false,
     };
@@ -440,6 +440,77 @@ describe('EditProfileContainer error handling and scrolling', () => {
 
     // It should not reset the form a second time
     expect(mockReset).toHaveBeenCalledTimes(1);
+
+    useEditProfileFormSpy.mockRestore();
+  });
+
+  it('resets the form again when pageUserId route parameter switches to a different user', () => {
+    const mockUserDtoFirst = {
+      user_id: 1,
+      name: 'User One Name',
+      is_mentor: false,
+    };
+
+    const mockUserDtoSecond = {
+      user_id: 2,
+      name: 'User Two Name',
+      is_mentor: false,
+    };
+
+    // 1) Render for first user
+    mockUseEditProfileData.mockReturnValue({
+      userDto: mockUserDtoFirst,
+      isMentor: false,
+      isError: false,
+    });
+
+    const mockReset = vi.fn();
+    const mockForm = {
+      reset: mockReset,
+      control: {},
+      formState: { dirtyFields: {} },
+      handleSubmit: vi.fn().mockReturnValue(vi.fn()),
+    } as unknown as UseFormReturn<ProfileFormValues>;
+
+    const useEditProfileFormSpy = vi
+      .spyOn(useEditProfileFormModule, 'useEditProfileForm')
+      .mockReturnValue({ form: mockForm });
+
+    const { rerender } = render(
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
+    );
+
+    expect(mockReset).toHaveBeenCalledTimes(1);
+    expect(mockReset).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'User One Name',
+      })
+    );
+
+    // 2) Re-render/routing switches to second user
+    mockUseEditProfileData.mockReturnValue({
+      userDto: mockUserDtoSecond,
+      isMentor: false,
+      isError: false,
+    });
+
+    rerender(
+      <EditProfileContainer
+        pageUserId="2"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
+    );
+
+    // It should trigger reset a second time since user ID has changed (from 1 to 2)!
+    expect(mockReset).toHaveBeenCalledTimes(2);
+    expect(mockReset).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        name: 'User Two Name',
+      })
+    );
 
     useEditProfileFormSpy.mockRestore();
   });
