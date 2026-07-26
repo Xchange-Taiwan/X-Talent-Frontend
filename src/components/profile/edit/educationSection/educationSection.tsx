@@ -40,11 +40,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useRepeatablePeriodSection } from '@/hooks/user/profile/useRepeatablePeriodSection';
 import { cn } from '@/lib/utils';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 
 import { Section } from '../Section';
-import { useRepeatablePeriodSection } from '../useRepeatablePeriodSection';
 import { taiwanSchools } from './schoolData';
 
 function SchoolComboboxField({

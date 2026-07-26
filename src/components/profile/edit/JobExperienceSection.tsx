@@ -29,10 +29,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useRepeatablePeriodSection } from '@/hooks/user/profile/useRepeatablePeriodSection';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 
 import { Section } from './Section';
-import { useRepeatablePeriodSection } from './useRepeatablePeriodSection';
 
 interface Props {
   industries: {

@@ -2,12 +2,22 @@ import { act, renderHook } from '@testing-library/react';
 import { useForm } from 'react-hook-form';
 import { describe, expect, it, vi } from 'vitest';
 
+import { useToast } from '@/components/ui/use-toast';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 
 import {
   RepeatablePeriodConfig,
   useRepeatablePeriodSection,
 } from './useRepeatablePeriodSection';
+
+vi.mock('@/components/ui/use-toast', () => {
+  const toastMock = vi.fn();
+  return {
+    useToast: () => ({
+      toast: toastMock,
+    }),
+  };
+});
 
 describe('useRepeatablePeriodSection', () => {
   const setupHook = (
@@ -103,8 +113,8 @@ describe('useRepeatablePeriodSection', () => {
     expect(result.current.hookResult.fields).toHaveLength(1);
   });
 
-  it('triggers alert on tryAppend if the last entry is incomplete', () => {
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+  it('triggers toast on tryAppend if the last entry is incomplete', () => {
+    const { toast } = useToast();
     const result = setupHook({
       work_experiences: [
         {
@@ -133,9 +143,11 @@ describe('useRepeatablePeriodSection', () => {
       } as unknown as ProfileFormValues['work_experiences'][number]);
     });
 
-    expect(alertSpy).toHaveBeenCalledWith('Please complete the last job');
+    expect(toast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      description: 'Please complete the last job',
+    });
     expect(result.current.hookResult.fields).toHaveLength(1);
-    alertSpy.mockRestore();
   });
 
   it('validates period and calls onValidationChange', () => {
