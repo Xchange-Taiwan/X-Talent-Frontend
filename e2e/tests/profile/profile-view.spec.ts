@@ -3,10 +3,6 @@ import { expect, Page, test } from '@playwright/test';
 import { mockApiRoute } from '../../helpers/route';
 import { setSignedSessionCookie } from '../../helpers/session';
 
-// Real user IDs from the dev/staging BFF database so that Next.js server-side fetches succeed
-let REAL_MENTOR_ID = '7468899508961767'; // Jonas Lo
-const REAL_MENTEE_ID = '7462904718734737'; // Visitor (is_mentor: false)
-
 function makeSession(userId: string, isMentor: boolean) {
   return {
     user: {
@@ -107,28 +103,60 @@ async function mockSessionGet(page: Page, session: object): Promise<void> {
   });
 }
 
-// ─── Setup Dynamic Mentor ID ──────────────────────────────────────────────────
+// ─── Dynamic ID Resolution Helpers (No Hardcoded IDs, Fail Fast) ───────────────
 
 async function resolveRealMentorId(page: Page): Promise<string> {
-  try {
-    await page.goto('/mentor-pool');
-    const card = page.locator('article').first();
-    await expect(card).toBeVisible({ timeout: 15_000 });
-    const href = await card.locator('a').first().getAttribute('href');
-    if (href) {
-      const parts = href.split('/');
-      const extractedId = parts[parts.length - 1];
-      if (extractedId && /^\d+$/.test(extractedId)) {
-        REAL_MENTOR_ID = extractedId;
-      }
-    }
-  } catch (error) {
-    console.warn(
-      'Failed to dynamically resolve mentor ID from pool, using static fallback:',
-      error
+  await page.goto('/mentor-pool');
+  const card = page.locator('article').first();
+  await expect(card).toBeVisible({ timeout: 15_000 });
+  const href = await card.locator('a').first().getAttribute('href');
+  if (!href) {
+    throw new Error(
+      'Failed to resolve mentor ID: Could not find profile link on mentor card in pool'
     );
   }
-  return REAL_MENTOR_ID;
+  const parts = href.split('/');
+  const extractedId = parts[parts.length - 1];
+  if (!extractedId || !/^\d+$/.test(extractedId)) {
+    throw new Error(
+      `Failed to resolve mentor ID: Extracted invalid ID: ${extractedId}`
+    );
+  }
+  return extractedId;
+}
+
+async function resolveRealMenteeId(page: Page): Promise<string> {
+  const email = process.env.E2E_EMAIL;
+  const password = process.env.E2E_PASSWORD;
+  if (!email || !password) {
+    throw new Error(
+      'E2E_EMAIL and E2E_PASSWORD are required to dynamically resolve mentee ID'
+    );
+  }
+
+  await page.goto('/auth/signin');
+  await page.fill('input[name="email"]', email);
+  await page.fill('input[name="password"]', password);
+  await page.click('button[type="submit"]');
+  await page.waitForURL((url) => !url.pathname.includes('/auth/signin'), {
+    timeout: 25_000,
+  });
+
+  // Open user menu to find profile link
+  await page.getByRole('button', { name: '開啟用戶選單' }).click();
+  const profileLinkButton = page.locator('div[role="menu"] button').first();
+  await profileLinkButton.click(); // This navigates to the own profile
+
+  await page.waitForURL(/\/profile\/\d+/, { timeout: 15_000 });
+  const url = page.url();
+  const parts = url.split('/');
+  const extractedId = parts[parts.length - 1];
+  if (!extractedId || !/^\d+$/.test(extractedId)) {
+    throw new Error(
+      `Failed to resolve mentee ID: Extracted invalid ID: ${extractedId}`
+    );
+  }
+  return extractedId;
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -137,11 +165,27 @@ test('檢視他人的 mentor 個人檔案 → 基本資訊、可預約時段區�
   page,
 }) => {
   const mentorId = await resolveRealMentorId(page);
+
+  // Implement strict API mocking for full testing isolation during client-side hydration
+  await mockApiRoute(
+    page,
+    new RegExp(`\\/v1\\/mentors\\/${mentorId}\\/zh_TW\\/profile`),
+    {
+      body: makeMockProfile(
+        Number(mentorId),
+        'Test Mentor (Isolated Mock)',
+        true
+      ),
+    }
+  );
+
   await page.goto(`/profile/${mentorId}`);
 
-  // Assert Name & Basic Info region using the correct <p> locator instead of <h1>
+  // Assert Name & Basic Info region using the correct <p> locator
   const nameElement = page.locator('p.text-2xl.font-semibold');
   await expect(nameElement).toBeVisible({ timeout: 15_000 });
+
+  // Assert name is rendered and non-empty (holds either the real server-rendered name or the hydrated mock name)
   const nameText = await nameElement.textContent();
   expect(nameText?.trim().length).toBeGreaterThan(0);
 
@@ -150,18 +194,49 @@ test('檢視他人的 mentor 個人檔案 → 基本資訊、可預約時段區�
 });
 
 test('檢視他人的 mentee 個人檔案 → 預約區塊不存在', async ({ page }) => {
-  // Navigate directly to the real mentee ID
-  await page.goto(`/profile/${REAL_MENTEE_ID}`);
+  // Resolve a real mentee ID dynamically by logging in
+  const menteeId = await resolveRealMenteeId(page);
+
+  // Clear cookies to simulate an anonymous view / other user view
+  await page.context().clearCookies();
+
+  // Implement strict API mocking for full testing isolation during client-side hydration
+  await mockApiRoute(
+    page,
+    new RegExp(`\\/v1\\/mentors\\/${menteeId}\\/zh_TW\\/profile`),
+    {
+      body: makeMockProfile(
+        Number(menteeId),
+        'Test Mentee (Isolated Mock)',
+        false
+      ),
+    }
+  );
+
+  await page.goto(`/profile/${menteeId}`);
 
   // Assert name is visible using the correct <p> locator
   const nameElement = page.locator('p.text-2xl.font-semibold');
   await expect(nameElement).toBeVisible({ timeout: 15_000 });
+
+  const nameText = await nameElement.textContent();
+  expect(nameText?.trim().length).toBeGreaterThan(0);
 
   // Assert the schedule calendar / booking section is collapsed (not visible)
   await expect(page.getByText('可預約日期')).not.toBeVisible();
 });
 
 test('檢視不存在的 pageUserId → notFound() (404 頁面)', async ({ page }) => {
+  // Implement API mocking for full testing isolation
+  await mockApiRoute(page, /\/v1\/mentors\/9999999999\/zh_TW\/profile/, {
+    status: 404,
+    body: {
+      code: '40400',
+      msg: 'No such user with id: 9999999999',
+      data: null,
+    },
+  });
+
   // Navigate to an invalid/non-existent user ID
   await page.goto('/profile/9999999999');
 
@@ -181,12 +256,16 @@ test('檢視自己的個人檔案（isOwnMentorProfile 為 true 時）→ 顯示
   });
   await mockSessionGet(page, makeSession(mentorId, true));
 
-  // Intercept browser-side user profile calls
+  // Intercept browser-side user profile calls for complete isolation
   await mockApiRoute(
     page,
     new RegExp(`\\/v1\\/mentors\\/${mentorId}\\/zh_TW\\/profile`),
     {
-      body: makeMockProfile(Number(mentorId), 'Test Own User', true),
+      body: makeMockProfile(
+        Number(mentorId),
+        'Test Own User (Isolated Mock)',
+        true
+      ),
     }
   );
 
