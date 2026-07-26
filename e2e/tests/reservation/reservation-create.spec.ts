@@ -3,6 +3,9 @@ import { expect, Page, test } from '@playwright/test';
 import { mockApiRoute } from '../../helpers/route';
 import { setSignedSessionCookie } from '../../helpers/session';
 
+// Specify timezone locally to guarantee identical time behaviours across local & CI
+test.use({ timezoneId: 'Asia/Taipei' });
+
 // Static, valid user IDs from the dev/staging BFF database
 const REAL_MENTOR_ID = '7468899508961767'; // Jonas Lo (Mentor)
 const REAL_MENTEE_ID = '7462904718734737'; // Visitor (Mentee)
@@ -38,10 +41,17 @@ function makeJWTPayload(userId: string, isMentor: boolean) {
   };
 }
 
-async function mockSessionGet(page: Page, isMentor: boolean): Promise<void> {
+// ─── Shared Helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Sign in and mock next-auth session endpoints for the specified role.
+ */
+async function setupTestSession(page: Page, isMentor: boolean): Promise<void> {
+  const userId = isMentor ? REAL_MENTOR_ID : REAL_MENTEE_ID;
+  await setSignedSessionCookie(page, makeJWTPayload(userId, isMentor));
+
   await page.route(/\/api\/auth\/session/, (route) => {
     if (route.request().method() === 'GET') {
-      const userId = isMentor ? REAL_MENTOR_ID : REAL_MENTEE_ID;
       const session = {
         user: {
           id: userId,
@@ -65,6 +75,26 @@ async function mockSessionGet(page: Page, isMentor: boolean): Promise<void> {
   });
 }
 
+/**
+ * Mock the GET schedule endpoint returning custom segments.
+ */
+async function mockMentorSchedule(page: Page, segments: any[]): Promise<void> {
+  await mockApiRoute(
+    page,
+    new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/2026/m/7`),
+    { body: { code: '0', msg: 'ok', data: { segments } } }
+  );
+}
+
+/**
+ * Select the specified date on the calendar via testid locator.
+ */
+async function selectCalendarDate(page: Page, dateKey: string): Promise<void> {
+  const dayButton = page.getByTestId(`day-${dateKey}`);
+  await expect(dayButton).toBeVisible({ timeout: 15_000 });
+  await dayButton.click();
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 test.describe('從個人檔案頁建立預約流程', () => {
@@ -76,28 +106,20 @@ test.describe('從個人檔案頁建立預約流程', () => {
   test('Mentee 選擇一個可預約時段並送出 → 顯示成功狀態且重置輸入', async ({
     page,
   }) => {
-    // Sign in as mentee
-    await setSignedSessionCookie(page, makeJWTPayload(REAL_MENTEE_ID, false));
-    await mockSessionGet(page, false);
+    // Sign in as mentee and set up session
+    await setupTestSession(page, false);
 
     // Mock schedule API
-    const mockScheduleData = {
-      segments: [
-        {
-          id: 101,
-          dt_type: 'ALLOW',
-          dtstart: DTSTART,
-          dtend: DTEND,
-          rrule: null,
-          exdate: [],
-        },
-      ],
-    };
-    await mockApiRoute(
-      page,
-      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/2026/m/7`),
-      { body: { code: '0', msg: 'ok', data: mockScheduleData } }
-    );
+    await mockMentorSchedule(page, [
+      {
+        id: 101,
+        dt_type: 'ALLOW',
+        dtstart: DTSTART,
+        dtend: DTEND,
+        rrule: null,
+        exdate: [],
+      },
+    ]);
 
     // Mock reservation POST API
     await mockApiRoute(
@@ -109,10 +131,8 @@ test.describe('從個人檔案頁建立預約流程', () => {
     // Navigate to mentor profile
     await page.goto(`/profile/${REAL_MENTOR_ID}`);
 
-    // Select the date on calendar (utilizing precise, stable YYYY-MM-DD custom attribute)
-    const dayButton = page.locator(`button[data-day="${DATE_KEY}"]`);
-    await expect(dayButton).toBeVisible({ timeout: 15_000 });
-    await dayButton.click();
+    // Select the date on calendar
+    await selectCalendarDate(page, DATE_KEY);
 
     // Find slot button and click
     const startStr = new Date(DTSTART * 1000).toLocaleTimeString(
@@ -149,52 +169,42 @@ test.describe('從個人檔案頁建立預約流程', () => {
   test('已被預約的時段（isBooked: true）在日曆/時段列表中不可選', async ({
     page,
   }) => {
-    // Sign in as mentee
-    await setSignedSessionCookie(page, makeJWTPayload(REAL_MENTEE_ID, false));
-    await mockSessionGet(page, false);
+    // Sign in as mentee and set up session
+    await setupTestSession(page, false);
 
     // Mock schedule API with an available slot (ALLOW) and a booked slot (ALLOW + BOOKED)
-    const mockScheduleData = {
-      segments: [
-        {
-          id: 101,
-          dt_type: 'ALLOW',
-          dtstart: DTSTART,
-          dtend: DTEND,
-          rrule: null,
-          exdate: [],
-        },
-        {
-          id: 102,
-          dt_type: 'ALLOW',
-          dtstart: DTSTART2,
-          dtend: DTEND2,
-          rrule: null,
-          exdate: [],
-        },
-        {
-          id: 103,
-          dt_type: 'BOOKED',
-          dtstart: DTSTART2,
-          dtend: DTEND2,
-          rrule: null,
-          exdate: [],
-        },
-      ],
-    };
-    await mockApiRoute(
-      page,
-      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/2026/m/7`),
-      { body: { code: '0', msg: 'ok', data: mockScheduleData } }
-    );
+    await mockMentorSchedule(page, [
+      {
+        id: 101,
+        dt_type: 'ALLOW',
+        dtstart: DTSTART,
+        dtend: DTEND,
+        rrule: null,
+        exdate: [],
+      },
+      {
+        id: 102,
+        dt_type: 'ALLOW',
+        dtstart: DTSTART2,
+        dtend: DTEND2,
+        rrule: null,
+        exdate: [],
+      },
+      {
+        id: 103,
+        dt_type: 'BOOKED',
+        dtstart: DTSTART2,
+        dtend: DTEND2,
+        rrule: null,
+        exdate: [],
+      },
+    ]);
 
     // Navigate to mentor profile
     await page.goto(`/profile/${REAL_MENTOR_ID}`);
 
     // Click on date
-    const dayButton = page.locator(`button[data-day="${DATE_KEY}"]`);
-    await expect(dayButton).toBeVisible({ timeout: 15_000 });
-    await dayButton.click();
+    await selectCalendarDate(page, DATE_KEY);
 
     // Verify the booked slot button is disabled
     const startStr = new Date(DTSTART2 * 1000).toLocaleTimeString(
@@ -215,28 +225,20 @@ test.describe('從個人檔案頁建立預約流程', () => {
   test('建立失敗（API 回傳非 code: "0"）→ 顯示錯誤提示且表單維持原狀', async ({
     page,
   }) => {
-    // Sign in as mentee
-    await setSignedSessionCookie(page, makeJWTPayload(REAL_MENTEE_ID, false));
-    await mockSessionGet(page, false);
+    // Sign in as mentee and set up session
+    await setupTestSession(page, false);
 
     // Mock schedule API
-    const mockScheduleData = {
-      segments: [
-        {
-          id: 101,
-          dt_type: 'ALLOW',
-          dtstart: DTSTART,
-          dtend: DTEND,
-          rrule: null,
-          exdate: [],
-        },
-      ],
-    };
-    await mockApiRoute(
-      page,
-      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/2026/m/7`),
-      { body: { code: '0', msg: 'ok', data: mockScheduleData } }
-    );
+    await mockMentorSchedule(page, [
+      {
+        id: 101,
+        dt_type: 'ALLOW',
+        dtstart: DTSTART,
+        dtend: DTEND,
+        rrule: null,
+        exdate: [],
+      },
+    ]);
 
     // Mock reservation POST API returning error
     await mockApiRoute(
@@ -252,9 +254,7 @@ test.describe('從個人檔案頁建立預約流程', () => {
     await page.goto(`/profile/${REAL_MENTOR_ID}`);
 
     // Select date
-    const dayButton = page.locator(`button[data-day="${DATE_KEY}"]`);
-    await expect(dayButton).toBeVisible({ timeout: 15_000 });
-    await dayButton.click();
+    await selectCalendarDate(page, DATE_KEY);
 
     // Find slot button and click
     const startStr = new Date(DTSTART * 1000).toLocaleTimeString(
@@ -289,19 +289,11 @@ test.describe('從個人檔案頁建立預約流程', () => {
   test('Mentor 檢視自己的個人頁 → 按鈕文案為「預約設定」且開啟的是 MentorScheduleDialog', async ({
     page,
   }) => {
-    // Sign in as mentor (own profile)
-    await setSignedSessionCookie(page, makeJWTPayload(REAL_MENTOR_ID, true));
-    await mockSessionGet(page, true);
+    // Sign in as mentor (own profile) and set up session
+    await setupTestSession(page, true);
 
     // Mock schedule API
-    const mockScheduleData = {
-      segments: [],
-    };
-    await mockApiRoute(
-      page,
-      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/2026/m/7`),
-      { body: { code: '0', msg: 'ok', data: mockScheduleData } }
-    );
+    await mockMentorSchedule(page, []);
 
     // Navigate to own profile
     await page.goto(`/profile/${REAL_MENTOR_ID}`);

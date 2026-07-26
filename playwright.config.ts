@@ -34,7 +34,6 @@ export default defineConfig({
   use: {
     baseURL,
     trace: 'on-first-retry',
-    timezoneId: 'Asia/Taipei',
   },
 
   projects: [
