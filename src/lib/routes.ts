@@ -5,5 +5,5 @@ export function getProfileEditUrl(userId: string | number): string {
 }
 
 export function getMentorOnboardingUrl(userId: string | number): string {
-  return `/profile/${userId}/edit?${MENTOR_ONBOARDING_KEY}=true`;
+  return `${getProfileEditUrl(userId)}?${MENTOR_ONBOARDING_KEY}=true`;
 }
