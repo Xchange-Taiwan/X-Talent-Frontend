@@ -20,8 +20,7 @@ interface Props {
   mentorCount: number;
   isLoading: boolean;
   isReplacing: boolean;
-  isNoResults: boolean;
-  hasError: boolean;
+  listStatus: 'loading' | 'error' | 'empty' | 'success';
   selectedFilters: SelectFilters;
   filterOptions: FilterOptions;
   onFilterChange: (opts: SelectFilters) => void;
@@ -36,8 +35,7 @@ export default function MentorPoolUI({
   mentorCount,
   isLoading,
   isReplacing,
-  isNoResults,
-  hasError,
+  listStatus,
   selectedFilters,
   filterOptions,
   onFilterChange,
@@ -46,12 +44,12 @@ export default function MentorPoolUI({
   onScrollToBottom,
   onRetry,
 }: Props) {
-  const hasMentors = mentors.length > 0;
+  const hasMentors = listStatus === 'success';
   const showOverlay = hasMentors && isReplacing;
-  const showFullSpinner = !hasMentors && isLoading && !hasError;
+  const showFullSpinner = listStatus === 'loading';
   const showLoadMoreSpinner = hasMentors && isLoading && !isReplacing;
-  const showNoResults = !hasMentors && !isLoading && isNoResults && !hasError;
-  const showErrors = !hasMentors && !isLoading && hasError;
+  const showNoResults = listStatus === 'empty';
+  const showErrors = listStatus === 'error';
   return (
     <section className="mt-[80px] px-5 pb-10 md:px-10 xl:px-20">
       <div className="mx-auto w-full max-w-[1280px] ">

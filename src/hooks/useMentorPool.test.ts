@@ -650,6 +650,69 @@ describe('useMentorPool', () => {
     expect(result.current.mentors[0].name).toBe('Initial Mentor');
     expect(mockFetchMentors).toHaveBeenCalledTimes(1);
   });
+
+  it('does not fall back to SSR error state on clearing filters if client-side fetches have been performed', async () => {
+    // 1. Initialized with SSR error and no filters
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+
+    const { result, rerender } = renderHook(() =>
+      useMentorPool({
+        initialMentors: [],
+        initialMentorCount: 0,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+        initialError: true,
+      })
+    );
+
+    expect(result.current.hasError).toBe(true);
+    expect(result.current.mentors).toEqual([]);
+
+    // 2. Simulate client-side query by adding query params
+    mockSearchParams.toString.mockReturnValue('q=react');
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'q') return 'react';
+      return null;
+    });
+
+    const clientFetchedMentors = [
+      { ...mockInitialMentors[0], name: 'Client Mentor' },
+    ];
+    mockFetchMentors.mockResolvedValueOnce(clientFetchedMentors);
+
+    rerender();
+
+    // Settle the mock promise
+    await act(async () => {});
+
+    expect(result.current.hasError).toBe(false);
+    expect(result.current.mentors[0].name).toBe('Client Mentor');
+    expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+
+    // 3. Clear parameters (go back to empty params)
+    mockSearchParams.toString.mockReturnValue('');
+    mockSearchParams.get.mockReturnValue(null);
+    mockFetchMentors.mockClear();
+
+    // Since client fetch was performed, it should NOT early return to SSR error.
+    // It should perform a fresh fetch client-side for unfiltered listing!
+    mockFetchMentors.mockResolvedValueOnce(mockInitialMentors);
+
+    rerender();
+
+    // Fetching starts
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.hasError).toBe(false);
+
+    // Settle the fetch
+    await act(async () => {});
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasError).toBe(false);
+    expect(result.current.mentors[0].name).toBe('Initial Mentor');
+    expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('applyMentorPage', () => {
