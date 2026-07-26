@@ -33,10 +33,8 @@ export default function GoogleOAuthRedirectPage() {
     const executeInvalid = (
       errorType: 'MISSING_PARAMS' | 'CALLBACK_FAILED' | 'DELETE_FLOW_INVALID'
     ) => {
-      // If delete account flow failed due to invalid auth state, clear the marker immediately to prevent landmines
-      if (errorType === 'DELETE_FLOW_INVALID') {
-        clearPendingDeleteAccountEmail();
-      }
+      // Clear the delete email marker on any invalid path to prevent zombie landmine states
+      clearPendingDeleteAccountEmail();
 
       const description =
         errorType === 'MISSING_PARAMS'
@@ -150,21 +148,31 @@ export default function GoogleOAuthRedirectPage() {
         pendingDeleteAccountEmail,
       });
 
-      switch (outcome.type) {
-        case 'INVALID':
-          executeInvalid(outcome.errorType);
-          break;
-        case 'SIGNUP':
-          executeSignup(outcome.data);
-          break;
-        case 'LOGIN':
-          await executeLogin(outcome.data);
-          break;
-        case 'RESUME_DELETE_ACCOUNT':
-          await executeResumeDeleteAccount(outcome.data, outcome.email);
-          break;
+      try {
+        switch (outcome.type) {
+          case 'INVALID':
+            executeInvalid(outcome.errorType);
+            break;
+          case 'SIGNUP':
+            executeSignup(outcome.data);
+            break;
+          case 'LOGIN':
+            await executeLogin(outcome.data);
+            break;
+          case 'RESUME_DELETE_ACCOUNT':
+            await executeResumeDeleteAccount(outcome.data, outcome.email);
+            break;
+        }
+      } catch {
+        toast({
+          variant: 'destructive',
+          title: 'Login failed',
+          description: 'Something went wrong during login.',
+        });
+        router.push('/auth/signin');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     handleOAuthFlow();

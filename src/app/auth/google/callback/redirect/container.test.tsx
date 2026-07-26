@@ -114,7 +114,7 @@ describe('GoogleOAuthRedirectPage Component', () => {
   });
 
   describe('Invalid Outcome', () => {
-    it('handles MISSING_PARAMS correctly', async () => {
+    it('handles MISSING_PARAMS correctly and clears pending email', async () => {
       mockResolveOAuthOutcome.mockResolvedValue({
         type: 'INVALID',
         errorType: 'MISSING_PARAMS',
@@ -129,8 +129,8 @@ describe('GoogleOAuthRedirectPage Component', () => {
           description: 'Authorization failed. Please try again.',
         });
         expect(pushMock).toHaveBeenCalledWith('/auth/signin');
-        // Does NOT clear pending email for missing params
-        expect(mockClearPendingDeleteEmail).not.toHaveBeenCalled();
+        // Clears pending email for missing params to prevent landmines
+        expect(mockClearPendingDeleteEmail).toHaveBeenCalledTimes(1);
       });
     });
 
@@ -147,6 +147,26 @@ describe('GoogleOAuthRedirectPage Component', () => {
           variant: 'destructive',
           title: '刪除帳號失敗',
           description: '無法取得 Google 憑證，請稍後再試',
+        });
+        expect(pushMock).toHaveBeenCalledWith('/auth/signin');
+        // Clears pending email to prevent landmines
+        expect(mockClearPendingDeleteEmail).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('handles CALLBACK_FAILED correctly and clears pending email', async () => {
+      mockResolveOAuthOutcome.mockResolvedValue({
+        type: 'INVALID',
+        errorType: 'CALLBACK_FAILED',
+      });
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(mockToast).toHaveBeenCalledWith({
+          variant: 'destructive',
+          title: 'Login failed',
+          description: 'Something went wrong during login.',
         });
         expect(pushMock).toHaveBeenCalledWith('/auth/signin');
         // Clears pending email to prevent landmines
@@ -251,6 +271,35 @@ describe('GoogleOAuthRedirectPage Component', () => {
         });
         expect(pushMock).toHaveBeenCalledWith('/auth/signin');
         expect(mockSignInWithGoogleToken).not.toHaveBeenCalled();
+      });
+    });
+
+    it('handles unexpected async exceptions during login and resets loading', async () => {
+      const mockData = {
+        auth_type: 'LOGIN' as const,
+        auth: { token: 'tok_2', email: 'user@example.com' },
+        user: { user_id: 456 } as unknown as ProfileVO,
+      };
+
+      mockResolveOAuthOutcome.mockResolvedValue({
+        type: 'LOGIN',
+        data: mockData,
+      });
+
+      // Rejecting getSession to trigger unexpected exception inside handleOAuthFlow try-catch
+      mockGetSession.mockRejectedValue(new Error('Network error'));
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(mockToast).toHaveBeenCalledWith({
+          variant: 'destructive',
+          title: 'Login failed',
+          description: 'Something went wrong during login.',
+        });
+        expect(pushMock).toHaveBeenCalledWith('/auth/signin');
+        // Spinner is hidden, displaying "Redirecting..." instead of "Signing you in with Google..."
+        expect(screen.getByText('Redirecting...')).toBeInTheDocument();
       });
     });
   });
