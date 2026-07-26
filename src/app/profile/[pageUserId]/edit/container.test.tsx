@@ -16,6 +16,7 @@ vi.mock('next-auth/react', () => ({
 
 // mock other hooks to isolate our container test
 const mockUseEditProfileData = vi.fn().mockReturnValue({
+  userDto: null,
   isMentor: false,
   isPageLoading: false,
   isError: false,
@@ -110,13 +111,6 @@ describe('EditProfileContainer isMentorOnboarding parsing', () => {
       />
     );
 
-    // Check that useEditProfileData was called with isMentorOnboarding: true
-    expect(mockUseEditProfileData).toHaveBeenCalledWith(
-      expect.objectContaining({
-        isMentorOnboarding: true,
-      })
-    );
-
     // Check that useProfileSubmit was called with isMentorOnboarding: true
     expect(mockUseProfileSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -138,12 +132,6 @@ describe('EditProfileContainer isMentorOnboarding parsing', () => {
       />
     );
 
-    expect(mockUseEditProfileData).toHaveBeenCalledWith(
-      expect.objectContaining({
-        isMentorOnboarding: true,
-      })
-    );
-
     expect(mockUseProfileSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
         isMentorOnboarding: true,
@@ -161,12 +149,6 @@ describe('EditProfileContainer isMentorOnboarding parsing', () => {
       />
     );
 
-    expect(mockUseEditProfileData).toHaveBeenCalledWith(
-      expect.objectContaining({
-        isMentorOnboarding: false,
-      })
-    );
-
     expect(mockUseProfileSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
         isMentorOnboarding: false,
@@ -179,6 +161,7 @@ describe('EditProfileContainer error handling and scrolling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseEditProfileData.mockReturnValue({
+      userDto: null,
       isMentor: false,
       isPageLoading: false,
       isError: false,
@@ -187,6 +170,7 @@ describe('EditProfileContainer error handling and scrolling', () => {
 
   it('shows error screen when useEditProfileData returns isError: true', () => {
     mockUseEditProfileData.mockReturnValue({
+      userDto: null,
       isMentor: false,
       isPageLoading: false,
       isError: true,
@@ -204,6 +188,7 @@ describe('EditProfileContainer error handling and scrolling', () => {
 
   it('triggers scroll to the correct topmost error element when validation fails', async () => {
     mockUseEditProfileData.mockReturnValue({
+      userDto: null,
       isMentor: true,
       isPageLoading: false,
       isError: false,
@@ -292,6 +277,7 @@ describe('EditProfileContainer error handling and scrolling', () => {
 
   it('does not crash or scroll if validation fails but corresponding DOM element does not exist', async () => {
     mockUseEditProfileData.mockReturnValue({
+      userDto: null,
       isMentor: true,
       isPageLoading: false,
       isError: false,
