@@ -18,8 +18,8 @@ import {
   FormLabel,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { ProfileFormValues } from '@/schemas/profileSchema';
 
-import { ProfileFormValues } from './profileSchema';
 import { Section } from './Section';
 
 const SOCIAL_LINKS: Array<{

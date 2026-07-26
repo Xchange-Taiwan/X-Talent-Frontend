@@ -24,7 +24,7 @@
 
 ## Mentor Profile 必填欄位
 
-- **Mentor 的個人檔案（profile edit）比 mentee 多一組必填欄位，而且已經有唯一正確的實作位置。** 在 `createProfileFormSchema(isMentor)`（`src/components/profile/edit/profileSchema.ts`）裡，只有 `isMentor === true` 時才透過 `superRefine` 強制要求：`about`、`industry`、`have_topic`（至少 1 個）、`have_skill`（至少 1 個）、`work_experiences`（至少 1 筆）、`educations`（至少 1 筆）。這些欄位對 mentee 都是選填或有預設值。
+- **Mentor 的個人檔案（profile edit）比 mentee 多一組必填欄位，而且已經有唯一正確的實作位置。** 在 `createProfileFormSchema(isMentor)`（`src/schemas/profileSchema.ts`）裡，只有 `isMentor === true` 時才透過 `superRefine` 強制要求：`about`、`industry`、`have_topic`（至少 1 個）、`have_skill`（至少 1 個）、`work_experiences`（至少 1 筆）、`educations`（至少 1 筆）。這些欄位對 mentee 都是選填或有預設值。
   - **因此**：任何新的「mentor 才需要填 XXX」需求，正確做法是在這個 schema 裡加欄位或加 `superRefine` 分支，不該在 onboarding 或其他頁面另外刻一份驗證邏輯。
   - **Reviewer 該做的事**：diff 若在 `profileSchema.ts` 以外的檔案新增「只有 mentor 才需要」的表單驗證，視為 Misplaced Implementation，應指向這個 schema。反過來，若 mentee 被要求填上面這些 mentor-only 欄位，視為 Business Rule Violation。
 

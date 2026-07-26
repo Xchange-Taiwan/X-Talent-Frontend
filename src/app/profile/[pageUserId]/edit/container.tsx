@@ -16,11 +16,6 @@ import {
   TextareaField,
   TextField,
 } from '@/components/profile/edit/Fields';
-import {
-  createProfileFormSchema,
-  defaultValues,
-  ProfileFormValues,
-} from '@/components/profile/edit/profileSchema';
 import { Section } from '@/components/profile/edit/Section';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,6 +36,11 @@ import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
+import {
+  createProfileFormSchema,
+  defaultValues,
+  ProfileFormValues,
+} from '@/schemas/profileSchema';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import { prefetchPresignedUrl } from '@/services/profile/updateAvatar';
 

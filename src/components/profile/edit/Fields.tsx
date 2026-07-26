@@ -17,8 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-
-import { ProfileFormValues } from './profileSchema';
+import { ProfileFormValues } from '@/schemas/profileSchema';
 
 //--------------------------------------------------
 // 📦 Reusable Field Components

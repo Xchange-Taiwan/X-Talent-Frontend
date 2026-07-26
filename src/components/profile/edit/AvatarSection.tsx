@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import React from 'react';
-import { Control, FieldValues, Path, useFormState } from 'react-hook-form';
+import { Control, FieldValues, Path, useController } from 'react-hook-form';
 
 import AvatarUpload from '@/components/ui/avatar-upload';
 
@@ -24,11 +24,11 @@ export const AvatarSection = <T extends FieldValues>({
   id,
 }: AvatarSectionProps<T>) => {
   const { data: session } = useSession();
-  const { errors } = useFormState({ control });
+  const { fieldState } = useController({ control, name });
   // Avatar URLs already carry their own `?v=` cache buster from upload time,
   // so render the session value as-is — no post-hoc version stitching.
   const avatarUrl = session?.user?.avatar ?? '';
-  const avatarErrorMessage = errors[name]?.message as string | undefined;
+  const avatarErrorMessage = fieldState.error?.message;
 
   return (
     <Section
