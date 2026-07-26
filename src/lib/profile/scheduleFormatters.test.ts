@@ -28,15 +28,16 @@ function createMockTimeslot(end: Date): ParsedMentorTimeslot {
 
 describe('scheduleFormatters', () => {
   describe('fmtTime', () => {
-    it('formats unix timestamp to HH:MM in local timezone (which is UTC in tests)', () => {
-      // 0 corresponds to 1970-01-01T00:00:00.000Z
-      expect(fmtTime(0)).toBe('00:00');
+    it('formats unix timestamp to HH:MM in local timezone dynamically to be timezone-invariant', () => {
+      // Create local Date objects to dynamically compute timezone-invariant UNIX timestamps
+      const d1 = new Date(2026, 6, 26, 0, 0);
+      expect(fmtTime(Math.floor(d1.getTime() / 1000))).toBe('00:00');
 
-      // 9:30 AM (9 * 3600 + 30 * 60)
-      expect(fmtTime(9 * 3600 + 30 * 60)).toBe('09:30');
+      const d2 = new Date(2026, 6, 26, 9, 30);
+      expect(fmtTime(Math.floor(d2.getTime() / 1000))).toBe('09:30');
 
-      // 10:15 PM (22 * 3600 + 15 * 60)
-      expect(fmtTime(22 * 3600 + 15 * 60)).toBe('22:15');
+      const d3 = new Date(2026, 6, 26, 22, 15);
+      expect(fmtTime(Math.floor(d3.getTime() / 1000))).toBe('22:15');
     });
   });
 
@@ -82,8 +83,8 @@ describe('scheduleFormatters', () => {
     });
 
     it('returns starting time right after the last slot ends', () => {
-      // In UTC, 2026-07-26T10:30:00.000Z ends at 10:30
-      const lastSlot = createMockTimeslot(new Date('2026-07-26T10:30:00.000Z'));
+      // 2026-07-26 10:30 local time
+      const lastSlot = createMockTimeslot(new Date(2026, 6, 26, 10, 30));
       expect(defaultFormForDate([lastSlot])).toEqual({
         startHour: '10',
         startMinute: '30',
@@ -92,8 +93,8 @@ describe('scheduleFormatters', () => {
     });
 
     it('rounds up ending minutes to the next 15-minute mark', () => {
-      // Slot ends at 10:35, should snap to 10:45
-      const lastSlot = createMockTimeslot(new Date('2026-07-26T10:35:00.000Z'));
+      // Slot ends at 10:35 local, should snap to 10:45
+      const lastSlot = createMockTimeslot(new Date(2026, 6, 26, 10, 35));
       expect(defaultFormForDate([lastSlot])).toEqual({
         startHour: '10',
         startMinute: '45',
@@ -102,20 +103,16 @@ describe('scheduleFormatters', () => {
     });
 
     it('rolls over the hour if snapped minutes reaches or exceeds 60', () => {
-      // Slot ends at 10:50 -> snapped 15m ceil of 50 is 60 -> should be 11:00
-      const lastSlot1 = createMockTimeslot(
-        new Date('2026-07-26T10:50:00.000Z')
-      );
+      // Slot ends at 10:50 local -> snapped 15m ceil of 50 is 60 -> should be 11:00
+      const lastSlot1 = createMockTimeslot(new Date(2026, 6, 26, 10, 50));
       expect(defaultFormForDate([lastSlot1])).toEqual({
         startHour: '11',
         startMinute: '00',
         durationMinutes: 30,
       });
 
-      // Slot ends at 10:46 -> snapped 15m ceil is 60 -> should be 11:00
-      const lastSlot2 = createMockTimeslot(
-        new Date('2026-07-26T10:46:00.000Z')
-      );
+      // Slot ends at 10:46 local -> snapped 15m ceil is 60 -> should be 11:00
+      const lastSlot2 = createMockTimeslot(new Date(2026, 6, 26, 10, 46));
       expect(defaultFormForDate([lastSlot2])).toEqual({
         startHour: '11',
         startMinute: '00',
@@ -124,8 +121,8 @@ describe('scheduleFormatters', () => {
     });
 
     it('caps at 23:45 if the rolled over startHour is 24 or greater', () => {
-      // Slot ends at 23:50 -> startH becomes 23 -> snapped startM is 60 -> startH increases to 24 -> caps to 23:45
-      const lastSlot = createMockTimeslot(new Date('2026-07-26T23:50:00.000Z'));
+      // Slot ends at 23:50 local -> startH becomes 23 -> snapped startM is 60 -> startH increases to 24 -> caps to 23:45
+      const lastSlot = createMockTimeslot(new Date(2026, 6, 26, 23, 50));
       expect(defaultFormForDate([lastSlot])).toEqual({
         startHour: '23',
         startMinute: '45',
@@ -134,9 +131,9 @@ describe('scheduleFormatters', () => {
     });
 
     it('caps at 23:45 if the last slot ends on the next calendar day (crossing midnight)', () => {
-      // Slot starts at 23:45 on 2026-07-26, ends at 00:15 on 2026-07-27.
+      // Slot starts at 23:45 local on 2026-07-26, ends at 00:15 local on 2026-07-27.
       // This is a midnight-crossing slot. It should trigger the cap logic and suggest 23:45.
-      const lastSlot = createMockTimeslot(new Date('2026-07-27T00:15:00.000Z'));
+      const lastSlot = createMockTimeslot(new Date(2026, 6, 27, 0, 15));
       expect(defaultFormForDate([lastSlot])).toEqual({
         startHour: '23',
         startMinute: '45',
@@ -145,13 +142,9 @@ describe('scheduleFormatters', () => {
     });
 
     it('uses the latest ending slot when multiple slots are provided', () => {
-      const earlySlot = createMockTimeslot(
-        new Date('2026-07-26T09:30:00.000Z')
-      );
-      const lateSlot = createMockTimeslot(new Date('2026-07-26T14:15:00.000Z'));
-      const middleSlot = createMockTimeslot(
-        new Date('2026-07-26T12:00:00.000Z')
-      );
+      const earlySlot = createMockTimeslot(new Date(2026, 6, 26, 9, 30));
+      const lateSlot = createMockTimeslot(new Date(2026, 6, 26, 14, 15));
+      const middleSlot = createMockTimeslot(new Date(2026, 6, 26, 12, 0));
 
       expect(defaultFormForDate([earlySlot, lateSlot, middleSlot])).toEqual({
         startHour: '14',
