@@ -12,12 +12,16 @@ interface AvatarSectionProps<T extends FieldValues> {
   control: Control<T>;
   name: Path<T>;
   onFileChange?: (file: File) => void;
+  isMentor?: boolean;
+  id?: string;
 }
 
 export const AvatarSection = <T extends FieldValues>({
   control,
   name,
   onFileChange,
+  isMentor,
+  id,
 }: AvatarSectionProps<T>) => {
   const { data: session } = useSession();
   // Avatar URLs already carry their own `?v=` cache buster from upload time,
@@ -25,7 +29,15 @@ export const AvatarSection = <T extends FieldValues>({
   const avatarUrl = session?.user?.avatar ?? '';
 
   return (
-    <Section title="個人頭像">
+    <Section
+      id={id}
+      title={
+        <>
+          {isMentor && <span className="text-status-200">* </span>}
+          個人頭像
+        </>
+      }
+    >
       <AvatarUpload
         control={control}
         name={name}

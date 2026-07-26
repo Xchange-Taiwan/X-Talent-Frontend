@@ -16,11 +16,6 @@ import {
   TextareaField,
   TextField,
 } from '@/components/profile/edit/Fields';
-import {
-  createProfileFormSchema,
-  defaultValues,
-  ProfileFormValues,
-} from '@/components/profile/edit/profileSchema';
 import { Section } from '@/components/profile/edit/Section';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,6 +36,11 @@ import { useProfileSubmit } from '@/hooks/user/profile/useProfileSubmit';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { useUnsavedChangesPrompt } from '@/hooks/useUnsavedChangesPrompt';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
+import {
+  createProfileFormSchema,
+  defaultValues,
+  ProfileFormValues,
+} from '@/schemas/profileSchema';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import { prefetchPresignedUrl } from '@/services/profile/updateAvatar';
 
@@ -132,6 +132,7 @@ export default function EditProfileContainer({
   };
 
   const FIELD_SCROLL_ORDER: (keyof ProfileFormValues)[] = [
+    'avatarFile',
     'name',
     'about',
     'have_topic',
@@ -192,8 +193,10 @@ export default function EditProfileContainer({
           className="space-y-10"
         >
           <AvatarSection
+            id="avatarFile"
             control={form.control}
             name="avatarFile"
+            isMentor={isMentor}
             onFileChange={(file) =>
               avatarUpload.kickOff(file, form.getValues('avatar'))
             }

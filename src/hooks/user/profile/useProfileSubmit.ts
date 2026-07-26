@@ -4,7 +4,6 @@ import { Session } from 'next-auth';
 import { useState } from 'react';
 
 import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
-import { ProfileFormValues } from '@/components/profile/edit/profileSchema';
 import { useToast } from '@/components/ui/use-toast';
 import {
   clearUserDataCache,
@@ -18,6 +17,7 @@ import {
   firstSyncedFetch,
   pollUntilSynced,
 } from '@/lib/profile/pollUntilSynced';
+import { ProfileFormValues } from '@/schemas/profileSchema';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
 import { MentorProfileVO } from '@/services/profile/user';
