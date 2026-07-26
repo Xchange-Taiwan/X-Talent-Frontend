@@ -11,7 +11,11 @@ export interface UseOverflowFitResult {
   isMeasuring: boolean;
 }
 
-export function useOverflowFit({
+/**
+ * Pure calculation function for overflow fit.
+ * Does not depend on React rendering cycle or trigger React state updates itself.
+ */
+export function computeOverflowFit({
   itemWidths,
   containerWidth,
   gapPx,
@@ -48,4 +52,13 @@ export function useOverflowFit({
     visibleCount,
     isMeasuring: false,
   };
+}
+
+/**
+ * Custom React Hook that wraps computeOverflowFit for easy use in rendering path.
+ */
+export function useOverflowFit(
+  params: UseOverflowFitParams
+): UseOverflowFitResult {
+  return computeOverflowFit(params);
 }
