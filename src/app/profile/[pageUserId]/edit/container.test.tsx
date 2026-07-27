@@ -595,153 +595,93 @@ describe('EditProfileContainer isMentorRole logic', () => {
     vi.clearAllMocks();
   });
 
-  it('passes isMentor as true to child sections and displays required hints when isMentorOnboarding is true', () => {
-    mockSearchParamsGet.mockImplementation((key) => {
-      if (key === MENTOR_ONBOARDING_KEY) return 'true';
-      return null;
-    });
+  it.each([
+    {
+      onboardingParam: 'true',
+      isMentorDb: false,
+      expectedIsMentor: true,
+      desc: 'when isMentorOnboarding is true',
+    },
+    {
+      onboardingParam: null,
+      isMentorDb: true,
+      expectedIsMentor: true,
+      desc: 'when isMentor is true',
+    },
+    {
+      onboardingParam: null,
+      isMentorDb: false,
+      expectedIsMentor: false,
+      desc: 'when both isMentorOnboarding and isMentor are false',
+    },
+  ])(
+    'correctly propagates parameters and displays hints $desc',
+    ({ onboardingParam, isMentorDb, expectedIsMentor }) => {
+      mockSearchParamsGet.mockImplementation((key) => {
+        if (key === MENTOR_ONBOARDING_KEY) return onboardingParam;
+        return null;
+      });
 
-    mockUseEditProfileData.mockReturnValue({
-      userDto: { user_id: 1, name: 'Test' } as unknown as MentorProfileVO,
-      isMentor: false,
-      isError: false,
-    });
+      mockUseEditProfileData.mockReturnValue({
+        userDto: { user_id: 1, name: 'Test' } as unknown as MentorProfileVO,
+        isMentor: isMentorDb,
+        isError: false,
+      });
 
-    const useEditProfileFormSpy = vi.spyOn(
-      useEditProfileFormModule,
-      'useEditProfileForm'
-    );
+      const useEditProfileFormSpy = vi.spyOn(
+        useEditProfileFormModule,
+        'useEditProfileForm'
+      );
 
-    const { getByTestId, queryByTestId } = render(
-      <EditProfileContainer
-        pageUserId="1"
-        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
-      />
-    );
+      const { getByTestId, queryByTestId } = render(
+        <EditProfileContainer
+          pageUserId="1"
+          initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+        />
+      );
 
-    // Verify useEditProfileForm was called with true
-    expect(useEditProfileFormSpy).toHaveBeenCalledWith(true);
+      // Verify useEditProfileForm parameter passing
+      expect(useEditProfileFormSpy).toHaveBeenCalledWith(expectedIsMentor);
 
-    // Verify child props
-    expect(getByTestId('avatar-section')).toHaveAttribute(
-      'data-is-mentor',
-      'true'
-    );
-    expect(getByTestId('job-experience-section')).toHaveAttribute(
-      'data-is-mentor',
-      'true'
-    );
-    expect(getByTestId('education-section')).toHaveAttribute(
-      'data-is-mentor',
-      'true'
-    );
+      // Verify child props
+      expect(getByTestId('avatar-section')).toHaveAttribute(
+        'data-is-mentor',
+        String(expectedIsMentor)
+      );
+      expect(getByTestId('job-experience-section')).toHaveAttribute(
+        'data-is-mentor',
+        String(expectedIsMentor)
+      );
+      expect(getByTestId('education-section')).toHaveAttribute(
+        'data-is-mentor',
+        String(expectedIsMentor)
+      );
 
-    // Verify asterisks on about and industry sections
-    expect(getByTestId('section-about-title')).toHaveTextContent('* 關於我');
-    expect(getByTestId('section-industry-title')).toHaveTextContent('* 產業');
+      if (expectedIsMentor) {
+        // Verify asterisks on about and industry sections
+        expect(getByTestId('section-about-title')).toHaveTextContent(
+          '* 關於我'
+        );
+        expect(getByTestId('section-industry-title')).toHaveTextContent(
+          '* 產業'
+        );
 
-    // Verify mentor-only sections render
-    expect(queryByTestId('section-have_topic')).toBeInTheDocument();
-    expect(queryByTestId('section-have_skill')).toBeInTheDocument();
+        // Verify mentor-only sections render
+        expect(queryByTestId('section-have_topic')).toBeInTheDocument();
+        expect(queryByTestId('section-have_skill')).toBeInTheDocument();
+      } else {
+        // Verify NO asterisks on about and industry sections
+        expect(getByTestId('section-about-title')).not.toHaveTextContent('*');
+        expect(getByTestId('section-industry-title')).not.toHaveTextContent(
+          '*'
+        );
 
-    useEditProfileFormSpy.mockRestore();
-  });
+        // Verify mentor-only sections do NOT render
+        expect(queryByTestId('section-have_topic')).not.toBeInTheDocument();
+        expect(queryByTestId('section-have_skill')).not.toBeInTheDocument();
+      }
 
-  it('passes isMentor as true to child sections and displays required hints when isMentor is true', () => {
-    mockSearchParamsGet.mockImplementation(() => null);
-
-    mockUseEditProfileData.mockReturnValue({
-      userDto: { user_id: 1, name: 'Test' } as unknown as MentorProfileVO,
-      isMentor: true,
-      isError: false,
-    });
-
-    const useEditProfileFormSpy = vi.spyOn(
-      useEditProfileFormModule,
-      'useEditProfileForm'
-    );
-
-    const { getByTestId, queryByTestId } = render(
-      <EditProfileContainer
-        pageUserId="1"
-        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
-      />
-    );
-
-    // Verify useEditProfileForm was called with true
-    expect(useEditProfileFormSpy).toHaveBeenCalledWith(true);
-
-    // Verify child props
-    expect(getByTestId('avatar-section')).toHaveAttribute(
-      'data-is-mentor',
-      'true'
-    );
-    expect(getByTestId('job-experience-section')).toHaveAttribute(
-      'data-is-mentor',
-      'true'
-    );
-    expect(getByTestId('education-section')).toHaveAttribute(
-      'data-is-mentor',
-      'true'
-    );
-
-    // Verify asterisks on about and industry sections
-    expect(getByTestId('section-about-title')).toHaveTextContent('* 關於我');
-    expect(getByTestId('section-industry-title')).toHaveTextContent('* 產業');
-
-    // Verify mentor-only sections render
-    expect(queryByTestId('section-have_topic')).toBeInTheDocument();
-    expect(queryByTestId('section-have_skill')).toBeInTheDocument();
-
-    useEditProfileFormSpy.mockRestore();
-  });
-
-  it('passes isMentor as false to child sections and hides required hints when both isMentorOnboarding and isMentor are false', () => {
-    mockSearchParamsGet.mockImplementation(() => null);
-
-    mockUseEditProfileData.mockReturnValue({
-      userDto: { user_id: 1, name: 'Test' } as unknown as MentorProfileVO,
-      isMentor: false,
-      isError: false,
-    });
-
-    const useEditProfileFormSpy = vi.spyOn(
-      useEditProfileFormModule,
-      'useEditProfileForm'
-    );
-
-    const { getByTestId, queryByTestId } = render(
-      <EditProfileContainer
-        pageUserId="1"
-        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
-      />
-    );
-
-    // Verify useEditProfileForm was called with false
-    expect(useEditProfileFormSpy).toHaveBeenCalledWith(false);
-
-    // Verify child props
-    expect(getByTestId('avatar-section')).toHaveAttribute(
-      'data-is-mentor',
-      'false'
-    );
-    expect(getByTestId('job-experience-section')).toHaveAttribute(
-      'data-is-mentor',
-      'false'
-    );
-    expect(getByTestId('education-section')).toHaveAttribute(
-      'data-is-mentor',
-      'false'
-    );
-
-    // Verify NO asterisks on about and industry sections
-    expect(getByTestId('section-about-title')).not.toHaveTextContent('*');
-    expect(getByTestId('section-industry-title')).not.toHaveTextContent('*');
-
-    // Verify mentor-only sections do NOT render
-    expect(queryByTestId('section-have_topic')).not.toBeInTheDocument();
-    expect(queryByTestId('section-have_skill')).not.toBeInTheDocument();
-
-    useEditProfileFormSpy.mockRestore();
-  });
+      useEditProfileFormSpy.mockRestore();
+    }
+  );
 });
