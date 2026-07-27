@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { BookingSlot } from '@/hooks/useMentorSchedule';
@@ -70,17 +70,23 @@ describe('BookingForm', () => {
     expect(screen.getByText('無可預約的時段')).toBeInTheDocument();
   });
 
-  it('disables the submit button if slot or question is missing', () => {
+  it('disables the submit button if slot or question is missing (including test coverage gap)', () => {
     const { rerender } = render(<BookingForm {...defaultProps} />);
 
-    // Initially with selectedSlot=null, bookingQuestion=""
+    // Scenario 1: selectedSlot=null, bookingQuestion=""
     const submitBtn = screen.getByRole('button', { name: '預約時間' });
     expect(submitBtn).toBeDisabled();
     expect(submitBtn).toHaveClass('disabled:bg-background-top-active');
     expect(submitBtn).toHaveClass('disabled:text-text-disable');
 
-    // Select slot, but question is still empty
+    // Scenario 2: Select slot, but question is still empty
     rerender(<BookingForm {...defaultProps} selectedSlot={mockSlots[0]} />);
+    expect(screen.getByRole('button', { name: '預約時間' })).toBeDisabled();
+
+    // Scenario 3: [TEST GAP FIX] selectedSlot is null, but question is filled
+    rerender(<BookingForm {...defaultProps} selectedSlot={null} />);
+    const textarea = screen.getByPlaceholderText('請在此輸入你的問題...');
+    fireEvent.change(textarea, { target: { value: 'How to learn TS?' } });
     expect(screen.getByRole('button', { name: '預約時間' })).toBeDisabled();
   });
 
@@ -101,7 +107,10 @@ describe('BookingForm', () => {
     expect(submitBtn).not.toBeDisabled();
 
     fireEvent.click(submitBtn);
-    expect(onConfirmReservation).toHaveBeenCalledWith('How to learn TS?');
+
+    await waitFor(() => {
+      expect(onConfirmReservation).toHaveBeenCalledWith('How to learn TS?');
+    });
   });
 
   it('renders config mode instead of booking mode when isOwnMentorProfile is true', () => {
