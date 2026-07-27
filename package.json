@@ -20,7 +20,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "prepare": "husky install",
-    "gemini": "gemini --approval-mode=yolo --skip-trust",
+    "gemini": "gemini",
+    "gemini-yolo": "gemini --approval-mode=yolo --skip-trust",
     "generate:types": "node scripts/generate-types.mjs"
   },
   "dependencies": {
