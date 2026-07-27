@@ -87,7 +87,7 @@ describe('BookingForm', () => {
     expect(screen.getByText('無可預約的時段')).toBeInTheDocument();
   });
 
-  it('disables the submit button if slot or question is missing (including test coverage gap)', () => {
+  it('disables the submit button if slot or question is missing (including test coverage gap)', async () => {
     const { rerender } = render(<BookingForm {...defaultProps} />);
 
     // Scenario 1: selectedSlot=null, bookingQuestion=""
@@ -98,7 +98,11 @@ describe('BookingForm', () => {
 
     // Scenario 2: Select slot, and question is empty (now allowed)
     rerender(<BookingForm {...defaultProps} selectedSlot={mockSlots[0]} />);
-    expect(screen.getByRole('button', { name: '預約時間' })).not.toBeDisabled();
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: '預約時間' })
+      ).not.toBeDisabled();
+    });
 
     // Scenario 3: [TEST GAP FIX] selectedSlot is null, but question is filled
     rerender(<BookingForm {...defaultProps} selectedSlot={null} />);

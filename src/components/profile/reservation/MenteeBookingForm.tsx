@@ -1,6 +1,7 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
+import { useEffect } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -36,8 +37,14 @@ export function MenteeBookingForm({
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    trigger,
+    formState: { isValid, errors },
   } = useBookingForm();
+
+  // Validate form default values on mount so isValid is correctly initialized
+  useEffect(() => {
+    trigger();
+  }, [trigger]);
 
   const onSubmit = async (data: BookingFormValues) => {
     const success = await onConfirmReservation(data.bookingQuestion);
@@ -51,7 +58,7 @@ export function MenteeBookingForm({
     !isAuthenticated ||
     !selectedDate ||
     !selectedSlot ||
-    !!errors.bookingQuestion;
+    !isValid;
 
   return (
     <form
