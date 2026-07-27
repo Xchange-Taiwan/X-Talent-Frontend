@@ -6,6 +6,8 @@ vi.mock('@/services/profile/user', () => ({
 
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 
+import { fromAny, fromPartial } from '@total-typescript/shoehorn';
+
 import { defaultValues } from '@/schemas/profileSchema';
 import { fetchUser, type MentorProfileVO } from '@/services/profile/user';
 
@@ -24,7 +26,7 @@ const baseValues = {
 };
 
 const makeSyncedDto = (avatar = ''): MentorProfileVO =>
-  ({
+  fromAny({
     user_id: 1,
     name: 'Sync Test',
     avatar,
@@ -36,7 +38,7 @@ const makeSyncedDto = (avatar = ''): MentorProfileVO =>
     is_mentor: true,
     onboarding: true,
     experiences: [],
-  }) as unknown as MentorProfileVO;
+  });
 
 describe('firstSyncedFetch', () => {
   beforeEach(() => {
@@ -58,10 +60,12 @@ describe('firstSyncedFetch', () => {
   });
 
   it('returns null when backend has not yet synced (values disagree)', async () => {
-    mockFetchUser.mockResolvedValueOnce({
-      ...makeSyncedDto(),
-      name: 'Old Name',
-    } as MentorProfileVO);
+    mockFetchUser.mockResolvedValueOnce(
+      fromPartial({
+        ...makeSyncedDto(),
+        name: 'Old Name',
+      })
+    );
 
     const result = await firstSyncedFetch(baseValues, '');
 
@@ -92,10 +96,12 @@ describe('firstSyncedFetch', () => {
 
   describe('isProfileSynced industry boundary conditions', () => {
     it('syncs successfully when latest.industry matching values.industry', async () => {
-      mockFetchUser.mockResolvedValueOnce({
-        ...makeSyncedDto(),
-        industry: { subject_group: 'tech' },
-      } as unknown as MentorProfileVO);
+      mockFetchUser.mockResolvedValueOnce(
+        fromAny({
+          ...makeSyncedDto(),
+          industry: { subject_group: 'tech' },
+        })
+      );
 
       const result = await firstSyncedFetch(
         { ...baseValues, industry: 'tech' },
@@ -105,10 +111,12 @@ describe('firstSyncedFetch', () => {
     });
 
     it('does not sync when latest.industry does not match values.industry', async () => {
-      mockFetchUser.mockResolvedValueOnce({
-        ...makeSyncedDto(),
-        industry: { subject_group: 'design' },
-      } as unknown as MentorProfileVO);
+      mockFetchUser.mockResolvedValueOnce(
+        fromAny({
+          ...makeSyncedDto(),
+          industry: { subject_group: 'design' },
+        })
+      );
 
       const result = await firstSyncedFetch(
         { ...baseValues, industry: 'tech' },
@@ -118,10 +126,12 @@ describe('firstSyncedFetch', () => {
     });
 
     it('syncs successfully when latest.industry is null and values.industry is undefined or empty', async () => {
-      mockFetchUser.mockResolvedValueOnce({
-        ...makeSyncedDto(),
-        industry: null,
-      } as MentorProfileVO);
+      mockFetchUser.mockResolvedValueOnce(
+        fromPartial({
+          ...makeSyncedDto(),
+          industry: null,
+        })
+      );
 
       const result = await firstSyncedFetch(
         { ...baseValues, industry: '' },
@@ -131,10 +141,12 @@ describe('firstSyncedFetch', () => {
     });
 
     it('does not sync when latest.industry is null but values.industry has a value', async () => {
-      mockFetchUser.mockResolvedValueOnce({
-        ...makeSyncedDto(),
-        industry: null,
-      } as MentorProfileVO);
+      mockFetchUser.mockResolvedValueOnce(
+        fromPartial({
+          ...makeSyncedDto(),
+          industry: null,
+        })
+      );
 
       const result = await firstSyncedFetch(
         { ...baseValues, industry: 'tech' },
@@ -168,10 +180,12 @@ describe('firstSyncedFetch', () => {
     });
 
     it('does not sync when latest.industry is a primitive invalid value', async () => {
-      mockFetchUser.mockResolvedValueOnce({
-        ...makeSyncedDto(),
-        industry: 'not-an-object' as unknown,
-      } as unknown as MentorProfileVO);
+      mockFetchUser.mockResolvedValueOnce(
+        fromAny({
+          ...makeSyncedDto(),
+          industry: 'not-an-object',
+        })
+      );
 
       const result = await firstSyncedFetch(
         { ...baseValues, industry: 'tech' },

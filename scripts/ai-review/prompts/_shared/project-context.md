@@ -2,6 +2,7 @@
 
 - Next.js 14 App Router + TypeScript（strict），pnpm 套件管理
 - 資料流向固定為 service → hook → component：API 呼叫一律經 `src/lib/apiClient.ts`，禁止直接用 `fetch`；component 不可跳過 hook 直接呼叫 service
+- 深度模組封裝邊界：為了維護深度模組封裝，`src/lib/**`（除了前端純輔助工具）與 `src/services/**` 不可直接引用（import）`react`、`next/navigation`、`next-auth/react`、`@/hooks/**` 或任何 UI 元件與狀態。若有外部依賴，必須透過參數或 callback 注入。
 - 表單一律要有 `src/schemas/` 的 Zod schema + `src/hooks/` 的 `use<Name>Form` hook（透過 `@hookform/resolvers/zod`）
 - 禁止使用 `any`；型別不明時要用 `unknown` 並收斂
 - Styling 只能用 Tailwind utility class + 專案 design tokens（`tailwind.config.js`），禁止 inline style、禁止硬編碼顏色
