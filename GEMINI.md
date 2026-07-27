@@ -95,7 +95,21 @@
 export GEMINI_CLI_TRUST_WORKSPACE=true
 ```
 
-### 3.2 檢查與列出 Skills
+### 3.3 啟用自主執行模式 (YOLO Mode)
+
+在進行複雜開發、批次重構，或需要 AI 連續自主執行（不中斷彈出確認視窗）時，可以啟用 **YOLO Mode**。
+
+- **互動模式啟動**：
+  ```bash
+  pnpm exec gemini --yolo
+  ```
+- **環境變數啟用（非互動或 CI/CD 環境下）**：
+  請設定環境變數：
+  ```bash
+  export GEMINI_CLI_YOLO=true
+  ```
+
+### 3.4 檢查與列出 Skills
 
 要驗證 Local Skills 是否已被順利識別與載入，請在會話中執行：
 
