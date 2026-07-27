@@ -1,5 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 
+import { computeOverflowFit } from '@/lib/overflowFit';
+
 import { Tag } from './Tag';
 
 interface InformationProps {
@@ -30,25 +32,20 @@ export const Information = ({
   useLayoutEffect(() => {
     if (!measureRef.current || !containerRef.current) return;
 
-    widthsRef.current = Array.from(measureRef.current.children).map(
+    const widths = Array.from(measureRef.current.children).map(
       (child) => (child as HTMLElement).getBoundingClientRect().width
     );
+    widthsRef.current = widths;
 
-    const computeVisible = (containerWidth: number) => {
-      const widths = widthsRef.current;
-      let total = EXTRA_BADGE_RESERVE_PX;
-      let lastIndex = widths.length - 1;
-      for (let i = 0; i < widths.length; i++) {
-        const gap = i > 0 ? TAG_GAP_PX : 0;
-        total += widths[i] + gap;
-        if (total > containerWidth) {
-          lastIndex = i - 1;
-          break;
-        }
-      }
-      setVisibleTagsCount(
-        Math.max(0, Math.min(lastIndex + 1, haveTopicLabels.length))
-      );
+    const computeVisible = (width: number) => {
+      const { visibleCount } = computeOverflowFit({
+        itemWidths: widthsRef.current,
+        containerWidth: width,
+        gapPx: TAG_GAP_PX,
+        reservePx: EXTRA_BADGE_RESERVE_PX,
+        defaultVisibleCount: haveTopicLabels.length,
+      });
+      setVisibleTagsCount(visibleCount);
     };
 
     computeVisible(containerRef.current.getBoundingClientRect().width);

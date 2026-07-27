@@ -4,6 +4,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 
+import { computeOverflowFit } from '@/lib/overflowFit';
+
 import { POPULAR_POSITIONS } from './data';
 import { buildHref, setSearchPattern } from './searchParams';
 
@@ -21,20 +23,21 @@ export default function PopularPositionChips() {
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [visibleCount, setVisibleCount] = useState(POPULAR_POSITIONS.length);
+  const [isMeasured, setIsMeasured] = useState(false);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
 
   useEffect(() => {
     const widths = buttonRefs.current.map((b) => b?.offsetWidth ?? 0);
-    let total = 0;
-    let count = 0;
-    for (let i = 0; i < widths.length; i++) {
-      const next = total + widths[i] + (count > 0 ? GAP_PX : 0);
-      if (next > DESKTOP_WIDTH) break;
-      total = next;
-      count++;
-    }
-    setVisibleCount(count);
+    const { visibleCount: computedCount } = computeOverflowFit({
+      itemWidths: widths,
+      containerWidth: DESKTOP_WIDTH,
+      gapPx: GAP_PX,
+      reservePx: 0,
+      defaultVisibleCount: POPULAR_POSITIONS.length,
+    });
+    setVisibleCount(computedCount);
+    setIsMeasured(true);
   }, []);
 
   useEffect(() => {
@@ -62,7 +65,9 @@ export default function PopularPositionChips() {
   };
 
   return (
-    <div className="relative">
+    <div
+      className={`relative transition-opacity duration-150 ${isMeasured ? 'opacity-100' : 'opacity-0'}`}
+    >
       <div
         ref={scrollRef}
         className="flex gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] xl:mx-auto xl:w-[846px] xl:justify-center xl:overflow-x-visible [&::-webkit-scrollbar]:hidden"
