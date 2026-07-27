@@ -98,7 +98,14 @@ export default function EditProfileContainer({
     isAuthorized,
   });
 
-  const { form } = useEditProfileForm(isMentorOnboarding || isMentor);
+  // Effective mentor-mode flag: true once the user is already a mentor OR is
+  // going through the "become a mentor" onboarding flow. Drives both the Zod
+  // schema's required fields (via useEditProfileForm) and which mentor-only
+  // sections render below — the two must stay in sync or required fields can
+  // end up invisible while still blocking submit.
+  const isMentorRole = isMentor || isMentorOnboarding;
+
+  const { form } = useEditProfileForm(isMentorRole);
 
   const { formRef, onError, scrollToField } =
     useFormErrorScroll<ProfileFormValues>();
@@ -214,7 +221,7 @@ export default function EditProfileContainer({
             id="about"
             title={
               <>
-                {isMentor && <span className="text-status-200">* </span>}
+                {isMentorRole && <span className="text-status-200">* </span>}
                 關於我
               </>
             }
@@ -222,7 +229,7 @@ export default function EditProfileContainer({
             <TextareaField form={form} name="about" rows={10} />
           </Section>
 
-          {isMentor && (
+          {isMentorRole && (
             <Section
               id="have_topic"
               title={
@@ -241,7 +248,7 @@ export default function EditProfileContainer({
             </Section>
           )}
 
-          {isMentor && (
+          {isMentorRole && (
             <Section
               id="have_skill"
               title={
@@ -299,7 +306,7 @@ export default function EditProfileContainer({
             id="industry"
             title={
               <>
-                {isMentor && <span className="text-status-200">* </span>}
+                {isMentorRole && <span className="text-status-200">* </span>}
                 產業
               </>
             }
