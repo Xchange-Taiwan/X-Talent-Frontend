@@ -63,7 +63,21 @@
 
 ## 3. 如何啟用並驗證 Local Skills
 
-### 3.1 啟用本地信任 (CRITICAL)
+### 3.1 安裝與配置依賴環境 (Environment Setup)
+
+為確保團隊成員環境標準化，我們已將 Gemini CLI 作為開發依賴項納入專案之 `devDependencies`。
+
+1. **安裝依賴**：請在專案根目錄下執行：
+   ```bash
+   pnpm install
+   ```
+2. **啟動/執行 CLI**：安裝完成後，可以使用 `pnpm` 執行器來開啟本地會話：
+   ```bash
+   pnpm exec gemini
+   ```
+   或是使用 global 的 `gemini` 指令（若您在全域有安裝）。
+
+### 3.2 啟用本地信任 (CRITICAL)
 
 由於 Workspace Skills 可以執行自訂腳本以進行代碼自動化生成與測試，**Gemini CLI 在預設情況下會忽略本地 Workspace Skills，直到該目錄被標記為信任**。
 
