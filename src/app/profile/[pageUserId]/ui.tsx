@@ -295,6 +295,7 @@ export default function ProfilePageUI({
                   <BookingForm
                     isOwnMentorProfile={isOwnMentorProfile}
                     isUserDataLoading={userLoading}
+                    isAuthenticated={!!loginUserId}
                     slots={
                       selectedDate ? generateBookingSlots(selectedDate) : []
                     }

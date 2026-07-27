@@ -24,6 +24,7 @@ describe('BookingForm', () => {
   const defaultProps = {
     isOwnMentorProfile: false,
     isUserDataLoading: false,
+    isAuthenticated: true,
     slots: mockSlots,
     monthLoaded: true,
     selectedSlot: null,
@@ -48,6 +49,12 @@ describe('BookingForm', () => {
 
     rerender(<BookingForm {...defaultProps} isSubmitting={true} />);
     expect(screen.getByRole('button', { name: '處理中...' })).toBeDisabled();
+  });
+
+  it('disables the submit button if isAuthenticated is false', () => {
+    render(<BookingForm {...defaultProps} isAuthenticated={false} />);
+    const submitBtn = screen.getByRole('button', { name: '預約時間' });
+    expect(submitBtn).toBeDisabled();
   });
 
   it('renders booking slots and the question input when not own profile', () => {
