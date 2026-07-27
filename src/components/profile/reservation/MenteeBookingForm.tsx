@@ -18,7 +18,7 @@ interface MenteeBookingFormProps {
   setSelectedSlot: (slot: BookingSlot | null) => void;
   isSubmitting: boolean;
   selectedDate: string | null;
-  onConfirmReservation: (question: string) => Promise<boolean>;
+  onConfirmReservation: (question?: string) => Promise<boolean>;
   isAuthenticated: boolean;
 }
 
@@ -36,7 +36,7 @@ export function MenteeBookingForm({
     register,
     handleSubmit,
     reset,
-    formState: { isValid, errors },
+    formState: { errors },
   } = useBookingForm();
 
   const onSubmit = async (data: BookingFormValues) => {
@@ -51,7 +51,7 @@ export function MenteeBookingForm({
     !isAuthenticated ||
     !selectedDate ||
     !selectedSlot ||
-    !isValid;
+    Object.keys(errors).length > 0;
 
   return (
     <form

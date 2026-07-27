@@ -27,7 +27,7 @@ export function useBookingConfirmation({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleConfirmReservation = useCallback(
-    async (question: string): Promise<boolean> => {
+    async (question?: string): Promise<boolean> => {
       if (!loginUserId) {
         router.push('/auth/signin');
         return false;
@@ -37,6 +37,11 @@ export function useBookingConfirmation({
       setIsSubmitting(true);
       try {
         const menteeId = Number(loginUserId);
+        const trimmedQuestion = question?.trim() ?? '';
+        const messages = trimmedQuestion
+          ? [{ user_id: menteeId, content: trimmedQuestion }]
+          : [];
+
         await createReservation({
           userId: menteeId,
           body: {
@@ -46,7 +51,7 @@ export function useBookingConfirmation({
             schedule_id: selectedSlot.scheduleId,
             dtstart: Math.floor(selectedSlot.start.getTime() / 1000),
             dtend: Math.floor(selectedSlot.end.getTime() / 1000),
-            messages: [{ user_id: menteeId, content: question }],
+            messages,
           },
           debug: process.env.NODE_ENV === 'development',
         });
