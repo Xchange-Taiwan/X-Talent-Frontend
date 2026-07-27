@@ -98,7 +98,9 @@ export default function EditProfileContainer({
     isAuthorized,
   });
 
-  const { form } = useEditProfileForm(isMentorOnboarding || isMentor);
+  const isMentorFlow = isMentorOnboarding || isMentor;
+
+  const { form } = useEditProfileForm(isMentorFlow);
 
   const { formRef, onError, scrollToField } =
     useFormErrorScroll<ProfileFormValues>();
@@ -193,7 +195,7 @@ export default function EditProfileContainer({
             id="avatarFile"
             control={form.control}
             name="avatarFile"
-            isMentor={isMentor}
+            isMentor={isMentorFlow}
             onFileChange={(file) =>
               avatarUpload.kickOff(file, form.getValues('avatar'))
             }
@@ -214,7 +216,7 @@ export default function EditProfileContainer({
             id="about"
             title={
               <>
-                {isMentor && <span className="text-status-200">* </span>}
+                {isMentorFlow && <span className="text-status-200">* </span>}
                 關於我
               </>
             }
@@ -222,7 +224,7 @@ export default function EditProfileContainer({
             <TextareaField form={form} name="about" rows={10} />
           </Section>
 
-          {isMentor && (
+          {isMentorFlow && (
             <Section
               id="have_topic"
               title={
@@ -241,7 +243,7 @@ export default function EditProfileContainer({
             </Section>
           )}
 
-          {isMentor && (
+          {isMentorFlow && (
             <Section
               id="have_skill"
               title={
@@ -299,7 +301,7 @@ export default function EditProfileContainer({
             id="industry"
             title={
               <>
-                {isMentor && <span className="text-status-200">* </span>}
+                {isMentorFlow && <span className="text-status-200">* </span>}
                 產業
               </>
             }
@@ -371,7 +373,7 @@ export default function EditProfileContainer({
               industries={industries}
               locations={locations}
               form={form}
-              isMentor={isMentor}
+              isMentor={isMentorFlow}
               onValidationChange={setJobSectionError}
             />
           </div>
@@ -379,7 +381,7 @@ export default function EditProfileContainer({
           <div id="educations">
             <EducationSection
               form={form}
-              isMentor={isMentor}
+              isMentor={isMentorFlow}
               onValidationChange={setEducationSectionError}
             />
           </div>
