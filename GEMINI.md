@@ -135,4 +135,34 @@ gemini skills list
 
 ---
 
+## 5. Matt Pocock 核心工程技能與規範 (TypeScript & Domain Engineering Standards)
+
+本專案高度借鑑並導入了 TypeScript 大師 Matt Pocock (Total TypeScript 創辦人) 的經典工程學實踐。所有團隊成員與 AI 協同開發時，均須遵循以下三大核心規範：
+
+### 5.1 領域導向文檔與統一語言 (Domain Docs & Context Rule)
+
+為了避免名詞混淆，並使程式碼結構高度契合業務領域：
+
+- **`CONTEXT.md` 優先閱讀**：在探索代碼庫或新增功能前，AI Agent 必須閱讀專案根目錄的 `CONTEXT.md`（或 `CONTEXT-MAP.md`），以對齊專案的「統一語言（Ubiquitous Language）」與領域術語，切勿隨意自造同義詞。
+- **ADR 架構決策紀錄 (`docs/adr/`)**：專案的核心架構演進與設計決策均記錄於 `docs/adr/` 中。新增代碼若與現有 ADR 衝突，必須在 PR 中明確指出（例如：_「本設計與 ADR-0002 衝突，但因...故建議調整」_）。
+- **對應本地 Skill**：`setup-matt-pocock-skills`, `domain-modeling`, `grill-with-docs`
+
+### 5.2 深度 TS 模組架構 (TypeScript Deep Modules)
+
+為了防止程式碼邊界模糊（Spaghetti Code）：
+
+- **模組封裝**：專案模組應設計成「深度模組」，即將具體實作細節隱藏在 subfolders 之中，外部僅能透過模組的入口進入點檔案（如 `index.ts`）進行有限且安全的導出與引用。
+- **邊界防護**：專案採用 Dependency Cruiser 來偵測並防範越權引用或循環依賴。
+- **對應本地 Skill**：`setup-ts-deep-modules`
+
+### 5.3 單元測試拒絕 `as` 斷言 (`migrate-to-shoehorn` 規範)
+
+在編寫 Vitest 單元測試時，測試資料的 Mock 經常面臨 TypeScript 複雜型別檢查的考驗：
+
+- **反模式 (Anti-pattern)**：嚴格禁止在測試資料中使用 `as unknown as ComplexType` 或 `as any` 來繞過編譯檢查。這會隱藏真正的介面變更，導致測試失去防禦力。
+- **最佳實踐**：請優先採用 Matt Pocock 開源的測試資料輔助庫 **`@total-typescript/shoehorn`**。它允許您編寫局部的、安全的 Mock 資料且不會損壞型別安全性。
+- **對應本地 Skill**：`migrate-to-shoehorn`
+
+---
+
 **讓 AI 為 X-Talent 的代碼品質保駕護航，Happy Coding!**
