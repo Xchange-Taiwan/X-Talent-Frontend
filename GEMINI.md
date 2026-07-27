@@ -117,14 +117,18 @@
   ```
 - **執行動作**：AI 會扮演極度嚴苛的資深技術專家，針對您的開發計畫發起多輪「極限逼問」，直到您的解決方案細節完美無瑕、邊界情況與防禦邏輯皆充分考量。
 
-#### 7. 🛠️ 精準功能實作與測試 (`implement`)
+#### 7. 🛠️ 全自動化一鍵式開發實作與 PR 發佈 (`implement`) — **【核心自動化旗艦技能 ⭐️】**
 
-- **何時使用**：當規劃完成，手頭已有清晰的規格書 (Spec) 或具體的任務單 (Tickets)，準備進行精確、高維持性、型別安全的前端或邏輯程式碼實作時。
+- **何時使用**：當您想要讓 AI 自主、端到端、一鍵式地處理整個任務開發流程：從自動拉取任務票需求、撰寫代碼與測試，直到自動通過品質審查並建立 PR 時。
 - **如何使用**：在會話中輸入：
   ```text
   /implement
   ```
-- **執行動作**：AI 會嚴格遵循 Spec / Ticket 中的驗證指標（Acceptance Criteria）進行步驟化開發、補齊測試，並執行自動化 Linting 與 Type Checking。拒絕加入任何想像中的「just-in-case」冗餘程式碼，維持代碼庫極致整潔。
+- **執行動作**：**這是專案中最核心的自動化協同工作流！** AI 會自動依序調用、執行以下無人值守鏈條（YOLO Mode 下效果最佳）：
+  1. 📥 **自動擷取任務票 (`/start-ticket`)**：自動切回 `develop` 分支並 Pull 最新代碼，利用 GraphQL API 在遠端自動建立分支、連結 X-Tracker 任務票，並拉取 Ticket 的詳細需求上下文進行分析。
+  2. 💻 **精準開發與 TDD**：嚴格遵循 Ticket 中的驗證指標（Acceptance Criteria）進行步驟化開發、撰寫高品質單元測試，並在開發過程中定時執行 Linter 與型別檢查。
+  3. 🔍 **自動化多維度本地審查 (`/ai-review`)**：實作完成後，在本地自動並行啟動多個子 Agent 進行 Security, Correctness, Business, Performance 等維度的深度自檢，解決所有 critical bugs。
+  4. 📤 **一鍵提交與自動 PR 建立 (`/submit-pr`)**：在最後自動執行 typecheck 與 617 項 Vitest 測試，將變更 commit（自動關聯 Tracker #號），Push 至遠端，並自動呼叫 GitHub CLI **一鍵建立 Pull Request**，最後將專案看板上的任務卡片移動到 `PR Review` 狀態！
 
 #### 8. `to-spec`
 
