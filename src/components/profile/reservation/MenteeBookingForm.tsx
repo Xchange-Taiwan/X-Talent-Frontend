@@ -18,7 +18,7 @@ interface MenteeBookingFormProps {
   setSelectedSlot: (slot: BookingSlot | null) => void;
   isSubmitting: boolean;
   selectedDate: string | null;
-  onConfirmReservation: (question: string) => Promise<boolean>;
+  onConfirmReservation: (question?: string) => Promise<boolean>;
   isAuthenticated: boolean;
 }
 

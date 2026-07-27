@@ -17,6 +17,13 @@ describe('bookingFormSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('should pass if question is undefined', () => {
+    const result = bookingFormSchema.safeParse({
+      bookingQuestion: undefined,
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('should pass and trim whitespace-only questions', () => {
     const result = bookingFormSchema.safeParse({
       bookingQuestion: '    \n   ',

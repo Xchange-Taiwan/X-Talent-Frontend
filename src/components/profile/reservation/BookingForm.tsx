@@ -17,7 +17,7 @@ interface BookingFormProps {
   isSubmitting: boolean;
   selectedDate: string | null;
   onReservation: () => void;
-  onConfirmReservation: (question: string) => Promise<boolean>;
+  onConfirmReservation: (question?: string) => Promise<boolean>;
 }
 
 export function BookingForm({
