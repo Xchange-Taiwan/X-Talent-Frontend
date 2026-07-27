@@ -159,6 +159,31 @@ export function buildDateTime(dateStr: string, timeStr: string) {
  * `ignoreRowId` to skip a row being edited (its current occurrences are
  * excluded entirely); pass `null` when adding a brand-new slot.
  */
+/**
+ * Find an existing recurring ALLOW row whose `occurrenceUnix` was previously
+ * exdated (i.e. the user deleted just that one week) and whose duration
+ * matches. Re-adding such an occurrence should undo the exdate on the
+ * existing row rather than create a second, independent row at the same
+ * time — submitting both together in one save otherwise reads as two
+ * overlapping rows to the backend's conflict validation.
+ */
+export function findRestorableExdatedRow(
+  rows: RawMentorTimeslot[],
+  occurrenceUnix: number,
+  durationSeconds: number
+): RawMentorTimeslot | null {
+  return (
+    rows.find(
+      (r) =>
+        r.type === 'ALLOW' &&
+        !!r.rrule &&
+        r.exdate.includes(occurrenceUnix) &&
+        r.dtend - r.dtstart === durationSeconds &&
+        expandRrule(r.dtstart, r.rrule).includes(occurrenceUnix)
+    ) ?? null
+  );
+}
+
 export function hasAnyOccurrenceOverlap(
   rows: RawMentorTimeslot[],
   ignoreRowId: number | null,
