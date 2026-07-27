@@ -40,6 +40,22 @@ describe('BookingForm', () => {
     onConfirmReservation: vi.fn().mockResolvedValue(true),
   };
 
+  it('renders a loading skeleton when userData is null to prevent view flash', () => {
+    render(<BookingForm {...defaultProps} userData={null} />);
+    expect(screen.getByTestId('booking-form-skeleton')).toBeInTheDocument();
+  });
+
+  it('disables the submit button if selectedDate is null, or isSubmitting is true', () => {
+    const { rerender } = render(
+      <BookingForm {...defaultProps} selectedDate={null} />
+    );
+    const submitBtn = screen.getByRole('button', { name: '預約時間' });
+    expect(submitBtn).toBeDisabled();
+
+    rerender(<BookingForm {...defaultProps} isSubmitting={true} />);
+    expect(screen.getByRole('button', { name: '處理中...' })).toBeDisabled();
+  });
+
   it('renders booking slots and the question input when not own profile', () => {
     render(<BookingForm {...defaultProps} />);
 
@@ -90,7 +106,7 @@ describe('BookingForm', () => {
     expect(screen.getByRole('button', { name: '預約時間' })).toBeDisabled();
   });
 
-  it('enables the submit button and handles confirm when slot and question are present', async () => {
+  it('enables the submit button, handles confirm, and resets the textarea on success', async () => {
     const onConfirmReservation = vi.fn().mockResolvedValue(true);
     render(
       <BookingForm
@@ -100,7 +116,9 @@ describe('BookingForm', () => {
       />
     );
 
-    const textarea = screen.getByPlaceholderText('請在此輸入你的問題...');
+    const textarea = screen.getByPlaceholderText(
+      '請在此輸入你的問題...'
+    ) as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: 'How to learn TS?' } });
 
     const submitBtn = screen.getByRole('button', { name: '預約時間' });
@@ -112,6 +130,10 @@ describe('BookingForm', () => {
 
     await waitFor(() => {
       expect(onConfirmReservation).toHaveBeenCalledWith('How to learn TS?');
+    });
+
+    await waitFor(() => {
+      expect(textarea.value).toBe('');
     });
   });
 

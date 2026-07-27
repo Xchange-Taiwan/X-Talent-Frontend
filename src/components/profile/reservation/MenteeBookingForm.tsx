@@ -35,14 +35,14 @@ export function MenteeBookingForm({
   const {
     register,
     handleSubmit,
-    setValue,
+    reset,
     formState: { isValid },
   } = useBookingForm();
 
   const onSubmit = async (data: { bookingQuestion: string }) => {
     const success = await onConfirmReservation(data.bookingQuestion);
     if (success) {
-      setValue('bookingQuestion', '');
+      reset();
     }
   };
 
@@ -52,7 +52,7 @@ export function MenteeBookingForm({
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
-      className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] 2xl:max-w-[414px]"
+      className="flex w-full flex-col gap-4"
     >
       <ScheduleSlotList
         slots={slots}
@@ -86,7 +86,7 @@ export function MenteeBookingForm({
         <Textarea
           id="booking-question"
           placeholder="請在此輸入你的問題..."
-          className="h-[156px] w-full max-w-[335px] rounded-lg border-[#E6E8EA] focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0 md:max-w-[695px] 2xl:max-w-[404px]"
+          className="h-[156px] w-full rounded-lg border-background-border focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
           disabled={isSubmitting}
           {...register('bookingQuestion')}
         />
