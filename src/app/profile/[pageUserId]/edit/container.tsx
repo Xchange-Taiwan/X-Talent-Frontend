@@ -98,9 +98,14 @@ export default function EditProfileContainer({
     isAuthorized,
   });
 
-  const isMentorFlow = isMentorOnboarding || isMentor;
+  // Effective mentor-mode flag: true once the user is already a mentor OR is
+  // going through the "become a mentor" onboarding flow. Drives both the Zod
+  // schema's required fields (via useEditProfileForm) and which mentor-only
+  // sections render below — the two must stay in sync or required fields can
+  // end up invisible while still blocking submit.
+  const isMentorRole = isMentor || isMentorOnboarding;
 
-  const { form } = useEditProfileForm(isMentorFlow);
+  const { form } = useEditProfileForm(isMentorRole);
 
   const { formRef, onError, scrollToField } =
     useFormErrorScroll<ProfileFormValues>();
@@ -195,7 +200,7 @@ export default function EditProfileContainer({
             id="avatarFile"
             control={form.control}
             name="avatarFile"
-            isMentor={isMentorFlow}
+            isMentor={isMentorRole}
             onFileChange={(file) =>
               avatarUpload.kickOff(file, form.getValues('avatar'))
             }
@@ -216,7 +221,7 @@ export default function EditProfileContainer({
             id="about"
             title={
               <>
-                {isMentorFlow && <span className="text-status-200">* </span>}
+                {isMentorRole && <span className="text-status-200">* </span>}
                 關於我
               </>
             }
@@ -224,7 +229,7 @@ export default function EditProfileContainer({
             <TextareaField form={form} name="about" rows={10} />
           </Section>
 
-          {isMentorFlow && (
+          {isMentorRole && (
             <Section
               id="have_topic"
               title={
@@ -243,7 +248,7 @@ export default function EditProfileContainer({
             </Section>
           )}
 
-          {isMentorFlow && (
+          {isMentorRole && (
             <Section
               id="have_skill"
               title={
@@ -301,7 +306,7 @@ export default function EditProfileContainer({
             id="industry"
             title={
               <>
-                {isMentorFlow && <span className="text-status-200">* </span>}
+                {isMentorRole && <span className="text-status-200">* </span>}
                 產業
               </>
             }
@@ -373,7 +378,7 @@ export default function EditProfileContainer({
               industries={industries}
               locations={locations}
               form={form}
-              isMentor={isMentorFlow}
+              isMentor={isMentorRole}
               onValidationChange={setJobSectionError}
             />
           </div>
@@ -381,7 +386,7 @@ export default function EditProfileContainer({
           <div id="educations">
             <EducationSection
               form={form}
-              isMentor={isMentorFlow}
+              isMentor={isMentorRole}
               onValidationChange={setEducationSectionError}
             />
           </div>
