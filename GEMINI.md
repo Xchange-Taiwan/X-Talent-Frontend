@@ -1,5 +1,7 @@
 # X-Talent Frontend 開發與 AI 協同規範 (GEMINI.md)
 
+> 💡 **如果你只有 10 秒鐘，呼叫這個 Skill 就夠了！** ➡️ 直接在會話中輸入 `/implement` 即可一鍵處理「拉取任務票 ➡️ 精準開發 ➡️ AI 自動審查 ➡️ 自動建立 PR」的完整生命週期工作流。
+
 歡迎來到 **X-Talent-Frontend** 專案！本文件為開發團隊、新加入的工程師以及所有協同 AI Agent（如 Gemini CLI）設定了統一的開發、審查與品質檢驗流程。
 
 ---
