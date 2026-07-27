@@ -200,7 +200,7 @@ export default function EditProfileContainer({
             id="avatarFile"
             control={form.control}
             name="avatarFile"
-            isMentor={isMentor}
+            isMentor={isMentorRole}
             onFileChange={(file) =>
               avatarUpload.kickOff(file, form.getValues('avatar'))
             }
@@ -378,7 +378,7 @@ export default function EditProfileContainer({
               industries={industries}
               locations={locations}
               form={form}
-              isMentor={isMentor}
+              isMentor={isMentorRole}
               onValidationChange={setJobSectionError}
             />
           </div>
@@ -386,7 +386,7 @@ export default function EditProfileContainer({
           <div id="educations">
             <EducationSection
               form={form}
-              isMentor={isMentor}
+              isMentor={isMentorRole}
               onValidationChange={setEducationSectionError}
             />
           </div>

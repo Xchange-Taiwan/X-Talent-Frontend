@@ -74,8 +74,25 @@ vi.mock('@/components/profile/edit/EditPageHeader', () => ({
   EditPageHeader: () => <div data-testid="edit-header" />,
 }));
 vi.mock('@/components/profile/edit/AvatarSection', () => ({
-  AvatarSection: ({ id }: { id?: string }) => (
-    <div id={id} data-testid="avatar-section" />
+  AvatarSection: ({ id, isMentor }: { id?: string; isMentor?: boolean }) => (
+    <div
+      id={id}
+      data-testid="avatar-section"
+      data-is-mentor={String(isMentor)}
+    />
+  ),
+}));
+vi.mock('@/components/profile/edit/JobExperienceSection', () => ({
+  JobExperienceSection: ({ isMentor }: { isMentor?: boolean }) => (
+    <div
+      data-testid="job-experience-section"
+      data-is-mentor={String(isMentor)}
+    />
+  ),
+}));
+vi.mock('@/components/profile/edit/educationSection/educationSection', () => ({
+  EducationSection: ({ isMentor }: { isMentor?: boolean }) => (
+    <div data-testid="education-section" data-is-mentor={String(isMentor)} />
   ),
 }));
 vi.mock('@/components/profile/edit/Fields', () => ({
@@ -87,8 +104,19 @@ vi.mock('@/components/profile/edit/CategoryMultiSelectField', () => ({
   CategoryMultiSelectField: () => <div />,
 }));
 vi.mock('@/components/profile/edit/Section', () => ({
-  Section: ({ id, children }: { id?: string; children: React.ReactNode }) => (
-    <div id={id}>{children}</div>
+  Section: ({
+    id,
+    title,
+    children,
+  }: {
+    id?: string;
+    title?: React.ReactNode;
+    children: React.ReactNode;
+  }) => (
+    <div id={id} data-testid={`section-${id}`}>
+      {title && <span data-testid={`section-${id}-title`}>{title}</span>}
+      {children}
+    </div>
   ),
 }));
 
@@ -560,4 +588,100 @@ describe('EditProfileContainer error handling and scrolling', () => {
 
     useEditProfileFormSpy.mockRestore();
   });
+});
+
+describe('EditProfileContainer isMentorRole logic', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each([
+    {
+      onboardingParam: 'true',
+      isMentorDb: false,
+      expectedIsMentor: true,
+      desc: 'when isMentorOnboarding is true',
+    },
+    {
+      onboardingParam: null,
+      isMentorDb: true,
+      expectedIsMentor: true,
+      desc: 'when isMentor is true',
+    },
+    {
+      onboardingParam: null,
+      isMentorDb: false,
+      expectedIsMentor: false,
+      desc: 'when both isMentorOnboarding and isMentor are false',
+    },
+  ])(
+    'correctly propagates parameters and displays hints $desc',
+    ({ onboardingParam, isMentorDb, expectedIsMentor }) => {
+      mockSearchParamsGet.mockImplementation((key) => {
+        if (key === MENTOR_ONBOARDING_KEY) return onboardingParam;
+        return null;
+      });
+
+      mockUseEditProfileData.mockReturnValue({
+        userDto: { user_id: 1, name: 'Test' } as unknown as MentorProfileVO,
+        isMentor: isMentorDb,
+        isError: false,
+      });
+
+      const useEditProfileFormSpy = vi.spyOn(
+        useEditProfileFormModule,
+        'useEditProfileForm'
+      );
+
+      const { getByTestId, queryByTestId } = render(
+        <EditProfileContainer
+          pageUserId="1"
+          initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+        />
+      );
+
+      // Verify useEditProfileForm parameter passing
+      expect(useEditProfileFormSpy).toHaveBeenCalledWith(expectedIsMentor);
+
+      // Verify child props
+      expect(getByTestId('avatar-section')).toHaveAttribute(
+        'data-is-mentor',
+        String(expectedIsMentor)
+      );
+      expect(getByTestId('job-experience-section')).toHaveAttribute(
+        'data-is-mentor',
+        String(expectedIsMentor)
+      );
+      expect(getByTestId('education-section')).toHaveAttribute(
+        'data-is-mentor',
+        String(expectedIsMentor)
+      );
+
+      if (expectedIsMentor) {
+        // Verify asterisks on about and industry sections
+        expect(getByTestId('section-about-title')).toHaveTextContent(
+          '* 關於我'
+        );
+        expect(getByTestId('section-industry-title')).toHaveTextContent(
+          '* 產業'
+        );
+
+        // Verify mentor-only sections render
+        expect(queryByTestId('section-have_topic')).toBeInTheDocument();
+        expect(queryByTestId('section-have_skill')).toBeInTheDocument();
+      } else {
+        // Verify NO asterisks on about and industry sections
+        expect(getByTestId('section-about-title')).not.toHaveTextContent('*');
+        expect(getByTestId('section-industry-title')).not.toHaveTextContent(
+          '*'
+        );
+
+        // Verify mentor-only sections do NOT render
+        expect(queryByTestId('section-have_topic')).not.toBeInTheDocument();
+        expect(queryByTestId('section-have_skill')).not.toBeInTheDocument();
+      }
+
+      useEditProfileFormSpy.mockRestore();
+    }
+  );
 });
