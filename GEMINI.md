@@ -59,6 +59,55 @@
   - `to-spec` / `to-tickets` / `to-questionnaire`：將對話、規劃轉換成具體規格書、Tracker 任務單或問題清單。
   - `research`：進行深度的技術/文檔調研，並在專案中生成 Markdown 檔案。
 
+### 2.2 常用開發輔助 Skills 使用手冊 (High-Frequency Skills Usage Guide)
+
+以下為開發過程中最常用、頻率最高的 Skills 的詳細觸發與使用時機說明：
+
+#### 1. 🚀 啟動任務票分支 (`start-ticket`)
+
+- **何時使用**：當您準備開始開發 X-Tracker 上的新功能或修復 Bug 時。
+- **如何使用**：在會話中輸入：
+  ```text
+  /start-ticket <GitHub Issue URL or Number>
+  ```
+- **執行動作**：AI 會自動切換回 `develop` 分支並拉取最新代碼、程式化在 `X-Talent-Frontend` 建立並綁定與 Tracker 關聯的新分支（如 `feat/372-slug`），並對 requirements 進行初步分析。
+
+#### 2. 🧪 測試驅動開發 (`tdd`)
+
+- **何時使用**：當您希望在實作功能之前「測試先行」，採用紅綠重構環路來確保程式碼品質與防禦力。
+- **如何使用**：在會話中輸入：
+  ```text
+  /tdd
+  ```
+- **執行動作**：AI 會在背後分析適合置入測試的邊界（Seam），向您提出測試規劃並確認。確認後引導您進行「一項 failing test ➡️ 最小實作通過 ➡️ 審查與重構」的極速、穩健開發環路。
+
+#### 3. 🔍 本地 AI 自動審查 (`ai-review`)
+
+- **何時使用**：在實作完成、準備 commit 或 push 前，先在本地進行全方位的品質自檢。
+- **如何使用**：在會話中輸入：
+  ```text
+  /ai-review
+  ```
+- **執行動作**：AI 會在本地同時啟動多個並行的子 Agent，從 **Security**（安全性）、**Correctness**（正確性）、**Business Logic**（業務邏輯是否完整符合任務單）、**Performance**（效能）、**Testing**（測試覆蓋率）等七個維度進行深度對比審查，給出具體且無 API 金鑰消耗的精準優化建議。
+
+#### 4. 📦 提交代碼並建立 PR (`submit-pr`)
+
+- **何時使用**：代碼經本地審查完畢、測試均通過，準備向 `develop` 發出合併請求。
+- **如何使用**：在會話中輸入：
+  ```text
+  /submit-pr
+  ```
+- **執行動作**：自動執行專案的 TypeScript 編譯（type-check）、跑完所有 617 項 Vitest 測試、自動格式化（lint/prettier），撰寫標準格式的 commit 訊息（自動關聯 X-Tracker 任務單），自動推播至遠端，並呼叫 GitHub CLI 快速建立 Pull Request。
+
+#### 5. 🩹 測試型別快速修復 (`migrate-to-shoehorn`)
+
+- **何時使用**：當單元測試中的複雜型別 Mock 報錯，想要避免不安全的 `as unknown as Type` 斷言時。
+- **如何使用**：在會話中輸入：
+  ```text
+  /migrate-to-shoehorn
+  ```
+- **執行動作**：自動將測試檔案中不安全的型別斷言（`as`）遷移至 Matt Pocock 推薦的 `@total-typescript/shoehorn` 套件，在確保測試代碼簡潔的同時，保障型別安全性。
+
 ---
 
 ## 3. 如何啟用並驗證 Local Skills
