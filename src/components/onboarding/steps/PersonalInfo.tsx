@@ -18,10 +18,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { totalWorkSpanOptions } from '@/constant/seniority';
 import { LocationType } from '@/services/profile/countries';
 import { type IndustryOption } from '@/services/profile/tagCatalog';
 
-import { totalWorkSpanOptions } from './constant';
 import { step2Schema } from './index';
 
 interface Props {

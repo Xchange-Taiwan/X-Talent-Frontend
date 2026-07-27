@@ -1,14 +1,4 @@
-/**
- * Converts an enum object into an array of { value, label } options for use in dropdowns.
- */
-function enumToOptionsArray(
-  enumObj: Record<string, string>
-): { value: string; label: string }[] {
-  return Object.keys(enumObj).map((key) => ({
-    value: key,
-    label: enumObj[key],
-  }));
-}
+import { enumToOptionsArray } from '@/lib/utils';
 
 /**
  * Total years of experience
