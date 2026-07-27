@@ -27,7 +27,7 @@ export function useBookingConfirmation({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleConfirmReservation = useCallback(
-    async (question: string): Promise<boolean> => {
+    async (question?: string): Promise<boolean> => {
       if (!loginUserId) {
         router.push('/auth/signin');
         return false;
@@ -37,7 +37,7 @@ export function useBookingConfirmation({
       setIsSubmitting(true);
       try {
         const menteeId = Number(loginUserId);
-        const trimmedQuestion = question.trim();
+        const trimmedQuestion = question?.trim() ?? '';
         const messages = trimmedQuestion
           ? [{ user_id: menteeId, content: trimmedQuestion }]
           : [];

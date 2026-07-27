@@ -109,6 +109,13 @@ describe('BookingForm', () => {
     const textarea = screen.getByPlaceholderText('請在此輸入你的問題...');
     fireEvent.change(textarea, { target: { value: 'How to learn TS?' } });
     expect(screen.getByRole('button', { name: '預約時間' })).toBeDisabled();
+
+    // Scenario 4: [TEST GAP FIX] Select slot, but question is too long (> 1000 chars)
+    rerender(<BookingForm {...defaultProps} selectedSlot={mockSlots[0]} />);
+    fireEvent.change(textarea, { target: { value: 'a'.repeat(1001) } });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '預約時間' })).toBeDisabled();
+    });
   });
 
   it('enables the submit button, handles confirm, and resets the textarea on success', async () => {

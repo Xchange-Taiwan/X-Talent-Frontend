@@ -48,7 +48,7 @@ interface Props {
   selectedSlot: BookingSlot | null;
   setSelectedSlot: (slot: BookingSlot | null) => void;
   isSubmitting: boolean;
-  onConfirmReservation: (question: string) => Promise<boolean>;
+  onConfirmReservation: (question?: string) => Promise<boolean>;
 }
 
 export default function ProfilePageUI({
