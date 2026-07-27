@@ -21,7 +21,7 @@ export function MentorScheduleConfig({
   onReservation,
 }: MentorScheduleConfigProps) {
   return (
-    <div className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] 2xl:max-w-[414px]">
+    <div className="flex w-full flex-col gap-4">
       <ScheduleSlotList
         slots={slots}
         monthLoaded={monthLoaded}
@@ -30,7 +30,7 @@ export function MentorScheduleConfig({
             className={`flex h-10 select-none items-center justify-center rounded-lg border text-sm font-medium ${
               slot.isBooked
                 ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
-                : 'border-[#E6E8EA]'
+                : 'border-background-border'
             }`}
           >
             {formatBookingSlotTime(slot)}
