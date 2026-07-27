@@ -87,7 +87,7 @@ describe('BookingForm', () => {
     expect(screen.getByText('無可預約的時段')).toBeInTheDocument();
   });
 
-  it('disables the submit button if slot or question is missing (including test coverage gap)', () => {
+  it('disables the submit button if slot or question is missing (including test coverage gap)', async () => {
     const { rerender } = render(<BookingForm {...defaultProps} />);
 
     // Scenario 1: selectedSlot=null, bookingQuestion=""
@@ -96,15 +96,26 @@ describe('BookingForm', () => {
     expect(submitBtn).toHaveClass('disabled:bg-background-top-active');
     expect(submitBtn).toHaveClass('disabled:text-text-disable');
 
-    // Scenario 2: Select slot, but question is still empty
+    // Scenario 2: Select slot, and question is empty (now allowed)
     rerender(<BookingForm {...defaultProps} selectedSlot={mockSlots[0]} />);
-    expect(screen.getByRole('button', { name: '預約時間' })).toBeDisabled();
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: '預約時間' })
+      ).not.toBeDisabled();
+    });
 
     // Scenario 3: [TEST GAP FIX] selectedSlot is null, but question is filled
     rerender(<BookingForm {...defaultProps} selectedSlot={null} />);
     const textarea = screen.getByPlaceholderText('請在此輸入你的問題...');
     fireEvent.change(textarea, { target: { value: 'How to learn TS?' } });
     expect(screen.getByRole('button', { name: '預約時間' })).toBeDisabled();
+
+    // Scenario 4: [TEST GAP FIX] Select slot, but question is too long (> 1000 chars)
+    rerender(<BookingForm {...defaultProps} selectedSlot={mockSlots[0]} />);
+    fireEvent.change(textarea, { target: { value: 'a'.repeat(1001) } });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '預約時間' })).toBeDisabled();
+    });
   });
 
   it('enables the submit button, handles confirm, and resets the textarea on success', async () => {
