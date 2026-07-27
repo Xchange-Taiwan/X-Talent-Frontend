@@ -30,10 +30,8 @@ export interface KeyedCache<K, V> {
     }
   ): Promise<V>;
 
-  // Inflight management (useful for custom inflight tracking like in scheduleCache)
+  // Read-only query for inflight promise (useful for testing or checking status)
   getInflight(key: K): Promise<V> | undefined;
-  setInflight(key: K, promise: Promise<V>): Promise<V>;
-  deleteInflight(key: K): void;
 }
 
 interface CacheEntry<V> {
@@ -135,10 +133,6 @@ export function createKeyedCache<K, V>(
     return finalPromise;
   }
 
-  function deleteInflight(key: K): void {
-    inflightCache.delete(key);
-  }
-
   function fetch(
     key: K,
     fetcher: () => Promise<V>,
@@ -187,7 +181,5 @@ export function createKeyedCache<K, V>(
     prime,
     fetch,
     getInflight,
-    setInflight,
-    deleteInflight,
   };
 }
