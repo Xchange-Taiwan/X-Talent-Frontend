@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import type { BookingSlot } from '@/hooks/useMentorSchedule';
 import { useBookingForm } from '@/hooks/user/reservation/useBookingForm';
-import type { UserType } from '@/hooks/user/user-data/useUserData';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
+import type { BookingFormValues } from '@/schemas/bookingSchema';
 
 import { BOOKED_SLOT_CLASSES, ScheduleSlotList } from './ScheduleSlotList';
 
@@ -17,7 +17,6 @@ interface MenteeBookingFormProps {
   selectedSlot: BookingSlot | null;
   setSelectedSlot: (slot: BookingSlot | null) => void;
   isSubmitting: boolean;
-  userData: UserType | null;
   selectedDate: string | null;
   onConfirmReservation: (question: string) => Promise<boolean>;
 }
@@ -28,7 +27,6 @@ export function MenteeBookingForm({
   selectedSlot,
   setSelectedSlot,
   isSubmitting,
-  userData,
   selectedDate,
   onConfirmReservation,
 }: MenteeBookingFormProps) {
@@ -39,7 +37,7 @@ export function MenteeBookingForm({
     formState: { isValid, errors },
   } = useBookingForm();
 
-  const onSubmit = async (data: { bookingQuestion: string }) => {
+  const onSubmit = async (data: BookingFormValues) => {
     const success = await onConfirmReservation(data.bookingQuestion);
     if (success) {
       reset();
@@ -47,7 +45,7 @@ export function MenteeBookingForm({
   };
 
   const isButtonDisabled =
-    isSubmitting || !userData || !selectedDate || !selectedSlot || !isValid;
+    isSubmitting || !selectedDate || !selectedSlot || !isValid;
 
   return (
     <form
