@@ -2,16 +2,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { BookingSlot } from '@/hooks/useMentorSchedule';
-import type { UserType } from '@/hooks/user/user-data/useUserData';
 
 import { BookingForm } from './BookingForm';
 
 describe('BookingForm', () => {
-  const mockUserData = {
-    user_id: 123,
-    is_mentor: true,
-  } as unknown as UserType;
-
   const mockSlots: BookingSlot[] = [
     {
       scheduleId: 101,
@@ -29,19 +23,19 @@ describe('BookingForm', () => {
 
   const defaultProps = {
     isOwnMentorProfile: false,
+    isUserDataLoading: false,
     slots: mockSlots,
     monthLoaded: true,
     selectedSlot: null,
     setSelectedSlot: vi.fn(),
     isSubmitting: false,
-    userData: mockUserData,
     selectedDate: '2026-07-26',
     onReservation: vi.fn(),
     onConfirmReservation: vi.fn().mockResolvedValue(true),
   };
 
-  it('renders a loading skeleton when userData is null to prevent view flash', () => {
-    render(<BookingForm {...defaultProps} userData={null} />);
+  it('renders a loading skeleton when isUserDataLoading is true to prevent view flash', () => {
+    render(<BookingForm {...defaultProps} isUserDataLoading={true} />);
     expect(screen.getByTestId('booking-form-skeleton')).toBeInTheDocument();
   });
 

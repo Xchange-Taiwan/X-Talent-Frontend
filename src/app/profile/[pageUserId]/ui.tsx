@@ -294,6 +294,7 @@ export default function ProfilePageUI({
                   </div>
                   <BookingForm
                     isOwnMentorProfile={isOwnMentorProfile}
+                    isUserDataLoading={userLoading}
                     slots={
                       selectedDate ? generateBookingSlots(selectedDate) : []
                     }
@@ -301,7 +302,6 @@ export default function ProfilePageUI({
                     selectedSlot={selectedSlot}
                     setSelectedSlot={setSelectedSlot}
                     isSubmitting={isSubmitting}
-                    userData={userData}
                     selectedDate={selectedDate}
                     onReservation={onReservation}
                     onConfirmReservation={onConfirmReservation}

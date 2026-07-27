@@ -2,7 +2,6 @@
 
 import { Button } from '@/components/ui/button';
 import type { BookingSlot } from '@/hooks/useMentorSchedule';
-import type { UserType } from '@/hooks/user/user-data/useUserData';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 
 import { BOOKED_SLOT_CLASSES, ScheduleSlotList } from './ScheduleSlotList';
@@ -10,14 +9,12 @@ import { BOOKED_SLOT_CLASSES, ScheduleSlotList } from './ScheduleSlotList';
 interface MentorScheduleConfigProps {
   slots: BookingSlot[];
   monthLoaded: boolean;
-  userData: UserType | null;
   onReservation: () => void;
 }
 
 export function MentorScheduleConfig({
   slots,
   monthLoaded,
-  userData,
   onReservation,
 }: MentorScheduleConfigProps) {
   return (
@@ -40,7 +37,6 @@ export function MentorScheduleConfig({
         variant="default"
         className="w-full rounded-full px-6 py-3 disabled:bg-background-top-active disabled:text-text-disable disabled:opacity-100"
         onClick={onReservation}
-        disabled={!userData}
       >
         預約設定
       </Button>
