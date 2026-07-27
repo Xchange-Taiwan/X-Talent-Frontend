@@ -19,6 +19,7 @@ interface MenteeBookingFormProps {
   isSubmitting: boolean;
   selectedDate: string | null;
   onConfirmReservation: (question: string) => Promise<boolean>;
+  isAuthenticated: boolean;
 }
 
 export function MenteeBookingForm({
@@ -29,6 +30,7 @@ export function MenteeBookingForm({
   isSubmitting,
   selectedDate,
   onConfirmReservation,
+  isAuthenticated,
 }: MenteeBookingFormProps) {
   const {
     register,
@@ -45,7 +47,11 @@ export function MenteeBookingForm({
   };
 
   const isButtonDisabled =
-    isSubmitting || !selectedDate || !selectedSlot || !isValid;
+    isSubmitting ||
+    !isAuthenticated ||
+    !selectedDate ||
+    !selectedSlot ||
+    !isValid;
 
   return (
     <form

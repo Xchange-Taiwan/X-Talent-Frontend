@@ -9,6 +9,7 @@ import { MentorScheduleConfig } from './MentorScheduleConfig';
 interface BookingFormProps {
   isOwnMentorProfile: boolean;
   isUserDataLoading: boolean;
+  isAuthenticated: boolean;
   slots: BookingSlot[];
   monthLoaded: boolean;
   selectedSlot: BookingSlot | null;
@@ -22,6 +23,7 @@ interface BookingFormProps {
 export function BookingForm({
   isOwnMentorProfile,
   isUserDataLoading,
+  isAuthenticated,
   slots,
   monthLoaded,
   selectedSlot,
@@ -71,6 +73,7 @@ export function BookingForm({
           isSubmitting={isSubmitting}
           selectedDate={selectedDate}
           onConfirmReservation={onConfirmReservation}
+          isAuthenticated={isAuthenticated}
         />
       )}
     </div>
