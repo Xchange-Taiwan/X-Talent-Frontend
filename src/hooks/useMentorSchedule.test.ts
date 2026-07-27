@@ -202,6 +202,109 @@ describe('useMentorSchedule', () => {
     expect(detachedOcc?.durationMinutes).toBe(45);
   });
 
+  it('restores a deleted occurrence of a recurring slot into the same row when re-added with matching time and duration', async () => {
+    const { result } = setupSchedule([]);
+
+    await waitFor(() => {
+      expect(result.current.loaded).toBe(true);
+    });
+
+    act(() => {
+      result.current.setSelectedDate('2026-03-24');
+    });
+
+    act(() => {
+      // March 24 2026 is a Tuesday; within March this produces exactly two
+      // weekly occurrences (24th and 31st) before crossing into April.
+      result.current.addSlotForSelectedDate({
+        startTime: '22:06',
+        durationMinutes: 30,
+        weeklyWithinMonth: true,
+      });
+    });
+
+    expect(result.current.parsedDraft).toHaveLength(2);
+    const recurringRowId = result.current.parsedDraft[0].id;
+    const secondOccurrence = result.current.parsedDraft[1];
+
+    act(() => {
+      result.current.deleteDraftSlot(
+        recurringRowId,
+        secondOccurrence.occurrenceUnix
+      );
+    });
+
+    expect(result.current.parsedDraft).toHaveLength(1);
+
+    act(() => {
+      result.current.setSelectedDate(secondOccurrence.dateKey);
+    });
+
+    act(() => {
+      // Re-add the exact same time/duration that was just deleted.
+      result.current.addSlotForSelectedDate({
+        startTime: '22:06',
+        durationMinutes: 30,
+      });
+    });
+
+    // The occurrence should be restored into the ORIGINAL recurring row
+    // (same id, no second row created at the same time) rather than
+    // producing a duplicate row that would look like an overlap when saved.
+    expect(result.current.parsedDraft).toHaveLength(2);
+    expect(
+      result.current.parsedDraft.every((s) => s.id === recurringRowId)
+    ).toBe(true);
+  });
+
+  it('creates a new independent row instead of restoring when the re-added duration differs', async () => {
+    const { result } = setupSchedule([]);
+
+    await waitFor(() => {
+      expect(result.current.loaded).toBe(true);
+    });
+
+    act(() => {
+      result.current.setSelectedDate('2026-03-24');
+    });
+
+    act(() => {
+      result.current.addSlotForSelectedDate({
+        startTime: '22:06',
+        durationMinutes: 30,
+        weeklyWithinMonth: true,
+      });
+    });
+
+    expect(result.current.parsedDraft).toHaveLength(2);
+    const recurringRowId = result.current.parsedDraft[0].id;
+    const secondOccurrence = result.current.parsedDraft[1];
+
+    act(() => {
+      result.current.deleteDraftSlot(
+        recurringRowId,
+        secondOccurrence.occurrenceUnix
+      );
+    });
+
+    act(() => {
+      result.current.setSelectedDate(secondOccurrence.dateKey);
+    });
+
+    act(() => {
+      // Same start time, but a different duration than the deleted
+      // occurrence — should NOT be treated as a restore.
+      result.current.addSlotForSelectedDate({
+        startTime: '22:06',
+        durationMinutes: 45,
+      });
+    });
+
+    expect(result.current.parsedDraft).toHaveLength(2);
+    const idsPresent = new Set(result.current.parsedDraft.map((s) => s.id));
+    expect(idsPresent.size).toBe(2);
+  });
+
   it('correctly exdates a single occurrence of a recurring slot on delete', async () => {
     const mockRaws: RawMentorTimeslot[] = [
       {
