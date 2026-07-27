@@ -164,6 +164,48 @@ describe('EditProfileContainer isMentorOnboarding parsing', () => {
   });
 });
 
+describe('EditProfileContainer mentor-only section visibility', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseEditProfileData.mockReturnValue({
+      userDto: {} as unknown as MentorProfileVO,
+      isMentor: false,
+      isError: false,
+    });
+  });
+
+  it('renders have_topic/have_skill sections during mentor onboarding even though isMentor (DB flag) is still false', () => {
+    mockSearchParamsGet.mockImplementation((key) => {
+      if (key === MENTOR_ONBOARDING_KEY) return 'true';
+      return null;
+    });
+
+    const { container } = render(
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
+    );
+
+    expect(container.querySelector('#have_topic')).not.toBeNull();
+    expect(container.querySelector('#have_skill')).not.toBeNull();
+  });
+
+  it('does not render have_topic/have_skill sections for a plain mentee (not onboarding, not a mentor)', () => {
+    mockSearchParamsGet.mockImplementation(() => null);
+
+    const { container } = render(
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
+    );
+
+    expect(container.querySelector('#have_topic')).toBeNull();
+    expect(container.querySelector('#have_skill')).toBeNull();
+  });
+});
+
 describe('EditProfileContainer error handling and scrolling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
