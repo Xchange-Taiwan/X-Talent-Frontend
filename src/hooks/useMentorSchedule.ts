@@ -11,6 +11,7 @@ import {
   BookingSlot,
   buildDateTime,
   expandRrule,
+  findRestorableExdatedRow,
   formatTimeslot,
   hasAnyOccurrenceOverlap,
   MonthKey,
@@ -448,6 +449,30 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           ) {
             skipped = candidateOccurrences.length;
             return prev;
+          }
+
+          // Re-adding a single, previously-deleted occurrence of a still
+          // -recurring slot restores it (undoes the exdate) instead of
+          // creating a duplicate row at the same time.
+          if (candidateOccurrences.length === 1) {
+            const restoreTarget = findRestorableExdatedRow(
+              prev,
+              candidateOccurrences[0],
+              durationSeconds
+            );
+            if (restoreTarget) {
+              added = 1;
+              return prev.map((r) =>
+                r.id === restoreTarget.id
+                  ? {
+                      ...r,
+                      exdate: r.exdate.filter(
+                        (x) => x !== candidateOccurrences[0]
+                      ),
+                    }
+                  : r
+              );
+            }
           }
 
           const dtstart = candidateOccurrences[0];
