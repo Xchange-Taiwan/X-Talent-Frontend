@@ -22,7 +22,7 @@ import {
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
 import { TimeSlotDTO } from '@/services/mentor-schedule/schedule';
-import { clearAllScheduleCache } from '@/services/mentor-schedule/scheduleCache';
+import { scheduleCache } from '@/services/mentor-schedule/scheduleCache';
 import {
   loadMonthScheduleCached,
   loadMonthScheduleFresh,
@@ -174,7 +174,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       prevUserIdRef.current !== null &&
       prevUserIdRef.current !== backend.userId
     ) {
-      clearAllScheduleCache();
+      scheduleCache.clear();
       setSavedByMonth(new Map());
       setDraftByMonth(new Map());
       setPendingDeleteByMonth(new Map());

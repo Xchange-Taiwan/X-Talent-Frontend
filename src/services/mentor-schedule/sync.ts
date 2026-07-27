@@ -9,13 +9,7 @@ import {
   saveMentorSchedule,
   TimeSlotDTO,
 } from './schedule';
-import {
-  cacheKey,
-  readCache,
-  readInflight,
-  trackInflight,
-  writeCache,
-} from './scheduleCache';
+import { cacheKey, scheduleCache } from './scheduleCache';
 
 export interface ScheduleMonthRef {
   userId: string;
@@ -56,19 +50,10 @@ export function loadMonthScheduleCached(ref: ScheduleMonthRef): {
   revalidate: Promise<RawMentorTimeslot[]>;
 } {
   const key = cacheKey(ref);
-  const cached = readCache(key);
-
-  let revalidate = readInflight(key);
-  if (!revalidate) {
-    revalidate = trackInflight(
-      key,
-      loadMonthSchedule(ref).then((raws) => {
-        writeCache(key, raws);
-        return raws;
-      })
-    );
-  }
-
+  const cached = scheduleCache.get(key);
+  const revalidate = scheduleCache.fetch(key, () => loadMonthSchedule(ref), {
+    force: true,
+  });
   return { cached, revalidate };
 }
 
@@ -77,7 +62,7 @@ export async function loadMonthScheduleFresh(
   ref: ScheduleMonthRef
 ): Promise<RawMentorTimeslot[]> {
   const raws = await loadMonthSchedule(ref);
-  writeCache(cacheKey(ref), raws);
+  scheduleCache.set(cacheKey(ref), raws);
   return raws;
 }
 
@@ -88,18 +73,11 @@ export async function loadMonthScheduleFresh(
  */
 export function prefetchMonthSchedule(ref: ScheduleMonthRef): void {
   const key = cacheKey(ref);
-  if (readCache(key) !== undefined) return;
-  if (readInflight(key) !== undefined) return;
-
-  trackInflight(
-    key,
-    loadMonthSchedule(ref).then((raws) => {
-      writeCache(key, raws);
-      return raws;
-    })
-  ).catch(() => {
-    // Silent: prefetch failures shouldn't surface to the user.
-  });
+  scheduleCache
+    .fetch(key, () => loadMonthSchedule(ref))
+    .catch(() => {
+      // Silent: prefetch failures shouldn't surface to the user.
+    });
 }
 
 /**

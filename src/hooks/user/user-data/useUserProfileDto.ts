@@ -1,26 +1,20 @@
 import { useEffect, useState } from 'react';
 
+import { createKeyedCache } from '@/lib/createKeyedCache';
 import { fetchUserById, MentorProfileVO } from '@/services/profile/user';
 
 export const USER_PROFILE_DTO_CACHE_TTL_MS = 60_000;
 
-interface CachedUserDtoEntry {
-  data: MentorProfileVO;
-  expiresAt: number;
-}
+const userProfileDtoCache = createKeyedCache<string, MentorProfileVO | null>({
+  ttlMs: USER_PROFILE_DTO_CACHE_TTL_MS,
+});
 
-interface CachedReadResult {
-  data: MentorProfileVO;
-  isStale: boolean;
-}
-
-const userDtoDataCache = new Map<string, CachedUserDtoEntry>();
-const userDtoPromiseCache = new Map<string, Promise<MentorProfileVO | null>>();
-
-function readFromDataCache(key: string): CachedReadResult | undefined {
-  const entry = userDtoDataCache.get(key);
-  if (!entry) return undefined;
-  return { data: entry.data, isStale: entry.expiresAt <= Date.now() };
+function readFromDataCache(
+  key: string
+): { data: MentorProfileVO | null; isStale: boolean } | undefined {
+  const result = userProfileDtoCache.getWithStatus(key);
+  if (!result) return undefined;
+  return { data: result.value, isStale: result.isStale };
 }
 
 /**
@@ -34,8 +28,7 @@ export function clearUserProfileDtoCache(
   language: string
 ): void {
   const key = `${userId}-${language}`;
-  userDtoDataCache.delete(key);
-  userDtoPromiseCache.delete(key);
+  userProfileDtoCache.delete(key);
 }
 
 /**
@@ -51,13 +44,7 @@ export function primeUserProfileDtoCache(
   data: MentorProfileVO
 ): void {
   const key = `${userId}-${language}`;
-  userDtoDataCache.set(key, {
-    data,
-    expiresAt: Date.now() + USER_PROFILE_DTO_CACHE_TTL_MS,
-  });
-  // Drop any in-flight promise for this key so future readers see the primed
-  // entry instead of awaiting an older fetch that is about to be superseded.
-  userDtoPromiseCache.delete(key);
+  userProfileDtoCache.prime(key, data);
 }
 
 /**
@@ -74,13 +61,7 @@ export function primeUserProfileDtoCacheIfEmpty(
   data: MentorProfileVO
 ): void {
   const key = `${userId}-${language}`;
-  const existing = userDtoDataCache.get(key);
-  if (existing && existing.expiresAt > Date.now()) return;
-  userDtoDataCache.set(key, {
-    data,
-    expiresAt: Date.now() + USER_PROFILE_DTO_CACHE_TTL_MS,
-  });
-  userDtoPromiseCache.delete(key);
+  userProfileDtoCache.prime(key, data, { ifEmpty: true });
 }
 
 // Promise-deduped fetch: writes to the data cache on success so subsequent
@@ -91,25 +72,9 @@ function startFetchUserById(
   language: string
 ): Promise<MentorProfileVO | null> {
   const key = `${userId}-${language}`;
-
-  const inflight = userDtoPromiseCache.get(key);
-  if (inflight) return inflight;
-
-  const promise = fetchUserById(userId, language)
-    .then((data) => {
-      if (data) {
-        userDtoDataCache.set(key, {
-          data,
-          expiresAt: Date.now() + USER_PROFILE_DTO_CACHE_TTL_MS,
-        });
-      }
-      return data;
-    })
-    .finally(() => {
-      userDtoPromiseCache.delete(key);
-    });
-  userDtoPromiseCache.set(key, promise);
-  return promise;
+  return userProfileDtoCache.fetch(key, () => fetchUserById(userId, language), {
+    shouldCache: (data) => data !== null,
+  });
 }
 
 export interface UseUserProfileDtoResult {
