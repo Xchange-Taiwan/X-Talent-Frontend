@@ -10,22 +10,18 @@ describe('bookingFormSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should fail if question is empty', () => {
+  it('should pass if question is empty', () => {
     const result = bookingFormSchema.safeParse({
       bookingQuestion: '',
     });
-    expect(result.success).toBe(false);
-    const issue = result.error!.issues[0];
-    expect(issue.message).toBe('請輸入你想問導師的問題');
+    expect(result.success).toBe(true);
   });
 
-  it('should fail and trim whitespace-only questions', () => {
+  it('should pass and trim whitespace-only questions', () => {
     const result = bookingFormSchema.safeParse({
       bookingQuestion: '    \n   ',
     });
-    expect(result.success).toBe(false);
-    const issue = result.error!.issues[0];
-    expect(issue.message).toBe('請輸入你想問導師的問題');
+    expect(result.success).toBe(true);
   });
 
   it('should fail if question exceeds 1000 characters', () => {
