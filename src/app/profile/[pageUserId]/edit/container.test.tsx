@@ -74,8 +74,25 @@ vi.mock('@/components/profile/edit/EditPageHeader', () => ({
   EditPageHeader: () => <div data-testid="edit-header" />,
 }));
 vi.mock('@/components/profile/edit/AvatarSection', () => ({
-  AvatarSection: ({ id }: { id?: string }) => (
-    <div id={id} data-testid="avatar-section" />
+  AvatarSection: ({ id, isMentor }: { id?: string; isMentor?: boolean }) => (
+    <div
+      id={id}
+      data-testid="avatar-section"
+      data-is-mentor={String(isMentor)}
+    />
+  ),
+}));
+vi.mock('@/components/profile/edit/JobExperienceSection', () => ({
+  JobExperienceSection: ({ isMentor }: { isMentor?: boolean }) => (
+    <div
+      data-testid="job-experience-section"
+      data-is-mentor={String(isMentor)}
+    />
+  ),
+}));
+vi.mock('@/components/profile/edit/educationSection/educationSection', () => ({
+  EducationSection: ({ isMentor }: { isMentor?: boolean }) => (
+    <div data-testid="education-section" data-is-mentor={String(isMentor)} />
   ),
 }));
 vi.mock('@/components/profile/edit/Fields', () => ({
@@ -517,5 +534,104 @@ describe('EditProfileContainer error handling and scrolling', () => {
     );
 
     useEditProfileFormSpy.mockRestore();
+  });
+});
+
+describe('EditProfileContainer isMentorFlow logic', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('passes isMentor as true to child sections when isMentorOnboarding is true', () => {
+    mockSearchParamsGet.mockImplementation((key) => {
+      if (key === MENTOR_ONBOARDING_KEY) return 'true';
+      return null;
+    });
+
+    mockUseEditProfileData.mockReturnValue({
+      userDto: { user_id: 1, name: 'Test' } as unknown as MentorProfileVO,
+      isMentor: false,
+      isError: false,
+    });
+
+    const { getByTestId } = render(
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
+    );
+
+    expect(getByTestId('avatar-section')).toHaveAttribute(
+      'data-is-mentor',
+      'true'
+    );
+    expect(getByTestId('job-experience-section')).toHaveAttribute(
+      'data-is-mentor',
+      'true'
+    );
+    expect(getByTestId('education-section')).toHaveAttribute(
+      'data-is-mentor',
+      'true'
+    );
+  });
+
+  it('passes isMentor as true to child sections when isMentor is true', () => {
+    mockSearchParamsGet.mockImplementation(() => null);
+
+    mockUseEditProfileData.mockReturnValue({
+      userDto: { user_id: 1, name: 'Test' } as unknown as MentorProfileVO,
+      isMentor: true,
+      isError: false,
+    });
+
+    const { getByTestId } = render(
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
+    );
+
+    expect(getByTestId('avatar-section')).toHaveAttribute(
+      'data-is-mentor',
+      'true'
+    );
+    expect(getByTestId('job-experience-section')).toHaveAttribute(
+      'data-is-mentor',
+      'true'
+    );
+    expect(getByTestId('education-section')).toHaveAttribute(
+      'data-is-mentor',
+      'true'
+    );
+  });
+
+  it('passes isMentor as false to child sections when both isMentorOnboarding and isMentor are false', () => {
+    mockSearchParamsGet.mockImplementation(() => null);
+
+    mockUseEditProfileData.mockReturnValue({
+      userDto: { user_id: 1, name: 'Test' } as unknown as MentorProfileVO,
+      isMentor: false,
+      isError: false,
+    });
+
+    const { getByTestId } = render(
+      <EditProfileContainer
+        pageUserId="1"
+        initialTagCatalog={{} as unknown as TagCatalogsByBucket}
+      />
+    );
+
+    expect(getByTestId('avatar-section')).toHaveAttribute(
+      'data-is-mentor',
+      'false'
+    );
+    expect(getByTestId('job-experience-section')).toHaveAttribute(
+      'data-is-mentor',
+      'false'
+    );
+    expect(getByTestId('education-section')).toHaveAttribute(
+      'data-is-mentor',
+      'false'
+    );
   });
 });
