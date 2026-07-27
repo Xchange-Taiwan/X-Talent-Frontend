@@ -59,14 +59,19 @@ export function createKeyedCache<K, V>(
     return Date.now() >= entry.expiresAt;
   }
 
-  function get(key: K): V | undefined {
+  function getValidEntry(key: K): CacheEntry<V> | undefined {
     const entry = dataCache.get(key);
     if (!entry) return undefined;
     if (isExpired(entry)) {
       dataCache.delete(key);
       return undefined;
     }
-    return entry.value;
+    return entry;
+  }
+
+  function get(key: K): V | undefined {
+    const entry = getValidEntry(key);
+    return entry?.value;
   }
 
   function getWithStatus(key: K): CacheEntryResult<V> | undefined {
@@ -83,16 +88,15 @@ export function createKeyedCache<K, V>(
     const expiresAt =
       resolvedTtl !== undefined ? Date.now() + resolvedTtl : undefined;
     dataCache.set(key, { value, expiresAt });
+    // Correctness fix: Manual sets should immediately invalidate and remove
+    // any active in-flight promises to prevent older unresolved fetches from
+    // overwriting the newer/freshly-set cache value later.
+    inflightCache.delete(key);
   }
 
   function has(key: K): boolean {
-    const entry = dataCache.get(key);
-    if (!entry) return false;
-    if (isExpired(entry)) {
-      dataCache.delete(key);
-      return false;
-    }
-    return true;
+    const entry = getValidEntry(key);
+    return entry !== undefined;
   }
 
   function deleteKey(key: K): void {
@@ -112,9 +116,9 @@ export function createKeyedCache<K, V>(
         return;
       }
     }
+    // Since set() already invalidates inflightCache, calling it here
+    // automatically clears any in-flight promises cleanly.
     set(key, value, options?.ttlMs);
-    // Drop any inflight promise so subsequent callers don't wait for old data.
-    inflightCache.delete(key);
   }
 
   function getInflight(key: K): Promise<V> | undefined {

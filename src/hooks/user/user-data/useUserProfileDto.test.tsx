@@ -81,4 +81,36 @@ describe('useUserProfileDto', () => {
     // Cache is cleared, so it must do a blocking load (isLoading = true initially)
     expect(result.current.isLoading).toBe(true);
   });
+
+  it('handles fetch failures and allows subsequent retries', async () => {
+    vi.mocked(fetchUserById).mockRejectedValueOnce(new Error('API error'));
+
+    // First call: should fail with error message
+    const { result, unmount } = renderHook(() => useUserProfileDto(2, 'zh-TW'));
+
+    expect(result.current.isLoading).toBe(true);
+
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.error).toBe('Failed to load user data');
+
+    // Unmount so we can retry from fresh mount
+    unmount();
+
+    // Second call: should retry since inflight was cleaned up
+    vi.mocked(fetchUserById).mockResolvedValueOnce(mockUserDTO);
+
+    const { result: retryResult } = renderHook(() =>
+      useUserProfileDto(2, 'zh-TW')
+    );
+
+    await vi.waitFor(() => {
+      expect(retryResult.current.isLoading).toBe(false);
+    });
+
+    expect(retryResult.current.userDto).toEqual(mockUserDTO);
+    expect(fetchUserById).toHaveBeenCalledTimes(2);
+  });
 });
