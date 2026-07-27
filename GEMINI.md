@@ -41,11 +41,17 @@
 
 ---
 
-## 3. Matt Pocock 頂級工程規範 (Engineering Standards)
+## 3. 頂級工程規範 (Engineering Standards)
 
-所有團隊成員與 AI 均須遵守以下核心指標：
+本專案之 AI 審查與團隊開發已深度對齊以下工程規範，所有團隊成員與 AI 均須遵守：
 
-1. **領域文檔優先 (`CONTEXT.md`)**：探索與開發前**必須**先閱讀根目錄的 `CONTEXT.md` 以對齊統一語言與術語，切勿隨意自創同義詞。
-2. **架構決策追蹤 (`docs/adr/`)**：核心架構決策均寫於此。新代碼若與現有 ADR 衝突，須在 PR 中主動指出。
-3. **深度模組封裝 (`Deep Modules`)**：具體實作細節隱藏在子目錄中，外部僅能透過 `index.ts` 導出，由 Dependency Cruiser 防禦架構邊界。
-4. **測試拒絕 `as` 斷言**：嚴格禁止在測試資料中使用 `as any` 或 `as ComplexType`，請優先採用 `@total-typescript/shoehorn` 套件。
+1. **領域與技術慣例事實來源 (Single Source of Truth)**：
+   本專案的統一領域術語（Domain Invariants）、技術棧與程式開發慣例，其**唯一真實事實來源**為 `scripts/ai-review/prompts/_shared/` 底下的規則檔案（包含 `project-context.md` 與 `business-rules.md`）。而 `GEMINI.md` 本身僅作為面向人類開發者的快速入門與摘要投影。進行任何實作與審查時，必須優先閱讀上述 `_shared/` 目錄內之規則檔案，確保對齊統一語言與架構約定。
+2. **架構決策追蹤 (`docs/adr/`) 【暫未採用】**：
+   本專案目前尚未啟用硬性 ADR (Architecture Decision Records) 決策追蹤機制。未來若評估有需求，將另開 Issue 實作。
+3. **深度模組封裝 (`Deep Modules`) 【由 AI Review 防禦】**：
+   具體實作細節應隱藏在子目錄中，外部僅能透過 `index.ts` 導出。
+   - **硬性工具鏈防禦 (Dependency Cruiser)**：**【尚未啟用】**。
+   - **軟性規則防禦 (AI Review Boundary Rules)**：**【已啟用】**。專案已在 `_shared/project-context.md` 中寫明文字規則，限制 `src/lib/**` 與 `src/services/**` 直接引用前端 React/Next UI 或狀態依賴。CI 的 AI Review 流程會對此進行嚴格自動化阻攔。
+4. **測試拒絕 `as` 斷言 (Shoehorn) 【已啟用】**：
+   本專案已安裝並啟用 `@total-typescript/shoehorn` 局部 Mock 套件。在編寫測試（`*.test.ts` / `*.spec.ts`）時，**嚴格禁止**在測試資料中使用不安全的 `as any` 或 `as ComplexType` 雙重斷言。請優先採用 `@total-typescript/shoehorn` 提供之 `fromPartial()`（局部型別安全 Mock）與 `fromAny()`（故意傳遞錯誤型別之測試）函式，確保測試資料的型別安全性（已於 `src/lib/profile/pollUntilSynced.test.ts` 中完成範例落地與驗證）。
