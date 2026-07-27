@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { createKeyedCache } from '@/lib/createKeyedCache';
 import {
   EMPTY_TAG_CATALOGS,
   fetchTagCatalog,
   type TagCatalogsByBucket,
 } from '@/services/profile/tagCatalog';
 
-const tagCatalogDataCache = new Map<string, TagCatalogsByBucket>();
-const tagCatalogPromiseCache = new Map<string, Promise<TagCatalogsByBucket>>();
+const tagCatalogCache = createKeyedCache<string, TagCatalogsByBucket>();
 
 export function getTagCatalogCachedSync(
   language: string
 ): TagCatalogsByBucket | undefined {
-  return tagCatalogDataCache.get(language);
+  return tagCatalogCache.get(language);
 }
 
 /**
@@ -26,28 +26,13 @@ export function primeTagCatalogCacheIfEmpty(
   catalogs: TagCatalogsByBucket
 ): void {
   if (!language) return;
-  if (tagCatalogDataCache.has(language)) return;
-  tagCatalogDataCache.set(language, catalogs);
+  tagCatalogCache.prime(language, catalogs, { ifEmpty: true });
 }
 
 export async function getTagCatalogCached(
   language: string
 ): Promise<TagCatalogsByBucket> {
-  const cached = tagCatalogDataCache.get(language);
-  if (cached) return cached;
-
-  const inflight = tagCatalogPromiseCache.get(language);
-  if (inflight) return inflight;
-
-  const promise = (async () => {
-    const result = await fetchTagCatalog(language);
-    tagCatalogDataCache.set(language, result);
-    tagCatalogPromiseCache.delete(language);
-    return result;
-  })();
-
-  tagCatalogPromiseCache.set(language, promise);
-  return promise;
+  return tagCatalogCache.fetch(language, () => fetchTagCatalog(language));
 }
 
 export interface UseTagCatalogResult extends TagCatalogsByBucket {
@@ -78,7 +63,7 @@ export default function useTagCatalog(
 
   useEffect(() => {
     if (initialDataRef.current !== undefined) {
-      tagCatalogDataCache.set(language, initialDataRef.current);
+      tagCatalogCache.set(language, initialDataRef.current);
       initialDataRef.current = undefined;
       return;
     }
