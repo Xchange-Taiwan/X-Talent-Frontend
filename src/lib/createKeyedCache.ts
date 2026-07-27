@@ -23,7 +23,11 @@ export interface KeyedCache<K, V> {
   fetch(
     key: K,
     fetcher: () => Promise<V>,
-    options?: { ttlMs?: number; shouldCache?: (value: V) => boolean }
+    options?: {
+      ttlMs?: number;
+      shouldCache?: (value: V) => boolean;
+      force?: boolean;
+    }
   ): Promise<V>;
 
   // Inflight management (useful for custom inflight tracking like in scheduleCache)
@@ -134,13 +138,17 @@ export function createKeyedCache<K, V>(
   function fetch(
     key: K,
     fetcher: () => Promise<V>,
-    options?: { ttlMs?: number; shouldCache?: (value: V) => boolean }
+    options?: {
+      ttlMs?: number;
+      shouldCache?: (value: V) => boolean;
+      force?: boolean;
+    }
   ): Promise<V> {
-    // Correctness fix: Use dataCache directly rather than calling get(key),
-    // to avoid deleting the expired cache prematurely and ruining SWR.
-    const entry = dataCache.get(key);
-    if (entry && !isExpired(entry)) {
-      return Promise.resolve(entry.value);
+    if (!options?.force) {
+      const entry = dataCache.get(key);
+      if (entry && !isExpired(entry)) {
+        return Promise.resolve(entry.value);
+      }
     }
 
     const inflight = getInflight(key);

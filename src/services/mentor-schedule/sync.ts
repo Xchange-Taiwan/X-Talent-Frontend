@@ -51,23 +51,9 @@ export function loadMonthScheduleCached(ref: ScheduleMonthRef): {
 } {
   const key = cacheKey(ref);
   const cached = scheduleCache.get(key);
-
-  let revalidate = scheduleCache.getInflight(key);
-  if (!revalidate) {
-    // eslint-disable-next-line prefer-const
-    let finalPromise: Promise<RawMentorTimeslot[]>;
-
-    const promise = loadMonthSchedule(ref).then((raws) => {
-      if (scheduleCache.getInflight(key) === finalPromise) {
-        scheduleCache.set(key, raws);
-      }
-      return raws;
-    });
-
-    finalPromise = scheduleCache.setInflight(key, promise);
-    revalidate = finalPromise;
-  }
-
+  const revalidate = scheduleCache.fetch(key, () => loadMonthSchedule(ref), {
+    force: true,
+  });
   return { cached, revalidate };
 }
 
