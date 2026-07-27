@@ -214,7 +214,9 @@ export default function EditProfileContainer({
             id="about"
             title={
               <>
-                {isMentor && <span className="text-status-200">* </span>}
+                {(isMentor || isMentorOnboarding) && (
+                  <span className="text-status-200">* </span>
+                )}
                 關於我
               </>
             }
@@ -222,7 +224,7 @@ export default function EditProfileContainer({
             <TextareaField form={form} name="about" rows={10} />
           </Section>
 
-          {isMentor && (
+          {(isMentor || isMentorOnboarding) && (
             <Section
               id="have_topic"
               title={
@@ -241,7 +243,7 @@ export default function EditProfileContainer({
             </Section>
           )}
 
-          {isMentor && (
+          {(isMentor || isMentorOnboarding) && (
             <Section
               id="have_skill"
               title={
@@ -299,7 +301,9 @@ export default function EditProfileContainer({
             id="industry"
             title={
               <>
-                {isMentor && <span className="text-status-200">* </span>}
+                {(isMentor || isMentorOnboarding) && (
+                  <span className="text-status-200">* </span>
+                )}
                 產業
               </>
             }
