@@ -104,7 +104,9 @@ describe('BookingForm', () => {
     fireEvent.change(textarea, { target: { value: 'How to learn TS?' } });
 
     const submitBtn = screen.getByRole('button', { name: '預約時間' });
-    expect(submitBtn).not.toBeDisabled();
+    await waitFor(() => {
+      expect(submitBtn).not.toBeDisabled();
+    });
 
     fireEvent.click(submitBtn);
 

@@ -9,6 +9,8 @@ import { useBookingForm } from '@/hooks/user/reservation/useBookingForm';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 
+import { ScheduleSlotList } from './ScheduleSlotList';
+
 interface MenteeBookingFormProps {
   slots: BookingSlot[];
   monthLoaded: boolean;
@@ -30,8 +32,12 @@ export function MenteeBookingForm({
   selectedDate,
   onConfirmReservation,
 }: MenteeBookingFormProps) {
-  const { register, handleSubmit, watch, setValue } = useBookingForm();
-  const bookingQuestion = watch('bookingQuestion') || '';
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { isValid },
+  } = useBookingForm();
 
   const onSubmit = async (data: { bookingQuestion: string }) => {
     const success = await onConfirmReservation(data.bookingQuestion);
@@ -41,56 +47,37 @@ export function MenteeBookingForm({
   };
 
   const isButtonDisabled =
-    isSubmitting ||
-    !userData ||
-    !selectedDate ||
-    !selectedSlot ||
-    !bookingQuestion.trim();
+    isSubmitting || !userData || !selectedDate || !selectedSlot || !isValid;
 
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
       className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] 2xl:max-w-[414px]"
     >
-      <div className="flex w-full flex-col items-start gap-4">
-        <p>當日可預約時段</p>
-        {!monthLoaded ? (
-          <div
-            aria-busy="true"
-            aria-live="polite"
-            className="flex min-h-10 items-center text-gray-400"
-          >
-            讀取中…
-          </div>
-        ) : slots.length === 0 ? (
-          <div className="flex min-h-10 items-center text-gray-400">
-            無可預約的時段
-          </div>
-        ) : (
-          <div className="grid w-full grid-cols-2 gap-2">
-            {slots.map((slot) => {
-              const isSelected =
-                selectedSlot?.start.getTime() === slot.start.getTime();
-              return (
-                <Button
-                  key={slot.start.getTime()}
-                  type="button"
-                  variant={isSelected ? 'default' : 'outline'}
-                  disabled={slot.isBooked}
-                  onClick={() => setSelectedSlot(slot)}
-                  className={`h-10 w-full text-sm ${
-                    slot.isBooked
-                      ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 disabled:opacity-100'
-                      : ''
-                  }`}
-                >
-                  {formatBookingSlotTime(slot)}
-                </Button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <ScheduleSlotList
+        slots={slots}
+        monthLoaded={monthLoaded}
+        renderSlot={(slot) => {
+          const isSelected =
+            selectedSlot?.start.getTime() === slot.start.getTime();
+          return (
+            <Button
+              key={slot.start.getTime()}
+              type="button"
+              variant={isSelected ? 'default' : 'outline'}
+              disabled={slot.isBooked}
+              onClick={() => setSelectedSlot(slot)}
+              className={`h-10 w-full text-sm ${
+                slot.isBooked
+                  ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 disabled:opacity-100'
+                  : ''
+              }`}
+            >
+              {formatBookingSlotTime(slot)}
+            </Button>
+          );
+        }}
+      />
 
       <div className="flex w-full flex-col gap-2">
         <label htmlFor="booking-question" className="text-sm font-semibold">
