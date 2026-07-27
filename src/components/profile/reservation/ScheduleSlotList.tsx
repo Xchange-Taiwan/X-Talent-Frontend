@@ -10,6 +10,9 @@ interface ScheduleSlotListProps {
   renderSlot: (slot: BookingSlot) => React.ReactNode;
 }
 
+export const BOOKED_SLOT_CLASSES =
+  'cursor-not-allowed border-background-border bg-background-bottom text-text-disable disabled:opacity-100';
+
 export function ScheduleSlotList({
   slots,
   monthLoaded,
@@ -22,12 +25,12 @@ export function ScheduleSlotList({
         <div
           aria-busy="true"
           aria-live="polite"
-          className="flex min-h-10 items-center text-gray-400"
+          className="flex min-h-10 items-center text-text-disable"
         >
           讀取中…
         </div>
       ) : slots.length === 0 ? (
-        <div className="flex min-h-10 items-center text-gray-400">
+        <div className="flex min-h-10 items-center text-text-disable">
           無可預約的時段
         </div>
       ) : (

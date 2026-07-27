@@ -5,7 +5,7 @@ import type { BookingSlot } from '@/hooks/useMentorSchedule';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 
-import { ScheduleSlotList } from './ScheduleSlotList';
+import { BOOKED_SLOT_CLASSES, ScheduleSlotList } from './ScheduleSlotList';
 
 interface MentorScheduleConfigProps {
   slots: BookingSlot[];
@@ -28,9 +28,7 @@ export function MentorScheduleConfig({
         renderSlot={(slot) => (
           <div
             className={`flex h-10 select-none items-center justify-center rounded-lg border text-sm font-medium ${
-              slot.isBooked
-                ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
-                : 'border-background-border'
+              slot.isBooked ? BOOKED_SLOT_CLASSES : 'border-background-border'
             }`}
           >
             {formatBookingSlotTime(slot)}

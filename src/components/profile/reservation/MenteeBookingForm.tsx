@@ -9,7 +9,7 @@ import { useBookingForm } from '@/hooks/user/reservation/useBookingForm';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 
-import { ScheduleSlotList } from './ScheduleSlotList';
+import { BOOKED_SLOT_CLASSES, ScheduleSlotList } from './ScheduleSlotList';
 
 interface MenteeBookingFormProps {
   slots: BookingSlot[];
@@ -36,7 +36,7 @@ export function MenteeBookingForm({
     register,
     handleSubmit,
     reset,
-    formState: { isValid },
+    formState: { isValid, errors },
   } = useBookingForm();
 
   const onSubmit = async (data: { bookingQuestion: string }) => {
@@ -68,9 +68,7 @@ export function MenteeBookingForm({
               disabled={slot.isBooked}
               onClick={() => setSelectedSlot(slot)}
               className={`h-10 w-full text-sm ${
-                slot.isBooked
-                  ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 disabled:opacity-100'
-                  : ''
+                slot.isBooked ? BOOKED_SLOT_CLASSES : ''
               }`}
             >
               {formatBookingSlotTime(slot)}
@@ -90,6 +88,11 @@ export function MenteeBookingForm({
           disabled={isSubmitting}
           {...register('bookingQuestion')}
         />
+        {errors.bookingQuestion && (
+          <p className="mt-1 text-sm text-status-200">
+            {errors.bookingQuestion.message}
+          </p>
+        )}
       </div>
 
       <Button
