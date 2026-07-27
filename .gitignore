@@ -47,6 +47,10 @@ next-env.d.ts
 .claude/
 CLAUDE.md
 
+# Gemini CLI local caches and logs
+/.gemini/
+/gemini.log
+
 # Test reports and screenshots
 /reports/
 /.playwright-mcp/
