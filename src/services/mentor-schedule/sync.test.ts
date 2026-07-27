@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchMentorSchedule } from './schedule';
+import { fetchMentorSchedule, type ScheduleData } from './schedule';
 import { scheduleCache } from './scheduleCache';
 import {
   loadMonthScheduleCached,
@@ -30,14 +30,12 @@ describe('sync schedule caching integration', () => {
   };
 
   it('loadMonthScheduleCached coalesces concurrent in-flight requests', async () => {
-    let resolveFetch: (val: any) => void = () => {};
-    const fetchPromise = new Promise((resolve) => {
+    let resolveFetch: (val: ScheduleData) => void = () => {};
+    const fetchPromise = new Promise<ScheduleData>((resolve) => {
       resolveFetch = resolve;
     });
 
-    vi.mocked(fetchMentorSchedule).mockImplementation(
-      () => fetchPromise as any
-    );
+    vi.mocked(fetchMentorSchedule).mockImplementation(() => fetchPromise);
 
     // First call triggers a fetch
     const res1 = loadMonthScheduleCached(ref);
@@ -73,14 +71,12 @@ describe('sync schedule caching integration', () => {
   });
 
   it('loadMonthScheduleCached guards against race condition when cache is primed or cleared during fetch', async () => {
-    let resolveFetch: (val: any) => void = () => {};
-    const fetchPromise = new Promise((resolve) => {
+    let resolveFetch: (val: ScheduleData) => void = () => {};
+    const fetchPromise = new Promise<ScheduleData>((resolve) => {
       resolveFetch = resolve;
     });
 
-    vi.mocked(fetchMentorSchedule).mockImplementation(
-      () => fetchPromise as any
-    );
+    vi.mocked(fetchMentorSchedule).mockImplementation(() => fetchPromise);
 
     const res = loadMonthScheduleCached(ref);
 
