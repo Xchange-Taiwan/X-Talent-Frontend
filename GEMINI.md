@@ -9,7 +9,7 @@
 ### 1.1 安裝與啟動
 
 1. **安裝依賴**：`pnpm install` (本專案已將 `gemini-cli` 納入 `devDependencies`)
-2. **啟動會話**：`pnpm exec gemini` (欲開啟無人值守自主模式，請加 `--yolo`)
+2. **啟動會話**：直接執行 `pnpm gemini` 即可（此指令已簡化為自動帶入 `--approval-mode=yolo --skip-trust`）。如果想使用預設互動模式，可執行 `pnpm exec gemini`。
 
 ### 1.2 啟用本地信任 (CRITICAL)
 
