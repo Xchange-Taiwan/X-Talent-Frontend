@@ -36,7 +36,7 @@ export function MenteeBookingForm({
     register,
     handleSubmit,
     reset,
-    formState: { isValid, errors },
+    formState: { errors },
   } = useBookingForm();
 
   const onSubmit = async (data: BookingFormValues) => {
@@ -51,7 +51,7 @@ export function MenteeBookingForm({
     !isAuthenticated ||
     !selectedDate ||
     !selectedSlot ||
-    !isValid;
+    !!errors.bookingQuestion;
 
   return (
     <form

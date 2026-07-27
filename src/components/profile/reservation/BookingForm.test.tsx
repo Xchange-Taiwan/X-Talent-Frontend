@@ -96,9 +96,9 @@ describe('BookingForm', () => {
     expect(submitBtn).toHaveClass('disabled:bg-background-top-active');
     expect(submitBtn).toHaveClass('disabled:text-text-disable');
 
-    // Scenario 2: Select slot, but question is still empty
+    // Scenario 2: Select slot, and question is empty (now allowed)
     rerender(<BookingForm {...defaultProps} selectedSlot={mockSlots[0]} />);
-    expect(screen.getByRole('button', { name: '預約時間' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '預約時間' })).not.toBeDisabled();
 
     // Scenario 3: [TEST GAP FIX] selectedSlot is null, but question is filled
     rerender(<BookingForm {...defaultProps} selectedSlot={null} />);

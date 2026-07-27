@@ -164,6 +164,43 @@ describe('useBookingConfirmation', () => {
     expect(setSelectedSlot).toHaveBeenCalledWith(null);
   });
 
+  it('should successfully book a reservation with messages array empty if the question is blank', async () => {
+    const setSelectedSlot = vi.fn();
+    mockCreateReservation.mockResolvedValue(
+      {} as unknown as components['schemas']['ReservationVO']
+    );
+
+    const { result } = renderHook(() =>
+      useBookingConfirmation({
+        loginUserId: '999',
+        userData: mockUserData,
+        selectedSlot: mockSlot,
+        setSelectedSlot,
+      })
+    );
+
+    let res: boolean | undefined;
+    await act(async () => {
+      res = await result.current.handleConfirmReservation('   \n  ');
+    });
+
+    expect(res).toBe(true);
+    expect(mockCreateReservation).toHaveBeenCalledWith({
+      userId: 999,
+      body: {
+        my_user_id: 999,
+        my_status: 'PENDING',
+        user_id: 123,
+        schedule_id: 456,
+        dtstart: Math.floor(mockSlot.start.getTime() / 1000),
+        dtend: Math.floor(mockSlot.end.getTime() / 1000),
+        messages: [],
+      },
+      debug: false,
+    });
+    expect(setSelectedSlot).toHaveBeenCalledWith(null);
+  });
+
   it('should handle standard errors by logging flow failure and showing failure toast', async () => {
     const setSelectedSlot = vi.fn();
     const err = new Error('Server Crashed');
