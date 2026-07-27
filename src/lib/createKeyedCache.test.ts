@@ -259,4 +259,28 @@ describe('createKeyedCache', () => {
     // After resolving, getWithStatus() returns the fresh value with isStale: false
     expect(cache.getWithStatus('key1')).toEqual({ value: 100, isStale: false });
   });
+
+  it('prevents in-flight fetch from overwriting a newer set value (Race Condition protection)', async () => {
+    const cache = createKeyedCache<string, number>();
+
+    let resolveFetcher: (val: number) => void = () => {};
+    const fetcherPromise = new Promise<number>((resolve) => {
+      resolveFetcher = resolve;
+    });
+
+    const fetcher = vi.fn(() => fetcherPromise);
+
+    // Start a fetch (in-flight)
+    const p1 = cache.fetch('key1', fetcher);
+
+    // While fetch is in-flight, we set a new value
+    cache.set('key1', 777);
+
+    // Resolve original fetch with old data (100)
+    resolveFetcher(100);
+    await p1;
+
+    // Cache should remain 777, not overwritten by 100
+    expect(cache.get('key1')).toBe(777);
+  });
 });

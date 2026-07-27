@@ -78,4 +78,38 @@ describe('useTagCatalog', () => {
     expect(result.current.industry).toEqual(primedData.industry);
     expect(fetchTagCatalog).not.toHaveBeenCalled();
   });
+
+  it('handles fetch failures and allows subsequent retries', async () => {
+    vi.mocked(fetchTagCatalog).mockRejectedValueOnce(new Error('Fetch failed'));
+
+    // First call: should fail and surface error
+    const { result, unmount } = renderHook(() => useTagCatalog('fr'));
+
+    expect(result.current.isLoading).toBe(true);
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.error).toBe('Failed to load tag catalog');
+
+    // Unmount so we can remount and trigger a fresh fetch
+    unmount();
+
+    // Second call: should trigger fetchTagCatalog again because inflight was cleaned up
+    const mockData = {
+      ...EMPTY_TAG_CATALOGS,
+      industry: [{ subject_group: 'IND_4', subject: 'Industry 4' }],
+    };
+    vi.mocked(fetchTagCatalog).mockResolvedValueOnce(mockData);
+
+    const { result: retryResult } = renderHook(() => useTagCatalog('fr'));
+
+    await waitFor(() => {
+      expect(retryResult.current.isLoading).toBe(false);
+    });
+
+    expect(retryResult.current.industry).toEqual(mockData.industry);
+    expect(fetchTagCatalog).toHaveBeenCalledTimes(2);
+  });
 });
