@@ -24,17 +24,18 @@
 
 在會話中輸入 `/skills list` 列出所有 36 個 Skills。以下為最常用的核心技能：
 
-| 指令                             | 適用時機             | 執行動作                                                                                                                                                                                |
-| :------------------------------- | :------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`/implement <ticket-url>`**    | 開始新開發或修復時   | **【旗艦自動化 ⭐️】** 自動調用 `/start-ticket <ticket-url>` 拉取 X-Tracker 需求 ➡️ 進行精準開發與 TDD ➡️ 本地並行 `/ai-review` ➡️ `/submit-pr` 一鍵完成品質校驗、Commit 並自動建立 PR。 |
-| **`/start-ticket <ticket-url>`** | 欲單獨啟動分支時     | 自動切回 `develop`，建立並在遠端關聯分支，拉取任務票上下文。                                                                                                                            |
-| **`/tdd`**                       | 開始實作功能前       | 採用紅綠重構環路，在 pre-agreed seams（確認邊界）下進行測試先行開發。                                                                                                                   |
-| **`/ai-review`**                 | Commit/Push 前       | 本地並行啟動多子 Agent 從 Security, Correctness, Business, Performance 等維度進行無 API 金鑰消耗自檢。                                                                                  |
-| **`/submit-pr`**                 | 功能開發完畢時       | 跑完編譯與 617 項測試 ➡️ 格式化 ➡️ 提交 Commit（自動關聯 #號）➡️ Push 並自動建立 PR。                                                                                                   |
-| **`/migrate-to-shoehorn`**       | 測試型別 Mock 報錯時 | 將不安全的 `as` 斷言遷移至 Matt Pocock 的 `@total-typescript/shoehorn` 以保障測試型別安全。                                                                                             |
-| **`/to-spec`**                   | 方案討論完畢時       | 將對話上下文快速收斂成技術規格書（Spec）並發佈。                                                                                                                                        |
-| **`/to-tickets`**                | 動工前拆解任務時     | 將 Spec 依拓樸關係合理拆解為多個相依、有阻塞邊界（Blocked by）的 Tickets。                                                                                                              |
-| **`/triage`**                    | 收到新 Issue/PR 時   | 進行重現驗證與分類（`ready-for-agent` / `ready-for-human`）。                                                                                                                           |
+| 指令                                 | 適用時機             | 執行動作                                                                                                                                                                                |
+| :----------------------------------- | :------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`/implement <ticket-url>`**        | 開始新開發或修復時   | **【旗艦自動化 ⭐️】** 自動調用 `/start-ticket <ticket-url>` 拉取 X-Tracker 需求 ➡️ 進行精準開發與 TDD ➡️ 本地並行 `/ai-review` ➡️ `/submit-pr` 一鍵完成品質校驗、Commit 並自動建立 PR。 |
+| **`/start-ticket <ticket-url>`**     | 欲單獨啟動分支時     | 自動切回 `develop`，建立並在遠端關聯分支，拉取任務票上下文。                                                                                                                            |
+| **`/tdd`**                           | 開始實作功能前       | 採用紅綠重構環路，在 pre-agreed seams（確認邊界）下進行測試先行開發。                                                                                                                   |
+| **`/ai-review`**                     | Commit/Push 前       | 本地並行啟動多子 Agent 從 Security, Correctness, Business, Performance 等維度進行無 API 金鑰消耗自檢。                                                                                  |
+| **`/submit-pr`**                     | 功能開發完畢時       | 跑完編譯與 617 項測試 ➡️ 格式化 ➡️ 提交 Commit（自動關聯 #號）➡️ Push 並自動建立 PR。                                                                                                   |
+| **`/migrate-to-shoehorn`**           | 測試型別 Mock 報錯時 | 將不安全的 `as` 斷言遷移至 Matt Pocock 的 `@total-typescript/shoehorn` 以保障測試型別安全。                                                                                             |
+| **`/improve-codebase-architecture`** | 欲優化專案架構時     | 深度掃描代碼庫並生成視覺化的 HTML 架構報告，找出模組深化（Deepening）與重構優化的黃金機會。                                                                                             |
+| **`/to-spec`**                       | 方案討論完畢時       | 將對話上下文快速收斂成技術規格書（Spec）並發佈。                                                                                                                                        |
+| **`/to-tickets`**                    | 動工前拆解任務時     | 將 Spec 依拓樸關係合理拆解為多個相依、有阻塞邊界（Blocked by）的 Tickets。                                                                                                              |
+| **`/triage`**                        | 收到新 Issue/PR 時   | 進行重現驗證與分類（`ready-for-agent` / `ready-for-human`）。                                                                                                                           |
 
 ---
 
