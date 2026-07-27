@@ -3,7 +3,7 @@
 import dayjs from 'dayjs';
 import { Clock, Plus, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { KeyboardEvent, useEffect, useMemo, useState } from 'react';
+import { KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -50,6 +50,12 @@ const WEEKDAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
 
 type ReservationPromptType = Exclude<DtType, 'ALLOW'> | null;
 
+type ActiveDialog =
+  | { kind: 'add' }
+  | { kind: 'edit'; id: number; occurrenceUnix: number }
+  | { kind: 'prompt'; prompt: Exclude<DtType, 'ALLOW'> }
+  | null;
+
 export default function MentorScheduleDialog({
   open,
   onOpenChange,
@@ -77,15 +83,32 @@ export default function MentorScheduleDialog({
   const router = useRouter();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
-  const [addModalOpen, setAddModalOpen] = useState(false);
-  // Track both row id and occurrence so editing a single occurrence of a
-  // recurring row correctly detaches it.
-  const [editingTarget, setEditingTarget] = useState<{
-    id: number;
-    occurrenceUnix: number;
-  } | null>(null);
-  const [reservationPrompt, setReservationPrompt] =
-    useState<ReservationPromptType>(null);
+  const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
+  const [lastPrompt, setLastPrompt] =
+    useState<Exclude<DtType, 'ALLOW'>>('BOOKED');
+
+  const displayPrompt =
+    activeDialog?.kind === 'prompt' ? activeDialog.prompt : lastPrompt;
+
+  const showPrompt = (prompt: Exclude<DtType, 'ALLOW'>) => {
+    setLastPrompt(prompt);
+    setActiveDialog({ kind: 'prompt', prompt });
+  };
+
+  const handleSlotAction = (
+    slot: ParsedMentorTimeslot,
+    reservationBlock: ReservationPromptType
+  ) => {
+    if (reservationBlock) {
+      showPrompt(reservationBlock);
+      return;
+    }
+    setActiveDialog({
+      kind: 'edit',
+      id: slot.id,
+      occurrenceUnix: slot.occurrenceUnix,
+    });
+  };
 
   useEffect(() => {
     if (open) {
@@ -157,13 +180,20 @@ export default function MentorScheduleDialog({
     onOpenChange(false);
   };
 
-  const editingSlot = editingTarget
-    ? (visibleSlots.find(
-        (s) =>
-          s.id === editingTarget.id &&
-          s.occurrenceUnix === editingTarget.occurrenceUnix
-      ) ?? null)
-    : null;
+  const editingSlot =
+    activeDialog?.kind === 'edit'
+      ? (visibleSlots.find(
+          (s) =>
+            s.id === activeDialog.id &&
+            s.occurrenceUnix === activeDialog.occurrenceUnix
+        ) ?? null)
+      : null;
+
+  const prevSlotRef = useRef<ParsedMentorTimeslot | null>(null);
+  if (editingSlot) {
+    prevSlotRef.current = editingSlot;
+  }
+  const displaySlot = editingSlot || prevSlotRef.current;
 
   return (
     <>
@@ -225,27 +255,12 @@ export default function MentorScheduleDialog({
                           : {
                               role: 'button',
                               tabIndex: 0,
-                              onClick: () => {
-                                if (reservationBlock) {
-                                  setReservationPrompt(reservationBlock);
-                                  return;
-                                }
-                                setEditingTarget({
-                                  id: slot.id,
-                                  occurrenceUnix: slot.occurrenceUnix,
-                                });
-                              },
+                              onClick: () =>
+                                handleSlotAction(slot, reservationBlock),
                               onKeyDown: (e: KeyboardEvent) => {
                                 if (e.key === 'Enter' || e.key === ' ') {
                                   e.preventDefault();
-                                  if (reservationBlock) {
-                                    setReservationPrompt(reservationBlock);
-                                    return;
-                                  }
-                                  setEditingTarget({
-                                    id: slot.id,
-                                    occurrenceUnix: slot.occurrenceUnix,
-                                  });
+                                  handleSlotAction(slot, reservationBlock);
                                 }
                               },
                             })}
@@ -275,7 +290,7 @@ export default function MentorScheduleDialog({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (reservationBlock) {
-                                  setReservationPrompt(reservationBlock);
+                                  showPrompt(reservationBlock);
                                   return;
                                 }
                                 deleteDraftSlot(slot.id, slot.occurrenceUnix);
@@ -291,7 +306,7 @@ export default function MentorScheduleDialog({
 
                   <Button
                     variant="ghost"
-                    onClick={() => setAddModalOpen(true)}
+                    onClick={() => setActiveDialog({ kind: 'add' })}
                     className="h-10 w-full lg:h-11 lg:text-base"
                     disabled={!selectedDate}
                   >
@@ -320,8 +335,8 @@ export default function MentorScheduleDialog({
       </Dialog>
 
       <AddSlotModal
-        open={addModalOpen}
-        onOpenChange={setAddModalOpen}
+        open={activeDialog?.kind === 'add'}
+        onOpenChange={(open) => !open && setActiveDialog(null)}
         selectedDate={selectedDate}
         existingSlots={futureSlots}
         onSubmit={(form, weekly) => {
@@ -330,7 +345,7 @@ export default function MentorScheduleDialog({
             durationMinutes: form.durationMinutes,
             weeklyWithinMonth: weekly,
           });
-          setAddModalOpen(false);
+          setActiveDialog(null);
           if (result.added === 0) {
             toast({
               variant: 'destructive',
@@ -347,13 +362,14 @@ export default function MentorScheduleDialog({
       />
 
       <EditSlotModal
-        slot={editingSlot}
-        onClose={() => setEditingTarget(null)}
+        open={activeDialog?.kind === 'edit'}
+        slot={displaySlot}
+        onClose={() => setActiveDialog(null)}
         onSubmit={(form) => {
-          if (!editingTarget) return;
+          if (activeDialog?.kind !== 'edit') return;
           const ok = updateDraftSlot(
-            editingTarget.id,
-            editingTarget.occurrenceUnix,
+            activeDialog.id,
+            activeDialog.occurrenceUnix,
             {
               startTime: `${form.startHour}:${form.startMinute}`,
               durationMinutes: form.durationMinutes,
@@ -366,37 +382,34 @@ export default function MentorScheduleDialog({
             });
             return;
           }
-          setEditingTarget(null);
+          setActiveDialog(null);
         }}
       />
 
       <Dialog
-        open={reservationPrompt !== null}
-        onOpenChange={(o) => !o && setReservationPrompt(null)}
+        open={activeDialog?.kind === 'prompt'}
+        onOpenChange={(o) => !o && setActiveDialog(null)}
       >
         <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>
-              {reservationPrompt === 'BOOKED'
+              {displayPrompt === 'BOOKED'
                 ? '此時段已有預約'
                 : '此時段有未處理的預約申請'}
             </DialogTitle>
             <DialogDescription>
-              {reservationPrompt === 'BOOKED'
+              {displayPrompt === 'BOOKED'
                 ? '此時段已有 mentee 預約成功,無法編輯或移除。如需取消,請至「預約管理」頁面處理。'
                 : '請至「預約管理」頁面接受或拒絕該申請,僅在拒絕後此時段才會重新釋出。'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="justify-center">
-            <Button
-              variant="outline"
-              onClick={() => setReservationPrompt(null)}
-            >
+            <Button variant="outline" onClick={() => setActiveDialog(null)}>
               取消
             </Button>
             <Button
               onClick={() => {
-                setReservationPrompt(null);
+                setActiveDialog(null);
                 onOpenChange(false);
                 router.push('/reservation/mentor');
               }}
@@ -582,15 +595,16 @@ function AddSlotModal({
 }
 
 function EditSlotModal({
+  open,
   slot,
   onClose,
   onSubmit,
 }: {
+  open: boolean;
   slot: ParsedMentorTimeslot | null;
   onClose: () => void;
   onSubmit: (form: SlotFormState) => void;
 }) {
-  const open = slot !== null;
   const [form, setForm] = useState<SlotFormState>({
     startHour: '09',
     startMinute: '00',
