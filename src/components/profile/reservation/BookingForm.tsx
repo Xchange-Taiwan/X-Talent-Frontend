@@ -116,7 +116,7 @@ export function BookingForm({
 
       <Button
         variant="default"
-        className="w-full rounded-full px-6 py-3"
+        className="w-full rounded-full px-6 py-3 disabled:bg-background-top-active disabled:text-text-disable disabled:opacity-100"
         onClick={isOwnMentorProfile ? onReservation : handleConfirm}
         disabled={
           isOwnMentorProfile
