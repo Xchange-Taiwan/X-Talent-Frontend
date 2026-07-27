@@ -137,6 +137,17 @@ describe('BookingForm', () => {
     });
   });
 
+  it('displays validation error message when question is invalid (e.g. exceeds 1000 chars)', async () => {
+    render(<BookingForm {...defaultProps} selectedSlot={mockSlots[0]} />);
+
+    const textarea = screen.getByPlaceholderText('請在此輸入你的問題...');
+    fireEvent.change(textarea, { target: { value: 'a'.repeat(1001) } });
+
+    await waitFor(() => {
+      expect(screen.getByText('問題字數請勿超過 1000 字')).toBeInTheDocument();
+    });
+  });
+
   it('renders config mode instead of booking mode when isOwnMentorProfile is true', () => {
     render(<BookingForm {...defaultProps} isOwnMentorProfile={true} />);
 
