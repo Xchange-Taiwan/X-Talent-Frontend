@@ -4,7 +4,7 @@ function CardSkeleton() {
   return (
     <div
       aria-hidden="true"
-      className="w-[334px] animate-pulse overflow-hidden rounded-lg border border-[#E6E8EA] bg-background-white xl:h-[480px] xl:w-[413px]"
+      className="w-[334px] animate-pulse overflow-hidden rounded-lg border border-background-border bg-background-white xl:h-[480px] xl:w-[413px]"
     >
       <div className="h-[200px] w-full bg-[#F2F4F7] xl:h-[260px]" />
       <div className="px-4 pb-6 pt-4">
