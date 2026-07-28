@@ -98,6 +98,17 @@ describe('callGemini', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('retries on a raw network error (fetch rejects with no `retryable` flag) and succeeds next attempt', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('fetch failed'))
+      .mockResolvedValueOnce(candidateResponse('{"ok":true}'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(callGemini('prompt')).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('does not retry a 4xx error', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce({
       ok: false,

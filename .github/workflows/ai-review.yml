@@ -23,16 +23,17 @@ jobs:
     outputs:
       plan: ${{ steps.run.outputs.plan }}
     steps:
-      - name: Checkout PR head
+      - name: Checkout base branch (trusted scripts)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.base.sha }}
 
       - name: Set up AI review agent
         uses: ./.github/actions/setup-ai-agent
         with:
           base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
 
       - name: Run planner agent
         id: run
@@ -40,6 +41,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TRACKER_READ_TOKEN: ${{ secrets.TRACKER_READ_TOKEN }}
           BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: node scripts/ai-review/planner.mjs
 
@@ -50,22 +52,24 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
-      - name: Checkout PR head
+      - name: Checkout base branch (trusted scripts)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.base.sha }}
 
       - name: Set up AI review agent
         uses: ./.github/actions/setup-ai-agent
         with:
           base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
 
       - name: Run security agent
         id: run
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PLAN_B64: ${{ needs.planner.outputs.plan }}
         run: node scripts/ai-review/security.mjs
 
@@ -76,22 +80,24 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
-      - name: Checkout PR head
+      - name: Checkout base branch (trusted scripts)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.base.sha }}
 
       - name: Set up AI review agent
         uses: ./.github/actions/setup-ai-agent
         with:
           base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
 
       - name: Run correctness agent
         id: run
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PLAN_B64: ${{ needs.planner.outputs.plan }}
         run: node scripts/ai-review/correctness.mjs
 
@@ -102,22 +108,24 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
-      - name: Checkout PR head
+      - name: Checkout base branch (trusted scripts)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.base.sha }}
 
       - name: Set up AI review agent
         uses: ./.github/actions/setup-ai-agent
         with:
           base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
 
       - name: Run business-logic agent
         id: run
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PLAN_B64: ${{ needs.planner.outputs.plan }}
         run: node scripts/ai-review/business-logic.mjs
 
@@ -128,22 +136,24 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
-      - name: Checkout PR head
+      - name: Checkout base branch (trusted scripts)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.base.sha }}
 
       - name: Set up AI review agent
         uses: ./.github/actions/setup-ai-agent
         with:
           base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
 
       - name: Run performance agent
         id: run
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PLAN_B64: ${{ needs.planner.outputs.plan }}
         run: node scripts/ai-review/performance.mjs
 
@@ -154,22 +164,24 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
-      - name: Checkout PR head
+      - name: Checkout base branch (trusted scripts)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.base.sha }}
 
       - name: Set up AI review agent
         uses: ./.github/actions/setup-ai-agent
         with:
           base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
 
       - name: Run testing agent
         id: run
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PLAN_B64: ${{ needs.planner.outputs.plan }}
         run: node scripts/ai-review/testing.mjs
 
@@ -180,22 +192,24 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
-      - name: Checkout PR head
+      - name: Checkout base branch (trusted scripts)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.base.sha }}
 
       - name: Set up AI review agent
         uses: ./.github/actions/setup-ai-agent
         with:
           base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
 
       - name: Run architecture agent
         id: run
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PLAN_B64: ${{ needs.planner.outputs.plan }}
         run: node scripts/ai-review/architecture.mjs
 
@@ -206,22 +220,24 @@ jobs:
     outputs:
       guide: ${{ steps.run.outputs.guide }}
     steps:
-      - name: Checkout PR head
+      - name: Checkout base branch (trusted scripts)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.base.sha }}
 
       - name: Set up AI review agent
         uses: ./.github/actions/setup-ai-agent
         with:
           base-ref: ${{ github.event.pull_request.base.ref }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
 
       - name: Run review-guide agent
         id: run
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PLAN_B64: ${{ needs.planner.outputs.plan }}
         run: node scripts/ai-review/review-guide.mjs
 
@@ -241,11 +257,11 @@ jobs:
     name: 'AI Review: Final Summary'
     if: ${{ !cancelled() }}
     steps:
-      - name: Checkout PR head
+      - name: Checkout base branch (trusted scripts)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.base.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4

@@ -5,14 +5,18 @@ import { buildPrompt } from './lib/prompt.mjs';
 import { encodeContext, writeGithubOutput } from './lib/context-io.mjs';
 
 const baseRef = process.env.BASE_REF;
+const headSha = process.env.HEAD_SHA;
 const headBranch = process.env.HEAD_REF || '';
 const trackerToken = process.env.TRACKER_READ_TOKEN;
 
 if (!baseRef) {
   throw new Error('BASE_REF env var is required');
 }
+if (!headSha) {
+  throw new Error('HEAD_SHA env var is required');
+}
 
-const { diff, truncated } = getDiff(baseRef);
+const { diff, truncated } = getDiff(baseRef, headSha);
 
 let ticket = { ticketFound: false };
 if (trackerToken) {

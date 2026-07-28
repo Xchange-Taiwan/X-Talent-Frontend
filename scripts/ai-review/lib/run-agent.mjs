@@ -19,8 +19,12 @@ export async function runAgent({ promptUrl, upstreamEnvVars, outputName }) {
   if (!baseRef) {
     throw new Error('BASE_REF env var is required');
   }
+  const headSha = process.env.HEAD_SHA;
+  if (!headSha) {
+    throw new Error('HEAD_SHA env var is required');
+  }
 
-  const { diff, truncated } = getDiff(baseRef);
+  const { diff, truncated } = getDiff(baseRef, headSha);
 
   const upstreamReplacements = {};
   for (const [placeholder, envVar] of Object.entries(upstreamEnvVars)) {

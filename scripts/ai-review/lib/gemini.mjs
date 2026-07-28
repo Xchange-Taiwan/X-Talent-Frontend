@@ -93,11 +93,13 @@ async function callGeminiOnce(promptText, { model, maxOutputTokens, apiKey }) {
   }
 
   if (candidate.finishReason === 'MAX_TOKENS') {
-    // Retrying won't help — the same prompt will hit the same cap again.
-    throw new Error(
+    const err = new Error(
       `Gemini response was truncated (finishReason: MAX_TOKENS, maxOutputTokens: ${maxOutputTokens}). ` +
         'Set GEMINI_MAX_OUTPUT_TOKENS higher or shorten the prompt/diff.'
     );
+    // Retrying won't help — the same prompt will hit the same cap again.
+    err.retryable = false;
+    throw err;
   }
 
   try {
@@ -151,7 +153,11 @@ export async function callGemini(promptText) {
       });
     } catch (err) {
       lastErr = err;
-      const canRetry = err.retryable && attempt < MAX_ATTEMPTS;
+      // A raw fetch/network failure (DNS, connection reset) throws a plain
+      // TypeError with no `retryable` flag at all — treat "not explicitly
+      // false" as retryable so those transient errors aren't mistaken for
+      // the deliberately-non-retryable ones (e.g. MAX_TOKENS) above.
+      const canRetry = err.retryable !== false && attempt < MAX_ATTEMPTS;
       console.warn(
         `[gemini] attempt ${attempt}/${MAX_ATTEMPTS} failed: ${err.message}${canRetry ? ' — retrying' : ''}`
       );
