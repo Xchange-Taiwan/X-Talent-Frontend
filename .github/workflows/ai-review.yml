@@ -50,7 +50,7 @@ jobs:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           GEMINI_CLI_TRUST_WORKSPACE: 'true'
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: pnpm gemini-yolo -p "/ai-review"
+        run: pnpm gemini-yolo -p "/ai-review (GitHub Actions environment, PR Number: ${{ github.event.pull_request.number }})"
 
       - name: Upload AI Review Report Artifact
         if: always()
