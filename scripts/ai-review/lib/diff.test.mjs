@@ -15,7 +15,7 @@ describe('getDiff', () => {
   it('returns the raw diff untruncated when under the size limit', () => {
     vi.mocked(execFileSync).mockReturnValue('diff --git a/x b/x\n+line\n');
 
-    const result = getDiff('origin/develop');
+    const result = getDiff('origin/develop', 'abc123headsha');
 
     expect(result).toEqual({
       diff: 'diff --git a/x b/x\n+line\n',
@@ -27,7 +27,7 @@ describe('getDiff', () => {
     const raw = 'x'.repeat(60001);
     vi.mocked(execFileSync).mockReturnValue(raw);
 
-    const result = getDiff('origin/develop');
+    const result = getDiff('origin/develop', 'abc123headsha');
 
     expect(result.truncated).toBe(true);
     expect(result.diff.startsWith('x'.repeat(60000))).toBe(true);
@@ -39,21 +39,21 @@ describe('getDiff', () => {
     const raw = 'x'.repeat(60000);
     vi.mocked(execFileSync).mockReturnValue(raw);
 
-    const result = getDiff('origin/develop');
+    const result = getDiff('origin/develop', 'abc123headsha');
 
     expect(result).toEqual({ diff: raw, truncated: false });
   });
 
-  it('invokes git diff against the given base ref with the lockfile/asset exclude pathspecs', () => {
+  it('invokes git diff between the given base ref and head ref with the lockfile/asset exclude pathspecs', () => {
     vi.mocked(execFileSync).mockReturnValue('');
 
-    getDiff('origin/develop');
+    getDiff('origin/develop', 'abc123headsha');
 
     expect(execFileSync).toHaveBeenCalledWith(
       'git',
       [
         'diff',
-        'origin/develop...HEAD',
+        'origin/develop...abc123headsha',
         '--',
         '.',
         ':(exclude)pnpm-lock.yaml',
