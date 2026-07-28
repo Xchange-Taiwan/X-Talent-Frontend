@@ -12,8 +12,7 @@ if ($LastExitCode -ne 0 -or -not $CONFIG_MD) {
 
 # Check if config content is present
 if (-not $CONFIG_MD) {
-  Write-Error "ERROR: project-config.md not found — aborting to avoid null ID API calls"
-  return
+  throw "ERROR: project-config.md not found — aborting to avoid null ID API calls"
 }
 
 # Extract and parse JSON
@@ -21,8 +20,7 @@ $CONFIG_JSON_STRING = [regex]::Match($CONFIG_MD, '(?s)```json\s*(.*?)\s*```').Gr
 
 # Validate extracted JSON content
 if ([string]::IsNullOrWhiteSpace($CONFIG_JSON_STRING) -or $CONFIG_JSON_STRING -eq "null") {
-  Write-Error "ERROR: project-config.md is malformed or missing JSON block — aborting"
-  return
+  throw "ERROR: project-config.md is malformed or missing JSON block — aborting"
 }
 
 $CONFIG_JSON = ConvertFrom-Json $CONFIG_JSON_STRING

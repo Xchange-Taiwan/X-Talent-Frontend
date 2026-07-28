@@ -68,7 +68,7 @@ Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock
      Load the centralized configuration by sourcing the shared loading scripts:
      - **On macOS/Linux (Bash/Zsh)**:
        ```bash
-       source .agents/scripts/load-config.sh
+       source .agents/scripts/load-config.sh || exit 1
        ```
      - **On Windows (PowerShell)**:
        ```powershell
