@@ -36,6 +36,44 @@ const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
   );
 };
 
+const ROLE_CHIPS = [
+  {
+    name: 'UI/UX Design',
+    className:
+      'w-[162px] bg-jade-default md:my-[15px] md:ml-[50px] md:mt-[40px] xl:absolute xl:right-[176px] xl:top-[83px] xl:mt-0 xl:h-[100px] xl:w-[227px]',
+  },
+  {
+    name: 'Business Development',
+    className:
+      'w-[256px] bg-bdBlue md:my-[15px] xl:absolute xl:right-[475px] xl:top-[236px] xl:h-[100px] xl:w-[300px]',
+  },
+  {
+    name: 'Marketing',
+    className:
+      'w-[132px] bg-marketingOrange md:mx-[30px] md:my-[15px] xl:absolute xl:right-[107px] xl:top-[386px] xl:mx-0 xl:h-[99px] xl:w-[214px]',
+  },
+  {
+    name: 'Product Management',
+    className:
+      'w-[223px] bg-lime-default md:my-[15px] xl:absolute xl:left-[521px] xl:top-[86px] xl:h-[100px] xl:w-[292px]',
+  },
+  {
+    name: 'Data Science',
+    className:
+      'w-[157px] bg-pink-default md:my-[15px] md:mb-[50px] xl:absolute xl:left-[250px] xl:top-[386px] xl:h-[100px] xl:w-[224px]',
+  },
+  {
+    name: 'Software Development',
+    className:
+      'w-[256px] bg-blue-default md:mx-[30px] md:my-[15px] md:mb-[50px] xl:absolute xl:right-[404px] xl:top-[386px] xl:mx-0 xl:h-[100px] xl:w-[313px]',
+  },
+  {
+    name: 'MarTech',
+    className:
+      'w-[203px] bg-purple-active md:my-[15px] md:mb-[50px] xl:absolute xl:right-[144px] xl:top-[236px] xl:h-[99px] xl:w-[270px]',
+  },
+];
+
 export default function Page() {
   return (
     <>
@@ -121,27 +159,14 @@ export default function Page() {
               connect with
             </p>
           </div>
-          <div className="my-2 flex h-[53px] w-[162px] flex-col items-center justify-center rounded-[124px] bg-jade-default md:my-[15px] md:ml-[50px] md:mt-[40px] xl:absolute xl:right-[176px] xl:top-[83px] xl:mt-0 xl:h-[100px] xl:w-[227px]">
-            <p className="font-bold text-gray-900">UI/UX Design</p>
-          </div>
-          <div className="my-2 flex h-[53px] w-[256px] flex-col items-center justify-center rounded-[124px] bg-bdBlue md:my-[15px] xl:absolute xl:right-[475px] xl:top-[236px] xl:h-[100px] xl:w-[300px]">
-            <p className="font-bold text-gray-900">Business Development</p>
-          </div>
-          <div className="my-2 flex h-[53px] w-[132px] flex-col items-center justify-center rounded-[124px] bg-marketingOrange md:mx-[30px] md:my-[15px] xl:absolute xl:right-[107px] xl:top-[386px] xl:mx-0 xl:h-[99px] xl:w-[214px]">
-            <p className="font-bold text-gray-900">Marketing</p>
-          </div>
-          <div className="my-2 flex h-[53px] w-[223px] flex-col items-center justify-center rounded-[124px] bg-lime-default md:my-[15px] xl:absolute xl:left-[521px] xl:top-[86px] xl:h-[100px] xl:w-[292px]">
-            <p className="font-bold text-gray-900">Product Management</p>
-          </div>
-          <div className="my-2 flex h-[53px] w-[157px] flex-col items-center justify-center rounded-[124px] bg-pink-default md:my-[15px] md:mb-[50px] xl:absolute xl:left-[250px] xl:top-[386px] xl:h-[100px] xl:w-[224px]">
-            <p className="font-bold text-gray-900">Data Science</p>
-          </div>
-          <div className="my-2 flex h-[53px] w-[256px] flex-col items-center justify-center rounded-[124px] bg-blue-default md:mx-[30px] md:my-[15px] md:mb-[50px] xl:absolute xl:right-[404px] xl:top-[386px] xl:mx-0 xl:h-[100px] xl:w-[313px]">
-            <p className="font-bold text-gray-900">Software Development</p>
-          </div>
-          <div className="my-2 flex h-[53px] w-[203px] flex-col items-center justify-center rounded-[124px] bg-purple-active md:my-[15px] md:mb-[50px] xl:absolute xl:right-[144px] xl:top-[236px] xl:h-[99px] xl:w-[270px]">
-            <p className="font-bold text-gray-900">MarTech</p>
-          </div>
+          {ROLE_CHIPS.map((chip) => (
+            <div
+              key={chip.name}
+              className={`my-2 flex h-[53px] flex-col items-center justify-center rounded-[124px] ${chip.className}`}
+            >
+              <p className="font-bold text-gray-900">{chip.name}</p>
+            </div>
+          ))}
         </div>
       </section>
 
