@@ -49,23 +49,33 @@ Run a complete, parallelized multi-stage AI Review locally or in CI using concur
    - Always prefix/embed the marker `<!-- ai-review-pipeline -->` at the top of the generated markdown content so that the comment can be identified later.
 
 4. **Publish Combined Comment**:
-   - Detect if running inside a Pull Request environment or if the `GITHUB_ACTIONS` environment variable is set. You can check if the current branch has an open pull request by running:
-     ```bash
-     gh pr view --json number
-     ```
-   - **Local Dry-Run / Graceful Fallback**: If NOT running in GitHub Actions, if there is no open pull request, or if GitHub API commands fail (due to missing tokens), do NOT throw an error or fail the run. Instead, output the final aggregated review markdown to a local file named `ai-review-report.md` in the workspace root, output a summary to stdout, and complete successfully.
-   - If a Pull Request number is found in a CI environment:
-     - Fetch existing comments using GH CLI or the GitHub API to check if a review comment carrying the `<!-- ai-review-pipeline -->` marker has already been posted:
+   - **Always write full report**: Always output the final, untruncated aggregated review markdown to a local file named `ai-review-report.md` in the workspace root.
+   - **Determine PR Number**:
+     - Check if the `PR_NUMBER` environment variable is defined.
+     - If `PR_NUMBER` is set, use it.
+     - If `PR_NUMBER` is not set, try to detect the pull request number by running `gh pr view --json number --jq .number`.
+     - If no pull request number is found, or if not running in a GitHub Actions environment (determined by `GITHUB_ACTIONS` environment variable), complete the run as a **Local Dry-Run**: output a summary to stdout, ensure `ai-review-report.md` has the full content, and exit successfully.
+   - **Handle Character Limits (Structural Truncation)**:
+     - Check the character length of the generated review comment body.
+     - If the length exceeds 60,000 characters, perform a **structural truncation** to prevent Markdown breakage: remove everything from the `## Detailed Findings by Category` header and onwards, and replace it with the following note (pointing to the CI artifact):
+       ```markdown
+       > ⚠️ 完整報告過長，已截斷。完整內容請見本次 workflow run 的 CI artifact「ai-review-report.md」。
+       ```
+     - Write the potentially-truncated content to a separate temporary file (e.g., `pr-comment-body.md`) to use as the payload for the API/CLI calls.
+   - **Post/Update PR Comment**:
+     - Use the repository specified by `GITHUB_REPOSITORY` environment variable (or fall back to `Xchange-Taiwan/X-Talent-Frontend`).
+     - Query existing comments of the PR using `gh api` with robust `jq` parsing to find the latest comment containing the `<!-- ai-review-pipeline -->` marker, sorting by ID:
        ```bash
-       gh api repos/{owner}/{repo}/issues/{pr-number}/comments --jq '.[] | select(.body | contains("<!-- ai-review-pipeline -->")) | .id'
+       gh api repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments --jq 'map(select(.body | contains("<!-- ai-review-pipeline -->"))) | sort_by(.id) | last | .id // empty'
        ```
      - If an existing comment ID is found:
-       - Update the existing comment via GH API PATCH to prevent comment spamming:
+       - Update (PATCH) the existing comment via GH API to prevent comment spamming:
          ```bash
-         gh api -X PATCH repos/{owner}/{repo}/issues/comments/{comment_id} -F body=@<comment_file>
+         gh api -X PATCH repos/$GITHUB_REPOSITORY/issues/comments/{comment_id} -F body=@pr-comment-body.md
          ```
      - If no existing comment is found:
        - Post a new comment to the PR:
          ```bash
-         gh pr comment <pr-number> --body-file <comment_file>
+         gh pr comment $PR_NUMBER --body-file pr-comment-body.md
          ```
+     - If any GitHub API call fails during the publishing phase, print a warning to stderr but do NOT fail the job (exit with status 0), ensuring the workflow doesn't get blocked by minor API/rate limit issues.
