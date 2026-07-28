@@ -103,7 +103,7 @@ fi
 PARSED_VARS=$(node -e '
   try {
     const config = JSON.parse(process.argv[1]);
-    const esc = s => String.fromCharCode(39) + String(s).replace(/\x27/g, String.fromCharCode(39) + String.fromCharCode(92) + String.fromCharCode(39) + String.fromCharCode(39)) + String.fromCharCode(39);
+    const esc = s => "\x27" + String(s).replace(/\x27/g, "\x27\\\x27\x27") + "\x27";
     console.log("export ORG=" + esc(config.org));
     console.log("export TRACKER_REPO=" + esc(config.repos.tracker));
     console.log("export FRONTEND_REPO=" + esc(config.repos.frontend));
