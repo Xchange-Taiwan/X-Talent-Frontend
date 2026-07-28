@@ -67,12 +67,14 @@ Run a complete, parallelized multi-stage AI Review locally or in CI using concur
      - Use the repository specified by `GITHUB_REPOSITORY` environment variable (or fall back to `Xchange-Taiwan/X-Talent-Frontend`).
      - Query existing comments of the PR using `gh api` with robust `jq` parsing to find the latest comment containing the `<!-- ai-review-pipeline -->` marker, sorting by ID:
        ```bash
-       gh api repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments --jq 'map(select(.body != null and (.body | contains("<!-- ai-review-pipeline -->")))) | sort_by(.id) | last | .id // empty'
+       REPO=${GITHUB_REPOSITORY:-Xchange-Taiwan/X-Talent-Frontend}
+       gh api repos/$REPO/issues/$PR_NUMBER/comments --jq 'map(select(.body != null and (.body | contains("<!-- ai-review-pipeline -->")))) | sort_by(.id) | last | .id // empty'
        ```
      - If an existing comment ID is found:
        - Update (PATCH) the existing comment via GH API to prevent comment spamming:
          ```bash
-         gh api -X PATCH repos/$GITHUB_REPOSITORY/issues/comments/$comment_id -F body=@pr-comment-body.md
+         REPO=${GITHUB_REPOSITORY:-Xchange-Taiwan/X-Talent-Frontend}
+         gh api -X PATCH repos/$REPO/issues/comments/$comment_id -F body=@pr-comment-body.md
          ```
      - If no existing comment is found:
        - Post a new comment to the PR:
