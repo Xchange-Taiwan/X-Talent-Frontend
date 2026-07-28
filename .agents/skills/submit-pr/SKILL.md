@@ -114,10 +114,25 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
        ````
 
 3. **Commit with High-lighted Changes & Push**
-   - Write a conventional commit message.
+   - Write a mature, professional conventional commit message.
+   - **Commit Message Structure**:
+
+     ```text
+     <type>(<scope>): <subject> (X-Tracker #<issue-number>)
+
+     <body>
+
+     <footer>
+     ```
+
+     - **`<type>`**: Use `feat` (new feature), `fix` (bug fix), `docs` (documents), `refactor` (refactoring), `test` (tests), `chore` (maintenance), etc.
+     - **`<scope>`**: Identify the modified module (e.g. `skills`, `profile`, `auth`, `reservation`, `ui`).
+     - **`<subject>`**: Imperative mood, present tense, first letter lowercase, no trailing dot (e.g., `add config loading verification`).
+     - **`(X-Tracker #<issue-number>)`**: Must append to the subject line.
+     - **`<body>`**: High-signal explanation explaining the motivation, design decisions, and what changed. Do not just repeat the subject line.
+     - **`<footer>`**: Explicitly link to the tracker issue. Format: `Ref: https://github.com/<ORG>/<TRACKER_REPO>/issues/<issue-number>` (using variables: `Ref: https://github.com/$ORG/$TRACKER_REPO/issues/$ISSUE_NUMBER`).
+
    - **X-Tracker Ticket Link Requirement**: The commit message and PR description MUST link explicitly to the **X-Talent-Tracker** issue, **NOT** the X-Talent-Frontend issue.
-     - Subject format: `feat: <description> (X-Tracker #<issue-number>)`
-     - Reference link in body: `Ref: https://github.com/<ORG>/<TRACKER_REPO>/issues/<issue-number>` (using variables: `Ref: https://github.com/$ORG/$TRACKER_REPO/issues/$ISSUE_NUMBER`)
    - Clearly **high-light** modified files/modules using bold or code markdown blocks in the "What Does This PR Do?" section.
    - Push to origin.
 
