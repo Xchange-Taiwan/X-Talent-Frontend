@@ -38,7 +38,7 @@ export const Default: Story = {
         <div className="grid w-full items-center gap-4">
           <div className="flex flex-col space-y-1.5">
             <span className="text-sm font-medium">專案名稱</span>
-            <div className="bg-slate-50 rounded border p-2 text-sm text-muted-foreground">
+            <div className="rounded border bg-background-bottom p-2 text-sm text-muted-foreground">
               My New Awesome Project
             </div>
           </div>
@@ -70,18 +70,24 @@ export const ContentOnly: Story = {
 export const StatusCard: Story = {
   render: (args) => (
     <div className="flex flex-wrap gap-4">
-      <Card {...args} className="border-l-emerald-500 w-[250px] border-l-4">
+      <Card
+        {...args}
+        className="w-[250px] border-l-4 border-l-status-success-default"
+      >
         <CardHeader className="pb-2">
           <CardDescription>已同步導師</CardDescription>
-          <CardTitle className="text-emerald-600 text-3xl font-bold">
+          <CardTitle className="text-3xl font-bold text-status-success-default">
             128 位
           </CardTitle>
         </CardHeader>
       </Card>
-      <Card {...args} className="border-l-amber-500 w-[250px] border-l-4">
+      <Card
+        {...args}
+        className="w-[250px] border-l-4 border-l-status-warning-default"
+      >
         <CardHeader className="pb-2">
           <CardDescription>待審核清單</CardDescription>
-          <CardTitle className="text-amber-600 text-3xl font-bold">
+          <CardTitle className="text-3xl font-bold text-status-warning-default">
             12 筆
           </CardTitle>
         </CardHeader>

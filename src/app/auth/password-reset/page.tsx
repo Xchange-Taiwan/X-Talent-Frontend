@@ -34,7 +34,7 @@ function PasswordResetForm() {
             {...register('password')}
           />
           {errors.password && (
-            <p className="text-sm text-status-200">{errors.password.message}</p>
+            <p className="text-status-200 text-sm">{errors.password.message}</p>
           )}
         </div>
 
@@ -53,7 +53,7 @@ function PasswordResetForm() {
             {...register('confirm_password')}
           />
           {errors.confirm_password && (
-            <p className="text-sm text-status-200">
+            <p className="text-status-200 text-sm">
               {errors.confirm_password.message}
             </p>
           )}

@@ -27,7 +27,7 @@
     --accent: var(--color-background-bottom);
     --accent-foreground: var(--color-text-primary);
 
-    --destructive: var(--color-status-200);
+    --destructive: var(--color-status-error-default);
     --destructive-foreground: var(--color-text-white);
 
     --border: var(--color-background-border);
