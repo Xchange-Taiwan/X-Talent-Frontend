@@ -30,13 +30,25 @@ if [ -z "$CONFIG_JSON" ] || [ "$CONFIG_JSON" = "null" ]; then
   return 1 2>/dev/null || exit 1
 fi
 
-# Parse variables using jq
-export ORG=$(echo "$CONFIG_JSON" | jq -r '.org')
-export TRACKER_REPO=$(echo "$CONFIG_JSON" | jq -r '.repos.tracker')
-export FRONTEND_REPO=$(echo "$CONFIG_JSON" | jq -r '.repos.frontend')
-export PROJECT_NUMBER=$(echo "$CONFIG_JSON" | jq -r '.project.number')
-export PROJECT_ID=$(echo "$CONFIG_JSON" | jq -r '.project.id')
-export FIELD_ID=$(echo "$CONFIG_JSON" | jq -r '.fields.status.id')
-export BACKLOG_OPTION_ID=$(echo "$CONFIG_JSON" | jq -r '.fields.status.options.backlog')
-export IN_PROGRESS_OPTION_ID=$(echo "$CONFIG_JSON" | jq -r '.fields.status.options.in_progress')
-export PR_REVIEW_OPTION_ID=$(echo "$CONFIG_JSON" | jq -r '.fields.status.options.pr_review')
+# Parse variables using Node.js to avoid any external jq dependency
+eval $(node -e '
+  try {
+    const config = JSON.parse(process.argv[1]);
+    console.log(`export ORG="${config.org}"`);
+    console.log(`export TRACKER_REPO="${config.repos.tracker}"`);
+    console.log(`export FRONTEND_REPO="${config.repos.frontend}"`);
+    console.log(`export PROJECT_NUMBER="${config.project.number}"`);
+    console.log(`export PROJECT_ID="${config.project.id}"`);
+    console.log(`export FIELD_ID="${config.fields.status.id}"`);
+    console.log(`export BACKLOG_OPTION_ID="${config.fields.status.options.backlog}"`);
+    console.log(`export IN_PROGRESS_OPTION_ID="${config.fields.status.options.in_progress}"`);
+    console.log(`export PR_REVIEW_OPTION_ID="${config.fields.status.options.pr_review}"`);
+  } catch (e) {
+    console.error("ERROR: Failed to parse configuration JSON: " + e.message);
+    process.exit(1);
+  }
+' "$CONFIG_JSON")
+
+if [ $? -ne 0 ]; then
+  return 1 2>/dev/null || exit 1
+fi

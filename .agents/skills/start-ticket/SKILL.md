@@ -13,7 +13,7 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
    - **On macOS/Linux (Bash/Zsh)**:
 
      ```bash
-     source .agents/scripts/load-config.sh
+     source .agents/scripts/load-config.sh || exit 1
      ```
 
    - **On Windows (PowerShell)**:
