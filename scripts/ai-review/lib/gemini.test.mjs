@@ -83,6 +83,21 @@ describe('callGemini', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('retries on a 429 rate-limit error and succeeds on the next attempt', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        text: async () => 'rate limited',
+      })
+      .mockResolvedValueOnce(candidateResponse('{"ok":true}'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(callGemini('prompt')).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('does not retry a 4xx error', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce({
       ok: false,

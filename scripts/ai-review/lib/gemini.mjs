@@ -73,8 +73,10 @@ async function callGeminiOnce(promptText, { model, maxOutputTokens, apiKey }) {
   if (!res.ok) {
     const errText = await res.text();
     const err = new Error(`Gemini API error (${res.status}): ${errText}`);
-    // 5xx is almost always transient; 4xx (bad key, bad request) won't be fixed by retrying.
-    err.retryable = res.status >= 500;
+    // 5xx and 429 (rate limit — expected when 7 review agents hit the API
+    // in parallel) are transient; other 4xx (bad key, bad request) won't be
+    // fixed by retrying.
+    err.retryable = res.status >= 500 || res.status === 429;
     throw err;
   }
 
