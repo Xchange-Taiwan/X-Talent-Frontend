@@ -70,12 +70,14 @@ export const Information = ({
         {(job_title || company) && (
           <div className="flex gap-[6px] text-sm font-normal tracking-wide">
             {job_title}
-            {job_title && company && <span className="text-[#9DA8B9]">at</span>}
+            {job_title && company && (
+              <span className="text-text-tertiary">at</span>
+            )}
             {company}
           </div>
         )}
       </div>
-      <p className="line-clamp-2 text-sm font-normal tracking-wide text-[#9DA8B9]">
+      <p className="line-clamp-2 text-sm font-normal tracking-wide text-text-tertiary">
         {about}
       </p>
       <div className="relative">
