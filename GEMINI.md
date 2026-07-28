@@ -53,3 +53,71 @@
    - **軟性規則防禦 (AI Review Boundary Rules)**：**【已啟用】**。專案已在 `_shared/project-context.md` 中寫明文字規則，限制 `src/lib/**` 與 `src/services/**` 直接引用前端 React/Next UI 或狀態依賴。CI 的 AI Review 流程會對此進行嚴格自動化阻攔。
 4. **測試拒絕 `as` 斷言 (Shoehorn) 【已啟用】**：
    本專案已安裝並啟用 `@total-typescript/shoehorn` 局部 Mock 套件。在編寫測試（`*.test.ts` / `*.spec.ts`）時，**嚴格禁止**在測試資料中使用不安全的 `as any` 或 `as ComplexType` 雙重斷言。請優先採用 `@total-typescript/shoehorn` 提供之 `fromPartial()`（局部型別安全 Mock）與 `fromAny()`（故意傳遞錯誤型別之測試）函式，確保測試資料的型別安全性（已於 `src/lib/profile/pollUntilSynced.test.ts` 中完成範例落地與驗證）。
+
+---
+
+## 4. 頂級 Git Commit Message 規範 (Conventional Commits Standard)
+
+本專案嚴格遵循 **Conventional Commits 1.0.0** 規範，確保提交歷史的可讀性、可追溯性與 CI/CD 自動化的流暢性。不論是人類開發者還是 AI Agent，所有的 Commit Message 均須遵守以下結構：
+
+```
+<type>(<scope>): <subject> (X-Tracker #<issue-number>)
+
+<body>
+
+<footer>
+```
+
+### 4.1 核心欄位定義
+
+1. **`<type>`（提交類型，必要）**：
+   - `feat`: 新增功能（Features）。
+   - `fix`: 修補錯誤（Bug Fixes）。
+   - `docs`: 僅修改文件（Documentation）。
+   - `style`: 程式碼格式調整，不影響程式邏輯（Formatting, missing semi-colons, etc.）。
+   - `refactor`: 重構，非新增功能也非修復 Bug（Code refactoring）。
+   - `perf`: 提升效能的修改（Performance improvements）。
+   - `test`: 新增或修改測試案例（Testing）。
+   - `chore`: 建置流程或輔助工具的變更（Chore / Build config / workflow）。
+   - `ci`: CI/CD 流程或腳本的修改（CI configuration / GitHub workflows）。
+   - `revert`: 還原先前的提交（Revert a previous commit）。
+
+2. **`<scope>`（影響範圍，選填但強烈建議）**：
+   - 指明此修改影響的專案模組、頁面或組件（例如：`auth`, `profile`, `reservation`, `skills`, `ui` 等）。
+
+3. **`<subject>`（主旨簡述，必要）**：
+   - 採用祈使句、現在式、首字小寫（例如：`add login validations` 而非 `Added login validations` 或 `adds login validations`）。
+   - 不以點號 `.` 結尾。
+
+4. **`(X-Tracker #<issue-number>)`（關聯 Tracker Issue，本專案硬性要求）**：
+   - 所有的開發提交必須在主旨末尾標註其關聯的 X-Talent-Tracker 任務票號，格式為 `(X-Tracker #<issue-number>)`。
+
+5. **`<body>`（詳細描述，選填）**：
+   - 說明修改的動機、設計決策以及與先前行為的對比。
+
+6. **`<footer>`（頁尾資訊，選填）**：
+   - 用於關聯重大變更（Breaking Changes）或關閉特定的 GitHub Issue，例如：`Ref: https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/374` 或 `Closes #374`。
+
+### 4.2 範例
+
+#### 範例 1：新增功能（帶 Scope 與詳細說明）
+
+```text
+feat(auth): integrate google oauth token exchange (X-Tracker #102)
+
+Configure NextAuth to perform cross-repo token verification and refresh.
+Handle cases where the session email is missing from the OAuth response payload.
+
+Ref: https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/102
+```
+
+#### 範例 2：修復 Bug（關閉 Issue）
+
+```text
+fix(skills): resolve null ID error in project status transition (X-Tracker #374)
+
+Implement secure option ID truthiness checking and strip Windows carriage returns.
+This ensures PowerShell and Bash environments never pass invalid parameters.
+
+Closes #374
+```
