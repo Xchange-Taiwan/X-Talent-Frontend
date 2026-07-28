@@ -14,7 +14,7 @@ export default function EmailVerificationPage({
 }: EmailVerificationPageProps) {
   return (
     <div className="mx-auto my-8 max-w-[90%] overflow-hidden rounded-2xl border-2 border-solid border-background-border md:my-40 md:max-w-[630px]">
-      <div className="relative h-[108px] bg-[#EBFBFB]">
+      <div className="relative h-[108px] bg-brand-50">
         <Image
           className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-2/3 transform"
           src={EmailVerifyIconUrl.src}
@@ -24,7 +24,7 @@ export default function EmailVerificationPage({
         />
       </div>
       <div className="flex flex-col items-center gap-6 px-6 pb-8 pt-16 text-center md:p-20">
-        <h1 className="text-[32px] font-bold leading-10">驗證信箱</h1>
+        <h1 className="text-32 font-bold leading-10">驗證信箱</h1>
 
         <p className="text-neutral-600">
           已傳送一封驗證信，點選連結以完成帳號註冊。

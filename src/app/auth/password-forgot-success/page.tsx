@@ -11,7 +11,7 @@ export default function Page() {
 
   return (
     <div className="flex w-full flex-col items-center justify-center py-16">
-      <div className="relative mx-auto flex w-[342px] flex-col items-center overflow-hidden rounded-2xl border border-background-border bg-[#EBFBFB] pt-20 lg:w-[629px]">
+      <div className="relative mx-auto flex w-[342px] flex-col items-center overflow-hidden rounded-2xl border border-background-border bg-brand-50 pt-20 lg:w-[629px]">
         <Image
           className="absolute left-[50%] top-10 -translate-x-[50%] transform"
           src={EmailVerifyIconUrl}
@@ -21,7 +21,7 @@ export default function Page() {
         />
         <main className="flex w-full flex-auto flex-col justify-center gap-6 bg-background-white px-10 pt-20 sm:flex-none ">
           <div className="flex justify-center">
-            <h1 className="text-[32px] font-bold leading-10">郵件已送出</h1>
+            <h1 className="text-32 font-bold leading-10">郵件已送出</h1>
           </div>
           <div className="flex w-full flex-col items-start gap-1 text-center">
             系統將自動寄送郵件給您，請查看您的信箱並點擊連結以重設密碼。
