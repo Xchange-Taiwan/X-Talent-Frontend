@@ -72,7 +72,7 @@ Run a complete, parallelized multi-stage AI Review locally or in CI using concur
      - If an existing comment ID is found:
        - Update (PATCH) the existing comment via GH API to prevent comment spamming:
          ```bash
-         gh api -X PATCH repos/$GITHUB_REPOSITORY/issues/comments/{comment_id} -F body=@pr-comment-body.md
+         gh api -X PATCH repos/$GITHUB_REPOSITORY/issues/comments/$comment_id -F body=@pr-comment-body.md
          ```
      - If no existing comment is found:
        - Post a new comment to the PR:
