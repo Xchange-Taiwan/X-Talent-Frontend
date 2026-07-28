@@ -23,19 +23,11 @@ jobs:
     outputs:
       plan: ${{ steps.run.outputs.plan }}
     steps:
-      - name: Checkout PR head
-        uses: actions/checkout@v4
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
         with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Fetch base branch
-        run: git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          base-ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Run planner agent
         id: run
@@ -53,19 +45,11 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
-      - name: Checkout PR head
-        uses: actions/checkout@v4
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
         with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Fetch base branch
-        run: git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          base-ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Run security agent
         id: run
@@ -82,19 +66,11 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
-      - name: Checkout PR head
-        uses: actions/checkout@v4
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
         with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Fetch base branch
-        run: git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          base-ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Run correctness agent
         id: run
@@ -111,19 +87,11 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
-      - name: Checkout PR head
-        uses: actions/checkout@v4
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
         with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Fetch base branch
-        run: git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          base-ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Run business-logic agent
         id: run
@@ -140,19 +108,11 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
-      - name: Checkout PR head
-        uses: actions/checkout@v4
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
         with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Fetch base branch
-        run: git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          base-ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Run performance agent
         id: run
@@ -169,19 +129,11 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
-      - name: Checkout PR head
-        uses: actions/checkout@v4
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
         with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Fetch base branch
-        run: git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          base-ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Run testing agent
         id: run
@@ -198,19 +150,11 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
-      - name: Checkout PR head
-        uses: actions/checkout@v4
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
         with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Fetch base branch
-        run: git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          base-ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Run architecture agent
         id: run
@@ -227,19 +171,11 @@ jobs:
     outputs:
       guide: ${{ steps.run.outputs.guide }}
     steps:
-      - name: Checkout PR head
-        uses: actions/checkout@v4
+      - name: Set up AI review agent
+        uses: ./.github/actions/setup-ai-agent
         with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Fetch base branch
-        run: git fetch origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          base-ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Run review-guide agent
         id: run
@@ -263,6 +199,7 @@ jobs:
       ]
     runs-on: ubuntu-latest
     name: 'AI Review: Final Summary'
+    if: ${{ !cancelled() }}
     steps:
       - name: Checkout PR head
         uses: actions/checkout@v4

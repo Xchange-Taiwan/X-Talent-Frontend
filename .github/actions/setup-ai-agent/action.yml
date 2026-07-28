@@ -1,0 +1,32 @@
+name: 'Set up AI review agent'
+description: 'Checks out the PR head, fetches the base branch, and sets up Node.js for an AI review agent job.'
+
+inputs:
+  head-sha:
+    description: 'The PR head commit SHA to check out'
+    required: true
+  base-ref:
+    description: 'The PR base branch name to fetch'
+    required: true
+  node-version:
+    description: 'Node.js version to set up'
+    required: false
+    default: '20'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout PR head
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        ref: ${{ inputs.head-sha }}
+
+    - name: Fetch base branch
+      shell: bash
+      run: git fetch origin ${{ inputs.base-ref }}:refs/remotes/origin/${{ inputs.base-ref }}
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}

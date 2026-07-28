@@ -6,7 +6,12 @@ export function encodeContext(obj) {
 
 export function decodeContext(b64) {
   if (!b64) return null;
-  return JSON.parse(Buffer.from(b64, 'base64').toString('utf-8'));
+  try {
+    return JSON.parse(Buffer.from(b64, 'base64').toString('utf-8'));
+  } catch (err) {
+    console.warn(`[context-io] failed to decode context: ${err.message}`);
+    return null;
+  }
 }
 
 /** Writes `name=value` to $GITHUB_OUTPUT so downstream jobs can read it via `needs.<job>.outputs.<name>`. */
