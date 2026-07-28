@@ -23,10 +23,15 @@ jobs:
     outputs:
       plan: ${{ steps.run.outputs.plan }}
     steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Set up AI review agent
         uses: ./.github/actions/setup-ai-agent
         with:
-          head-sha: ${{ github.event.pull_request.head.sha }}
           base-ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Run planner agent
@@ -45,10 +50,15 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Set up AI review agent
         uses: ./.github/actions/setup-ai-agent
         with:
-          head-sha: ${{ github.event.pull_request.head.sha }}
           base-ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Run security agent
@@ -66,10 +76,15 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Set up AI review agent
         uses: ./.github/actions/setup-ai-agent
         with:
-          head-sha: ${{ github.event.pull_request.head.sha }}
           base-ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Run correctness agent
@@ -87,10 +102,15 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Set up AI review agent
         uses: ./.github/actions/setup-ai-agent
         with:
-          head-sha: ${{ github.event.pull_request.head.sha }}
           base-ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Run business-logic agent
@@ -108,10 +128,15 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Set up AI review agent
         uses: ./.github/actions/setup-ai-agent
         with:
-          head-sha: ${{ github.event.pull_request.head.sha }}
           base-ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Run performance agent
@@ -129,10 +154,15 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Set up AI review agent
         uses: ./.github/actions/setup-ai-agent
         with:
-          head-sha: ${{ github.event.pull_request.head.sha }}
           base-ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Run testing agent
@@ -150,10 +180,15 @@ jobs:
     outputs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Set up AI review agent
         uses: ./.github/actions/setup-ai-agent
         with:
-          head-sha: ${{ github.event.pull_request.head.sha }}
           base-ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Run architecture agent
@@ -171,10 +206,15 @@ jobs:
     outputs:
       guide: ${{ steps.run.outputs.guide }}
     steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
       - name: Set up AI review agent
         uses: ./.github/actions/setup-ai-agent
         with:
-          head-sha: ${{ github.event.pull_request.head.sha }}
           base-ref: ${{ github.event.pull_request.base.ref }}
 
       - name: Run review-guide agent

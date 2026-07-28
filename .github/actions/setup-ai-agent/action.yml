@@ -1,10 +1,7 @@
 name: 'Set up AI review agent'
-description: 'Checks out the PR head, fetches the base branch, and sets up Node.js for an AI review agent job.'
+description: 'Fetches the base branch and sets up Node.js for an AI review agent job. The calling job must check out the repo first — a local composite action can only be resolved after checkout has already run.'
 
 inputs:
-  head-sha:
-    description: 'The PR head commit SHA to check out'
-    required: true
   base-ref:
     description: 'The PR base branch name to fetch'
     required: true
@@ -16,12 +13,6 @@ inputs:
 runs:
   using: 'composite'
   steps:
-    - name: Checkout PR head
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        ref: ${{ inputs.head-sha }}
-
     - name: Fetch base branch
       shell: bash
       run: git fetch origin ${{ inputs.base-ref }}:refs/remotes/origin/${{ inputs.base-ref }}
