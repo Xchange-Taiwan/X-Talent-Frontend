@@ -93,6 +93,12 @@
     --color-avatar-background: 180 57% 97%; /* #F4FCFC */
     --color-avatar-border: 180 16% 76%; /* #B7CBCB */
     --color-avatar-overlay: 0 0% 44%; /* #6F6F6F */
+
+    /* Legacy / Landing page specific colors */
+    --color-navy: 219 59% 22%; /* #172E59 */
+    --color-logo-blue: 200 100% 18%; /* #003C5A */
+    --color-bd-blue: 212 100% 74%; /* #7CB8FF */
+    --color-marketing-orange: 29 100% 75%; /* #FFBF82 */
   }
 }
 

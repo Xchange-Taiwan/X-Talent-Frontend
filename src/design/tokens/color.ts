@@ -81,4 +81,9 @@ module.exports = {
     border: 'hsl(var(--color-avatar-border) / <alpha-value>)',
     overlay: 'hsl(var(--color-avatar-overlay) / <alpha-value>)',
   },
+  // Legacy / Landing page specific tokens to be reviewed by Design
+  navy: 'hsl(var(--color-navy) / <alpha-value>)',
+  logoBlue: 'hsl(var(--color-logo-blue) / <alpha-value>)',
+  bdBlue: 'hsl(var(--color-bd-blue) / <alpha-value>)',
+  marketingOrange: 'hsl(var(--color-marketing-orange) / <alpha-value>)',
 };
