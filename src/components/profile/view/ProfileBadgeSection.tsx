@@ -13,7 +13,7 @@ export function ProfileBadgeSection({ title, items }: Props) {
       <p className="mb-4 text-xl font-bold">{title}</p>
       <div className="flex flex-wrap gap-3">
         {items.map((i) => (
-          <Badge variant="primaryAlt" key={i.subject_group}>
+          <Badge variant="default" key={i.subject_group}>
             {i.subject}
           </Badge>
         ))}

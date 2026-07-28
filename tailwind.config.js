@@ -49,6 +49,15 @@ export const theme = {
         foreground: 'hsl(var(--card-foreground) / <alpha-value>)',
       },
     },
+    fontSize: {
+      11: ['11px', { lineHeight: '1' }],
+      13: ['13px', { lineHeight: '1' }],
+      14: ['14px', { lineHeight: '1.4' }],
+      18: ['18px', { lineHeight: '1.4' }],
+      28: ['28px', { lineHeight: '1' }],
+      32: ['32px', { lineHeight: '1.25' }],
+      36: ['36px', { lineHeight: '1.25' }],
+    },
     borderRadius: {
       lg: 'var(--radius)',
       md: 'calc(var(--radius) - 2px)',
