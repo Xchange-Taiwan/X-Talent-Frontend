@@ -6,6 +6,8 @@ disable-model-invocation: true
 
 Submit changes for PR review, updating issue tracking status and highlighting modifications.
 
+> **⚠️ Execution note**: Shell state (exported variables, sourced functions) does **not** persist across separate command executions — only the working directory does. Any step below that reads `$ORG`, `$TRACKER_REPO`, `$ISSUE_NUMBER`, `$PROJECT_ID`, `$FIELD_ID`, or `$PR_REVIEW_OPTION_ID` MUST re-derive them (re-source `load-config.sh`/`load-config.ps1` and re-parse the branch name) inside that **same** command execution rather than relying on a prior step's `source`. Step 5 below is written as a single self-contained block for exactly this reason — do not split it across multiple command executions.
+
 ## Steps
 
 1. **Verify Quality & Run Tests**
@@ -75,111 +77,116 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
    - **PR Already Exists Fallback**: If the command fails because a pull request already exists for the branch, treat this as a successful update and proceed gracefully. Do not halt or abort.
 
 5. **Move Ticket on Board to "PR Review"**
-   - **Defensive Check for Issue Number**: If no `$ISSUE_NUMBER` was parsed/resolved from the branch name (it is empty/null), skip this step entirely and do not perform any Project Board operations.
-   - Fetch the Project Item ID in project board for the issue from `$TRACKER_REPO` (fallback to `$FRONTEND_REPO`):
-     - **On macOS/Linux (Bash/Zsh)**:
+   - **This entire step MUST run as a single command execution**, from config loading through the mutation. Do not rely on `$ISSUE_NUMBER` or config variables set in Step 2 — re-derive everything below in the same shell invocation, since shell state does not carry over between separate command executions (see the execution note above). This is the step that was silently no-op-ing before this fix: by the time this ran as its own command, the config/vars sourced back in Step 2 had already gone out of scope, so the item lookup silently returned empty and the `if` guard skipped the mutation without printing an error.
+   - **On macOS/Linux (Bash/Zsh)** — run as one block:
 
-       ```bash
-       if [ -z "$ISSUE_NUMBER" ]; then
-         echo "⚠️ No issue number detected in branch name. Skipping Project Board update."
-         ITEM_ID=""
-       else
-         ITEM_ID=$(gh api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$TRACKER_REPO" -f query='
-           query($login: String!, $issue_number: Int!, $repo_name: String!) {
-             organization(login: $login) {
-               repository(name: $repo_name) {
-                 issue(number: $issue_number) {
-                   projectItems(first: 5) { nodes { id project { number } } }
-                 }
-               }
+     ```bash
+     source .agents/scripts/load-config.sh || exit 1
+     BRANCH_NAME=$(git branch --show-current)
+     ISSUE_NUMBER=$(echo "$BRANCH_NAME" | grep -oE '[0-9]+' | head -n 1)
+
+     if [ -z "$ISSUE_NUMBER" ]; then
+       echo "⚠️ No issue number detected in branch name. Skipping Project Board update."
+       exit 0
+     fi
+
+     ITEM_ID=$(gh api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$TRACKER_REPO" -f query='
+       query($login: String!, $issue_number: Int!, $repo_name: String!) {
+         organization(login: $login) {
+           repository(name: $repo_name) {
+             issue(number: $issue_number) {
+               projectItems(first: 5) { nodes { id project { number } } }
              }
            }
-         ' --jq ".data.organization.repository.issue.projectItems.nodes[] | select(.project.number == $PROJECT_NUMBER) | .id" 2>/dev/null)
-
-         if [ -z "$ITEM_ID" ]; then
-           ITEM_ID=$(gh api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$FRONTEND_REPO" -f query='
-             query($login: String!, $issue_number: Int!, $repo_name: String!) {
-               organization(login: $login) {
-                 repository(name: $repo_name) {
-                   issue(number: $issue_number) {
-                     projectItems(first: 5) { nodes { id project { number } } }
-                   }
-                 }
-               }
-             }
-           ' --jq ".data.organization.repository.issue.projectItems.nodes[] | select(.project.number == $PROJECT_NUMBER) | .id" 2>/dev/null)
-         fi
-
-         if [ -z "$ITEM_ID" ]; then
-           echo "⚠️ 找不到對應的 Project Board 卡片，PR 已建立但看板狀態需手動更新"
-         fi
-       fi
-       ```
-
-     - **On Windows (PowerShell)**:
-
-       ```powershell
-       if (-not $ISSUE_NUMBER) {
-         Write-Host "⚠️ No issue number detected in branch name. Skipping Project Board update."
-         $ITEM_ID = $null
-       } else {
-         $ITEM_ID = (gh api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$TRACKER_REPO" -f query='
-           query($login: String!, $issue_number: Int!, $repo_name: String!) {
-             organization(login: $login) {
-               repository(name: $repo_name) {
-                 issue(number: $issue_number) {
-                   projectItems(first: 5) { nodes { id project { number } } }
-                 }
-               }
-             }
-           }
-         ' --jq ".data.organization.repository.issue.projectItems.nodes[] | select(.project.number == $PROJECT_NUMBER) | .id" 2>$null)
-
-         if (-not $ITEM_ID) {
-           $ITEM_ID = (gh api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$FRONTEND_REPO" -f query='
-             query($login: String!, $issue_number: Int!, $repo_name: String!) {
-               organization(login: $login) {
-                 repository(name: $repo_name) {
-                   issue(number: $issue_number) {
-                     projectItems(first: 5) { nodes { id project { number } } }
-                   }
-                 }
-               }
-             }
-           ' --jq ".data.organization.repository.issue.projectItems.nodes[] | select(.project.number == $PROJECT_NUMBER) | .id" 2>$null)
-         }
-
-         if (-not $ITEM_ID) {
-           Write-Host "⚠️ 找不到對應的 Project Board 卡片，PR 已建立但看板狀態需手動更新"
          }
        }
-       ```
+     ' --jq ".data.organization.repository.issue.projectItems.nodes[] | select(.project.number == $PROJECT_NUMBER) | .id" 2>/dev/null)
 
-   - Update Single Select status field (`FIELD_ID`) to "PR Review" (Option ID: `PR_REVIEW_OPTION_ID`):
-     - **On macOS/Linux (Bash/Zsh)**:
-       ```bash
-       if [ -n "$ITEM_ID" ] && [ -n "$PR_REVIEW_OPTION_ID" ] && [ "$PR_REVIEW_OPTION_ID" != "null" ]; then
-         gh api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$PR_REVIEW_OPTION_ID" -f query='
-           mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
-             updateProjectV2ItemFieldValue(
-               input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
-             ) { projectV2Item { id } }
+     if [ -z "$ITEM_ID" ]; then
+       ITEM_ID=$(gh api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$FRONTEND_REPO" -f query='
+         query($login: String!, $issue_number: Int!, $repo_name: String!) {
+           organization(login: $login) {
+             repository(name: $repo_name) {
+               issue(number: $issue_number) {
+                 projectItems(first: 5) { nodes { id project { number } } }
+               }
+             }
            }
-         ' >/dev/null
-       fi
-       ```
-     - **On Windows (PowerShell)**:
-       ```powershell
-       if ($ITEM_ID -and $PR_REVIEW_OPTION_ID -and $PR_REVIEW_OPTION_ID -ne "null") {
-         gh api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$PR_REVIEW_OPTION_ID" -f query='
-           mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
-             updateProjectV2ItemFieldValue(
-               input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
-             ) { projectV2Item { id } }
+         }
+       ' --jq ".data.organization.repository.issue.projectItems.nodes[] | select(.project.number == $PROJECT_NUMBER) | .id" 2>/dev/null)
+     fi
+
+     if [ -z "$ITEM_ID" ]; then
+       echo "⚠️ 找不到對應的 Project Board 卡片，PR 已建立但看板狀態需手動更新"
+       exit 0
+     fi
+
+     if [ -n "$PR_REVIEW_OPTION_ID" ] && [ "$PR_REVIEW_OPTION_ID" != "null" ]; then
+       gh api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$PR_REVIEW_OPTION_ID" -f query='
+         mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
+           updateProjectV2ItemFieldValue(
+             input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
+           ) { projectV2Item { id } }
+         }
+       ' >/dev/null
+       echo "✅ Ticket #$ISSUE_NUMBER moved to PR Review"
+     fi
+     ```
+
+   - **On Windows (PowerShell)** — run as one block:
+
+     ```powershell
+     . .agents/scripts/load-config.ps1
+     $BRANCH_NAME = (git branch --show-current)
+     $ISSUE_NUMBER = ([regex]::Match($BRANCH_NAME, '\d+').Value)
+
+     if (-not $ISSUE_NUMBER) {
+       Write-Host "⚠️ No issue number detected in branch name. Skipping Project Board update."
+       return
+     }
+
+     $ITEM_ID = (gh api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$TRACKER_REPO" -f query='
+       query($login: String!, $issue_number: Int!, $repo_name: String!) {
+         organization(login: $login) {
+           repository(name: $repo_name) {
+             issue(number: $issue_number) {
+               projectItems(first: 5) { nodes { id project { number } } }
+             }
            }
-         ' | Out-Null
-       fi
-       ```
+         }
+       }
+     ' --jq ".data.organization.repository.issue.projectItems.nodes[] | select(.project.number == $PROJECT_NUMBER) | .id" 2>$null)
+
+     if (-not $ITEM_ID) {
+       $ITEM_ID = (gh api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$FRONTEND_REPO" -f query='
+         query($login: String!, $issue_number: Int!, $repo_name: String!) {
+           organization(login: $login) {
+             repository(name: $repo_name) {
+               issue(number: $issue_number) {
+                 projectItems(first: 5) { nodes { id project { number } } }
+               }
+             }
+           }
+         }
+       ' --jq ".data.organization.repository.issue.projectItems.nodes[] | select(.project.number == $PROJECT_NUMBER) | .id" 2>$null)
+     }
+
+     if (-not $ITEM_ID) {
+       Write-Host "⚠️ 找不到對應的 Project Board 卡片，PR 已建立但看板狀態需手動更新"
+       return
+     }
+
+     if ($PR_REVIEW_OPTION_ID -and $PR_REVIEW_OPTION_ID -ne "null") {
+       gh api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$PR_REVIEW_OPTION_ID" -f query='
+         mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
+           updateProjectV2ItemFieldValue(
+             input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
+           ) { projectV2Item { id } }
+         }
+       ' | Out-Null
+       Write-Host "✅ Ticket #$ISSUE_NUMBER moved to PR Review"
+     }
+     ```
 
 6. **Output Summary**
    - Show the PR link and **high-light** all changes in Traditional Chinese (繁體中文).
