@@ -74,7 +74,7 @@ const MentorFilterDropdown = ({
 
       <Popover.Portal>
         <Popover.Content
-          className="z-[55] flex max-h-[calc(var(--radix-popover-content-available-height)-8px)] w-[320px] flex-col rounded-md border border-gray-200 bg-background-white shadow-xl"
+          className="z-[55] flex max-h-[calc(var(--radix-popover-content-available-height)-8px)] w-[320px] flex-col rounded-md border border-background-border bg-background-white shadow-xl"
           sideOffset={8}
           collisionPadding={8}
         >
@@ -89,7 +89,7 @@ const MentorFilterDropdown = ({
               />
             ))}
           </div>
-          <div className="flex gap-2 border-t border-gray-100 p-4 pt-3">
+          <div className="flex gap-2 border-t border-background-border p-4 pt-3">
             <Button className="w-full" onClick={applyFilters}>
               套用
             </Button>

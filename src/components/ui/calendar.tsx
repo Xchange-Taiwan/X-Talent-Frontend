@@ -113,14 +113,14 @@ function Calendar({
 
         dropdowns: cn(
           isProfile
-            ? 'flex h-[var(--cell-size)] items-center justify-start gap-1 text-[length:var(--calendar-caption-font-size)] font-medium text-gray-700'
+            ? 'flex h-[var(--cell-size)] items-center justify-start gap-1 text-[length:var(--calendar-caption-font-size)] font-medium text-text-secondary'
             : 'flex h-[var(--cell-size)] w-full items-center justify-center gap-1.5 text-[length:var(--calendar-caption-font-size)] font-medium',
           defaultClassNames.dropdowns
         ),
 
         dropdown_root: cn(
           isProfile
-            ? 'relative inline-flex items-center gap-0.5 rounded-md px-1 py-0.5 text-sm font-semibold text-gray-800 hover:bg-gray-100'
+            ? 'relative inline-flex items-center gap-0.5 rounded-md px-1 py-0.5 text-sm font-semibold text-text-primary hover:bg-background-bottom-secondary'
             : 'has-focus:border-ring border-input shadow-xs has-focus:ring-ring/50 has-focus:ring-[3px] relative rounded-md border',
           defaultClassNames.dropdown_root
         ),
@@ -132,7 +132,7 @@ function Calendar({
 
         caption_label: cn(
           isProfile
-            ? 'select-none font-medium text-gray-700'
+            ? 'select-none font-medium text-text-secondary'
             : 'select-none font-medium',
           captionLayout === 'label'
             ? 'text-[length:var(--calendar-caption-font-size)]'
@@ -321,7 +321,7 @@ function CalendarDayButton({
           'data-[selected-single=true]:bg-primary',
           'data-[selected-single=true]:text-primary-foreground',
           'group-data-[variant=profile]/calendar:data-[selected-single=true]:bg-brand-100',
-          'group-data-[variant=profile]/calendar:data-[selected-single=true]:text-gray-900',
+          'group-data-[variant=profile]/calendar:data-[selected-single=true]:text-text-primary',
           'group-data-[variant=profile]/calendar:data-[selected-single=true]:font-medium',
           'group-data-[variant=profile]/calendar:data-[selected-single=true]:border',
           'group-data-[variant=profile]/calendar:data-[selected-single=true]:border-brand-300',

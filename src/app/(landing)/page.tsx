@@ -164,7 +164,7 @@ export default function Page() {
               key={chip.name}
               className={`my-2 flex h-[53px] flex-col items-center justify-center rounded-[124px] ${chip.className}`}
             >
-              <p className="font-bold text-gray-900">{chip.name}</p>
+              <p className="font-bold text-text-primary">{chip.name}</p>
             </div>
           ))}
         </div>
@@ -282,7 +282,7 @@ export default function Page() {
         </div>
       </section>
 
-      <section className="flex items-center justify-center bg-gray-50">
+      <section className="flex items-center justify-center bg-background-bottom-secondary">
         <div className="w-full max-w-[600px] py-10 lg:max-w-6xl">
           <HomePageSliderClient />
         </div>
