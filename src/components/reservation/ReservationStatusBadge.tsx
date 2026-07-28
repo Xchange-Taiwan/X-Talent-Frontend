@@ -12,9 +12,9 @@ const statusBadgeVariants = cva(
     variants: {
       status: {
         far: 'bg-muted text-muted-foreground',
-        soon: 'bg-status-500/20 text-status-400',
-        imminent: 'bg-status-300/20 text-status-200',
-        live: 'bg-status-100/20 text-status-50',
+        soon: 'bg-status-warning-active/20 text-status-warning-default',
+        imminent: 'bg-status-error-active/20 text-status-error-default',
+        live: 'bg-status-success-active/20 text-status-success-default',
         ended: 'bg-muted text-muted-foreground/70',
       },
     },
@@ -43,7 +43,7 @@ export function ReservationStatusBadge({
     >
       {status === 'live' ? (
         <span
-          className="h-1.5 w-1.5 rounded-full bg-status-50 motion-safe:animate-pulse"
+          className="h-1.5 w-1.5 rounded-full bg-status-success-default motion-safe:animate-pulse"
           aria-hidden
         />
       ) : null}

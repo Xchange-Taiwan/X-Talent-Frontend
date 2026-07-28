@@ -35,7 +35,7 @@ export default function Page() {
                 {...register('email')}
               />
               {errors.email && (
-                <p className="text-sm text-status-200">
+                <p className="text-sm text-status-error-default">
                   {errors.email.message}
                 </p>
               )}

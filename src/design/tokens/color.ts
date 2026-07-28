@@ -41,14 +41,22 @@ module.exports = {
     900: 'hsl(var(--color-gray-900) / <alpha-value>)',
   },
   status: {
-    50: 'hsl(var(--color-status-50) / <alpha-value>)',
-    100: 'hsl(var(--color-status-100) / <alpha-value>)',
-    200: 'hsl(var(--color-status-200) / <alpha-value>)',
-    300: 'hsl(var(--color-status-300) / <alpha-value>)',
-    400: 'hsl(var(--color-status-400) / <alpha-value>)',
-    500: 'hsl(var(--color-status-500) / <alpha-value>)',
-    600: 'hsl(var(--color-status-600) / <alpha-value>)',
-    700: 'hsl(var(--color-status-700) / <alpha-value>)',
+    success: {
+      default: 'hsl(var(--color-status-success-default) / <alpha-value>)',
+      active: 'hsl(var(--color-status-success-active) / <alpha-value>)',
+    },
+    error: {
+      default: 'hsl(var(--color-status-error-default) / <alpha-value>)',
+      active: 'hsl(var(--color-status-error-active) / <alpha-value>)',
+    },
+    warning: {
+      default: 'hsl(var(--color-status-warning-default) / <alpha-value>)',
+      active: 'hsl(var(--color-status-warning-active) / <alpha-value>)',
+    },
+    info: {
+      default: 'hsl(var(--color-status-info-default) / <alpha-value>)',
+      active: 'hsl(var(--color-status-info-active) / <alpha-value>)',
+    },
   },
   blue: {
     default: 'hsl(var(--color-blue-default) / <alpha-value>)',
@@ -81,7 +89,8 @@ module.exports = {
     border: 'hsl(var(--color-avatar-border) / <alpha-value>)',
     overlay: 'hsl(var(--color-avatar-overlay) / <alpha-value>)',
   },
-  // Legacy / Landing page specific tokens to be reviewed by Design
+  // [Item 3: Legacy landing-only tokens]
+  // 經過全面代碼檢索（grep），以下 5 個 Token 仍被 (landing)/about、(landing)/page、(landing)/terms、(landing)/privacy、mentor-pool/PopularPositionChips 以及 components/landing/HomePageSlider 廣泛調用，為防樣式損壞，依據工程規範維持保留。
   navy: 'hsl(var(--color-navy) / <alpha-value>)',
   logoBlue: 'hsl(var(--color-logo-blue) / <alpha-value>)',
   bdBlue: 'hsl(var(--color-bd-blue) / <alpha-value>)',

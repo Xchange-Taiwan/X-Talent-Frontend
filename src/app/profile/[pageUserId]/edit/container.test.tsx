@@ -108,13 +108,20 @@ vi.mock('@/components/profile/edit/Section', () => ({
     id,
     title,
     children,
+    required = false,
   }: {
     id?: string;
     title?: React.ReactNode;
     children: React.ReactNode;
+    required?: boolean;
   }) => (
     <div id={id} data-testid={`section-${id}`}>
-      {title && <span data-testid={`section-${id}-title`}>{title}</span>}
+      {title && (
+        <span data-testid={`section-${id}-title`}>
+          {required && '* '}
+          {title}
+        </span>
+      )}
       {children}
     </div>
   ),
