@@ -22,7 +22,7 @@ function PasswordResetForm() {
         <div className="space-y-2">
           <Label
             htmlFor="password"
-            className="text-base font-normal text-[#2B2B2B]"
+            className="text-base font-normal text-text-primary"
           >
             新密碼
           </Label>
@@ -30,7 +30,7 @@ function PasswordResetForm() {
             id="password"
             type="password"
             placeholder="請輸入新密碼"
-            className="h-[36px] rounded-[8px] border border-[#D9D9D9] px-3 text-sm placeholder:text-[#B3B3B3]"
+            className="h-[36px] rounded-[8px] border border-gray-200 px-3 text-sm placeholder:text-gray-300"
             {...register('password')}
           />
           {errors.password && (
@@ -41,7 +41,7 @@ function PasswordResetForm() {
         <div className="space-y-2">
           <Label
             htmlFor="confirm_password"
-            className="text-base font-normal text-[#2B2B2B]"
+            className="text-base font-normal text-text-primary"
           >
             確認新密碼
           </Label>
@@ -49,7 +49,7 @@ function PasswordResetForm() {
             id="confirm_password"
             type="password"
             placeholder="請再次輸入新密碼"
-            className="h-[36px] rounded-[8px] border border-[#D9D9D9] px-3 text-sm placeholder:text-[#B3B3B3]"
+            className="h-[36px] rounded-[8px] border border-gray-200 px-3 text-sm placeholder:text-gray-300"
             {...register('confirm_password')}
           />
           {errors.confirm_password && (
@@ -77,9 +77,9 @@ export default function Page() {
   return (
     <div className="bg-white">
       <main className="px-6 py-16">
-        <div className="bg-white mx-auto w-full max-w-[556px] rounded-[16px] border border-[#E5E7EB] px-9 py-14 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
+        <div className="bg-white mx-auto w-full max-w-[556px] rounded-[16px] border border-background-border px-9 py-14 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
           <div className="mx-auto w-full max-w-[484px]">
-            <h1 className="mb-8 text-center text-[32px] font-bold leading-[1.2] text-[#1E1E1E]">
+            <h1 className="mb-8 text-center text-32 font-bold leading-[1.2] text-text-primary">
               重設密碼
             </h1>
 
@@ -90,7 +90,7 @@ export default function Page() {
             <div className="mt-6 text-center">
               <Link
                 href="/auth/signin"
-                className="text-sm text-[#1E1E1E] underline underline-offset-2"
+                className="text-sm text-text-primary underline underline-offset-2"
               >
                 返回登入頁
               </Link>

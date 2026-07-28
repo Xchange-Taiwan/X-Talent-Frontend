@@ -1,6 +1,5 @@
-import Image from 'next/image';
-
 import EmailVerifyIconUrl from '@/assets/auth/email-verify-icon.svg';
+import AuthMessageCard from '@/components/auth/AuthMessageCard';
 import { Button } from '@/components/ui/button';
 
 interface EmailVerificationPageProps {
@@ -13,37 +12,29 @@ export default function EmailVerificationPage({
   onNavigateHome,
 }: EmailVerificationPageProps) {
   return (
-    <div className="mx-auto my-8 max-w-[90%] overflow-hidden rounded-2xl border-2 border-solid border-background-border md:my-40 md:max-w-[630px]">
-      <div className="relative h-[108px] bg-[#EBFBFB]">
-        <Image
-          className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-2/3 transform"
-          src={EmailVerifyIconUrl.src}
-          alt="Verify Email"
-          width={80}
-          height={80}
-        />
-      </div>
-      <div className="flex flex-col items-center gap-6 px-6 pb-8 pt-16 text-center md:p-20">
-        <h1 className="text-[32px] font-bold leading-10">驗證信箱</h1>
+    <AuthMessageCard
+      icon={EmailVerifyIconUrl.src}
+      iconAlt="Verify Email"
+      title="驗證信箱"
+      contentClassName="px-6 pb-8 pt-16 text-center md:p-20"
+    >
+      <p className="text-neutral-600">
+        已傳送一封驗證信，點選連結以完成帳號註冊。
+      </p>
 
-        <p className="text-neutral-600">
-          已傳送一封驗證信，點選連結以完成帳號註冊。
-        </p>
+      <Button className="max-w-60 rounded-full" onClick={onNavigateHome}>
+        回首頁
+      </Button>
 
-        <Button className="max-w-60 rounded-full" onClick={onNavigateHome}>
-          回首頁
-        </Button>
-
-        <p className="text-xs text-text-tertiary">
-          沒有收到信嗎？{' '}
-          <span
-            className="cursor-pointer underline decoration-1"
-            onClick={onResendEmail}
-          >
-            點此重新寄送
-          </span>
-        </p>
-      </div>
-    </div>
+      <p className="text-xs text-text-tertiary">
+        沒有收到信嗎？{' '}
+        <span
+          className="cursor-pointer underline decoration-1"
+          onClick={onResendEmail}
+        >
+          點此重新寄送
+        </span>
+      </p>
+    </AuthMessageCard>
   );
 }

@@ -11,15 +11,15 @@ export default function Page() {
   return (
     <div className="bg-white">
       <main className="px-6 pb-20 pt-16">
-        <div className="bg-white mx-auto w-full max-w-[554px] overflow-hidden rounded-[16px] border border-[#E5E7EB] shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
+        <div className="bg-white mx-auto w-full max-w-[554px] overflow-hidden rounded-[16px] border border-background-border shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
           <div className="h-[88px] bg-[linear-gradient(90deg,#EAFBFB_0%,#CFEFFF_45%,#EAE4FF_100%)]" />
 
           <div className="px-8 pb-10">
-            <h1 className="relative -mt-5 text-center text-[32px] font-bold leading-[1.2] text-[#1E1E1E]">
+            <h1 className="relative -mt-5 text-center text-32 font-bold leading-[1.2] text-text-primary">
               密碼重設成功
             </h1>
 
-            <p className="mt-4 text-center text-base leading-6 text-[#52525B]">
+            <p className="mt-4 text-center text-base leading-6 text-gray-700">
               您現在可以使用新密碼登入。
             </p>
 
@@ -35,7 +35,7 @@ export default function Page() {
             <div className="mt-5 text-center">
               <Link
                 href="/"
-                className="text-sm text-[#1E1E1E] underline underline-offset-2"
+                className="text-sm text-text-primary underline underline-offset-2"
               >
                 回首頁
               </Link>

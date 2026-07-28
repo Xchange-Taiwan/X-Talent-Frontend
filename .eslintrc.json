@@ -70,11 +70,7 @@
         "src/components/mentor-pool/mentor-card/AvatarWithBadge.tsx",
         "src/components/layout/Header/ShareProfileDialog.tsx",
         "src/app/profile/**/*.tsx",
-        "src/app/auth/email-verify/ui.tsx",
-        "src/app/auth/email-verified/ui.tsx",
-        "src/app/auth/password-forgot-success/page.tsx",
-        "src/app/auth/password-reset-success/page.tsx",
-        "src/app/auth/password-reset/page.tsx"
+        "src/app/auth/password-reset-success/page.tsx"
       ],
       "rules": {
         "no-restricted-syntax": "off"
