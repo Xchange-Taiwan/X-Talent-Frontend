@@ -258,7 +258,7 @@ export function CategoryMultiSelect({
       <div
         className={cn(
           'border-t border-background-border px-4 py-2 text-sm tabular-nums',
-          limitReached ? 'text-status-200' : 'text-text-tertiary'
+          limitReached ? 'text-status-error-default' : 'text-text-tertiary'
         )}
         aria-live="polite"
       >

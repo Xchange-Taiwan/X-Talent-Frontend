@@ -122,7 +122,7 @@ export const JobExperienceSection = ({
     <Section
       title={
         <>
-          {isMentor && <span className="text-status-200">* </span>}
+          {isMentor && <span className="text-status-error-default">* </span>}
           工作經驗
         </>
       }
@@ -252,7 +252,7 @@ export const JobExperienceSection = ({
             </div>
 
             {invalidPeriod && (
-              <p className="mb-4 text-sm font-medium text-status-200">
+              <p className="mb-4 text-sm font-medium text-status-error-default">
                 開始年份不可大於結束年份
               </p>
             )}

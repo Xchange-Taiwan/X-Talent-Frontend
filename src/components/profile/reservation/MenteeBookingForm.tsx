@@ -93,7 +93,7 @@ export function MenteeBookingForm({
           {...register('bookingQuestion')}
         />
         {errors.bookingQuestion && (
-          <p className="mt-1 text-sm text-status-200">
+          <p className="mt-1 text-sm text-status-error-default">
             {errors.bookingQuestion.message}
           </p>
         )}

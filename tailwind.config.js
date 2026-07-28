@@ -1,8 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const colors = require('./src/design/tokens/color');
 
-export const darkMode = ['class'];
-
 export const content = ['./src/**/*.{js,jsx,ts,tsx}'];
 
 export const theme = {

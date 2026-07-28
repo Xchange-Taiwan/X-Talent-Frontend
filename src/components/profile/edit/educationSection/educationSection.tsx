@@ -156,7 +156,7 @@ export const EducationSection = ({
     <Section
       title={
         <>
-          {isMentor && <span className="text-status-200">* </span>}
+          {isMentor && <span className="text-status-error-default">* </span>}
           教育經歷
         </>
       }
@@ -276,7 +276,7 @@ export const EducationSection = ({
             </div>
 
             {invalidPeriod && (
-              <p className="mb-4 text-sm font-medium text-status-200">
+              <p className="mb-4 text-sm font-medium text-status-error-default">
                 開始年份不可大於結束年份
               </p>
             )}

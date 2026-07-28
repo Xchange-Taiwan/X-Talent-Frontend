@@ -210,7 +210,7 @@ export default function EditProfileContainer({
             id="name"
             title={
               <>
-                <span className="text-status-200">* </span>姓名
+                <span className="text-status-error-default">* </span>姓名
               </>
             }
           >
@@ -221,7 +221,9 @@ export default function EditProfileContainer({
             id="about"
             title={
               <>
-                {isMentorRole && <span className="text-status-200">* </span>}
+                {isMentorRole && (
+                  <span className="text-status-error-default">* </span>
+                )}
                 關於我
               </>
             }
@@ -234,7 +236,8 @@ export default function EditProfileContainer({
               id="have_topic"
               title={
                 <>
-                  <span className="text-status-200">* </span>我能提供的服務
+                  <span className="text-status-error-default">* </span>
+                  我能提供的服務
                 </>
               }
             >
@@ -253,7 +256,7 @@ export default function EditProfileContainer({
               id="have_skill"
               title={
                 <>
-                  <span className="text-status-200">* </span>專業能力
+                  <span className="text-status-error-default">* </span>專業能力
                 </>
               }
             >
@@ -271,7 +274,7 @@ export default function EditProfileContainer({
             id="location"
             title={
               <>
-                <span className="text-status-200">* </span>地區
+                <span className="text-status-error-default">* </span>地區
               </>
             }
           >
@@ -290,7 +293,7 @@ export default function EditProfileContainer({
             id="years_of_experience"
             title={
               <>
-                <span className="text-status-200">* </span>經驗
+                <span className="text-status-error-default">* </span>經驗
               </>
             }
           >
@@ -306,7 +309,9 @@ export default function EditProfileContainer({
             id="industry"
             title={
               <>
-                {isMentorRole && <span className="text-status-200">* </span>}
+                {isMentorRole && (
+                  <span className="text-status-error-default">* </span>
+                )}
                 產業
               </>
             }
@@ -326,7 +331,8 @@ export default function EditProfileContainer({
             id="want_position"
             title={
               <>
-                <span className="text-status-200">* </span>有興趣多了解的職位
+                <span className="text-status-error-default">* </span>
+                有興趣多了解的職位
               </>
             }
           >
@@ -343,7 +349,8 @@ export default function EditProfileContainer({
             id="want_skill"
             title={
               <>
-                <span className="text-status-200">* </span>想多了解、加強的技能
+                <span className="text-status-error-default">* </span>
+                想多了解、加強的技能
               </>
             }
           >
@@ -360,7 +367,8 @@ export default function EditProfileContainer({
             id="want_topic"
             title={
               <>
-                <span className="text-status-200">* </span>想多了解的主題
+                <span className="text-status-error-default">* </span>
+                想多了解的主題
               </>
             }
           >

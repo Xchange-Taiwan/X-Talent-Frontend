@@ -67,7 +67,7 @@ export const GroupedSelections: React.FC<GroupedSelectionsProps> = ({
       <p
         className={cn(
           'text-sm tabular-nums',
-          limitReached ? 'text-status-200' : 'text-text-tertiary'
+          limitReached ? 'text-status-error-default' : 'text-text-tertiary'
         )}
         aria-live="polite"
       >

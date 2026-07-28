@@ -33,7 +33,7 @@ export const AvatarSection = <T extends FieldValues>({
       id={id}
       title={
         <>
-          {isMentor && <span className="text-status-200">* </span>}
+          {isMentor && <span className="text-status-error-default">* </span>}
           個人頭像
         </>
       }
