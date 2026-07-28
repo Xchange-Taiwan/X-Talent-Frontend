@@ -66,11 +66,7 @@
       "files": [
         "src/components/ui/calendar.tsx",
         "src/components/ui/avatar-crop-modal.tsx",
-        "src/app/mentor-pool/PopularPositionChips.tsx",
-        "src/app/mentor-pool/MentorGridSkeleton.tsx",
         "src/components/profile/profile-card/ProfileCard.tsx",
-        "src/components/mentor-pool/mentor-card/Information.tsx",
-        "src/components/mentor-pool/mentor-card/AvatarWithBadge.tsx",
         "src/components/layout/Header/ShareProfileDialog.tsx",
         "src/app/profile/**/*.tsx",
         "src/app/auth/password-reset-success/page.tsx"
