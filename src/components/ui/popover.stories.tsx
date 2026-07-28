@@ -1,0 +1,38 @@
+import type { Meta, StoryObj } from '@storybook/nextjs';
+import React from 'react';
+
+import { Button } from './button';
+import { Popover, PopoverContent, PopoverTrigger } from './popover';
+
+const meta: Meta<typeof Popover> = {
+  title: 'Components/UI/Popover',
+  component: Popover,
+  tags: ['autodocs'],
+};
+
+export default meta;
+type Story = StoryObj<typeof Popover>;
+
+// 1. Basic Interactive Demo
+export const Default: Story = {
+  render: (args) => (
+    <Popover {...args}>
+      <PopoverTrigger asChild>
+        <Button variant="outline">聯絡資訊</Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80">
+        <div className="grid gap-4">
+          <div className="space-y-2">
+            <h4 className="font-medium leading-none">Alex Chen</h4>
+            <p className="font-mono text-xs text-muted-foreground">
+              alex@example.com
+            </p>
+          </div>
+          <div className="border-t pt-2">
+            <p className="text-sm">歡迎透過電子信箱與我們聯絡！</p>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  ),
+};
