@@ -25,8 +25,9 @@ export default function Page() {
 
             <div className="mt-8 flex justify-center">
               <Button
+                size="sm"
                 shape="pill"
-                className="text-white h-[36px] min-w-[92px] bg-brand-500 px-6 text-sm font-semibold hover:bg-brand-600"
+                className="min-w-[92px] px-6"
                 onClick={() => router.push('/auth/signin')}
               >
                 前往登入
