@@ -36,6 +36,44 @@ const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
   );
 };
 
+const ROLE_CHIPS = [
+  {
+    name: 'UI/UX Design',
+    className:
+      'w-[162px] bg-jade-default md:my-[15px] md:ml-[50px] md:mt-[40px] xl:absolute xl:right-[176px] xl:top-[83px] xl:mt-0 xl:h-[100px] xl:w-[227px]',
+  },
+  {
+    name: 'Business Development',
+    className:
+      'w-[256px] bg-bdBlue md:my-[15px] xl:absolute xl:right-[475px] xl:top-[236px] xl:h-[100px] xl:w-[300px]',
+  },
+  {
+    name: 'Marketing',
+    className:
+      'w-[132px] bg-marketingOrange md:mx-[30px] md:my-[15px] xl:absolute xl:right-[107px] xl:top-[386px] xl:mx-0 xl:h-[99px] xl:w-[214px]',
+  },
+  {
+    name: 'Product Management',
+    className:
+      'w-[223px] bg-lime-default md:my-[15px] xl:absolute xl:left-[521px] xl:top-[86px] xl:h-[100px] xl:w-[292px]',
+  },
+  {
+    name: 'Data Science',
+    className:
+      'w-[157px] bg-pink-default md:my-[15px] md:mb-[50px] xl:absolute xl:left-[250px] xl:top-[386px] xl:h-[100px] xl:w-[224px]',
+  },
+  {
+    name: 'Software Development',
+    className:
+      'w-[256px] bg-blue-default md:mx-[30px] md:my-[15px] md:mb-[50px] xl:absolute xl:right-[404px] xl:top-[386px] xl:mx-0 xl:h-[100px] xl:w-[313px]',
+  },
+  {
+    name: 'MarTech',
+    className:
+      'w-[203px] bg-purple-active md:my-[15px] md:mb-[50px] xl:absolute xl:right-[144px] xl:top-[236px] xl:h-[99px] xl:w-[270px]',
+  },
+];
+
 export default function Page() {
   return (
     <>
@@ -112,7 +150,7 @@ export default function Page() {
         </div>
       </section>
 
-      <section className="flex h-auto w-full bg-[#172E59] py-12 md:h-[425px] md:py-0 xl:h-[557px]">
+      <section className="flex h-auto w-full bg-navy py-12 md:h-[425px] md:py-0 xl:h-[557px]">
         <div className="relative m-auto flex h-auto flex-col items-center px-6 md:h-full md:w-[767px] md:flex-row md:flex-wrap md:items-center md:justify-center md:px-0 xl:w-[1280px]">
           <div className="my-[15px] w-auto text-center text-2xl font-bold leading-tight text-light md:col-span-2 md:mt-[40px] md:text-left md:text-4xl md:leading-[58px] xl:absolute xl:left-[60px] xl:top-[176px] xl:mt-0">
             <p>9000+ XChangers</p>
@@ -121,27 +159,14 @@ export default function Page() {
               connect with
             </p>
           </div>
-          <div className="my-2 flex h-[53px] w-[162px] flex-col items-center justify-center rounded-[124px] bg-[#48EFBD] md:my-[15px] md:ml-[50px] md:mt-[40px] xl:absolute xl:right-[176px] xl:top-[83px] xl:mt-0 xl:h-[100px] xl:w-[227px]">
-            <p className="font-bold text-[#1D1D11]">UI/UX Design</p>
-          </div>
-          <div className="my-2 flex h-[53px] w-[256px] flex-col items-center justify-center rounded-[124px] bg-[#7CB8FF] md:my-[15px] xl:absolute xl:right-[475px] xl:top-[236px] xl:h-[100px] xl:w-[300px]">
-            <p className="font-bold text-[#1D1D11]">Business Development</p>
-          </div>
-          <div className="my-2 flex h-[53px] w-[132px] flex-col items-center justify-center rounded-[124px] bg-[#FFBF82] md:mx-[30px] md:my-[15px] xl:absolute xl:right-[107px] xl:top-[386px] xl:mx-0 xl:h-[99px] xl:w-[214px]">
-            <p className="font-bold text-[#1D1D11]">Marketing</p>
-          </div>
-          <div className="my-2 flex h-[53px] w-[223px] flex-col items-center justify-center rounded-[124px] bg-[#FFDE4E] md:my-[15px] xl:absolute xl:left-[521px] xl:top-[86px] xl:h-[100px] xl:w-[292px]">
-            <p className="font-bold text-[#1D1D11]">Product Management</p>
-          </div>
-          <div className="my-2 flex h-[53px] w-[157px] flex-col items-center justify-center rounded-[124px] bg-[#FF6397] md:my-[15px] md:mb-[50px] xl:absolute xl:left-[250px] xl:top-[386px] xl:h-[100px] xl:w-[224px]">
-            <p className="font-bold text-[#1D1D11]">Data Science</p>
-          </div>
-          <div className="my-2 flex h-[53px] w-[256px] flex-col items-center justify-center rounded-[124px] bg-[#5EE5FF] md:mx-[30px] md:my-[15px] md:mb-[50px] xl:absolute xl:right-[404px] xl:top-[386px] xl:mx-0 xl:h-[100px] xl:w-[313px]">
-            <p className="font-bold text-[#1D1D11]">Software Development</p>
-          </div>
-          <div className="my-2 flex h-[53px] w-[203px] flex-col items-center justify-center rounded-[124px] bg-[#CE8FFF] md:my-[15px] md:mb-[50px] xl:absolute xl:right-[144px] xl:top-[236px] xl:h-[99px] xl:w-[270px]">
-            <p className="font-bold text-[#1D1D11]">MarTech</p>
-          </div>
+          {ROLE_CHIPS.map((chip) => (
+            <div
+              key={chip.name}
+              className={`my-2 flex h-[53px] flex-col items-center justify-center rounded-[124px] ${chip.className}`}
+            >
+              <p className="font-bold text-gray-900">{chip.name}</p>
+            </div>
+          ))}
         </div>
       </section>
 
