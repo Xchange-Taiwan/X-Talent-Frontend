@@ -72,7 +72,7 @@ export const ProfileCard: FC<Props> = ({
 }) => {
   return (
     <div className="overflow-hidden rounded-2xl shadow-xl">
-      <div className="relative h-[111px] bg-gradient-to-br from-[#92e7e7] to-[#e7a0d4] sm:h-[100px]">
+      <div className="relative h-[111px] bg-gradient-to-br from-blue-active to-pink-active sm:h-[100px]">
         <AvatarCard
           className="absolute -bottom-56 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:-bottom-40 sm:left-[180px]"
           name={name}

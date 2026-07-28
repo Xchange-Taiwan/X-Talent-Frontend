@@ -85,7 +85,7 @@ export default function ProfilePageUI({
 
   return (
     <div>
-      <div className="relative h-[111px] bg-gradient-to-br from-[#92e7e7] to-[#e7a0d4] sm:h-[100px]" />
+      <div className="relative h-[111px] bg-gradient-to-br from-blue-active to-pink-active sm:h-[100px]" />
 
       <div className="container mb-20 max-w-[1024px] 2xl:max-w-[1280px]">
         {userLoading ? (
