@@ -1,0 +1,30 @@
+name: 'Set up AI review agent'
+description: 'Fetches the base branch and PR head commit and sets up Node.js for an AI review agent job. The calling job must check out the trusted base branch itself first — a local composite action can only be resolved after checkout has already run, and the job must never check out or execute the untrusted PR head.'
+
+inputs:
+  base-ref:
+    description: 'The PR base branch name to fetch'
+    required: true
+  head-sha:
+    description: 'The untrusted PR head commit SHA — fetched as diff input only, never checked out or executed'
+    required: true
+  node-version:
+    description: 'Node.js version to set up'
+    required: false
+    default: '20'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Fetch base branch
+      shell: bash
+      run: git fetch origin ${{ inputs.base-ref }}:refs/remotes/origin/${{ inputs.base-ref }}
+
+    - name: Fetch PR head commit (diff input only, not checked out)
+      shell: bash
+      run: git fetch origin ${{ inputs.head-sha }}
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
