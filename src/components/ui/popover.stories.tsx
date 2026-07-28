@@ -25,7 +25,7 @@ export const Default: Story = {
           <div className="space-y-2">
             <h4 className="font-medium leading-none">Alex Chen</h4>
             <p className="font-mono text-xs text-muted-foreground">
-              alex@xchange.tw
+              alex@example.com
             </p>
           </div>
           <div className="border-t pt-2">

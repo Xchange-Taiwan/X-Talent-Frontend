@@ -47,7 +47,7 @@ export const Default: Story = {
             <label className="text-right text-sm font-medium">電子信箱</label>
             <input
               className="col-span-3 rounded border p-2 text-sm"
-              defaultValue="alex@xchange.tw"
+              defaultValue="alex@example.com"
             />
           </div>
         </div>

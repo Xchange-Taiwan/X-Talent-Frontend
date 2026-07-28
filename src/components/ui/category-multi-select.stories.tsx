@@ -32,42 +32,48 @@ const CATEGORIES = [
   },
 ];
 
+const CategoryMultiSelectDemo = (
+  args: React.ComponentProps<typeof CategoryMultiSelect>
+) => {
+  const [selected, setSelected] = useState<string[]>(['frontend']);
+  return (
+    <div className="max-w-md">
+      <CategoryMultiSelect
+        {...args}
+        categories={CATEGORIES}
+        value={selected}
+        onChange={setSelected}
+      />
+      <div className="mt-4 text-sm text-muted-foreground">
+        已選取: {selected.join(', ') || '無'}
+      </div>
+    </div>
+  );
+};
+
+const CategoryMultiSelectFlatDemo = (
+  args: React.ComponentProps<typeof CategoryMultiSelect>
+) => {
+  const [selected, setSelected] = useState<string[]>([]);
+  return (
+    <div className="max-w-md">
+      <CategoryMultiSelect
+        {...args}
+        flat
+        categories={CATEGORIES}
+        value={selected}
+        onChange={setSelected}
+      />
+    </div>
+  );
+};
+
 // 1. Basic Interactive Demo
 export const Default: Story = {
-  render: (args) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [selected, setSelected] = useState<string[]>(['frontend']);
-    return (
-      <div className="max-w-md">
-        <CategoryMultiSelect
-          {...args}
-          categories={CATEGORIES}
-          value={selected}
-          onChange={setSelected}
-        />
-        <div className="mt-4 text-sm text-muted-foreground">
-          已選取: {selected.join(', ') || '無'}
-        </div>
-      </div>
-    );
-  },
+  render: (args) => <CategoryMultiSelectDemo {...args} />,
 };
 
 // 2. Flat List Demo
 export const FlatList: Story = {
-  render: (args) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [selected, setSelected] = useState<string[]>([]);
-    return (
-      <div className="max-w-md">
-        <CategoryMultiSelect
-          {...args}
-          flat
-          categories={CATEGORIES}
-          value={selected}
-          onChange={setSelected}
-        />
-      </div>
-    );
-  },
+  render: (args) => <CategoryMultiSelectFlatDemo {...args} />,
 };

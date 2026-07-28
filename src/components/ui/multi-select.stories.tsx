@@ -21,24 +21,25 @@ const OPTIONS = [
   { label: 'UI/UX 設計 (Design)', value: 'design', icon: Sparkles },
 ];
 
+const MultiSelectDemo = (args: React.ComponentProps<typeof MultiSelect>) => {
+  const [selected, setSelected] = useState<string[]>(['coding']);
+  return (
+    <div className="max-w-md">
+      <MultiSelect
+        {...args}
+        options={OPTIONS}
+        value={selected}
+        onValueChange={setSelected}
+        placeholder="請選擇您的興趣愛好..."
+      />
+      <div className="mt-4 text-sm text-muted-foreground">
+        目前選取值: {selected.join(', ') || '無'}
+      </div>
+    </div>
+  );
+};
+
 // 1. Basic Interactive Demo
 export const Default: Story = {
-  render: (args) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [selected, setSelected] = useState<string[]>(['coding']);
-    return (
-      <div className="max-w-md">
-        <MultiSelect
-          {...args}
-          options={OPTIONS}
-          value={selected}
-          onValueChange={setSelected}
-          placeholder="請選擇您的興趣愛好..."
-        />
-        <div className="mt-4 text-sm text-muted-foreground">
-          目前選取值: {selected.join(', ') || '無'}
-        </div>
-      </div>
-    );
-  },
+  render: (args) => <MultiSelectDemo {...args} />,
 };
