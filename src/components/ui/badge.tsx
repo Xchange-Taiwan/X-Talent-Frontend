@@ -13,7 +13,7 @@ const badgeVariants = cva(
         secondary:
           'border-transparent bg-background-bottom text-text-primary hover:bg-background-bottom/80',
         destructive:
-          'border-transparent bg-status-200 text-text-white hover:bg-status-200/80',
+          'border-transparent bg-status-error-default text-text-white hover:bg-status-error-default/80',
         outline: 'text-text-primary',
         filter:
           'py-1.5 pr-2 pl-3 h-8 border border-background-border rounded-lg gap-2 hover:bg-background-bottom-secondary transition-colors',
