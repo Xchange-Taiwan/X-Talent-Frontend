@@ -50,11 +50,11 @@ Run a complete, parallelized multi-stage AI Review locally or in CI using concur
 
 4. **Publish Combined Comment**:
    - **Always write full report**: Always output the final, untruncated aggregated review markdown to a local file named `ai-review-report.md` in the workspace root.
-   - **Determine PR Number**:
-     - Check if the `PR_NUMBER` environment variable is defined.
-     - If `PR_NUMBER` is set, use it.
-     - If `PR_NUMBER` is not set, try to detect the pull request number by running `gh pr view --json number --jq .number`.
-     - If no pull request number is found, or if not running in a GitHub Actions environment (determined by `GITHUB_ACTIONS` environment variable), complete the run as a **Local Dry-Run**: output a summary to stdout, ensure `ai-review-report.md` has the full content, and exit successfully.
+   - **Determine PR Number & Environment**:
+     - You MUST first execute a shell command to read and print the `PR_NUMBER` and `GITHUB_ACTIONS` environment variables (e.g. `echo "PR_NUMBER: $PR_NUMBER, GITHUB_ACTIONS: $GITHUB_ACTIONS"` on Linux/macOS or `echo "PR_NUMBER: $env:PR_NUMBER, GITHUB_ACTIONS: $env:GITHUB_ACTIONS"` on Windows). This guarantees that their exact values are in your session context.
+     - If `PR_NUMBER` is resolved to a non-empty value and `GITHUB_ACTIONS` is `true`, proceed with **Post/Update PR Comment**.
+     - If `PR_NUMBER` is not found in the environment variables but `GITHUB_ACTIONS` is `true`, try to detect the pull request number by running `gh pr view --json number --jq .number` and check if that resolves a number.
+     - If no pull request number can be found, or if `GITHUB_ACTIONS` is not `true` (i.e. running locally), complete the run as a **Local Dry-Run**: output a summary to stdout, ensure `ai-review-report.md` has the full content, and exit successfully.
    - **Handle Character Limits (Structural Truncation)**:
      - Check the character length of the generated review comment body.
      - If the length exceeds 60,000 characters, perform a **structural truncation** to prevent Markdown breakage: remove everything from the `## Detailed Findings by Category` header and onwards, and replace it with the following note (pointing to the CI artifact):
