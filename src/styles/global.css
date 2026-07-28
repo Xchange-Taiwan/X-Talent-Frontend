@@ -45,6 +45,12 @@
     --color-background-bottom: 0 0% 96%; /* #F5F5F5 */
     --color-background-bottom-secondary: 0 0% 98%; /* #FAFAFA */
     --color-background-white: 0 0% 100%; /* #FFFFFF */
+    /* top/top-active are the interactive-surface family (hover, disabled/active
+       states - see category-multi-select.tsx, MentorScheduleConfig.tsx). They
+       currently equal background-bottom/background-border by coincidence, not
+       design intent - do not alias/merge them, or a future hover/active
+       restyle would need to re-split what was collapsed here. Pending Design
+       confirmation, tracked in X-Tracker #396. */
     --color-background-top: 0 0% 96%; /* #F5F5F5 */
     --color-background-top-active: 210 9% 91%; /* #E6E8EA */
     --color-background-border: 210 9% 91%; /* #E6E8EA */
