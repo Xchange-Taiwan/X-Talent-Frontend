@@ -9,8 +9,7 @@ function parseNextLink(linkHeader) {
   return null;
 }
 
-async function listAllComments({ repo, issueNumber, token }) {
-  const comments = [];
+async function* listAllComments({ repo, issueNumber, token }) {
   let url = `https://api.github.com/repos/${repo}/issues/${issueNumber}/comments?per_page=100`;
 
   while (url) {
@@ -25,17 +24,16 @@ async function listAllComments({ repo, issueNumber, token }) {
         `GitHub API error listing comments (${res.status}): ${await res.text()}`
       );
     }
-    comments.push(...(await res.json()));
+    yield* await res.json();
     url = parseNextLink(res.headers.get('link'));
   }
-
-  return comments;
 }
 
 /**
  * Creates the PR comment carrying `marker`, or updates it in place if one
- * already exists — paginates through every comment page so a long PR thread
- * can't hide the bot's own prior comment on page 2+.
+ * already exists — paginates through comment pages (stopping as soon as the
+ * bot's own prior comment is found) so a long PR thread can't hide it on
+ * page 2+ without requiring every page to be fetched.
  */
 export async function upsertComment({
   repo,
@@ -44,10 +42,13 @@ export async function upsertComment({
   marker,
   body,
 }) {
-  const comments = await listAllComments({ repo, issueNumber, token });
-  const existing = comments.find(
-    (c) => c.user?.login === BOT_LOGIN && c.body?.includes(marker)
-  );
+  let existing;
+  for await (const comment of listAllComments({ repo, issueNumber, token })) {
+    if (comment.user?.login === BOT_LOGIN && comment.body?.includes(marker)) {
+      existing = comment;
+      break;
+    }
+  }
 
   const url = existing
     ? `https://api.github.com/repos/${repo}/issues/comments/${existing.id}`
