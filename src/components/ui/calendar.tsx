@@ -182,7 +182,7 @@ function Calendar({
 
         today: cn(
           showTodayStyle
-            ? 'rounded-full border border-[#2CCBCB] text-[#2CCBCB]'
+            ? 'rounded-full border border-brand-500 text-brand-500'
             : '',
           defaultClassNames.today
         ),
@@ -320,11 +320,11 @@ function CalendarDayButton({
           'data-[range-start=true]:bg-primary',
           'data-[selected-single=true]:bg-primary',
           'data-[selected-single=true]:text-primary-foreground',
-          'group-data-[variant=profile]/calendar:data-[selected-single=true]:bg-[#A5F3FC]',
+          'group-data-[variant=profile]/calendar:data-[selected-single=true]:bg-cyan-200',
           'group-data-[variant=profile]/calendar:data-[selected-single=true]:text-gray-900',
           'group-data-[variant=profile]/calendar:data-[selected-single=true]:font-medium',
           'group-data-[variant=profile]/calendar:data-[selected-single=true]:border',
-          'group-data-[variant=profile]/calendar:data-[selected-single=true]:border-[#67E8F9]',
+          'group-data-[variant=profile]/calendar:data-[selected-single=true]:border-cyan-300',
           'data-[range-end=true]:text-primary-foreground',
           'data-[range-middle=true]:text-accent-foreground',
           'data-[range-start=true]:text-primary-foreground',

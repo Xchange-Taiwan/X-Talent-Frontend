@@ -22,7 +22,7 @@ export default function EmailVerificationPage({
         已傳送一封驗證信，點選連結以完成帳號註冊。
       </p>
 
-      <Button className="max-w-60 rounded-full" onClick={onNavigateHome}>
+      <Button shape="pill" className="max-w-60" onClick={onNavigateHome}>
         回首頁
       </Button>
 

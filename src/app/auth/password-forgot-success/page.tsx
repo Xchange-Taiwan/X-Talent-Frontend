@@ -23,7 +23,8 @@ export default function Page() {
         <div className="flex w-full justify-center gap-4 pt-6">
           <Button
             type="button"
-            className="w-[135px] rounded-full"
+            shape="pill"
+            className="w-[135px]"
             onClick={handleResend}
             disabled={isResending}
           >
@@ -31,7 +32,8 @@ export default function Page() {
           </Button>
           <Button
             type="button"
-            className="w-[135px] rounded-full"
+            shape="pill"
+            className="w-[135px]"
             variant="outline"
             onClick={handleChangeEmail}
           >

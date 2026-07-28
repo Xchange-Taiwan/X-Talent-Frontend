@@ -20,7 +20,7 @@ export default function EmailVerifiedPresentation({
     <AuthMessageCard icon={icon} iconAlt="Verify Email" title={title}>
       <p className="text-neutral-600">{content}</p>
 
-      <Button className="max-w-60 rounded-full" onClick={onSetProfile}>
+      <Button shape="pill" className="max-w-60" onClick={onSetProfile}>
         {btnContent}
       </Button>
     </AuthMessageCard>

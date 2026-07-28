@@ -44,11 +44,7 @@ export default function Page() {
         </main>
 
         <footer className="flex w-[94px] flex-col gap-4">
-          <Button
-            type="submit"
-            className="rounded-full"
-            disabled={isSubmitting}
-          >
+          <Button type="submit" shape="pill" disabled={isSubmitting}>
             {isSubmitting ? '處理中...' : '送出'}
           </Button>
         </footer>
