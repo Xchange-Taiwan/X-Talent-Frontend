@@ -15,7 +15,18 @@
     ],
     "@typescript-eslint/no-explicit-any": "warn",
     "prefer-const": "error",
-    "no-var": "error"
+    "no-var": "error",
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "Literal[value=/(^|\\s)(bg|text|border|ring|fill|stroke|from|via|to|divide|shadow|outline|placeholder|decoration|accent|caret)-\\[(#|rgba?|hsla?)/]",
+        "message": "Do not use arbitrary hex, rgb, or hsl colors (e.g. text-[#...], bg-[rgba(...)], border-[hsl(...)]) in Tailwind classes. Please use standard theme colors from tailwind.config.js."
+      },
+      {
+        "selector": "TemplateElement[value.raw=/(^|\\s)(bg|text|border|ring|fill|stroke|from|via|to|divide|shadow|outline|placeholder|decoration|accent|caret)-\\[(#|rgba?|hsla?)/]",
+        "message": "Do not use arbitrary hex, rgb, or hsl colors (e.g. text-[#...], bg-[rgba(...)], border-[hsl(...)]) in Tailwind classes. Please use standard theme colors from tailwind.config.js."
+      }
+    ]
   },
   "overrides": [
     {
@@ -46,6 +57,33 @@
             ]
           }
         ]
+      }
+    },
+    {
+      "files": [
+        "src/components/ui/calendar.tsx",
+        "src/components/ui/avatar-crop-modal.tsx",
+        "src/components/landing/HomePageSlider.tsx",
+        "src/app/mentor-pool/PopularPositionChips.tsx",
+        "src/app/mentor-pool/MentorGridSkeleton.tsx",
+        "src/app/(landing)/page.tsx",
+        "src/components/profile/profile-card/ProfileCard.tsx",
+        "src/components/mentor-pool/mentor-card/Information.tsx",
+        "src/components/mentor-pool/mentor-card/AvatarWithBadge.tsx",
+        "src/components/layout/Header/ShareProfileDialog.tsx",
+        "src/components/layout/Footer/Footer.tsx",
+        "src/app/profile/**/*.tsx",
+        "src/app/auth/email-verify/ui.tsx",
+        "src/app/auth/email-verified/ui.tsx",
+        "src/app/(landing)/terms/page.tsx",
+        "src/app/(landing)/privacy/page.tsx",
+        "src/app/(landing)/about/page.tsx",
+        "src/app/auth/password-forgot-success/page.tsx",
+        "src/app/auth/password-reset-success/page.tsx",
+        "src/app/auth/password-reset/page.tsx"
+      ],
+      "rules": {
+        "no-restricted-syntax": "off"
       }
     }
   ],

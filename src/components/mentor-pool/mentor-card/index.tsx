@@ -35,7 +35,7 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
     return (
       <article
         ref={ref}
-        className="relative w-[334px] overflow-hidden rounded-lg border border-[#E6E8EA] bg-background-white transition-shadow hover:shadow-xl xl:h-[480px] xl:w-[413px]"
+        className="relative w-[334px] overflow-hidden rounded-lg border border-background-border bg-background-white transition-shadow hover:shadow-xl xl:h-[480px] xl:w-[413px]"
       >
         <Link
           href={`/profile/${id}`}

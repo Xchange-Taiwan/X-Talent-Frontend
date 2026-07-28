@@ -17,7 +17,7 @@ export default function Page() {
     <div className="flex w-full flex-col items-center justify-center py-16">
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="mx-auto flex w-[342px] flex-col items-center gap-6 rounded-2xl border border-[#E6E8EA] px-10 py-20 lg:w-[629px]"
+        className="mx-auto flex w-[342px] flex-col items-center gap-6 rounded-2xl border border-background-border px-10 py-20 lg:w-[629px]"
         noValidate
       >
         <main className="flex w-full flex-auto flex-col justify-center gap-6 sm:flex-none ">
