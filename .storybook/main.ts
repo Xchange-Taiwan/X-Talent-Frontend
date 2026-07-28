@@ -8,6 +8,6 @@ const config: StorybookConfig = {
     '@storybook/addon-onboarding',
   ],
   framework: '@storybook/nextjs',
-  staticDirs: ['..\\public'],
+  staticDirs: ['../public'],
 };
 export default config;
