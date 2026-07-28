@@ -39,6 +39,9 @@ Run a complete, parallelized multi-stage AI Review locally or in CI using concur
    - Once all parallel sub-agents return their findings, read the custom summary prompt in `scripts/ai-review/prompts/summary.md`.
    - Aggregate all the sub-agent outputs and compile the final review comment following a structured format:
      - **Title**: `## 🤖 AI Code Review Report (X-Tracker #<issue-number>)`
+     - **Review Status (CRITICAL)**: Must output exactly one of the following structured status lines at the top of the summary section (right after the title) to serve as a precise contract for automated handoff in `/implement`:
+       - `**Review Status: PASS**` (If NO security or logic issues with severity `Critical` or `Blocking` are found by any of the sub-agents).
+       - `**Review Status: BLOCKED**` (If any sub-agent reports a `Critical` or `Blocking` severity issue).
      - **Summary & Merge Recommendation**: Provide a high-level summary and an overall risk level (e.g. `low`, `medium`, `high`) with logical reasoning.
      - **Requirement Coverage**: Detail how well the ticket requirements are met.
      - **Review Guide / Reading Order**: Suggest an optimal sequence of files for human reviewers to examine.
