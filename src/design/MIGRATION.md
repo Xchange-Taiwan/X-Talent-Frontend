@@ -38,7 +38,7 @@
 | `text-secondary-foreground`, `text-accent-foreground` | `text-text-primary`                 | 次要色上的主要文字色         |
 | `bg-muted`                                            | `bg-background-bottom`              | 靜態、被動或失效狀態底色     |
 | `text-muted-foreground`                               | `text-text-tertiary`                | 輔助/說明文字色（灰色）      |
-| `bg-destructive`                                      | `bg-status-200`                     | 警告/危險/刪除狀態色（紅色） |
+| `bg-destructive`                                      | `bg-status-error-default`           | 警告/危險/刪除狀態色（紅色） |
 | `text-destructive-foreground`                         | `text-text-white`                   | 警告狀態底下的白色文字       |
 | `border-border`, `border-input`                       | `border-background-border`          | 基礎框線 / 輸入框框線色      |
 | `bg-background`                                       | `bg-background-white`               | 頂層最亮主背景色（白色）     |
@@ -86,7 +86,7 @@ const badgeVariants = cva(
         secondary:
           'border-transparent bg-background-bottom text-text-primary hover:bg-background-bottom/80',
         destructive:
-          'border-transparent bg-status-200 text-text-white hover:bg-status-200/80',
+          'border-transparent bg-status-error-default text-text-white hover:bg-status-error-default/80',
         outline: 'text-text-primary',
         filter:
           'py-1.5 pr-2 pl-3 h-8 border border-background-border rounded-lg gap-2 hover:bg-background-bottom-secondary transition-colors',
