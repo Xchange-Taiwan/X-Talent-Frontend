@@ -143,7 +143,7 @@ export function ReservationCard({
                       aria-hidden
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[11px] font-medium text-muted-foreground sm:text-xs">
+                      <div className="text-11 font-medium text-muted-foreground sm:text-xs">
                         學員留言
                       </div>
                       <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap break-words text-foreground">
@@ -159,7 +159,7 @@ export function ReservationCard({
                       aria-hidden
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="text-[11px] font-medium text-muted-foreground sm:text-xs">
+                      <div className="text-11 font-medium text-muted-foreground sm:text-xs">
                         導師回覆
                       </div>
                       <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap break-words text-foreground">
@@ -174,7 +174,7 @@ export function ReservationCard({
             {footer ? <div className="mt-3">{footer}</div> : null}
 
             {isUpcoming ? (
-              <div className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground sm:text-xs">
+              <div className="mt-3 flex items-center gap-1.5 text-11 text-muted-foreground sm:text-xs">
                 <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 <span>會議連結已寄至您的信箱</span>
               </div>

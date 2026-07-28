@@ -7,7 +7,7 @@ import { useReservationTimeStatus } from '@/hooks/reservation/useReservationTime
 import { cn } from '@/lib/utils';
 
 const statusBadgeVariants = cva(
-  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium leading-none sm:text-xs',
+  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-11 font-medium leading-none sm:text-xs',
   {
     variants: {
       status: {

@@ -68,7 +68,7 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
   return (
     <div className="flex min-h-[calc(100vh-70px)] justify-center pb-12">
       <div className="w-full max-w-[90%] rounded-2xl md:max-w-[800px]">
-        <div className="font-roboto mx-auto mb-6 text-center text-2xl font-semibold leading-tight tracking-[0%] text-foreground md:text-[36px]">
+        <div className="font-roboto mx-auto mb-6 text-center text-2xl font-semibold leading-tight tracking-[0%] text-foreground md:text-36 md:leading-tight">
           {title}
         </div>
 

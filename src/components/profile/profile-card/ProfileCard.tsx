@@ -2,6 +2,7 @@
 
 import type { FC, ReactNode } from 'react';
 
+import { ProfileBanner } from '@/components/profile/profile-banner';
 import { TagDisplay } from '@/hooks/user/user-data/useUserData';
 
 import { AvatarCard } from '../avatar-card';
@@ -72,7 +73,7 @@ export const ProfileCard: FC<Props> = ({
 }) => {
   return (
     <div className="overflow-hidden rounded-2xl shadow-xl">
-      <div className="relative h-[111px] bg-gradient-to-br from-[#92e7e7] to-[#e7a0d4] sm:h-[100px]">
+      <ProfileBanner>
         <AvatarCard
           className="absolute -bottom-56 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:-bottom-40 sm:left-[180px]"
           name={name}
@@ -81,7 +82,7 @@ export const ProfileCard: FC<Props> = ({
           companyName={company}
           linkedinUrl={linkedinUrl}
         />
-      </div>
+      </ProfileBanner>
 
       <div className="bg-bright flex flex-col gap-10 px-4 pb-10 pt-[165px] sm:px-10 sm:pt-[132px]">
         {renderTagList('有興趣多了解的職位', interestedRole, 'interestedRole')}

@@ -152,7 +152,7 @@ function MessageBubble({
       )}
     >
       {label && !isPrevSameRole ? (
-        <div className="text-[11px] font-medium text-muted-foreground sm:text-xs">
+        <div className="text-11 font-medium text-muted-foreground sm:text-xs">
           {label}
         </div>
       ) : null}
