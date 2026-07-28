@@ -4,35 +4,35 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: var(--color-background-white);
+    --foreground: var(--color-text-primary);
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: var(--color-background-white);
+    --card-foreground: var(--color-text-primary);
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: var(--color-background-white);
+    --popover-foreground: var(--color-text-primary);
 
-    --primary: 180 64% 48%;
+    --primary: var(--color-brand-500);
     /* Dark foreground on the bright teal brand color: white-ish gives a
        1.94:1 contrast ratio (WCAG AA fails). Dark gray gives ~9:1. */
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary-foreground: var(--color-text-primary);
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: var(--color-background-bottom);
+    --secondary-foreground: var(--color-text-primary);
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: var(--color-background-bottom);
+    --muted-foreground: var(--color-text-tertiary);
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: var(--color-background-bottom);
+    --accent-foreground: var(--color-text-primary);
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: var(--color-status-200);
+    --destructive-foreground: var(--color-text-white);
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 180 64% 48%;
+    --border: var(--color-background-border);
+    --input: var(--color-background-border);
+    --ring: var(--color-brand-500);
 
     --radius: 0.5rem;
 
