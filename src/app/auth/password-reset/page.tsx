@@ -63,8 +63,10 @@ function PasswordResetForm() {
       <div className="mt-8 flex justify-center">
         <Button
           type="submit"
+          size="sm"
+          shape="pill"
           disabled={isSubmitting}
-          className="text-white h-[36px] min-w-[92px] rounded-full bg-brand-500 px-6 text-sm font-semibold hover:bg-brand-600 disabled:opacity-50"
+          className="min-w-[92px] px-6"
         >
           {isSubmitting ? '處理中...' : '更改密碼'}
         </Button>

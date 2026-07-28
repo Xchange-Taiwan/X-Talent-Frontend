@@ -29,7 +29,7 @@ const SelectItem = React.forwardRef<HTMLDivElement, SelectItemProps>(
     return (
       <Select.Item
         className={cn(
-          'data-[disabled]:text-mauve8 text-black data-[highlighted]:text-white relative flex h-[25px] select-none items-center rounded-[3px] pl-[25px] pr-[35px] text-base leading-none data-[disabled]:pointer-events-none data-[highlighted]:bg-primary data-[highlighted]:outline-none md:text-[13px]',
+          'data-[disabled]:text-mauve8 text-black data-[highlighted]:text-white relative flex h-[25px] select-none items-center rounded-[3px] pl-[25px] pr-[35px] text-base leading-none data-[disabled]:pointer-events-none data-[highlighted]:bg-primary data-[highlighted]:outline-none md:text-13',
           className
         )}
         {...props}
