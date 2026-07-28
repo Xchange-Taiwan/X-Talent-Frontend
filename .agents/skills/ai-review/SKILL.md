@@ -52,7 +52,7 @@ Run a complete, parallelized multi-stage AI Review locally or in CI using concur
    - **Always write full report**: Always output the final, untruncated aggregated review markdown to a local file named `ai-review-report.md` in the workspace root.
    - **Determine PR Number & Environment**:
      - Check if the PR number and GitHub Actions environment are explicitly provided in the user prompt (e.g., if the prompt contains "PR Number: <number>" or similar) or if the `PR_NUMBER` environment variable is defined in the environment.
-     - **Note on masked tokens (`\***`)**: In GitHub Actions, secrets and tokens (such as `GITHUB_TOKEN`) are masked as `**_`in the logs for security. This is expected and means the token is fully valid, present, and active in the process environment. Do NOT treat`_**` as a missing, invalid, or redacted token.
+     - **Note on masked tokens (`\***`)**: In GitHub Actions, secrets and tokens (such as `GITHUB*TOKEN`) are masked as `\*\**`in the logs for security. This is expected and means the token is fully valid, present, and active in the process environment. Do NOT treat`\_\*\*` as a missing, invalid, or redacted token.
      - If a PR number is identified from either the prompt text or environment variables, you MUST use that PR number, assume you are in a GitHub Actions environment with a valid token, and **proceed immediately to Post/Update PR Comment**. Do NOT fall back to Dry-Run or Local Fallback under any circumstances when a PR number is present.
      - If no PR number is found in the prompt or environment variables, you can try to run `gh pr view --json number --jq .number` to detect it.
      - If no pull request number can be resolved, or if you are running locally outside GitHub Actions, complete the run as a **Local Dry-Run**: output a summary to stdout, ensure `ai-review-report.md` has the full content, and exit successfully.
@@ -67,7 +67,7 @@ Run a complete, parallelized multi-stage AI Review locally or in CI using concur
      - Use the repository specified by `GITHUB_REPOSITORY` environment variable (or fall back to `Xchange-Taiwan/X-Talent-Frontend`).
      - Query existing comments of the PR using `gh api` with robust `jq` parsing to find the latest comment containing the `<!-- ai-review-pipeline -->` marker, sorting by ID:
        ```bash
-       gh api repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments --jq 'map(select(.body | contains("<!-- ai-review-pipeline -->"))) | sort_by(.id) | last | .id // empty'
+       gh api repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments --jq 'map(select(.body != null and (.body | contains("<!-- ai-review-pipeline -->")))) | sort_by(.id) | last | .id // empty'
        ```
      - If an existing comment ID is found:
        - Update (PATCH) the existing comment via GH API to prevent comment spamming:
