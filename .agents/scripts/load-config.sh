@@ -30,25 +30,31 @@ if [ -z "$CONFIG_JSON" ] || [ "$CONFIG_JSON" = "null" ]; then
   return 1 2>/dev/null || exit 1
 fi
 
-# Parse variables using Node.js to avoid any external jq dependency
-eval $(node -e '
+# Parse variables using Node.js
+# Strict escaping with single quotes ('\'' inside single quotes) to prevent Shell Injection
+PARSED_VARS=$(node -e '
   try {
     const config = JSON.parse(process.argv[1]);
-    console.log(`export ORG="${config.org}"`);
-    console.log(`export TRACKER_REPO="${config.repos.tracker}"`);
-    console.log(`export FRONTEND_REPO="${config.repos.frontend}"`);
-    console.log(`export PROJECT_NUMBER="${config.project.number}"`);
-    console.log(`export PROJECT_ID="${config.project.id}"`);
-    console.log(`export FIELD_ID="${config.fields.status.id}"`);
-    console.log(`export BACKLOG_OPTION_ID="${config.fields.status.options.backlog}"`);
-    console.log(`export IN_PROGRESS_OPTION_ID="${config.fields.status.options.in_progress}"`);
-    console.log(`export PR_REVIEW_OPTION_ID="${config.fields.status.options.pr_review}"`);
+    const esc = s => String.fromCharCode(39) + String(s).replace(/\x27/g, String.fromCharCode(39) + String.fromCharCode(92) + String.fromCharCode(39) + String.fromCharCode(39)) + String.fromCharCode(39);
+    console.log("export ORG=" + esc(config.org));
+    console.log("export TRACKER_REPO=" + esc(config.repos.tracker));
+    console.log("export FRONTEND_REPO=" + esc(config.repos.frontend));
+    console.log("export PROJECT_NUMBER=" + esc(config.project.number));
+    console.log("export PROJECT_ID=" + esc(config.project.id));
+    console.log("export FIELD_ID=" + esc(config.fields.status.id));
+    console.log("export BACKLOG_OPTION_ID=" + esc(config.fields.status.options.backlog));
+    console.log("export IN_PROGRESS_OPTION_ID=" + esc(config.fields.status.options.in_progress));
+    console.log("export PR_REVIEW_OPTION_ID=" + esc(config.fields.status.options.pr_review));
   } catch (e) {
     console.error("ERROR: Failed to parse configuration JSON: " + e.message);
     process.exit(1);
   }
 ' "$CONFIG_JSON")
 
-if [ $? -ne 0 ]; then
+# Check if Node.js execution failed or was empty to prevent swallowed error codes
+if [ $? -ne 0 ] || [ -z "$PARSED_VARS" ]; then
   return 1 2>/dev/null || exit 1
 fi
+
+# Safe evaluation of single-quoted assignments
+eval "$PARSED_VARS"
