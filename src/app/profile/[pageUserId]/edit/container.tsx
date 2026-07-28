@@ -206,41 +206,16 @@ export default function EditProfileContainer({
             }
           />
 
-          <Section
-            id="name"
-            title={
-              <>
-                <span className="text-status-error-default">* </span>姓名
-              </>
-            }
-          >
+          <Section id="name" title="姓名" required>
             <TextField form={form} name="name" placeholder="請填入您的姓名" />
           </Section>
 
-          <Section
-            id="about"
-            title={
-              <>
-                {isMentorRole && (
-                  <span className="text-status-error-default">* </span>
-                )}
-                關於我
-              </>
-            }
-          >
+          <Section id="about" title="關於我" required={isMentorRole}>
             <TextareaField form={form} name="about" rows={10} />
           </Section>
 
           {isMentorRole && (
-            <Section
-              id="have_topic"
-              title={
-                <>
-                  <span className="text-status-error-default">* </span>
-                  我能提供的服務
-                </>
-              }
-            >
+            <Section id="have_topic" title="我能提供的服務" required>
               <CategoryMultiSelectField
                 form={form}
                 name="have_topic"
@@ -252,14 +227,7 @@ export default function EditProfileContainer({
           )}
 
           {isMentorRole && (
-            <Section
-              id="have_skill"
-              title={
-                <>
-                  <span className="text-status-error-default">* </span>專業能力
-                </>
-              }
-            >
+            <Section id="have_skill" title="專業能力" required>
               <CategoryMultiSelectField
                 form={form}
                 name="have_skill"
@@ -270,14 +238,7 @@ export default function EditProfileContainer({
             </Section>
           )}
 
-          <Section
-            id="location"
-            title={
-              <>
-                <span className="text-status-error-default">* </span>地區
-              </>
-            }
-          >
+          <Section id="location" title="地區" required>
             <SelectField
               form={form}
               name="location"
@@ -289,14 +250,7 @@ export default function EditProfileContainer({
             />
           </Section>
 
-          <Section
-            id="years_of_experience"
-            title={
-              <>
-                <span className="text-status-error-default">* </span>經驗
-              </>
-            }
-          >
+          <Section id="years_of_experience" title="經驗" required>
             <SelectField
               form={form}
               name="years_of_experience"
@@ -305,17 +259,7 @@ export default function EditProfileContainer({
             />
           </Section>
 
-          <Section
-            id="industry"
-            title={
-              <>
-                {isMentorRole && (
-                  <span className="text-status-error-default">* </span>
-                )}
-                產業
-              </>
-            }
-          >
+          <Section id="industry" title="產業" required={isMentorRole}>
             <SelectField
               form={form}
               name="industry"
@@ -327,15 +271,7 @@ export default function EditProfileContainer({
             />
           </Section>
 
-          <Section
-            id="want_position"
-            title={
-              <>
-                <span className="text-status-error-default">* </span>
-                有興趣多了解的職位
-              </>
-            }
-          >
+          <Section id="want_position" title="有興趣多了解的職位" required>
             <CategoryMultiSelectField
               form={form}
               name="want_position"
@@ -345,15 +281,7 @@ export default function EditProfileContainer({
             />
           </Section>
 
-          <Section
-            id="want_skill"
-            title={
-              <>
-                <span className="text-status-error-default">* </span>
-                想多了解、加強的技能
-              </>
-            }
-          >
+          <Section id="want_skill" title="想多了解、加強的技能" required>
             <CategoryMultiSelectField
               form={form}
               name="want_skill"
@@ -363,15 +291,7 @@ export default function EditProfileContainer({
             />
           </Section>
 
-          <Section
-            id="want_topic"
-            title={
-              <>
-                <span className="text-status-error-default">* </span>
-                想多了解的主題
-              </>
-            }
-          >
+          <Section id="want_topic" title="想多了解的主題" required>
             <CategoryMultiSelectField
               form={form}
               name="want_topic"

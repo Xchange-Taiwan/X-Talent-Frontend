@@ -119,14 +119,7 @@ export const JobExperienceSection = ({
   };
 
   return (
-    <Section
-      title={
-        <>
-          {isMentor && <span className="text-status-error-default">* </span>}
-          工作經驗
-        </>
-      }
-    >
+    <Section title="工作經驗" required={isMentor}>
       {fields.map((field, index) => {
         const invalidPeriod = isInvalidPeriod(index);
 
