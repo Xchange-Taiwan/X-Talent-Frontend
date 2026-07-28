@@ -133,7 +133,7 @@ MOCK_GH_API_FAIL() {
 (
   MOCK_GH_API_FAIL 2>"$TEST_DIR/err.log"
   STATUS=$?
-  if [ $status -ne 0 ]; then
+  if [ $STATUS -ne 0 ]; then
     echo "⚠️ Warning: GitHub API comments query failed: $(cat "$TEST_DIR/err.log")" >&2
     # Exit with code 0 as a graceful fallback instead of failing GHA run
     exit 0
