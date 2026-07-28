@@ -29,15 +29,7 @@ export const AvatarSection = <T extends FieldValues>({
   const avatarUrl = session?.user?.avatar ?? '';
 
   return (
-    <Section
-      id={id}
-      title={
-        <>
-          {isMentor && <span className="text-status-200">* </span>}
-          個人頭像
-        </>
-      }
-    >
+    <Section id={id} title="個人頭像" required={isMentor}>
       <AvatarUpload
         control={control}
         name={name}
