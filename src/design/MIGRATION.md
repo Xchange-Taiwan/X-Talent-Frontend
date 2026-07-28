@@ -113,5 +113,4 @@ const badgeVariants = cva(
 
 以下項目數值/決策尚未經 Design 正式確認，追蹤於 [X-Tracker #396](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/396)，請勿在確認前逕自合併或修改：
 
-- `--color-background-top` 與 `--color-background-bottom` 目前數值相同（`0 0% 96%`），`--color-background-top-active` 與 `--color-background-border` 也相同（`210 9% 91%`）。待確認是否為刻意共用（可合併）或巧合（應保留獨立 token）。
-- `--color-gray-50`（`global.css`）目前為內插推算值（`0 0% 97%` / #F7F7F7），非 Figma 正式數值，待 Design 提供確認值。
+- `--color-background-top` 與 `--color-background-bottom` 目前數值相同（`0 0% 96%`），`--color-background-top-active` 與 `--color-background-border` 也相同（`210 9% 91%`）。維持獨立 token（見 `global.css` 註解），待 Design 正式確認是否為刻意共用。
