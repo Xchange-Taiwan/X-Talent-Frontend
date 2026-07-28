@@ -78,7 +78,7 @@ export default function Page() {
   return (
     <>
       <section className="flex h-[532px] flex-col items-center justify-center bg-[url('/landing/home-page-hero-sm.svg')] bg-cover bg-no-repeat px-4 text-center sm:bg-[url('/landing/home-page-hero-md.svg')] sm:px-0 lg:h-[640px] lg:bg-none">
-        <h1 className="text-blue-950 mb-8 text-3xl font-bold leading-normal sm:text-4xl md:text-5xl">
+        <h1 className="mb-8 text-3xl font-bold leading-normal text-navy sm:text-4xl md:text-5xl">
           交流讓
           <br className="md:hidden" />
           改變發生

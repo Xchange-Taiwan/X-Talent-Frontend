@@ -119,7 +119,7 @@ export default function ProfilePageUI({
                           href={link.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="hover:text-blue-600 text-gray-600"
+                          className="text-gray-600 hover:text-brand-500"
                           title={
                             platformLabelMap[link.platform]?.label ||
                             link.platform

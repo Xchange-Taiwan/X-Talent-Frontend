@@ -79,7 +79,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
                 className="ml-auto"
               >
                 <Cross2Icon
-                  className="text-blue-900 h-8 w-8"
+                  className="h-8 w-8 text-brand-900"
                   aria-hidden="true"
                 />
               </button>

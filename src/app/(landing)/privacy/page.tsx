@@ -19,11 +19,11 @@ export default function PrivacyPolicyPage() {
       <h1 className="text-3xl font-bold text-navy md:text-4xl">
         Privacy Policy
       </h1>
-      <p className="text-neutral-500 mt-3 text-sm">
+      <p className="mt-3 text-sm text-text-tertiary">
         Last updated: May 25, 2026
       </p>
 
-      <div className="text-neutral-700 mt-8 space-y-4 text-base leading-relaxed">
+      <div className="mt-8 space-y-4 text-base leading-relaxed text-text-secondary">
         <p>
           X-Talent is a mentorship platform operated by XChange. X-Talent
           connects mentors and mentees and helps users schedule mentorship
@@ -35,7 +35,7 @@ export default function PrivacyPolicyPage() {
           through Google OAuth and Google Calendar integration.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           1. Information We Collect
         </h2>
         <p>We may collect the following information when you use X-Talent:</p>
@@ -55,7 +55,7 @@ export default function PrivacyPolicyPage() {
           </li>
         </ul>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           2. Google User Data We Access
         </h2>
         <p>
@@ -90,7 +90,7 @@ export default function PrivacyPolicyPage() {
           events for unrelated purposes.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           3. How We Use Google User Data
         </h2>
         <p>X-Talent uses Google user data only for the following purposes:</p>
@@ -121,7 +121,7 @@ export default function PrivacyPolicyPage() {
           generalized AI or machine learning models.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           4. How We Share Google User Data
         </h2>
         <p>X-Talent does not sell, rent, or trade Google user data.</p>
@@ -155,7 +155,7 @@ export default function PrivacyPolicyPage() {
           measures.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           5. Data Storage and Protection
         </h2>
         <p>
@@ -181,7 +181,7 @@ export default function PrivacyPolicyPage() {
           the user&rsquo;s explicit consent.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           6. Data Retention and Deletion
         </h2>
         <p>
@@ -203,7 +203,7 @@ export default function PrivacyPolicyPage() {
           <li>
             <a
               href="mailto:leo.yao@xchange.com.tw"
-              className="text-blue-600 underline"
+              className="text-brand-500 underline"
             >
               leo.yao@xchange.com.tw
             </a>
@@ -216,7 +216,7 @@ export default function PrivacyPolicyPage() {
               href="https://forms.gle/enXCV4fdnZk9KZv1A"
               target="_blank"
               rel="noreferrer"
-              className="text-blue-600 underline"
+              className="text-brand-500 underline"
             >
               https://forms.gle/enXCV4fdnZk9KZv1A
             </a>
@@ -228,7 +228,7 @@ export default function PrivacyPolicyPage() {
           for legal, security, audit, or dispute-resolution purposes.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           7. Contact Us
         </h2>
         <p>
@@ -238,7 +238,7 @@ export default function PrivacyPolicyPage() {
         <p>
           <a
             href="mailto:leo.yao@xchange.com.tw"
-            className="text-blue-600 underline"
+            className="text-brand-500 underline"
           >
             leo.yao@xchange.com.tw
           </a>
