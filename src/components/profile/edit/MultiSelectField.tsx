@@ -21,7 +21,7 @@ interface MultiSelectFieldProps<T extends FieldValues> {
   }>;
   maxCount?: number;
   animation?: number;
-  variant?: 'default' | 'secondary' | 'destructive' | 'primaryAlt';
+  variant?: 'default' | 'secondary' | 'destructive';
 }
 
 /**
