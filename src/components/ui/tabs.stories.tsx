@@ -28,7 +28,7 @@ export const Default: Story = {
           </p>
           <div className="space-y-2">
             <span className="text-sm font-medium">使用者名稱</span>
-            <div className="bg-slate-50 rounded border p-2 text-sm text-muted-foreground">
+            <div className="rounded border bg-background-bottom p-2 text-sm text-muted-foreground">
               alex_chen
             </div>
           </div>
@@ -42,7 +42,7 @@ export const Default: Story = {
           </p>
           <div className="space-y-2">
             <span className="text-sm font-medium">新密碼</span>
-            <div className="bg-slate-50 rounded border p-2 text-sm text-muted-foreground">
+            <div className="rounded border bg-background-bottom p-2 text-sm text-muted-foreground">
               ********
             </div>
           </div>
