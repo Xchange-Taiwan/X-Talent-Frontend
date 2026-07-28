@@ -11,7 +11,7 @@ export default function Page() {
 
   return (
     <div className="flex w-full flex-col items-center justify-center py-16">
-      <div className="relative mx-auto flex w-[342px] flex-col items-center overflow-hidden rounded-2xl border border-[#E6E8EA] bg-[#EBFBFB] pt-20 lg:w-[629px]">
+      <div className="relative mx-auto flex w-[342px] flex-col items-center overflow-hidden rounded-2xl border border-background-border bg-[#EBFBFB] pt-20 lg:w-[629px]">
         <Image
           className="absolute left-[50%] top-10 -translate-x-[50%] transform"
           src={EmailVerifyIconUrl}
