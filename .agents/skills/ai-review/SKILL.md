@@ -23,6 +23,7 @@ Run a complete, parallelized multi-stage AI Review locally or in CI using concur
      ```bash
      gh issue view <issue-number> --repo Xchange-Taiwan/X-Talent-Tracker --json title,body,comments
      ```
+     _(If this command fails due to token permissions or offline/local mode, gracefully fallback and continue the review using the branch name and git diff only)._
 
 2. **Invoke Parallel Sub-Agents with Shared Context**:
    - Call the `invoke_agent` tool in parallel (concurrently in a single turn) to launch multiple independent `generalist` sub-agents, passing the git diff, the custom project prompts, and the **fetched Ticket requirements** to the following specialized agents:
@@ -45,21 +46,23 @@ Run a complete, parallelized multi-stage AI Review locally or in CI using concur
    - Always prefix/embed the marker `<!-- ai-review-pipeline -->` at the top of the generated markdown content so that the comment can be identified later.
 
 4. **Publish Combined Comment**:
-   - Check if running inside a Pull Request environment. You can check if the current branch has an open pull request by running:
+   - Detect if running inside a Pull Request environment or if the `GITHUB_ACTIONS` environment variable is set. You can check if the current branch has an open pull request by running:
      ```bash
      gh pr view --json number
      ```
-   - If a Pull Request number is found, fetch existing comments using GH CLI or the GitHub API to check if a review comment carrying the `<!-- ai-review-pipeline -->` marker has already been posted:
-     ```bash
-     gh api repos/{owner}/{repo}/issues/{pr-number}/comments --jq '.[] | select(.body | contains("<!-- ai-review-pipeline -->")) | .id'
-     ```
-   - If an existing comment ID is found:
-     - Update the existing comment via GH API PATCH to prevent comment spamming:
+   - **Local Dry-Run / Graceful Fallback**: If NOT running in GitHub Actions, if there is no open pull request, or if GitHub API commands fail (due to missing tokens), do NOT throw an error or fail the run. Instead, output the final aggregated review markdown to a local file named `ai-review-report.md` in the workspace root, output a summary to stdout, and complete successfully.
+   - If a Pull Request number is found in a CI environment:
+     - Fetch existing comments using GH CLI or the GitHub API to check if a review comment carrying the `<!-- ai-review-pipeline -->` marker has already been posted:
        ```bash
-       gh api -X PATCH repos/{owner}/{repo}/issues/comments/{comment_id} -F body=@<comment_file>
+       gh api repos/{owner}/{repo}/issues/{pr-number}/comments --jq '.[] | select(.body | contains("<!-- ai-review-pipeline -->")) | .id'
        ```
-   - If no existing comment is found:
-     - Post a new comment to the PR:
-       ```bash
-       gh pr comment <pr-number> --body-file <comment_file>
-       ```
+     - If an existing comment ID is found:
+       - Update the existing comment via GH API PATCH to prevent comment spamming:
+         ```bash
+         gh api -X PATCH repos/{owner}/{repo}/issues/comments/{comment_id} -F body=@<comment_file>
+         ```
+     - If no existing comment is found:
+       - Post a new comment to the PR:
+         ```bash
+         gh pr comment <pr-number> --body-file <comment_file>
+         ```
