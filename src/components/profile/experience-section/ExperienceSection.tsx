@@ -31,14 +31,11 @@ export const ExperienceItemCard = ({
         </span>
       </div>
       <div>
-        <h2
-          className="mb-1 break-words text-base font-bold"
-          style={{ color: '#49454F' }}
-        >
+        <h2 className="mb-1 break-words text-base font-bold text-text-secondary">
           {title}
         </h2>
         {description && (
-          <p className="break-words text-sm" style={{ color: '#49454F' }}>
+          <p className="break-words text-sm text-text-secondary">
             {description}
           </p>
         )}
