@@ -62,6 +62,105 @@ Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock
 - **Local files** → write one file per ticket under `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` in dependency order (blockers first). Each file's "Blocked by" lists the numbers/titles it depends on. Use the per-ticket file template below — one ticket per file, never a single combined file.
 - **A real issue tracker (GitHub, Linear, …)** → publish one issue per ticket in dependency order (blockers first) so each ticket's blocking edges can reference real identifiers. Use the platform's native blocking / sub-issue relationship where it has one; otherwise set each ticket's "Blocked by" to the blocking issues. Apply the `ready-for-agent` triage label unless instructed otherwise — the tickets are agent-grabbable by construction.
 
+  **Automated Project Board Addition & Backlog Assignment Flow**:
+  For GitHub issue tracking, after creating each issue, dynamically add it to the project board and move its status to "Backlog" using the parsed configuration:
+  1. **Fetch and Parse Configuration**:
+     Load the centralized configuration by sourcing the shared loading scripts:
+     - **On macOS/Linux (Bash/Zsh)**:
+       ```bash
+       source .agents/scripts/load-config.sh || exit 1
+       ```
+     - **On Windows (PowerShell)**:
+       ```powershell
+       . .agents/scripts/load-config.ps1
+       ```
+
+  2. **Create Issue and Programmatically Add & Move to Backlog**:
+     For each ticket:
+     - **On macOS/Linux (Bash/Zsh)**:
+
+       ```bash
+       # 1. Create the issue and retrieve its node ID
+       ISSUE_NODE_ID=$(gh issue create --title "$TICKET_TITLE" --body "$TICKET_BODY" --repo "$ORG/$TRACKER_REPO" --label "ai-review" --json id --jq '.id')
+
+       if [ -n "$ISSUE_NODE_ID" ]; then
+         # 2. Add issue to Project Board
+         ITEM_ID=$(gh api graphql -F project_id="$PROJECT_ID" -F content_id="$ISSUE_NODE_ID" -f query='
+           mutation($project_id: ID!, $content_id: ID!) {
+             addProjectV2ItemById(input: { projectId: $project_id, contentId: $content_id }) {
+               item { id }
+             }
+           }
+         ' --jq '.data.addProjectV2ItemById.item.id' 2>/dev/null)
+
+         if [ -n "$ITEM_ID" ]; then
+           # 3. Update Status Field to Backlog
+           if [ -n "$BACKLOG_OPTION_ID" ] && [ "$BACKLOG_OPTION_ID" != "null" ]; then
+             gh api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$BACKLOG_OPTION_ID" -f query='
+               mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
+                 updateProjectV2ItemFieldValue(
+                   input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
+                 ) { projectV2Item { id } }
+               }
+             ' >/dev/null
+
+             if [ $? -ne 0 ]; then
+               echo "WARNING: Failed to move issue to Backlog. Please manually move it on the board." >&2
+             fi
+           fi
+         else
+           echo "WARNING: Failed to add issue to Project Board. Please manually link it." >&2
+         fi
+       else
+         echo "ERROR: Failed to create issue '$TICKET_TITLE'." >&2
+       fi
+
+       # 4. API Rate Limit Mitigation (sleep 1 second between batch ticket additions)
+       sleep 1
+       ```
+
+     - **On Windows (PowerShell)**:
+
+       ```powershell
+       # 1. Create the issue and retrieve its node ID
+       $ISSUE_NODE_ID = (gh issue create --title "$TICKET_TITLE" --body "$TICKET_BODY" --repo "$ORG/$TRACKER_REPO" --label "ai-review" --json id --jq '.id')
+
+       if ($ISSUE_NODE_ID) {
+         # 2. Add issue to Project Board
+         $ITEM_ID = (gh api graphql -F project_id="$PROJECT_ID" -F content_id="$ISSUE_NODE_ID" -f query='
+           mutation($project_id: ID!, $content_id: ID!) {
+             addProjectV2ItemById(input: { projectId: $project_id, contentId: $content_id }) {
+               item { id }
+             }
+           }
+         ' --jq '.data.addProjectV2ItemById.item.id' 2>$null)
+
+         if ($ITEM_ID) {
+           # 3. Update Status Field to Backlog
+           if ($BACKLOG_OPTION_ID -and $BACKLOG_OPTION_ID -ne "null") {
+             gh api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$BACKLOG_OPTION_ID" -f query='
+               mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
+                 updateProjectV2ItemFieldValue(
+                   input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
+                 ) { projectV2Item { id } }
+               }
+             ' | Out-Null
+
+             if ($LastExitCode -ne 0) {
+               Write-Warning "WARNING: Failed to move issue to Backlog. Please manually move it on the board."
+             }
+           }
+         } else {
+           Write-Warning "WARNING: Failed to add issue to Project Board. Please manually link it."
+         }
+       } else {
+         Write-Error "ERROR: Failed to create issue '$TICKET_TITLE'."
+       }
+
+       # 4. API Rate Limit Mitigation (sleep 1 second between batch ticket additions)
+       Start-Sleep -Seconds 1
+       ```
+
 Work the **frontier**: any ticket whose blockers are all done. For a purely linear chain that means top to bottom.
 
 Do NOT close or modify any parent issue.
