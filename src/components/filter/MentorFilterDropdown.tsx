@@ -59,7 +59,7 @@ const MentorFilterDropdown = ({
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#E6E8EA] px-4 py-1">
+        <button className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-background-border px-4 py-1">
           <div className="flex items-center gap-1">
             <FilterListIcon className="h-5 w-5" />
             <span>篩選</span>

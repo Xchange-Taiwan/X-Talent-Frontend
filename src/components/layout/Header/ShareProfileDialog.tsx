@@ -118,7 +118,7 @@ export function ShareProfileDialog({
               </Dialog.Close>
             </div>
 
-            <div className="mb-5 rounded-[20px] border border-[#E6E8EA] bg-light px-6 py-5 shadow-sm">
+            <div className="mb-5 rounded-[20px] border border-background-border bg-light px-6 py-5 shadow-sm">
               <div className="flex items-center gap-4">
                 <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-[#F5F5F5]">
                   <Image
@@ -169,7 +169,7 @@ export function ShareProfileDialog({
                 個人頁面連結
               </label>
 
-              <div className="flex items-center gap-3 rounded-[14px] border border-[#E6E8EA] bg-light px-4 py-3">
+              <div className="flex items-center gap-3 rounded-[14px] border border-background-border bg-light px-4 py-3">
                 <input
                   id="share-profile-link"
                   value={profileUrl}

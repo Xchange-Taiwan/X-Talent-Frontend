@@ -64,7 +64,7 @@ function PasswordResetForm() {
         <Button
           type="submit"
           disabled={isSubmitting}
-          className="text-white h-[36px] min-w-[92px] rounded-full bg-[#35C9CF] px-6 text-sm font-semibold hover:bg-[#2fbec4] disabled:opacity-50"
+          className="text-white h-[36px] min-w-[92px] rounded-full bg-brand-500 px-6 text-sm font-semibold hover:bg-brand-600 disabled:opacity-50"
         >
           {isSubmitting ? '處理中...' : '更改密碼'}
         </Button>

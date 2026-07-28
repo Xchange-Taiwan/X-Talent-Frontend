@@ -17,7 +17,8 @@ const badgeVariants = cva(
         outline: 'text-foreground',
         primaryAlt:
           'border-transparent bg-primary text-black-foreground hover:bg-primary/90',
-        filter: 'py-1.5 pr-2 pl-3 h-8 border border-[#E6E8EA] rounded-lg gap-2',
+        filter:
+          'py-1.5 pr-2 pl-3 h-8 border border-background-border rounded-lg gap-2',
       },
     },
     defaultVariants: {
