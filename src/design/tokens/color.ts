@@ -86,4 +86,5 @@ module.exports = {
   logoBlue: 'hsl(var(--color-logo-blue) / <alpha-value>)',
   bdBlue: 'hsl(var(--color-bd-blue) / <alpha-value>)',
   marketingOrange: 'hsl(var(--color-marketing-orange) / <alpha-value>)',
+  landingPurpleLight: 'hsl(var(--color-landing-purple-light) / <alpha-value>)',
 };

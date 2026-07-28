@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-syntax */
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -82,7 +81,7 @@ export default function PopularPositionChips() {
             }}
             type="button"
             onClick={() => handleClick(position)}
-            className={`shrink-0 rounded-full border border-background-border bg-background-white px-4 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-[#F7F2FB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            className={`shrink-0 rounded-full border border-background-border bg-background-white px-4 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-landingPurpleLight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               i >= visibleCount ? 'xl:hidden' : ''
             }`}
           >
