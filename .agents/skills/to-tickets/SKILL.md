@@ -71,21 +71,34 @@ Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock
        # Fetch config file from tracker repository (using main branch)
        CONFIG_MD=$(gh api repos/Xchange-Taiwan/X-Talent-Tracker/contents/docs/agents/project-config.md?ref=main -H "Accept: application/vnd.github.raw" 2>/dev/null)
 
-       # Fallback to local file if fetch failed
-       if [ -z "$CONFIG_MD" ]; then
+       # Fallback to local file if fetch failed (checks exit status or empty variable)
+       if [ $? -ne 0 ] || [ -z "$CONFIG_MD" ]; then
          if [ -f "docs/agents/project-config.md" ]; then
            CONFIG_MD=$(cat docs/agents/project-config.md)
+         else
+           CONFIG_MD=""
          fi
        fi
 
        # Check if config content is present
        if [ -z "$CONFIG_MD" ]; then
-         echo "ERROR: project-config.md not found or malformed — aborting to avoid null ID API calls" >&2
+         echo "ERROR: project-config.md not found — aborting to avoid null ID API calls" >&2
          exit 1
        fi
 
-       # Extract and parse JSON
+       # Remove Windows carriage returns to prevent sed/parsing failures
+       CONFIG_MD=$(echo "$CONFIG_MD" | tr -d '\r')
+
+       # Extract JSON block
        CONFIG_JSON=$(echo "$CONFIG_MD" | sed -n '/^```json/,/^```$/p' | sed '1d;$d')
+
+       # Validate extracted JSON content
+       if [ -z "$CONFIG_JSON" ] || [ "$CONFIG_JSON" = "null" ]; then
+         echo "ERROR: project-config.md is malformed or missing JSON block — aborting" >&2
+         exit 1
+       fi
+
+       # Parse variables using jq
        ORG=$(echo "$CONFIG_JSON" | jq -r '.org')
        TRACKER_REPO=$(echo "$CONFIG_JSON" | jq -r '.repos.tracker')
        FRONTEND_REPO=$(echo "$CONFIG_JSON" | jq -r '.repos.frontend')
@@ -102,19 +115,30 @@ Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock
        # Fetch config file from tracker repository (using main branch)
        $CONFIG_MD = (gh api repos/Xchange-Taiwan/X-Talent-Tracker/contents/docs/agents/project-config.md?ref=main -H "Accept: application/vnd.github.raw" 2>$null)
 
-       # Fallback to local file if fetch failed
-       if (-not $CONFIG_MD -and (Test-Path "docs/agents/project-config.md")) {
-         $CONFIG_MD = (Get-Content -Raw -Path "docs/agents/project-config.md")
+       # Fallback to local file if fetch failed (checks exit status or empty variable)
+       if ($LastExitCode -ne 0 -or -not $CONFIG_MD) {
+         if (Test-Path "docs/agents/project-config.md") {
+           $CONFIG_MD = (Get-Content -Raw -Path "docs/agents/project-config.md")
+         } else {
+           $CONFIG_MD = $null
+         }
        }
 
        # Check if config content is present
        if (-not $CONFIG_MD) {
-         Write-Error "ERROR: project-config.md not found or malformed — aborting to avoid null ID API calls"
+         Write-Error "ERROR: project-config.md not found — aborting to avoid null ID API calls"
          exit 1
        }
 
        # Extract and parse JSON
        $CONFIG_JSON_STRING = [regex]::Match($CONFIG_MD, '(?s)```json\s*(.*?)\s*```').Groups[1].Value
+
+       # Validate extracted JSON content
+       if ([string]::IsNullOrWhiteSpace($CONFIG_JSON_STRING) -or $CONFIG_JSON_STRING -eq "null") {
+         Write-Error "ERROR: project-config.md is malformed or missing JSON block — aborting"
+         exit 1
+       }
+
        $CONFIG_JSON = ConvertFrom-Json $CONFIG_JSON_STRING
        $ORG = $CONFIG_JSON.org
        $TRACKER_REPO = $CONFIG_JSON.repos.tracker
@@ -146,16 +170,18 @@ Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock
 
          if [ -n "$ITEM_ID" ]; then
            # 3. Update Status Field to Backlog
-           gh api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$BACKLOG_OPTION_ID" -f query='
-             mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
-               updateProjectV2ItemFieldValue(
-                 input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
-               ) { projectV2Item { id } }
-             }
-           ' >/dev/null
+           if [ -n "$BACKLOG_OPTION_ID" ] && [ "$BACKLOG_OPTION_ID" != "null" ]; then
+             gh api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$BACKLOG_OPTION_ID" -f query='
+               mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
+                 updateProjectV2ItemFieldValue(
+                   input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
+                 ) { projectV2Item { id } }
+               }
+             ' >/dev/null
 
-           if [ $? -ne 0 ]; then
-             echo "WARNING: Failed to move issue to Backlog. Please manually move it on the board." >&2
+             if [ $? -ne 0 ]; then
+               echo "WARNING: Failed to move issue to Backlog. Please manually move it on the board." >&2
+             fi
            fi
          else
            echo "WARNING: Failed to add issue to Project Board. Please manually link it." >&2
@@ -186,16 +212,18 @@ Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock
 
          if ($ITEM_ID) {
            # 3. Update Status Field to Backlog
-           gh api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$BACKLOG_OPTION_ID" -f query='
-             mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
-               updateProjectV2ItemFieldValue(
-                 input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
-               ) { projectV2Item { id } }
-             }
-           ' | Out-Null
+           if ($BACKLOG_OPTION_ID -and $BACKLOG_OPTION_ID -ne "null") {
+             gh api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$BACKLOG_OPTION_ID" -f query='
+               mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
+                 updateProjectV2ItemFieldValue(
+                   input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
+                 ) { projectV2Item { id } }
+               }
+             ' | Out-Null
 
-           if ($LastExitCode -ne 0) {
-             Write-Warning "WARNING: Failed to move issue to Backlog. Please manually move it on the board."
+             if ($LastExitCode -ne 0) {
+               Write-Warning "WARNING: Failed to move issue to Backlog. Please manually move it on the board."
+             }
            }
          } else {
            Write-Warning "WARNING: Failed to add issue to Project Board. Please manually link it."
