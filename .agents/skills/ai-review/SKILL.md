@@ -36,7 +36,12 @@ Run a complete, parallelized multi-stage AI Review locally or in CI using concur
 
 3. **Aggregate & Generate Final Summary**:
    - Once all parallel sub-agents return their findings, read the custom summary prompt in `scripts/ai-review/prompts/summary.md`.
-   - Aggregate all the sub-agent outputs and compile the final review comment using the same structure as `scripts/ai-review/lib/format-comment.mjs`.
+   - Aggregate all the sub-agent outputs and compile the final review comment following a structured format:
+     - **Title**: `## 🤖 AI Code Review Report (X-Tracker #<issue-number>)`
+     - **Summary & Merge Recommendation**: Provide a high-level summary and an overall risk level (e.g. `low`, `medium`, `high`) with logical reasoning.
+     - **Requirement Coverage**: Detail how well the ticket requirements are met.
+     - **Review Guide / Reading Order**: Suggest an optimal sequence of files for human reviewers to examine.
+     - **Detailed Findings by Category**: Display organized feedback from each sub-agent (Security, Correctness, Business Logic, Performance, Testing, Architecture) with specific file paths, code blocks, severity, and actionable suggestions.
    - Always prefix/embed the marker `<!-- ai-review-pipeline -->` at the top of the generated markdown content so that the comment can be identified later.
 
 4. **Publish Combined Comment**:
