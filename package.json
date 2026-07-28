@@ -22,7 +22,9 @@
     "prepare": "husky install",
     "gemini": "gemini",
     "gemini-yolo": "gemini --approval-mode=yolo --skip-trust",
-    "generate:types": "node scripts/generate-types.mjs"
+    "generate:types": "node scripts/generate-types.mjs",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@emotion/react": "^11.11.3",
@@ -68,6 +70,11 @@
   "devDependencies": {
     "@google/gemini-cli": "0.52.0",
     "@playwright/test": "^1.58.2",
+    "@storybook/addon-a11y": "^10.5.5",
+    "@storybook/addon-docs": "^10.5.5",
+    "@storybook/addon-onboarding": "^10.5.5",
+    "@storybook/nextjs": "^10.5.5",
+    "@storybook/react": "^10.5.5",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -86,6 +93,7 @@
     "eslint-config-next": "14.2.35",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-simple-import-sort": "^10.0.0",
+    "eslint-plugin-storybook": "^10.5.5",
     "husky": "^9.0.10",
     "jimp": "^1.6.0",
     "jsdom": "^29.0.2",
@@ -94,6 +102,7 @@
     "postcss": "^8.4.33",
     "prettier": "^3.2.4",
     "prettier-plugin-tailwindcss": "^0.5.11",
+    "storybook": "^10.5.5",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.3.3",
     "vitest": "^4.1.4"

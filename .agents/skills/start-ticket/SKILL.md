@@ -85,11 +85,21 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
      3. Call mutation to create and link:
         - **On macOS/Linux (Bash/Zsh)**:
           ```bash
-          gh api graphql -f query='mutation { createLinkedBranch(input: { issueId: "'"$ISSUE_NODE_ID"'", repositoryId: "'"$REPO_NODE_ID"'", oid: "'"$BRANCH_OID"'", name: "feat/<issue-number>-<slug>" }) { linkedBranch { id } } }'
+          gh api graphql -f query='
+            mutation($issueId: ID!, $repositoryId: ID!, $oid: GitObjectID!, $name: String!) {
+              createLinkedBranch(input: {issueId: $issueId, repositoryId: $repositoryId, oid: $oid, name: $name}) {
+                linkedBranch { id }
+              }
+            }' -F issueId="$ISSUE_NODE_ID" -F repositoryId="$REPO_NODE_ID" -F oid="$BRANCH_OID" -F name="feat/<issue-number>-<slug>"
           ```
         - **On Windows (PowerShell)**:
           ```powershell
-          gh api graphql -f query='mutation { createLinkedBranch(input: { issueId: "'"$ISSUE_NODE_ID"'", repositoryId: "'"$REPO_NODE_ID"'", oid: "'"$BRANCH_OID"'", name: "feat/<issue-number>-<slug>" }) { linkedBranch { id } } }'
+          gh api graphql -f query='
+            mutation($issueId: ID!, $repositoryId: ID!, $oid: GitObjectID!, $name: String!) {
+              createLinkedBranch(input: {issueId: $issueId, repositoryId: $repositoryId, oid: $oid, name: $name}) {
+                linkedBranch { id }
+              }
+            }' -F issueId="$ISSUE_NODE_ID" -F repositoryId="$REPO_NODE_ID" -F oid="$BRANCH_OID" -F name="feat/<issue-number>-<slug>"
           ```
      4. Fetch and checkout locally:
         ```bash
