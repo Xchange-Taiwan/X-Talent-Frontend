@@ -132,7 +132,7 @@ Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock
 
        ```bash
        # 1. Create the issue and retrieve its node ID
-       ISSUE_NODE_ID=$(gh issue create --title "$TICKET_TITLE" --body "$TICKET_BODY" --repo "$ORG/$TRACKER_REPO" --json id --jq '.id')
+       ISSUE_NODE_ID=$(gh issue create --title "$TICKET_TITLE" --body "$TICKET_BODY" --repo "$ORG/$TRACKER_REPO" --label "ai-review" --json id --jq '.id')
 
        if [ -n "$ISSUE_NODE_ID" ]; then
          # 2. Add issue to Project Board
@@ -172,7 +172,7 @@ Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock
 
        ```powershell
        # 1. Create the issue and retrieve its node ID
-       $ISSUE_NODE_ID = (gh issue create --title "$TICKET_TITLE" --body "$TICKET_BODY" --repo "$ORG/$TRACKER_REPO" --json id --jq '.id')
+       $ISSUE_NODE_ID = (gh issue create --title "$TICKET_TITLE" --body "$TICKET_BODY" --repo "$ORG/$TRACKER_REPO" --label "ai-review" --json id --jq '.id')
 
        if ($ISSUE_NODE_ID) {
          # 2. Add issue to Project Board
