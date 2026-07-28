@@ -45,7 +45,10 @@ export const Destructive: Story = {
           <ToastTitle>連線錯誤</ToastTitle>
           <ToastDescription>無法連接至伺服器，請稍後再試。</ToastDescription>
         </div>
-        <ToastAction altText="Try again" className="border-red-400 text-white">
+        <ToastAction
+          altText="Try again"
+          className="text-white border-status-error-default"
+        >
           重試
         </ToastAction>
         <ToastClose />
