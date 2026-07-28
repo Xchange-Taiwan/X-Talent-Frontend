@@ -1,3 +1,4 @@
+import { ProfileBanner } from '@/components/profile/profile-banner';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export function ProfileHeaderSkeleton() {
@@ -67,7 +68,7 @@ export function ScheduleSkeleton() {
 export function ProfilePageSkeleton() {
   return (
     <div>
-      <div className="relative h-[111px] bg-gradient-to-br from-blue-active to-pink-active sm:h-[100px]" />
+      <ProfileBanner />
 
       <div className="container mb-20 max-w-[1024px] 2xl:max-w-[1280px]">
         <ProfileHeaderSkeleton />

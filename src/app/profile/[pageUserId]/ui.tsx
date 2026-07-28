@@ -6,6 +6,7 @@ import {
   EducationSection,
   WorkExperienceSection,
 } from '@/components/profile/experience-section/ExperienceSection';
+import { ProfileBanner } from '@/components/profile/profile-banner';
 import { BookingForm } from '@/components/profile/reservation/BookingForm';
 import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
 import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalendar';
@@ -85,7 +86,7 @@ export default function ProfilePageUI({
 
   return (
     <div>
-      <div className="relative h-[111px] bg-gradient-to-br from-blue-active to-pink-active sm:h-[100px]" />
+      <ProfileBanner />
 
       <div className="container mb-20 max-w-[1024px] 2xl:max-w-[1280px]">
         {userLoading ? (
