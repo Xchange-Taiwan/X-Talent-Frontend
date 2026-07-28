@@ -24,7 +24,7 @@ export const ExperienceItemCard = ({
 }: ExperienceItem) => {
   return (
     <section className="mb-6 flex flex-col gap-3">
-      <div className="flex justify-between gap-2 text-sm text-gray-600">
+      <div className="flex justify-between gap-2 text-sm text-text-secondary">
         <span className="min-w-0 break-words">{subtitle}</span>
         <span className="shrink-0 text-xs">
           {startDate} - {endDate}

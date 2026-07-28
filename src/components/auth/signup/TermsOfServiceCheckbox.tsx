@@ -20,13 +20,13 @@ export default function TermsOfServiceCheckbox({
       render={({ field }) => (
         <div className="flex items-center space-x-3 space-y-0">
           <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-          <span className="text-neutral-600 text-sm font-medium leading-none">
+          <span className="text-sm font-medium leading-none text-text-secondary">
             我同意 X-Talent{' '}
             <Link
               href="/privacy"
               target="_blank"
               rel="noreferrer"
-              className="text-blue-600 cursor-pointer text-sm underline"
+              className="cursor-pointer text-sm text-brand-500 underline"
             >
               隱私權政策
             </Link>
@@ -35,7 +35,7 @@ export default function TermsOfServiceCheckbox({
               href="/terms"
               target="_blank"
               rel="noreferrer"
-              className="text-blue-600 cursor-pointer text-sm underline"
+              className="cursor-pointer text-sm text-brand-500 underline"
             >
               服務條款
             </Link>

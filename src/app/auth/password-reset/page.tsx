@@ -30,11 +30,11 @@ function PasswordResetForm() {
             id="password"
             type="password"
             placeholder="請輸入新密碼"
-            className="h-[36px] rounded-[8px] border border-gray-200 px-3 text-sm placeholder:text-gray-300"
+            className="h-[36px] rounded-[8px] border border-background-border px-3 text-sm placeholder:text-text-disable"
             {...register('password')}
           />
           {errors.password && (
-            <p className="text-red-500 text-sm">{errors.password.message}</p>
+            <p className="text-sm text-status-200">{errors.password.message}</p>
           )}
         </div>
 
@@ -49,11 +49,11 @@ function PasswordResetForm() {
             id="confirm_password"
             type="password"
             placeholder="請再次輸入新密碼"
-            className="h-[36px] rounded-[8px] border border-gray-200 px-3 text-sm placeholder:text-gray-300"
+            className="h-[36px] rounded-[8px] border border-background-border px-3 text-sm placeholder:text-text-disable"
             {...register('confirm_password')}
           />
           {errors.confirm_password && (
-            <p className="text-red-500 text-sm">
+            <p className="text-sm text-status-200">
               {errors.confirm_password.message}
             </p>
           )}

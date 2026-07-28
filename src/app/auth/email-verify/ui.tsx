@@ -18,7 +18,7 @@ export default function EmailVerificationPage({
       title="驗證信箱"
       contentClassName="px-6 pb-8 pt-16 text-center md:p-20"
     >
-      <p className="text-neutral-600">
+      <p className="text-text-secondary">
         已傳送一封驗證信，點選連結以完成帳號註冊。
       </p>
 

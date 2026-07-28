@@ -125,7 +125,7 @@ export default function ProfilePageContainer({
 
   if (!userLoading && !userData) {
     return (
-      <div className="flex h-[50vh] items-center justify-center text-gray-500">
+      <div className="flex h-[50vh] items-center justify-center text-text-tertiary">
         沒有該位使用者
       </div>
     );

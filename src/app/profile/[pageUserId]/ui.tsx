@@ -119,7 +119,7 @@ export default function ProfilePageUI({
                           href={link.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="hover:text-blue-600 text-gray-600"
+                          className="text-text-secondary hover:text-brand-500"
                           title={
                             platformLabelMap[link.platform]?.label ||
                             link.platform
@@ -176,7 +176,7 @@ export default function ProfilePageUI({
                 {userData.about && (
                   <div>
                     <p className="mb-4 text-xl font-bold">關於我</p>
-                    <p className="break-words text-sm text-gray-400">
+                    <p className="break-words text-sm text-text-tertiary">
                       {userData.about}
                     </p>
                   </div>
@@ -264,12 +264,12 @@ export default function ProfilePageUI({
                 <ScheduleSkeleton />
               ) : (
                 <div className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] 2xl:max-w-[414px]">
-                  <div className="bg-white w-full rounded-2xl border border-gray-200/80 p-5 shadow-sm">
-                    <div className="mb-3 border-b border-gray-100 pb-3">
-                      <p className="mb-1 text-xs font-medium text-gray-500">
+                  <div className="bg-white w-full rounded-2xl border border-background-border p-5 shadow-sm">
+                    <div className="mb-3 border-b border-background-border pb-3">
+                      <p className="mb-1 text-xs font-medium text-text-tertiary">
                         可預約日期
                       </p>
-                      <h2 className="text-2xl font-semibold tracking-tight text-gray-900 md:text-3xl 2xl:text-2xl">
+                      <h2 className="text-2xl font-semibold tracking-tight text-text-primary md:text-3xl 2xl:text-2xl">
                         {formatSelectedDate(
                           selectedDate
                             ? new Date(selectedDate + 'T00:00:00')

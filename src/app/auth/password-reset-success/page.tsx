@@ -19,7 +19,7 @@ export default function Page() {
               密碼重設成功
             </h1>
 
-            <p className="mt-4 text-center text-base leading-6 text-gray-700">
+            <p className="mt-4 text-center text-base leading-6 text-text-secondary">
               您現在可以使用新密碼登入。
             </p>
 

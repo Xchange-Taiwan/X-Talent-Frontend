@@ -57,7 +57,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
   return (
     <div className="flex w-full max-w-[846px] items-center rounded-2xl border border-background-border bg-background-white px-3 py-1.5 md:px-6 md:py-4">
       <SearchIcon
-        className="mr-2 h-6 w-6 shrink-0 text-gray-500"
+        className="mr-2 h-6 w-6 shrink-0 text-text-tertiary"
         aria-hidden="true"
       />
 
