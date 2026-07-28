@@ -18,7 +18,7 @@ export default function EmailVerifiedPresentation({
 }: EmailVerifiedPresentationProps) {
   return (
     <AuthMessageCard icon={icon} iconAlt="Verify Email" title={title}>
-      <p className="text-neutral-600">{content}</p>
+      <p className="text-text-secondary">{content}</p>
 
       <Button shape="pill" className="max-w-60" onClick={onSetProfile}>
         {btnContent}

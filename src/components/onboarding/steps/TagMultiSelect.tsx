@@ -48,7 +48,9 @@ export function TagMultiSelect<TFieldValues extends FieldValues>({
                 <label
                   className={cn(
                     'flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-3',
-                    checked ? 'border-primary bg-secondary' : 'border-gray-200',
+                    checked
+                      ? 'border-primary bg-secondary'
+                      : 'border-background-border',
                     disabled && 'cursor-not-allowed opacity-50'
                   )}
                 >

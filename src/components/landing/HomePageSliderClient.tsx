@@ -11,7 +11,7 @@ export const HomePageSliderClient = dynamic(
     loading: () => (
       <div
         aria-hidden
-        className="h-[520px] w-full animate-pulse rounded-md bg-gray-100 sm:h-[280px]"
+        className="h-[520px] w-full animate-pulse rounded-md bg-background-bottom-secondary sm:h-[280px]"
       />
     ),
   }

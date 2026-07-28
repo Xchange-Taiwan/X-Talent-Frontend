@@ -15,7 +15,7 @@ const Tag: FC<{ displayText: string }> = ({ displayText }) => {
   if (!displayText) return null;
 
   return (
-    <div className="border-neutral-300 rounded-xl border px-4 py-2">
+    <div className="rounded-xl border border-background-border px-4 py-2">
       {displayText}
     </div>
   );

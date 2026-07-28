@@ -43,7 +43,7 @@ export const ExpertiseSelectItem: FC<Props> = ({ form, type }) => {
 
   if (!form) {
     return (
-      <div className="flex items-start gap-4 rounded-xl border border-gray-200 px-4 py-3">
+      <div className="flex items-start gap-4 rounded-xl border border-background-border px-4 py-3">
         <div className={`h-10 w-10 ${getIconClassName(type)}`}></div>
         <div>
           <p className="text-base font-normal text-text-primary">{type}</p>
@@ -61,7 +61,7 @@ export const ExpertiseSelectItem: FC<Props> = ({ form, type }) => {
         return (
           <FormItem
             className={cn(
-              'flex cursor-pointer items-start gap-2 rounded-xl border border-gray-200 px-4 py-3',
+              'flex cursor-pointer items-start gap-2 rounded-xl border border-background-border px-4 py-3',
               'hover:border-primary hover:bg-secondary',
               field.value.includes(type) && 'border-primary bg-secondary'
             )}

@@ -19,11 +19,11 @@ export default function TermsOfServicePage() {
       <h1 className="text-3xl font-bold text-navy md:text-4xl">
         Terms of Service
       </h1>
-      <p className="text-neutral-500 mt-3 text-sm">
+      <p className="mt-3 text-sm text-text-tertiary">
         Last updated: May 25, 2026
       </p>
 
-      <div className="text-neutral-700 mt-8 space-y-4 text-base leading-relaxed">
+      <div className="mt-8 space-y-4 text-base leading-relaxed text-text-secondary">
         <p>
           Welcome to X-Talent. X-Talent is a mentorship platform operated by
           XChange that connects mentors and mentees and helps users schedule
@@ -34,7 +34,7 @@ export default function TermsOfServicePage() {
           If you do not agree to these Terms, please do not use the platform.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           1. Use of the Platform
         </h2>
         <p>
@@ -47,7 +47,7 @@ export default function TermsOfServicePage() {
           with these Terms.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           2. Account Registration and Responsibility
         </h2>
         <p>
@@ -71,7 +71,7 @@ export default function TermsOfServicePage() {
           </li>
         </ul>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           3. Google Sign-In and Google Calendar Integration
         </h2>
         <p>
@@ -87,13 +87,13 @@ export default function TermsOfServicePage() {
         <p>
           More information about how X-Talent accesses, uses, stores, shares,
           and deletes Google user data is available in our{' '}
-          <a href="/privacy" className="text-blue-600 underline">
+          <a href="/privacy" className="text-brand-500 underline">
             Privacy Policy
           </a>
           .
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           4. Mentorship Sessions and Scheduling
         </h2>
         <p>
@@ -115,7 +115,7 @@ export default function TermsOfServicePage() {
           other session-related matters.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           5. User Content and Conduct
         </h2>
         <p>
@@ -140,7 +140,7 @@ export default function TermsOfServicePage() {
           reasonably believe a user has violated these Terms or applicable law.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           6. Fees and Payments
         </h2>
         <p>
@@ -156,7 +156,7 @@ export default function TermsOfServicePage() {
           charges associated with their use of paid services.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           7. Cancellations and Changes
         </h2>
         <p>
@@ -170,7 +170,7 @@ export default function TermsOfServicePage() {
           scheduling information, except where required by applicable law.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           8. Intellectual Property
         </h2>
         <p>
@@ -189,7 +189,7 @@ export default function TermsOfServicePage() {
           to operate, provide, improve, and maintain the platform.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           9. Third-Party Services
         </h2>
         <p>
@@ -203,7 +203,7 @@ export default function TermsOfServicePage() {
           may be subject to their own terms and policies.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           10. Service Availability and Changes
         </h2>
         <p>
@@ -217,7 +217,7 @@ export default function TermsOfServicePage() {
           error-free, or available at all times.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           11. Disclaimer
         </h2>
         <p>
@@ -236,7 +236,7 @@ export default function TermsOfServicePage() {
           opportunity, or interaction arranged through the platform.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           12. Limitation of Liability
         </h2>
         <p>
@@ -251,7 +251,7 @@ export default function TermsOfServicePage() {
           exclusion or limitation is not permitted by applicable law.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           13. Suspension and Termination
         </h2>
         <p>
@@ -265,7 +265,9 @@ export default function TermsOfServicePage() {
           deletion according to the process described in our Privacy Policy.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">14. Privacy</h2>
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
+          14. Privacy
+        </h2>
         <p>
           Your use of X-Talent is also governed by our Privacy Policy, which
           explains how we collect, use, store, share, and delete personal data,
@@ -273,12 +275,12 @@ export default function TermsOfServicePage() {
         </p>
         <p>
           Privacy Policy:{' '}
-          <a href="/privacy" className="text-blue-600 underline">
+          <a href="/privacy" className="text-brand-500 underline">
             https://xtalent.xchange.com.tw/privacy
           </a>
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
           15. Changes to These Terms
         </h2>
         <p>
@@ -291,12 +293,14 @@ export default function TermsOfServicePage() {
           effective means you agree to the updated Terms.
         </p>
 
-        <h2 className="text-neutral-900 pt-4 text-xl font-bold">16. Contact</h2>
+        <h2 className="pt-4 text-xl font-bold text-text-primary">
+          16. Contact
+        </h2>
         <p>If you have questions about these Terms, please contact us at:</p>
         <p>
           <a
             href="mailto:leo.yao@xchange.com.tw"
-            className="text-blue-600 underline"
+            className="text-brand-500 underline"
           >
             leo.yao@xchange.com.tw
           </a>
@@ -307,7 +311,7 @@ export default function TermsOfServicePage() {
             href="https://forms.gle/enXCV4fdnZk9KZv1A"
             target="_blank"
             rel="noreferrer"
-            className="text-blue-600 underline"
+            className="text-brand-500 underline"
           >
             https://forms.gle/enXCV4fdnZk9KZv1A
           </a>

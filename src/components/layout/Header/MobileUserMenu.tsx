@@ -79,7 +79,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
                 className="ml-auto"
               >
                 <Cross2Icon
-                  className="text-blue-900 h-8 w-8"
+                  className="h-8 w-8 text-brand-900"
                   aria-hidden="true"
                 />
               </button>
@@ -104,7 +104,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
                   {name || '我的個人頁面'}
                 </div>
                 {subtitle ? (
-                  <div className="mt-1 truncate text-sm text-gray-500">
+                  <div className="mt-1 truncate text-sm text-text-tertiary">
                     {subtitle}
                   </div>
                 ) : null}

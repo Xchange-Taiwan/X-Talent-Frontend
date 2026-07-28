@@ -78,7 +78,7 @@ export default function Page() {
   return (
     <>
       <section className="flex h-[532px] flex-col items-center justify-center bg-[url('/landing/home-page-hero-sm.svg')] bg-cover bg-no-repeat px-4 text-center sm:bg-[url('/landing/home-page-hero-md.svg')] sm:px-0 lg:h-[640px] lg:bg-none">
-        <h1 className="text-blue-950 mb-8 text-3xl font-bold leading-normal sm:text-4xl md:text-5xl">
+        <h1 className="mb-8 text-3xl font-bold leading-normal text-navy sm:text-4xl md:text-5xl">
           交流讓
           <br className="md:hidden" />
           改變發生
@@ -164,7 +164,7 @@ export default function Page() {
               key={chip.name}
               className={`my-2 flex h-[53px] flex-col items-center justify-center rounded-[124px] ${chip.className}`}
             >
-              <p className="font-bold text-gray-900">{chip.name}</p>
+              <p className="font-bold text-text-primary">{chip.name}</p>
             </div>
           ))}
         </div>
@@ -282,7 +282,7 @@ export default function Page() {
         </div>
       </section>
 
-      <section className="flex items-center justify-center bg-gray-50">
+      <section className="flex items-center justify-center bg-background-bottom-secondary">
         <div className="w-full max-w-[600px] py-10 lg:max-w-6xl">
           <HomePageSliderClient />
         </div>
