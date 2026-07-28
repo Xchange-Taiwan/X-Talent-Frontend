@@ -9,93 +9,17 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
 ## Steps
 
 0. **Fetch and Parse Configuration**
-   Before executing the commands below, fetch the centralized configuration file from the tracker repository (or fallback to local file) and parse the required variables:
+   Before executing the commands below, load the centralized configuration by sourcing the shared loading scripts:
    - **On macOS/Linux (Bash/Zsh)**:
 
-     ````bash
-     # Fetch config file from tracker repository (using main branch)
-     CONFIG_MD=$(gh api repos/Xchange-Taiwan/X-Talent-Tracker/contents/docs/agents/project-config.md?ref=main -H "Accept: application/vnd.github.raw" 2>/dev/null)
-
-     # Fallback to local file if fetch failed (checks exit status or empty variable)
-     if [ $? -ne 0 ] || [ -z "$CONFIG_MD" ]; then
-       if [ -f "docs/agents/project-config.md" ]; then
-         CONFIG_MD=$(cat docs/agents/project-config.md)
-       else
-         CONFIG_MD=""
-       fi
-     fi
-
-     # Check if config content is present
-     if [ -z "$CONFIG_MD" ]; then
-       echo "ERROR: project-config.md not found — aborting to avoid null ID API calls" >&2
-       exit 1
-     fi
-
-     # Remove Windows carriage returns to prevent sed/parsing failures
-     CONFIG_MD=$(echo "$CONFIG_MD" | tr -d '\r')
-
-     # Extract JSON block
-     CONFIG_JSON=$(echo "$CONFIG_MD" | sed -n '/^```json/,/^```$/p' | sed '1d;$d')
-
-     # Validate extracted JSON content
-     if [ -z "$CONFIG_JSON" ] || [ "$CONFIG_JSON" = "null" ]; then
-       echo "ERROR: project-config.md is malformed or missing JSON block — aborting" >&2
-       exit 1
-     fi
-
-     # Parse variables using jq
-     ORG=$(echo "$CONFIG_JSON" | jq -r '.org')
-     TRACKER_REPO=$(echo "$CONFIG_JSON" | jq -r '.repos.tracker')
-     FRONTEND_REPO=$(echo "$CONFIG_JSON" | jq -r '.repos.frontend')
-     PROJECT_NUMBER=$(echo "$CONFIG_JSON" | jq -r '.project.number')
-     PROJECT_ID=$(echo "$CONFIG_JSON" | jq -r '.project.id')
-     FIELD_ID=$(echo "$CONFIG_JSON" | jq -r '.fields.status.id')
-     BACKLOG_OPTION_ID=$(echo "$CONFIG_JSON" | jq -r '.fields.status.options.backlog')
-     IN_PROGRESS_OPTION_ID=$(echo "$CONFIG_JSON" | jq -r '.fields.status.options.in_progress')
-     PR_REVIEW_OPTION_ID=$(echo "$CONFIG_JSON" | jq -r '.fields.status.options.pr_review')
-     ````
+     ```bash
+     source .agents/scripts/load-config.sh
+     ```
 
    - **On Windows (PowerShell)**:
-
-     ````powershell
-     # Fetch config file from tracker repository (using main branch)
-     $CONFIG_MD = (gh api repos/Xchange-Taiwan/X-Talent-Tracker/contents/docs/agents/project-config.md?ref=main -H "Accept: application/vnd.github.raw" 2>$null)
-
-     # Fallback to local file if fetch failed (checks exit status or empty variable)
-     if ($LastExitCode -ne 0 -or -not $CONFIG_MD) {
-       if (Test-Path "docs/agents/project-config.md") {
-         $CONFIG_MD = (Get-Content -Raw -Path "docs/agents/project-config.md")
-       } else {
-         $CONFIG_MD = $null
-       }
-     }
-
-     # Check if config content is present
-     if (-not $CONFIG_MD) {
-       Write-Error "ERROR: project-config.md not found — aborting to avoid null ID API calls"
-       exit 1
-     }
-
-     # Extract and parse JSON
-     $CONFIG_JSON_STRING = [regex]::Match($CONFIG_MD, '(?s)```json\s*(.*?)\s*```').Groups[1].Value
-
-     # Validate extracted JSON content
-     if ([string]::IsNullOrWhiteSpace($CONFIG_JSON_STRING) -or $CONFIG_JSON_STRING -eq "null") {
-       Write-Error "ERROR: project-config.md is malformed or missing JSON block — aborting"
-       exit 1
-     }
-
-     $CONFIG_JSON = ConvertFrom-Json $CONFIG_JSON_STRING
-     $ORG = $CONFIG_JSON.org
-     $TRACKER_REPO = $CONFIG_JSON.repos.tracker
-     $FRONTEND_REPO = $CONFIG_JSON.repos.frontend
-     $PROJECT_NUMBER = $CONFIG_JSON.project.number
-     $PROJECT_ID = $CONFIG_JSON.project.id
-     $FIELD_ID = $CONFIG_JSON.fields.status.id
-     $BACKLOG_OPTION_ID = $CONFIG_JSON.fields.status.options.backlog
-     $IN_PROGRESS_OPTION_ID = $CONFIG_JSON.fields.status.options.in_progress
-     $PR_REVIEW_OPTION_ID = $CONFIG_JSON.fields.status.options.pr_review
-     ````
+     ```powershell
+     . .agents/scripts/load-config.ps1
+     ```
 
 1. **Switch to develop and pull latest**
 
