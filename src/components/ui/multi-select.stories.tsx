@@ -32,7 +32,7 @@ const MultiSelectDemo = (args: React.ComponentProps<typeof MultiSelect>) => {
         onValueChange={setSelected}
         placeholder="請選擇您的興趣愛好..."
       />
-      <div className="mt-4 text-sm text-muted-foreground">
+      <div className="mt-4 text-sm text-text-tertiary">
         目前選取值: {selected.join(', ') || '無'}
       </div>
     </div>

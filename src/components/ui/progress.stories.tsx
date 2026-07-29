@@ -33,15 +33,15 @@ export const Comparisons: Story = {
   render: () => (
     <div className="flex max-w-md flex-col gap-4">
       <div className="space-y-1.5">
-        <span className="text-xs text-muted-foreground">進度：0%</span>
+        <span className="text-xs text-text-tertiary">進度：0%</span>
         <Progress value={0} />
       </div>
       <div className="space-y-1.5">
-        <span className="text-xs text-muted-foreground">進度：50%</span>
+        <span className="text-xs text-text-tertiary">進度：50%</span>
         <Progress value={50} />
       </div>
       <div className="space-y-1.5">
-        <span className="text-xs text-muted-foreground">進度：100%</span>
+        <span className="text-xs text-text-tertiary">進度：100%</span>
         <Progress value={100} />
       </div>
     </div>

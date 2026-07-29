@@ -18,7 +18,7 @@ const CalendarDemo = (args: React.ComponentProps<typeof Calendar>) => {
     <div className="w-fit rounded-lg border bg-card p-4 shadow">
       <Calendar {...args} mode="single" selected={date} onSelect={setDate} />
       {date && (
-        <p className="mt-4 text-center text-sm text-muted-foreground">
+        <p className="mt-4 text-center text-sm text-text-tertiary">
           您選取的日期是: {date.toLocaleDateString()}
         </p>
       )}

@@ -24,7 +24,7 @@ export const Default: Story = {
         <div className="grid gap-4">
           <div className="space-y-2">
             <h4 className="font-medium leading-none">Alex Chen</h4>
-            <p className="font-mono text-xs text-muted-foreground">
+            <p className="font-mono text-xs text-text-tertiary">
               alex@example.com
             </p>
           </div>
