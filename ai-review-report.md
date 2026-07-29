@@ -46,7 +46,7 @@
 
 1. **Linter 靜態分析 (`pnpm run lint`):** PASS (0 errors)。
 2. **單元測試套件 (`pnpm run test`):** **PASS**。全案 87 個測試檔案、643 個測試案例全數 100% 通過。
-3. **Storybook 靜態編譯 (`pnpm build-storybook`):** **SUCCESS**。所有故事均順利通過 SWC/Webpack 編譯並輸出 static 檔案，無任何 console 錯誤或警告。
+3. **Storybook 靜態編譯 (`pnpm build-storybook`):** **SUCCESS**。所有故事均順利通過 SWC/Webpack 編譯並輸出 static 檔案，無 any console 錯誤 or 警告。
 
 ---
 
