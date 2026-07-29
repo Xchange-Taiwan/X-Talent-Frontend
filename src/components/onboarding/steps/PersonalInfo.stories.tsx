@@ -1,14 +1,11 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import type { Meta, StoryObj } from '@storybook/nextjs';
-import React, { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import * as z from 'zod';
+import React from 'react';
 
-import { Form } from '@/components/ui/form';
 import { LocationType } from '@/services/profile/countries';
 import { type IndustryOption } from '@/services/profile/tagCatalog';
 
 import { step2Schema } from './index';
+import { OnboardingStoryWrapper } from './OnboardingStoryWrapper';
 import { PersonalInfo } from './PersonalInfo';
 
 const mockLocations: LocationType[] = [
@@ -25,45 +22,6 @@ const mockIndustries: IndustryOption[] = [
   { subject_group: 'marketing_pr', subject: '行銷/公關' },
 ];
 
-const PersonalInfoFormWrapper = ({
-  initialValues,
-  triggerValidation = false,
-}: {
-  initialValues?: {
-    location?: string;
-    years_of_experience?: string;
-    industry?: string;
-  };
-  triggerValidation?: boolean;
-}) => {
-  const form = useForm<z.infer<typeof step2Schema>>({
-    resolver: zodResolver(step2Schema),
-    defaultValues: {
-      location: initialValues?.location ?? '',
-      years_of_experience: initialValues?.years_of_experience ?? '',
-      industry: initialValues?.industry ?? undefined,
-    },
-  });
-
-  useEffect(() => {
-    if (triggerValidation) {
-      form.trigger();
-    }
-  }, [triggerValidation, form]);
-
-  return (
-    <Form {...form}>
-      <div className="max-w-md rounded-lg border border-border bg-background-white p-6 shadow-sm">
-        <PersonalInfo
-          form={form}
-          locationOptions={mockLocations}
-          industryOptions={mockIndustries}
-        />
-      </div>
-    </Form>
-  );
-};
-
 const meta: Meta<typeof PersonalInfo> = {
   title: 'Onboarding/Steps/PersonalInfo',
   component: PersonalInfo,
@@ -74,30 +32,65 @@ export default meta;
 type Story = StoryObj<typeof PersonalInfo>;
 
 export const Empty: Story = {
-  render: () => <PersonalInfoFormWrapper />,
+  render: () => (
+    <OnboardingStoryWrapper
+      schema={step2Schema}
+      defaultValues={{
+        location: '',
+        years_of_experience: '',
+        industry: undefined,
+      }}
+    >
+      {(form) => (
+        <PersonalInfo
+          form={form}
+          locationOptions={mockLocations}
+          industryOptions={mockIndustries}
+        />
+      )}
+    </OnboardingStoryWrapper>
+  ),
 };
 
 export const Filled: Story = {
   render: () => (
-    <PersonalInfoFormWrapper
-      initialValues={{
+    <OnboardingStoryWrapper
+      schema={step2Schema}
+      defaultValues={{
         location: 'TWN',
         years_of_experience: '3~5 年',
         industry: 'software_engineering',
       }}
-    />
+    >
+      {(form) => (
+        <PersonalInfo
+          form={form}
+          locationOptions={mockLocations}
+          industryOptions={mockIndustries}
+        />
+      )}
+    </OnboardingStoryWrapper>
   ),
 };
 
 export const ValidationError: Story = {
   render: () => (
-    <PersonalInfoFormWrapper
-      initialValues={{
+    <OnboardingStoryWrapper
+      schema={step2Schema}
+      defaultValues={{
         location: '',
         years_of_experience: '',
-        industry: '',
+        industry: undefined,
       }}
       triggerValidation={true}
-    />
+    >
+      {(form) => (
+        <PersonalInfo
+          form={form}
+          locationOptions={mockLocations}
+          industryOptions={mockIndustries}
+        />
+      )}
+    </OnboardingStoryWrapper>
   ),
 };

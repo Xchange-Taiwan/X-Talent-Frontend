@@ -8,13 +8,15 @@
 
 ## 1. Overview (審查概覽)
 
-本審查針對分支 `feat/417-onboarding-identity-stories` 進行 onboarding identity 步驟 Storybook 覆蓋率的實作。本次開發範圍涵蓋 X-Tracker #417 所指定的兩個 onboarding 步驟元件及其對應的 Storybook 故事檔案：
+本審查針對分支 `feat/417-onboarding-identity-stories` 進行 onboarding identity 步驟 Storybook 覆蓋率的實作。本次開發範圍涵蓋 X-Tracker #417 所指定的兩個 onboarding 步驟元件、對應的 Storybook 故事檔案，以及為了解決 Code Smell 所抽出的共用表單容器元件：
 
+- `src/components/onboarding/steps/OnboardingStoryWrapper.tsx` (共用 Storybook 表單包裝容器)
 - `src/components/onboarding/steps/WhoAreYou.tsx` (+ `WhoAreYou.stories.tsx`)
 - `src/components/onboarding/steps/PersonalInfo.tsx` (+ `PersonalInfo.stories.tsx`)
 
-經審查，這兩個元件之 Storybook 故事皆已依照專案之設計系統規範、角色設計語意及型別安全性完成實作：
+經審查，這兩個元件之 Storybook 故事皆已依照專案之設計系統規範、角色設計語意及型別安全性完成實作，並透過 `OnboardingStoryWrapper` 高度實現 DRY (Don't Repeat Yourself) 原則：
 
+- `OnboardingStoryWrapper.tsx` 整合了 `useForm` 初始化、`SessionProvider` 登入態模擬、`Form` 狀態分發以及符合專案設計語意 token (`border-border`, `bg-background-white`) 的 max-w 展示容器外觀。
 - `WhoAreYou.stories.tsx` 完美覆蓋了 Loading / Unresolved 狀態、Mentor 登入狀態及 Mentee 登入狀態。
 - `PersonalInfo.stories.tsx` 完美覆蓋了空值狀態、完整填寫狀態以及就地觸發驗證的 ValidationError 錯誤樣式狀態，各項下拉式選單與資料結構皆採用最寫實的 Realistic Field Values。
 
@@ -24,12 +26,13 @@
 
 ## 2. Reading Order (檔案閱讀順序與變更分析)
 
-以下為本次實作的 2 個全新 Storybook 檔案：
+以下為本次實作的 3 個全新/重構之 Storybook 相關檔案：
 
-| 順序  | 檔案路徑                                                   | 變更動作 | 說明 / 審查重點                                                                                                                                      |
-| :---- | :--------------------------------------------------------- | :------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **1** | `src/components/onboarding/steps/WhoAreYou.stories.tsx`    | 新增     | 以 `SessionProvider` 完美模擬 next-auth 所對應的 unresolved/loading 狀態、已解析之 Mentor 與 Mentee 角色登入狀態。                                   |
-| **2** | `src/components/onboarding/steps/PersonalInfo.stories.tsx` | 新增     | 引入實用的 Form 容器包裝器，成功模擬空值（預設值）、完整填寫（ Realistic Mock 屬性值）及驗證錯誤 ValidationError（就地觸發 schema 錯誤樣式）等狀態。 |
+| 順序  | 檔案路徑                                                     | 變更動作  | 說明 / 審查重點                                                                                                                     |
+| :---- | :----------------------------------------------------------- | :-------- | :---------------------------------------------------------------------------------------------------------------------------------- |
+| **1** | `src/components/onboarding/steps/OnboardingStoryWrapper.tsx` | 新增      | 共用的 Storybook 表單狀態與身分登入態包裝容器，型別完全 Generic 化，實現表單、驗證及展示外觀的高度複用，消除重複代碼 (Code Smell)。 |
+| **2** | `src/components/onboarding/steps/WhoAreYou.stories.tsx`      | 新增/重構 | 套用 `OnboardingStoryWrapper` 並透過 `SessionProvider` 模擬 unresolved/loading、Mentor 與 Mentee 角色登入狀態。                     |
+| **3** | `src/components/onboarding/steps/PersonalInfo.stories.tsx`   | 新增/重構 | 套用 `OnboardingStoryWrapper` 模擬空值、實用 Mock 填寫值及觸發 validation (ValidationError 錯誤樣式) 狀態。                         |
 
 ---
 
@@ -52,6 +55,6 @@
 
 ## 5. Review Conclusion (審查結論)
 
-所有 Issue #417 指定之 Storybook 故事檔案皆已高標準、100% 符合專案紀律與語意設計規範地完成實作，並順利通過編譯與所有驗證程序。審查結論為 PASS，本 PR 建議合併。
+所有 Issue #417 指定之 Storybook 故事檔案皆已高標準、100% 符合專案紀律與語意設計規範地完成實作，並成功消除代碼重複 Code Smell，順利通過編譯與所有驗證程序。審查結論為 PASS，本 PR 建議合併。
 
 Review Status: PASS
