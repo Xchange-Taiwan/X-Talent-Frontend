@@ -1,0 +1,66 @@
+name: Deploy Storybook (Vercel)
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'src/**/*.stories.@(js|jsx|mjs|ts|tsx)'
+      - 'src/**/*.mdx'
+      - '.storybook/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+  workflow_dispatch:
+
+env:
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_STORYBOOK }}
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+
+jobs:
+  deploy-storybook:
+    runs-on: ubuntu-latest
+    name: Build & Deploy Storybook
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up PNPM
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Storybook
+        run: pnpm build-storybook
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@51.2.1
+
+      - name: Deploy Storybook to Vercel
+        id: deploy
+        run: |
+          echo "🚀 Deploying Storybook to Vercel..."
+          url=$(vercel deploy ./storybook-static --prod --yes | tail -n 1)
+          echo "vercel_url=${url}" >> $GITHUB_OUTPUT
+
+      - name: Comment on commit with deploy URL
+        uses: actions/github-script@v7
+        env:
+          VERCEL_URL: ${{ steps.deploy.outputs.vercel_url }}
+        with:
+          script: |
+            github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+              body: `📚 Storybook deployed:\n${process.env.VERCEL_URL}`
+            })
