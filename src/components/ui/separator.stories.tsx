@@ -25,7 +25,7 @@ export const Horizontal: Story = {
     <div className="max-w-md">
       <div className="space-y-1">
         <h4 className="text-sm font-medium leading-none">X-Talent UI</h4>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-text-tertiary">
           為 Xchange 建立的高品質前端元件庫。
         </p>
       </div>

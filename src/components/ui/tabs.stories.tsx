@@ -23,12 +23,12 @@ export const Default: Story = {
       <TabsContent value="account">
         <div className="rounded-lg border p-4">
           <h3 className="text-lg font-medium">帳戶資訊</h3>
-          <p className="mb-4 text-sm text-muted-foreground">
+          <p className="mb-4 text-sm text-text-tertiary">
             在此管理您的帳戶基本設定與偏好。
           </p>
           <div className="space-y-2">
             <span className="text-sm font-medium">使用者名稱</span>
-            <div className="rounded border bg-background-bottom p-2 text-sm text-muted-foreground">
+            <div className="rounded border bg-background-bottom p-2 text-sm text-text-tertiary">
               alex_chen
             </div>
           </div>
@@ -37,12 +37,12 @@ export const Default: Story = {
       <TabsContent value="password">
         <div className="rounded-lg border p-4">
           <h3 className="text-lg font-medium">重設密碼</h3>
-          <p className="mb-4 text-sm text-muted-foreground">
+          <p className="mb-4 text-sm text-text-tertiary">
             為了帳戶安全，請定期更新您的密碼。
           </p>
           <div className="space-y-2">
             <span className="text-sm font-medium">新密碼</span>
-            <div className="rounded border bg-background-bottom p-2 text-sm text-muted-foreground">
+            <div className="rounded border bg-background-bottom p-2 text-sm text-text-tertiary">
               ********
             </div>
           </div>

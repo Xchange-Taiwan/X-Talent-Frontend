@@ -74,7 +74,7 @@ export const LeftSide: Story = {
           <SheetDescription>依據您的需求過濾搜尋結果。</SheetDescription>
         </SheetHeader>
         <div className="grid gap-4 py-4">
-          <p className="text-sm text-muted-foreground">在此放置篩選器元件...</p>
+          <p className="text-sm text-text-tertiary">在此放置篩選器元件...</p>
         </div>
       </SheetContent>
     </Sheet>
