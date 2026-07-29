@@ -49,7 +49,7 @@ jobs:
         id: deploy
         run: |
           echo "🚀 Deploying Storybook to Vercel..."
-          url=$(vercel deploy ./storybook-static --prod --yes --token=${{ env.VERCEL_TOKEN }} | tail -n 1)
+          url=$(vercel deploy ./storybook-static --prod --yes | tail -n 1)
           echo "vercel_url=${url}" >> $GITHUB_OUTPUT
 
       - name: Comment on commit with deploy URL
