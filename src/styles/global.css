@@ -45,8 +45,6 @@
     --color-background-bottom: 0 0% 96%; /* #F5F5F5 */
     --color-background-bottom-secondary: 0 0% 98%; /* #FAFAFA */
     --color-background-white: 0 0% 100%; /* #FFFFFF */
-    --color-background-top: 0 0% 96%; /* #F5F5F5 */
-    --color-background-top-active: 210 9% 91%; /* #E6E8EA */
     --color-background-border: 210 9% 91%; /* #E6E8EA */
     --color-brand-50: 180 62% 95%; /* #EAFAFA */
     --color-brand-100: 180 62% 90%; /* #D5F5F5 */
@@ -58,7 +56,6 @@
     --color-brand-700: 180 65% 29%; /* #1A7A7A */
     --color-brand-800: 180 64% 19%; /* #125151 */
     --color-brand-900: 180 64% 10%; /* #092929 */
-    --color-gray-50: 0 0% 97%; /* #F7F7F7 (interpolated, pending Figma confirmation) */
     --color-gray-100: 0 0% 91%; /* #E9E9E9 */
     --color-gray-200: 0 0% 82%; /* #D2D2D2 */
     --color-gray-300: 0 0% 74%; /* #BCBCBC */
