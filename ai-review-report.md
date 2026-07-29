@@ -25,7 +25,7 @@
    - 移除舊有的兩個 `no-restricted-syntax` 顏色限制，並確實保留了第三個針對 `text-[12px]` 字體大小的 regex 規則。
 
 2. **修正 `tailwind.config.js` 與預設顏色丟失問題:**
-   - 專案的 `tailwind.config.js` 之前採用的配置是直接覆寫 `theme.colors`，這會導致 Tailwind 的 5 個基本實用顏色（`inherit`, `current`, `transparent`, `black`, `white`）從主題中完全丟失，造成諸多標準樣式編譯不全或不被 Plugin 認可。
+   - 專案的 `tailwind.config.js` 之前採用的配置是直接覆寫 `theme.colors`，這會導致 Tailwind 的 5 個基本實用顏色（`inherit`, `current`, `transparent`, `black`, `white`）從主題中完全丟失，造成諸多標準樣式編譯不全 or 不被 Plugin 認可。
    - 我們將這 5 個色彩鍵重新加入 `tailwind.config.js` 之中，以解鎖 standard utility colors 並使之能通過 linter 靜態解析。
 
 3. **修復 17 個全案樣式 Bug 與 Typos:**
