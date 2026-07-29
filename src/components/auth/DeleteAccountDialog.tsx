@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
+import { UseFormReturn } from 'react-hook-form';
+import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -21,26 +23,38 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import useDeleteAccountForm from '@/hooks/auth/useDeleteAccountForm';
+import useDeleteAccountForm, {
+  DeleteAccountMode,
+} from '@/hooks/auth/useDeleteAccountForm';
+import { DeleteAccountXCSchema } from '@/schemas/auth';
 
 interface DeleteAccountDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function DeleteAccountDialog({
+export interface DeleteAccountDialogViewProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  mode: DeleteAccountMode;
+  xcForm: UseFormReturn<z.infer<typeof DeleteAccountXCSchema>>;
+  isSubmitting: boolean;
+  blockedByReservations: boolean;
+  onSubmitXC: (values: z.infer<typeof DeleteAccountXCSchema>) => Promise<void>;
+  initiateGoogleReauth: () => Promise<void>;
+}
+
+export function DeleteAccountDialogView({
   open,
   onOpenChange,
-}: DeleteAccountDialogProps): JSX.Element {
+  mode,
+  xcForm,
+  isSubmitting,
+  blockedByReservations,
+  onSubmitXC,
+  initiateGoogleReauth,
+}: DeleteAccountDialogViewProps): JSX.Element {
   const router = useRouter();
-  const {
-    mode,
-    xcForm,
-    isSubmitting,
-    blockedByReservations,
-    onSubmitXC,
-    initiateGoogleReauth,
-  } = useDeleteAccountForm();
 
   const handleClose = (): void => {
     if (isSubmitting) return;
@@ -160,5 +174,32 @@ export function DeleteAccountDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+export function DeleteAccountDialog({
+  open,
+  onOpenChange,
+}: DeleteAccountDialogProps): JSX.Element {
+  const {
+    mode,
+    xcForm,
+    isSubmitting,
+    blockedByReservations,
+    onSubmitXC,
+    initiateGoogleReauth,
+  } = useDeleteAccountForm();
+
+  return (
+    <DeleteAccountDialogView
+      open={open}
+      onOpenChange={onOpenChange}
+      mode={mode}
+      xcForm={xcForm}
+      isSubmitting={isSubmitting}
+      blockedByReservations={blockedByReservations}
+      onSubmitXC={onSubmitXC}
+      initiateGoogleReauth={initiateGoogleReauth}
+    />
   );
 }
