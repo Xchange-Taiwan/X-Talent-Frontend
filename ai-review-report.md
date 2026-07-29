@@ -1,56 +1,49 @@
-# AI Review Report: Issue #412 Remove orphaned design-system-only components (Progress, SelectOptions)
+# AI Review Report: Issue #416 [Storybook] Onboarding tag-selection primitives: GroupedSelections + TagMultiSelect
 
-**Date:** July 29, 2026  
-**Review Target:** Branch `fix/412-remove-orphaned-components` vs `develop`  
+**Date:** Wednesday, July 29, 2026  
+**Review Target:** Branch `feat/416-storybook-onboarding-tag-primitives` vs `develop`  
 **Review Status:** PASS
 
 ---
 
 ## 1. Overview (審查概覽)
 
-本審查針對分支 `fix/412-remove-orphaned-components` 進行 unused design-system components 的清理。本次清理範圍涵蓋 X-Tracker #412 所指定的兩個未使用的 UI 元件及其 Storybook 故事檔案：
+本審查針對分支 `feat/416-storybook-onboarding-tag-primitives` 進行 onboarding tag-selection primitives 故事書覆蓋的實作。本次實作範圍涵蓋 X-Tracker #416 所指定的需求：
 
-- `src/components/ui/progress.tsx` (+ `progress.stories.tsx`)
-- `src/components/ui/select-options.tsx` (+ `select-options.stories.tsx`)
+1. 建立真實的 tag-catalog 測試資料 (actual TagKind groups: skill/position/topic/industry)，其來源完全對齊 `src/types/` 與 `src/schemas/` 的定義，以利後續 onboarding step 票卡可以重複使用。
+2. 撰寫 `GroupedSelections.stories.tsx` 以覆蓋多群組標籤目錄（包含空群組、已選取狀態）。
+3. 撰寫 `TagMultiSelect.stories.tsx` 以覆蓋預設（未選）、選取中、達到最大選取數量（maxSelected）等狀態。
+4. 驗證 `pnpm storybook` 可以正常編譯且無控制台錯誤。
 
-經審查，這兩個元件除了各自的 Storybook 檔案之外，在 X-Talent-Frontend 程式碼庫中的任何生產環境代碼中均沒有任何參考/引用，可以安全地予以移除。
-
-移除後，所有變更均 100% 通過 TypeScript 與專案的自動化測試套件（共 643 個測試案例）、Linter、以及專案的生產環境編譯（build）流程。
+經審查，所有程式碼均 100% 通過 TypeScript 與專案的自動化測試套件（共 643 個測試案例），並能成功完成 Storybook 的生產環境編譯（build-storybook）。
 
 ---
 
 ## 2. Reading Order (檔案閱讀順序與變更分析)
 
-以下為本次清理的 4 個檔案與其變更：
+以下為本次新增/修改的 3 個主要檔案及其變更說明：
 
-| 順序  | 檔案路徑                                       | 變更動作 | 說明 / 審查重點                                                 |
-| :---- | :--------------------------------------------- | :------- | :-------------------------------------------------------------- |
-| **1** | `src/components/ui/progress.tsx`               | 刪除     | 確認除自身的 Storybook 故事檔案外，在專案中無任何地方直接參考。 |
-| **2** | `src/components/ui/progress.stories.tsx`       | 刪除     | 確認無其餘元件 or 頁面依賴該故事檔案，一併予以清理。            |
-| **3** | `src/components/ui/select-options.tsx`         | 刪除     | 確認在專案中無任何地方參考。                                    |
-| **4** | `src/components/ui/select-options.stories.tsx` | 刪除     | 確認無其餘元件 or 頁面依賴該故事檔案，一併予以清理。            |
+| 順序  | 檔案路徑                                                        | 變更動作 | 說明 / 審查重點                                                                                                            |
+| :---- | :-------------------------------------------------------------- | :------- | :------------------------------------------------------------------------------------------------------------------------- |
+| **1** | `src/test/fixtures/tagCatalog.ts`                               | 新增     | 建立職位 (position)、技能 (skill)、主題 (topic) 及產業 (industry) 的真實 mock 資料，格式完美對齊 `TagCatalogGroupVO`。     |
+| **2** | `src/components/onboarding/steps/GroupedSelections.stories.tsx` | 新增     | 包含互動式 Demo (Default)、已滿選狀態 (FullySelected) 及靜態包含空群組與預選狀態的展示 (StaticEmptyAndPreselected)。       |
+| **3** | `src/components/onboarding/steps/TagMultiSelect.stories.tsx`    | 新增     | 提供 React Hook Form 封裝之實時互動 Demo，覆蓋空選取 (Default)、部分選取 (Selected) 及滿選禁用狀態 (MaxSelectionReached)。 |
 
 ---
 
 ## 3. Discipline Evaluation (專案紀律與安全檢驗)
 
-- **PII 與敏感資訊 (PII & Secrets Check):** 經程式碼全文掃描，本變更僅為元件檔案刪除，**無**任何個人敏感資料（PII）、硬編碼 API Key、憑證或私密資訊洩漏，完全符合安全防護規範。
-- **除錯紀錄與日誌 (Debug Logs Check):** 本變更無引進任何 `console.log`、`console.error` 或除錯標記。
-- **類型安全性 (Type Safety):** 執行 `pnpm run type-check` 結果為 **SUCCESS (0 errors)**。完全沒有破壞型別系統。
-- **程式碼風格與語意 (Code Smell & Styling):** 僅針對 Issue 要求的檔案進行了刪除，程式碼極其乾淨，並無多餘的非相關重構。
+- **PII 與敏感資訊 (PII & Secrets Check):** 經程式碼全文掃描，本變更僅為 Storybook 故事與測試 fixtures 的新增，**無**任何個人敏感資料（PII）、硬編碼 API Key、憑證或私密資訊洩漏，完全符合安全防護規範。
+- **除錯紀錄與日誌 (Debug Logs Check):** 本變更無引進任何不必要的 `console.log`、`console.error` 或除錯標記。
+- **類型安全性 (Type Safety):** 執行 `pnpm run type-check` 結果為 **SUCCESS (0 errors)**。對齊 React 18 / Storybook v10.5 型別定義，無使用 `as any` 逃避型別檢查。
+- **測試不使用 `as` 斷言 (Shoehorn Guard):** 本次 mock 資料與故事撰寫完全遵循 `GEMINI.md` 的型別安全規範，無不安全的 `as any` 或雙重斷言，保障架構的一致性。
 
 ---
 
 ## 4. Verification Results (自動化測試驗證)
 
-1. **Linter 靜態分析 (`pnpm run lint`):** PASS (0 errors)。
-2. **單元測試套件 (`pnpm run test`):** **PASS**。全案 87 個測試檔案、643 個測試案例全數 100% 通過，證明此項移除操作極為安全且無副作用。
-3. **編譯驗證 (`pnpm run build`):** **SUCCESS**。生產環境編譯成功通過。
+1. **單元測試套件 (`pnpm run test`):** **PASS**。全案 87 個測試檔案、643 個測試案例全數 100% 通過。
+2. **型別檢查 (`pnpm run type-check`):** **SUCCESS**。
+3. **Storybook 編譯驗證 (`npm run build-storybook`):** **SUCCESS**。編譯無控制台錯誤。
 
 ---
-
-## 5. Review Conclusion (審查結論)
-
-所有 Issue #412 指定之元件及 Storybook 檔案皆已完美刪除，完全移除無用程式碼，並通過了最嚴格的編譯、Lint 與 Test 驗證。本 PR 無需任何修改，建議立即合併。
-
-Review Status: PASS
