@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
-import { Calendar, Code, Heart, Music, Sparkles } from 'lucide-react';
+import { Briefcase, Code, Compass, Globe, Sparkles } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { MultiSelect } from './multi-select';
@@ -14,15 +14,27 @@ export default meta;
 type Story = StoryObj<typeof MultiSelect>;
 
 const OPTIONS = [
-  { label: '程式開發 (Coding)', value: 'coding', icon: Code },
-  { label: '音樂創作 (Music)', value: 'music', icon: Music },
-  { label: '運動健身 (Sports)', value: 'sports', icon: Heart },
-  { label: '活動策劃 (Events)', value: 'events', icon: Calendar },
-  { label: 'UI/UX 設計 (Design)', value: 'design', icon: Sparkles },
+  { label: '前端工程 (Frontend)', value: 'frontend', icon: Code },
+  {
+    label: '產品管理 (Product Management)',
+    value: 'product-management',
+    icon: Briefcase,
+  },
+  {
+    label: '職涯規劃 (Career Planning)',
+    value: 'career-planning',
+    icon: Compass,
+  },
+  {
+    label: '系統架構 (System Architecture)',
+    value: 'system-architecture',
+    icon: Globe,
+  },
+  { label: 'UI/UX 設計 (UI/UX Design)', value: 'uiux-design', icon: Sparkles },
 ];
 
 const MultiSelectDemo = (args: React.ComponentProps<typeof MultiSelect>) => {
-  const [selected, setSelected] = useState<string[]>(['coding']);
+  const [selected, setSelected] = useState<string[]>(['frontend']);
   return (
     <div className="max-w-md">
       <MultiSelect
@@ -30,7 +42,7 @@ const MultiSelectDemo = (args: React.ComponentProps<typeof MultiSelect>) => {
         options={OPTIONS}
         value={selected}
         onValueChange={setSelected}
-        placeholder="請選擇您的興趣愛好..."
+        placeholder="請選擇您的專業領域或諮詢主題..."
       />
       <div className="mt-4 text-sm text-text-tertiary">
         目前選取值: {selected.join(', ') || '無'}

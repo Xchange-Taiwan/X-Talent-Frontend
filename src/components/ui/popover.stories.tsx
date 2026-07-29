@@ -23,13 +23,15 @@ export const Default: Story = {
       <PopoverContent className="w-80">
         <div className="grid gap-4">
           <div className="space-y-2">
-            <h4 className="font-medium leading-none">Alex Chen</h4>
+            <h4 className="font-medium leading-none">
+              林小明 (資深前端工程師)
+            </h4>
             <p className="font-mono text-xs text-text-tertiary">
-              alex@example.com
+              xiaoming.lin@xchange.tw
             </p>
           </div>
           <div className="border-t pt-2">
-            <p className="text-sm">歡迎透過電子信箱與我們聯絡！</p>
+            <p className="text-sm">歡迎隨時透過電子信箱與導師聯絡！</p>
           </div>
         </div>
       </PopoverContent>

@@ -22,18 +22,23 @@ type Story = StoryObj<typeof Separator>;
 // 1. Horizontal Demo
 export const Horizontal: Story = {
   render: (args) => (
-    <div className="max-w-md">
+    <div className="max-w-md rounded border bg-background-white p-4">
       <div className="space-y-1">
-        <h4 className="text-sm font-medium leading-none">X-Talent UI</h4>
-        <p className="text-sm text-text-tertiary">
-          為 Xchange 建立的高品質前端元件庫。
+        <h4 className="text-sm font-medium leading-none">
+          林小明 (資深前端工程師)
+        </h4>
+        <p className="text-xs text-text-tertiary">
+          擅長 React、TypeScript 以及大規模前端架構，擁有 8
+          年以上開發與團隊帶領經驗。
         </p>
       </div>
       <Separator className="my-4" {...args} orientation="horizontal" />
-      <div className="flex h-5 items-center space-x-4 text-sm">
-        <div>React</div>
-        <div>TypeScript</div>
-        <div>Tailwind CSS</div>
+      <div className="flex h-5 items-center space-x-4 text-xs text-text-secondary">
+        <div>諮詢次數：32 次</div>
+        <Separator orientation="vertical" />
+        <div>綜合評價：4.9 ★</div>
+        <Separator orientation="vertical" />
+        <div>回應速度：24 小時內</div>
       </div>
     </div>
   ),
@@ -43,11 +48,11 @@ export const Horizontal: Story = {
 export const Vertical: Story = {
   render: (args) => (
     <div className="flex h-5 items-center space-x-4 text-sm">
-      <span>設計圖 (UI)</span>
+      <span>職涯規劃</span>
       <Separator {...args} orientation="vertical" />
-      <span>前端開發 (FE)</span>
+      <span>履歷健檢</span>
       <Separator {...args} orientation="vertical" />
-      <span>後端開發 (BE)</span>
+      <span>模擬面試</span>
     </div>
   ),
 };

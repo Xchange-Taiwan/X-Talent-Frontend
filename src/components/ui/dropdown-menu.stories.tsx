@@ -32,20 +32,23 @@ export const Default: Story = {
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
         <DropdownMenuGroup>
-          <DropdownMenuItem>個人檔案</DropdownMenuItem>
-          <DropdownMenuItem>帳戶與設定</DropdownMenuItem>
+          <DropdownMenuItem>個人檔案 (Profile)</DropdownMenuItem>
+          <DropdownMenuItem>帳戶與設定 (Settings)</DropdownMenuItem>
+          <DropdownMenuItem>我的預約 (My Bookings)</DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger>邀請好友</DropdownMenuSubTrigger>
+          <DropdownMenuSubTrigger>
+            切換身分 (Change Role)
+          </DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
-            <DropdownMenuItem>透過 Email 邀請</DropdownMenuItem>
-            <DropdownMenuItem>複製邀請連結</DropdownMenuItem>
+            <DropdownMenuItem>切換為導師 (Mentor)</DropdownMenuItem>
+            <DropdownMenuItem>切換為學員 (Mentee)</DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-status-error-default">
-          登出
+          登出 (Logout)
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -46,7 +46,7 @@ const meta: Meta<typeof Button> = {
     size: 'default',
     shape: 'default',
     disabled: false,
-    children: 'Button Text',
+    children: '預約導師諮詢',
   },
 };
 
@@ -56,7 +56,7 @@ type Story = StoryObj<typeof Button>;
 // 1. Basic Interactive Demo
 export const Default: Story = {
   args: {
-    children: 'Default Button',
+    children: '預約諮詢 (Book Session)',
   },
 };
 
@@ -65,22 +65,22 @@ export const AllVariants: Story = {
   render: (args: React.ComponentProps<typeof Button>) => (
     <div className="flex flex-wrap items-center gap-4">
       <Button {...args} variant="default">
-        Default
+        預約諮詢
       </Button>
       <Button {...args} variant="secondary">
-        Secondary
+        稍後再說
       </Button>
       <Button {...args} variant="outline">
-        Outline
+        返回上頁
       </Button>
       <Button {...args} variant="destructive">
-        Destructive
+        取消預約
       </Button>
       <Button {...args} variant="ghost">
-        Ghost
+        略過設定
       </Button>
       <Button {...args} variant="link">
-        Link
+        查看更多
       </Button>
     </div>
   ),
@@ -91,13 +91,13 @@ export const AllSizes: Story = {
   render: (args: React.ComponentProps<typeof Button>) => (
     <div className="flex flex-wrap items-center gap-4">
       <Button {...args} size="sm">
-        Small (sm)
+        小尺寸 (sm)
       </Button>
       <Button {...args} size="default">
-        Default
+        預設尺寸 (default)
       </Button>
       <Button {...args} size="lg">
-        Large (lg)
+        大尺寸 (lg)
       </Button>
       <Button {...args} size="icon" aria-label="Add icon">
         <Plus className="size-4" />
@@ -111,10 +111,10 @@ export const AllShapes: Story = {
   render: (args: React.ComponentProps<typeof Button>) => (
     <div className="flex flex-wrap items-center gap-4">
       <Button {...args} shape="default">
-        Default Shape
+        預設直角
       </Button>
       <Button {...args} shape="pill">
-        Pill Shape
+        圓角藥丸 (Pill)
       </Button>
     </div>
   ),
@@ -125,22 +125,22 @@ export const Disabled: Story = {
   render: (args: React.ComponentProps<typeof Button>) => (
     <div className="flex flex-wrap items-center gap-4">
       <Button {...args} disabled variant="default">
-        Default Disabled
+        預約諮詢 (禁用)
       </Button>
       <Button {...args} disabled variant="secondary">
-        Secondary Disabled
+        稍後再說 (禁用)
       </Button>
       <Button {...args} disabled variant="outline">
-        Outline Disabled
+        返回上頁 (禁用)
       </Button>
       <Button {...args} disabled variant="destructive">
-        Destructive Disabled
+        取消預約 (禁用)
       </Button>
       <Button {...args} disabled variant="ghost">
-        Ghost Disabled
+        略過 (禁用)
       </Button>
       <Button {...args} disabled variant="link">
-        Link Disabled
+        查看 (禁用)
       </Button>
     </div>
   ),
@@ -165,11 +165,11 @@ export const WithIcon: Story = {
     <div className="flex flex-wrap items-center gap-4">
       <Button {...args} variant="default">
         <Mail className="mr-2 size-4" />
-        使用信箱登入
+        聯絡導師 (Contact)
       </Button>
       <Button {...args} variant="outline">
         <Plus className="mr-2 size-4" />
-        新增導師
+        申請加入導師庫
       </Button>
     </div>
   ),

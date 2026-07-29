@@ -17,7 +17,7 @@ const meta: Meta<typeof Badge> = {
   },
   args: {
     variant: 'default',
-    children: 'Badge',
+    children: 'React',
   },
 };
 
@@ -27,7 +27,7 @@ type Story = StoryObj<typeof Badge>;
 // 1. Basic Interactive Demo
 export const Default: Story = {
   args: {
-    children: 'Default Badge',
+    children: '前端工程 (Frontend)',
   },
 };
 
@@ -36,19 +36,19 @@ export const AllVariants: Story = {
   render: (args: React.ComponentProps<typeof Badge>) => (
     <div className="flex flex-wrap items-center gap-4">
       <Badge {...args} variant="default">
-        Default
+        React
       </Badge>
       <Badge {...args} variant="secondary">
-        Secondary
+        職涯規劃
       </Badge>
       <Badge {...args} variant="outline">
-        Outline
+        TypeScript
       </Badge>
       <Badge {...args} variant="destructive">
-        Destructive
+        已拒絕
       </Badge>
       <Badge {...args} variant="filter">
-        <span>Filter Badge</span>
+        <span>資訊科技</span>
         <X className="size-3.5 cursor-pointer text-text-white hover:text-status-error-default" />
       </Badge>
     </div>
@@ -60,16 +60,16 @@ export const ContentTypes: Story = {
   render: (args: React.ComponentProps<typeof Badge>) => (
     <div className="flex flex-wrap items-center gap-4">
       <Badge {...args} variant="default">
-        New
+        全新上線
       </Badge>
       <Badge {...args} variant="secondary">
-        Pending (5)
+        待審核 (5)
       </Badge>
       <Badge {...args} variant="outline">
-        Design Pattern
+        設計模式
       </Badge>
       <Badge {...args} variant="destructive">
-        Expired
+        已過期
       </Badge>
     </div>
   ),
