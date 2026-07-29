@@ -13,26 +13,26 @@ export const platformLabelMap: Record<
 > = {
   linkedin: {
     label: 'LinkedIn',
-    icon: <LinkedinColor className="h-5 w-5" />,
+    icon: <LinkedinColor className="size-5" />,
   },
   facebook: {
     label: 'Facebook',
-    icon: <FacebookColor className="h-5 w-5" />,
+    icon: <FacebookColor className="size-5" />,
   },
   instagram: {
     label: 'Instagram',
-    icon: <InstagramColor className="h-5 w-5" />,
+    icon: <InstagramColor className="size-5" />,
   },
   twitter: {
     label: 'X (formerly Twitter)',
-    icon: <TwitterColor className="h-5 w-5" />,
+    icon: <TwitterColor className="size-5" />,
   },
   youtube: {
     label: 'YouTube',
-    icon: <YoutubeColor className="h-5 w-5" />,
+    icon: <YoutubeColor className="size-5" />,
   },
   website: {
     label: '個人網站',
-    icon: <WebsiteColor className="h-5 w-5" />,
+    icon: <WebsiteColor className="size-5" />,
   },
 };

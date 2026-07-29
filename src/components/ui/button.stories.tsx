@@ -100,7 +100,7 @@ export const AllSizes: Story = {
         Large (lg)
       </Button>
       <Button {...args} size="icon" aria-label="Add icon">
-        <Plus className="h-4 w-4" />
+        <Plus className="size-4" />
       </Button>
     </div>
   ),
@@ -152,7 +152,7 @@ export const Loading: Story = {
     disabled: true,
     children: (
       <>
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        <Loader2 className="mr-2 size-4 animate-spin" />
         請稍候...
       </>
     ),
@@ -164,11 +164,11 @@ export const WithIcon: Story = {
   render: (args: React.ComponentProps<typeof Button>) => (
     <div className="flex flex-wrap items-center gap-4">
       <Button {...args} variant="default">
-        <Mail className="mr-2 h-4 w-4" />
+        <Mail className="mr-2 size-4" />
         使用信箱登入
       </Button>
       <Button {...args} variant="outline">
-        <Plus className="mr-2 h-4 w-4" />
+        <Plus className="mr-2 size-4" />
         新增導師
       </Button>
     </div>

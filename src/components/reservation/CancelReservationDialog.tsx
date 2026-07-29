@@ -106,9 +106,7 @@ export default function CancelReservationDialog({
               className="w-full bg-status-error-default text-text-white hover:bg-status-error-active sm:w-auto"
               onClick={handleConfirm}
             >
-              {isSubmitting && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+              {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" />}
               取消預約
             </Button>
           </DialogFooter>

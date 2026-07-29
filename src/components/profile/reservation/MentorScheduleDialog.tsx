@@ -273,7 +273,7 @@ export default function MentorScheduleDialog({
                       >
                         <div className="flex flex-row flex-nowrap items-center justify-between gap-2 lg:gap-3">
                           <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-text-tertiary" />
+                            <Clock className="size-4 text-text-tertiary" />
                             <span className="text-base font-medium tabular-nums">
                               {startLabel} – {endLabel}
                             </span>
@@ -286,7 +286,7 @@ export default function MentorScheduleDialog({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 lg:h-10 lg:w-10"
+                              className="size-8 lg:size-10"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (reservationBlock) {
@@ -296,7 +296,7 @@ export default function MentorScheduleDialog({
                                 deleteDraftSlot(slot.id, slot.occurrenceUnix);
                               }}
                             >
-                              <X className="h-4 w-4 lg:h-5 lg:w-5" />
+                              <X className="size-4 lg:size-5" />
                             </Button>
                           )}
                         </div>
@@ -310,7 +310,7 @@ export default function MentorScheduleDialog({
                     className="h-10 w-full lg:h-11 lg:text-base"
                     disabled={!selectedDate}
                   >
-                    <Plus className="h-4 w-4 lg:h-5 lg:w-5" />
+                    <Plus className="size-4 lg:size-5" />
                   </Button>
                 </div>
               )}
@@ -440,7 +440,7 @@ function TimeSelectPair({
         <SelectTrigger className="h-12 w-24 text-base lg:w-28">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent className="min-w-[10rem]">
+        <SelectContent className="min-w-40">
           {HOUR_OPTIONS.map((opt) => (
             <SelectItem key={opt} value={opt} className="py-3 text-base">
               {opt}
@@ -453,7 +453,7 @@ function TimeSelectPair({
         <SelectTrigger className="h-12 w-24 text-base lg:w-28">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent className="min-w-[10rem]">
+        <SelectContent className="min-w-40">
           {MINUTE_OPTIONS.map((opt) => (
             <SelectItem key={opt} value={opt} className="py-3 text-base">
               {opt}

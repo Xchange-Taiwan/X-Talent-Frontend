@@ -28,7 +28,7 @@ export default function MentorGridSkeleton() {
       aria-label="導師清單載入中"
       className="mt-[132px] px-5 pb-10 md:px-10 xl:px-20"
     >
-      <div className="mx-auto w-full max-w-[1280px]">
+      <div className="mx-auto w-full max-w-screen-xl">
         <div className="mb-5 h-6 w-32 animate-pulse rounded bg-background-bottom" />
         <div className="flex flex-col items-center gap-6">
           <div className="grid min-w-max grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">

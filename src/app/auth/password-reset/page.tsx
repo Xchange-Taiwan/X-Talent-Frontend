@@ -79,9 +79,9 @@ function PasswordResetForm() {
 
 export default function Page() {
   return (
-    <div className="bg-white">
+    <div className="bg-background-white">
       <main className="px-6 py-16">
-        <div className="bg-white mx-auto w-full max-w-[556px] rounded-[16px] border border-background-border px-9 py-14 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
+        <div className="mx-auto w-full max-w-[556px] rounded-[16px] border border-background-border bg-background-white px-9 py-14 shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
           <div className="mx-auto w-full max-w-[484px]">
             <h1 className="mb-8 text-center text-32 font-bold leading-[1.2] text-text-primary">
               重設密碼

@@ -44,7 +44,7 @@ export const ExpertiseSelectItem: FC<Props> = ({ form, type }) => {
   if (!form) {
     return (
       <div className="flex items-start gap-4 rounded-xl border border-background-border px-4 py-3">
-        <div className={`h-10 w-10 ${getIconClassName(type)}`}></div>
+        <div className={`size-10 ${getIconClassName(type)}`}></div>
         <div>
           <p className="text-base font-normal text-text-primary">{type}</p>
           <p className="text-sm text-text-tertiary">文案待 PM 補上</p>
@@ -68,7 +68,7 @@ export const ExpertiseSelectItem: FC<Props> = ({ form, type }) => {
             )}
           >
             <FormLabel className="flex grow cursor-pointer gap-4">
-              <div className={`h-10 w-10 ${getIconClassName(type)}`}></div>
+              <div className={`size-10 ${getIconClassName(type)}`}></div>
               <div>
                 <p className="text-base font-normal text-text-primary">
                   {type}

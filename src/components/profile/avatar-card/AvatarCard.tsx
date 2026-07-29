@@ -49,7 +49,7 @@ export const AvatarCard: FC<Props> = ({
 
           {!!linkedinUrl && (
             <LinkedinColor
-              className="h-5 w-5 cursor-pointer sm:h-6 sm:w-6"
+              className="size-5 cursor-pointer sm:size-6"
               onClick={() => handleNavigateToLinkedin(linkedinUrl)}
             />
           )}

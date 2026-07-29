@@ -152,7 +152,7 @@ export function CategoryMultiSelect({
     >
       <div className="border-b border-background-border p-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-tertiary" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -202,9 +202,9 @@ export function CategoryMultiSelect({
                 >
                   <span className="flex items-center gap-2">
                     {open ? (
-                      <ChevronDown className="h-4 w-4 text-text-secondary" />
+                      <ChevronDown className="size-4 text-text-secondary" />
                     ) : (
-                      <ChevronRight className="h-4 w-4 text-text-secondary" />
+                      <ChevronRight className="size-4 text-text-secondary" />
                     )}
                     <span className="text-base font-semibold text-text-primary">
                       {cat.label}

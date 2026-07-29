@@ -92,17 +92,17 @@ export default function PopularPositionChips() {
       {canScrollLeft && (
         <div
           aria-hidden
-          className="to-transparent pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center justify-start bg-gradient-to-r from-background-white xl:hidden"
+          className="pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center justify-start bg-gradient-to-r from-background-white to-transparent xl:hidden"
         >
-          <ChevronLeft className="h-4 w-4 text-text-primary/60" />
+          <ChevronLeft className="size-4 text-text-primary/60" />
         </div>
       )}
       {canScrollRight && (
         <div
           aria-hidden
-          className="to-transparent pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-end bg-gradient-to-l from-background-white xl:hidden"
+          className="pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-end bg-gradient-to-l from-background-white to-transparent xl:hidden"
         >
-          <ChevronRight className="h-4 w-4 text-text-primary/60" />
+          <ChevronRight className="size-4 text-text-primary/60" />
         </div>
       )}
     </div>

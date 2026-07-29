@@ -84,7 +84,7 @@ export const ProfileCard: FC<Props> = ({
         />
       </ProfileBanner>
 
-      <div className="bg-bright flex flex-col gap-10 px-4 pb-10 pt-[165px] sm:px-10 sm:pt-[132px]">
+      <div className="flex flex-col gap-10 bg-background-white px-4 pb-10 pt-[165px] sm:px-10 sm:pt-[132px]">
         {renderTagList('有興趣多了解的職位', interestedRole, 'interestedRole')}
         {renderTagList('想多了解、加強的技能', skillEnhancementTarget, 'skill')}
         {renderTagList('想多了解的主題', talkTopic, 'topic')}

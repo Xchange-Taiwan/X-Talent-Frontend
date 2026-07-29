@@ -47,7 +47,7 @@ export const Destructive: Story = {
         </div>
         <ToastAction
           altText="Try again"
-          className="text-white border-status-error-default"
+          className="border-status-error-default text-text-white"
         >
           重試
         </ToastAction>

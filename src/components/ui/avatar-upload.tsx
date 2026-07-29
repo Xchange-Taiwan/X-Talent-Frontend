@@ -58,7 +58,7 @@ const AvatarUpload = <T extends FieldValues>({
   return (
     <div className="mb-10 flex flex-col items-center lg:items-start">
       <div
-        className={`group relative flex h-36 w-36 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 bg-avatar-background lg:h-[150px] lg:w-[150px] ${
+        className={`group relative flex size-36 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 bg-avatar-background lg:h-[150px] lg:w-[150px] ${
           errorMessage ? 'border-destructive' : 'border-avatar-border'
         }`}
         onClick={() => document.getElementById('fileInput')?.click()}
@@ -93,7 +93,7 @@ const AvatarUpload = <T extends FieldValues>({
             width={150}
             height={150}
             sizes="150px"
-            className="h-full w-full rounded-full object-cover"
+            className="size-full rounded-full object-cover"
             priority
           />
         ) : (

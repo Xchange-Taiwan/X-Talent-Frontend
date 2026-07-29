@@ -93,7 +93,7 @@ export default function AcceptReservationDialog({
 
           <div className="rounded-2xl border p-4 sm:p-5">
             <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10">
+              <Avatar className="size-10">
                 <AvatarImage
                   src={
                     reservation.avatar
@@ -114,11 +114,11 @@ export default function AcceptReservationDialog({
 
             <div className="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
               <div className="flex items-center gap-2">
-                <CalendarDays className="h-4 w-4" />
+                <CalendarDays className="size-4" />
                 <span>{reservation.date}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
+                <Clock className="size-4" />
                 <span>{reservation.time}</span>
               </div>
             </div>
@@ -158,7 +158,7 @@ export default function AcceptReservationDialog({
                 className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-text-primary"
                 disabled={isSubmitting}
               >
-                <MessageSquarePlus className="h-4 w-4" aria-hidden />
+                <MessageSquarePlus className="size-4" aria-hidden />
                 附上回覆訊息（選填）
               </button>
             )}
@@ -182,9 +182,7 @@ export default function AcceptReservationDialog({
               onClick={handleAccept}
               disabled={isSubmitting || disabled}
             >
-              {isSubmitting && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+              {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" />}
               接受
             </Button>
           </DialogFooter>

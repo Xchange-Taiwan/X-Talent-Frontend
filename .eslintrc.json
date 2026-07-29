@@ -3,10 +3,16 @@
     "next/core-web-vitals",
     "plugin:@typescript-eslint/recommended",
     "prettier",
-    "plugin:storybook/recommended"
+    "plugin:storybook/recommended",
+    "plugin:tailwindcss/recommended"
   ],
   "parser": "@typescript-eslint/parser",
   "plugins": ["@typescript-eslint", "simple-import-sort"],
+  "settings": {
+    "tailwindcss": {
+      "callees": ["cn", "cva", "clsx"]
+    }
+  },
   "rules": {
     "simple-import-sort/imports": "error",
     "simple-import-sort/exports": "error",
@@ -19,6 +25,12 @@
     "@typescript-eslint/no-explicit-any": "warn",
     "prefer-const": "error",
     "no-var": "error",
+    "tailwindcss/no-custom-classname": [
+      "error",
+      {
+        "whitelist": ["destructive"]
+      }
+    ],
     "no-restricted-syntax": [
       "error",
       {

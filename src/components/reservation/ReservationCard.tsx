@@ -43,7 +43,7 @@ export function ReservationCard({
   const [imageFailed, setImageFailed] = React.useState(false);
 
   const avatar = (
-    <Avatar className="h-10 w-10 sm:h-12 sm:w-12">
+    <Avatar className="size-10 sm:size-12">
       {item.avatar && !imageFailed ? (
         <Image
           src={getAvatarThumbUrl(item.avatar)}
@@ -118,11 +118,11 @@ export function ReservationCard({
             <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-text-tertiary sm:mt-0 sm:text-sm">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <div className="flex items-center gap-1.5">
-                  <CalendarDays className="h-4 w-4" aria-hidden />
+                  <CalendarDays className="size-4" aria-hidden />
                   <span className="truncate">{item.date}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Clock className="h-4 w-4" aria-hidden />
+                  <Clock className="size-4" aria-hidden />
                   <span className="truncate">{item.time}</span>
                 </div>
               </div>
@@ -155,7 +155,7 @@ export function ReservationCard({
 
             {isUpcoming ? (
               <div className="mt-3 flex items-center gap-1.5 text-11 text-text-tertiary sm:text-xs">
-                <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <Mail className="size-3.5 shrink-0" aria-hidden />
                 <span>會議連結已寄至您的信箱</span>
               </div>
             ) : null}
@@ -170,7 +170,7 @@ function MessageBlock({ label, content }: { label: string; content: string }) {
   return (
     <div className="flex items-start gap-2 rounded-lg bg-background-bottom/40 p-2.5 text-xs sm:text-sm">
       <MessageSquare
-        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-tertiary sm:h-4 sm:w-4"
+        className="mt-0.5 size-3.5 shrink-0 text-text-tertiary sm:size-4"
         aria-hidden
       />
       <div className="min-w-0 flex-1">

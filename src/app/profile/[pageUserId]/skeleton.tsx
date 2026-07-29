@@ -70,7 +70,7 @@ export function ProfilePageSkeleton() {
     <div>
       <ProfileBanner />
 
-      <div className="container mb-20 max-w-[1024px] 2xl:max-w-[1280px]">
+      <div className="container mb-20 max-w-screen-lg 2xl:max-w-screen-xl">
         <ProfileHeaderSkeleton />
 
         <div className="flex flex-col gap-8 2xl:flex-row 2xl:gap-12">

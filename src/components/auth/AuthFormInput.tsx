@@ -72,9 +72,9 @@ const AuthFormInput = <T extends FieldValues>({
                 aria-label={showPassword ? '隱藏密碼' : '顯示密碼'}
               >
                 {showPassword ? (
-                  <EyeOff className="h-5 w-5" />
+                  <EyeOff className="size-5" />
                 ) : (
-                  <Eye className="h-5 w-5" />
+                  <Eye className="size-5" />
                 )}
               </button>
             )}

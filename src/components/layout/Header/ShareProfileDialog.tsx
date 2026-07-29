@@ -97,20 +97,20 @@ export function ShareProfileDialog({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[100] bg-dark/70 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
 
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[101] w-[calc(100%-32px)] max-w-[640px] -translate-x-1/2 -translate-y-1/2 rounded-[24px] border border-background-border bg-light shadow-2xl focus:outline-none">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[101] w-[calc(100%-32px)] max-w-screen-sm -translate-x-1/2 -translate-y-1/2 rounded-[24px] border border-background-border bg-light shadow-2xl focus:outline-none">
           <Dialog.Description className="sr-only">
             複製個人頁面連結以分享給他人
           </Dialog.Description>
           <div className="rounded-[24px] bg-light px-6 pb-8 pt-6 sm:px-8">
             <div className="relative mb-8 flex items-center justify-center">
-              <Dialog.Title className="text-black text-center text-36 font-semibold leading-none">
+              <Dialog.Title className="text-center text-36 font-semibold leading-none text-text-primary">
                 分享個人頁面
               </Dialog.Title>
 
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="text-black absolute right-0 top-1/2 -translate-y-1/2 text-28 leading-none"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 text-28 leading-none text-text-primary"
                   aria-label="Close share profile dialog"
                 >
                   ×
@@ -120,7 +120,7 @@ export function ShareProfileDialog({
 
             <div className="mb-5 rounded-[20px] border border-background-border bg-light px-6 py-5 shadow-sm">
               <div className="flex items-center gap-4">
-                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-background-bottom">
+                <div className="relative size-16 shrink-0 overflow-hidden rounded-full bg-background-bottom">
                   <Image
                     src={avatarSrc || DefaultAvatarImgUrl}
                     alt={`Avatar of ${name}`}
@@ -132,7 +132,7 @@ export function ShareProfileDialog({
 
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-black truncate text-18 font-semibold">
+                    <p className="truncate text-18 font-semibold text-text-primary">
                       {name}
                     </p>
 
@@ -153,7 +153,7 @@ export function ShareProfileDialog({
                   </div>
 
                   {subtitle ? (
-                    <p className="text-black mt-1 text-14 font-medium">
+                    <p className="mt-1 text-14 font-medium text-text-primary">
                       {subtitle}
                     </p>
                   ) : null}
@@ -164,7 +164,7 @@ export function ShareProfileDialog({
             <div>
               <label
                 htmlFor="share-profile-link"
-                className="text-black mb-2 block text-14 font-medium"
+                className="mb-2 block text-14 font-medium text-text-primary"
               >
                 個人頁面連結
               </label>
@@ -174,14 +174,14 @@ export function ShareProfileDialog({
                   id="share-profile-link"
                   value={profileUrl}
                   readOnly
-                  className="bg-transparent text-black w-full min-w-0 flex-1 rounded-sm border-0 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-14"
+                  className="w-full min-w-0 flex-1 rounded-sm border-0 bg-transparent text-base text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-14"
                 />
 
                 <Button
                   type="button"
                   variant="outline"
                   onClick={handleCopy}
-                  className="text-black h-10 shrink-0 rounded-[10px] border border-background-border bg-light px-4 text-14 font-medium hover:bg-background-bottom-secondary"
+                  className="h-10 shrink-0 rounded-[10px] border border-background-border bg-light px-4 text-14 font-medium text-text-primary hover:bg-background-bottom-secondary"
                 >
                   {copied ? '已複製' : '複製'}
                 </Button>

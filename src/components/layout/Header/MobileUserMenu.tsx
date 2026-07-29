@@ -63,7 +63,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
               width={32}
               height={32}
               sizes="32px"
-              className="h-8 w-8 rounded-full object-cover"
+              className="size-8 rounded-full object-cover"
               priority
             />
           </button>
@@ -79,7 +79,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
                 className="ml-auto"
               >
                 <Cross2Icon
-                  className="h-8 w-8 text-brand-900"
+                  className="size-8 text-brand-900"
                   aria-hidden="true"
                 />
               </button>
@@ -97,10 +97,10 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
                 width={56}
                 height={56}
                 sizes="56px"
-                className="h-14 w-14 rounded-full object-cover"
+                className="size-14 rounded-full object-cover"
               />
               <div className="min-w-0">
-                <div className="text-black truncate text-2xl font-semibold">
+                <div className="truncate text-2xl font-semibold text-text-primary">
                   {name || '我的個人頁面'}
                 </div>
                 {subtitle ? (
@@ -129,14 +129,14 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
                 type="button"
                 onClick={handleAsMentor}
                 disabled={!userId}
-                className="text-black py-4 text-left text-xl disabled:opacity-50"
+                className="py-4 text-left text-xl text-text-primary disabled:opacity-50"
               >
                 {isMentor ? '導師預約管理' : '成為導師'}
               </button>
               <button
                 type="button"
                 onClick={handleMyReservation}
-                className="text-black py-4 text-left text-xl"
+                className="py-4 text-left text-xl text-text-primary"
               >
                 我的預約
               </button>
@@ -145,7 +145,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
             <div className="flex flex-col pb-6">
               <button
                 type="button"
-                className="text-black py-4 text-left text-xl"
+                className="py-4 text-left text-xl text-text-primary"
                 onClick={handleLogout}
               >
                 登出
