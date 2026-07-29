@@ -42,11 +42,11 @@
 
 @layer base {
   * {
-    @apply border-border;
+    @apply border-background-border;
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background-white text-text-primary;
   }
 }
 
