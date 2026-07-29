@@ -26,28 +26,28 @@ export const Default: Story = {
   render: (args) => (
     <Dialog {...args}>
       <DialogTrigger asChild>
-        <Button variant="outline">開啟對話框</Button>
+        <Button variant="outline">編輯檔案</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>編輯個人資料</DialogTitle>
+          <DialogTitle>編輯導師專業檔案</DialogTitle>
           <DialogDescription>
-            在此修改您的帳戶資訊。完成後點擊儲存。
+            在此修改您的導師專業檔案資訊。完成後點擊儲存。
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
-            <label className="text-right text-sm font-medium">姓名</label>
+            <label className="text-right text-sm font-medium">導師姓名</label>
             <input
               className="col-span-3 rounded border p-2 text-sm"
-              defaultValue="Alex Chen"
+              defaultValue="林小明"
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <label className="text-right text-sm font-medium">電子信箱</label>
+            <label className="text-right text-sm font-medium">聯絡信箱</label>
             <input
               className="col-span-3 rounded border p-2 text-sm"
-              defaultValue="alex@example.com"
+              defaultValue="xiaoming.lin@xchange.tw"
             />
           </div>
         </div>
@@ -64,18 +64,19 @@ export const Confirmation: Story = {
   render: (args) => (
     <Dialog {...args}>
       <DialogTrigger asChild>
-        <Button variant="destructive">刪除帳號</Button>
+        <Button variant="destructive">取消預約</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
-          <DialogTitle>您確定要刪除帳號嗎？</DialogTitle>
+          <DialogTitle>確定要取消本次諮詢預約嗎？</DialogTitle>
           <DialogDescription>
-            此動作無法復原。這將永久刪除您的帳號並從我們的伺服器中移除您的所有資料。
+            取消預約將會發送通知給對方。若在諮詢前 24
+            小時內取消，可能會影響您的信用評分。
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline">取消</Button>
-          <Button variant="destructive">確定刪除</Button>
+          <Button variant="outline">保留預約</Button>
+          <Button variant="destructive">確定取消</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
