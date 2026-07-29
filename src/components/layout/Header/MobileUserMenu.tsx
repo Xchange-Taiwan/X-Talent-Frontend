@@ -121,7 +121,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
               分享個人頁面
             </Button>
 
-            <div className="h-px w-full bg-muted" />
+            <div className="h-px w-full bg-background-bottom" />
 
             {/* Account actions */}
             <nav className="flex flex-col py-2">
@@ -153,7 +153,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
               {canDeleteAccount && (
                 <button
                   type="button"
-                  className="py-4 text-left text-xl text-destructive"
+                  className="py-4 text-left text-xl text-status-error-default"
                   onClick={handleDeleteAccount}
                 >
                   刪除帳號

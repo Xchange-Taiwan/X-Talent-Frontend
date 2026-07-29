@@ -135,7 +135,7 @@ export default function MentorPoolUI({
             className="mt-6 flex w-full flex-col items-center justify-center gap-4 py-12 text-center"
           >
             <SearchXIcon
-              className="h-12 w-12 text-muted-foreground md:h-16 md:w-16"
+              className="h-12 w-12 text-text-tertiary md:h-16 md:w-16"
               aria-hidden
             />
             <p className="text-xl md:text-3xl">找不到符合的導師</p>
@@ -156,7 +156,7 @@ export default function MentorPoolUI({
             className="mt-6 flex w-full flex-col items-center justify-center gap-4 py-12 text-center"
           >
             <AlertCircle
-              className="h-12 w-12 text-muted-foreground md:h-16 md:w-16"
+              className="h-12 w-12 text-text-tertiary md:h-16 md:w-16"
               aria-hidden
             />
             <p className="text-xl md:text-3xl">載入失敗，請重試</p>

@@ -125,7 +125,7 @@ export const UserDropdown = React.memo(function UserDropdown({
             </Button>
           </div>
 
-          <div className="h-px w-full bg-muted" />
+          <div className="h-px w-full bg-background-bottom" />
 
           <div className="px-2 py-3">
             <DropdownMenuItem
@@ -156,7 +156,7 @@ export const UserDropdown = React.memo(function UserDropdown({
 
             {canDeleteAccount && (
               <DropdownMenuItem
-                className="px-4 py-3 text-2xl text-destructive focus:text-destructive"
+                className="px-4 py-3 text-2xl text-status-error-default focus:text-status-error-default"
                 onClick={handleDeleteAccount}
               >
                 刪除帳號
