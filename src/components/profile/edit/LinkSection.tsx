@@ -103,7 +103,7 @@ export const LinksSection = ({ form }: Props) => (
                 </FormControl>
               </div>
               {urlErrorMessage && (
-                <p className="text-sm font-medium text-destructive">
+                <p className="text-sm font-medium text-status-error-default">
                   {urlErrorMessage}
                 </p>
               )}

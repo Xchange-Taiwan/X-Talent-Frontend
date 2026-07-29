@@ -342,7 +342,7 @@ export const JobExperienceSection = ({
         新增
       </Button>
       {errors.work_experiences?.message && (
-        <p className="mt-2 text-sm font-medium text-destructive">
+        <p className="mt-2 text-sm font-medium text-status-error-default">
           {errors.work_experiences?.message as string}
         </p>
       )}
