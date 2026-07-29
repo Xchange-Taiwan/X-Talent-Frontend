@@ -1,15 +1,6 @@
 name: Deploy Storybook (Vercel)
 
 on:
-  push:
-    branches:
-      - develop
-    paths:
-      - 'src/**/*.stories.@(js|jsx|mjs|ts|tsx)'
-      - 'src/**/*.mdx'
-      - '.storybook/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
   workflow_dispatch:
 
 env:
