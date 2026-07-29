@@ -25,7 +25,12 @@
     "@typescript-eslint/no-explicit-any": "warn",
     "prefer-const": "error",
     "no-var": "error",
-    "tailwindcss/no-custom-classname": "error",
+    "tailwindcss/no-custom-classname": [
+      "error",
+      {
+        "whitelist": ["destructive"]
+      }
+    ],
     "no-restricted-syntax": [
       "error",
       {
