@@ -106,7 +106,7 @@ export default function AcceptReservationDialog({
               </Avatar>
               <div className="min-w-0">
                 <div className="truncate font-medium">{reservation.name}</div>
-                <div className="truncate text-sm text-muted-foreground">
+                <div className="truncate text-sm text-text-tertiary">
                   {reservation.roleLine}
                 </div>
               </div>
@@ -127,8 +127,8 @@ export default function AcceptReservationDialog({
           {menteeMessage ? (
             <div className="mt-6">
               <div className="mb-2 text-sm font-medium">學員所提出的問題</div>
-              <div className="rounded-2xl border bg-muted/40 p-4 text-sm">
-                <p className="whitespace-pre-wrap text-foreground">
+              <div className="rounded-2xl border bg-background-bottom/40 p-4 text-sm">
+                <p className="whitespace-pre-wrap text-text-primary">
                   {menteeMessage}
                 </p>
               </div>
@@ -155,7 +155,7 @@ export default function AcceptReservationDialog({
               <button
                 type="button"
                 onClick={() => setReplyOpen(true)}
-                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-text-primary"
                 disabled={isSubmitting}
               >
                 <MessageSquarePlus className="h-4 w-4" aria-hidden />

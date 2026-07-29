@@ -265,19 +265,19 @@ export default function MentorScheduleDialog({
                               },
                             })}
                         className={cn(
-                          'flex flex-col gap-2 rounded-lg border bg-background p-3 transition-colors lg:p-4',
+                          'flex flex-col gap-2 rounded-lg border bg-background-white p-3 transition-colors lg:p-4',
                           isPast
                             ? 'cursor-not-allowed opacity-50'
-                            : 'cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                            : 'cursor-pointer hover:bg-background-bottom/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500'
                         )}
                       >
                         <div className="flex flex-row flex-nowrap items-center justify-between gap-2 lg:gap-3">
                           <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <Clock className="h-4 w-4 text-text-tertiary" />
                             <span className="text-base font-medium tabular-nums">
                               {startLabel} – {endLabel}
                             </span>
-                            <span className="text-sm text-muted-foreground">
+                            <span className="text-sm text-text-tertiary">
                               ({slot.durationMinutes} 分)
                               {isPast ? ' · 已過' : ''}
                             </span>
@@ -448,7 +448,7 @@ function TimeSelectPair({
           ))}
         </SelectContent>
       </Select>
-      <span className="text-base text-muted-foreground">:</span>
+      <span className="text-base text-text-tertiary">:</span>
       <Select value={minuteValue} onValueChange={onMinuteChange}>
         <SelectTrigger className="h-12 w-24 text-base lg:w-28">
           <SelectValue />
@@ -482,8 +482,8 @@ function DurationRadio({
           className={cn(
             'flex-1 rounded-lg border px-4 py-2 text-base transition-colors',
             value === opt
-              ? 'border-primary bg-primary/10 text-primary'
-              : 'border-input bg-background hover:bg-muted/50'
+              ? 'border-brand-500 bg-brand-500/10 text-brand-500'
+              : 'border-background-border bg-background-white hover:bg-background-bottom/50'
           )}
         >
           {opt} 分
@@ -577,7 +577,7 @@ function AddSlotModal({
           </label>
 
           {weekly && previewDates.length > 0 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-text-tertiary">
               將建立 {previewDates.length} 個時段:{previewDates.join('、')}
             </p>
           )}
