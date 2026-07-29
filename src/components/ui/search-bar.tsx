@@ -57,7 +57,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
   return (
     <div className="flex w-full max-w-[846px] items-center rounded-2xl border border-background-border bg-background-white px-3 py-1.5 md:px-6 md:py-4">
       <SearchIcon
-        className="mr-2 h-6 w-6 shrink-0 text-text-tertiary"
+        className="mr-2 size-6 shrink-0 text-text-tertiary"
         aria-hidden="true"
       />
 
@@ -81,13 +81,13 @@ const SearchBar: React.FC<SearchBarProps> = ({
         onClick={handleSearch}
         disabled={isLoading}
         aria-label="搜尋"
-        className="ml-2 h-10 w-10 shrink-0 cursor-pointer rounded-full border-none bg-brand-500 p-0 leading-5 md:h-auto md:w-auto md:rounded-[24px] md:px-6 md:py-2.5"
+        className="ml-2 size-10 shrink-0 cursor-pointer rounded-full border-none bg-brand-500 p-0 leading-5 md:size-auto md:rounded-[24px] md:px-6 md:py-2.5"
       >
         {isLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
         ) : (
           <>
-            <SearchIcon className="h-5 w-5 md:hidden" aria-hidden="true" />
+            <SearchIcon className="size-5 md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">搜尋</span>
           </>
         )}

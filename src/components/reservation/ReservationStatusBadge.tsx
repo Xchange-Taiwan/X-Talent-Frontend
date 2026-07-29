@@ -43,7 +43,7 @@ export function ReservationStatusBadge({
     >
       {status === 'live' ? (
         <span
-          className="h-1.5 w-1.5 rounded-full bg-status-success-default motion-safe:animate-pulse"
+          className="size-1.5 rounded-full bg-status-success-default motion-safe:animate-pulse"
           aria-hidden
         />
       ) : null}

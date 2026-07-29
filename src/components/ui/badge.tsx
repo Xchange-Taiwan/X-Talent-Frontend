@@ -16,7 +16,7 @@ const badgeVariants = cva(
           'border-transparent bg-status-error-default text-text-white hover:bg-status-error-default/80',
         outline: 'text-text-primary',
         filter:
-          'py-1.5 pr-2 pl-3 h-8 border border-background-border rounded-lg gap-2 hover:bg-background-bottom-secondary transition-colors',
+          'h-8 gap-2 rounded-lg border border-background-border py-1.5 pl-3 pr-2 transition-colors hover:bg-background-bottom-secondary',
       },
     },
     defaultVariants: {
