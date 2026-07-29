@@ -94,14 +94,16 @@ function HeaderComponent(): JSX.Element {
                 <Link href="/auth/signup">
                   <Button
                     variant="outline"
-                    className="border-primary text-primary hover:text-primary"
+                    className="border-brand-500 text-brand-500 hover:text-brand-500"
                   >
                     註冊
                   </Button>
                 </Link>
 
                 <Link href="/auth/signin">
-                  <Button className="bg-primary hover:bg-primary">登入</Button>
+                  <Button className="bg-brand-500 hover:bg-brand-500">
+                    登入
+                  </Button>
                 </Link>
               </>
             ) : hasFullUser ? (

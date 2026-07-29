@@ -52,14 +52,16 @@ export function DeleteAccountDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-destructive">刪除帳號</DialogTitle>
+          <DialogTitle className="text-status-error-default">
+            刪除帳號
+          </DialogTitle>
           <DialogDescription>
             此操作無法復原。帳號刪除後，所有資料將永久移除。
           </DialogDescription>
         </DialogHeader>
 
         {blockedByReservations && (
-          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+          <div className="rounded-md bg-status-error-default/10 p-3 text-sm text-status-error-default">
             您目前有未完成或未來的預約，請先處理後再刪除帳號。
             <button
               type="button"
@@ -76,7 +78,7 @@ export function DeleteAccountDialog({
 
         {mode === 'google' ? (
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-text-tertiary">
               系統將引導您前往 Google
               完成身分驗證，確認後帳號將被永久刪除且無法復原。
             </p>
