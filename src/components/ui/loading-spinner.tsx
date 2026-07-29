@@ -24,7 +24,7 @@ export function LoadingSpinner({
       <Loader2
         aria-hidden="true"
         className={cn(
-          'animate-spin text-muted-foreground',
+          'animate-spin text-text-tertiary',
           sizeClasses[size],
           className
         )}
