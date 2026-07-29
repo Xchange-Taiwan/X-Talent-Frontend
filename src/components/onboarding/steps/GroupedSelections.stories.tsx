@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import * as React from 'react';
 
+import type { CategoryOption } from '@/components/ui/category-multi-select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
 import { cn } from '@/lib/utils';
@@ -18,6 +19,33 @@ export default meta;
 type Story = StoryObj<typeof GroupedSelections>;
 
 const CATEGORIES = tagGroupsToCategories(mockPositionGroups);
+
+// Shared item renderer to resolve the Duplicated Code smell
+const renderSharedItem = (
+  opt: CategoryOption,
+  {
+    checked,
+    disabled,
+    onToggle,
+  }: { checked: boolean; disabled: boolean; onToggle: () => void }
+) => (
+  <label
+    className={cn(
+      'flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-colors',
+      checked
+        ? 'border-brand-500 bg-background-bottom'
+        : 'border-background-border hover:bg-background-bottom-secondary',
+      disabled && 'cursor-not-allowed opacity-50 hover:bg-transparent'
+    )}
+  >
+    <Checkbox
+      checked={checked}
+      disabled={disabled}
+      onCheckedChange={onToggle}
+    />
+    <span className="text-base text-text-primary">{opt.label}</span>
+  </label>
+);
 
 // Interactive Demo Wrapper
 const GroupedSelectionsInteractive = ({
@@ -40,24 +68,7 @@ const GroupedSelectionsInteractive = ({
         onChange={setValue}
         maxSelected={maxSelected}
         layoutClass="grid grid-cols-1 gap-4 sm:grid-cols-2"
-        renderItem={(opt, { checked, disabled, onToggle }) => (
-          <label
-            className={cn(
-              'flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-colors',
-              checked
-                ? 'border-brand-500 bg-background-bottom'
-                : 'border-background-border hover:bg-background-bottom-secondary',
-              disabled && 'cursor-not-allowed opacity-50 hover:bg-transparent'
-            )}
-          >
-            <Checkbox
-              checked={checked}
-              disabled={disabled}
-              onCheckedChange={onToggle}
-            />
-            <span className="text-base text-text-primary">{opt.label}</span>
-          </label>
-        )}
+        renderItem={renderSharedItem}
       />
       <div className="mt-4 border-t pt-4 text-sm text-text-tertiary">
         <strong>當前狀態：</strong>已選取 {value.length} 個項目 (
@@ -98,24 +109,7 @@ export const StaticEmptyAndPreselected: Story = {
     value: ['frontend_developer'],
     maxSelected: 3,
     layoutClass: 'grid grid-cols-1 gap-4 sm:grid-cols-2',
-    renderItem: (opt, { checked, disabled, onToggle }) => (
-      <label
-        className={cn(
-          'flex cursor-pointer items-center gap-3 rounded-xl border p-3',
-          checked
-            ? 'border-brand-500 bg-background-bottom'
-            : 'border-background-border',
-          disabled && 'cursor-not-allowed opacity-50'
-        )}
-      >
-        <Checkbox
-          checked={checked}
-          disabled={disabled}
-          onCheckedChange={onToggle}
-        />
-        <span className="text-base text-text-primary">{opt.label}</span>
-      </label>
-    ),
+    renderItem: renderSharedItem,
   },
   decorators: [
     (Story) => (
