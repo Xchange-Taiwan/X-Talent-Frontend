@@ -157,7 +157,7 @@ export default function EditProfileContainer({
   if (isError) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center space-y-4">
-        <p className="text-lg font-medium text-destructive">
+        <p className="text-lg font-medium text-status-error-default">
           載入失敗，請稍後再試。
         </p>
         <Button onClick={() => window.location.reload()} variant="outline">
