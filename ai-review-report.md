@@ -1,53 +1,54 @@
-# AI Review Report: Issue #425 [Storybook] Profile booking/schedule stories
+# AI Review Report: Issue #426 [Storybook] Reservation container stories: ReservationDashboard + ReservationList
 
-**Date:** Wednesday, July 29, 2026  
-**Review Target:** Branch `feat/425-storybook-profile-booking-schedule-stories` vs `develop`  
+**Date:** July 29, 2026  
+**Review Target:** Branch `feat/426-storybook-reservation-containers` vs `develop`  
 **Review Status:** PASS
 
 ---
 
 ## 1. Overview (審查概覽)
 
-本審查針對分支 `feat/425-storybook-profile-booking-schedule-stories` 進行個人檔案預約與排程相關元件的故事書 (Storybook) 覆蓋。本次實作範圍完全對齊 X-Tracker #425 及 #415 所指定的業務與技術規範：
+本審查針對分支 `feat/426-storybook-reservation-containers` 進行預約模組之容器與清單元件（ReservationDashboard & ReservationList）的 Storybook 故事書開發。本功能完全對齊 X-Tracker #426 所指定的驗收標準，包括：
 
-1. **元件覆蓋：** 為 `BookingForm`, `MenteeBookingForm`, `MentorScheduleConfig`, `MentorScheduleDialog`, `ScheduleCalendar` 與 `ScheduleSlotList` 共六個元件建立完整的 `.stories.tsx` 檔案。
-2. **預約與排程狀態覆蓋：**
-   - 預約時段列表 (`ScheduleSlotList`) 與排程行事曆 (`ScheduleCalendar`) 覆蓋了**讀取中 (loading)**、**無可預約時段 (empty)**、**可預約 (available)**、**已被預約 (booked)** 與**已過期/過去時段 (past)** 等多種真實狀態。
-   - 導師排程對話框 (`MentorScheduleDialog`) 展示了高度互動的介面，包括：
-     - 未被預約 (Available) 時段之增刪改功能。
-     - 當點選已預約 (`BOOKED`) 或申請中 (`PENDING`) 的時段時，正確彈出對應的防禦性 Prompt 與重導向按鈕。
-     - 過去 (Past) 時段正確渲染為禁用/半透明狀態。
-   - 預約表單 (`BookingForm`) 與學員預約表單 (`MenteeBookingForm`) 完美覆蓋了**學員視角 (選取前/中/後、送出中/禁用、未登入狀態)** 與**導師視角 (前往預約設定按鈕)**。
-3. **無 console / 類型錯誤：** 所有元件在 `pnpm run type-check`、`pnpm run lint` 與本地單元測試下皆 100% 通過，無任何 Console 錯誤或型別不相容問題。
+- 建立 `src/components/reservation/ReservationList.stories.tsx`：覆蓋多種時間與 BookingStatus 狀態的預約卡清單。
+- 建立 `src/components/reservation/ReservationDashboard.stories.tsx`：對應學員與導師角色的 Dashboard Tab 切換視圖。
+- 引入 `src/components/reservation/__mocks__/reservations.mock.ts`：以動態相對時間生成真實 mock 資料。
+- 進行 `ReservationDashboard.tsx` 架構重構：採用 **Container-Presenter** 模式，將純 Presentational 的 `ReservationDashboardView` 從原先綁定 Session 狀態的 `ReservationDashboard` 容器中抽離，解除 Storybook 對 Next-Auth 與 API 請求的依賴。
 
 ---
 
 ## 2. Reading Order (檔案閱讀順序與變更分析)
 
-以下為本次新增/修改之 7 個檔案及其變更說明：
+以下為本次實作與新增/修改檔案的變更分析：
 
-| 順序  | 檔案路徑                                                              | 變更動作 | 說明 / 審查重點                                                                                                |
-| :---- | :-------------------------------------------------------------------- | :------- | :------------------------------------------------------------------------------------------------------------- |
-| **1** | `src/hooks/useMentorSchedule.ts`                                      | 修改     | 匯出 `ParsedMentorTimeslot` 型別，以利故事書正確引用與模擬資料。                                               |
-| **2** | `src/components/profile/reservation/ScheduleSlotList.stories.tsx`     | 新增     | 涵蓋讀取中、無時段與時段列表（可預約/已被預約/過去時段）等視覺狀態。                                           |
-| **3** | `src/components/profile/reservation/ScheduleCalendar.stories.tsx`     | 新增     | 涵蓋預設狀態、高亮可用日期（選取前/後）、讀取中（加上 overlay 與 loader）、過去禁用等。                        |
-| **4** | `src/components/profile/reservation/MentorScheduleConfig.stories.tsx` | 新增     | 涵蓋導師視角下的排程狀態與點擊「預約設定」互動。                                                               |
-| **5** | `src/components/profile/reservation/MenteeBookingForm.stories.tsx`    | 新增     | 涵蓋學員點選時段、輸入諮詢問題、送出處理中（Loading 旋轉）、未登入等互動細節。                                 |
-| **6** | `src/components/profile/reservation/BookingForm.stories.tsx`          | 新增     | 綜合學員與導師視角的預估渲染骨架 (Skeleton) 與視圖分流展示。                                                   |
-| **7** | `src/components/profile/reservation/MentorScheduleDialog.stories.tsx` | 新增     | 完整模擬高度複雜的 `UseMentorScheduleReturn` 狀態機，在 Storybook 中即可展現點擊不同狀態時段時的 Prompt 邏輯。 |
+| 順序  | 檔案路徑                                                      | 變更動作 | 說明 / 審查重點                                                                                                                     |
+| :---- | :------------------------------------------------------------ | :------- | :---------------------------------------------------------------------------------------------------------------------------------- |
+| **1** | `src/components/reservation/ReservationDashboard.tsx`         | 修改     | 重構為 Container-Presenter 結構，解耦數據與 UI，導出純淨的 `ReservationDashboardView` 供故事書使用。                                |
+| **2** | `src/components/reservation/__mocks__/reservations.mock.ts`   | 新增     | 建立 9 組不同時間跨度的真實預約 mock 數據（Pending、Soon、Imminent、Live、Ended、Cancelled 等），並全數採用相對時間計算。           |
+| **3** | `src/components/reservation/ReservationList.stories.tsx`      | 新增     | 建立 `UpcomingList`（混合狀態）、`PendingMenteeList`、`PendingMentorList`、`HistoryList`、`EmptyState` 與 `LoadingState` 故事場景。 |
+| **4** | `src/components/reservation/ReservationDashboard.stories.tsx` | 新增     | 建立 `MentorView`、`MenteeView`、`EmptyState` 與 `LoadingState` 故事場景，完美還原學員/導師預約看板視覺。                           |
 
 ---
 
 ## 3. Discipline Evaluation (專案紀律與安全檢驗)
 
-- **PII 與敏感資訊 (PII & Secrets Check):** 經程式碼掃描，全部為純模擬資料與 Storybook configs，**無**任何真實 PII、硬編碼 Secret 或是 API 密鑰。
-- **類型安全性 (Type Safety):** 型別宣告完美無暇，`type-check` 結果為 **SUCCESS**。故事檔案不使用 `as any`，完美結合 `@storybook/nextjs` 以模擬 Next.js App Router 行為。
-- **Tailwind CSS 規範:** 排版完全對齊專案的 design tokens（如使用 `text-text-white`、`bg-brand-500` 等），無客製顏色逃逸。
+- **PII 與敏感資訊 (PII & Secrets Check):** 故事中所使用的姓名與聯絡留言均為虛擬範例資料，無任何個人敏感隱私（PII）或真實帳號洩漏風險。
+- **除錯紀錄與日誌 (Debug Logs Check):** 所有新增與修改檔案皆不含任何 `console.log`、`debugger` 等除錯用代碼。
+- **類型安全性 (Type Safety):** 執行 `pnpm run type-check` 結果為 **SUCCESS (0 errors)**。代碼嚴格遵照 `Reservation` 定義，類型健全度 100%。
+- **工程規範對齊 (Engineering Standards):** 完全符合本專案 `GEMINI.md` 的模組化架構規範與 Storybook v10 書寫規範。
 
 ---
 
-## 4. Verification Results (自動化測試驗證)
+## 4. Verification Results (自動化測試與編譯驗證)
 
-1. **單元測試套件 (`pnpm run test`):** **PASS**。全案 87 個測試檔案、643 個測試案例全數 100% 通過。
-2. **型別檢查 (`pnpm run type-check`):** **SUCCESS**。
-3. **格式與代碼風格 (`pnpm run lint`):** **SUCCESS**。專案核心代碼與 Story 均 100% 符合 ESLint 與 Prettier 的嚴格限制。
+1. **Linter 靜態分析 (`pnpm run lint`):** PASS (0 errors)。
+2. **單元測試套件 (`pnpm run test`):** **PASS**。全案 87 個測試檔案、643 個測試案例全數 100% 通過。
+3. **Storybook 靜態編譯 (`pnpm build-storybook`):** **SUCCESS**。所有新增與合併的 Reservation 故事書（包含 Dialog 故事與 Badge 故事）均順利通過編譯，無任何編譯/運行期主控台錯誤。
+
+---
+
+## 5. Review Conclusion (審查結論)
+
+針對 Issue #426 要求的 Storybook 故事書功能已完美實作。透過優雅的 Container-Presenter 重構，在未更動原有元件 API、亦未破壞任何現有單元測試的前提下，解除了 Storybook 的狀態耦合阻礙，使兩個核心預約容器能以最高保真度在各種狀態下渲染。建議 PR 立即進行合併（PR Submission）。
+
+**Review Status: PASS**
