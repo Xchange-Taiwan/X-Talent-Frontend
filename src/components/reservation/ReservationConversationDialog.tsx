@@ -67,7 +67,7 @@ export default function ReservationConversationDialog({
         {trigger ?? (
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:text-sm"
+            className="inline-flex items-center gap-1 rounded-sm text-xs text-text-tertiary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 sm:text-sm"
           >
             <MessageSquare className="h-3.5 w-3.5" aria-hidden />
             查看完整對話
@@ -97,7 +97,7 @@ export default function ReservationConversationDialog({
               </DialogDescription>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:text-sm">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-tertiary sm:text-sm">
             <span className="inline-flex items-center gap-1.5">
               <CalendarDays className="h-3.5 w-3.5" aria-hidden />
               {reservation.date}
@@ -111,7 +111,7 @@ export default function ReservationConversationDialog({
 
         <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-6">
           {reservation.messages.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
+            <p className="py-8 text-center text-sm text-text-tertiary">
               尚無對話內容
             </p>
           ) : (
@@ -152,16 +152,16 @@ function MessageBubble({
       )}
     >
       {label && !isPrevSameRole ? (
-        <div className="text-11 font-medium text-muted-foreground sm:text-xs">
+        <div className="text-11 font-medium text-text-tertiary sm:text-xs">
           {label}
         </div>
       ) : null}
       <div
         className={cn(
           'max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm',
-          isMentor && 'bg-primary text-primary-foreground',
-          isMentee && 'bg-muted text-foreground',
-          !message.role && 'bg-muted/60 text-muted-foreground'
+          isMentor && 'bg-brand-500 text-text-primary',
+          isMentee && 'bg-background-bottom text-text-primary',
+          !message.role && 'bg-background-bottom/60 text-text-tertiary'
         )}
       >
         {message.content}

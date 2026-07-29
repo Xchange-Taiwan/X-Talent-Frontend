@@ -68,7 +68,7 @@ function SchoolComboboxField({
               aria-expanded={open}
               className="w-full justify-between font-normal"
             >
-              <span className={cn(!field.value && 'text-muted-foreground')}>
+              <span className={cn(!field.value && 'text-text-tertiary')}>
                 {field.value || '請選擇學校'}
               </span>
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -300,7 +300,7 @@ export const EducationSection = ({
         新增
       </Button>
       {errors.educations?.message && (
-        <p className="mt-2 text-sm font-medium text-destructive">
+        <p className="mt-2 text-sm font-medium text-status-error-default">
           {errors.educations?.message as string}
         </p>
       )}

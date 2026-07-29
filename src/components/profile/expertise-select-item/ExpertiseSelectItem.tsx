@@ -62,8 +62,9 @@ export const ExpertiseSelectItem: FC<Props> = ({ form, type }) => {
           <FormItem
             className={cn(
               'flex cursor-pointer items-start gap-2 rounded-xl border border-background-border px-4 py-3',
-              'hover:border-primary hover:bg-secondary',
-              field.value.includes(type) && 'border-primary bg-secondary'
+              'hover:border-brand-500 hover:bg-background-bottom',
+              field.value.includes(type) &&
+                'border-brand-500 bg-background-bottom'
             )}
           >
             <FormLabel className="flex grow cursor-pointer gap-4">
