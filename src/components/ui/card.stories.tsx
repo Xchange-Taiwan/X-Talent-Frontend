@@ -38,7 +38,7 @@ export const Default: Story = {
         <div className="grid w-full items-center gap-4">
           <div className="flex flex-col space-y-1.5">
             <span className="text-sm font-medium">專案名稱</span>
-            <div className="rounded border bg-background-bottom p-2 text-sm text-muted-foreground">
+            <div className="rounded border bg-background-bottom p-2 text-sm text-text-tertiary">
               My New Awesome Project
             </div>
           </div>
@@ -57,7 +57,7 @@ export const ContentOnly: Story = {
   render: (args) => (
     <Card {...args} className="w-[350px]">
       <CardContent className="pt-6">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-text-tertiary">
           這是一個極簡卡片，只包含內容區塊，適合用在格狀版面 (Grid)
           中展示簡單的統計數據或資訊卡片。
         </p>
