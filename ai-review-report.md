@@ -36,7 +36,7 @@
 
 ## 4. Verification Results (自動化測試驗證)
 
-為確保此色彩遷移未破壞任何現有業務邏輯、UI 單元功能或引進回歸（Regression）：
+for ensuring this color migration hasn't broken any existing business logic, UI unit functionality, or introduced regression:
 
 1. **Linter 靜態分析 (`pnpm run lint`):** PASS (0 errors)。
 2. **單元測試套件 (`pnpm run test`):** **PASS**。全案 86 個測試檔案、636 個測試案例全數 100% 通過（包含 profile, reservation 與 auth 模組之複雜交互測試），證明遷移安全可靠。
@@ -46,6 +46,6 @@
 
 ## 5. Review Conclusion (審查結論)
 
-所有 Issue #410 指定之檔案皆已完美依照遷移指南完成重構，完全移除 legacy `bg-card` 色彩，並通過了最嚴格的編譯、Lint 與 Test 驗證。本 PR 無需任何修改，建議立即合併。
+所有 Issue #410 指定之檔案皆已完美依照遷移指南完成重構，完全移除 legacy `bg-card` 色彩，並通過了最嚴格的編譯、Lint 與 Test 驗證。本 PR 無需 any modifications, 建議立即合併。
 
 Review Status: PASS
