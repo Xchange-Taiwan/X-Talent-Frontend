@@ -18,13 +18,13 @@
 
 以下為本次遷移的 5 個元件檔案與其變更：
 
-| 順序 | 檔案路徑 | 遷移前 (Legacy Colors) | 遷移後 (Unified Color Tokens) | 說明 / 審查重點 |
-| :--- | :--- | :--- | :--- | :--- |
-| **1** | `src/components/ui/calendar.tsx` | `bg-popover` | `bg-background-white` | 下拉選單底色。經確認僅包含 `bg-popover`，無 `text-popover-foreground`。 |
-| **2** | `src/components/ui/command.tsx` | `bg-popover`, `text-popover-foreground` | `bg-background-white`, `text-text-primary` | 命令/搜尋面板容器底色與主文字色。 |
-| **3** | `src/components/ui/dropdown-menu.tsx` | `bg-popover`, `text-popover-foreground` | `bg-background-white`, `text-text-primary` | 下拉選單 SubContent 與 Content 的容器底色與主文字色。 |
-| **4** | `src/components/ui/popover.tsx` | `bg-popover`, `text-popover-foreground` | `bg-background-white`, `text-text-primary` | 彈出式氣泡 PopoverContent 的容器底色與主文字色。 |
-| **5** | `src/components/ui/select.tsx` | `bg-popover`, `text-popover-foreground` | `bg-background-white`, `text-text-primary` | 選擇器 SelectContent 的容器底色與主文字色。 |
+| 順序  | 檔案路徑                              | 遷移前 (Legacy Colors)                  | 遷移後 (Unified Color Tokens)              | 說明 / 審查重點                                                         |
+| :---- | :------------------------------------ | :-------------------------------------- | :----------------------------------------- | :---------------------------------------------------------------------- |
+| **1** | `src/components/ui/calendar.tsx`      | `bg-popover`                            | `bg-background-white`                      | 下拉選單底色。經確認僅包含 `bg-popover`，無 `text-popover-foreground`。 |
+| **2** | `src/components/ui/command.tsx`       | `bg-popover`, `text-popover-foreground` | `bg-background-white`, `text-text-primary` | 命令/搜尋面板容器底色與主文字色。                                       |
+| **3** | `src/components/ui/dropdown-menu.tsx` | `bg-popover`, `text-popover-foreground` | `bg-background-white`, `text-text-primary` | 下拉選單 SubContent 與 Content 的容器底色與主文字色。                   |
+| **4** | `src/components/ui/popover.tsx`       | `bg-popover`, `text-popover-foreground` | `bg-background-white`, `text-text-primary` | 彈出式氣泡 PopoverContent 的容器底色與主文字色。                        |
+| **5** | `src/components/ui/select.tsx`        | `bg-popover`, `text-popover-foreground` | `bg-background-white`, `text-text-primary` | 選擇器 SelectContent 的容器底色與主文字色。                             |
 
 ---
 
