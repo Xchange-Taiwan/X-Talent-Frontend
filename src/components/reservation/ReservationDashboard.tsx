@@ -47,7 +47,7 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
   const triggerClass =
     'group shrink-0 rounded-full border border-background-border px-3 py-1.5 text-sm ' +
     'bg-transparent text-text-primary ' +
-    'data-[state=active]:bg-black data-[state=active]:text-text-white data-[state=active]:border-black';
+    'data-[state=active]:bg-dark data-[state=active]:text-text-white data-[state=active]:border-dark';
 
   const countClass =
     'ml-1 text-xs text-text-tertiary group-data-[state=active]:text-text-white/80';
