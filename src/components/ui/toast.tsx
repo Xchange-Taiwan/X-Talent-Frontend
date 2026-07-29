@@ -28,6 +28,7 @@ const toastVariants = cva(
     variants: {
       variant: {
         default: 'border bg-background-white text-text-primary',
+        // eslint-disable-next-line tailwindcss/no-custom-classname
         destructive:
           'destructive group border-status-error-default bg-status-error-default text-text-white',
       },
