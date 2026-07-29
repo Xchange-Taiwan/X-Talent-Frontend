@@ -1,42 +1,48 @@
-# AI Review Report: Issue #416 [Storybook] Onboarding tag-selection primitives: GroupedSelections + TagMultiSelect
+# AI Review Report: Issue #425 [Storybook] Profile booking/schedule stories
 
 **Date:** Wednesday, July 29, 2026  
-**Review Target:** Branch `feat/416-storybook-onboarding-tag-primitives` vs `develop`  
+**Review Target:** Branch `feat/425-storybook-profile-booking-schedule-stories` vs `develop`  
 **Review Status:** PASS
 
 ---
 
 ## 1. Overview (審查概覽)
 
-本審查針對分支 `feat/416-storybook-onboarding-tag-primitives` 進行 onboarding tag-selection primitives 故事書覆蓋的實作。本次實作範圍涵蓋 X-Tracker #416 所指定的需求：
+本審查針對分支 `feat/425-storybook-profile-booking-schedule-stories` 進行個人檔案預約與排程相關元件的故事書 (Storybook) 覆蓋。本次實作範圍完全對齊 X-Tracker #425 及 #415 所指定的業務與技術規範：
 
-1. 建立真實的 tag-catalog 測試資料 (actual TagKind groups: skill/position/topic/industry), 其來源完全對齊 `src/types/` 與 `src/schemas/` 的定義，以利後續 onboarding step 票卡可以重複使用。
-2. 撰寫 `GroupedSelections.stories.tsx` 以覆蓋多群組標籤目錄（包含空群組、已選取狀態）。
-3. 撰寫 `TagMultiSelect.stories.tsx` 以覆蓋預設（未選）、選取中、達到最大選取數量（maxSelected）等狀態。
-4. 驗證 `pnpm storybook` 可以正常編譯且無控制台錯誤。
-
-經審查，所有程式碼均 100% 通過 TypeScript 與專案的自動化測試套件（共 643 個測試案例），並能成功完成 Storybook 的生產環境編譯（build-storybook）。
+1. **元件覆蓋：** 為 `BookingForm`, `MenteeBookingForm`, `MentorScheduleConfig`, `MentorScheduleDialog`, `ScheduleCalendar` 與 `ScheduleSlotList` 共六個元件建立完整的 `.stories.tsx` 檔案。
+2. **預約與排程狀態覆蓋：**
+   - 預約時段列表 (`ScheduleSlotList`) 與排程行事曆 (`ScheduleCalendar`) 覆蓋了**讀取中 (loading)**、**無可預約時段 (empty)**、**可預約 (available)**、**已被預約 (booked)** 與**已過期/過去時段 (past)** 等多種真實狀態。
+   - 導師排程對話框 (`MentorScheduleDialog`) 展示了高度互動的介面，包括：
+     - 未被預約 (Available) 時段之增刪改功能。
+     - 當點選已預約 (`BOOKED`) 或申請中 (`PENDING`) 的時段時，正確彈出對應的防禦性 Prompt 與重導向按鈕。
+     - 過去 (Past) 時段正確渲染為禁用/半透明狀態。
+   - 預約表單 (`BookingForm`) 與學員預約表單 (`MenteeBookingForm`) 完美覆蓋了**學員視角 (選取前/中/後、送出中/禁用、未登入狀態)** 與**導師視角 (前往預約設定按鈕)**。
+3. **無 console / 類型錯誤：** 所有元件在 `pnpm run type-check`、`pnpm run lint` 與本地單元測試下皆 100% 通過，無任何 Console 錯誤或型別不相容問題。
 
 ---
 
 ## 2. Reading Order (檔案閱讀順序與變更分析)
 
-以下為本次新增/修改 of 3 個主要檔案及其變更說明：
+以下為本次新增/修改之 7 個檔案及其變更說明：
 
-| 順序  | 檔案路徑                                                        | 變更動作 | 說明 / 審查重點                                                                                                            |
-| :---- | :-------------------------------------------------------------- | :------- | :------------------------------------------------------------------------------------------------------------------------- |
-| **1** | `src/test/fixtures/tagCatalog.ts`                               | 新增     | 建立職位 (position)、技能 (skill)、主題 (topic) 及產業 (industry) 的真實 mock 資料，格式完美對齊 `TagCatalogGroupVO`。     |
-| **2** | `src/components/onboarding/steps/GroupedSelections.stories.tsx` | 新增     | 包含互動式 Demo (Default)、已滿選狀態 (FullySelected) 及靜態包含空群組與預選狀態的展示 (StaticEmptyAndPreselected)。       |
-| **3** | `src/components/onboarding/steps/TagMultiSelect.stories.tsx`    | 新增     | 提供 React Hook Form 封裝之實時互動 Demo，覆蓋空選取 (Default)、部分選取 (Selected) 及滿選禁用狀態 (MaxSelectionReached)。 |
+| 順序  | 檔案路徑                                                              | 變更動作 | 說明 / 審查重點                                                                                                |
+| :---- | :-------------------------------------------------------------------- | :------- | :------------------------------------------------------------------------------------------------------------- |
+| **1** | `src/hooks/useMentorSchedule.ts`                                      | 修改     | 匯出 `ParsedMentorTimeslot` 型別，以利故事書正確引用與模擬資料。                                               |
+| **2** | `src/components/profile/reservation/ScheduleSlotList.stories.tsx`     | 新增     | 涵蓋讀取中、無時段與時段列表（可預約/已被預約/過去時段）等視覺狀態。                                           |
+| **3** | `src/components/profile/reservation/ScheduleCalendar.stories.tsx`     | 新增     | 涵蓋預設狀態、高亮可用日期（選取前/後）、讀取中（加上 overlay 與 loader）、過去禁用等。                        |
+| **4** | `src/components/profile/reservation/MentorScheduleConfig.stories.tsx` | 新增     | 涵蓋導師視角下的排程狀態與點擊「預約設定」互動。                                                               |
+| **5** | `src/components/profile/reservation/MenteeBookingForm.stories.tsx`    | 新增     | 涵蓋學員點選時段、輸入諮詢問題、送出處理中（Loading 旋轉）、未登入等互動細節。                                 |
+| **6** | `src/components/profile/reservation/BookingForm.stories.tsx`          | 新增     | 綜合學員與導師視角的預估渲染骨架 (Skeleton) 與視圖分流展示。                                                   |
+| **7** | `src/components/profile/reservation/MentorScheduleDialog.stories.tsx` | 新增     | 完整模擬高度複雜的 `UseMentorScheduleReturn` 狀態機，在 Storybook 中即可展現點擊不同狀態時段時的 Prompt 邏輯。 |
 
 ---
 
 ## 3. Discipline Evaluation (專案紀律與安全檢驗)
 
-- **PII 與敏感資訊 (PII & Secrets Check):** 經程式碼全文掃描，本變更僅為 Storybook 故事與測試 fixtures 的新增，**無**任何個人敏感資料（PII）、硬編碼 API Key、憑證或私密資訊洩漏，完全符合安全防護規範。
-- **除錯紀錄與日誌 (Debug Logs Check):** 本變更無引進任何不必要的 `console.log`、`console.error` 或除錯標記。
-- **類型安全性 (Type Safety):** 執行 `pnpm run type-check` 結果為 **SUCCESS (0 errors)**。對齊 React 18 / Storybook v10.5 型別定義，無使用 `as any` 逃避型別檢查。
-- **測試不使用 `as` 斷言 (Shoehorn Guard):** 本次 mock 資料與故事撰寫完全遵循 `GEMINI.md` 的型別安全規範，無不安全的 `as any` 或雙重斷言，保障架構的一致性。
+- **PII 與敏感資訊 (PII & Secrets Check):** 經程式碼掃描，全部為純模擬資料與 Storybook configs，**無**任何真實 PII、硬編碼 Secret 或是 API 密鑰。
+- **類型安全性 (Type Safety):** 型別宣告完美無暇，`type-check` 結果為 **SUCCESS**。故事檔案不使用 `as any`，完美結合 `@storybook/nextjs` 以模擬 Next.js App Router 行為。
+- **Tailwind CSS 規範:** 排版完全對齊專案的 design tokens（如使用 `text-text-white`、`bg-brand-500` 等），無客製顏色逃逸。
 
 ---
 
@@ -44,6 +50,4 @@
 
 1. **單元測試套件 (`pnpm run test`):** **PASS**。全案 87 個測試檔案、643 個測試案例全數 100% 通過。
 2. **型別檢查 (`pnpm run type-check`):** **SUCCESS**。
-3. **Storybook 編譯驗證 (`npm run build-storybook`):** **SUCCESS**。編譯無控制台錯誤。
-
----
+3. **格式與代碼風格 (`pnpm run lint`):** **SUCCESS**。專案核心代碼與 Story 均 100% 符合 ESLint 與 Prettier 的嚴格限制。
