@@ -108,7 +108,7 @@ export const UserDropdown = React.memo(function UserDropdown({
             />
 
             <div className="min-w-0">
-              <div className="text-black truncate text-3xl font-semibold">
+              <div className="truncate text-3xl font-semibold text-black">
                 {name || '我的個人頁面'}
               </div>
             </div>
