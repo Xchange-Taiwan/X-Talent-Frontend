@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
+import { mockMentors } from '../__mocks__/mentors.mock';
 import { Information } from './Information';
 
 const meta: Meta<typeof Information> = {
@@ -15,18 +16,11 @@ const meta: Meta<typeof Information> = {
     ),
   ],
   args: {
-    name: '陳怡君 (Jane Chen)',
-    job_title: 'Senior UI/UX Designer',
-    company: 'Google',
-    about:
-      '擁有 8 年以上數位產品設計經驗，曾主導多個跨國 B2B 與 B2C 產品的設計與優化。熱衷於使用者研究、資訊架構與互動設計。',
-    haveTopicLabels: [
-      'UI/UX 設計',
-      '使用者研究',
-      '產品規劃',
-      '職涯諮詢',
-      '求職履歷優化',
-    ],
+    name: mockMentors[0].name,
+    job_title: mockMentors[0].job_title,
+    company: mockMentors[0].company,
+    about: mockMentors[0].about,
+    haveTopicLabels: mockMentors[0].have_topic,
   },
 };
 
@@ -35,26 +29,19 @@ type Story = StoryObj<typeof Information>;
 
 export const Default: Story = {
   args: {
-    name: '陳怡君 (Jane Chen)',
-    job_title: 'Senior UI/UX Designer',
-    company: 'Google',
-    about:
-      '擁有 8 年以上數位產品設計經驗，曾主導多個跨國 B2B 與 B2C 產品的設計與優化。熱衷於使用者研究、資訊架構與互動設計。',
-    haveTopicLabels: [
-      'UI/UX 設計',
-      '使用者研究',
-      '產品規劃',
-      '職涯諮詢',
-      '求職履歷優化',
-    ],
+    name: mockMentors[0].name,
+    job_title: mockMentors[0].job_title,
+    company: mockMentors[0].company,
+    about: mockMentors[0].about,
+    haveTopicLabels: mockMentors[0].have_topic,
   },
 };
 
 export const ShortAboutAndFewTags: Story = {
   args: {
-    name: '王小明 (John Wang)',
-    job_title: 'Frontend Engineer',
-    company: 'TSMC',
+    name: mockMentors[1].name,
+    job_title: mockMentors[1].job_title,
+    company: mockMentors[1].company,
     about: '專注於 React/Next.js 前端開發與效能優化。',
     haveTopicLabels: ['Frontend', 'React', 'TypeScript'],
   },
@@ -62,7 +49,7 @@ export const ShortAboutAndFewTags: Story = {
 
 export const LongCompanyAndManyTags: Story = {
   args: {
-    name: '林建宏 (Alex Lin)',
+    name: mockMentors[2].name,
     job_title: 'Staff Product Manager & Agile Coach',
     company: 'Taiwan Semiconductor Manufacturing Company (TSMC) Ltd.',
     about:

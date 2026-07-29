@@ -1,8 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
-import defaultAvatar from '@/assets/default-avatar.png';
-
+import { mockMentors } from '../__mocks__/mentors.mock';
 import { AvatarWithBadge } from './AvatarWithBadge';
 
 const meta: Meta<typeof AvatarWithBadge> = {
@@ -17,10 +16,9 @@ const meta: Meta<typeof AvatarWithBadge> = {
     ),
   ],
   args: {
-    avatar:
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-    years: 'THREE_TO_FIVE',
-    name: '陳怡君 (Jane Chen)',
+    avatar: mockMentors[0].avatar,
+    years: mockMentors[0].years_of_experience,
+    name: mockMentors[0].name,
     priority: false,
   },
   argTypes: {
@@ -42,26 +40,24 @@ type Story = StoryObj<typeof AvatarWithBadge>;
 
 export const Default: Story = {
   args: {
-    avatar:
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-    years: 'THREE_TO_FIVE',
-    name: '陳怡君 (Jane Chen)',
+    avatar: mockMentors[0].avatar,
+    years: mockMentors[0].years_of_experience,
+    name: mockMentors[0].name,
   },
 };
 
 export const LocalDefaultAvatar: Story = {
   args: {
-    avatar: defaultAvatar,
-    years: 'FIVE_TO_TEN',
-    name: '王小明 (John Wang)',
+    avatar: mockMentors[1].avatar,
+    years: mockMentors[1].years_of_experience,
+    name: mockMentors[1].name,
   },
 };
 
 export const OverTenYears: Story = {
   args: {
-    avatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
-    years: 'OVER_TEN_YEAR',
-    name: '林建宏 (Alex Lin)',
+    avatar: mockMentors[2].avatar,
+    years: mockMentors[2].years_of_experience,
+    name: mockMentors[2].name,
   },
 };
