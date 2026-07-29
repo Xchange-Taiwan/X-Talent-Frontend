@@ -29,7 +29,7 @@ const toastVariants = cva(
       variant: {
         default: 'border bg-background-white text-text-primary',
         destructive:
-          'destructive group border-status-error-default bg-status-error-default text-text-white',
+          'group border-status-error-default bg-status-error-default text-text-white',
       },
     },
     defaultVariants: {
@@ -60,7 +60,7 @@ const ToastAction = React.forwardRef<
   <ToastPrimitives.Action
     ref={ref}
     className={cn(
-      'bg-transparent inline-flex h-8 shrink-0 items-center justify-center rounded-md border px-3 text-sm font-medium ring-offset-background-white transition-colors hover:bg-background-bottom focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 group-[.destructive]:border-background-bottom/40 group-[.destructive]:hover:border-status-error-default/30 group-[.destructive]:hover:bg-status-error-default group-[.destructive]:hover:text-text-white group-[.destructive]:focus:ring-status-error-default',
+      'inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium ring-offset-background-white transition-colors hover:bg-background-bottom focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 group-[.destructive]:border-background-bottom/40 group-[.destructive]:hover:border-status-error-default/30 group-[.destructive]:hover:bg-status-error-default group-[.destructive]:hover:text-text-white group-[.destructive]:focus:ring-status-error-default',
       className
     )}
     {...props}

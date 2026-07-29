@@ -54,7 +54,7 @@ export default function MentorPoolUI({
     <section className="mt-[80px] px-5 pb-10 md:px-10 xl:px-20">
       <div className="mx-auto w-full max-w-[1280px] ">
         <PopularPositionChips />
-        <div className="item-center mb-5 mt-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-0">
+        <div className="mb-5 mt-6 flex flex-col items-center gap-4 md:flex-row md:items-center md:justify-between md:gap-0">
           <div
             className={`text-base transition-opacity ${isReplacing ? 'opacity-50' : ''}`}
           >
@@ -93,7 +93,7 @@ export default function MentorPoolUI({
                     onRemoveFilter(key);
                   }}
                   aria-label={`移除「${filter.name}：${label}」篩選`}
-                  className="bg-transparent inline-flex items-center rounded-sm p-0 hover:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="inline-flex items-center rounded-sm bg-transparent p-0 hover:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <XIcon className="h-4 w-4" aria-hidden />
                 </button>

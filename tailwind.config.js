@@ -11,7 +11,14 @@ export const theme = {
       '2xl': '1400px',
     },
   },
-  colors,
+  colors: {
+    inherit: 'inherit',
+    current: 'currentColor',
+    transparent: 'transparent',
+    black: '#000',
+    white: '#fff',
+    ...colors,
+  },
   extend: {
     fontSize: {
       11: ['11px', { lineHeight: '1' }],

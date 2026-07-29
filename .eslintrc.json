@@ -6,7 +6,7 @@
     "plugin:storybook/recommended"
   ],
   "parser": "@typescript-eslint/parser",
-  "plugins": ["@typescript-eslint", "simple-import-sort"],
+  "plugins": ["@typescript-eslint", "simple-import-sort", "tailwindcss"],
   "rules": {
     "simple-import-sort/imports": "error",
     "simple-import-sort/exports": "error",
@@ -19,21 +19,20 @@
     "@typescript-eslint/no-explicit-any": "warn",
     "prefer-const": "error",
     "no-var": "error",
+    "tailwindcss/no-custom-classname": "error",
     "no-restricted-syntax": [
       "error",
-      {
-        "selector": "JSXAttribute[name.name='className'] Literal[value=/(^|\\s|:)(bg|text|border(-[trblxy])?|ring(-offset)?|fill|stroke|from|via|to|divide|shadow|outline|placeholder|decoration|accent|caret)-\\[(#|rgba?|hsla?)/], JSXAttribute[name.name='className'] TemplateElement[value.raw=/(^|\\s|:)(bg|text|border(-[trblxy])?|ring(-offset)?|fill|stroke|from|via|to|divide|shadow|outline|placeholder|decoration|accent|caret)-\\[(#|rgba?|hsla?)/], CallExpression[callee.name=/^(cn|clsx|cva)$/] Literal[value=/(^|\\s|:)(bg|text|border(-[trblxy])?|ring(-offset)?|fill|stroke|from|via|to|divide|shadow|outline|placeholder|decoration|accent|caret)-\\[(#|rgba?|hsla?)/], CallExpression[callee.name=/^(cn|clsx|cva)$/] TemplateElement[value.raw=/(^|\\s|:)(bg|text|border(-[trblxy])?|ring(-offset)?|fill|stroke|from|via|to|divide|shadow|outline|placeholder|decoration|accent|caret)-\\[(#|rgba?|hsla?)/]",
-        "message": "Do not use arbitrary hex, rgb, or hsl colors (e.g. text-[#...], bg-[rgba(...)], border-[hsl(...)]) in Tailwind classes. Please use standard theme colors from tailwind.config.js."
-      },
-      {
-        "selector": "JSXAttribute[name.name='className'] Literal[value=/(^|\\s|:)(bg|text|border(-[trblxy])?|ring(-offset)?|fill|stroke|from|via|to|divide|shadow|outline|placeholder|decoration|accent|caret)-(slate|zinc|neutral|stone|gray|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\\d+/], JSXAttribute[name.name='className'] TemplateElement[value.raw=/(^|\\s|:)(bg|text|border(-[trblxy])?|ring(-offset)?|fill|stroke|from|via|to|divide|shadow|outline|placeholder|decoration|accent|caret)-(slate|zinc|neutral|stone|gray|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\\d+/], CallExpression[callee.name=/^(cn|clsx|cva)$/] Literal[value=/(^|\\s|:)(bg|text|border(-[trblxy])?|ring(-offset)?|fill|stroke|from|via|to|divide|shadow|outline|placeholder|decoration|accent|caret)-(slate|zinc|neutral|stone|gray|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\\d+/], CallExpression[callee.name=/^(cn|clsx|cva)$/] TemplateElement[value.raw=/(^|\\s|:)(bg|text|border(-[trblxy])?|ring(-offset)?|fill|stroke|from|via|to|divide|shadow|outline|placeholder|decoration|accent|caret)-(slate|zinc|neutral|stone|gray|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\\d+/]",
-        "message": "Do not use default Tailwind colors with numeric scales (e.g., neutral-600, blue-600, red-500) because they are not defined in the custom theme palette. Use custom theme tokens from src/design/tokens/color.ts instead (e.g., text-text-secondary, text-status-error-default, bg-brand-500)."
-      },
       {
         "selector": "JSXAttribute[name.name='className'] Literal[value=/(^|\\s)text-\\[(\\d*\\.)?\\d+(px|rem|em)\\]/], JSXAttribute[name.name='className'] TemplateElement[value.raw=/(^|\\s)text-\\[(\\d*\\.)?\\d+(px|rem|em)\\]/], CallExpression[callee.name=/^(cn|clsx|cva)$/] Literal[value=/(^|\\s)text-\\[(\\d*\\.)?\\d+(px|rem|em)\\]/], CallExpression[callee.name=/^(cn|clsx|cva)$/] TemplateElement[value.raw=/(^|\\s)text-\\[(\\d*\\.)?\\d+(px|rem|em)\\]/]",
         "message": "Do not use arbitrary font sizes (e.g. text-[12px], text-[1.5rem]) in Tailwind classes. Please use standard font size classes like text-sm, text-base, text-14, text-18, etc."
       }
     ]
+  },
+  "settings": {
+    "tailwindcss": {
+      "config": "tailwind.config.js",
+      "callees": ["cn", "cva", "clsx"]
+    }
   },
   "overrides": [
     {

@@ -151,7 +151,7 @@ export const MultiSelect = React.forwardRef<
             ref={ref}
             onClick={handleTogglePopover}
             className={cn(
-              'bg-inherit hover:bg-inherit flex h-auto min-h-10 w-full items-center justify-between rounded-md border p-1 [&_svg]:pointer-events-auto',
+              'flex h-auto min-h-10 w-full items-center justify-between rounded-md border bg-inherit p-1 hover:bg-inherit [&_svg]:pointer-events-auto',
               className
             )}
             variant={variant}
@@ -186,7 +186,7 @@ export const MultiSelect = React.forwardRef<
                   {selectedValues.length > maxCount && (
                     <Badge
                       className={cn(
-                        'bg-transparent border-text-primary/1 hover:bg-transparent text-text-primary',
+                        'border-text-primary/10 bg-transparent text-text-primary hover:bg-transparent',
                         multiSelectVariants({ variant })
                       )}
                       style={{ animationDuration: `${animation}s` }}

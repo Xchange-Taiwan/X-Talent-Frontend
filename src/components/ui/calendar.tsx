@@ -121,7 +121,7 @@ function Calendar({
         dropdown_root: cn(
           isProfile
             ? 'relative inline-flex items-center gap-0.5 rounded-md px-1 py-0.5 text-sm font-semibold text-text-primary hover:bg-background-bottom-secondary'
-            : 'has-focus:border-ring border-background-border shadow-xs has-focus:ring-ring/50 has-focus:ring-[3px] relative rounded-md border',
+            : 'has-focus:border-ring border-background-border shadow-sm has-focus:ring-ring/50 has-focus:ring-[3px] relative rounded-md border',
           defaultClassNames.dropdown_root
         ),
 
@@ -349,7 +349,7 @@ function CalendarDayButton({
           'bg-brand-500/20 hover:bg-brand-500/30',
 
         !modifiers.disabled &&
-          'group-data-[variant=profile]/calendar:text-black group-data-[variant=profile]/calendar:font-medium'
+          'group-data-[variant=profile]/calendar:font-medium group-data-[variant=profile]/calendar:text-black'
       )}
       {...props}
     />

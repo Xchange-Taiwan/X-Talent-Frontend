@@ -29,7 +29,7 @@ export const HomePageSlider: FC = () => {
     >
       {sliderList.map(({ name, text, avatar }, index) => (
         <SwiperSlide
-          className="margin-0"
+          className="m-0"
           key={`${name}_Slide_${index + 1}`}
           style={{ width: '100%', margin: 0 }}
         >

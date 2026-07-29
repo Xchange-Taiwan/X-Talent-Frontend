@@ -29,7 +29,7 @@ const SelectItem = React.forwardRef<HTMLDivElement, SelectItemProps>(
     return (
       <Select.Item
         className={cn(
-          'data-[disabled]:text-mauve8 text-black data-[highlighted]:text-white relative flex h-[25px] select-none items-center rounded-[3px] pl-[25px] pr-[35px] text-base leading-none data-[disabled]:pointer-events-none data-[highlighted]:bg-brand-500 data-[highlighted]:outline-none md:text-13',
+          'relative flex h-[25px] select-none items-center rounded-[3px] pl-[25px] pr-[35px] text-base leading-none text-black data-[disabled]:pointer-events-none data-[highlighted]:bg-brand-500 data-[disabled]:text-text-disable data-[highlighted]:text-white data-[highlighted]:outline-none md:text-13',
           className
         )}
         {...props}
@@ -50,17 +50,17 @@ const SelectOptions = React.forwardRef<HTMLDivElement, SelectOptionsProps>(
     return (
       <Select.Root>
         <Select.Trigger
-          className="text-violet11 inline-flex h-10 items-center gap-[5px] rounded border border-background-border px-3 py-2 text-base leading-none outline-none data-[placeholder]:text-text-tertiary md:text-sm"
+          className="inline-flex h-10 items-center gap-[5px] rounded border border-background-border px-3 py-2 text-base leading-none text-text-primary outline-none data-[placeholder]:text-text-tertiary md:text-sm"
           aria-label="Food"
         >
           <Select.Value placeholder={selectItemData.placeholder} />
-          <Select.Icon className="text-violet11 ml-auto">
+          <Select.Icon className="ml-auto text-text-primary">
             <ChevronDownIcon />
           </Select.Icon>
         </Select.Trigger>
         <Select.Portal>
           <Select.Content className="z-[60] overflow-hidden rounded-md bg-light shadow-[0px_10px_38px_-10px_rgba(22,_23,_24,_0.35),0px_10px_20px_-15px_rgba(22,_23,_24,_0.2)]">
-            <Select.ScrollUpButton className="text-violet11 flex h-[25px] cursor-default items-center justify-center bg-light">
+            <Select.ScrollUpButton className="flex h-[25px] cursor-default items-center justify-center bg-light text-text-primary">
               <ChevronUpIcon />
             </Select.ScrollUpButton>
             <Select.Viewport className="p-[5px]">
@@ -77,7 +77,7 @@ const SelectOptions = React.forwardRef<HTMLDivElement, SelectOptionsProps>(
                 })}
               </Select.Group>
             </Select.Viewport>
-            <Select.ScrollDownButton className="text-violet11 flex h-[25px] cursor-default items-center justify-center bg-light">
+            <Select.ScrollDownButton className="flex h-[25px] cursor-default items-center justify-center bg-light text-text-primary">
               <ChevronDownIcon />
             </Select.ScrollDownButton>
           </Select.Content>
