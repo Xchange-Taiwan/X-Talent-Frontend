@@ -21,7 +21,7 @@
    - 在 `.eslintrc.json` 中完整配置：
      - 加入 `"tailwindcss"` 到 `plugins` 陣列。
      - 啟用 `"tailwindcss/no-custom-classname": "error"`，確保任何不屬於 Tailwind 主題或合法 JIT 規則的類名都會在靜態檢查中拋錯（這包含了先前死碼 Token 如 `status-200` 等問題的全面攔截）。
-     - **白名單防御 (Whitelist):** 特別將 `"destructive"` 類名設入 `whitelist` 白名單之中，避免因為 linter 強制剔除自訂 group 標記而導致子元件 CSS 選擇器失效。
+     - **白名單防御 (Whitelist):** 特別將 `"destructive"` 類名設入 `whitelist` 白名單之中，避免 because linter 強制剔除自訂 group 標記而導致子元件 CSS 選擇器失效。
      - 設定專案 `settings.tailwindcss` 以正確路徑解析 `tailwind.config.js`，並宣告 `callees: ["cn", "cva", "clsx"]` 以涵蓋多數工具函式內的類名解析。
    - 移除舊有的兩個 `no-restricted-syntax` 顏色限制，並確實保留了第三個針對 `text-[12px]` 字體大小的 regex 規則。
 
@@ -35,7 +35,7 @@
    - **`src/components/landing/HomePageSlider.tsx`**: 將非法類名 `margin-0` 修正為正統 `m-0`。
    - **`src/components/profile/profile-card/ProfileCard.tsx`**: 將非法 `bg-bright` 背景類名修正為合法 Design Token `bg-background-white`。
    - **`src/components/reservation/ReservationDashboard.tsx`**: 移除未配置且無效的 `font-roboto` 字體類名，使網頁標題完美回歸 Noto Sans TC 全域字體樣式。
-   - **`src/components/ui/calendar.tsx`**: 將不存在的 `shadow-xs` 修正為正統 `shadow-sm`。
+   - **`src/components/ui/calendar.tsx`**: 將不存在的 `shadow-xs` 修正為專案標籤 `shadow-sm`。
    - **`src/components/ui/multi-select.tsx`**: 將 opacity 拼寫錯誤 `border-text-primary/1` (1% 不透光，等於透明) 修正為正確的 `border-text-primary/10` (10% 不透光)。
    - **`src/components/ui/select-options.tsx`**:
      - 將複製自 Radix UI 官網的 `data-[disabled]:text-mauve8` 修正為對齊專案 Token 的 `data-[disabled]:text-text-disable`。
@@ -46,7 +46,7 @@
 
 ## 3. Discipline Evaluation (專案紀律與安全檢驗)
 
-- **PII 與敏感資訊 (PII & Secrets Check):** 經程式碼全文掃描，變更中**無**任何個人敏感資料（PII）、硬編碼 API Key、憑證或私密資訊洩漏，完全符合安全防護規範。
+- **PII 與敏感資訊 (PII & Secrets Check):** 經程式碼全文掃描，變更中**無**任何個人敏感資料（PII）、硬編碼 API Key、憑證 or 私密資訊洩漏，完全符合安全防護規範。
 - **除錯紀錄與日誌 (Debug Logs Check):** 所有變更皆不含任何 `console.log`、`console.error` 或除錯標記。
 - **類型安全性 (Type Safety):** 執行 `pnpm run type-check` 結果為 **SUCCESS (0 errors)**。沒有破壞型別系統。
 - **程式碼風格與語意 (Code Smell & Styling):** 僅針對 Issue 要求的檔案與必要的 17 個 classnames/typos 問題進行精準、無副作用的局部修改，程式碼極其乾淨，並無多餘的非相關重構。
