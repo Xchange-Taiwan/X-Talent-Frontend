@@ -30,32 +30,32 @@ const SOCIAL_LINKS: Array<{
   {
     name: 'linkedin',
     label: 'LinkedIn',
-    icon: <LinkedinColor className="h-5 w-5" />,
+    icon: <LinkedinColor className="size-5" />,
   },
   {
     name: 'facebook',
     label: 'Facebook',
-    icon: <FacebookColor className="h-5 w-5" />,
+    icon: <FacebookColor className="size-5" />,
   },
   {
     name: 'instagram',
     label: 'Instagram',
-    icon: <InstagramColor className="h-5 w-5" />,
+    icon: <InstagramColor className="size-5" />,
   },
   {
     name: 'twitter',
     label: 'X (formerly Twitter)',
-    icon: <TwitterColor className="h-5 w-5" />,
+    icon: <TwitterColor className="size-5" />,
   },
   {
     name: 'youtube',
     label: 'YouTube',
-    icon: <YoutubeColor className="h-5 w-5" />,
+    icon: <YoutubeColor className="size-5" />,
   },
   {
     name: 'website',
     label: '個人網站',
-    icon: <WebsiteColor className="h-5 w-5" />,
+    icon: <WebsiteColor className="size-5" />,
   },
 ];
 
@@ -85,7 +85,7 @@ export const LinksSection = ({ form }: Props) => (
             <FormItem className="mb-4">
               <FormLabel>{label}</FormLabel>
               <div className="flex items-center">
-                <div className="mr-3 flex h-5 w-5 flex-shrink-0 items-center justify-center">
+                <div className="mr-3 flex size-5 flex-shrink-0 items-center justify-center">
                   {icon}
                 </div>
                 <FormControl>

@@ -46,7 +46,7 @@ export function HamburgerMenu({
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <Button variant="ghost" aria-label="開啟導航選單">
-          <HamburgerMenuIcon className="h-6 w-6" aria-hidden="true" />
+          <HamburgerMenuIcon className="size-6" aria-hidden="true" />
         </Button>
       </SheetTrigger>
 
@@ -56,14 +56,18 @@ export function HamburgerMenu({
           <SheetClose asChild>
             <button type="button" aria-label="關閉導航選單" className="ml-auto">
               <Cross2Icon
-                className="h-8 w-8 text-brand-900"
+                className="size-8 text-brand-900"
                 aria-hidden="true"
               />
             </button>
           </SheetClose>
 
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8 text-2xl">
-            <Link href="/mentor-pool" onClick={close} className="text-black">
+            <Link
+              href="/mentor-pool"
+              onClick={close}
+              className="text-text-primary"
+            >
               尋找導師
             </Link>
 
@@ -72,7 +76,7 @@ export function HamburgerMenu({
                 href={profilePath}
                 onClick={close}
                 disabled={isResolvingUser}
-                className="text-black"
+                className="text-text-primary"
               >
                 我的導師頁面
               </DisabledAwareLink>
@@ -81,13 +85,13 @@ export function HamburgerMenu({
                 href={becomeMentorPath}
                 onClick={close}
                 disabled={isResolvingUser}
-                className="text-black"
+                className="text-text-primary"
               >
                 成為導師
               </DisabledAwareLink>
             )}
 
-            <Link href="/about" onClick={close} className="text-black">
+            <Link href="/about" onClick={close} className="text-text-primary">
               關於 X-Talent
             </Link>
 
@@ -100,7 +104,7 @@ export function HamburgerMenu({
                 trackEvent({ name: 'feedback_open' });
                 close();
               }}
-              className="text-black"
+              className="text-text-primary"
             >
               提供回饋
             </a>

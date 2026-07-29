@@ -26,12 +26,12 @@ const MultiSelectDropdown = dynamic(
  * Uses class-variance-authority (cva) to define different styles based on "variant" prop.
  */
 const multiSelectVariants = cva(
-  'm-1 transition ease-in-out delay-150 hover:-translate-y-1 hover:scale-110 duration-300',
+  'm-1 transition delay-150 duration-300 ease-in-out hover:-translate-y-1 hover:scale-110',
   {
     variants: {
       variant: {
         default:
-          'border-text-primary/10 text-text-primary bg-background-white hover:bg-background-white/80',
+          'border-text-primary/10 bg-background-white text-text-primary hover:bg-background-white/80',
         secondary:
           'border-text-primary/10 bg-background-bottom text-text-primary hover:bg-background-bottom/80',
         destructive:
@@ -151,7 +151,7 @@ export const MultiSelect = React.forwardRef<
             ref={ref}
             onClick={handleTogglePopover}
             className={cn(
-              'bg-inherit hover:bg-inherit flex h-auto min-h-10 w-full items-center justify-between rounded-md border p-1 [&_svg]:pointer-events-auto',
+              'flex h-auto min-h-10 w-full items-center justify-between rounded-md border bg-transparent p-1 hover:bg-transparent [&_svg]:pointer-events-auto',
               className
             )}
             variant={variant}
@@ -170,11 +170,11 @@ export const MultiSelect = React.forwardRef<
                         variant={variant}
                       >
                         {IconComponent && (
-                          <IconComponent className="mr-2 h-4 w-4" />
+                          <IconComponent className="mr-2 size-4" />
                         )}
                         {option?.label}
                         <X
-                          className="ml-2 h-4 w-4 cursor-pointer"
+                          className="ml-2 size-4 cursor-pointer"
                           onClick={(event) => {
                             event.stopPropagation();
                             toggleOption(val);
@@ -186,14 +186,14 @@ export const MultiSelect = React.forwardRef<
                   {selectedValues.length > maxCount && (
                     <Badge
                       className={cn(
-                        'bg-transparent border-text-primary/1 hover:bg-transparent text-text-primary',
+                        'border-transparent bg-transparent text-text-primary hover:bg-transparent',
                         multiSelectVariants({ variant })
                       )}
                       style={{ animationDuration: `${animation}s` }}
                     >
                       {`+ ${selectedValues.length - maxCount} more`}
                       <X
-                        className="ml-2 h-4 w-4 cursor-pointer"
+                        className="ml-2 size-4 cursor-pointer"
                         onClick={(event) => {
                           event.stopPropagation();
                           clearExtraOptions();

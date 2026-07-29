@@ -88,10 +88,7 @@ function StepHeader({
       </p>
       <div className="flex items-center gap-3">
         {showBack && (
-          <ChevronLeft
-            className="h-6 w-6 cursor-pointer"
-            onClick={onGoToPrev}
-          />
+          <ChevronLeft className="size-6 cursor-pointer" onClick={onGoToPrev} />
         )}
         <p className="text-4xl font-bold">{stepTitle[currentStep - 1]}</p>
       </div>
@@ -242,7 +239,7 @@ export default function OnboardingUI({
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="mr-2 size-4 animate-spin" />
                     提交
                   </>
                 ) : (

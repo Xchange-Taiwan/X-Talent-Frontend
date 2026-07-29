@@ -47,10 +47,10 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
   const triggerClass =
     'group shrink-0 rounded-full border border-background-border px-3 py-1.5 text-sm ' +
     'bg-transparent text-text-primary ' +
-    'data-[state=active]:bg-black data-[state=active]:text-white data-[state=active]:border-black';
+    'data-[state=active]:bg-black data-[state=active]:text-text-white data-[state=active]:border-black';
 
   const countClass =
-    'ml-1 text-xs text-text-tertiary group-data-[state=active]:text-white/80';
+    'ml-1 text-xs text-text-tertiary group-data-[state=active]:text-text-white/80';
 
   const handleValueChange = (value: string) => {
     if (value === 'history' && !isHistoryLoaded && !isLoadingHistory) {
@@ -68,7 +68,7 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
   return (
     <div className="flex min-h-[calc(100vh-70px)] justify-center pb-12">
       <div className="w-full max-w-[90%] rounded-2xl md:max-w-[800px]">
-        <div className="font-roboto mx-auto mb-6 text-center text-2xl font-semibold leading-tight tracking-[0%] text-text-primary md:text-36 md:leading-tight">
+        <div className="mx-auto mb-6 text-center font-sans text-2xl font-semibold leading-tight tracking-normal text-text-primary md:text-36 md:leading-tight">
           {title}
         </div>
 
@@ -78,7 +78,7 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
             className="w-full"
             onValueChange={handleValueChange}
           >
-            <div className="bg-white sticky top-0 z-10 pb-2">
+            <div className="sticky top-0 z-10 bg-background-white pb-2">
               <div className="-mx-3 sm:mx-0">
                 <div
                   className="
@@ -91,7 +91,7 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
                   dir="ltr"
                 >
                   <div className="flex justify-center">
-                    <TabsList className="bg-transparent inline-flex w-max items-center gap-2 px-0">
+                    <TabsList className="inline-flex w-max items-center gap-2 bg-transparent px-0">
                       <TabsTrigger
                         value={upcomingTabValue}
                         className={triggerClass}

@@ -121,12 +121,12 @@ function Calendar({
         dropdown_root: cn(
           isProfile
             ? 'relative inline-flex items-center gap-0.5 rounded-md px-1 py-0.5 text-sm font-semibold text-text-primary hover:bg-background-bottom-secondary'
-            : 'has-focus:border-ring border-background-border shadow-xs has-focus:ring-ring/50 has-focus:ring-[3px] relative rounded-md border',
+            : 'has-focus:border-ring has-focus:ring-ring/50 has-focus:ring relative rounded-md border border-background-border shadow-sm',
           defaultClassNames.dropdown_root
         ),
 
         dropdown: cn(
-          'bg-popover absolute inset-0 opacity-0',
+          'absolute inset-0 bg-popover opacity-0',
           defaultClassNames.dropdown
         ),
 
@@ -137,8 +137,8 @@ function Calendar({
           captionLayout === 'label'
             ? 'text-[length:var(--calendar-caption-font-size)]'
             : isProfile
-              ? '[&>svg]:text-text-tertiary flex h-8 items-center gap-1 rounded-md text-[length:var(--calendar-caption-font-size)] [&>svg]:size-3.5'
-              : '[&>svg]:text-text-tertiary flex h-8 items-center gap-1 rounded-md pl-2 pr-1 text-[length:var(--calendar-caption-font-size)] [&>svg]:size-3.5',
+              ? 'flex h-8 items-center gap-1 rounded-md text-[length:var(--calendar-caption-font-size)] [&>svg]:size-3.5 [&>svg]:text-text-tertiary'
+              : 'flex h-8 items-center gap-1 rounded-md pl-2 pr-1 text-[length:var(--calendar-caption-font-size)] [&>svg]:size-3.5 [&>svg]:text-text-tertiary',
           defaultClassNames.caption_label
         ),
 
@@ -149,8 +149,8 @@ function Calendar({
 
         weekday: cn(
           isProfile
-            ? 'text-black font-semibold flex h-[var(--cell-size)] select-none items-center justify-center rounded-md text-[length:var(--calendar-weekday-font-size)]'
-            : 'text-text-tertiary font-normal flex h-[var(--cell-size)] select-none items-center justify-center rounded-md text-[length:var(--calendar-weekday-font-size)]',
+            ? 'flex h-[var(--cell-size)] select-none items-center justify-center rounded-md text-[length:var(--calendar-weekday-font-size)] font-semibold text-text-primary'
+            : 'flex h-[var(--cell-size)] select-none items-center justify-center rounded-md text-[length:var(--calendar-weekday-font-size)] font-normal text-text-tertiary',
           defaultClassNames.weekday
         ),
 
@@ -162,7 +162,7 @@ function Calendar({
         ),
 
         week_number: cn(
-          'text-text-tertiary select-none text-[length:var(--calendar-weekday-font-size)]',
+          'select-none text-[length:var(--calendar-weekday-font-size)] text-text-tertiary',
           defaultClassNames.week_number
         ),
 
@@ -172,14 +172,14 @@ function Calendar({
         ),
 
         range_start: cn(
-          'bg-background-bottom rounded-l-md',
+          'rounded-l-md bg-background-bottom',
           defaultClassNames.range_start
         ),
 
         range_middle: cn('rounded-none', defaultClassNames.range_middle),
 
         range_end: cn(
-          'bg-background-bottom rounded-r-md',
+          'rounded-r-md bg-background-bottom',
           defaultClassNames.range_end
         ),
 
@@ -349,7 +349,7 @@ function CalendarDayButton({
           'bg-brand-500/20 hover:bg-brand-500/30',
 
         !modifiers.disabled &&
-          'group-data-[variant=profile]/calendar:text-black group-data-[variant=profile]/calendar:font-medium'
+          'group-data-[variant=profile]/calendar:font-medium group-data-[variant=profile]/calendar:text-text-primary'
       )}
       {...props}
     />

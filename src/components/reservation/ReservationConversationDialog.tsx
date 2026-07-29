@@ -69,7 +69,7 @@ export default function ReservationConversationDialog({
             type="button"
             className="inline-flex items-center gap-1 rounded-sm text-xs text-text-tertiary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 sm:text-sm"
           >
-            <MessageSquare className="h-3.5 w-3.5" aria-hidden />
+            <MessageSquare className="size-3.5" aria-hidden />
             查看完整對話
           </button>
         )}
@@ -78,7 +78,7 @@ export default function ReservationConversationDialog({
       <DialogContent className="flex max-h-[85vh] w-[92vw] max-w-[480px] flex-col gap-0 p-0 sm:max-w-lg">
         <DialogHeader className="space-y-3 border-b p-4 sm:p-6">
           <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10 shrink-0">
+            <Avatar className="size-10 shrink-0">
               {reservation.avatar ? (
                 <AvatarImage
                   src={getAvatarThumbUrl(reservation.avatar)}
@@ -99,11 +99,11 @@ export default function ReservationConversationDialog({
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-tertiary sm:text-sm">
             <span className="inline-flex items-center gap-1.5">
-              <CalendarDays className="h-3.5 w-3.5" aria-hidden />
+              <CalendarDays className="size-3.5" aria-hidden />
               {reservation.date}
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5" aria-hidden />
+              <Clock className="size-3.5" aria-hidden />
               {reservation.time}
             </span>
           </div>

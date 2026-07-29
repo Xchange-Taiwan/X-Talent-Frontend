@@ -108,9 +108,7 @@ export default function RejectReservationDialog({
               disabled={!canSubmit || disabled}
               onClick={handleReject}
             >
-              {isSubmitting && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+              {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" />}
               拒絕
             </Button>
           </DialogFooter>

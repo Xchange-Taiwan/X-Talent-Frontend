@@ -9,9 +9,9 @@ export default function Page() {
   const router = useRouter();
 
   return (
-    <div className="bg-white">
+    <div className="bg-background-white">
       <main className="px-6 pb-20 pt-16">
-        <div className="bg-white mx-auto w-full max-w-[554px] overflow-hidden rounded-[16px] border border-background-border shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
+        <div className="mx-auto w-full max-w-[554px] overflow-hidden rounded-[16px] border border-background-border bg-background-white shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
           <div className="h-[88px] bg-[linear-gradient(90deg,#EAFBFB_0%,#CFEFFF_45%,#EAE4FF_100%)]" />
 
           <div className="px-8 pb-10">
