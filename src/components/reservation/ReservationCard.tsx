@@ -137,36 +137,16 @@ export function ReservationCard({
             {hasAnyMessage ? (
               <div className="mt-3 space-y-2">
                 {menteeMessage ? (
-                  <div className="flex items-start gap-2 rounded-lg bg-background-bottom/40 p-2.5 text-xs sm:text-sm">
-                    <MessageSquare
-                      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-tertiary sm:h-4 sm:w-4"
-                      aria-hidden
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-11 font-medium text-text-tertiary sm:text-xs">
-                        學員留言
-                      </div>
-                      <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap break-words text-text-primary">
-                        {menteeMessage.content}
-                      </p>
-                    </div>
-                  </div>
+                  <MessageBlock
+                    label="學員留言"
+                    content={menteeMessage.content}
+                  />
                 ) : null}
                 {mentorMessage ? (
-                  <div className="flex items-start gap-2 rounded-lg bg-background-bottom/40 p-2.5 text-xs sm:text-sm">
-                    <MessageSquare
-                      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-tertiary sm:h-4 sm:w-4"
-                      aria-hidden
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-11 font-medium text-text-tertiary sm:text-xs">
-                        導師回覆
-                      </div>
-                      <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap break-words text-text-primary">
-                        {mentorMessage.content}
-                      </p>
-                    </div>
-                  </div>
+                  <MessageBlock
+                    label="導師回覆"
+                    content={mentorMessage.content}
+                  />
                 ) : null}
               </div>
             ) : null}
@@ -183,5 +163,24 @@ export function ReservationCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function MessageBlock({ label, content }: { label: string; content: string }) {
+  return (
+    <div className="flex items-start gap-2 rounded-lg bg-background-bottom/40 p-2.5 text-xs sm:text-sm">
+      <MessageSquare
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-tertiary sm:h-4 sm:w-4"
+        aria-hidden
+      />
+      <div className="min-w-0 flex-1">
+        <div className="text-11 font-medium text-text-tertiary sm:text-xs">
+          {label}
+        </div>
+        <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap break-words text-text-primary">
+          {content}
+        </p>
+      </div>
+    </div>
   );
 }
