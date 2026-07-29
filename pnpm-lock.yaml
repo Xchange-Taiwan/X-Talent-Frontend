@@ -211,7 +211,7 @@ importers:
         version: 10.5.5(eslint@8.57.1)(storybook@10.5.5(@types/react@18.2.48)(prettier@3.8.0)(react@18.2.0))(typescript@5.9.3)
       eslint-plugin-tailwindcss:
         specifier: ^3.18.3
-        version: 3.18.3(tailwindcss@3.4.19(yaml@2.8.2))
+        version: 3.18.3(tailwindcss@3.4.19(tsx@4.23.1)(yaml@2.8.2))
       husky:
         specifier: ^9.0.10
         version: 9.1.7
@@ -12275,13 +12275,13 @@ snapshots:
       - supports-color
       - typescript
 
-  eslint-plugin-tailwindcss@3.18.3(tailwindcss@3.4.19(yaml@2.8.2)):
+  eslint-plugin-tailwindcss@3.18.3(tailwindcss@3.4.19(tsx@4.23.1)(yaml@2.8.2)):
     dependencies:
       fast-glob: 3.3.3
       postcss: 8.5.9
       synckit: 0.11.13
-      tailwind-api-utils: 1.0.3(tailwindcss@3.4.19(yaml@2.8.2))
-      tailwindcss: 3.4.19(yaml@2.8.2)
+      tailwind-api-utils: 1.0.3(tailwindcss@3.4.19(tsx@4.23.1)(yaml@2.8.2))
+      tailwindcss: 3.4.19(tsx@4.23.1)(yaml@2.8.2)
 
   eslint-scope@5.1.1:
     dependencies:
@@ -14696,12 +14696,12 @@ snapshots:
     dependencies:
       '@pkgr/core': 0.3.6
 
-  tailwind-api-utils@1.0.3(tailwindcss@3.4.19(yaml@2.8.2)):
+  tailwind-api-utils@1.0.3(tailwindcss@3.4.19(tsx@4.23.1)(yaml@2.8.2)):
     dependencies:
       enhanced-resolve: 5.18.4
       jiti: 2.7.0
       local-pkg: 1.2.1
-      tailwindcss: 3.4.19(yaml@2.8.2)
+      tailwindcss: 3.4.19(tsx@4.23.1)(yaml@2.8.2)
 
   tailwind-merge@2.6.0: {}
 
