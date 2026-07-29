@@ -70,9 +70,7 @@
   },
   "devDependencies": {
     "@google/gemini-cli": "0.52.0",
-    "@oxc-resolver/binding-win32-x64-msvc": "^11.24.2",
     "@playwright/test": "^1.58.2",
-    "@rolldown/binding-win32-x64-msvc": "^1.2.1",
     "@storybook/addon-a11y": "^10.5.5",
     "@storybook/addon-docs": "^10.5.5",
     "@storybook/addon-onboarding": "^10.5.5",

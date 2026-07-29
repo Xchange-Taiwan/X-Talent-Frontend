@@ -131,15 +131,9 @@ importers:
       '@google/gemini-cli':
         specifier: 0.52.0
         version: 0.52.0
-      '@oxc-resolver/binding-win32-x64-msvc':
-        specifier: ^11.24.2
-        version: 11.24.2
       '@playwright/test':
         specifier: ^1.58.2
         version: 1.58.2
-      '@rolldown/binding-win32-x64-msvc':
-        specifier: ^1.2.1
-        version: 1.2.1
       '@storybook/addon-a11y':
         specifier: ^10.5.5
         version: 10.5.5(storybook@10.5.5(@types/react@18.2.48)(prettier@3.8.0)(react@18.2.0))
@@ -2147,6 +2141,7 @@ packages:
 
   '@oxc-resolver/binding-win32-x64-msvc@11.24.2':
     resolution: {integrity: sha512-UqGPmo56KDfLlfXFAFIrNflHT8tFxWGEivWg3Zeyp4Uy2NlKN1FGPr6/BxcLGG3+kZ6Wp14g5Uj+n71boqZfiw==}
+    cpu: [x64]
     os: [win32]
 
   '@panva/hkdf@1.2.1':
@@ -2747,12 +2742,6 @@ packages:
 
   '@rolldown/binding-win32-x64-msvc@1.0.0-rc.15':
     resolution: {integrity: sha512-3P2A8L+x75qavWLe/Dll3EYBJLQmtkJN8rfh+U/eR3MqMgL/h98PhYI+JFfXuDPgPeCB7iZAKiqii5vqOvnA0g==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [x64]
-    os: [win32]
-
-  '@rolldown/binding-win32-x64-msvc@1.2.1':
-    resolution: {integrity: sha512-Z4eCmn5QJ/5+azF9knpLWKfVd9aidn0mAe9TpJgvBLId9Ax3t0+JVxBmT25Bv7NBbVW1TZyKjQjQReouMeH5UQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [x64]
     os: [win32]
@@ -9495,7 +9484,8 @@ snapshots:
   '@oxc-resolver/binding-win32-arm64-msvc@11.24.2':
     optional: true
 
-  '@oxc-resolver/binding-win32-x64-msvc@11.24.2': {}
+  '@oxc-resolver/binding-win32-x64-msvc@11.24.2':
+    optional: true
 
   '@panva/hkdf@1.2.1': {}
 
@@ -10050,8 +10040,6 @@ snapshots:
 
   '@rolldown/binding-win32-x64-msvc@1.0.0-rc.15':
     optional: true
-
-  '@rolldown/binding-win32-x64-msvc@1.2.1': {}
 
   '@rolldown/pluginutils@1.0.0-rc.15': {}
 
