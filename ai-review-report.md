@@ -29,7 +29,7 @@
 
 ## 2. Added Files (新增檔案變更分析)
 
-以下為本次新增的 6 個 Storybook 檔案：
+以下為本次新增 the 6 個 Storybook 檔案：
 
 | 順序  | 檔案路徑                                                      | 變更動作 | 說明 / 審查重點                                                                                                              |
 | :---- | :------------------------------------------------------------ | :------- | :--------------------------------------------------------------------------------------------------------------------------- |
@@ -44,7 +44,7 @@
 
 ## 3. Discipline Evaluation (專案紀律與安全檢驗)
 
-- **PII 與敏感資訊 (PII & Secrets Check):** 經程式碼全文掃描，本變更僅為 Storybook 測試編寫，不含任何硬編碼 API Key、認證金鑰或敏感 PII 資料。
+- **PII 與敏感資訊 (PII & Secrets Check):** 經程式碼全文掃描，本變更僅為 Storybook 測試編寫，不含任何硬編碼 API Key、認證金鑰 or 敏感 PII 資料。
 - **除錯紀錄與日誌 (Debug Logs Check):** 本變更無引進任何 `console.log`、`console.error` 或除錯標記。
 - **類型安全性 (Type Safety):** 全新編寫的 Story 檔案類型安全無任何 TS 錯誤。
 
@@ -52,7 +52,7 @@
 
 ## 4. Verification Results (自動化驗證)
 
-1. **類型安全檢查 (`pnpm type-check`):** 所有新增的 6 個 Story 檔案均 100% 通過 `tsc --noEmit`，未引入任何類型錯誤。
+1. **類型安全檢查 (`pnpm type-check`):** 所有新增的 6 個 Story 檔案均 100% 通過 `tsc --noEmit`，未引入 any 類型錯誤。
 2. **品質審查 (Linter & Format):** 程式碼結構乾淨，導入順序符合專案之 `simple-import-sort` 規範，無非相關重構。
 
 ---
