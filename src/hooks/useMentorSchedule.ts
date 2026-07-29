@@ -34,7 +34,10 @@ import {
   SyncResult,
 } from '@/services/mentor-schedule/sync';
 
-export type { BookingSlot } from '@/lib/profile/scheduleHelpers';
+export type {
+  BookingSlot,
+  ParsedMentorTimeslot,
+} from '@/lib/profile/scheduleHelpers';
 export { expandRrule } from '@/lib/profile/scheduleHelpers';
 
 type Options = {
