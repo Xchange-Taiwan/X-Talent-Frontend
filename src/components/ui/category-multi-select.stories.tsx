@@ -14,20 +14,30 @@ type Story = StoryObj<typeof CategoryMultiSelect>;
 
 const CATEGORIES = [
   {
-    key: 'tech',
-    label: '技術開發',
+    key: 'position',
+    label: '專業角色 (Positions)',
     options: [
-      { value: 'frontend', label: '前端開發 (Frontend)' },
-      { value: 'backend', label: '後端開發 (Backend)' },
-      { value: 'devops', label: '雲端運維 (DevOps)' },
+      { value: 'frontend', label: '前端工程師 (Frontend)' },
+      { value: 'backend', label: '後端工程師 (Backend)' },
+      { value: 'pm', label: '產品經理 (Product Manager)' },
     ],
   },
   {
-    key: 'design',
-    label: '設計與行銷',
+    key: 'skill',
+    label: '專業技能 (Skills)',
     options: [
-      { value: 'uiux', label: 'UI/UX 設計' },
-      { value: 'marketing', label: '社群行銷' },
+      { value: 'react', label: 'React' },
+      { value: 'typescript', label: 'TypeScript' },
+      { value: 'node', label: 'Node.js' },
+    ],
+  },
+  {
+    key: 'topic',
+    label: '諮詢主題 (Topics)',
+    options: [
+      { value: 'career', label: '職涯規劃 (Career Planning)' },
+      { value: 'resume', label: '履歷健檢 (Resume Review)' },
+      { value: 'mock-interview', label: '模擬面試 (Mock Interview)' },
     ],
   },
 ];

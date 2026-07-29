@@ -10,7 +10,7 @@
 
 本審查針對分支 `feat/416-storybook-onboarding-tag-primitives` 進行 onboarding tag-selection primitives 故事書覆蓋的實作。本次實作範圍涵蓋 X-Tracker #416 所指定的需求：
 
-1. 建立真實的 tag-catalog 測試資料 (actual TagKind groups: skill/position/topic/industry)，其來源完全對齊 `src/types/` 與 `src/schemas/` 的定義，以利後續 onboarding step 票卡可以重複使用。
+1. 建立真實的 tag-catalog 測試資料 (actual TagKind groups: skill/position/topic/industry), 其來源完全對齊 `src/types/` 與 `src/schemas/` 的定義，以利後續 onboarding step 票卡可以重複使用。
 2. 撰寫 `GroupedSelections.stories.tsx` 以覆蓋多群組標籤目錄（包含空群組、已選取狀態）。
 3. 撰寫 `TagMultiSelect.stories.tsx` 以覆蓋預設（未選）、選取中、達到最大選取數量（maxSelected）等狀態。
 4. 驗證 `pnpm storybook` 可以正常編譯且無控制台錯誤。
