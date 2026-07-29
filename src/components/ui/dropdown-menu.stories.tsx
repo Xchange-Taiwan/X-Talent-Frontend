@@ -44,7 +44,9 @@ export const Default: Story = {
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-destructive">登出</DropdownMenuItem>
+        <DropdownMenuItem className="text-status-error-default">
+          登出
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   ),

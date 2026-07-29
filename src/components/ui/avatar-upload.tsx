@@ -102,7 +102,7 @@ const AvatarUpload = <T extends FieldValues>({
         )}
       </div>
       {errorMessage && (
-        <p className="mt-2 text-center text-sm font-medium text-destructive lg:text-left">
+        <p className="mt-2 text-center text-sm font-medium text-status-error-default lg:text-left">
           {errorMessage}
         </p>
       )}
