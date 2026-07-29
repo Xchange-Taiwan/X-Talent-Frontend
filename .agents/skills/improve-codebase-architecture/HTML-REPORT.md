@@ -73,7 +73,7 @@ Pick the pattern that fits the candidate. Mix them. Don't make every diagram loo
 Use a Mermaid `flowchart` or `graph` when the point is "X calls Y calls Z, and look at the mess." Wrap it in a Tailwind-styled card so it doesn't feel parachuted in. Style with classDef to colour leakage edges red and the deep module dark. Sequence diagrams work well for "before: 6 round-trips; after: 1."
 
 ```html
-<div class="border-slate-200 bg-white rounded-lg border p-4">
+<div class="border-slate-200 rounded-lg border bg-white p-4">
   <pre class="mermaid">
     flowchart LR
       A[OrderHandler] --> B[OrderValidator]

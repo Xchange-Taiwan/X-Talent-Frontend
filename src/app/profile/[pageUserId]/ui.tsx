@@ -264,7 +264,7 @@ export default function ProfilePageUI({
                 <ScheduleSkeleton />
               ) : (
                 <div className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] 2xl:max-w-[414px]">
-                  <div className="bg-white w-full rounded-2xl border border-background-border p-5 shadow-sm">
+                  <div className="w-full rounded-2xl border border-background-border bg-white p-5 shadow-sm">
                     <div className="mb-3 border-b border-background-border pb-3">
                       <p className="mb-1 text-xs font-medium text-text-tertiary">
                         可預約日期

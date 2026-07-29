@@ -100,7 +100,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
                 className="h-14 w-14 rounded-full object-cover"
               />
               <div className="min-w-0">
-                <div className="text-black truncate text-2xl font-semibold">
+                <div className="truncate text-2xl font-semibold text-black">
                   {name || '我的個人頁面'}
                 </div>
                 {subtitle ? (
@@ -129,14 +129,14 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
                 type="button"
                 onClick={handleAsMentor}
                 disabled={!userId}
-                className="text-black py-4 text-left text-xl disabled:opacity-50"
+                className="py-4 text-left text-xl text-black disabled:opacity-50"
               >
                 {isMentor ? '導師預約管理' : '成為導師'}
               </button>
               <button
                 type="button"
                 onClick={handleMyReservation}
-                className="text-black py-4 text-left text-xl"
+                className="py-4 text-left text-xl text-black"
               >
                 我的預約
               </button>
@@ -145,7 +145,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
             <div className="flex flex-col pb-6">
               <button
                 type="button"
-                className="text-black py-4 text-left text-xl"
+                className="py-4 text-left text-xl text-black"
                 onClick={handleLogout}
               >
                 登出

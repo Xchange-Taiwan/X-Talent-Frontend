@@ -103,14 +103,14 @@ export function ShareProfileDialog({
           </Dialog.Description>
           <div className="rounded-[24px] bg-light px-6 pb-8 pt-6 sm:px-8">
             <div className="relative mb-8 flex items-center justify-center">
-              <Dialog.Title className="text-black text-center text-36 font-semibold leading-none">
+              <Dialog.Title className="text-center text-36 font-semibold leading-none text-black">
                 分享個人頁面
               </Dialog.Title>
 
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="text-black absolute right-0 top-1/2 -translate-y-1/2 text-28 leading-none"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 text-28 leading-none text-black"
                   aria-label="Close share profile dialog"
                 >
                   ×
@@ -132,7 +132,7 @@ export function ShareProfileDialog({
 
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-black truncate text-18 font-semibold">
+                    <p className="truncate text-18 font-semibold text-black">
                       {name}
                     </p>
 
@@ -153,7 +153,7 @@ export function ShareProfileDialog({
                   </div>
 
                   {subtitle ? (
-                    <p className="text-black mt-1 text-14 font-medium">
+                    <p className="mt-1 text-14 font-medium text-black">
                       {subtitle}
                     </p>
                   ) : null}
@@ -164,7 +164,7 @@ export function ShareProfileDialog({
             <div>
               <label
                 htmlFor="share-profile-link"
-                className="text-black mb-2 block text-14 font-medium"
+                className="mb-2 block text-14 font-medium text-black"
               >
                 個人頁面連結
               </label>
@@ -174,14 +174,14 @@ export function ShareProfileDialog({
                   id="share-profile-link"
                   value={profileUrl}
                   readOnly
-                  className="bg-transparent text-black w-full min-w-0 flex-1 rounded-sm border-0 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-14"
+                  className="w-full min-w-0 flex-1 rounded-sm border-0 bg-transparent text-base text-black outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-14"
                 />
 
                 <Button
                   type="button"
                   variant="outline"
                   onClick={handleCopy}
-                  className="text-black h-10 shrink-0 rounded-[10px] border border-background-border bg-light px-4 text-14 font-medium hover:bg-background-bottom-secondary"
+                  className="h-10 shrink-0 rounded-[10px] border border-background-border bg-light px-4 text-14 font-medium text-black hover:bg-background-bottom-secondary"
                 >
                   {copied ? '已複製' : '複製'}
                 </Button>
