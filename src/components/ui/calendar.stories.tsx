@@ -15,7 +15,7 @@ type Story = StoryObj<typeof Calendar>;
 const CalendarDemo = (args: React.ComponentProps<typeof Calendar>) => {
   const [date, setDate] = useState<Date | undefined>(new Date());
   return (
-    <div className="w-fit rounded-lg border bg-card p-4 shadow">
+    <div className="w-fit rounded-lg border bg-background-white p-4 shadow">
       <Calendar {...args} mode="single" selected={date} onSelect={setDate} />
       {date && (
         <p className="mt-4 text-center text-sm text-text-tertiary">
@@ -29,7 +29,7 @@ const CalendarDemo = (args: React.ComponentProps<typeof Calendar>) => {
 const CalendarProfileDemo = (args: React.ComponentProps<typeof Calendar>) => {
   const [date, setDate] = useState<Date | undefined>(new Date());
   return (
-    <div className="w-fit rounded-lg border bg-card p-4 shadow">
+    <div className="w-fit rounded-lg border bg-background-white p-4 shadow">
       <Calendar
         {...args}
         variant="profile"
