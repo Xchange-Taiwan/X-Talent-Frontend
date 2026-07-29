@@ -39,6 +39,9 @@ jobs:
       - name: Generate design tokens
         run: pnpm generate:tokens
 
+      - name: Verify design tokens consistency (Drift check)
+        run: git diff --exit-code src/styles/colors.css
+
       - name: Check Prettier formatting
         id: prettier-check
         run: |
