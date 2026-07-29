@@ -12,10 +12,18 @@ describe('Design Token Generator', () => {
     expect(cssResult).toContain(':root {');
 
     // Verify key color variables exist with their expected HSL values and hex comments
-    expect(cssResult).toContain('--color-text-primary: 225 12% 13%; /* #1E2026 */');
-    expect(cssResult).toContain('--color-text-secondary: 218 10% 31%; /* #474D57 */');
-    expect(cssResult).toContain('--color-brand-500: 180 64% 48%; /* #2CCBCB */');
-    expect(cssResult).toContain('--color-status-success-default: 137 100% 36%; /* #00BA34 */');
+    expect(cssResult).toContain(
+      '--color-text-primary: 225 12% 13%; /* #1E2026 */'
+    );
+    expect(cssResult).toContain(
+      '--color-text-secondary: 218 10% 31%; /* #474D57 */'
+    );
+    expect(cssResult).toContain(
+      '--color-brand-500: 180 64% 48%; /* #2CCBCB */'
+    );
+    expect(cssResult).toContain(
+      '--color-status-success-default: 137 100% 36%; /* #00BA34 */'
+    );
 
     // Verify converted section comments exist
     expect(cssResult).toContain('/* Color System Tokens */');
