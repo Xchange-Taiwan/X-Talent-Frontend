@@ -6,7 +6,7 @@ module.exports = {
     secondary: 'hsl(var(--color-text-secondary) / <alpha-value>)',
     tertiary: 'hsl(var(--color-text-tertiary) / <alpha-value>)',
     disable: 'hsl(var(--color-text-disable) / <alpha-value>)',
-    white: 'hsl(var(--color-text-text-white) / <alpha-value>)',
+    white: 'hsl(var(--color-text-white) / <alpha-value>)',
   },
   background: {
     DEFAULT: 'hsl(var(--background))',
