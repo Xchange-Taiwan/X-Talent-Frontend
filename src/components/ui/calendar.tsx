@@ -45,7 +45,7 @@ function Calendar({
           'max-w-full',
           'mx-auto',
 
-          'bg-background',
+          'bg-background-white',
           'p-3',
 
           // Fallback values.
@@ -121,7 +121,7 @@ function Calendar({
         dropdown_root: cn(
           isProfile
             ? 'relative inline-flex items-center gap-0.5 rounded-md px-1 py-0.5 text-sm font-semibold text-text-primary hover:bg-background-bottom-secondary'
-            : 'has-focus:border-ring border-input shadow-xs has-focus:ring-ring/50 has-focus:ring-[3px] relative rounded-md border',
+            : 'has-focus:border-ring border-background-border shadow-xs has-focus:ring-ring/50 has-focus:ring-[3px] relative rounded-md border',
           defaultClassNames.dropdown_root
         ),
 
@@ -137,8 +137,8 @@ function Calendar({
           captionLayout === 'label'
             ? 'text-[length:var(--calendar-caption-font-size)]'
             : isProfile
-              ? '[&>svg]:text-muted-foreground flex h-8 items-center gap-1 rounded-md text-[length:var(--calendar-caption-font-size)] [&>svg]:size-3.5'
-              : '[&>svg]:text-muted-foreground flex h-8 items-center gap-1 rounded-md pl-2 pr-1 text-[length:var(--calendar-caption-font-size)] [&>svg]:size-3.5',
+              ? '[&>svg]:text-text-tertiary flex h-8 items-center gap-1 rounded-md text-[length:var(--calendar-caption-font-size)] [&>svg]:size-3.5'
+              : '[&>svg]:text-text-tertiary flex h-8 items-center gap-1 rounded-md pl-2 pr-1 text-[length:var(--calendar-caption-font-size)] [&>svg]:size-3.5',
           defaultClassNames.caption_label
         ),
 
@@ -150,7 +150,7 @@ function Calendar({
         weekday: cn(
           isProfile
             ? 'text-black font-semibold flex h-[var(--cell-size)] select-none items-center justify-center rounded-md text-[length:var(--calendar-weekday-font-size)]'
-            : 'text-muted-foreground font-normal flex h-[var(--cell-size)] select-none items-center justify-center rounded-md text-[length:var(--calendar-weekday-font-size)]',
+            : 'text-text-tertiary font-normal flex h-[var(--cell-size)] select-none items-center justify-center rounded-md text-[length:var(--calendar-weekday-font-size)]',
           defaultClassNames.weekday
         ),
 
@@ -162,7 +162,7 @@ function Calendar({
         ),
 
         week_number: cn(
-          'text-muted-foreground select-none text-[length:var(--calendar-weekday-font-size)]',
+          'text-text-tertiary select-none text-[length:var(--calendar-weekday-font-size)]',
           defaultClassNames.week_number
         ),
 
@@ -172,13 +172,16 @@ function Calendar({
         ),
 
         range_start: cn(
-          'bg-accent rounded-l-md',
+          'bg-background-bottom rounded-l-md',
           defaultClassNames.range_start
         ),
 
         range_middle: cn('rounded-none', defaultClassNames.range_middle),
 
-        range_end: cn('bg-accent rounded-r-md', defaultClassNames.range_end),
+        range_end: cn(
+          'bg-background-bottom rounded-r-md',
+          defaultClassNames.range_end
+        ),
 
         today: cn(
           showTodayStyle
@@ -188,12 +191,12 @@ function Calendar({
         ),
 
         outside: cn(
-          'text-muted-foreground aria-selected:text-muted-foreground',
+          'text-text-tertiary aria-selected:text-text-tertiary',
           defaultClassNames.outside
         ),
 
         disabled: cn(
-          'text-muted-foreground opacity-50',
+          'text-text-tertiary opacity-50',
           defaultClassNames.disabled
         ),
 
@@ -315,19 +318,19 @@ function CalendarDayButton({
           'data-[range-end=true]:rounded-md',
           'data-[range-middle=true]:rounded-none',
           'data-[range-start=true]:rounded-md',
-          'data-[range-end=true]:bg-primary',
-          'data-[range-middle=true]:bg-accent',
-          'data-[range-start=true]:bg-primary',
-          'data-[selected-single=true]:bg-primary',
-          'data-[selected-single=true]:text-primary-foreground',
+          'data-[range-end=true]:bg-brand-500',
+          'data-[range-middle=true]:bg-background-bottom',
+          'data-[range-start=true]:bg-brand-500',
+          'data-[selected-single=true]:bg-brand-500',
+          'data-[selected-single=true]:text-text-primary',
           'group-data-[variant=profile]/calendar:data-[selected-single=true]:bg-brand-100',
           'group-data-[variant=profile]/calendar:data-[selected-single=true]:text-text-primary',
           'group-data-[variant=profile]/calendar:data-[selected-single=true]:font-medium',
           'group-data-[variant=profile]/calendar:data-[selected-single=true]:border',
           'group-data-[variant=profile]/calendar:data-[selected-single=true]:border-brand-300',
-          'data-[range-end=true]:text-primary-foreground',
-          'data-[range-middle=true]:text-accent-foreground',
-          'data-[range-start=true]:text-primary-foreground',
+          'data-[range-end=true]:text-text-primary',
+          'data-[range-middle=true]:text-text-primary',
+          'data-[range-start=true]:text-text-primary',
 
           // Focus state.
           'group-data-[focused=true]/day:relative',
@@ -343,7 +346,7 @@ function CalendarDayButton({
         isAvailable &&
           !modifiers.selected &&
           !modifiers.disabled &&
-          'bg-primary/20 hover:bg-primary/30',
+          'bg-brand-500/20 hover:bg-brand-500/30',
 
         !modifiers.disabled &&
           'group-data-[variant=profile]/calendar:text-black group-data-[variant=profile]/calendar:font-medium'
