@@ -31,11 +31,11 @@ const multiSelectVariants = cva(
     variants: {
       variant: {
         default:
-          'border-foreground/10 text-foreground bg-card hover:bg-card/80',
+          'border-text-primary/10 text-text-primary bg-background-white hover:bg-background-white/80',
         secondary:
-          'border-foreground/10 bg-secondary text-secondary-foreground hover:bg-secondary/80',
+          'border-text-primary/10 bg-background-bottom text-text-primary hover:bg-background-bottom/80',
         destructive:
-          'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
+          'border-transparent bg-status-error-default text-text-white hover:bg-status-error-default/80',
       },
     },
     defaultVariants: {
@@ -186,7 +186,7 @@ export const MultiSelect = React.forwardRef<
                   {selectedValues.length > maxCount && (
                     <Badge
                       className={cn(
-                        'bg-transparent border-foreground/1 hover:bg-transparent text-foreground',
+                        'bg-transparent border-text-primary/1 hover:bg-transparent text-text-primary',
                         multiSelectVariants({ variant })
                       )}
                       style={{ animationDuration: `${animation}s` }}
@@ -204,7 +204,7 @@ export const MultiSelect = React.forwardRef<
                 </div>
                 <div className="flex items-center justify-between">
                   <XIcon
-                    className="mx-2 h-4 cursor-pointer text-muted-foreground"
+                    className="mx-2 h-4 cursor-pointer text-text-tertiary"
                     onClick={(event) => {
                       event.stopPropagation();
                       handleClear();
@@ -214,15 +214,15 @@ export const MultiSelect = React.forwardRef<
                     orientation="vertical"
                     className="flex h-full min-h-6"
                   />
-                  <ChevronDown className="mx-2 h-4 cursor-pointer text-muted-foreground" />
+                  <ChevronDown className="mx-2 h-4 cursor-pointer text-text-tertiary" />
                 </div>
               </div>
             ) : (
               <div className="mx-auto flex w-full items-center justify-between">
-                <span className="mx-3 text-sm text-muted-foreground">
+                <span className="mx-3 text-sm text-text-tertiary">
                   {placeholder}
                 </span>
-                <ChevronDown className="mx-2 h-4 cursor-pointer text-muted-foreground" />
+                <ChevronDown className="mx-2 h-4 cursor-pointer text-text-tertiary" />
               </div>
             )}
           </Button>

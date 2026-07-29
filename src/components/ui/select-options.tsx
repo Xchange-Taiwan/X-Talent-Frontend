@@ -29,7 +29,7 @@ const SelectItem = React.forwardRef<HTMLDivElement, SelectItemProps>(
     return (
       <Select.Item
         className={cn(
-          'data-[disabled]:text-mauve8 text-black data-[highlighted]:text-white relative flex h-[25px] select-none items-center rounded-[3px] pl-[25px] pr-[35px] text-base leading-none data-[disabled]:pointer-events-none data-[highlighted]:bg-primary data-[highlighted]:outline-none md:text-13',
+          'data-[disabled]:text-mauve8 text-black data-[highlighted]:text-white relative flex h-[25px] select-none items-center rounded-[3px] pl-[25px] pr-[35px] text-base leading-none data-[disabled]:pointer-events-none data-[highlighted]:bg-brand-500 data-[highlighted]:outline-none md:text-13',
           className
         )}
         {...props}
@@ -50,7 +50,7 @@ const SelectOptions = React.forwardRef<HTMLDivElement, SelectOptionsProps>(
     return (
       <Select.Root>
         <Select.Trigger
-          className="text-violet11 inline-flex h-10 items-center gap-[5px] rounded border border-input px-3 py-2 text-base leading-none outline-none data-[placeholder]:text-muted-foreground md:text-sm"
+          className="text-violet11 inline-flex h-10 items-center gap-[5px] rounded border border-background-border px-3 py-2 text-base leading-none outline-none data-[placeholder]:text-text-tertiary md:text-sm"
           aria-label="Food"
         >
           <Select.Value placeholder={selectItemData.placeholder} />
@@ -65,7 +65,7 @@ const SelectOptions = React.forwardRef<HTMLDivElement, SelectOptionsProps>(
             </Select.ScrollUpButton>
             <Select.Viewport className="p-[5px]">
               <Select.Group>
-                <Select.Label className="px-[25px] text-base leading-[25px] text-muted-foreground md:text-xs">
+                <Select.Label className="px-[25px] text-base leading-[25px] text-text-tertiary md:text-xs">
                   {selectItemData.label}
                 </Select.Label>
                 {selectItemData.options.map((option) => {

@@ -81,7 +81,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
         onClick={handleSearch}
         disabled={isLoading}
         aria-label="搜尋"
-        className="ml-2 h-10 w-10 shrink-0 cursor-pointer rounded-full border-none bg-primary p-0 leading-5 md:h-auto md:w-auto md:rounded-[24px] md:px-6 md:py-2.5"
+        className="ml-2 h-10 w-10 shrink-0 cursor-pointer rounded-full border-none bg-brand-500 p-0 leading-5 md:h-auto md:w-auto md:rounded-[24px] md:px-6 md:py-2.5"
       >
         {isLoading ? (
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
