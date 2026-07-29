@@ -41,10 +41,6 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
     defaultValues: { email: session?.user?.email ?? '', password: '' },
   });
 
-  if ((useDeleteAccountForm as any).mock) {
-    return (useDeleteAccountForm as any).mock();
-  }
-
   const onSubmitXC = async (values: XCValues): Promise<void> => {
     if (process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT !== 'true') {
       toast({
