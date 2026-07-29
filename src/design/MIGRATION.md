@@ -1,6 +1,15 @@
 # 色彩 Token 系統收斂與遷移計畫 (Color Token Convergence & Migration Plan)
 
-本專案已完成「雙軌色彩 token 系統」在**定義層**的收斂工作（`src/design/tokens/color.ts` 為唯一來源）。**元件層**的遷移仍在進行中：截至目前僅 `src/components/ui/badge.tsx` 已改用新統一命名，其餘沿用 shadcn 語意 class（`bg-primary`、`border-border`、`bg-muted` 等）的元件仍待逐步遷移，尚未訂出具體時程（追蹤於 [X-Tracker #396](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/396)）。兩套命名目前數值一致，暫不影響視覺表現。
+本專案已完成「雙軌色彩 token 系統」在**定義層**的收斂工作（`src/design/tokens/color.ts` 為唯一來源）。
+
+同時，**元件層**的遷移工作也已大致完成：
+
+- [#397](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/397)（22 個 UI Primitives 元件遷移）
+- [#398](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/398)（10 個 Storybook stories 遷移）
+- [#399](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/399)（Reservation / Profile 元件遷移）
+- [#400](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/400)（Layout / Auth / Onboarding / Mentor-pool 等元件遷移）
+
+以上項目皆已全數完成並合併至 `develop` 主線。目前僅剩零星殘留的 legacy class 待處理（已開立收尾 Ticket [X-Tracker #404](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/404) 進行最後的清理）。兩套命名目前數值一致，不影響任何視覺表現。
 
 以下為調整重點、現已完成的修改，以及後續基礎與業務元件的逐步遷移指引。
 
@@ -44,6 +53,11 @@
 | `text-destructive-foreground`                         | `text-text-white`                   | 警告狀態底下的白色文字       |
 | `border-border`, `border-input`                       | `border-background-border`          | 基礎框線 / 輸入框框線色      |
 | `bg-background`                                       | `bg-background-white`               | 頂層最亮主背景色（白色）     |
+| `text-foreground`                                     | `text-text-primary`                 | 頂層最深主文字色（深灰色）   |
+| `bg-card`                                             | `bg-background-white`               | 卡片底色（白色）             |
+| `text-card-foreground`                                | `text-text-primary`                 | 卡片內主要文字色             |
+| `bg-popover`                                          | `bg-background-white`               | 彈出式選單/氣泡底色（白色）  |
+| `text-popover-foreground`                             | `text-text-primary`                 | 彈出式選單/氣泡內主要文字色  |
 
 ---
 
@@ -105,4 +119,4 @@ const badgeVariants = cva(
 
 1. **嚴禁新增硬編碼數值**：任何色彩設定，不論是在 `.css` 還是 Tailwind class 中，均不得使用自訂的十六進位（Hex）或 RGB 數值。
 2. **優先使用系統類名**：新開發之業務元件（如：profile, reservation, mentor-pool）與自訂元件，請一律優先採用 `text-text-primary`, `bg-brand-500`, `border-background-border` 等命名。
-3. **逐步完成 `src/components/ui` 遷移**：當前基礎元件在映射後雖然視覺表現已對齊，但在下一次對該元件進行修改/重構時，請順手將其 Tailwind 類名改寫為新統一系統命名。
+3. **新增/修改元件時一律使用統一命名**：若發現殘留 legacy class 請直接修正（目前大部分元件層與區塊之遷移已全數完成，僅剩極少數零星殘留，請參考 [X-Tracker #404](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/404) 進行最後的清理與收尾）。
