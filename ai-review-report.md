@@ -21,12 +21,13 @@
    - 在 `.eslintrc.json` 中完整配置：
      - 加入 `"tailwindcss"` 到 `plugins` 陣列。
      - 啟用 `"tailwindcss/no-custom-classname": "error"`，確保任何不屬於 Tailwind 主題或合法 JIT 規則的類名都會在靜態檢查中拋錯（這包含了先前死碼 Token 如 `status-200` 等問題的全面攔截）。
+     - **白名單防御 (Whitelist):** 特別將 `"destructive"` 類名設入 `whitelist` 白名單之中，避免因為 linter 強制剔除自訂 group 標記而導致子元件 CSS 選擇器失效。
      - 設定專案 `settings.tailwindcss` 以正確路徑解析 `tailwind.config.js`，並宣告 `callees: ["cn", "cva", "clsx"]` 以涵蓋多數工具函式內的類名解析。
    - 移除舊有的兩個 `no-restricted-syntax` 顏色限制，並確實保留了第三個針對 `text-[12px]` 字體大小的 regex 規則。
 
 2. **修正 `tailwind.config.js` 與預設顏色丟失問題:**
    - 專案的 `tailwind.config.js` 之前採用的配置是直接覆寫 `theme.colors`，這會導致 Tailwind 的 5 個基本實用顏色（`inherit`, `current`, `transparent`, `black`, `white`）從主題中完全丟失，造成諸多標準樣式編譯不全 or 不被 Plugin 認可。
-   - 我們將這 5 個色彩鍵重新加入 `tailwind.config.js` 之中，以解鎖 standard utility colors 並使之能通過 linter 靜態解析。
+   - We 將這 5 個色彩鍵重新加入 `tailwind.config.js` 之中，以解鎖 standard utility colors 並使之能通過 linter 靜態解析。
 
 3. **修復 17 個全案樣式 Bug 與 Typos:**
    - **`src/app/(landing)/page.tsx`**: 將 5 處未註冊的 `text-midnight-blue` (無效果色彩) 完美修正為專案合法的 Design Token `text-navy`。
@@ -39,7 +40,7 @@
    - **`src/components/ui/select-options.tsx`**:
      - 將複製自 Radix UI 官網的 `data-[disabled]:text-mauve8` 修正為對齊專案 Token 的 `data-[disabled]:text-text-disable`。
      - 將未註冊的 `text-violet11` 4 處修正為專案標準文字色 `text-text-primary`。
-   - **`src/components/ui/toast.tsx`**: 移除 variant declaration 內遺留下來的非 Tailwind 類名 `destructive`。
+   - **`src/components/ui/toast.tsx`**: 完整保留 `destructive` 類名，確保子元件（如 `ToastAction`、`ToastClose`）對應的 `group-[.destructive]:...` 選擇器能正常套用紅色背景與邊框等錯誤狀態樣式，完美避免高風險樣式退化（Style logic regression）。
 
 ---
 
