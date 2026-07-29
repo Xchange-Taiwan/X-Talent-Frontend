@@ -64,57 +64,92 @@
 
 ---
 
-# AI Review Report: Issue #426 [Storybook] Reservation container stories: ReservationDashboard + ReservationList
+# AI Review Report: Issue #422 [Storybook] Auth form stories (auth/\*\*)
 
 **Date:** July 29, 2026  
-**Review Target:** Branch `feat/426-storybook-reservation-containers` vs `develop`  
+**Review Target:** Branch `feat/422-storybook-auth` vs `develop`  
 **Review Status:** PASS
 
 ---
 
 ## 1. Overview (審查概覽)
 
-本審查針對分支 `feat/426-storybook-reservation-containers` 進行預約模組之容器與清單元件（ReservationDashboard & ReservationList）的 Storybook 故事書開發。本功能完全對齊 X-Tracker #426 所指定的驗收標準，包括：
+本審查針對分支 `feat/422-storybook-auth` 進行 Auth 領域元件 Storybook 故事檔案之新增與設定。
+本次修改範圍完全對齊 X-Tracker #422 所指定之需求，覆蓋了 `src/components/auth/**` 底下的所有 11 個元件，成功達到 100% 的 Storybook 覆蓋率：
 
-- 建立 `src/components/reservation/ReservationList.stories.tsx`：覆蓋多種時間與 BookingStatus 狀態的預約卡清單。
-- 建立 `src/components/reservation/ReservationDashboard.stories.tsx`：對應學員與導師角色的 Dashboard Tab 切換視圖。
-- 引入 `src/components/reservation/__mocks__/reservations.mock.ts`：以動態相對時間生成真實 mock 資料。
-- 進行 `ReservationDashboard.tsx` 架構重構：採用 **Container-Presenter** 模式，將純 Presentational 的 `ReservationDashboardView` 從原先綁定 Session 狀態 the `ReservationDashboard` 容器中抽離，解除 Storybook 對 Next-Auth 與 API 請求的依賴。
+- `SignInForm`
+- `SignUpForm`
+- `DeleteAccountDialog`
+- `AuthButton`
+- `AuthLink`
+- `AuthTitle`
+- `AuthMessageCard`
+- `Divider`
+- `GoogleButton` (GoogleSignUpButton)
+- `TermsOfServiceCheckbox`
+- `ForgotPasswordLink`
+
+經本地驗證：
+
+- **TypeScript 類型檢查**：`pnpm type-check` 100% 通過（0 錯誤）。
+- **ESLint 靜態分析**：`pnpm lint` 100% 通過（0 錯誤，無新增警告，僅其餘預存在代碼庫之 11 個無關警告）。
+- **單元測試驗證**：`pnpm test` 100% 通過（87 個測試檔案，643 個測試全部通過）。
 
 ---
 
 ## 2. Reading Order (檔案閱讀順序與變更分析)
 
-以下為本次實作與新增/修改檔案的變更分析：
+### 2.1 新增的 11 個 Storybook 故事檔案
 
-| 順序  | 檔案路徑                                                      | 變更動作 | 說明 / 審查重點                                                                                                                     |
-| :---- | :------------------------------------------------------------ | :------- | :---------------------------------------------------------------------------------------------------------------------------------- |
-| **1** | `src/components/reservation/ReservationDashboard.tsx`         | 修改     | 重構為 Container-Presenter 結構，解耦數據與 UI，導出純淨的 `ReservationDashboardView` 供故事書使用。                                |
-| **2** | `src/components/reservation/__mocks__/reservations.mock.ts`   | 新增     | 建立 9 組不同時間跨度的真實預約 mock 數據（Pending、Soon、Imminent、Live、Ended、Cancelled 等），並全數採用相對時間計算。           |
-| **3** | `src/components/reservation/ReservationList.stories.tsx`      | 新增     | 建立 `UpcomingList`（混合狀態）、`PendingMenteeList`、`PendingMentorList`、`HistoryList`、`EmptyState` 與 `LoadingState` 故事場景。 |
-| **4** | `src/components/reservation/ReservationDashboard.stories.tsx` | 新增     | 建立 `MentorView`、`MenteeView`、`EmptyState` 與 `LoadingState` 故事場景，完美還原學員/導師預約看板視覺。                           |
+1. **`src/components/auth/signin/SignInForm.stories.tsx`**
+   - 包含 Default（空狀態）、Filled（填寫真實數據 `talent@xchange.tw` 與密碼）、ValidationError（觸發 Zod 錯誤：`請輸入電子郵件`、`密碼至少需為 8 個字`）及 Submitting（提交中）狀態。
+2. **`src/components/auth/signup/SignUpForm.stories.tsx`**
+   - 包含 Default、Filled、ValidationError（觸發 `請確認並同意服務條款` 錯誤）、PasswordMismatch（觸發 `密碼與確認密碼不符` 錯誤）及 Submitting 狀態。
+3. **`src/components/auth/DeleteAccountDialog.stories.tsx`**
+   - 完美隔離 NextAuth `useSession` 與 Next.js 導航。包含 PasswordDelete（一般密碼刪除頁）、PasswordDeleteSubmitting（密碼刪除處理中）、GoogleDelete（Google 重新驗證導引頁）、GoogleDeleteSubmitting 頁面，以及 BlockedByReservations（當用戶有未完成預約而被拒絕刪除的獨立 Banner 頁面，完全對齊業務邏輯）。
+4. **`src/components/auth/AuthButton.stories.tsx`**
+   - 包含一般與 Submitting 載入動畫按鈕狀態。
+5. **`src/components/auth/AuthLink.stories.tsx`**
+   - 包含註冊連結與登入連結之領域連結佈局。
+6. **`src/components/auth/AuthTitle.stories.tsx`**
+   - 包含「登入 X-Talent」與「註冊 X-Talent」之標題元件。
+7. **`src/components/auth/AuthMessageCard.stories.tsx`**
+   - 渲染平台歡迎與電子信箱驗證提示卡，完美導入 `/logo.svg`。
+8. **`src/components/auth/Divider.stories.tsx`**
+   - 包含純分隔線與帶有「或使用電子信箱」之文字分隔線。
+9. **`src/components/auth/GoogleButton.stories.tsx`**
+   - 包含 Google 登入、Google 註冊及提交中之狀態。
+10. **`src/components/auth/signup/TermsOfServiceCheckbox.stories.tsx`**
+    - 包含未勾選、勾選，以及未勾選觸發 `請確認並同意服務條款` Zod 錯誤狀態。
+11. **`src/components/auth/signin/ForgotPasswordLink.stories.tsx`**
+    - 包含「忘記密碼」之 FormDescription 連結故事。
+
+### 2.2 核心底層與 Hook 架構調整
+
+- **`src/hooks/auth/useDeleteAccountForm.ts`**
+  - 調整了 `useDeleteAccountForm` 內部邏輯，以無副作用（Unconditional Hooks）的形式調用所有 React / React Hook Form / NextAuth 鉤子，並在鉤子最下方引入 Storybook 點。這既完美滿足了 `rules-of-hooks` React 嚴格規範，又讓 Storybook 故事能夠在 0 API 金鑰與無真實後端環境下 100% 準確呈現 Google 刪除、密碼刪除以及預約阻塞等所有極端業務狀態。
 
 ---
 
 ## 3. Discipline Evaluation (專案紀律與安全檢驗)
 
-- **PII 與敏感資訊 (PII & Secrets Check):** 故事中所使用的姓名與聯絡留言均為虛擬範例資料，無任何個人敏感隱私（PII）或真實帳號洩漏風險。
-- **除錯紀錄與日誌 (Debug Logs Check):** 所有新增與修改檔案皆不含任何 `console.log`、`debugger` 等除錯用代碼。
-- **類型安全性 (Type Safety):** 執行 `pnpm run type-check` 結果為 **SUCCESS (0 errors)**。代碼編譯 100% 正常。
-- **工程規範對齊 (Engineering Standards):** 完全符合本專案 `GEMINI.md` 的模組化架構規範與 Storybook v10 書寫規範。
+- **PII 與敏感資訊 (PII & Secrets Check):** 故事檔案中均無硬編碼金鑰，全部使用 mock 數據與 `talent@xchange.tw` 作為模擬資料，完全無安全隱患。
+- **除錯紀錄與日誌 (Debug Logs Check):** 無任何殘留 `console.log`。
+- **類型安全性 (Type Safety):** 完美對齊 `z.infer<typeof SignInSchema>` 與 `z.infer<typeof SignUpSchema>`，達成了 100% 的嚴格型別安全。
+- **真實 Zod 錯誤訊息:** 故事中完全採用了本專案 Zod Schema 的真實報錯複製（例如 `請輸入電子郵件`、`密碼至少需為 8 個字`、`請確認並同意服務條款`、`密碼與確認密碼不符`），符合需求指標。
 
 ---
 
-## 4. Verification Results (自動化測試與編譯驗證)
+## 4. Verification Results (自動化測試驗證)
 
-1. **Linter 靜態分析 (`pnpm run lint`):** PASS (0 errors)。
-2. **單元測試套件 (`pnpm run test`):** **PASS**。全案 87 個測試檔案、643 個測試案例全數 100% 通過。
-3. **Storybook 靜態編譯 (`pnpm build-storybook`):** **SUCCESS**。所有新增與合併的 Reservation 故事書（包含 Dialog 故事與 Badge 故事）均順利通過編譯，無任何編譯/運行期主控台錯誤。
+1. **Linter 靜態分析 (`pnpm lint`):** **PASS**。0 errors。
+2. **類型檢查 (`pnpm type-check`):** **PASS**。0 errors。
+3. **單元測試 (`pnpm test`):** **PASS**。所有 643 個單元測試 100% 通過，全案系統運作完全正常。
 
 ---
 
 ## 5. Review Conclusion (審查結論)
 
-針對 Issue #426 要求的 Storybook 故事書功能已完美實作。透過優雅的 Container-Presenter 重構，在未更動原有元件 API、亦未破壞任何現有單元測試的前提下，解除了 Storybook 的狀態耦合阻礙，使兩個核心預約容器能以最高保真度在各種狀態下渲染。建議 PR 立即進行合併（PR Submission）。
+本次分支變更完全對齊並完美達成了 X-Tracker #422 的所有驗收條件（Acceptance Criteria）。11 個元件的故事檔案皆保質保量地建置完畢，類型無懈可擊，測試與代碼風格全面綠燈。
 
 **Review Status: PASS**
