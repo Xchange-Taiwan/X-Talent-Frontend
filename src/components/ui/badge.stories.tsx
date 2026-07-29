@@ -49,7 +49,7 @@ export const AllVariants: Story = {
       </Badge>
       <Badge {...args} variant="filter">
         <span>Filter Badge</span>
-        <X className="size-3.5 cursor-pointer text-destructive-foreground hover:text-destructive" />
+        <X className="size-3.5 cursor-pointer text-text-white hover:text-status-error-default" />
       </Badge>
     </div>
   ),
