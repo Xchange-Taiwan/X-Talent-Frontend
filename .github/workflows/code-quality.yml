@@ -88,6 +88,18 @@ jobs:
             echo "✅ No TypeScript errors"
           fi
 
+      - name: Design token drift check
+        id: token-check
+        run: |
+          if ! pnpm run generate:tokens:check; then
+            echo "token_failed=true" >> $GITHUB_OUTPUT
+            echo "❌ Design token drift detected"
+            exit 1
+          else
+            echo "token_failed=false" >> $GITHUB_OUTPUT
+            echo "✅ Design tokens are in sync"
+          fi
+
       - name: Check for changes
         id: git-check
         run: |

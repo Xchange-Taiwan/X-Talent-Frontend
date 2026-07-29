@@ -23,7 +23,8 @@
     "gemini": "gemini",
     "gemini-yolo": "gemini --approval-mode=yolo --skip-trust",
     "generate:types": "node scripts/generate-types.mjs",
-    "generate:tokens": "tsx scripts/generate-tokens.ts",
+    "generate:tokens": "node scripts/generate-tokens.mjs",
+    "generate:tokens:check": "node scripts/generate-tokens.mjs --check",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
@@ -117,9 +118,9 @@
     }
   },
   "lint-staged": {
-    "src/design/tokens/colorValues.ts": [
+    "src/design/tokens/color-values.ts": [
       "pnpm generate:tokens",
-      "git add src/styles/colors.css"
+      "git add src/styles/tokens.css"
     ],
     "*.{js,jsx,ts,tsx}": [
       "prettier --write",
