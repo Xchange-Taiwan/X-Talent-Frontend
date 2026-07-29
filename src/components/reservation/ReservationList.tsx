@@ -155,7 +155,7 @@ export function ReservationList({
 
       {items.length === 0 && (
         <Card className="border-dashed">
-          <CardContent className="p-8 text-center text-muted-foreground">
+          <CardContent className="p-8 text-center text-text-tertiary">
             目前尚無資料
           </CardContent>
         </Card>

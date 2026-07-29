@@ -11,11 +11,11 @@ const statusBadgeVariants = cva(
   {
     variants: {
       status: {
-        far: 'bg-muted text-muted-foreground',
+        far: 'bg-background-bottom text-text-tertiary',
         soon: 'bg-status-warning-active/20 text-status-warning-default',
         imminent: 'bg-status-error-active/20 text-status-error-default',
         live: 'bg-status-success-active/20 text-status-success-default',
-        ended: 'bg-muted text-muted-foreground/70',
+        ended: 'bg-background-bottom text-text-tertiary/70',
       },
     },
     defaultVariants: {
