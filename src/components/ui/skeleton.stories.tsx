@@ -20,7 +20,7 @@ export const Default: Story = {
 // 2. Profile Card Loading Template
 export const LoadingCard: Story = {
   render: () => (
-    <div className="flex max-w-sm items-center space-x-4 rounded-lg border bg-card p-4">
+    <div className="flex max-w-sm items-center space-x-4 rounded-lg border bg-background-white p-4">
       <Skeleton className="size-12 rounded-full" />
       <div className="space-y-2">
         <Skeleton className="h-4 w-[200px]" />
