@@ -102,7 +102,7 @@ export function MenteeBookingForm({
       <Button
         type="submit"
         variant="default"
-        className="w-full rounded-full px-6 py-3 disabled:bg-background-top-active disabled:text-text-disable disabled:opacity-100"
+        className="w-full rounded-full px-6 py-3 disabled:bg-background-border disabled:text-text-disable disabled:opacity-100"
         disabled={isButtonDisabled}
       >
         {isSubmitting ? (
