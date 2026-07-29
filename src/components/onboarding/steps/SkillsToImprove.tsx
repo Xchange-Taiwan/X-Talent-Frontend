@@ -12,14 +12,20 @@ import { TagMultiSelect } from './TagMultiSelect';
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step4Schema>>>;
   wantSkillGroups: TagCatalogGroupVO[];
+  maxSelected?: number;
 }
 
-export const SkillsToImprove: FC<Props> = ({ form, wantSkillGroups }) => {
+export const SkillsToImprove: FC<Props> = ({
+  form,
+  wantSkillGroups,
+  maxSelected,
+}) => {
   return (
     <TagMultiSelect
       control={form.control}
       name="want_skill"
       groups={wantSkillGroups}
+      maxSelected={maxSelected}
     />
   );
 };
