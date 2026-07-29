@@ -106,11 +106,3 @@ const badgeVariants = cva(
 1. **嚴禁新增硬編碼數值**：任何色彩設定，不論是在 `.css` 還是 Tailwind class 中，均不得使用自訂的十六進位（Hex）或 RGB 數值。
 2. **優先使用系統類名**：新開發之業務元件（如：profile, reservation, mentor-pool）與自訂元件，請一律優先採用 `text-text-primary`, `bg-brand-500`, `border-background-border` 等命名。
 3. **逐步完成 `src/components/ui` 遷移**：當前基礎元件在映射後雖然視覺表現已對齊，但在下一次對該元件進行修改/重構時，請順手將其 Tailwind 類名改寫為新統一系統命名。
-
----
-
-## 5. 待 Design 確認事項 (Pending Design Confirmation)
-
-以下項目數值/決策尚未經 Design 正式確認，追蹤於 [X-Tracker #396](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/396)，請勿在確認前逕自合併或修改：
-
-- `--color-background-top` 與 `--color-background-bottom` 目前數值相同（`0 0% 96%`），`--color-background-top-active` 與 `--color-background-border` 也相同（`210 9% 91%`）。維持獨立 token（見 `global.css` 註解），待 Design 正式確認是否為刻意共用。

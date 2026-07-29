@@ -71,7 +71,7 @@ function FlatList({
               className={cn(
                 'flex cursor-pointer items-center gap-3 px-4 py-2',
                 disabled && 'cursor-not-allowed opacity-50',
-                !disabled && 'hover:bg-background-top'
+                !disabled && 'hover:bg-background-bottom'
               )}
             >
               <Checkbox
@@ -197,7 +197,7 @@ export function CategoryMultiSelect({
                   disabled={isSearching}
                   className={cn(
                     'flex w-full items-center justify-between px-4 py-3 text-left',
-                    !isSearching && 'hover:bg-background-top'
+                    !isSearching && 'hover:bg-background-bottom'
                   )}
                 >
                   <span className="flex items-center gap-2">
@@ -233,7 +233,7 @@ export function CategoryMultiSelect({
                             className={cn(
                               'flex cursor-pointer items-center gap-3 px-4 py-2 pl-11',
                               disabled && 'cursor-not-allowed opacity-50',
-                              !disabled && 'hover:bg-background-top'
+                              !disabled && 'hover:bg-background-bottom'
                             )}
                           >
                             <Checkbox

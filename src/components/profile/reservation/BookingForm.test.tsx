@@ -93,7 +93,7 @@ describe('BookingForm', () => {
     // Scenario 1: selectedSlot=null, bookingQuestion=""
     const submitBtn = screen.getByRole('button', { name: '預約時間' });
     expect(submitBtn).toBeDisabled();
-    expect(submitBtn).toHaveClass('disabled:bg-background-top-active');
+    expect(submitBtn).toHaveClass('disabled:bg-background-border');
     expect(submitBtn).toHaveClass('disabled:text-text-disable');
 
     // Scenario 2: Select slot, and question is empty (now allowed)

@@ -12,8 +12,6 @@ module.exports = {
     'bottom-secondary':
       'hsl(var(--color-background-bottom-secondary) / <alpha-value>)',
     white: 'hsl(var(--color-background-white) / <alpha-value>)',
-    top: 'hsl(var(--color-background-top) / <alpha-value>)',
-    'top-active': 'hsl(var(--color-background-top-active) / <alpha-value>)',
     border: 'hsl(var(--color-background-border) / <alpha-value>)',
   },
   brand: {
