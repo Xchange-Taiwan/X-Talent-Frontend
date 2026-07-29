@@ -23,7 +23,7 @@
 | **1** | `src/components/ui/avatar-upload.tsx`                  | `text-destructive`     | `text-status-error-default`   | 錯誤提示文字色彩。             |
 | **2** | `src/app/profile/[pageUserId]/edit/container.tsx`      | `text-destructive`     | `text-status-error-default`   | 頁面載入失敗畫面提示色彩。     |
 | **3** | `src/components/ui/dropdown-menu.stories.tsx`          | `text-destructive`     | `text-status-error-default`   | Storybook 故事書登出按鈕色彩。 |
-| **4** | `src/components/profile/edit/JobExperienceSection.tsx` | `text-destructive`     | `text-status-error-default`   | 經歷驗證錯誤訊息色彩。         |
+| **4** | `src/components/profile/edit/JobExperienceSection.tsx` | `text-destructive`     | `text-status-error-default`   | 經歷驗證錯誤訊息色彩.          |
 | **5** | `src/components/profile/edit/LinkSection.tsx`          | `text-destructive`     | `text-status-error-default`   | 連結驗證錯誤訊息色彩。         |
 | **6** | `src/components/profile/edit/ConfirmDialog.tsx`        | `bg-background/50`     | `bg-background-white/50`      | 彈出視窗 Overlay 半透明背景。  |
 
@@ -38,7 +38,7 @@
 
 ---
 
-## 4. Verification Results (自動化測試驗證)
+## 4. Verification Results (自動化測試验证)
 
 為確保此色彩遷移未破壞任何現有業務邏輯、UI 單元功能或引進回歸（Regression）：
 
