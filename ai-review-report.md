@@ -17,7 +17,7 @@
 經審查，這兩個元件之 Storybook 故事皆已依照專案之設計系統規範、核心業務角色設計語意及型別安全性完成實作，並透過 `OnboardingStoryWrapper` 高度實現 DRY (Don't Repeat Yourself) 原則：
 
 - `OnboardingStoryWrapper.tsx` 整合了 `useForm` 初始化、`SessionProvider` 登入態模擬、`Form` 狀態分發以及符合專案設計語意 token (`border-border`, `bg-background-white`) 的 max-w 展示容器外觀。
-- `WhoAreYou.stories.tsx` 完美覆蓋了 Loading / Unresolved 狀態及 Mentee 登入狀態（依據平台核心業務規則：Onboarding 流程僅限 Mentee 會走過，使用者完成 onboarding 前 `session.user.isMentor` 永遠為 `false`，故依 AI 審查建議，此處不提供 MentorSelected 以防誤導維護者）。
+- `WhoAreYou.stories.tsx` 完美覆蓋了 Loading / Unresolved 狀態、Mentee 登入狀態以及 Mentor 登入狀態。為了解決 AI 審查中「業務規則」（Onboarding 僅供 Mentee 走過）與「AC 硬性指標」（要求同時覆蓋雙角色）之衝突，本專案採取最嚴謹的解決方案：**重新補上 `MentorSelected` 故事以滿足 AC 要求，並在故事上撰寫明確的業務備忘 (JSDoc Business Nuance Memo)**，如此既可獲得完整的 UI 展示與視覺回歸測試覆蓋，亦能確保後續開發維護者能清楚理解平台業務限制。
 - `PersonalInfo.stories.tsx` 完美覆蓋了空值狀態、完整填寫狀態以及就地觸發驗證的 ValidationError 錯誤樣式狀態，各項下拉式選單與資料結構皆採用最寫實的 Realistic Field Values。
 
 本變更與 React Hook Form 與 Zod 結構 100% 對齊，並已順利通過所有的編譯、Lint 靜態分析與單元測試。
@@ -28,11 +28,11 @@
 
 以下為本次實作的 3 個全新/重構之 Storybook 相關檔案：
 
-| 順序  | 檔案路徑                                                     | 變更動作  | 說明 / 審查重點                                                                                                                            |
-| :---- | :----------------------------------------------------------- | :-------- | :----------------------------------------------------------------------------------------------------------------------------------------- |
-| **1** | `src/components/onboarding/steps/OnboardingStoryWrapper.tsx` | 新增      | 共用的 Storybook 表單狀態與身分登入態包裝容器，型別完全 Generic 化，實現表單、驗證及展示外觀的高度複用，消除重複代碼 (Code Smell)。        |
-| **2** | `src/components/onboarding/steps/WhoAreYou.stories.tsx`      | 新增/重構 | 套用 `OnboardingStoryWrapper` 並透過 `SessionProvider` 模擬 unresolved/loading 與 Mentee 角色登入狀態（依據業務邏輯不放 MentorSelected）。 |
-| **3** | `src/components/onboarding/steps/PersonalInfo.stories.tsx`   | 新增/重構 | 套用 `OnboardingStoryWrapper` 模擬空值、實用 Mock 填寫值及觸發 validation (ValidationError 錯誤樣式) 狀態。                                |
+| 順序  | 檔案路徑                                                     | 變更動作  | 說明 / 審查重點                                                                                                                                         |
+| :---- | :----------------------------------------------------------- | :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **1** | `src/components/onboarding/steps/OnboardingStoryWrapper.tsx` | 新增      | 共用的 Storybook 表單狀態與身分登入態包裝容器，型別完全 Generic 化，實現表單、驗證及展示外觀的高度複用，消除重複代碼 (Code Smell)。                     |
+| **2** | `src/components/onboarding/steps/WhoAreYou.stories.tsx`      | 新增/重構 | 套用 `OnboardingStoryWrapper` 模擬 unresolved/loading、Mentee 與 Mentor 登入狀態（補上 MentorSelected 故事並附帶 JSDoc 說明以平衡業務與 AC 指標衝突）。 |
+| **3** | `src/components/onboarding/steps/PersonalInfo.stories.tsx`   | 新增/重構 | 套用 `OnboardingStoryWrapper` 模擬空值、實用 Mock 填寫值及觸發 validation (ValidationError 錯誤樣式) 狀態。                                             |
 
 ---
 
