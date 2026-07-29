@@ -4,14 +4,6 @@ import React from 'react';
 import { UseFormReturn } from 'react-hook-form';
 
 import {
-  FacebookColor,
-  InstagramColor,
-  LinkedinColor,
-  TwitterColor,
-  WebsiteColor,
-  YoutubeColor,
-} from '@/components/icon';
-import {
   FormControl,
   FormField,
   FormItem,
@@ -20,44 +12,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 
+import { platformLabelMap } from '../social-links/platformLabelMap';
 import { Section } from './Section';
 
-const SOCIAL_LINKS: Array<{
-  name: keyof ProfileFormValues;
-  label: string;
-  icon: React.ReactElement;
-}> = [
-  {
-    name: 'linkedin',
-    label: 'LinkedIn',
-    icon: <LinkedinColor className="size-5" />,
-  },
-  {
-    name: 'facebook',
-    label: 'Facebook',
-    icon: <FacebookColor className="size-5" />,
-  },
-  {
-    name: 'instagram',
-    label: 'Instagram',
-    icon: <InstagramColor className="size-5" />,
-  },
-  {
-    name: 'twitter',
-    label: 'X (formerly Twitter)',
-    icon: <TwitterColor className="size-5" />,
-  },
-  {
-    name: 'youtube',
-    label: 'YouTube',
-    icon: <YoutubeColor className="size-5" />,
-  },
-  {
-    name: 'website',
-    label: '個人網站',
-    icon: <WebsiteColor className="size-5" />,
-  },
-];
+const SOCIAL_LINKS = Object.entries(platformLabelMap).map(([key, value]) => ({
+  name: key as keyof ProfileFormValues,
+  label: value.label,
+  icon: value.icon,
+}));
 
 interface Props {
   form: UseFormReturn<ProfileFormValues>;
@@ -85,7 +47,7 @@ export const LinksSection = ({ form }: Props) => (
             <FormItem className="mb-4">
               <FormLabel>{label}</FormLabel>
               <div className="flex items-center">
-                <div className="mr-3 flex size-5 flex-shrink-0 items-center justify-center">
+                <div className="mr-3 flex size-5 shrink-0 items-center justify-center">
                   {icon}
                 </div>
                 <FormControl>
