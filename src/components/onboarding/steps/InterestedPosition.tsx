@@ -12,14 +12,20 @@ import { TagMultiSelect } from './TagMultiSelect';
 interface Props {
   form: ReturnType<typeof useForm<z.infer<typeof step3Schema>>>;
   wantPositionGroups: TagCatalogGroupVO[];
+  maxSelected?: number;
 }
 
-export const InterestedPosition: FC<Props> = ({ form, wantPositionGroups }) => {
+export const InterestedPosition: FC<Props> = ({
+  form,
+  wantPositionGroups,
+  maxSelected,
+}) => {
   return (
     <TagMultiSelect
       control={form.control}
       name="want_position"
       groups={wantPositionGroups}
+      maxSelected={maxSelected}
     />
   );
 };
