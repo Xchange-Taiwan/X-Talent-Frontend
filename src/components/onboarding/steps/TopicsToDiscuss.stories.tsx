@@ -1,13 +1,10 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import * as React from 'react';
-import { useForm } from 'react-hook-form';
-import * as z from 'zod';
 
-import { Form } from '@/components/ui/form';
 import { step5Schema } from '@/schemas/onboarding';
 import { mockTopicGroups } from '@/test/fixtures/tagCatalog';
 
+import { OnboardingStoryWrapper } from './OnboardingStoryWrapper';
 import { TopicsToDiscuss } from './TopicsToDiscuss';
 
 const meta: Meta<typeof TopicsToDiscuss> = {
@@ -28,28 +25,21 @@ const TopicsToDiscussDemo: React.FC<DemoProps> = ({
   initialValue = [],
   maxSelected = 10,
 }) => {
-  type FormValues = z.infer<typeof step5Schema>;
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(step5Schema),
-    defaultValues: {
-      want_topic: initialValue,
-    },
-    mode: 'onChange',
-  });
-
-  const [submittedData, setSubmittedData] = React.useState<FormValues | null>(
-    null
-  );
-
-  const onSubmit = (data: FormValues) => {
-    setSubmittedData(data);
-  };
+  const [submittedData, setSubmittedData] = React.useState<Record<
+    string,
+    string[]
+  > | null>(null);
 
   return (
-    <div className="max-w-2xl rounded-xl border p-6 shadow-sm">
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+    <OnboardingStoryWrapper
+      schema={step5Schema}
+      defaultValues={{ want_topic: initialValue }}
+    >
+      {(form) => (
+        <form
+          onSubmit={form.handleSubmit((data) => setSubmittedData(data))}
+          className="space-y-6"
+        >
           <TopicsToDiscuss
             form={form}
             wantTopicGroups={mockTopicGroups}
@@ -74,33 +64,33 @@ const TopicsToDiscussDemo: React.FC<DemoProps> = ({
               重置
             </button>
           </div>
-        </form>
-      </Form>
 
-      {/* Real-time Form values */}
-      <div className="mt-6 border-t pt-4 text-sm text-text-tertiary">
-        <p>
-          <strong>表單當前數值：</strong>
-          {JSON.stringify(form.watch('want_topic'))}
-        </p>
-        <p className="mt-1">
-          <strong>表單驗證狀態：</strong>
-          {form.formState.errors.want_topic ? (
-            <span className="text-status-error-default">
-              {form.formState.errors.want_topic.message}
-            </span>
-          ) : (
-            <span className="text-status-success-default">驗證通過</span>
-          )}
-        </p>
-        {submittedData && (
-          <p className="mt-2 text-brand-600">
-            <strong>提交成功數據：</strong>
-            {JSON.stringify(submittedData)}
-          </p>
-        )}
-      </div>
-    </div>
+          {/* Real-time Form values */}
+          <div className="mt-6 border-t pt-4 text-sm text-text-tertiary">
+            <p>
+              <strong>表單當前數值：</strong>
+              {JSON.stringify(form.watch('want_topic'))}
+            </p>
+            <p className="mt-1">
+              <strong>表單驗證狀態：</strong>
+              {form.formState.errors.want_topic ? (
+                <span className="text-status-error-default">
+                  {form.formState.errors.want_topic.message as string}
+                </span>
+              ) : (
+                <span className="text-status-success-default">驗證通過</span>
+              )}
+            </p>
+            {submittedData && (
+              <p className="mt-2 text-brand-600">
+                <strong>提交成功數據：</strong>
+                {JSON.stringify(submittedData)}
+              </p>
+            )}
+          </div>
+        </form>
+      )}
+    </OnboardingStoryWrapper>
   );
 };
 
