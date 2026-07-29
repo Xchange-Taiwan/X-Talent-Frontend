@@ -23,6 +23,7 @@
     "gemini": "gemini",
     "gemini-yolo": "gemini --approval-mode=yolo --skip-trust",
     "generate:types": "node scripts/generate-types.mjs",
+    "generate:tokens": "node --experimental-strip-types scripts/generate-tokens.ts",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
