@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Generate design tokens
+        run: pnpm generate:tokens
+
       - name: Check Prettier formatting
         id: prettier-check
         run: |

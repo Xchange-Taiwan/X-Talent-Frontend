@@ -117,6 +117,10 @@
     }
   },
   "lint-staged": {
+    "src/design/tokens/colorValues.ts": [
+      "pnpm generate:tokens",
+      "git add src/styles/colors.css"
+    ],
     "*.{js,jsx,ts,tsx}": [
       "prettier --write",
       "eslint --cache --fix"
