@@ -16,8 +16,11 @@ type Story = StoryObj<typeof Avatar>;
 export const WithImage: Story = {
   render: (args) => (
     <Avatar {...args}>
-      <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
-      <AvatarFallback>CN</AvatarFallback>
+      <AvatarImage
+        src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80"
+        alt="林小明"
+      />
+      <AvatarFallback>LM</AvatarFallback>
     </Avatar>
   ),
 };
@@ -27,7 +30,7 @@ export const FallbackOnly: Story = {
   render: (args) => (
     <Avatar {...args}>
       <AvatarImage src="" alt="Nonexistent User" />
-      <AvatarFallback>XT</AvatarFallback>
+      <AvatarFallback>LM</AvatarFallback>
     </Avatar>
   ),
 };
