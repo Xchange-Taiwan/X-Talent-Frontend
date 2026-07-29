@@ -31,22 +31,34 @@ export const Default: Story = {
   render: (args) => (
     <Card {...args} className="w-[350px]">
       <CardHeader>
-        <CardTitle>建立專案</CardTitle>
-        <CardDescription>一鍵部署您的新專案與相關設定。</CardDescription>
+        <CardTitle>預約導師諮詢</CardTitle>
+        <CardDescription>
+          與資深工程師林小明預約一對一職涯諮詢。
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid w-full items-center gap-4">
           <div className="flex flex-col space-y-1.5">
-            <span className="text-sm font-medium">專案名稱</span>
+            <span className="text-sm font-medium text-text-secondary">
+              諮詢項目
+            </span>
             <div className="rounded border bg-background-bottom p-2 text-sm text-text-tertiary">
-              My New Awesome Project
+              前端架構與 React 效能優化
+            </div>
+          </div>
+          <div className="flex flex-col space-y-1.5">
+            <span className="text-sm font-medium text-text-secondary">
+              諮詢時間
+            </span>
+            <div className="rounded border bg-background-bottom p-2 text-sm text-text-tertiary">
+              2026-08-15 14:00 - 15:00 (GMT+8)
             </div>
           </div>
         </div>
       </CardContent>
       <CardFooter className="flex justify-between">
-        <Button variant="outline">取消</Button>
-        <Button>部署</Button>
+        <Button variant="outline">拒絕</Button>
+        <Button>接受預約</Button>
       </CardFooter>
     </Card>
   ),
@@ -86,7 +98,7 @@ export const StatusCard: Story = {
         className="w-[250px] border-l-4 border-l-status-warning-default"
       >
         <CardHeader className="pb-2">
-          <CardDescription>待審核清單</CardDescription>
+          <CardDescription>待審核預約</CardDescription>
           <CardTitle className="text-3xl font-bold text-status-warning-default">
             12 筆
           </CardTitle>
