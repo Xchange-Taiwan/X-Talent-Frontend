@@ -61,13 +61,13 @@ const MentorFilterDropdown = ({
       <Popover.Trigger asChild>
         <button className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-background-border px-4 py-1">
           <div className="flex items-center gap-1">
-            <FilterListIcon className="h-5 w-5" />
+            <FilterListIcon className="size-5" />
             <span>篩選</span>
           </div>
           {open ? (
-            <ArrowDropUpIcon className="h-5 w-5" />
+            <ArrowDropUpIcon className="size-5" />
           ) : (
-            <ArrowDropDownIcon className="h-5 w-5" />
+            <ArrowDropDownIcon className="size-5" />
           )}
         </button>
       </Popover.Trigger>

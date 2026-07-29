@@ -106,7 +106,7 @@ export default function Page() {
           的職涯可能性
         </SectionTitle>
         <div className="flex w-full flex-col items-center justify-center">
-          <div className="text-black flex flex-col flex-wrap justify-center font-bold md:flex-row">
+          <div className="flex flex-col flex-wrap justify-center font-bold text-text-primary md:flex-row">
             {featureData.map((item) => (
               <FeatureItem key={item.text} icon={item.icon} text={item.text} />
             ))}

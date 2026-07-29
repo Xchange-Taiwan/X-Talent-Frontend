@@ -71,7 +71,7 @@ function SchoolComboboxField({
               <span className={cn(!field.value && 'text-text-tertiary')}>
                 {field.value || '請選擇學校'}
               </span>
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
             </Button>
           </FormControl>
         </PopoverTrigger>
@@ -92,7 +92,7 @@ function SchoolComboboxField({
                   >
                     <Check
                       className={cn(
-                        'mr-2 h-4 w-4',
+                        'mr-2 size-4',
                         field.value === school ? 'opacity-100' : 'opacity-0'
                       )}
                     />
@@ -168,7 +168,7 @@ export const EducationSection = ({
                   disabled={index === 0}
                   onClick={() => move(index, index - 1)}
                 >
-                  <ChevronUpIcon className="h-5 w-5" />
+                  <ChevronUpIcon className="size-5" />
                 </Button>
                 <Button
                   type="button"
@@ -177,7 +177,7 @@ export const EducationSection = ({
                   disabled={index === fields.length - 1}
                   onClick={() => move(index, index + 1)}
                 >
-                  <ChevronDownIcon className="h-5 w-5" />
+                  <ChevronDownIcon className="size-5" />
                 </Button>
               </div>
             )}
@@ -281,7 +281,7 @@ export const EducationSection = ({
                 onConfirm={() => remove(index)}
                 trigger={
                   <Button variant="destructive">
-                    <TrashIcon className="mr-2 h-5 w-5" />
+                    <TrashIcon className="mr-2 size-5" />
                     移除
                   </Button>
                 }
@@ -296,7 +296,7 @@ export const EducationSection = ({
         className="rounded-full px-4 py-3 text-brand-500"
         onClick={addEducation}
       >
-        <PlusIcon className="mr-2 h-5 w-5" />
+        <PlusIcon className="mr-2 size-5" />
         新增
       </Button>
       {errors.educations?.message && (

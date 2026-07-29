@@ -48,7 +48,7 @@ function HeaderComponent(): JSX.Element {
           <nav className="hidden items-center gap-7 md:flex">
             <Link
               href={findMentorHref}
-              className="text-black font-['Open_Sans'] text-base"
+              className="font-['Open_Sans'] text-base text-text-primary"
             >
               尋找導師
             </Link>
@@ -59,7 +59,7 @@ function HeaderComponent(): JSX.Element {
               <DisabledAwareLink
                 href={leftSecondNav.href}
                 disabled={isResolvingUser}
-                className="text-black font-['Open_Sans'] text-base"
+                className="font-['Open_Sans'] text-base text-text-primary"
               >
                 {leftSecondNav.label}
               </DisabledAwareLink>
@@ -67,7 +67,7 @@ function HeaderComponent(): JSX.Element {
 
             <Link
               href="/about"
-              className="text-black font-['Open_Sans'] text-base"
+              className="font-['Open_Sans'] text-base text-text-primary"
             >
               關於 X-Talent
             </Link>
@@ -78,7 +78,7 @@ function HeaderComponent(): JSX.Element {
               rel="noopener noreferrer"
               aria-label="提供回饋（另開新分頁）"
               onClick={() => trackEvent({ name: 'feedback_open' })}
-              className="text-black font-['Open_Sans'] text-base"
+              className="font-['Open_Sans'] text-base text-text-primary"
             >
               提供回饋
             </a>
@@ -88,7 +88,7 @@ function HeaderComponent(): JSX.Element {
         <div className="flex items-center gap-3 md:mr-20">
           <div className="hidden items-center gap-3 md:flex">
             {!authKnown ? (
-              <Skeleton className="h-9 w-9 rounded-full" />
+              <Skeleton className="size-9 rounded-full" />
             ) : !isLoggedIn ? (
               <>
                 <Link href="/auth/signup">
@@ -109,7 +109,7 @@ function HeaderComponent(): JSX.Element {
             ) : hasFullUser ? (
               <UserDropdown user={session!.user} />
             ) : (
-              <Skeleton className="h-9 w-9 rounded-full" />
+              <Skeleton className="size-9 rounded-full" />
             )}
           </div>
 

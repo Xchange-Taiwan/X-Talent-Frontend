@@ -134,7 +134,7 @@ export const JobExperienceSection = ({
                   disabled={index === 0}
                   onClick={() => move(index, index - 1)}
                 >
-                  <ChevronUpIcon className="h-5 w-5" />
+                  <ChevronUpIcon className="size-5" />
                 </Button>
                 <Button
                   type="button"
@@ -143,7 +143,7 @@ export const JobExperienceSection = ({
                   disabled={index === fields.length - 1}
                   onClick={() => move(index, index + 1)}
                 >
-                  <ChevronDownIcon className="h-5 w-5" />
+                  <ChevronDownIcon className="size-5" />
                 </Button>
               </div>
             )}
@@ -323,7 +323,7 @@ export const JobExperienceSection = ({
                 onConfirm={() => removeAndReassignPrimary(index)}
                 trigger={
                   <Button variant="destructive">
-                    <TrashIcon className="mr-2 h-5 w-5" />
+                    <TrashIcon className="mr-2 size-5" />
                     移除
                   </Button>
                 }
@@ -338,7 +338,7 @@ export const JobExperienceSection = ({
         className="rounded-full px-4 py-3 text-brand-500"
         onClick={addJob}
       >
-        <PlusIcon className="mr-2 h-5 w-5" />
+        <PlusIcon className="mr-2 size-5" />
         新增
       </Button>
       {errors.work_experiences?.message && (

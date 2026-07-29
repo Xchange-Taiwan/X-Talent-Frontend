@@ -28,6 +28,7 @@ const toastVariants = cva(
     variants: {
       variant: {
         default: 'border bg-background-white text-text-primary',
+        // eslint-disable-next-line tailwindcss/no-custom-classname
         destructive:
           'destructive group border-status-error-default bg-status-error-default text-text-white',
       },
@@ -60,7 +61,7 @@ const ToastAction = React.forwardRef<
   <ToastPrimitives.Action
     ref={ref}
     className={cn(
-      'bg-transparent inline-flex h-8 shrink-0 items-center justify-center rounded-md border px-3 text-sm font-medium ring-offset-background-white transition-colors hover:bg-background-bottom focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 group-[.destructive]:border-background-bottom/40 group-[.destructive]:hover:border-status-error-default/30 group-[.destructive]:hover:bg-status-error-default group-[.destructive]:hover:text-text-white group-[.destructive]:focus:ring-status-error-default',
+      'inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium ring-offset-background-white transition-colors hover:bg-background-bottom focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 group-[.destructive]:border-background-bottom/40 group-[.destructive]:hover:border-status-error-default/30 group-[.destructive]:hover:bg-status-error-default group-[.destructive]:hover:text-destructive-foreground group-[.destructive]:focus:ring-status-error-default',
       className
     )}
     {...props}
@@ -75,13 +76,13 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      'absolute right-2 top-2 rounded-md p-1 text-text-primary/50 opacity-0 transition-opacity hover:text-text-primary focus:opacity-100 focus-visible:outline-none focus-visible:ring-2 group-hover:opacity-100 group-[.destructive]:text-status-error-active group-[.destructive]:hover:text-text-white group-[.destructive]:focus-visible:ring-status-error-active group-[.destructive]:focus-visible:ring-offset-status-error-default',
+      'absolute right-2 top-2 rounded-md p-1 text-text-primary/50 opacity-0 transition-opacity hover:text-text-primary focus:opacity-100 focus-visible:outline-none focus-visible:ring-2 group-hover:opacity-100 group-[.destructive]:text-status-error-active group-[.destructive]:hover:text-destructive-foreground group-[.destructive]:focus-visible:ring-status-error-active group-[.destructive]:focus-visible:ring-offset-status-error-default',
       className
     )}
     toast-close=""
     {...props}
   >
-    <X className="h-4 w-4" />
+    <X className="size-4" />
   </ToastPrimitives.Close>
 ));
 ToastClose.displayName = ToastPrimitives.Close.displayName;
