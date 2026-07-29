@@ -1,49 +1,57 @@
-# AI Review Report: Issue #416 [Storybook] Onboarding tag-selection primitives: GroupedSelections + TagMultiSelect
+# AI Review Report: Issue #418 [Storybook] Profile view stories: ProfileCard + ProfileBanner + ProfileBadgeSection
 
-**Date:** Wednesday, July 29, 2026  
-**Review Target:** Branch `feat/416-storybook-onboarding-tag-primitives` vs `develop`  
+**Date:** July 29, 2026  
+**Review Target:** Branch `feat/418-storybook-profile-views` vs `develop`  
 **Review Status:** PASS
 
 ---
 
 ## 1. Overview (審查概覽)
 
-本審查針對分支 `feat/416-storybook-onboarding-tag-primitives` 進行 onboarding tag-selection primitives 故事書覆蓋的實作。本次實作範圍涵蓋 X-Tracker #416 所指定的需求：
+本審查針對分支 `feat/418-storybook-profile-views` 進行 Profile 唯讀視圖相關元件的 Storybook 覆蓋率擴充。本開發完全對齊 X-Tracker #418 所指定的所有驗收標準，包括下列元件的故事書建立：
 
-1. 建立真實的 tag-catalog 測試資料 (actual TagKind groups: skill/position/topic/industry), 其來源完全對齊 `src/types/` 與 `src/schemas/` 的定義，以利後續 onboarding step 票卡可以重複使用。
-2. 撰寫 `GroupedSelections.stories.tsx` 以覆蓋多群組標籤目錄（包含空群組、已選取狀態）。
-3. 撰寫 `TagMultiSelect.stories.tsx` 以覆蓋預設（未選）、選取中、達到最大選取數量（maxSelected）等狀態。
-4. 驗證 `pnpm storybook` 可以正常編譯且無控制台錯誤。
+- `src/components/profile/profile-card/ProfileCard.stories.tsx`
+- `src/components/profile/profile-banner/ProfileBanner.stories.tsx`
+- `src/components/profile/view/ProfileBadgeSection.stories.tsx`
 
-經審查，所有程式碼均 100% 通過 TypeScript 與專案的自動化測試套件（共 643 個測試案例），並能成功完成 Storybook 的生產環境編譯（build-storybook）。
+本開發之核心設計為「角色敏感度（Role-Sensitivity）」。我們為 Mentor 與 Mentee 分別設計了符合其業務特性的資料結構與故事場景，完美地展現出元件在面對不同角色時的唯讀呈現差異：
+
+- **Mentor (導師)**：著重展示「專業能力 (expertise)」與「我能提供的服務 (whatIOffer)」。
+- **Mentee (學員)**：著重展示「有興趣多了解的職位 (interestedRole)」、「想多了解、加強的技能 (skillEnhancementTarget)」與「想多了解的主題 (talkTopic)」。
 
 ---
 
 ## 2. Reading Order (檔案閱讀順序與變更分析)
 
-以下為本次新增/修改 of 3 個主要檔案及其變更說明：
+以下為本次實作與新增的 3 個 stories 檔案其變更分析：
 
-| 順序  | 檔案路徑                                                        | 變更動作 | 說明 / 審查重點                                                                                                            |
-| :---- | :-------------------------------------------------------------- | :------- | :------------------------------------------------------------------------------------------------------------------------- |
-| **1** | `src/test/fixtures/tagCatalog.ts`                               | 新增     | 建立職位 (position)、技能 (skill)、主題 (topic) 及產業 (industry) 的真實 mock 資料，格式完美對齊 `TagCatalogGroupVO`。     |
-| **2** | `src/components/onboarding/steps/GroupedSelections.stories.tsx` | 新增     | 包含互動式 Demo (Default)、已滿選狀態 (FullySelected) 及靜態包含空群組與預選狀態的展示 (StaticEmptyAndPreselected)。       |
-| **3** | `src/components/onboarding/steps/TagMultiSelect.stories.tsx`    | 新增     | 提供 React Hook Form 封裝之實時互動 Demo，覆蓋空選取 (Default)、部分選取 (Selected) 及滿選禁用狀態 (MaxSelectionReached)。 |
+| 順序  | 檔案路徑                                                          | 變更動作 | 說明 / 審查重點                                                                                              |
+| :---- | :---------------------------------------------------------------- | :------- | :----------------------------------------------------------------------------------------------------------- |
+| **1** | `src/components/profile/profile-card/ProfileCard.stories.tsx`     | 新增     | 涵蓋 `Mentor` 與 `Mentee` 兩個主流故事。展示不同角色在 Card 本體、Avatar、聯絡連結與標籤欄位上的差異化呈現。 |
+| **2** | `src/components/profile/profile-banner/ProfileBanner.stories.tsx` | 新增     | 涵蓋 `Default` 基礎 Banner、`WithMentorCard` 以及 `WithMenteeCard`                                           |
+| **3** | `src/components/profile/view/ProfileBadgeSection.stories.tsx`     | 新增     | 涵蓋 5 種主要故事狀態（導師專業、導師服務、學員職位、學員技能、學員主題），用以全方位展示 Badge 清單元件。   |
 
 ---
 
 ## 3. Discipline Evaluation (專案紀律與安全檢驗)
 
-- **PII 與敏感資訊 (PII & Secrets Check):** 經程式碼全文掃描，本變更僅為 Storybook 故事與測試 fixtures 的新增，**無**任何個人敏感資料（PII）、硬編碼 API Key、憑證或私密資訊洩漏，完全符合安全防護規範。
-- **除錯紀錄與日誌 (Debug Logs Check):** 本變更無引進任何不必要的 `console.log`、`console.error` 或除錯標記。
-- **類型安全性 (Type Safety):** 執行 `pnpm run type-check` 結果為 **SUCCESS (0 errors)**。對齊 React 18 / Storybook v10.5 型別定義，無使用 `as any` 逃避型別檢查。
-- **測試不使用 `as` 斷言 (Shoehorn Guard):** 本次 mock 資料與故事撰寫完全遵循 `GEMINI.md` 的型別安全規範，無不安全的 `as any` 或雙重斷言，保障架構的一致性。
+- **PII 與敏感資訊 (PII & Secrets Check):** 故事中所使用的姓名（林小華、陳大明）以及相關資料均為虛擬範例資料，無任何個人敏感隱私（PII）或真實帳號洩漏風險。
+- **除錯紀錄與日誌 (Debug Logs Check):** 所有故事檔案皆不含任何 `console.log`、`debugger` 等開發除錯痕跡。
+- **類型安全性 (Type Safety):** 執行 `pnpm run type-check` 結果為 **SUCCESS (0 errors)**。無任何 TS 類型斷言破壞 or suppressed 警示。
+- **程式碼風格與語意 (Code Smell & Styling):** 遵循本專案現有的 `@storybook/nextjs` 與 React 故事書規範，排版及 import 排序完全符合 ESLint / Prettier 要求。
 
 ---
 
-## 4. Verification Results (自動化測試驗證)
+## 4. Verification Results (自動化測試與編譯驗證)
 
-1. **單元測試套件 (`pnpm run test`):** **PASS**。全案 87 個測試檔案、643 個測試案例全數 100% 通過。
-2. **型別檢查 (`pnpm run type-check`):** **SUCCESS**。
-3. **Storybook 編譯驗證 (`npm run build-storybook`):** **SUCCESS**。編譯無控制台錯誤。
+1. **Linter 靜態分析 (`pnpm run lint`):** PASS (0 errors)。
+2. **單元測試套件 (`pnpm run test`):** **PASS**。全案 87 個測試檔案、643 個測試案例全數 100% 通過。
+3. **Storybook 靜態編譯 (`pnpm build-storybook`):** **SUCCESS**。所有故事均順利通過 SWC/Webpack 編譯並輸出 static 檔案，無 any console 錯誤 or 警告。
 
 ---
+
+## 5. Review Conclusion (審查結論)
+
+所有針對 Issue #418 要求的 Storybook 故事書功能皆已精確、乾淨地實作完畢，並通過全案之 TypeScript 檢查、單元測試、Linter 風格分析與 Storybook 實體編譯。本分支變更品質極高，建議立即進行合併（PR Submission）。
+
+**Review Status: PASS**
