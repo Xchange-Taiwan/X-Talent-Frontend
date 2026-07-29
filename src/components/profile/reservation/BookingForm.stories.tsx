@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 
+import { mockBookingSlots } from './__mocks__/reservationStories.mock';
 import { BookingForm } from './BookingForm';
 
 const meta: Meta<typeof BookingForm> = {
@@ -10,30 +11,6 @@ const meta: Meta<typeof BookingForm> = {
 
 export default meta;
 type Story = StoryObj<typeof BookingForm>;
-
-const now = new Date();
-
-// Helper to create dates relative to now
-const relativeDate = (hoursOffset: number, minutesOffset: number = 0) => {
-  const d = new Date(now);
-  d.setHours(d.getHours() + hoursOffset, minutesOffset, 0, 0);
-  return d;
-};
-
-const mockSlots = [
-  {
-    start: relativeDate(1), // 1 hour in future
-    end: relativeDate(1, 30),
-    scheduleId: 401,
-    isBooked: false,
-  },
-  {
-    start: relativeDate(2), // 2 hours in future
-    end: relativeDate(2, 30),
-    scheduleId: 402,
-    isBooked: true,
-  },
-];
 
 export const UserDataLoading: Story = {
   args: {
@@ -56,7 +33,7 @@ export const MentorOwnProfile: Story = {
     isOwnMentorProfile: true,
     isUserDataLoading: false,
     isAuthenticated: true,
-    slots: mockSlots,
+    slots: mockBookingSlots,
     monthLoaded: true,
     selectedSlot: null,
     setSelectedSlot: () => {},
@@ -72,9 +49,9 @@ export const MenteeProfileView: Story = {
     isOwnMentorProfile: false,
     isUserDataLoading: false,
     isAuthenticated: true,
-    slots: mockSlots,
+    slots: mockBookingSlots,
     monthLoaded: true,
-    selectedSlot: mockSlots[0],
+    selectedSlot: mockBookingSlots[0],
     setSelectedSlot: () => {},
     isSubmitting: false,
     selectedDate: '2026-08-05',

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 
+import { mockBookingSlots } from './__mocks__/reservationStories.mock';
 import { MenteeBookingForm } from './MenteeBookingForm';
 
 const meta: Meta<typeof MenteeBookingForm> = {
@@ -10,30 +11,6 @@ const meta: Meta<typeof MenteeBookingForm> = {
 
 export default meta;
 type Story = StoryObj<typeof MenteeBookingForm>;
-
-const now = new Date();
-
-// Helper to create dates relative to now
-const relativeDate = (hoursOffset: number, minutesOffset: number = 0) => {
-  const d = new Date(now);
-  d.setHours(d.getHours() + hoursOffset, minutesOffset, 0, 0);
-  return d;
-};
-
-const mockSlots = [
-  {
-    start: relativeDate(1), // 1 hour in future
-    end: relativeDate(1, 30),
-    scheduleId: 301,
-    isBooked: false,
-  },
-  {
-    start: relativeDate(2), // 2 hours in future
-    end: relativeDate(2, 30),
-    scheduleId: 302,
-    isBooked: true,
-  },
-];
 
 export const Loading: Story = {
   args: {
@@ -50,7 +27,7 @@ export const Loading: Story = {
 
 export const Unauthenticated: Story = {
   args: {
-    slots: mockSlots,
+    slots: mockBookingSlots,
     monthLoaded: true,
     selectedSlot: null,
     setSelectedSlot: () => {},
@@ -63,7 +40,7 @@ export const Unauthenticated: Story = {
 
 export const NotSelected: Story = {
   args: {
-    slots: mockSlots,
+    slots: mockBookingSlots,
     monthLoaded: true,
     selectedSlot: null,
     setSelectedSlot: () => {},
@@ -76,9 +53,9 @@ export const NotSelected: Story = {
 
 export const SlotSelected: Story = {
   args: {
-    slots: mockSlots,
+    slots: mockBookingSlots,
     monthLoaded: true,
-    selectedSlot: mockSlots[0],
+    selectedSlot: mockBookingSlots[0],
     setSelectedSlot: () => {},
     isSubmitting: false,
     selectedDate: '2026-08-05',
@@ -89,9 +66,9 @@ export const SlotSelected: Story = {
 
 export const Submitting: Story = {
   args: {
-    slots: mockSlots,
+    slots: mockBookingSlots,
     monthLoaded: true,
-    selectedSlot: mockSlots[0],
+    selectedSlot: mockBookingSlots[0],
     setSelectedSlot: () => {},
     isSubmitting: true,
     selectedDate: '2026-08-05',

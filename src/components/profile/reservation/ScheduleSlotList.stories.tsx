@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import type { BookingSlot } from '@/hooks/useMentorSchedule';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 
+import { mockBookingSlots } from './__mocks__/reservationStories.mock';
 import { BOOKED_SLOT_CLASSES, ScheduleSlotList } from './ScheduleSlotList';
 
 const meta: Meta<typeof ScheduleSlotList> = {
@@ -15,30 +16,6 @@ const meta: Meta<typeof ScheduleSlotList> = {
 
 export default meta;
 type Story = StoryObj<typeof ScheduleSlotList>;
-
-const now = new Date();
-
-// Helper to create dates relative to now
-const relativeDate = (hoursOffset: number, minutesOffset: number = 0) => {
-  const d = new Date(now);
-  d.setHours(d.getHours() + hoursOffset, minutesOffset, 0, 0);
-  return d;
-};
-
-const mockSlots: BookingSlot[] = [
-  {
-    start: relativeDate(2), // 2 hours in future
-    end: relativeDate(2, 30),
-    scheduleId: 101,
-    isBooked: false,
-  },
-  {
-    start: relativeDate(3), // 3 hours in future
-    end: relativeDate(3, 45),
-    scheduleId: 102,
-    isBooked: true,
-  },
-];
 
 const defaultRenderSlot = (slot: BookingSlot) => (
   <Button
@@ -69,7 +46,7 @@ export const Empty: Story = {
 
 export const WithSlots: Story = {
   args: {
-    slots: mockSlots,
+    slots: mockBookingSlots,
     monthLoaded: true,
     renderSlot: defaultRenderSlot,
   },
