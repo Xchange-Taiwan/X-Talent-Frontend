@@ -1,9 +1,6 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
-import { useForm } from 'react-hook-form';
 
-import { Form } from '@/components/ui/form';
 import {
   createProfileFormSchema,
   defaultValues,
@@ -11,6 +8,7 @@ import {
 } from '@/schemas/profileSchema';
 
 import { JobExperienceSection } from './JobExperienceSection';
+import { ProfileStoryWrapper } from './ProfileStoryWrapper';
 
 const locationsMock = [
   { value: 'TWN', text: '臺灣 (Taiwan)' },
@@ -47,21 +45,18 @@ const SectionWithForm = (props: {
   initialExperiences?: ProfileFormValues['work_experiences'];
   onValidationChange: (hasError: boolean) => void;
 }) => {
-  const form = useForm<ProfileFormValues>({
-    resolver: zodResolver(createProfileFormSchema(props.isMentor)),
-    defaultValues: {
-      ...defaultValues,
-      is_mentor: props.isMentor,
-      work_experiences: props.initialExperiences ?? [],
-    },
-  });
+  const schema = createProfileFormSchema(props.isMentor);
 
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit((data) => console.log('Submit:', data))}
-        className="max-w-3xl space-y-6 rounded-xl border border-background-border bg-background-white p-6 shadow-sm"
-      >
+    <ProfileStoryWrapper
+      schema={schema}
+      defaultValues={{
+        ...defaultValues,
+        is_mentor: props.isMentor,
+        work_experiences: props.initialExperiences ?? [],
+      }}
+    >
+      {(form) => (
         <JobExperienceSection
           industries={industriesMock}
           locations={locationsMock}
@@ -69,14 +64,8 @@ const SectionWithForm = (props: {
           isMentor={props.isMentor}
           onValidationChange={props.onValidationChange}
         />
-        <button
-          type="submit"
-          className="rounded-md bg-brand-500 px-4 py-2 text-text-white transition-colors hover:bg-brand-600"
-        >
-          提交表單
-        </button>
-      </form>
-    </Form>
+      )}
+    </ProfileStoryWrapper>
   );
 };
 

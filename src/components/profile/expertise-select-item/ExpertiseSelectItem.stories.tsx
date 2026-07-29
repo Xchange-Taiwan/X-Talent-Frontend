@@ -1,11 +1,7 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
-import { useForm } from 'react-hook-form';
-import * as z from 'zod';
 
-import { Form } from '@/components/ui/form';
-
+import { ProfileStoryWrapper } from '../edit/ProfileStoryWrapper';
 import { ExpertiseSelectItem, formSchema } from './ExpertiseSelectItem';
 
 const meta: Meta<typeof ExpertiseSelectItem> = {
@@ -31,25 +27,22 @@ const ExpertiseWithForm = (props: {
     | 'Graphic Design'
   )[];
 }) => {
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      expertise: props.initialSelected ?? [],
-    },
-  });
-
   return (
-    <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit((data) => console.log('Submit:', data))}
-        className="max-w-md space-y-4 rounded-xl border border-background-border bg-background-white p-4 shadow-sm"
-      >
-        <ExpertiseSelectItem type={props.type} form={form} />
-        <div className="rounded bg-background-bottom p-2 text-xs text-text-secondary">
-          目前表單選中: {JSON.stringify(form.watch('expertise'))}
-        </div>
-      </form>
-    </Form>
+    <ProfileStoryWrapper
+      schema={formSchema}
+      defaultValues={{
+        expertise: props.initialSelected ?? [],
+      }}
+    >
+      {(form) => (
+        <>
+          <ExpertiseSelectItem type={props.type} form={form} />
+          <div className="rounded bg-background-bottom p-2 text-xs text-text-secondary">
+            目前表單選中: {JSON.stringify(form.watch('expertise'))}
+          </div>
+        </>
+      )}
+    </ProfileStoryWrapper>
   );
 };
 
@@ -97,17 +90,15 @@ export const InteractiveSelected: StoryObj<typeof ExpertiseSelectItem> = {
 
 export const InteractiveAllOptions: StoryObj<typeof ExpertiseSelectItem> = {
   render: () => {
-    const Component = () => {
-      const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
-        defaultValues: {
+    return (
+      <ProfileStoryWrapper
+        schema={formSchema}
+        defaultValues={{
           expertise: ['UI Design'],
-        },
-      });
-
-      return (
-        <Form {...form}>
-          <form className="max-w-md space-y-3 rounded-xl border border-background-border bg-background-white p-4 shadow-sm">
+        }}
+      >
+        {(form) => (
+          <div className="space-y-3">
             <h3 className="mb-2 text-sm font-semibold text-text-primary">
               請選擇您的專業領域 (可複選)
             </h3>
@@ -118,10 +109,9 @@ export const InteractiveAllOptions: StoryObj<typeof ExpertiseSelectItem> = {
             <div className="rounded bg-background-bottom p-2 text-xs text-text-secondary">
               目前選中: {JSON.stringify(form.watch('expertise'))}
             </div>
-          </form>
-        </Form>
-      );
-    };
-    return <Component />;
+          </div>
+        )}
+      </ProfileStoryWrapper>
+    );
   },
 };
