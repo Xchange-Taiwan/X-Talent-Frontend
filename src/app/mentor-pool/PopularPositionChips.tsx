@@ -81,7 +81,7 @@ export default function PopularPositionChips() {
             }}
             type="button"
             onClick={() => handleClick(position)}
-            className={`shrink-0 rounded-full border border-background-border bg-background-white px-4 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-landingPurpleLight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            className={`shrink-0 rounded-full border border-background-border bg-background-white px-4 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-landingPurpleLight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               i >= visibleCount ? 'xl:hidden' : ''
             }`}
           >
@@ -94,7 +94,7 @@ export default function PopularPositionChips() {
           aria-hidden
           className="pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center justify-start bg-gradient-to-r from-background-white to-transparent xl:hidden"
         >
-          <ChevronLeft className="size-4 text-foreground/60" />
+          <ChevronLeft className="size-4 text-text-primary/60" />
         </div>
       )}
       {canScrollRight && (
@@ -102,7 +102,7 @@ export default function PopularPositionChips() {
           aria-hidden
           className="pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-end bg-gradient-to-l from-background-white to-transparent xl:hidden"
         >
-          <ChevronRight className="size-4 text-foreground/60" />
+          <ChevronRight className="size-4 text-text-primary/60" />
         </div>
       )}
     </div>

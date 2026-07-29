@@ -126,7 +126,7 @@ function Calendar({
         ),
 
         dropdown: cn(
-          'absolute inset-0 bg-popover opacity-0',
+          'absolute inset-0 bg-background-white opacity-0',
           defaultClassNames.dropdown
         ),
 
