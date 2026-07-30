@@ -2,10 +2,6 @@ import React from 'react';
 import type { Decorator } from '@storybook/react';
 import { SessionContext, SessionContextValue } from 'next-auth/react';
 import type { Session } from 'next-auth';
-import {
-  AppRouterContext,
-  AppRouterInstance,
-} from 'next/dist/shared/lib/app-router-context.shared-runtime';
 
 export const defaultMockUser = {
   id: 'test-user-id',
@@ -19,15 +15,6 @@ export const defaultMockSession: Session = {
   user: defaultMockUser,
   accessToken: 'mock-access-token',
   expires: '2099-01-01T00:00:00.000Z',
-};
-
-export const defaultMockRouter: AppRouterInstance = {
-  back: () => {},
-  forward: () => {},
-  refresh: () => {},
-  push: () => {},
-  replace: () => {},
-  prefetch: () => {},
 };
 
 export interface ResolveMockSessionResult {
@@ -125,8 +112,7 @@ export function resolveMockSession(
 }
 
 /**
- * Shared Storybook decorator to provide NextAuth `SessionProvider` (via SessionContext.Provider) and
- * Next.js App Router context (via AppRouterContext.Provider) with configurable mocks.
+ * Shared Storybook decorator to provide NextAuth `SessionProvider` (via SessionContext.Provider) with configurable mocks.
  * By default, stories are authenticated with a standard test session (defaultMockSession).
  *
  * To override the default user or session:
@@ -157,9 +143,7 @@ export const withAppContext: Decorator = (Story, context) => {
 
   return (
     <SessionContext.Provider value={contextValue}>
-      <AppRouterContext.Provider value={defaultMockRouter}>
-        <Story />
-      </AppRouterContext.Provider>
+      <Story />
     </SessionContext.Provider>
   );
 };
