@@ -118,17 +118,18 @@ export function useMentorPool({
     return getInitialUnfilteredState();
   });
 
-  const { run: runFilter, isPending: isFilterPending } = useAsyncAction();
+  const { run: runFilter } = useAsyncAction();
   const { run: runLoadMore, isPending: isLoadMorePending } = useAsyncAction();
 
+  const [isFilterLoading, setIsFilterLoading] = useState(hasInitialFilters);
   const [retryCount, setRetryCount] = useState<number>(0);
   const requestIdRef = useRef(0);
   const hasClientFetched = useRef(false);
 
   // Derived loading state combining local filter loading (Latest Wins) and pagination loading
   const isLoading = hasInitialFilters
-    ? !hasClientFetched.current || isFilterPending || isLoadMorePending
-    : isFilterPending || isLoadMorePending;
+    ? !hasClientFetched.current || isFilterLoading || isLoadMorePending
+    : isFilterLoading || isLoadMorePending;
 
   // Centralized, DRY error handling helper to manage state transitions and error toast feedback
   const handleError = useCallback(
@@ -170,6 +171,7 @@ export function useMentorPool({
       !(initialError && (retryCount > 0 || hasClientFetched.current))
     ) {
       setPageState(getInitialUnfilteredState());
+      setIsFilterLoading(false);
       return;
     }
 
@@ -181,17 +183,24 @@ export function useMentorPool({
       hasError: false,
     }));
     hasClientFetched.current = true;
+    setIsFilterLoading(true);
 
     runFilter(
       () => fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' }),
       {
         preventConcurrent: false, // For params change, do not block subsequent valid filtering requests
         throwError: false,
-        onError: () => handleError(myRequestId, false),
+        onError: () => {
+          if (myRequestId === requestIdRef.current) {
+            setIsFilterLoading(false);
+            handleError(myRequestId, false);
+          }
+        },
       }
     ).then((list) => {
       if (!list) return;
       if (myRequestId !== requestIdRef.current) return;
+      setIsFilterLoading(false);
       setPageState((prev) =>
         applyMentorPage(prev, { type: 'replace', page: list })
       );
