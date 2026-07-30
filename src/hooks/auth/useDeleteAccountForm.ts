@@ -76,6 +76,7 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
         throw new Error(result.message || '刪除帳號失敗，請稍後再試');
       },
       {
+        throwError: false,
         captureFailure: {
           flow: 'delete_account',
           step: 'submit',
@@ -110,6 +111,7 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
         router.push(authorization_url);
       },
       {
+        throwError: false,
         onError: () => {
           sessionStorage.removeItem('delete_account_email');
         },

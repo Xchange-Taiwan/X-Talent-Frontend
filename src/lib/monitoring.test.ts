@@ -6,7 +6,11 @@ vi.mock('@sentry/nextjs', () => ({
 
 import * as Sentry from '@sentry/nextjs';
 
-import { captureFlowFailure } from './monitoring';
+import {
+  captureApiFailure,
+  captureError,
+  captureFlowFailure,
+} from './monitoring';
 
 const mockCaptureEvent = vi.mocked(Sentry.captureEvent);
 
@@ -20,8 +24,8 @@ describe('captureFlowFailure', () => {
     vi.unstubAllEnvs();
   });
 
-  it('defaults to level "error" when no level is provided', () => {
-    captureFlowFailure({
+  it('defaults to level "error" when no level is provided', async () => {
+    await captureFlowFailure({
       flow: 'sign_in',
       step: 'authenticate',
       message: 'Invalid credentials',
@@ -33,8 +37,8 @@ describe('captureFlowFailure', () => {
     );
   });
 
-  it('forwards explicit level "info" to Sentry', () => {
-    captureFlowFailure({
+  it('forwards explicit level "info" to Sentry', async () => {
+    await captureFlowFailure({
       flow: 'sign_in',
       step: 'authenticate',
       message: 'Invalid credentials',
@@ -46,8 +50,8 @@ describe('captureFlowFailure', () => {
     );
   });
 
-  it('forwards explicit level "warning" to Sentry', () => {
-    captureFlowFailure({
+  it('forwards explicit level "warning" to Sentry', async () => {
+    await captureFlowFailure({
       flow: 'profile_update',
       step: 'background_sync',
       message: 'pollUntilSynced exhausted retries without sync',
@@ -59,10 +63,10 @@ describe('captureFlowFailure', () => {
     );
   });
 
-  it('does NOT call Sentry when NODE_ENV is not production', () => {
+  it('does NOT call Sentry when NODE_ENV is not production', async () => {
     vi.stubEnv('NODE_ENV', 'test');
 
-    captureFlowFailure({
+    await captureFlowFailure({
       flow: 'sign_in',
       step: 'authenticate',
       message: 'Invalid credentials',
@@ -72,8 +76,8 @@ describe('captureFlowFailure', () => {
     expect(mockCaptureEvent).not.toHaveBeenCalled();
   });
 
-  it('emits flow.<flow>.failure as the event message and tags flow/step/route', () => {
-    captureFlowFailure({
+  it('emits flow.<flow>.failure as the event message and tags flow/step/route', async () => {
+    await captureFlowFailure({
       flow: 'sign_up',
       step: 'submit',
       message: 'Email registered',
@@ -93,8 +97,8 @@ describe('captureFlowFailure', () => {
     );
   });
 
-  it('sanitizes sensitive query params and JSON values in the message', () => {
-    captureFlowFailure({
+  it('sanitizes sensitive query params and JSON values in the message', async () => {
+    await captureFlowFailure({
       flow: 'sign_in',
       step: 'authenticate',
       message:
@@ -109,5 +113,83 @@ describe('captureFlowFailure', () => {
     expect(arg.extra.message).toContain('"email":"[REDACTED]"');
     expect(arg.extra.message).not.toContain('abc123');
     expect(arg.extra.message).not.toContain('a@b.c');
+  });
+
+  it('captureFlowFailure catches Sentry logging errors and does not crash the caller', async () => {
+    mockCaptureEvent.mockImplementationOnce(() => {
+      throw new Error('Sentry capture failed');
+    });
+
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    await expect(
+      captureFlowFailure({
+        flow: 'sign_in',
+        step: 'authenticate',
+        message: 'Something went wrong',
+      })
+    ).resolves.not.toThrow();
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[Monitoring] captureFlowFailure Sentry logging failed:',
+      expect.any(Error)
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('captureError catches Sentry logging errors and does not crash the caller', async () => {
+    mockCaptureEvent.mockImplementationOnce(() => {
+      throw new Error('Sentry capture failed');
+    });
+
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    await expect(
+      captureError({
+        name: 'runtime_error.unhandled_js',
+        timestamp: new Date().toISOString(),
+        environment: 'production',
+        route: '/test',
+        message: 'Something went wrong',
+      })
+    ).resolves.not.toThrow();
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[Monitoring] captureError Sentry logging failed:',
+      expect.any(Error)
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('captureApiFailure catches Sentry logging errors and does not crash the caller', async () => {
+    mockCaptureEvent.mockImplementationOnce(() => {
+      throw new Error('Sentry capture failed');
+    });
+
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    await expect(
+      captureApiFailure({
+        endpoint: '/api/test',
+        method: 'GET',
+        status: 500,
+        message: 'Internal server error',
+      })
+    ).resolves.not.toThrow();
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[Monitoring] captureApiFailure Sentry logging failed:',
+      expect.any(Error)
+    );
+
+    consoleErrorSpy.mockRestore();
   });
 });

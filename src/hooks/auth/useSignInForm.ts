@@ -92,6 +92,7 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
         }
       },
       {
+        throwError: false,
         captureFailure: {
           flow: 'sign_in',
           step: 'unexpected',

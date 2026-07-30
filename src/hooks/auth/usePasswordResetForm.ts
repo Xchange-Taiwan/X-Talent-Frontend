@@ -46,6 +46,7 @@ export default function usePasswordResetForm() {
         router.push('/auth/password-reset-success');
       },
       {
+        throwError: false,
         toastOnError: {
           title: '密碼重設失敗',
           description: (error) => {

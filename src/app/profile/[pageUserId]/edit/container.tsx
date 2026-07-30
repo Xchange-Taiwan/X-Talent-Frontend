@@ -41,21 +41,45 @@ import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 
-const JobExperienceSection = dynamic(async () => {
-  const m = await import('@/components/profile/edit/JobExperienceSection');
-  return { default: m.JobExperienceSection };
-});
+const JobExperienceSection = dynamic(
+  async () => {
+    const m = await import('@/components/profile/edit/JobExperienceSection');
+    return { default: m.JobExperienceSection };
+  },
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-40 w-full animate-pulse rounded bg-muted" />
+    ),
+  }
+);
 
-const EducationSection = dynamic(async () => {
-  const m =
-    await import('@/components/profile/edit/educationSection/educationSection');
-  return { default: m.EducationSection };
-});
+const EducationSection = dynamic(
+  async () => {
+    const m =
+      await import('@/components/profile/edit/educationSection/educationSection');
+    return { default: m.EducationSection };
+  },
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-40 w-full animate-pulse rounded bg-muted" />
+    ),
+  }
+);
 
-const LinksSection = dynamic(async () => {
-  const m = await import('@/components/profile/edit/LinkSection');
-  return { default: m.LinksSection };
-});
+const LinksSection = dynamic(
+  async () => {
+    const m = await import('@/components/profile/edit/LinkSection');
+    return { default: m.LinksSection };
+  },
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-32 w-full animate-pulse rounded bg-muted" />
+    ),
+  }
+);
 
 interface Props {
   pageUserId: string;

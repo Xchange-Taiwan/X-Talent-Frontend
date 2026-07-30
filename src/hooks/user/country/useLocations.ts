@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
 
+import { createKeyedCache } from '@/lib/createKeyedCache';
 import { getCountries, LocationType } from '@/services/profile/countries';
 
-const cache = new Map<string, LocationType[]>();
-const inflight = new Map<string, Promise<LocationType[]>>();
+export const LOCATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+export const locationsCache = createKeyedCache<string, LocationType[]>({
+  ttlMs: LOCATIONS_CACHE_TTL_MS,
+});
 
 interface UseLocationsResult {
   locations: LocationType[];
@@ -13,15 +17,26 @@ interface UseLocationsResult {
 
 export default function useLocations(language: string): UseLocationsResult {
   const [locations, setLocations] = useState<LocationType[]>(
-    () => cache.get(language) ?? []
+    () => locationsCache.get(language) ?? []
   );
-  const [isLoading, setIsLoading] = useState(!cache.has(language));
+  const [isLoading, setIsLoading] = useState(
+    () => !locationsCache.has(language)
+  );
   const [error, setError] = useState<string | null>(null);
+
+  // Synchronously update state on language prop change during render (Derived State pattern)
+  const [prevLang, setPrevLang] = useState(language);
+  if (prevLang !== language) {
+    setPrevLang(language);
+    setLocations(locationsCache.get(language) ?? []);
+    setIsLoading(!locationsCache.has(language));
+    setError(null);
+  }
 
   useEffect(() => {
     let cancelled = false;
 
-    const cached = cache.get(language);
+    const cached = locationsCache.get(language);
     if (cached) {
       setLocations(cached);
       setIsLoading(false);
@@ -32,19 +47,8 @@ export default function useLocations(language: string): UseLocationsResult {
     setIsLoading(true);
     setError(null);
 
-    const promise =
-      inflight.get(language) ??
-      (() => {
-        const p = getCountries(language).then((data) => {
-          cache.set(language, data);
-          inflight.delete(language);
-          return data;
-        });
-        inflight.set(language, p);
-        return p;
-      })();
-
-    promise
+    locationsCache
+      .fetch(language, () => getCountries(language))
       .then((data) => {
         if (!cancelled) {
           setLocations(data);
