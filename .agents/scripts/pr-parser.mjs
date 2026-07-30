@@ -8,9 +8,18 @@ export function categorizeChecks(checks = []) {
   const failing = [];
 
   for (const check of checks) {
-    if (check.bucket === "pass" || check.state === "success" || check.bucket === "skipping") {
+    if (
+      check.bucket === 'pass' ||
+      check.state === 'success' ||
+      check.bucket === 'skipping'
+    ) {
       passing.push(check);
-    } else if (check.bucket === "pending" || check.state === "pending" || check.state === "in_progress" || check.state === "queued") {
+    } else if (
+      check.bucket === 'pending' ||
+      check.state === 'pending' ||
+      check.state === 'in_progress' ||
+      check.state === 'queued'
+    ) {
       pending.push(check);
     } else {
       failing.push(check);
