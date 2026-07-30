@@ -106,13 +106,10 @@ describe('resolveMockSession', () => {
       expires: '2026-12-31T23:59:59.000Z',
     };
 
-    const result = resolveMockSession(
-      undefined,
-      {
-        session: customSession,
-        user: { name: 'User Arg' },
-      }
-    );
+    const result = resolveMockSession(undefined, {
+      session: customSession,
+      user: { name: 'User Arg' },
+    });
     expect(result).toEqual({
       session: customSession,
       status: 'authenticated',

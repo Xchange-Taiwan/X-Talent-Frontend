@@ -83,7 +83,9 @@ export function resolveMockSession(
   }
 
   // 4. Determine session status
-  let status: 'authenticated' | 'unauthenticated' | 'loading' = session ? 'authenticated' : 'unauthenticated';
+  let status: 'authenticated' | 'unauthenticated' | 'loading' = session
+    ? 'authenticated'
+    : 'unauthenticated';
   if (authParams.status !== undefined) {
     status = authParams.status;
   } else if (params?.status !== undefined) {
@@ -98,12 +100,12 @@ export function resolveMockSession(
 /**
  * Shared Storybook decorator to provide NextAuth `SessionProvider` (via SessionContext.Provider) with configurable mocks.
  * By default, stories are authenticated with a standard test session.
- * 
+ *
  * To override the default user or session:
  * 1. Via parameters (Recommended for components without user/session Props to avoid TypeScript strict compile errors):
  *    - `parameters: { nextAuth: { user: { name: 'Custom PM', isMentor: true } } }`
  *    - `parameters: { nextAuth: { session: null } }` (unauthenticated guest states)
- * 
+ *
  * 2. Via args (Best for components like UserDropdown that accept user/session as direct Props):
  *    - `args: { user: { name: 'Custom Name' } }`
  *    - `args: { user: null }`
@@ -122,7 +124,10 @@ export const withAppContext: Decorator = (Story, context) => {
   }
 
   // Resolve mock session and status from parameters or args
-  const { session, status } = resolveMockSession(context.parameters, context.args);
+  const { session, status } = resolveMockSession(
+    context.parameters,
+    context.args
+  );
 
   const contextValue: SessionContextValue = {
     data: session,
