@@ -3,33 +3,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
-import * as monitoring from '@/lib/monitoring';
+import { captureFlowFailure, sanitize } from '@/lib/monitoring';
 
 const safeSanitize = (val: string): string => {
-  try {
-    const monitoringObj = monitoring as Record<string, unknown>;
-    const s = monitoringObj.sanitize;
-    if (typeof s === 'function') {
-      return s(val) as string;
-    }
-  } catch {
-    // 吸收 Vitest 代理 Mock 存取錯誤
+  if (typeof sanitize !== 'function') {
+    return '[Sanitization failed]';
   }
-  return val;
+  try {
+    const sanitized = sanitize(val);
+    return sanitized !== undefined ? sanitized : '[Sanitization failed]';
+  } catch {
+    return '[Sanitization failed]';
+  }
 };
 
-const safeCaptureFlowFailure = (args: Record<string, unknown>): unknown => {
-  try {
-    const monitoringObj = monitoring as Record<string, unknown>;
-    const c = monitoringObj.captureFlowFailure;
-    if (typeof c === 'function') {
-      return c(args);
-    }
-  } catch {
-    // 吸收 Vitest 代理 Mock 存取錯誤
-  }
-  return undefined;
-};
+const EMPTY_CONFIG = {};
 
 /**
  * Helper to resolve configuration properties which can be static values or dynamic functions.
@@ -91,6 +79,7 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
    * @deprecated 建議改用 `toastOnError.duration` 結構進行設定
    */
   duration?: number | ((error: unknown) => number | undefined);
+
   /**
    * Pluggable 錯誤回撥，提供額外的自訂處理邏輯
    */
@@ -117,7 +106,6 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
    */
   shouldSkipLogging?: (error: unknown) => boolean;
 
-  // 相容於分支中的巢狀物件與舊命名
   captureFailure?: {
     flow: string;
     step: string | ((error: unknown) => string);
@@ -130,7 +118,7 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
     errorCode?: string | ((error: unknown) => string | undefined);
   };
   toastOnError?: {
-    title?: string;
+    title?: string | ((error: unknown) => string | undefined);
     description: string | ((error: unknown) => string);
     variant?: 'default' | 'destructive';
     duration?: number | ((error: unknown) => number | undefined);
@@ -144,7 +132,7 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
  * 統一處理 loading 狀態、並發防護、Sentry 紀錄 (captureFlowFailure) 與 Toast 顯示。
  */
 export default function useAsyncAction<TDefaultThrow extends boolean = true>(
-  defaultConfig: AsyncActionConfig<TDefaultThrow> = {}
+  defaultConfig: AsyncActionConfig<TDefaultThrow> = EMPTY_CONFIG as AsyncActionConfig<TDefaultThrow>
 ) {
   const [isPending, setIsPending] = useState(false);
   const { toast } = useToast();
@@ -236,7 +224,7 @@ export default function useAsyncAction<TDefaultThrow extends boolean = true>(
           ) || 'Unexpected error in async action';
 
         if (!isAlreadyLogged && flow && step) {
-          const p = safeCaptureFlowFailure({
+          const p = captureFlowFailure({
             flow,
             step,
             message: msg,

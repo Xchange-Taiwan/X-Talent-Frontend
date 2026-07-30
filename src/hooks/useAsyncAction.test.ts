@@ -4,9 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { mockToast } from '@/test/mocks/useToast';
 
-import useAsyncAction, {
-  useAsyncAction as namedUseAsyncAction,
-} from './useAsyncAction';
+import useAsyncAction from './useAsyncAction';
 
 // Mock Dependencies
 vi.mock('@/components/ui/use-toast', async () => {
@@ -34,10 +32,6 @@ class LoggedError extends Error {
 describe('useAsyncAction', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it('exposes default and named exports', () => {
-    expect(useAsyncAction).toBe(namedUseAsyncAction);
   });
 
   it('runs async function and toggles isPending correctly on success', async () => {
@@ -246,11 +240,9 @@ describe('useAsyncAction', () => {
 
     await act(async () => {
       rejectAction(new Error('failure-reason'));
-      // 預設 throwError 為 true，因此應該拋出異常
       await expect(runPromise).rejects.toThrow('failure-reason');
     });
 
-    // 拋出異常後：isPending 仍應被重置為 false
     expect(result.current.isPending).toBe(false);
   });
 
@@ -272,8 +264,10 @@ describe('useAsyncAction', () => {
   it('should report failure via captureFlowFailure when flow and step are provided', async () => {
     const { result } = renderHook(() =>
       useAsyncAction({
-        flow: 'test_flow',
-        step: 'test_step',
+        captureFailure: {
+          flow: 'test_flow',
+          step: 'test_step',
+        },
       })
     );
 
@@ -287,6 +281,8 @@ describe('useAsyncAction', () => {
       flow: 'test_flow',
       step: 'test_step',
       message: 'test-sentry-error',
+      level: undefined,
+      errorCode: undefined,
     });
   });
 
@@ -297,8 +293,10 @@ describe('useAsyncAction', () => {
 
     const { result } = renderHook(() =>
       useAsyncAction({
-        flow: 'test_flow',
-        step: 'test_step',
+        captureFailure: {
+          flow: 'test_flow',
+          step: 'test_step',
+        },
       })
     );
 
@@ -324,8 +322,10 @@ describe('useAsyncAction', () => {
   it('should NOT call captureFlowFailure if shouldSkipLogging returns true', async () => {
     const { result } = renderHook(() =>
       useAsyncAction({
-        flow: 'test_flow',
-        step: 'test_step',
+        captureFailure: {
+          flow: 'test_flow',
+          step: 'test_step',
+        },
         shouldSkipLogging: (err) => err instanceof LoggedError,
       })
     );
@@ -347,14 +347,17 @@ describe('useAsyncAction', () => {
     await act(async () => {
       await expect(
         result.current.run(() => Promise.reject(new Error('some-error')), {
-          errorMessage: '發生錯誤，請稍候再試',
-          duration: 3000,
+          toastOnError: {
+            description: '發生錯誤，請稍候再試',
+            duration: 3000,
+          },
         })
       ).rejects.toThrow('some-error');
     });
 
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
+      title: undefined,
       description: '發生錯誤，請稍候再試',
       duration: 3000,
     });
@@ -366,8 +369,10 @@ describe('useAsyncAction', () => {
     await act(async () => {
       await expect(
         result.current.run(() => Promise.reject(new Error('some-error')), {
-          errorTitle: '發生錯誤',
-          errorMessage: '請稍候再試',
+          toastOnError: {
+            title: '發生錯誤',
+            description: '請稍候再試',
+          },
         })
       ).rejects.toThrow('some-error');
     });
@@ -407,9 +412,13 @@ describe('useAsyncAction', () => {
     const { result } = renderHook(() =>
       useAsyncAction({
         onError: onErrorMock,
-        flow: 'test_flow',
-        step: 'test_step',
-        errorMessage: '發生錯誤，請稍候再試',
+        captureFailure: {
+          flow: 'test_flow',
+          step: 'test_step',
+        },
+        toastOnError: {
+          description: '發生錯誤，請稍候再試',
+        },
       })
     );
 
@@ -423,7 +432,6 @@ describe('useAsyncAction', () => {
       ).rejects.toThrow('app-error');
     });
 
-    // The primary error is still reported, and Sentry flow failure and toast are still processed successfully
     expect(onErrorMock).toHaveBeenCalled();
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       'Error in useAsyncAction onError callback:',
@@ -438,18 +446,26 @@ describe('useAsyncAction', () => {
   it('should support configuration overriding on run level', async () => {
     const { result } = renderHook(() =>
       useAsyncAction({
-        flow: 'default_flow',
-        step: 'default_step',
-        errorMessage: 'default_toast',
+        captureFailure: {
+          flow: 'default_flow',
+          step: 'default_step',
+        },
+        toastOnError: {
+          description: 'default_toast',
+        },
       })
     );
 
     await act(async () => {
       await expect(
         result.current.run(() => Promise.reject(new Error('override-error')), {
-          flow: 'override_flow',
-          step: 'override_step',
-          errorMessage: 'override_toast',
+          captureFailure: {
+            flow: 'override_flow',
+            step: 'override_step',
+          },
+          toastOnError: {
+            description: 'override_toast',
+          },
         })
       ).rejects.toThrow('override-error');
     });
@@ -458,10 +474,13 @@ describe('useAsyncAction', () => {
       flow: 'override_flow',
       step: 'override_step',
       message: 'override-error',
+      level: undefined,
+      errorCode: undefined,
     });
 
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
+      title: undefined,
       description: 'override_toast',
       duration: 5000,
     });
@@ -484,7 +503,6 @@ describe('useAsyncAction', () => {
 
     expect(result.current.isPending).toBe(true);
 
-    // 當處於 Pending 時，第二次呼叫 run 應該立即被防護攔截並返回 undefined
     let runPromise2!: Promise<string | undefined>;
     act(() => {
       runPromise2 = result.current.run(secondActionSpy);
@@ -533,7 +551,6 @@ describe('useAsyncAction', () => {
 
     expect(result.current.isPending).toBe(true);
 
-    // 完成第一個請求：isPending 應該仍保持為 true，因為第二個請求仍在執行中！
     await act(async () => {
       resolveAction1('res1');
     });
@@ -541,7 +558,6 @@ describe('useAsyncAction', () => {
     expect(res1).toBe('res1');
     expect(result.current.isPending).toBe(true);
 
-    // 完成第二個請求：此時所有併發請求結束，isPending 應該被設回 false
     await act(async () => {
       resolveAction2('res2');
     });
@@ -574,7 +590,6 @@ describe('useAsyncAction', () => {
       await runPromise;
     });
 
-    // 成功後 isPending 應該保持為 true
     expect(result.current.isPending).toBe(true);
   });
 
@@ -593,7 +608,6 @@ describe('useAsyncAction', () => {
 
     expect(result.current.isPending).toBe(true);
 
-    // 卸載組件
     unmount();
 
     await act(async () => {
@@ -601,7 +615,5 @@ describe('useAsyncAction', () => {
       const res = await runPromise;
       expect(res).toBe('unmounted-done');
     });
-
-    // 卸載後 isPending 不應更新
   });
 });

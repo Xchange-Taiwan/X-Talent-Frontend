@@ -30,6 +30,7 @@ vi.mock('@/services/auth/googleAuthorize', () => ({
 
 vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
+  sanitize: (val: string) => val,
 }));
 
 vi.mock('@/lib/analytics', () => ({

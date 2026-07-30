@@ -20,7 +20,10 @@ vi.mock('@/lib/actions/signIn', () => ({
   validateSignIn: vi.fn(),
 }));
 
-vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
+vi.mock('@/lib/monitoring', () => ({
+  captureFlowFailure: vi.fn(),
+  sanitize: (val: string) => val,
+}));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 
 import { validateSignIn } from '@/lib/actions/signIn';
