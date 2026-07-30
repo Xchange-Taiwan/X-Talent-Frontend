@@ -11,7 +11,7 @@ import {
   step3Schema,
   step4Schema,
   step5Schema,
-} from '@/components/onboarding/steps';
+} from '@/schemas/onboarding';
 import { LocationType } from '@/services/profile/countries';
 import {
   mockIndustryOptions,
