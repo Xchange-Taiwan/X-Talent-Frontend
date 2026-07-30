@@ -5,11 +5,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import * as monitoring from '@/lib/monitoring';
 
-const safeSanitize = (val: string) => {
+const safeSanitize = (val: string): string => {
   try {
-    const s = (monitoring as any).sanitize;
+    const monitoringObj = monitoring as Record<string, unknown>;
+    const s = monitoringObj.sanitize;
     if (typeof s === 'function') {
-      return s(val);
+      return s(val) as string;
     }
   } catch {
     // 吸收 Vitest 代理 Mock 存取錯誤
@@ -17,9 +18,10 @@ const safeSanitize = (val: string) => {
   return val;
 };
 
-const safeCaptureFlowFailure = (args: any) => {
+const safeCaptureFlowFailure = (args: Record<string, unknown>): unknown => {
   try {
-    const c = (monitoring as any).captureFlowFailure;
+    const monitoringObj = monitoring as Record<string, unknown>;
+    const c = monitoringObj.captureFlowFailure;
     if (typeof c === 'function') {
       return c(args);
     }
@@ -29,17 +31,35 @@ const safeCaptureFlowFailure = (args: any) => {
   return undefined;
 };
 
+/**
+ * Helper to resolve configuration properties which can be static values or dynamic functions.
+ */
+function resolveValue<TResult>(
+  nested: unknown,
+  flat: unknown,
+  error: unknown
+): TResult {
+  const val = nested !== undefined ? nested : flat;
+  if (typeof val === 'function') {
+    return val(error) as TResult;
+  }
+  return val as TResult;
+}
+
 export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
   /**
    * Sentry 錯誤記錄的 Flow 名稱 (例如 'profile_update', 'sign_in')
+   * @deprecated 建議改用 `captureFailure.flow` 結構進行設定
    */
   flow?: string;
   /**
    * Sentry 錯誤記錄的 Step 步驟 (例如 'unexpected', 'submit')
+   * @deprecated 建議改用 `captureFailure.step` 結構進行設定
    */
   step?: string | ((error: unknown) => string);
   /**
    * Sentry 錯誤記錄的 Level 層級
+   * @deprecated 建議改用 `captureFailure.level` 結構進行設定
    */
   level?:
     | 'info'
@@ -48,22 +68,27 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
     | ((error: unknown) => 'info' | 'warning' | 'error' | undefined);
   /**
    * Sentry 錯誤記錄的自訂 Message
+   * @deprecated 建議改用 `captureFailure.message` 結構進行設定
    */
   message?: string | ((error: unknown) => string);
   /**
    * Sentry 錯誤記錄的 Error Code
+   * @deprecated 建議改用 `captureFailure.errorCode` 結構進行設定
    */
   errorCode?: string | ((error: unknown) => string | undefined);
   /**
    * 發生錯誤時顯示的 Toast 標題
+   * @deprecated 建議改用 `toastOnError.title` 結構進行設定
    */
   errorTitle?: string | ((error: unknown) => string | undefined);
   /**
    * 發生錯誤時顯示的 Toast 文案。如不提供則不彈出 Toast
+   * @deprecated 建議改用 `toastOnError.description` 結構進行設定
    */
   errorMessage?: string | ((error: unknown) => string | undefined);
   /**
    * Toast 顯示持續時間（微秒），預設 5000 毫秒
+   * @deprecated 建議改用 `toastOnError.duration` 結構進行設定
    */
   duration?: number | ((error: unknown) => number | undefined);
   /**
@@ -73,7 +98,7 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
   /**
    * 成功執行後的回撥
    */
-  onSuccess?: (data: any) => void;
+  onSuccess?: (data: unknown) => void;
   /**
    * 是否在非同步操作失敗時重新拋出錯誤，讓呼叫端做額外處理。預設為 true。
    */
@@ -88,7 +113,7 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
    */
   resetPendingOnSuccess?: boolean;
   /**
-   * 判斷此錯誤是否已經在底層被 logging過，避免重複上報。
+   * 判斷此錯誤是否已經在底層被 logging 過，避免重複上報。
    */
   shouldSkipLogging?: (error: unknown) => boolean;
 
@@ -183,75 +208,80 @@ export default function useAsyncAction<TDefaultThrow extends boolean = true>(
         const isAlreadyLogged = config.shouldSkipLogging?.(err) ?? false;
 
         const flow = config.captureFailure?.flow ?? config.flow;
+        const step = resolveValue<string | undefined>(
+          config.captureFailure?.step,
+          config.step,
+          err
+        );
+        const level = resolveValue<'info' | 'warning' | 'error' | undefined>(
+          config.captureFailure?.level,
+          config.level,
+          err
+        );
+        const rawMsg = resolveValue<string | undefined>(
+          config.captureFailure?.message,
+          config.message,
+          err
+        );
+        const errorCode = resolveValue<string | undefined>(
+          config.captureFailure?.errorCode,
+          config.errorCode,
+          err
+        );
 
-        let step = config.captureFailure?.step ?? config.step;
-        if (typeof step === 'function') {
-          step = step(err);
-        }
-
-        let level = config.captureFailure?.level ?? config.level;
-        if (typeof level === 'function') {
-          level = level(err);
-        }
-
-        let msg = config.captureFailure?.message ?? config.message;
-        if (typeof msg === 'function') {
-          msg = msg(err);
-        } else if (!msg) {
-          msg =
-            safeSanitize(err instanceof Error ? err.message : String(err)) ??
-            'Unexpected error in async action';
-        }
-
-        let errorCode = config.captureFailure?.errorCode ?? config.errorCode;
-        if (typeof errorCode === 'function') {
-          errorCode = errorCode(err);
-        }
+        // 統一套用脫敏 (safeSanitize) 處理以防止自訂錯誤訊息洩漏 PII 至 Sentry
+        const msg =
+          safeSanitize(
+            rawMsg || (err instanceof Error ? err.message : String(err))
+          ) || 'Unexpected error in async action';
 
         if (!isAlreadyLogged && flow && step) {
           const p = safeCaptureFlowFailure({
             flow,
             step,
             message: msg,
-            level: level as 'info' | 'warning' | 'error' | undefined,
+            level,
             errorCode,
           });
-          if (p && typeof p.catch === 'function') {
-            p.catch((captureErr: any) => {
-              const rawMsg =
+          const promiseObj = p as Promise<unknown> | undefined;
+          if (promiseObj && typeof promiseObj.catch === 'function') {
+            promiseObj.catch((captureErr: unknown) => {
+              const rawCaptureMsg =
                 captureErr instanceof Error
                   ? captureErr.message
                   : String(captureErr);
               console.error(
                 '[useAsyncAction] Failed to capture flow failure:',
-                safeSanitize(rawMsg)
+                safeSanitize(rawCaptureMsg)
               );
             });
           }
         }
 
-        const rawMsg = err instanceof Error ? err.message : String(err);
+        const rawErrLogMsg = err instanceof Error ? err.message : String(err);
         console.error(
           `[AsyncAction] Error in ${flow ?? 'unknown'}:${step ?? 'unknown'}:`,
-          safeSanitize(rawMsg)
+          safeSanitize(rawErrLogMsg)
         );
 
         // 觸發 Toast
-        let errorMessage =
-          config.toastOnError?.description ?? config.errorMessage;
-        if (typeof errorMessage === 'function') {
-          errorMessage = errorMessage(err);
-        }
+        const errorMessage = resolveValue<string | undefined>(
+          config.toastOnError?.description,
+          config.errorMessage,
+          err
+        );
+        const errorTitle = resolveValue<string | undefined>(
+          config.toastOnError?.title,
+          config.errorTitle,
+          err
+        );
+        let duration = resolveValue<number | undefined>(
+          config.toastOnError?.duration,
+          config.duration,
+          err
+        );
 
-        let errorTitle = config.toastOnError?.title ?? config.errorTitle;
-        if (typeof errorTitle === 'function') {
-          errorTitle = errorTitle(err);
-        }
-
-        let duration = config.toastOnError?.duration ?? config.duration;
-        if (typeof duration === 'function') {
-          duration = duration(err);
-        } else if (duration === undefined) {
+        if (duration === undefined) {
           duration = 5000;
         }
 

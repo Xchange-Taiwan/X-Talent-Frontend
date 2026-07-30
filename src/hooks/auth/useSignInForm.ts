@@ -102,12 +102,6 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
         toastOnError: {
           description: 'Something went wrong!',
         },
-        onError: (err) => {
-          console.error(
-            '[SignIn] unexpected error:',
-            err instanceof Error ? err.stack || err.message : err
-          );
-        },
       }
     );
   };
