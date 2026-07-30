@@ -102,7 +102,10 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
           description: 'Something went wrong!',
         },
         onError: (err) => {
-          console.error('[SignIn] unexpected error:', err);
+          console.error(
+            '[SignIn] unexpected error:',
+            err instanceof Error ? err.message : 'Unexpected sign-in error'
+          );
         },
       }
     );
