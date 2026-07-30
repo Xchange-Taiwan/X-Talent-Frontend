@@ -20,8 +20,8 @@ describe('captureFlowFailure', () => {
     vi.unstubAllEnvs();
   });
 
-  it('defaults to level "error" when no level is provided', () => {
-    captureFlowFailure({
+  it('defaults to level "error" when no level is provided', async () => {
+    await captureFlowFailure({
       flow: 'sign_in',
       step: 'authenticate',
       message: 'Invalid credentials',
@@ -33,8 +33,8 @@ describe('captureFlowFailure', () => {
     );
   });
 
-  it('forwards explicit level "info" to Sentry', () => {
-    captureFlowFailure({
+  it('forwards explicit level "info" to Sentry', async () => {
+    await captureFlowFailure({
       flow: 'sign_in',
       step: 'authenticate',
       message: 'Invalid credentials',
@@ -46,8 +46,8 @@ describe('captureFlowFailure', () => {
     );
   });
 
-  it('forwards explicit level "warning" to Sentry', () => {
-    captureFlowFailure({
+  it('forwards explicit level "warning" to Sentry', async () => {
+    await captureFlowFailure({
       flow: 'profile_update',
       step: 'background_sync',
       message: 'pollUntilSynced exhausted retries without sync',
@@ -59,10 +59,10 @@ describe('captureFlowFailure', () => {
     );
   });
 
-  it('does NOT call Sentry when NODE_ENV is not production', () => {
+  it('does NOT call Sentry when NODE_ENV is not production', async () => {
     vi.stubEnv('NODE_ENV', 'test');
 
-    captureFlowFailure({
+    await captureFlowFailure({
       flow: 'sign_in',
       step: 'authenticate',
       message: 'Invalid credentials',
@@ -72,8 +72,8 @@ describe('captureFlowFailure', () => {
     expect(mockCaptureEvent).not.toHaveBeenCalled();
   });
 
-  it('emits flow.<flow>.failure as the event message and tags flow/step/route', () => {
-    captureFlowFailure({
+  it('emits flow.<flow>.failure as the event message and tags flow/step/route', async () => {
+    await captureFlowFailure({
       flow: 'sign_up',
       step: 'submit',
       message: 'Email registered',
@@ -93,8 +93,8 @@ describe('captureFlowFailure', () => {
     );
   });
 
-  it('sanitizes sensitive query params and JSON values in the message', () => {
-    captureFlowFailure({
+  it('sanitizes sensitive query params and JSON values in the message', async () => {
+    await captureFlowFailure({
       flow: 'sign_in',
       step: 'authenticate',
       message:

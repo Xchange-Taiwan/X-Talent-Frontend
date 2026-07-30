@@ -8,8 +8,6 @@
  * Sentry is initialized separately in instrumentation-client.ts / sentry.server.config.ts.
  */
 
-import * as Sentry from '@sentry/nextjs';
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type MonitoringEventName =
@@ -81,7 +79,7 @@ const SENSITIVE_KEYS = [
 
 /**
  * Replaces values of sensitive URL query parameters with [REDACTED].
- * e.g. ?token=abc123 → ?token=[REDACTED]
+ * e.g. ?token=abc123&password=secret → ?token=[REDACTED]&password=[REDACTED]
  */
 function maskSensitiveQueryParams(text: string): string {
   return text.replace(
@@ -122,7 +120,7 @@ function sanitize(text: string | undefined): string | undefined {
  * To integrate a third-party service (e.g. Sentry), replace the
  * console.error call below with the service's SDK call.
  */
-export function captureError(event: MonitoringEvent): void {
+export async function captureError(event: MonitoringEvent): Promise<void> {
   if (process.env.NODE_ENV !== 'production') return;
 
   const sanitizedEvent: MonitoringEvent = {
@@ -132,6 +130,7 @@ export function captureError(event: MonitoringEvent): void {
     componentStack: sanitize(event.componentStack),
   };
 
+  const Sentry = await import('@sentry/nextjs');
   Sentry.captureEvent({
     message: sanitizedEvent.message,
     level: 'error',
@@ -212,13 +211,13 @@ export interface FlowFailureEvent {
  * Do NOT include passwords, tokens, emails, or any sensitive form values
  * in the message or errorCode fields.
  */
-export function captureFlowFailure(
+export async function captureFlowFailure(
   event: Omit<
     FlowFailureEvent,
     'name' | 'timestamp' | 'environment' | 'route'
   > &
     Partial<Pick<FlowFailureEvent, 'route'>>
-): void {
+): Promise<void> {
   if (process.env.NODE_ENV !== 'production') return;
 
   const fullEvent: FlowFailureEvent = {
@@ -235,6 +234,7 @@ export function captureFlowFailure(
     level: event.level ?? 'error',
   };
 
+  const Sentry = await import('@sentry/nextjs');
   Sentry.captureEvent({
     message: fullEvent.name,
     level: fullEvent.level,
@@ -261,10 +261,10 @@ export function captureFlowFailure(
  * Never includes request/response bodies or authorization headers.
  * Sensitive query parameters in the endpoint URL are masked.
  */
-export function captureApiFailure(
+export async function captureApiFailure(
   event: Omit<ApiFailureEvent, 'name' | 'timestamp' | 'environment' | 'route'> &
     Partial<Pick<ApiFailureEvent, 'route'>>
-): void {
+): Promise<void> {
   if (process.env.NODE_ENV !== 'production') return;
 
   const fullEvent: ApiFailureEvent = {
@@ -281,6 +281,7 @@ export function captureApiFailure(
     duration: event.duration,
   };
 
+  const Sentry = await import('@sentry/nextjs');
   Sentry.captureEvent({
     message: fullEvent.message,
     level: 'error',
