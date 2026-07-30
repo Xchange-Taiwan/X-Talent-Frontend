@@ -37,12 +37,34 @@ To automatically monitor checks/pipelines on the target pull request until they 
 3. **Behavior**:
    - The script will poll GitHub CLI for the check statuses in the background.
    - If any check fails, it immediately outputs the failing check names and links, then exits with code 2.
+   - **Vercel Daily Limit Bypass**: If a Vercel/Preview deployment check fails (for instance, because of daily deployment limits), the script will automatically ignore it and warn about it, without treating it as a blocking pipeline failure.
    - If checks are pending, it waits for the configured interval (default: 5 minutes) and checks again.
-   - If all checks pass, it reports success and exits with code 0.
+   - If all checks pass (or only ignored Vercel checks failed), it reports success and exits with code 0.
 
 ---
 
-### 3. High-Quality Modification Standards
+### 3. Fetching & Resolving AI Reviewer Comments
+
+To automatically identify and resolve feedback from online AI Reviewers or Git workflow summaries:
+
+1. **Fetch PR Comments & Reviews**:
+   - Query GitHub CLI for comments and reviews left on the target pull request:
+     ```bash
+     gh pr view [PR_LINK_OR_NUMBER] --json comments,reviews
+     ```
+   - Look for reviews or comments left by automated bots or review actions (such as `github-actions` or Sentry integration comments).
+
+2. **Diagnose & Repair Suggestions**:
+   - Read the details of any suggestions, Security warnings, Correctness anomalies, or Architecture suggestions in the comment body.
+   - Map each reported error to the exact file and line in the workspace.
+   - Apply the fixes surgically using high-quality coding standards (e.g., using `child_process.execFileSync` to avoid command injection, sanitizing NaN boundary inputs, or writing vitest unit tests under `scripts/**.test.mjs` for coverage).
+
+3. **Stage, Commit, & Re-run**:
+   - Once resolved, stage and commit the bug fixes, then push them upstream to automatically re-trigger CI.
+
+---
+
+### 4. High-Quality Modification Standards
 
 When modifying the codebase to resolve any failed pipeline checks or reviewer comments, you MUST maintain high-quality, idiomatic engineering standards:
 
