@@ -1,5 +1,5 @@
 import { Decorator } from '@storybook/react';
-import { SessionProvider } from 'next-auth/react';
+import { SessionContext } from 'next-auth/react';
 import React from 'react';
 
 export const withAppContext: Decorator = (Story, context) => {
@@ -12,14 +12,28 @@ export const withAppContext: Decorator = (Story, context) => {
     isMentor: false,
   };
 
-  // Determine user: check parameters first (avoids TypeScript props checking),
-  // then fallback to args, then fallback to defaultUser.
+  // 1. Support parameter configurations from auth (used in Header.stories.tsx)
+  const authParams = context.parameters.auth || {};
+  const sessionHint = authParams.sessionHint;
+
+  // Handle cookie sync if auth parameters are explicitly provided
+  if (typeof window !== 'undefined') {
+    if (sessionHint !== undefined) {
+      document.cookie = `session-hint=${sessionHint}; path=/; max-age=3600`;
+    } else if (context.parameters.auth !== undefined) {
+      document.cookie = 'session-hint=; path=/; max-age=0';
+    }
+  }
+
+  // 2. Determine user: check auth parameters, standard parameters, then args
   const userFromParam =
-    context.parameters.user !== undefined
-      ? context.parameters.user
-      : context.parameters.session?.user !== undefined
-        ? context.parameters.session.user
-        : undefined;
+    authParams.session?.user !== undefined
+      ? authParams.session.user
+      : context.parameters.user !== undefined
+        ? context.parameters.user
+        : context.parameters.session?.user !== undefined
+          ? context.parameters.session.user
+          : undefined;
 
   const user =
     userFromParam !== undefined
@@ -28,6 +42,7 @@ export const withAppContext: Decorator = (Story, context) => {
         ? context.args.user
         : defaultUser;
 
+  // 3. Determine session
   let session = null;
   if (user !== null) {
     session = {
@@ -37,16 +52,36 @@ export const withAppContext: Decorator = (Story, context) => {
     };
   }
 
-  // Determine session override: check parameters first, then args.
-  if (context.parameters.session !== undefined) {
+  // Override session if directly provided in parameters or args
+  if (authParams.session !== undefined) {
+    session = authParams.session;
+  } else if (context.parameters.session !== undefined) {
     session = context.parameters.session;
   } else if (context.args.session !== undefined) {
     session = context.args.session;
   }
 
+  // 4. Determine session status
+  let status = session ? 'authenticated' : 'unauthenticated';
+  if (authParams.status !== undefined) {
+    status = authParams.status;
+  } else if (context.parameters.status !== undefined) {
+    status = context.parameters.status;
+  } else if (context.args.status !== undefined) {
+    status = context.args.status;
+  }
+
   return (
-    <SessionProvider session={session}>
+    <SessionContext.Provider
+      value={
+        {
+          data: session,
+          status,
+          update: async () => {},
+        } as any
+      }
+    >
       <Story />
-    </SessionProvider>
+    </SessionContext.Provider>
   );
 };
