@@ -31,8 +31,7 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
    */
   onError?: (error: unknown) => void;
   /**
-   * 是否在處理完錯誤後重新拋出（reject）。預設為 true（推薦，防止下游邏輯誤判成功）。
-   * 設定為 false 時將吞沒錯誤並 resolve 成 undefined。
+   * 是否在非同步操作失敗時重新拋出錯誤，讓呼叫端做額外處理。預設為 true。
    */
   throwError?: TThrowError;
   /**
@@ -40,36 +39,28 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
    */
   preventConcurrent?: boolean;
   /**
-   * 成功執行後是否重置 isPending 為 false。預設為 true。
-   * 如果設定為 false，成功後 isPending 將保持為 true（例如用於模擬並在跳轉/導航期間防止按鈕被再次點擊）。
+   * 是否在成功執行後立刻重置 pending 狀態。預設為 true。
+   * 設為 false 適用於提交成功後會有 Page Redirect 轉址的情境（轉址期間保持 pending 防止按鈕重複點擊）。
    */
   resetPendingOnSuccess?: boolean;
   /**
-   * 決定是否跳過 Sentry 紀錄。例如呼叫端可判斷該錯誤是否已被下層 LoggedError 記錄過，如果是則返回 true 去重。
+   * 判斷此錯誤是否已經在底層被 logging 過，避免重複上報。
    */
   shouldSkipLogging?: (error: unknown) => boolean;
 }
 
 /**
- * 集中管理非同步操作（如表單提交、API 突變）生命週期的 React Hook。
- * 統一處理 loading 狀態、並發防護、組件卸載安全、Sentry 紀錄 (captureFlowFailure) 與 Toast 顯示。
+ * 萬能非同步生命週期、並發防護、錯誤追蹤與 Toast 核心 Hook
+ *
+ * 統一處理 loading 狀態、並發防護、Sentry 紀錄 (captureFlowFailure) 與 Toast 顯示。
  */
 export function useAsyncAction<TDefaultThrow extends boolean = true>(
   defaultConfig: AsyncActionConfig<TDefaultThrow> = {}
 ) {
   const [isPending, setIsPending] = useState(false);
   const { toast } = useToast();
-  const isMounted = useRef(true);
   const pendingCountRef = useRef(0);
   const defaultConfigRef = useRef<AsyncActionConfig<boolean>>(defaultConfig);
-
-  // 追蹤組件掛載狀態，防止在已卸載的組件上執行 setState 導致記憶體洩漏與 React 警告
-  useEffect(() => {
-    isMounted.current = true;
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
 
   // 遵守 React 規範：同步更新 defaultConfigRef，避免在 render 階段直接寫入
   useEffect(() => {
@@ -97,9 +88,7 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
       // 同步累加執行計數，支援完美的併發狀態管理與極短時間連按防護
       pendingCountRef.current++;
 
-      if (isMounted.current) {
-        setIsPending(true);
-      }
+      setIsPending(true);
 
       let success = false;
       try {
@@ -114,7 +103,9 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
           } catch (callbackErr) {
             console.error(
               'Error in useAsyncAction onError callback:',
-              callbackErr
+              callbackErr instanceof Error
+                ? callbackErr.message
+                : String(callbackErr)
             );
           }
         }
@@ -136,7 +127,9 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
             p.catch((captureErr) => {
               console.error(
                 '[useAsyncAction] Failed to capture flow failure:',
-                captureErr
+                captureErr instanceof Error
+                  ? captureErr.message
+                  : String(captureErr)
               );
             });
           }
@@ -144,7 +137,7 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
 
         console.error(
           `[AsyncAction] Error in ${config.flow ?? 'unknown'}:${config.step ?? 'unknown'}:`,
-          err
+          err instanceof Error ? err.message : String(err)
         );
 
         // 觸發 Toast
@@ -169,11 +162,9 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
 
         // 僅在所有併發非同步操作皆結束時，才重設為非 Pending 狀態
         if (pendingCountRef.current === 0) {
-          if (isMounted.current) {
-            // 若不重置（模擬轉址期間防止按鈕再度點擊），則僅在失敗時將 isPending 設為 false
-            if (!success || config.resetPendingOnSuccess) {
-              setIsPending(false);
-            }
+          // 若不重置（模擬轉址期間防止按鈕再度點擊），則僅在失敗時將 isPending 設為 false
+          if (!success || config.resetPendingOnSuccess) {
+            setIsPending(false);
           }
         }
       }

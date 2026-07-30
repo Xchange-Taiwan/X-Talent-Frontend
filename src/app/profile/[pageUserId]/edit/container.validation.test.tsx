@@ -136,6 +136,12 @@ vi.mock('@/components/profile/edit/educationSection/educationSection', () => ({
   ),
 }));
 
+vi.mock('@/components/profile/edit/LinkSection', () => ({
+  LinksSection: ({ id }: { id?: string }) => (
+    <div id={id} data-testid="links-section" />
+  ),
+}));
+
 import EditProfileContainer from './container';
 
 describe('EditProfileContainer section validation guards (Isolated)', () => {

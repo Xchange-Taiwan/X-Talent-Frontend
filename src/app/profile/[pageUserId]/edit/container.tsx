@@ -1,16 +1,20 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useLayoutEffect, useRef, useState } from 'react';
 
+import { AvatarSection } from '@/components/profile/edit/AvatarSection';
+import { CategoryMultiSelectField } from '@/components/profile/edit/CategoryMultiSelectField';
 import { EditPageHeader } from '@/components/profile/edit/EditPageHeader';
+import { EducationSection } from '@/components/profile/edit/educationSection/educationSection';
 import {
   SelectField,
   TextareaField,
   TextField,
 } from '@/components/profile/edit/Fields';
+import { JobExperienceSection } from '@/components/profile/edit/JobExperienceSection';
+import { LinksSection } from '@/components/profile/edit/LinkSection';
 import { Section } from '@/components/profile/edit/Section';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,49 +42,6 @@ import { mapVoToFormValues } from '@/lib/profile/profileSaveAdapter';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
 import { ProfileFormValues } from '@/schemas/profileSchema';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
-
-const JobExperienceSection = dynamic(async () => {
-  const m = await import('@/components/profile/edit/JobExperienceSection');
-  return { default: m.JobExperienceSection };
-});
-
-const EducationSection = dynamic(async () => {
-  const m =
-    await import('@/components/profile/edit/educationSection/educationSection');
-  return { default: m.EducationSection };
-});
-
-const LinksSection = dynamic(async () => {
-  const m = await import('@/components/profile/edit/LinkSection');
-  return { default: m.LinksSection };
-});
-
-const CategoryMultiSelectField = dynamic(
-  async () => {
-    const m =
-      await import('@/components/profile/edit/CategoryMultiSelectField');
-    return { default: m.CategoryMultiSelectField };
-  },
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-10 w-full animate-pulse rounded bg-muted" />
-    ),
-  }
-) as unknown as typeof import('@/components/profile/edit/CategoryMultiSelectField').CategoryMultiSelectField;
-
-const AvatarSection = dynamic(
-  async () => {
-    const m = await import('@/components/profile/edit/AvatarSection');
-    return { default: m.AvatarSection };
-  },
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-[120px] w-full animate-pulse rounded bg-muted" />
-    ),
-  }
-) as unknown as typeof import('@/components/profile/edit/AvatarSection').AvatarSection;
 
 interface Props {
   pageUserId: string;

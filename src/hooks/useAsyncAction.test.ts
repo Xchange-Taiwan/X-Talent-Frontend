@@ -145,7 +145,7 @@ describe('useAsyncAction', () => {
     expect(result.current.isPending).toBe(false);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       '[useAsyncAction] Failed to capture flow failure:',
-      expect.any(Error)
+      'Sentry dynamic import failed'
     );
 
     consoleErrorSpy.mockRestore();
@@ -227,6 +227,42 @@ describe('useAsyncAction', () => {
     });
 
     expect(onErrorMock).toHaveBeenCalledWith(testError);
+  });
+
+  it('should gracefully handle errors thrown in custom onError callback without crashing subsequent steps', async () => {
+    const onErrorMock = vi.fn().mockImplementation(() => {
+      throw new Error('error-in-callback');
+    });
+
+    const { result } = renderHook(() =>
+      useAsyncAction({
+        onError: onErrorMock,
+        flow: 'test_flow',
+        step: 'test_step',
+        errorMessage: '發生錯誤，請稍候再試',
+      })
+    );
+
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    await act(async () => {
+      await expect(
+        result.current.run(() => Promise.reject(new Error('app-error')))
+      ).rejects.toThrow('app-error');
+    });
+
+    // The primary error is still reported, and Sentry flow failure and toast are still processed successfully
+    expect(onErrorMock).toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Error in useAsyncAction onError callback:',
+      'error-in-callback'
+    );
+    expect(captureFlowFailure).toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
   });
 
   it('should support configuration overriding on run level', async () => {

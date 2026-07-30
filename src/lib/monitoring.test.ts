@@ -6,7 +6,11 @@ vi.mock('@sentry/nextjs', () => ({
 
 import * as Sentry from '@sentry/nextjs';
 
-import { captureFlowFailure } from './monitoring';
+import {
+  captureApiFailure,
+  captureError,
+  captureFlowFailure,
+} from './monitoring';
 
 const mockCaptureEvent = vi.mocked(Sentry.captureEvent);
 
@@ -130,6 +134,59 @@ describe('captureFlowFailure', () => {
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       '[Monitoring] captureFlowFailure Sentry logging failed:',
+      expect.any(Error)
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('captureError catches Sentry logging errors and does not crash the caller', async () => {
+    mockCaptureEvent.mockImplementationOnce(() => {
+      throw new Error('Sentry capture failed');
+    });
+
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    await expect(
+      captureError({
+        name: 'runtime_error.unhandled_js',
+        timestamp: new Date().toISOString(),
+        environment: 'production',
+        route: '/test',
+        message: 'Something went wrong',
+      })
+    ).resolves.not.toThrow();
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[Monitoring] captureError Sentry logging failed:',
+      expect.any(Error)
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('captureApiFailure catches Sentry logging errors and does not crash the caller', async () => {
+    mockCaptureEvent.mockImplementationOnce(() => {
+      throw new Error('Sentry capture failed');
+    });
+
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    await expect(
+      captureApiFailure({
+        endpoint: '/api/test',
+        method: 'GET',
+        status: 500,
+        message: 'Internal server error',
+      })
+    ).resolves.not.toThrow();
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[Monitoring] captureApiFailure Sentry logging failed:',
       expect.any(Error)
     );
 
