@@ -6,9 +6,12 @@ import { ReservationListSkeleton } from '@/app/reservation/skeleton';
 import { ReservationList } from '@/components/reservation/ReservationList';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+  type ListKey,
   type ReservationRole,
   useReservationData,
 } from '@/hooks/user/reservation/useReservationData';
+
+import type { Reservation } from './types';
 
 export interface ReservationDashboardProps {
   role: ReservationRole;
@@ -36,13 +39,83 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
     history: 0,
   };
 
-  const isMentee = role === 'mentee';
-  const upcomingTabValue = isMentee ? 'upcoming-mentee' : 'upcoming-mentor';
-  const pendingTabValue = isMentee ? 'pending-mentee' : 'pending-mentor';
-
   const loadMoreUpcoming = useCallback(() => loadMore('upcoming'), [loadMore]);
   const loadMorePending = useCallback(() => loadMore('pending'), [loadMore]);
   const loadMoreHistory = useCallback(() => loadMore('history'), [loadMore]);
+
+  const isLoadingUpcoming = initialState.upcoming === 'loading';
+  const isLoadingPending = initialState.pending === 'loading';
+
+  return (
+    <ReservationDashboardView
+      role={role}
+      myUserId={myUserId}
+      upcoming={upcoming}
+      pending={pending}
+      history={history}
+      isLoadingUpcoming={isLoadingUpcoming}
+      isLoadingPending={isLoadingPending}
+      isLoadingHistory={isLoadingHistory}
+      isHistoryLoaded={isHistoryLoaded}
+      nextTokens={nextTokens}
+      loadingMoreStates={loadingMoreStates}
+      onLoadMoreUpcoming={loadMoreUpcoming}
+      onLoadMorePending={loadMorePending}
+      onLoadMoreHistory={loadMoreHistory}
+      onLoadHistory={loadHistory}
+      onMutationSuccess={onMutationSuccess}
+    />
+  );
+}
+
+export interface ReservationDashboardViewProps {
+  role: ReservationRole;
+  myUserId: string | undefined;
+  upcoming: Reservation[];
+  pending: Reservation[];
+  history: Reservation[];
+  isLoadingUpcoming: boolean;
+  isLoadingPending: boolean;
+  isLoadingHistory: boolean;
+  isHistoryLoaded: boolean;
+  nextTokens: {
+    upcoming: number;
+    pending: number;
+    history: number;
+  };
+  loadingMoreStates: {
+    upcoming: boolean;
+    pending: boolean;
+    history: boolean;
+  };
+  onLoadMoreUpcoming: () => void;
+  onLoadMorePending: () => void;
+  onLoadMoreHistory: () => void;
+  onLoadHistory: () => void;
+  onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
+}
+
+export function ReservationDashboardView({
+  role,
+  myUserId,
+  upcoming,
+  pending,
+  history,
+  isLoadingUpcoming,
+  isLoadingPending,
+  isLoadingHistory,
+  isHistoryLoaded,
+  nextTokens,
+  loadingMoreStates,
+  onLoadMoreUpcoming,
+  onLoadMorePending,
+  onLoadMoreHistory,
+  onLoadHistory,
+  onMutationSuccess,
+}: ReservationDashboardViewProps) {
+  const isMentee = role === 'mentee';
+  const upcomingTabValue = isMentee ? 'upcoming-mentee' : 'upcoming-mentor';
+  const pendingTabValue = isMentee ? 'pending-mentee' : 'pending-mentor';
 
   const triggerClass =
     'group shrink-0 rounded-full border border-background-border px-3 py-1.5 text-sm ' +
@@ -54,16 +127,13 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
 
   const handleValueChange = (value: string) => {
     if (value === 'history' && !isHistoryLoaded && !isLoadingHistory) {
-      loadHistory();
+      onLoadHistory();
     }
   };
 
   const title = isMentee ? '預約導師' : '擔任導師';
   const pendingLabel = isMentee ? '等待回復' : '待您回復';
   const pendingVariant = isMentee ? 'pending-mentee' : 'pending-mentor';
-
-  const isLoadingUpcoming = initialState.upcoming === 'loading';
-  const isLoadingPending = initialState.pending === 'loading';
 
   return (
     <div className="flex min-h-[calc(100vh-70px)] justify-center pb-12">
@@ -131,7 +201,7 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
                     sourceRole={role}
                     myUserId={myUserId}
                     hasMore={nextTokens.upcoming !== 0}
-                    onLoadMore={loadMoreUpcoming}
+                    onLoadMore={onLoadMoreUpcoming}
                     isLoadingMore={loadingMoreStates.upcoming}
                     onMutationSuccess={onMutationSuccess}
                   />
@@ -148,7 +218,7 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
                     sourceRole={role}
                     myUserId={myUserId}
                     hasMore={nextTokens.pending !== 0}
-                    onLoadMore={loadMorePending}
+                    onLoadMore={onLoadMorePending}
                     isLoadingMore={loadingMoreStates.pending}
                     onMutationSuccess={onMutationSuccess}
                   />
@@ -165,7 +235,7 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
                     sourceRole={role}
                     myUserId={myUserId}
                     hasMore={nextTokens.history !== 0}
-                    onLoadMore={loadMoreHistory}
+                    onLoadMore={onLoadMoreHistory}
                     isLoadingMore={loadingMoreStates.history}
                     onMutationSuccess={onMutationSuccess}
                   />
