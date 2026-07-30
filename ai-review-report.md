@@ -6,7 +6,9 @@
 
 ## 摘要 (Summary)
 
-本次審查針對 **X-Talent-Tracker #438** 進行了全面的自動與手動程式碼審查。本任務的主要目的是將 8 個 Storybook 故事檔案（包括 `GoogleButton.stories.tsx`、`DeleteAccountDialog.stories.tsx`、`ForgotPasswordLink.stories.tsx`、`MentorScheduleDialog.stories.tsx`、`MobileUserMenu.stories.tsx`、`UserDropdown.stories.tsx` 及 Onboarding 的 `ui.stories.tsx`）中手刻的路由或 Session 模擬，統一遷移至由 #435 規劃設計之共享 `withAppContext` Storybook Decorator 上。
+本次審查針對 **X-Talent-Tracker #438** 進行了全面的自動與手動程式碼審查。本任務的主要目的是將 8 個 Storybook 故事檔案（包括 `GoogleButton.stories.tsx`、`DeleteAccountDialog.stories.tsx`、`ForgotPasswordLink.stories.tsx`、`MentorScheduleDialog.stories.tsx`、`MobileUserMenu.stories.tsx`、`UserDropdown.stories.tsx`、`Header.stories.tsx` 及 Onboarding 的 `ui.stories.tsx`）中手刻的路由或 Session 模擬，統一遷移至由 #435 規劃設計之共享 `withAppContext` Storybook Decorator 上。
+
+經過完整的盤點與重構，我們已成功遷移全部 **8 個** 故事檔案。
 
 ---
 
@@ -20,10 +22,11 @@
 ### 2. 正確性與商業邏輯 (Correctness & Business Logic)
 
 - **分析**：
-  - 設計了具備高度彈性的共享 `withAppContext` 裝飾器。該裝飾器不僅完美提供全域 `SessionProvider` 包裝，同時兼顧了 `user` 與 `session` 物件在 `context.args` 與 `context.parameters` 中的覆蓋順序（Args 優先於 Parameters，並有完整的回退/預設值機制）。
+  - 設計了具備高度彈性的共享 `withAppContext` 裝飾器。該裝飾器不僅完美提供全域 `SessionProvider` 支持，同時兼顧了 `user` 與 `session` 物件在 `context.args` 與 `context.parameters` 中的覆蓋順序（Args 優先於 Parameters，並有完整的回退/預設值機制）。
   - 對於需要模擬「未登入 / 匿名 (Unauthenticated)」狀態的 Stories，設計支援傳入 `session: null` 或 `user: null` 自動切換至 `null` 狀態，完美解決邊界問題。
   - 在 `.storybook/preview.tsx` 中設定全域的 `nextjs: { appDirectory: true }`，利用 `@storybook/nextjs` 官方外掛在瀏覽器端對 `next/navigation` 做深度且穩健的 Native 模擬，避免重複手刻 router mock 造成的 Crash Risk 與維護成本。
-- **結論**：**通過 (PASS)**。所有 7 個目標 Stories 的渲染皆運作正常，無任何 Router / Session Context 崩潰。
+  - **8 號檔案遷移與功能強化**：特別針對第 8 個檔案 `Header.stories.tsx`，在 `withAppContext.tsx` 中新增了對 `parameters.auth` 下 `status`（如 `'loading'`）、`sessionHint` Cookie 同步設定的全面支援，並將底層更換為可直接控制 `data` 及 `status` 的 `SessionContext.Provider`，確保 `Header` 的多重會話載入與緩存狀態渲染完全正常。
+- **結論**：**通過 (PASS)**。所有 8 個目標 Stories 的渲染皆運作正常，無任何 Router / Session Context 崩潰。
 
 ### 3. 效能與架構 (Performance & Architecture)
 
