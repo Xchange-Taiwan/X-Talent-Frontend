@@ -1,7 +1,7 @@
 import type { Preview } from '@storybook/nextjs';
 import React from 'react';
-import '../src/styles/global.css';
 import { withAppContext } from './withAppContext';
+import '../src/styles/global.css';
 
 const preview: Preview = {
   parameters: {
