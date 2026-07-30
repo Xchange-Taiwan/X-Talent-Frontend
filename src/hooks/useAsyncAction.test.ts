@@ -122,6 +122,31 @@ describe('useAsyncAction', () => {
     });
   });
 
+  it('captures flow failure with dynamic message callback', async () => {
+    const { result } = renderHook(() => useAsyncAction());
+
+    const error = new Error('database timeout');
+    const actionFn = vi.fn().mockRejectedValue(error);
+
+    await act(async () => {
+      await result.current.run(actionFn, {
+        captureFailure: {
+          flow: 'dynamic_flow',
+          step: 'dynamic_step',
+          message: (err) =>
+            err instanceof Error ? `Dynamic error: ${err.message}` : 'fallback',
+        },
+      });
+    });
+
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith({
+      flow: 'dynamic_flow',
+      step: 'dynamic_step',
+      message: 'Dynamic error: database timeout',
+      level: undefined,
+    });
+  });
+
   it('calls onSuccess on successful execution', async () => {
     const { result } = renderHook(() => useAsyncAction());
 

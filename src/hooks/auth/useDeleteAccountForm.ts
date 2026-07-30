@@ -53,38 +53,41 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
     }
 
     setBlockedByReservations(false);
-    await run(async () => {
-      const result = await deleteAccount({
-        email: values.email,
-        password: values.password,
-      });
+    await run(
+      async () => {
+        const result = await deleteAccount({
+          email: values.email,
+          password: values.password,
+        });
 
-      if (result.status === 'success') {
-        trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
-        if (session?.user?.id) {
-          await revalidateProfilePath(String(session.user.id));
+        if (result.status === 'success') {
+          trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
+          if (session?.user?.id) {
+            await revalidateProfilePath(String(session.user.id));
+          }
+          await signOut({ callbackUrl: '/' });
+          return;
         }
-        await signOut({ callbackUrl: '/' });
-        return;
-      }
 
-      if (result.status === 'blocked_reservations') {
-        setBlockedByReservations(true);
-        return;
-      }
+        if (result.status === 'blocked_reservations') {
+          setBlockedByReservations(true);
+          return;
+        }
 
-      captureFlowFailure({
-        flow: 'delete_account',
-        step: 'submit',
-        message: result.message,
-        level: 'info',
-      });
-      toast({
-        variant: 'destructive',
-        description: result.message || '刪除帳號失敗，請稍後再試',
-        duration: 3000,
-      });
-    });
+        captureFlowFailure({
+          flow: 'delete_account',
+          step: 'submit',
+          message: result.message,
+          level: 'info',
+        });
+        toast({
+          variant: 'destructive',
+          description: result.message || '刪除帳號失敗，請稍後再試',
+          duration: 3000,
+        });
+      },
+      { rethrow: true }
+    );
   };
 
   const initiateGoogleReauth = async (): Promise<void> => {
