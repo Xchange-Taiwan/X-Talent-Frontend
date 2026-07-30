@@ -110,4 +110,29 @@ describe('captureFlowFailure', () => {
     expect(arg.extra.message).not.toContain('abc123');
     expect(arg.extra.message).not.toContain('a@b.c');
   });
+
+  it('captureFlowFailure catches Sentry logging errors and does not crash the caller', async () => {
+    mockCaptureEvent.mockImplementationOnce(() => {
+      throw new Error('Sentry capture failed');
+    });
+
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    await expect(
+      captureFlowFailure({
+        flow: 'sign_in',
+        step: 'authenticate',
+        message: 'Something went wrong',
+      })
+    ).resolves.not.toThrow();
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[Monitoring] captureFlowFailure Sentry logging failed:',
+      expect.any(Error)
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
 });

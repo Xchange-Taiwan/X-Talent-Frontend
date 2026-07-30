@@ -118,9 +118,7 @@ export function useMentorPool({
     return getInitialUnfilteredState();
   });
 
-  const { run, isPending: isActionPending } = useAsyncAction({
-    throwError: true,
-  });
+  const { run, isPending: isActionPending } = useAsyncAction();
 
   const [retryCount, setRetryCount] = useState<number>(0);
   const requestIdRef = useRef(0);
@@ -130,6 +128,35 @@ export function useMentorPool({
   const isLoading = hasInitialFilters
     ? !hasClientFetched.current || isActionPending
     : isActionPending;
+
+  // Centralized, DRY error handling helper to manage state transitions and error toast feedback
+  const handleError = useCallback(
+    (myRequestId: number, isLoadMore = false) => {
+      if (myRequestId !== requestIdRef.current) return;
+      toast({
+        variant: 'destructive',
+        title: '載入失敗',
+        description: '無法獲取導師，請稍後再試。',
+        duration: 5000,
+      });
+      setPageState((prev) => {
+        if (!isLoadMore) {
+          return {
+            ...prev,
+            mentors: [],
+            mentorCount: 0,
+            hasError: true,
+            isNoResults: false,
+          };
+        }
+        return {
+          ...prev,
+          hasError: prev.mentors.length === 0,
+        };
+      });
+    },
+    [toast]
+  );
 
   // Refetches on every params change, including initial mount, since
   // MentorPoolWithData no longer refetches per request. Clearing filters
@@ -156,30 +183,15 @@ export function useMentorPool({
 
     run(() => fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' }), {
       preventConcurrent: false, // For params change, do not block subsequent valid filtering requests
-    })
-      .then((list) => {
-        if (!list) return;
-        if (myRequestId !== requestIdRef.current) return;
-        setPageState((prev) =>
-          applyMentorPage(prev, { type: 'replace', page: list })
-        );
-      })
-      .catch(() => {
-        if (myRequestId !== requestIdRef.current) return;
-        toast({
-          variant: 'destructive',
-          title: '載入失敗',
-          description: '無法獲取導師，請稍後再試。',
-          duration: 5000,
-        });
-        setPageState((prev) => ({
-          ...prev,
-          mentors: [],
-          mentorCount: 0,
-          hasError: true,
-          isNoResults: false,
-        }));
-      });
+      throwError: false,
+      onError: () => handleError(myRequestId, false),
+    }).then((list) => {
+      if (!list) return;
+      if (myRequestId !== requestIdRef.current) return;
+      setPageState((prev) =>
+        applyMentorPage(prev, { type: 'replace', page: list })
+      );
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.toString(), retryCount]);
 
@@ -194,38 +206,29 @@ export function useMentorPool({
       cursor: pageState.cursor,
     };
 
-    try {
-      const rtnList = await run(
-        () => {
-          myRequestId = ++requestIdRef.current;
-          return fetchMentors(param);
+    const rtnList = await run(
+      () => {
+        myRequestId = ++requestIdRef.current;
+        return fetchMentors(param);
+      },
+      {
+        preventConcurrent: true,
+        throwError: false,
+        onError: () => {
+          if (myRequestId !== undefined) {
+            handleError(myRequestId, true);
+          }
         },
-        {
-          preventConcurrent: true,
-        }
-      );
+      }
+    );
 
-      if (!rtnList) return;
-      if (myRequestId === requestIdRef.current) {
-        setPageState((prev) =>
-          applyMentorPage(prev, { type: 'append', page: rtnList })
-        );
-      }
-    } catch {
-      if (myRequestId !== undefined && myRequestId === requestIdRef.current) {
-        toast({
-          variant: 'destructive',
-          title: '載入失敗',
-          description: '無法獲取導師，請稍後再試。',
-          duration: 5000,
-        });
-        setPageState((prev) => ({
-          ...prev,
-          hasError: prev.mentors.length === 0,
-        }));
-      }
+    if (!rtnList) return;
+    if (myRequestId === requestIdRef.current) {
+      setPageState((prev) =>
+        applyMentorPage(prev, { type: 'append', page: rtnList })
+      );
     }
-  }, [params, pageState.cursor, run, isActionPending, toast]);
+  }, [params, pageState.cursor, run, isActionPending, handleError]);
 
   const handleScrollToBottom = useCallback(async () => {
     if (!pageState.hasMore || isActionPending) return;

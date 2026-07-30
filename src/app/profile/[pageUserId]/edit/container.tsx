@@ -61,7 +61,12 @@ const CategoryMultiSelectField = dynamic(
       await import('@/components/profile/edit/CategoryMultiSelectField');
     return { default: m.CategoryMultiSelectField };
   },
-  { ssr: false }
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-10 w-full animate-pulse rounded bg-muted" />
+    ),
+  }
 ) as unknown as typeof import('@/components/profile/edit/CategoryMultiSelectField').CategoryMultiSelectField;
 
 const AvatarSection = dynamic(
@@ -69,7 +74,12 @@ const AvatarSection = dynamic(
     const m = await import('@/components/profile/edit/AvatarSection');
     return { default: m.AvatarSection };
   },
-  { ssr: false }
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[120px] w-full animate-pulse rounded bg-muted" />
+    ),
+  }
 ) as unknown as typeof import('@/components/profile/edit/AvatarSection').AvatarSection;
 
 interface Props {
