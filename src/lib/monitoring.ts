@@ -106,7 +106,7 @@ function maskSensitiveJsonValues(text: string): string {
   });
 }
 
-function sanitize(text: string | undefined): string | undefined {
+export function sanitize(text: string | undefined): string | undefined {
   if (!text) return text;
   return maskSensitiveJsonValues(maskSensitiveQueryParams(text));
 }

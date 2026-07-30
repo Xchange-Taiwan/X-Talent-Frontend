@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
-import { captureFlowFailure } from '@/lib/monitoring';
+import { captureFlowFailure, sanitize } from '@/lib/monitoring';
 
 export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
   /**
@@ -101,11 +101,13 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
           try {
             config.onError(err);
           } catch (callbackErr) {
-            console.error(
-              'Error in useAsyncAction onError callback:',
+            const rawMsg =
               callbackErr instanceof Error
                 ? callbackErr.message
-                : String(callbackErr)
+                : String(callbackErr);
+            console.error(
+              'Error in useAsyncAction onError callback:',
+              sanitize(rawMsg)
             );
           }
         }
@@ -125,19 +127,22 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
           });
           if (p && typeof p.catch === 'function') {
             p.catch((captureErr) => {
-              console.error(
-                '[useAsyncAction] Failed to capture flow failure:',
+              const rawMsg =
                 captureErr instanceof Error
                   ? captureErr.message
-                  : String(captureErr)
+                  : String(captureErr);
+              console.error(
+                '[useAsyncAction] Failed to capture flow failure:',
+                sanitize(rawMsg)
               );
             });
           }
         }
 
+        const rawMsg = err instanceof Error ? err.message : String(err);
         console.error(
           `[AsyncAction] Error in ${config.flow ?? 'unknown'}:${config.step ?? 'unknown'}:`,
-          err instanceof Error ? err.message : String(err)
+          sanitize(rawMsg)
         );
 
         // 觸發 Toast

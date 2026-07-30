@@ -12,9 +12,13 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-vi.mock('@/lib/monitoring', () => ({
-  captureFlowFailure: vi.fn(),
-}));
+vi.mock('@/lib/monitoring', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/monitoring')>();
+  return {
+    ...actual,
+    captureFlowFailure: vi.fn(),
+  };
+});
 
 class LoggedError extends Error {
   constructor(message?: string) {
