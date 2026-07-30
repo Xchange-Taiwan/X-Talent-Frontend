@@ -187,11 +187,7 @@ export function useMentorPool({
       {
         preventConcurrent: false, // For params change, do not block subsequent valid filtering requests
         throwError: false,
-        onError: () => {
-          if (myRequestId === requestIdRef.current) {
-            handleError(myRequestId, false);
-          }
-        },
+        onError: () => handleError(myRequestId, false),
       }
     ).then((list) => {
       if (!list) return;

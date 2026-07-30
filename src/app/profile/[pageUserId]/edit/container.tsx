@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useLayoutEffect, useRef, useState } from 'react';
 
+import { AvatarSection } from '@/components/profile/edit/AvatarSection';
+import { CategoryMultiSelectField } from '@/components/profile/edit/CategoryMultiSelectField';
 import { EditPageHeader } from '@/components/profile/edit/EditPageHeader';
 import {
   SelectField,
@@ -78,31 +80,6 @@ const LinksSection = dynamic(
     ),
   }
 );
-
-const CategoryMultiSelectField = dynamic(
-  async () => {
-    const m =
-      await import('@/components/profile/edit/CategoryMultiSelectField');
-    return { default: m.CategoryMultiSelectField };
-  },
-  {
-    loading: () => (
-      <div className="h-10 w-full animate-pulse rounded bg-muted" />
-    ),
-  }
-) as unknown as typeof import('@/components/profile/edit/CategoryMultiSelectField').CategoryMultiSelectField;
-
-const AvatarSection = dynamic(
-  async () => {
-    const m = await import('@/components/profile/edit/AvatarSection');
-    return { default: m.AvatarSection };
-  },
-  {
-    loading: () => (
-      <div className="h-[120px] w-full animate-pulse rounded bg-muted" />
-    ),
-  }
-) as unknown as typeof import('@/components/profile/edit/AvatarSection').AvatarSection;
 
 interface Props {
   pageUserId: string;
