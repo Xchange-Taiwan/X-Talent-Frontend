@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useLayoutEffect, useRef, useState } from 'react';
 
-import { AvatarSection } from '@/components/profile/edit/AvatarSection';
 import { EditPageHeader } from '@/components/profile/edit/EditPageHeader';
 import {
   SelectField,
@@ -61,6 +60,14 @@ const CategoryMultiSelectField = dynamic(
     const m =
       await import('@/components/profile/edit/CategoryMultiSelectField');
     return { default: m.CategoryMultiSelectField };
+  },
+  { ssr: false }
+);
+
+const AvatarSection = dynamic(
+  async () => {
+    const m = await import('@/components/profile/edit/AvatarSection');
+    return { default: m.AvatarSection };
   },
   { ssr: false }
 );

@@ -1,6 +1,10 @@
+import dynamic from 'next/dynamic';
+
 import { fetchTagCatalogServer } from '@/services/profile/tagCatalog.server';
 
-import EditProfileContainer from './container';
+const EditProfileContainer = dynamic(() => import('./container'), {
+  ssr: false,
+});
 
 export default async function Page({
   params,
