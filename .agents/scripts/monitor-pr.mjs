@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-import { execSync } from "child_process";
-import fs from "fs";
-import path from "path";
+import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 // Helper for bold and colored terminal output
 const bold = (str) => `\x1b[1m${str}\x1b[22m`;
@@ -14,80 +14,120 @@ const cyan = (str) => `\x1b[36m${str}\x1b[39m`;
 // Parse Arguments
 const args = process.argv.slice(2);
 let prTarget = null;
-const intervalIndex = args.indexOf("--interval");
-const timeoutIndex = args.indexOf("--timeout");
+const intervalIndex = args.indexOf('--interval');
+const timeoutIndex = args.indexOf('--timeout');
 
 for (let i = 0; i < args.length; i++) {
-  if (args[i] === "--interval" || args[i] === "--timeout") {
+  if (args[i] === '--interval' || args[i] === '--timeout') {
     i++; // Skip flag value
-  } else if (!args[i].startsWith("--")) {
+  } else if (!args[i].startsWith('--')) {
     prTarget = args[i];
     break;
   }
 }
 
 // Default polling interval: 5 minutes (300 seconds)
-const pollingInterval = intervalIndex !== -1 ? parseInt(args[intervalIndex + 1], 10) * 1000 : 300 * 1000;
+const pollingInterval =
+  intervalIndex !== -1
+    ? parseInt(args[intervalIndex + 1], 10) * 1000
+    : 300 * 1000;
 // Default timeout: 60 minutes (3600 seconds)
-const maxTimeout = timeoutIndex !== -1 ? parseInt(args[timeoutIndex + 1], 10) * 60 * 1000 : 60 * 60 * 1000;
+const maxTimeout =
+  timeoutIndex !== -1
+    ? parseInt(args[timeoutIndex + 1], 10) * 60 * 1000
+    : 60 * 60 * 1000;
 
 const startTime = Date.now();
 
 // Ensure gh CLI is logged in and installed
 try {
-  execSync("gh --version", { stdio: "ignore" });
+  execSync('gh --version', { stdio: 'ignore' });
 } catch (err) {
-  console.error(red("ERROR: GitHub CLI ('gh') is not installed or not in system PATH."));
+  console.error(
+    red("ERROR: GitHub CLI ('gh') is not installed or not in system PATH.")
+  );
   process.exit(1);
 }
 
 // Find PR target if not specified
 if (!prTarget) {
-  console.log(cyan("No PR target provided. Attempting to detect PR from the current branch..."));
+  console.log(
+    cyan(
+      'No PR target provided. Attempting to detect PR from the current branch...'
+    )
+  );
   try {
-    const prJson = execSync("gh pr view --json url,number,state,title", { encoding: "utf-8" });
+    const prJson = execSync('gh pr view --json url,number,state,title', {
+      encoding: 'utf-8',
+    });
     const prData = JSON.parse(prJson);
     prTarget = prData.url;
-    console.log(green(`Detected Active PR: #${prData.number} - "${prData.title}"`));
+    console.log(
+      green(`Detected Active PR: #${prData.number} - "${prData.title}"`)
+    );
     console.log(cyan(`PR URL: ${prData.url}\n`));
   } catch (err) {
-    console.error(red("ERROR: Could not find an active PR on the current branch. Please specify a PR URL or number."));
+    console.error(
+      red(
+        'ERROR: Could not find an active PR on the current branch. Please specify a PR URL or number.'
+      )
+    );
     process.exit(1);
   }
 } else {
   // Validate PR link/number and fetch metadata
   try {
-    const prJson = execSync(`gh pr view "${prTarget}" --json url,number,state,title`, { encoding: "utf-8" });
+    const prJson = execSync(
+      `gh pr view "${prTarget}" --json url,number,state,title`,
+      { encoding: 'utf-8' }
+    );
     const prData = JSON.parse(prJson);
     prTarget = prData.url;
     console.log(green(`Target PR: #${prData.number} - "${prData.title}"`));
     console.log(cyan(`PR URL: ${prData.url}\n`));
   } catch (err) {
-    console.error(red(`ERROR: Could not fetch PR info for target: "${prTarget}".`));
+    console.error(
+      red(`ERROR: Could not fetch PR info for target: "${prTarget}".`)
+    );
     process.exit(1);
   }
 }
 
 // Start polling checks
-console.log(cyan(`Starting pipeline check monitor. Interval: ${pollingInterval / 1000}s, Timeout: ${maxTimeout / 60000}m.`));
+console.log(
+  cyan(
+    `Starting pipeline check monitor. Interval: ${pollingInterval / 1000}s, Timeout: ${maxTimeout / 60000}m.`
+  )
+);
 
 async function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 while (true) {
   const elapsed = Date.now() - startTime;
   if (elapsed > maxTimeout) {
-    console.error(red(`\n❌ ERROR: Monitoring timed out after ${maxTimeout / 60000} minutes.`));
+    console.error(
+      red(
+        `\n❌ ERROR: Monitoring timed out after ${maxTimeout / 60000} minutes.`
+      )
+    );
     process.exit(1);
   }
 
   try {
-    const checksJson = execSync(`gh pr checks "${prTarget}" --json bucket,name,state,link,workflow`, { encoding: "utf-8" });
+    const checksJson = execSync(
+      `gh pr checks "${prTarget}" --json bucket,name,state,link,workflow`,
+      { encoding: 'utf-8' }
+    );
     const checks = JSON.parse(checksJson);
 
     if (checks.length === 0) {
-      console.log(yellow("⚠️  No checks detected on this PR yet. They may be queuing or registration is pending."));
+      console.log(
+        yellow(
+          '⚠️  No checks detected on this PR yet. They may be queuing or registration is pending.'
+        )
+      );
     } else {
       const passing = [];
       const pending = [];
@@ -95,9 +135,18 @@ while (true) {
 
       for (const check of checks) {
         // gh CLI returns "pass", "fail", "pending", "skipping", "cancel" in bucket field
-        if (check.bucket === "pass" || check.state === "success" || check.bucket === "skipping") {
+        if (
+          check.bucket === 'pass' ||
+          check.state === 'success' ||
+          check.bucket === 'skipping'
+        ) {
           passing.push(check);
-        } else if (check.bucket === "pending" || check.state === "pending" || check.state === "in_progress" || check.state === "queued") {
+        } else if (
+          check.bucket === 'pending' ||
+          check.state === 'pending' ||
+          check.state === 'in_progress' ||
+          check.state === 'queued'
+        ) {
           pending.push(check);
         } else {
           failing.push(check);
@@ -105,7 +154,9 @@ while (true) {
       }
 
       const timestamp = new Date().toLocaleTimeString();
-      console.log(`[${timestamp}] Checks Status: ${green(`${passing.length} passing`)}, ${yellow(`${pending.length} pending`)}, ${red(`${failing.length} failing`)}`);
+      console.log(
+        `[${timestamp}] Checks Status: ${green(`${passing.length} passing`)}, ${yellow(`${pending.length} pending`)}, ${red(`${failing.length} failing`)}`
+      );
 
       // If there are failing checks, report them and exit immediately
       if (failing.length > 0) {
@@ -119,15 +170,25 @@ while (true) {
 
       // If everything passes and there are no pending checks, exit with success
       if (pending.length === 0 && failing.length === 0 && passing.length > 0) {
-        console.log(green(`\n🎉 All checks have successfully passed! Pipeline is completely clean.`));
+        console.log(
+          green(
+            `\n🎉 All checks have successfully passed! Pipeline is completely clean.`
+          )
+        );
         process.exit(0);
       }
     }
   } catch (err) {
-    console.warn(yellow(`⚠️  Failed to query PR checks (will retry): ${err.message}`));
+    console.warn(
+      yellow(`⚠️  Failed to query PR checks (will retry): ${err.message}`)
+    );
   }
 
   // Sleep before next poll
-  console.log(cyan(`Waiting ${(pollingInterval / 1000) / 60} minutes before next check...\n`));
+  console.log(
+    cyan(
+      `Waiting ${pollingInterval / 1000 / 60} minutes before next check...\n`
+    )
+  );
   await sleep(pollingInterval);
 }
