@@ -6,11 +6,6 @@ const meta: Meta<typeof GoogleSignUpButton> = {
   title: 'Components/Auth/GoogleButton',
   component: GoogleSignUpButton,
   tags: ['autodocs'],
-  parameters: {
-    nextjs: {
-      appDirectory: true,
-    },
-  },
 };
 
 export default meta;
