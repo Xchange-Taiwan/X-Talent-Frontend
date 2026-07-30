@@ -24,10 +24,18 @@ If the workspace is an `X-Frontend` project (e.g., `X-Talent-Frontend` or simila
    - **Automated Handoff Contract**:
      - Locate the generated review report and parse the `Review Status` line.
      - **If the output contains `Review Status: PASS`**: You MUST automatically transition to **Step 4 (`/submit-pr`)** in the exact same turn without stopping, asking the user, or halting the workflow.
-     - **If the output contains `Review Status: BLOCKED`** (or if the status line is missing): You MUST halt immediately, output the findings clearly to the user, and wait for manual intervention or fix instructions. Do not proceed to `/submit-pr`.
+     - **If the output contains `Review Status: BLOCKED`** (or if the status line is missing): You should automatically trigger the `/fix-pr` guidelines to resolve the highlighted concerns (referencing `references/common-ci-fixes.md`), then re-run `/ai-review` until the status changes to `PASS`. Do not proceed to `/submit-pr` until it passes.
 
 4. **Complete & Submit PR:**
    - Once implementation is done, verified, and reviewed, call the `/submit-pr` skill to run final tests, commit, push, create a PR, and move the ticket to `PR Review` status.
+
+5. **Monitor & Self-Heal PR Checks (Automated Pipeline Resolution):**
+   - After successfully submitting the PR, you MUST automatically run the `/fix-pr` pipeline monitor to watch the checks:
+     ```bash
+     node .agents/scripts/monitor-pr.mjs
+     ```
+   - **If the pipeline checks fail**: Parse the failing checks from the logs, apply high-quality modifications following the design standards in `/fix-pr`, push your changes, and re-run the monitor script.
+   - **If all pipeline checks pass**: Congratulations, the workflow is successfully completed!
 
 ---
 
