@@ -46,9 +46,9 @@
 ## 3. Discipline Evaluation (專案紀律與安全檢驗)
 
 - **PII 與敏感資訊 (PII & Secrets Check):** 故事檔案中無 any 硬編碼之個人敏感隱私數據或 API 金鑰。預設填寫的姓名與頭像連結皆為 Mock 的公開 Unsplash 圖庫地址。
-- **除錯紀錄與日誌 (Debug Logs Check):** 除步驟提交數據有合規的 `console.log` 以利開發者在 Storybook 控制台中偵錯外，無任何殘留、不當的偵錯日誌。
+- **除錯紀錄與日誌 (Debug Logs Check):** 除步驟提交數據有合規 the `console.log` 以利開發者在 Storybook 控制台中偵錯外，無任何殘留、不當的偵錯日誌。
 - **類型安全性 (Type Safety):** 100% 遵守專案 strict TypeScript 規範。對於下拉選單與地區資料，皆使用正統的 `LocationType[]` 類型對齊；對於表單 schema，皆透過 `z.infer<typeof step1Schema>` 等 Zod 衍生類型確保表單輸入與 Hook-Form 資料流的全面型別守護，無 `any` 繞過或不當斷言。
-- **領域與風格對齊 (Domain & Styling Alignment):** 所使用的 Mock 資料（產業選項、職位、技能、主題分組等）均引用自 `src/test/fixtures/tagCatalog.ts` 的真實項目結構，與真實系統的 Domain Invariant 完全保持一致。樣式類別（如 `text-status-success-default`、`bg-background-bottom-secondary` 及 `bg-brand-500` 等）亦完全對齊本專案與 Tailwind 的品牌語義規範。
+- **領域與風格對齊 (Domain & Styling Alignment):** 所使用的 Mock 資料（產業選項、職位、技能、主題分組等）均引用自 `src/test/fixtures/tagCatalog.ts` 的真實項目結構，與真實系統的 Domain Invariant 完全保持一致。樣式類別（如 `text-status-success-default`、`bg-background-bottom-secondary` 及 `bg-brand-500` 等）亦完全對齊本專案與 Tailwind 的 brand sematic 規範。
 
 ---
 
