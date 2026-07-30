@@ -24,9 +24,13 @@ vi.mock('@/lib/profile/saveProfile', () => {
   };
 });
 
-vi.mock('@/lib/monitoring', () => ({
-  captureFlowFailure: vi.fn(),
-}));
+vi.mock('@/lib/monitoring', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/monitoring')>();
+  return {
+    ...actual,
+    captureFlowFailure: vi.fn(),
+  };
+});
 
 import { captureFlowFailure } from '@/lib/monitoring';
 import { LoggedError, saveProfile } from '@/lib/profile/saveProfile';

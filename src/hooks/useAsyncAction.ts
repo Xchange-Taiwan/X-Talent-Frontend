@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
-import { captureFlowFailure } from '@/lib/monitoring';
+import { captureFlowFailure, sanitize } from '@/lib/monitoring';
 
 export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
   /**
@@ -14,6 +14,10 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
    * Sentry 錯誤記錄的 Step 步驟 (例如 'unexpected', 'submit')
    */
   step?: string;
+  /**
+   * 發生錯誤時顯示的 Toast 標題
+   */
+  errorTitle?: string;
   /**
    * 發生錯誤時顯示的 Toast 文案。如不提供則不彈出 Toast
    */
@@ -27,7 +31,7 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
    */
   onError?: (error: unknown) => void;
   /**
-   * 是否在處理完錯誤後重新拋出（reject）。預設為 true（推薦，防止下游邏輯誤判成功）。
+   * 是否在非同步操作失敗時重新拋出錯誤，讓呼叫端做額外處理。預設為 true。
    * 設定為 false 時將吞沒錯誤並 resolve 成 undefined。
    */
   throwError?: TThrowError;
@@ -36,12 +40,12 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
    */
   preventConcurrent?: boolean;
   /**
-   * 成功執行後是否重置 isPending 為 false。預設為 true。
-   * 如果設定為 false，成功後 isPending 將保持為 true（例如用於模擬並在跳轉/導航期間防止按鈕被再次點擊）。
+   * 是否在成功執行後立刻重置 pending 狀態。預設為 true。
+   * 設為 false 適用於提交成功後會有 Page Redirect 轉址的情境（轉址期間保持 pending 防止按鈕重複點擊）。
    */
   resetPendingOnSuccess?: boolean;
   /**
-   * 決定是否跳過 Sentry 紀錄。例如呼叫端可判斷該錯誤是否已被下層 LoggedError 記錄過，如果是則返回 true 去重。
+   * 判斷此錯誤是否已經在底層被 logging 過，避免重複上報。
    */
   shouldSkipLogging?: (error: unknown) => boolean;
 }
@@ -119,9 +123,13 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
           try {
             config.onError(err);
           } catch (callbackErr) {
+            const rawMsg =
+              callbackErr instanceof Error
+                ? callbackErr.message
+                : String(callbackErr);
             console.error(
               'Error in useAsyncAction onError callback:',
-              callbackErr
+              sanitize(rawMsg)
             );
           }
         }
@@ -129,27 +137,44 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
         // Sentry 錯誤記錄去重：由外部傳遞的 shouldSkipLogging 回撥決定
         const isAlreadyLogged = config.shouldSkipLogging?.(err) ?? false;
         if (!isAlreadyLogged && config.flow && config.step) {
-          captureFlowFailure({
+          const rawMessage =
+            err instanceof Error
+              ? err.message
+              : typeof err === 'string'
+                ? err
+                : 'Unexpected error in async action';
+
+          const p = captureFlowFailure({
             flow: config.flow,
             step: config.step,
-            message:
-              err instanceof Error
-                ? err.message
-                : typeof err === 'string'
-                  ? err
-                  : 'Unexpected error in async action',
+            message: sanitize(rawMessage) ?? 'Unexpected error in async action',
           });
+
+          if (p && typeof p.catch === 'function') {
+            p.catch((captureErr) => {
+              const rawCaptureMsg =
+                captureErr instanceof Error
+                  ? captureErr.message
+                  : String(captureErr);
+              console.error(
+                '[useAsyncAction] Failed to capture flow failure:',
+                sanitize(rawCaptureMsg)
+              );
+            });
+          }
         }
 
+        const rawMsg = err instanceof Error ? err.message : String(err);
         console.error(
           `[AsyncAction] Error in ${config.flow ?? 'unknown'}:${config.step ?? 'unknown'}:`,
-          err
+          sanitize(rawMsg)
         );
 
         // 觸發 Toast
         if (config.errorMessage) {
           toast({
             variant: 'destructive',
+            title: config.errorTitle,
             description: config.errorMessage,
             duration: config.duration ?? 5000,
           });

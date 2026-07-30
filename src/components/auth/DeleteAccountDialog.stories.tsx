@@ -13,11 +13,6 @@ const meta: Meta<typeof DeleteAccountDialogView> = {
   title: 'Components/Auth/DeleteAccountDialog',
   component: DeleteAccountDialogView,
   tags: ['autodocs'],
-  parameters: {
-    nextjs: {
-      appDirectory: true,
-    },
-  },
 };
 
 export default meta;

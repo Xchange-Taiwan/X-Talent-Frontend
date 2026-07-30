@@ -12,9 +12,13 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-vi.mock('@/lib/monitoring', () => ({
-  captureFlowFailure: vi.fn(),
-}));
+vi.mock('@/lib/monitoring', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/monitoring')>();
+  return {
+    ...actual,
+    captureFlowFailure: vi.fn(),
+  };
+});
 
 class LoggedError extends Error {
   constructor(message?: string) {
@@ -90,7 +94,9 @@ describe('useAsyncAction', () => {
     await act(async () => {
       val = await result.current.run(
         () => Promise.reject(new Error('swallowed-error')),
-        { throwError: false }
+        {
+          throwError: false,
+        }
       );
     });
 
@@ -117,6 +123,38 @@ describe('useAsyncAction', () => {
       step: 'test_step',
       message: 'test-sentry-error',
     });
+  });
+
+  it('should gracefully handle captureFlowFailure rejections (e.g. ad blockers or network failures) without crashing and reset isPending', async () => {
+    const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
+    mockCaptureFlowFailure.mockRejectedValueOnce(
+      new Error('Sentry dynamic import failed')
+    );
+
+    const { result } = renderHook(() =>
+      useAsyncAction({
+        flow: 'test_flow',
+        step: 'test_step',
+      })
+    );
+
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    await act(async () => {
+      await expect(
+        result.current.run(() => Promise.reject(new Error('app-error')))
+      ).rejects.toThrow('app-error');
+    });
+
+    expect(result.current.isPending).toBe(false);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[useAsyncAction] Failed to capture flow failure:',
+      'Sentry dynamic import failed'
+    );
+
+    consoleErrorSpy.mockRestore();
   });
 
   it('should NOT call captureFlowFailure if shouldSkipLogging returns true', async () => {
@@ -158,6 +196,26 @@ describe('useAsyncAction', () => {
     });
   });
 
+  it('should call toast with errorTitle and errorMessage when both are provided', async () => {
+    const { result } = renderHook(() => useAsyncAction());
+
+    await act(async () => {
+      await expect(
+        result.current.run(() => Promise.reject(new Error('some-error')), {
+          errorTitle: '發生錯誤',
+          errorMessage: '請稍候再試',
+        })
+      ).rejects.toThrow('some-error');
+    });
+
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      title: '發生錯誤',
+      description: '請稍候再試',
+      duration: 5000,
+    });
+  });
+
   it('should call custom onError callback if provided', async () => {
     const onErrorMock = vi.fn();
     const { result } = renderHook(() =>
@@ -175,6 +233,42 @@ describe('useAsyncAction', () => {
     });
 
     expect(onErrorMock).toHaveBeenCalledWith(testError);
+  });
+
+  it('should gracefully handle errors thrown in custom onError callback without crashing subsequent steps', async () => {
+    const onErrorMock = vi.fn().mockImplementation(() => {
+      throw new Error('error-in-callback');
+    });
+
+    const { result } = renderHook(() =>
+      useAsyncAction({
+        onError: onErrorMock,
+        flow: 'test_flow',
+        step: 'test_step',
+        errorMessage: '發生錯誤，請稍候再試',
+      })
+    );
+
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    await act(async () => {
+      await expect(
+        result.current.run(() => Promise.reject(new Error('app-error')))
+      ).rejects.toThrow('app-error');
+    });
+
+    // The primary error is still reported, and Sentry flow failure and toast are still processed successfully
+    expect(onErrorMock).toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Error in useAsyncAction onError callback:',
+      'error-in-callback'
+    );
+    expect(captureFlowFailure).toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
   });
 
   it('should support configuration overriding on run level', async () => {

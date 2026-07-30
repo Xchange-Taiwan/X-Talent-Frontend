@@ -1,6 +1,8 @@
 'use client';
+
 import { useRouter } from 'next/navigation';
 import { Session } from 'next-auth';
+import { useCallback } from 'react';
 
 import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
@@ -43,25 +45,33 @@ export function useProfileSubmit({
     shouldSkipLogging: (err) => err instanceof LoggedError,
   });
 
-  const onSubmit = async (
-    values: ProfileFormValues,
-    dirtyFields?: ProfileDirtyFields
-  ) => {
-    await run(() =>
-      saveProfile(values, {
-        pageUserId,
-        isMentorOnboarding,
-        session,
-        dirtyFields,
-        consumeAvatarUpload,
-        updateSession,
-        navigate: router.push,
-        revalidateProfilePath,
-        clearUserDataCache,
-        primeUserDataCache,
-      })
-    );
-  };
+  const onSubmit = useCallback(
+    async (values: ProfileFormValues, dirtyFields?: ProfileDirtyFields) => {
+      await run(() =>
+        saveProfile(values, {
+          pageUserId,
+          isMentorOnboarding,
+          session,
+          dirtyFields,
+          consumeAvatarUpload,
+          updateSession,
+          navigate: router.push,
+          revalidateProfilePath,
+          clearUserDataCache,
+          primeUserDataCache,
+        })
+      );
+    },
+    [
+      run,
+      pageUserId,
+      isMentorOnboarding,
+      session,
+      consumeAvatarUpload,
+      updateSession,
+      router.push,
+    ]
+  );
 
   return { onSubmit, isSaving };
 }
