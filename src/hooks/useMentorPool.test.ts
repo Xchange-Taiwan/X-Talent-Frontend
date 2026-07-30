@@ -780,6 +780,80 @@ describe('useMentorPool', () => {
 
     expect(result.current.mentors[0].avatar).toBe(avatarImage);
   });
+
+  it('supports multiple rapid filter changes and triggers fetchMentors for each valid change without concurrent blocking', async () => {
+    mockFetchMentors.mockResolvedValue([]);
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'q') return 'react';
+      return null;
+    });
+
+    const { result, rerender } = renderHook(() =>
+      useMentorPool({
+        initialMentors: mockInitialMentors,
+        initialMentorCount: 1,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+      })
+    );
+
+    expect(result.current.isLoading).toBe(true);
+
+    // 1. Change search params immediately (second unique filter)
+    mockSearchParams.toString.mockReturnValue('q=vue');
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'q') return 'vue';
+      return null;
+    });
+    rerender();
+
+    await act(async () => {});
+
+    // Both unique params changes should trigger fetchMentors successfully without being blocked
+    expect(mockFetchMentors).toHaveBeenCalledTimes(2);
+  });
+
+  it('prevents concurrent loads when fetchMoreMentors is called multiple times rapidly due to preventConcurrent: true', async () => {
+    let resolveFetch: (v: MentorType[]) => void = () => {};
+    const fetchPromise = new Promise<MentorType[]>((resolve) => {
+      resolveFetch = resolve;
+    });
+    mockFetchMentors.mockReturnValue(fetchPromise);
+
+    const largeInitialMentors = Array.from({ length: PAGE_LIMIT }, (_, i) => ({
+      ...mockInitialMentors[0],
+      user_id: i + 1,
+    }));
+
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: largeInitialMentors,
+        initialMentorCount: PAGE_LIMIT,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+      })
+    );
+
+    act(() => {
+      result.current.handleScrollToBottom();
+    });
+
+    act(() => {
+      result.current.handleScrollToBottom();
+    });
+
+    await act(async () => {
+      resolveFetch([
+        {
+          ...mockInitialMentors[0],
+          user_id: 100,
+        },
+      ]);
+    });
+
+    // fetchMentors should ONLY be called once because the second load-more was blocked
+    expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('applyMentorPage', () => {

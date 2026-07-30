@@ -62,7 +62,7 @@ const CategoryMultiSelectField = dynamic(
     return { default: m.CategoryMultiSelectField };
   },
   { ssr: false }
-);
+) as unknown as typeof import('@/components/profile/edit/CategoryMultiSelectField').CategoryMultiSelectField;
 
 const AvatarSection = dynamic(
   async () => {
@@ -70,7 +70,7 @@ const AvatarSection = dynamic(
     return { default: m.AvatarSection };
   },
   { ssr: false }
-);
+) as unknown as typeof import('@/components/profile/edit/AvatarSection').AvatarSection;
 
 interface Props {
   pageUserId: string;

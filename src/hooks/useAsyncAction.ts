@@ -61,7 +61,7 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
   const { toast } = useToast();
   const isMounted = useRef(true);
   const pendingCountRef = useRef(0);
-  const defaultConfigRef = useRef<AsyncActionConfig<any>>(defaultConfig);
+  const defaultConfigRef = useRef<AsyncActionConfig<boolean>>(defaultConfig);
 
   // 追蹤組件掛載狀態，防止在已卸載的組件上執行 setState 導致記憶體洩漏與 React 警告
   useEffect(() => {
@@ -82,7 +82,7 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
       runConfig?: AsyncActionConfig<TRunThrow>
     ): Promise<TRunThrow extends false ? T | undefined : T> => {
       const config = {
-        throwError: true as any,
+        throwError: true as unknown as TRunThrow,
         preventConcurrent: true,
         resetPendingOnSuccess: true,
         ...defaultConfigRef.current,
@@ -91,7 +91,9 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
 
       // 並發防護：若當前正在執行中且開啟了 concurrency 限制，直接忽略此次操作
       if (config.preventConcurrent && pendingCountRef.current > 0) {
-        return undefined as any;
+        return undefined as unknown as TRunThrow extends false
+          ? T | undefined
+          : T;
       }
 
       // 同步累加執行計數，支援完美的併發狀態管理與極短時間連按防護
@@ -105,7 +107,7 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
       try {
         const result = await fn();
         success = true;
-        return result as any;
+        return result as unknown as TRunThrow extends false ? T | undefined : T;
       } catch (err) {
         // 執行外部傳入的錯誤 callback
         if (config.onError) {
@@ -122,7 +124,7 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
         // Sentry 錯誤記錄去重：由外部傳遞的 shouldSkipLogging 回撥決定
         const isAlreadyLogged = config.shouldSkipLogging?.(err) ?? false;
         if (!isAlreadyLogged && config.flow && config.step) {
-          captureFlowFailure({
+          const p = captureFlowFailure({
             flow: config.flow,
             step: config.step,
             message:
@@ -132,6 +134,14 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
                   ? err
                   : 'Unexpected error in async action',
           });
+          if (p && typeof p.catch === 'function') {
+            p.catch((captureErr) => {
+              console.error(
+                '[useAsyncAction] Failed to capture flow failure:',
+                captureErr
+              );
+            });
+          }
         }
 
         console.error(
@@ -154,7 +164,9 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
           throw err;
         }
 
-        return undefined as any;
+        return undefined as unknown as TRunThrow extends false
+          ? T | undefined
+          : T;
       } finally {
         // 同步扣減執行計數
         pendingCountRef.current = Math.max(0, pendingCountRef.current - 1);

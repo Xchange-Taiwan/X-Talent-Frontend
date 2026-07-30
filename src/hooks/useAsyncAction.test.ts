@@ -119,6 +119,38 @@ describe('useAsyncAction', () => {
     });
   });
 
+  it('should gracefully handle captureFlowFailure rejections (e.g. ad blockers or network failures) without crashing and reset isPending', async () => {
+    const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
+    mockCaptureFlowFailure.mockRejectedValueOnce(
+      new Error('Sentry dynamic import failed')
+    );
+
+    const { result } = renderHook(() =>
+      useAsyncAction({
+        flow: 'test_flow',
+        step: 'test_step',
+      })
+    );
+
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    await act(async () => {
+      await expect(
+        result.current.run(() => Promise.reject(new Error('app-error')))
+      ).rejects.toThrow('app-error');
+    });
+
+    expect(result.current.isPending).toBe(false);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[useAsyncAction] Failed to capture flow failure:',
+      expect.any(Error)
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
   it('should NOT call captureFlowFailure if shouldSkipLogging returns true', async () => {
     const { result } = renderHook(() =>
       useAsyncAction({
