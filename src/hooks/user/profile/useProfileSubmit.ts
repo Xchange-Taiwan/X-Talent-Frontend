@@ -1,6 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { Session } from 'next-auth';
+import { useCallback } from 'react';
 
 import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
@@ -19,9 +20,6 @@ interface Options {
   isMentorOnboarding: boolean;
   session: Session | null;
   updateSession: (data: unknown) => Promise<Session | null>;
-  // Optional: lets the page hand back an already-in-flight S3 upload (kicked
-  // off when the user picked the file) so submit doesn't pay the round trip.
-  // Falls back to a direct upload when omitted, preserving legacy callers.
   consumeAvatarUpload?: (file: File | undefined) => Promise<string | undefined>;
 }
 
@@ -43,25 +41,33 @@ export function useProfileSubmit({
     shouldSkipLogging: (err) => err instanceof LoggedError,
   });
 
-  const onSubmit = async (
-    values: ProfileFormValues,
-    dirtyFields?: ProfileDirtyFields
-  ) => {
-    await run(() =>
-      saveProfile(values, {
-        pageUserId,
-        isMentorOnboarding,
-        session,
-        dirtyFields,
-        consumeAvatarUpload,
-        updateSession,
-        navigate: router.push,
-        revalidateProfilePath,
-        clearUserDataCache,
-        primeUserDataCache,
-      })
-    );
-  };
+  const onSubmit = useCallback(
+    async (values: ProfileFormValues, dirtyFields?: ProfileDirtyFields) => {
+      await run(() =>
+        saveProfile(values, {
+          pageUserId,
+          isMentorOnboarding,
+          session,
+          dirtyFields,
+          consumeAvatarUpload,
+          updateSession,
+          navigate: router.push,
+          revalidateProfilePath,
+          clearUserDataCache,
+          primeUserDataCache,
+        })
+      );
+    },
+    [
+      run,
+      pageUserId,
+      isMentorOnboarding,
+      session,
+      consumeAvatarUpload,
+      updateSession,
+      router.push,
+    ]
+  );
 
   return { onSubmit, isSaving };
 }

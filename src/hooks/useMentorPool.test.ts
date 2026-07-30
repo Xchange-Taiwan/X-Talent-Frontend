@@ -186,6 +186,7 @@ describe('useMentorPool', () => {
       variant: 'destructive',
       title: '載入失敗',
       description: '無法獲取導師，請稍後再試。',
+      duration: 5000,
     });
 
     spyConsoleError.mockRestore();
@@ -323,6 +324,7 @@ describe('useMentorPool', () => {
       variant: 'destructive',
       title: '載入失敗',
       description: '無法獲取導師，請稍後再試。',
+      duration: 5000,
     });
 
     spyConsoleError.mockRestore();
@@ -506,6 +508,7 @@ describe('useMentorPool', () => {
       variant: 'destructive',
       title: '載入失敗',
       description: '無法獲取導師，請稍後再試。',
+      duration: 5000,
     });
 
     spyConsoleError.mockRestore();
@@ -554,6 +557,7 @@ describe('useMentorPool', () => {
       variant: 'destructive',
       title: '載入失敗',
       description: '無法獲取導師，請稍後再試。',
+      duration: 5000,
     });
 
     spyConsoleError.mockRestore();
@@ -595,6 +599,7 @@ describe('useMentorPool', () => {
       variant: 'destructive',
       title: '載入失敗',
       description: '無法獲取導師，請稍後再試。',
+      duration: 5000,
     });
 
     spyConsoleError.mockRestore();

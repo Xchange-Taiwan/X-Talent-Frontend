@@ -158,6 +158,26 @@ describe('useAsyncAction', () => {
     });
   });
 
+  it('should call toast with errorTitle and errorMessage when both are provided', async () => {
+    const { result } = renderHook(() => useAsyncAction());
+
+    await act(async () => {
+      await expect(
+        result.current.run(() => Promise.reject(new Error('some-error')), {
+          errorTitle: '發生錯誤',
+          errorMessage: '請稍候再試',
+        })
+      ).rejects.toThrow('some-error');
+    });
+
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      title: '發生錯誤',
+      description: '請稍候再試',
+      duration: 5000,
+    });
+  });
+
   it('should call custom onError callback if provided', async () => {
     const onErrorMock = vi.fn();
     const { result } = renderHook(() =>

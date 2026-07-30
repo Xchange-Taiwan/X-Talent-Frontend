@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { captureFlowFailure } from '@/lib/monitoring';
@@ -20,6 +14,10 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
    * Sentry 錯誤記錄的 Step 步驟 (例如 'unexpected', 'submit')
    */
   step?: string;
+  /**
+   * 發生錯誤時顯示的 Toast 標題
+   */
+  errorTitle?: string;
   /**
    * 發生錯誤時顯示的 Toast 文案。如不提供則不彈出 Toast
    */
@@ -73,8 +71,8 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
     };
   }, []);
 
-  // 遵守 React 規範：在 Commit 階段（useLayoutEffect）同步更新 defaultConfigRef，避免在 render 階段直接寫入
-  useLayoutEffect(() => {
+  // 遵守 React 規範：同步更新 defaultConfigRef，避免在 render 階段直接寫入
+  useEffect(() => {
     defaultConfigRef.current = defaultConfig;
   });
 
@@ -145,6 +143,7 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
         if (config.errorMessage) {
           toast({
             variant: 'destructive',
+            title: config.errorTitle,
             description: config.errorMessage,
             duration: config.duration ?? 5000,
           });
