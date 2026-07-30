@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
-import { SessionProvider } from 'next-auth/react';
 import React from 'react';
 
 import { MobileUserMenu } from './MobileUserMenu';
@@ -9,21 +8,11 @@ const meta: Meta<typeof MobileUserMenu> = {
   component: MobileUserMenu,
   tags: ['autodocs'],
   decorators: [
-    (Story, context) => {
-      const user = context.args.user;
-      const mockSession = {
-        user,
-        accessToken: 'mock-access-token',
-        expires: '2099-01-01T00:00:00.000Z',
-      };
-      return (
-        <SessionProvider session={mockSession}>
-          <div className="flex min-h-[300px] justify-end bg-background-bottom p-8">
-            <Story />
-          </div>
-        </SessionProvider>
-      );
-    },
+    (Story) => (
+      <div className="flex min-h-[300px] justify-end bg-background-bottom p-8">
+        <Story />
+      </div>
+    ),
   ],
 };
 
