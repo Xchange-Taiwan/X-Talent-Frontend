@@ -118,7 +118,8 @@ export function useMentorPool({
     return getInitialUnfilteredState();
   });
 
-  const { run, isPending: isActionPending } = useAsyncAction();
+  const { run: runFilter } = useAsyncAction();
+  const { run: runLoadMore, isPending: isLoadMorePending } = useAsyncAction();
 
   const [isFilterLoading, setIsFilterLoading] = useState(hasInitialFilters);
   const [retryCount, setRetryCount] = useState<number>(0);
@@ -127,8 +128,8 @@ export function useMentorPool({
 
   // Derived loading state combining local filter loading (Latest Wins) and pagination loading
   const isLoading = hasInitialFilters
-    ? !hasClientFetched.current || isFilterLoading || isActionPending
-    : isFilterLoading || isActionPending;
+    ? !hasClientFetched.current || isFilterLoading || isLoadMorePending
+    : isFilterLoading || isLoadMorePending;
 
   // Centralized, DRY error handling helper to manage state transitions and error toast feedback
   const handleError = useCallback(
@@ -184,16 +185,19 @@ export function useMentorPool({
     hasClientFetched.current = true;
     setIsFilterLoading(true);
 
-    run(() => fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' }), {
-      preventConcurrent: false, // For params change, do not block subsequent valid filtering requests
-      throwError: false,
-      onError: () => {
-        if (myRequestId === requestIdRef.current) {
-          setIsFilterLoading(false);
-          handleError(myRequestId, false);
-        }
-      },
-    }).then((list) => {
+    runFilter(
+      () => fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' }),
+      {
+        preventConcurrent: false, // For params change, do not block subsequent valid filtering requests
+        throwError: false,
+        onError: () => {
+          if (myRequestId === requestIdRef.current) {
+            setIsFilterLoading(false);
+            handleError(myRequestId, false);
+          }
+        },
+      }
+    ).then((list) => {
       if (!list) return;
       if (myRequestId !== requestIdRef.current) return;
       setIsFilterLoading(false);
@@ -213,7 +217,7 @@ export function useMentorPool({
       cursor: pageState.cursor,
     };
 
-    const rtnList = await run(
+    const rtnList = await runLoadMore(
       () => {
         myRequestId = ++requestIdRef.current;
         return fetchMentors(param);
@@ -235,7 +239,7 @@ export function useMentorPool({
         applyMentorPage(prev, { type: 'append', page: rtnList })
       );
     }
-  }, [params, pageState.cursor, run, handleError]);
+  }, [params, pageState.cursor, runLoadMore, handleError]);
 
   const handleScrollToBottom = useCallback(async () => {
     if (!pageState.hasMore) return;
