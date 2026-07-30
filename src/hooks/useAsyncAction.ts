@@ -6,15 +6,19 @@ import { captureFlowFailure } from '@/lib/monitoring';
 export interface AsyncActionOptions<T> {
   captureFailure?: {
     flow: string;
-    step: string;
-    level?: 'info' | 'warning' | 'error';
+    step: string | ((error: unknown) => string);
+    level?:
+      | 'info'
+      | 'warning'
+      | 'error'
+      | ((error: unknown) => 'info' | 'warning' | 'error' | undefined);
     message?: string | ((error: unknown) => string);
   };
   toastOnError?: {
     title?: string;
     description: string | ((error: unknown) => string);
     variant?: 'default' | 'destructive';
-    duration?: number;
+    duration?: number | ((error: unknown) => number | undefined);
   };
   onError?: (error: unknown) => void;
   onSuccess?: (data: T) => void;
@@ -38,8 +42,14 @@ export default function useAsyncAction() {
       } catch (error) {
         if (options?.captureFailure) {
           const flow = options.captureFailure.flow;
-          const step = options.captureFailure.step;
-          const level = options.captureFailure.level;
+          const step =
+            typeof options.captureFailure.step === 'function'
+              ? options.captureFailure.step(error)
+              : options.captureFailure.step;
+          const level =
+            typeof options.captureFailure.level === 'function'
+              ? options.captureFailure.level(error)
+              : options.captureFailure.level;
           const msg =
             typeof options.captureFailure.message === 'function'
               ? options.captureFailure.message(error)
@@ -60,11 +70,16 @@ export default function useAsyncAction() {
               ? options.toastOnError.description(error)
               : options.toastOnError.description;
 
+          const duration =
+            typeof options.toastOnError.duration === 'function'
+              ? options.toastOnError.duration(error)
+              : options.toastOnError.duration;
+
           toast({
             variant: options.toastOnError.variant || 'destructive',
             title: options.toastOnError.title,
             description,
-            duration: options.toastOnError.duration,
+            duration,
           });
         }
 

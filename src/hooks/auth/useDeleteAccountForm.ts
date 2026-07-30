@@ -9,7 +9,6 @@ import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useToast } from '@/components/ui/use-toast';
 import useAsyncAction from '@/hooks/useAsyncAction';
 import { trackEvent } from '@/lib/analytics';
-import { captureFlowFailure } from '@/lib/monitoring';
 import { DeleteAccountXCSchema } from '@/schemas/auth';
 import { deleteAccount } from '@/services/auth/deleteAccount';
 import { getGoogleAuthorizeLoginUrl } from '@/services/auth/googleAuthorize';
@@ -74,19 +73,21 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
           return;
         }
 
-        captureFlowFailure({
+        throw new Error(result.message || '刪除帳號失敗，請稍後再試');
+      },
+      {
+        rethrow: true,
+        captureFailure: {
           flow: 'delete_account',
           step: 'submit',
-          message: result.message,
           level: 'info',
-        });
-        toast({
-          variant: 'destructive',
-          description: result.message || '刪除帳號失敗，請稍後再試',
+        },
+        toastOnError: {
+          description: (err) =>
+            err instanceof Error ? err.message : '刪除帳號失敗，請稍後再試',
           duration: 3000,
-        });
-      },
-      { rethrow: true }
+        },
+      }
     );
   };
 

@@ -177,10 +177,12 @@ describe('useDeleteAccountForm', () => {
     const { result } = renderHook(() => useDeleteAccountForm());
 
     await act(async () => {
-      await result.current.onSubmitXC({
-        email: 'test@example.com',
-        password: 'Password1!',
-      });
+      await expect(
+        result.current.onSubmitXC({
+          email: 'test@example.com',
+          password: 'Password1!',
+        })
+      ).rejects.toThrow('invalid password');
     });
 
     expect(mockCaptureFlowFailure).toHaveBeenCalledWith({
