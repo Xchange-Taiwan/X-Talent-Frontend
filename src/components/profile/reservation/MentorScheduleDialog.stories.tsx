@@ -13,9 +13,6 @@ const meta: Meta<typeof MentorScheduleDialog> = {
   component: MentorScheduleDialog,
   tags: ['autodocs'],
   parameters: {
-    nextjs: {
-      appDirectory: true,
-    },
     layout: 'fullscreen',
   },
   decorators: [
