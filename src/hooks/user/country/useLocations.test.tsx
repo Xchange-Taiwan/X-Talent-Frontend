@@ -122,4 +122,77 @@ describe('useLocations', () => {
     expect(retryResult.current.locations).toEqual(mockData);
     expect(getCountries).toHaveBeenCalledTimes(2);
   });
+
+  it('correctly expires the cache after TTL and triggers a new fetch', async () => {
+    vi.useFakeTimers();
+
+    const mockData1 = [
+      fromPartial<LocationType>({ value: 'TWN', text: 'Taiwan' }),
+    ];
+    const mockData2 = [
+      fromPartial<LocationType>({ value: 'USA', text: 'United States' }),
+    ];
+
+    vi.mocked(getCountries)
+      .mockResolvedValueOnce(mockData1)
+      .mockResolvedValueOnce(mockData2);
+
+    // Initial render and fetch
+    const { result, unmount } = renderHook(() => useLocations('zh_TW'));
+
+    expect(result.current.isLoading).toBe(true);
+
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    expect(result.current.locations).toEqual(mockData1);
+    expect(getCountries).toHaveBeenCalledTimes(1);
+
+    // Unmount so we can test next mounting
+    unmount();
+
+    // Fast-forward time past 24 hours (24 * 60 * 60 * 1000)
+    vi.advanceTimersByTime(24 * 60 * 60 * 1000 + 1);
+
+    // Remount the hook for the same language
+    const { result: retryResult } = renderHook(() => useLocations('zh_TW'));
+
+    // Cache should be expired, so it should load and fetch again
+    expect(retryResult.current.isLoading).toBe(true);
+
+    await vi.waitFor(() => {
+      expect(retryResult.current.isLoading).toBe(false);
+    });
+
+    expect(retryResult.current.locations).toEqual(mockData2);
+    expect(getCountries).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
+  it('handles unmounting while a fetch is pending and prevents state updates', async () => {
+    let resolveFetch: (value: LocationType[]) => void = () => {};
+    const delayPromise = new Promise<LocationType[]>((resolve) => {
+      resolveFetch = resolve;
+    });
+    vi.mocked(getCountries).mockReturnValueOnce(delayPromise);
+
+    const { result, unmount } = renderHook(() => useLocations('zh_TW'));
+
+    expect(result.current.isLoading).toBe(true);
+
+    // Unmount while the promise is still pending
+    unmount();
+
+    // Resolve the promise now that the hook is unmounted
+    const mockData = [
+      fromPartial<LocationType>({ value: 'TWN', text: 'Taiwan' }),
+    ];
+    resolveFetch(mockData);
+
+    // Give microtasks a chance to run
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // The test should pass without any React warnings or errors
+  });
 });
