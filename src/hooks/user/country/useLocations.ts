@@ -24,6 +24,15 @@ export default function useLocations(language: string): UseLocationsResult {
   );
   const [error, setError] = useState<string | null>(null);
 
+  // Synchronously update state on language prop change during render (Derived State pattern)
+  const [prevLang, setPrevLang] = useState(language);
+  if (prevLang !== language) {
+    setPrevLang(language);
+    setLocations(locationsCache.get(language) ?? []);
+    setIsLoading(!locationsCache.has(language));
+    setError(null);
+  }
+
   useEffect(() => {
     let cancelled = false;
 

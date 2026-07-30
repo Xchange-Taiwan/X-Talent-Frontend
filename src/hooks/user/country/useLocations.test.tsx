@@ -195,4 +195,76 @@ describe('useLocations', () => {
 
     // The test should pass without any React warnings or errors
   });
+
+  it('correctly shifts state synchronously and triggers a new fetch when language prop changes', async () => {
+    const zhData = [
+      fromPartial<LocationType>({ value: 'TWN', text: 'Taiwan' }),
+    ];
+    const enData = [
+      fromPartial<LocationType>({ value: 'USA', text: 'United States' }),
+    ];
+
+    vi.mocked(getCountries)
+      .mockResolvedValueOnce(zhData)
+      .mockResolvedValueOnce(enData);
+
+    const { result, rerender } = renderHook((lang) => useLocations(lang), {
+      initialProps: 'zh_TW',
+    });
+
+    // Initial load for zh_TW
+    expect(result.current.isLoading).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    expect(result.current.locations).toEqual(zhData);
+    expect(getCountries).toHaveBeenCalledTimes(1);
+    expect(getCountries).toHaveBeenLastCalledWith('zh_TW');
+
+    // Change language dynamically to en_US
+    rerender('en_US');
+
+    // Due to derived state, isLoading must shift to true immediately synchronously during render
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.locations).toEqual([]);
+    expect(result.current.error).toBeNull();
+
+    // Wait for the new fetch to resolve
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    expect(result.current.locations).toEqual(enData);
+    expect(getCountries).toHaveBeenCalledTimes(2);
+    expect(getCountries).toHaveBeenLastCalledWith('en_US');
+  });
+
+  it('clears the previous error state immediately when shifting to a cached language', async () => {
+    // 1. Warm cache for 'en_US'
+    const enData = [
+      fromPartial<LocationType>({ value: 'USA', text: 'United States' }),
+    ];
+    locationsCache.set('en_US', enData);
+
+    // 2. Set up getCountries to fail for 'zh_TW'
+    vi.mocked(getCountries).mockRejectedValueOnce(new Error('Fetch failed'));
+
+    const { result, rerender } = renderHook((lang) => useLocations(lang), {
+      initialProps: 'zh_TW',
+    });
+
+    // Initial load for zh_TW fails
+    expect(result.current.isLoading).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    expect(result.current.error).toBe('Failed to load location options');
+
+    // 3. Shift language to 'en_US' which is in cache
+    rerender('en_US');
+
+    // It should immediately synchronously clear the error and load cached locations
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.error).toBeNull();
+    expect(result.current.locations).toEqual(enData);
+  });
 });
