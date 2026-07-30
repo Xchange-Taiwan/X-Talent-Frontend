@@ -1,8 +1,11 @@
-// Shared Storybook decorator for NextAuth session and next/navigation App Router mocking.
 import React from 'react';
 import type { Decorator } from '@storybook/react';
 import { SessionContext, SessionContextValue } from 'next-auth/react';
 import type { Session } from 'next-auth';
+import {
+  AppRouterContext,
+  AppRouterInstance,
+} from 'next/dist/shared/lib/app-router-context.shared-runtime';
 
 export const defaultMockUser = {
   id: 'test-user-id',
@@ -16,6 +19,15 @@ export const defaultMockSession: Session = {
   user: defaultMockUser,
   accessToken: 'mock-access-token',
   expires: '2099-01-01T00:00:00.000Z',
+};
+
+export const defaultMockRouter: AppRouterInstance = {
+  back: () => {},
+  forward: () => {},
+  refresh: () => {},
+  push: () => {},
+  replace: () => {},
+  prefetch: () => {},
 };
 
 export interface ResolveMockSessionResult {
@@ -34,6 +46,20 @@ export interface MockSessionOptions {
 export type ResolveMockSessionParams = MockSessionOptions & {
   auth?: (MockSessionOptions & { sessionHint?: string }) | null;
 };
+
+/**
+ * Syncs the session-hint cookie based on the explicit auth parameters.
+ * Clears the cookie if undefined to prevent environment pollution.
+ */
+export function syncSessionHintCookie(sessionHint: string | undefined): void {
+  if (typeof document !== 'undefined') {
+    if (sessionHint !== undefined) {
+      document.cookie = `session-hint=${sessionHint}; path=/; max-age=3600`;
+    } else {
+      document.cookie = 'session-hint=; path=/; max-age=0';
+    }
+  }
+}
 
 /**
  * Pure function to resolve the mock session and status from Storybook parameters and args,
@@ -99,7 +125,8 @@ export function resolveMockSession(
 }
 
 /**
- * Shared Storybook decorator to provide NextAuth `SessionProvider` (via SessionContext.Provider) with configurable mocks.
+ * Shared Storybook decorator to provide NextAuth `SessionProvider` (via SessionContext.Provider) and
+ * Next.js App Router context (via AppRouterContext.Provider) with configurable mocks.
  * By default, stories are authenticated with a standard test session (defaultMockSession).
  *
  * To override the default user or session:
@@ -116,13 +143,7 @@ export const withAppContext: Decorator = (Story, context) => {
   const sessionHint = authParams.sessionHint;
 
   // Handle cookie sync if auth parameters are explicitly provided
-  if (typeof window !== 'undefined') {
-    if (sessionHint !== undefined) {
-      document.cookie = `session-hint=${sessionHint}; path=/; max-age=3600`;
-    } else {
-      document.cookie = 'session-hint=; path=/; max-age=0';
-    }
-  }
+  syncSessionHintCookie(sessionHint);
 
   // Resolve mock session and status from parameters (prioritizing nextAuth namespace) or args
   const nextAuthParams = context.parameters?.nextAuth || context.parameters;
@@ -136,7 +157,9 @@ export const withAppContext: Decorator = (Story, context) => {
 
   return (
     <SessionContext.Provider value={contextValue}>
-      <Story />
+      <AppRouterContext.Provider value={defaultMockRouter}>
+        <Story />
+      </AppRouterContext.Provider>
     </SessionContext.Provider>
   );
 };

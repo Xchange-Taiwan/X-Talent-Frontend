@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { resolveMockSession, defaultMockSession } from './withAppContext';
+import {
+  resolveMockSession,
+  defaultMockSession,
+  syncSessionHintCookie,
+} from './withAppContext';
 import type { Session } from 'next-auth';
 
 describe('resolveMockSession', () => {
@@ -156,5 +160,18 @@ describe('resolveMockSession', () => {
       session: null,
       status: 'loading',
     });
+  });
+});
+
+describe('syncSessionHintCookie', () => {
+  it('should set the session-hint cookie when sessionHint is provided', () => {
+    syncSessionHintCookie('test-hint');
+    expect(document.cookie).toContain('session-hint=test-hint');
+  });
+
+  it('should clear the session-hint cookie when sessionHint is undefined', () => {
+    document.cookie = 'session-hint=old-hint';
+    syncSessionHintCookie(undefined);
+    expect(document.cookie).not.toContain('session-hint=old-hint');
   });
 });
