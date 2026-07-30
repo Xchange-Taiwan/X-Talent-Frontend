@@ -1,4 +1,5 @@
 import type { Preview } from '@storybook/nextjs';
+import React from 'react';
 import '../src/styles/global.css';
 import { withAppContext } from './withAppContext';
 
