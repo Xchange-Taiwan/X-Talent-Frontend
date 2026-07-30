@@ -1,6 +1,6 @@
 'use client';
 
-import { FieldPath, FieldValues, UseFormReturn } from 'react-hook-form';
+import { UseFormReturn } from 'react-hook-form';
 
 import {
   type Category,
@@ -13,23 +13,23 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 
-interface CategoryMultiSelectFieldProps<T extends FieldValues> {
-  form: UseFormReturn<T>;
-  name: FieldPath<T>;
+interface CategoryMultiSelectFieldProps {
+  form: UseFormReturn<any>;
+  name: string;
   categories: Category[];
   flat?: boolean;
   maxSelected?: number;
   searchPlaceholder?: string;
 }
 
-export function CategoryMultiSelectField<T extends FieldValues>({
+export function CategoryMultiSelectField({
   form,
   name,
   categories,
   flat = false,
   maxSelected = 10,
   searchPlaceholder,
-}: CategoryMultiSelectFieldProps<T>) {
+}: CategoryMultiSelectFieldProps) {
   return (
     <FormField
       control={form.control}

@@ -6,7 +6,6 @@ import { useSession } from 'next-auth/react';
 import { useLayoutEffect, useRef, useState } from 'react';
 
 import { AvatarSection } from '@/components/profile/edit/AvatarSection';
-import { CategoryMultiSelectField } from '@/components/profile/edit/CategoryMultiSelectField';
 import { EditPageHeader } from '@/components/profile/edit/EditPageHeader';
 import {
   SelectField,
@@ -56,6 +55,15 @@ const LinksSection = dynamic(async () => {
   const m = await import('@/components/profile/edit/LinkSection');
   return { default: m.LinksSection };
 });
+
+const CategoryMultiSelectField = dynamic(
+  async () => {
+    const m =
+      await import('@/components/profile/edit/CategoryMultiSelectField');
+    return { default: m.CategoryMultiSelectField };
+  },
+  { ssr: false }
+);
 
 interface Props {
   pageUserId: string;
