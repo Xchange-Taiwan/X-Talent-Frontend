@@ -120,14 +120,15 @@ export function useMentorPool({
 
   const { run, isPending: isActionPending } = useAsyncAction();
 
+  const [isFilterLoading, setIsFilterLoading] = useState(hasInitialFilters);
   const [retryCount, setRetryCount] = useState<number>(0);
   const requestIdRef = useRef(0);
   const hasClientFetched = useRef(false);
 
-  // Derived loading state to preserve synchronous true-state for initial filters on mount
+  // Derived loading state combining local filter loading (Latest Wins) and pagination loading
   const isLoading = hasInitialFilters
-    ? !hasClientFetched.current || isActionPending
-    : isActionPending;
+    ? !hasClientFetched.current || isFilterLoading || isActionPending
+    : isFilterLoading || isActionPending;
 
   // Centralized, DRY error handling helper to manage state transitions and error toast feedback
   const handleError = useCallback(
@@ -169,6 +170,7 @@ export function useMentorPool({
       !(initialError && (retryCount > 0 || hasClientFetched.current))
     ) {
       setPageState(getInitialUnfilteredState());
+      setIsFilterLoading(false);
       return;
     }
 
@@ -180,14 +182,21 @@ export function useMentorPool({
       hasError: false,
     }));
     hasClientFetched.current = true;
+    setIsFilterLoading(true);
 
     run(() => fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' }), {
       preventConcurrent: false, // For params change, do not block subsequent valid filtering requests
       throwError: false,
-      onError: () => handleError(myRequestId, false),
+      onError: () => {
+        if (myRequestId === requestIdRef.current) {
+          setIsFilterLoading(false);
+          handleError(myRequestId, false);
+        }
+      },
     }).then((list) => {
       if (!list) return;
       if (myRequestId !== requestIdRef.current) return;
+      setIsFilterLoading(false);
       setPageState((prev) =>
         applyMentorPage(prev, { type: 'replace', page: list })
       );
