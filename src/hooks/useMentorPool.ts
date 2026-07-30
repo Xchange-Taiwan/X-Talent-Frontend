@@ -233,9 +233,9 @@ export function useMentorPool({
   }, [params, pageState.cursor, runLoadMore, handleError]);
 
   const handleScrollToBottom = useCallback(async () => {
-    if (!pageState.hasMore) return;
+    if (!pageState.hasMore || isLoading) return;
     await fetchMoreMentors();
-  }, [pageState.hasMore, fetchMoreMentors]);
+  }, [pageState.hasMore, fetchMoreMentors, isLoading]);
 
   const handleRetry = useCallback(() => {
     setRetryCount((prev) => prev + 1);
