@@ -5,6 +5,9 @@ import '../src/styles/global.css';
 
 const preview: Preview = {
   parameters: {
+    // Enable out-of-the-box App Router mocking via the official @storybook/nextjs framework.
+    // To override the router behavior in individual stories, use parameters.nextjs.router:
+    //   `parameters: { nextjs: { router: { pathname: '/profile', query: { id: '123' } } } }`
     nextjs: {
       appDirectory: true,
     },
