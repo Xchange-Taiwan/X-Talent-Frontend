@@ -76,7 +76,6 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
         throw new Error(result.message || '刪除帳號失敗，請稍後再試');
       },
       {
-        rethrow: true,
         captureFailure: {
           flow: 'delete_account',
           step: 'submit',

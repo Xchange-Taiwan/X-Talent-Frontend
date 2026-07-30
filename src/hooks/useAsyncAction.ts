@@ -13,6 +13,7 @@ export interface AsyncActionOptions<T> {
       | 'error'
       | ((error: unknown) => 'info' | 'warning' | 'error' | undefined);
     message?: string | ((error: unknown) => string);
+    errorCode?: string | ((error: unknown) => string | undefined);
   };
   toastOnError?: {
     title?: string;
@@ -55,12 +56,17 @@ export default function useAsyncAction() {
               ? options.captureFailure.message(error)
               : options.captureFailure.message ||
                 (error instanceof Error ? error.message : 'Unexpected error');
+          const errorCode =
+            typeof options.captureFailure.errorCode === 'function'
+              ? options.captureFailure.errorCode(error)
+              : options.captureFailure.errorCode;
 
           captureFlowFailure({
             flow,
             step,
             message: msg,
             level,
+            errorCode,
           });
         }
 

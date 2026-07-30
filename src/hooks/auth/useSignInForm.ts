@@ -17,7 +17,8 @@ class SignInError extends Error {
     message: string,
     public step: string,
     public logMessage: string,
-    public level: 'info' | 'warning' | 'error' = 'info'
+    public level: 'info' | 'warning' | 'error' = 'info',
+    public errorCode?: string
   ) {
     super(message);
     this.name = 'SignInError';
@@ -60,7 +61,8 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
             'Invalid credentials!',
             'authenticate',
             'Invalid credentials',
-            'info'
+            'info',
+            login.error
           );
         }
 
@@ -93,6 +95,8 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
               : err instanceof Error
                 ? err.message
                 : 'Unexpected sign-in error',
+          errorCode: (err) =>
+            err instanceof SignInError ? err.errorCode : undefined,
         },
         toastOnError: {
           description: (err) =>

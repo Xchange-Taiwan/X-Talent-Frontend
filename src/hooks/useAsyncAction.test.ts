@@ -122,28 +122,69 @@ describe('useAsyncAction', () => {
     });
   });
 
-  it('captures flow failure with dynamic message callback', async () => {
+  it('captures flow failure and toast with fully dynamic callback parameters', async () => {
     const { result } = renderHook(() => useAsyncAction());
 
-    const error = new Error('database timeout');
+    class CustomTestError extends Error {
+      constructor(
+        message: string,
+        public step: string,
+        public level: 'info' | 'warning' | 'error',
+        public errorCode: string,
+        public duration: number
+      ) {
+        super(message);
+      }
+    }
+
+    const error = new CustomTestError(
+      'Dynamic exception details',
+      'custom_step',
+      'info',
+      'ERR_CODE_123',
+      5000
+    );
     const actionFn = vi.fn().mockRejectedValue(error);
 
     await act(async () => {
       await result.current.run(actionFn, {
         captureFailure: {
-          flow: 'dynamic_flow',
-          step: 'dynamic_step',
+          flow: 'dynamic_callbacks_flow',
+          step: (err) =>
+            err instanceof CustomTestError ? err.step : 'fallback_step',
+          level: (err) =>
+            err instanceof CustomTestError ? err.level : 'error',
           message: (err) =>
-            err instanceof Error ? `Dynamic error: ${err.message}` : 'fallback',
+            err instanceof CustomTestError
+              ? `Msg: ${err.message}`
+              : 'fallback_msg',
+          errorCode: (err) =>
+            err instanceof CustomTestError ? err.errorCode : undefined,
+        },
+        toastOnError: {
+          description: (err) =>
+            err instanceof CustomTestError
+              ? `Toast: ${err.message}`
+              : 'fallback_toast',
+          duration: (err) =>
+            err instanceof CustomTestError ? err.duration : undefined,
         },
       });
     });
 
     expect(mockCaptureFlowFailure).toHaveBeenCalledWith({
-      flow: 'dynamic_flow',
-      step: 'dynamic_step',
-      message: 'Dynamic error: database timeout',
-      level: undefined,
+      flow: 'dynamic_callbacks_flow',
+      step: 'custom_step',
+      message: 'Msg: Dynamic exception details',
+      level: 'info',
+      errorCode: 'ERR_CODE_123',
+    });
+
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      title: undefined,
+      description: 'Toast: Dynamic exception details',
+      duration: 5000,
     });
   });
 

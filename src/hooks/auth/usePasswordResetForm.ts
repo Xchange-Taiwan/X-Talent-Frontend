@@ -7,7 +7,6 @@ import { useToast } from '@/components/ui/use-toast';
 import useAsyncAction from '@/hooks/useAsyncAction';
 import { PasswordResetSchema } from '@/schemas/auth';
 import { resetPassword } from '@/services/auth/resetPassword';
-import { AuthResponse } from '@/services/types';
 
 type PasswordResetValues = z.infer<typeof PasswordResetSchema>;
 
@@ -50,8 +49,15 @@ export default function usePasswordResetForm() {
         toastOnError: {
           title: '密碼重設失敗',
           description: (error) => {
-            const err = error as AuthResponse;
-            return err.message || '發生錯誤，請稍後再試。';
+            if (
+              error &&
+              typeof error === 'object' &&
+              'message' in error &&
+              typeof (error as { message: unknown }).message === 'string'
+            ) {
+              return (error as { message: string }).message;
+            }
+            return '發生錯誤，請稍後再試。';
           },
         },
       }
