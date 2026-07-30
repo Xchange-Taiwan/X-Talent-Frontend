@@ -9,6 +9,7 @@ import {
   paramsToFetchConditions,
 } from '@/app/mentor-pool/searchParams';
 import { useToast } from '@/components/ui/use-toast';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
 import {
   fetchMentors,
   type MentorType,
@@ -89,7 +90,6 @@ export function useMentorPool({
   initialError,
 }: UseMentorPoolProps) {
   const { toast } = useToast();
-
   const hasInitialFilters = hasAnyCondition(params);
 
   const getInitialUnfilteredState = useCallback(
@@ -118,32 +118,28 @@ export function useMentorPool({
     return getInitialUnfilteredState();
   });
 
-  const [isLoading, setIsLoading] = useState(hasInitialFilters);
-  const [retryCount, setRetryCount] = useState<number>(0);
+  const { run: runFilter } = useAsyncAction();
+  const { run: runLoadMore, isPending: isLoadMorePending } = useAsyncAction();
 
-  const isLoadingRef = useRef(false);
+  const [isFilterLoading, setIsFilterLoading] = useState(hasInitialFilters);
+  const [retryCount, setRetryCount] = useState<number>(0);
   const requestIdRef = useRef(0);
   const hasClientFetched = useRef(false);
 
-  // Consolidated error handler helper to eliminate duplicated code
+  // Derived loading state combining local filter loading (Latest Wins) and pagination loading
+  const isLoading = hasInitialFilters
+    ? !hasClientFetched.current || isFilterLoading || isLoadMorePending
+    : isFilterLoading || isLoadMorePending;
+
+  // Centralized, DRY error handling helper to manage state transitions and error toast feedback
   const handleError = useCallback(
-    (
-      myRequestId: number,
-      message: string,
-      error: unknown,
-      isLoadMore = false
-    ) => {
+    (myRequestId: number, isLoadMore = false) => {
       if (myRequestId !== requestIdRef.current) return;
-      console.error(
-        message,
-        error instanceof Error ? error.message : String(error)
-      );
-      setIsLoading(false);
-      isLoadingRef.current = false;
       toast({
         variant: 'destructive',
         title: '載入失敗',
         description: '無法獲取導師，請稍後再試。',
+        duration: 5000,
       });
       setPageState((prev) => {
         if (!isLoadMore) {
@@ -175,14 +171,11 @@ export function useMentorPool({
       !(initialError && (retryCount > 0 || hasClientFetched.current))
     ) {
       setPageState(getInitialUnfilteredState());
-      setIsLoading(false);
-      isLoadingRef.current = false;
+      setIsFilterLoading(false);
       return;
     }
 
     const conditions = paramsToFetchConditions(params);
-    setIsLoading(true);
-    isLoadingRef.current = true;
     setPageState((prev) => ({
       ...prev,
       isNoResults: false,
@@ -190,54 +183,68 @@ export function useMentorPool({
       hasError: false,
     }));
     hasClientFetched.current = true;
+    setIsFilterLoading(true);
 
-    fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' })
-      .then((list) => {
-        if (myRequestId !== requestIdRef.current) return;
-        setPageState((prev) =>
-          applyMentorPage(prev, { type: 'replace', page: list })
-        );
-        setIsLoading(false);
-        isLoadingRef.current = false;
-      })
-      .catch((error) => {
-        handleError(myRequestId, 'Fetch mentors error:', error);
-      });
+    runFilter(
+      () => fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' }),
+      {
+        preventConcurrent: false, // For params change, do not block subsequent valid filtering requests
+        throwError: false,
+        onError: () => {
+          if (myRequestId === requestIdRef.current) {
+            setIsFilterLoading(false);
+            handleError(myRequestId, false);
+          }
+        },
+      }
+    ).then((list) => {
+      if (!list) return;
+      if (myRequestId !== requestIdRef.current) return;
+      setIsFilterLoading(false);
+      setPageState((prev) =>
+        applyMentorPage(prev, { type: 'replace', page: list })
+      );
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.toString(), retryCount]);
 
   const fetchMoreMentors = useCallback(async () => {
-    if (isLoadingRef.current) return;
-    const myRequestId = ++requestIdRef.current;
+    let myRequestId: number | undefined;
     const conditions = paramsToFetchConditions(params);
     const param = {
       ...conditions,
       limit: PAGE_LIMIT,
       cursor: pageState.cursor,
     };
-    setIsLoading(true);
-    isLoadingRef.current = true;
-    try {
-      const rtnList = await fetchMentors(param);
-      if (myRequestId === requestIdRef.current) {
-        setPageState((prev) =>
-          applyMentorPage(prev, { type: 'append', page: rtnList })
-        );
+
+    const rtnList = await runLoadMore(
+      () => {
+        myRequestId = ++requestIdRef.current;
+        return fetchMentors(param);
+      },
+      {
+        preventConcurrent: true,
+        throwError: false,
+        onError: () => {
+          if (myRequestId !== undefined) {
+            handleError(myRequestId, true);
+          }
+        },
       }
-    } catch (error) {
-      handleError(myRequestId, 'Fetch more mentors error:', error, true);
-    } finally {
-      if (myRequestId === requestIdRef.current) {
-        setIsLoading(false);
-        isLoadingRef.current = false;
-      }
+    );
+
+    if (!rtnList) return;
+    if (myRequestId === requestIdRef.current) {
+      setPageState((prev) =>
+        applyMentorPage(prev, { type: 'append', page: rtnList })
+      );
     }
-  }, [params, pageState.cursor, handleError]);
+  }, [params, pageState.cursor, runLoadMore, handleError]);
 
   const handleScrollToBottom = useCallback(async () => {
-    if (!pageState.hasMore || isLoadingRef.current) return;
+    if (!pageState.hasMore || isLoading) return;
     await fetchMoreMentors();
-  }, [pageState.hasMore, fetchMoreMentors]);
+  }, [pageState.hasMore, fetchMoreMentors, isLoading]);
 
   const handleRetry = useCallback(() => {
     setRetryCount((prev) => prev + 1);

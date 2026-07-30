@@ -192,6 +192,7 @@ describe('useReservationActions', () => {
         variant: 'destructive',
         title: '錯誤',
         description: '操作失敗，請稍後再試。',
+        duration: 5000,
       });
 
       expect(mockOnMutationSuccess).not.toHaveBeenCalled();
@@ -349,6 +350,7 @@ describe('useReservationActions', () => {
         variant: 'destructive',
         title: '錯誤',
         description: '操作失敗，請稍後再試。',
+        duration: 5000,
       });
 
       expect(mockOnMutationSuccess).not.toHaveBeenCalled();

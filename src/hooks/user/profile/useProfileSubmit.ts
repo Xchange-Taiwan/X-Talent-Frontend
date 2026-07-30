@@ -1,15 +1,14 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { Session } from 'next-auth';
-import { useState } from 'react';
+import { useCallback } from 'react';
 
 import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
-import { useToast } from '@/components/ui/use-toast';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
 import {
   clearUserDataCache,
   primeUserDataCache,
 } from '@/hooks/user/user-data/useUserData';
-import { captureFlowFailure } from '@/lib/monitoring';
 import { type ProfileDirtyFields } from '@/lib/profile/profileSaveAdapter';
 import { LoggedError, saveProfile } from '@/lib/profile/saveProfile';
 import { ProfileFormValues } from '@/schemas/profileSchema';
@@ -21,9 +20,6 @@ interface Options {
   isMentorOnboarding: boolean;
   session: Session | null;
   updateSession: (data: unknown) => Promise<Session | null>;
-  // Optional: lets the page hand back an already-in-flight S3 upload (kicked
-  // off when the user picked the file) so submit doesn't pay the round trip.
-  // Falls back to a direct upload when omitted, preserving legacy callers.
   consumeAvatarUpload?: (file: File | undefined) => Promise<string | undefined>;
 }
 
@@ -35,49 +31,43 @@ export function useProfileSubmit({
   consumeAvatarUpload,
 }: Options) {
   const router = useRouter();
-  const { toast } = useToast();
-  const [isSaving, setIsSaving] = useState(false);
 
-  const onSubmit = async (
-    values: ProfileFormValues,
-    dirtyFields?: ProfileDirtyFields
-  ) => {
-    try {
-      setIsSaving(true);
-      await saveProfile(values, {
-        pageUserId,
-        isMentorOnboarding,
-        session,
-        dirtyFields,
-        consumeAvatarUpload,
-        updateSession,
-        navigate: router.push,
-        revalidateProfilePath,
-        clearUserDataCache,
-        primeUserDataCache,
-      });
-    } catch (err) {
-      if (!(err instanceof LoggedError)) {
-        captureFlowFailure({
-          flow: 'profile_update',
-          step: 'unexpected',
-          message:
-            err instanceof Error
-              ? err.message
-              : typeof err === 'string'
-                ? err
-                : 'Unexpected profile update error',
-        });
-      }
-      console.error('Update Profile Error:', err);
-      toast({
-        variant: 'destructive',
-        description: '儲存失敗，請稍後再試',
-        duration: 5000,
-      });
-      setIsSaving(false);
-    }
-  };
+  const { run, isPending: isSaving } = useAsyncAction({
+    flow: 'profile_update',
+    step: 'unexpected',
+    errorMessage: '儲存失敗，請稍後再試',
+    throwError: false,
+    resetPendingOnSuccess: false, // 成功後保持 isSaving 為 true 以模擬轉址中的 UI
+    shouldSkipLogging: (err) => err instanceof LoggedError,
+  });
+
+  const onSubmit = useCallback(
+    async (values: ProfileFormValues, dirtyFields?: ProfileDirtyFields) => {
+      await run(() =>
+        saveProfile(values, {
+          pageUserId,
+          isMentorOnboarding,
+          session,
+          dirtyFields,
+          consumeAvatarUpload,
+          updateSession,
+          navigate: router.push,
+          revalidateProfilePath,
+          clearUserDataCache,
+          primeUserDataCache,
+        })
+      );
+    },
+    [
+      run,
+      pageUserId,
+      isMentorOnboarding,
+      session,
+      consumeAvatarUpload,
+      updateSession,
+      router.push,
+    ]
+  );
 
   return { onSubmit, isSaving };
 }

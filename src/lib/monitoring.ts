@@ -8,8 +8,6 @@
  * Sentry is initialized separately in instrumentation-client.ts / sentry.server.config.ts.
  */
 
-import * as Sentry from '@sentry/nextjs';
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type MonitoringEventName =
@@ -81,7 +79,7 @@ const SENSITIVE_KEYS = [
 
 /**
  * Replaces values of sensitive URL query parameters with [REDACTED].
- * e.g. ?token=abc123 → ?token=[REDACTED]
+ * e.g. ?token=abc123&password=secret → ?token=[REDACTED]&password=[REDACTED]
  */
 function maskSensitiveQueryParams(text: string): string {
   return text.replace(
@@ -108,9 +106,27 @@ function maskSensitiveJsonValues(text: string): string {
   });
 }
 
-function sanitize(text: string | undefined): string | undefined {
+export function sanitize(text: string | undefined): string | undefined {
   if (!text) return text;
   return maskSensitiveJsonValues(maskSensitiveQueryParams(text));
+}
+
+// ─── Sentry Dispatch Helper ───────────────────────────────────────────────────
+
+/**
+ * Dynamically loads Sentry and dispatches an event.
+ * Safely handles any dynamic import errors.
+ */
+async function dispatchSentryEvent(
+  event: Record<string, unknown>,
+  fallbackMsg: string
+): Promise<void> {
+  try {
+    const Sentry = await import('@sentry/nextjs');
+    Sentry.captureEvent(event);
+  } catch (err) {
+    console.error(fallbackMsg, err);
+  }
 }
 
 // ─── Core capture function ─────────────────────────────────────────────────────
@@ -122,7 +138,7 @@ function sanitize(text: string | undefined): string | undefined {
  * To integrate a third-party service (e.g. Sentry), replace the
  * console.error call below with the service's SDK call.
  */
-export function captureError(event: MonitoringEvent): void {
+export async function captureError(event: MonitoringEvent): Promise<void> {
   if (process.env.NODE_ENV !== 'production') return;
 
   const sanitizedEvent: MonitoringEvent = {
@@ -132,20 +148,23 @@ export function captureError(event: MonitoringEvent): void {
     componentStack: sanitize(event.componentStack),
   };
 
-  Sentry.captureEvent({
-    message: sanitizedEvent.message,
-    level: 'error',
-    tags: {
-      event_name: sanitizedEvent.name,
-      route: sanitizedEvent.route,
-      environment: sanitizedEvent.environment,
+  await dispatchSentryEvent(
+    {
+      message: sanitizedEvent.message,
+      level: 'error',
+      tags: {
+        event_name: sanitizedEvent.name,
+        route: sanitizedEvent.route,
+        environment: sanitizedEvent.environment,
+      },
+      extra: {
+        stack: sanitizedEvent.stack,
+        componentStack: sanitizedEvent.componentStack,
+        componentName: sanitizedEvent.componentName,
+      },
     },
-    extra: {
-      stack: sanitizedEvent.stack,
-      componentStack: sanitizedEvent.componentStack,
-      componentName: sanitizedEvent.componentName,
-    },
-  });
+    '[Monitoring] captureError Sentry logging failed:'
+  );
 }
 
 // ─── Helper to build a base event ─────────────────────────────────────────────
@@ -212,13 +231,13 @@ export interface FlowFailureEvent {
  * Do NOT include passwords, tokens, emails, or any sensitive form values
  * in the message or errorCode fields.
  */
-export function captureFlowFailure(
+export async function captureFlowFailure(
   event: Omit<
     FlowFailureEvent,
     'name' | 'timestamp' | 'environment' | 'route'
   > &
     Partial<Pick<FlowFailureEvent, 'route'>>
-): void {
+): Promise<void> {
   if (process.env.NODE_ENV !== 'production') return;
 
   const fullEvent: FlowFailureEvent = {
@@ -235,21 +254,24 @@ export function captureFlowFailure(
     level: event.level ?? 'error',
   };
 
-  Sentry.captureEvent({
-    message: fullEvent.name,
-    level: fullEvent.level,
-    tags: {
-      event_name: fullEvent.name,
-      flow: fullEvent.flow,
-      step: fullEvent.step,
-      route: fullEvent.route,
+  await dispatchSentryEvent(
+    {
+      message: fullEvent.name,
+      level: fullEvent.level,
+      tags: {
+        event_name: fullEvent.name,
+        flow: fullEvent.flow,
+        step: fullEvent.step,
+        route: fullEvent.route,
+      },
+      extra: {
+        message: fullEvent.message,
+        errorCode: fullEvent.errorCode,
+        timestamp: fullEvent.timestamp,
+      },
     },
-    extra: {
-      message: fullEvent.message,
-      errorCode: fullEvent.errorCode,
-      timestamp: fullEvent.timestamp,
-    },
-  });
+    '[Monitoring] captureFlowFailure Sentry logging failed:'
+  );
 }
 
 // ─── API failure capture ───────────────────────────────────────────────────────
@@ -261,10 +283,10 @@ export function captureFlowFailure(
  * Never includes request/response bodies or authorization headers.
  * Sensitive query parameters in the endpoint URL are masked.
  */
-export function captureApiFailure(
+export async function captureApiFailure(
   event: Omit<ApiFailureEvent, 'name' | 'timestamp' | 'environment' | 'route'> &
     Partial<Pick<ApiFailureEvent, 'route'>>
-): void {
+): Promise<void> {
   if (process.env.NODE_ENV !== 'production') return;
 
   const fullEvent: ApiFailureEvent = {
@@ -281,18 +303,21 @@ export function captureApiFailure(
     duration: event.duration,
   };
 
-  Sentry.captureEvent({
-    message: fullEvent.message,
-    level: 'error',
-    tags: {
-      event_name: 'api.failure',
-      route: fullEvent.route,
-      method: fullEvent.method,
-      status: String(fullEvent.status),
+  await dispatchSentryEvent(
+    {
+      message: fullEvent.message,
+      level: 'error',
+      tags: {
+        event_name: 'api.failure',
+        route: fullEvent.route,
+        method: fullEvent.method,
+        status: String(fullEvent.status),
+      },
+      extra: {
+        endpoint: fullEvent.endpoint,
+        duration: fullEvent.duration,
+      },
     },
-    extra: {
-      endpoint: fullEvent.endpoint,
-      duration: fullEvent.duration,
-    },
-  });
+    '[Monitoring] captureApiFailure Sentry logging failed:'
+  );
 }

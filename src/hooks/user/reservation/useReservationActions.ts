@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 
 import { Reservation } from '@/components/reservation/types';
 import { useToast } from '@/components/ui/use-toast';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { ListKey } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
 import {
@@ -51,33 +52,15 @@ export function useReservationActions({
   onMutationSuccess,
 }: UseReservationActionsProps): UseReservationActionsReturn {
   const { toast } = useToast();
-  const [isMutating, setIsMutating] = useState(false);
-
-  /**
-   * Internal async wrapper to centralize lifecycle management and error handling
-   */
-  const executeMutation = useCallback(
-    async (action: () => Promise<void>) => {
-      setIsMutating(true);
-      try {
-        await action();
-      } catch (err) {
-        toast({
-          variant: 'destructive',
-          title: '錯誤',
-          description: '操作失敗，請稍後再試。',
-        });
-        throw err;
-      } finally {
-        setIsMutating(false);
-      }
-    },
-    [toast]
-  );
+  const { run, isPending: isMutating } = useAsyncAction({
+    errorTitle: '錯誤',
+    errorMessage: '操作失敗，請稍後再試。',
+    throwError: true,
+  });
 
   const accept = useCallback(
     async (reservation: Reservation, message: string) => {
-      await executeMutation(async () => {
+      await run(async () => {
         await acceptReservation({
           message,
           reservation,
@@ -90,7 +73,7 @@ export function useReservationActions({
         onMutationSuccess?.(reservation.id, ACCEPT_AFFECTED_TABS);
       });
     },
-    [executeMutation, myUserId, toast, onMutationSuccess]
+    [run, myUserId, toast, onMutationSuccess]
   );
 
   const rejectOrCancel = useCallback(
@@ -99,7 +82,7 @@ export function useReservationActions({
       text: string,
       action: 'reject' | 'cancel'
     ) => {
-      await executeMutation(async () => {
+      await run(async () => {
         await rejectOrCancelReservation({
           text,
           reservation,
@@ -115,7 +98,7 @@ export function useReservationActions({
         );
       });
     },
-    [executeMutation, myUserId, variant, toast, onMutationSuccess]
+    [run, myUserId, variant, toast, onMutationSuccess]
   );
 
   return {

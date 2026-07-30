@@ -1,5 +1,4 @@
-import ArrowBackIcon from '@mui/icons-material/ArrowBackIosNew';
-import { Loader2 } from 'lucide-react';
+import { ChevronLeft, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 
@@ -17,7 +16,7 @@ export function EditPageHeader({
   return (
     <div className="sticky top-[70px] z-40 mb-6 flex justify-between border-b border-background-border bg-light/95 py-4 backdrop-blur supports-[backdrop-filter]:bg-light/80">
       <div className="flex items-center gap-3">
-        <ArrowBackIcon
+        <ChevronLeft
           className={`sm:hidden ${isSaving ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
           onClick={isSaving ? undefined : onBack}
         />
