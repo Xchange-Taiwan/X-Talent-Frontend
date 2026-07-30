@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
-import { SessionContext } from 'next-auth/react';
 import React from 'react';
 
 import { Header } from './Header';
@@ -9,34 +8,11 @@ const meta: Meta<typeof Header> = {
   component: Header,
   tags: ['autodocs'],
   decorators: [
-    (Story, context) => {
-      const { session, status, sessionHint } = context.parameters.auth || {};
-
-      if (typeof window !== 'undefined') {
-        if (sessionHint !== undefined) {
-          document.cookie = `session-hint=${sessionHint}; path=/; max-age=3600`;
-        } else {
-          document.cookie = 'session-hint=; path=/; max-age=0';
-        }
-      }
-
-      return (
-        <SessionContext.Provider
-          value={
-            {
-              data: session || null,
-              status: status || 'unauthenticated',
-              update: async () => {},
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            } as any
-          }
-        >
-          <div className="min-h-[120px] bg-background-bottom">
-            <Story />
-          </div>
-        </SessionContext.Provider>
-      );
-    },
+    (Story) => (
+      <div className="min-h-[120px] bg-background-bottom">
+        <Story />
+      </div>
+    ),
   ],
 };
 

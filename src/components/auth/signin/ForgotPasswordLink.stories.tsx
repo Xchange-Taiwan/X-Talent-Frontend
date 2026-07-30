@@ -7,11 +7,6 @@ const meta: Meta<typeof ForgotPasswordLink> = {
   title: 'Components/Auth/ForgotPasswordLink',
   component: ForgotPasswordLink,
   tags: ['autodocs'],
-  parameters: {
-    nextjs: {
-      appDirectory: true,
-    },
-  },
 };
 
 export default meta;
