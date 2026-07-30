@@ -8,17 +8,12 @@ export function categorizeChecks(checks = []) {
   const failing = [];
 
   for (const check of checks) {
-    const bucket = (check.bucket || '').toLowerCase();
-    const state = (check.state || '').toLowerCase();
+    const bucket = (check.bucket || "").toLowerCase();
+    const state = (check.state || "").toLowerCase();
 
-    if (bucket === 'pass' || state === 'success' || bucket === 'skipping') {
+    if (bucket === "pass" || state === "success" || bucket === "skipping") {
       passing.push(check);
-    } else if (
-      bucket === 'pending' ||
-      state === 'pending' ||
-      state === 'in_progress' ||
-      state === 'queued'
-    ) {
+    } else if (bucket === "pending" || state === "pending" || state === "in_progress" || state === "queued") {
       pending.push(check);
     } else {
       failing.push(check);
@@ -34,31 +29,50 @@ export function isTimeout(startTime, maxTimeout, currentTime = Date.now()) {
 }
 
 /**
+ * Filter out ignored checks (e.g. Vercel deployment limits check failures)
+ */
+export function filterIgnoredChecks(failingChecks = []) {
+  const critical = [];
+  const ignored = [];
+
+  for (const check of failingChecks) {
+    const name = (check.name || "").toLowerCase();
+    if (name.includes("vercel") || name.includes("preview")) {
+      ignored.push(check);
+    } else {
+      critical.push(check);
+    }
+  }
+
+  return { critical, ignored };
+}
+
+/**
  * Parse AI reviewer comments or reviews on the PR to detect critical findings
  */
 export function parseAIReviewComments(comments = [], reviews = []) {
   const aiFindings = [];
-  const allComments = [...comments];
-
+  const allComments = Array.isArray(comments) ? [...comments] : [];
+  
   if (Array.isArray(reviews)) {
     for (const r of reviews) {
       allComments.push({
         body: r.body,
         author: r.author,
-        url: r.url,
+        url: r.url
       });
     }
   }
 
   for (const c of allComments) {
-    const body = c.body || '';
+    const body = c.body || "";
     if (
-      body.includes('🤖 AI Review') ||
-      body.includes('ai-review-pipeline') ||
-      body.includes('AI Review Pipeline')
+      body.includes("🤖 AI Review") || 
+      body.includes("ai-review-pipeline") || 
+      body.includes("AI Review Pipeline")
     ) {
       // Extract Overall Risk
-      let risk = 'unknown';
+      let risk = "unknown";
       // Support matching formats like: "### ⚠️ Overall   Risk\n**high**" or "Overall Risk\n**high**"
       const riskMatch = body.match(/Overall\s*Risk\s*\n\s*\*\*([^*]+)\*\*/i);
       if (riskMatch) {
@@ -67,13 +81,13 @@ export function parseAIReviewComments(comments = [], reviews = []) {
 
       // Extract bullet point issues
       const issues = [];
-      const lines = body.split('\n');
+      const lines = body.split("\n");
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
-        if (line.startsWith('- **[')) {
-          let description = '';
+        if (line.startsWith("- **[")) {
+          let description = "";
           // Extract the explanation block if available
-          if (lines[i + 1] && lines[i + 1].trim().startsWith('>')) {
+          if (lines[i + 1] && lines[i + 1].trim().startsWith(">")) {
             description = lines[i + 1].trim();
           }
           issues.push({ issue: line, description });
@@ -81,10 +95,10 @@ export function parseAIReviewComments(comments = [], reviews = []) {
       }
 
       aiFindings.push({
-        author: c.author?.login || 'unknown',
+        author: c.author?.login || "unknown",
         risk,
         issues,
-        url: c.url || '',
+        url: c.url || ""
       });
     }
   }
