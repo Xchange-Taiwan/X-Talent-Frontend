@@ -106,13 +106,58 @@ describe('resolveMockSession', () => {
       expires: '2026-12-31T23:59:59.000Z',
     };
 
-    const result = resolveMockSession(undefined, {
-      session: customSession,
-      user: { name: 'User Arg' },
-    });
+    const result = resolveMockSession(
+      undefined,
+      {
+        session: customSession,
+        user: { name: 'User Arg' },
+      }
+    );
     expect(result).toEqual({
       session: customSession,
       status: 'authenticated',
+    });
+  });
+
+  it('should resolve session and status from parameters.auth nested structure', () => {
+    const customSession: Session = {
+      user: {
+        id: 'auth-param-id',
+        email: 'auth@example.com',
+        name: 'Auth Param User',
+        onBoarding: true,
+        isMentor: false,
+      },
+      accessToken: 'auth-token',
+      expires: '2099-01-01T00:00:00.000Z',
+    };
+
+    const params = {
+      auth: {
+        session: customSession,
+        status: 'authenticated' as const,
+      },
+    };
+
+    const result = resolveMockSession(params);
+    expect(result).toEqual({
+      session: customSession,
+      status: 'authenticated',
+    });
+  });
+
+  it('should support loading status from parameters.auth', () => {
+    const params = {
+      auth: {
+        session: null,
+        status: 'loading' as const,
+      },
+    };
+
+    const result = resolveMockSession(params);
+    expect(result).toEqual({
+      session: null,
+      status: 'loading',
     });
   });
 });
