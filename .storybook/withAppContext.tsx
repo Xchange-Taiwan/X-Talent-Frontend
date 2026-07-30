@@ -1,5 +1,5 @@
 import { Decorator } from '@storybook/react';
-import { SessionContext } from 'next-auth/react';
+import { SessionContext, SessionContextValue } from 'next-auth/react';
 import React from 'react';
 
 export const withAppContext: Decorator = (Story, context) => {
@@ -20,7 +20,9 @@ export const withAppContext: Decorator = (Story, context) => {
   if (typeof window !== 'undefined') {
     if (sessionHint !== undefined) {
       document.cookie = `session-hint=${sessionHint}; path=/; max-age=3600`;
-    } else if (context.parameters.auth !== undefined) {
+    } else {
+      // Unconditionally clear the cookie when sessionHint is undefined
+      // to avoid environment pollution across story switches
       document.cookie = 'session-hint=; path=/; max-age=0';
     }
   }
@@ -71,16 +73,14 @@ export const withAppContext: Decorator = (Story, context) => {
     status = context.args.status;
   }
 
+  const contextValue: SessionContextValue = {
+    data: session,
+    status: status as SessionContextValue['status'],
+    update: async () => null,
+  };
+
   return (
-    <SessionContext.Provider
-      value={
-        {
-          data: session,
-          status,
-          update: async () => {},
-        } as any
-      }
-    >
+    <SessionContext.Provider value={contextValue}>
       <Story />
     </SessionContext.Provider>
   );
