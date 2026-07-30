@@ -40,26 +40,26 @@ export function isTimeout(startTime, maxTimeout, currentTime = Date.now()) {
 export function parseAIReviewComments(comments = [], reviews = []) {
   const aiFindings = [];
   const allComments = [...comments];
-  
+
   if (Array.isArray(reviews)) {
     for (const r of reviews) {
       allComments.push({
         body: r.body,
         author: r.author,
-        url: r.url
+        url: r.url,
       });
     }
   }
 
   for (const c of allComments) {
-    const body = c.body || "";
+    const body = c.body || '';
     if (
-      body.includes("🤖 AI Review") || 
-      body.includes("ai-review-pipeline") || 
-      body.includes("AI Review Pipeline")
+      body.includes('🤖 AI Review') ||
+      body.includes('ai-review-pipeline') ||
+      body.includes('AI Review Pipeline')
     ) {
       // Extract Overall Risk
-      let risk = "unknown";
+      let risk = 'unknown';
       // Support matching formats like: "### ⚠️ Overall   Risk\n**high**" or "Overall Risk\n**high**"
       const riskMatch = body.match(/Overall\s*Risk\s*\n\s*\*\*([^*]+)\*\*/i);
       if (riskMatch) {
@@ -68,13 +68,13 @@ export function parseAIReviewComments(comments = [], reviews = []) {
 
       // Extract bullet point issues
       const issues = [];
-      const lines = body.split("\n");
+      const lines = body.split('\n');
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
-        if (line.startsWith("- **[")) {
-          let description = "";
+        if (line.startsWith('- **[')) {
+          let description = '';
           // Extract the explanation block if available
-          if (lines[i + 1] && lines[i + 1].trim().startsWith(">")) {
+          if (lines[i + 1] && lines[i + 1].trim().startsWith('>')) {
             description = lines[i + 1].trim();
           }
           issues.push({ issue: line, description });
@@ -82,10 +82,10 @@ export function parseAIReviewComments(comments = [], reviews = []) {
       }
 
       aiFindings.push({
-        author: c.author?.login || "unknown",
+        author: c.author?.login || 'unknown',
         risk,
         issues,
-        url: c.url || ""
+        url: c.url || '',
       });
     }
   }

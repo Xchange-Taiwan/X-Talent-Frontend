@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
-import { execFileSync } from "child_process";
-import { categorizeChecks, isTimeout, parseAIReviewComments } from "./pr-parser.mjs";
+import { execFileSync } from 'child_process';
+import {
+  categorizeChecks,
+  isTimeout,
+  parseAIReviewComments,
+} from './pr-parser.mjs';
 
 // Helper for bold and colored terminal output
 const bold = (str) => `\x1b[1m${str}\x1b[22m`;
@@ -13,87 +17,139 @@ const cyan = (str) => `\x1b[36m${str}\x1b[39m`;
 // Parse Arguments safely
 const args = process.argv.slice(2);
 let prTarget = null;
-const intervalIndex = args.indexOf("--interval");
-const timeoutIndex = args.indexOf("--timeout");
+const intervalIndex = args.indexOf('--interval');
+const timeoutIndex = args.indexOf('--timeout');
 
 for (let i = 0; i < args.length; i++) {
-  if (args[i] === "--interval" || args[i] === "--timeout") {
+  if (args[i] === '--interval' || args[i] === '--timeout') {
     i++; // Skip flag value
-  } else if (!args[i].startsWith("--")) {
+  } else if (!args[i].startsWith('--')) {
     prTarget = args[i];
     break;
   }
 }
 
 // Robust NaN parsing for interval and timeout
-const parsedInterval = intervalIndex !== -1 ? parseInt(args[intervalIndex + 1], 10) : NaN;
-const pollingInterval = (!Number.isNaN(parsedInterval) && parsedInterval > 0) ? parsedInterval * 1000 : 300 * 1000;
+const parsedInterval =
+  intervalIndex !== -1 ? parseInt(args[intervalIndex + 1], 10) : NaN;
+const pollingInterval =
+  !Number.isNaN(parsedInterval) && parsedInterval > 0
+    ? parsedInterval * 1000
+    : 300 * 1000;
 
-const parsedTimeout = timeoutIndex !== -1 ? parseInt(args[timeoutIndex + 1], 10) : NaN;
-const maxTimeout = (!Number.isNaN(parsedTimeout) && parsedTimeout > 0) ? parsedTimeout * 60 * 1000 : 60 * 60 * 1000;
+const parsedTimeout =
+  timeoutIndex !== -1 ? parseInt(args[timeoutIndex + 1], 10) : NaN;
+const maxTimeout =
+  !Number.isNaN(parsedTimeout) && parsedTimeout > 0
+    ? parsedTimeout * 60 * 1000
+    : 60 * 60 * 1000;
 
 const startTime = Date.now();
 
 // Ensure gh CLI is logged in and installed safely
 try {
-  execFileSync("gh", ["--version"], { stdio: "ignore" });
+  execFileSync('gh', ['--version'], { stdio: 'ignore' });
 } catch (err) {
-  console.error(red("ERROR: GitHub CLI ('gh') is not installed or not in system PATH."));
+  console.error(
+    red("ERROR: GitHub CLI ('gh') is not installed or not in system PATH.")
+  );
   process.exit(1);
 }
 
 // Find PR target safely if not specified
 if (!prTarget) {
-  console.log(cyan("No PR target provided. Attempting to detect PR from the current branch..."));
+  console.log(
+    cyan(
+      'No PR target provided. Attempting to detect PR from the current branch...'
+    )
+  );
   try {
-    const prJson = execFileSync("gh", ["pr", "view", "--json", "url,number,state,title"], { encoding: "utf-8" });
+    const prJson = execFileSync(
+      'gh',
+      ['pr', 'view', '--json', 'url,number,state,title'],
+      { encoding: 'utf-8' }
+    );
     const prData = JSON.parse(prJson);
     prTarget = prData.url;
-    console.log(green(`Detected Active PR: #${prData.number} - "${prData.title}"`));
+    console.log(
+      green(`Detected Active PR: #${prData.number} - "${prData.title}"`)
+    );
     console.log(cyan(`PR URL: ${prData.url}\n`));
   } catch (err) {
-    console.error(red("ERROR: Could not find an active PR on the current branch. Please specify a PR URL or number."));
+    console.error(
+      red(
+        'ERROR: Could not find an active PR on the current branch. Please specify a PR URL or number.'
+      )
+    );
     process.exit(1);
   }
 } else {
   // Validate PR link/number and fetch metadata safely
   try {
-    const prJson = execFileSync("gh", ["pr", "view", prTarget, "--json", "url,number,state,title"], { encoding: "utf-8" });
+    const prJson = execFileSync(
+      'gh',
+      ['pr', 'view', prTarget, '--json', 'url,number,state,title'],
+      { encoding: 'utf-8' }
+    );
     const prData = JSON.parse(prJson);
     prTarget = prData.url;
     console.log(green(`Target PR: #${prData.number} - "${prData.title}"`));
     console.log(cyan(`PR URL: ${prData.url}\n`));
   } catch (err) {
-    console.error(red(`ERROR: Could not fetch PR info for target: "${prTarget}".`));
+    console.error(
+      red(`ERROR: Could not fetch PR info for target: "${prTarget}".`)
+    );
     process.exit(1);
   }
 }
 
 // Start polling checks
-console.log(cyan(`Starting pipeline check monitor. Interval: ${pollingInterval / 1000}s, Timeout: ${maxTimeout / 60000}m.`));
+console.log(
+  cyan(
+    `Starting pipeline check monitor. Interval: ${pollingInterval / 1000}s, Timeout: ${maxTimeout / 60000}m.`
+  )
+);
 
 async function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 while (true) {
   if (isTimeout(startTime, maxTimeout)) {
-    console.error(red(`\n❌ ERROR: Monitoring timed out after ${maxTimeout / 60000} minutes.`));
+    console.error(
+      red(
+        `\n❌ ERROR: Monitoring timed out after ${maxTimeout / 60000} minutes.`
+      )
+    );
     process.exit(1);
   }
 
   try {
     // 1. Fetch and Parse AI Review Comments on the PR
-    const prDataRaw = execFileSync("gh", ["pr", "view", prTarget, "--json", "comments,reviews"], { encoding: "utf-8" });
+    const prDataRaw = execFileSync(
+      'gh',
+      ['pr', 'view', prTarget, '--json', 'comments,reviews'],
+      { encoding: 'utf-8' }
+    );
     const prData = JSON.parse(prDataRaw);
     const aiFindings = parseAIReviewComments(prData.comments, prData.reviews);
 
     if (aiFindings.length > 0) {
-      console.log(yellow(`\n🤖 Detected ${aiFindings.length} AI Reviewer comment(s) on PR:`));
+      console.log(
+        yellow(
+          `\n🤖 Detected ${aiFindings.length} AI Reviewer comment(s) on PR:`
+        )
+      );
       for (const finding of aiFindings) {
-        console.log(yellow(`  - Author: ${bold(finding.author)} (Overall Risk Assessment: ${bold(finding.risk.toUpperCase())})`));
+        console.log(
+          yellow(
+            `  - Author: ${bold(finding.author)} (Overall Risk Assessment: ${bold(finding.risk.toUpperCase())})`
+          )
+        );
         if (finding.issues.length > 0) {
-          console.log(yellow(`    Found ${finding.issues.length} specific issues:`));
+          console.log(
+            yellow(`    Found ${finding.issues.length} specific issues:`)
+          );
           for (const issue of finding.issues) {
             console.log(yellow(`      * ${issue.issue}`));
             if (issue.description) {
@@ -101,28 +157,42 @@ while (true) {
             }
           }
         } else {
-          console.log(green(`    No high/medium blockages described in review comments.`));
+          console.log(
+            green(`    No high/medium blockages described in review comments.`)
+          );
         }
       }
-      console.log(""); // Spacing
+      console.log(''); // Spacing
     }
 
     // 2. Fetch and Parse Pipeline Checks
-    const checksJson = execFileSync("gh", ["pr", "checks", prTarget, "--json", "bucket,name,state,link,workflow"], { encoding: "utf-8" });
+    const checksJson = execFileSync(
+      'gh',
+      ['pr', 'checks', prTarget, '--json', 'bucket,name,state,link,workflow'],
+      { encoding: 'utf-8' }
+    );
     const checks = JSON.parse(checksJson);
 
     if (checks.length === 0) {
-      console.log(yellow("⚠️  No checks detected on this PR yet. They may be queuing or registration is pending."));
+      console.log(
+        yellow(
+          '⚠️  No checks detected on this PR yet. They may be queuing or registration is pending.'
+        )
+      );
     } else {
-      const { passing, pending, failing: rawFailing } = categorizeChecks(checks);
+      const {
+        passing,
+        pending,
+        failing: rawFailing,
+      } = categorizeChecks(checks);
 
       // Separate failing checks, ignoring Vercel-related errors if they match
       const failing = [];
       const ignoredFails = [];
 
       for (const check of rawFailing) {
-        const name = (check.name || "").toLowerCase();
-        if (name.includes("vercel") || name.includes("preview")) {
+        const name = (check.name || '').toLowerCase();
+        if (name.includes('vercel') || name.includes('preview')) {
           ignoredFails.push(check);
         } else {
           failing.push(check);
@@ -130,7 +200,9 @@ while (true) {
       }
 
       const timestamp = new Date().toLocaleTimeString();
-      console.log(`[${timestamp}] Checks Status: ${green(`${passing.length} passing`)}, ${yellow(`${pending.length} pending`)}, ${red(`${failing.length} failing`)}${ignoredFails.length > 0 ? ` (${yellow(`${ignoredFails.length} vercel/preview checks ignored`)})` : ""}`);
+      console.log(
+        `[${timestamp}] Checks Status: ${green(`${passing.length} passing`)}, ${yellow(`${pending.length} pending`)}, ${red(`${failing.length} failing`)}${ignoredFails.length > 0 ? ` (${yellow(`${ignoredFails.length} vercel/preview checks ignored`)})` : ''}`
+      );
 
       // If there are failing checks, report them and exit immediately
       if (failing.length > 0) {
@@ -143,22 +215,40 @@ while (true) {
       }
 
       // If everything passes (or only ignored vercel/preview checks failed) and there are no pending checks, exit with success
-      if (pending.length === 0 && failing.length === 0 && (passing.length > 0 || ignoredFails.length > 0)) {
+      if (
+        pending.length === 0 &&
+        failing.length === 0 &&
+        (passing.length > 0 || ignoredFails.length > 0)
+      ) {
         if (ignoredFails.length > 0) {
-          console.log(yellow(`\n⚠️  Pipeline complete with ignored Vercel/Preview failures:`));
+          console.log(
+            yellow(
+              `\n⚠️  Pipeline complete with ignored Vercel/Preview failures:`
+            )
+          );
           for (const check of ignoredFails) {
             console.log(yellow(`  - Ignored: ${check.name} (${check.state})`));
           }
         }
-        console.log(green(`\n🎉 All checks have successfully passed! Pipeline is completely clean.`));
+        console.log(
+          green(
+            `\n🎉 All checks have successfully passed! Pipeline is completely clean.`
+          )
+        );
         process.exit(0);
       }
     }
   } catch (err) {
-    console.warn(yellow(`⚠️  Failed to query PR status (will retry): ${err.message}`));
+    console.warn(
+      yellow(`⚠️  Failed to query PR status (will retry): ${err.message}`)
+    );
   }
 
   // Sleep before next poll
-  console.log(cyan(`Waiting ${(pollingInterval / 1000) / 60} minutes before next check...\n`));
+  console.log(
+    cyan(
+      `Waiting ${pollingInterval / 1000 / 60} minutes before next check...\n`
+    )
+  );
   await sleep(pollingInterval);
 }
