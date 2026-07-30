@@ -12,6 +12,19 @@ const meta: Meta<typeof MentorScheduleDialog> = {
   title: 'Components/Profile/Reservation/MentorScheduleDialog',
   component: MentorScheduleDialog,
   tags: ['autodocs'],
+  parameters: {
+    nextjs: {
+      appDirectory: true,
+    },
+    layout: 'fullscreen',
+  },
+  decorators: [
+    (Story) => (
+      <div className="min-h-[600px] p-6">
+        <Story />
+      </div>
+    ),
+  ],
 };
 
 export default meta;
