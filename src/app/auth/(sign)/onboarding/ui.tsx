@@ -5,16 +5,16 @@ import dynamic from 'next/dynamic';
 import { UseFormReturn } from 'react-hook-form';
 import * as z from 'zod';
 
+import { WhoAreYou } from '@/components/onboarding/steps';
+import { Button } from '@/components/ui/button';
+import { Form } from '@/components/ui/form';
 import {
   step1Schema,
   step2Schema,
   step3Schema,
   step4Schema,
   step5Schema,
-  WhoAreYou,
-} from '@/components/onboarding/steps';
-import { Button } from '@/components/ui/button';
-import { Form } from '@/components/ui/form';
+} from '@/schemas/onboarding';
 import { LocationType } from '@/services/profile/countries';
 import {
   type IndustryOption,
