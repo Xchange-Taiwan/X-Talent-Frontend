@@ -21,7 +21,8 @@ Determine the pull request that needs to be monitored:
 
 To automatically monitor checks/pipelines on the target pull request until they all pass:
 
-1. **Invoke the monitor script**:
+1. **Invoke the monitor script in the BACKGROUND**:
+   - **CRITICAL EXECUTION RULE**: When executing this script in Gemini CLI, you MUST always run the shell command in the **background** (by setting the `is_background: true` parameter in `run_shell_command`). This prevents the interactive session from blocking or timing out.
 
    ```bash
    node .agents/scripts/monitor-pr.mjs [PR_LINK_OR_NUMBER]
@@ -34,7 +35,7 @@ To automatically monitor checks/pipelines on the target pull request until they 
    - `--timeout <minutes>`: Set maximum total wait time (e.g., `--timeout 60` for 1 hour).
 
 3. **Behavior**:
-   - The script will poll GitHub CLI for the check statuses.
+   - The script will poll GitHub CLI for the check statuses in the background.
    - If any check fails, it immediately outputs the failing check names and links, then exits with code 2.
    - If checks are pending, it waits for the configured interval (default: 5 minutes) and checks again.
    - If all checks pass, it reports success and exits with code 0.
