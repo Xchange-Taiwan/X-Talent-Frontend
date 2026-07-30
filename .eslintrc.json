@@ -85,6 +85,7 @@
     "out/",
     "build/",
     "dist/",
+    "storybook-static/",
     "*.config.js",
     "*.config.ts"
   ]
