@@ -111,6 +111,24 @@ export function sanitize(text: string | undefined): string | undefined {
   return maskSensitiveJsonValues(maskSensitiveQueryParams(text));
 }
 
+// ─── Sentry Dispatch Helper ───────────────────────────────────────────────────
+
+/**
+ * Dynamically loads Sentry and dispatches an event.
+ * Safely handles any dynamic import errors.
+ */
+async function dispatchSentryEvent(
+  event: Record<string, unknown>,
+  fallbackMsg: string
+): Promise<void> {
+  try {
+    const Sentry = await import('@sentry/nextjs');
+    Sentry.captureEvent(event);
+  } catch (err) {
+    console.error(fallbackMsg, err);
+  }
+}
+
 // ─── Core capture function ─────────────────────────────────────────────────────
 
 /**
@@ -130,9 +148,8 @@ export async function captureError(event: MonitoringEvent): Promise<void> {
     componentStack: sanitize(event.componentStack),
   };
 
-  try {
-    const Sentry = await import('@sentry/nextjs');
-    Sentry.captureEvent({
+  await dispatchSentryEvent(
+    {
       message: sanitizedEvent.message,
       level: 'error',
       tags: {
@@ -145,10 +162,9 @@ export async function captureError(event: MonitoringEvent): Promise<void> {
         componentStack: sanitizedEvent.componentStack,
         componentName: sanitizedEvent.componentName,
       },
-    });
-  } catch (err) {
-    console.error('[Monitoring] captureError Sentry logging failed:', err);
-  }
+    },
+    '[Monitoring] captureError Sentry logging failed:'
+  );
 }
 
 // ─── Helper to build a base event ─────────────────────────────────────────────
@@ -238,9 +254,8 @@ export async function captureFlowFailure(
     level: event.level ?? 'error',
   };
 
-  try {
-    const Sentry = await import('@sentry/nextjs');
-    Sentry.captureEvent({
+  await dispatchSentryEvent(
+    {
       message: fullEvent.name,
       level: fullEvent.level,
       tags: {
@@ -254,13 +269,9 @@ export async function captureFlowFailure(
         errorCode: fullEvent.errorCode,
         timestamp: fullEvent.timestamp,
       },
-    });
-  } catch (err) {
-    console.error(
-      '[Monitoring] captureFlowFailure Sentry logging failed:',
-      err
-    );
-  }
+    },
+    '[Monitoring] captureFlowFailure Sentry logging failed:'
+  );
 }
 
 // ─── API failure capture ───────────────────────────────────────────────────────
@@ -292,9 +303,8 @@ export async function captureApiFailure(
     duration: event.duration,
   };
 
-  try {
-    const Sentry = await import('@sentry/nextjs');
-    Sentry.captureEvent({
+  await dispatchSentryEvent(
+    {
       message: fullEvent.message,
       level: 'error',
       tags: {
@@ -307,8 +317,7 @@ export async function captureApiFailure(
         endpoint: fullEvent.endpoint,
         duration: fullEvent.duration,
       },
-    });
-  } catch (err) {
-    console.error('[Monitoring] captureApiFailure Sentry logging failed:', err);
-  }
+    },
+    '[Monitoring] captureApiFailure Sentry logging failed:'
+  );
 }

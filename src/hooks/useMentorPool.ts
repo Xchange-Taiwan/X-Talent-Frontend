@@ -196,8 +196,6 @@ export function useMentorPool({
   }, [params.toString(), retryCount]);
 
   const fetchMoreMentors = useCallback(async () => {
-    if (isActionPending) return;
-
     let myRequestId: number | undefined;
     const conditions = paramsToFetchConditions(params);
     const param = {
@@ -228,12 +226,12 @@ export function useMentorPool({
         applyMentorPage(prev, { type: 'append', page: rtnList })
       );
     }
-  }, [params, pageState.cursor, run, isActionPending, handleError]);
+  }, [params, pageState.cursor, run, handleError]);
 
   const handleScrollToBottom = useCallback(async () => {
-    if (!pageState.hasMore || isActionPending) return;
+    if (!pageState.hasMore) return;
     await fetchMoreMentors();
-  }, [pageState.hasMore, fetchMoreMentors, isActionPending]);
+  }, [pageState.hasMore, fetchMoreMentors]);
 
   const handleRetry = useCallback(() => {
     setRetryCount((prev) => prev + 1);
