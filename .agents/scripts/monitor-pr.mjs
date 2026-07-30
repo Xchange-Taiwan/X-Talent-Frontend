@@ -13,9 +13,18 @@ const cyan = (str) => `\x1b[36m${str}\x1b[39m`;
 
 // Parse Arguments
 const args = process.argv.slice(2);
-let prTarget = args.find(arg => !arg.startsWith("--"));
+let prTarget = null;
 const intervalIndex = args.indexOf("--interval");
 const timeoutIndex = args.indexOf("--timeout");
+
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--interval" || args[i] === "--timeout") {
+    i++; // Skip flag value
+  } else if (!args[i].startsWith("--")) {
+    prTarget = args[i];
+    break;
+  }
+}
 
 // Default polling interval: 5 minutes (300 seconds)
 const pollingInterval = intervalIndex !== -1 ? parseInt(args[intervalIndex + 1], 10) * 1000 : 300 * 1000;
@@ -23,22 +32,6 @@ const pollingInterval = intervalIndex !== -1 ? parseInt(args[intervalIndex + 1],
 const maxTimeout = timeoutIndex !== -1 ? parseInt(args[timeoutIndex + 1], 10) * 60 * 1000 : 60 * 60 * 1000;
 
 const startTime = Date.now();
-
-// Load repository config from docs/agents/project-config.md to get org/repo if needed
-let defaultRepo = "";
-try {
-  const configPath = path.resolve("docs/agents/project-config.md");
-  if (fs.existsSync(configPath)) {
-    const mdContent = fs.readFileSync(configPath, "utf-8");
-    const jsonMatch = mdContent.match(/```json\s*([\s\S]*?)\s*```/);
-    if (jsonMatch) {
-      const config = JSON.parse(jsonMatch[1]);
-      defaultRepo = `${config.org}/${config.repos.frontend}`;
-    }
-  }
-} catch (err) {
-  // Silent fallback
-}
 
 // Ensure gh CLI is logged in and installed
 try {
@@ -52,8 +45,7 @@ try {
 if (!prTarget) {
   console.log(cyan("No PR target provided. Attempting to detect PR from the current branch..."));
   try {
-    const repoFlag = defaultRepo ? `--repo ${defaultRepo}` : "";
-    const prJson = execSync(`gh pr view ${repoFlag} --json url,number,state,title`, { encoding: "utf-8" });
+    const prJson = execSync("gh pr view --json url,number,state,title", { encoding: "utf-8" });
     const prData = JSON.parse(prJson);
     prTarget = prData.url;
     console.log(green(`Detected Active PR: #${prData.number} - "${prData.title}"`));
@@ -65,8 +57,7 @@ if (!prTarget) {
 } else {
   // Validate PR link/number and fetch metadata
   try {
-    const repoFlag = defaultRepo ? `--repo ${defaultRepo}` : "";
-    const prJson = execSync(`gh pr view "${prTarget}" ${repoFlag} --json url,number,state,title`, { encoding: "utf-8" });
+    const prJson = execSync(`gh pr view "${prTarget}" --json url,number,state,title`, { encoding: "utf-8" });
     const prData = JSON.parse(prJson);
     prTarget = prData.url;
     console.log(green(`Target PR: #${prData.number} - "${prData.title}"`));
@@ -92,8 +83,7 @@ while (true) {
   }
 
   try {
-    const repoFlag = defaultRepo ? `--repo ${defaultRepo}` : "";
-    const checksJson = execSync(`gh pr checks "${prTarget}" ${repoFlag} --json bucket,name,state,link,workflow`, { encoding: "utf-8" });
+    const checksJson = execSync(`gh pr checks "${prTarget}" --json bucket,name,state,link,workflow`, { encoding: "utf-8" });
     const checks = JSON.parse(checksJson);
 
     if (checks.length === 0) {
