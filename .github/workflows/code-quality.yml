@@ -118,11 +118,13 @@ jobs:
 
       - name: Commit and push changes
         # 關鍵：在 detached HEAD 也能推，用 HEAD:<branch> 明確指定目標分支
+        # 額外加入防止遞迴保護：若觸發此 PR 的 commit 本身就是機器人自動修復 (Auto-fix:)，則不再進行二次自動修復 Commit
         if: |
           steps.git-check.outputs.changes_made == 'true' &&
           github.ref != 'refs/heads/main' &&
           github.ref != 'refs/heads/master' &&
-          github.event.pull_request.head.repo.full_name == github.repository
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          !contains(github.event.head_commit.message, 'Auto-fix:')
         run: |
           git add -A
           git commit -m "🔧 Auto-fix: Format code and fix linting issues
