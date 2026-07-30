@@ -149,36 +149,36 @@ describe('parseAIReviewComments', () => {
   });
 
   // 🧪 New boundary test case 4: Parse issues with no description safely (no blockquote)
-  it("should parse issues with no description safely (no blockquote)", () => {
+  it('should parse issues with no description safely (no blockquote)', () => {
     const mockComments = [
       {
-        author: { login: "github-actions" },
+        author: { login: 'github-actions' },
         body: '🤖 AI Review Pipeline\n\n- **[No Description Issue]** `.agents/scripts/pr-parser.mjs:5` \nThis line is regular text and is NOT a blockquote.',
-        url: "https://github.com/..."
-      }
+        url: 'https://github.com/...',
+      },
     ];
 
     const findings = parseAIReviewComments(mockComments, []);
     expect(findings).toHaveLength(1);
     expect(findings[0].issues).toHaveLength(1);
-    expect(findings[0].issues[0].issue).toContain("No Description Issue");
-    expect(findings[0].issues[0].description).toBe(""); // empty because no blockquote (">")
+    expect(findings[0].issues[0].issue).toContain('No Description Issue');
+    expect(findings[0].issues[0].description).toBe(''); // empty because no blockquote (">")
   });
 
   // 🧪 New boundary test case 5: Parse issues located on the absolute last line safely
-  it("should parse issues located on the absolute last line safely", () => {
+  it('should parse issues located on the absolute last line safely', () => {
     const mockComments = [
       {
-        author: { login: "github-actions" },
+        author: { login: 'github-actions' },
         body: '🤖 AI Review Pipeline\n\n- **[Last Line Issue]** `.agents/scripts/pr-parser.mjs:5`',
-        url: "https://github.com/..."
-      }
+        url: 'https://github.com/...',
+      },
     ];
 
     const findings = parseAIReviewComments(mockComments, []);
     expect(findings).toHaveLength(1);
     expect(findings[0].issues).toHaveLength(1);
-    expect(findings[0].issues[0].issue).toContain("Last Line Issue");
-    expect(findings[0].issues[0].description).toBe(""); // empty because last line has no next line
+    expect(findings[0].issues[0].issue).toContain('Last Line Issue');
+    expect(findings[0].issues[0].description).toBe(''); // empty because last line has no next line
   });
 });
