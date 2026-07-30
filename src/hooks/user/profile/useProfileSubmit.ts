@@ -1,15 +1,13 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { Session } from 'next-auth';
-import { useState } from 'react';
 
 import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
-import { useToast } from '@/components/ui/use-toast';
+import { useAsyncAction } from '@/hooks/useAsyncAction';
 import {
   clearUserDataCache,
   primeUserDataCache,
 } from '@/hooks/user/user-data/useUserData';
-import { captureFlowFailure } from '@/lib/monitoring';
 import { type ProfileDirtyFields } from '@/lib/profile/profileSaveAdapter';
 import { LoggedError, saveProfile } from '@/lib/profile/saveProfile';
 import { ProfileFormValues } from '@/schemas/profileSchema';
@@ -35,16 +33,22 @@ export function useProfileSubmit({
   consumeAvatarUpload,
 }: Options) {
   const router = useRouter();
-  const { toast } = useToast();
-  const [isSaving, setIsSaving] = useState(false);
+
+  const { run, isPending: isSaving } = useAsyncAction({
+    flow: 'profile_update',
+    step: 'unexpected',
+    errorMessage: '儲存失敗，請稍後再試',
+    throwError: false,
+    resetPendingOnSuccess: false, // 成功後保持 isSaving 為 true 以模擬轉址中的 UI
+    shouldSkipLogging: (err) => err instanceof LoggedError,
+  });
 
   const onSubmit = async (
     values: ProfileFormValues,
     dirtyFields?: ProfileDirtyFields
   ) => {
-    try {
-      setIsSaving(true);
-      await saveProfile(values, {
+    await run(() =>
+      saveProfile(values, {
         pageUserId,
         isMentorOnboarding,
         session,
@@ -55,28 +59,8 @@ export function useProfileSubmit({
         revalidateProfilePath,
         clearUserDataCache,
         primeUserDataCache,
-      });
-    } catch (err) {
-      if (!(err instanceof LoggedError)) {
-        captureFlowFailure({
-          flow: 'profile_update',
-          step: 'unexpected',
-          message:
-            err instanceof Error
-              ? err.message
-              : typeof err === 'string'
-                ? err
-                : 'Unexpected profile update error',
-        });
-      }
-      console.error('Update Profile Error:', err);
-      toast({
-        variant: 'destructive',
-        description: '儲存失敗，請稍後再試',
-        duration: 5000,
-      });
-      setIsSaving(false);
-    }
+      })
+    );
   };
 
   return { onSubmit, isSaving };
