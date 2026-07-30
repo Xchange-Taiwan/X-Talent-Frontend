@@ -158,6 +158,7 @@ export function useMentorPool({
       preventConcurrent: false, // For params change, do not block subsequent valid filtering requests
     })
       .then((list) => {
+        if (!list) return;
         if (myRequestId !== requestIdRef.current) return;
         setPageState((prev) =>
           applyMentorPage(prev, { type: 'replace', page: list })
@@ -184,7 +185,8 @@ export function useMentorPool({
 
   const fetchMoreMentors = useCallback(async () => {
     if (isActionPending) return;
-    const myRequestId = ++requestIdRef.current;
+
+    let myRequestId: number | undefined;
     const conditions = paramsToFetchConditions(params);
     const param = {
       ...conditions,
@@ -192,31 +194,37 @@ export function useMentorPool({
       cursor: pageState.cursor,
     };
 
-    await run(() => fetchMentors(param), {
-      preventConcurrent: true,
-    })
-      .then((rtnList) => {
-        if (!rtnList) return;
-        if (myRequestId === requestIdRef.current) {
-          setPageState((prev) =>
-            applyMentorPage(prev, { type: 'append', page: rtnList })
-          );
+    try {
+      const rtnList = await run(
+        () => {
+          myRequestId = ++requestIdRef.current;
+          return fetchMentors(param);
+        },
+        {
+          preventConcurrent: true,
         }
-      })
-      .catch(() => {
-        if (myRequestId === requestIdRef.current) {
-          toast({
-            variant: 'destructive',
-            title: '載入失敗',
-            description: '無法獲取導師，請稍後再試。',
-            duration: 5000,
-          });
-          setPageState((prev) => ({
-            ...prev,
-            hasError: prev.mentors.length === 0,
-          }));
-        }
-      });
+      );
+
+      if (!rtnList) return;
+      if (myRequestId === requestIdRef.current) {
+        setPageState((prev) =>
+          applyMentorPage(prev, { type: 'append', page: rtnList })
+        );
+      }
+    } catch {
+      if (myRequestId !== undefined && myRequestId === requestIdRef.current) {
+        toast({
+          variant: 'destructive',
+          title: '載入失敗',
+          description: '無法獲取導師，請稍後再試。',
+          duration: 5000,
+        });
+        setPageState((prev) => ({
+          ...prev,
+          hasError: prev.mentors.length === 0,
+        }));
+      }
+    }
   }, [params, pageState.cursor, run, isActionPending, toast]);
 
   const handleScrollToBottom = useCallback(async () => {

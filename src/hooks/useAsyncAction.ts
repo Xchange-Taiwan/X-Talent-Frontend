@@ -80,7 +80,7 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
     async <T, TRunThrow extends boolean = TDefaultThrow>(
       fn: () => Promise<T>,
       runConfig?: AsyncActionConfig<TRunThrow>
-    ): Promise<TRunThrow extends false ? T | undefined : T> => {
+    ): Promise<T | undefined> => {
       const config = {
         throwError: true as unknown as TRunThrow,
         preventConcurrent: true,
@@ -91,9 +91,7 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
 
       // 並發防護：若當前正在執行中且開啟了 concurrency 限制，直接忽略此次操作
       if (config.preventConcurrent && pendingCountRef.current > 0) {
-        return undefined as unknown as TRunThrow extends false
-          ? T | undefined
-          : T;
+        return undefined;
       }
 
       // 同步累加執行計數，支援完美的併發狀態管理與極短時間連按防護
@@ -107,7 +105,7 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
       try {
         const result = await fn();
         success = true;
-        return result as unknown as TRunThrow extends false ? T | undefined : T;
+        return result;
       } catch (err) {
         // 執行外部傳入的錯誤 callback
         if (config.onError) {
@@ -164,9 +162,7 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
           throw err;
         }
 
-        return undefined as unknown as TRunThrow extends false
-          ? T | undefined
-          : T;
+        return undefined;
       } finally {
         // 同步扣減執行計數
         pendingCountRef.current = Math.max(0, pendingCountRef.current - 1);
