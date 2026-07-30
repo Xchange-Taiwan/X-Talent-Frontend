@@ -97,7 +97,11 @@ jobs:
       - name: Check for changes
         id: git-check
         run: |
-          if git diff --quiet; then
+          COMMIT_MSG=$(git log -1 --format=%B)
+          if [[ "$COMMIT_MSG" == *"Auto-fix:"* ]]; then
+            echo "changes_made=false" >> $GITHUB_OUTPUT
+            echo "⚠️  Last commit was an Auto-fix. Skipping auto-commit to prevent infinite recursion loops."
+          elif git diff --quiet; then
             echo "changes_made=false" >> $GITHUB_OUTPUT
             echo "✅ No formatting or linting changes needed"
           else
