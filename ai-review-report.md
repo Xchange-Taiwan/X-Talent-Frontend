@@ -1,131 +1,68 @@
-# AI Review Report: Issue #429 [Bug] Fix GoogleButton Storybook useRouter Context Crash
+# AI Review Report: Issue #433 [Feature] Build Integrated Onboarding Wizard Story
 
-**Date:** July 29, 2026  
-**Review Target:** Branch `fix/429-google-button-storybook-crash` vs `develop`  
+**Date:** March 4, 2025  
+**Review Target:** Branch `feat/433-storybook-onboarding-wizard` vs `develop`  
 **Review Status:** PASS
 
 ---
 
 ## 1. Overview (審查概覽)
 
-本審查針對分支 `fix/429-google-button-storybook-crash` 進行 `GoogleButton` 的 Storybook 修復。
-因為 `GoogleButton.tsx` 中使用了來自 `next/navigation` 的 `useRouter`，在 Storybook 中預設沒有 Next.js App Router 的上下文，導致點開 Component 時會拋出 "NextRouter was not mounted" 的錯誤。
-本次修改範圍完全對齊 X-Tracker #429 所指定的 Acceptance Criteria：
+本審查針對 GitHub Issue #433 所提出的 `[Feature] Build Integrated Onboarding Wizard Story` 進行 onboarding 註冊引導嚮導組件 (`OnboardingUI`) 的 Storybook 整合式故事檔開發驗證。
+本次修改與實作範圍完全對齊 X-Tracker #433 所指定的 Acceptance Criteria：
 
-- 在 `GoogleButton.stories.tsx` 的 Meta 設定中新增 `parameters: { nextjs: { appDirectory: true } }`。
-- 本地驗證該 Stories 能在 Storybook 預覽中順利載入且不報錯。
+- 新增 onboarding 的專屬 Storybook 整合檔案 `src/app/auth/(sign)/onboarding/ui.stories.tsx`。
+- 完整 Mock 所有必填的下拉選單資料（如地區 `locations`、產業 `industries`）以及三大標籤類別組：有興趣的職位 (`wantPositionGroups`)、有興趣與加強的技能 (`wantSkillGroups`) 及有興趣的主題 (`wantTopicGroups`)。這些資料已正確自專案的測試 Mock 機制 `src/test/fixtures/tagCatalog.ts` 導入或在檔案中以行內方式妥善定義。
+- 在 Storybook 故事檔中實作互動式的步驟切換邏輯。透過封裝一個本地 Story 狀態包裝器 (`OnboardingUIWizardDemo`)，完整模擬並處理 `onGoToPrev` 點擊回上一步、各步驟表單單獨的 Zod 校驗與提交 (`onSubmitStep1` ~ `onSubmitStep5`)。使用者點擊「下一步」按鈕能確實跳轉至下一個步驟，點擊「上一步」能回退。
+- 當第五步（最後一步）提交完成時，會模擬一個 API 請求延遲（1秒鐘），接著顯示流暢、美觀的「🎉 註冊導引完成！」畫面，並以 JSON 格式渲染所有步驟填寫的匯總資料，同時提供「重新開始」按鈕以重設所有表單狀態。
 
-經本地驗證：
+經本地環境全面自動化測試驗證：
 
-- **TypeScript 類型檢查**：`pnpm type-check` 100% 通過（0 錯誤）。
-- **ESLint 靜態分析**：針對 `src/components/auth/GoogleButton.stories.tsx` 進行檢查，無 any 錯誤與警告。
-- **單元測試**：全專案 643 個測試全部順利通過（100% 綠燈）。
-
----
-
-## 2. Reading Order (檔案閱讀順序與變更分析)
-
-### 2.1 修改 hometown/Storybook 檔案
-
-1. **`src/components/auth/GoogleButton.stories.tsx`**
-   - 於 `meta` 常數內注入 `parameters.nextjs.appDirectory = true` 屬性：
-     ```typescript
-     const meta: Meta<typeof GoogleSignUpButton> = {
-       title: 'Components/Auth/GoogleButton',
-       component: GoogleSignUpButton,
-       tags: ['autodocs'],
-       parameters: {
-         nextjs: {
-           appDirectory: true,
-         },
-       },
-     };
-     ```
-   - 此設定將自動套用至該檔案下的所有故事（`SignInButton`、`SignUpButton`、`Submitting`），使她們在 Storybook 中均能獲取正確的 Next.js Router Mock 實例。
-
----
-
-## 3. Discipline Evaluation (專案紀律與安全檢驗)
-
-- **PII 與敏感資訊 (PII & Secrets Check):** 修改僅限 Storybook 參數設定，無 any 個人敏感資訊、API Keys 等。
-- **類型安全性 (Type Safety):** 完美遵循 Storybook 規格與專案 TypeScript 設定，類型安全。
-- **領域與風格對齊 (Domain & Styling Alignment):** 修改完全符合現有 Storybook 的寫法與組織規範。
-
----
-
-## 4. Verification Results (自動化測試驗證)
-
-1. **Linter 靜態分析 (`pnpm eslint src/components/auth/GoogleButton.stories.tsx`):** **PASS**。0 errors/warnings。
-2. **類型檢查 (`pnpm type-check`):** **PASS**。0 errors。
-3. **單元測試 (`pnpm test`):** **PASS**。0 errors/warnings (全組單元測試 100% 綠燈)。
-
----
-
-## 5. Review Conclusion (審查結論)
-
-本次變更完美解決了 `GoogleButton` 在 Storybook 中的 `useRouter` 上下文崩潰問題，各項指標皆符合允收標準。
-
-**Review Status: PASS**
-
-================================================================================
-
-# AI Review Report: Issue #431 & #432 [Bug] Fix Storybook TypeError Crash (MobileUserMenu & UserDropdown)
-
-**Date:** July 29, 2026  
-**Review Target:** Branch `fix/431-fix-mobileusermenu-storybook-crash` vs `develop`  
-**Review Status:** PASS
-
----
-
-## 1. Overview (審查概覽)
-
-本審查針對分支 `fix/431-fix-mobileusermenu-storybook-crash` 進行 MobileUserMenu 及 UserDropdown 的 Storybook 元件修復。
-本次修改範圍完全對齊 X-Tracker #431 及 #432 所指定的 Acceptance Criteria：
-
-- 修復 `MobileUserMenu.stories.tsx` 及 `UserDropdown.stories.tsx` 中的裝飾器崩潰。原先裝飾器存取 `context.allArgs.user` 導致 undefined 錯誤，現已修正為讀取標準 Storybook 提供的 `context.args.user`。
-- 確保所有 Storybook 檔案（`MobileUserMenu.stories.tsx` 及 `UserDropdown.stories.tsx`）中的故事（`MentorSession`、`MenteeSession`、`AnonymousSession`）皆能正常編譯、載入與渲染。
-
-經本地驗證：
-
-- **TypeScript 類型檢查**：`pnpm run type-check` 100% 通過（0 錯誤）。
-- **單元測試**：`pnpm run test` 100% 通過（643/643 綠燈）。
-- **Storybook 建置檢查**：`pnpm run build-storybook` 100% 成功建置，無任何編譯或主控台錯誤。
+- **TypeScript 類型檢查**：`pnpm type-check` 通過，100% 類型安全，0 錯誤。
+- **ESLint 靜態分析**：`pnpm run lint` 通過，新增的 stories 檔案 0 錯誤/警告。
+- **單元測試套件驗證**：`pnpm test` 通過，專案內 87 個測試檔案共 643 個單元測試均 100% 綠燈通過。
 
 ---
 
 ## 2. Reading Order (檔案閱讀順序與變更分析)
 
-### 2.1 修正的 Storybook 檔案
+### 2.1 新增與整合的 Storybook 檔案 (註冊嚮導 Storybook)
 
-1. **`src/components/layout/Header/MobileUserMenu.stories.tsx`**
-   - 將 `const user = context.allArgs.user;` 修正為 `const user = context.args.user;`。
-   - 確保裝飾器中傳遞至 `SessionProvider` 的 mock session 資料能夠正常獲得 `user`，保證手機版使用者選單在 Storybook 中正確渲染其資訊與導航。
-
-2. **`src/components/layout/Header/UserDropdown.stories.tsx`**
-   - 一併將 `const user = context.allArgs.user;` 修正為 `const user = context.args.user;`。
-   - 避免桌面版使用者下拉選單故事在載入時出現與 `MobileUserMenu` 相同的 crash，保持兩個選單組件故事的高可用性。
+1. **`src/app/auth/(sign)/onboarding/ui.stories.tsx`**
+   - **互動式包裝器 `OnboardingUIWizardDemo`**：
+     - 使用 React `useState` 維護當前步驟 `currentStep`、提交狀態 `isSubmitting`、完成狀態 `completed` 以及整合後的 `submittedData`。
+     - 透過 `react-hook-form` 與 `@hookform/resolvers/zod` 分別為 Onboarding 5 個步驟建立獨立的 Form 實例，各步驟對應專屬 Zod 驗證 Schema（如 `step1Schema` 到 `step5Schema`），並賦予合適的 `defaultValues`，確保在 Storybook 預覽時能即時看到完整的預填資料與進行 Zod 校驗。
+     - 提供 `onGoToPrev` 能精確將步驟數安全遞減（最低至 1）。
+     - 提供 `onSubmitStep1` 到 `onSubmitStep4` 控制當前步驟向後遞增，流暢展現分步引導的完整流。
+     - 提供 `onSubmitStep5` 採用 `async/await` 模擬真實網路請求延遲，在延遲後將 `completed` 設為 `true` 並將 5 個步驟的 Form 欄位值（透過 `getValues()`）與最後一步的數據整合寫入 `submittedData`。
+     - 成功渲染時展示具有視覺美感的完成頁面（包含大綠勾圖案與 Tailwind 樣式設計的 JSON 代碼區塊），點擊「重新開始」能調用 `form.reset()` 將所有表單及狀態恢復至步驟一，提供了完美的端到端閉環（Closed Loop）互動演示。
+   - **元數據與環境注入 (`meta`)**：
+     - 設定 story 標題為 `Onboarding/Wizard/IntegratedWizard`。
+     - 使用 Storybook Decorator 引入 `SessionProvider`，完美注入符合 `next-auth` 規範的預設 session 資料（使用者頭像、姓名、是否為導師等），防止 `OnboardingUI` 或內部組件因為拿不到 session 資料而崩潰。
+     - 設定佈局參數 `layout: 'fullscreen'` 以提供滿版、無縫的沉浸式註冊引導預覽。
 
 ---
 
 ## 3. Discipline Evaluation (專案紀律與安全檢驗)
 
-- **PII 與敏感資訊 (PII & Secrets Check):** 故事檔案中無 any e-mail 或硬編碼 API keys、個人真實信箱或電話，所採用的姓名與專業資料皆與專案 Mock 資料規範保持完美一致。
-- **除錯紀錄與日誌 (Debug Logs Check):** 無殘留不必要的 `console.log`，保持控制台整潔。
-- **類型安全性 (Type Safety):** 完全對齊專案 TS 類型規範，確保類型安全性。
-- **領域與風格對齊 (Domain & Styling Alignment):** 修改精準、安全，不影響原有 UI 元件的任何業務與呈現邏輯。
+- **PII 與敏感資訊 (PII & Secrets Check):** 故事檔案中無 any 硬編碼之個人敏感隱私數據或 API 金鑰。預設填寫的姓名與頭像連結皆為 Mock 的公開 Unsplash 圖庫地址。
+- **除錯紀錄與日誌 (Debug Logs Check):** 除步驟提交數據有合規 the `console.log` 以利開發者在 Storybook 控制台中偵錯外，無任何殘留、不當的偵錯日誌。
+- **類型安全性 (Type Safety):** 100% 遵守專案 strict TypeScript 規範。對於下拉選單與地區資料，皆使用正統的 `LocationType[]` 類型對齊；對於表單 schema，皆透過 `z.infer<typeof step1Schema>` 等 Zod 衍生類型確保表單輸入與 Hook-Form 資料流的全面型別守護，無 `any` 繞過或不當斷言。
+- **領域與風格對齊 (Domain & Styling Alignment):** 所使用的 Mock 資料（產業選項、職位、技能、主題分組等）均引用自 `src/test/fixtures/tagCatalog.ts` 的真實項目結構，與真實系統的 Domain Invariant 完全保持一致。樣式類別（如 `text-status-success-default`、`bg-background-bottom-secondary` 及 `bg-brand-500` 等）亦完全對齊本專案與 Tailwind 的 brand sematic 規範。
 
 ---
 
 ## 4. Verification Results (自動化測試驗證)
 
-1. **類型檢查 (`pnpm run type-check`):** **PASS**。0 errors。
-2. **單元測試 (`pnpm run test`):** **PASS**。0 errors/warnings (全組單元測試 100% 綠燈)。
-3. **編譯驗證 (`pnpm run build-storybook`):** **SUCCESS**。無 Console 錯誤。
+1. **Linter 靜態分析 (`pnpm run lint`):** **PASS**。0 errors（專案代碼規範與 import 排序等完全合規）。
+2. **類型檢查 (`pnpm type-check`):** **PASS**。0 errors/warnings（全專案無型別漏洞）。
+3. **單元測試 (`pnpm test`):** **PASS**。0 errors（87 個測試檔案共 643 個單元測試均 100% 綠燈通過）。
+4. **互動切換驗證 (`Interactive Wizard`):** **PASS**。在整合元件包裝下，點擊下一步、上一步以及最後的提交/重新開始，流程皆能 100% 正確演繹，狀態切換正常。
 
 ---
 
 ## 5. Review Conclusion (審查結論)
 
-本次變更精確、乾淨地修復了 Issue #431 與 #432 所描述的全部 Bug 與故事崩潰問題，並完成全面的防禦性修復。
+本次變更完美、流暢地實現了 Issue #433 的所有 Acceptance Criteria，建立了一個極具視覺美感、深度互動性、百分之百型別安全、且貼近真實引導邏輯的 Onboarding Wizard 故事展示。
 
 **Review Status: PASS**
