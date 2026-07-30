@@ -119,11 +119,13 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
             flow: config.flow,
             step: config.step,
             message:
-              err instanceof Error
-                ? err.message
-                : typeof err === 'string'
-                  ? err
-                  : 'Unexpected error in async action',
+              sanitize(
+                err instanceof Error
+                  ? err.message
+                  : typeof err === 'string'
+                    ? err
+                    : 'Unexpected error in async action'
+              ) ?? 'Unexpected error in async action',
           });
           if (p && typeof p.catch === 'function') {
             p.catch((captureErr) => {

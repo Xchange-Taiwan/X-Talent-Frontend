@@ -86,7 +86,6 @@ const CategoryMultiSelectField = dynamic(
     return { default: m.CategoryMultiSelectField };
   },
   {
-    ssr: false,
     loading: () => (
       <div className="h-10 w-full animate-pulse rounded bg-muted" />
     ),
@@ -99,7 +98,6 @@ const AvatarSection = dynamic(
     return { default: m.AvatarSection };
   },
   {
-    ssr: false,
     loading: () => (
       <div className="h-[120px] w-full animate-pulse rounded bg-muted" />
     ),
