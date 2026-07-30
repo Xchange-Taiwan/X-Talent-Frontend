@@ -10,7 +10,7 @@ const meta: Meta<typeof UserDropdown> = {
   tags: ['autodocs'],
   decorators: [
     (Story, context) => {
-      const user = context.allArgs.user;
+      const user = context.args.user;
       const mockSession = {
         user,
         accessToken: 'mock-access-token',
