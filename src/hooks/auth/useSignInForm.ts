@@ -5,18 +5,28 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { AuthFormProps } from '@/components/auth/types';
-import { useToast } from '@/components/ui/use-toast';
 import useAsyncAction from '@/hooks/useAsyncAction';
 import { validateSignIn } from '@/lib/actions/signIn';
 import { trackEvent } from '@/lib/analytics';
-import { captureFlowFailure } from '@/lib/monitoring';
 import { SignInSchema } from '@/schemas/auth';
 
 type SignInValues = z.infer<typeof SignInSchema>;
 
+class SignInError extends Error {
+  constructor(
+    message: string,
+    public step: string,
+    public logMessage: string,
+    public level: 'info' | 'warning' | 'error' = 'info',
+    public errorCode?: string
+  ) {
+    super(message);
+    this.name = 'SignInError';
+  }
+}
+
 export default function useSignInForm(): AuthFormProps<SignInValues> {
   const { run, isPending: isSubmitting } = useAsyncAction();
-  const { toast } = useToast();
   const router = useRouter();
 
   const form = useForm<SignInValues>({
@@ -30,25 +40,16 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
   const onSubmit = async (values: SignInValues) => {
     await run(
       async () => {
-        // 1. 欄位驗證
         const validated = await validateSignIn(values);
         if (validated.error) {
-          captureFlowFailure({
-            flow: 'sign_in',
-            step: 'validate_credentials',
-            message: validated.error,
-            level: 'info',
-            errorCode: undefined,
-          });
-          toast({
-            variant: 'destructive',
-            description: validated.error,
-            duration: 1000,
-          });
-          return;
+          throw new SignInError(
+            validated.error,
+            'validate_credentials',
+            validated.error,
+            'info'
+          );
         }
 
-        // 2. 憑證認證
         const login = await clientSignIn('credentials', {
           email: validated.email,
           password: validated.password,
@@ -56,37 +57,23 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
         });
 
         if (login?.error) {
-          captureFlowFailure({
-            flow: 'sign_in',
-            step: 'authenticate',
-            message: 'Invalid credentials',
-            level: 'info',
-            errorCode: login.error,
-          });
-          toast({
-            variant: 'destructive',
-            description: 'Invalid credentials!',
-            duration: 1000,
-          });
-          return;
+          throw new SignInError(
+            'Invalid credentials!',
+            'authenticate',
+            'Invalid credentials',
+            'info',
+            login.error
+          );
         }
 
-        // 3. 獲取 Session
         const session = await getSession();
         if (!session?.accessToken) {
-          captureFlowFailure({
-            flow: 'sign_in',
-            step: 'get_session',
-            message: 'No access token after login',
-            level: 'error',
-            errorCode: undefined,
-          });
-          toast({
-            variant: 'destructive',
-            description: 'Login failed',
-            duration: 1000,
-          });
-          return;
+          throw new SignInError(
+            'Login failed',
+            'get_session',
+            'No access token after login',
+            'error'
+          );
         }
 
         trackEvent({ name: 'sign_in_succeeded', feature: 'auth' });
@@ -101,12 +88,21 @@ export default function useSignInForm(): AuthFormProps<SignInValues> {
         throwError: false,
         captureFailure: {
           flow: 'sign_in',
-          step: 'unexpected',
-          level: 'error',
-          message: 'Unexpected sign-in error',
+          step: (err) => (err instanceof SignInError ? err.step : 'unexpected'),
+          level: (err) => (err instanceof SignInError ? err.level : 'error'),
+          message: (err) =>
+            err instanceof SignInError
+              ? err.logMessage
+              : err instanceof Error
+                ? err.message
+                : 'Unexpected sign-in error',
+          errorCode: (err) =>
+            err instanceof SignInError ? err.errorCode : undefined,
         },
         toastOnError: {
-          description: 'Something went wrong!',
+          description: (err) =>
+            err instanceof SignInError ? err.message : 'Something went wrong!',
+          duration: (err) => (err instanceof SignInError ? 1000 : undefined),
         },
       }
     );
