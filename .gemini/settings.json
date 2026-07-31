@@ -3,7 +3,8 @@
     "genable": {
       "command": "npx",
       "args": ["-y", "genable-mcp"],
-      "env": {}
+      "env": {},
+      "trust": true
     }
   }
 }

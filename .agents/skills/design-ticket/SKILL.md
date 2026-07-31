@@ -49,10 +49,8 @@ Search `src/app/` for the route this ticket is about, using the ticket title/bod
 Read, in this order:
 
 1. **Design tokens** — `src/design/tokens/` (colors, spacing, radius, typography).
-2. **Available components** — read the actual source under `src/components/` (e.g. the CVA `variants` config in `src/components/ui/*.tsx`) for real prop/variant values. Do not trust prop lists cached in `figma-component-map.json` — they can be stale.
+2. **Available components** — read the actual source under `src/components/` (e.g. the CVA `variants` config in `src/components/ui/*.tsx`) for real prop/variant values.
 3. **The target page** — the current implementation found in step 2, including which components it already uses and how it's laid out.
-
-Use `src/design/figma-component-map.json` for exactly one purpose: mapping a code component (e.g. `Button`) to its Figma component name/node, so genable's `find_nodes`/`create_instance` can locate the right master. Ignore its `props` field.
 
 ### 4. Derive the relevant UX states
 
@@ -81,7 +79,7 @@ Produce **at least 3 distinct overall design directions** (different layout/comp
 
 For each direction, when placing a component:
 
-1. Look it up in `figma-component-map.json` by `codePath`/`name` to get its Figma component name.
+1. Look up the component name directly in Figma (e.g., `Button`, `Avatar`) or search using a fallback query to find its Figma component name.
 2. `find_nodes({ query: "<figmaComponent>" })` to get the master's node ID (fall back to `list_file_components_for_code_connect`-style search if not found by exact name).
 3. `create_instance` (or `<instance ref="...">` inside a `jsx()` call) to place it, using `props`/`variant` overrides that match the real prop values read from source in step 3.
 4. Bind fills/spacing to design tokens via `bind_variable` rather than hardcoding values.
