@@ -15,15 +15,17 @@ Close the loop between "PR is open" and "PR is mergeable". This runs **after** a
 
 ## Step 1 — Resolve the target PR & branch
 
+- **Check the working tree first, unconditionally** — whether or not a branch switch is needed:
+  - Bash: `git status --porcelain`
+  - PowerShell: `git status --porcelain`
+  - **If the tree is dirty, HALT.** Tell the user to commit or stash their changes first. Do not auto-stash, do not auto-commit changes that aren't yours — an uncommitted WIP change sitting on the branch when this skill starts committing fix rounds would get swept into a fix commit and pushed without the user ever agreeing to that.
+- **Validate the argument before using it in any shell command**: it must be either empty, a bare PR number (`^[0-9]+$`), or a well-formed `https://github.com/<org>/<repo>/pull/<number>` URL. If it matches none of these, HALT and ask the user for a valid PR number or URL — never interpolate raw, unvalidated user input into a shell command. Once validated, always pass it quoted (`"$PR_URL"` / `"$PR_NUMBER"`), as in every example below.
 - **With a PR URL argument**:
-  - Run `gh pr view <url> --json number,headRefName,url,state` to resolve the PR.
-  - If the PR's `headRefName` differs from the current branch, check the working tree first:
-    - Bash: `git status --porcelain`
-    - PowerShell: `git status --porcelain`
-  - **If the tree is dirty, HALT.** Tell the user to commit or stash their changes on the current branch first. Do not auto-stash, do not auto-commit changes that aren't yours.
-  - Once clean, checkout the PR branch: `gh pr checkout <number>` (handles fetch + checkout, including forks).
+  - Run `gh pr view "$PR_URL" --json number,headRefName,url,state` to resolve the PR.
+  - Checkout the PR branch: `gh pr checkout "$PR_NUMBER"` (handles fetch + checkout, including forks).
 - **Without an argument**: use the current branch. Resolve its PR via `gh pr view --json number,headRefName,url,state`.
   - If there is no open PR for the current branch, HALT and tell the user to run `/submit-pr` first.
+- **Either way, once on the target branch, sync with the remote**: `git pull`. Do this even when no branch switch happened — another actor (a teammate, or `code-quality.yml`'s own auto-fix commit from a previous round) may have pushed commits you don't have locally yet. Pushing a fix on top of stale local history risks a conflicting or overwriting push.
 
 Keep `$PR_NUMBER` / `$PR_URL` around (re-derive in every standalone command execution — shell state does not persist across separate tool calls, only the working directory does, same caveat as `/submit-pr`).
 
@@ -36,7 +38,7 @@ Repeat the following up to **20 times**. If still not converged after 20 rounds,
 - **Pipeline check status first** — wait for PR checks to finish before reading anything they produce:
 
   ```bash
-  gh pr checks $PR_NUMBER --watch
+  gh pr checks "$PR_NUMBER" --watch
   ```
 
   In scope for auto-fix (by their `gh pr checks` name):
@@ -52,7 +54,7 @@ Repeat the following up to **20 times**. If still not converged after 20 rounds,
 - **AI Review findings** — now that `AI Review: Final Summary` has completed, fetch PR comments and find the one from the AI Review pipeline by its marker (`<!-- ai-review-pipeline -->`, defined in `scripts/ai-review/lib/format-comment.mjs`):
 
   ```bash
-  gh pr view $PR_NUMBER --json comments --jq '.comments[] | select(.body | contains("<!-- ai-review-pipeline -->")) | .body'
+  gh pr view "$PR_NUMBER" --json comments --jq '.comments[] | select(.body | contains("<!-- ai-review-pipeline -->")) | .body'
   ```
 
   This is the **only** AI reviewer in this repo (`.github/workflows/ai-review.yml`, Gemini-based) — there is no CodeRabbit or similar. The comment has sections per category (Business Logic, Security, Correctness, Performance, Testing, Architecture) that each either say "no findings" or list concrete `file:line` / issue / why / suggested fix entries, plus an `Overall Risk` line (`low` / `medium` / `high`). Note the comment explicitly says it's advisory and does not block merge — that's a GitHub-level fact, not a reason to skip fixing real findings.
@@ -66,7 +68,7 @@ Repeat the following up to **20 times**. If still not converged after 20 rounds,
 If `Deploy PR Preview to Vercel` failed, check the run log before treating it as a real failure:
 
 ```bash
-gh run view --log-failed <run-id> | grep -i "api-deployments-free-per-day"
+gh run view --log-failed "$RUN_ID" | grep -i "api-deployments-free-per-day"
 ```
 
 If the log contains `code: "api-deployments-free-per-day"` (Vercel Hobby plan's "Resource is limited - try again in N hours" error), this is **not a code problem**. Do not attempt a fix, do not count it against the retry budget, do not retry it. Record it for the final report and treat this check as excluded from the convergence condition below.
@@ -110,6 +112,8 @@ pnpm type-check
 pnpm test
 ```
 
+**If any of these fail, do not push and do not loop back to 2a.** Skipping straight to 2g without a new commit means `gh pr checks --watch` just re-reads the same stale remote status from before this round started — the outer loop would spin through all 20 rounds without making any real progress. Instead, fix the failure locally and re-run `pnpm lint` / `pnpm type-check` / `pnpm test` again, repeating until all three pass, then continue to 2f. Only a passing local run is allowed to advance past this gate.
+
 Do not push a commit you know will fail CI — this wastes CI time and, more importantly, burns Vercel's daily deployment quota (`deploy-pr.yml` deploys on every push), which is the exact scarce resource this skill is designed to protect (2b).
 
 ### 2f. Commit & push
@@ -120,7 +124,7 @@ Do not push a commit you know will fail CI — this wastes CI time and, more imp
 
 ### 2g. Wait for the next round's signal
 
-Loop back to 2a. `gh pr checks $PR_NUMBER --watch` will block until the new commit's checks finish.
+Loop back to 2a. `gh pr checks "$PR_NUMBER" --watch` will block until the new commit's checks finish.
 
 ## Step 3 — Final report
 
