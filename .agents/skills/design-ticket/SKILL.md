@@ -94,17 +94,44 @@ For each direction's root frame:
 2. Check for obvious layout defects: overlapping nodes, content overflowing its frame, broken alignment, inconsistent spacing versus the token scale.
 3. If found, fix via `jsx`/`edit`/`edit_jsx` and re-screenshot. Repeat once more if issues remain, then move on — don't loop indefinitely.
 
-No human confirmation gate before or during generation — this step is the only quality gate, and it's automated.
+No human confirmation gate before or during generation — this step is a first-pass, same-context gate only. Step 9 below is the real quality gate.
 
-### 9. Report back to the ticket
+### 9. Independent review (per direction)
+
+Immediately after step 8 finishes for a direction — before moving on to the next direction — put that direction through two independent review passes. This step is **mandatory for every direction, every run**; it cannot be skipped to save time.
+
+Each pass is a **separate Agent tool call, launched fresh with no shared context** from generation or from the other pass — the whole point is a reviewer that hasn't seen how or why the direction was built, so it isn't blind to what its own author took for granted. The reviewer subagent only reads (ticket, codebase, Figma via genable-mcp) and reports findings — it never edits Figma itself. Applying fixes stays with this session, since fixing a gap coherently (e.g. a new collapsed-header frame matching the opened one) requires the design context of the direction that only the generating flow has.
+
+**Pass 1 — Coverage review**
+
+Launch a fresh subagent with the ticket text (step 1), the target page's source (steps 2–3), and read-only genable-mcp access scoped to this direction's root frame. Task it to:
+
+1. Independently derive this ticket's full expected coverage — interaction states, before/during/after states, loading/empty/error states, role variants (visitor / mentee / mentor — this codebase's two logged-in roles plus logged-out, per the mentor/mentee model), and mobile/desktop breakpoints. Same discipline as step 4: only include what's actually plausible for this feature, don't pad.
+2. Call `find_nodes`/`inspect`/`get_screenshot` against the direction's actual frame to see what was actually built.
+3. Report the gap — which expected states/roles/breakpoints have no corresponding frame.
+
+If gaps are reported: this session adds the missing frames using step 7's placement method (same component-lookup/token-binding discipline), then re-triggers Pass 1 on the updated frame. Repeat up to **5 times**. If gaps remain after 5 rounds, stop retrying, carry the unresolved gaps forward as a known limitation for step 10, and proceed to Pass 2 regardless — a direction with a gap still deserves its existing frames being polished.
+
+**Pass 2 — Visual and compliance review**
+
+Launch a separate fresh subagent (no context from Pass 1 or from generation) with the direction's current screenshot(s), the design tokens (step 3), and the components read in step 3. Task it to check:
+
+- Spacing, alignment, hierarchy, overflow, and component-usage consistency across the frame(s).
+- RWD quality — not merely that a breakpoint frame exists (Pass 1's job) but that it actually reflows sensibly.
+- Compliance with this skill's **Core rule** — no hardcoded hex/px values (must be bound via `bind_variable`), and only real components/variants from `src/components/` used where one fits.
+
+If issues are reported: this session fixes them via `jsx`/`edit`/`edit_jsx`, re-screenshots, then re-triggers Pass 2. Repeat up to **5 times**. If issues remain after 5 rounds, stop, carry them forward as a known limitation for step 10, and move on to the next direction.
+
+### 10. Report back to the ticket
 
 For each direction, take a final `get_screenshot` of its root frame. Then:
 
 1. Commit the PNGs to a **per-issue** branch `design-assets/<issue-number>` (create it fresh from the default branch if it doesn't exist yet) under `design-tickets/<issue-number>/direction-<a|b|c>.png`. Using one branch per issue avoids concurrent pushes from different tickets ever colliding on the same branch. Before pushing, always `git fetch origin design-assets/<issue-number>` and rebase/merge if the branch already exists remotely (e.g. from a prior run of this skill on the same ticket) — never force-push. If push is rejected as non-fast-forward, pull/rebase and retry once; if it still fails, stop and report the conflict instead of forcing.
-2. Post a single comment on the ticket with `gh issue comment <issue-number> --repo "$ORG/$TRACKER_REPO"` containing, per direction: an image link using `https://github.com/$ORG/$FRONTEND_REPO/blob/design-assets/<issue-number>/design-tickets/<issue-number>/direction-<a|b|c>.png?raw=true` (rendered inline via markdown `![...]`) — this works for private repos because it resolves through the viewer's own GitHub session rather than an unauthenticated raw-content URL — and a "Copy link to selection" style Figma URL to that direction's frame (`https://www.figma.com/design/<file-key>/...?node-id=<id>`).
+2. Post a single comment on the ticket with `gh issue comment <issue-number> --repo "$ORG/$TRACKER_REPO"` containing, per direction: an image link using `https://github.com/$ORG/$FRONTEND_REPO/blob/design-assets/<issue-number>/design-tickets/<issue-number>/direction-<a|b|c>.png?raw=true` (rendered inline via markdown `![...]`) — this works for private repos because it resolves through the viewer's own GitHub session rather than an unauthenticated raw-content URL — and a "Copy link to selection" style Figma URL to that direction's frame (`https://www.figma.com/design/<file-key>/...?node-id=<id>`). If step 9 left any unresolved gaps or issues for that direction, add a short "已知限制" note under it listing them, so the reader knows what wasn't fully covered rather than assuming silent completeness.
 
 ## Rules
 
 - Always communicate with the user in Traditional Chinese (繁體中文).
-- Never modify application code — this skill only writes to Figma (and pushes screenshots to the `design-assets` branch in step 9).
+- Never modify application code — this skill only writes to Figma (and pushes screenshots to the `design-assets` branch in step 10).
 - Never guess the target page or Figma file — stop and ask when step 2 is ambiguous; step 5's connection check is mandatory before any write.
+- Step 9's review passes are mandatory and must never be skipped, even under time pressure — they are the only defense against reviewing your own work with the same blind spots you had while creating it.
