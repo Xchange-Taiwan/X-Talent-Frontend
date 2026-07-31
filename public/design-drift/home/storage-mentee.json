@@ -1,0 +1,55 @@
+{
+  "cookies": [
+    {
+      "name": "__Host-next-auth.csrf-token",
+      "value": "7861c28941e1e2b44ebc7e949effe7230894ebe69cc2b5597098291c64550a49%7C47f58832d206bd67b5fa95be9bc62c9c2637da4e8a9a997a5efcccbb19229ae6",
+      "domain": "xtalentdev.vercel.app",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__Secure-next-auth.callback-url",
+      "value": "https%3A%2F%2Fxtalentdev.vercel.app%2Fauth%2Fsignin",
+      "domain": "xtalentdev.vercel.app",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "session-hint",
+      "value": "0",
+      "domain": "xtalentdev.vercel.app",
+      "path": "/",
+      "expires": 1788117228.685344,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__Secure-next-auth.session-token",
+      "value": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..Q5oDKMXFznfLLP8B.SV4fa1xO-TRPS0VPby6ptDWCkvD99d5gaFBhGGn17Bgvp0trEUAiaJvKu7yqPdPs9SdEfKJb9_-yvQ2I_V5AG-50h7enxu4oef7pNCQI53lvtYcv3qyxJNL2GxXD5LH--5j3KySxcL2rowYxJjZdqcQLopzQDo1pqH8hmsd8tF-tcPl4-Vx8HyD3tAlS5YNNWa-Rb34qU1t39ifPOMOQblyo5V2ki92s6zgfxI-45JtqjCVxb0tWmvrP36GpOmzznXm-92RtP1JWYGhhICH7YeotWMfLu7ApZRLN0tQZQxqFeeJPzIJyeS7wkROCbaLzOXgJAGKEjWNmuAla-rKGz9-vU7av6YYGR_ya7zUgRvObQNFjp2bmV7VL8LAJ3nHoP-FVXdgHkoU-YvwW783V6h_nGOEsTLVkx5hIBqdi-GLkQyARHabdjYPen1lR9hLSP8HcwCwOQkGxNKlRySE3d-V-_6v5Q-IteWArcw-LrSvZEtbYrrwYDzycq0XJYPDiUqG78AryDMGfiYeZHYqNWCCqnwMiSt4HlJO4PfSpInmh6iJHtBgoL4h-aq7mH0jS92Okge2ePer2HE4MAV4Ks5_HFoA1g6NsRHegzzNTxsR9emrLTJk_blQ5IqlKMd6UGL6C20K0D-F7busZ47Ck4YHhbxHSLkR4EAArevtnFY0guALquz8CS-PPPuBBFFfmZjDhzT_ugA9fK4CYO0MQgg7VxWwXb9TLUw7SKsbd8CL4xDE4q7b-DkPqrv8fzxOJgYbZgDZy3lsBLs9u8xEyLKrYHe30lfvtEqJaASzrPh9sod8cNO7ODcJKylbSmysX7-WN8ITLJm7h.LerCgevL6PLT9RdiS7hD3w",
+      "domain": "xtalentdev.vercel.app",
+      "path": "/",
+      "expires": 1788117228.692618,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://xtalentdev.vercel.app",
+      "localStorage": [
+        {
+          "name": "nextauth.message",
+          "value": "{\"event\":\"session\",\"data\":{\"trigger\":\"getSession\"},\"timestamp\":1785525228}"
+        }
+      ]
+    }
+  ]
+}

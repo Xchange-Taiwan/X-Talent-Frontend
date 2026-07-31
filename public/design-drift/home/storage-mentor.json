@@ -1,0 +1,45 @@
+{
+  "cookies": [
+    {
+      "name": "__Host-next-auth.csrf-token",
+      "value": "95d7d475b3b88ed678a5d4801ddd86a58ec9871716c75c84d658c1fab5e54082%7C0466ebc2f013ef4fce9c5db0a212cfa2d85ad967c1a7756085f242609bfa55fa",
+      "domain": "xtalentdev.vercel.app",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__Secure-next-auth.callback-url",
+      "value": "https%3A%2F%2Fxtalentdev.vercel.app%2Fauth%2Fsignin",
+      "domain": "xtalentdev.vercel.app",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__Secure-next-auth.session-token",
+      "value": "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..TRUxsyU1-gLhGp1_.Fld2-vyh6jkIo495zalyZc5Jv4j5OShSvs4TmCGvVPpHxjolEr0b9TQulIJIn5ym9E3WwNm-h9592kQmbCWAJ52EkMHCJVDxhqrf2fub1RJ5U_sFEYuvPH8U2LeEO5GUtxMqCfzyEmTKOjsvRgbJCr-CpXI7sXJgIG17_fXLfrte4hanPrPtdrCqrjUoI3E_pTVSuB3LOBxqFWHtQKnco97JuO51u5A623QD1G_zDNckFj1sWvgNu-c1Gb5bQ4WU5VnMcIqL2dN3SBHMUKLOydMkjpylSOuo7cvp8qrM0fAP4cGUW5B2fsv-SWSk_iqouKJKnvAxpLFBlbJR_2Ut360mAOd5Q6gM-hWoHp5KAzYz011iq8J2Q6F5eEA5X4nqqm8jj9uZ6NvbX3x1vzBWOmabDzPvWFuy4Pi2QaXiAY1Rn08ZR6ACagWVL5fIcBxeyV_uRrMPNZ-xij8kzrwVbGgGQBa5MYC1a8lrvHNt5sedyngQs0Eur-WaGt_86CFK9IUu826nVYXT47DQwSksUrhWW7IkzK2EtZHNYdpwMYlcUIo0TxgvSxLBxVHZoO0pk5kj4I8JJ77nKdIC2-xqhpq7wtiPpf9FyDXFB5e7fE-T_s-a9itnKNBbOHlf51A8NYd0vypnS5Z9szPlJBfbLFwkyOr2D7ytyZGvjL76XdaQMJmCMsfUsPqVOx6_EfIKQXmReuR0rnsKR-UIBSbBWj3Wcxk9QvnDBHI7-ZJf1vHuSGWLMUUeQjPMzE3hQgLbYUmwBeH3Ym3R-w3JK_LNjud4kKnadj8_MpQqIoeHcThD_79P58-Bz8FHDEDNKH7UcYzkFLac4EH80ro3PdV9VmtzIyyBQpQ.GSEOJx_ppbUHZvfBapdK6Q",
+      "domain": "xtalentdev.vercel.app",
+      "path": "/",
+      "expires": 1788117231.53703,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://xtalentdev.vercel.app",
+      "localStorage": [
+        {
+          "name": "nextauth.message",
+          "value": "{\"event\":\"session\",\"data\":{\"trigger\":\"getSession\"},\"timestamp\":1785525231}"
+        }
+      ]
+    }
+  ]
+}
