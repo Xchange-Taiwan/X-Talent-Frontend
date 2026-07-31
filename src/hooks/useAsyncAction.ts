@@ -90,6 +90,7 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
   onSuccess?: (data: unknown) => void;
   /**
    * 是否在非同步操作失敗時重新拋出錯誤，讓呼叫端做額外處理。預設為 true。
+   * 設定為 false 時將吞沒錯誤並 resolve 成 undefined。
    */
   throwError?: TThrowError;
   /**
@@ -123,7 +124,22 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
     variant?: 'default' | 'destructive';
     duration?: number | ((error: unknown) => number | undefined);
   };
-  rethrow?: boolean;
+}
+
+type RunReturnType<TRunThrow extends boolean, T> = TRunThrow extends false
+  ? T | undefined
+  : T;
+
+/**
+ * 當非同步操作正在執行中，且開啟了防連擊/並發防護時，重複點擊所拋出的專用錯誤。
+ * 呼叫端與全域監控系統（如 Sentry）可輕易識別此型別並進行過濾/靜默處理，避免垃圾日誌。
+ */
+export class ConcurrentActionError extends Error {
+  constructor() {
+    super('Action is already pending');
+    this.name = 'ConcurrentActionError';
+    Object.setPrototypeOf(this, ConcurrentActionError.prototype);
+  }
 }
 
 /**
@@ -148,7 +164,7 @@ export default function useAsyncAction<TDefaultThrow extends boolean = true>(
     async <T, TRunThrow extends boolean = TDefaultThrow>(
       fn: () => Promise<T>,
       runConfig?: AsyncActionConfig<TRunThrow>
-    ): Promise<T | undefined> => {
+    ): Promise<RunReturnType<TRunThrow, T>> => {
       const mergedCaptureFailure =
         defaultConfigRef.current?.captureFailure || runConfig?.captureFailure
           ? {
@@ -175,9 +191,20 @@ export default function useAsyncAction<TDefaultThrow extends boolean = true>(
         toastOnError: mergedToastOnError,
       };
 
-      // 並發防護：若當前正在執行中且開啟了 concurrency 限制，直接忽略此次操作
-      if (config.preventConcurrent && pendingCountRef.current > 0) {
-        return undefined;
+      const returnUndefined = () =>
+        undefined as unknown as RunReturnType<TRunThrow, T>;
+
+      const isThrowError = config.throwError ?? true;
+      const isPreventConcurrent = config.preventConcurrent ?? true;
+
+      // 並發防護：若當前正在執行中且開啟了 concurrency 限制
+      if (isPreventConcurrent && pendingCountRef.current > 0) {
+        if (isThrowError) {
+          // 預設為 true 時，拋出專用自訂 Error 以防止呼叫端因收到 undefined 導致解構/存取崩潰，兼顧型別安全與執行期防禦
+          // 自訂 Error 能讓全域錯誤監聽器（如 Sentry）或呼叫端輕易識別並過濾該型別，避免垃圾日誌，同時確保 await 能釋放且 finally 可正常執行
+          throw new ConcurrentActionError();
+        }
+        return returnUndefined();
       }
 
       // 同步累加執行計數，支援完美的併發狀態管理與極短時間連按防護
@@ -190,9 +217,9 @@ export default function useAsyncAction<TDefaultThrow extends boolean = true>(
         const result = await fn();
         success = true;
         config.onSuccess?.(result);
-        return result;
+        return result as unknown as RunReturnType<TRunThrow, T>;
       } catch (err) {
-        const shouldRethrow = config.rethrow ?? config.throwError;
+        const shouldRethrow = isThrowError;
 
         // 執行外部傳入的錯誤 callback
         if (config.onError) {
@@ -307,7 +334,7 @@ export default function useAsyncAction<TDefaultThrow extends boolean = true>(
           throw err;
         }
 
-        return undefined;
+        return returnUndefined();
       } finally {
         // 同步扣減執行計數
         pendingCountRef.current = Math.max(0, pendingCountRef.current - 1);

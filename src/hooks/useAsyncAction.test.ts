@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { captureFlowFailure, sanitize } from '@/lib/monitoring';
 import { mockToast } from '@/test/mocks/useToast';
 
-import useAsyncAction from './useAsyncAction';
+import useAsyncAction, { ConcurrentActionError } from './useAsyncAction';
 
 // Mock Dependencies
 vi.mock('@/components/ui/use-toast', async () => {
@@ -87,7 +87,7 @@ describe('useAsyncAction', () => {
     expect(onErrorMock).toHaveBeenCalledWith(error);
   });
 
-  it('rethrows when rethrow is true', async () => {
+  it('rethrows when throwError is true (default)', async () => {
     const { result } = renderHook(() => useAsyncAction());
 
     const error = new Error('action failed');
@@ -95,7 +95,7 @@ describe('useAsyncAction', () => {
 
     await act(async () => {
       await expect(
-        result.current.run(actionFn, { rethrow: true })
+        result.current.run(actionFn, { throwError: true })
       ).rejects.toThrow('action failed');
     });
 
@@ -255,7 +255,9 @@ describe('useAsyncAction', () => {
     await act(async () => {
       val = await result.current.run(
         () => Promise.reject(new Error('swallowed-error')),
-        { throwError: false }
+        {
+          throwError: false,
+        }
       );
     });
 
@@ -488,7 +490,7 @@ describe('useAsyncAction', () => {
     });
   });
 
-  it('should prevent concurrent execution if preventConcurrent is true (default)', async () => {
+  it('should prevent concurrent execution and throw ConcurrentActionError if preventConcurrent is true (default) and throwError is true', async () => {
     let resolveAction!: (value: string) => void;
     const actionPromise = new Promise<string>((resolve) => {
       resolveAction = resolve;
@@ -498,13 +500,49 @@ describe('useAsyncAction', () => {
 
     const { result } = renderHook(() => useAsyncAction());
 
-    let runPromise1: Promise<string | undefined>;
+    let runPromise1!: Promise<string>;
+    act(() => {
+      runPromise1 = result.current.run(() => actionPromise) as Promise<string>;
+    });
+
+    expect(result.current.isPending).toBe(true);
+
+    // 當處於 Pending 且 throwError 為 true 時，第二次呼叫 run 應該拋出 ConcurrentActionError，確保控制流程正常且不發生記憶體洩漏
+    let runPromise2!: Promise<string>;
+    act(() => {
+      runPromise2 = result.current.run(secondActionSpy) as Promise<string>;
+    });
+
+    await act(async () => {
+      await expect(runPromise2).rejects.toThrow(ConcurrentActionError);
+      expect(secondActionSpy).not.toHaveBeenCalled();
+
+      resolveAction('first-result');
+      const res1 = await runPromise1;
+      expect(res1).toBe('first-result');
+    });
+
+    expect(result.current.isPending).toBe(false);
+  });
+
+  it('should prevent concurrent execution and return undefined if preventConcurrent is true and throwError is false', async () => {
+    let resolveAction!: (value: string) => void;
+    const actionPromise = new Promise<string>((resolve) => {
+      resolveAction = resolve;
+    });
+
+    const secondActionSpy = vi.fn().mockResolvedValue('second-result');
+
+    const { result } = renderHook(() => useAsyncAction({ throwError: false }));
+
+    let runPromise1!: Promise<string | undefined>;
     act(() => {
       runPromise1 = result.current.run(() => actionPromise);
     });
 
     expect(result.current.isPending).toBe(true);
 
+    // 當處於 Pending 且 throwError 為 false 時，第二次呼叫 run 應該吞沒並返回 undefined
     let runPromise2!: Promise<string | undefined>;
     act(() => {
       runPromise2 = result.current.run(secondActionSpy);
@@ -760,6 +798,75 @@ describe('useAsyncAction', () => {
         description: 'Override Description',
         duration: 3000,
       });
+    });
+  });
+
+  it('should sanitize query parameters and JSON-like strings in error message before calling captureFlowFailure to protect PII', async () => {
+    const { result } = renderHook(() =>
+      useAsyncAction({
+        flow: 'auth_flow',
+        step: 'password_reset',
+      })
+    );
+
+    await act(async () => {
+      await expect(
+        result.current.run(() =>
+          Promise.reject(
+            new Error(
+              'Reset failed with ?email=user@example.com&password=secret_password&token=123 and JSON {"email":"user@example.com","password":"secret_password","token":"123"}'
+            )
+          )
+        )
+      ).rejects.toThrow();
+    });
+
+    expect(captureFlowFailure).toHaveBeenCalledWith({
+      flow: 'auth_flow',
+      step: 'password_reset',
+      message:
+        'Reset failed with ?email=[REDACTED]&password=[REDACTED]&token=[REDACTED] and JSON {"email":"[REDACTED]","password":"[REDACTED]","token":"[REDACTED]"}',
+    });
+  });
+
+  it('should not update pending state if run is called after unmount', async () => {
+    const { result, unmount } = renderHook(() => useAsyncAction());
+
+    unmount();
+
+    let val: string | undefined;
+    await act(async () => {
+      val = await result.current.run(() =>
+        Promise.resolve('post-unmount-data')
+      );
+    });
+
+    expect(val).toBe('post-unmount-data');
+    expect(result.current.isPending).toBe(false);
+  });
+
+  it('should be safe if component unmounts while run is pending', async () => {
+    let resolveAction!: (value: string) => void;
+    const actionPromise = new Promise<string>((resolve) => {
+      resolveAction = resolve;
+    });
+
+    const { result, unmount } = renderHook(() => useAsyncAction());
+
+    let runPromise!: Promise<string | undefined>;
+    act(() => {
+      runPromise = result.current.run(() => actionPromise);
+    });
+
+    expect(result.current.isPending).toBe(true);
+
+    // 在 pending 期間卸載組件
+    unmount();
+
+    await act(async () => {
+      resolveAction('resolved-after-unmount');
+      const res = await runPromise;
+      expect(res).toBe('resolved-after-unmount');
     });
   });
 });
