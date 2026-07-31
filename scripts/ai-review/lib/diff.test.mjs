@@ -23,20 +23,20 @@ describe('getDiff', () => {
     });
   });
 
-  it('truncates and appends a marker when the diff exceeds 60000 chars', () => {
-    const raw = 'x'.repeat(60001);
+  it('truncates and appends a marker when the diff exceeds 35000 chars', () => {
+    const raw = 'x'.repeat(35001);
     vi.mocked(execFileSync).mockReturnValue(raw);
 
     const result = getDiff('origin/develop', 'abc123headsha');
 
     expect(result.truncated).toBe(true);
-    expect(result.diff.startsWith('x'.repeat(60000))).toBe(true);
-    expect(result.diff).toContain('... (diff truncated, 60001 chars total)');
-    expect(result.diff.slice(0, 60000)).toBe(raw.slice(0, 60000));
+    expect(result.diff.startsWith('x'.repeat(35000))).toBe(true);
+    expect(result.diff).toContain('... (diff truncated, 35001 chars total)');
+    expect(result.diff.slice(0, 35000)).toBe(raw.slice(0, 35000));
   });
 
   it('does not truncate a diff exactly at the size limit', () => {
-    const raw = 'x'.repeat(60000);
+    const raw = 'x'.repeat(35000);
     vi.mocked(execFileSync).mockReturnValue(raw);
 
     const result = getDiff('origin/develop', 'abc123headsha');

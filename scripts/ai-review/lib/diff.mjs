@@ -8,7 +8,7 @@ const EXCLUDE_PATHSPECS = [
   ':(exclude)public/**',
 ];
 
-const MAX_DIFF_CHARS = 60000;
+const MAX_DIFF_CHARS = 35000;
 
 /**
  * Returns the unified diff between baseRef and headRef, excluding lockfiles
