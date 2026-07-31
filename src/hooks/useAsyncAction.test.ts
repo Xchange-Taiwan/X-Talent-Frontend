@@ -303,7 +303,7 @@ describe('useAsyncAction', () => {
     });
   });
 
-  it('should prevent concurrent execution and throw if preventConcurrent is true (default) and throwError is true', async () => {
+  it('should prevent concurrent execution and return a non-resolving promise if preventConcurrent is true (default) and throwError is true', async () => {
     let resolveAction!: (value: string) => void;
     const actionPromise = new Promise<string>((resolve) => {
       resolveAction = resolve;
@@ -320,16 +320,15 @@ describe('useAsyncAction', () => {
 
     expect(result.current.isPending).toBe(true);
 
-    // 當處於 Pending 且 throwError 為 true（預設）時，第二次呼叫 run 應該拋出 'Action is already pending' 錯誤
-    let runPromise2!: Promise<string>;
+    // 當處於 Pending 且 throwError 為 true 時，第二次呼叫 run 應該回傳不 resolve 的 Promise，而不是拋出 Error 進而引發未捕捉 Promise 異常
     act(() => {
-      runPromise2 = result.current.run(secondActionSpy) as Promise<string>;
+      result.current.run(secondActionSpy);
     });
 
-    await act(async () => {
-      await expect(runPromise2).rejects.toThrow('Action is already pending');
-      expect(secondActionSpy).not.toHaveBeenCalled();
+    // 驗證第二個非同步操作確實沒有執行
+    expect(secondActionSpy).not.toHaveBeenCalled();
 
+    await act(async () => {
       resolveAction('first-result');
       const res1 = await runPromise1;
       expect(res1).toBe('first-result');
@@ -474,5 +473,33 @@ describe('useAsyncAction', () => {
     });
 
     // 卸載後 isPending 不應更新（雖然讀取 result.current 可能還是最後的狀態，但我們不希望拋出 React 記憶體洩漏警告）
+  });
+
+  it('should sanitize query parameters and JSON-like strings in error message before calling captureFlowFailure to protect PII', async () => {
+    const { result } = renderHook(() =>
+      useAsyncAction({
+        flow: 'auth_flow',
+        step: 'password_reset',
+      })
+    );
+
+    await act(async () => {
+      await expect(
+        result.current.run(() =>
+          Promise.reject(
+            new Error(
+              'Reset failed with ?email=user@example.com&password=secret_password&token=123 and JSON {"email":"user@example.com","password":"secret_password","token":"123"}'
+            )
+          )
+        )
+      ).rejects.toThrow();
+    });
+
+    expect(captureFlowFailure).toHaveBeenCalledWith({
+      flow: 'auth_flow',
+      step: 'password_reset',
+      message:
+        'Reset failed with ?email=[REDACTED]&password=[REDACTED]&token=[REDACTED] and JSON {"email":"[REDACTED]","password":"[REDACTED]","token":"[REDACTED]"}',
+    });
   });
 });

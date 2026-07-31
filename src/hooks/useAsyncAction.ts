@@ -99,8 +99,9 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
       // 並發防護：若當前正在執行中且開啟了 concurrency 限制
       if (config.preventConcurrent && pendingCountRef.current > 0) {
         if (config.throwError) {
-          // 預設為 true 時，拋出明確錯誤以防止呼叫端因收到 undefined 導致解構/存取崩潰，兼顧型別安全與執行期防禦
-          throw new Error('Action is already pending');
+          // 預設為 true 時，回傳一個永遠不 resolve 的 Promise 以靜默攔截防連擊
+          // 避免拋出一般 Error 導致全域未捕捉 Promise 拒絕並洗版 Sentry
+          return new Promise<never>(() => {});
         }
         return returnUndefined();
       }
