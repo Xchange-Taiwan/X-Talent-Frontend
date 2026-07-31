@@ -36,7 +36,7 @@ export function useProfileSubmit({
   // 作為 X-Tracker #436 基礎建設的一部分，用於收斂載入狀態、防重複連擊與 Sentry 錯誤上報
   const { run, isPending: isSaving } = useAsyncAction({
     flow: 'profile_update',
-    step: 'unexpected',
+    step: 'update_profile',
     errorMessage: '儲存失敗，請稍後再試',
     throwError: false,
     resetPendingOnSuccess: false, // 成功後保持 isSaving 為 true 以模擬轉址中的 UI

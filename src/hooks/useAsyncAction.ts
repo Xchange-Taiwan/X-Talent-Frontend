@@ -194,9 +194,12 @@ export default function useAsyncAction<TDefaultThrow extends boolean = true>(
       const returnUndefined = () =>
         undefined as unknown as RunReturnType<TRunThrow, T>;
 
+      const isThrowError = config.throwError ?? true;
+      const isPreventConcurrent = config.preventConcurrent ?? true;
+
       // 並發防護：若當前正在執行中且開啟了 concurrency 限制
-      if (config.preventConcurrent && pendingCountRef.current > 0) {
-        if (config.throwError) {
+      if (isPreventConcurrent && pendingCountRef.current > 0) {
+        if (isThrowError) {
           // 預設為 true 時，拋出專用自訂 Error 以防止呼叫端因收到 undefined 導致解構/存取崩潰，兼顧型別安全與執行期防禦
           // 自訂 Error 能讓全域錯誤監聽器（如 Sentry）或呼叫端輕易識別並過濾該型別，避免垃圾日誌，同時確保 await 能釋放且 finally 可正常執行
           throw new ConcurrentActionError();
@@ -216,7 +219,7 @@ export default function useAsyncAction<TDefaultThrow extends boolean = true>(
         config.onSuccess?.(result);
         return result as unknown as RunReturnType<TRunThrow, T>;
       } catch (err) {
-        const shouldRethrow = config.throwError;
+        const shouldRethrow = isThrowError;
 
         // 執行外部傳入的錯誤 callback
         if (config.onError) {
