@@ -650,7 +650,7 @@ describe('useAsyncAction', () => {
     });
 
     it('gracefully uses fallback when sanitize returns undefined', async () => {
-      mockSanitize.mockReturnValueOnce(undefined as any);
+      mockSanitize.mockReturnValueOnce(undefined as unknown as string);
 
       const { result } = renderHook(() =>
         useAsyncAction({

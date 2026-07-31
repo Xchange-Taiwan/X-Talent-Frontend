@@ -27,6 +27,7 @@ vi.mock('@/lib/monitoring', () => ({
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 
 import { validateSignIn } from '@/lib/actions/signIn';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockGetSession, mockSession, mockSignIn } from '@/test/mocks/nextAuth';
 import { mockToast } from '@/test/mocks/useToast';
@@ -34,6 +35,7 @@ import { mockToast } from '@/test/mocks/useToast';
 import useSignInForm from './useSignInForm';
 
 const mockValidateSignIn = vi.mocked(validateSignIn);
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 const validValues = { email: 'user@example.com', password: 'Password1!' };
 
@@ -164,5 +166,85 @@ describe('useSignInForm', () => {
     });
 
     expect(result.current.isSubmitting).toBe(false);
+  });
+
+  describe('SignInError dynamic capturing and monitoring attributes', () => {
+    it('captures correct metadata when validation fails', async () => {
+      mockValidateSignIn.mockResolvedValueOnce({ error: 'Invalid fields!' });
+
+      const { result } = renderHook(() => useSignInForm());
+
+      await act(async () => {
+        await result.current.onSubmit(validValues);
+      });
+
+      expect(mockCaptureFlowFailure).toHaveBeenCalledWith({
+        flow: 'sign_in',
+        step: 'validate_credentials',
+        message: 'Invalid fields!',
+        level: 'info',
+        errorCode: undefined,
+      });
+
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          description: 'Invalid fields!',
+        })
+      );
+    });
+
+    it('captures correct metadata when client credentials authentication fails', async () => {
+      mockSignIn.mockResolvedValueOnce({ error: 'CredentialsSignin' });
+
+      const { result } = renderHook(() => useSignInForm());
+
+      await act(async () => {
+        await result.current.onSubmit(validValues);
+      });
+
+      expect(mockCaptureFlowFailure).toHaveBeenCalledWith({
+        flow: 'sign_in',
+        step: 'authenticate',
+        message: 'Invalid credentials',
+        level: 'info',
+        errorCode: 'CredentialsSignin',
+      });
+
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          description: 'Invalid credentials!',
+        })
+      );
+    });
+
+    it('captures correct metadata when session lacks accessToken', async () => {
+      mockGetSession.mockResolvedValueOnce({
+        user: { ...mockSession.user },
+        expires: mockSession.expires,
+      });
+
+      const { result } = renderHook(() => useSignInForm());
+
+      await act(async () => {
+        await result.current.onSubmit(validValues);
+      });
+
+      expect(mockCaptureFlowFailure).toHaveBeenCalledWith({
+        flow: 'sign_in',
+        step: 'get_session',
+        message: 'No access token after login',
+        level: 'error',
+        errorCode: undefined,
+      });
+
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          description: 'Login failed',
+        })
+      );
+    });
   });
 });

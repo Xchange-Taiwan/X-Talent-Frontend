@@ -1,3 +1,5 @@
+const UNKNOWN_ERROR = 'Unknown error';
+
 /**
  * Safely extracts and serializes an error message from an unknown error object,
  * preventing full Axios response objects, headers, or private user configs
@@ -13,7 +15,7 @@ export function getSafeErrorMessage(error: unknown): string {
   if (typeof error === 'object' && error !== null && 'message' in error) {
     return String((error as Record<string, unknown>).message);
   }
-  return 'Unknown error';
+  return UNKNOWN_ERROR;
 }
 
 /**
@@ -22,5 +24,5 @@ export function getSafeErrorMessage(error: unknown): string {
  */
 export function getErrorMessage(error: unknown): string {
   const msg = getSafeErrorMessage(error);
-  return msg !== 'Unknown error' ? msg : '發生錯誤，請稍後再試。';
+  return msg !== UNKNOWN_ERROR ? msg : '發生錯誤，請稍後再試。';
 }
