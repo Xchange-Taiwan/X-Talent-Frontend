@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "genable": {
+      "command": "npx",
+      "args": ["-y", "genable-mcp"],
+      "env": {}
+    }
+  }
+}
