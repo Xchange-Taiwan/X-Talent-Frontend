@@ -20,6 +20,8 @@ All output must match the project's existing visual language:
 - `gh` CLI authenticated.
 - A Figma file open with the genable plugin connected (genable-mcp always operates on whichever file the user currently has open — this skill cannot target a specific file).
 
+**Input validation is mandatory before any shell command runs.** `<issue-number>` comes from user input. Before executing any bash/PowerShell command in this skill, strictly validate that `<issue-number>` matches `^[0-9]+$` — reject and stop on anything else (e.g. `123; rm -rf .`). Never interpolate the raw, unvalidated value into a shell command.
+
 ## Steps
 
 ### 0. Fetch and parse configuration
@@ -28,6 +30,8 @@ All output must match the project's existing visual language:
 - **PowerShell**: `. .agents/scripts/load-config.ps1`
 
 ### 1. Fetch the ticket
+
+Validate `<issue-number>` against `^[0-9]+$` first (see Prerequisites). Then:
 
 ```bash
 gh issue view <issue-number> --repo "$ORG/$TRACKER_REPO" --json number,title,body,comments,labels
@@ -98,8 +102,8 @@ No human confirmation gate before or during generation — this step is the only
 
 For each direction, take a final `get_screenshot` of its root frame. Then:
 
-1. Commit the PNGs to a dedicated `design-assets` branch (create it if it doesn't exist, orphaned from the default branch is fine) under `design-tickets/<issue-number>/direction-<a|b|c>.png`, and push.
-2. Post a single comment on the ticket with `gh issue comment <issue-number> --repo "$ORG/$TRACKER_REPO"` containing, per direction: the raw.githubusercontent.com image URL (rendered inline via markdown `![...]`) and a "Copy link to selection" style Figma URL to that direction's frame (`https://www.figma.com/design/<file-key>/...?node-id=<id>`).
+1. Commit the PNGs to a **per-issue** branch `design-assets/<issue-number>` (create it fresh from the default branch if it doesn't exist yet) under `design-tickets/<issue-number>/direction-<a|b|c>.png`. Using one branch per issue avoids concurrent pushes from different tickets ever colliding on the same branch. Before pushing, always `git fetch origin design-assets/<issue-number>` and rebase/merge if the branch already exists remotely (e.g. from a prior run of this skill on the same ticket) — never force-push. If push is rejected as non-fast-forward, pull/rebase and retry once; if it still fails, stop and report the conflict instead of forcing.
+2. Post a single comment on the ticket with `gh issue comment <issue-number> --repo "$ORG/$TRACKER_REPO"` containing, per direction: an image link using `https://github.com/$ORG/$FRONTEND_REPO/blob/design-assets/<issue-number>/design-tickets/<issue-number>/direction-<a|b|c>.png?raw=true` (rendered inline via markdown `![...]`) — this works for private repos because it resolves through the viewer's own GitHub session rather than an unauthenticated raw-content URL — and a "Copy link to selection" style Figma URL to that direction's frame (`https://www.figma.com/design/<file-key>/...?node-id=<id>`).
 
 ## Rules
 
