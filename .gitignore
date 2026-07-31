@@ -48,7 +48,8 @@ next-env.d.ts
 CLAUDE.md
 
 # Gemini CLI local caches and logs
-/.gemini/
+/.gemini/*
+!/.gemini/settings.json
 /gemini.log
 
 # Test reports and screenshots
