@@ -1,77 +1,139 @@
-import { Decorator } from '@storybook/react';
-import { SessionContext, SessionContextValue } from 'next-auth/react';
 import React from 'react';
+import type { Decorator } from '@storybook/react';
+import { SessionContext, SessionContextValue } from 'next-auth/react';
+import type { Session } from 'next-auth';
 
-export const withAppContext: Decorator = (Story, context) => {
-  // Standard default user shape from src/test/mocks/nextAuth.ts
-  const defaultUser = {
-    id: 'test-user-id',
-    email: 'test@example.com',
-    name: 'Test User',
-    onBoarding: true,
-    isMentor: false,
-  };
+export const defaultMockUser = {
+  id: 'test-user-id',
+  email: 'test@example.com',
+  name: 'Test User',
+  onBoarding: true,
+  isMentor: false,
+};
 
-  // 1. Support parameter configurations from auth (used in Header.stories.tsx)
-  const authParams = context.parameters.auth || {};
-  const sessionHint = authParams.sessionHint;
+export const defaultMockSession: Session = {
+  user: defaultMockUser,
+  accessToken: 'mock-access-token',
+  expires: '2099-01-01T00:00:00.000Z',
+};
 
-  // Handle cookie sync if auth parameters are explicitly provided
-  if (typeof window !== 'undefined') {
+export interface ResolveMockSessionResult {
+  session: Session | null;
+  status: 'authenticated' | 'unauthenticated' | 'loading';
+}
+
+/** Shared configuration options for mocking NextAuth session and status in Storybook. */
+export interface MockSessionOptions {
+  user?: Partial<Session['user']> | null;
+  session?: Session | null;
+  status?: 'authenticated' | 'unauthenticated' | 'loading';
+}
+
+/** Complete parameters input type for resolveMockSession including optional legacy auth structure. */
+export type ResolveMockSessionParams = MockSessionOptions & {
+  auth?: (MockSessionOptions & { sessionHint?: string }) | null;
+};
+
+/**
+ * Syncs the session-hint cookie based on the explicit auth parameters.
+ * Clears the cookie if undefined to prevent environment pollution.
+ */
+export function syncSessionHintCookie(sessionHint: string | undefined): void {
+  if (typeof document !== 'undefined') {
     if (sessionHint !== undefined) {
       document.cookie = `session-hint=${sessionHint}; path=/; max-age=3600`;
     } else {
-      // Unconditionally clear the cookie when sessionHint is undefined
-      // to avoid environment pollution across story switches
       document.cookie = 'session-hint=; path=/; max-age=0';
     }
   }
+}
 
-  // 2. Determine user: check auth parameters, standard parameters, then args
+/**
+ * Pure function to resolve the mock session and status from Storybook parameters and args,
+ * fully preserving all flexible configurations and maintaining 100% strict type safety.
+ */
+export function resolveMockSession(
+  params?: ResolveMockSessionParams | null,
+  args?: MockSessionOptions | null
+): ResolveMockSessionResult {
+  const authParams = params?.auth || {};
+
+  // 1. Resolve user
   const userFromParam =
     authParams.session?.user !== undefined
       ? authParams.session.user
-      : context.parameters.user !== undefined
-        ? context.parameters.user
-        : context.parameters.session?.user !== undefined
-          ? context.parameters.session.user
+      : params?.user !== undefined
+        ? params?.user
+        : params?.session?.user !== undefined
+          ? params?.session?.user
           : undefined;
 
   const user =
     userFromParam !== undefined
       ? userFromParam
-      : context.args.user !== undefined
-        ? context.args.user
-        : defaultUser;
+      : args?.user !== undefined
+        ? args?.user
+        : defaultMockUser;
 
-  // 3. Determine session
-  let session = null;
+  // 2. Resolve default session from user
+  let session: Session | null = null;
   if (user !== null) {
     session = {
-      user,
-      accessToken: 'mock-access-token',
-      expires: '2099-01-01T00:00:00.000Z',
-    };
+      ...defaultMockSession,
+      user: {
+        ...defaultMockSession.user,
+        ...user,
+      },
+    } as Session;
   }
 
-  // Override session if directly provided in parameters or args
+  // 3. Override session if directly provided
   if (authParams.session !== undefined) {
     session = authParams.session;
-  } else if (context.parameters.session !== undefined) {
-    session = context.parameters.session;
-  } else if (context.args.session !== undefined) {
-    session = context.args.session;
+  } else if (params?.session !== undefined) {
+    session = params?.session;
+  } else if (args?.session !== undefined) {
+    session = args?.session;
   }
 
   // 4. Determine session status
-  let status = session ? 'authenticated' : 'unauthenticated';
+  let status: 'authenticated' | 'unauthenticated' | 'loading' = session
+    ? 'authenticated'
+    : 'unauthenticated';
   if (authParams.status !== undefined) {
     status = authParams.status;
-  } else if (context.parameters.status !== undefined) {
-    status = context.parameters.status;
-  } else if (context.args.status !== undefined) {
-    status = context.args.status;
+  } else if (params?.status !== undefined) {
+    status = params?.status;
+  } else if (args?.status !== undefined) {
+    status = args?.status;
   }
+
+  return { session, status };
+}
+
+/**
+ * Shared Storybook decorator to provide NextAuth `SessionProvider` (via SessionContext.Provider) with configurable mocks.
+ * By default, stories are authenticated with a standard test session (defaultMockSession).
+ *
+ * To override the default user or session:
+ * 1. Via parameters (Recommended for components without user/session Props to avoid TypeScript strict compile errors):
+ *    - `parameters: { nextAuth: { user: { name: 'Custom PM', isMentor: true } } }`
+ *    - `parameters: { nextAuth: { session: null } }` (unauthenticated guest states)
+ *
+ * 2. Via args (Best for components like UserDropdown that accept user/session as direct Props):
+ *    - `args: { user: { name: 'Custom Name' } }`
+ *    - `args: { user: null }`
+ */
+export const withAppContext: Decorator = (Story, context) => {
+  const authParams = context.parameters?.auth || {};
+  const sessionHint = authParams.sessionHint;
+
+  // Handle cookie sync if auth parameters are explicitly provided
+  syncSessionHintCookie(sessionHint);
+
+  // Resolve mock session and status from parameters (prioritizing nextAuth namespace) or args
+  const nextAuthParams = context.parameters?.nextAuth || context.parameters;
+  const { session, status } = resolveMockSession(nextAuthParams, context.args);
 
   const contextValue: SessionContextValue = {
     data: session,
@@ -85,3 +147,4 @@ export const withAppContext: Decorator = (Story, context) => {
     </SessionContext.Provider>
   );
 };
+export default withAppContext;

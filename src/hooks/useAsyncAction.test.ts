@@ -1,10 +1,10 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { captureFlowFailure } from '@/lib/monitoring';
+import { captureFlowFailure, sanitize } from '@/lib/monitoring';
 import { mockToast } from '@/test/mocks/useToast';
 
-import { ConcurrentActionError, useAsyncAction } from './useAsyncAction';
+import useAsyncAction, { ConcurrentActionError } from './useAsyncAction';
 
 // Mock Dependencies
 vi.mock('@/components/ui/use-toast', async () => {
@@ -17,8 +17,12 @@ vi.mock('@/lib/monitoring', async (importOriginal) => {
   return {
     ...actual,
     captureFlowFailure: vi.fn(),
+    sanitize: vi.fn(actual.sanitize),
   };
 });
+
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
+const mockSanitize = vi.mocked(sanitize);
 
 class LoggedError extends Error {
   constructor(message?: string) {
@@ -32,32 +36,191 @@ describe('useAsyncAction', () => {
     vi.clearAllMocks();
   });
 
-  it('should toggle isPending correctly on successful execution', async () => {
-    let resolveAction!: (value: string) => void;
-    const actionPromise = new Promise<string>((resolve) => {
-      resolveAction = resolve;
-    });
-
+  it('runs async function and toggles isPending correctly on success', async () => {
     const { result } = renderHook(() => useAsyncAction());
 
     expect(result.current.isPending).toBe(false);
 
-    let runPromise: Promise<string | undefined>;
-    act(() => {
-      runPromise = result.current.run(() => actionPromise);
+    let resolvePromise!: (value: string) => void;
+    const promise = new Promise<string>((resolve) => {
+      resolvePromise = resolve;
     });
 
-    // 執行中：isPending 應該為 true
+    const actionFn = vi.fn().mockReturnValue(promise);
+
+    let runPromise: Promise<string | undefined>;
+    act(() => {
+      runPromise = result.current.run(actionFn);
+    });
+
     expect(result.current.isPending).toBe(true);
+    expect(actionFn).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      resolveAction('success-data');
+      resolvePromise('success-data');
       const val = await runPromise;
       expect(val).toBe('success-data');
     });
 
-    // 執行完畢：isPending 應該還原為 false
     expect(result.current.isPending).toBe(false);
+  });
+
+  it('runs async function, toggles isPending, and triggers onError and finally resets when throwing', async () => {
+    const { result } = renderHook(() => useAsyncAction());
+
+    const error = new Error('action failed');
+    const actionFn = vi.fn().mockRejectedValue(error);
+    const onErrorMock = vi.fn();
+
+    expect(result.current.isPending).toBe(false);
+
+    let res: string | undefined;
+    await act(async () => {
+      res = await result.current.run(actionFn, {
+        onError: onErrorMock,
+        throwError: false,
+      });
+    });
+
+    expect(result.current.isPending).toBe(false);
+    expect(res).toBeUndefined();
+    expect(onErrorMock).toHaveBeenCalledWith(error);
+  });
+
+  it('rethrows when rethrow is true', async () => {
+    const { result } = renderHook(() => useAsyncAction());
+
+    const error = new Error('action failed');
+    const actionFn = vi.fn().mockRejectedValue(error);
+
+    await act(async () => {
+      await expect(
+        result.current.run(actionFn, { rethrow: true })
+      ).rejects.toThrow('action failed');
+    });
+
+    expect(result.current.isPending).toBe(false);
+  });
+
+  it('captures flow failure and triggers toast with correct details on error', async () => {
+    const { result } = renderHook(() => useAsyncAction());
+
+    const error = new Error('some unexpected network issue');
+    const actionFn = vi.fn().mockRejectedValue(error);
+
+    await act(async () => {
+      await result.current.run(actionFn, {
+        captureFailure: {
+          flow: 'test_flow',
+          step: 'test_step',
+          level: 'warning',
+        },
+        toastOnError: {
+          title: 'Custom Title',
+          description: (err) =>
+            err instanceof Error ? `Failed: ${err.message}` : 'Failed',
+          duration: 2000,
+        },
+        throwError: false,
+      });
+    });
+
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith({
+      flow: 'test_flow',
+      step: 'test_step',
+      message: 'some unexpected network issue',
+      level: 'warning',
+      errorCode: undefined,
+    });
+
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      title: 'Custom Title',
+      description: 'Failed: some unexpected network issue',
+      duration: 2000,
+    });
+  });
+
+  it('captures flow failure and toast with fully dynamic callback parameters', async () => {
+    const { result } = renderHook(() => useAsyncAction());
+
+    class CustomTestError extends Error {
+      constructor(
+        message: string,
+        public step: string,
+        public level: 'info' | 'warning' | 'error',
+        public errorCode: string,
+        public duration: number
+      ) {
+        super(message);
+      }
+    }
+
+    const error = new CustomTestError(
+      'Dynamic exception details',
+      'custom_step',
+      'info',
+      'ERR_CODE_123',
+      5000
+    );
+    const actionFn = vi.fn().mockRejectedValue(error);
+
+    await act(async () => {
+      await result.current.run(actionFn, {
+        captureFailure: {
+          flow: 'dynamic_callbacks_flow',
+          step: (err) =>
+            err instanceof CustomTestError ? err.step : 'fallback_step',
+          level: (err) =>
+            err instanceof CustomTestError ? err.level : 'error',
+          message: (err) =>
+            err instanceof CustomTestError
+              ? `Msg: ${err.message}`
+              : 'fallback_msg',
+          errorCode: (err) =>
+            err instanceof CustomTestError ? err.errorCode : undefined,
+        },
+        toastOnError: {
+          description: (err) =>
+            err instanceof CustomTestError
+              ? `Toast: ${err.message}`
+              : 'fallback_toast',
+          duration: (err) =>
+            err instanceof CustomTestError ? err.duration : undefined,
+        },
+        throwError: false,
+      });
+    });
+
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith({
+      flow: 'dynamic_callbacks_flow',
+      step: 'custom_step',
+      message: 'Msg: Dynamic exception details',
+      level: 'info',
+      errorCode: 'ERR_CODE_123',
+    });
+
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      title: undefined,
+      description: 'Toast: Dynamic exception details',
+      duration: 5000,
+    });
+  });
+
+  it('calls onSuccess on successful execution', async () => {
+    const { result } = renderHook(() => useAsyncAction());
+
+    const actionFn = vi.fn().mockResolvedValue('ok');
+    const onSuccessMock = vi.fn();
+
+    let res: string | undefined;
+    await act(async () => {
+      res = await result.current.run(actionFn, { onSuccess: onSuccessMock });
+    });
+
+    expect(res).toBe('ok');
+    expect(onSuccessMock).toHaveBeenCalledWith('ok');
   });
 
   it('should reset isPending even when the action throws', async () => {
@@ -79,11 +242,9 @@ describe('useAsyncAction', () => {
 
     await act(async () => {
       rejectAction(new Error('failure-reason'));
-      // 預設 throwError 為 true，因此應該拋出異常
       await expect(runPromise).rejects.toThrow('failure-reason');
     });
 
-    // 拋出異常後：isPending 仍應被重置為 false
     expect(result.current.isPending).toBe(false);
   });
 
@@ -107,8 +268,10 @@ describe('useAsyncAction', () => {
   it('should report failure via captureFlowFailure when flow and step are provided', async () => {
     const { result } = renderHook(() =>
       useAsyncAction({
-        flow: 'test_flow',
-        step: 'test_step',
+        captureFailure: {
+          flow: 'test_flow',
+          step: 'test_step',
+        },
       })
     );
 
@@ -122,19 +285,22 @@ describe('useAsyncAction', () => {
       flow: 'test_flow',
       step: 'test_step',
       message: 'test-sentry-error',
+      level: undefined,
+      errorCode: undefined,
     });
   });
 
   it('should gracefully handle captureFlowFailure rejections (e.g. ad blockers or network failures) without crashing and reset isPending', async () => {
-    const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
     mockCaptureFlowFailure.mockRejectedValueOnce(
       new Error('Sentry dynamic import failed')
     );
 
     const { result } = renderHook(() =>
       useAsyncAction({
-        flow: 'test_flow',
-        step: 'test_step',
+        captureFailure: {
+          flow: 'test_flow',
+          step: 'test_step',
+        },
       })
     );
 
@@ -160,8 +326,10 @@ describe('useAsyncAction', () => {
   it('should NOT call captureFlowFailure if shouldSkipLogging returns true', async () => {
     const { result } = renderHook(() =>
       useAsyncAction({
-        flow: 'test_flow',
-        step: 'test_step',
+        captureFailure: {
+          flow: 'test_flow',
+          step: 'test_step',
+        },
         shouldSkipLogging: (err) => err instanceof LoggedError,
       })
     );
@@ -183,14 +351,17 @@ describe('useAsyncAction', () => {
     await act(async () => {
       await expect(
         result.current.run(() => Promise.reject(new Error('some-error')), {
-          errorMessage: '發生錯誤，請稍候再試',
-          duration: 3000,
+          toastOnError: {
+            description: '發生錯誤，請稍候再試',
+            duration: 3000,
+          },
         })
       ).rejects.toThrow('some-error');
     });
 
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
+      title: undefined,
       description: '發生錯誤，請稍候再試',
       duration: 3000,
     });
@@ -202,8 +373,10 @@ describe('useAsyncAction', () => {
     await act(async () => {
       await expect(
         result.current.run(() => Promise.reject(new Error('some-error')), {
-          errorTitle: '發生錯誤',
-          errorMessage: '請稍候再試',
+          toastOnError: {
+            title: '發生錯誤',
+            description: '請稍候再試',
+          },
         })
       ).rejects.toThrow('some-error');
     });
@@ -243,9 +416,13 @@ describe('useAsyncAction', () => {
     const { result } = renderHook(() =>
       useAsyncAction({
         onError: onErrorMock,
-        flow: 'test_flow',
-        step: 'test_step',
-        errorMessage: '發生錯誤，請稍候再試',
+        captureFailure: {
+          flow: 'test_flow',
+          step: 'test_step',
+        },
+        toastOnError: {
+          description: '發生錯誤，請稍候再試',
+        },
       })
     );
 
@@ -259,7 +436,6 @@ describe('useAsyncAction', () => {
       ).rejects.toThrow('app-error');
     });
 
-    // The primary error is still reported, and Sentry flow failure and toast are still processed successfully
     expect(onErrorMock).toHaveBeenCalled();
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       'Error in useAsyncAction onError callback:',
@@ -274,18 +450,26 @@ describe('useAsyncAction', () => {
   it('should support configuration overriding on run level', async () => {
     const { result } = renderHook(() =>
       useAsyncAction({
-        flow: 'default_flow',
-        step: 'default_step',
-        errorMessage: 'default_toast',
+        captureFailure: {
+          flow: 'default_flow',
+          step: 'default_step',
+        },
+        toastOnError: {
+          description: 'default_toast',
+        },
       })
     );
 
     await act(async () => {
       await expect(
         result.current.run(() => Promise.reject(new Error('override-error')), {
-          flow: 'override_flow',
-          step: 'override_step',
-          errorMessage: 'override_toast',
+          captureFailure: {
+            flow: 'override_flow',
+            step: 'override_step',
+          },
+          toastOnError: {
+            description: 'override_toast',
+          },
         })
       ).rejects.toThrow('override-error');
     });
@@ -294,10 +478,13 @@ describe('useAsyncAction', () => {
       flow: 'override_flow',
       step: 'override_step',
       message: 'override-error',
+      level: undefined,
+      errorCode: undefined,
     });
 
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
+      title: undefined,
       description: 'override_toast',
       duration: 5000,
     });
@@ -404,7 +591,6 @@ describe('useAsyncAction', () => {
 
     expect(result.current.isPending).toBe(true);
 
-    // 完成第一個請求：isPending 應該仍保持為 true，因為第二個請求仍在執行中！
     await act(async () => {
       resolveAction1('res1');
     });
@@ -412,7 +598,6 @@ describe('useAsyncAction', () => {
     expect(res1).toBe('res1');
     expect(result.current.isPending).toBe(true);
 
-    // 完成第二個請求：此時所有併發請求結束，isPending 應該被設回 false
     await act(async () => {
       resolveAction2('res2');
     });
@@ -445,7 +630,6 @@ describe('useAsyncAction', () => {
       await runPromise;
     });
 
-    // 成功後 isPending 應該保持為 true
     expect(result.current.isPending).toBe(true);
   });
 
@@ -464,7 +648,6 @@ describe('useAsyncAction', () => {
 
     expect(result.current.isPending).toBe(true);
 
-    // 卸載組件
     unmount();
 
     await act(async () => {
@@ -472,8 +655,150 @@ describe('useAsyncAction', () => {
       const res = await runPromise;
       expect(res).toBe('unmounted-done');
     });
+  });
 
-    // 卸載後 isPending 不應更新（雖然讀取 result.current 可能還是最後的狀態，但我們不希望拋出 React 記憶體洩漏警告）
+  describe('exceptional safeSanitize behavior', () => {
+    it('gracefully uses fallback when sanitize throws an error', async () => {
+      mockSanitize.mockImplementationOnce(() => {
+        throw new Error('mock sanitize error');
+      });
+
+      const { result } = renderHook(() =>
+        useAsyncAction({
+          captureFailure: {
+            flow: 'test_flow',
+            step: 'test_step',
+          },
+        })
+      );
+
+      await act(async () => {
+        await expect(
+          result.current.run(() => Promise.reject(new Error('raw-error')))
+        ).rejects.toThrow('raw-error');
+      });
+
+      expect(captureFlowFailure).toHaveBeenCalledWith({
+        flow: 'test_flow',
+        step: 'test_step',
+        message: '[Sanitization failed]',
+        level: undefined,
+        errorCode: undefined,
+      });
+    });
+
+    it('gracefully uses fallback when sanitize returns undefined', async () => {
+      mockSanitize.mockReturnValueOnce(undefined as unknown as string);
+
+      const { result } = renderHook(() =>
+        useAsyncAction({
+          captureFailure: {
+            flow: 'test_flow',
+            step: 'test_step',
+          },
+        })
+      );
+
+      await act(async () => {
+        await expect(
+          result.current.run(() => Promise.reject(new Error('raw-error')))
+        ).rejects.toThrow('raw-error');
+      });
+
+      expect(captureFlowFailure).toHaveBeenCalledWith({
+        flow: 'test_flow',
+        step: 'test_step',
+        message: '[Sanitization failed]',
+        level: undefined,
+        errorCode: undefined,
+      });
+    });
+  });
+
+  describe('backward compatibility and deep nesting merging', () => {
+    it('supports backward compatibility for deprecated flat config parameters', async () => {
+      const { result } = renderHook(() =>
+        useAsyncAction({
+          flow: 'legacy_flow',
+          step: 'legacy_step',
+          level: 'warning',
+          message: 'legacy-custom-message',
+          errorTitle: 'Legacy Title',
+          errorMessage: 'Legacy Error Message',
+          duration: 4000,
+        })
+      );
+
+      const error = new Error('raw error');
+      const actionFn = vi.fn().mockRejectedValue(error);
+
+      await act(async () => {
+        await result.current.run(actionFn, { throwError: false });
+      });
+
+      expect(captureFlowFailure).toHaveBeenCalledWith({
+        flow: 'legacy_flow',
+        step: 'legacy_step',
+        message: 'legacy-custom-message',
+        level: 'warning',
+        errorCode: undefined,
+      });
+
+      expect(mockToast).toHaveBeenCalledWith({
+        variant: 'destructive',
+        title: 'Legacy Title',
+        description: 'Legacy Error Message',
+        duration: 4000,
+      });
+    });
+
+    it('correctly performs deep merge of nested configurations (captureFailure & toastOnError) between defaultConfig and runConfig', async () => {
+      const { result } = renderHook(() =>
+        useAsyncAction({
+          captureFailure: {
+            flow: 'default_flow',
+            step: 'default_step',
+            level: 'info',
+          },
+          toastOnError: {
+            title: 'Default Title',
+            description: 'Default Description',
+            duration: 3000,
+          },
+        })
+      );
+
+      const error = new Error('action failed');
+      const actionFn = vi.fn().mockRejectedValue(error);
+
+      await act(async () => {
+        await result.current.run(actionFn, {
+          captureFailure: {
+            flow: 'override_flow',
+            step: 'override_step',
+          },
+          toastOnError: {
+            description: 'Override Description',
+          },
+          throwError: false,
+        });
+      });
+
+      expect(captureFlowFailure).toHaveBeenCalledWith({
+        flow: 'override_flow',
+        step: 'override_step',
+        message: 'action failed',
+        level: 'info',
+        errorCode: undefined,
+      });
+
+      expect(mockToast).toHaveBeenCalledWith({
+        variant: 'destructive',
+        title: 'Default Title',
+        description: 'Override Description',
+        duration: 3000,
+      });
+    });
   });
 
   it('should sanitize query parameters and JSON-like strings in error message before calling captureFlowFailure to protect PII', async () => {
