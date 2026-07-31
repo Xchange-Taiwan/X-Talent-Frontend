@@ -83,7 +83,7 @@ describe('useProfileSubmit (Hook Layer)', () => {
     expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: 'profile_update',
-        step: 'unexpected',
+        step: 'update_profile',
         message: 'Save failed',
       })
     );
@@ -108,7 +108,7 @@ describe('useProfileSubmit (Hook Layer)', () => {
     expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: 'profile_update',
-        step: 'unexpected',
+        step: 'update_profile',
         message: 'Some string error',
       })
     );
