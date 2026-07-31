@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { captureFlowFailure, sanitize } from '@/lib/monitoring';
 import { mockToast } from '@/test/mocks/useToast';
 
-import useAsyncAction, { ConcurrentActionError } from './useAsyncAction';
+import useAsyncAction from './useAsyncAction';
 
 // Mock Dependencies
 vi.mock('@/components/ui/use-toast', async () => {
@@ -490,7 +490,7 @@ describe('useAsyncAction', () => {
     });
   });
 
-  it('should prevent concurrent execution and throw ConcurrentActionError if preventConcurrent is true (default) and throwError is true', async () => {
+  it('should prevent concurrent execution and return a non-resolving promise if preventConcurrent is true (default) and throwError is true', async () => {
     let resolveAction!: (value: string) => void;
     const actionPromise = new Promise<string>((resolve) => {
       resolveAction = resolve;
@@ -507,14 +507,12 @@ describe('useAsyncAction', () => {
 
     expect(result.current.isPending).toBe(true);
 
-    // 當處於 Pending 且 throwError 為 true 時，第二次呼叫 run 應該拋出 ConcurrentActionError，確保控制流程正常且不發生記憶體洩漏
-    let runPromise2!: Promise<string>;
+    // 當處於 Pending 且 throwError 為 true 時，第二次呼叫 run 應該回傳不 resolve 的 Promise，防止重複觸發且不破壞外層控制流
     act(() => {
-      runPromise2 = result.current.run(secondActionSpy) as Promise<string>;
+      result.current.run(secondActionSpy);
     });
 
     await act(async () => {
-      await expect(runPromise2).rejects.toThrow(ConcurrentActionError);
       expect(secondActionSpy).not.toHaveBeenCalled();
 
       resolveAction('first-result');

@@ -131,18 +131,6 @@ type RunReturnType<TRunThrow extends boolean, T> = TRunThrow extends false
   : T;
 
 /**
- * 當非同步操作正在執行中，且開啟了防連擊/並發防護時，重複點擊所拋出的專用錯誤。
- * 呼叫端與全域監控系統（如 Sentry）可輕易識別此型別並進行過濾/靜默處理，避免垃圾日誌。
- */
-export class ConcurrentActionError extends Error {
-  constructor() {
-    super('Action is already pending');
-    this.name = 'ConcurrentActionError';
-    Object.setPrototypeOf(this, ConcurrentActionError.prototype);
-  }
-}
-
-/**
  * 萬能非同步生命週期、並發防護、錯誤追蹤與 Toast 核心 Hook
  *
  * 統一處理 loading 狀態、並發防護、Sentry 紀錄 (captureFlowFailure) 與 Toast 顯示。
@@ -200,9 +188,9 @@ export default function useAsyncAction<TDefaultThrow extends boolean = true>(
       // 並發防護：若當前正在執行中且開啟了 concurrency 限制
       if (isPreventConcurrent && pendingCountRef.current > 0) {
         if (isThrowError) {
-          // 預設為 true 時，拋出專用自訂 Error 以防止呼叫端因收到 undefined 導致解構/存取崩潰，兼顧型別安全與執行期防禦
-          // 自訂 Error 能讓全域錯誤監聽器（如 Sentry）或呼叫端輕易識別並過濾該型別，避免垃圾日誌，同時確保 await 能釋放且 finally 可正常執行
-          throw new ConcurrentActionError();
+          // 預設為 true 時，回傳一個永遠不 resolve 的 Promise 以靜默中斷執行鍊
+          // 這能保障 await 釋放，且不會誤觸上游呼叫端的 try-catch 區塊，避免重複/意外彈出錯誤提示（解決 Leaky Abstraction 問題）
+          return new Promise<never>(() => {});
         }
         return returnUndefined();
       }
