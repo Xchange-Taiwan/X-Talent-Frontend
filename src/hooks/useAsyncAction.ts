@@ -149,12 +149,30 @@ export default function useAsyncAction<TDefaultThrow extends boolean = true>(
       fn: () => Promise<T>,
       runConfig?: AsyncActionConfig<TRunThrow>
     ): Promise<T | undefined> => {
+      const mergedCaptureFailure =
+        defaultConfigRef.current?.captureFailure || runConfig?.captureFailure
+          ? {
+              ...defaultConfigRef.current?.captureFailure,
+              ...runConfig?.captureFailure,
+            }
+          : undefined;
+
+      const mergedToastOnError =
+        defaultConfigRef.current?.toastOnError || runConfig?.toastOnError
+          ? {
+              ...defaultConfigRef.current?.toastOnError,
+              ...runConfig?.toastOnError,
+            }
+          : undefined;
+
       const config = {
         throwError: true as unknown as TRunThrow,
         preventConcurrent: true,
         resetPendingOnSuccess: true,
         ...defaultConfigRef.current,
         ...runConfig,
+        captureFailure: mergedCaptureFailure,
+        toastOnError: mergedToastOnError,
       };
 
       // 並發防護：若當前正在執行中且開啟了 concurrency 限制，直接忽略此次操作

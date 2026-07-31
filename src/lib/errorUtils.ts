@@ -15,3 +15,12 @@ export function getSafeErrorMessage(error: unknown): string {
   }
   return 'Unknown error';
 }
+
+/**
+ * Extract error message if available, otherwise return default Chinese fallback.
+ * Recommended for standard error handling within components/hooks.
+ */
+export function getErrorMessage(error: unknown): string {
+  const msg = getSafeErrorMessage(error);
+  return msg !== 'Unknown error' ? msg : '發生錯誤，請稍後再試。';
+}

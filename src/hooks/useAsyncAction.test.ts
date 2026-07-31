@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { captureFlowFailure } from '@/lib/monitoring';
+import { captureFlowFailure, sanitize } from '@/lib/monitoring';
 import { mockToast } from '@/test/mocks/useToast';
 
 import useAsyncAction from './useAsyncAction';
@@ -17,10 +17,12 @@ vi.mock('@/lib/monitoring', async (importOriginal) => {
   return {
     ...actual,
     captureFlowFailure: vi.fn(),
+    sanitize: vi.fn(actual.sanitize),
   };
 });
 
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
+const mockSanitize = vi.mocked(sanitize);
 
 class LoggedError extends Error {
   constructor(message?: string) {
@@ -614,6 +616,150 @@ describe('useAsyncAction', () => {
       resolveAction('unmounted-done');
       const res = await runPromise;
       expect(res).toBe('unmounted-done');
+    });
+  });
+
+  describe('exceptional safeSanitize behavior', () => {
+    it('gracefully uses fallback when sanitize throws an error', async () => {
+      mockSanitize.mockImplementationOnce(() => {
+        throw new Error('mock sanitize error');
+      });
+
+      const { result } = renderHook(() =>
+        useAsyncAction({
+          captureFailure: {
+            flow: 'test_flow',
+            step: 'test_step',
+          },
+        })
+      );
+
+      await act(async () => {
+        await expect(
+          result.current.run(() => Promise.reject(new Error('raw-error')))
+        ).rejects.toThrow('raw-error');
+      });
+
+      expect(captureFlowFailure).toHaveBeenCalledWith({
+        flow: 'test_flow',
+        step: 'test_step',
+        message: '[Sanitization failed]',
+        level: undefined,
+        errorCode: undefined,
+      });
+    });
+
+    it('gracefully uses fallback when sanitize returns undefined', async () => {
+      mockSanitize.mockReturnValueOnce(undefined as any);
+
+      const { result } = renderHook(() =>
+        useAsyncAction({
+          captureFailure: {
+            flow: 'test_flow',
+            step: 'test_step',
+          },
+        })
+      );
+
+      await act(async () => {
+        await expect(
+          result.current.run(() => Promise.reject(new Error('raw-error')))
+        ).rejects.toThrow('raw-error');
+      });
+
+      expect(captureFlowFailure).toHaveBeenCalledWith({
+        flow: 'test_flow',
+        step: 'test_step',
+        message: '[Sanitization failed]',
+        level: undefined,
+        errorCode: undefined,
+      });
+    });
+  });
+
+  describe('backward compatibility and deep nesting merging', () => {
+    it('supports backward compatibility for deprecated flat config parameters', async () => {
+      const { result } = renderHook(() =>
+        useAsyncAction({
+          flow: 'legacy_flow',
+          step: 'legacy_step',
+          level: 'warning',
+          message: 'legacy-custom-message',
+          errorTitle: 'Legacy Title',
+          errorMessage: 'Legacy Error Message',
+          duration: 4000,
+        })
+      );
+
+      const error = new Error('raw error');
+      const actionFn = vi.fn().mockRejectedValue(error);
+
+      await act(async () => {
+        await result.current.run(actionFn, { throwError: false });
+      });
+
+      expect(captureFlowFailure).toHaveBeenCalledWith({
+        flow: 'legacy_flow',
+        step: 'legacy_step',
+        message: 'legacy-custom-message',
+        level: 'warning',
+        errorCode: undefined,
+      });
+
+      expect(mockToast).toHaveBeenCalledWith({
+        variant: 'destructive',
+        title: 'Legacy Title',
+        description: 'Legacy Error Message',
+        duration: 4000,
+      });
+    });
+
+    it('correctly performs deep merge of nested configurations (captureFailure & toastOnError) between defaultConfig and runConfig', async () => {
+      const { result } = renderHook(() =>
+        useAsyncAction({
+          captureFailure: {
+            flow: 'default_flow',
+            step: 'default_step',
+            level: 'info',
+          },
+          toastOnError: {
+            title: 'Default Title',
+            description: 'Default Description',
+            duration: 3000,
+          },
+        })
+      );
+
+      const error = new Error('action failed');
+      const actionFn = vi.fn().mockRejectedValue(error);
+
+      await act(async () => {
+        await result.current.run(actionFn, {
+          captureFailure: {
+            flow: 'override_flow',
+            step: 'override_step',
+          },
+          toastOnError: {
+            description: 'Override Description',
+          },
+          throwError: false,
+        });
+      });
+
+      expect(captureFlowFailure).toHaveBeenCalledWith({
+        flow: 'override_flow',
+        step: 'override_step',
+        message: 'action failed',
+        level: 'info',
+        errorCode: undefined,
+      });
+
+      expect(mockToast).toHaveBeenCalledWith({
+        variant: 'destructive',
+        title: 'Default Title',
+        description: 'Override Description',
+        duration: 3000,
+      });
     });
   });
 });
