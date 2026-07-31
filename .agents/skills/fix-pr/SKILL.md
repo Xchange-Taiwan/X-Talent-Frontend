@@ -33,15 +33,7 @@ Repeat the following up to **20 times**. If still not converged after 20 rounds,
 
 ### 2a. Gather signal
 
-- **AI Review findings** — fetch PR comments and find the one from the AI Review pipeline by its marker (`<!-- ai-review-pipeline -->`, defined in `scripts/ai-review/lib/format-comment.mjs`):
-
-  ```bash
-  gh pr view $PR_NUMBER --json comments --jq '.comments[] | select(.body | contains("<!-- ai-review-pipeline -->")) | .body'
-  ```
-
-  This is the **only** AI reviewer in this repo (`.github/workflows/ai-review.yml`, Gemini-based) — there is no CodeRabbit or similar. The comment has sections per category (Business Logic, Security, Correctness, Performance, Testing, Architecture) that each either say "no findings" or list concrete `file:line` / issue / why / suggested fix entries, plus an `Overall Risk` line (`low` / `medium` / `high`). Note the comment explicitly says it's advisory and does not block merge — that's a GitHub-level fact, not a reason to skip fixing real findings.
-
-- **Pipeline check status** — wait for and read the state of PR checks:
+- **Pipeline check status first** — wait for PR checks to finish before reading anything they produce:
 
   ```bash
   gh pr checks $PR_NUMBER --watch
@@ -53,7 +45,17 @@ Repeat the following up to **20 times**. If still not converged after 20 rounds,
   - `Deploy PR Preview to Vercel` (deploy-pr.yml) — **only the build step**, see 2b for the deploy-quota exception
   - `Security Audit & Unused Dependencies` (security.yml)
   - `Bundle Size Budget Check` (performance.yml)
-  - `AI Review: Final Summary` (ai-review.yml) — not a pass/fail gate itself, but wait for it so the comment in 2a is current for this round
+  - `AI Review: Final Summary` (ai-review.yml) — not a pass/fail gate itself, but it's the job that (re)writes the AI Review comment, so it **must** be waited on here too
+
+  **This ordering matters**: `AI Review: Final Summary` overwrites the same PR comment (via its marker) on every push. If the comment is fetched before this check finishes, a mid-loop round reads the _previous_ round's stale comment — leading to fixes for already-resolved findings, or a false "converged" verdict while the real, current findings haven't loaded yet. Always finish waiting on checks before reading the comment below.
+
+- **AI Review findings** — now that `AI Review: Final Summary` has completed, fetch PR comments and find the one from the AI Review pipeline by its marker (`<!-- ai-review-pipeline -->`, defined in `scripts/ai-review/lib/format-comment.mjs`):
+
+  ```bash
+  gh pr view $PR_NUMBER --json comments --jq '.comments[] | select(.body | contains("<!-- ai-review-pipeline -->")) | .body'
+  ```
+
+  This is the **only** AI reviewer in this repo (`.github/workflows/ai-review.yml`, Gemini-based) — there is no CodeRabbit or similar. The comment has sections per category (Business Logic, Security, Correctness, Performance, Testing, Architecture) that each either say "no findings" or list concrete `file:line` / issue / why / suggested fix entries, plus an `Overall Risk` line (`low` / `medium` / `high`). Note the comment explicitly says it's advisory and does not block merge — that's a GitHub-level fact, not a reason to skip fixing real findings.
 
   Out of scope (never auto-fixed, but still call out failures in the final report so nothing is silently missed): `e2e.yml` and anything else not listed above.
 
