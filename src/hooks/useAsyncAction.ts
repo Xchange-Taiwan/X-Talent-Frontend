@@ -75,17 +75,8 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
 ) {
   const [isPending, setIsPending] = useState(false);
   const { toast } = useToast();
-  const isMounted = useRef(true);
   const pendingCountRef = useRef(0);
   const defaultConfigRef = useRef<AsyncActionConfig<boolean>>(defaultConfig);
-
-  // 追蹤組件掛載狀態，防止在已卸載的組件上執行 setState 導致記憶體洩漏與 React 警告
-  useEffect(() => {
-    isMounted.current = true;
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
 
   // 遵守 React 規範與 Next.js SSR 慣例：使用 useEffect 同步更新 defaultConfigRef，避免 SSR 期間觸發 LayoutEffect 警示
   useEffect(() => {
@@ -121,9 +112,7 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
       // 同步累加執行計數，支援完美的併發狀態管理與極短時間連按防護
       pendingCountRef.current++;
 
-      if (isMounted.current) {
-        setIsPending(true);
-      }
+      setIsPending(true);
 
       let success = false;
       try {
@@ -205,11 +194,9 @@ export function useAsyncAction<TDefaultThrow extends boolean = true>(
 
         // 僅在所有併發非同步操作皆結束時，才重設為非 Pending 狀態
         if (pendingCountRef.current === 0) {
-          if (isMounted.current) {
-            // 若不重置（模擬轉址期間防止按鈕再度點擊），則僅在失敗時將 isPending 設為 false
-            if (!success || config.resetPendingOnSuccess) {
-              setIsPending(false);
-            }
+          // 若不重置（模擬轉址期間防止按鈕再度點擊），則僅在失敗時將 isPending 設為 false
+          if (!success || config.resetPendingOnSuccess) {
+            setIsPending(false);
           }
         }
       }
