@@ -87,7 +87,7 @@ describe('useAsyncAction', () => {
     expect(onErrorMock).toHaveBeenCalledWith(error);
   });
 
-  it('rethrows when rethrow is true', async () => {
+  it('rethrows when throwError is true (default)', async () => {
     const { result } = renderHook(() => useAsyncAction());
 
     const error = new Error('action failed');
@@ -95,7 +95,7 @@ describe('useAsyncAction', () => {
 
     await act(async () => {
       await expect(
-        result.current.run(actionFn, { rethrow: true })
+        result.current.run(actionFn, { throwError: true })
       ).rejects.toThrow('action failed');
     });
 
@@ -843,5 +843,30 @@ describe('useAsyncAction', () => {
 
     expect(val).toBe('post-unmount-data');
     expect(result.current.isPending).toBe(false);
+  });
+
+  it('should be safe if component unmounts while run is pending', async () => {
+    let resolveAction!: (value: string) => void;
+    const actionPromise = new Promise<string>((resolve) => {
+      resolveAction = resolve;
+    });
+
+    const { result, unmount } = renderHook(() => useAsyncAction());
+
+    let runPromise!: Promise<string | undefined>;
+    act(() => {
+      runPromise = result.current.run(() => actionPromise);
+    });
+
+    expect(result.current.isPending).toBe(true);
+
+    // 在 pending 期間卸載組件
+    unmount();
+
+    await act(async () => {
+      resolveAction('resolved-after-unmount');
+      const res = await runPromise;
+      expect(res).toBe('resolved-after-unmount');
+    });
   });
 });

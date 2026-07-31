@@ -124,7 +124,6 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
     variant?: 'default' | 'destructive';
     duration?: number | ((error: unknown) => number | undefined);
   };
-  rethrow?: boolean;
 }
 
 type RunReturnType<TRunThrow extends boolean, T> = TRunThrow extends false
@@ -217,7 +216,7 @@ export default function useAsyncAction<TDefaultThrow extends boolean = true>(
         config.onSuccess?.(result);
         return result as unknown as RunReturnType<TRunThrow, T>;
       } catch (err) {
-        const shouldRethrow = config.rethrow ?? config.throwError;
+        const shouldRethrow = config.throwError;
 
         // 執行外部傳入的錯誤 callback
         if (config.onError) {
