@@ -4,7 +4,8 @@
       "type": "stdio",
       "command": "npx",
       "args": ["-y", "genable-mcp"],
-      "env": {}
+      "env": {},
+      "trust": true
     }
   }
 }
