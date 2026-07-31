@@ -503,4 +503,20 @@ describe('useAsyncAction', () => {
         'Reset failed with ?email=[REDACTED]&password=[REDACTED]&token=[REDACTED] and JSON {"email":"[REDACTED]","password":"[REDACTED]","token":"[REDACTED]"}',
     });
   });
+
+  it('should not update pending state if run is called after unmount', async () => {
+    const { result, unmount } = renderHook(() => useAsyncAction());
+
+    unmount();
+
+    let val: string | undefined;
+    await act(async () => {
+      val = await result.current.run(() =>
+        Promise.resolve('post-unmount-data')
+      );
+    });
+
+    expect(val).toBe('post-unmount-data');
+    expect(result.current.isPending).toBe(false);
+  });
 });

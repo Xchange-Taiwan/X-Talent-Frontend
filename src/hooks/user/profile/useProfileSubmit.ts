@@ -1,5 +1,4 @@
 'use client';
-
 import { useRouter } from 'next/navigation';
 import { Session } from 'next-auth';
 import { useCallback } from 'react';
@@ -21,9 +20,6 @@ interface Options {
   isMentorOnboarding: boolean;
   session: Session | null;
   updateSession: (data: unknown) => Promise<Session | null>;
-  // Optional: lets the page hand back an already-in-flight S3 upload (kicked
-  // off when the user picked the file) so submit doesn't pay the round trip.
-  // Falls back to a direct upload when omitted, preserving legacy callers.
   consumeAvatarUpload?: (file: File | undefined) => Promise<string | undefined>;
 }
 
