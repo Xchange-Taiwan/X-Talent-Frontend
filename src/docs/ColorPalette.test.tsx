@@ -107,6 +107,36 @@ describe('ColorPalette Component', () => {
     );
     consoleErrorSpy.mockRestore();
   });
+
+  it('handles clipboard copy error gracefully when clipboard API is completely undefined', async () => {
+    const consoleWarnSpy = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => {});
+
+    // Temporarily delete clipboard API
+    const originalClipboard = navigator.clipboard;
+    Object.defineProperty(navigator, 'clipboard', {
+      value: undefined,
+      writable: true,
+    });
+
+    render(<ColorPalette />);
+
+    // Click to copy the Brand 50 color
+    const brand50Block = screen.getAllByTitle('點擊複製 HEX 值')[0];
+    fireEvent.click(brand50Block);
+
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      'Clipboard API not supported in this environment'
+    );
+
+    // Restore original clipboard
+    Object.defineProperty(navigator, 'clipboard', {
+      value: originalClipboard,
+      writable: true,
+    });
+    consoleWarnSpy.mockRestore();
+  });
 });
 
 describe('hslToHex Utility Function', () => {
@@ -130,14 +160,20 @@ describe('hslToHex Utility Function', () => {
     expect(hslToHex('300 100% 50%')).toBe('#FF00FF');
   });
 
-  it('handles hue=360 and wrapping correctly', () => {
+  it('handles hue=360, negative hue values, and wrapping correctly', () => {
     // Hue 360 is mathematically equivalent to 0 (Red)
     expect(hslToHex('360 100% 50%')).toBe('#FF0000');
     expect(hslToHex('720 100% 50%')).toBe('#FF0000');
+
+    // Negative hue -120 is congruent to 240 (Blue)
+    expect(hslToHex('-120 100% 50%')).toBe('#0000FF');
+    expect(hslToHex('-60 100% 50%')).toBe('#FF00FF');
   });
 
-  it('returns black fallback for invalid or empty HSL values', () => {
+  it('returns black fallback for invalid or empty HSL values and NaNs', () => {
     expect(hslToHex('')).toBe('#000000');
     expect(hslToHex('180')).toBe('#000000');
+    expect(hslToHex('NaN 100% 50%')).toBe('#000000');
+    expect(hslToHex('120 NaN 50%')).toBe('#000000');
   });
 });

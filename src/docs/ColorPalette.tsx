@@ -7,7 +7,7 @@ import {
   List,
   Search,
 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 import { rawColors } from '../design/tokens/color-values';
 
@@ -35,8 +35,11 @@ export function hslToHex(hslStr: string): string {
   const s = parseFloat(parts[1].replace('%', '')) / 100;
   const l = parseFloat(parts[2].replace('%', '')) / 100;
 
+  // Handle NaN checks
+  if (isNaN(hRaw) || isNaN(s) || isNaN(l)) return '#000000';
+
   // Handle h=360 or wrapping correctly
-  const h = hRaw % 360;
+  const h = ((hRaw % 360) + 360) % 360;
 
   const c = (1 - Math.abs(2 * l - 1)) * s;
   const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
@@ -190,24 +193,27 @@ export const ColorPalette: React.FC = () => {
       try {
         await navigator.clipboard.writeText(value);
         setCopiedValue(`${type}:${value}`);
-        setTimeout(() => {
-          setCopiedValue(null);
-        }, 1500);
       } catch (err) {
         console.error('Failed to copy to clipboard:', err);
         setCopiedValue(`failed:${type}:${value}`);
-        setTimeout(() => {
-          setCopiedValue(null);
-        }, 2500);
       }
     } else {
       console.warn('Clipboard API not supported in this environment');
       setCopiedValue(`failed:${type}:${value}`);
-      setTimeout(() => {
-        setCopiedValue(null);
-      }, 2500);
     }
   };
+
+  useEffect(() => {
+    if (!copiedValue) return;
+
+    // Use a longer display time for failure alerts
+    const duration = copiedValue.startsWith('failed:') ? 2500 : 1500;
+    const timer = setTimeout(() => {
+      setCopiedValue(null);
+    }, duration);
+
+    return () => clearTimeout(timer);
+  }, [copiedValue]);
 
   const isCopied = (value: string, type: string) =>
     copiedValue === `${type}:${value}`;
