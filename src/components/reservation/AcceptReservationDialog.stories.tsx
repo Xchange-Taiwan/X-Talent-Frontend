@@ -4,13 +4,13 @@ import AcceptReservationDialog from './AcceptReservationDialog';
 import { mockReservation } from './mocks';
 
 const meta: Meta<typeof AcceptReservationDialog> = {
-  title: 'Components/Reservation/AcceptReservationDialog',
+  title: '業務模組元件/預約管理(Reservation)/AcceptReservationDialog',
   component: AcceptReservationDialog,
   tags: ['autodocs'],
   argTypes: {
     disabled: {
       control: 'boolean',
-      description: 'Whether the dialog trigger and action buttons are disabled',
+      description: '對話框的觸發器與操作按鈕是否已被禁用',
     },
   },
 };

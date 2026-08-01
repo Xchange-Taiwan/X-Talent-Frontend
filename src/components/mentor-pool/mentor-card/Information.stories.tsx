@@ -5,7 +5,7 @@ import { mockMentors } from '../__mocks__/mentors.mock';
 import { Information } from './Information';
 
 const meta: Meta<typeof Information> = {
-  title: 'Components/MentorPool/Information',
+  title: '業務模組元件/導師池(MentorPool)/Information',
   component: Information,
   tags: ['autodocs'],
   decorators: [

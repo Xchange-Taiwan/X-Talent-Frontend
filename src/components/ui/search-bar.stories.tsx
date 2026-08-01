@@ -3,13 +3,13 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import SearchBar from './search-bar';
 
 const meta: Meta<typeof SearchBar> = {
-  title: 'Components/UI/SearchBar',
+  title: '基礎/原子元件/SearchBar',
   component: SearchBar,
   tags: ['autodocs'],
   argTypes: {
     placeholder: {
       control: 'text',
-      description: 'The placeholder text of the search bar',
+      description: '搜尋列的預設提示文字 (placeholder)',
     },
   },
 };

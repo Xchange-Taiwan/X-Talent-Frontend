@@ -5,7 +5,7 @@ import { mockMentors } from '../__mocks__/mentors.mock';
 import { AvatarWithBadge } from './AvatarWithBadge';
 
 const meta: Meta<typeof AvatarWithBadge> = {
-  title: 'Components/MentorPool/AvatarWithBadge',
+  title: '業務模組元件/導師池(MentorPool)/AvatarWithBadge',
   component: AvatarWithBadge,
   tags: ['autodocs'],
   decorators: [

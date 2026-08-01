@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import AuthLink from './AuthLink';
 
 const meta: Meta<typeof AuthLink> = {
-  title: 'Components/Auth/AuthLink',
+  title: '業務模組元件/會員驗證(Auth)/AuthLink',
   component: AuthLink,
   tags: ['autodocs'],
 };

@@ -8,7 +8,7 @@ import { OnboardingStepDemoWrapper } from './OnboardingStoryWrapper';
 import { SkillsToImprove } from './SkillsToImprove';
 
 const meta: Meta<typeof SkillsToImprove> = {
-  title: 'Components/Onboarding/Steps/SkillsToImprove',
+  title: '業務模組元件/新手引導(Onboarding)/Steps/SkillsToImprove',
   component: SkillsToImprove,
   tags: ['autodocs'],
 };

@@ -8,7 +8,7 @@ import { InterestedPosition } from './InterestedPosition';
 import { OnboardingStepDemoWrapper } from './OnboardingStoryWrapper';
 
 const meta: Meta<typeof InterestedPosition> = {
-  title: 'Components/Onboarding/Steps/InterestedPosition',
+  title: '業務模組元件/新手引導(Onboarding)/Steps/InterestedPosition',
   component: InterestedPosition,
   tags: ['autodocs'],
 };

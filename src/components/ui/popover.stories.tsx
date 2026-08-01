@@ -5,7 +5,7 @@ import { Button } from './button';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
 
 const meta: Meta<typeof Popover> = {
-  title: 'Components/UI/Popover',
+  title: '基礎/原子元件/Popover',
   component: Popover,
   tags: ['autodocs'],
 };

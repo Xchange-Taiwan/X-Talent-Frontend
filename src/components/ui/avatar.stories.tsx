@@ -4,7 +4,7 @@ import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from './avatar';
 
 const meta: Meta<typeof Avatar> = {
-  title: 'Components/UI/Avatar',
+  title: '基礎/原子元件/Avatar',
   component: Avatar,
   tags: ['autodocs'],
 };

@@ -5,14 +5,14 @@ import React from 'react';
 import { Badge } from './badge';
 
 const meta: Meta<typeof Badge> = {
-  title: 'Components/UI/Badge',
+  title: '基礎/原子元件/Badge',
   component: Badge,
   tags: ['autodocs'],
   argTypes: {
     variant: {
       control: 'select',
       options: ['default', 'secondary', 'destructive', 'outline', 'filter'],
-      description: 'The visual style variant of the badge',
+      description: '徽章的視覺樣式變體',
     },
   },
   args: {

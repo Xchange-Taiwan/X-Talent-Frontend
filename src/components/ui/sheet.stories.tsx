@@ -13,7 +13,7 @@ import {
 } from './sheet';
 
 const meta: Meta<typeof Sheet> = {
-  title: 'Components/UI/Sheet',
+  title: '基礎/原子元件/Sheet',
   component: Sheet,
   tags: ['autodocs'],
 };

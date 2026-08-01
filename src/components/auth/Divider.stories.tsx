@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import Divider from './Divider';
 
 const meta: Meta<typeof Divider> = {
-  title: 'Components/Auth/Divider',
+  title: '業務模組元件/會員驗證(Auth)/Divider',
   component: Divider,
   tags: ['autodocs'],
 };

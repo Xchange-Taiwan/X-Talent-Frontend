@@ -12,7 +12,7 @@ import {
 } from './select';
 
 const meta: Meta<typeof Select> = {
-  title: 'Components/UI/Select',
+  title: '基礎/原子元件/Select',
   component: Select,
   tags: ['autodocs'],
 };

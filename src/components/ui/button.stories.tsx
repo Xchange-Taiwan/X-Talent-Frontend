@@ -5,7 +5,7 @@ import React from 'react';
 import { Button } from './button';
 
 const meta: Meta<typeof Button> = {
-  title: 'Components/UI/Button',
+  title: '基礎/原子元件/Button',
   component: Button,
   tags: ['autodocs'],
   argTypes: {
@@ -19,26 +19,25 @@ const meta: Meta<typeof Button> = {
         'ghost',
         'link',
       ],
-      description: 'The visual style variant of the button',
+      description: '按鈕的視覺樣式變體',
     },
     size: {
       control: 'select',
       options: ['default', 'sm', 'lg', 'icon'],
-      description: 'The size of the button',
+      description: '按鈕的大小',
     },
     shape: {
       control: 'select',
       options: ['default', 'pill'],
-      description: 'The shape / border-radius of the button',
+      description: '按鈕的形狀/邊角半徑',
     },
     disabled: {
       control: 'boolean',
-      description: 'Whether the button is disabled',
+      description: '按鈕是否已被禁用',
     },
     asChild: {
       control: 'boolean',
-      description:
-        'Change the default rendered element to the one passed as a child',
+      description: '將預設渲染的元素變更為作為子元件傳遞的元素',
     },
   },
   args: {

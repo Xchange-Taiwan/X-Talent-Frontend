@@ -4,7 +4,7 @@ import React from 'react';
 import { Skeleton } from './skeleton';
 
 const meta: Meta<typeof Skeleton> = {
-  title: 'Components/UI/Skeleton',
+  title: '基礎/原子元件/Skeleton',
   component: Skeleton,
   tags: ['autodocs'],
 };

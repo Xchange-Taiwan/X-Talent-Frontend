@@ -9,7 +9,7 @@ import { SignUpSchema } from '@/schemas/auth';
 import TermsOfServiceCheckbox from './TermsOfServiceCheckbox';
 
 const meta: Meta<typeof TermsOfServiceCheckbox> = {
-  title: 'Components/Auth/TermsOfServiceCheckbox',
+  title: '業務模組元件/會員驗證(Auth)/TermsOfServiceCheckbox',
   component: TermsOfServiceCheckbox,
   tags: ['autodocs'],
 };

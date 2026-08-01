@@ -3,17 +3,17 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import { ReservationStatusBadge } from './ReservationStatusBadge';
 
 const meta: Meta<typeof ReservationStatusBadge> = {
-  title: 'Components/Reservation/ReservationStatusBadge',
+  title: '業務模組元件/預約管理(Reservation)/ReservationStatusBadge',
   component: ReservationStatusBadge,
   tags: ['autodocs'],
   argTypes: {
     dtstart: {
       control: 'number',
-      description: 'Reservation start time (Unix epoch seconds)',
+      description: '預約開始時間 (Unix 紀元秒數)',
     },
     dtend: {
       control: 'number',
-      description: 'Reservation end time (Unix epoch seconds)',
+      description: '預約結束時間 (Unix 紀元秒數)',
     },
   },
 };

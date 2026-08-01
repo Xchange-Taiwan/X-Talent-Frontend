@@ -4,7 +4,7 @@ import { mockBookingSlots } from './__mocks__/reservationStories.mock';
 import { MentorScheduleConfig } from './MentorScheduleConfig';
 
 const meta: Meta<typeof MentorScheduleConfig> = {
-  title: 'Components/Profile/Reservation/MentorScheduleConfig',
+  title: '業務模組元件/個人檔案(Profile)/Reservation/MentorScheduleConfig',
   component: MentorScheduleConfig,
   tags: ['autodocs'],
 };

@@ -6,7 +6,7 @@ import { Toaster } from './toaster';
 import { useToast } from './use-toast';
 
 const meta: Meta<typeof Toaster> = {
-  title: 'Components/UI/Toaster',
+  title: '基礎/原子元件/Toaster',
   component: Toaster,
   tags: ['autodocs'],
 };

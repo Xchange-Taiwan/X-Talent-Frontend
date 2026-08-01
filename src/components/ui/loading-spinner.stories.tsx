@@ -4,18 +4,18 @@ import React from 'react';
 import { LoadingSpinner, PageLoading } from './loading-spinner';
 
 const meta: Meta<typeof LoadingSpinner> = {
-  title: 'Components/UI/LoadingSpinner',
+  title: '基礎/原子元件/LoadingSpinner',
   component: LoadingSpinner,
   tags: ['autodocs'],
   argTypes: {
     size: {
       control: 'select',
       options: ['sm', 'md', 'lg'],
-      description: 'The size of the loading spinner',
+      description: '載入中旋轉圖示的大小',
     },
     label: {
       control: 'text',
-      description: 'The accessibility label for screen readers',
+      description: '螢幕閱讀器的無障礙標籤 (aria-label)',
     },
   },
   args: {

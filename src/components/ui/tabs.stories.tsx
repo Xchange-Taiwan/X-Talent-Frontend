@@ -4,7 +4,7 @@ import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './tabs';
 
 const meta: Meta<typeof Tabs> = {
-  title: 'Components/UI/Tabs',
+  title: '基礎/原子元件/Tabs',
   component: Tabs,
   tags: ['autodocs'],
 };

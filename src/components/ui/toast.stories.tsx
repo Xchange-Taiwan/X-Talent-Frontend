@@ -12,7 +12,7 @@ import {
 } from './toast';
 
 const meta: Meta<typeof Toast> = {
-  title: 'Components/UI/Toast',
+  title: '基礎/原子元件/Toast',
   component: Toast,
   tags: ['autodocs'],
 };

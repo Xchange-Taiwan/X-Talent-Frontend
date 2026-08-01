@@ -23,7 +23,7 @@ const mockIndustries: IndustryOption[] = [
 ];
 
 const meta: Meta<typeof PersonalInfo> = {
-  title: 'Onboarding/Steps/PersonalInfo',
+  title: '業務模組元件/新手引導(Onboarding)/Steps/PersonalInfo',
   component: PersonalInfo,
   tags: ['autodocs'],
 };

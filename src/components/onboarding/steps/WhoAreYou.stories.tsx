@@ -6,7 +6,7 @@ import { OnboardingStoryWrapper } from './OnboardingStoryWrapper';
 import { WhoAreYou } from './WhoAreYou';
 
 const meta: Meta<typeof WhoAreYou> = {
-  title: 'Onboarding/Steps/WhoAreYou',
+  title: '業務模組元件/新手引導(Onboarding)/Steps/WhoAreYou',
   component: WhoAreYou,
   tags: ['autodocs'],
 };

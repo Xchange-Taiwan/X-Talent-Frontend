@@ -12,7 +12,7 @@ import {
 } from './command';
 
 const meta: Meta<typeof Command> = {
-  title: 'Components/UI/Command',
+  title: '基礎/原子元件/Command',
   component: Command,
   tags: ['autodocs'],
 };

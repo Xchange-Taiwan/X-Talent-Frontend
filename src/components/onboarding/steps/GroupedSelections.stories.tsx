@@ -10,7 +10,7 @@ import { mockPositionGroups } from '@/test/fixtures/tagCatalog';
 import { GroupedSelections } from './GroupedSelections';
 
 const meta: Meta<typeof GroupedSelections> = {
-  title: 'Components/Onboarding/Steps/GroupedSelections',
+  title: '業務模組元件/新手引導(Onboarding)/Steps/GroupedSelections',
   component: GroupedSelections,
   tags: ['autodocs'],
 };

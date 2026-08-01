@@ -4,7 +4,7 @@ import React from 'react';
 import { MobileUserMenu } from './MobileUserMenu';
 
 const meta: Meta<typeof MobileUserMenu> = {
-  title: 'Layout/Header/MobileUserMenu',
+  title: '佈局元件/Header/MobileUserMenu',
   component: MobileUserMenu,
   tags: ['autodocs'],
   parameters: {

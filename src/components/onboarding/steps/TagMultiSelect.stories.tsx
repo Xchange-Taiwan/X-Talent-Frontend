@@ -10,7 +10,7 @@ import { mockSkillGroups } from '@/test/fixtures/tagCatalog';
 import { TagMultiSelect } from './TagMultiSelect';
 
 const meta: Meta<typeof TagMultiSelect> = {
-  title: 'Components/Onboarding/Steps/TagMultiSelect',
+  title: '業務模組元件/新手引導(Onboarding)/Steps/TagMultiSelect',
   component: TagMultiSelect,
   tags: ['autodocs'],
 };

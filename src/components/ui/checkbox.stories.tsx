@@ -5,17 +5,17 @@ import { Checkbox } from './checkbox';
 import { Label } from './label';
 
 const meta: Meta<typeof Checkbox> = {
-  title: 'Components/UI/Checkbox',
+  title: '基礎/原子元件/Checkbox',
   component: Checkbox,
   tags: ['autodocs'],
   argTypes: {
     disabled: {
       control: 'boolean',
-      description: 'Whether the checkbox is disabled',
+      description: '核取方塊是否已被禁用',
     },
     checked: {
       control: 'boolean',
-      description: 'Whether the checkbox is checked',
+      description: '核取方塊是否已被勾選',
     },
   },
 };

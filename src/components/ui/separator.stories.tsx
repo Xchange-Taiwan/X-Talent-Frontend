@@ -4,14 +4,14 @@ import React from 'react';
 import { Separator } from './separator';
 
 const meta: Meta<typeof Separator> = {
-  title: 'Components/UI/Separator',
+  title: '基礎/原子元件/Separator',
   component: Separator,
   tags: ['autodocs'],
   argTypes: {
     orientation: {
       control: 'select',
       options: ['horizontal', 'vertical'],
-      description: 'The orientation of the separator',
+      description: '分隔線的方向',
     },
   },
 };

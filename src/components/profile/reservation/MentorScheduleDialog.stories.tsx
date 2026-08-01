@@ -9,7 +9,7 @@ import type {
 import MentorScheduleDialog from './MentorScheduleDialog';
 
 const meta: Meta<typeof MentorScheduleDialog> = {
-  title: 'Components/Profile/Reservation/MentorScheduleDialog',
+  title: '業務模組元件/個人檔案(Profile)/Reservation/MentorScheduleDialog',
   component: MentorScheduleDialog,
   tags: ['autodocs'],
   parameters: {

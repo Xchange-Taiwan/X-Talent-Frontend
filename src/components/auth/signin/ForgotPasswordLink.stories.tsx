@@ -4,7 +4,7 @@ import React from 'react';
 import ForgotPasswordLink from './ForgotPasswordLink';
 
 const meta: Meta<typeof ForgotPasswordLink> = {
-  title: 'Components/Auth/ForgotPasswordLink',
+  title: '業務模組元件/會員驗證(Auth)/ForgotPasswordLink',
   component: ForgotPasswordLink,
   tags: ['autodocs'],
 };

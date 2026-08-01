@@ -3,17 +3,17 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import { Textarea } from './textarea';
 
 const meta: Meta<typeof Textarea> = {
-  title: 'Components/UI/Textarea',
+  title: '基礎/原子元件/Textarea',
   component: Textarea,
   tags: ['autodocs'],
   argTypes: {
     disabled: {
       control: 'boolean',
-      description: 'Whether the textarea is disabled',
+      description: '文字輸入區域是否已被禁用',
     },
     placeholder: {
       control: 'text',
-      description: 'The placeholder text of the textarea',
+      description: '文字輸入區域的預設提示文字 (placeholder)',
     },
   },
   args: {

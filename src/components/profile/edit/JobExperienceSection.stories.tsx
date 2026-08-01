@@ -24,7 +24,7 @@ const industriesMock = [
 ];
 
 const meta: Meta<typeof JobExperienceSection> = {
-  title: 'Components/Profile/Edit/JobExperienceSection',
+  title: '業務模組元件/個人檔案(Profile)/Edit/JobExperienceSection',
   component: JobExperienceSection,
   tags: ['autodocs'],
   args: {

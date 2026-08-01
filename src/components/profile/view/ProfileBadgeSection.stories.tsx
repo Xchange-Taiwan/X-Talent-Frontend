@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import { ProfileBadgeSection } from './ProfileBadgeSection';
 
 const meta: Meta<typeof ProfileBadgeSection> = {
-  title: 'Components/Profile/ProfileBadgeSection',
+  title: '業務模組元件/個人檔案(Profile)/ProfileBadgeSection',
   component: ProfileBadgeSection,
   tags: ['autodocs'],
 };

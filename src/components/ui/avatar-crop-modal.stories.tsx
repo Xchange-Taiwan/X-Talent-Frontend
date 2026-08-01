@@ -5,7 +5,7 @@ import AvatarCropModal from './avatar-crop-modal';
 import { Button } from './button';
 
 const meta: Meta<typeof AvatarCropModal> = {
-  title: 'Components/UI/AvatarCropModal',
+  title: '基礎/原子元件/AvatarCropModal',
   component: AvatarCropModal,
   tags: ['autodocs'],
 };

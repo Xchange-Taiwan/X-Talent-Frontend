@@ -4,7 +4,7 @@ import React from 'react';
 import { DisabledAwareLink } from './DisabledAwareLink';
 
 const meta: Meta<typeof DisabledAwareLink> = {
-  title: 'Layout/Header/DisabledAwareLink',
+  title: '佈局元件/Header/DisabledAwareLink',
   component: DisabledAwareLink,
   tags: ['autodocs'],
   parameters: {
@@ -15,11 +15,11 @@ const meta: Meta<typeof DisabledAwareLink> = {
   argTypes: {
     disabled: {
       control: 'boolean',
-      description: 'Whether the link is disabled',
+      description: '連結是否已被禁用',
     },
     href: {
       control: 'text',
-      description: 'The destination URL',
+      description: '目標連結的 URL',
     },
   },
   args: {

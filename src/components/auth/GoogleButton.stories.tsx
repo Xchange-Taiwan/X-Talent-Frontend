@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import GoogleSignUpButton from './GoogleButton';
 
 const meta: Meta<typeof GoogleSignUpButton> = {
-  title: 'Components/Auth/GoogleButton',
+  title: '業務模組元件/會員驗證(Auth)/GoogleButton',
   component: GoogleSignUpButton,
   tags: ['autodocs'],
 };
