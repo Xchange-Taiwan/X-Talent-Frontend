@@ -40,6 +40,18 @@ describe('MobileUserMenu', () => {
     expect(avatarImg).toBeInTheDocument();
   });
 
+  it('renders correctly with mentor user showing proper alt text', () => {
+    render(
+      <MobileUserMenu
+        user={buildUser({ name: '陳導師 (Mentor)', isMentor: true })}
+      />
+    );
+    const avatarImg = screen.getByRole('img', {
+      name: '陳導師 (Mentor) 的頭像',
+    });
+    expect(avatarImg).toBeInTheDocument();
+  });
+
   it('renders with anonymous user safely with fallback alt text', () => {
     render(
       <MobileUserMenu
