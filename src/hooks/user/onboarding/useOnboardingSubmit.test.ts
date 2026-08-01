@@ -96,7 +96,7 @@ describe('useOnboardingSubmit', () => {
       await result.current.submitProfile(formData, true);
     });
 
-    expect(mockUpdateProfile).toHaveBeenCalledWith(formData);
+    expect(mockUpdateProfile).toHaveBeenCalledWith('123', formData);
     expect(mockBuildOnboardingDtoStub).toHaveBeenCalledWith({
       userId: 123,
       formData,
@@ -142,7 +142,10 @@ describe('useOnboardingSubmit', () => {
       await result.current.submitProfile(formData, false);
     });
 
-    expect(mockUpdateProfile).toHaveBeenCalledWith(formData);
+    expect(mockUpdateProfile).toHaveBeenCalledWith(
+      'invalid-non-numeric',
+      formData
+    );
     expect(mockPrimeUserDataCache).not.toHaveBeenCalled();
     expect(mockClearUserDataCache).toHaveBeenCalledWith(NaN, 'zh_TW');
   });
@@ -172,7 +175,7 @@ describe('useOnboardingSubmit', () => {
       ).rejects.toThrow('API Error');
     });
 
-    expect(mockUpdateProfile).toHaveBeenCalledWith(formData);
+    expect(mockUpdateProfile).toHaveBeenCalledWith('123', formData);
     expect(mockCaptureFlowFailure).toHaveBeenCalledWith({
       flow: 'onboarding_submit',
       step: 'submit_profile',

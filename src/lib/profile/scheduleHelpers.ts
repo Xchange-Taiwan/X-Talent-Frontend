@@ -6,7 +6,7 @@ import { SegmentVO } from '@/services/mentor-schedule/schedule';
 
 dayjs.extend(isSameOrBefore);
 
-export type DtType = 'ALLOW' | 'BOOKED' | 'PENDING';
+export type DtType = 'ALLOW' | 'FORBIDDEN' | 'BOOKED' | 'PENDING';
 
 /** 'YYYY-MM' — used to bucket per-month draft state in useMentorSchedule. */
 export type MonthKey = string;

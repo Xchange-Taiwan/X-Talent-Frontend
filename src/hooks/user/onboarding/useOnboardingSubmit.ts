@@ -22,7 +22,7 @@ export function useOnboardingSubmit({ industries }: Options) {
   const submitProfile = async (allData: unknown, hasAvatarFile: boolean) => {
     try {
       const validatedData = formSchema.parse(allData);
-      await updateProfile(validatedData);
+      await updateProfile(session?.user?.id, validatedData);
 
       // Prime the user-profile cache from the form values + tag pools
       // we already have in memory, so /profile/card mounts from

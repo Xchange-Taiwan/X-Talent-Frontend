@@ -108,7 +108,7 @@ export async function saveProfile(
 
   try {
     if (profileDirty) {
-      await updateProfile(payload);
+      await updateProfile(pageUserId, payload);
     }
   } catch (err) {
     captureFlowFailure({
