@@ -22,7 +22,10 @@ import {
   parseMonthKey,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
-import { TimeSlotDTO } from '@/services/mentor-schedule/schedule';
+import {
+  TimeSlotDTO,
+  utcYearMonth,
+} from '@/services/mentor-schedule/schedule';
 import { scheduleCache } from '@/services/mentor-schedule/scheduleCache';
 import {
   loadMonthScheduleCached,
@@ -155,9 +158,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   const toServiceSlot = useCallback(
     (r: RawMentorTimeslot): TimeSlotDTO => {
+      const { year, month } = utcYearMonth(r.dtstart);
       const slot: TimeSlotDTO = {
         user_id: 0,
         dt_type: 'ALLOW',
+        dt_year: year,
+        dt_month: month,
         dtstart: r.dtstart,
         dtend: r.dtend,
         rrule: r.rrule,

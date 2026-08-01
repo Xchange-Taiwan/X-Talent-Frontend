@@ -45,7 +45,7 @@ function flattenLeaves(
   groups: TagCatalogGroupVO[]
 ): { subject_group: string; subject: string }[] {
   return groups.flatMap((g) =>
-    g.leaves.map((leaf) => ({
+    (g.leaves ?? []).map((leaf) => ({
       subject_group: leaf.subject_group,
       subject: leaf.subject,
     }))

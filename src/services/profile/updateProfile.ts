@@ -32,9 +32,10 @@ export async function updateProfile(
   }
 
   try {
+    const numericUserId = Number(userId);
     await apiClient.put(`/v1/mentors/${userId}/profile`, {
       ...profileData,
-      user_id: userId,
+      user_id: numericUserId,
     });
   } catch (error) {
     if (error instanceof TypeError && error.message === 'Failed to fetch') {

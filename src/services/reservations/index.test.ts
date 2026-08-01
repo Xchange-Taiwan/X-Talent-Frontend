@@ -202,7 +202,10 @@ describe('mapToReservation', () => {
 
   it('message from unknown user with unknown role → kept in messages but no role attached', () => {
     const reservation = makeReservation({
-      messages: [{ user_id: 999, role: 'OTHER', content: 'Wrong user' }],
+      messages: [
+        // Exercise the runtime fallback against malformed API data too.
+        { user_id: 999, role: 'OTHER' as never, content: 'Wrong user' },
+      ],
     });
     const result = mapToReservation(reservation);
     expect(result.menteeMessage).toBeUndefined();
@@ -402,7 +405,7 @@ describe('mapToReservation', () => {
       makeReservation({
         participant: {
           user_id: 20,
-          role: 'OTHER',
+          role: 'OTHER' as never,
           status: 'REJECT',
           name: 'Bob',
           avatar: '',
