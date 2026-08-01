@@ -5,7 +5,7 @@ import { REAL_FILTER_OPTIONS } from './__mocks__/filterMockData';
 import FilterSelect from './FilterSelect';
 
 const meta: Meta<typeof FilterSelect> = {
-  title: 'Components/Filter/FilterSelect',
+  title: '業務模組元件/篩選器(Filter)/FilterSelect',
   component: FilterSelect,
   tags: ['autodocs'],
 };

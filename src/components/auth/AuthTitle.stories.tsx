@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import AuthTitle from './AuthTitle';
 
 const meta: Meta<typeof AuthTitle> = {
-  title: 'Components/Auth/AuthTitle',
+  title: '業務模組元件/會員驗證(Auth)/AuthTitle',
   component: AuthTitle,
   tags: ['autodocs'],
 };

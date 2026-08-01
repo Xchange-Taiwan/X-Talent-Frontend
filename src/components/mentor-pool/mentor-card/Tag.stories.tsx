@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import { Tag } from './Tag';
 
 const meta: Meta<typeof Tag> = {
-  title: 'Components/MentorPool/Tag',
+  title: '業務模組元件/導師池(MentorPool)/Tag',
   component: Tag,
   tags: ['autodocs'],
   args: {

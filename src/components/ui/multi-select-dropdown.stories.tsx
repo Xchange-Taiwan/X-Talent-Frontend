@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import MultiSelectDropdown from './multi-select-dropdown';
 
 const meta: Meta<typeof MultiSelectDropdown> = {
-  title: 'Components/UI/MultiSelectDropdown',
+  title: '基礎/原子元件/MultiSelectDropdown',
   component: MultiSelectDropdown,
   tags: ['autodocs'],
 };

@@ -4,26 +4,26 @@ import React from 'react';
 import { Input } from './input';
 
 const meta: Meta<typeof Input> = {
-  title: 'Components/UI/Input',
+  title: '基礎/原子元件/Input',
   component: Input,
   tags: ['autodocs'],
   argTypes: {
     type: {
       control: 'select',
       options: ['text', 'password', 'email', 'number', 'file'],
-      description: 'The native input type',
+      description: '原生輸入框的 type 屬性',
     },
     disabled: {
       control: 'boolean',
-      description: 'Whether the input is disabled',
+      description: '輸入框是否已被禁用',
     },
     readOnly: {
       control: 'boolean',
-      description: 'Whether the input is read-only',
+      description: '輸入框是否為唯讀',
     },
     placeholder: {
       control: 'text',
-      description: 'The placeholder text of the input',
+      description: '輸入框的預設提示文字 (placeholder)',
     },
   },
   args: {

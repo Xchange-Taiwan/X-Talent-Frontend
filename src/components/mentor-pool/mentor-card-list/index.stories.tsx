@@ -4,7 +4,7 @@ import { mockMentors } from '../__mocks__/mentors.mock';
 import { MentorCardList } from './index';
 
 const meta: Meta<typeof MentorCardList> = {
-  title: 'Components/MentorPool/MentorCardList',
+  title: '業務模組元件/導師池(MentorPool)/MentorCardList',
   component: MentorCardList,
   tags: ['autodocs'],
   args: {

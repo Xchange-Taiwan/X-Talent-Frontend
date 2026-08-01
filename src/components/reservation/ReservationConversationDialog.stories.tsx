@@ -5,7 +5,7 @@ import ReservationConversationDialog from './ReservationConversationDialog';
 import type { Reservation } from './types';
 
 const meta: Meta<typeof ReservationConversationDialog> = {
-  title: 'Components/Reservation/ReservationConversationDialog',
+  title: '業務模組元件/預約管理(Reservation)/ReservationConversationDialog',
   component: ReservationConversationDialog,
   tags: ['autodocs'],
   argTypes: {

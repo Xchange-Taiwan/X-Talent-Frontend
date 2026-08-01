@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import { HamburgerMenu } from './HamburgerMenu';
 
 const meta: Meta<typeof HamburgerMenu> = {
-  title: 'Layout/Header/HamburgerMenu',
+  title: '佈局元件/Header/HamburgerMenu',
   component: HamburgerMenu,
   tags: ['autodocs'],
   parameters: {

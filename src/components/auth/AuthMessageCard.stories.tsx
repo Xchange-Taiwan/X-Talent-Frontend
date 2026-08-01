@@ -4,7 +4,7 @@ import React from 'react';
 import AuthMessageCard from './AuthMessageCard';
 
 const meta: Meta<typeof AuthMessageCard> = {
-  title: 'Components/Auth/AuthMessageCard',
+  title: '業務模組元件/會員驗證(Auth)/AuthMessageCard',
   component: AuthMessageCard,
   tags: ['autodocs'],
 };

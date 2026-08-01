@@ -7,7 +7,7 @@ import { mockReservations } from './__mocks__/reservations.mock';
 import { ReservationList } from './ReservationList';
 
 const meta: Meta<typeof ReservationList> = {
-  title: 'Components/Reservation/ReservationList',
+  title: '業務模組元件/預約管理(Reservation)/ReservationList',
   component: ReservationList,
   tags: ['autodocs'],
   decorators: [

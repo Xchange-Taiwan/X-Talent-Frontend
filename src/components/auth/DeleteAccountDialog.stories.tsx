@@ -10,7 +10,7 @@ import { DeleteAccountXCSchema } from '@/schemas/auth';
 import { DeleteAccountDialogView } from './DeleteAccountDialog';
 
 const meta: Meta<typeof DeleteAccountDialogView> = {
-  title: 'Components/Auth/DeleteAccountDialog',
+  title: '業務模組元件/會員驗證(Auth)/DeleteAccountDialog',
   component: DeleteAccountDialogView,
   tags: ['autodocs'],
 };

@@ -5,7 +5,7 @@ import { ProfileStoryWrapper } from '../edit/ProfileStoryWrapper';
 import { ExpertiseSelectItem, formSchema } from './ExpertiseSelectItem';
 
 const meta: Meta<typeof ExpertiseSelectItem> = {
-  title: 'Components/Profile/ExpertiseSelectItem',
+  title: '業務模組元件/個人檔案(Profile)/ExpertiseSelectItem',
   component: ExpertiseSelectItem,
   tags: ['autodocs'],
   args: {

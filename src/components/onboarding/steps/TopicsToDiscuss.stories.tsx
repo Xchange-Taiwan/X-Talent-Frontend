@@ -8,7 +8,7 @@ import { OnboardingStepDemoWrapper } from './OnboardingStoryWrapper';
 import { TopicsToDiscuss } from './TopicsToDiscuss';
 
 const meta: Meta<typeof TopicsToDiscuss> = {
-  title: 'Components/Onboarding/Steps/TopicsToDiscuss',
+  title: '業務模組元件/新手引導(Onboarding)/Steps/TopicsToDiscuss',
   component: TopicsToDiscuss,
   tags: ['autodocs'],
 };

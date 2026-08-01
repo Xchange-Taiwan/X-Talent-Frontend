@@ -11,7 +11,7 @@ import { ProfileStoryWrapper } from '../ProfileStoryWrapper';
 import { EducationSection } from './educationSection';
 
 const meta: Meta<typeof EducationSection> = {
-  title: 'Components/Profile/Edit/EducationSection',
+  title: '業務模組元件/個人檔案(Profile)/Edit/EducationSection',
   component: EducationSection,
   tags: ['autodocs'],
   args: {

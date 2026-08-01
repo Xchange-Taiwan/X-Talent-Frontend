@@ -9,7 +9,7 @@ import { SignUpSchema } from '@/schemas/auth';
 import SignUpForm from './SignUpForm';
 
 const meta: Meta<typeof SignUpForm> = {
-  title: 'Components/Auth/SignUpForm',
+  title: '業務模組元件/會員驗證(Auth)/SignUpForm',
   component: SignUpForm,
   tags: ['autodocs'],
 };

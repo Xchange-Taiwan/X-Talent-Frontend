@@ -4,7 +4,7 @@ import React from 'react';
 import { Label } from './label';
 
 const meta: Meta<typeof Label> = {
-  title: 'Components/UI/Label',
+  title: '基礎/原子元件/Label',
   component: Label,
   tags: ['autodocs'],
 };

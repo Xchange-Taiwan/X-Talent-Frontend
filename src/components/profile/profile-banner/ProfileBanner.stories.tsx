@@ -5,7 +5,7 @@ import { AvatarCard } from '../avatar-card';
 import { ProfileBanner } from './ProfileBanner';
 
 const meta: Meta<typeof ProfileBanner> = {
-  title: 'Components/Profile/ProfileBanner',
+  title: '業務模組元件/個人檔案(Profile)/ProfileBanner',
   component: ProfileBanner,
   tags: ['autodocs'],
   decorators: [

@@ -8,14 +8,14 @@ import { mockReservation } from './mocks';
 import { ReservationCard } from './ReservationCard';
 
 const meta: Meta<typeof ReservationCard> = {
-  title: 'Components/Reservation/ReservationCard',
+  title: '業務模組元件/預約管理(Reservation)/ReservationCard',
   component: ReservationCard,
   tags: ['autodocs'],
   argTypes: {
     variant: {
       control: 'select',
       options: ['pending', 'upcoming', 'history'],
-      description: 'The status tab category variant of the card',
+      description: '卡片的狀態標籤類別變體',
     },
   },
 };
