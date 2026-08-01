@@ -45,7 +45,7 @@ function HeaderComponent(): JSX.Element {
             <Image src={LogoImgUrl} alt="logo" />
           </Link>
 
-          <nav className="hidden items-center gap-7 md:flex">
+          <nav className="hidden items-center gap-7 lg:flex">
             <Link
               href={findMentorHref}
               className="font-['Open_Sans'] text-base text-text-primary"
@@ -85,8 +85,8 @@ function HeaderComponent(): JSX.Element {
           </nav>
         </div>
 
-        <div className="flex items-center gap-3 md:mr-20">
-          <div className="hidden items-center gap-3 md:flex">
+        <div className="flex items-center gap-3 lg:mr-20">
+          <div className="hidden items-center gap-3 lg:flex">
             {!authKnown ? (
               <Skeleton className="size-9 rounded-full" />
             ) : !isLoggedIn ? (
@@ -113,7 +113,7 @@ function HeaderComponent(): JSX.Element {
             )}
           </div>
 
-          <div className="flex items-center gap-3 md:hidden">
+          <div className="flex items-center gap-3 lg:hidden">
             {hasFullUser ? <MobileUserMenu user={session!.user} /> : null}
             <HamburgerMenu
               isLoggedIn={isLoggedIn}
