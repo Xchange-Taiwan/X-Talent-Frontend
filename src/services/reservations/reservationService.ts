@@ -84,6 +84,7 @@ export function mapToReservation(
           String(myUserId) === String(reservation.sender.user_id)
         ? (reservation.participant ?? reservation.sender)
         : (reservation.sender ?? reservation.participant);
+
   const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
   const roleLine = [
     counterparty.job_title?.trim() || '',
@@ -124,14 +125,18 @@ export function mapToReservation(
   // canceller's role surfaced so the UI can render 「已由導師/學員取消」 on both
   // mentor and mentee history pages. Reject (pre-accept) and cancel
   // (post-accept) intentionally share the same 「取消」 copy per PM scope
-  // (Tracker #224). Participant takes precedence when both sides are REJECT.
+  // (Tracker #224). Participant (other side / counterparty) takes precedence when both sides are REJECT.
   const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
     r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
+  const currentUserSide =
+    counterparty === reservation.participant
+      ? reservation.sender
+      : reservation.participant;
   const cancelledBy: 'MENTEE' | 'MENTOR' | undefined =
-    reservation.participant?.status === 'REJECT'
-      ? toRole(reservation.participant?.role)
-      : reservation.sender?.status === 'REJECT'
-        ? toRole(reservation.sender?.role)
+    counterparty?.status === 'REJECT'
+      ? toRole(counterparty?.role)
+      : currentUserSide?.status === 'REJECT'
+        ? toRole(currentUserSide?.role)
         : undefined;
 
   return {

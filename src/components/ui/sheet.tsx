@@ -7,17 +7,40 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
+/**
+ * Sheet 側邊抽屜 (Drawer) 元件的根容器，用於控制抽屜的開啟狀態與整體行為。
+ *
+ * 經由 Radix UI 的 Dialog.Root (重新導出為 Sheet) 封裝，支援自訂滑出方向 (top, bottom, left, right)。
+ */
 const Sheet = SheetPrimitive.Root;
 
+/**
+ * SheetTrigger 用於觸發側邊抽屜開啟的按鈕/元件。
+ *
+ * 通常搭配 `asChild` 屬性將觸發行為套用至子元件（例如 Button）。
+ */
 const SheetTrigger = SheetPrimitive.Trigger;
 
+/**
+ * SheetClose 用於關閉側邊抽屜的觸發元件。
+ *
+ * 通常置於側邊抽屜內容之內，點擊時會關閉抽屜。
+ */
 const SheetClose = SheetPrimitive.Close;
 
+/**
+ * SheetPortal 將側邊抽屜內容渲染至 React Portal 中，使其脫離常規 DOM 流，渲染於 body 底部。
+ */
 const SheetPortal = ({ ...props }: SheetPrimitive.DialogPortalProps) => (
   <SheetPrimitive.Portal {...props} />
 );
 SheetPortal.displayName = SheetPrimitive.Portal.displayName;
 
+/**
+ * SheetOverlay 側邊抽屜的背景遮罩。
+ *
+ * 鋪滿整個螢幕，預設具有半透明與模糊效果 (backdrop-blur-sm)。
+ */
 const SheetOverlay = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Overlay>
@@ -56,9 +79,21 @@ interface SheetContentProps
   extends
     React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
     VariantProps<typeof sheetVariants> {
+  /**
+   * 是否顯示預設的關閉按鈕（位於右上角）。
+   * @default false
+   */
   showPrimitiveClose?: boolean;
 }
 
+/**
+ * SheetContent 側邊抽屜的主體內容容器。
+ *
+ * 控制抽屜的滑出方向、寬高、樣式，並決定是否渲染預設關閉按鈕。
+ *
+ * @param side - 抽屜滑出方向：'top' | 'bottom' | 'left' | 'right'。預設為 'right'。
+ * @param showPrimitiveClose - 是否顯示右上角的預設關閉按鈕。預設為 false。
+ */
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
@@ -93,6 +128,11 @@ const SheetContent = React.forwardRef<
 );
 SheetContent.displayName = SheetPrimitive.Content.displayName;
 
+/**
+ * SheetHeader 側邊抽屜的頭部區域。
+ *
+ * 用於放置標題 (SheetTitle) 與描述文字 (SheetDescription)。
+ */
 const SheetHeader = ({
   className,
   ...props
@@ -107,6 +147,11 @@ const SheetHeader = ({
 );
 SheetHeader.displayName = 'SheetHeader';
 
+/**
+ * SheetFooter 側邊抽屜的底部區域。
+ *
+ * 用於放置操作按鈕，預設支援響應式佈局。
+ */
 const SheetFooter = ({
   className,
   ...props
@@ -121,6 +166,11 @@ const SheetFooter = ({
 );
 SheetFooter.displayName = 'SheetFooter';
 
+/**
+ * SheetTitle 側邊抽屜的標題元件。
+ *
+ * 提供側邊抽屜明確的無障礙 (ARIA) 標題。
+ */
 const SheetTitle = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Title>
@@ -133,6 +183,11 @@ const SheetTitle = React.forwardRef<
 ));
 SheetTitle.displayName = SheetPrimitive.Title.displayName;
 
+/**
+ * SheetDescription 側邊抽屜的描述文字元件。
+ *
+ * 用於提供標題之外的詳細輔助說明資訊。
+ */
 const SheetDescription = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Description>
