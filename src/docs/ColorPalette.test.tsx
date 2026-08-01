@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ColorPalette } from './ColorPalette';
+import { ColorPalette, hslToHex } from './ColorPalette';
 
 // Mock clipboard API
 const mockWriteText = vi.fn().mockImplementation(() => Promise.resolve());
@@ -106,5 +106,38 @@ describe('ColorPalette Component', () => {
       expect.any(Error)
     );
     consoleErrorSpy.mockRestore();
+  });
+});
+
+describe('hslToHex Utility Function', () => {
+  it('converts standard HSL string to HEX perfectly', () => {
+    // Red (Hue 0)
+    expect(hslToHex('0 100% 50%')).toBe('#FF0000');
+
+    // Yellow (Hue 60)
+    expect(hslToHex('60 100% 50%')).toBe('#FFFF00');
+
+    // Green (Hue 120)
+    expect(hslToHex('120 100% 50%')).toBe('#00FF00');
+
+    // Cyan (Hue 180)
+    expect(hslToHex('180 100% 50%')).toBe('#00FFFF');
+
+    // Blue (Hue 240)
+    expect(hslToHex('240 100% 50%')).toBe('#0000FF');
+
+    // Magenta (Hue 300)
+    expect(hslToHex('300 100% 50%')).toBe('#FF00FF');
+  });
+
+  it('handles hue=360 and wrapping correctly', () => {
+    // Hue 360 is mathematically equivalent to 0 (Red)
+    expect(hslToHex('360 100% 50%')).toBe('#FF0000');
+    expect(hslToHex('720 100% 50%')).toBe('#FF0000');
+  });
+
+  it('returns black fallback for invalid or empty HSL values', () => {
+    expect(hslToHex('')).toBe('#000000');
+    expect(hslToHex('180')).toBe('#000000');
   });
 });

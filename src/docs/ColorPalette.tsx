@@ -1,4 +1,12 @@
-import { Check, CheckCircle2, Copy, Grid, List, Search } from 'lucide-react';
+import {
+  AlertCircle,
+  Check,
+  CheckCircle2,
+  Copy,
+  Grid,
+  List,
+  Search,
+} from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 
 import { rawColors } from '../design/tokens/color-values';
@@ -20,12 +28,15 @@ interface ColorGroup {
 }
 
 // Helper to convert HSL string to HEX string
-function hslToHex(hslStr: string): string {
+export function hslToHex(hslStr: string): string {
   const parts = hslStr.trim().split(/\s+/);
   if (parts.length < 3) return '#000000';
-  const h = parseFloat(parts[0]);
+  const hRaw = parseFloat(parts[0]);
   const s = parseFloat(parts[1].replace('%', '')) / 100;
   const l = parseFloat(parts[2].replace('%', '')) / 100;
+
+  // Handle h=360 or wrapping correctly
+  const h = hRaw % 360;
 
   const c = (1 - Math.abs(2 * l - 1)) * s;
   const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
@@ -73,6 +84,14 @@ function hslToHex(hslStr: string): string {
   return `#${rHex}${gHex}${bHex}`.toUpperCase();
 }
 
+// Map legacy color keys to camelCase in Tailwind
+const legacyKeyMap: Record<string, string> = {
+  'logo-blue': 'logoBlue',
+  'bd-blue': 'bdBlue',
+  'marketing-orange': 'marketingOrange',
+  'landing-purple-light': 'landingPurpleLight',
+};
+
 // Convert raw colors into our ColorToken list dynamically
 const allTokens: ColorToken[] = Object.entries(rawColors).map(
   ([key, hslVal]) => {
@@ -86,22 +105,9 @@ const allTokens: ColorToken[] = Object.entries(rawColors).map(
       .join(' ');
 
     // Mapping to Tailwind bg/text classes (accounting for camelCase legacy names)
-    let twBg = `bg-${key}`;
-    let twText = `text-${key}`;
-
-    if (key === 'logo-blue') {
-      twBg = 'bg-logoBlue';
-      twText = 'text-logoBlue';
-    } else if (key === 'bd-blue') {
-      twBg = 'bg-bdBlue';
-      twText = 'text-bdBlue';
-    } else if (key === 'marketing-orange') {
-      twBg = 'bg-marketingOrange';
-      twText = 'text-marketingOrange';
-    } else if (key === 'landing-purple-light') {
-      twBg = 'bg-landingPurpleLight';
-      twText = 'text-landingPurpleLight';
-    }
+    const tailwindKey = legacyKeyMap[key] || key;
+    const twBg = `bg-${tailwindKey}`;
+    const twText = `text-${tailwindKey}`;
 
     return {
       key,
@@ -189,7 +195,17 @@ export const ColorPalette: React.FC = () => {
         }, 1500);
       } catch (err) {
         console.error('Failed to copy to clipboard:', err);
+        setCopiedValue(`failed:${type}:${value}`);
+        setTimeout(() => {
+          setCopiedValue(null);
+        }, 2500);
       }
+    } else {
+      console.warn('Clipboard API not supported in this environment');
+      setCopiedValue(`failed:${type}:${value}`);
+      setTimeout(() => {
+        setCopiedValue(null);
+      }, 2500);
     }
   };
 
@@ -292,6 +308,11 @@ export const ColorPalette: React.FC = () => {
                                 <CheckCircle2 className="size-3 text-brand-500" />
                                 已複製 HEX
                               </>
+                            ) : copiedValue === `failed:hex:${token.hex}` ? (
+                              <>
+                                <AlertCircle className="size-3 text-status-error-default" />
+                                複製失敗
+                              </>
                             ) : (
                               <>
                                 <Copy className="size-3" />
@@ -324,6 +345,8 @@ export const ColorPalette: React.FC = () => {
                               <span>{token.hex}</span>
                               {isCopied(token.hex, 'hex') ? (
                                 <Check className="size-3 text-status-success-default" />
+                              ) : copiedValue === `failed:hex:${token.hex}` ? (
+                                <AlertCircle className="size-3 text-status-error-default" />
                               ) : (
                                 <Copy className="size-3 opacity-0 transition-opacity group-hover/line:opacity-100" />
                               )}
@@ -343,6 +366,9 @@ export const ColorPalette: React.FC = () => {
                               <span className="truncate">{token.variable}</span>
                               {isCopied(`var(${token.variable})`, 'var') ? (
                                 <Check className="size-3 text-status-success-default" />
+                              ) : copiedValue ===
+                                `failed:var:var(${token.variable})` ? (
+                                <AlertCircle className="size-3 text-status-error-default" />
                               ) : (
                                 <Copy className="size-3 flex-shrink-0 opacity-0 transition-opacity group-hover/line:opacity-100" />
                               )}
@@ -362,6 +388,9 @@ export const ColorPalette: React.FC = () => {
                               <span>{token.tailwindBg}</span>
                               {isCopied(token.tailwindBg, 'tw') ? (
                                 <Check className="size-3 text-status-success-default" />
+                              ) : copiedValue ===
+                                `failed:tw:${token.tailwindBg}` ? (
+                                <AlertCircle className="size-3 text-status-error-default" />
                               ) : (
                                 <Copy className="size-3 opacity-0 transition-opacity group-hover/line:opacity-100" />
                               )}
