@@ -513,7 +513,7 @@ describe('mapToReservation', () => {
       expect(result.roleLine).toBe('Engineer, 3~5 年');
     });
 
-    it('currentUserId is provided but unmatched → fallback to participant as counterparty (isSenderCurrentUser = false but defaults gracefully)', () => {
+    it('currentUserId is provided but unmatched → fallback to participant as counterparty (isSenderCurrentUser = true)', () => {
       const reservation = makeReservation({
         sender: {
           user_id: 10,
@@ -538,9 +538,9 @@ describe('mapToReservation', () => {
       // currentUserId is unmatched (e.g. '999')
       const result = mapToReservation(reservation, '999');
 
-      expect(result.name).toBe('Bob (Mentee)');
-      expect(result.avatar).toBe('bob-avatar.png');
-      expect(result.roleLine).toBe('Designer, 1~3 年');
+      expect(result.name).toBe('Alice (Mentor)');
+      expect(result.avatar).toBe('alice-avatar.png');
+      expect(result.roleLine).toBe('Engineer, 3~5 年');
     });
 
     describe('cancelledBy precedence rules with dynamic counterparty', () => {

@@ -74,11 +74,14 @@ export function mapToReservation(
   reservation: components['schemas']['ReservationInfoVO'],
   currentUserId?: string
 ): Reservation {
-  // If currentUserId is passed, resolve counterparty by checking who is NOT the current user.
-  // Otherwise fallback to the previous behaviour (reservation.participant).
-  const isSenderCurrentUser = currentUserId
-    ? String(reservation.sender.user_id) === String(currentUserId)
-    : true;
+  // If currentUserId is passed and matches participant, the current user is participant,
+  // so the counterparty is sender (isSenderCurrentUser = false).
+  // Otherwise, fallback to the previous behaviour where counterparty is participant (isSenderCurrentUser = true).
+  const isSenderCurrentUser =
+    currentUserId &&
+    String(reservation.participant.user_id) === String(currentUserId)
+      ? false
+      : true;
   const counterparty = isSenderCurrentUser
     ? reservation.participant
     : reservation.sender;
