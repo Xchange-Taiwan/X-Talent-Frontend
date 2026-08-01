@@ -423,26 +423,30 @@ describe('mapToReservation', () => {
   });
 
   describe('dynamic counterparty resolution using currentUserId', () => {
+    const baseSender = {
+      user_id: 10,
+      role: 'MENTEE' as const,
+      status: 'PENDING' as const,
+      name: 'Bob (Mentee)',
+      avatar: 'bob-avatar.png',
+      job_title: 'Designer',
+      years_of_experience: 'ONE_TO_THREE',
+    };
+
+    const baseParticipant = {
+      user_id: 20,
+      role: 'MENTOR' as const,
+      status: 'ACCEPT' as const,
+      name: 'Alice (Mentor)',
+      avatar: 'alice-avatar.png',
+      job_title: 'Engineer',
+      years_of_experience: 'THREE_TO_FIVE',
+    };
+
     it('currentUserId matches sender.user_id → counterparty should be participant', () => {
       const reservation = makeReservation({
-        sender: {
-          user_id: 10,
-          role: 'MENTEE',
-          status: 'PENDING',
-          name: 'Bob (Mentee)',
-          avatar: 'bob-avatar.png',
-          job_title: 'Designer',
-          years_of_experience: 'ONE_TO_THREE',
-        },
-        participant: {
-          user_id: 20,
-          role: 'MENTOR',
-          status: 'ACCEPT',
-          name: 'Alice (Mentor)',
-          avatar: 'alice-avatar.png',
-          job_title: 'Engineer',
-          years_of_experience: 'THREE_TO_FIVE',
-        },
+        sender: baseSender,
+        participant: baseParticipant,
       });
 
       // currentUserId is 10, which matches sender.user_id
@@ -455,24 +459,8 @@ describe('mapToReservation', () => {
 
     it('currentUserId matches participant.user_id → counterparty should be sender', () => {
       const reservation = makeReservation({
-        sender: {
-          user_id: 10,
-          role: 'MENTEE',
-          status: 'PENDING',
-          name: 'Bob (Mentee)',
-          avatar: 'bob-avatar.png',
-          job_title: 'Designer',
-          years_of_experience: 'ONE_TO_THREE',
-        },
-        participant: {
-          user_id: 20,
-          role: 'MENTOR',
-          status: 'ACCEPT',
-          name: 'Alice (Mentor)',
-          avatar: 'alice-avatar.png',
-          job_title: 'Engineer',
-          years_of_experience: 'THREE_TO_FIVE',
-        },
+        sender: baseSender,
+        participant: baseParticipant,
       });
 
       // currentUserId is 20, which matches participant.user_id
@@ -485,24 +473,8 @@ describe('mapToReservation', () => {
 
     it('currentUserId is not provided → fallback to participant as counterparty', () => {
       const reservation = makeReservation({
-        sender: {
-          user_id: 10,
-          role: 'MENTEE',
-          status: 'PENDING',
-          name: 'Bob (Mentee)',
-          avatar: 'bob-avatar.png',
-          job_title: 'Designer',
-          years_of_experience: 'ONE_TO_THREE',
-        },
-        participant: {
-          user_id: 20,
-          role: 'MENTOR',
-          status: 'ACCEPT',
-          name: 'Alice (Mentor)',
-          avatar: 'alice-avatar.png',
-          job_title: 'Engineer',
-          years_of_experience: 'THREE_TO_FIVE',
-        },
+        sender: baseSender,
+        participant: baseParticipant,
       });
 
       // currentUserId is omitted
@@ -515,24 +487,8 @@ describe('mapToReservation', () => {
 
     it('currentUserId is provided but unmatched → fallback to participant as counterparty (isSenderCurrentUser = true)', () => {
       const reservation = makeReservation({
-        sender: {
-          user_id: 10,
-          role: 'MENTEE',
-          status: 'PENDING',
-          name: 'Bob (Mentee)',
-          avatar: 'bob-avatar.png',
-          job_title: 'Designer',
-          years_of_experience: 'ONE_TO_THREE',
-        },
-        participant: {
-          user_id: 20,
-          role: 'MENTOR',
-          status: 'ACCEPT',
-          name: 'Alice (Mentor)',
-          avatar: 'alice-avatar.png',
-          job_title: 'Engineer',
-          years_of_experience: 'THREE_TO_FIVE',
-        },
+        sender: baseSender,
+        participant: baseParticipant,
       });
 
       // currentUserId is unmatched (e.g. '999')
@@ -546,24 +502,8 @@ describe('mapToReservation', () => {
     describe('cancelledBy precedence rules with dynamic counterparty', () => {
       it('currentUserId is sender (MENTEE) and participant (MENTOR) is REJECT → cancelledBy is MENTOR (other party takes precedence)', () => {
         const reservation = makeReservation({
-          sender: {
-            user_id: 10,
-            role: 'MENTEE',
-            status: 'ACCEPT',
-            name: 'Alice',
-            avatar: '',
-            job_title: 'Designer',
-            years_of_experience: 'ONE_TO_THREE',
-          },
-          participant: {
-            user_id: 20,
-            role: 'MENTOR',
-            status: 'REJECT',
-            name: 'Bob',
-            avatar: '',
-            job_title: 'Engineer',
-            years_of_experience: 'THREE_TO_FIVE',
-          },
+          sender: { ...baseSender, status: 'ACCEPT' },
+          participant: { ...baseParticipant, status: 'REJECT' },
         });
 
         // Current user is 10, so counterparty is 20 (MENTOR) who has REJECT
@@ -573,24 +513,8 @@ describe('mapToReservation', () => {
 
       it('currentUserId is participant (MENTOR) and sender (MENTEE) is REJECT → cancelledBy is MENTEE (other party takes precedence)', () => {
         const reservation = makeReservation({
-          sender: {
-            user_id: 10,
-            role: 'MENTEE',
-            status: 'REJECT',
-            name: 'Alice',
-            avatar: '',
-            job_title: 'Designer',
-            years_of_experience: 'ONE_TO_THREE',
-          },
-          participant: {
-            user_id: 20,
-            role: 'MENTOR',
-            status: 'ACCEPT',
-            name: 'Bob',
-            avatar: '',
-            job_title: 'Engineer',
-            years_of_experience: 'THREE_TO_FIVE',
-          },
+          sender: { ...baseSender, status: 'REJECT' },
+          participant: { ...baseParticipant, status: 'ACCEPT' },
         });
 
         // Current user is 20, so counterparty is 10 (MENTEE) who has REJECT
@@ -600,24 +524,8 @@ describe('mapToReservation', () => {
 
       it('both parties are REJECT and currentUserId is participant (MENTOR) → cancelledBy is MENTEE (other party takes precedence when both are REJECT)', () => {
         const reservation = makeReservation({
-          sender: {
-            user_id: 10,
-            role: 'MENTEE',
-            status: 'REJECT',
-            name: 'Alice',
-            avatar: '',
-            job_title: 'Designer',
-            years_of_experience: 'ONE_TO_THREE',
-          },
-          participant: {
-            user_id: 20,
-            role: 'MENTOR',
-            status: 'REJECT',
-            name: 'Bob',
-            avatar: '',
-            job_title: 'Engineer',
-            years_of_experience: 'THREE_TO_FIVE',
-          },
+          sender: { ...baseSender, status: 'REJECT' },
+          participant: { ...baseParticipant, status: 'REJECT' },
         });
 
         // Current user is 20, so counterparty is 10 (MENTEE) who has REJECT.
@@ -628,24 +536,8 @@ describe('mapToReservation', () => {
 
       it('both parties are REJECT and currentUserId is sender (MENTEE) → cancelledBy is MENTOR (other party takes precedence when both are REJECT)', () => {
         const reservation = makeReservation({
-          sender: {
-            user_id: 10,
-            role: 'MENTEE',
-            status: 'REJECT',
-            name: 'Alice',
-            avatar: '',
-            job_title: 'Designer',
-            years_of_experience: 'ONE_TO_THREE',
-          },
-          participant: {
-            user_id: 20,
-            role: 'MENTOR',
-            status: 'REJECT',
-            name: 'Bob',
-            avatar: '',
-            job_title: 'Engineer',
-            years_of_experience: 'THREE_TO_FIVE',
-          },
+          sender: { ...baseSender, status: 'REJECT' },
+          participant: { ...baseParticipant, status: 'REJECT' },
         });
 
         // Current user is 10, so counterparty is 20 (MENTOR) who has REJECT.
