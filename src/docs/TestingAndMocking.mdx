@@ -23,6 +23,7 @@ const mockProfile = { name: 'Kevin' } as unknown as MentorProfileVO;
 ```
 
 ### 強行轉型的三大危害：
+
 1. **失去編譯期型別安全 (Type Safety)**：TypeScript 會完全放棄對該物件的型別檢查。如果您在測試中拼錯了屬性名稱（如 `userName` 拼成 `username`），編譯器不會報錯，直到測試執行失敗或在執行期崩潰。
 2. **掩蓋架構與 Schema 變更**：當後端 API 或資料庫 Schema 變更，修改了 `MentorProfileVO` 的欄位時，強行轉型的測試代碼**不會**拋出 TypeScript 報錯。這會導致測試代碼與真實代碼脫節，失去測試的防禦作用。
 3. **執行期未定義錯誤 (Runtime Undefined)**：如果受測元件內部訪問了被您用 `as any` 忽略的必填欄位，會直接拋出 `TypeError: Cannot read properties of undefined`。
@@ -42,6 +43,7 @@ Shoehorn 提供了型別安全的局部 Mock 解決方案，讓您在測試中�
 當您只需要 Mock 複雜型別中的一部分欄位，且希望這些局部欄位**依然受到嚴格的型別檢查**時，請使用 `fromPartial`。
 
 #### 💡 實戰範例：Mock Next-Auth `Session['user']`
+
 在 `src/components/layout/Header/MobileUserMenu.test.tsx` 中，我們需要測試不同狀態的使用者頭像渲染：
 
 ```typescript
@@ -65,6 +67,7 @@ function buildUser(overrides: Partial<Session['user']> = {}): Session['user'] {
 當您需要刻意模擬不合法的 API 回傳、測試錯誤處理邊界，或者在整合測試中快速建構包含自定義嵌套物件的 DTO 時，可以使用 `fromAny`。它類似於 `as any` 的包裝，但語意上更清晰，表明這是測試特意的 Mock。
 
 #### 💡 實戰範例：Mock 複雜 Service DTO
+
 在 `src/lib/profile/pollUntilSynced.test.ts` 中，建構一個帶有巢狀 `industry` 的 DTO 物件：
 
 ```typescript

@@ -14,18 +14,19 @@ X-Talent 平台採用 **行動優先 (Mobile-First)** 的設計理念。為了�
 
 本專案使用 Tailwind CSS 預設的斷點系統，並在 `tailwind.config.js` 中針對最大容器進行了微調：
 
-| 斷點 (Breakpoint) | 寬度閥值 (Width Threshold) | 適用裝置 (Target Devices) | 專案常見開發類別 (Example Utilities) |
-| :--- | :--- | :--- | :--- |
-| **預設 (Mobile)** | `< 640px` | 手機直向 (Mobile Portrait) | 預設樣式 (如 `w-full px-4 text-base`) |
-| **`sm`** | `>= 640px` | 手機橫向 / 迷你平板 (Mobile Landscape / Mini Tablet) | `sm:px-6`, `sm:grid-cols-2` |
-| **`md`** | `>= 768px` | 平板直向 (Tablet Portrait) | `md:px-10`, `md:flex-row`, `md:text-xl` |
-| **`lg`** | `>= 1024px` | 平板橫向 / 筆記型電腦 (Tablet Landscape / Laptop) | `lg:sticky`, `lg:h-screen`, `lg:grid-cols-3` |
-| **`xl`** | `>= 1280px` | 桌上型電腦 (Standard Desktop) | `xl:px-20`, `xl:gap-0` |
-| **`2xl`** | `>= 1400px` | 寬螢幕顯示器 (Large Monitor) | `2xl:max-w-[1400px]` (常用於 Container 限制) |
+| 斷點 (Breakpoint) | 寬度閥值 (Width Threshold) | 適用裝置 (Target Devices)                            | 專案常見開發類別 (Example Utilities)         |
+| :---------------- | :------------------------- | :--------------------------------------------------- | :------------------------------------------- |
+| **預設 (Mobile)** | `< 640px`                  | 手機直向 (Mobile Portrait)                           | 預設樣式 (如 `w-full px-4 text-base`)        |
+| **`sm`**          | `>= 640px`                 | 手機橫向 / 迷你平板 (Mobile Landscape / Mini Tablet) | `sm:px-6`, `sm:grid-cols-2`                  |
+| **`md`**          | `>= 768px`                 | 平板直向 (Tablet Portrait)                           | `md:px-10`, `md:flex-row`, `md:text-xl`      |
+| **`lg`**          | `>= 1024px`                | 平板橫向 / 筆記型電腦 (Tablet Landscape / Laptop)    | `lg:sticky`, `lg:h-screen`, `lg:grid-cols-3` |
+| **`xl`**          | `>= 1280px`                | 桌上型電腦 (Standard Desktop)                        | `xl:px-20`, `xl:gap-0`                       |
+| **`2xl`**         | `>= 1400px`                | 寬螢幕顯示器 (Large Monitor)                         | `2xl:max-w-[1400px]` (常用於 Container 限制) |
 
 ### 💡 開發關鍵原則
-* **Mobile-First**：所有樣式預設均為手機端。僅在需要大螢幕特化時，才向上疊加 `md:`、`lg:` 或 `xl:` 修飾符。
-* **避免過多自定義斷點**：除特殊互動場景外，嚴格禁止在代碼中寫死 `min-width: 800px` 等魔術數字。請一律使用 Tailwind 的語意化斷點。
+
+- **Mobile-First**：所有樣式預設均為手機端。僅在需要大螢幕特化時，才向上疊加 `md:`、`lg:` 或 `xl:` 修飾符。
+- **避免過多自定義斷點**：除特殊互動場景外，嚴格禁止在代碼中寫死 `min-width: 800px` 等魔術數字。請一律使用 Tailwind 的語意化斷點。
 
 ---
 
@@ -34,20 +35,21 @@ X-Talent 平台採用 **行動優先 (Mobile-First)** 的設計理念。為了�
 頁面最外層的水平間距（Page Gutters）應隨著螢幕寬度彈性伸縮，以維持完美的視覺張力：
 
 1. **手機端 (Mobile, < 768px)**：
-   * **標準間距**：`px-4` 或 `px-5` (16px 或 20px)。
-   * **目的**：最大化手機有限螢幕寬度的內容呈現空間，同時防止文字貼邊。
+   - **標準間距**：`px-4` 或 `px-5` (16px 或 20px)。
+   - **目的**：最大化手機有限螢幕寬度的內容呈現空間，同時防止文字貼邊。
 2. **平板端 (Tablet, >= 768px)**：
-   * **標準間距**：`md:px-8` 或 `md:px-10` (32px 或 40px)。
-   * **目的**：提供合適的左右留白，讓眼睛在閱讀時感到舒適。
+   - **標準間距**：`md:px-8` 或 `md:px-10` (32px 或 40px)。
+   - **目的**：提供合適的左右留白，讓眼睛在閱讀時感到舒適。
 3. **桌面端 (Desktop, >= 1280px)**：
-   * **標準間距**：`xl:px-20` (80px) 或者是採用 **中央定寬結構**：`max-w-screen-xl mx-auto xl:px-0`。
-   * **目的**：在大螢幕下限制內容最大寬度，避免行寬過長導致閱讀疲勞，並使頁面兩端完美對齊。
+   - **標準間距**：`xl:px-20` (80px) 或者是採用 **中央定寬結構**：`max-w-screen-xl mx-auto xl:px-0`。
+   - **目的**：在大螢幕下限制內容最大寬度，避免行寬過長導致閱讀疲勞，並使頁面兩端完美對齊。
 
 ---
 
 ## 🛠️ 頁面結構實戰範例
 
 ### 1. 滿版響應式容器 (Full-Width Responsive Container)
+
 適用於具備背景延伸色、但在內容上需要保持標準響應式邊距的區塊（如 Header、Footer、Hero Section）：
 
 ```tsx
@@ -61,6 +63,7 @@ X-Talent 平台採用 **行動優先 (Mobile-First)** 的設計理念。為了�
 ```
 
 ### 2. 響應式卡片網格 (Responsive Grid List)
+
 導師池、推薦列表等卡片式排版，標準間距（Gaps）建議統一為 `gap-6` (24px) 或 `gap-8` (32px)：
 
 ```tsx
@@ -76,6 +79,7 @@ X-Talent 平台採用 **行動優先 (Mobile-First)** 的設計理念。為了�
 ```
 
 ### 3. 表單與細節頁面排版 (Form & Detail Spacing)
+
 在填寫表單或 onboarding 流程中，欄位與欄位之間的垂直間距推薦使用 `space-y-6` (24px) 以維持適當的結構清晰度：
 
 ```tsx
