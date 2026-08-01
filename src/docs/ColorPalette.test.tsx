@@ -85,4 +85,26 @@ describe('ColorPalette Component', () => {
     // Clipboard API should have been called with the brand-50 hex color
     expect(mockWriteText).toHaveBeenCalledWith('#EAFAFA');
   });
+
+  it('handles clipboard copy error gracefully', async () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+    mockWriteText.mockRejectedValueOnce(new Error('Permission denied'));
+
+    render(<ColorPalette />);
+
+    // Click to copy the Brand 50 color
+    const brand50Block = screen.getAllByTitle('點擊複製 HEX 值')[0];
+    fireEvent.click(brand50Block);
+
+    // Wait for the async call to be processed
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Failed to copy to clipboard:',
+      expect.any(Error)
+    );
+    consoleErrorSpy.mockRestore();
+  });
 });
