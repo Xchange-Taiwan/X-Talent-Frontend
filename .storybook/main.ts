@@ -7,7 +7,10 @@ const config: StorybookConfig = {
     '@storybook/addon-docs',
     '@storybook/addon-onboarding',
   ],
-  framework: '@storybook/nextjs',
+  framework: {
+    name: '@storybook/nextjs',
+    options: {},
+  },
   staticDirs: ['../public'],
 };
 export default config;
