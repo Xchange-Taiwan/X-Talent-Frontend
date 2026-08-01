@@ -4,7 +4,7 @@ import dayjs from 'dayjs';
 import { ScheduleCalendar } from './ScheduleCalendar';
 
 const meta: Meta<typeof ScheduleCalendar> = {
-  title: 'Components/Profile/Reservation/ScheduleCalendar',
+  title: '業務模組元件/個人檔案(Profile)/Reservation/ScheduleCalendar',
   component: ScheduleCalendar,
   tags: ['autodocs'],
 };

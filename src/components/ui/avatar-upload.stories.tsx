@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import AvatarUpload from './avatar-upload';
 
 const meta: Meta<typeof AvatarUpload> = {
-  title: 'Components/UI/AvatarUpload',
+  title: '基礎/原子元件/AvatarUpload',
   component: AvatarUpload,
   tags: ['autodocs'],
 };

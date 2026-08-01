@@ -4,7 +4,7 @@ import React from 'react';
 import { HomePageSliderClient } from './HomePageSliderClient';
 
 const meta: Meta<typeof HomePageSliderClient> = {
-  title: 'Components/Landing/HomePageSliderClient',
+  title: '業務模組元件/首頁(Landing)/HomePageSliderClient',
   component: HomePageSliderClient,
   tags: ['autodocs'],
 };

@@ -8,7 +8,7 @@ import {
 } from './ExperienceSection';
 
 const meta: Meta<typeof ExperienceSection> = {
-  title: 'Components/Profile/ExperienceSection/ExperienceSection',
+  title: '業務模組元件/個人檔案(Profile)/ExperienceSection/ExperienceSection',
   component: ExperienceSection,
   tags: ['autodocs'],
   args: {

@@ -13,7 +13,7 @@ import {
 } from './dialog';
 
 const meta: Meta<typeof Dialog> = {
-  title: 'Components/UI/Dialog',
+  title: '基礎/原子元件/Dialog',
   component: Dialog,
   tags: ['autodocs'],
 };

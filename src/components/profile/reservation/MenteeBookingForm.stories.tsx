@@ -4,7 +4,7 @@ import { mockBookingSlots } from './__mocks__/reservationStories.mock';
 import { MenteeBookingForm } from './MenteeBookingForm';
 
 const meta: Meta<typeof MenteeBookingForm> = {
-  title: 'Components/Profile/Reservation/MenteeBookingForm',
+  title: '業務模組元件/個人檔案(Profile)/Reservation/MenteeBookingForm',
   component: MenteeBookingForm,
   tags: ['autodocs'],
 };

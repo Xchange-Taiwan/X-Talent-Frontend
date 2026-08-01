@@ -5,7 +5,7 @@ import { mockReservations } from './__mocks__/reservations.mock';
 import { ReservationDashboardView } from './ReservationDashboard';
 
 const meta: Meta<typeof ReservationDashboardView> = {
-  title: 'Components/Reservation/ReservationDashboard',
+  title: '業務模組元件/預約管理(Reservation)/ReservationDashboard',
   component: ReservationDashboardView,
   tags: ['autodocs'],
   decorators: [

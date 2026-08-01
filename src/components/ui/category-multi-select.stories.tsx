@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { CategoryMultiSelect } from './category-multi-select';
 
 const meta: Meta<typeof CategoryMultiSelect> = {
-  title: 'Components/UI/CategoryMultiSelect',
+  title: '基礎/原子元件/CategoryMultiSelect',
   component: CategoryMultiSelect,
   tags: ['autodocs'],
 };

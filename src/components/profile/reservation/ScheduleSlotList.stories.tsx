@@ -9,7 +9,7 @@ import { mockBookingSlots } from './__mocks__/reservationStories.mock';
 import { BOOKED_SLOT_CLASSES, ScheduleSlotList } from './ScheduleSlotList';
 
 const meta: Meta<typeof ScheduleSlotList> = {
-  title: 'Components/Profile/Reservation/ScheduleSlotList',
+  title: '業務模組元件/個人檔案(Profile)/Reservation/ScheduleSlotList',
   component: ScheduleSlotList,
   tags: ['autodocs'],
 };

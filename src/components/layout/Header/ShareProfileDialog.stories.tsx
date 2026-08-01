@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ShareProfileDialog } from './ShareProfileDialog';
 
 const meta: Meta<typeof ShareProfileDialog> = {
-  title: 'Layout/Header/ShareProfileDialog',
+  title: '佈局元件/Header/ShareProfileDialog',
   component: ShareProfileDialog,
   tags: ['autodocs'],
   args: {

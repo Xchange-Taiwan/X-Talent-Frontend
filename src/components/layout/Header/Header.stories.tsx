@@ -4,7 +4,7 @@ import React from 'react';
 import { Header } from './Header';
 
 const meta: Meta<typeof Header> = {
-  title: 'Layout/Header/Header',
+  title: '佈局元件/Header/Header',
   component: Header,
   tags: ['autodocs'],
   parameters: {

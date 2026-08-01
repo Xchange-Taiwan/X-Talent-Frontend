@@ -5,7 +5,7 @@ import { REAL_FILTER_OPTIONS } from './__mocks__/filterMockData';
 import MentorFilterDropdown, { SelectFilters } from './MentorFilterDropdown';
 
 const meta: Meta<typeof MentorFilterDropdown> = {
-  title: 'Components/Filter/MentorFilterDropdown',
+  title: '業務模組元件/篩選器(Filter)/MentorFilterDropdown',
   component: MentorFilterDropdown,
   tags: ['autodocs'],
 };

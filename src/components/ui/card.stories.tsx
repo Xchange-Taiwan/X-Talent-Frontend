@@ -12,13 +12,13 @@ import {
 } from './card';
 
 const meta: Meta<typeof Card> = {
-  title: 'Components/UI/Card',
+  title: '基礎/原子元件/Card',
   component: Card,
   tags: ['autodocs'],
   argTypes: {
     className: {
       control: 'text',
-      description: 'Custom CSS classes for styling the card',
+      description: '自定義的 CSS class 名稱以設定卡片樣式',
     },
   },
 };

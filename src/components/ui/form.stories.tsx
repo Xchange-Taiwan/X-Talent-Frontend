@@ -15,7 +15,7 @@ import {
 import { Input } from './input';
 
 const meta: Meta<typeof Form> = {
-  title: 'Components/UI/Form',
+  title: '基礎/原子元件/Form',
   component: Form,
   tags: ['autodocs'],
 };
