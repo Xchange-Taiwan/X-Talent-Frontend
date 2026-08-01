@@ -22,10 +22,7 @@ import {
   parseMonthKey,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
-import {
-  TimeSlotDTO,
-  utcYearMonth,
-} from '@/services/mentor-schedule/schedule';
+import { TimeSlotDTO, utcYearMonth } from '@/services/mentor-schedule/schedule';
 import { scheduleCache } from '@/services/mentor-schedule/scheduleCache';
 import {
   loadMonthScheduleCached,
