@@ -4,16 +4,44 @@ import React, { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 
+/**
+ * SearchBar 元件屬性介面
+ */
 interface SearchBarProps {
+  /**
+   * 點擊搜尋按鈕或按下 Enter 鍵時觸發的搜尋非同步回呼函式。
+   * @param query 使用者輸入並去除了首尾空格的搜尋關鍵字
+   */
   onSearch: (query: string) => Promise<void>;
+
+  /**
+   * 預設（如桌機版螢幕寬度）顯示的搜尋輸入框提示預設文字。
+   */
   placeholder?: string;
+
+  /**
+   * 手機版（窄螢幕）下顯示的自訂搜尋輸入框提示預設文字。若未傳入，將回退至 mobilePlaceholder / placeholder。
+   */
   mobilePlaceholder?: string;
+
+  /**
+   * 平板版（中等螢幕）下顯示的自訂搜尋輸入框提示預設文字。若未傳入，將回退至 tabletPlaceholder / placeholder。
+   */
   tabletPlaceholder?: string;
+
+  /**
+   * 搜尋框的預設初始輸入值，預設為空字串。
+   */
   defaultValue?: string;
 }
 
 const DEFAULT_PLACEHOLDER = '搜尋有興趣職位、公司或是想精進的領域';
 
+/**
+ * SearchBar 搜尋欄元件：
+ * 支援響應式設計（針對手機、平板、桌機寬度提供不同的 Placeholder）、防重覆提交的非同步 Loading 載入狀態，
+ * 以及按下 Enter 鍵快速搜尋等功能，常置於首頁或導師列表頂部。
+ */
 const SearchBar: React.FC<SearchBarProps> = ({
   onSearch,
   placeholder = DEFAULT_PLACEHOLDER,
