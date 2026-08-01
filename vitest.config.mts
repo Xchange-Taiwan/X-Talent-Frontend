@@ -20,6 +20,11 @@ export default defineConfig({
       NEXT_PUBLIC_API_URL: '',
     },
     setupFiles: ['./src/test/setup.ts'],
+    server: {
+      deps: {
+        inline: [/@storybook\/nextjs/],
+      },
+    },
     include: [
       'src/**/*.{test,spec}.{ts,tsx}',
       'scripts/**/*.{test,spec}.mjs',
