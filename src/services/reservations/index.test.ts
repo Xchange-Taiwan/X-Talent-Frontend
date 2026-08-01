@@ -555,7 +555,7 @@ describe('mapToReservation', () => {
       expect(result.roleLine).toBe('Designer, 1~3 年');
     });
 
-    it('when reservation.sender.user_id is null → does not crash and falls back to participant', () => {
+    it('when reservation.sender.user_id is null → does not crash and correctly identifies sender as counterparty', () => {
       const reservation = makeReservation({
         sender: {
           ...baseSender,
