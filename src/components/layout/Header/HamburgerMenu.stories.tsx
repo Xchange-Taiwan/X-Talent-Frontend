@@ -6,6 +6,11 @@ const meta: Meta<typeof HamburgerMenu> = {
   title: 'Layout/Header/HamburgerMenu',
   component: HamburgerMenu,
   tags: ['autodocs'],
+  parameters: {
+    nextjs: {
+      appDirectory: true,
+    },
+  },
   args: {
     isLoggedIn: false,
     isMentor: false,

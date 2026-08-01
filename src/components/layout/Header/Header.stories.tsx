@@ -7,6 +7,11 @@ const meta: Meta<typeof Header> = {
   title: 'Layout/Header/Header',
   component: Header,
   tags: ['autodocs'],
+  parameters: {
+    nextjs: {
+      appDirectory: true,
+    },
+  },
   decorators: [
     (Story) => (
       <div className="min-h-[120px] bg-background-bottom">

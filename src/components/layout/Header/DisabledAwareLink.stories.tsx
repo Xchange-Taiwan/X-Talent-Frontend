@@ -7,6 +7,11 @@ const meta: Meta<typeof DisabledAwareLink> = {
   title: 'Layout/Header/DisabledAwareLink',
   component: DisabledAwareLink,
   tags: ['autodocs'],
+  parameters: {
+    nextjs: {
+      appDirectory: true,
+    },
+  },
   argTypes: {
     disabled: {
       control: 'boolean',

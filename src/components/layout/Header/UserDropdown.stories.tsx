@@ -7,6 +7,11 @@ const meta: Meta<typeof UserDropdown> = {
   title: 'Layout/Header/UserDropdown',
   component: UserDropdown,
   tags: ['autodocs'],
+  parameters: {
+    nextjs: {
+      appDirectory: true,
+    },
+  },
   decorators: [
     (Story) => (
       <div className="flex min-h-[300px] justify-end bg-background-bottom p-8">
