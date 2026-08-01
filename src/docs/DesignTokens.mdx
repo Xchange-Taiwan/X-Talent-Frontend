@@ -1,0 +1,61 @@
+import { Meta } from '@storybook/blocks';
+import { ColorPalette } from './ColorPalette';
+
+<Meta title="System/Design Tokens & Colors" />
+
+# Design Tokens & Colors (設計標記與顏色系統)
+
+X-Talent 專案的設計系統基於 HSL 原生色值，透過 CSS 自定義屬性（CSS Custom Properties）與 Tailwind CSS 進行雙向整合。
+
+本文件為專案開發人員提供官方的顏色對照指南，並整合了快速複製工具，方便開發時快速查閱。
+
+---
+
+## 💡 單一事實來源與生成流程 (Single Source of Truth)
+
+為了確保設計與開發的高度一致性與便於維護，顏色系統採用了自動化生成流程：
+
+1. **定義色值 (Token Source)**：
+   所有的顏色自定義數值與註解均統一保存在 `src/design/tokens/color-values.ts` 的 `rawColors` 中。
+2. **自動編譯 CSS (Build Tokens)**：
+   執行以下指令會讀取上述檔案，並編譯生成 `src/styles/tokens.css` 中的全域 CSS 自定義屬性（CSS Variables）：
+   ```bash
+   pnpm generate:tokens
+   ```
+3. **加載至 Tailwind (Integration)**：
+   `src/design/tokens/color.ts` 透過 `hsl(var(--color-key) / <alpha-value>)` 格式封裝這些自定義屬性，並在 `tailwind.config.js` 的 `colors` 欄位中引用，從而使 Tailwind 完美支援透明度修飾符（如 `bg-brand-500/80`）。
+
+---
+
+## 🛠️ 開發整合使用範例
+
+### 1. 使用 Tailwind 實用類別 (Utilities)
+這是本專案推薦的預設開發方式。您可以直接在 React 元件的 `className` 中使用：
+```tsx
+// 範例：使用品牌主色背景、主文字與基礎邊框
+<div className="bg-brand-500 text-text-white border border-background-border rounded-lg p-4">
+  <span>品牌內容展示</span>
+</div>
+```
+
+### 2. 使用原生 CSS 變數 (Custom Properties)
+在編寫自定義 CSS、CSS Modules 或者是 inline styles 時，應直接使用原生 CSS 變數以符合動態主題變遷：
+```tsx
+// 範例：使用 HSL 的 CSS 變數
+<div style={{ backgroundColor: 'hsl(var(--color-brand-500))', color: 'hsl(var(--color-text-white))' }}>
+  自定義 CSS 整合
+</div>
+```
+
+---
+
+## 🎨 互動式調色盤 (Interactive Color Palette)
+
+本調色盤動態讀取系統最新設計：
+- **搜尋過濾**：在搜尋框輸入名稱、HEX（如 `#2CC`）、CSS 變數或 Tailwind 關鍵字可即時過濾。
+- **檢視切換**：點擊右上角可切換為 **「格狀檢視」**（預覽視覺效果）或 **「列表檢視」**（表格形式總覽）。
+- **一鍵複製**：點擊各欄位後，即可將 **HEX 色值**、**CSS 變數定義** 或 **Tailwind 背景類別** 一鍵複製至剪貼簿！
+
+<div className="my-6">
+  <ColorPalette />
+</div>
