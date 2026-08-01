@@ -84,7 +84,6 @@ export function mapToReservation(
           String(myUserId) === String(reservation.sender.user_id)
         ? (reservation.participant ?? reservation.sender)
         : (reservation.sender ?? reservation.participant);
-
   const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
   const roleLine = [
     counterparty.job_title?.trim() || '',
