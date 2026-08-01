@@ -27,6 +27,16 @@ interface ColorGroup {
   tokens: ColorToken[];
 }
 
+interface CopyButtonProps {
+  value: string;
+  type: string;
+  copiedValue: string | null;
+  handleCopy: (value: string, type: string) => Promise<void>;
+  className?: string;
+  title?: string;
+  children: React.ReactNode;
+}
+
 interface ColorViewProps {
   tokens: ColorToken[];
   copiedValue: string | null;
@@ -190,6 +200,39 @@ const colorGroups: ColorGroup[] = [
 ];
 
 /**
+ * CopyButton component wraps copy operations with unified status feedback logic.
+ */
+const CopyButton: React.FC<CopyButtonProps> = ({
+  value,
+  type,
+  copiedValue,
+  handleCopy,
+  className = '',
+  title,
+  children,
+}) => {
+  const isCopied = copiedValue === `${type}:${value}`;
+  const isFailed = copiedValue === `failed:${type}:${value}`;
+
+  return (
+    <button
+      onClick={() => handleCopy(value, type)}
+      className={`flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500 ${className}`}
+      title={title}
+    >
+      {children}
+      {isCopied ? (
+        <Check className="size-3 text-status-success-default" />
+      ) : isFailed ? (
+        <AlertCircle className="size-3 text-status-error-default" />
+      ) : (
+        <Copy className="size-3 opacity-0 transition-opacity group-hover/line:opacity-100 group-hover/row:opacity-100" />
+      )}
+    </button>
+  );
+};
+
+/**
  * ColorGridView component renders color tokens in a modern card layout.
  */
 const ColorGridView: React.FC<ColorViewProps> = ({
@@ -251,59 +294,45 @@ const ColorGridView: React.FC<ColorViewProps> = ({
 
             <div className="space-y-1 border-t border-background-border pt-1 font-mono text-xs">
               {/* Copy HEX */}
-              <div className="group/line flex items-center justify-between">
+              <div className="flex items-center justify-between">
                 <span className="text-text-tertiary">HEX:</span>
-                <button
-                  onClick={() => handleCopy(token.hex, 'hex')}
-                  className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
+                <CopyButton
+                  value={token.hex}
+                  type="hex"
+                  copiedValue={copiedValue}
+                  handleCopy={handleCopy}
                 >
                   <span>{token.hex}</span>
-                  {isCopied(token.hex, 'hex') ? (
-                    <Check className="size-3 text-status-success-default" />
-                  ) : copiedValue === `failed:hex:${token.hex}` ? (
-                    <AlertCircle className="size-3 text-status-error-default" />
-                  ) : (
-                    <Copy className="size-3 opacity-0 transition-opacity group-hover/line:opacity-100" />
-                  )}
-                </button>
+                </CopyButton>
               </div>
 
               {/* Copy CSS Var */}
-              <div className="group/line flex items-center justify-between">
+              <div className="flex items-center justify-between">
                 <span className="text-text-tertiary">CSS Var:</span>
-                <button
-                  onClick={() => handleCopy(`var(${token.variable})`, 'var')}
-                  className="flex max-w-[120px] items-center gap-1 truncate text-text-primary transition-colors hover:text-brand-500"
+                <CopyButton
+                  value={`var(${token.variable})`}
+                  type="var"
+                  copiedValue={copiedValue}
+                  handleCopy={handleCopy}
+                  className="max-w-[120px] truncate"
                   title={`var(${token.variable})`}
                 >
                   <span className="truncate">{token.variable}</span>
-                  {isCopied(`var(${token.variable})`, 'var') ? (
-                    <Check className="size-3 text-status-success-default" />
-                  ) : copiedValue === `failed:var:var(${token.variable})` ? (
-                    <AlertCircle className="size-3 text-status-error-default" />
-                  ) : (
-                    <Copy className="size-3 flex-shrink-0 opacity-0 transition-opacity group-hover/line:opacity-100" />
-                  )}
-                </button>
+                </CopyButton>
               </div>
 
               {/* Copy Tailwind utility */}
-              <div className="group/line flex items-center justify-between">
+              <div className="flex items-center justify-between">
                 <span className="text-text-tertiary">Tailwind:</span>
-                <button
-                  onClick={() => handleCopy(token.tailwindBg, 'tw')}
-                  className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
+                <CopyButton
+                  value={token.tailwindBg}
+                  type="tw"
+                  copiedValue={copiedValue}
+                  handleCopy={handleCopy}
                   title={`Background Class: ${token.tailwindBg}\nText Class: ${token.tailwindText}`}
                 >
                   <span>{token.tailwindBg}</span>
-                  {isCopied(token.tailwindBg, 'tw') ? (
-                    <Check className="size-3 text-status-success-default" />
-                  ) : copiedValue === `failed:tw:${token.tailwindBg}` ? (
-                    <AlertCircle className="size-3 text-status-error-default" />
-                  ) : (
-                    <Copy className="size-3 opacity-0 transition-opacity group-hover/line:opacity-100" />
-                  )}
-                </button>
+                </CopyButton>
               </div>
             </div>
           </div>
@@ -321,9 +350,6 @@ const ColorListView: React.FC<ColorViewProps> = ({
   copiedValue,
   handleCopy,
 }) => {
-  const isCopied = (value: string, type: string) =>
-    copiedValue === `${type}:${value}`;
-
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-left">
@@ -359,64 +385,44 @@ const ColorListView: React.FC<ColorViewProps> = ({
                 </div>
               </td>
               <td className="px-4 py-3.5 font-mono">
-                <button
-                  onClick={() => handleCopy(token.hex, 'hex')}
-                  className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
+                <CopyButton
+                  value={token.hex}
+                  type="hex"
+                  copiedValue={copiedValue}
+                  handleCopy={handleCopy}
                 >
                   <span>{token.hex}</span>
-                  {isCopied(token.hex, 'hex') ? (
-                    <Check className="size-3 text-status-success-default" />
-                  ) : copiedValue === `failed:hex:${token.hex}` ? (
-                    <AlertCircle className="size-3 text-status-error-default" />
-                  ) : (
-                    <Copy className="size-3 opacity-0 transition-opacity group-hover/row:opacity-100" />
-                  )}
-                </button>
+                </CopyButton>
               </td>
               <td className="px-4 py-3.5 font-mono">
-                <button
-                  onClick={() => handleCopy(`var(${token.variable})`, 'var')}
-                  className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
+                <CopyButton
+                  value={`var(${token.variable})`}
+                  type="var"
+                  copiedValue={copiedValue}
+                  handleCopy={handleCopy}
                 >
                   <span>var({token.variable})</span>
-                  {isCopied(`var(${token.variable})`, 'var') ? (
-                    <Check className="size-3 text-status-success-default" />
-                  ) : copiedValue === `failed:var:var(${token.variable})` ? (
-                    <AlertCircle className="size-3 text-status-error-default" />
-                  ) : (
-                    <Copy className="size-3 opacity-0 transition-opacity group-hover/row:opacity-100" />
-                  )}
-                </button>
+                </CopyButton>
               </td>
               <td className="px-4 py-3.5 font-mono">
-                <button
-                  onClick={() => handleCopy(token.tailwindBg, 'twbg')}
-                  className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
+                <CopyButton
+                  value={token.tailwindBg}
+                  type="twbg"
+                  copiedValue={copiedValue}
+                  handleCopy={handleCopy}
                 >
                   <span>{token.tailwindBg}</span>
-                  {isCopied(token.tailwindBg, 'twbg') ? (
-                    <Check className="size-3 text-status-success-default" />
-                  ) : copiedValue === `failed:twbg:${token.tailwindBg}` ? (
-                    <AlertCircle className="size-3 text-status-error-default" />
-                  ) : (
-                    <Copy className="size-3 opacity-0 transition-opacity group-hover/row:opacity-100" />
-                  )}
-                </button>
+                </CopyButton>
               </td>
               <td className="px-4 py-3.5 font-mono">
-                <button
-                  onClick={() => handleCopy(token.tailwindText, 'twtext')}
-                  className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
+                <CopyButton
+                  value={token.tailwindText}
+                  type="twtext"
+                  copiedValue={copiedValue}
+                  handleCopy={handleCopy}
                 >
                   <span>{token.tailwindText}</span>
-                  {isCopied(token.tailwindText, 'twtext') ? (
-                    <Check className="size-3 text-status-success-default" />
-                  ) : copiedValue === `failed:twtext:${token.tailwindText}` ? (
-                    <AlertCircle className="size-3 text-status-error-default" />
-                  ) : (
-                    <Copy className="size-3 opacity-0 transition-opacity group-hover/row:opacity-100" />
-                  )}
-                </button>
+                </CopyButton>
               </td>
               <td className="px-4 py-3.5 text-right font-mono text-xs text-text-tertiary">
                 {token.hsl}
