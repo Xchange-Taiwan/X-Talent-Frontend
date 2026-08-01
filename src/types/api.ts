@@ -4,57 +4,6 @@
  */
 
 export interface paths {
-  '/api/v1/auth/signup': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Signup */
-    post: operations['signup_api_v1_auth_signup_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/auth/email/resend': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Signup Email Resend */
-    post: operations['signup_email_resend_api_v1_auth_email_resend_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/auth/signup/confirm': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Confirm Signup */
-    post: operations['confirm_signup_api_v1_auth_signup_confirm_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/api/v1/auth/login': {
     parameters: {
       query?: never;
@@ -67,6 +16,23 @@ export interface paths {
     /** Login */
     post: operations['login_api_v1_auth_login_post'];
     delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/auth/account': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete Account */
+    delete: operations['delete_account_api_v1_auth_account_delete'];
     options?: never;
     head?: never;
     patch?: never;
@@ -109,7 +75,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/auth/password/{user_id}/update': {
+  '/api/v1/auth/signup': {
     parameters: {
       query?: never;
       header?: never;
@@ -117,9 +83,43 @@ export interface paths {
       cookie?: never;
     };
     get?: never;
-    /** Update Password */
-    put: operations['update_password_api_v1_auth_password__user_id__update_put'];
-    post?: never;
+    put?: never;
+    /** Signup */
+    post: operations['signup_api_v1_auth_signup_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/auth/email/resend': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resend Signup */
+    post: operations['resend_signup_api_v1_auth_email_resend_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/auth/signup/confirm': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Confirm Signup */
+    post: operations['confirm_signup_api_v1_auth_signup_confirm_post'];
     delete?: never;
     options?: never;
     head?: never;
@@ -163,7 +163,126 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/auth/account': {
+  '/api/v1/auth/password/{user_id}/update': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Update Password */
+    put: operations['update_password_api_v1_auth_password__user_id__update_put'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/mentors': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Mentor List */
+    get: operations['mentor_list_api_v1_mentors_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/mentors/{user_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Mentor */
+    get: operations['get_mentor_api_v1_mentors__user_id__get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/mentors/{user_id}/profile': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Upsert Mentor Profile */
+    put: operations['upsert_mentor_profile_api_v1_mentors__user_id__profile_put'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/mentors/{user_id}/{language}/profile': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Mentor Profile */
+    get: operations['get_mentor_profile_api_v1_mentors__user_id___language__profile_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/mentors/{user_id}/schedule': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Upsert Mentor Schedule */
+    put: operations['upsert_mentor_schedule_api_v1_mentors__user_id__schedule_put'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/mentors/{user_id}/schedule/y/{dt_year}/m/{dt_month}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Schedules */
+    get: operations['get_schedules_api_v1_mentors__user_id__schedule_y__dt_year__m__dt_month__get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/mentors/{user_id}/schedule/{schedule_id}': {
     parameters: {
       query?: never;
       header?: never;
@@ -173,8 +292,42 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
-    /** Delete Account */
-    delete: operations['delete_account_api_v1_auth_account_delete'];
+    /** Delete Mentor Schedule */
+    delete: operations['delete_mentor_schedule_api_v1_mentors__user_id__schedule__schedule_id__delete'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/mentors/{language}/universities': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Universities */
+    get: operations['get_universities_api_v1_mentors__language__universities_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/users/{language}/countries': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Countries */
+    get: operations['get_countries_api_v1_users__language__countries_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
     options?: never;
     head?: never;
     patch?: never;
@@ -206,23 +359,6 @@ export interface paths {
     };
     /** Get Profile */
     get: operations['get_profile_api_v1_users__user_id___language__profile_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/users/{language}/countries': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get Countries */
-    get: operations['get_countries_api_v1_users__language__countries_get'];
     put?: never;
     post?: never;
     delete?: never;
@@ -277,195 +413,6 @@ export interface paths {
     /** Update Reservation Status */
     put: operations['update_reservation_status_api_v1_users__user_id__reservations__reservation_id__put'];
     post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/mentors/{user_id}/profile': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    /** Upsert Mentor Profile */
-    put: operations['upsert_mentor_profile_api_v1_mentors__user_id__profile_put'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/mentors/{user_id}/{language}/profile': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get Mentor Profile */
-    get: operations['get_mentor_profile_api_v1_mentors__user_id___language__profile_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/mentors/{language}/universities': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get Universities */
-    get: operations['get_universities_api_v1_mentors__language__universities_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/mentors/{user_id}/schedule': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    /** Upsert Mentor Schedule */
-    put: operations['upsert_mentor_schedule_api_v1_mentors__user_id__schedule_put'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/mentors/{user_id}/schedule/{schedule_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Delete Mentor Schedule */
-    delete: operations['delete_mentor_schedule_api_v1_mentors__user_id__schedule__schedule_id__delete'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/mentors': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Mentor List */
-    get: operations['mentor_list_api_v1_mentors_get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/mentors/{user_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get Mentor */
-    get: operations['get_mentor_api_v1_mentors__user_id__get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/mentors/{user_id}/schedule/y/{dt_year}/m/{dt_month}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get Schedules */
-    get: operations['get_schedules_api_v1_mentors__user_id__schedule_y__dt_year__m__dt_month__get'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/file/{user_id}/{file_name}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get File Info By Id */
-    get: operations['get_file_info_by_id_api_v1_file__user_id___file_name__get'];
-    put?: never;
-    post?: never;
-    /** Delete File Info */
-    delete: operations['delete_file_info_api_v1_file__user_id___file_name__delete'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/file/{user_id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get File Info By User Id */
-    get: operations['get_file_info_by_user_id_api_v1_file__user_id__get'];
-    /** Update File Info */
-    put: operations['update_file_info_api_v1_file__user_id__put'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/file/': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Create File Info */
-    post: operations['create_file_info_api_v1_file__post'];
     delete?: never;
     options?: never;
     head?: never;
@@ -541,23 +488,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v2/oauth/google/authorize/signup': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Oauth Authorize Signup */
-    post: operations['oauth_authorize_signup_api_v2_oauth_google_authorize_signup_post'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/api/v2/oauth/google/authorize/login': {
     parameters: {
       query?: never;
@@ -569,6 +499,23 @@ export interface paths {
     put?: never;
     /** Oauth Authorize Login */
     post: operations['oauth_authorize_login_api_v2_oauth_google_authorize_login_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v2/oauth/google/authorize/signup': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Oauth Authorize Signup */
+    post: operations['oauth_authorize_signup_api_v2_oauth_google_authorize_signup_post'];
     delete?: never;
     options?: never;
     head?: never;
@@ -647,7 +594,7 @@ export interface components {
       msg: string;
       data?: components['schemas']['CountryListVO'] | null;
     };
-    /** ApiResponse[EmailSentVO] */
+    /** ApiResponse_EmailSentVO_ */
     ApiResponse_EmailSentVO_: {
       /**
        * Code
@@ -656,12 +603,12 @@ export interface components {
       code: string;
       /**
        * Msg
-       * @default ok
+       * @default email_sent
        */
       msg: string;
       data?: components['schemas']['EmailSentVO'] | null;
     };
-    /** ApiResponse[FileInfoListVO] */
+    /** ApiResponse_FileInfoListVO_ */
     ApiResponse_FileInfoListVO_: {
       /**
        * Code
@@ -674,20 +621,6 @@ export interface components {
        */
       msg: string;
       data?: components['schemas']['FileInfoListVO'] | null;
-    };
-    /** ApiResponse[FileInfoVO] */
-    ApiResponse_FileInfoVO_: {
-      /**
-       * Code
-       * @default 0
-       */
-      code: string;
-      /**
-       * Msg
-       * @default ok
-       */
-      msg: string;
-      data?: components['schemas']['FileInfoVO'] | null;
     };
     /** ApiResponse[GoogleAuthorizeVO] */
     ApiResponse_GoogleAuthorizeVO_: {
@@ -858,7 +791,7 @@ export interface components {
       msg: string;
       data?: components['schemas']['SearchMentorProfileVO'] | null;
     };
-    /** ApiResponse[SignupResponseVO] */
+    /** ApiResponse_SignupResponseVO_ */
     ApiResponse_SignupResponseVO_: {
       /**
        * Code
@@ -867,7 +800,7 @@ export interface components {
       code: string;
       /**
        * Msg
-       * @default ok
+       * @default Confirming successful signup.
        */
       msg: string;
       data?: components['schemas']['SignupResponseVO'] | null;
@@ -914,7 +847,7 @@ export interface components {
       msg: string;
       data?: components['schemas']['UniversityListVO'] | null;
     };
-    /** ApiResponse[bool] */
+    /** ApiResponse_bool_ */
     ApiResponse_bool_: {
       /**
        * Code
@@ -942,7 +875,9 @@ export interface components {
        */
       msg: string;
       /** Data */
-      data?: Record<string, never> | null;
+      data?: {
+        [key: string]: unknown;
+      } | null;
     };
     /** ApiResponse[int] */
     ApiResponse_int_: {
@@ -972,18 +907,13 @@ export interface components {
       email: string;
       /** Token */
       token: string;
+      /** Created At */
+      created_at: number;
       /**
        * Online
        * @default false
        */
       online: boolean | null;
-      /** Created At */
-      created_at: number;
-    };
-    /** Body_confirm_signup_api_v1_auth_signup_confirm_post */
-    Body_confirm_signup_api_v1_auth_signup_confirm_post: {
-      /** Token */
-      token: string;
     };
     /** Body_logout_api_v1_auth_logout_post */
     Body_logout_api_v1_auth_logout_post: {
@@ -1010,27 +940,16 @@ export interface components {
        */
       refresh_token?: string | null;
     };
-    /** Body_signup_email_resend_api_v1_auth_email_resend_post */
-    Body_signup_email_resend_api_v1_auth_email_resend_post: {
-      /**
-       * Email
-       * Format: email
-       */
-      email: string;
-    };
     /** Body_upload_avatar_api_v1_storage__post */
     Body_upload_avatar_api_v1_storage__post: {
-      /**
-       * File
-       * Format: binary
-       */
+      /** File */
       file: string;
     };
-    /**
-     * BookingStatus
-     * @enum {string}
-     */
-    BookingStatus: 'PENDING' | 'ACCEPT' | 'REJECT';
+    /** ConfirmSignupDTO */
+    ConfirmSignupDTO: {
+      /** Token */
+      token: string;
+    };
     /** CountryListVO */
     CountryListVO: {
       /**
@@ -1048,8 +967,6 @@ export interface components {
     };
     /** DeleteAccountDTO */
     DeleteAccountDTO: {
-      /** User Id */
-      user_id?: number | null;
       /**
        * Email
        * Format: email
@@ -1059,11 +976,18 @@ export interface components {
       password?: string | null;
       /** Id Token */
       id_token?: string | null;
+      /** User Id */
+      user_id?: number | null;
     };
-    /**
-     * EmailSentVO
-     * @description Returned by signup, email resend, and password reset email endpoints.
-     */
+    /** EmailDTO */
+    EmailDTO: {
+      /**
+       * Email
+       * Format: email
+       */
+      email: string;
+    };
+    /** EmailSentVO */
     EmailSentVO: {
       /** Ttl Secs */
       ttl_secs: number;
@@ -1072,7 +996,7 @@ export interface components {
      * ExperienceCategory
      * @enum {string}
      */
-    ExperienceCategory: 'WORK' | 'EDUCATION' | 'LINK';
+    ExperienceCategory: 'WORK' | 'EDUCATION' | 'LINK' | 'WHAT_I_OFFER';
     /** ExperienceVO */
     ExperienceVO: {
       category?: components['schemas']['ExperienceCategory'];
@@ -1087,8 +1011,13 @@ export interface components {
        */
       order: number;
     };
-    /** FileInfoDTO */
-    FileInfoDTO: {
+    /** FileInfoListVO */
+    FileInfoListVO: {
+      /** File Info Vo List */
+      file_info_vo_list: components['schemas']['FileInfoVO'][];
+    };
+    /** FileInfoVO */
+    FileInfoVO: {
       /** File Id */
       file_id?: string | null;
       /** File Name */
@@ -1099,59 +1028,19 @@ export interface components {
       create_user_id: number;
       /** Content Type */
       content_type?: string | null;
-      /**
-       * Url
-       * @default http://example.com
-       */
-      url: string | null;
+      /** Url */
+      url?: string | null;
       /**
        * Is Deleted
        * @default false
        */
       is_deleted: boolean;
+      /** Create Time */
+      create_time?: string | null;
+      /** Update Time */
+      update_time?: string | null;
     };
-    /** FileInfoListVO */
-    FileInfoListVO: {
-      /** File Info Vo List */
-      file_info_vo_list: components['schemas']['FileInfoVO'][];
-    };
-    /** FileInfoVO */
-    FileInfoVO: {
-      /** File Id */
-      file_id: string | null;
-      /** File Name */
-      file_name: string;
-      /** File Size */
-      file_size: number;
-      /** Content Type */
-      content_type?: string | null;
-      /**
-       * Url
-       * @default http://example.com
-       */
-      url: string | null;
-      /**
-       * Create Time
-       * @default 2026-05-06T22:19:33.029003Z
-       */
-      create_time: string | null;
-      /**
-       * Update Time
-       * @default 2026-05-06T22:19:33.029011Z
-       */
-      update_time: string | null;
-      /** Create User Id */
-      create_user_id: number;
-      /**
-       * Is Deleted
-       * @default false
-       */
-      is_deleted: boolean;
-    };
-    /**
-     * GoogleAuthorizeVO
-     * @description Returned by /authorize/signup and /authorize/login.
-     */
+    /** GoogleAuthorizeVO */
     GoogleAuthorizeVO: {
       /** Authorization Url */
       authorization_url: string;
@@ -1173,11 +1062,7 @@ export interface components {
       /** Online */
       online?: boolean | null;
     };
-    /**
-     * GoogleCallbackVO
-     * @description Returned by /callback. auth_type is SIGNUP or LOGIN.
-     *     For LOGIN, user is populated. For SIGNUP, ttl_secs is populated.
-     */
+    /** GoogleCallbackVO */
     GoogleCallbackVO: {
       /** Auth Type */
       auth_type: string;
@@ -1370,102 +1255,27 @@ export interface components {
     MentorScheduleDTO: {
       /**
        * Until
-       * @example 1735689600
+       * @default 32503651200
        */
-      until?: number;
-      /**
-       * Timeslots
-       * @default []
-       */
-      timeslots: components['schemas']['TimeSlotDTO'][];
+      until: number;
+      /** Timeslots */
+      timeslots?: components['schemas']['TimeSlotDTO'][];
     };
     /** MentorScheduleQueryVO */
     MentorScheduleQueryVO: {
-      /**
-       * Segments
-       * @default []
-       */
-      segments: components['schemas']['MentorScheduleSegmentVO'][] | null;
-      /**
-       * Next Dtstart
-       * @example 0
-       */
+      /** Segments */
+      segments?: components['schemas']['TimeSlotDTO'][];
+      /** Next Dtstart */
       next_dtstart?: number | null;
-    };
-    /** MentorScheduleSegmentVO */
-    MentorScheduleSegmentVO: {
-      /**
-       * Id
-       * @example 0
-       */
-      id?: number | null;
-      /**
-       * User Id
-       * @example 1
-       */
-      user_id: number;
-      /** @example ALLOW */
-      dt_type: components['schemas']['ScheduleType'];
-      /**
-       * Dtstart
-       * @example 1717203600
-       */
-      dtstart: number;
-      /**
-       * Dtend
-       * @example 1717207200
-       */
-      dtend: number;
-      /**
-       * Rrule
-       * @example FREQ=WEEKLY;COUNT=4
-       */
-      rrule?: string | null;
-      /**
-       * Timezone
-       * @default UTC
-       * @example UTC
-       */
-      timezone: string;
-      /**
-       * Exdate
-       * @default []
-       * @example [
-       *       1718413200,
-       *       1719622800
-       *     ]
-       */
-      exdate: (number | null)[];
-      /**
-       * Source
-       * @example schedule
-       */
-      source: string;
-      /**
-       * Source Id
-       * @example 100
-       */
-      source_id?: number | null;
     };
     /** MentorScheduleVO */
     MentorScheduleVO: {
-      /**
-       * Timeslots
-       * @default []
-       */
-      timeslots: components['schemas']['TimeSlotVO'][] | null;
-      /**
-       * Next Dtstart
-       * @example 0
-       */
-      next_dtstart?: number | null;
+      /** Timeslots */
+      timeslots?: components['schemas']['TimeSlotDTO'][];
     };
     /** PreviousReserveRef */
     PreviousReserveRef: {
-      /**
-       * Reserve Id
-       * @example 0
-       */
+      /** Reserve Id */
       reserve_id?: number | null;
     };
     /** ProfileDTO */
@@ -1572,21 +1382,8 @@ export interface components {
     };
     /** RUserInfoVO */
     RUserInfoVO: {
-      /**
-       * User Id
-       * @example 0
-       */
+      /** User Id */
       user_id?: number | null;
-      /**
-       * Role
-       * @example MENTEE
-       */
-      role?: string | null;
-      /**
-       * Status
-       * @example PENDING
-       */
-      status?: string | null;
       /**
        * Name
        * @default
@@ -1607,21 +1404,23 @@ export interface components {
        * @default 0
        */
       years_of_experience: string | null;
+      /** Role */
+      role?: ('MENTOR' | 'MENTEE') | null;
+      /** Status */
+      status?: ('PENDING' | 'ACCEPT' | 'REJECT') | null;
     };
     /** ReservationDTO */
     ReservationDTO: {
-      /**
-       * My User Id
-       * @default 0
-       */
-      my_user_id: number;
-      /** @example PENDING */
-      my_status?: components['schemas']['BookingStatus'] | null;
       /**
        * User Id
        * @default 0
        */
       user_id: number;
+      /**
+       * My User Id
+       * @default 0
+       */
+      my_user_id: number;
       /**
        * Schedule Id
        * @default 0
@@ -1637,20 +1436,16 @@ export interface components {
        * @default 0
        */
       dtend: number;
-      /**
-       * Messages
-       * @default []
-       */
-      messages: components['schemas']['ReservationMessageDTO'][] | null;
+      /** My Status */
+      my_status?: ('PENDING' | 'ACCEPT' | 'REJECT') | null;
+      /** Messages */
+      messages?: components['schemas']['ReservationMessageDTO'][] | null;
       previous_reserve?: components['schemas']['PreviousReserveRef'] | null;
     };
     /** ReservationInfoListVO */
     ReservationInfoListVO: {
-      /**
-       * Reservations
-       * @default []
-       */
-      reservations: components['schemas']['ReservationInfoVO'][];
+      /** Reservations */
+      reservations?: components['schemas']['ReservationInfoVO'][];
       /**
        * Next Dtend
        * @default 0
@@ -1661,8 +1456,6 @@ export interface components {
     ReservationInfoVO: {
       /** Id */
       id?: number | null;
-      sender: components['schemas']['RUserInfoVO'];
-      participant: components['schemas']['RUserInfoVO'];
       /**
        * Schedule Id
        * @default 0
@@ -1678,58 +1471,42 @@ export interface components {
        * @default 0
        */
       dtend: number;
+      /** Messages */
+      messages?: components['schemas']['ReservationMessageVO'][] | null;
       previous_reserve?: components['schemas']['PreviousReserveRef'] | null;
-      /**
-       * Messages
-       * @default []
-       */
-      messages: components['schemas']['ReservationMessageVO'][] | null;
+      sender: components['schemas']['RUserInfoVO'];
+      participant: components['schemas']['RUserInfoVO'];
     };
     /** ReservationMessageDTO */
     ReservationMessageDTO: {
-      /**
-       * User Id
-       * @example 0
-       */
+      /** User Id */
       user_id: number;
-      /**
-       * Content
-       * @example
-       */
+      /** Content */
       content: string;
     };
     /** ReservationMessageVO */
     ReservationMessageVO: {
-      /**
-       * User Id
-       * @example 0
-       */
-      user_id?: number;
-      /**
-       * Role
-       * @example MENTEE
-       */
-      role?: string | null;
-      /**
-       * Content
-       * @example
-       */
-      content?: string;
+      /** User Id */
+      user_id: number;
+      /** Content */
+      content: string;
+      /** Role */
+      role?: ('MENTOR' | 'MENTEE') | null;
     };
     /** ReservationVO */
     ReservationVO: {
+      /** Id */
+      id?: number | null;
+      /**
+       * User Id
+       * @default 0
+       */
+      user_id: number;
       /**
        * My User Id
        * @default 0
        */
       my_user_id: number;
-      /** @example PENDING */
-      my_status?: components['schemas']['BookingStatus'] | null;
-      /**
-       * User Id
-       * @default 0
-       */
-      user_id: number;
       /**
        * Schedule Id
        * @default 0
@@ -1745,36 +1522,21 @@ export interface components {
        * @default 0
        */
       dtend: number;
-      /**
-       * Messages
-       * @default []
-       */
-      messages: components['schemas']['ReservationMessageDTO'][] | null;
+      /** Status */
+      status?: ('PENDING' | 'ACCEPT' | 'REJECT') | null;
+      /** My Status */
+      my_status?: ('PENDING' | 'ACCEPT' | 'REJECT') | null;
+      /** Messages */
+      messages?: components['schemas']['ReservationMessageDTO'][] | null;
       previous_reserve?: components['schemas']['PreviousReserveRef'] | null;
-      /** Id */
-      id?: number | null;
-      /** @example PENDING */
-      status?: components['schemas']['BookingStatus'] | null;
     };
-    /**
-     * ResetPasswordBodyDTO
-     * @description Request body for PUT /auth/password/reset. Email 由 verify_token 從 cache 取得，不經由 client 傳送。
-     * @example {
-     *       "confirm_password": "secret",
-     *       "password": "secret"
-     *     }
-     */
+    /** ResetPasswordBodyDTO */
     ResetPasswordBodyDTO: {
       /** Password */
       password: string;
       /** Confirm Password */
       confirm_password: string;
     };
-    /**
-     * ScheduleType
-     * @enum {string}
-     */
-    ScheduleType: 'ALLOW' | 'FORBIDDEN' | 'BOOKED' | 'PENDING';
     /** SearchMentorProfileListVO */
     SearchMentorProfileListVO: {
       /** Mentors */
@@ -1876,7 +1638,6 @@ export interface components {
     /**
      * SignupDTO
      * @example {
-     *       "confirm_password": "secret",
      *       "email": "user@example.com",
      *       "password": "secret"
      *     }
@@ -1905,12 +1666,11 @@ export interface components {
       /** Language */
       language: string;
       /** Desc */
-      desc?: Record<string, never> | null;
-      /**
-       * Leaves
-       * @default []
-       */
-      leaves: components['schemas']['TagCatalogLeafVO'][];
+      desc?: {
+        [key: string]: unknown;
+      } | null;
+      /** Leaves */
+      leaves?: components['schemas']['TagCatalogLeafVO'][];
     };
     /** TagCatalogLeafVO */
     TagCatalogLeafVO: {
@@ -1923,7 +1683,9 @@ export interface components {
       /** Language */
       language: string;
       /** Desc */
-      desc?: Record<string, never> | null;
+      desc?: {
+        [key: string]: unknown;
+      } | null;
     };
     /** TagCatalogVO */
     TagCatalogVO: {
@@ -1931,21 +1693,15 @@ export interface components {
       kind: string;
       /** Language */
       language: string;
-      /**
-       * Groups
-       * @default []
-       */
-      groups: components['schemas']['TagCatalogGroupVO'][];
+      /** Groups */
+      groups?: components['schemas']['TagCatalogGroupVO'][];
     };
     /** TagCatalogsVO */
     TagCatalogsVO: {
       /** Language */
       language: string;
-      /**
-       * Catalogs
-       * @default {}
-       */
-      catalogs: {
+      /** Catalogs */
+      catalogs?: {
         [key: string]: components['schemas']['TagCatalogVO'];
       };
     };
@@ -1956,118 +1712,29 @@ export interface components {
     TagKind: 'skill' | 'position' | 'topic' | 'industry';
     /** TimeSlotDTO */
     TimeSlotDTO: {
-      /**
-       * Id
-       * @example 0
-       */
+      /** Id */
       id?: number | null;
-      /**
-       * User Id
-       * @example 1
-       */
+      /** User Id */
       user_id: number;
-      /** @example ALLOW */
-      dt_type: components['schemas']['TimeSlotType'];
-      /**
-       * Dt Year
-       * @example 2024
-       */
-      dt_year?: number | null;
-      /**
-       * Dt Month
-       * @example 6
-       */
-      dt_month?: number | null;
-      /**
-       * Dtstart
-       * @example 1717203600
-       */
+      /** Dt Type */
+      dt_type: string;
+      /** Dt Year */
+      dt_year: number;
+      /** Dt Month */
+      dt_month: number;
+      /** Dtstart */
       dtstart: number;
-      /**
-       * Dtend
-       * @example 1717207200
-       */
+      /** Dtend */
       dtend: number;
-      /**
-       * Rrule
-       * @example FREQ=WEEKLY;COUNT=4
-       */
+      /** Rrule */
       rrule?: string | null;
       /**
        * Timezone
        * @default UTC
-       * @example UTC
        */
       timezone: string;
-      /**
-       * Exdate
-       * @default []
-       * @example [
-       *       1718413200,
-       *       1719622800
-       *     ]
-       */
-      exdate: (number | null)[];
-    };
-    /**
-     * TimeSlotType
-     * @enum {string}
-     */
-    TimeSlotType: 'ALLOW' | 'FORBIDDEN';
-    /** TimeSlotVO */
-    TimeSlotVO: {
-      /**
-       * Id
-       * @example 0
-       */
-      id: number;
-      /**
-       * User Id
-       * @example 1
-       */
-      user_id: number;
-      /** @example ALLOW */
-      dt_type: components['schemas']['TimeSlotType'];
-      /**
-       * Dt Year
-       * @example 2024
-       */
-      dt_year?: number | null;
-      /**
-       * Dt Month
-       * @example 6
-       */
-      dt_month?: number | null;
-      /**
-       * Dtstart
-       * @example 1717203600
-       */
-      dtstart: number;
-      /**
-       * Dtend
-       * @example 1717207200
-       */
-      dtend: number;
-      /**
-       * Rrule
-       * @example FREQ=WEEKLY;COUNT=4
-       */
-      rrule?: string | null;
-      /**
-       * Timezone
-       * @default UTC
-       * @example UTC
-       */
-      timezone: string;
-      /**
-       * Exdate
-       * @default []
-       * @example [
-       *       1718413200,
-       *       1719622800
-       *     ]
-       */
-      exdate: (number | null)[];
+      /** Exdate */
+      exdate?: number[];
     };
     /** TokenRefreshAuthVO */
     TokenRefreshAuthVO: {
@@ -2091,42 +1758,32 @@ export interface components {
        */
       universities: string[];
     };
-    /**
-     * UpdatePasswordDTO
-     * @example {
-     *       "confirm_password": "secret2",
-     *       "origin_password": "secret",
-     *       "password": "secret2",
-     *       "register_email": "user@example.com"
-     *     }
-     */
+    /** UpdatePasswordDTO */
     UpdatePasswordDTO: {
+      /** Password */
+      password: string;
+      /** Confirm Password */
+      confirm_password: string;
       /**
        * Register Email
        * Format: email
        */
       register_email: string;
-      /** Password */
-      password: string;
-      /** Confirm Password */
-      confirm_password: string;
       /** Origin Password */
       origin_password: string;
     };
     /** UpdateReservationDTO */
     UpdateReservationDTO: {
       /**
-       * My User Id
-       * @default 0
-       */
-      my_user_id: number;
-      /** @example PENDING */
-      my_status?: components['schemas']['BookingStatus'] | null;
-      /**
        * User Id
        * @default 0
        */
       user_id: number;
+      /**
+       * My User Id
+       * @default 0
+       */
+      my_user_id: number;
       /**
        * Schedule Id
        * @default 0
@@ -2142,11 +1799,10 @@ export interface components {
        * @default 0
        */
       dtend: number;
-      /**
-       * Messages
-       * @default []
-       */
-      messages: components['schemas']['ReservationMessageDTO'][] | null;
+      /** My Status */
+      my_status?: ('PENDING' | 'ACCEPT' | 'REJECT') | null;
+      /** Messages */
+      messages?: components['schemas']['ReservationMessageDTO'][] | null;
       previous_reserve?: components['schemas']['PreviousReserveRef'] | null;
     };
     /** ValidationError */
@@ -2157,6 +1813,10 @@ export interface components {
       msg: string;
       /** Error Type */
       type: string;
+      /** Input */
+      input?: unknown;
+      /** Context */
+      ctx?: Record<string, never>;
     };
   };
   responses: never;
@@ -2167,126 +1827,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-  signup_api_v1_auth_signup_post: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['SignupDTO'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_EmailSentVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  signup_email_resend_api_v1_auth_email_resend_post: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['Body_signup_email_resend_api_v1_auth_email_resend_post'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_EmailSentVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  confirm_signup_api_v1_auth_signup_confirm_post: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['Body_confirm_signup_api_v1_auth_signup_confirm_post'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_SignupResponseVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
   login_api_v1_auth_login_post: {
     parameters: {
       query?: {
@@ -2310,6 +1850,44 @@ export interface operations {
         content: {
           'application/json': components['schemas']['ApiResponse_LoginResponseVO_'];
         };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  delete_account_api_v1_auth_account_delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DeleteAccountDTO'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       /** @description Not found */
       404: {
@@ -2409,36 +1987,93 @@ export interface operations {
       };
     };
   };
-  update_password_api_v1_auth_password__user_id__update_put: {
+  signup_api_v1_auth_signup_post: {
     parameters: {
       query?: never;
       header?: never;
-      path: {
-        user_id: number;
-      };
+      path?: never;
       cookie?: never;
     };
     requestBody: {
       content: {
-        'application/json': components['schemas']['UpdatePasswordDTO'];
+        'application/json': components['schemas']['SignupDTO'];
       };
     };
     responses: {
       /** @description Successful Response */
-      200: {
+      201: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['ApiResponse_NoneType_'];
+          'application/json': components['schemas']['ApiResponse_EmailSentVO_'];
         };
       };
-      /** @description Not found */
-      404: {
+      /** @description Validation Error */
+      422: {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  resend_signup_api_v1_auth_email_resend_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['EmailDTO'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_EmailSentVO_'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  confirm_signup_api_v1_auth_signup_confirm_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ConfirmSignupDTO'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_SignupResponseVO_'];
+        };
       };
       /** @description Validation Error */
       422: {
@@ -2531,45 +2166,7 @@ export interface operations {
       };
     };
   };
-  delete_account_api_v1_auth_account_delete: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['DeleteAccountDTO'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  upsert_profile_api_v1_users__user_id__profile_put: {
+  update_password_api_v1_auth_password__user_id__update_put: {
     parameters: {
       query?: never;
       header?: never;
@@ -2580,7 +2177,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        'application/json': components['schemas']['ProfileDTO'];
+        'application/json': components['schemas']['UpdatePasswordDTO'];
       };
     };
     responses: {
@@ -2590,454 +2187,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['ApiResponse_ProfileVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_profile_api_v1_users__user_id___language__profile_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        user_id: number;
-        language: components['schemas']['Language'];
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_ProfileVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_countries_api_v1_users__language__countries_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        language: components['schemas']['Language'];
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_CountryListVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_tag_catalog_api_v1_users__language__tags_catalog_get: {
-    parameters: {
-      query?: {
-        kind?: components['schemas']['TagKind'][] | null;
-      };
-      header?: never;
-      path: {
-        /** @example zh_TW */
-        language: components['schemas']['Language'];
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_TagCatalogsVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  reservation_list_api_v1_users__user_id__reservations_get: {
-    parameters: {
-      query: {
-        state?: string;
-        batch: number;
-        next_dtend?: number | null;
-      };
-      header?: never;
-      path: {
-        user_id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_ReservationInfoListVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  new_booking_api_v1_users__user_id__reservations_post: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        user_id: number;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ReservationDTO'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_ReservationVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  update_reservation_status_api_v1_users__user_id__reservations__reservation_id__put: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        user_id: number;
-        reservation_id: number;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateReservationDTO'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_ReservationVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  upsert_mentor_profile_api_v1_mentors__user_id__profile_put: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        user_id: number;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['MentorProfileDTO'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_MentorProfileVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_mentor_profile_api_v1_mentors__user_id___language__profile_get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        user_id: number;
-        language: components['schemas']['Language'];
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_MentorProfileVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  get_universities_api_v1_mentors__language__universities_get: {
-    parameters: {
-      query: {
-        country_name: string;
-      };
-      header?: never;
-      path: {
-        language: components['schemas']['Language'];
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_UniversityListVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  upsert_mentor_schedule_api_v1_mentors__user_id__schedule_put: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        user_id: number;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['MentorScheduleDTO'];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_MentorScheduleVO_'];
-        };
-      };
-      /** @description Not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['HTTPValidationError'];
-        };
-      };
-    };
-  };
-  delete_mentor_schedule_api_v1_mentors__user_id__schedule__schedule_id__delete: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        user_id: number;
-        schedule_id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ApiResponse_int_'];
+          'application/json': components['schemas']['ApiResponse_NoneType_'];
         };
       };
       /** @description Not found */
@@ -3141,11 +2291,134 @@ export interface operations {
       };
     };
   };
+  upsert_mentor_profile_api_v1_mentors__user_id__profile_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        user_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MentorProfileDTO'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_MentorProfileVO_'];
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_mentor_profile_api_v1_mentors__user_id___language__profile_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        user_id: number;
+        language: components['schemas']['Language'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_MentorProfileVO_'];
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  upsert_mentor_schedule_api_v1_mentors__user_id__schedule_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        user_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MentorScheduleDTO'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_MentorScheduleVO_'];
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
   get_schedules_api_v1_mentors__user_id__schedule_y__dt_year__m__dt_month__get: {
     parameters: {
       query?: {
-        limit?: number;
-        next_dtstart?: number;
+        limit?: number | null;
+        next_dtstart?: number | null;
       };
       header?: never;
       path: {
@@ -3184,13 +2457,13 @@ export interface operations {
       };
     };
   };
-  get_file_info_by_id_api_v1_file__user_id___file_name__get: {
+  delete_mentor_schedule_api_v1_mentors__user_id__schedule__schedule_id__delete: {
     parameters: {
       query?: never;
       header?: never;
       path: {
         user_id: number;
-        file_id: string;
+        schedule_id: number;
       };
       cookie?: never;
     };
@@ -3202,7 +2475,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['ApiResponse_FileInfoVO_'];
+          'application/json': components['schemas']['ApiResponse_int_'];
         };
       };
       /** @description Not found */
@@ -3223,13 +2496,14 @@ export interface operations {
       };
     };
   };
-  delete_file_info_api_v1_file__user_id___file_name__delete: {
+  get_universities_api_v1_mentors__language__universities_get: {
     parameters: {
-      query?: never;
+      query: {
+        country_name: string;
+      };
       header?: never;
       path: {
-        user_id: number;
-        file_id: string;
+        language: components['schemas']['Language'];
       };
       cookie?: never;
     };
@@ -3241,7 +2515,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['ApiResponse_bool_'];
+          'application/json': components['schemas']['ApiResponse_UniversityListVO_'];
         };
       };
       /** @description Not found */
@@ -3262,12 +2536,12 @@ export interface operations {
       };
     };
   };
-  get_file_info_by_user_id_api_v1_file__user_id__get: {
+  get_countries_api_v1_users__language__countries_get: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        user_id: number;
+        language: components['schemas']['Language'];
       };
       cookie?: never;
     };
@@ -3279,7 +2553,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['ApiResponse_FileInfoListVO_'];
+          'application/json': components['schemas']['ApiResponse_CountryListVO_'];
         };
       };
       /** @description Not found */
@@ -3300,7 +2574,7 @@ export interface operations {
       };
     };
   };
-  update_file_info_api_v1_file__user_id__put: {
+  upsert_profile_api_v1_users__user_id__profile_put: {
     parameters: {
       query?: never;
       header?: never;
@@ -3311,7 +2585,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        'application/json': components['schemas']['FileInfoDTO'];
+        'application/json': components['schemas']['ProfileDTO'];
       };
     };
     responses: {
@@ -3321,7 +2595,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['ApiResponse_FileInfoVO_'];
+          'application/json': components['schemas']['ApiResponse_ProfileVO_'];
         };
       };
       /** @description Not found */
@@ -3342,35 +2616,202 @@ export interface operations {
       };
     };
   };
-  create_file_info_api_v1_file__post: {
+  get_profile_api_v1_users__user_id___language__profile_get: {
     parameters: {
       query?: never;
       header?: never;
-      path?: never;
+      path: {
+        user_id: number;
+        language: components['schemas']['Language'];
+      };
       cookie?: never;
     };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['FileInfoDTO'];
-      };
-    };
+    requestBody?: never;
     responses: {
-      /** @description OK */
+      /** @description Successful Response */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['ApiResponse_FileInfoVO_'];
+          'application/json': components['schemas']['ApiResponse_ProfileVO_'];
         };
       };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_tag_catalog_api_v1_users__language__tags_catalog_get: {
+    parameters: {
+      query?: {
+        kind?: components['schemas']['TagKind'][] | null;
+      };
+      header?: never;
+      path: {
+        /** @example zh_TW */
+        language: components['schemas']['Language'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_TagCatalogsVO_'];
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  reservation_list_api_v1_users__user_id__reservations_get: {
+    parameters: {
+      query?: {
+        batch?: number;
+        state?:
+          | (
+              | 'MENTOR_UPCOMING'
+              | 'MENTEE_UPCOMING'
+              | 'MENTOR_PENDING'
+              | 'MENTEE_PENDING'
+              | 'MENTOR_HISTORY'
+              | 'MENTEE_HISTORY'
+            )
+          | null;
+        next_dtend?: number | null;
+      };
+      header?: never;
+      path: {
+        user_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_ReservationInfoListVO_'];
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  new_booking_api_v1_users__user_id__reservations_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        user_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ReservationDTO'];
+      };
+    };
+    responses: {
       /** @description Successful Response */
       201: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          'application/json': unknown;
+          'application/json': components['schemas']['ApiResponse_ReservationVO_'];
+        };
+      };
+      /** @description Not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  update_reservation_status_api_v1_users__user_id__reservations__reservation_id__put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        user_id: number;
+        reservation_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateReservationDTO'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_ReservationVO_'];
         };
       };
       /** @description Not found */
@@ -3595,7 +3036,7 @@ export interface operations {
       };
     };
   };
-  oauth_authorize_signup_api_v2_oauth_google_authorize_signup_post: {
+  oauth_authorize_login_api_v2_oauth_google_authorize_login_post: {
     parameters: {
       query?: never;
       header?: never;
@@ -3622,7 +3063,7 @@ export interface operations {
       };
     };
   };
-  oauth_authorize_login_api_v2_oauth_google_authorize_login_post: {
+  oauth_authorize_signup_api_v2_oauth_google_authorize_signup_post: {
     parameters: {
       query?: never;
       header?: never;

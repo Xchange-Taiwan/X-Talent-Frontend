@@ -7,10 +7,9 @@ export interface ScheduleRequest {
   month: number;
 }
 
-export type SegmentVO = components['schemas']['MentorScheduleSegmentVO'];
-export type ScheduleData = components['schemas']['MentorScheduleQueryVO'];
-
 export type TimeSlotDTO = components['schemas']['TimeSlotDTO'];
+export type SegmentVO = TimeSlotDTO;
+export type ScheduleData = components['schemas']['MentorScheduleQueryVO'];
 
 interface ScheduleApiResponse {
   code: string;
@@ -40,7 +39,10 @@ interface SaveScheduleResponse {
 
 type CleanObject = Record<string, unknown>;
 
-function utcYearMonth(unixSeconds: number): { year: number; month: number } {
+export function utcYearMonth(unixSeconds: number): {
+  year: number;
+  month: number;
+} {
   const date = new Date(unixSeconds * 1000);
   return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
 }

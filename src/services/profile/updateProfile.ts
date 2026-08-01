@@ -1,4 +1,3 @@
-import { getSession } from 'next-auth/react';
 import * as z from 'zod';
 
 import { formSchema } from '@/components/onboarding/steps';
@@ -22,19 +21,21 @@ export type UpdateProfileInput = z.infer<typeof unionformSchema> & {
 };
 
 export async function updateProfile(
+  userId: string | undefined,
   profileData: UpdateProfileInput
 ): Promise<void> {
-  const session = await getSession();
-  const userId = session?.user?.id;
-
   if (!userId) {
     throw new Error('未找到使用者 ID。請重新登入。');
   }
 
   try {
+    const numericUserId = Number(userId);
+    if (Number.isNaN(numericUserId)) {
+      throw new Error('使用者 ID 格式無效。');
+    }
     await apiClient.put(`/v1/mentors/${userId}/profile`, {
       ...profileData,
-      user_id: userId,
+      user_id: numericUserId,
     });
   } catch (error) {
     if (error instanceof TypeError && error.message === 'Failed to fetch') {
