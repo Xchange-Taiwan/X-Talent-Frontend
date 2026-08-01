@@ -71,10 +71,18 @@ function classifyMessageRole(
 }
 
 export function mapToReservation(
-  reservation: components['schemas']['ReservationInfoVO']
+  reservation: components['schemas']['ReservationInfoVO'],
+  myUserId?: string | number
 ): Reservation {
-  // API 固定結構：sender = 當前使用者，participant = 對方
-  const counterparty = reservation.participant;
+  // If myUserId is provided and equals reservation.sender.user_id, the counterparty is set to reservation.participant.
+  // If myUserId is provided and does NOT equal reservation.sender.user_id, the counterparty is set to reservation.sender.
+  // If myUserId is omitted, the counterparty defaults to reservation.participant for backward compatibility.
+  const counterparty =
+    myUserId === undefined
+      ? reservation.participant
+      : String(myUserId) === String(reservation.sender.user_id)
+        ? reservation.participant
+        : reservation.sender;
   const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
   const roleLine = [
     counterparty.job_title?.trim() || '',
@@ -168,7 +176,7 @@ export async function fetchReservations(
   if (json.code !== '0') throw new FetchApiError(json.code, json.msg, path);
 
   const items = (json.data?.reservations ?? []).map((reservation) =>
-    mapToReservation(reservation)
+    mapToReservation(reservation, userId)
   );
   return { items, next_dtend: json.data?.next_dtend ?? 0 };
 }

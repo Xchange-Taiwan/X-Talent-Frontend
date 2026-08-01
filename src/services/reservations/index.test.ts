@@ -421,4 +421,37 @@ describe('mapToReservation', () => {
     const result = mapToReservation(makeReservation());
     expect(result.cancelledBy).toBeUndefined();
   });
+
+  /* ============================
+   * myUserId matching (counterparty resolution)
+   * ============================ */
+
+  it('myUserId is omitted → counterparty defaults to participant for backward compatibility', () => {
+    const reservation = makeReservation();
+    const result = mapToReservation(reservation);
+    // When omitted, should map name/avatar of participant (Bob, user_id: 20)
+    expect(result.name).toBe('Bob');
+    expect(result.participantUserId).toBe(20);
+  });
+
+  it('myUserId matches sender.user_id → counterparty is set to participant', () => {
+    const reservation = makeReservation();
+    const result = mapToReservation(reservation, 10); // sender user_id is 10
+    // counterparty is participant (Bob)
+    expect(result.name).toBe('Bob');
+  });
+
+  it('myUserId matches sender.user_id as string/number mismatch → type-agnostically resolves counterparty to participant', () => {
+    const reservation = makeReservation();
+    const result = mapToReservation(reservation, '10'); // sender user_id is 10 (number)
+    // counterparty is participant (Bob)
+    expect(result.name).toBe('Bob');
+  });
+
+  it('myUserId does NOT match sender.user_id → counterparty is set to sender', () => {
+    const reservation = makeReservation();
+    const result = mapToReservation(reservation, 20); // myUserId is 20 (participant user_id, not sender)
+    // counterparty is sender (Alice, user_id: 10)
+    expect(result.name).toBe('Alice');
+  });
 });
