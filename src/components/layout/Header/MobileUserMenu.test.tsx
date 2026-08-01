@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { fromAny, fromPartial } from '@total-typescript/shoehorn';
 import type { Session } from 'next-auth';
 import { describe, expect, it, vi } from 'vitest';
@@ -34,13 +34,15 @@ function buildUser(overrides: Partial<Session['user']> = {}): Session['user'] {
 }
 
 describe('MobileUserMenu', () => {
-  it('renders without crashing with default mock user', () => {
-    const { container } = render(<MobileUserMenu user={buildUser()} />);
-    expect(container).toBeDefined();
+  it('renders correctly with default mock user showing proper alt text', () => {
+    render(<MobileUserMenu user={buildUser({ name: 'Ada Lovelace' })} />);
+    const avatarImg = screen.getByRole('img', { name: 'Ada Lovelace 的頭像' });
+    expect(avatarImg).toBeInTheDocument();
   });
 
-  it('renders with undefined user without crashing', () => {
-    const { container } = render(<MobileUserMenu user={fromAny(undefined)} />);
-    expect(container).toBeDefined();
+  it('renders with undefined user safely with fallback alt text', () => {
+    render(<MobileUserMenu user={fromAny(undefined)} />);
+    const fallbackImg = screen.getByRole('img', { name: '我的頭像' });
+    expect(fallbackImg).toBeInTheDocument();
   });
 });

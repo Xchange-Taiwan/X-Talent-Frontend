@@ -23,7 +23,7 @@ export interface UseAccountMenuOptions {
 
 export interface UseAccountMenuResult {
   userId: string | undefined;
-  isMentor: boolean;
+  isMentor: boolean | undefined;
   canDeleteAccount: boolean;
   name: string;
   avatarSrc: string;
@@ -51,7 +51,7 @@ export function useAccountMenu({
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
 
   const userId = user?.id;
-  const isMentor = Boolean(user?.isMentor);
+  const isMentor = user?.isMentor;
   const canDeleteAccount =
     process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT === 'true';
   const name = user?.name ?? '';
