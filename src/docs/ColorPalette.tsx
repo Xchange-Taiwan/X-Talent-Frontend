@@ -27,6 +27,12 @@ interface ColorGroup {
   tokens: ColorToken[];
 }
 
+interface ColorViewProps {
+  tokens: ColorToken[];
+  copiedValue: string | null;
+  handleCopy: (value: string, type: string) => Promise<void>;
+}
+
 // Helper to convert HSL string to HEX string
 export function hslToHex(hslStr: string): string {
   const parts = hslStr.trim().split(/\s+/);
@@ -183,6 +189,246 @@ const colorGroups: ColorGroup[] = [
   },
 ];
 
+/**
+ * ColorGridView component renders color tokens in a modern card layout.
+ */
+const ColorGridView: React.FC<ColorViewProps> = ({
+  tokens,
+  copiedValue,
+  handleCopy,
+}) => {
+  const isCopied = (value: string, type: string) =>
+    copiedValue === `${type}:${value}`;
+
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      {tokens.map((token) => (
+        <div
+          key={token.key}
+          className="group flex flex-col overflow-hidden rounded-lg border border-background-border bg-background-white transition-all hover:shadow-md"
+        >
+          {/* Interactive Preview Color Block */}
+          {/* Note: This inline style is an explicit exception for dynamic preview in Storybook docs */}
+          {/* eslint-disable-next-line react/forbid-dom-props */}
+          <div
+            className="relative h-28 w-full cursor-pointer border-b border-background-border"
+            style={{ backgroundColor: `hsl(${token.hsl})` }}
+            onClick={() => handleCopy(token.hex, 'hex')}
+            title="點擊複製 HEX 值"
+          >
+            <div className="absolute inset-0 flex items-center justify-center bg-dark/10 opacity-0 transition-opacity group-hover:opacity-100">
+              <span className="flex items-center gap-1 rounded bg-dark/75 px-2 py-1 text-xs font-medium text-text-white">
+                {isCopied(token.hex, 'hex') ? (
+                  <>
+                    <CheckCircle2 className="size-3 text-brand-500" />
+                    已複製 HEX
+                  </>
+                ) : copiedValue === `failed:hex:${token.hex}` ? (
+                  <>
+                    <AlertCircle className="size-3 text-status-error-default" />
+                    複製失敗
+                  </>
+                ) : (
+                  <>
+                    <Copy className="size-3" />
+                    點擊複製 HEX
+                  </>
+                )}
+              </span>
+            </div>
+          </div>
+
+          {/* Code and Meta Details */}
+          <div className="flex flex-1 flex-col justify-between space-y-2.5 p-3.5">
+            <div>
+              <h4 className="text-sm font-bold text-text-primary">
+                {token.name}
+              </h4>
+              <span className="font-mono text-xs text-text-tertiary">
+                {token.key}
+              </span>
+            </div>
+
+            <div className="space-y-1 border-t border-background-border pt-1 font-mono text-xs">
+              {/* Copy HEX */}
+              <div className="group/line flex items-center justify-between">
+                <span className="text-text-tertiary">HEX:</span>
+                <button
+                  onClick={() => handleCopy(token.hex, 'hex')}
+                  className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
+                >
+                  <span>{token.hex}</span>
+                  {isCopied(token.hex, 'hex') ? (
+                    <Check className="size-3 text-status-success-default" />
+                  ) : copiedValue === `failed:hex:${token.hex}` ? (
+                    <AlertCircle className="size-3 text-status-error-default" />
+                  ) : (
+                    <Copy className="size-3 opacity-0 transition-opacity group-hover/line:opacity-100" />
+                  )}
+                </button>
+              </div>
+
+              {/* Copy CSS Var */}
+              <div className="group/line flex items-center justify-between">
+                <span className="text-text-tertiary">CSS Var:</span>
+                <button
+                  onClick={() => handleCopy(`var(${token.variable})`, 'var')}
+                  className="flex max-w-[120px] items-center gap-1 truncate text-text-primary transition-colors hover:text-brand-500"
+                  title={`var(${token.variable})`}
+                >
+                  <span className="truncate">{token.variable}</span>
+                  {isCopied(`var(${token.variable})`, 'var') ? (
+                    <Check className="size-3 text-status-success-default" />
+                  ) : copiedValue === `failed:var:var(${token.variable})` ? (
+                    <AlertCircle className="size-3 text-status-error-default" />
+                  ) : (
+                    <Copy className="size-3 flex-shrink-0 opacity-0 transition-opacity group-hover/line:opacity-100" />
+                  )}
+                </button>
+              </div>
+
+              {/* Copy Tailwind utility */}
+              <div className="group/line flex items-center justify-between">
+                <span className="text-text-tertiary">Tailwind:</span>
+                <button
+                  onClick={() => handleCopy(token.tailwindBg, 'tw')}
+                  className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
+                  title={`Background Class: ${token.tailwindBg}\nText Class: ${token.tailwindText}`}
+                >
+                  <span>{token.tailwindBg}</span>
+                  {isCopied(token.tailwindBg, 'tw') ? (
+                    <Check className="size-3 text-status-success-default" />
+                  ) : copiedValue === `failed:tw:${token.tailwindBg}` ? (
+                    <AlertCircle className="size-3 text-status-error-default" />
+                  ) : (
+                    <Copy className="size-3 opacity-0 transition-opacity group-hover/line:opacity-100" />
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/**
+ * ColorListView component renders color tokens in a system table.
+ */
+const ColorListView: React.FC<ColorViewProps> = ({
+  tokens,
+  copiedValue,
+  handleCopy,
+}) => {
+  const isCopied = (value: string, type: string) =>
+    copiedValue === `${type}:${value}`;
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-left">
+        <thead>
+          <tr className="border-b border-background-border text-xs font-semibold uppercase text-text-tertiary">
+            <th className="w-12 px-4 py-3">預覽</th>
+            <th className="px-4 py-3">名稱 & KEY</th>
+            <th className="px-4 py-3">HEX</th>
+            <th className="px-4 py-3">CSS 變數</th>
+            <th className="px-4 py-3">Tailwind (背景)</th>
+            <th className="px-4 py-3">Tailwind (文字)</th>
+            <th className="px-4 py-3 text-right">HSL 原生值</th>
+          </tr>
+        </thead>
+        <tbody className="text-sm">
+          {tokens.map((token) => (
+            <tr
+              key={token.key}
+              className="group/row border-b border-background-bottom hover:bg-background-bottom-secondary"
+            >
+              <td className="px-4 py-3.5">
+                {/* Note: This inline style is an explicit exception for dynamic preview in Storybook docs */}
+                {/* eslint-disable-next-line react/forbid-dom-props */}
+                <div
+                  className="size-8 rounded-md border border-background-border shadow-inner"
+                  style={{ backgroundColor: `hsl(${token.hsl})` }}
+                />
+              </td>
+              <td className="px-4 py-3.5 font-medium text-text-primary">
+                <div className="font-bold">{token.name}</div>
+                <div className="font-mono text-xs text-text-tertiary">
+                  {token.key}
+                </div>
+              </td>
+              <td className="px-4 py-3.5 font-mono">
+                <button
+                  onClick={() => handleCopy(token.hex, 'hex')}
+                  className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
+                >
+                  <span>{token.hex}</span>
+                  {isCopied(token.hex, 'hex') ? (
+                    <Check className="size-3 text-status-success-default" />
+                  ) : copiedValue === `failed:hex:${token.hex}` ? (
+                    <AlertCircle className="size-3 text-status-error-default" />
+                  ) : (
+                    <Copy className="size-3 opacity-0 transition-opacity group-hover/row:opacity-100" />
+                  )}
+                </button>
+              </td>
+              <td className="px-4 py-3.5 font-mono">
+                <button
+                  onClick={() => handleCopy(`var(${token.variable})`, 'var')}
+                  className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
+                >
+                  <span>var({token.variable})</span>
+                  {isCopied(`var(${token.variable})`, 'var') ? (
+                    <Check className="size-3 text-status-success-default" />
+                  ) : copiedValue === `failed:var:var(${token.variable})` ? (
+                    <AlertCircle className="size-3 text-status-error-default" />
+                  ) : (
+                    <Copy className="size-3 opacity-0 transition-opacity group-hover/row:opacity-100" />
+                  )}
+                </button>
+              </td>
+              <td className="px-4 py-3.5 font-mono">
+                <button
+                  onClick={() => handleCopy(token.tailwindBg, 'twbg')}
+                  className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
+                >
+                  <span>{token.tailwindBg}</span>
+                  {isCopied(token.tailwindBg, 'twbg') ? (
+                    <Check className="size-3 text-status-success-default" />
+                  ) : copiedValue === `failed:twbg:${token.tailwindBg}` ? (
+                    <AlertCircle className="size-3 text-status-error-default" />
+                  ) : (
+                    <Copy className="size-3 opacity-0 transition-opacity group-hover/row:opacity-100" />
+                  )}
+                </button>
+              </td>
+              <td className="px-4 py-3.5 font-mono">
+                <button
+                  onClick={() => handleCopy(token.tailwindText, 'twtext')}
+                  className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
+                >
+                  <span>{token.tailwindText}</span>
+                  {isCopied(token.tailwindText, 'twtext') ? (
+                    <Check className="size-3 text-status-success-default" />
+                  ) : copiedValue === `failed:twtext:${token.tailwindText}` ? (
+                    <AlertCircle className="size-3 text-status-error-default" />
+                  ) : (
+                    <Copy className="size-3 opacity-0 transition-opacity group-hover/row:opacity-100" />
+                  )}
+                </button>
+              </td>
+              <td className="px-4 py-3.5 text-right font-mono text-xs text-text-tertiary">
+                {token.hsl}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 export const ColorPalette: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -214,9 +460,6 @@ export const ColorPalette: React.FC = () => {
 
     return () => clearTimeout(timer);
   }, [copiedValue]);
-
-  const isCopied = (value: string, type: string) =>
-    copiedValue === `${type}:${value}`;
 
   const query = searchQuery.toLowerCase();
   const filteredGroups = useMemo(() => {
@@ -294,218 +537,17 @@ export const ColorPalette: React.FC = () => {
               </div>
 
               {viewMode === 'grid' ? (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                  {group.tokens.map((token) => (
-                    <div
-                      key={token.key}
-                      className="group flex flex-col overflow-hidden rounded-lg border border-background-border bg-background-white transition-all hover:shadow-md"
-                    >
-                      {/* Interactive Preview Color Block */}
-                      <div
-                        className="relative h-28 w-full cursor-pointer border-b border-background-border"
-                        style={{ backgroundColor: `hsl(${token.hsl})` }}
-                        onClick={() => handleCopy(token.hex, 'hex')}
-                        title="點擊複製 HEX 值"
-                      >
-                        <div className="absolute inset-0 flex items-center justify-center bg-dark/10 opacity-0 transition-opacity group-hover:opacity-100">
-                          <span className="flex items-center gap-1 rounded bg-dark/75 px-2 py-1 text-xs font-medium text-text-white">
-                            {isCopied(token.hex, 'hex') ? (
-                              <>
-                                <CheckCircle2 className="size-3 text-brand-500" />
-                                已複製 HEX
-                              </>
-                            ) : copiedValue === `failed:hex:${token.hex}` ? (
-                              <>
-                                <AlertCircle className="size-3 text-status-error-default" />
-                                複製失敗
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="size-3" />
-                                點擊複製 HEX
-                              </>
-                            )}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Code and Meta Details */}
-                      <div className="flex flex-1 flex-col justify-between space-y-2.5 p-3.5">
-                        <div>
-                          <h4 className="text-sm font-bold text-text-primary">
-                            {token.name}
-                          </h4>
-                          <span className="font-mono text-xs text-text-tertiary">
-                            {token.key}
-                          </span>
-                        </div>
-
-                        <div className="space-y-1 border-t border-background-border pt-1 font-mono text-xs">
-                          {/* Copy HEX */}
-                          <div className="group/line flex items-center justify-between">
-                            <span className="text-text-tertiary">HEX:</span>
-                            <button
-                              onClick={() => handleCopy(token.hex, 'hex')}
-                              className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
-                            >
-                              <span>{token.hex}</span>
-                              {isCopied(token.hex, 'hex') ? (
-                                <Check className="size-3 text-status-success-default" />
-                              ) : copiedValue === `failed:hex:${token.hex}` ? (
-                                <AlertCircle className="size-3 text-status-error-default" />
-                              ) : (
-                                <Copy className="size-3 opacity-0 transition-opacity group-hover/line:opacity-100" />
-                              )}
-                            </button>
-                          </div>
-
-                          {/* Copy CSS Var */}
-                          <div className="group/line flex items-center justify-between">
-                            <span className="text-text-tertiary">CSS Var:</span>
-                            <button
-                              onClick={() =>
-                                handleCopy(`var(${token.variable})`, 'var')
-                              }
-                              className="flex max-w-[120px] items-center gap-1 truncate text-text-primary transition-colors hover:text-brand-500"
-                              title={`var(${token.variable})`}
-                            >
-                              <span className="truncate">{token.variable}</span>
-                              {isCopied(`var(${token.variable})`, 'var') ? (
-                                <Check className="size-3 text-status-success-default" />
-                              ) : copiedValue ===
-                                `failed:var:var(${token.variable})` ? (
-                                <AlertCircle className="size-3 text-status-error-default" />
-                              ) : (
-                                <Copy className="size-3 flex-shrink-0 opacity-0 transition-opacity group-hover/line:opacity-100" />
-                              )}
-                            </button>
-                          </div>
-
-                          {/* Copy Tailwind utility */}
-                          <div className="group/line flex items-center justify-between">
-                            <span className="text-text-tertiary">
-                              Tailwind:
-                            </span>
-                            <button
-                              onClick={() => handleCopy(token.tailwindBg, 'tw')}
-                              className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
-                              title={`Background Class: ${token.tailwindBg}\nText Class: ${token.tailwindText}`}
-                            >
-                              <span>{token.tailwindBg}</span>
-                              {isCopied(token.tailwindBg, 'tw') ? (
-                                <Check className="size-3 text-status-success-default" />
-                              ) : copiedValue ===
-                                `failed:tw:${token.tailwindBg}` ? (
-                                <AlertCircle className="size-3 text-status-error-default" />
-                              ) : (
-                                <Copy className="size-3 opacity-0 transition-opacity group-hover/line:opacity-100" />
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <ColorGridView
+                  tokens={group.tokens}
+                  copiedValue={copiedValue}
+                  handleCopy={handleCopy}
+                />
               ) : (
-                /* List View Details */
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-left">
-                    <thead>
-                      <tr className="border-b border-background-border text-xs font-semibold uppercase text-text-tertiary">
-                        <th className="w-12 px-4 py-3">預覽</th>
-                        <th className="px-4 py-3">名稱 & KEY</th>
-                        <th className="px-4 py-3">HEX</th>
-                        <th className="px-4 py-3">CSS 變數</th>
-                        <th className="px-4 py-3">Tailwind (背景)</th>
-                        <th className="px-4 py-3">Tailwind (文字)</th>
-                        <th className="px-4 py-3 text-right">HSL 原生值</th>
-                      </tr>
-                    </thead>
-                    <tbody className="text-sm">
-                      {group.tokens.map((token) => (
-                        <tr
-                          key={token.key}
-                          className="group/row border-b border-background-bottom hover:bg-background-bottom-secondary"
-                        >
-                          <td className="px-4 py-3.5">
-                            <div
-                              className="size-8 rounded-md border border-background-border shadow-inner"
-                              style={{ backgroundColor: `hsl(${token.hsl})` }}
-                            />
-                          </td>
-                          <td className="px-4 py-3.5 font-medium text-text-primary">
-                            <div className="font-bold">{token.name}</div>
-                            <div className="font-mono text-xs text-text-tertiary">
-                              {token.key}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3.5 font-mono">
-                            <button
-                              onClick={() => handleCopy(token.hex, 'hex')}
-                              className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
-                            >
-                              <span>{token.hex}</span>
-                              {isCopied(token.hex, 'hex') ? (
-                                <Check className="size-3 text-status-success-default" />
-                              ) : (
-                                <Copy className="size-3 opacity-0 transition-opacity group-hover/row:opacity-100" />
-                              )}
-                            </button>
-                          </td>
-                          <td className="px-4 py-3.5 font-mono">
-                            <button
-                              onClick={() =>
-                                handleCopy(`var(${token.variable})`, 'var')
-                              }
-                              className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
-                            >
-                              <span>var({token.variable})</span>
-                              {isCopied(`var(${token.variable})`, 'var') ? (
-                                <Check className="size-3 text-status-success-default" />
-                              ) : (
-                                <Copy className="size-3 opacity-0 transition-opacity group-hover/row:opacity-100" />
-                              )}
-                            </button>
-                          </td>
-                          <td className="px-4 py-3.5 font-mono">
-                            <button
-                              onClick={() =>
-                                handleCopy(token.tailwindBg, 'twbg')
-                              }
-                              className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
-                            >
-                              <span>{token.tailwindBg}</span>
-                              {isCopied(token.tailwindBg, 'twbg') ? (
-                                <Check className="size-3 text-status-success-default" />
-                              ) : (
-                                <Copy className="size-3 opacity-0 transition-opacity group-hover/row:opacity-100" />
-                              )}
-                            </button>
-                          </td>
-                          <td className="px-4 py-3.5 font-mono">
-                            <button
-                              onClick={() =>
-                                handleCopy(token.tailwindText, 'twtext')
-                              }
-                              className="flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500"
-                            >
-                              <span>{token.tailwindText}</span>
-                              {isCopied(token.tailwindText, 'twtext') ? (
-                                <Check className="size-3 text-status-success-default" />
-                              ) : (
-                                <Copy className="size-3 opacity-0 transition-opacity group-hover/row:opacity-100" />
-                              )}
-                            </button>
-                          </td>
-                          <td className="px-4 py-3.5 text-right font-mono text-xs text-text-tertiary">
-                            {token.hsl}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <ColorListView
+                  tokens={group.tokens}
+                  copiedValue={copiedValue}
+                  handleCopy={handleCopy}
+                />
               )}
             </section>
           ))}
