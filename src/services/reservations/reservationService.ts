@@ -123,14 +123,17 @@ export function mapToReservation(
   // canceller's role surfaced so the UI can render 「已由導師/學員取消」 on both
   // mentor and mentee history pages. Reject (pre-accept) and cancel
   // (post-accept) intentionally share the same 「取消」 copy per PM scope
-  // (Tracker #224). Participant takes precedence when both sides are REJECT.
+  // (Tracker #224). Participant (other side / counterparty) takes precedence when both sides are REJECT.
   const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
     r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
+  const currentUser = isSenderCurrentUser
+    ? reservation.sender
+    : reservation.participant;
   const cancelledBy: 'MENTEE' | 'MENTOR' | undefined =
-    reservation.participant.status === 'REJECT'
-      ? toRole(reservation.participant.role)
-      : reservation.sender.status === 'REJECT'
-        ? toRole(reservation.sender.role)
+    counterparty.status === 'REJECT'
+      ? toRole(counterparty.role)
+      : currentUser.status === 'REJECT'
+        ? toRole(currentUser.role)
         : undefined;
 
   return {
@@ -176,7 +179,7 @@ export async function fetchReservations(
   if (json.code !== '0') throw new FetchApiError(json.code, json.msg, path);
 
   const items = (json.data?.reservations ?? []).map((reservation) =>
-    mapToReservation(reservation, String(userId))
+    mapToReservation(reservation, userId != null ? String(userId) : undefined)
   );
   return { items, next_dtend: json.data?.next_dtend ?? 0 };
 }
