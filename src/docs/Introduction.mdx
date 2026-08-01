@@ -208,20 +208,20 @@ import { Meta } from '@storybook/addon-docs/blocks';
 import { MyComponent } from './MyComponent';
 
 const meta: Meta<typeof MyComponent> = {
-  title: 'UI/MyComponent', // 類別/元件名稱
-  component: MyComponent,
-  tags: ['autodocs'], // 自動生成 Docs 頁籤
-  argTypes: {
-    variant: {
-      control: 'select',
-      options: ['default', 'outline', 'ghost'],
-      description: '元件的視覺樣式',
-    },
-    disabled: {
-      control: 'boolean',
-      description: '切換互動行為',
-    },
-  },
+title: 'UI/MyComponent', // 類別/元件名稱
+component: MyComponent,
+tags: ['autodocs'], // 自動生成 Docs 頁籤
+argTypes: {
+variant: {
+control: 'select',
+options: ['default', 'outline', 'ghost'],
+description: '元件的視覺樣式',
+},
+disabled: {
+control: 'boolean',
+description: '切換互動行為',
+},
+},
 };
 
 export default meta;
@@ -229,19 +229,19 @@ type Story = StoryObj<typeof MyComponent>;
 
 // 1. 主要預設狀態
 export const Default: Story = {
-  args: {
-    variant: 'default',
-    children: '互動式元件',
-    disabled: false,
-  },
+args: {
+variant: 'default',
+children: '互動式元件',
+disabled: false,
+},
 };
 
 // 2. 禁用狀態變體
 export const Disabled: Story = {
-  args: {
-    ...Default.args,
-    disabled: true,
-  },
+args: {
+...Default.args,
+disabled: true,
+},
 };`}
 
 </pre>
