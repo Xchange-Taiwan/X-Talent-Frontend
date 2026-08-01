@@ -71,10 +71,21 @@ function classifyMessageRole(
 }
 
 export function mapToReservation(
-  reservation: components['schemas']['ReservationInfoVO']
+  reservation: components['schemas']['ReservationInfoVO'],
+  currentUserId?: string
 ): Reservation {
-  // API 固定結構：sender = 當前使用者，participant = 對方
-  const counterparty = reservation.participant;
+  // If currentUserId is passed and matches participant, the current user is participant,
+  // so the counterparty is sender (isSenderCurrentUser = false).
+  // Otherwise, fallback to the previous behaviour where counterparty is participant (isSenderCurrentUser = true).
+  const isSenderCurrentUser =
+    currentUserId &&
+    String(reservation.participant.user_id) === String(currentUserId)
+      ? false
+      : true;
+  const counterparty = isSenderCurrentUser
+    ? reservation.participant
+    : reservation.sender;
+
   const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
   const roleLine = [
     counterparty.job_title?.trim() || '',
@@ -115,14 +126,17 @@ export function mapToReservation(
   // canceller's role surfaced so the UI can render 「已由導師/學員取消」 on both
   // mentor and mentee history pages. Reject (pre-accept) and cancel
   // (post-accept) intentionally share the same 「取消」 copy per PM scope
-  // (Tracker #224). Participant takes precedence when both sides are REJECT.
+  // (Tracker #224). Participant (other side / counterparty) takes precedence when both sides are REJECT.
   const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
     r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
+  const currentUser = isSenderCurrentUser
+    ? reservation.sender
+    : reservation.participant;
   const cancelledBy: 'MENTEE' | 'MENTOR' | undefined =
     counterparty.status === 'REJECT'
       ? toRole(counterparty.role)
-      : reservation.sender.status === 'REJECT'
-        ? toRole(reservation.sender.role)
+      : currentUser.status === 'REJECT'
+        ? toRole(currentUser.role)
         : undefined;
 
   return {
@@ -168,7 +182,7 @@ export async function fetchReservations(
   if (json.code !== '0') throw new FetchApiError(json.code, json.msg, path);
 
   const items = (json.data?.reservations ?? []).map((reservation) =>
-    mapToReservation(reservation)
+    mapToReservation(reservation, userId != null ? String(userId) : undefined)
   );
   return { items, next_dtend: json.data?.next_dtend ?? 0 };
 }
