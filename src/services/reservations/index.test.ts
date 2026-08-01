@@ -536,6 +536,34 @@ describe('mapToReservation', () => {
       expect(resultParticipant.cancelledBy).toBe('MENTOR');
     });
 
+    it('when only sender rejected → cancelledBy resolves correctly to MENTEE regardless of myUserId', () => {
+      const reservation = makeReservation({
+        sender: {
+          user_id: 10,
+          role: 'MENTEE',
+          status: 'REJECT',
+          name: 'Bob',
+          avatar: '',
+          job_title: 'Designer',
+          years_of_experience: 'ONE_TO_THREE',
+        },
+        participant: {
+          user_id: 20,
+          role: 'MENTOR',
+          status: 'ACCEPT',
+          name: 'Alice',
+          avatar: '',
+          job_title: 'Engineer',
+          years_of_experience: 'THREE_TO_FIVE',
+        },
+      });
+      const resultSender = mapToReservation(reservation, 10);
+      expect(resultSender.cancelledBy).toBe('MENTEE');
+
+      const resultParticipant = mapToReservation(reservation, 20);
+      expect(resultParticipant.cancelledBy).toBe('MENTEE');
+    });
+
     it('when reservation.sender.user_id is null → does not crash and maps to sender as counterparty', () => {
       const reservation = makeReservation({
         sender: {
