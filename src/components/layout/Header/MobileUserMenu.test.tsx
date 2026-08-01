@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { fromAny, fromPartial } from '@total-typescript/shoehorn';
+import { fromPartial } from '@total-typescript/shoehorn';
 import type { Session } from 'next-auth';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -40,8 +40,15 @@ describe('MobileUserMenu', () => {
     expect(avatarImg).toBeInTheDocument();
   });
 
-  it('renders with undefined user safely with fallback alt text', () => {
-    render(<MobileUserMenu user={fromAny(undefined)} />);
+  it('renders with anonymous user safely with fallback alt text', () => {
+    render(
+      <MobileUserMenu
+        user={buildUser({
+          name: null,
+          avatar: null,
+        })}
+      />
+    );
     const fallbackImg = screen.getByRole('img', { name: '我的頭像' });
     expect(fallbackImg).toBeInTheDocument();
   });
