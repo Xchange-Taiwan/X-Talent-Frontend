@@ -33,6 +33,9 @@ export async function updateProfile(
 
   try {
     const numericUserId = Number(userId);
+    if (Number.isNaN(numericUserId)) {
+      throw new Error('使用者 ID 格式無效。');
+    }
     await apiClient.put(`/v1/mentors/${userId}/profile`, {
       ...profileData,
       user_id: numericUserId,

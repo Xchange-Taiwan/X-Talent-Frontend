@@ -101,7 +101,7 @@ export function buildTagLabelMap(
 ): Map<string, string> {
   const map = new Map<string, string>();
   for (const key of TAG_BUCKET_KEYS) {
-    for (const group of catalogs[key]) {
+    for (const group of catalogs[key] ?? []) {
       for (const leaf of group.leaves ?? []) {
         map.set(leaf.subject_group, leaf.subject);
       }
