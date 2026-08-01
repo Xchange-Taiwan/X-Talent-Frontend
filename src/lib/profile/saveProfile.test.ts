@@ -60,7 +60,7 @@ function lastExperiences(): unknown[] | undefined {
   const lastCall =
     mockUpdateProfile.mock.calls[mockUpdateProfile.mock.calls.length - 1];
   if (!lastCall) return undefined;
-  const arg = lastCall[0] as { experiences?: unknown[] };
+  const arg = lastCall[1] as { experiences?: unknown[] };
   return arg.experiences;
 }
 
@@ -98,6 +98,7 @@ describe('saveProfile (Deep Module)', () => {
 
     expect(mockUpdateAvatar).toHaveBeenCalledWith(file);
     expect(mockUpdateProfile).toHaveBeenCalledWith(
+      'test-user-id',
       expect.objectContaining({ avatar: newAvatarUrl })
     );
     expect(mockSetAvatarOverride).toHaveBeenCalledWith('1', newAvatarUrl);
@@ -472,6 +473,7 @@ describe('saveProfile (Deep Module)', () => {
     expect(consumeAvatarUpload).toHaveBeenCalledWith(file);
     expect(mockUpdateAvatar).not.toHaveBeenCalled();
     expect(mockUpdateProfile).toHaveBeenCalledWith(
+      'test-user-id',
       expect.objectContaining({ avatar: consumed })
     );
 
@@ -536,6 +538,7 @@ describe('saveProfile (Deep Module)', () => {
     await saveProfile(valuesWithPrimary, deps);
 
     expect(mockUpdateProfile).toHaveBeenCalledWith(
+      'test-user-id',
       expect.objectContaining({
         job_title: 'Senior Engineer',
         company: 'Dell',
