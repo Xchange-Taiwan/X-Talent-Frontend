@@ -1,4 +1,3 @@
-import { getSession } from 'next-auth/react';
 import * as z from 'zod';
 
 import { formSchema } from '@/components/onboarding/steps';
@@ -22,11 +21,9 @@ export type UpdateProfileInput = z.infer<typeof unionformSchema> & {
 };
 
 export async function updateProfile(
+  userId: string | undefined,
   profileData: UpdateProfileInput
 ): Promise<void> {
-  const session = await getSession();
-  const userId = session?.user?.id;
-
   if (!userId) {
     throw new Error('未找到使用者 ID。請重新登入。');
   }
