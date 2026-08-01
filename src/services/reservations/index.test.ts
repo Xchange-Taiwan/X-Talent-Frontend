@@ -468,4 +468,13 @@ describe('mapToReservation', () => {
     expect(result.name).toBe('Bob');
     expect(result.participantUserId).toBe(20);
   });
+
+  it('myUserId matches sender.user_id but participant is null/undefined → falls back to sender to prevent crash', () => {
+    const reservation = makeReservation({
+      participant: fromAny(null),
+    });
+    const result = mapToReservation(reservation, 10); // matches sender.user_id, falls back to sender (Alice)
+    expect(result.name).toBe('Alice');
+    expect(result.senderUserId).toBe(10);
+  });
 });

@@ -79,10 +79,10 @@ export function mapToReservation(
   // If myUserId is omitted (null or undefined), the counterparty defaults to reservation.participant for backward compatibility.
   const counterparty =
     myUserId == null
-      ? reservation.participant
+      ? (reservation.participant ?? reservation.sender)
       : reservation.sender?.user_id != null &&
           String(myUserId) === String(reservation.sender.user_id)
-        ? reservation.participant
+        ? (reservation.participant ?? reservation.sender)
         : (reservation.sender ?? reservation.participant);
   const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
   const roleLine = [
@@ -128,8 +128,8 @@ export function mapToReservation(
   const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
     r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
   const cancelledBy: 'MENTEE' | 'MENTOR' | undefined =
-    counterparty.status === 'REJECT'
-      ? toRole(counterparty.role)
+    reservation.participant?.status === 'REJECT'
+      ? toRole(reservation.participant?.role)
       : reservation.sender?.status === 'REJECT'
         ? toRole(reservation.sender?.role)
         : undefined;
