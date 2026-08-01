@@ -555,6 +555,19 @@ describe('mapToReservation', () => {
       expect(result.roleLine).toBe('Designer, 1~3 年');
     });
 
+    it('when reservation.sender.user_id is null → does not crash and correctly identifies sender as counterparty', () => {
+      const reservation = makeReservation({
+        sender: {
+          ...baseSender,
+          user_id: null as unknown as number,
+        },
+        participant: baseParticipant,
+      });
+
+      const result = mapToReservation(reservation, '20');
+      expect(result.name).toBe('Bob (Mentee)');
+    });
+
     describe('cancelledBy precedence rules with dynamic counterparty', () => {
       it('myUserId is sender (MENTEE) and participant (MENTOR) is REJECT → cancelledBy is MENTOR (other party takes precedence)', () => {
         const reservation = makeReservation({
