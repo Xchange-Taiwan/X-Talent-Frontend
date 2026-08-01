@@ -1,0 +1,111 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="System/Play Functions & A11y" />
+
+# 互動式測試與無障礙規範 (Storybook Play Functions & Accessibility Guide)
+
+在 X-Talent 專案中，Storybook 不僅是 UI 元件的靜態目錄，更是元件交互與無障礙（Accessibility）的自動化驗證平台。
+
+本指南詳細說明如何為元件編寫互動式 **Play Functions** 進行端到端模擬測試，以及如何遵循 **WCAG / A11y 規範** 打造人人皆可使用的無障礙平台。
+
+---
+
+## 🎮 Storybook 互動式測試 (Play Functions)
+
+### 什麼是 Play Function？
+`play` 函數是 Storybook 的核心交互測試功能。它允許我們在 Storybook 渲染故事（Story）後，自動化地執行使用者交互（如點擊、輸入、懸停），並透過斷言（Assertion）驗證元件狀態是否符合預期。
+
+### 為什麼使用 Play Function？
+1. **高保真度**：直接在瀏覽器真實的 DOM 環境中執行測試，比虛擬 DOM 測試（如 JSDOM）更貼近真實使用情境。
+2. **視覺與自動化整合**：點開 Storybook 即可動態重播所有交互，便於視覺化除錯；同時支援透過 Storybook Test-Runner 在 CI/CD 流程中進行全自動化測試。
+
+### ✍️ 如何編寫 Play 測試故事
+請一律從 `@storybook/test` 導入交互模組（它整合了 `@testing-library` 與 `jest-mock` 的最優設計）：
+
+```typescript
+import type { Meta, StoryObj } from '@storybook/react';
+import { within, userEvent, expect } from '@storybook/test';
+import { MentorFilterDropdown } from './MentorFilterDropdown';
+
+const meta: Meta<typeof MentorFilterDropdown> = {
+  title: 'Components/Filter/MentorFilterDropdown',
+  component: MentorFilterDropdown,
+};
+export default meta;
+
+type Story = StoryObj<typeof MentorFilterDropdown>;
+
+export const InteractiveSearch: Story = {
+  play: async ({ canvasElement }) => {
+    // 1. 以 canvasElement 為範圍建立查詢對象
+    const canvas = within(canvasElement);
+
+    // 2. 定位「篩選器」按鈕並模擬點擊
+    const filterBtn = canvas.getByRole('button', { name: /篩選/ });
+    await userEvent.click(filterBtn);
+
+    // 3. 驗證下拉選單是否成功開啟
+    const dropdownList = canvas.getByRole('listbox');
+    await expect(dropdownList).toBeInTheDocument();
+
+    // 4. 在搜尋框中模擬輸入文字
+    const searchInput = canvas.getByPlaceholderText(/關鍵字/i);
+    await userEvent.type(searchInput, '設計');
+
+    // 5. 斷言過濾後的選項數量或狀態
+    const matchedOption = canvas.getByRole('option', { name: /UI\/UX 設計/ });
+    await expect(matchedOption).toBeInTheDocument();
+  },
+};
+```
+
+### ⚠️ 撰寫 Play Function 的關鍵準則：
+* **異步交互處理**：所有的 `userEvent` 交互（如 `click`、`type`）皆為非同步，請務必加上 **`await`**，否則測試會提前結束或狀態發生混淆。
+* **無障礙優先查詢**：優先使用符合 A11y 規格的查詢器（如 `getByRole`、`getByLabelText`），這不僅讓測試更穩健，也能順便驗證元件的無障礙結構。
+
+---
+
+## ♿ 無障礙開發規範 (Accessibility / A11y Standards)
+
+本專案已在 `.storybook/main.ts` 中配置了 **`@storybook/addon-a11y`**。當您開啟任何故事時，可以點選底部的 **"Accessibility"** 面板，Storybook 會自動執行 axe-core 無障礙掃描並回報 WCAG (Web Content Accessibility Guidelines) 違規項目。
+
+為了確保平台對輔助設備（如螢幕閱讀器、僅鍵盤使用者）完全友善，開發時必須遵循以下五大規範：
+
+### 1. 語意化 HTML 優先 (Semantic HTML)
+* 嚴格禁止使用 `div` 或 `span` 搭配 `onClick` 來模擬按鈕、連結或導覽。
+* 互動元件必須使用標準的 `<button>`（用於觸發動作）、`<a>`（用於導向路由）、`<input>`（用於輸入）。
+* 若因設計限制必須使用自定義結構，請補齊 `role="button"`、`tabIndex={0}` 以及鍵盤監聽事件（Enter/Space）。
+
+### 2. 色彩對比度標準 (Color Contrast)
+* **標準文字與底色對比**：必須達到 WCAG AA 標準，即 **4.5:1**。
+* **大字型與大型圖示**：必須達到 **3:1**。
+* 建議利用 Chrome DevTools 或者是 Storybook A11y 面板的色彩檢測儀，隨時審核背景色與前景色是否有對比度過低的問題。
+
+### 3. 清晰且無障礙的鍵盤焦點 (Focus States)
+* **嚴格禁止**寫死 `outline: none` 或 `outline-none` 而不提供替代的焦點外框。
+* 行動不便者通常透過 `Tab` 鍵在網頁中移動，清晰的 Focus Ring 對他們至關重要。
+* 本專案統一使用以下 Tailwind 樣式作為標準無障礙焦點框：
+  ```tsx
+  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+  ```
+
+### 4. 圖片替代文字規範 (Image Alternative Text)
+* 所有的圖片元素（原生 `<img>` 或 NextJS `<Image>`）必須設定 `alt` 屬性。
+* **裝飾性圖片**：若圖片僅作為視覺背景或裝飾，應設置 `alt=""` 或者是 `role="presentation"`，讓螢幕閱讀器安全跳過。
+* **具備語意的圖片**：必須填寫清晰的描述：
+  ```tsx
+  // ✅ 好實踐：在頭像中提供清晰的人物名稱描述（如 MobileUserMenu 測試中提及的實踐）
+  <img 
+    src={user.avatar || "/default-avatar.png"} 
+    alt={`${user.name} 的頭像`} 
+    className="rounded-full"
+  />
+  ```
+
+### 5. ARIA 狀態屬性 (ARIA Attributes)
+* **摺疊/展開選單**：點擊展開的按鈕或 DropdownTrigger 必須設定 `aria-expanded={isOpen}`。
+* **關聯輔助說明**：輸入框如果下方有錯誤提示或描述文字，必須使用 `aria-describedby` 進行 ID 關聯，讓視障使用者在輸入時能同步聽到錯誤提示：
+  ```tsx
+  <input id="email" aria-describedby="email-error" />
+  <p id="email-error" role="alert">信箱格式不正確</p>
+  ```

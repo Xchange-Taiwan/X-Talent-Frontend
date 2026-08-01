@@ -1,0 +1,102 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="System/Testing & Mocking" />
+
+# 測試與 Mocking 規範 (Testing & Mocking Standards)
+
+在 X-Talent 專案中，我們使用 **Vitest** 作為單元與整合測試的執行器，並搭配 **React Testing Library** 來測試 UI 元件。
+
+本指南旨在說明專案中的測試與 Mocking 標準，特別是如何利用 **`@total-typescript/shoehorn`** 規避不安全的 `as any` 斷言，確保測試代碼的型別安全性與長期可維護性。
+
+---
+
+## 🚫 為什麼嚴格禁止 `as any` 與 `as ComplexType`？
+
+在撰寫測試時，我們經常需要 Mock 複雜的領域資料模型（例如 `Session`、`User`、`MentorProfileVO` 等）。這些型別通常包含數十個欄位與巢狀結構。
+
+過去開發者為了省事，常使用強行轉型（Type Casting）：
+
+```typescript
+// ❌ 壞實踐：使用不安全的雙重斷言或 as any
+const mockUser = { id: 'user-1', name: 'Ada' } as any;
+const mockProfile = { name: 'Kevin' } as unknown as MentorProfileVO;
+```
+
+### 強行轉型的三大危害：
+1. **失去編譯期型別安全 (Type Safety)**：TypeScript 會完全放棄對該物件的型別檢查。如果您在測試中拼錯了屬性名稱（如 `userName` 拼成 `username`），編譯器不會報錯，直到測試執行失敗或在執行期崩潰。
+2. **掩蓋架構與 Schema 變更**：當後端 API 或資料庫 Schema 變更，修改了 `MentorProfileVO` 的欄位時，強行轉型的測試代碼**不會**拋出 TypeScript 報錯。這會導致測試代碼與真實代碼脫節，失去測試的防禦作用。
+3. **執行期未定義錯誤 (Runtime Undefined)**：如果受測元件內部訪問了被您用 `as any` 忽略的必填欄位，會直接拋出 `TypeError: Cannot read properties of undefined`。
+
+---
+
+## 🛠️ 單一事實來源：`@total-typescript/shoehorn`
+
+為了解決 Mock 複雜型別時「必須補齊幾十個無關欄位」的痛點，本專案已全面啟用 **`@total-typescript/shoehorn`**。
+
+Shoehorn 提供了型別安全的局部 Mock 解決方案，讓您在測試中只宣告「當前測試真正關心的欄位」，其餘欄位會安全地滿足 TypeScript 的編譯要求。
+
+> ⚠️ **重要原則**：`shoehorn` 僅能在測試代碼（`*.test.ts` / `*.spec.ts`）中調用，**嚴格禁止**於任何生產環境代碼中引用。
+
+### 1. `fromPartial()` — 局部型別安全 Mock (最常用)
+
+當您只需要 Mock 複雜型別中的一部分欄位，且希望這些局部欄位**依然受到嚴格的型別檢查**時，請使用 `fromPartial`。
+
+#### 💡 實戰範例：Mock Next-Auth `Session['user']`
+在 `src/components/layout/Header/MobileUserMenu.test.tsx` 中，我們需要測試不同狀態的使用者頭像渲染：
+
+```typescript
+import { fromPartial } from '@total-typescript/shoehorn';
+import type { Session } from 'next-auth';
+import { mockSession } from '@/test/mocks/nextAuth';
+
+// ✅ 好實踐：利用 fromPartial 進行局部型別安全 Mock
+function buildUser(overrides: Partial<Session['user']> = {}): Session['user'] {
+  return fromPartial({
+    ...mockSession.user,
+    id: 'user-1',
+    isMentor: false,
+    ...overrides, // 覆寫的屬性依然會受到嚴格的型別約束
+  });
+}
+```
+
+### 2. `fromAny()` — 強制任意轉型 (特殊場景)
+
+當您需要刻意模擬不合法的 API 回傳、測試錯誤處理邊界，或者在整合測試中快速建構包含自定義嵌套物件的 DTO 時，可以使用 `fromAny`。它類似於 `as any` 的包裝，但語意上更清晰，表明這是測試特意的 Mock。
+
+#### 💡 實戰範例：Mock 複雜 Service DTO
+在 `src/lib/profile/pollUntilSynced.test.ts` 中，建構一個帶有巢狀 `industry` 的 DTO 物件：
+
+```typescript
+import { fromAny } from '@total-typescript/shoehorn';
+import { type MentorProfileVO } from '@/services/profile/user';
+
+// ✅ 好實踐：利用 fromAny 包裝複雜或不完全一致的數據結構
+const makeSyncedDto = (avatar = ''): MentorProfileVO =>
+  fromAny({
+    user_id: 1,
+    name: 'Sync Test',
+    avatar,
+    location: 'Taiwan',
+    about: 'about-me',
+    personal_statement: 'statement',
+    years_of_experience: '1_3',
+    industry: { subject_group: 'tech' }, // 此處型別結構可能與真實完整介面有異，但適用於此測試
+    is_mentor: true,
+    onboarding: true,
+    experiences: [],
+  });
+```
+
+---
+
+## 🚀 一鍵自動遷移工具 (Local Agent Skills)
+
+專案提供了高度自動化的開發工具。如果您在維護舊測試、或撰寫新測試時，遇到型別報錯而想要快速引入 Shoehorn：
+
+1. 開啟 Gemini CLI 的會話。
+2. 直接呼叫內建技能：
+   ```bash
+   /migrate-to-shoehorn
+   ```
+3. Agent 會自動掃描您的測試代碼，尋找不安全的 `as any` 斷言，並一鍵重構為安全的 `fromPartial` 或 `fromAny` 語法！
