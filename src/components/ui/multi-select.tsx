@@ -45,29 +45,88 @@ const multiSelectVariants = cva(
 );
 
 /**
- * Props for MultiSelect component
+ * MultiSelect 元件屬性介面
  */
 interface MultiSelectProps
   extends
     Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'onChange'>,
     VariantProps<typeof multiSelectVariants> {
+  /**
+   * 可供選擇的下拉選項清單。
+   */
   options: {
+    /**
+     * 選項顯示的標籤文字。
+     */
     label: string;
+    /**
+     * 選項對應的實際數值。
+     */
     value: string;
+    /**
+     * 選項前方可選的圖示元件。
+     */
     icon?: React.ComponentType<{ className?: string }>;
   }[];
+
+  /**
+   * 當選取的值發生變化時觸發的回呼函式。
+   * @param value 已選取的 value 陣列
+   */
   onValueChange?: (value: string[]) => void;
+
+  /**
+   * 與 React Hook Form 或舊版 Form 相容的變動回呼函式。
+   * @param value 已選取的 value 陣列
+   */
   onChange?: (value: string[]) => void;
+
+  /**
+   * 非受控模式下的預設選取值陣列。
+   */
   defaultValue?: string[];
+
+  /**
+   * 尚未選取任何項目時顯示的提示預設文字。
+   */
   placeholder?: string;
+
+  /**
+   * 選取項目徽章的動畫持續秒數，設為 0 代表無動畫。
+   */
   animation?: number;
+
+  /**
+   * 展開收納時，按鈕內最多同時顯示的選取項目徽章個數。超出部分會顯示為 "+ X more" 的縮略標記。
+   */
   maxCount?: number;
+
+  /**
+   * 是否將彈出視窗（Popover）作為模態框（Modal）對齊，這會阻止與頁面其餘部分的互動。
+   */
   modalPopover?: boolean;
+
+  /**
+   * 是否將按鈕渲染為其唯一的子元素（用於 Radix Slot 轉譯）。
+   */
   asChild?: boolean;
+
+  /**
+   * 容器的自訂 CSS 樣式類別名稱。
+   */
   className?: string;
+
+  /**
+   * 受控模式下當前選中的值陣列。
+   */
   value?: string[];
 }
 
+/**
+ * MultiSelect 多選下拉選單元件：
+ * 提供搜尋過濾、全選、一鍵清除以及多個選中項目徽章（Badge）展示的功能。
+ * 內建性能優化，CMDK 下拉內容元件（MultiSelectDropdown）採用 Client-side 延遲載入（Lazy-load）。
+ */
 export const MultiSelect = React.forwardRef<
   HTMLButtonElement,
   MultiSelectProps

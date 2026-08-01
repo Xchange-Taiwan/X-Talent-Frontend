@@ -5,8 +5,14 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
+/**
+ * Tabs 頁籤容器：作為整個分頁標籤系統的根容器，用於協調分頁狀態（如當前選中的分頁值等）。
+ */
 const Tabs = TabsPrimitive.Root;
 
+/**
+ * TabsList 頁籤清單：包裹所有分頁標籤按鈕（TabsTrigger）的水平列容器，提供了底色及內距。
+ */
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
@@ -22,6 +28,9 @@ const TabsList = React.forwardRef<
 ));
 TabsList.displayName = TabsPrimitive.List.displayName;
 
+/**
+ * TabsTrigger 頁籤觸發器：代表各個分頁標籤的按鈕。當點擊或選中時，會切換至對應 value 的內容區塊。
+ */
 const TabsTrigger = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
@@ -37,6 +46,9 @@ const TabsTrigger = React.forwardRef<
 ));
 TabsTrigger.displayName = TabsPrimitive.Trigger.displayName;
 
+/**
+ * TabsContent 頁籤內容區塊：對應特定 value 的分頁內容區，僅在對應的分頁觸發器被選中時顯示。
+ */
 const TabsContent = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
