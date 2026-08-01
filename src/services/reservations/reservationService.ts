@@ -71,10 +71,18 @@ function classifyMessageRole(
 }
 
 export function mapToReservation(
-  reservation: components['schemas']['ReservationInfoVO']
+  reservation: components['schemas']['ReservationInfoVO'],
+  currentUserId?: string
 ): Reservation {
-  // API 固定結構：sender = 當前使用者，participant = 對方
-  const counterparty = reservation.participant;
+  // If currentUserId is passed, resolve counterparty by checking who is NOT the current user.
+  // Otherwise fallback to the previous behaviour (reservation.participant).
+  const isSenderCurrentUser = currentUserId
+    ? String(reservation.sender.user_id) === String(currentUserId)
+    : true;
+  const counterparty = isSenderCurrentUser
+    ? reservation.participant
+    : reservation.sender;
+
   const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
   const roleLine = [
     counterparty.job_title?.trim() || '',
@@ -119,8 +127,8 @@ export function mapToReservation(
   const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
     r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
   const cancelledBy: 'MENTEE' | 'MENTOR' | undefined =
-    counterparty.status === 'REJECT'
-      ? toRole(counterparty.role)
+    reservation.participant.status === 'REJECT'
+      ? toRole(reservation.participant.role)
       : reservation.sender.status === 'REJECT'
         ? toRole(reservation.sender.role)
         : undefined;
@@ -168,7 +176,7 @@ export async function fetchReservations(
   if (json.code !== '0') throw new FetchApiError(json.code, json.msg, path);
 
   const items = (json.data?.reservations ?? []).map((reservation) =>
-    mapToReservation(reservation)
+    mapToReservation(reservation, String(userId))
   );
   return { items, next_dtend: json.data?.next_dtend ?? 0 };
 }
