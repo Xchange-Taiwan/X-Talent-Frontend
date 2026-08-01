@@ -23,7 +23,8 @@ import { Meta } from '@storybook/addon-docs/blocks';
     </div>
   </div>
 
-  {/* Quick Start / Command Reference */}
+{/* Quick Start / Command Reference */}
+
   <div className="mb-12">
     <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
       <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 text-sm font-bold">1</span>
@@ -60,9 +61,11 @@ import { Meta } from '@storybook/addon-docs/blocks';
         </p>
       </div>
     </div>
+
   </div>
 
-  {/* Component Organization */}
+{/* Component Organization */}
+
   <div className="mb-12">
     <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
       <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 text-sm font-bold">2</span>
@@ -133,9 +136,11 @@ import { Meta } from '@storybook/addon-docs/blocks';
         </div>
       </div>
     </div>
+
   </div>
 
-  {/* Best Practices & Conventions */}
+{/* Best Practices & Conventions */}
+
   <div className="mb-12">
     <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
       <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 text-sm font-bold">3</span>
@@ -182,9 +187,11 @@ import { Meta } from '@storybook/addon-docs/blocks';
         </p>
       </div>
     </div>
+
   </div>
 
-  {/* Technical Blueprint of a Story */}
+{/* Technical Blueprint of a Story */}
+
   <div className="mb-8">
     <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
       <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 text-sm font-bold">4</span>
@@ -196,24 +203,25 @@ import { Meta } from '@storybook/addon-docs/blocks';
 
     <div className="bg-slate-900 text-slate-100 font-mono text-sm p-6 rounded-xl overflow-x-auto shadow-md">
       <pre className="text-left leading-relaxed">
+
 {`import type { Meta, StoryObj } from '@storybook/react';
 import { MyComponent } from './MyComponent';
 
 const meta: Meta<typeof MyComponent> = {
-  title: 'UI/MyComponent', // Category/Component Name
-  component: MyComponent,
-  tags: ['autodocs'],       // Generates the Docs tab automatically
-  argTypes: {
-    variant: {
-      control: 'select',
-      options: ['default', 'outline', 'ghost'],
-      description: 'The visual style of the component',
-    },
-    disabled: {
-      control: 'boolean',
-      description: 'Toggles interactive behavior',
-    },
-  },
+title: 'UI/MyComponent', // Category/Component Name
+component: MyComponent,
+tags: ['autodocs'], // Generates the Docs tab automatically
+argTypes: {
+variant: {
+control: 'select',
+options: ['default', 'outline', 'ghost'],
+description: 'The visual style of the component',
+},
+disabled: {
+control: 'boolean',
+description: 'Toggles interactive behavior',
+},
+},
 };
 
 export default meta;
@@ -221,22 +229,23 @@ type Story = StoryObj<typeof MyComponent>;
 
 // 1. Primary Default State
 export const Default: Story = {
-  args: {
-    variant: 'default',
-    children: 'Interactive Component',
-    disabled: false,
-  },
+args: {
+variant: 'default',
+children: 'Interactive Component',
+disabled: false,
+},
 };
 
 // 2. Disabled State Variant
 export const Disabled: Story = {
-  args: {
-    ...Default.args,
-    disabled: true,
-  },
+args: {
+...Default.args,
+disabled: true,
+},
 };`}
-      </pre>
-    </div>
+</pre>
+</div>
+
   </div>
 
 </div>
