@@ -72,19 +72,18 @@ function classifyMessageRole(
 
 export function mapToReservation(
   reservation: components['schemas']['ReservationInfoVO'],
-  currentUserId?: string
+  myUserId?: string | number | null
 ): Reservation {
-  // If currentUserId is passed and matches participant, the current user is participant,
-  // so the counterparty is sender (isSenderCurrentUser = false).
-  // Otherwise, fallback to the previous behaviour where counterparty is participant (isSenderCurrentUser = true).
-  const isSenderCurrentUser =
-    currentUserId &&
-    String(reservation.participant.user_id) === String(currentUserId)
-      ? false
-      : true;
-  const counterparty = isSenderCurrentUser
-    ? reservation.participant
-    : reservation.sender;
+  // If myUserId is provided and equals reservation.sender.user_id, the counterparty is set to reservation.participant.
+  // If myUserId is provided and does NOT equal reservation.sender.user_id, the counterparty is set to reservation.sender.
+  // If myUserId is omitted (null or undefined), the counterparty defaults to reservation.participant for backward compatibility.
+  const counterparty =
+    myUserId == null
+      ? (reservation.participant ?? reservation.sender)
+      : reservation.sender?.user_id != null &&
+          String(myUserId) === String(reservation.sender.user_id)
+        ? (reservation.participant ?? reservation.sender)
+        : (reservation.sender ?? reservation.participant);
 
   const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
   const roleLine = [
@@ -99,10 +98,10 @@ export function mapToReservation(
   // card preview (which still wants both the mentee's question and the
   // mentor's reply / cancellation reason at a glance).
   const userIdToRole = new Map<string, string | null | undefined>([
-    [String(reservation.sender.user_id ?? ''), reservation.sender.role],
+    [String(reservation.sender?.user_id ?? ''), reservation.sender?.role],
     [
-      String(reservation.participant.user_id ?? ''),
-      reservation.participant.role,
+      String(reservation.participant?.user_id ?? ''),
+      reservation.participant?.role,
     ],
   ]);
 
@@ -129,14 +128,15 @@ export function mapToReservation(
   // (Tracker #224). Participant (other side / counterparty) takes precedence when both sides are REJECT.
   const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
     r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
-  const currentUser = isSenderCurrentUser
-    ? reservation.sender
-    : reservation.participant;
+  const currentUserSide =
+    counterparty === reservation.participant
+      ? reservation.sender
+      : reservation.participant;
   const cancelledBy: 'MENTEE' | 'MENTOR' | undefined =
-    counterparty.status === 'REJECT'
-      ? toRole(counterparty.role)
-      : currentUser.status === 'REJECT'
-        ? toRole(currentUser.role)
+    counterparty?.status === 'REJECT'
+      ? toRole(counterparty?.role)
+      : currentUserSide?.status === 'REJECT'
+        ? toRole(currentUserSide?.role)
         : undefined;
 
   return {
@@ -152,8 +152,8 @@ export function mapToReservation(
     scheduleId: reservation.schedule_id,
     dtstart: reservation.dtstart,
     dtend: reservation.dtend,
-    senderUserId: reservation.sender.user_id ?? 0,
-    participantUserId: reservation.participant.user_id ?? 0,
+    senderUserId: reservation.sender?.user_id ?? 0,
+    participantUserId: reservation.participant?.user_id ?? 0,
     cancelledBy,
   };
 }
@@ -182,7 +182,7 @@ export async function fetchReservations(
   if (json.code !== '0') throw new FetchApiError(json.code, json.msg, path);
 
   const items = (json.data?.reservations ?? []).map((reservation) =>
-    mapToReservation(reservation, userId != null ? String(userId) : undefined)
+    mapToReservation(reservation, userId)
   );
   return { items, next_dtend: json.data?.next_dtend ?? 0 };
 }
