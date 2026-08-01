@@ -72,25 +72,18 @@ function classifyMessageRole(
 
 export function mapToReservation(
   reservation: components['schemas']['ReservationInfoVO'],
-  currentUserId?: string | number
+  myUserId?: string | number | null
 ): Reservation {
-  // If currentUserId is provided, we resolve the counterparty dynamically based on who is logged in:
-  // - If currentUserId matches the sender, the counterparty is the participant.
-  // - If currentUserId matches the participant, the counterparty is the sender.
-  // - Otherwise (or if currentUserId is undefined/unrelated), fallback to the original default reservation.participant.
-  const isSender =
-    currentUserId !== undefined &&
-    reservation.sender.user_id != null &&
-    String(reservation.sender.user_id) === String(currentUserId);
-  const isParticipant =
-    currentUserId !== undefined &&
-    reservation.participant.user_id != null &&
-    String(reservation.participant.user_id) === String(currentUserId);
-  const counterparty = isSender
-    ? reservation.participant
-    : isParticipant
-      ? reservation.sender
-      : reservation.participant;
+  // If myUserId is provided and equals reservation.sender.user_id, the counterparty is set to reservation.participant.
+  // If myUserId is provided and does NOT equal reservation.sender.user_id, the counterparty is set to reservation.sender.
+  // If myUserId is omitted (null or undefined), the counterparty defaults to reservation.participant for backward compatibility.
+  const counterparty =
+    myUserId == null
+      ? (reservation.participant ?? reservation.sender)
+      : reservation.sender?.user_id != null &&
+          String(myUserId) === String(reservation.sender.user_id)
+        ? (reservation.participant ?? reservation.sender)
+        : (reservation.sender ?? reservation.participant);
   const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
   const roleLine = [
     counterparty.job_title?.trim() || '',
@@ -104,10 +97,10 @@ export function mapToReservation(
   // card preview (which still wants both the mentee's question and the
   // mentor's reply / cancellation reason at a glance).
   const userIdToRole = new Map<string, string | null | undefined>([
-    [String(reservation.sender.user_id ?? ''), reservation.sender.role],
+    [String(reservation.sender?.user_id ?? ''), reservation.sender?.role],
     [
-      String(reservation.participant.user_id ?? ''),
-      reservation.participant.role,
+      String(reservation.participant?.user_id ?? ''),
+      reservation.participant?.role,
     ],
   ]);
 
@@ -134,17 +127,15 @@ export function mapToReservation(
   // (Tracker #224). Participant (other side / counterparty) takes precedence when both sides are REJECT.
   const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
     r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
-
-  const isSenderCurrentUser = counterparty === reservation.participant;
-  const currentUser = isSenderCurrentUser
-    ? reservation.sender
-    : reservation.participant;
-
+  const currentUserSide =
+    counterparty === reservation.participant
+      ? reservation.sender
+      : reservation.participant;
   const cancelledBy: 'MENTEE' | 'MENTOR' | undefined =
-    counterparty.status === 'REJECT'
-      ? toRole(counterparty.role)
-      : currentUser.status === 'REJECT'
-        ? toRole(currentUser.role)
+    counterparty?.status === 'REJECT'
+      ? toRole(counterparty?.role)
+      : currentUserSide?.status === 'REJECT'
+        ? toRole(currentUserSide?.role)
         : undefined;
 
   return {
@@ -160,8 +151,8 @@ export function mapToReservation(
     scheduleId: reservation.schedule_id,
     dtstart: reservation.dtstart,
     dtend: reservation.dtend,
-    senderUserId: reservation.sender.user_id ?? 0,
-    participantUserId: reservation.participant.user_id ?? 0,
+    senderUserId: reservation.sender?.user_id ?? 0,
+    participantUserId: reservation.participant?.user_id ?? 0,
     cancelledBy,
   };
 }

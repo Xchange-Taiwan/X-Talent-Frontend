@@ -1,3 +1,4 @@
+import { fromAny } from '@total-typescript/shoehorn';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -422,7 +423,62 @@ describe('mapToReservation', () => {
     expect(result.cancelledBy).toBeUndefined();
   });
 
-  describe('dynamic counterparty resolution using currentUserId', () => {
+  /* ============================
+   * myUserId matching (counterparty resolution)
+   * ============================ */
+
+  it('myUserId is omitted (undefined or null) → counterparty defaults to participant for backward compatibility', () => {
+    const reservation = makeReservation();
+    const resultUndefined = mapToReservation(reservation);
+    const resultNull = mapToReservation(reservation, null);
+
+    expect(resultUndefined.name).toBe('Bob');
+    expect(resultUndefined.participantUserId).toBe(20);
+
+    expect(resultNull.name).toBe('Bob');
+    expect(resultNull.participantUserId).toBe(20);
+  });
+
+  it('myUserId matches sender.user_id → counterparty is set to participant', () => {
+    const reservation = makeReservation();
+    const result = mapToReservation(reservation, 10); // sender user_id is 10
+    // counterparty is participant (Bob)
+    expect(result.name).toBe('Bob');
+  });
+
+  it('myUserId matches sender.user_id as string/number mismatch → type-agnostically resolves counterparty to participant', () => {
+    const reservation = makeReservation();
+    const result = mapToReservation(reservation, '10'); // sender user_id is 10 (number)
+    // counterparty is participant (Bob)
+    expect(result.name).toBe('Bob');
+  });
+
+  it('myUserId does NOT match sender.user_id → counterparty is set to sender', () => {
+    const reservation = makeReservation();
+    const result = mapToReservation(reservation, 20); // myUserId is 20 (participant user_id, not sender)
+    // counterparty is sender (Alice, user_id: 10)
+    expect(result.name).toBe('Alice');
+  });
+
+  it('myUserId is provided but sender is null/undefined → falls back to participant to prevent crash', () => {
+    const reservation = makeReservation({
+      sender: fromAny(null),
+    });
+    const result = mapToReservation(reservation, 10);
+    expect(result.name).toBe('Bob');
+    expect(result.participantUserId).toBe(20);
+  });
+
+  it('myUserId matches sender.user_id but participant is null/undefined → falls back to sender to prevent crash', () => {
+    const reservation = makeReservation({
+      participant: fromAny(null),
+    });
+    const result = mapToReservation(reservation, 10); // matches sender.user_id, falls back to sender (Alice)
+    expect(result.name).toBe('Alice');
+    expect(result.senderUserId).toBe(10);
+  });
+
+  describe('dynamic counterparty resolution using myUserId', () => {
     const baseSender = {
       user_id: 10,
       role: 'MENTEE' as const,
@@ -443,13 +499,13 @@ describe('mapToReservation', () => {
       years_of_experience: 'THREE_TO_FIVE',
     };
 
-    it('currentUserId matches sender.user_id → counterparty should be participant', () => {
+    it('myUserId matches sender.user_id → counterparty should be participant', () => {
       const reservation = makeReservation({
         sender: baseSender,
         participant: baseParticipant,
       });
 
-      // currentUserId is 10, which matches sender.user_id
+      // myUserId is 10, which matches sender.user_id
       const result = mapToReservation(reservation, '10');
 
       expect(result.name).toBe('Alice (Mentor)');
@@ -457,13 +513,13 @@ describe('mapToReservation', () => {
       expect(result.roleLine).toBe('Engineer, 3~5 年');
     });
 
-    it('currentUserId matches participant.user_id → counterparty should be sender', () => {
+    it('myUserId matches participant.user_id → counterparty should be sender', () => {
       const reservation = makeReservation({
         sender: baseSender,
         participant: baseParticipant,
       });
 
-      // currentUserId is 20, which matches participant.user_id
+      // myUserId is 20, which matches participant.user_id
       const result = mapToReservation(reservation, '20');
 
       expect(result.name).toBe('Bob (Mentee)');
@@ -471,13 +527,13 @@ describe('mapToReservation', () => {
       expect(result.roleLine).toBe('Designer, 1~3 年');
     });
 
-    it('currentUserId is not provided → fallback to participant as counterparty', () => {
+    it('myUserId is not provided → fallback to participant as counterparty', () => {
       const reservation = makeReservation({
         sender: baseSender,
         participant: baseParticipant,
       });
 
-      // currentUserId is omitted
+      // myUserId is omitted
       const result = mapToReservation(reservation);
 
       expect(result.name).toBe('Alice (Mentor)');
@@ -485,18 +541,18 @@ describe('mapToReservation', () => {
       expect(result.roleLine).toBe('Engineer, 3~5 年');
     });
 
-    it('currentUserId is provided but unmatched → fallback to participant as counterparty (isSenderCurrentUser = true)', () => {
+    it('myUserId is provided but unmatched → fallback to sender as counterparty', () => {
       const reservation = makeReservation({
         sender: baseSender,
         participant: baseParticipant,
       });
 
-      // currentUserId is unmatched (e.g. '999')
+      // myUserId is unmatched (e.g. '999')
       const result = mapToReservation(reservation, '999');
 
-      expect(result.name).toBe('Alice (Mentor)');
-      expect(result.avatar).toBe('alice-avatar.png');
-      expect(result.roleLine).toBe('Engineer, 3~5 年');
+      expect(result.name).toBe('Bob (Mentee)');
+      expect(result.avatar).toBe('bob-avatar.png');
+      expect(result.roleLine).toBe('Designer, 1~3 年');
     });
 
     it('when reservation.sender.user_id is null → does not crash and falls back to participant', () => {
@@ -513,7 +569,7 @@ describe('mapToReservation', () => {
     });
 
     describe('cancelledBy precedence rules with dynamic counterparty', () => {
-      it('currentUserId is sender (MENTEE) and participant (MENTOR) is REJECT → cancelledBy is MENTOR (other party takes precedence)', () => {
+      it('myUserId is sender (MENTEE) and participant (MENTOR) is REJECT → cancelledBy is MENTOR (other party takes precedence)', () => {
         const reservation = makeReservation({
           sender: { ...baseSender, status: 'ACCEPT' },
           participant: { ...baseParticipant, status: 'REJECT' },
@@ -524,7 +580,7 @@ describe('mapToReservation', () => {
         expect(result.cancelledBy).toBe('MENTOR');
       });
 
-      it('currentUserId is participant (MENTOR) and sender (MENTEE) is REJECT → cancelledBy is MENTEE (other party takes precedence)', () => {
+      it('myUserId is participant (MENTOR) and sender (MENTEE) is REJECT → cancelledBy is MENTEE (other party takes precedence)', () => {
         const reservation = makeReservation({
           sender: { ...baseSender, status: 'REJECT' },
           participant: { ...baseParticipant, status: 'ACCEPT' },
@@ -535,7 +591,7 @@ describe('mapToReservation', () => {
         expect(result.cancelledBy).toBe('MENTEE');
       });
 
-      it('both parties are REJECT and currentUserId is participant (MENTOR) → cancelledBy is MENTEE (other party takes precedence when both are REJECT)', () => {
+      it('both parties are REJECT and myUserId is participant (MENTOR) → cancelledBy is MENTEE (other party takes precedence when both are REJECT)', () => {
         const reservation = makeReservation({
           sender: { ...baseSender, status: 'REJECT' },
           participant: { ...baseParticipant, status: 'REJECT' },
@@ -547,7 +603,7 @@ describe('mapToReservation', () => {
         expect(result.cancelledBy).toBe('MENTEE');
       });
 
-      it('both parties are REJECT and currentUserId is sender (MENTEE) → cancelledBy is MENTOR (other party takes precedence when both are REJECT)', () => {
+      it('both parties are REJECT and myUserId is sender (MENTEE) → cancelledBy is MENTOR (other party takes precedence when both are REJECT)', () => {
         const reservation = makeReservation({
           sender: { ...baseSender, status: 'REJECT' },
           participant: { ...baseParticipant, status: 'REJECT' },
