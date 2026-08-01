@@ -7,6 +7,11 @@ const meta: Meta<typeof MobileUserMenu> = {
   title: 'Layout/Header/MobileUserMenu',
   component: MobileUserMenu,
   tags: ['autodocs'],
+  parameters: {
+    nextjs: {
+      appDirectory: true,
+    },
+  },
   decorators: [
     (Story) => (
       <div className="flex min-h-[300px] justify-end bg-background-bottom p-8">
