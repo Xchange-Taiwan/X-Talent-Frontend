@@ -50,15 +50,15 @@ export function useAccountMenu({
   const [shareDialogOpen, setShareDialogOpen] = React.useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
 
-  const userId = user.id;
-  const isMentor = Boolean(user.isMentor);
+  const userId = user?.id;
+  const isMentor = Boolean(user?.isMentor);
   const canDeleteAccount =
     process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT === 'true';
-  const name = user.name ?? '';
+  const name = user?.name ?? '';
   const avatarSrc = useCurrentAvatar() ?? '';
-  const jobTitle = user.jobTitle ?? '';
-  const company = user.company ?? '';
-  const personalLinks = user.personalLinks ?? [];
+  const jobTitle = user?.jobTitle ?? '';
+  const company = user?.company ?? '';
+  const personalLinks = user?.personalLinks ?? [];
 
   const profilePath = userId ? `/profile/${userId}` : '/';
 

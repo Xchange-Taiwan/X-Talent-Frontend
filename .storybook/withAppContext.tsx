@@ -132,7 +132,21 @@ export const withAppContext: Decorator = (Story, context) => {
   syncSessionHintCookie(sessionHint);
 
   // Resolve mock session and status from parameters (prioritizing nextAuth namespace) or args
-  const nextAuthParams = context.parameters?.nextAuth || context.parameters;
+  const nextAuthParams = context.parameters?.nextAuth || {
+    auth: context.parameters?.auth,
+    user: context.parameters?.user,
+    session: context.parameters?.session,
+    status:
+      typeof context.parameters?.status === 'string' &&
+      ['authenticated', 'unauthenticated', 'loading'].includes(
+        context.parameters.status
+      )
+        ? (context.parameters.status as
+            | 'authenticated'
+            | 'unauthenticated'
+            | 'loading')
+        : undefined,
+  };
   const { session, status } = resolveMockSession(nextAuthParams, context.args);
 
   const contextValue: SessionContextValue = {
