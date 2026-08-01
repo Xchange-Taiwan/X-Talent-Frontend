@@ -507,5 +507,57 @@ describe('mapToReservation', () => {
       expect(result.name).toBe('Bob'); // counterparty is Bob (sender)
       expect(result.cancelledBy).toBe('MENTOR'); // should correctly identify mentor as the canceller
     });
+
+    it('when reservation.sender.user_id is null → does not crash and maps to sender as counterparty', () => {
+      const reservation = makeReservation({
+        sender: {
+          user_id: null as any,
+          role: 'MENTEE',
+          status: 'PENDING',
+          name: 'Bob',
+          avatar: '',
+          job_title: 'Designer',
+          years_of_experience: 'ONE_TO_THREE',
+        },
+        participant: {
+          user_id: 20,
+          role: 'MENTOR',
+          status: 'ACCEPT',
+          name: 'Alice',
+          avatar: '',
+          job_title: 'Engineer',
+          years_of_experience: 'THREE_TO_FIVE',
+        },
+      });
+      const result = mapToReservation(reservation, 20); // current user is Alice (participant)
+      expect(result.name).toBe('Bob'); // counterparty is Bob (sender with null id)
+      expect(result.roleLine).toBe('Designer, 1~3 年');
+    });
+
+    it('when myUserId is an unrelated third-party ID → maps to sender as counterparty', () => {
+      const reservation = makeReservation({
+        sender: {
+          user_id: 10,
+          role: 'MENTEE',
+          status: 'PENDING',
+          name: 'Bob',
+          avatar: '',
+          job_title: 'Designer',
+          years_of_experience: 'ONE_TO_THREE',
+        },
+        participant: {
+          user_id: 20,
+          role: 'MENTOR',
+          status: 'ACCEPT',
+          name: 'Alice',
+          avatar: '',
+          job_title: 'Engineer',
+          years_of_experience: 'THREE_TO_FIVE',
+        },
+      });
+      const result = mapToReservation(reservation, 999); // unrelated user
+      expect(result.name).toBe('Bob'); // counterparty falls back to Bob (sender)
+      expect(result.roleLine).toBe('Designer, 1~3 年');
+    });
   });
 });
