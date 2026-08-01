@@ -511,7 +511,7 @@ describe('mapToReservation', () => {
     it('when reservation.sender.user_id is null → does not crash and maps to sender as counterparty', () => {
       const reservation = makeReservation({
         sender: {
-          user_id: null as any,
+          user_id: null as unknown as number,
           role: 'MENTEE',
           status: 'PENDING',
           name: 'Bob',
@@ -534,7 +534,7 @@ describe('mapToReservation', () => {
       expect(result.roleLine).toBe('Designer, 1~3 年');
     });
 
-    it('when myUserId is an unrelated third-party ID → maps to sender as counterparty', () => {
+    it('when myUserId is an unrelated third-party ID → maps to participant as counterparty', () => {
       const reservation = makeReservation({
         sender: {
           user_id: 10,
@@ -556,8 +556,8 @@ describe('mapToReservation', () => {
         },
       });
       const result = mapToReservation(reservation, 999); // unrelated user
-      expect(result.name).toBe('Bob'); // counterparty falls back to Bob (sender)
-      expect(result.roleLine).toBe('Designer, 1~3 年');
+      expect(result.name).toBe('Alice'); // counterparty falls back to Alice (participant)
+      expect(result.roleLine).toBe('Engineer, 3~5 年');
     });
   });
 });
