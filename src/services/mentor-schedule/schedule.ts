@@ -75,6 +75,8 @@ export async function saveMentorSchedule(params: {
         id: t.id,
         user_id: Number(params.userId),
         dt_type: t.dt_type,
+        // The schedule API requires the UTC month bucket for every slot.
+        // Derive it from dtstart so callers cannot omit stale generated DTO fields.
         dt_year: year,
         dt_month: month,
         dtstart: t.dtstart,
