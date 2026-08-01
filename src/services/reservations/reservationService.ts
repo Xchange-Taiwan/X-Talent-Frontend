@@ -83,7 +83,7 @@ export function mapToReservation(
       : reservation.sender?.user_id != null &&
           String(myUserId) === String(reservation.sender.user_id)
         ? reservation.participant
-        : reservation.sender;
+        : (reservation.sender ?? reservation.participant);
   const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
   const roleLine = [
     counterparty.job_title?.trim() || '',
@@ -97,10 +97,10 @@ export function mapToReservation(
   // card preview (which still wants both the mentee's question and the
   // mentor's reply / cancellation reason at a glance).
   const userIdToRole = new Map<string, string | null | undefined>([
-    [String(reservation.sender.user_id ?? ''), reservation.sender.role],
+    [String(reservation.sender?.user_id ?? ''), reservation.sender?.role],
     [
-      String(reservation.participant.user_id ?? ''),
-      reservation.participant.role,
+      String(reservation.participant?.user_id ?? ''),
+      reservation.participant?.role,
     ],
   ]);
 
@@ -130,8 +130,8 @@ export function mapToReservation(
   const cancelledBy: 'MENTEE' | 'MENTOR' | undefined =
     counterparty.status === 'REJECT'
       ? toRole(counterparty.role)
-      : reservation.sender.status === 'REJECT'
-        ? toRole(reservation.sender.role)
+      : reservation.sender?.status === 'REJECT'
+        ? toRole(reservation.sender?.role)
         : undefined;
 
   return {
@@ -147,8 +147,8 @@ export function mapToReservation(
     scheduleId: reservation.schedule_id,
     dtstart: reservation.dtstart,
     dtend: reservation.dtend,
-    senderUserId: reservation.sender.user_id ?? 0,
-    participantUserId: reservation.participant.user_id ?? 0,
+    senderUserId: reservation.sender?.user_id ?? 0,
+    participantUserId: reservation.participant?.user_id ?? 0,
     cancelledBy,
   };
 }

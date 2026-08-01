@@ -1,3 +1,4 @@
+import { fromAny } from '@total-typescript/shoehorn';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -457,5 +458,14 @@ describe('mapToReservation', () => {
     const result = mapToReservation(reservation, 20); // myUserId is 20 (participant user_id, not sender)
     // counterparty is sender (Alice, user_id: 10)
     expect(result.name).toBe('Alice');
+  });
+
+  it('myUserId is provided but sender is null/undefined → falls back to participant to prevent crash', () => {
+    const reservation = makeReservation({
+      sender: fromAny(null),
+    });
+    const result = mapToReservation(reservation, 10);
+    expect(result.name).toBe('Bob');
+    expect(result.participantUserId).toBe(20);
   });
 });
