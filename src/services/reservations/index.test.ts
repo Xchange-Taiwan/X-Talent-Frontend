@@ -426,12 +426,16 @@ describe('mapToReservation', () => {
    * myUserId matching (counterparty resolution)
    * ============================ */
 
-  it('myUserId is omitted → counterparty defaults to participant for backward compatibility', () => {
+  it('myUserId is omitted (undefined or null) → counterparty defaults to participant for backward compatibility', () => {
     const reservation = makeReservation();
-    const result = mapToReservation(reservation);
-    // When omitted, should map name/avatar of participant (Bob, user_id: 20)
-    expect(result.name).toBe('Bob');
-    expect(result.participantUserId).toBe(20);
+    const resultUndefined = mapToReservation(reservation);
+    const resultNull = mapToReservation(reservation, null);
+
+    expect(resultUndefined.name).toBe('Bob');
+    expect(resultUndefined.participantUserId).toBe(20);
+
+    expect(resultNull.name).toBe('Bob');
+    expect(resultNull.participantUserId).toBe(20);
   });
 
   it('myUserId matches sender.user_id → counterparty is set to participant', () => {

@@ -72,15 +72,16 @@ function classifyMessageRole(
 
 export function mapToReservation(
   reservation: components['schemas']['ReservationInfoVO'],
-  myUserId?: string | number
+  myUserId?: string | number | null
 ): Reservation {
   // If myUserId is provided and equals reservation.sender.user_id, the counterparty is set to reservation.participant.
   // If myUserId is provided and does NOT equal reservation.sender.user_id, the counterparty is set to reservation.sender.
-  // If myUserId is omitted, the counterparty defaults to reservation.participant for backward compatibility.
+  // If myUserId is omitted (null or undefined), the counterparty defaults to reservation.participant for backward compatibility.
   const counterparty =
-    myUserId === undefined
+    myUserId == null
       ? reservation.participant
-      : String(myUserId) === String(reservation.sender.user_id)
+      : reservation.sender?.user_id != null &&
+          String(myUserId) === String(reservation.sender.user_id)
         ? reservation.participant
         : reservation.sender;
   const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
