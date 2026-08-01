@@ -1,0 +1,251 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Introduction" />
+
+<div className="sb-container font-sans antialiased text-slate-800 max-w-5xl mx-auto px-4 py-8">
+  
+  {/* Header Section */}
+  <div className="flex flex-col md:flex-row items-center gap-8 pb-12 border-b border-slate-200 mb-12">
+    <div className="flex-1">
+      <div className="flex items-center gap-3 mb-4">
+        <img src="/logo.svg" alt="X-Talent Logo" className="h-10 w-auto" />
+        <span className="text-2xl font-bold tracking-tight text-indigo-600">Storybook Portal</span>
+      </div>
+      <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl mb-4">
+        Welcome to X-Talent Component Library
+      </h1>
+      <p className="text-lg text-slate-600 leading-relaxed max-w-2xl">
+        X-Talent is a platform connecting mentors and mentees. This Storybook environment serves as our single source of truth for UI components, helping developers build, test, and document user interfaces in isolation.
+      </p>
+    </div>
+    <div className="w-full md:w-1/3 flex justify-center">
+      <img src="/landing/about-page-hero.svg" alt="X-Talent Illustration" className="w-64 h-auto" />
+    </div>
+  </div>
+
+{/* Quick Start / Command Reference */}
+
+  <div className="mb-12">
+    <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+      <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 text-sm font-bold">1</span>
+      Getting Started
+    </h2>
+    <p className="text-slate-600 mb-6 leading-relaxed">
+      You can develop UI components in isolation without launching the full Next.js development server.
+    </p>
+    
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="p-6 bg-slate-50 rounded-xl border border-slate-200 hover:border-indigo-200 transition-all duration-200 shadow-sm">
+        <h3 className="text-lg font-semibold text-slate-900 mb-2">Run Storybook locally</h3>
+        <p className="text-sm text-slate-600 mb-4">
+          Starts a local development server with live-reloading.
+        </p>
+        <div className="bg-slate-900 text-slate-100 font-mono text-sm p-3 rounded-lg flex justify-between items-center">
+          <code>pnpm storybook</code>
+        </div>
+        <p className="text-xs text-slate-500 mt-2">
+          Runs on <a href="http://localhost:6006" target="_blank" className="text-indigo-600 hover:underline">localhost:6006</a> by default.
+        </p>
+      </div>
+
+      <div className="p-6 bg-slate-50 rounded-xl border border-slate-200 hover:border-indigo-200 transition-all duration-200 shadow-sm">
+        <h3 className="text-lg font-semibold text-slate-900 mb-2">Build static Storybook</h3>
+        <p className="text-sm text-slate-600 mb-4">
+          Compiles Storybook into a static website for deployment.
+        </p>
+        <div className="bg-slate-900 text-slate-100 font-mono text-sm p-3 rounded-lg flex justify-between items-center">
+          <code>pnpm build-storybook</code>
+        </div>
+        <p className="text-xs text-slate-500 mt-2">
+          Outputs to the <code>storybook-static/</code> directory.
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+{/* Component Organization */}
+
+  <div className="mb-12">
+    <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+      <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 text-sm font-bold">2</span>
+      Component Organization
+    </h2>
+    <p className="text-slate-600 mb-6 leading-relaxed">
+      To maintain a clean and scalable codebase, components are categorized into three distinct layers. Every component should be accompanied by a <code>*.stories.tsx</code> file located in the same directory.
+    </p>
+
+    <div className="space-y-4">
+      <div className="p-6 bg-white rounded-xl border border-slate-200 flex flex-col md:flex-row gap-4 items-start shadow-sm">
+        <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
+          </svg>
+        </div>
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-slate-900 mb-1">Foundational UI (Atoms)</h3>
+          <p className="text-sm text-slate-600 mb-2">
+            Low-level, style-pure, and highly reusable building blocks. They manage their own internal states (if any) but have absolutely no awareness of domain logic.
+          </p>
+          <div className="text-xs text-indigo-600 font-mono bg-indigo-50/50 inline-block px-2 py-1 rounded">
+            Location: src/components/ui/
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Examples: <code>Button</code>, <code>Input</code>, <code>Badge</code>, <code>Dialog</code>, <code>DropdownMenu</code>
+          </p>
+        </div>
+      </div>
+
+      <div className="p-6 bg-white rounded-xl border border-slate-200 flex flex-col md:flex-row gap-4 items-start shadow-sm">
+        <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1v-2zM4 21a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1v-2z" />
+          </svg>
+        </div>
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-slate-900 mb-1">Layout Components (Molecules/Organisms)</h3>
+          <p className="text-sm text-slate-600 mb-2">
+            Structure-defining components that establish page framework, scaffolding, and responsive content spacing.
+          </p>
+          <div className="text-xs text-emerald-600 font-mono bg-emerald-50/50 inline-block px-2 py-1 rounded">
+            Location: src/components/layout/
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Examples: <code>Header</code>, <code>Footer</code>, <code>HamburgerMenu</code>
+          </p>
+        </div>
+      </div>
+
+      <div className="p-6 bg-white rounded-xl border border-slate-200 flex flex-col md:flex-row gap-4 items-start shadow-sm">
+        <div className="p-3 bg-amber-50 text-amber-600 rounded-lg">
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+        </div>
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-slate-900 mb-1">Modules (Feature-Specific)</h3>
+          <p className="text-sm text-slate-600 mb-2">
+            Business-logic aware composite components mapped to specific system features and domains.
+          </p>
+          <div className="text-xs text-amber-600 font-mono bg-amber-50/50 inline-block px-2 py-1 rounded">
+            Location: src/components/[module-name]/
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Examples: <code>SignInForm</code> (auth), <code>MentorFilterDropdown</code> (filter), <code>ProfileBanner</code> (profile), <code>BookingForm</code> (reservation)
+          </p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+{/* Best Practices & Conventions */}
+
+  <div className="mb-12">
+    <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+      <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 text-sm font-bold">3</span>
+      Storybook Best Practices
+    </h2>
+    <p className="text-slate-600 mb-6 leading-relaxed">
+      Follow these standards to ensure components remain modular, well-documented, and easily testable.
+    </p>
+
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="p-5 bg-slate-50 rounded-xl border border-slate-200">
+        <h3 className="text-base font-bold text-slate-900 mb-2 flex items-center gap-1.5">
+          <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          JSDoc & Type Safety
+        </h3>
+        <p className="text-sm text-slate-600 leading-relaxed">
+          Document your TypeScript interfaces using JSDoc comments. Storybook automatically parses these to generate precise property descriptions and default value fields in the interactive controls panel.
+        </p>
+      </div>
+
+      <div className="p-5 bg-slate-50 rounded-xl border border-slate-200">
+        <h3 className="text-base font-bold text-slate-900 mb-2 flex items-center gap-1.5">
+          <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          Auto-docs Feature
+        </h3>
+        <p className="text-sm text-slate-600 leading-relaxed">
+          Always include <code>tags: ['autodocs']</code> in your default Meta export. This builds an automatic documentation panel for your component displaying primary usage, code examples, and live sandbox properties.
+        </p>
+      </div>
+
+      <div className="p-5 bg-slate-50 rounded-xl border border-slate-200">
+        <h3 className="text-base font-bold text-slate-900 mb-2 flex items-center gap-1.5">
+          <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+          </svg>
+          Interactive States
+        </h3>
+        <p className="text-sm text-slate-600 leading-relaxed">
+          Provide stories for every visual permutation (e.g., Default, Active, Disabled, Error, Loading). Use Storybook's interactions and mock contexts to demonstrate asynchronous workflows and dialog triggers.
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+{/* Technical Blueprint of a Story */}
+
+  <div className="mb-8">
+    <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+      <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 text-sm font-bold">4</span>
+      Story Code Blueprint
+    </h2>
+    <p className="text-slate-600 mb-4 leading-relaxed">
+      Below is a standard template for creating a component story (e.g., <code>MyComponent.stories.tsx</code>):
+    </p>
+
+    <div className="bg-slate-900 text-slate-100 font-mono text-sm p-6 rounded-xl overflow-x-auto shadow-md">
+      <pre className="text-left leading-relaxed">
+
+{`import type { Meta, StoryObj } from '@storybook/react';
+import { MyComponent } from './MyComponent';
+
+const meta: Meta<typeof MyComponent> = {
+title: 'UI/MyComponent', // Category/Component Name
+component: MyComponent,
+tags: ['autodocs'], // Generates the Docs tab automatically
+argTypes: {
+variant: {
+control: 'select',
+options: ['default', 'outline', 'ghost'],
+description: 'The visual style of the component',
+},
+disabled: {
+control: 'boolean',
+description: 'Toggles interactive behavior',
+},
+},
+};
+
+export default meta;
+type Story = StoryObj<typeof MyComponent>;
+
+// 1. Primary Default State
+export const Default: Story = {
+args: {
+variant: 'default',
+children: 'Interactive Component',
+disabled: false,
+},
+};
+
+// 2. Disabled State Variant
+export const Disabled: Story = {
+args: {
+...Default.args,
+disabled: true,
+},
+};`}
+</pre>
+</div>
+
+  </div>
+
+</div>

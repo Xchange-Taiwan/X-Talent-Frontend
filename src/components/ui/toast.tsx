@@ -5,8 +5,18 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
+/**
+ * ToastProvider 吐司通知元件的全局提供者 (Provider)。
+ *
+ * 用於管理與調度多個 Toast 吐司通知的渲染。
+ */
 const ToastProvider = ToastPrimitives.Provider;
 
+/**
+ * ToastViewport 吐司通知元件的顯示區域（視窗）。
+ *
+ * 定位在畫面中特定的角落（預設為右下角/右上角），所有 Toast 都會被渲染在此 Viewport 之中。
+ */
 const ToastViewport = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Viewport>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Viewport>
@@ -39,6 +49,13 @@ const toastVariants = cva(
   }
 );
 
+/**
+ * Toast 單個吐司通知元件的主體。
+ *
+ * 支援預設 (default) 與破壞性/錯誤 (destructive) 等多種視覺變體 (variant)。
+ *
+ * @param variant - 吐司通知樣式變體：'default' | 'destructive'。
+ */
 const Toast = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Root>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Root> &
@@ -54,6 +71,11 @@ const Toast = React.forwardRef<
 });
 Toast.displayName = ToastPrimitives.Root.displayName;
 
+/**
+ * ToastAction 吐司通知內的自訂動作按鈕（例如：重試、撤銷等）。
+ *
+ * 會自動繼承 Toast 的變體風格。
+ */
 const ToastAction = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Action>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Action>
@@ -69,6 +91,9 @@ const ToastAction = React.forwardRef<
 ));
 ToastAction.displayName = ToastPrimitives.Action.displayName;
 
+/**
+ * ToastClose 用於關閉個別吐司通知的按鈕（預設顯示為右上角 X 圖標）。
+ */
 const ToastClose = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Close>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Close>
@@ -87,6 +112,9 @@ const ToastClose = React.forwardRef<
 ));
 ToastClose.displayName = ToastPrimitives.Close.displayName;
 
+/**
+ * ToastTitle 吐司通知的標題。
+ */
 const ToastTitle = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Title>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Title>
@@ -99,6 +127,9 @@ const ToastTitle = React.forwardRef<
 ));
 ToastTitle.displayName = ToastPrimitives.Title.displayName;
 
+/**
+ * ToastDescription 吐司通知的詳細描述文字。
+ */
 const ToastDescription = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Description>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Description>

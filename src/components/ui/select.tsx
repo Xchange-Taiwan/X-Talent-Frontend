@@ -6,12 +6,24 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
+/**
+ * Select 單選下拉選單根容器：負責控制下拉選單的開啟與關閉狀態、管理選中的值。
+ */
 const Select = SelectPrimitive.Root;
 
+/**
+ * SelectGroup 下拉選單分組：將相關的選項（SelectItem）封裝在一起，便於在視覺和語意上進行分組。
+ */
 const SelectGroup = SelectPrimitive.Group;
 
+/**
+ * SelectValue 下拉選單顯示值：渲染當前已被選中選項的文字內容，若尚未選中則會顯示設定的 Placeholder 佔位文字。
+ */
 const SelectValue = SelectPrimitive.Value;
 
+/**
+ * SelectTrigger 下拉選單觸發按鈕：使用者點擊時會展開下拉選單內容。通常內含 SelectValue。
+ */
 const SelectTrigger = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
@@ -32,6 +44,9 @@ const SelectTrigger = React.forwardRef<
 ));
 SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
 
+/**
+ * SelectScrollUpButton 向上滾動按鈕：當選單內容溢出時，提供觸控或點擊以向上滾動選單的功能。
+ */
 const SelectScrollUpButton = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.ScrollUpButton>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.ScrollUpButton>
@@ -49,6 +64,9 @@ const SelectScrollUpButton = React.forwardRef<
 ));
 SelectScrollUpButton.displayName = SelectPrimitive.ScrollUpButton.displayName;
 
+/**
+ * SelectScrollDownButton 向下滾動按鈕：當選單內容溢出時，提供觸控或點擊以向下滾動選單的功能。
+ */
 const SelectScrollDownButton = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.ScrollDownButton>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.ScrollDownButton>
@@ -67,6 +85,9 @@ const SelectScrollDownButton = React.forwardRef<
 SelectScrollDownButton.displayName =
   SelectPrimitive.ScrollDownButton.displayName;
 
+/**
+ * SelectContent 下拉選單彈出框內容容器：包含所有可選項目（SelectItem），並支援動畫、彈出位置定位等設定。
+ */
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
@@ -101,6 +122,9 @@ const SelectContent = React.forwardRef<
 ));
 SelectContent.displayName = SelectPrimitive.Content.displayName;
 
+/**
+ * SelectLabel 下拉選單標題：在選單分組（SelectGroup）中顯示唯讀的群組描述或類別文字。
+ */
 const SelectLabel = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Label>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Label>
@@ -113,6 +137,9 @@ const SelectLabel = React.forwardRef<
 ));
 SelectLabel.displayName = SelectPrimitive.Label.displayName;
 
+/**
+ * SelectItem 下拉選單選項：下拉選單中的具體可選項。當前被選中時會顯示勾選符號，且支援鍵盤導覽和滑鼠懸停效果。
+ */
 const SelectItem = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
@@ -136,6 +163,9 @@ const SelectItem = React.forwardRef<
 ));
 SelectItem.displayName = SelectPrimitive.Item.displayName;
 
+/**
+ * SelectSeparator 分隔線：在下拉選單選項之間繪製一條細水平線，通常用於邏輯分組的視覺區隔。
+ */
 const SelectSeparator = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Separator>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Separator>

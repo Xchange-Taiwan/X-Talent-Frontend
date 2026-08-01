@@ -5,9 +5,32 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
+/**
+ * Properties for the Separator component. Inherits standard Radix UI Separator properties.
+ */
+export interface SeparatorProps extends React.ComponentPropsWithoutRef<
+  typeof SeparatorPrimitive.Root
+> {
+  /**
+   * The orientation of the separator line.
+   * @default 'horizontal'
+   */
+  orientation?: 'horizontal' | 'vertical';
+
+  /**
+   * Whether the separator is purely decorative. If true, it is excluded from the accessibility tree.
+   * @default true
+   */
+  decorative?: boolean;
+}
+
+/**
+ * A Separator component used to visually divide content, supporting both horizontal
+ * and vertical orientations, built on top of Radix UI's Separator primitive.
+ */
 const Separator = React.forwardRef<
   React.ElementRef<typeof SeparatorPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof SeparatorPrimitive.Root>
+  SeparatorProps
 >(
   (
     { className, orientation = 'horizontal', decorative = true, ...props },

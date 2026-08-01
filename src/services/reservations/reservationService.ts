@@ -72,20 +72,20 @@ function classifyMessageRole(
 
 export function mapToReservation(
   reservation: components['schemas']['ReservationInfoVO'],
-  myUserId?: string | number
+  currentUserId?: string | number
 ): Reservation {
-  // If myUserId is provided, we resolve the counterparty dynamically based on who is logged in:
-  // - If myUserId matches the sender, the counterparty is the participant.
-  // - If myUserId matches the participant, the counterparty is the sender.
-  // - Otherwise (or if myUserId is undefined/unrelated), fallback to the original default reservation.participant.
+  // If currentUserId is provided, we resolve the counterparty dynamically based on who is logged in:
+  // - If currentUserId matches the sender, the counterparty is the participant.
+  // - If currentUserId matches the participant, the counterparty is the sender.
+  // - Otherwise (or if currentUserId is undefined/unrelated), fallback to the original default reservation.participant.
   const isSender =
-    myUserId !== undefined &&
+    currentUserId !== undefined &&
     reservation.sender.user_id != null &&
-    String(reservation.sender.user_id) === String(myUserId);
+    String(reservation.sender.user_id) === String(currentUserId);
   const isParticipant =
-    myUserId !== undefined &&
+    currentUserId !== undefined &&
     reservation.participant.user_id != null &&
-    String(reservation.participant.user_id) === String(myUserId);
+    String(reservation.participant.user_id) === String(currentUserId);
   const counterparty = isSender
     ? reservation.participant
     : isParticipant
@@ -131,14 +131,20 @@ export function mapToReservation(
   // canceller's role surfaced so the UI can render 「已由導師/學員取消」 on both
   // mentor and mentee history pages. Reject (pre-accept) and cancel
   // (post-accept) intentionally share the same 「取消」 copy per PM scope
-  // (Tracker #224). Participant takes precedence when both sides are REJECT.
+  // (Tracker #224). Participant (other side / counterparty) takes precedence when both sides are REJECT.
   const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
     r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
+
+  const isSenderCurrentUser = counterparty === reservation.participant;
+  const currentUser = isSenderCurrentUser
+    ? reservation.sender
+    : reservation.participant;
+
   const cancelledBy: 'MENTEE' | 'MENTOR' | undefined =
-    reservation.participant.status === 'REJECT'
-      ? toRole(reservation.participant.role)
-      : reservation.sender.status === 'REJECT'
-        ? toRole(reservation.sender.role)
+    counterparty.status === 'REJECT'
+      ? toRole(counterparty.role)
+      : currentUser.status === 'REJECT'
+        ? toRole(currentUser.role)
         : undefined;
 
   return {

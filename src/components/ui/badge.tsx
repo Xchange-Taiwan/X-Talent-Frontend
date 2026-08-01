@@ -25,11 +25,31 @@ const badgeVariants = cva(
   }
 );
 
+/**
+ * Properties for the Badge component. Inherits all standard HTML div element attributes
+ * and variant configuration properties from the CVA configuration.
+ */
 export interface BadgeProps
   extends
     React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {}
+    VariantProps<typeof badgeVariants> {
+  /**
+   * The visual style variant of the badge.
+   * @default 'default'
+   */
+  variant?:
+    | 'default'
+    | 'secondary'
+    | 'destructive'
+    | 'outline'
+    | 'filter'
+    | null;
+}
 
+/**
+ * A Badge component used to display tags, status highlights, or category labels,
+ * with various styling variants defined by class-variance-authority (CVA).
+ */
 function Badge({ className, variant, ...props }: BadgeProps) {
   return (
     <div className={cn(badgeVariants({ variant }), className)} {...props} />
