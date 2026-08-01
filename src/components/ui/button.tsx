@@ -38,13 +38,52 @@ const buttonVariants = cva(
   }
 );
 
+/**
+ * Properties for the Button component. Inherits all standard HTML button attributes
+ * and variant configuration properties from the CVA (class-variance-authority) configuration.
+ */
 export interface ButtonProps
   extends
     React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
+  /**
+   * The visual style variant of the button.
+   * @default 'default'
+   */
+  variant?:
+    | 'default'
+    | 'destructive'
+    | 'outline'
+    | 'secondary'
+    | 'ghost'
+    | 'link'
+    | null;
+
+  /**
+   * The size of the button, controlling height and padding.
+   * @default 'default'
+   */
+  size?: 'default' | 'sm' | 'lg' | 'icon' | null;
+
+  /**
+   * The shape / border-radius configuration of the button.
+   * @default 'default'
+   */
+  shape?: 'default' | 'pill' | null;
+
+  /**
+   * If true, the button will render as its child component instead of a native button element.
+   * This is useful when you want to use custom elements (like Next.js Link) but keep button styling.
+   * @default false
+   */
   asChild?: boolean;
 }
 
+/**
+ * A highly customizable and reusable Button component that supports various visual styles,
+ * sizes, and shapes based on the class-variance-authority (CVA) design token mappings.
+ * It also supports custom elements via Radix UI's Slot wrapper using the `asChild` property.
+ */
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, shape, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : 'button';
