@@ -51,37 +51,40 @@ export function resolveCounterparty(
 
 export function resolveCounterparty(
   reservation: Reservation,
-  myUserId?: string | number | null
+  myUserId: string | number
 ): string | number;
 
 export function resolveCounterparty(
-  reservation: any,
+  reservation: components['schemas']['ReservationInfoVO'] | Reservation,
   myUserId?: string | number | null
-): any {
+): components['schemas']['RUserInfoVO'] | string | number {
   // Check if it is a raw ReservationInfoVO (which has 'sender' or 'participant' fields)
   if (
     reservation &&
     ('sender' in reservation || 'participant' in reservation)
   ) {
+    const rawRes = reservation as components['schemas']['ReservationInfoVO'];
     if (myUserId == null) {
-      return reservation.participant ?? reservation.sender;
+      return rawRes.participant ?? rawRes.sender;
     }
-    const senderId = reservation.sender?.user_id;
+    const senderId = rawRes.sender?.user_id;
     if (senderId != null && String(myUserId) === String(senderId)) {
-      return reservation.participant ?? reservation.sender;
+      return rawRes.participant ?? rawRes.sender;
     }
-    return reservation.sender ?? reservation.participant;
+    return rawRes.sender ?? rawRes.participant;
   }
 
   // Otherwise, it is a mapped Reservation
-  if (myUserId == null) {
-    return reservation.participantUserId ?? reservation.senderUserId;
+  const mappedRes = reservation as Reservation;
+  const senderId = mappedRes.senderUserId;
+  if (
+    senderId != null &&
+    myUserId != null &&
+    String(myUserId) === String(senderId)
+  ) {
+    return mappedRes.participantUserId;
   }
-  const senderId = reservation.senderUserId;
-  if (senderId != null && String(myUserId) === String(senderId)) {
-    return reservation.participantUserId ?? reservation.senderUserId;
-  }
-  return reservation.senderUserId ?? reservation.participantUserId;
+  return mappedRes.senderUserId;
 }
 
 /* ================================

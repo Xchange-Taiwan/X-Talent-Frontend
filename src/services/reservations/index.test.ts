@@ -5,6 +5,7 @@ import {
   formatDateTime,
   formatExperience,
   mapToReservation,
+  resolveCounterparty,
 } from '@/services/reservations';
 import { components } from '@/types/api';
 
@@ -614,6 +615,88 @@ describe('mapToReservation', () => {
         const result = mapToReservation(reservation, '10');
         expect(result.cancelledBy).toBe('MENTOR');
       });
+    });
+  });
+
+  describe('resolveCounterparty with ReservationInfoVO', () => {
+    const baseSender = {
+      user_id: 10,
+      role: 'MENTEE' as const,
+      status: 'PENDING' as const,
+      name: 'Bob (Mentee)',
+      avatar: 'bob-avatar.png',
+      job_title: 'Designer',
+      years_of_experience: 'ONE_TO_THREE',
+    };
+
+    const baseParticipant = {
+      user_id: 20,
+      role: 'MENTOR' as const,
+      status: 'ACCEPT' as const,
+      name: 'Alice (Mentor)',
+      avatar: 'alice-avatar.png',
+      job_title: 'Engineer',
+      years_of_experience: 'THREE_TO_FIVE',
+    };
+
+    it('resolves to participant when myUserId matches sender user_id', () => {
+      const resInfo = makeReservation({
+        sender: baseSender,
+        participant: baseParticipant,
+      });
+
+      const result = resolveCounterparty(resInfo, 10);
+      expect(result).toEqual(baseParticipant);
+    });
+
+    it('resolves to sender when myUserId matches participant user_id', () => {
+      const resInfo = makeReservation({
+        sender: baseSender,
+        participant: baseParticipant,
+      });
+
+      const result = resolveCounterparty(resInfo, 20);
+      expect(result).toEqual(baseSender);
+    });
+
+    it('resolves to participant (fallback) when myUserId is not provided', () => {
+      const resInfo = makeReservation({
+        sender: baseSender,
+        participant: baseParticipant,
+      });
+
+      const result = resolveCounterparty(resInfo, null);
+      expect(result).toEqual(baseParticipant);
+    });
+
+    it('resolves to sender (fallback) when myUserId is provided but unmatched', () => {
+      const resInfo = makeReservation({
+        sender: baseSender,
+        participant: baseParticipant,
+      });
+
+      const result = resolveCounterparty(resInfo, 999);
+      expect(result).toEqual(baseSender);
+    });
+
+    it('correctly resolves to participant when sender is null/undefined to prevent crashes', () => {
+      const resInfo = makeReservation({
+        sender: fromAny(null),
+        participant: baseParticipant,
+      });
+
+      const result = resolveCounterparty(resInfo, 10);
+      expect(result).toEqual(baseParticipant);
+    });
+
+    it('correctly resolves to sender when participant is null/undefined to prevent crashes', () => {
+      const resInfo = makeReservation({
+        sender: baseSender,
+        participant: fromAny(null),
+      });
+
+      const result = resolveCounterparty(resInfo, 10);
+      expect(result).toEqual(baseSender);
     });
   });
 });
