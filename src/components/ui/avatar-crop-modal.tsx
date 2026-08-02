@@ -3,6 +3,7 @@ import AvatarEditor from 'react-avatar-editor';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Slider } from '@/components/ui/slider';
 
 interface AvatarCropModalProps {
   file: File | null;
@@ -127,7 +128,7 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onTouchCancel={handleTouchEnd}
-            style={{ touchAction: 'none' }}
+            className="touch-none"
           >
             <AvatarEditor
               ref={editorRef}
@@ -141,14 +142,13 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
             />
           </div>
         )}
-        <input
-          type="range"
-          value={zoomScale}
+        <Slider
+          className="mt-4"
+          value={[zoomScale]}
           min={MIN_SCALE}
           max={MAX_SCALE}
           step={0.1}
-          onChange={(e) => setZoomScale(parseFloat(e.target.value))}
-          className="mt-4 h-2 w-full cursor-pointer appearance-none rounded-lg bg-background-bottom accent-brand-500"
+          onValueChange={(value: number[]) => setZoomScale(value[0])}
         />
         <div className="mt-4 flex w-full justify-center gap-3">
           <Button
