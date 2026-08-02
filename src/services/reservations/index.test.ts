@@ -2,11 +2,10 @@ import { fromAny } from '@total-typescript/shoehorn';
 import { describe, expect, it } from 'vitest';
 
 import {
-  formatDateTime,
   formatExperience,
-  mapToReservation,
-  resolveCounterparty,
-} from '@/services/reservations';
+  resolveCounterpartyProfile,
+} from '@/lib/reservation/resolveCounterparty';
+import { formatDateTime, mapToReservation } from '@/services/reservations';
 import { components } from '@/types/api';
 
 type ReservationInfoVO = components['schemas']['ReservationInfoVO'];
@@ -620,10 +619,10 @@ describe('mapToReservation', () => {
 });
 
 /* ================================
- * resolveCounterparty
+ * resolveCounterpartyProfile
  * ================================ */
 
-describe('resolveCounterparty', () => {
+describe('resolveCounterpartyProfile', () => {
   const baseSender = {
     user_id: 10,
     role: 'MENTEE' as const,
@@ -649,7 +648,7 @@ describe('resolveCounterparty', () => {
       sender: baseSender,
       participant: baseParticipant,
     });
-    const result = resolveCounterparty(reservation, 10);
+    const result = resolveCounterpartyProfile(reservation, 10);
     expect(result.name).toBe('Alice (Mentor)');
     expect(result.avatar).toBe('alice-avatar.png');
     expect(result.roleLine).toBe('Engineer, 3~5 年');
@@ -660,7 +659,7 @@ describe('resolveCounterparty', () => {
       sender: baseSender,
       participant: baseParticipant,
     });
-    const result = resolveCounterparty(reservation, 20);
+    const result = resolveCounterpartyProfile(reservation, 20);
     expect(result.name).toBe('Bob (Mentee)');
     expect(result.avatar).toBe('bob-avatar.png');
     expect(result.roleLine).toBe('Designer, 1~3 年');
@@ -671,7 +670,7 @@ describe('resolveCounterparty', () => {
       sender: baseSender,
       participant: baseParticipant,
     });
-    const result = resolveCounterparty(reservation);
+    const result = resolveCounterpartyProfile(reservation);
     expect(result.name).toBe('Alice (Mentor)');
   });
 
@@ -680,7 +679,7 @@ describe('resolveCounterparty', () => {
       sender: baseSender,
       participant: baseParticipant,
     });
-    const result = resolveCounterparty(reservation, 999);
+    const result = resolveCounterpartyProfile(reservation, 999);
     expect(result.name).toBe('Bob (Mentee)');
   });
 
@@ -689,7 +688,7 @@ describe('resolveCounterparty', () => {
       sender: fromAny(null),
       participant: baseParticipant,
     });
-    const result = resolveCounterparty(reservation, 10);
+    const result = resolveCounterpartyProfile(reservation, 10);
     expect(result.name).toBe('Alice (Mentor)');
   });
 
@@ -698,7 +697,7 @@ describe('resolveCounterparty', () => {
       sender: baseSender,
       participant: fromAny(null),
     });
-    const result = resolveCounterparty(reservation, 10);
+    const result = resolveCounterpartyProfile(reservation, 10);
     expect(result.name).toBe('Bob (Mentee)');
   });
 
@@ -709,7 +708,7 @@ describe('resolveCounterparty', () => {
         participant: { ...baseParticipant, status: 'REJECT' },
       });
       // myUserId is 10 (sender), so counterparty is participant (MENTOR)
-      const result = resolveCounterparty(reservation, 10);
+      const result = resolveCounterpartyProfile(reservation, 10);
       expect(result.cancelledBy).toBe('MENTOR');
     });
 
@@ -719,7 +718,7 @@ describe('resolveCounterparty', () => {
         participant: { ...baseParticipant, status: 'ACCEPT' },
       });
       // myUserId is 10 (sender), so current user is sender (MENTEE), counterparty is MENTOR (ACCEPT)
-      const result = resolveCounterparty(reservation, 10);
+      const result = resolveCounterpartyProfile(reservation, 10);
       expect(result.cancelledBy).toBe('MENTEE');
     });
 
@@ -729,7 +728,7 @@ describe('resolveCounterparty', () => {
         participant: { ...baseParticipant, status: 'REJECT' },
       });
       // myUserId is 10 (sender), counterparty is participant (MENTOR)
-      const result = resolveCounterparty(reservation, 10);
+      const result = resolveCounterpartyProfile(reservation, 10);
       expect(result.cancelledBy).toBe('MENTOR');
     });
   });

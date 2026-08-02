@@ -1,7 +1,7 @@
 import dayjs from 'dayjs';
 
-import { TotalWorkSpanEnum } from '@/constant/seniority';
 import { apiClient, FetchApiError } from '@/lib/apiClient';
+import { resolveCounterpartyProfile } from '@/lib/reservation/resolveCounterparty';
 import { Reservation, ReservationMessage } from '@/services/reservations/types';
 import { components } from '@/types/api';
 
@@ -25,108 +25,12 @@ export type FetchOptions = {
  * Helpers
  * ================================ */
 
-export function formatExperience(yearsOfExperience?: string | null) {
-  return (
-    TotalWorkSpanEnum[yearsOfExperience as keyof typeof TotalWorkSpanEnum] ?? ''
-  );
-}
-
 export function formatDateTime(dtstart: number, dtend: number) {
   const start = dayjs.unix(dtstart);
   const end = dayjs.unix(dtend);
   return {
     date: start.format('ddd, MMM DD, YYYY'),
     time: `${start.format('h:mm a')} – ${end.format('h:mm a')}`,
-  };
-}
-
-/**
- * Resolve the counterparty based on who is currently logged in.
- * Supports both raw ReservationInfoVO and mapped Reservation objects.
- */
-export function resolveCounterparty(
-  reservation: components['schemas']['ReservationInfoVO'],
-  myUserId?: string | number | null
-): {
-  name: string;
-  avatar?: string;
-  roleLine: string;
-  cancelledBy?: 'MENTEE' | 'MENTOR';
-};
-
-export function resolveCounterparty(
-  reservation: Reservation,
-  myUserId: string | number
-): string | number;
-
-export function resolveCounterparty(
-  reservation: components['schemas']['ReservationInfoVO'] | Reservation,
-  myUserId?: string | number | null
-):
-  | {
-      name: string;
-      avatar?: string;
-      roleLine: string;
-      cancelledBy?: 'MENTEE' | 'MENTOR';
-    }
-  | string
-  | number {
-  if (!reservation) {
-    return '';
-  }
-
-  // Check if it is a mapped Reservation
-  if ('senderUserId' in reservation || 'participantUserId' in reservation) {
-    const mappedRes = reservation as Reservation;
-    const senderId = mappedRes.senderUserId;
-    if (
-      senderId != null &&
-      myUserId != null &&
-      String(myUserId) === String(senderId)
-    ) {
-      return mappedRes.participantUserId;
-    }
-    return mappedRes.senderUserId;
-  }
-
-  // Otherwise, it is a raw ReservationInfoVO
-  const rawRes = reservation as components['schemas']['ReservationInfoVO'];
-  const counterparty =
-    myUserId == null
-      ? (rawRes.participant ?? rawRes.sender)
-      : rawRes.sender?.user_id != null &&
-          String(myUserId) === String(rawRes.sender.user_id)
-        ? (rawRes.participant ?? rawRes.sender)
-        : (rawRes.sender ?? rawRes.participant);
-
-  const name = counterparty?.name || '—';
-  const avatar = counterparty?.avatar ?? undefined;
-
-  const roleLine = [
-    counterparty?.job_title?.trim() || '',
-    formatExperience(counterparty?.years_of_experience),
-  ]
-    .filter(Boolean)
-    .join(', ');
-
-  const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
-    r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
-
-  const currentUserSide =
-    counterparty === rawRes.participant ? rawRes.sender : rawRes.participant;
-
-  const cancelledBy =
-    counterparty?.status === 'REJECT'
-      ? toRole(counterparty?.role)
-      : currentUserSide?.status === 'REJECT'
-        ? toRole(currentUserSide?.role)
-        : undefined;
-
-  return {
-    name,
-    avatar,
-    roleLine,
-    cancelledBy,
   };
 }
 
@@ -155,7 +59,7 @@ export function mapToReservation(
   reservation: components['schemas']['ReservationInfoVO'],
   myUserId?: string | number | null
 ): Reservation {
-  const { name, avatar, roleLine, cancelledBy } = resolveCounterparty(
+  const { name, avatar, roleLine, cancelledBy } = resolveCounterpartyProfile(
     reservation,
     myUserId
   );

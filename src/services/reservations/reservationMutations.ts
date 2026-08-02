@@ -1,10 +1,8 @@
 import { captureFlowFailure } from '@/lib/monitoring';
+import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import { Reservation } from '@/services/reservations/types';
 
-import {
-  resolveCounterparty,
-  updateReservationStatus,
-} from './reservationService';
+import { updateReservationStatus } from './reservationService';
 
 interface PerformStatusUpdateParams {
   text: string;
@@ -29,7 +27,7 @@ async function performStatusUpdate({
       throw new Error('[reservationMutations] missing current user id');
     }
     const myIdNum = Number(myUserId);
-    const otherIdNum = Number(resolveCounterparty(reservation, myUserId));
+    const otherIdNum = Number(resolveCounterpartyId(reservation, myUserId));
     const messages = text.trim()
       ? [{ user_id: myIdNum, content: text.trim() }]
       : [];

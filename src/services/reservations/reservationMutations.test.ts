@@ -34,10 +34,10 @@ vi.mock('@/lib/analytics', async (importActual) => {
 
 import { apiClient } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import {
   acceptReservation,
   rejectOrCancelReservation,
-  resolveCounterparty,
 } from '@/services/reservations';
 import type { Reservation } from '@/services/reservations/types';
 
@@ -65,13 +65,13 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('resolveCounterparty', () => {
+describe('resolveCounterpartyId', () => {
   it('should resolve to participantUserId if current user is the sender', () => {
     const res = makeMockReservation({
       senderUserId: 'user-sender',
       participantUserId: 'user-participant',
     });
-    const result = resolveCounterparty(res, 'user-sender');
+    const result = resolveCounterpartyId(res, 'user-sender');
     expect(result).toBe('user-participant');
   });
 
@@ -80,7 +80,7 @@ describe('resolveCounterparty', () => {
       senderUserId: 'user-sender',
       participantUserId: 'user-participant',
     });
-    const result = resolveCounterparty(res, 'user-participant');
+    const result = resolveCounterpartyId(res, 'user-participant');
     expect(result).toBe('user-sender');
   });
 });
