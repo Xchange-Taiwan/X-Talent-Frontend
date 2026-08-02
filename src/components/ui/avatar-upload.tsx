@@ -77,7 +77,7 @@ const AvatarUpload = <T extends FieldValues>({
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          style={{ display: 'none' }}
+          className="hidden"
           onChange={handleUploadAvatar}
           onClick={(e) => e.stopPropagation()}
         />
