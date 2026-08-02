@@ -86,10 +86,10 @@ jobs:
           fi
 
           echo "Starting smoke test on: $DEPLOY_URL"
-          
+
           # List of routes to verify
           ROUTES=("/" "/auth/signin")
-          
+
           for ROUTE in "${ROUTES[@]}"; do
             TARGET_URL="${DEPLOY_URL}${ROUTE}"
             echo "Testing route: $TARGET_URL"
@@ -130,11 +130,11 @@ jobs:
             const url = process.env.DEPLOY_URL;
             const commitSha = context.sha;
             const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
-            
+
             const body = `🚨 **Production Deployment Smoke Test Failed!** 🚨\n\n` +
                          `The smoke test for deployment **${url}** has failed.\n\n` +
                          `Please check the [Workflow Run](${repoUrl}/actions/runs/${context.runId}) for details.`;
-            
+
             await github.rest.repos.createCommitComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
