@@ -110,7 +110,7 @@ Launch a fresh subagent with the ticket text (step 1), the target page's source 
 2. Call `find_nodes`/`inspect`/`get_screenshot` against the direction's actual frame to see what was actually built.
 3. Report the gap — which expected states/roles/breakpoints have no corresponding frame.
 
-If gaps are reported: this session adds the missing frames using step 7's placement method (same component-lookup/token-binding discipline), then re-triggers Pass 1 on the updated frame. Repeat up to **5 times**. If gaps remain after 5 rounds, stop retrying, carry the unresolved gaps forward as a known limitation for step 10, and proceed to Pass 2 regardless — a direction with a gap still deserves its existing frames being polished.
+If gaps are reported: this session adds the missing frames using step 7's placement method (same component-lookup/token-binding discipline), then re-triggers Pass 1 on the updated frame. Repeat up to **5 times**. If gaps remain after 5 rounds, stop retrying and proceed to Pass 2 regardless — a direction with a gap still deserves its existing frames being polished.
 
 **Pass 2 — Visual and compliance review**
 
@@ -120,18 +120,11 @@ Launch a separate fresh subagent (no context from Pass 1 or from generation) wit
 - RWD quality — not merely that a breakpoint frame exists (Pass 1's job) but that it actually reflows sensibly.
 - Compliance with this skill's **Core rule** — no hardcoded hex/px values (must be bound via `bind_variable`), and only real components/variants from `src/components/` used where one fits.
 
-If issues are reported: this session fixes them via `jsx`/`edit`/`edit_jsx`, re-screenshots, then re-triggers Pass 2. Repeat up to **5 times**. If issues remain after 5 rounds, stop, carry them forward as a known limitation for step 10, and move on to the next direction.
-
-### 10. Report back to the ticket
-
-For each direction, take a final `get_screenshot` of its root frame. Then:
-
-1. Commit the PNGs to a **per-issue** branch `design-assets/<issue-number>` (create it fresh from the default branch if it doesn't exist yet) under `design-tickets/<issue-number>/direction-<a|b|c>.png`. Using one branch per issue avoids concurrent pushes from different tickets ever colliding on the same branch. Before pushing, always `git fetch origin design-assets/<issue-number>` and rebase/merge if the branch already exists remotely (e.g. from a prior run of this skill on the same ticket) — never force-push. If push is rejected as non-fast-forward, pull/rebase and retry once; if it still fails, stop and report the conflict instead of forcing.
-2. Post a single comment on the ticket with `gh issue comment <issue-number> --repo "$ORG/$TRACKER_REPO"` containing, per direction: an image link using `https://github.com/$ORG/$FRONTEND_REPO/blob/design-assets/<issue-number>/design-tickets/<issue-number>/direction-<a|b|c>.png?raw=true` (rendered inline via markdown `![...]`) — this works for private repos because it resolves through the viewer's own GitHub session rather than an unauthenticated raw-content URL — and a "Copy link to selection" style Figma URL to that direction's frame (`https://www.figma.com/design/<file-key>/...?node-id=<id>`). If step 9 left any unresolved gaps or issues for that direction, add a short "已知限制" note under it listing them, so the reader knows what wasn't fully covered rather than assuming silent completeness.
+If issues are reported: this session fixes them via `jsx`/`edit`/`edit_jsx`, re-screenshots, then re-triggers Pass 2. Repeat up to **5 times**. If issues remain after 5 rounds, stop and move on to the next direction.
 
 ## Rules
 
 - Always communicate with the user in Traditional Chinese (繁體中文).
-- Never modify application code — this skill only writes to Figma (and pushes screenshots to the `design-assets` branch in step 10).
+- Never modify application code — this skill only writes to Figma.
 - Never guess the target page or Figma file — stop and ask when step 2 is ambiguous; step 5's connection check is mandatory before any write.
 - Step 9's review passes are mandatory and must never be skipped, even under time pressure — they are the only defense against reviewing your own work with the same blind spots you had while creating it.
