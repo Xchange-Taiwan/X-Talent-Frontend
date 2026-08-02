@@ -5,18 +5,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Information } from './Information';
 
 // Global variable to hold the registered ResizeObserver callback
-let resizeCallback: ((entries: unknown[]) => void) | null = null;
+let resizeCallback: ResizeObserverCallback | null = null;
 
 // Mock ResizeObserver for JSDOM
 class MockResizeObserver {
-  constructor(callback: (entries: unknown[]) => void) {
+  constructor(callback: ResizeObserverCallback) {
     resizeCallback = callback;
   }
   observe = vi.fn();
   unobserve = vi.fn();
   disconnect = vi.fn();
 }
-global.ResizeObserver = MockResizeObserver;
+global.ResizeObserver = MockResizeObserver as any;
 
 describe('Information Component', () => {
   const defaultProps = {
@@ -157,8 +157,8 @@ describe('Information Component', () => {
       expect(resizeCallback).not.toBeNull();
 
       act(() => {
-        // Mock a simple ResizeObserverEntry as unknown
-        resizeCallback!([{ contentRect: { width: 100 } } as unknown]);
+        // Mock a simple ResizeObserverEntry as any
+        resizeCallback!([{ contentRect: { width: 100 } } as any], {} as any);
       });
 
       // After resize, it should adapt dynamically and show '+2' extra tags
