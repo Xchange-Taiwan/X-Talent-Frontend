@@ -1,1 +1,1 @@
-export * from '@/services/reservations/types';
+export * from '@/types/reservation';

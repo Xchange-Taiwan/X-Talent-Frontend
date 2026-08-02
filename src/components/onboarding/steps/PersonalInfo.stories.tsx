@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
-import { LocationType } from '@/services/profile/countries';
-import { type IndustryOption } from '@/services/profile/tagCatalog';
+import { LocationType } from '@/types/location';
+import { type IndustryOption } from '@/types/tagCatalog';
 
 import { step2Schema } from './index';
 import { OnboardingStoryWrapper } from './OnboardingStoryWrapper';

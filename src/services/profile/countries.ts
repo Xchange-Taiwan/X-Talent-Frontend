@@ -1,7 +1,6 @@
-export interface LocationType {
-  value: string;
-  text: string;
-}
+import type { LocationType } from '@/types/location';
+
+export type { LocationType };
 
 async function loadTable(language: string): Promise<Record<string, string>> {
   if (language === 'en_US') {

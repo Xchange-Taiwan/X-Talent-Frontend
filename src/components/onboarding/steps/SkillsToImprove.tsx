@@ -4,7 +4,7 @@ import { FC } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
-import { TagCatalogGroupVO } from '@/services/profile/tagCatalog';
+import { TagCatalogGroupVO } from '@/types/tagCatalog';
 
 import { step4Schema } from './index';
 import { TagMultiSelect } from './TagMultiSelect';

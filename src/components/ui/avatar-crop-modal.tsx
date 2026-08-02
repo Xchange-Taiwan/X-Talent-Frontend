@@ -144,7 +144,7 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
           min={MIN_SCALE}
           max={MAX_SCALE}
           step={0.1}
-          onValueChange={(value) => setZoomScale(value[0])}
+          onValueChange={(value: number[]) => setZoomScale(value[0])}
         />
         <div className="mt-4 flex justify-center gap-3">
           <Button

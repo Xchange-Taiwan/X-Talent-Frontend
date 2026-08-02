@@ -1,17 +1,23 @@
 import { apiClient } from '@/lib/apiClient';
-import type { components } from '@/types/api';
+import type {
+  IndustryOption,
+  TagBucketKey,
+  TagCatalogGroupVO,
+  TagCatalogLeafVO,
+  TagCatalogsByBucket,
+  TagCatalogsVO,
+  TagCatalogVO,
+} from '@/types/tagCatalog';
 
-export type TagCatalogsVO = components['schemas']['TagCatalogsVO'];
-export type TagCatalogVO = components['schemas']['TagCatalogVO'];
-export type TagCatalogGroupVO = components['schemas']['TagCatalogGroupVO'];
-export type TagCatalogLeafVO = components['schemas']['TagCatalogLeafVO'];
-
-export type TagBucketKey =
-  | 'want_position'
-  | 'want_skill'
-  | 'want_topic'
-  | 'have_skill'
-  | 'have_topic';
+export type {
+  IndustryOption,
+  TagBucketKey,
+  TagCatalogGroupVO,
+  TagCatalogLeafVO,
+  TagCatalogsByBucket,
+  TagCatalogsVO,
+  TagCatalogVO,
+};
 
 export const TAG_BUCKET_KEYS: readonly TagBucketKey[] = [
   'want_position',
@@ -20,20 +26,6 @@ export const TAG_BUCKET_KEYS: readonly TagBucketKey[] = [
   'have_skill',
   'have_topic',
 ];
-
-export interface IndustryOption {
-  subject_group: string;
-  subject: string;
-}
-
-type TagBuckets = Record<TagBucketKey, TagCatalogGroupVO[]>;
-
-// Industry lives alongside the 5 nested buckets in the same response payload.
-// Buckets stay Record-iterable for callers that loop over TAG_BUCKET_KEYS;
-// industry is flat (no group/leaf hierarchy) so it sits next to them.
-export interface TagCatalogsByBucket extends TagBuckets {
-  industry: IndustryOption[];
-}
 
 export const EMPTY_TAG_CATALOGS: TagCatalogsByBucket = {
   want_position: [],
@@ -83,9 +75,10 @@ export async function fetchTagCatalog(
   language: string
 ): Promise<TagCatalogsByBucket> {
   try {
-    const data = await apiClient.getUnwrapped<
-      components['schemas']['TagCatalogsVO']
-    >(`/v1/users/${language}/tags/catalog`, { auth: false });
+    const data = await apiClient.getUnwrapped<TagCatalogsVO>(
+      `/v1/users/${language}/tags/catalog`,
+      { auth: false }
+    );
     return splitCatalogsByBucket(data);
   } catch (error) {
     console.error('獲取 tag catalog 失敗:', error);
