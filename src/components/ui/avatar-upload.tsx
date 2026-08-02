@@ -79,6 +79,7 @@ const AvatarUpload = <T extends FieldValues>({
           accept="image/*"
           style={{ display: 'none' }}
           onChange={handleUploadAvatar}
+          onClick={(e) => e.stopPropagation()}
         />
 
         {/* Hover show upload icon */}
