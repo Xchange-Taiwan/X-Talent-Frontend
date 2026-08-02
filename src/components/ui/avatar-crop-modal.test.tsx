@@ -142,4 +142,24 @@ describe('AvatarCropModal', () => {
     // Expect the value to have increased (by step 0.1)
     expect(slider).toHaveAttribute('aria-valuenow', '1.1');
   });
+
+  it('calls onClose when Escape key is pressed (onOpenChange default closing)', () => {
+    const onClose = vi.fn();
+    const onSave = vi.fn();
+
+    render(
+      <AvatarCropModal
+        file={mockFile}
+        isOpen={true}
+        onClose={onClose}
+        onSave={onSave}
+      />
+    );
+
+    // Simulate pressing Escape key on the dialog container
+    const dialog = screen.getByRole('dialog');
+    fireEvent.keyDown(dialog, { key: 'Escape', code: 'Escape' });
+
+    expect(onClose).toHaveBeenCalled();
+  });
 });

@@ -1,9 +1,9 @@
-import * as SliderPrimitive from '@radix-ui/react-slider';
 import React, { useEffect, useRef, useState } from 'react';
 import AvatarEditor from 'react-avatar-editor';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { Slider } from '@/components/ui/slider';
 
 interface AvatarCropModalProps {
   file: File | null;
@@ -138,19 +138,14 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
             />
           </div>
         )}
-        <SliderPrimitive.Root
-          className="relative mt-4 flex h-5 w-full touch-none select-none items-center"
+        <Slider
+          className="mt-4"
           value={[zoomScale]}
           min={MIN_SCALE}
           max={MAX_SCALE}
           step={0.1}
           onValueChange={(value) => setZoomScale(value[0])}
-        >
-          <SliderPrimitive.Track className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-background-border">
-            <SliderPrimitive.Range className="absolute h-full bg-brand-500" />
-          </SliderPrimitive.Track>
-          <SliderPrimitive.Thumb className="block size-5 cursor-pointer rounded-full border-2 border-brand-500 bg-background-white ring-offset-background-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50" />
-        </SliderPrimitive.Root>
+        />
         <div className="mt-4 flex justify-center gap-3">
           <Button
             variant="outline"
