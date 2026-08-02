@@ -1,0 +1,6 @@
+# This file designates code owners for the repository.
+# GitHub uses this file to automatically request reviews from the specified users
+# when a pull request modifies any files in this repository.
+
+# Catch-all rule to require review from the core maintainers for all changes
+*       @LowSugarCoke @ChengYiLin @JimmyPan622
