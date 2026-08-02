@@ -2,10 +2,10 @@ import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient } from '@/lib/apiClient';
+import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
+import type { TagCatalogsByBucket, TagCatalogsVO } from '@/types/tagCatalog';
 
-import type { TagCatalogsByBucket, TagCatalogsVO } from './tagCatalog';
 import {
-  buildTagLabelMap,
   EMPTY_TAG_CATALOGS,
   fetchTagCatalog,
   splitCatalogsByBucket,

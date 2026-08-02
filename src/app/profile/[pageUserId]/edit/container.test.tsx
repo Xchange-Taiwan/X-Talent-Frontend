@@ -134,8 +134,8 @@ vi.mock('@/components/profile/edit/LinkSection', () => ({
 import * as useEditProfileFormModule from '@/hooks/user/profile/useEditProfileForm';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
 import { ProfileFormValues } from '@/schemas/profileSchema';
-import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
-import { MentorProfileVO } from '@/services/profile/user';
+import type { TagCatalogsByBucket } from '@/types/tagCatalog';
+import { MentorProfileVO } from '@/types/user';
 
 import EditProfileContainer from './container';
 

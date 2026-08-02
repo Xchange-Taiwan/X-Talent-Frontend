@@ -18,12 +18,10 @@ vi.mock('@/services/search-mentor/mentors', () => ({
 
 import { PAGE_LIMIT } from '@/app/mentor-pool/constants';
 import avatarImage from '@/assets/default-avatar.png';
-import {
-  fetchMentors,
-  type MentorType,
-} from '@/services/search-mentor/mentors';
+import { fetchMentors } from '@/services/search-mentor/mentors';
 import { mockSearchParams } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
+import type { MentorType } from '@/types/mentor';
 
 import {
   applyMentorPage,

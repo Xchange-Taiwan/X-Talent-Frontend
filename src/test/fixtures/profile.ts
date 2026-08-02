@@ -1,7 +1,7 @@
 import { Session } from 'next-auth';
 
 import { defaultValues } from '@/schemas/profileSchema';
-import type { MentorProfileVO } from '@/services/profile/user';
+import type { MentorProfileVO } from '@/types/user';
 
 export const mockSession: Session = {
   user: {

@@ -1,11 +1,8 @@
 import { BASE_URL, fetchServerJson } from '@/lib/apiClient';
 import type { components } from '@/types/api';
+import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
-import {
-  EMPTY_TAG_CATALOGS,
-  splitCatalogsByBucket,
-  type TagCatalogsByBucket,
-} from './tagCatalog';
+import { EMPTY_TAG_CATALOGS, splitCatalogsByBucket } from './tagCatalog';
 
 const REVALIDATE_SECONDS = 86400;
 

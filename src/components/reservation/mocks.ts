@@ -1,4 +1,4 @@
-import type { Reservation } from './types';
+import type { Reservation } from '@/types/reservation';
 
 // Standard mock base for a reservation, shared across all reservation-related stories
 export const mockReservation: Reservation = {
