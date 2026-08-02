@@ -1,5 +1,8 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+'use client';
 
+import { useRef, useState } from 'react';
+
+import { useIsomorphicLayoutEffect } from '@/hooks/useIsomorphicLayoutEffect';
 import { computeOverflowFit } from '@/lib/overflowFit';
 
 import { Tag } from './Tag';
@@ -29,7 +32,7 @@ export const Information = ({
     haveTopicLabels.length
   );
 
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (!measureRef.current || !containerRef.current) return;
 
     const widths = Array.from(measureRef.current.children).map(
@@ -84,13 +87,18 @@ export const Information = ({
         <div
           ref={measureRef}
           aria-hidden
+          data-testid="measure-container"
           className="pointer-events-none invisible absolute left-0 top-0 flex flex-wrap gap-2"
         >
           {haveTopicLabels.map((offer) => (
             <Tag label={offer} key={`measure-${offer}`} />
           ))}
         </div>
-        <div ref={containerRef} className="flex flex-wrap gap-2">
+        <div
+          ref={containerRef}
+          data-testid="display-container"
+          className="flex flex-wrap gap-2"
+        >
           {visibleOffers.map((offer) => (
             <Tag label={offer} key={offer} />
           ))}
