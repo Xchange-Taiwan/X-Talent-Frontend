@@ -133,7 +133,7 @@ vi.mock('@/components/profile/edit/LinkSection', () => ({
 
 import * as useEditProfileFormModule from '@/hooks/user/profile/useEditProfileForm';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
-import { ProfileFormValues } from '@/schemas/profileSchema';
+import { ProfileFormInput, ProfileFormValues } from '@/schemas/profileSchema';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import { MentorProfileVO } from '@/services/profile/user';
 
@@ -436,11 +436,11 @@ describe('EditProfileContainer error handling and scrolling', () => {
       control: {},
       formState: { dirtyFields: {} },
       handleSubmit: vi.fn().mockReturnValue(vi.fn()),
-    } as unknown as UseFormReturn<ProfileFormValues>;
+    } as unknown as UseFormReturn<ProfileFormInput, any, ProfileFormValues>;
 
     const useEditProfileFormSpy = vi
       .spyOn(useEditProfileFormModule, 'useEditProfileForm')
-      .mockReturnValue({ form: mockForm } as any);
+      .mockReturnValue({ form: mockForm });
 
     render(
       <EditProfileContainer
@@ -485,11 +485,11 @@ describe('EditProfileContainer error handling and scrolling', () => {
       control: {},
       formState: { dirtyFields: {} },
       handleSubmit: vi.fn().mockReturnValue(vi.fn()),
-    } as unknown as UseFormReturn<ProfileFormValues>;
+    } as unknown as UseFormReturn<ProfileFormInput, any, ProfileFormValues>;
 
     const useEditProfileFormSpy = vi
       .spyOn(useEditProfileFormModule, 'useEditProfileForm')
-      .mockReturnValue({ form: mockForm } as any);
+      .mockReturnValue({ form: mockForm });
 
     const { rerender } = render(
       <EditProfileContainer
@@ -551,11 +551,11 @@ describe('EditProfileContainer error handling and scrolling', () => {
       control: {},
       formState: { dirtyFields: {} },
       handleSubmit: vi.fn().mockReturnValue(vi.fn()),
-    } as unknown as UseFormReturn<ProfileFormValues>;
+    } as unknown as UseFormReturn<ProfileFormInput, any, ProfileFormValues>;
 
     const useEditProfileFormSpy = vi
       .spyOn(useEditProfileFormModule, 'useEditProfileForm')
-      .mockReturnValue({ form: mockForm } as any);
+      .mockReturnValue({ form: mockForm });
 
     const { rerender } = render(
       <EditProfileContainer
