@@ -14,13 +14,8 @@ export function useEditProfileForm(isMentor: boolean): {
   form: UseFormReturn<ProfileFormValues>;
 } {
   const resolver = useMemo(() => {
-    if (isMentor) {
-      return zodResolver(
-        createProfileFormSchema(true)
-      ) as Resolver<ProfileFormValues>;
-    }
     return zodResolver(
-      createProfileFormSchema(false)
+      createProfileFormSchema(isMentor)
     ) as Resolver<ProfileFormValues>;
   }, [isMentor]);
 
