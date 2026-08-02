@@ -148,8 +148,11 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
 
 // Mock ReservationCard for fully isolated testing
 vi.mock('./ReservationCard', () => ({
-  ReservationCard: ({ actions, item }: any) => (
-    <div data-testid={`reservation-card-${item.id}`}>
+  ReservationCard: ({ actions, item, profileHref }: any) => (
+    <div
+      data-testid={`reservation-card-${item.id}`}
+      data-profile-href={profileHref}
+    >
       {item.name}
       {actions}
     </div>
@@ -311,6 +314,128 @@ describe('ReservationList', () => {
     await waitFor(() => {
       expect(acceptBtn).not.toBeDisabled();
       expect(rejectBtn).not.toBeDisabled();
+    });
+  });
+
+  describe('profileHref counterparty resolution in cards', () => {
+    it('resolves profileHref to participant when current user is the sender', () => {
+      render(
+        <ReservationList
+          items={[mockReservation]}
+          variant="upcoming"
+          sourceRole="mentee"
+          myUserId="user-123" // matches senderUserId
+        />
+      );
+
+      const card = screen.getByTestId('reservation-card-res-abc');
+      expect(card).toHaveAttribute('data-profile-href', '/profile/user-456');
+    });
+
+    it('resolves profileHref to sender when current user is the participant', () => {
+      render(
+        <ReservationList
+          items={[mockReservation]}
+          variant="upcoming"
+          sourceRole="mentor"
+          myUserId="user-456" // matches participantUserId
+        />
+      );
+
+      const card = screen.getByTestId('reservation-card-res-abc');
+      expect(card).toHaveAttribute('data-profile-href', '/profile/user-123');
+    });
+
+    it('resolves profileHref to sender (fallback) when myUserId is unmatched / admin', () => {
+      render(
+        <ReservationList
+          items={[mockReservation]}
+          variant="upcoming"
+          sourceRole="mentor"
+          myUserId="user-admin" // unmatched
+        />
+      );
+
+      const card = screen.getByTestId('reservation-card-res-abc');
+      expect(card).toHaveAttribute('data-profile-href', '/profile/user-123');
+    });
+
+    it('resolves profileHref to undefined when myUserId is not provided', () => {
+      render(
+        <ReservationList
+          items={[mockReservation]}
+          variant="upcoming"
+          sourceRole="mentor"
+          myUserId={undefined}
+        />
+      );
+
+      const card = screen.getByTestId('reservation-card-res-abc');
+      expect(card).not.toHaveAttribute('data-profile-href');
+    });
+
+    it('resolves profileHref to undefined if resolving otherId would equal current user (defensive)', () => {
+      const defensiveReservation = {
+        ...mockReservation,
+        senderUserId: 'user-123',
+        participantUserId: 'user-123', // both same
+      };
+
+      render(
+        <ReservationList
+          items={[defensiveReservation]}
+          variant="upcoming"
+          sourceRole="mentor"
+          myUserId="user-123"
+        />
+      );
+
+      const card = screen.getByTestId(
+        `reservation-card-${defensiveReservation.id}`
+      );
+      expect(card).not.toHaveAttribute('data-profile-href');
+    });
+
+    it('resolves correctly when senderUserId is null or missing (prevent crash fallback)', () => {
+      const nullSenderRes = {
+        ...mockReservation,
+        senderUserId: '',
+        participantUserId: 'user-456',
+      };
+
+      render(
+        <ReservationList
+          items={[nullSenderRes]}
+          variant="upcoming"
+          sourceRole="mentor"
+          myUserId="user-456"
+        />
+      );
+
+      const card = screen.getByTestId(`reservation-card-${nullSenderRes.id}`);
+      expect(card).not.toHaveAttribute('data-profile-href');
+    });
+
+    it('resolves correctly when participantUserId is null or missing (prevent crash fallback)', () => {
+      const nullParticipantRes = {
+        ...mockReservation,
+        senderUserId: 'user-123',
+        participantUserId: '',
+      };
+
+      render(
+        <ReservationList
+          items={[nullParticipantRes]}
+          variant="upcoming"
+          sourceRole="mentor"
+          myUserId="user-123"
+        />
+      );
+
+      const card = screen.getByTestId(
+        `reservation-card-${nullParticipantRes.id}`
+      );
+      expect(card).not.toHaveAttribute('data-profile-href');
     });
   });
 });

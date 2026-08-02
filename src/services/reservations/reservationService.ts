@@ -41,13 +41,48 @@ export function formatDateTime(dtstart: number, dtend: number) {
 }
 
 /**
- * Resolve the other party's user_id based on who is currently logged in.
+ * Resolve the counterparty based on who is currently logged in.
+ * Supports both raw ReservationInfoVO and mapped Reservation objects.
  */
-export const resolveOtherId = (
-  it: Reservation,
-  myUserId: string
-): string | number =>
-  String(it.senderUserId) === myUserId ? it.participantUserId : it.senderUserId;
+export function resolveCounterparty(
+  reservation: components['schemas']['ReservationInfoVO'],
+  myUserId?: string | number | null
+): components['schemas']['RUserInfoVO'];
+
+export function resolveCounterparty(
+  reservation: Reservation,
+  myUserId?: string | number | null
+): string | number;
+
+export function resolveCounterparty(
+  reservation: any,
+  myUserId?: string | number | null
+): any {
+  // Check if it is a raw ReservationInfoVO (which has 'sender' or 'participant' fields)
+  if (
+    reservation &&
+    ('sender' in reservation || 'participant' in reservation)
+  ) {
+    if (myUserId == null) {
+      return reservation.participant ?? reservation.sender;
+    }
+    const senderId = reservation.sender?.user_id;
+    if (senderId != null && String(myUserId) === String(senderId)) {
+      return reservation.participant ?? reservation.sender;
+    }
+    return reservation.sender ?? reservation.participant;
+  }
+
+  // Otherwise, it is a mapped Reservation
+  if (myUserId == null) {
+    return reservation.participantUserId ?? reservation.senderUserId;
+  }
+  const senderId = reservation.senderUserId;
+  if (senderId != null && String(myUserId) === String(senderId)) {
+    return reservation.participantUserId ?? reservation.senderUserId;
+  }
+  return reservation.senderUserId ?? reservation.participantUserId;
+}
 
 /* ================================
  * Mapping
@@ -74,16 +109,7 @@ export function mapToReservation(
   reservation: components['schemas']['ReservationInfoVO'],
   myUserId?: string | number | null
 ): Reservation {
-  // If myUserId is provided and equals reservation.sender.user_id, the counterparty is set to reservation.participant.
-  // If myUserId is provided and does NOT equal reservation.sender.user_id, the counterparty is set to reservation.sender.
-  // If myUserId is omitted (null or undefined), the counterparty defaults to reservation.participant for backward compatibility.
-  const counterparty =
-    myUserId == null
-      ? (reservation.participant ?? reservation.sender)
-      : reservation.sender?.user_id != null &&
-          String(myUserId) === String(reservation.sender.user_id)
-        ? (reservation.participant ?? reservation.sender)
-        : (reservation.sender ?? reservation.participant);
+  const counterparty = resolveCounterparty(reservation, myUserId);
   const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
   const roleLine = [
     counterparty.job_title?.trim() || '',

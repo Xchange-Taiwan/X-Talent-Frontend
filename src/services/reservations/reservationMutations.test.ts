@@ -37,7 +37,7 @@ import { captureFlowFailure } from '@/lib/monitoring';
 import {
   acceptReservation,
   rejectOrCancelReservation,
-  resolveOtherId,
+  resolveCounterparty,
 } from '@/services/reservations';
 import type { Reservation } from '@/services/reservations/types';
 
@@ -65,13 +65,13 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('resolveOtherId', () => {
+describe('resolveCounterparty', () => {
   it('should resolve to participantUserId if current user is the sender', () => {
     const res = makeMockReservation({
       senderUserId: 'user-sender',
       participantUserId: 'user-participant',
     });
-    const result = resolveOtherId(res, 'user-sender');
+    const result = resolveCounterparty(res, 'user-sender');
     expect(result).toBe('user-participant');
   });
 
@@ -80,7 +80,7 @@ describe('resolveOtherId', () => {
       senderUserId: 'user-sender',
       participantUserId: 'user-participant',
     });
-    const result = resolveOtherId(res, 'user-participant');
+    const result = resolveCounterparty(res, 'user-participant');
     expect(result).toBe('user-sender');
   });
 });
