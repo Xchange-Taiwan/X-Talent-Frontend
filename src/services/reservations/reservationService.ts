@@ -44,10 +44,19 @@ export function formatDateTime(dtstart: number, dtend: number) {
  * Resolve the counterparty based on who is currently logged in.
  * Supports both raw ReservationInfoVO and mapped Reservation objects.
  */
+/**
+ * Resolve the counterparty based on who is currently logged in.
+ * Supports both raw ReservationInfoVO and mapped Reservation objects.
+ */
 export function resolveCounterparty(
   reservation: components['schemas']['ReservationInfoVO'],
   myUserId?: string | number | null
-): components['schemas']['RUserInfoVO'];
+): {
+  name: string;
+  avatar?: string;
+  roleLine: string;
+  cancelledBy?: 'MENTEE' | 'MENTOR';
+};
 
 export function resolveCounterparty(
   reservation: Reservation,
@@ -57,21 +66,50 @@ export function resolveCounterparty(
 export function resolveCounterparty(
   reservation: components['schemas']['ReservationInfoVO'] | Reservation,
   myUserId?: string | number | null
-): components['schemas']['RUserInfoVO'] | string | number {
+): any {
   // Check if it is a raw ReservationInfoVO (which has 'sender' or 'participant' fields)
   if (
     reservation &&
     ('sender' in reservation || 'participant' in reservation)
   ) {
     const rawRes = reservation as components['schemas']['ReservationInfoVO'];
-    if (myUserId == null) {
-      return rawRes.participant ?? rawRes.sender;
-    }
-    const senderId = rawRes.sender?.user_id;
-    if (senderId != null && String(myUserId) === String(senderId)) {
-      return rawRes.participant ?? rawRes.sender;
-    }
-    return rawRes.sender ?? rawRes.participant;
+    const counterparty =
+      myUserId == null
+        ? (rawRes.participant ?? rawRes.sender)
+        : rawRes.sender?.user_id != null &&
+            String(myUserId) === String(rawRes.sender.user_id)
+          ? (rawRes.participant ?? rawRes.sender)
+          : (rawRes.sender ?? rawRes.participant);
+
+    const name = counterparty?.name || '—';
+    const avatar = counterparty?.avatar ?? undefined;
+
+    const roleLine = [
+      counterparty?.job_title?.trim() || '',
+      formatExperience(counterparty?.years_of_experience),
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
+      r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
+
+    const currentUserSide =
+      counterparty === rawRes.participant ? rawRes.sender : rawRes.participant;
+
+    const cancelledBy =
+      counterparty?.status === 'REJECT'
+        ? toRole(counterparty?.role)
+        : currentUserSide?.status === 'REJECT'
+          ? toRole(currentUserSide?.role)
+          : undefined;
+
+    return {
+      name,
+      avatar,
+      roleLine,
+      cancelledBy,
+    };
   }
 
   // Otherwise, it is a mapped Reservation
@@ -112,14 +150,11 @@ export function mapToReservation(
   reservation: components['schemas']['ReservationInfoVO'],
   myUserId?: string | number | null
 ): Reservation {
-  const counterparty = resolveCounterparty(reservation, myUserId);
+  const { name, avatar, roleLine, cancelledBy } = resolveCounterparty(
+    reservation,
+    myUserId
+  );
   const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
-  const roleLine = [
-    counterparty.job_title?.trim() || '',
-    formatExperience(counterparty.years_of_experience),
-  ]
-    .filter(Boolean)
-    .join(', ');
 
   // Preserve the full conversation in API order so the detail view can render
   // the entire thread, while also tracking the latest message per side for the
@@ -149,31 +184,13 @@ export function mapToReservation(
     else if (role === 'MENTOR') mentorMessage = item;
   }
 
-  // Cancellation badge fires whenever either side rejected/cancelled, with the
-  // canceller's role surfaced so the UI can render 「已由導師/學員取消」 on both
-  // mentor and mentee history pages. Reject (pre-accept) and cancel
-  // (post-accept) intentionally share the same 「取消」 copy per PM scope
-  // (Tracker #224). Participant (other side / counterparty) takes precedence when both sides are REJECT.
-  const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
-    r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
-  const currentUserSide =
-    counterparty === reservation.participant
-      ? reservation.sender
-      : reservation.participant;
-  const cancelledBy: 'MENTEE' | 'MENTOR' | undefined =
-    counterparty?.status === 'REJECT'
-      ? toRole(counterparty?.role)
-      : currentUserSide?.status === 'REJECT'
-        ? toRole(currentUserSide?.role)
-        : undefined;
-
   return {
     id: String(reservation.id ?? ''),
-    name: counterparty.name || '—',
+    name,
     roleLine,
     date,
     time,
-    avatar: counterparty.avatar ?? undefined,
+    avatar,
     messages,
     menteeMessage,
     mentorMessage,
