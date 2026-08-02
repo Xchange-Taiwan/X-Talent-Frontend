@@ -1,5 +1,4 @@
-import SearchIcon from '@mui/icons-material/Search';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Search } from 'lucide-react';
 import React, { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -84,7 +83,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
 
   return (
     <div className="flex w-full max-w-[846px] items-center rounded-2xl border border-background-border bg-background-white px-3 py-1.5 md:px-6 md:py-4">
-      <SearchIcon
+      <Search
         className="mr-2 size-6 shrink-0 text-text-tertiary"
         aria-hidden="true"
       />
@@ -115,7 +114,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
           <Loader2 className="size-4 animate-spin" aria-hidden="true" />
         ) : (
           <>
-            <SearchIcon className="size-5 md:hidden" aria-hidden="true" />
+            <Search className="size-5 md:hidden" aria-hidden="true" />
             <span className="hidden md:inline">搜尋</span>
           </>
         )}
