@@ -7,7 +7,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { useOnboardingSubmit } from '@/hooks/user/onboarding/useOnboardingSubmit';
 import { useBackgroundAvatarUpload } from '@/hooks/user/profile/useBackgroundAvatarUpload';
 import { trackEvent } from '@/lib/analytics';
-import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
+import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
 import { useOnboardingForm } from './useOnboardingForm';
 

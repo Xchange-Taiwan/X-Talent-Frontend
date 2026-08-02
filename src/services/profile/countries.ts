@@ -1,7 +1,5 @@
 import type { LocationType } from '@/types/location';
 
-export type { LocationType };
-
 async function loadTable(language: string): Promise<Record<string, string>> {
   if (language === 'en_US') {
     return (await import('@/data/countries.en_US.json')).default;

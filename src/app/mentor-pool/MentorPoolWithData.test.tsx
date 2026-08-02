@@ -18,10 +18,10 @@ vi.mock('./container', () => ({
 
 import { unstable_noStore } from 'next/cache';
 
-import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import { fetchTagCatalogServer } from '@/services/profile/tagCatalog.server';
-import type { MentorType } from '@/services/search-mentor/mentors';
 import { fetchMentorsServer } from '@/services/search-mentor/mentors.server';
+import type { MentorType } from '@/types/mentor';
+import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
 import MentorPoolWithData from './MentorPoolWithData';
 

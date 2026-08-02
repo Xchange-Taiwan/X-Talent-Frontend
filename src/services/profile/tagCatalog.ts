@@ -2,22 +2,10 @@ import { apiClient } from '@/lib/apiClient';
 import type {
   IndustryOption,
   TagBucketKey,
-  TagCatalogGroupVO,
-  TagCatalogLeafVO,
   TagCatalogsByBucket,
   TagCatalogsVO,
   TagCatalogVO,
 } from '@/types/tagCatalog';
-
-export type {
-  IndustryOption,
-  TagBucketKey,
-  TagCatalogGroupVO,
-  TagCatalogLeafVO,
-  TagCatalogsByBucket,
-  TagCatalogsVO,
-  TagCatalogVO,
-};
 
 export const TAG_BUCKET_KEYS: readonly TagBucketKey[] = [
   'want_position',

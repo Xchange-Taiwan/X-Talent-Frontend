@@ -4,8 +4,8 @@ import { createKeyedCache } from '@/lib/createKeyedCache';
 import {
   EMPTY_TAG_CATALOGS,
   fetchTagCatalog,
-  type TagCatalogsByBucket,
 } from '@/services/profile/tagCatalog';
+import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
 const tagCatalogCache = createKeyedCache<string, TagCatalogsByBucket>();
 

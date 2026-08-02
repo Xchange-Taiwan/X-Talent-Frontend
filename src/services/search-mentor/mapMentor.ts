@@ -1,21 +1,5 @@
 import avatarImage from '@/assets/default-avatar.png';
-import type {
-  MentorListResponse,
-  MentorRequest,
-  MentorsType,
-  MentorType,
-  RawMentor,
-  WorkExperienceMetadata,
-} from '@/types/mentor';
-
-export type {
-  MentorListResponse,
-  MentorRequest,
-  MentorsType,
-  MentorType,
-  RawMentor,
-  WorkExperienceMetadata,
-};
+import type { MentorType, RawMentor } from '@/types/mentor';
 
 function readCodes(codes: ReadonlyArray<string> | null | undefined): string[] {
   if (!codes) return [];

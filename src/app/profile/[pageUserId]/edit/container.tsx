@@ -39,7 +39,7 @@ import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
 import { mapVoToFormValues } from '@/lib/profile/profileSaveAdapter';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
 import { ProfileFormValues } from '@/schemas/profileSchema';
-import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
+import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
 const JobExperienceSection = dynamic(
   async () => {
