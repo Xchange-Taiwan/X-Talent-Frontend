@@ -1,6 +1,15 @@
 import { act, render, screen } from '@testing-library/react';
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 import { Information } from './Information';
 
@@ -16,7 +25,6 @@ class MockResizeObserver {
   unobserve = vi.fn();
   disconnect = vi.fn();
 }
-global.ResizeObserver = MockResizeObserver as any;
 
 describe('Information Component', () => {
   const defaultProps = {
@@ -27,9 +35,23 @@ describe('Information Component', () => {
     haveTopicLabels: ['React', 'TypeScript', 'Node.js'],
   };
 
+  beforeAll(() => {
+    // Safely mock global ResizeObserver without direct contamination or any casting
+    vi.stubGlobal('ResizeObserver', MockResizeObserver);
+  });
+
+  afterAll(() => {
+    // Unstub globals after all tests complete
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(() => {
     resizeCallback = null;
-    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    // Restore all mocked spies automatically (like getBoundingClientRect)
+    vi.restoreAllMocks();
   });
 
   it('renders basic personal information correctly', () => {
@@ -72,12 +94,9 @@ describe('Information Component', () => {
   });
 
   it('renders correct number of tags and "+N" badge when container width is small on initial mount', () => {
-    const originalGetBoundingClientRect =
-      HTMLElement.prototype.getBoundingClientRect;
-
-    try {
-      // Mock widths of children and container
-      HTMLElement.prototype.getBoundingClientRect = function () {
+    // Use vi.spyOn to safely mock HTMLElement.prototype.getBoundingClientRect
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: HTMLElement) {
         if (this.getAttribute('data-testid') === 'display-container') {
           return {
             width: 100,
@@ -96,34 +115,30 @@ describe('Information Component', () => {
           bottom: 0,
           right: 0,
         } as DOMRect;
-      };
+      }
+    );
 
-      render(<Information {...defaultProps} />);
+    render(<Information {...defaultProps} />);
 
-      // Under 100px width:
-      // computeOverflowFit will fit 'React' (40px + reserve 52px = 92px <= 100px)
-      // 'TypeScript' will overflow.
-      // So 'React' and '+2' should be rendered in the displayed tag list.
-      expect(screen.getAllByText('React')).toHaveLength(2); // 1 in measure, 1 in display
-      expect(screen.getByText('+2')).toBeInTheDocument();
+    // Under 100px width:
+    // computeOverflowFit will fit 'React' (40px + reserve 52px = 92px <= 100px)
+    // 'TypeScript' will overflow.
+    // So 'React' and '+2' should be rendered in the displayed tag list.
+    expect(screen.getAllByText('React')).toHaveLength(2); // 1 in measure, 1 in display
+    expect(screen.getByText('+2')).toBeInTheDocument();
 
-      // 'TypeScript' and 'Node.js' should only be in the measure container, NOT in the display list.
-      // So they should each only have 1 instance overall (the measure instance).
-      expect(screen.getAllByText('TypeScript')).toHaveLength(1);
-      expect(screen.getAllByText('Node.js')).toHaveLength(1);
-    } finally {
-      HTMLElement.prototype.getBoundingClientRect =
-        originalGetBoundingClientRect;
-    }
+    // 'TypeScript' and 'Node.js' should only be in the measure container, NOT in the display list.
+    // So they should each only have 1 instance overall (the measure instance).
+    expect(screen.getAllByText('TypeScript')).toHaveLength(1);
+    expect(screen.getAllByText('Node.js')).toHaveLength(1);
   });
 
   it('dynamically updates visible tags and "+N" badge when ResizeObserver triggers a size change', () => {
-    const originalGetBoundingClientRect =
-      HTMLElement.prototype.getBoundingClientRect;
     let mockedContainerWidth = 500; // start with a wide width fitting all tags
 
-    try {
-      HTMLElement.prototype.getBoundingClientRect = function () {
+    // Use vi.spyOn to safely mock HTMLElement.prototype.getBoundingClientRect
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: HTMLElement) {
         if (this.getAttribute('data-testid') === 'display-container') {
           return {
             width: mockedContainerWidth,
@@ -142,33 +157,33 @@ describe('Information Component', () => {
           bottom: 0,
           right: 0,
         } as DOMRect;
-      };
+      }
+    );
 
-      render(<Information {...defaultProps} />);
+    render(<Information {...defaultProps} />);
 
-      // Initially wide: fits all tags. So 2 copies of each tag are rendered, and NO "+N" extra badge.
-      expect(screen.getAllByText('React')).toHaveLength(2);
-      expect(screen.getAllByText('TypeScript')).toHaveLength(2);
-      expect(screen.getAllByText('Node.js')).toHaveLength(2);
-      expect(screen.queryByText(/^\+/)).not.toBeInTheDocument();
+    // Initially wide: fits all tags. So 2 copies of each tag are rendered, and NO "+N" extra badge.
+    expect(screen.getAllByText('React')).toHaveLength(2);
+    expect(screen.getAllByText('TypeScript')).toHaveLength(2);
+    expect(screen.getAllByText('Node.js')).toHaveLength(2);
+    expect(screen.queryByText(/^\+/)).not.toBeInTheDocument();
 
-      // Now, simulate a container resize down to 100px
-      mockedContainerWidth = 100;
-      expect(resizeCallback).not.toBeNull();
+    // Now, simulate a container resize down to 100px
+    mockedContainerWidth = 100;
+    expect(resizeCallback).not.toBeNull();
 
-      act(() => {
-        // Mock a simple ResizeObserverEntry as any
-        resizeCallback!([{ contentRect: { width: 100 } } as any], {} as any);
-      });
+    act(() => {
+      // Cast the mocked entry and observer using type-safe unknown casting
+      resizeCallback!(
+        [{ contentRect: { width: 100 } } as unknown as ResizeObserverEntry],
+        {} as unknown as ResizeObserver
+      );
+    });
 
-      // After resize, it should adapt dynamically and show '+2' extra tags
-      expect(screen.getAllByText('React')).toHaveLength(2);
-      expect(screen.getByText('+2')).toBeInTheDocument();
-      expect(screen.getAllByText('TypeScript')).toHaveLength(1);
-      expect(screen.getAllByText('Node.js')).toHaveLength(1);
-    } finally {
-      HTMLElement.prototype.getBoundingClientRect =
-        originalGetBoundingClientRect;
-    }
+    // After resize, it should adapt dynamically and show '+2' extra tags
+    expect(screen.getAllByText('React')).toHaveLength(2);
+    expect(screen.getByText('+2')).toBeInTheDocument();
+    expect(screen.getAllByText('TypeScript')).toHaveLength(1);
+    expect(screen.getAllByText('Node.js')).toHaveLength(1);
   });
 });
