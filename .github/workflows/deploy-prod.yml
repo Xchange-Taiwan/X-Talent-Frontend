@@ -70,8 +70,8 @@ jobs:
           if [ -z "$url" ]; then
             url=$(printf '%s\n' "$out" | tail -n 1 | tr -d '[:space:]')
           fi
-          # Ensure URL starts with https://
-          if [[ ! "$url" =~ ^https?:// ]]; then
+          # Ensure URL starts with https://, but only if it's not empty
+          if [ -n "$url" ] && [[ ! "$url" =~ ^https?:// ]]; then
             url="https://$url"
           fi
           echo "vercel_url=${url}" >> $GITHUB_OUTPUT
