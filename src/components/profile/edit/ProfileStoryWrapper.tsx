@@ -7,10 +7,8 @@ import { Form } from '@/components/ui/form';
 
 interface ProfileStoryWrapperProps<T extends z.ZodTypeAny> {
   schema?: T;
-  defaultValues: z.input<T>;
-  children: (
-    form: UseFormReturn<z.input<T>, unknown, z.infer<T>>
-  ) => React.ReactNode;
+  defaultValues: Partial<z.infer<T>>;
+  children: (form: UseFormReturn<z.infer<T>>) => React.ReactNode;
 }
 
 export const ProfileStoryWrapper = <T extends z.ZodTypeAny>({
@@ -18,11 +16,10 @@ export const ProfileStoryWrapper = <T extends z.ZodTypeAny>({
   defaultValues,
   children,
 }: ProfileStoryWrapperProps<T>) => {
-  const form = useForm<z.input<T>, unknown, z.infer<T>>({
-    resolver: schema
-      ? zodResolver<z.input<T>, unknown, z.infer<T>>(schema)
-      : undefined,
-    defaultValues,
+  const form = useForm<z.infer<T>>({
+    resolver: schema ? zodResolver(schema) : undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    defaultValues: defaultValues as any,
   });
 
   return (
