@@ -13,7 +13,7 @@ import {
 
 export type ProfileFormContext = UseFormReturn<
   ProfileFormInput,
-  unknown,
+  any,
   ProfileFormValues
 >;
 
@@ -24,7 +24,7 @@ export function useEditProfileForm(isMentor: boolean): {
     return zodResolver(createProfileFormSchema(isMentor));
   }, [isMentor]);
 
-  const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
+  const form = useForm<ProfileFormInput, any, ProfileFormValues>({
     resolver,
     defaultValues,
   });
