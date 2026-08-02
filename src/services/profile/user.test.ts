@@ -78,15 +78,17 @@ describe('fetchUserById service', () => {
     );
   });
 
-  it('does not retry on 404 client error and throws immediately', async () => {
+  it('does not retry and returns null on 404 client error', async () => {
     const apiError = new ApiError(404, 'Not Found');
     vi.mocked(apiClient.getUnwrapped).mockRejectedValueOnce(apiError);
 
-    await expect(fetchUserById(1, 'zh_TW')).rejects.toThrow('Not Found');
+    const result = await fetchUserById(1, 'zh_TW');
+
+    expect(result).toBeNull();
     expect(apiClient.getUnwrapped).toHaveBeenCalledTimes(1); // No retry for 404
   });
 
-  it('does not retry on FetchApiError (like user not found) and throws immediately', async () => {
+  it('does not retry and returns null on FetchApiError USER_NOT_FOUND', async () => {
     const fetchApiError = new FetchApiError(
       'USER_NOT_FOUND',
       'User Not Found',
@@ -94,7 +96,9 @@ describe('fetchUserById service', () => {
     );
     vi.mocked(apiClient.getUnwrapped).mockRejectedValueOnce(fetchApiError);
 
-    await expect(fetchUserById(1, 'zh_TW')).rejects.toThrow('User Not Found');
+    const result = await fetchUserById(1, 'zh_TW');
+
+    expect(result).toBeNull();
     expect(apiClient.getUnwrapped).toHaveBeenCalledTimes(1); // No retry
   });
 });

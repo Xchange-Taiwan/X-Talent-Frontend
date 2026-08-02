@@ -20,6 +20,16 @@ function shouldRetry(error: unknown): boolean {
   return true;
 }
 
+function isUserNotFoundError(error: unknown): boolean {
+  if (error instanceof ApiError && error.status === 404) {
+    return true;
+  }
+  if (error instanceof FetchApiError && error.code === 'USER_NOT_FOUND') {
+    return true;
+  }
+  return false;
+}
+
 export async function fetchUserById(
   userId: number,
   language: string,
@@ -39,23 +49,34 @@ export async function fetchUserById(
     } catch (error) {
       if (isAbortError(error)) throw error;
 
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
       if (!shouldRetry(error)) {
-        console.error('Fetch User Error (non-retryable):', error);
+        if (isUserNotFoundError(error)) {
+          return null; // Return null so hook sets "User not found"
+        }
+        console.error('Fetch User Error (non-retryable):', errorMessage);
         throw error;
       }
 
       attempt++;
       if (attempt > maxRetries) {
-        console.error(`Fetch User Error (after ${attempt} attempts):`, error);
+        console.error(
+          `Fetch User Error (after ${attempt} attempts):`,
+          errorMessage
+        );
 
         // Track the connection/network/server failure in monitoring
         captureFlowFailure({
           flow: 'profile',
           step: 'fetch_user_profile',
-          message: error instanceof Error ? error.message : 'Load failed',
+          message: errorMessage,
           errorCode: error instanceof ApiError ? error.status : 'network_error',
         }).catch((monError) => {
-          console.error('Failed to log flow failure:', monError);
+          const monMsg =
+            monError instanceof Error ? monError.message : String(monError);
+          console.error('Failed to log flow failure:', monMsg);
         });
 
         throw error; // Rethrow to trigger hook-level error handling
@@ -63,7 +84,7 @@ export async function fetchUserById(
 
       console.warn(
         `Fetch User failed, retrying (attempt ${attempt})...`,
-        error
+        errorMessage
       );
       // Wait a short delay before retrying (300ms)
       await new Promise((resolve) => setTimeout(resolve, 300));
