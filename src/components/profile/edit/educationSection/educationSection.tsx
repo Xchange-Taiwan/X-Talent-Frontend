@@ -45,7 +45,7 @@ import {
   YEAR_OPTIONS,
 } from '@/hooks/user/profile/useRepeatablePeriodSection';
 import { cn } from '@/lib/utils';
-import { ProfileFormValues } from '@/schemas/profileSchema';
+import { ProfileFormInput, ProfileFormValues } from '@/schemas/profileSchema';
 
 import { Section } from '../Section';
 import { taiwanSchools } from './schoolData';
@@ -110,7 +110,7 @@ function SchoolComboboxField({
 }
 
 interface Props {
-  form: UseFormReturn<ProfileFormValues>;
+  form: UseFormReturn<ProfileFormInput, any, ProfileFormValues>;
   isMentor: boolean;
   onValidationChange: (hasError: boolean) => void;
 }

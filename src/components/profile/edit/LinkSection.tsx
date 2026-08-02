@@ -10,7 +10,7 @@ import {
   FormLabel,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { ProfileFormValues } from '@/schemas/profileSchema';
+import { ProfileFormInput, ProfileFormValues } from '@/schemas/profileSchema';
 
 import { platformLabelMap } from '../social-links/platformLabelMap';
 import { Section } from './Section';
@@ -22,7 +22,7 @@ const SOCIAL_LINKS = Object.entries(platformLabelMap).map(([key, value]) => ({
 }));
 
 interface Props {
-  form: UseFormReturn<ProfileFormValues>;
+  form: UseFormReturn<ProfileFormInput, any, ProfileFormValues>;
 }
 
 /**

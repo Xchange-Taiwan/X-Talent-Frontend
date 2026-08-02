@@ -1,14 +1,16 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import React from 'react';
-import { Resolver, useForm, UseFormReturn } from 'react-hook-form';
+import { useForm, UseFormReturn } from 'react-hook-form';
 import * as z from 'zod';
 
 import { Form } from '@/components/ui/form';
 
 interface ProfileStoryWrapperProps<T extends z.ZodTypeAny> {
   schema?: T;
-  defaultValues: z.infer<T>;
-  children: (form: UseFormReturn<z.infer<T>>) => React.ReactNode;
+  defaultValues: z.input<T>;
+  children: (
+    form: UseFormReturn<z.input<T>, any, z.infer<T>>
+  ) => React.ReactNode;
 }
 
 export const ProfileStoryWrapper = <T extends z.ZodTypeAny>({
@@ -16,9 +18,9 @@ export const ProfileStoryWrapper = <T extends z.ZodTypeAny>({
   defaultValues,
   children,
 }: ProfileStoryWrapperProps<T>) => {
-  const form = useForm<z.infer<T>>({
+  const form = useForm<z.input<T>, any, z.infer<T>>({
     resolver: schema
-      ? (zodResolver(schema) as unknown as Resolver<z.infer<T>>)
+      ? zodResolver<z.input<T>, any, z.infer<T>>(schema)
       : undefined,
     defaultValues,
   });

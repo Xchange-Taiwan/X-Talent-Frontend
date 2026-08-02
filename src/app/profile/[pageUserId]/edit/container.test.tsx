@@ -440,7 +440,7 @@ describe('EditProfileContainer error handling and scrolling', () => {
 
     const useEditProfileFormSpy = vi
       .spyOn(useEditProfileFormModule, 'useEditProfileForm')
-      .mockReturnValue({ form: mockForm });
+      .mockReturnValue({ form: mockForm } as any);
 
     render(
       <EditProfileContainer
@@ -489,7 +489,7 @@ describe('EditProfileContainer error handling and scrolling', () => {
 
     const useEditProfileFormSpy = vi
       .spyOn(useEditProfileFormModule, 'useEditProfileForm')
-      .mockReturnValue({ form: mockForm });
+      .mockReturnValue({ form: mockForm } as any);
 
     const { rerender } = render(
       <EditProfileContainer
@@ -555,7 +555,7 @@ describe('EditProfileContainer error handling and scrolling', () => {
 
     const useEditProfileFormSpy = vi
       .spyOn(useEditProfileFormModule, 'useEditProfileForm')
-      .mockReturnValue({ form: mockForm });
+      .mockReturnValue({ form: mockForm } as any);
 
     const { rerender } = render(
       <EditProfileContainer

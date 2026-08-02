@@ -38,7 +38,7 @@ const getPeriodString = (item: unknown, key: string): string | undefined => {
 };
 
 export function useRepeatablePeriodSection<K extends RepeatableArrayPath>(
-  form: UseFormReturn<ProfileFormValues>,
+  form: UseFormReturn<any, any, any>,
   config: RepeatablePeriodConfig<K>,
   onValidationChange: (hasError: boolean) => void
 ) {
@@ -84,7 +84,7 @@ export function useRepeatablePeriodSection<K extends RepeatableArrayPath>(
   };
 
   const tryAppend = (defaultValue: ProfileFormValues[K][number]) => {
-    const items = form.getValues(config.arrayName) ?? [];
+    const items = (form.getValues(config.arrayName) ?? []) as any[];
     const last = items.at(-1);
 
     if (items.length > 0 && config.isIncompleteForAppend(last)) {

@@ -33,7 +33,7 @@ import {
   useRepeatablePeriodSection,
   YEAR_OPTIONS,
 } from '@/hooks/user/profile/useRepeatablePeriodSection';
-import { ProfileFormValues } from '@/schemas/profileSchema';
+import { ProfileFormInput, ProfileFormValues } from '@/schemas/profileSchema';
 
 import { Section } from './Section';
 
@@ -46,7 +46,7 @@ interface Props {
     value: string;
     text: string;
   }[];
-  form: UseFormReturn<ProfileFormValues>;
+  form: UseFormReturn<ProfileFormInput, any, ProfileFormValues>;
   isMentor: boolean;
   onValidationChange: (hasError: boolean) => void;
 }
