@@ -92,7 +92,7 @@ export const createProfileFormSchema = (isMentor: boolean) =>
       location: z.string({ required_error: '請選擇地區' }),
       statement: z.string(),
       about: z.string().optional(),
-      industry: z.string().optional(),
+      industry: z.string().optional().default(''),
       years_of_experience: z.string({ required_error: '請選擇經驗' }),
       work_experiences: z.array(jobSchema),
       educations: z.array(educationSchema),
