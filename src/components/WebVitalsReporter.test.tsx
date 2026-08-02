@@ -55,6 +55,7 @@ describe('WebVitalsReporter', () => {
           raw_value: metric.value,
           rating: metric.rating,
         },
+        skipClarity: true,
       });
     });
   });

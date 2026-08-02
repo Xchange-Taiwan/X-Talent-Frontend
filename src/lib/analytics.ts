@@ -45,6 +45,8 @@ export interface BehaviorEvent {
    * Do NOT include passwords, tokens, emails, or personal info.
    */
   metadata?: Record<string, string | number | boolean>;
+  /** Optional flag to bypass sending this event to Microsoft Clarity */
+  skipClarity?: boolean;
 }
 
 // ─── Internal helpers ──────────────────────────────────────────────────────────
@@ -88,7 +90,7 @@ export function trackEvent(event: BehaviorEvent): void {
   }
 
   // — Clarity —
-  if (event.feature !== 'performance') {
+  if (!event.skipClarity) {
     const clarity = getClarity();
     if (clarity) {
       clarity('event', event.name);

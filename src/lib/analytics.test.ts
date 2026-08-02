@@ -46,11 +46,12 @@ describe('analytics', () => {
     expect(mockClarity).toHaveBeenCalledWith('set', 'method', 'google');
   });
 
-  it('bypasses Microsoft Clarity for performance features but sends to GA4', () => {
+  it('bypasses Microsoft Clarity when skipClarity is true but sends to GA4', () => {
     trackEvent({
       name: 'performance_lcp_measured',
       feature: 'performance',
       metadata: { raw_value: 2500, rating: 'needs-improvement' },
+      skipClarity: true,
     });
 
     const mockGtag = vi.mocked(global.window.gtag);
