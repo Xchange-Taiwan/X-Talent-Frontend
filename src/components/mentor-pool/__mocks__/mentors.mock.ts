@@ -1,5 +1,5 @@
 import defaultAvatar from '@/assets/default-avatar.png';
-import { MentorType } from '@/services/search-mentor/mentors';
+import { MentorType } from '@/types/mentor';
 
 export const mockMentors: MentorType[] = [
   {

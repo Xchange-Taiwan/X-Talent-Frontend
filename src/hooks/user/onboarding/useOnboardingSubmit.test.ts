@@ -8,8 +8,8 @@ import {
   primeUserDataCache,
 } from '@/hooks/user/user-data/useUserData';
 import { captureFlowFailure } from '@/lib/monitoring';
-import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import { updateProfile } from '@/services/profile/updateProfile';
+import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
 import { useOnboardingSubmit } from './useOnboardingSubmit';
 

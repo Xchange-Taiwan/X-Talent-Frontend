@@ -1,7 +1,4 @@
-import type {
-  IndustryOption,
-  TagCatalogGroupVO,
-} from '@/services/profile/tagCatalog';
+import type { IndustryOption, TagCatalogGroupVO } from '@/types/tagCatalog';
 
 export const mockPositionGroups: TagCatalogGroupVO[] = [
   {

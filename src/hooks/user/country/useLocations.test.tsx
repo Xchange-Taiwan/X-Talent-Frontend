@@ -2,7 +2,8 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getCountries, LocationType } from '@/services/profile/countries';
+import { getCountries } from '@/services/profile/countries';
+import type { LocationType } from '@/types/location';
 
 import useLocations, { locationsCache } from './useLocations';
 

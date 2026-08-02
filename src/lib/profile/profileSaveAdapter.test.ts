@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { defaultValues, ProfileFormValues } from '@/schemas/profileSchema';
-import { MentorProfileVO } from '@/services/profile/user';
+import type { MentorProfileVO } from '@/types/user';
 
 import {
   computeDirtyStates,

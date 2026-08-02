@@ -5,7 +5,8 @@ vi.mock('@/services/profile/user', () => ({
   fetchUserById: vi.fn(),
 }));
 
-import { fetchUserById, type MentorProfileVO } from '@/services/profile/user';
+import { fetchUserById } from '@/services/profile/user';
+import type { MentorProfileVO } from '@/types/user';
 
 import useUserData, {
   clearUserDataCache,

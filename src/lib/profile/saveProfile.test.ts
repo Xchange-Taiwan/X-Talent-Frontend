@@ -30,8 +30,8 @@ import {
 import { ExperienceType } from '@/services/profile/experienceType';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
-import type { MentorProfileVO } from '@/services/profile/user';
 import { baseValues, mockSession, mockUserDTO } from '@/test/fixtures/profile';
+import type { MentorProfileVO } from '@/types/user';
 
 import { saveProfile, SaveProfileDeps } from './saveProfile';
 

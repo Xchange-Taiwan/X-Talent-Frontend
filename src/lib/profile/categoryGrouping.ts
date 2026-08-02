@@ -1,5 +1,5 @@
 import type { Category } from '@/components/ui/category-multi-select';
-import type { TagCatalogGroupVO } from '@/services/profile/tagCatalog';
+import type { TagCatalogGroupVO } from '@/types/tagCatalog';
 
 interface SubjectItem {
   subject: string | null;

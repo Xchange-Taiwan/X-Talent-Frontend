@@ -1,6 +1,6 @@
 import { captureFlowFailure } from '@/lib/monitoring';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
-import { Reservation } from '@/services/reservations/types';
+import { Reservation } from '@/types/reservation';
 
 import { updateReservationStatus } from './reservationService';
 

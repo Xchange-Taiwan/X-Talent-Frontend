@@ -16,7 +16,7 @@ import {
 import { ProfileFormValues } from '@/schemas/profileSchema';
 import { updateAvatar } from '@/services/profile/updateAvatar';
 import { updateProfile } from '@/services/profile/updateProfile';
-import { MentorProfileVO } from '@/services/profile/user';
+import type { MentorProfileVO } from '@/types/user';
 
 export class LoggedError extends Error {
   constructor(message?: string, options?: ErrorOptions) {

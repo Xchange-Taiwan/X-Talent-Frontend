@@ -26,11 +26,11 @@ vi.mock('@/services/reservations', async (importOriginal) => {
   };
 });
 
-import type { Reservation } from '@/components/reservation/types';
 import {
   acceptReservation,
   rejectOrCancelReservation,
 } from '@/services/reservations';
+import type { Reservation } from '@/types/reservation';
 
 import {
   buildRejectOrCancelAffectedTabs,

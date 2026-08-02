@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ExperienceType } from '@/services/profile/experienceType';
-import type { MentorProfileVO } from '@/services/profile/user';
+import type { MentorProfileVO } from '@/types/user';
 
 import { sanitizePublicProfile } from './sanitizePublicProfile';
 

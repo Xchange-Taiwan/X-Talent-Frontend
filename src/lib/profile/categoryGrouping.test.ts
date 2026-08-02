@@ -1,7 +1,7 @@
 import { fromPartial } from '@total-typescript/shoehorn';
 import { describe, expect, it } from 'vitest';
 
-import type { TagCatalogGroupVO } from '@/services/profile/tagCatalog';
+import type { TagCatalogGroupVO } from '@/types/tagCatalog';
 
 import {
   flattenAsSingleCategory,

@@ -19,8 +19,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { totalWorkSpanOptions } from '@/constant/seniority';
-import { LocationType } from '@/services/profile/countries';
-import { type IndustryOption } from '@/services/profile/tagCatalog';
+import { LocationType } from '@/types/location';
+import { type IndustryOption } from '@/types/tagCatalog';
 
 import { step2Schema } from './index';
 

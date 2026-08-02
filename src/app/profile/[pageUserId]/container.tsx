@@ -14,8 +14,8 @@ import { primeTagCatalogCacheIfEmpty } from '@/hooks/user/tags/useTagCatalog';
 import useUserData from '@/hooks/user/user-data/useUserData';
 import { primeUserProfileDtoCacheIfEmpty } from '@/hooks/user/user-data/useUserProfileDto';
 import { getMentorOnboardingUrl } from '@/lib/routes';
-import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
-import type { MentorProfileVO } from '@/services/profile/user';
+import type { TagCatalogsByBucket } from '@/types/tagCatalog';
+import type { MentorProfileVO } from '@/types/user';
 
 import { ProfilePageSkeleton } from './skeleton';
 

@@ -15,11 +15,8 @@ import {
   step4Schema,
   step5Schema,
 } from '@/schemas/onboarding';
-import { LocationType } from '@/services/profile/countries';
-import {
-  type IndustryOption,
-  type TagCatalogGroupVO,
-} from '@/services/profile/tagCatalog';
+import type { LocationType } from '@/types/location';
+import type { IndustryOption, TagCatalogGroupVO } from '@/types/tagCatalog';
 
 // Steps 2-5 are only rendered after the user completes step 1.
 // Lazy-load them so their code is excluded from the initial bundle and

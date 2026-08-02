@@ -8,7 +8,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { updateReservationStatus } from '@/services/reservations';
-import type { Reservation } from '@/services/reservations/types';
+import type { Reservation } from '@/types/reservation';
 
 import { ReservationList } from './ReservationList';
 

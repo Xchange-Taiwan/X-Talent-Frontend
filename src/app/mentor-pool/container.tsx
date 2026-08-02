@@ -10,12 +10,12 @@ import type {
 import { useMentorPool } from '@/hooks/useMentorPool';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { trackEvent } from '@/lib/analytics';
-import {
-  buildTagLabelMap,
-  type TagCatalogGroupVO,
-  type TagCatalogsByBucket,
-} from '@/services/profile/tagCatalog';
-import type { MentorType } from '@/services/search-mentor/mentors';
+import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
+import type { MentorType } from '@/types/mentor';
+import type {
+  TagCatalogGroupVO,
+  TagCatalogsByBucket,
+} from '@/types/tagCatalog';
 
 import { filterOptions } from './data';
 import {

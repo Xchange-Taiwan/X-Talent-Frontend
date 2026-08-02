@@ -1,22 +1,8 @@
 import { apiClient } from '@/lib/apiClient';
 import type { components } from '@/types/api';
+import type { MentorRequest, MentorType } from '@/types/mentor';
 
-import {
-  mapMentor,
-  type MentorListResponse,
-  type MentorRequest,
-  type MentorsType,
-  type MentorType,
-  type WorkExperienceMetadata,
-} from './mapMentor';
-
-export type {
-  MentorListResponse,
-  MentorRequest,
-  MentorsType,
-  MentorType,
-  WorkExperienceMetadata,
-};
+import { mapMentor } from './mapMentor';
 
 export async function fetchMentors(
   param: MentorRequest

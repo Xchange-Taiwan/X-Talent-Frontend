@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef } from 'react';
 
-import { MentorType } from '@/services/search-mentor/mentors';
+import { MentorType } from '@/types/mentor';
 
 import { MentorCard } from '../mentor-card';
 

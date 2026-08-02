@@ -2,7 +2,7 @@ import type { MentorExperiencePayload } from '@/lib/profile/experienceCodec';
 import { decode } from '@/lib/profile/experienceCodec';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import { isSafeUrl } from '@/lib/url/isSafeUrl';
-import type { MentorProfileVO } from '@/services/profile/user';
+import type { MentorProfileVO } from '@/types/user';
 
 export type SocialPlatform =
   | 'linkedin'

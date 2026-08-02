@@ -9,8 +9,8 @@ import {
 } from '@/hooks/user/user-data/useUserData';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { formSchema } from '@/schemas/onboarding';
-import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import { updateProfile } from '@/services/profile/updateProfile';
+import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
 interface Options {
   industries: TagCatalogsByBucket['industry'];

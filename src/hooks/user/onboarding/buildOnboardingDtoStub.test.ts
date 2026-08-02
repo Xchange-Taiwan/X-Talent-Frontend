@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { IndustryOption } from '@/services/profile/tagCatalog';
+import type { IndustryOption } from '@/types/tagCatalog';
 
 import { buildOnboardingDtoStub } from './buildOnboardingDtoStub';
 

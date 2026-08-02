@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { fetchReservations, ReservationState } from '@/services/reservations';
-import { Reservation } from '@/services/reservations/types';
+import { Reservation } from '@/types/reservation';
 
 export type ReservationRole = 'mentee' | 'mentor';
 

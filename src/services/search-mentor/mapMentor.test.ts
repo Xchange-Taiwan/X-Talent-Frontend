@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import avatarImage from '@/assets/default-avatar.png';
 import type { components } from '@/types/api';
+import type { MentorType } from '@/types/mentor';
 
-import { mapMentor, type MentorType, resolveMentorAvatar } from './mapMentor';
+import { mapMentor, resolveMentorAvatar } from './mapMentor';
 
 type RawMentor = components['schemas']['SearchMentorProfileVO'];
 

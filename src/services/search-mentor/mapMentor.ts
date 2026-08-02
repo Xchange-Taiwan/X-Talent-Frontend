@@ -1,54 +1,9 @@
-import type { StaticImageData } from 'next/image';
-
 import avatarImage from '@/assets/default-avatar.png';
-import type { WorkExperienceMetadata } from '@/lib/profile/experienceCodec';
-import type { components } from '@/types/api';
-
-type RawMentor = components['schemas']['SearchMentorProfileVO'];
-
-export type MentorListResponse =
-  components['schemas']['ApiResponse_SearchMentorProfileListVO_'];
-
-export type { WorkExperienceMetadata };
-
-export interface MentorType {
-  user_id: number;
-  name: string;
-  avatar: string | StaticImageData;
-  job_title: string;
-  company: string;
-  years_of_experience: string;
-  location: string;
-  personal_statement: string;
-  about: string;
-  seniority_level: string;
-  industry: string | null;
-  want_position: string[];
-  want_skill: string[];
-  want_topic: string[];
-  have_skill: string[];
-  have_topic: string[];
-  updated_at: number | null;
-}
+import type { MentorType, RawMentor } from '@/types/mentor';
 
 function readCodes(codes: ReadonlyArray<string> | null | undefined): string[] {
   if (!codes) return [];
   return codes.filter((c): c is string => Boolean(c));
-}
-
-export type MentorsType = components['schemas']['SearchMentorProfileListVO'];
-
-export interface MentorRequest {
-  // snake_case to match the BFF/Search query param exactly. Object.entries
-  // in mentors.server.ts / mentors.ts forwards keys verbatim into the URL,
-  // so a camelCase key here would silently be dropped by FastAPI's
-  // search_pattern: str = Query(None) and the keyword would have no effect.
-  search_pattern?: string;
-  filter_skills?: string;
-  filter_topics?: string;
-  filter_industries?: string;
-  limit: number;
-  cursor?: string;
 }
 
 export function mapMentor(raw: RawMentor): MentorType {

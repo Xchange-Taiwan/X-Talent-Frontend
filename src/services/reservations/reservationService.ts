@@ -2,8 +2,8 @@ import dayjs from 'dayjs';
 
 import { apiClient, FetchApiError } from '@/lib/apiClient';
 import { resolveCounterpartyProfile } from '@/lib/reservation/resolveCounterparty';
-import { Reservation, ReservationMessage } from '@/services/reservations/types';
 import { components } from '@/types/api';
+import { Reservation, ReservationMessage } from '@/types/reservation';
 
 export type ReservationState =
   | 'MENTOR_UPCOMING'

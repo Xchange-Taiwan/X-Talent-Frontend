@@ -1,6 +1,5 @@
 import { useCallback } from 'react';
 
-import { Reservation } from '@/components/reservation/types';
 import { useToast } from '@/components/ui/use-toast';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { ListKey } from '@/hooks/user/reservation/useReservationData';
@@ -9,6 +8,7 @@ import {
   acceptReservation,
   rejectOrCancelReservation,
 } from '@/services/reservations';
+import { Reservation } from '@/types/reservation';
 
 export type Variant =
   | 'upcoming'

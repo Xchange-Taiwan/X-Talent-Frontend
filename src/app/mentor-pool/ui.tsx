@@ -11,7 +11,7 @@ import { MentorCardList } from '@/components/mentor-pool/mentor-card-list';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { MentorType } from '@/services/search-mentor/mentors';
+import type { MentorType } from '@/types/mentor';
 
 import PopularPositionChips from './PopularPositionChips';
 

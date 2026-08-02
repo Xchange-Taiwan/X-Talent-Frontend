@@ -1,39 +1,10 @@
 import { apiClient } from '@/lib/apiClient';
-import type { components } from '@/types/api';
-
-export type TagCatalogsVO = components['schemas']['TagCatalogsVO'];
-export type TagCatalogVO = components['schemas']['TagCatalogVO'];
-export type TagCatalogGroupVO = components['schemas']['TagCatalogGroupVO'];
-export type TagCatalogLeafVO = components['schemas']['TagCatalogLeafVO'];
-
-export type TagBucketKey =
-  | 'want_position'
-  | 'want_skill'
-  | 'want_topic'
-  | 'have_skill'
-  | 'have_topic';
-
-export const TAG_BUCKET_KEYS: readonly TagBucketKey[] = [
-  'want_position',
-  'want_skill',
-  'want_topic',
-  'have_skill',
-  'have_topic',
-];
-
-export interface IndustryOption {
-  subject_group: string;
-  subject: string;
-}
-
-type TagBuckets = Record<TagBucketKey, TagCatalogGroupVO[]>;
-
-// Industry lives alongside the 5 nested buckets in the same response payload.
-// Buckets stay Record-iterable for callers that loop over TAG_BUCKET_KEYS;
-// industry is flat (no group/leaf hierarchy) so it sits next to them.
-export interface TagCatalogsByBucket extends TagBuckets {
-  industry: IndustryOption[];
-}
+import {
+  IndustryOption,
+  TagCatalogsByBucket,
+  TagCatalogsVO,
+  TagCatalogVO,
+} from '@/types/tagCatalog';
 
 export const EMPTY_TAG_CATALOGS: TagCatalogsByBucket = {
   want_position: [],
@@ -83,32 +54,13 @@ export async function fetchTagCatalog(
   language: string
 ): Promise<TagCatalogsByBucket> {
   try {
-    const data = await apiClient.getUnwrapped<
-      components['schemas']['TagCatalogsVO']
-    >(`/v1/users/${language}/tags/catalog`, { auth: false });
+    const data = await apiClient.getUnwrapped<TagCatalogsVO>(
+      `/v1/users/${language}/tags/catalog`,
+      { auth: false }
+    );
     return splitCatalogsByBucket(data);
   } catch (error) {
     console.error('獲取 tag catalog 失敗:', error);
     return EMPTY_TAG_CATALOGS;
   }
-}
-
-// Build a Map<subject_group, subject> from the bucket-shaped catalog so
-// callers can resolve raw subject_group codes to localized labels in O(1).
-// Includes leaves from all bucket groups plus flat industries.
-export function buildTagLabelMap(
-  catalogs: TagCatalogsByBucket
-): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const key of TAG_BUCKET_KEYS) {
-    for (const group of catalogs[key] ?? []) {
-      for (const leaf of group.leaves ?? []) {
-        map.set(leaf.subject_group, leaf.subject);
-      }
-    }
-  }
-  for (const ind of catalogs.industry) {
-    map.set(ind.subject_group, ind.subject);
-  }
-  return map;
 }

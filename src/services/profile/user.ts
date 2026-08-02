@@ -1,9 +1,7 @@
 import { getSession } from 'next-auth/react';
 
 import { apiClient } from '@/lib/apiClient';
-import type { components } from '@/types/api';
-
-export type MentorProfileVO = components['schemas']['MentorProfileVO'];
+import type { MentorProfileVO } from '@/types/user';
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
@@ -29,9 +27,10 @@ export async function fetchUserById(
   signal?: AbortSignal
 ): Promise<MentorProfileVO | null> {
   try {
-    const data = await apiClient.getUnwrapped<
-      components['schemas']['MentorProfileVO']
-    >(`/v1/mentors/${userId}/${language}/profile`, { auth: false, signal });
+    const data = await apiClient.getUnwrapped<MentorProfileVO>(
+      `/v1/mentors/${userId}/${language}/profile`,
+      { auth: false, signal }
+    );
 
     return data ?? null;
   } catch (error) {

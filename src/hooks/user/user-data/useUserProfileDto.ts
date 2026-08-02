@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 
 import { createKeyedCache } from '@/lib/createKeyedCache';
-import { fetchUserById, MentorProfileVO } from '@/services/profile/user';
+import { fetchUserById } from '@/services/profile/user';
+import type { MentorProfileVO } from '@/types/user';
 
 export const USER_PROFILE_DTO_CACHE_TTL_MS = 60_000;
 

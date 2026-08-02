@@ -10,8 +10,7 @@ import {
   type ReservationRole,
   useReservationData,
 } from '@/hooks/user/reservation/useReservationData';
-
-import type { Reservation } from './types';
+import type { Reservation } from '@/types/reservation';
 
 export interface ReservationDashboardProps {
   userRole: ReservationRole;

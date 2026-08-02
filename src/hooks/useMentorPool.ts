@@ -10,10 +10,8 @@ import {
 } from '@/app/mentor-pool/searchParams';
 import { useToast } from '@/components/ui/use-toast';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
-import {
-  fetchMentors,
-  type MentorType,
-} from '@/services/search-mentor/mentors';
+import { fetchMentors } from '@/services/search-mentor/mentors';
+import type { MentorType } from '@/types/mentor';
 
 export interface MentorPoolPageState {
   mentors: MentorType[];

@@ -7,8 +7,7 @@ import { ReservationStatusBadge } from '@/components/reservation/ReservationStat
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
-
-import type { Reservation } from './types';
+import type { Reservation } from '@/types/reservation';
 
 export type ReservationCardVariant = 'upcoming' | 'pending' | 'history';
 

@@ -11,12 +11,12 @@ import { useReservationActions } from '@/hooks/user/reservation/useReservationAc
 import { ListKey } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
+import type { Reservation } from '@/types/reservation';
 
 import {
   ReservationCard,
   type ReservationCardVariant,
 } from './ReservationCard';
-import type { Reservation } from './types';
 
 type Variant = 'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';
 type SourceRole = 'mentor' | 'mentee';

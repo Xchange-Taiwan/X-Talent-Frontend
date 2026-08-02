@@ -11,13 +11,13 @@ import {
   step4Schema,
   step5Schema,
 } from '@/schemas/onboarding';
-import { LocationType } from '@/services/profile/countries';
 import {
   mockIndustryOptions,
   mockPositionGroups,
   mockSkillGroups,
   mockTopicGroups,
 } from '@/test/fixtures/tagCatalog';
+import type { LocationType } from '@/types/location';
 
 import OnboardingUI from './ui';
 

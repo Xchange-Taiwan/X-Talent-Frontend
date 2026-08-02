@@ -1,7 +1,8 @@
 import { BASE_URL, fetchServerJson } from '@/lib/apiClient';
 import type { components } from '@/types/api';
+import type { MentorRequest, MentorType } from '@/types/mentor';
 
-import { mapMentor, type MentorRequest, type MentorType } from './mapMentor';
+import { mapMentor } from './mapMentor';
 
 const REVALIDATE_SECONDS = 60 * 60 * 24;
 

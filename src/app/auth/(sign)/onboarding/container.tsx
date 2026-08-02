@@ -3,7 +3,7 @@
 import useLocations from '@/hooks/user/country/useLocations';
 import { useOnboardingForm } from '@/hooks/user/onboarding/useOnboardingForm';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
-import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
+import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
 import { STEP_TITLE, STEPS_TOTAL } from './data';
 import OnboardingUI from './ui';

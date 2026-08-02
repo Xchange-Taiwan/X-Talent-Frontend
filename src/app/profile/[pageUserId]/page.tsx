@@ -4,10 +4,10 @@ import { getServerSession } from 'next-auth/next';
 
 import authOptions from '@/auth.config';
 import { PersonJsonLd } from '@/components/seo/PersonJsonLd';
+import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
 import { buildMentorMetadata } from '@/lib/seo/buildMentorMetadata';
 import { sanitizePublicProfile } from '@/lib/seo/sanitizePublicProfile';
 import { getSiteUrl } from '@/lib/site-url';
-import { buildTagLabelMap } from '@/services/profile/tagCatalog';
 import { fetchTagCatalogServer } from '@/services/profile/tagCatalog.server';
 import { fetchUserByIdServer } from '@/services/profile/user.server';
 
