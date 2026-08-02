@@ -2,8 +2,8 @@ import { fireEvent, render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
-import { MentorProfileVO } from '@/services/profile/user';
+import type { TagCatalogsByBucket } from '@/types/tagCatalog';
+import { MentorProfileVO } from '@/types/user';
 
 // mock navigate & searchParams
 vi.mock('next/navigation', () => ({

@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/form';
 import { tagGroupsToCategories } from '@/lib/profile/categoryGrouping';
 import { cn } from '@/lib/utils';
-import { TagCatalogGroupVO } from '@/services/profile/tagCatalog';
+import { TagCatalogGroupVO } from '@/types/tagCatalog';
 
 import { GroupedSelections } from './GroupedSelections';
 

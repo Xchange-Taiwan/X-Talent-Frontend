@@ -39,7 +39,7 @@ import {
   acceptReservation,
   rejectOrCancelReservation,
 } from '@/services/reservations';
-import type { Reservation } from '@/services/reservations/types';
+import type { Reservation } from '@/types/reservation';
 
 const mockPut = vi.mocked(apiClient.put);
 const mockCaptureFailure = vi.mocked(captureFlowFailure);

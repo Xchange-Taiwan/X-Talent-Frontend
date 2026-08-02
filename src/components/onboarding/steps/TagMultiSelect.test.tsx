@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as z from 'zod';
 
 import { Form } from '@/components/ui/form';
-import { TagCatalogGroupVO } from '@/services/profile/tagCatalog';
+import { TagCatalogGroupVO } from '@/types/tagCatalog';
 
 import { TagMultiSelect } from './TagMultiSelect';
 

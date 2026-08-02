@@ -19,7 +19,7 @@ import {
   step4Schema,
   step5Schema,
 } from '@/schemas/onboarding';
-import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
+import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
 interface Options {
   industries: TagCatalogsByBucket['industry'];

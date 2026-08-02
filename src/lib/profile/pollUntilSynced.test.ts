@@ -9,7 +9,8 @@ vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 import { fromAny, fromPartial } from '@total-typescript/shoehorn';
 
 import { defaultValues } from '@/schemas/profileSchema';
-import { fetchUser, type MentorProfileVO } from '@/services/profile/user';
+import { fetchUser } from '@/services/profile/user';
+import type { MentorProfileVO } from '@/types/user';
 
 import { firstSyncedFetch } from './pollUntilSynced';
 

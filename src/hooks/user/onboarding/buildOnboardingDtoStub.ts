@@ -1,5 +1,5 @@
-import type { IndustryOption } from '@/services/profile/tagCatalog';
-import type { MentorProfileVO } from '@/services/profile/user';
+import type { IndustryOption } from '@/types/tagCatalog';
+import type { MentorProfileVO } from '@/types/user';
 
 export interface OnboardingStubInput {
   name?: string | null;
