@@ -1,0 +1,47 @@
+name: "CodeQL Analysis"
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: ['**']
+  schedule:
+    - cron: '30 1 * * 0' # 每個禮拜天 01:30 UTC 執行一次
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'javascript-typescript' ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 初始 CodeQL 分析工具
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      # 自動嘗試編譯專案 (JS/TS 不需要特別編譯即可分析)
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      # 執行 CodeQL 分析並上傳至 GitHub Security 頁面
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
