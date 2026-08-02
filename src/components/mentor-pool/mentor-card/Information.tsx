@@ -85,13 +85,18 @@ export const Information = ({
         <div
           ref={measureRef}
           aria-hidden
+          data-testid="measure-container"
           className="pointer-events-none invisible absolute left-0 top-0 flex flex-wrap gap-2"
         >
           {haveTopicLabels.map((offer) => (
             <Tag label={offer} key={`measure-${offer}`} />
           ))}
         </div>
-        <div ref={containerRef} className="flex flex-wrap gap-2">
+        <div
+          ref={containerRef}
+          data-testid="display-container"
+          className="flex flex-wrap gap-2"
+        >
           {visibleOffers.map((offer) => (
             <Tag label={offer} key={offer} />
           ))}

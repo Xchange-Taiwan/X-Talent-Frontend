@@ -1,11 +1,17 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Information } from './Information';
 
+// Global variable to hold the registered ResizeObserver callback
+let resizeCallback: ((entries: unknown[]) => void) | null = null;
+
 // Mock ResizeObserver for JSDOM
 class MockResizeObserver {
+  constructor(callback: (entries: unknown[]) => void) {
+    resizeCallback = callback;
+  }
   observe = vi.fn();
   unobserve = vi.fn();
   disconnect = vi.fn();
@@ -20,6 +26,11 @@ describe('Information Component', () => {
     about: 'Passionate developer with 5 years of experience.',
     haveTopicLabels: ['React', 'TypeScript', 'Node.js'],
   };
+
+  beforeEach(() => {
+    resizeCallback = null;
+    vi.clearAllMocks();
+  });
 
   it('renders basic personal information correctly', () => {
     render(<Information {...defaultProps} />);
@@ -56,23 +67,18 @@ describe('Information Component', () => {
 
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();
     // No tag elements should be rendered on screen for tags list
-    const measureContainer = screen.getByText('Jane Doe').closest('div')
-      ?.nextSibling?.nextSibling?.firstChild;
+    const measureContainer = screen.getByTestId('measure-container');
     expect(measureContainer).toBeEmptyDOMElement();
   });
 
-  it('renders correct number of tags and "+N" badge when container width is small', () => {
+  it('renders correct number of tags and "+N" badge when container width is small on initial mount', () => {
     const originalGetBoundingClientRect =
       HTMLElement.prototype.getBoundingClientRect;
 
     try {
       // Mock widths of children and container
       HTMLElement.prototype.getBoundingClientRect = function () {
-        // If this is the display container (which doesn't have pointer-events-none)
-        if (
-          this.className.includes('flex flex-wrap gap-2') &&
-          !this.className.includes('pointer-events-none')
-        ) {
+        if (this.getAttribute('data-testid') === 'display-container') {
           return {
             width: 100,
             height: 40,
@@ -82,7 +88,6 @@ describe('Information Component', () => {
             right: 0,
           } as DOMRect;
         }
-        // If these are tags
         return {
           width: 40,
           height: 20,
@@ -104,6 +109,61 @@ describe('Information Component', () => {
 
       // 'TypeScript' and 'Node.js' should only be in the measure container, NOT in the display list.
       // So they should each only have 1 instance overall (the measure instance).
+      expect(screen.getAllByText('TypeScript')).toHaveLength(1);
+      expect(screen.getAllByText('Node.js')).toHaveLength(1);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect =
+        originalGetBoundingClientRect;
+    }
+  });
+
+  it('dynamically updates visible tags and "+N" badge when ResizeObserver triggers a size change', () => {
+    const originalGetBoundingClientRect =
+      HTMLElement.prototype.getBoundingClientRect;
+    let mockedContainerWidth = 500; // start with a wide width fitting all tags
+
+    try {
+      HTMLElement.prototype.getBoundingClientRect = function () {
+        if (this.getAttribute('data-testid') === 'display-container') {
+          return {
+            width: mockedContainerWidth,
+            height: 40,
+            top: 0,
+            left: 0,
+            bottom: 0,
+            right: 0,
+          } as DOMRect;
+        }
+        return {
+          width: 40,
+          height: 20,
+          top: 0,
+          left: 0,
+          bottom: 0,
+          right: 0,
+        } as DOMRect;
+      };
+
+      render(<Information {...defaultProps} />);
+
+      // Initially wide: fits all tags. So 2 copies of each tag are rendered, and NO "+N" extra badge.
+      expect(screen.getAllByText('React')).toHaveLength(2);
+      expect(screen.getAllByText('TypeScript')).toHaveLength(2);
+      expect(screen.getAllByText('Node.js')).toHaveLength(2);
+      expect(screen.queryByText(/^\+/)).not.toBeInTheDocument();
+
+      // Now, simulate a container resize down to 100px
+      mockedContainerWidth = 100;
+      expect(resizeCallback).not.toBeNull();
+
+      act(() => {
+        // Mock a simple ResizeObserverEntry as unknown
+        resizeCallback!([{ contentRect: { width: 100 } } as unknown]);
+      });
+
+      // After resize, it should adapt dynamically and show '+2' extra tags
+      expect(screen.getAllByText('React')).toHaveLength(2);
+      expect(screen.getByText('+2')).toBeInTheDocument();
       expect(screen.getAllByText('TypeScript')).toHaveLength(1);
       expect(screen.getAllByText('Node.js')).toHaveLength(1);
     } finally {
