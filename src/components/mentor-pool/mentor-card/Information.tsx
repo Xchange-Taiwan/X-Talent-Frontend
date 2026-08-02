@@ -1,11 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
+import { useIsomorphicLayoutEffect } from '@/hooks/useIsomorphicLayoutEffect';
 import { computeOverflowFit } from '@/lib/overflowFit';
 
 import { Tag } from './Tag';
-
-const useIsomorphicLayoutEffect =
-  typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 interface InformationProps {
   name: string;
@@ -28,18 +26,11 @@ export const Information = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const widthsRef = useRef<number[]>([]);
-  const [isMounted, setIsMounted] = useState(false);
   const [visibleTagsCount, setVisibleTagsCount] = useState(
     haveTopicLabels.length
   );
 
-  // Set mounted state safely on client synchronous/layout phase to avoid layout flash
   useIsomorphicLayoutEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  useIsomorphicLayoutEffect(() => {
-    if (!isMounted) return;
     if (!measureRef.current || !containerRef.current) return;
 
     const widths = Array.from(measureRef.current.children).map(
@@ -68,7 +59,7 @@ export const Information = ({
     observer.observe(containerRef.current);
 
     return () => observer.disconnect();
-  }, [isMounted, haveTopicLabels]);
+  }, [haveTopicLabels]);
 
   const visibleOffers = haveTopicLabels.slice(0, visibleTagsCount);
   const extraOffersCount = haveTopicLabels.length - visibleTagsCount;

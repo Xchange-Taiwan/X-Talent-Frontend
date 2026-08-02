@@ -60,4 +60,55 @@ describe('Information Component', () => {
       ?.nextSibling?.nextSibling?.firstChild;
     expect(measureContainer).toBeEmptyDOMElement();
   });
+
+  it('renders correct number of tags and "+N" badge when container width is small', () => {
+    const originalGetBoundingClientRect =
+      HTMLElement.prototype.getBoundingClientRect;
+
+    try {
+      // Mock widths of children and container
+      HTMLElement.prototype.getBoundingClientRect = function () {
+        // If this is the display container (which doesn't have pointer-events-none)
+        if (
+          this.className.includes('flex flex-wrap gap-2') &&
+          !this.className.includes('pointer-events-none')
+        ) {
+          return {
+            width: 100,
+            height: 40,
+            top: 0,
+            left: 0,
+            bottom: 0,
+            right: 0,
+          } as DOMRect;
+        }
+        // If these are tags
+        return {
+          width: 40,
+          height: 20,
+          top: 0,
+          left: 0,
+          bottom: 0,
+          right: 0,
+        } as DOMRect;
+      };
+
+      render(<Information {...defaultProps} />);
+
+      // Under 100px width:
+      // computeOverflowFit will fit 'React' (40px + reserve 52px = 92px <= 100px)
+      // 'TypeScript' will overflow.
+      // So 'React' and '+2' should be rendered in the displayed tag list.
+      expect(screen.getAllByText('React')).toHaveLength(2); // 1 in measure, 1 in display
+      expect(screen.getByText('+2')).toBeInTheDocument();
+
+      // 'TypeScript' and 'Node.js' should only be in the measure container, NOT in the display list.
+      // So they should each only have 1 instance overall (the measure instance).
+      expect(screen.getAllByText('TypeScript')).toHaveLength(1);
+      expect(screen.getAllByText('Node.js')).toHaveLength(1);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect =
+        originalGetBoundingClientRect;
+    }
+  });
 });
