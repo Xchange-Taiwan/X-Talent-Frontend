@@ -1,3 +1,25 @@
+# ==============================================================================
+# MANUAL ROLLBACK PROCEDURES
+# Since automated rollback is not yet configured, use one of these manual steps
+# if a smoke test fails or production issues arise:
+#
+# Option 1: Vercel Dashboard (Recommended)
+#   1. Navigate to the Vercel Dashboard for this project:
+#      https://vercel.com/xchange-taiwan/x-talent-frontend
+#   2. Go to the "Deployments" tab.
+#   3. Find the last known stable deployment (usually the one before the failed push).
+#   4. Click the three dots (...) menu on that deployment.
+#   5. Select "Promote to Production" and click "Promote".
+#   6. This instantly rolls back the active production traffic to that build.
+#
+# Option 2: Vercel CLI Rollback
+#   1. Run `vercel list` to get the list of recent deployments and their IDs.
+#   2. Find the deployment ID/URL of the last stable build.
+#   3. Deploy it to production using:
+#      vercel alias <stable-deployment-url-or-id> x-talent-frontend.vercel.app
+#      (Note: Substitute your actual production domain if custom domain is used).
+# ==============================================================================
+
 name: Deploy to Vercel (Production)
 
 on:
@@ -15,6 +37,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     name: Deploy to Production
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -35,4 +59,86 @@ jobs:
         run: vercel build --prod --token=${{ env.VERCEL_TOKEN }}
 
       - name: Deploy to production
-        run: vercel deploy --prebuilt --prod --archive=tgz --token=${{ env.VERCEL_TOKEN }}
+        id: deploy
+        run: |
+          echo "🚀 Deploying to Vercel Production..."
+          out=$(vercel deploy --prebuilt --prod --archive=tgz --token=${{ env.VERCEL_TOKEN }})
+          echo "$out"
+          # Robust URL extraction targeting Vercel-style deployment URLs
+          # Added "|| true" to prevent grep failure from triggering pipefail and crashing the script
+          url=$(echo "$out" | grep -oE 'https://[a-zA-Z0-9.-]+\.vercel\.app' | tail -n 1 || true)
+          if [ -z "$url" ]; then
+            url=$(printf '%s\n' "$out" | tail -n 1 | tr -d '[:space:]')
+          fi
+          # Ensure URL starts with https://, but only if it's not empty
+          if [ -n "$url" ] && [[ ! "$url" =~ ^https?:// ]]; then
+            url="https://$url"
+          fi
+          echo "vercel_url=${url}" >> $GITHUB_OUTPUT
+
+      - name: Run Smoke Tests
+        id: smoke_test
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.vercel_url }}
+        run: |
+          if [ -z "$DEPLOY_URL" ]; then
+            echo "❌ Error: DEPLOY_URL could not be extracted from deployment output."
+            exit 1
+          fi
+
+          echo "Starting smoke test on: $DEPLOY_URL"
+
+          # List of routes to verify
+          ROUTES=("/" "/auth/signin")
+
+          for ROUTE in "${ROUTES[@]}"; do
+            TARGET_URL="${DEPLOY_URL}${ROUTE}"
+            echo "Testing route: $TARGET_URL"
+            
+            # Perform curl request with max 3 retries, sleep 5 seconds between retries
+            # Added "|| true" to curl so connection or DNS failures don't trigger "set -e" and terminate the workflow prematurely
+            MAX_RETRIES=3
+            RETRY_COUNT=0
+            STATUS=0
+            HTTP_CODE=""
+            
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+              HTTP_CODE=$(curl -L -s -o /dev/null -w "%{http_code}" "$TARGET_URL" || true)
+              echo "Attempt $(($RETRY_COUNT + 1)): HTTP response code is $HTTP_CODE"
+              if [ "$HTTP_CODE" = "200" ]; then
+                STATUS=1
+                break
+              fi
+              RETRY_COUNT=$(($RETRY_COUNT + 1))
+              sleep 5
+            done
+            
+            if [ $STATUS -eq 0 ]; then
+              echo "❌ Smoke test failed for route: $TARGET_URL (HTTP status: $HTTP_CODE)"
+              exit 1
+            else
+              echo "✅ Route $TARGET_URL is healthy"
+            fi
+          done
+
+      - name: Notify on failure
+        if: failure() && steps.smoke_test.outcome == 'failure'
+        uses: actions/github-script@v7
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.vercel_url }}
+        with:
+          script: |
+            const url = process.env.DEPLOY_URL;
+            const commitSha = context.sha;
+            const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
+
+            const body = `🚨 **Production Deployment Smoke Test Failed!** 🚨\n\n` +
+                         `The smoke test for deployment **${url}** has failed.\n\n` +
+                         `Please check the [Workflow Run](${repoUrl}/actions/runs/${context.runId}) for details.`;
+
+            await github.rest.repos.createCommitComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: commitSha,
+              body: body
+            });
