@@ -85,3 +85,58 @@ describe('createProfileFormSchema mentor avatar requirement', () => {
     expect(result.success).toBe(true);
   });
 });
+
+describe('createProfileFormSchema conditional validations (Mentor vs Mentee)', () => {
+  it('mentor is validated for required fields', () => {
+    const result = createProfileFormSchema(true).safeParse({
+      ...baseData,
+      ...mentorRequiredFields,
+      avatar: 'https://example.com/avatar.png',
+      industry: '',
+      about: '',
+    });
+    expect(result.success).toBe(false);
+    const issues = result.error!.issues;
+    expect(
+      issues.some((i) => i.path[0] === 'industry' && i.message === '請選擇產業')
+    ).toBe(true);
+    expect(
+      issues.some((i) => i.path[0] === 'about' && i.message === '請填寫關於我')
+    ).toBe(true);
+  });
+
+  it('mentor is validated for topic and skill array lengths', () => {
+    const result = createProfileFormSchema(true).safeParse({
+      ...baseData,
+      ...mentorRequiredFields,
+      avatar: 'https://example.com/avatar.png',
+      have_topic: [],
+      have_skill: [],
+    });
+    expect(result.success).toBe(false);
+    const issues = result.error!.issues;
+    expect(
+      issues.some(
+        (i) => i.path[0] === 'have_topic' && i.message === '請至少選擇一個主題'
+      )
+    ).toBe(true);
+    expect(
+      issues.some(
+        (i) => i.path[0] === 'have_skill' && i.message === '請至少選擇一個技能'
+      )
+    ).toBe(true);
+  });
+
+  it('mentee succeeds without industry, about, topics, or skills', () => {
+    const result = createProfileFormSchema(false).safeParse({
+      ...baseData,
+      avatar: '',
+      avatarFile: undefined,
+      industry: undefined,
+      about: undefined,
+      have_topic: [],
+      have_skill: [],
+    });
+    expect(result.success).toBe(true);
+  });
+});

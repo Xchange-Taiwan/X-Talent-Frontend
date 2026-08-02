@@ -1,6 +1,11 @@
 'use client';
 
-import { FieldPath, FieldValues, UseFormReturn } from 'react-hook-form';
+import {
+  Control,
+  FieldPath,
+  FieldValues,
+  UseFormReturn,
+} from 'react-hook-form';
 
 import {
   FormControl,
@@ -17,16 +22,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { ProfileFormValues } from '@/schemas/profileSchema';
 
 //--------------------------------------------------
 // 📦 Reusable Field Components
 //--------------------------------------------------
 
-export interface TextFieldProps {
-  form: UseFormReturn<ProfileFormValues>;
+export interface TextFieldProps<
+  TFieldValues extends FieldValues = FieldValues,
+> {
+  control: Control<TFieldValues>;
   /** Only string fields are supported; use `as const` for other types to avoid errors */
-  name: keyof ProfileFormValues;
+  name: FieldPath<TFieldValues>;
   /** Placeholder text (you can pass Traditional Chinese here) */
   placeholder?: string;
   /** HTML input type (e.g. "text", "email") */
@@ -36,14 +42,14 @@ export interface TextFieldProps {
 /**
  * A generic text input field that guards against non-string values.
  */
-export const TextField = ({
-  form,
+export const TextField = <TFieldValues extends FieldValues>({
+  control,
   name,
   placeholder,
   type = 'text',
-}: TextFieldProps) => (
+}: TextFieldProps<TFieldValues>) => (
   <FormField
-    control={form.control}
+    control={control}
     name={name}
     render={({ field }) => (
       <FormItem>
@@ -62,7 +68,9 @@ export const TextField = ({
   />
 );
 
-export interface TextareaFieldProps extends Omit<TextFieldProps, 'type'> {
+export interface TextareaFieldProps<
+  TFieldValues extends FieldValues = FieldValues,
+> extends Omit<TextFieldProps<TFieldValues>, 'type'> {
   /** Number of rows (height) for the textarea */
   rows?: number;
 }
@@ -70,14 +78,14 @@ export interface TextareaFieldProps extends Omit<TextFieldProps, 'type'> {
 /**
  * A generic textarea field with configurable row height.
  */
-export const TextareaField = ({
-  form,
+export const TextareaField = <TFieldValues extends FieldValues>({
+  control,
   name,
   rows = 6,
   placeholder,
-}: TextareaFieldProps) => (
+}: TextareaFieldProps<TFieldValues>) => (
   <FormField
-    control={form.control}
+    control={control}
     name={name}
     render={({ field }) => (
       <FormItem>

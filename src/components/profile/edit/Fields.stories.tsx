@@ -73,7 +73,7 @@ export const TextFieldDefault: StoryObj<typeof TextField> = {
   render: () => (
     <GenericFieldWrapper
       name="name"
-      renderField={(form) => <TextField form={form} name="name" />}
+      renderField={(form) => <TextField control={form.control} name="name" />}
     />
   ),
 };
@@ -85,7 +85,7 @@ export const TextFieldWithPlaceholder: StoryObj<typeof TextField> = {
       name="name"
       renderField={(form) => (
         <TextField
-          form={form}
+          control={form.control}
           name="name"
           placeholder="請輸入您的姓名（例如：王小明）"
         />
@@ -101,7 +101,11 @@ export const TextFieldValidationError: StoryObj<typeof TextField> = {
       name="name"
       triggerError={true}
       renderField={(form) => (
-        <TextField form={form} name="name" placeholder="請輸入姓名" />
+        <TextField
+          control={form.control}
+          name="name"
+          placeholder="請輸入姓名"
+        />
       )}
     />
   ),
@@ -115,7 +119,7 @@ export const TextareaFieldDefault: StoryObj<typeof TextareaField> = {
       name="statement"
       renderField={(form) => (
         <TextareaField
-          form={form}
+          control={form.control}
           name="statement"
           placeholder="請輸入個人簡介..."
         />
@@ -131,7 +135,7 @@ export const TextareaFieldCustomRows: StoryObj<typeof TextareaField> = {
       name="about"
       renderField={(form) => (
         <TextareaField
-          form={form}
+          control={form.control}
           name="about"
           placeholder="請輸入關於我..."
           rows={3}

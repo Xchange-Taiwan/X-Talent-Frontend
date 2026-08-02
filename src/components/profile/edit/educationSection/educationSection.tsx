@@ -8,7 +8,6 @@ import {
 } from '@radix-ui/react-icons';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import React, { useState } from 'react';
-import { UseFormReturn } from 'react-hook-form';
 
 import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
 import { Button } from '@/components/ui/button';
@@ -40,12 +39,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ProfileFormContext } from '@/hooks/user/profile/useEditProfileForm';
 import {
   useRepeatablePeriodSection,
   YEAR_OPTIONS,
 } from '@/hooks/user/profile/useRepeatablePeriodSection';
 import { cn } from '@/lib/utils';
-import { ProfileFormValues } from '@/schemas/profileSchema';
 
 import { Section } from '../Section';
 import { taiwanSchools } from './schoolData';
@@ -110,7 +109,7 @@ function SchoolComboboxField({
 }
 
 interface Props {
-  form: UseFormReturn<ProfileFormValues>;
+  form: ProfileFormContext;
   isMentor: boolean;
   onValidationChange: (hasError: boolean) => void;
 }

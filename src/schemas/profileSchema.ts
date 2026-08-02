@@ -161,7 +161,11 @@ export type ProfileFormValues = z.infer<
   ReturnType<typeof createProfileFormSchema>
 >;
 
-export const defaultValues: ProfileFormValues = {
+export type ProfileFormInput = z.input<
+  ReturnType<typeof createProfileFormSchema>
+>;
+
+export const defaultValues: ProfileFormInput = {
   is_mentor: false,
   avatar: '',
   avatarFile: undefined,

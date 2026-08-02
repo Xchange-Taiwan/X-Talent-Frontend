@@ -161,6 +161,7 @@ describe('profileSaveAdapter', () => {
   describe('computeDirtyStates', () => {
     const mockValues: ProfileFormValues = {
       ...defaultValues,
+      industry: defaultValues.industry ?? '',
       name: 'Alice',
       avatarFile: undefined,
     };
@@ -220,6 +221,7 @@ describe('profileSaveAdapter', () => {
     it('constructs payload from form values and avatar', () => {
       const mockValues: ProfileFormValues = {
         ...defaultValues,
+        industry: defaultValues.industry ?? '',
         name: 'Bob',
         work_experiences: [
           {
@@ -251,6 +253,7 @@ describe('profileSaveAdapter', () => {
     it('filters out invalid/empty personal links', () => {
       const mockValues: ProfileFormValues = {
         ...defaultValues,
+        industry: defaultValues.industry ?? '',
         linkedin: {
           id: 1,
           platform: 'linkedin',
@@ -273,6 +276,7 @@ describe('profileSaveAdapter', () => {
     it('retains undefined avatar to avoid clearing existing avatar in the backend', () => {
       const mockValues: ProfileFormValues = {
         ...defaultValues,
+        industry: defaultValues.industry ?? '',
         avatar: 'https://existing-avatar.com/bob',
       };
       const payload = mapFormValuesToPayload(mockValues, undefined, false);
@@ -282,6 +286,7 @@ describe('profileSaveAdapter', () => {
     it('omits experiences property when experiencesDirty is false to respect three-state semantics', () => {
       const mockValues: ProfileFormValues = {
         ...defaultValues,
+        industry: defaultValues.industry ?? '',
         name: 'Bob',
       };
       const payload = mapFormValuesToPayload(mockValues, undefined, false);

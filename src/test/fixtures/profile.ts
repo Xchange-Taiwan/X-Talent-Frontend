@@ -1,6 +1,6 @@
 import { Session } from 'next-auth';
 
-import { defaultValues } from '@/schemas/profileSchema';
+import { defaultValues, ProfileFormValues } from '@/schemas/profileSchema';
 import type { MentorProfileVO } from '@/types/user';
 
 export const mockSession: Session = {
@@ -15,8 +15,9 @@ export const mockSession: Session = {
   expires: '2099-01-01T00:00:00.000Z',
 };
 
-export const baseValues = {
+export const baseValues: ProfileFormValues = {
   ...defaultValues,
+  industry: defaultValues.industry ?? '',
   name: 'Test User',
   location: 'Taiwan',
   years_of_experience: '1_3',

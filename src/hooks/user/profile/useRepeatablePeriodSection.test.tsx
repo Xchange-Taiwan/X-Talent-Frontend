@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { describe, expect, it, vi } from 'vitest';
 
 import { useToast } from '@/components/ui/use-toast';
-import { ProfileFormValues } from '@/schemas/profileSchema';
+import { ProfileFormInput, ProfileFormValues } from '@/schemas/profileSchema';
 
 import {
   RepeatablePeriodConfig,
@@ -41,11 +41,11 @@ describe('useRepeatablePeriodSection', () => {
     const finalConfig = { ...defaultConfig, ...config };
 
     const { result } = renderHook(() => {
-      const form = useForm<ProfileFormValues>({
+      const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
         defaultValues: {
           work_experiences: [],
           ...initialValues,
-        } as unknown as ProfileFormValues,
+        } as unknown as ProfileFormInput,
       });
       const hookResult = useRepeatablePeriodSection(
         form,

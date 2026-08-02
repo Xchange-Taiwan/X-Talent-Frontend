@@ -231,11 +231,15 @@ export default function EditProfileContainer({
           />
 
           <Section id="name" title="姓名" required>
-            <TextField form={form} name="name" placeholder="請填入您的姓名" />
+            <TextField
+              control={form.control}
+              name="name"
+              placeholder="請填入您的姓名"
+            />
           </Section>
 
           <Section id="about" title="關於我" required={isMentorRole}>
-            <TextareaField form={form} name="about" rows={10} />
+            <TextareaField control={form.control} name="about" rows={10} />
           </Section>
 
           {isMentorRole && (
