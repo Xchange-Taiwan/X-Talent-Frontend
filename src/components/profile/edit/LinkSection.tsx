@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { UseFormReturn } from 'react-hook-form';
 
 import {
   FormControl,
@@ -10,7 +9,7 @@ import {
   FormLabel,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { ProfileFormInput, ProfileFormValues } from '@/schemas/profileSchema';
+import { ProfileFormContext, ProfileFormValues } from '@/schemas/profileSchema';
 
 import { platformLabelMap } from '../social-links/platformLabelMap';
 import { Section } from './Section';
@@ -22,7 +21,7 @@ const SOCIAL_LINKS = Object.entries(platformLabelMap).map(([key, value]) => ({
 }));
 
 interface Props {
-  form: UseFormReturn<ProfileFormInput, any, ProfileFormValues>;
+  form: ProfileFormContext;
 }
 
 /**

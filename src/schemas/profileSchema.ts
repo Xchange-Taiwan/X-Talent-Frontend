@@ -1,3 +1,4 @@
+import { UseFormReturn } from 'react-hook-form';
 import * as z from 'zod';
 
 //--------------------------------------------------
@@ -163,6 +164,12 @@ export type ProfileFormValues = z.infer<
 
 export type ProfileFormInput = z.input<
   ReturnType<typeof createProfileFormSchema>
+>;
+
+export type ProfileFormContext = UseFormReturn<
+  ProfileFormInput,
+  unknown,
+  ProfileFormValues
 >;
 
 export const defaultValues: ProfileFormValues = {

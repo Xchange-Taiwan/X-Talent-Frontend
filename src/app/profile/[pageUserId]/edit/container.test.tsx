@@ -1,6 +1,5 @@
 import { render } from '@testing-library/react';
 import React from 'react';
-import { UseFormReturn } from 'react-hook-form';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // mock navigate & searchParams
@@ -133,7 +132,7 @@ vi.mock('@/components/profile/edit/LinkSection', () => ({
 
 import * as useEditProfileFormModule from '@/hooks/user/profile/useEditProfileForm';
 import { MENTOR_ONBOARDING_KEY } from '@/lib/routes';
-import { ProfileFormInput, ProfileFormValues } from '@/schemas/profileSchema';
+import { ProfileFormContext } from '@/schemas/profileSchema';
 import type { TagCatalogsByBucket } from '@/services/profile/tagCatalog';
 import { MentorProfileVO } from '@/services/profile/user';
 
@@ -436,7 +435,7 @@ describe('EditProfileContainer error handling and scrolling', () => {
       control: {},
       formState: { dirtyFields: {} },
       handleSubmit: vi.fn().mockReturnValue(vi.fn()),
-    } as unknown as UseFormReturn<ProfileFormInput, any, ProfileFormValues>;
+    } as unknown as ProfileFormContext;
 
     const useEditProfileFormSpy = vi
       .spyOn(useEditProfileFormModule, 'useEditProfileForm')
@@ -485,7 +484,7 @@ describe('EditProfileContainer error handling and scrolling', () => {
       control: {},
       formState: { dirtyFields: {} },
       handleSubmit: vi.fn().mockReturnValue(vi.fn()),
-    } as unknown as UseFormReturn<ProfileFormInput, any, ProfileFormValues>;
+    } as unknown as ProfileFormContext;
 
     const useEditProfileFormSpy = vi
       .spyOn(useEditProfileFormModule, 'useEditProfileForm')
@@ -551,7 +550,7 @@ describe('EditProfileContainer error handling and scrolling', () => {
       control: {},
       formState: { dirtyFields: {} },
       handleSubmit: vi.fn().mockReturnValue(vi.fn()),
-    } as unknown as UseFormReturn<ProfileFormInput, any, ProfileFormValues>;
+    } as unknown as ProfileFormContext;
 
     const useEditProfileFormSpy = vi
       .spyOn(useEditProfileFormModule, 'useEditProfileForm')

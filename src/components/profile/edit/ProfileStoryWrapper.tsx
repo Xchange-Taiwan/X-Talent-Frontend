@@ -9,7 +9,7 @@ interface ProfileStoryWrapperProps<T extends z.ZodTypeAny> {
   schema?: T;
   defaultValues: z.input<T>;
   children: (
-    form: UseFormReturn<z.input<T>, any, z.infer<T>>
+    form: UseFormReturn<z.input<T>, unknown, z.infer<T>>
   ) => React.ReactNode;
 }
 
@@ -18,9 +18,9 @@ export const ProfileStoryWrapper = <T extends z.ZodTypeAny>({
   defaultValues,
   children,
 }: ProfileStoryWrapperProps<T>) => {
-  const form = useForm<z.input<T>, any, z.infer<T>>({
+  const form = useForm<z.input<T>, unknown, z.infer<T>>({
     resolver: schema
-      ? zodResolver<z.input<T>, any, z.infer<T>>(schema)
+      ? zodResolver<z.input<T>, unknown, z.infer<T>>(schema)
       : undefined,
     defaultValues,
   });

@@ -7,7 +7,6 @@ import {
   TrashIcon,
 } from '@radix-ui/react-icons';
 import React from 'react';
-import { UseFormReturn } from 'react-hook-form';
 
 import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
 import { SelectField } from '@/components/profile/edit/Fields';
@@ -33,7 +32,7 @@ import {
   useRepeatablePeriodSection,
   YEAR_OPTIONS,
 } from '@/hooks/user/profile/useRepeatablePeriodSection';
-import { ProfileFormInput, ProfileFormValues } from '@/schemas/profileSchema';
+import { ProfileFormContext } from '@/schemas/profileSchema';
 
 import { Section } from './Section';
 
@@ -46,7 +45,7 @@ interface Props {
     value: string;
     text: string;
   }[];
-  form: UseFormReturn<ProfileFormInput, any, ProfileFormValues>;
+  form: ProfileFormContext;
   isMentor: boolean;
   onValidationChange: (hasError: boolean) => void;
 }

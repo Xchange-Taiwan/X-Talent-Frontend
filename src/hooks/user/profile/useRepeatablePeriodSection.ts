@@ -1,8 +1,12 @@
 import { useEffect } from 'react';
-import { useFieldArray, UseFormReturn, useWatch } from 'react-hook-form';
+import { useFieldArray, useWatch } from 'react-hook-form';
 
 import { useToast } from '@/components/ui/use-toast';
-import { ProfileFormValues } from '@/schemas/profileSchema';
+import {
+  ProfileFormContext,
+  ProfileFormInput,
+  ProfileFormValues,
+} from '@/schemas/profileSchema';
 
 export type RepeatableArrayPath = 'work_experiences' | 'educations';
 
@@ -38,14 +42,14 @@ const getPeriodString = (item: unknown, key: string): string | undefined => {
 };
 
 export function useRepeatablePeriodSection<K extends RepeatableArrayPath>(
-  form: UseFormReturn<any, any, any>,
+  form: ProfileFormContext,
   config: RepeatablePeriodConfig<K>,
   onValidationChange: (hasError: boolean) => void
 ) {
   const { control } = form;
   const { toast } = useToast();
 
-  const { fields, append, remove, move } = useFieldArray<ProfileFormValues, K>({
+  const { fields, append, remove, move } = useFieldArray<ProfileFormInput, K>({
     control,
     name: config.arrayName,
   });
@@ -84,7 +88,7 @@ export function useRepeatablePeriodSection<K extends RepeatableArrayPath>(
   };
 
   const tryAppend = (defaultValue: ProfileFormValues[K][number]) => {
-    const items = (form.getValues(config.arrayName) ?? []) as any[];
+    const items = form.getValues(config.arrayName) ?? [];
     const last = items.at(-1);
 
     if (items.length > 0 && config.isIncompleteForAppend(last)) {

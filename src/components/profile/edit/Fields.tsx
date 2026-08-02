@@ -25,7 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 export interface TextFieldProps<
   TFieldValues extends FieldValues = FieldValues,
 > {
-  form: UseFormReturn<TFieldValues, any, any>;
+  form: UseFormReturn<TFieldValues, unknown, TFieldValues>;
   /** Only string fields are supported; use `as const` for other types to avoid errors */
   name: FieldPath<TFieldValues>;
   /** Placeholder text (you can pass Traditional Chinese here) */
