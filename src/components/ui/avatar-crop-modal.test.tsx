@@ -48,7 +48,7 @@ vi.mock('react-avatar-editor', () => {
         return canvas;
       },
     }));
-    return <div data-testid="avatar-editor" />;
+    return <div data-testid="avatar-editor" data-scale={_props.scale} />;
   });
   MockAvatarEditor.displayName = 'AvatarEditor';
 
@@ -135,12 +135,20 @@ describe('AvatarCropModal', () => {
 
     const slider = screen.getByRole('slider');
     expect(slider).toHaveAttribute('aria-valuenow', '1');
+    expect(screen.getByTestId('avatar-editor')).toHaveAttribute(
+      'data-scale',
+      '1'
+    );
 
     // Simulate pressing ArrowRight to increase the scale
     fireEvent.keyDown(slider, { key: 'ArrowRight', code: 'ArrowRight' });
 
     // Expect the value to have increased (by step 0.1)
     expect(slider).toHaveAttribute('aria-valuenow', '1.1');
+    expect(screen.getByTestId('avatar-editor')).toHaveAttribute(
+      'data-scale',
+      '1.1'
+    );
   });
 
   it('calls onClose when Escape key is pressed (onOpenChange default closing)', () => {
@@ -161,5 +169,65 @@ describe('AvatarCropModal', () => {
     fireEvent.keyDown(dialog, { key: 'Escape', code: 'Escape' });
 
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('handles pinch-to-zoom touch events on mobile devices', () => {
+    const onClose = vi.fn();
+    const onSave = vi.fn();
+
+    render(
+      <AvatarCropModal
+        file={mockFile}
+        isOpen={true}
+        onClose={onClose}
+        onSave={onSave}
+      />
+    );
+
+    const touchContainer = screen.getByTestId('avatar-editor').parentElement;
+    expect(touchContainer).toBeInTheDocument();
+    expect(screen.getByTestId('avatar-editor')).toHaveAttribute(
+      'data-scale',
+      '1'
+    );
+
+    // Mock two touch points for pinch start (distance = 10px apart)
+    const touchStartPoints = [
+      { clientX: 0, clientY: 0 },
+      { clientX: 0, clientY: 10 },
+    ];
+
+    // Mock two touch points for pinch move (distance = 20px apart, meaning ratio = 2)
+    const touchMovePoints = [
+      { clientX: 0, clientY: 0 },
+      { clientX: 0, clientY: 20 },
+    ];
+
+    // Trigger touchStart with 2 touches
+    fireEvent.touchStart(touchContainer!, {
+      touches: touchStartPoints,
+      targetTouches: touchStartPoints,
+      changedTouches: touchStartPoints,
+    });
+
+    // Trigger touchMove with 2 touches
+    fireEvent.touchMove(touchContainer!, {
+      touches: touchMovePoints,
+      targetTouches: touchMovePoints,
+      changedTouches: touchMovePoints,
+    });
+
+    // Trigger touchEnd to clear the touch references
+    fireEvent.touchEnd(touchContainer!, {
+      touches: [],
+      targetTouches: [],
+      changedTouches: [],
+    });
+
+    // Expect the scale to have doubled (ratio 2 * initial scale 1 = 2)
+    expect(screen.getByTestId('avatar-editor')).toHaveAttribute(
+      'data-scale',
+      '2'
+    );
   });
 });
