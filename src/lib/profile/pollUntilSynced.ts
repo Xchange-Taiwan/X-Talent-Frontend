@@ -1,7 +1,7 @@
 import { captureFlowFailure } from '@/lib/monitoring';
 import { isProfileSynced } from '@/lib/profile/profileSaveAdapter';
 import { ProfileFormValues } from '@/schemas/profileSchema';
-import { fetchUser } from '@/services/profile/user';
+import { fetchUserById } from '@/services/profile/user';
 import type { MentorProfileVO } from '@/types/user';
 
 /**
@@ -19,16 +19,19 @@ import type { MentorProfileVO } from '@/types/user';
  * background reconcile path so the user is not blocked on backend latency.
  */
 export async function firstSyncedFetch(
+  userId: number,
   values: ProfileFormValues,
   avatar: string,
   timeoutMs = 800
 ): Promise<MentorProfileVO | null> {
+  if (!userId || Number.isNaN(userId)) return null;
+
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<null>((resolve) => {
     timer = setTimeout(() => resolve(null), timeoutMs);
   });
 
-  const fetchPromise = fetchUser('zh_TW')
+  const fetchPromise = fetchUserById(userId, 'zh_TW', undefined, true)
     .then((latest) => {
       if (latest && isProfileSynced(values, latest, avatar)) return latest;
       return null;
@@ -43,17 +46,20 @@ export async function firstSyncedFetch(
 }
 
 /**
- * Polls fetchUser until the backend reflects the submitted values, or the
+ * Polls fetchUserById until the backend reflects the submitted values, or the
  * retry budget is exhausted. Designed for fire-and-forget background use:
  * never throws, and reports a Sentry breadcrumb if max retries elapse
  * without sync.
  */
 export async function pollUntilSynced(
+  userId: number,
   values: ProfileFormValues,
   avatar: string,
   maxRetries = 12,
   intervalMs = 5000
 ): Promise<MentorProfileVO | null> {
+  if (!userId || Number.isNaN(userId)) return null;
+
   let latest: MentorProfileVO | null = null;
   let synced = false;
 
@@ -62,10 +68,9 @@ export async function pollUntilSynced(
       await new Promise((resolve) => setTimeout(resolve, intervalMs));
     }
     try {
-      latest = await fetchUser('zh_TW');
+      latest = await fetchUserById(userId, 'zh_TW', undefined, true);
     } catch {
       latest = null;
-      continue;
     }
     if (latest && isProfileSynced(values, latest, avatar)) {
       synced = true;

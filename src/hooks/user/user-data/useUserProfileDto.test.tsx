@@ -94,7 +94,7 @@ describe('useUserProfileDto', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    expect(result.current.error).toBe('Failed to load user data');
+    expect(result.current.error).toBe('FETCH_FAILED');
 
     // Unmount so we can retry from fresh mount
     unmount();
@@ -112,5 +112,44 @@ describe('useUserProfileDto', () => {
 
     expect(retryResult.current.userDto).toEqual(mockUserDTO);
     expect(fetchUserById).toHaveBeenCalledTimes(2);
+  });
+
+  it('provides a refetch function that clears cache and forces refetch', async () => {
+    vi.mocked(fetchUserById).mockResolvedValueOnce(mockUserDTO);
+
+    const { result } = renderHook(() => useUserProfileDto(3, 'zh-TW'));
+
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.userDto).toEqual(mockUserDTO);
+    expect(fetchUserById).toHaveBeenCalledTimes(1);
+
+    // Call refetch
+    vi.mocked(fetchUserById).mockResolvedValueOnce({
+      ...mockUserDTO,
+      name: 'Updated Name',
+    });
+    result.current.refetch?.();
+
+    await vi.waitFor(() => {
+      expect(result.current.userDto?.name).toBe('Updated Name');
+    });
+
+    expect(fetchUserById).toHaveBeenCalledTimes(2);
+  });
+
+  it('correctly sets error state to Failed to load user data when fetchUserById throws/rejects', async () => {
+    vi.mocked(fetchUserById).mockRejectedValueOnce(new Error('API error'));
+
+    const { result } = renderHook(() => useUserProfileDto(4, 'zh-TW'));
+
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.error).toBe('FETCH_FAILED');
+    expect(result.current.userDto).toBeNull();
   });
 });
