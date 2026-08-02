@@ -9,7 +9,8 @@ import {
   FormLabel,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { ProfileFormContext, ProfileFormValues } from '@/schemas/profileSchema';
+import { ProfileFormContext } from '@/hooks/user/profile/useEditProfileForm';
+import { ProfileFormValues } from '@/schemas/profileSchema';
 
 import { platformLabelMap } from '../social-links/platformLabelMap';
 import { Section } from './Section';

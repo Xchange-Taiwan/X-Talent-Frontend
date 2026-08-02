@@ -2,11 +2,8 @@ import { useEffect } from 'react';
 import { useFieldArray, useWatch } from 'react-hook-form';
 
 import { useToast } from '@/components/ui/use-toast';
-import {
-  ProfileFormContext,
-  ProfileFormInput,
-  ProfileFormValues,
-} from '@/schemas/profileSchema';
+import { ProfileFormContext } from '@/hooks/user/profile/useEditProfileForm';
+import { ProfileFormInput, ProfileFormValues } from '@/schemas/profileSchema';
 
 export type RepeatableArrayPath = 'work_experiences' | 'educations';
 

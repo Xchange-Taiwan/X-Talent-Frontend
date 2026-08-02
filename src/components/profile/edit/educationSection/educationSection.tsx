@@ -39,12 +39,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ProfileFormContext } from '@/hooks/user/profile/useEditProfileForm';
 import {
   useRepeatablePeriodSection,
   YEAR_OPTIONS,
 } from '@/hooks/user/profile/useRepeatablePeriodSection';
 import { cn } from '@/lib/utils';
-import { ProfileFormContext } from '@/schemas/profileSchema';
 
 import { Section } from '../Section';
 import { taiwanSchools } from './schoolData';

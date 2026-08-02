@@ -28,11 +28,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { ProfileFormContext } from '@/hooks/user/profile/useEditProfileForm';
 import {
   useRepeatablePeriodSection,
   YEAR_OPTIONS,
 } from '@/hooks/user/profile/useRepeatablePeriodSection';
-import { ProfileFormContext } from '@/schemas/profileSchema';
 
 import { Section } from './Section';
 

@@ -1,6 +1,11 @@
 'use client';
 
-import { FieldPath, FieldValues, UseFormReturn } from 'react-hook-form';
+import {
+  Control,
+  FieldPath,
+  FieldValues,
+  UseFormReturn,
+} from 'react-hook-form';
 
 import {
   FormControl,
@@ -24,8 +29,9 @@ import { Textarea } from '@/components/ui/textarea';
 
 export interface TextFieldProps<
   TFieldValues extends FieldValues = FieldValues,
+  TTransformedValues extends FieldValues | undefined = undefined,
 > {
-  form: UseFormReturn<TFieldValues, unknown, TFieldValues>;
+  form: UseFormReturn<TFieldValues, unknown, TTransformedValues>;
   /** Only string fields are supported; use `as const` for other types to avoid errors */
   name: FieldPath<TFieldValues>;
   /** Placeholder text (you can pass Traditional Chinese here) */
@@ -37,14 +43,17 @@ export interface TextFieldProps<
 /**
  * A generic text input field that guards against non-string values.
  */
-export const TextField = <TFieldValues extends FieldValues>({
+export const TextField = <
+  TFieldValues extends FieldValues,
+  TTransformedValues extends FieldValues | undefined = undefined,
+>({
   form,
   name,
   placeholder,
   type = 'text',
-}: TextFieldProps<TFieldValues>) => (
+}: TextFieldProps<TFieldValues, TTransformedValues>) => (
   <FormField
-    control={form.control}
+    control={form.control as unknown as Control<TFieldValues>}
     name={name}
     render={({ field }) => (
       <FormItem>
@@ -65,7 +74,8 @@ export const TextField = <TFieldValues extends FieldValues>({
 
 export interface TextareaFieldProps<
   TFieldValues extends FieldValues = FieldValues,
-> extends Omit<TextFieldProps<TFieldValues>, 'type'> {
+  TTransformedValues extends FieldValues | undefined = undefined,
+> extends Omit<TextFieldProps<TFieldValues, TTransformedValues>, 'type'> {
   /** Number of rows (height) for the textarea */
   rows?: number;
 }
@@ -73,14 +83,17 @@ export interface TextareaFieldProps<
 /**
  * A generic textarea field with configurable row height.
  */
-export const TextareaField = <TFieldValues extends FieldValues>({
+export const TextareaField = <
+  TFieldValues extends FieldValues,
+  TTransformedValues extends FieldValues | undefined = undefined,
+>({
   form,
   name,
   rows = 6,
   placeholder,
-}: TextareaFieldProps<TFieldValues>) => (
+}: TextareaFieldProps<TFieldValues, TTransformedValues>) => (
   <FormField
-    control={form.control}
+    control={form.control as unknown as Control<TFieldValues>}
     name={name}
     render={({ field }) => (
       <FormItem>
