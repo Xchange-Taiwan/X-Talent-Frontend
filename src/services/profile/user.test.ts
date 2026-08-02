@@ -116,4 +116,20 @@ describe('fetchUserById service', () => {
     // captureFlowFailure should NOT have been called!
     expect(captureFlowFailure).not.toHaveBeenCalled();
   });
+
+  it('does not retry and throws immediately when request is aborted (AbortError)', async () => {
+    const abortError = new DOMException(
+      'The user aborted a request.',
+      'AbortError'
+    );
+    vi.mocked(apiClient.getUnwrapped).mockRejectedValueOnce(abortError);
+
+    await expect(fetchUserById(1, 'zh_TW')).rejects.toThrow(
+      'The user aborted a request.'
+    );
+    expect(apiClient.getUnwrapped).toHaveBeenCalledTimes(1); // Should not retry
+
+    // captureFlowFailure should NOT have been called!
+    expect(captureFlowFailure).not.toHaveBeenCalled();
+  });
 });
