@@ -123,7 +123,7 @@ describe('ReservationDashboard', () => {
       baseHookReturnValue as unknown as UseReservationDataReturn
     );
 
-    render(<ReservationDashboard role="mentee" />);
+    render(<ReservationDashboard userRole="mentee" />);
 
     // Check heading
     expect(screen.getByText('預約導師')).toBeInTheDocument();
@@ -148,7 +148,7 @@ describe('ReservationDashboard', () => {
       baseHookReturnValue as unknown as UseReservationDataReturn
     );
 
-    render(<ReservationDashboard role="mentor" />);
+    render(<ReservationDashboard userRole="mentor" />);
 
     // Check heading
     expect(screen.getByText('擔任導師')).toBeInTheDocument();
@@ -178,7 +178,7 @@ describe('ReservationDashboard', () => {
       loadingHookReturnValue as unknown as UseReservationDataReturn
     );
 
-    render(<ReservationDashboard role="mentee" />);
+    render(<ReservationDashboard userRole="mentee" />);
 
     // The active tab is upcoming by default, so it should render the skeleton
     expect(
@@ -196,7 +196,7 @@ describe('ReservationDashboard', () => {
       notLoadedHistoryReturnValue as unknown as UseReservationDataReturn
     );
 
-    render(<ReservationDashboard role="mentee" />);
+    render(<ReservationDashboard userRole="mentee" />);
 
     // Find the history tab trigger and click it
     const historyTrigger = screen.getByTestId('trigger-history');
@@ -211,7 +211,7 @@ describe('ReservationDashboard', () => {
       baseHookReturnValue as unknown as UseReservationDataReturn
     );
 
-    render(<ReservationDashboard role="mentee" />);
+    render(<ReservationDashboard userRole="mentee" />);
 
     // --- Tab 1: Upcoming ---
     const upcomingLoadMore = screen.getByTestId('load-more-upcoming');
@@ -238,7 +238,7 @@ describe('ReservationDashboard', () => {
       baseHookReturnValue as unknown as UseReservationDataReturn
     );
 
-    render(<ReservationDashboard role="mentor" />);
+    render(<ReservationDashboard userRole="mentor" />);
 
     // --- Tab 1: Upcoming ---
     const upcomingLoadMore = screen.getByTestId('load-more-upcoming');

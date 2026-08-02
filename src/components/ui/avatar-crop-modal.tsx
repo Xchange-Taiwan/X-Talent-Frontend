@@ -113,6 +113,8 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
       <div
         className="fixed inset-0 flex items-center justify-center p-4"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        role="presentation"
       >
         <div className="max-h-full overflow-y-auto rounded-lg bg-avatar-background p-6 shadow-lg">
           {file && (
