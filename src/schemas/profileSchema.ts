@@ -91,12 +91,8 @@ export const createProfileFormSchema = (isMentor: boolean) =>
       name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
       location: z.string({ required_error: '請選擇地區' }),
       statement: z.string(),
-      about: isMentor
-        ? z.string().min(1, '請填寫關於我')
-        : z.string().optional(),
-      industry: isMentor
-        ? z.string().min(1, '請選擇產業')
-        : z.string().optional(),
+      about: z.string().optional(),
+      industry: z.string(),
       years_of_experience: z.string({ required_error: '請選擇經驗' }),
       work_experiences: z.array(jobSchema),
       educations: z.array(educationSchema),
@@ -106,18 +102,8 @@ export const createProfileFormSchema = (isMentor: boolean) =>
       twitter: twitterLinkSchema,
       youtube: youtubeLinkSchema,
       website: websiteLinkSchema,
-      have_topic: isMentor
-        ? z
-            .array(z.string())
-            .min(1, '請至少選擇一個主題')
-            .max(10, '最多選 10 個')
-        : z.array(z.string()).max(10, '最多選 10 個'),
-      have_skill: isMentor
-        ? z
-            .array(z.string())
-            .min(1, '請至少選擇一個技能')
-            .max(10, '最多選 10 個')
-        : z.array(z.string()).max(10, '最多選 10 個'),
+      have_topic: z.array(z.string()).max(10, '最多選 10 個'),
+      have_skill: z.array(z.string()).max(10, '最多選 10 個'),
       want_position: z
         .array(z.string())
         .min(1, '請至少選擇一個職位')
@@ -140,6 +126,20 @@ export const createProfileFormSchema = (isMentor: boolean) =>
             message: '請上傳個人頭像',
           });
         }
+        if (!data.about) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['about'],
+            message: '請填寫關於我',
+          });
+        }
+        if (!data.industry) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['industry'],
+            message: '請選擇產業',
+          });
+        }
         if (data.work_experiences.length < 1) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
@@ -152,6 +152,20 @@ export const createProfileFormSchema = (isMentor: boolean) =>
             code: z.ZodIssueCode.custom,
             path: ['educations'],
             message: '請填寫至少一項學歷',
+          });
+        }
+        if (data.have_topic.length < 1) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['have_topic'],
+            message: '請至少選擇一個主題',
+          });
+        }
+        if (data.have_skill.length < 1) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['have_skill'],
+            message: '請至少選擇一個技能',
           });
         }
       }
