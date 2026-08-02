@@ -67,7 +67,6 @@ export async function pollUntilSynced(
       latest = await fetchUserById(userId, 'zh_TW');
     } catch {
       latest = null;
-      continue;
     }
     if (latest && isProfileSynced(values, latest, avatar)) {
       synced = true;
