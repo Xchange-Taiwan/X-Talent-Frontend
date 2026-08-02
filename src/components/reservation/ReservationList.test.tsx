@@ -148,7 +148,15 @@ vi.mock('@/lib/analytics', async (importOriginal) => {
 
 // Mock ReservationCard for fully isolated testing
 vi.mock('./ReservationCard', () => ({
-  ReservationCard: ({ actions, item, profileHref }: any) => (
+  ReservationCard: ({
+    actions,
+    item,
+    profileHref,
+  }: {
+    actions?: React.ReactNode;
+    item: { id: string; name: string };
+    profileHref?: string;
+  }) => (
     <div
       data-testid={`reservation-card-${item.id}`}
       data-profile-href={profileHref}
