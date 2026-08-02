@@ -29,9 +29,8 @@ import { Textarea } from '@/components/ui/textarea';
 
 export interface TextFieldProps<
   TFieldValues extends FieldValues = FieldValues,
-  TTransformedValues extends FieldValues | undefined = undefined,
 > {
-  form: UseFormReturn<TFieldValues, unknown, TTransformedValues>;
+  control: Control<TFieldValues>;
   /** Only string fields are supported; use `as const` for other types to avoid errors */
   name: FieldPath<TFieldValues>;
   /** Placeholder text (you can pass Traditional Chinese here) */
@@ -43,17 +42,14 @@ export interface TextFieldProps<
 /**
  * A generic text input field that guards against non-string values.
  */
-export const TextField = <
-  TFieldValues extends FieldValues,
-  TTransformedValues extends FieldValues | undefined = undefined,
->({
-  form,
+export const TextField = <TFieldValues extends FieldValues>({
+  control,
   name,
   placeholder,
   type = 'text',
-}: TextFieldProps<TFieldValues, TTransformedValues>) => (
+}: TextFieldProps<TFieldValues>) => (
   <FormField
-    control={form.control as unknown as Control<TFieldValues>}
+    control={control}
     name={name}
     render={({ field }) => (
       <FormItem>
@@ -74,8 +70,7 @@ export const TextField = <
 
 export interface TextareaFieldProps<
   TFieldValues extends FieldValues = FieldValues,
-  TTransformedValues extends FieldValues | undefined = undefined,
-> extends Omit<TextFieldProps<TFieldValues, TTransformedValues>, 'type'> {
+> extends Omit<TextFieldProps<TFieldValues>, 'type'> {
   /** Number of rows (height) for the textarea */
   rows?: number;
 }
@@ -83,17 +78,14 @@ export interface TextareaFieldProps<
 /**
  * A generic textarea field with configurable row height.
  */
-export const TextareaField = <
-  TFieldValues extends FieldValues,
-  TTransformedValues extends FieldValues | undefined = undefined,
->({
-  form,
+export const TextareaField = <TFieldValues extends FieldValues>({
+  control,
   name,
   rows = 6,
   placeholder,
-}: TextareaFieldProps<TFieldValues, TTransformedValues>) => (
+}: TextareaFieldProps<TFieldValues>) => (
   <FormField
-    control={form.control as unknown as Control<TFieldValues>}
+    control={control}
     name={name}
     render={({ field }) => (
       <FormItem>
