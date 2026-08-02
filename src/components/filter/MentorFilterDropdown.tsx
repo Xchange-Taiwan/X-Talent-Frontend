@@ -1,7 +1,5 @@
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import ArrowDropUpIcon from '@mui/icons-material/ArrowDropUp';
-import FilterListIcon from '@mui/icons-material/FilterList';
 import * as Popover from '@radix-ui/react-popover';
+import { ChevronDown, ChevronUp, ListFilter } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 
 import FilterSelect from '@/components/filter/FilterSelect';
@@ -61,13 +59,13 @@ const MentorFilterDropdown = ({
       <Popover.Trigger asChild>
         <button className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-background-border px-4 py-1">
           <div className="flex items-center gap-1">
-            <FilterListIcon className="size-5" />
+            <ListFilter className="size-5" />
             <span>篩選</span>
           </div>
           {open ? (
-            <ArrowDropUpIcon className="size-5" />
+            <ChevronUp className="size-5" />
           ) : (
-            <ArrowDropDownIcon className="size-5" />
+            <ChevronDown className="size-5" />
           )}
         </button>
       </Popover.Trigger>
