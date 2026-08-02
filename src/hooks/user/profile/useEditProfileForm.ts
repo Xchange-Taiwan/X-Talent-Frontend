@@ -22,7 +22,13 @@ export function useEditProfileForm(isMentor: boolean): {
   form: ProfileFormContext;
 } {
   const resolver = useMemo(() => {
-    return zodResolver(createProfileFormSchema(isMentor) as z.ZodTypeAny);
+    return zodResolver(
+      createProfileFormSchema(isMentor) as z.ZodSchema<
+        ProfileFormValues,
+        any,
+        ProfileFormInput
+      >
+    );
   }, [isMentor]);
 
   const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
