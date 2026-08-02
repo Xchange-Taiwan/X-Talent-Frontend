@@ -29,7 +29,7 @@ export async function firstSyncedFetch(
     timer = setTimeout(() => resolve(null), timeoutMs);
   });
 
-  const fetchPromise = fetchUserById(userId, 'zh_TW')
+  const fetchPromise = fetchUserById(userId, 'zh_TW', undefined, true)
     .then((latest) => {
       if (latest && isProfileSynced(values, latest, avatar)) return latest;
       return null;
@@ -64,7 +64,7 @@ export async function pollUntilSynced(
       await new Promise((resolve) => setTimeout(resolve, intervalMs));
     }
     try {
-      latest = await fetchUserById(userId, 'zh_TW');
+      latest = await fetchUserById(userId, 'zh_TW', undefined, true);
     } catch {
       latest = null;
     }

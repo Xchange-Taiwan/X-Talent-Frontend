@@ -33,7 +33,8 @@ function isUserNotFoundError(error: unknown): boolean {
 export async function fetchUserById(
   userId: number,
   language: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  silent = false
 ): Promise<MentorProfileVO | null> {
   const maxRetries = 1;
   let attempt = 0;
@@ -68,16 +69,19 @@ export async function fetchUserById(
         );
 
         // Track the connection/network/server failure in monitoring
-        captureFlowFailure({
-          flow: 'profile',
-          step: 'fetch_user_profile',
-          message: errorMessage,
-          errorCode: error instanceof ApiError ? error.status : 'network_error',
-        }).catch((monError) => {
-          const monMsg =
-            monError instanceof Error ? monError.message : String(monError);
-          console.error('Failed to log flow failure:', monMsg);
-        });
+        if (!silent) {
+          captureFlowFailure({
+            flow: 'profile',
+            step: 'fetch_user_profile',
+            message: errorMessage,
+            errorCode:
+              error instanceof ApiError ? error.status : 'network_error',
+          }).catch((monError) => {
+            const monMsg =
+              monError instanceof Error ? monError.message : String(monError);
+            console.error('Failed to log flow failure:', monMsg);
+          });
+        }
 
         throw error; // Rethrow to trigger hook-level error handling
       }

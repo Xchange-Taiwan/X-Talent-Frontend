@@ -101,4 +101,19 @@ describe('fetchUserById service', () => {
     expect(result).toBeNull();
     expect(apiClient.getUnwrapped).toHaveBeenCalledTimes(1); // No retry
   });
+
+  it('skips Sentry captureFlowFailure logging when silent is true', async () => {
+    vi.mocked(apiClient.getUnwrapped).mockRejectedValue(
+      new Error('Silent connection error')
+    );
+
+    // Call with silent = true (4th argument)
+    await expect(fetchUserById(1, 'zh_TW', undefined, true)).rejects.toThrow(
+      'Silent connection error'
+    );
+    expect(apiClient.getUnwrapped).toHaveBeenCalledTimes(2);
+
+    // captureFlowFailure should NOT have been called!
+    expect(captureFlowFailure).not.toHaveBeenCalled();
+  });
 });

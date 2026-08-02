@@ -98,12 +98,6 @@ export function useUserProfileDto(
 ): UseUserProfileDtoResult {
   const [retryTrigger, setRetryTrigger] = useState(0);
 
-  const refetch = useCallback(() => {
-    const key = `${userId}-${language}`;
-    userProfileDtoCache.delete(key);
-    setRetryTrigger((prev) => prev + 1);
-  }, [userId, language]);
-
   // Lazy-init from cache so SSR-primed data lands in state on the first
   // render — avoids a one-frame loading flash before useEffect's cache read
   // catches up. When the cache is empty the hook still defaults to
@@ -119,6 +113,14 @@ export function useUserProfileDto(
     return !readFromDataCache(`${userId}-${language}`);
   });
   const [error, setError] = useState<ProfileFetchError>(null);
+
+  const refetch = useCallback(() => {
+    const key = `${userId}-${language}`;
+    userProfileDtoCache.delete(key);
+    setError(null);
+    setIsLoading(true);
+    setRetryTrigger((prev) => prev + 1);
+  }, [userId, language]);
 
   useEffect(() => {
     const isUserIdValid = Boolean(userId) && !Number.isNaN(userId);
