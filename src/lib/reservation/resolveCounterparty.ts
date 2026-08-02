@@ -1,5 +1,4 @@
 import { TotalWorkSpanEnum } from '@/constant/seniority';
-import type { Reservation } from '@/services/reservations/types';
 import type { components } from '@/types/api';
 
 export function formatExperience(yearsOfExperience?: string | null) {
@@ -8,11 +7,16 @@ export function formatExperience(yearsOfExperience?: string | null) {
   );
 }
 
+export interface CounterpartyResolvable {
+  senderUserId: number | string;
+  participantUserId: number | string;
+}
+
 /**
  * Resolves the counterparty's user ID from a mapped Reservation based on who is currently logged in.
  */
 export function resolveCounterpartyId(
-  reservation: Reservation,
+  reservation: CounterpartyResolvable,
   myUserId: string | number
 ): string | number {
   if (!reservation) {
