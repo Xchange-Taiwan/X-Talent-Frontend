@@ -101,11 +101,7 @@ const nextConfig = {
   // Enable hot reload optimizations
   experimental: {
     optimizeCss: false,
-    optimizePackageImports: [
-      'lucide-react',
-      '@mui/material',
-      '@mui/icons-material',
-    ],
+    optimizePackageImports: ['lucide-react'],
   },
   async headers() {
     const baseHeaders = [
