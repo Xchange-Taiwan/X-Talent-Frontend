@@ -2,17 +2,17 @@ import { GoogleColor } from '@/components/icon';
 import { Button } from '@/components/ui/button';
 import { useGoogleAuth } from '@/hooks/auth/useGoogleAuth';
 
-interface GoogleSignUpButtonProps {
+interface GoogleButtonProps {
   isSubmitting: boolean;
   isSignIn: boolean;
   label: string;
 }
 
-export default function GoogleSignUpButton({
+export default function GoogleButton({
   isSubmitting,
   label,
   isSignIn,
-}: GoogleSignUpButtonProps) {
+}: GoogleButtonProps) {
   const { handleGoogleAuth, isPending } = useGoogleAuth();
 
   const handleGoogleSignUp = async () => {

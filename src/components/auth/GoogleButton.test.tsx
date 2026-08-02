@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { useGoogleAuth } from '@/hooks/auth/useGoogleAuth';
 
-import GoogleSignUpButton from './GoogleButton';
+import GoogleButton from './GoogleButton';
 
 vi.mock('@/hooks/auth/useGoogleAuth', () => ({
   useGoogleAuth: vi.fn(),
@@ -11,7 +11,7 @@ vi.mock('@/hooks/auth/useGoogleAuth', () => ({
 
 const mockUseGoogleAuth = vi.mocked(useGoogleAuth);
 
-describe('GoogleSignUpButton', () => {
+describe('GoogleButton', () => {
   it('renders correctly and handles click', () => {
     const handleGoogleAuth = vi.fn();
     mockUseGoogleAuth.mockReturnValue({
@@ -20,7 +20,7 @@ describe('GoogleSignUpButton', () => {
     });
 
     render(
-      <GoogleSignUpButton
+      <GoogleButton
         isSubmitting={false}
         isSignIn={true}
         label="使用 Google 帳號登入"
@@ -43,7 +43,7 @@ describe('GoogleSignUpButton', () => {
     });
 
     render(
-      <GoogleSignUpButton
+      <GoogleButton
         isSubmitting={false}
         isSignIn={false}
         label="使用 Google 帳號註冊"
@@ -65,7 +65,7 @@ describe('GoogleSignUpButton', () => {
     });
 
     render(
-      <GoogleSignUpButton
+      <GoogleButton
         isSubmitting={true}
         isSignIn={true}
         label="使用 Google 帳號登入"
@@ -83,7 +83,7 @@ describe('GoogleSignUpButton', () => {
     });
 
     render(
-      <GoogleSignUpButton
+      <GoogleButton
         isSubmitting={false}
         isSignIn={true}
         label="使用 Google 帳號登入"

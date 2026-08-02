@@ -91,8 +91,8 @@ describe('useGoogleAuth', () => {
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: 'destructive',
-        title: '註冊失敗',
-        description: '無法完成 Google 註冊，請稍後再試。',
+        title: '登入失敗',
+        description: '無法完成 Google 登入，請稍後再試。',
       })
     );
     expect(result.current.isPending).toBe(false);

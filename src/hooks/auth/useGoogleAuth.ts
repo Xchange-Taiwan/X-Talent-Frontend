@@ -22,8 +22,10 @@ export function useGoogleAuth() {
     } catch {
       toast({
         variant: 'destructive',
-        title: '註冊失敗',
-        description: '無法完成 Google 註冊，請稍後再試。',
+        title: isSignIn ? '登入失敗' : '註冊失敗',
+        description: isSignIn
+          ? '無法完成 Google 登入，請稍後再試。'
+          : '無法完成 Google 註冊，請稍後再試。',
       });
     } finally {
       setIsPending(false);
