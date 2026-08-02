@@ -11,7 +11,7 @@ import {
   YoutubeColor,
 } from './index';
 
-// 建立一個畫布來展示所有彩色圖標
+// 建立一個網格畫布來展示所有彩色圖標
 interface ColorIconsGalleryProps {
   size?: number | string;
   className?: string;
@@ -82,115 +82,77 @@ export const Gallery: StoryObj<typeof ColorIconsGallery> = {
   },
 };
 
-// 2. Individual Icon Stories with control support
-export const FacebookIcon: StoryObj<typeof FacebookColor> = {
-  name: 'Facebook 品牌圖標',
-  render: (args) => (
-    <div className="flex max-w-sm flex-col items-center justify-center rounded-lg border p-8">
-      <FacebookColor {...args} />
+// 2. 獨立圖標展示用的共用包裝組件 (解決重複程式碼 Code Smell)
+interface SingleIconShowcaseProps {
+  name: string;
+  Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  args: React.SVGProps<SVGSVGElement>;
+}
+
+const SingleIconShowcase: React.FC<SingleIconShowcaseProps> = ({
+  name,
+  Icon,
+  args,
+}) => {
+  return (
+    <div className="flex max-w-sm flex-col items-center justify-center rounded-lg border border-muted bg-card p-8 text-card-foreground shadow-sm">
+      <Icon {...args} />
       <span className="mt-4 font-mono text-sm text-muted-foreground">
-        FacebookColor
+        {name}
       </span>
     </div>
-  ),
-  args: {
-    width: 64,
-    height: 64,
-  },
+  );
 };
 
-export const GoogleIcon: StoryObj<typeof GoogleColor> = {
-  name: 'Google 品牌圖標',
+// 產生獨立圖標 Story 結構的輔助函式
+const createIconStory = (
+  name: string,
+  IconComponent: React.ComponentType<React.SVGProps<SVGSVGElement>>,
+  displayName: string
+): StoryObj<typeof IconComponent> => ({
+  name: displayName,
   render: (args) => (
-    <div className="flex max-w-sm flex-col items-center justify-center rounded-lg border p-8">
-      <GoogleColor {...args} />
-      <span className="mt-4 font-mono text-sm text-muted-foreground">
-        GoogleColor
-      </span>
-    </div>
+    <SingleIconShowcase name={name} Icon={IconComponent} args={args} />
   ),
   args: {
     width: 64,
     height: 64,
   },
-};
+});
 
-export const InstagramIcon: StoryObj<typeof InstagramColor> = {
-  name: 'Instagram 品牌圖標',
-  render: (args) => (
-    <div className="flex max-w-sm flex-col items-center justify-center rounded-lg border p-8">
-      <InstagramColor {...args} />
-      <span className="mt-4 font-mono text-sm text-muted-foreground">
-        InstagramColor
-      </span>
-    </div>
-  ),
-  args: {
-    width: 64,
-    height: 64,
-  },
-};
-
-export const LinkedinIcon: StoryObj<typeof LinkedinColor> = {
-  name: 'Linkedin 品牌圖標',
-  render: (args) => (
-    <div className="flex max-w-sm flex-col items-center justify-center rounded-lg border p-8">
-      <LinkedinColor {...args} />
-      <span className="mt-4 font-mono text-sm text-muted-foreground">
-        LinkedinColor
-      </span>
-    </div>
-  ),
-  args: {
-    width: 64,
-    height: 64,
-  },
-};
-
-export const TwitterIcon: StoryObj<typeof TwitterColor> = {
-  name: 'Twitter/X 品牌圖標',
-  render: (args) => (
-    <div className="flex max-w-sm flex-col items-center justify-center rounded-lg border p-8">
-      <TwitterColor {...args} />
-      <span className="mt-4 font-mono text-sm text-muted-foreground">
-        TwitterColor
-      </span>
-    </div>
-  ),
-  args: {
-    width: 64,
-    height: 64,
-  },
-};
-
-export const WebsiteIcon: StoryObj<typeof WebsiteColor> = {
-  name: '個人網站圖標',
-  render: (args) => (
-    <div className="flex max-w-sm flex-col items-center justify-center rounded-lg border p-8">
-      <WebsiteColor {...args} />
-      <span className="mt-4 font-mono text-sm text-muted-foreground">
-        WebsiteColor
-      </span>
-    </div>
-  ),
-  args: {
-    width: 64,
-    height: 64,
-  },
-};
-
-export const YoutubeIcon: StoryObj<typeof YoutubeColor> = {
-  name: 'Youtube 品牌圖標',
-  render: (args) => (
-    <div className="flex max-w-sm flex-col items-center justify-center rounded-lg border p-8">
-      <YoutubeColor {...args} />
-      <span className="mt-4 font-mono text-sm text-muted-foreground">
-        YoutubeColor
-      </span>
-    </div>
-  ),
-  args: {
-    width: 64,
-    height: 64,
-  },
-};
+// 3. 各個獨立品牌圖標 Stories (精簡且維護性高)
+export const FacebookIcon = createIconStory(
+  'FacebookColor',
+  FacebookColor,
+  'Facebook 品牌圖標'
+);
+export const GoogleIcon = createIconStory(
+  'GoogleColor',
+  GoogleColor,
+  'Google 品牌圖標'
+);
+export const InstagramIcon = createIconStory(
+  'InstagramColor',
+  InstagramColor,
+  'Instagram 品牌圖標'
+);
+export const LinkedinIcon = createIconStory(
+  'LinkedinColor',
+  LinkedinColor,
+  'Linkedin 品牌圖標'
+);
+export const TwitterIcon = createIconStory(
+  'TwitterColor',
+  TwitterColor,
+  'Twitter/X 品牌圖標'
+);
+export const WebsiteIcon = createIconStory(
+  'WebsiteColor',
+  WebsiteColor,
+  '個人網站圖標'
+);
+export const YoutubeIcon = createIconStory(
+  'YoutubeColor',
+  YoutubeColor,
+  'Youtube 品牌圖標'
+);
