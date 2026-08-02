@@ -25,7 +25,7 @@ export function useEditProfileForm(isMentor: boolean): {
     return zodResolver(
       createProfileFormSchema(isMentor) as z.ZodSchema<
         ProfileFormValues,
-        any,
+        z.ZodTypeDef,
         ProfileFormInput
       >
     );
