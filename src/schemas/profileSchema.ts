@@ -157,7 +157,11 @@ export const createProfileFormSchema = (isMentor: boolean) =>
       }
     });
 
-export type ProfileFormValues = z.input<
+export type ProfileFormValues = z.infer<
+  ReturnType<typeof createProfileFormSchema>
+>;
+
+export type ProfileFormInput = z.input<
   ReturnType<typeof createProfileFormSchema>
 >;
 
