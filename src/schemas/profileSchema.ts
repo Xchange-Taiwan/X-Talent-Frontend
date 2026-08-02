@@ -105,7 +105,6 @@ export const createProfileFormSchema = (isMentor: boolean) =>
       industry: z
         .string()
         .optional()
-        .default('')
         .superRefine((val, ctx) => {
           if (isMentor && !val) {
             ctx.addIssue({
