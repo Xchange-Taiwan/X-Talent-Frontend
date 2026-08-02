@@ -65,7 +65,8 @@ jobs:
           out=$(vercel deploy --prebuilt --prod --archive=tgz --token=${{ env.VERCEL_TOKEN }})
           echo "$out"
           # Robust URL extraction targeting Vercel-style deployment URLs
-          url=$(echo "$out" | grep -oE 'https://[a-zA-Z0-9.-]+\.vercel\.app' | tail -n 1)
+          # Added "|| true" to prevent grep failure from triggering pipefail and crashing the script
+          url=$(echo "$out" | grep -oE 'https://[a-zA-Z0-9.-]+\.vercel\.app' | tail -n 1 || true)
           if [ -z "$url" ]; then
             url=$(printf '%s\n' "$out" | tail -n 1 | tr -d '[:space:]')
           fi
@@ -95,14 +96,14 @@ jobs:
             echo "Testing route: $TARGET_URL"
             
             # Perform curl request with max 3 retries, sleep 5 seconds between retries
-            # Added -L to follow redirects (e.g., auth or locale redirects)
+            # Added "|| true" to curl so connection or DNS failures don't trigger "set -e" and terminate the workflow prematurely
             MAX_RETRIES=3
             RETRY_COUNT=0
             STATUS=0
             HTTP_CODE=""
             
             while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-              HTTP_CODE=$(curl -L -s -o /dev/null -w "%{http_code}" "$TARGET_URL")
+              HTTP_CODE=$(curl -L -s -o /dev/null -w "%{http_code}" "$TARGET_URL" || true)
               echo "Attempt $(($RETRY_COUNT + 1)): HTTP response code is $HTTP_CODE"
               if [ "$HTTP_CODE" = "200" ]; then
                 STATUS=1
