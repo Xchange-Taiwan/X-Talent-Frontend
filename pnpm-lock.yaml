@@ -21,10 +21,7 @@ importers:
         version: 11.14.1(@emotion/react@11.14.0(@types/react@18.2.48)(react@18.2.0))(@types/react@18.2.48)(react@18.2.0)
       '@hookform/resolvers':
         specifier: ^5.6.0
-        version: 5.6.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.17.1))(ajv@8.17.1)(react-hook-form@7.71.1(react@18.2.0))(zod@3.25.76)
-      '@mui/icons-material':
-        specifier: ^5.15.11
-        version: 5.18.0(@mui/material@6.5.0(@emotion/react@11.14.0(@types/react@18.2.48)(react@18.2.0))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@18.2.48)(react@18.2.0))(@types/react@18.2.48)(react@18.2.0))(@types/react@18.2.48)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@types/react@18.2.48)(react@18.2.0)
+        version: 5.6.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@6.12.6))(ajv@6.12.6)(react-hook-form@7.71.1(react@18.2.0))(zod@3.25.76)
       '@mui/material':
         specifier: ^6.1.6
         version: 6.5.0(@emotion/react@11.14.0(@types/react@18.2.48)(react@18.2.0))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@18.2.48)(react@18.2.0))(@types/react@18.2.48)(react@18.2.0))(@types/react@18.2.48)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -143,6 +140,9 @@ importers:
       '@storybook/addon-onboarding':
         specifier: ^10.5.5
         version: 10.5.5(storybook@10.5.5(@types/react@18.2.48)(prettier@3.8.0)(react@18.2.0))
+      '@storybook/blocks':
+        specifier: ^8.6.14
+        version: 8.6.14(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(storybook@10.5.5(@types/react@18.2.48)(prettier@3.8.0)(react@18.2.0))
       '@storybook/nextjs':
         specifier: ^10.5.5
         version: 10.5.5(@types/react-dom@18.2.18)(@types/react@18.2.48)(esbuild@0.28.1)(next@14.2.35(@babel/core@7.28.6)(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(storybook@10.5.5(@types/react@18.2.48)(prettier@3.8.0)(react@18.2.0))(type-fest@4.41.0)(typescript@5.9.3)(webpack-hot-middleware@2.26.1)(webpack@5.104.1(esbuild@0.28.1))
@@ -200,6 +200,9 @@ importers:
       eslint-config-prettier:
         specifier: ^9.1.0
         version: 9.1.2(eslint@8.57.1)
+      eslint-plugin-jsx-a11y:
+        specifier: ^6.10.2
+        version: 6.10.2(eslint@8.57.1)
       eslint-plugin-simple-import-sort:
         specifier: ^10.0.0
         version: 10.0.0(eslint@8.57.1)
@@ -1615,17 +1618,6 @@ packages:
 
   '@mui/core-downloads-tracker@6.5.0':
     resolution: {integrity: sha512-LGb8t8i6M2ZtS3Drn3GbTI1DVhDY6FJ9crEey2lZ0aN2EMZo8IZBZj9wRf4vqbZHaWjsYgtbOnJw5V8UWbmK2Q==}
-
-  '@mui/icons-material@5.18.0':
-    resolution: {integrity: sha512-1s0vEZj5XFXDMmz3Arl/R7IncFqJ+WQ95LDp1roHWGDE2oCO3IS4/hmiOv1/8SD9r6B7tv9GLiqVZYHo+6PkTg==}
-    engines: {node: '>=12.0.0'}
-    peerDependencies:
-      '@mui/material': ^5.0.0
-      '@types/react': ^17.0.0 || ^18.0.0 || ^19.0.0
-      react: ^17.0.0 || ^18.0.0 || ^19.0.0
-    peerDependenciesMeta:
-      '@types/react':
-        optional: true
 
   '@mui/material@6.5.0':
     resolution: {integrity: sha512-yjvtXoFcrPLGtgKRxFaH6OQPtcLPhkloC0BML6rBG5UeldR0nPULR/2E2BfXdo5JNV7j7lOzrrLX2Qf/iSidow==}
@@ -3149,6 +3141,18 @@ packages:
     peerDependencies:
       storybook: ^10.5.5
 
+  '@storybook/blocks@8.6.14':
+    resolution: {integrity: sha512-rBMHAfA39AGHgkrDze4RmsnQTMw1ND5fGWobr9pDcJdnDKWQWNRD7Nrlxj0gFlN3n4D9lEZhWGdFrCbku7FVAQ==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      storybook: ^8.6.14
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
+
   '@storybook/builder-webpack5@10.5.5':
     resolution: {integrity: sha512-hLjPH/A3NP5mqXsDbIdHb6+wvbPyvwjFvc+YxbEFprZPbjREIa0WP3933jf4Yg5xAjxpHdAhe7SES3k0fpR1/w==}
     peerDependencies:
@@ -3183,6 +3187,13 @@ packages:
 
   '@storybook/global@5.0.0':
     resolution: {integrity: sha512-FcOqPAXACP0I3oJ/ws6/rrPT9WGhu915Cg8D02a9YxLo0DE9zI+a9A5gRGvmQ09fiWPukqI8ZAEoQEdWUKMQdQ==}
+
+  '@storybook/icons@1.6.0':
+    resolution: {integrity: sha512-hcFZIjW8yQz8O8//2WTIXylm5Xsgc+lW9ISLgUk1xGmptIJQRdlhVIXCpSyLrQaaRiyhQRaVg7l3BD9S216BHw==}
+    engines: {node: '>=14.0.0'}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0-beta
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0-beta
 
   '@storybook/icons@2.1.0':
     resolution: {integrity: sha512-Fxh9vYpX9bQqFeHRiY8h2ApeRGDzRSMLwJwNZ/AIRqnyOKHxRKL+yFe+ctEkVJmuptRE9u1Hrn8ZZNHyfDKKNg==}
@@ -8672,14 +8683,14 @@ snapshots:
       '@lydell/node-pty-win32-x64': 1.1.0
       node-pty: 1.0.0
 
-  '@hookform/resolvers@5.6.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.17.1))(ajv@8.17.1)(react-hook-form@7.71.1(react@18.2.0))(zod@3.25.76)':
+  '@hookform/resolvers@5.6.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@6.12.6))(ajv@6.12.6)(react-hook-form@7.71.1(react@18.2.0))(zod@3.25.76)':
     dependencies:
       '@standard-schema/utils': 0.3.0
       react-hook-form: 7.71.1(react@18.2.0)
     optionalDependencies:
       '@standard-schema/spec': 1.1.0
-      ajv: 8.17.1
-      ajv-formats: 2.1.1(ajv@8.17.1)
+      ajv: 6.12.6
+      ajv-formats: 2.1.1(ajv@6.12.6)
       zod: 3.25.76
 
   '@humanwhocodes/config-array@0.13.0':
@@ -9026,14 +9037,6 @@ snapshots:
       react: 18.2.0
 
   '@mui/core-downloads-tracker@6.5.0': {}
-
-  '@mui/icons-material@5.18.0(@mui/material@6.5.0(@emotion/react@11.14.0(@types/react@18.2.48)(react@18.2.0))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@18.2.48)(react@18.2.0))(@types/react@18.2.48)(react@18.2.0))(@types/react@18.2.48)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(@types/react@18.2.48)(react@18.2.0)':
-    dependencies:
-      '@babel/runtime': 7.28.6
-      '@mui/material': 6.5.0(@emotion/react@11.14.0(@types/react@18.2.48)(react@18.2.0))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@18.2.48)(react@18.2.0))(@types/react@18.2.48)(react@18.2.0))(@types/react@18.2.48)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
-      react: 18.2.0
-    optionalDependencies:
-      '@types/react': 18.2.48
 
   '@mui/material@6.5.0(@emotion/react@11.14.0(@types/react@18.2.48)(react@18.2.0))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@18.2.48)(react@18.2.0))(@types/react@18.2.48)(react@18.2.0))(@types/react@18.2.48)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
@@ -10461,6 +10464,15 @@ snapshots:
     dependencies:
       storybook: 10.5.5(@types/react@18.2.48)(prettier@3.8.0)(react@18.2.0)
 
+  '@storybook/blocks@8.6.14(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(storybook@10.5.5(@types/react@18.2.48)(prettier@3.8.0)(react@18.2.0))':
+    dependencies:
+      '@storybook/icons': 1.6.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      storybook: 10.5.5(@types/react@18.2.48)(prettier@3.8.0)(react@18.2.0)
+      ts-dedent: 2.3.0
+    optionalDependencies:
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
+
   '@storybook/builder-webpack5@10.5.5(esbuild@0.28.1)(postcss@8.5.9)(storybook@10.5.5(@types/react@18.2.48)(prettier@3.8.0)(react@18.2.0))(typescript@5.9.3)':
     dependencies:
       '@storybook/core-webpack': 10.5.5(storybook@10.5.5(@types/react@18.2.48)(prettier@3.8.0)(react@18.2.0))
@@ -10514,6 +10526,11 @@ snapshots:
       webpack: 5.104.1(esbuild@0.28.1)
 
   '@storybook/global@5.0.0': {}
+
+  '@storybook/icons@1.6.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
+    dependencies:
+      react: 18.2.0
+      react-dom: 18.2.0(react@18.2.0)
 
   '@storybook/icons@2.1.0(react@18.2.0)':
     dependencies:
@@ -11194,6 +11211,11 @@ snapshots:
       - supports-color
 
   agent-base@7.1.4: {}
+
+  ajv-formats@2.1.1(ajv@6.12.6):
+    optionalDependencies:
+      ajv: 6.12.6
+    optional: true
 
   ajv-formats@2.1.1(ajv@8.17.1):
     optionalDependencies:

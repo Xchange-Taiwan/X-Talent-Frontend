@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { ListKey } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
-import { resolveOtherId } from '@/services/reservations';
+import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 
 import {
   ReservationCard,
@@ -63,7 +63,7 @@ function ReservationItem({
   // resolve to the current user (defensive — shouldn't happen in practice).
   const buildProfileHref = (item: Reservation): string | undefined => {
     if (!myUserId) return undefined;
-    const otherId = resolveOtherId(item, myUserId);
+    const otherId = resolveCounterpartyId(item, myUserId);
     if (!otherId || String(otherId) === myUserId) return undefined;
     return `/profile/${otherId}`;
   };
