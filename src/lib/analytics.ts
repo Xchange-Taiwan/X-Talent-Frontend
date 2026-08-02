@@ -39,7 +39,7 @@ export interface BehaviorEvent {
   /** snake_case event name — format: <feature>_<action> */
   name: string;
   /** Module or feature area this event belongs to */
-  feature?: 'auth' | 'onboarding' | 'reservation' | 'profile';
+  feature?: 'auth' | 'onboarding' | 'reservation' | 'profile' | 'performance';
   /**
    * Optional key-value metadata for additional context.
    * Do NOT include passwords, tokens, emails, or personal info.
@@ -88,13 +88,15 @@ export function trackEvent(event: BehaviorEvent): void {
   }
 
   // — Clarity —
-  const clarity = getClarity();
-  if (clarity) {
-    clarity('event', event.name);
-    if (event.feature) clarity('set', 'feature', event.feature);
-    if (event.metadata) {
-      for (const [key, value] of Object.entries(event.metadata)) {
-        clarity('set', key, String(value));
+  if (event.feature !== 'performance') {
+    const clarity = getClarity();
+    if (clarity) {
+      clarity('event', event.name);
+      if (event.feature) clarity('set', 'feature', event.feature);
+      if (event.metadata) {
+        for (const [key, value] of Object.entries(event.metadata)) {
+          clarity('set', key, String(value));
+        }
       }
     }
   }
