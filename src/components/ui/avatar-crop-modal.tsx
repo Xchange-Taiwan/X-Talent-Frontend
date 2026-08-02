@@ -119,7 +119,6 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
       <DialogContent
         className="flex max-h-[95vh] w-fit max-w-[95vw] flex-col items-center justify-center overflow-y-auto rounded-lg border-none bg-avatar-background p-6 shadow-lg sm:rounded-lg [&>button]:hidden"
         aria-describedby={undefined}
-        onClick={(e) => e.stopPropagation()}
       >
         <DialogTitle className="sr-only">剪裁大頭貼</DialogTitle>
         {file && (
