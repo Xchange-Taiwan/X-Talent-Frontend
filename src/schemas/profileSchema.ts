@@ -165,7 +165,7 @@ export type ProfileFormInput = z.input<
   ReturnType<typeof createProfileFormSchema>
 >;
 
-export const defaultValues: ProfileFormValues = {
+export const defaultValues: ProfileFormInput = {
   is_mentor: false,
   avatar: '',
   avatarFile: undefined,
