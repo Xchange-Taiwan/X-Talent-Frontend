@@ -45,10 +45,12 @@ export interface SaveProfileDeps {
   ) => void;
   // Optional dependency injections to ease testing
   firstSyncedFetch?: (
+    userId: number,
     values: ProfileFormValues,
     avatar: string
   ) => Promise<MentorProfileVO | null>;
   pollUntilSynced?: (
+    userId: number,
     values: ProfileFormValues,
     avatar: string
   ) => Promise<MentorProfileVO | null>;
@@ -203,13 +205,17 @@ export async function saveProfile(
     try {
       let latest: MentorProfileVO | null = null;
       if (sessionUserId) {
-        latest = await firstSyncedFetch(values, avatar ?? '');
+        latest = await firstSyncedFetch(sessionUserId, values, avatar ?? '');
         if (latest) {
           primeUserDataCache(sessionUserId, 'zh_TW', latest);
         }
       }
       if (!latest) {
-        latest = await pollUntilSynced(values, avatar ?? '');
+        latest = await pollUntilSynced(
+          sessionUserId ?? Number(pageUserId),
+          values,
+          avatar ?? ''
+        );
       }
       reconcileSession(latest);
     } catch (e) {

@@ -1,5 +1,3 @@
-import { getSession } from 'next-auth/react';
-
 import { apiClient, ApiError, FetchApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 import type { MentorProfileVO } from '@/types/user';
@@ -20,20 +18,6 @@ function shouldRetry(error: unknown): boolean {
     return false;
   }
   return true;
-}
-
-export async function fetchUser(
-  language: string,
-  signal?: AbortSignal
-): Promise<MentorProfileVO | null> {
-  const session = await getSession();
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    throw new Error('未找到使用者 ID。請重新登入。');
-  }
-
-  return fetchUserById(Number(userId), language, signal);
 }
 
 export async function fetchUserById(
