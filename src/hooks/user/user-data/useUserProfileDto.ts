@@ -78,10 +78,12 @@ function startFetchUserById(
   });
 }
 
+export type ProfileFetchError = 'USER_NOT_FOUND' | 'FETCH_FAILED' | null;
+
 export interface UseUserProfileDtoResult {
   userDto: MentorProfileVO | null;
   isLoading: boolean;
-  error: string | null;
+  error: ProfileFetchError;
   refetch?: () => void;
 }
 
@@ -116,7 +118,7 @@ export function useUserProfileDto(
     if (!isUserIdValid || !language) return false;
     return !readFromDataCache(`${userId}-${language}`);
   });
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ProfileFetchError>(null);
 
   useEffect(() => {
     const isUserIdValid = Boolean(userId) && !Number.isNaN(userId);
@@ -167,7 +169,7 @@ export function useUserProfileDto(
         if (cancelled) return;
         if (!data) {
           setUserDto(null);
-          setError('User not found');
+          setError('USER_NOT_FOUND');
           return;
         }
         setUserDto(data);
@@ -177,7 +179,7 @@ export function useUserProfileDto(
         console.error('Failed to load user profile dto:', e);
         if (cancelled) return;
         setUserDto(null);
-        setError('Failed to load user data');
+        setError('FETCH_FAILED');
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);

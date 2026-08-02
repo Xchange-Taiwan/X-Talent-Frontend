@@ -94,7 +94,7 @@ describe('useUserProfileDto', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    expect(result.current.error).toBe('Failed to load user data');
+    expect(result.current.error).toBe('FETCH_FAILED');
 
     // Unmount so we can retry from fresh mount
     unmount();
@@ -149,7 +149,7 @@ describe('useUserProfileDto', () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    expect(result.current.error).toBe('Failed to load user data');
+    expect(result.current.error).toBe('FETCH_FAILED');
     expect(result.current.userDto).toBeNull();
   });
 });

@@ -126,7 +126,7 @@ export default function ProfilePageContainer({
     setSelectedSlot,
   });
 
-  if (error && error !== 'User not found') {
+  if (error === 'FETCH_FAILED') {
     return (
       <div className="flex h-[50vh] flex-col items-center justify-center gap-4 text-center">
         <p className="font-medium text-text-tertiary">
@@ -139,7 +139,7 @@ export default function ProfilePageContainer({
     );
   }
 
-  if (!userLoading && !userData) {
+  if (error === 'USER_NOT_FOUND' || (!userLoading && !userData)) {
     return (
       <div className="flex h-[50vh] items-center justify-center text-text-tertiary">
         沒有該位使用者
