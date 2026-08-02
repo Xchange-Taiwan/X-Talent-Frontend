@@ -18,8 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
 import { trackEvent } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
-
-import type { Reservation } from './types';
+import type { Reservation } from '@/types/reservation';
 
 interface Props {
   reservation: Reservation;

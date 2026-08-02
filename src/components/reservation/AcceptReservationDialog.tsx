@@ -19,8 +19,7 @@ import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDial
 import { trackEvent } from '@/lib/analytics';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { cn } from '@/lib/utils';
-
-import type { Reservation } from './types';
+import type { Reservation } from '@/types/reservation';
 
 interface Props {
   reservation: Reservation;

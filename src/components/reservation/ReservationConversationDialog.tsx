@@ -15,8 +15,11 @@ import {
 import { trackEvent } from '@/lib/analytics';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { cn } from '@/lib/utils';
-
-import type { MessageRole, Reservation, ReservationMessage } from './types';
+import type {
+  MessageRole,
+  Reservation,
+  ReservationMessage,
+} from '@/types/reservation';
 
 interface Props {
   reservation: Reservation;

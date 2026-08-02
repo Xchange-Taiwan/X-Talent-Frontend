@@ -1,4 +1,4 @@
-import type { Reservation } from '../types';
+import type { Reservation } from '@/types/reservation';
 
 const nowSeconds = Math.floor(Date.now() / 1000);
 

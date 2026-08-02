@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 
+import type { Reservation } from '@/types/reservation';
+
 import { mockReservation } from './mocks';
 import ReservationConversationDialog from './ReservationConversationDialog';
-import type { Reservation } from './types';
 
 const meta: Meta<typeof ReservationConversationDialog> = {
   title: '業務模組元件/預約管理(Reservation)/ReservationConversationDialog',
