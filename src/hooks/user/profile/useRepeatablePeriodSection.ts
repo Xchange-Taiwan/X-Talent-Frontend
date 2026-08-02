@@ -3,7 +3,7 @@ import { useFieldArray, useWatch } from 'react-hook-form';
 
 import { useToast } from '@/components/ui/use-toast';
 import { ProfileFormContext } from '@/hooks/user/profile/useEditProfileForm';
-import { ProfileFormValues } from '@/schemas/profileSchema';
+import { ProfileFormInput, ProfileFormValues } from '@/schemas/profileSchema';
 
 export type RepeatableArrayPath = 'work_experiences' | 'educations';
 
@@ -46,7 +46,7 @@ export function useRepeatablePeriodSection<K extends RepeatableArrayPath>(
   const { control } = form;
   const { toast } = useToast();
 
-  const { fields, append, remove, move } = useFieldArray<ProfileFormValues, K>({
+  const { fields, append, remove, move } = useFieldArray<ProfileFormInput, K>({
     control,
     name: config.arrayName,
   });
