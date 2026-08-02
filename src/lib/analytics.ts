@@ -45,8 +45,6 @@ export interface BehaviorEvent {
    * Do NOT include passwords, tokens, emails, or personal info.
    */
   metadata?: Record<string, string | number | boolean>;
-  /** Optional flag to bypass sending this event to Microsoft Clarity */
-  skipClarity?: boolean;
 }
 
 // ─── Internal helpers ──────────────────────────────────────────────────────────
@@ -79,7 +77,10 @@ function getGtag(): GtagFn | undefined {
  *
  * Do NOT include passwords, tokens, emails, or personal info.
  */
-export function trackEvent(event: BehaviorEvent): void {
+export function trackEvent(
+  event: BehaviorEvent,
+  options?: { skipClarity?: boolean }
+): void {
   // — GA4 —
   const gtag = getGtag();
   if (gtag) {
@@ -90,7 +91,7 @@ export function trackEvent(event: BehaviorEvent): void {
   }
 
   // — Clarity —
-  if (!event.skipClarity) {
+  if (!options?.skipClarity) {
     const clarity = getClarity();
     if (clarity) {
       clarity('event', event.name);
@@ -105,7 +106,7 @@ export function trackEvent(event: BehaviorEvent): void {
 
   // — Local dev debug —
   if (process.env.NODE_ENV === 'development') {
-    console.debug('[analytics] trackEvent', event);
+    console.debug('[analytics] trackEvent', event, options);
   }
 }
 

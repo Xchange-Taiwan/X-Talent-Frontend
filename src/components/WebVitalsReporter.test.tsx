@@ -48,15 +48,17 @@ describe('WebVitalsReporter', () => {
     metrics.forEach((metric) => {
       callback!(fromPartial(metric));
 
-      expect(trackEvent).toHaveBeenCalledWith({
-        name: `performance_${metric.name.toLowerCase()}_measured`,
-        feature: 'performance',
-        metadata: {
-          raw_value: metric.value,
-          rating: metric.rating,
+      expect(trackEvent).toHaveBeenCalledWith(
+        {
+          name: `performance_${metric.name.toLowerCase()}_measured`,
+          feature: 'performance',
+          metadata: {
+            raw_value: metric.value,
+            rating: metric.rating,
+          },
         },
-        skipClarity: true,
-      });
+        { skipClarity: true }
+      );
     });
   });
 

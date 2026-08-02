@@ -15,15 +15,17 @@ interface WebVitalsMetric {
 function reportWebVitals(metric: WebVitalsMetric) {
   const name = metric.name.toUpperCase();
   if (SUPPORTED_METRICS.includes(name)) {
-    trackEvent({
-      name: `performance_${metric.name.toLowerCase()}_measured`,
-      feature: 'performance',
-      metadata: {
-        raw_value: metric.value,
-        rating: metric.rating,
+    trackEvent(
+      {
+        name: `performance_${metric.name.toLowerCase()}_measured`,
+        feature: 'performance',
+        metadata: {
+          raw_value: metric.value,
+          rating: metric.rating,
+        },
       },
-      skipClarity: true,
-    });
+      { skipClarity: true }
+    );
   }
 }
 

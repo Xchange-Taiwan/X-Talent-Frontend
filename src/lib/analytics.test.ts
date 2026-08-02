@@ -47,12 +47,14 @@ describe('analytics', () => {
   });
 
   it('bypasses Microsoft Clarity when skipClarity is true but sends to GA4', () => {
-    trackEvent({
-      name: 'performance_lcp_measured',
-      feature: 'performance',
-      metadata: { raw_value: 2500, rating: 'needs-improvement' },
-      skipClarity: true,
-    });
+    trackEvent(
+      {
+        name: 'performance_lcp_measured',
+        feature: 'performance',
+        metadata: { raw_value: 2500, rating: 'needs-improvement' },
+      },
+      { skipClarity: true }
+    );
 
     const mockGtag = vi.mocked(global.window.gtag);
     const mockClarity = vi.mocked(global.window.clarity!);
