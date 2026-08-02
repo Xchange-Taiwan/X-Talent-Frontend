@@ -1,6 +1,12 @@
-name: E2E (manual)
+name: E2E
 
 on:
+  schedule:
+    - cron: '0 0 * * 0' # Run once a week (Sunday at midnight UTC)
+  workflow_run:
+    workflows: ['Deploy to Vercel (Develop)']
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       base_url:
@@ -12,11 +18,11 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     name: Playwright E2E
-    # Manual trigger only, never wired into branch protection — so a failure
-    # here cannot block PR merge anyway. Let the run fail loudly so the result
-    # is unambiguous in the Actions UI instead of always showing green.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    # Run scheduled or triggered runs against dev environment.
+    # Let the run fail loudly so the result is unambiguous in the Actions UI.
     env:
-      BASE_URL: ${{ inputs.base_url }}
+      BASE_URL: ${{ inputs.base_url || 'https://xtalentdev.vercel.app' }}
       E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
       E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
       NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET_DEV }}
