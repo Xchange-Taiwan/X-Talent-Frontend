@@ -1,0 +1,44 @@
+name: 'Set up Environment'
+description: 'Sets up PNPM, Node.js with caching, and optionally installs dependencies.'
+
+inputs:
+  node-version:
+    description: 'Node.js version to set up'
+    required: false
+    default: '20'
+  pnpm-version:
+    description: 'PNPM version to set up'
+    required: false
+    default: '9'
+  install-deps:
+    description: 'Whether to run pnpm install'
+    required: false
+    default: 'true'
+  frozen-lockfile:
+    description: 'Whether to use --frozen-lockfile or --no-frozen-lockfile'
+    required: false
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up PNPM
+      uses: pnpm/action-setup@v2
+      with:
+        version: ${{ inputs.pnpm-version }}
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: pnpm
+
+    - name: Install dependencies (frozen-lockfile)
+      if: ${{ inputs.install-deps == 'true' && inputs.frozen-lockfile == 'true' }}
+      shell: bash
+      run: pnpm install --frozen-lockfile
+
+    - name: Install dependencies (no-frozen-lockfile)
+      if: ${{ inputs.install-deps == 'true' && inputs.frozen-lockfile != 'true' }}
+      shell: bash
+      run: pnpm install --no-frozen-lockfile
