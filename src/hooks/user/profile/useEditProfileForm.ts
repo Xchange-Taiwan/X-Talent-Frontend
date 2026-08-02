@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo } from 'react';
-import { Resolver, useForm, UseFormReturn } from 'react-hook-form';
+import { useForm, UseFormReturn } from 'react-hook-form';
 
 import {
   createProfileFormSchema,
@@ -21,9 +21,9 @@ export function useEditProfileForm(isMentor: boolean): {
   form: ProfileFormContext;
 } {
   const resolver = useMemo(() => {
-    return zodResolver(
+    return zodResolver<ProfileFormInput, unknown, ProfileFormValues>(
       createProfileFormSchema(isMentor)
-    ) as unknown as Resolver<ProfileFormInput, unknown, ProfileFormValues>;
+    );
   }, [isMentor]);
 
   const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
