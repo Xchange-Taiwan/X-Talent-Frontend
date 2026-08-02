@@ -116,8 +116,11 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="max-h-full w-auto max-w-none overflow-y-auto bg-avatar-background sm:rounded-lg [&>button]:hidden">
-        <DialogTitle className="sr-only">裁切頭像</DialogTitle>
+      <DialogContent
+        className="flex max-h-[95vh] w-fit max-w-[95vw] flex-col items-center justify-center overflow-y-auto rounded-lg border-none bg-avatar-background p-6 shadow-lg sm:rounded-lg [&>button]:hidden"
+        aria-describedby={undefined}
+      >
+        <DialogTitle className="sr-only">剪裁大頭貼</DialogTitle>
         {file && (
           <div
             onTouchStart={handleTouchStart}
@@ -144,9 +147,9 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
           min={MIN_SCALE}
           max={MAX_SCALE}
           step={0.1}
-          onValueChange={(value) => setZoomScale(value[0])}
+          onValueChange={(value: number[]) => setZoomScale(value[0])}
         />
-        <div className="mt-4 flex justify-center gap-3">
+        <div className="mt-4 flex w-full justify-center gap-3">
           <Button
             variant="outline"
             onClick={onClose}
