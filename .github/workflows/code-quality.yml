@@ -27,19 +27,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
 
-      - name: Set up PNPM
-        uses: pnpm/action-setup@v2
+      - name: Set up environment
+        uses: ./.github/actions/setup-env
         with:
-          version: 9
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+          frozen-lockfile: 'false'
 
       - name: Check Prettier formatting
         id: prettier-check
