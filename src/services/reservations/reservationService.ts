@@ -70,10 +70,15 @@ function classifyMessageRole(
   return undefined;
 }
 
-export function mapToReservation(
+export function resolveCounterparty(
   reservation: components['schemas']['ReservationInfoVO'],
   myUserId?: string | number | null
-): Reservation {
+): {
+  name: string;
+  avatar?: string;
+  roleLine: string;
+  cancelledBy?: 'MENTEE' | 'MENTOR';
+} {
   // If myUserId is provided and equals reservation.sender.user_id, the counterparty is set to reservation.participant.
   // If myUserId is provided and does NOT equal reservation.sender.user_id, the counterparty is set to reservation.sender.
   // If myUserId is omitted (null or undefined), the counterparty defaults to reservation.participant for backward compatibility.
@@ -84,13 +89,49 @@ export function mapToReservation(
           String(myUserId) === String(reservation.sender.user_id)
         ? (reservation.participant ?? reservation.sender)
         : (reservation.sender ?? reservation.participant);
-  const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
+
+  const name = counterparty?.name || '—';
+  const avatar = counterparty?.avatar ?? undefined;
+
   const roleLine = [
-    counterparty.job_title?.trim() || '',
-    formatExperience(counterparty.years_of_experience),
+    counterparty?.job_title?.trim() || '',
+    formatExperience(counterparty?.years_of_experience),
   ]
     .filter(Boolean)
     .join(', ');
+
+  const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
+    r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
+
+  const currentUserSide =
+    counterparty === reservation.participant
+      ? reservation.sender
+      : reservation.participant;
+
+  const cancelledBy =
+    counterparty?.status === 'REJECT'
+      ? toRole(counterparty?.role)
+      : currentUserSide?.status === 'REJECT'
+        ? toRole(currentUserSide?.role)
+        : undefined;
+
+  return {
+    name,
+    avatar,
+    roleLine,
+    cancelledBy,
+  };
+}
+
+export function mapToReservation(
+  reservation: components['schemas']['ReservationInfoVO'],
+  myUserId?: string | number | null
+): Reservation {
+  const { name, avatar, roleLine, cancelledBy } = resolveCounterparty(
+    reservation,
+    myUserId
+  );
+  const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
 
   // Preserve the full conversation in API order so the detail view can render
   // the entire thread, while also tracking the latest message per side for the
@@ -120,31 +161,13 @@ export function mapToReservation(
     else if (role === 'MENTOR') mentorMessage = item;
   }
 
-  // Cancellation badge fires whenever either side rejected/cancelled, with the
-  // canceller's role surfaced so the UI can render 「已由導師/學員取消」 on both
-  // mentor and mentee history pages. Reject (pre-accept) and cancel
-  // (post-accept) intentionally share the same 「取消」 copy per PM scope
-  // (Tracker #224). Participant (other side / counterparty) takes precedence when both sides are REJECT.
-  const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
-    r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
-  const currentUserSide =
-    counterparty === reservation.participant
-      ? reservation.sender
-      : reservation.participant;
-  const cancelledBy: 'MENTEE' | 'MENTOR' | undefined =
-    counterparty?.status === 'REJECT'
-      ? toRole(counterparty?.role)
-      : currentUserSide?.status === 'REJECT'
-        ? toRole(currentUserSide?.role)
-        : undefined;
-
   return {
     id: String(reservation.id ?? ''),
-    name: counterparty.name || '—',
+    name,
     roleLine,
     date,
     time,
-    avatar: counterparty.avatar ?? undefined,
+    avatar,
     messages,
     menteeMessage,
     mentorMessage,
