@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient, ApiError, FetchApiError } from '@/lib/apiClient';
+import { captureFlowFailure } from '@/lib/monitoring';
 
 import { fetchUserById } from './user';
 
@@ -66,6 +67,15 @@ describe('fetchUserById service', () => {
       'Network connection failed'
     );
     expect(apiClient.getUnwrapped).toHaveBeenCalledTimes(2); // 1 initial + 1 retry
+
+    expect(captureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'profile',
+        step: 'fetch_user_profile',
+        message: 'Network connection failed',
+        errorCode: 'network_error',
+      })
+    );
   });
 
   it('does not retry on 404 client error and throws immediately', async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { createKeyedCache } from '@/lib/createKeyedCache';
 import { fetchUserById } from '@/services/profile/user';
@@ -96,11 +96,11 @@ export function useUserProfileDto(
 ): UseUserProfileDtoResult {
   const [retryTrigger, setRetryTrigger] = useState(0);
 
-  const refetch = () => {
+  const refetch = useCallback(() => {
     const key = `${userId}-${language}`;
     userProfileDtoCache.delete(key);
     setRetryTrigger((prev) => prev + 1);
-  };
+  }, [userId, language]);
 
   // Lazy-init from cache so SSR-primed data lands in state on the first
   // render — avoids a one-frame loading flash before useEffect's cache read

@@ -126,7 +126,7 @@ export default function ProfilePageContainer({
     setSelectedSlot,
   });
 
-  if (error === 'Failed to load user data') {
+  if (error && error !== 'User not found') {
     return (
       <div className="flex h-[50vh] flex-col items-center justify-center gap-4 text-center">
         <p className="font-medium text-text-tertiary">

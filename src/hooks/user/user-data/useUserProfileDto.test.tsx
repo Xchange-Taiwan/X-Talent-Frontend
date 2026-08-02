@@ -139,4 +139,17 @@ describe('useUserProfileDto', () => {
 
     expect(fetchUserById).toHaveBeenCalledTimes(2);
   });
+
+  it('correctly sets error state to Failed to load user data when fetchUserById throws/rejects', async () => {
+    vi.mocked(fetchUserById).mockRejectedValueOnce(new Error('API error'));
+
+    const { result } = renderHook(() => useUserProfileDto(4, 'zh-TW'));
+
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.error).toBe('Failed to load user data');
+    expect(result.current.userDto).toBeNull();
+  });
 });
