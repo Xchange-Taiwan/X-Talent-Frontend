@@ -37,15 +37,21 @@ export const Default: Story = {
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
-            <label className="text-right text-sm font-medium">導師姓名</label>
+            <label htmlFor="name" className="text-right text-sm font-medium">
+              導師姓名
+            </label>
             <input
+              id="name"
               className="col-span-3 rounded border p-2 text-sm"
               defaultValue="林小明"
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <label className="text-right text-sm font-medium">聯絡信箱</label>
+            <label htmlFor="email" className="text-right text-sm font-medium">
+              聯絡信箱
+            </label>
             <input
+              id="email"
               className="col-span-3 rounded border p-2 text-sm"
               defaultValue="xiaoming.lin@xchange.tw"
             />

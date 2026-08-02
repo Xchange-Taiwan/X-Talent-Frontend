@@ -1,5 +1,5 @@
 import { ReservationDashboard } from '@/components/reservation/ReservationDashboard';
 
 export default function Page() {
-  return <ReservationDashboard role="mentor" />;
+  return <ReservationDashboard userRole="mentor" />;
 }

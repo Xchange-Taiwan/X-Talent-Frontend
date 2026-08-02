@@ -16,7 +16,7 @@ const meta: Meta<typeof ReservationDashboardView> = {
     ),
   ],
   args: {
-    role: 'mentor',
+    userRole: 'mentor',
     myUserId: 'user-mentor-current',
     upcoming: [
       mockReservations[4], // Imminent
@@ -51,7 +51,7 @@ type Story = StoryObj<typeof ReservationDashboardView>;
 // 1. Mentor View ("擔任導師" dashboard, with action buttons to accept/reject pending bookings)
 export const MentorView: Story = {
   args: {
-    role: 'mentor',
+    userRole: 'mentor',
     myUserId: 'user-mentor-current',
     upcoming: [
       mockReservations[4], // Sylvia - Imminent
@@ -72,7 +72,7 @@ export const MentorView: Story = {
 // 2. Mentee View ("預約導師" dashboard, with cancellation dialog actions)
 export const MenteeView: Story = {
   args: {
-    role: 'mentee',
+    userRole: 'mentee',
     myUserId: 'user-mentee-current',
     upcoming: [
       mockReservations[5], // Albert - Live (current user is participant)
@@ -89,7 +89,7 @@ export const MenteeView: Story = {
 // 3. Empty State (When all lists are empty and loaded)
 export const EmptyState: Story = {
   args: {
-    role: 'mentor',
+    userRole: 'mentor',
     myUserId: 'user-mentor-current',
     upcoming: [],
     pending: [],
@@ -101,7 +101,7 @@ export const EmptyState: Story = {
 // 4. Loading / Skeleton State (Renders skeletons for the initial tabs)
 export const LoadingState: Story = {
   args: {
-    role: 'mentor',
+    userRole: 'mentor',
     myUserId: 'user-mentor-current',
     upcoming: [],
     pending: [],

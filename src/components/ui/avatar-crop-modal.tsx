@@ -110,6 +110,7 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
 
   return (
     <Modal open={isOpen} onClose={onClose}>
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div
         className="fixed inset-0 flex items-center justify-center p-4"
         onClick={(e) => e.stopPropagation()}

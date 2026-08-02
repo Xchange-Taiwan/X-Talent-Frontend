@@ -253,8 +253,9 @@ const ColorGridView: React.FC<ColorViewProps> = ({
           {/* Interactive Preview Color Block */}
           {/* Note: This inline style is an explicit exception for dynamic preview in Storybook docs */}
           {/* eslint-disable-next-line react/forbid-dom-props */}
-          <div
-            className="relative h-28 w-full cursor-pointer border-b border-background-border"
+          <button
+            type="button"
+            className="relative h-28 w-full cursor-pointer border-0 border-b border-background-border p-0 outline-none"
             style={{ backgroundColor: `hsl(${token.hsl})` }}
             onClick={() => handleCopy(token.hex, 'hex')}
             title="點擊複製 HEX 值"
@@ -279,7 +280,7 @@ const ColorGridView: React.FC<ColorViewProps> = ({
                 )}
               </span>
             </div>
-          </div>
+          </button>
 
           {/* Code and Meta Details */}
           <div className="flex flex-1 flex-col justify-between space-y-2.5 p-3.5">

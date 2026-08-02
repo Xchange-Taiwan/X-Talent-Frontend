@@ -28,12 +28,13 @@ export default function EmailVerificationPage({
 
       <p className="text-xs text-text-tertiary">
         沒有收到信嗎？{' '}
-        <span
-          className="cursor-pointer underline decoration-1"
+        <button
+          type="button"
+          className="inline cursor-pointer border-0 bg-transparent p-0 text-xs text-text-tertiary underline decoration-1 hover:text-text-secondary"
           onClick={onResendEmail}
         >
           點此重新寄送
-        </span>
+        </button>
       </p>
     </AuthMessageCard>
   );
