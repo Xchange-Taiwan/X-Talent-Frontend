@@ -119,4 +119,27 @@ describe('AvatarCropModal', () => {
       expect(onClose).toHaveBeenCalled();
     });
   });
+
+  it('updates scale when slider is interacted with', () => {
+    const onClose = vi.fn();
+    const onSave = vi.fn();
+
+    render(
+      <AvatarCropModal
+        file={mockFile}
+        isOpen={true}
+        onClose={onClose}
+        onSave={onSave}
+      />
+    );
+
+    const slider = screen.getByRole('slider');
+    expect(slider).toHaveAttribute('aria-valuenow', '1');
+
+    // Simulate pressing ArrowRight to increase the scale
+    fireEvent.keyDown(slider, { key: 'ArrowRight', code: 'ArrowRight' });
+
+    // Expect the value to have increased (by step 0.1)
+    expect(slider).toHaveAttribute('aria-valuenow', '1.1');
+  });
 });

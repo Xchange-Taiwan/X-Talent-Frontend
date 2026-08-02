@@ -124,7 +124,7 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onTouchCancel={handleTouchEnd}
-            style={{ touchAction: 'none' }}
+            className="touch-none"
           >
             <AvatarEditor
               ref={editorRef}
