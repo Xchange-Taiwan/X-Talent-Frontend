@@ -49,29 +49,45 @@ export const InputTypes: Story = {
   render: (args: React.ComponentProps<typeof Input>) => (
     <div className="flex max-w-sm flex-col gap-4">
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium">純文字輸入 (Text)</label>
-        <Input {...args} type="text" placeholder="請輸入姓名" />
+        <label htmlFor="text-input" className="text-sm font-medium">
+          純文字輸入 (Text)
+        </label>
+        <Input {...args} id="text-input" type="text" placeholder="請輸入姓名" />
       </div>
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium">電子信箱 (Email)</label>
-        <Input {...args} type="email" placeholder="example@xchange.tw" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium">密碼欄位 (Password)</label>
+        <label htmlFor="email-input" className="text-sm font-medium">
+          電子信箱 (Email)
+        </label>
         <Input
           {...args}
+          id="email-input"
+          type="email"
+          placeholder="example@xchange.tw"
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="password-input" className="text-sm font-medium">
+          密碼欄位 (Password)
+        </label>
+        <Input
+          {...args}
+          id="password-input"
           type="password"
           placeholder="請輸入密碼"
           defaultValue="supersecret123"
         />
       </div>
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium">數字欄位 (Number)</label>
-        <Input {...args} type="number" placeholder="25" />
+        <label htmlFor="number-input" className="text-sm font-medium">
+          數字欄位 (Number)
+        </label>
+        <Input {...args} id="number-input" type="number" placeholder="25" />
       </div>
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium">檔案上傳 (File)</label>
-        <Input {...args} type="file" />
+        <label htmlFor="file-input" className="text-sm font-medium">
+          檔案上傳 (File)
+        </label>
+        <Input {...args} id="file-input" type="file" />
       </div>
     </div>
   ),
@@ -82,12 +98,26 @@ export const SpecialStates: Story = {
   render: (args: React.ComponentProps<typeof Input>) => (
     <div className="flex max-w-sm flex-col gap-4">
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium">禁用狀態 (Disabled)</label>
-        <Input {...args} disabled placeholder="已被禁用的輸入框" />
+        <label htmlFor="disabled-input" className="text-sm font-medium">
+          禁用狀態 (Disabled)
+        </label>
+        <Input
+          {...args}
+          id="disabled-input"
+          disabled
+          placeholder="已被禁用的輸入框"
+        />
       </div>
       <div className="flex flex-col gap-1.5">
-        <label className="text-sm font-medium">唯讀狀態 (Read-Only)</label>
-        <Input {...args} readOnly defaultValue="這是唯讀的內容，不可修改" />
+        <label htmlFor="readonly-input" className="text-sm font-medium">
+          唯讀狀態 (Read-Only)
+        </label>
+        <Input
+          {...args}
+          id="readonly-input"
+          readOnly
+          defaultValue="這是唯讀的內容，不可修改"
+        />
       </div>
     </div>
   ),

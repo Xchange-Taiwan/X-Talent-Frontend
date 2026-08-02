@@ -101,7 +101,10 @@ export const Password: Story = {
       autocomplete="current-password"
       forgotPasswordLink={
         <div className="text-right text-xs">
-          <a href="#" className="text-text-tertiary hover:underline">
+          <a
+            href="/forgot-password"
+            className="text-text-tertiary hover:underline"
+          >
             忘記密碼？
           </a>
         </div>

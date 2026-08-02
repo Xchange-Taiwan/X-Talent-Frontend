@@ -1,7 +1,7 @@
 import { Camera, ImageIcon } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Control, FieldValues, Path, useController } from 'react-hook-form';
 
 // Lazy-load the crop modal — it pulls in react-avatar-editor and @mui/material
@@ -25,6 +25,8 @@ const AvatarUpload = <T extends FieldValues>({
 }: AvatarUploadProps<T>) => {
   const { field, fieldState } = useController({ control, name });
   const errorMessage = fieldState.error?.message;
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const imagePreviewUrl = field.value
     ? URL.createObjectURL(field.value)
@@ -61,14 +63,23 @@ const AvatarUpload = <T extends FieldValues>({
         className={`group relative flex size-36 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 bg-avatar-background lg:h-[150px] lg:w-[150px] ${
           errorMessage ? 'border-status-error-default' : 'border-avatar-border'
         }`}
-        onClick={() => document.getElementById('fileInput')?.click()}
+        onClick={() => fileInputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault();
+            fileInputRef.current?.click();
+          }
+        }}
+        role="button"
+        tabIndex={0}
       >
         <input
-          id="fileInput"
+          ref={fileInputRef}
           type="file"
           accept="image/*"
-          style={{ display: 'none' }}
+          className="hidden"
           onChange={handleUploadAvatar}
+          onClick={(e) => e.stopPropagation()}
         />
 
         {/* Hover show upload icon */}

@@ -14,10 +14,10 @@ import {
 import type { Reservation } from './types';
 
 export interface ReservationDashboardProps {
-  role: ReservationRole;
+  userRole: ReservationRole;
 }
 
-export function ReservationDashboard({ role }: ReservationDashboardProps) {
+export function ReservationDashboard({ userRole }: ReservationDashboardProps) {
   const {
     data,
     initialState,
@@ -28,7 +28,7 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
     loadMore,
     loadHistory,
     onMutationSuccess,
-  } = useReservationData({ role });
+  } = useReservationData({ role: userRole });
 
   const upcoming = data?.upcoming ?? [];
   const pending = data?.pending ?? [];
@@ -48,7 +48,7 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
 
   return (
     <ReservationDashboardView
-      role={role}
+      userRole={userRole}
       myUserId={myUserId}
       upcoming={upcoming}
       pending={pending}
@@ -69,7 +69,7 @@ export function ReservationDashboard({ role }: ReservationDashboardProps) {
 }
 
 export interface ReservationDashboardViewProps {
-  role: ReservationRole;
+  userRole: ReservationRole;
   myUserId: string | undefined;
   upcoming: Reservation[];
   pending: Reservation[];
@@ -96,7 +96,7 @@ export interface ReservationDashboardViewProps {
 }
 
 export function ReservationDashboardView({
-  role,
+  userRole,
   myUserId,
   upcoming,
   pending,
@@ -113,7 +113,7 @@ export function ReservationDashboardView({
   onLoadHistory,
   onMutationSuccess,
 }: ReservationDashboardViewProps) {
-  const isMentee = role === 'mentee';
+  const isMentee = userRole === 'mentee';
   const upcomingTabValue = isMentee ? 'upcoming-mentee' : 'upcoming-mentor';
   const pendingTabValue = isMentee ? 'pending-mentee' : 'pending-mentor';
 
@@ -198,7 +198,7 @@ export function ReservationDashboardView({
                   <ReservationList
                     items={upcoming}
                     variant="upcoming"
-                    sourceRole={role}
+                    sourceRole={userRole}
                     myUserId={myUserId}
                     hasMore={nextTokens.upcoming !== 0}
                     onLoadMore={onLoadMoreUpcoming}
@@ -215,7 +215,7 @@ export function ReservationDashboardView({
                   <ReservationList
                     items={pending}
                     variant={pendingVariant}
-                    sourceRole={role}
+                    sourceRole={userRole}
                     myUserId={myUserId}
                     hasMore={nextTokens.pending !== 0}
                     onLoadMore={onLoadMorePending}
@@ -232,7 +232,7 @@ export function ReservationDashboardView({
                   <ReservationList
                     items={history}
                     variant="history"
-                    sourceRole={role}
+                    sourceRole={userRole}
                     myUserId={myUserId}
                     hasMore={nextTokens.history !== 0}
                     onLoadMore={onLoadMoreHistory}
