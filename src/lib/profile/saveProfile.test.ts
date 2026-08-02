@@ -631,4 +631,59 @@ describe('saveProfile (Deep Module)', () => {
     await Promise.resolve();
     await Promise.resolve();
   });
+
+  // ── Session User ID vs Page User ID Fallback ──────────────────────────────
+
+  it('saveProfile passes sessionUserId to firstSyncedFetch and pollUntilSynced', async () => {
+    mockFirstSyncedFetch.mockResolvedValueOnce(null);
+    mockPollUntilSynced.mockResolvedValueOnce(mockUserDTO);
+
+    const deps = makeDeps({
+      session: {
+        user: {
+          id: '88',
+          name: 'Sync Test User',
+          email: 'test@example.com',
+          image: '',
+        },
+        expires: '',
+      },
+    });
+
+    await saveProfile(baseValues, deps);
+
+    await vi.waitFor(() => {
+      expect(mockFirstSyncedFetch).toHaveBeenCalledWith(
+        88,
+        expect.any(Object),
+        expect.any(String)
+      );
+      expect(mockPollUntilSynced).toHaveBeenCalledWith(
+        88,
+        expect.any(Object),
+        expect.any(String)
+      );
+    });
+  });
+
+  it('saveProfile falls back to pageUserId as number when sessionUserId is not available', async () => {
+    mockFirstSyncedFetch.mockResolvedValueOnce(null);
+    mockPollUntilSynced.mockResolvedValueOnce(mockUserDTO);
+
+    const deps = makeDeps({
+      session: null, // sessionUserId is null
+      pageUserId: '99', // fallback should be 99
+    });
+
+    await saveProfile(baseValues, deps);
+
+    await vi.waitFor(() => {
+      expect(mockFirstSyncedFetch).not.toHaveBeenCalled();
+      expect(mockPollUntilSynced).toHaveBeenCalledWith(
+        99,
+        expect.any(Object),
+        expect.any(String)
+      );
+    });
+  });
 });

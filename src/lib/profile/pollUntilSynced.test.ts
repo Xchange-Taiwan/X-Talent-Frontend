@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/services/profile/user', () => ({
-  fetchUser: vi.fn(),
+  fetchUserById: vi.fn(),
 }));
 
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
@@ -9,12 +9,12 @@ vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 import { fromAny, fromPartial } from '@total-typescript/shoehorn';
 
 import { defaultValues } from '@/schemas/profileSchema';
-import { fetchUser } from '@/services/profile/user';
+import { fetchUserById } from '@/services/profile/user';
 import type { MentorProfileVO } from '@/types/user';
 
 import { firstSyncedFetch } from './pollUntilSynced';
 
-const mockFetchUser = vi.mocked(fetchUser);
+const mockFetchUserById = vi.mocked(fetchUserById);
 
 const baseValues = {
   ...defaultValues,
@@ -44,7 +44,7 @@ const makeSyncedDto = (avatar = ''): MentorProfileVO =>
 describe('firstSyncedFetch', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    mockFetchUser.mockReset();
+    mockFetchUserById.mockReset();
   });
 
   afterEach(() => {
@@ -52,44 +52,44 @@ describe('firstSyncedFetch', () => {
   });
 
   it('returns the dto when backend already reflects submitted values', async () => {
-    mockFetchUser.mockResolvedValueOnce(makeSyncedDto());
+    mockFetchUserById.mockResolvedValueOnce(makeSyncedDto());
 
-    const result = await firstSyncedFetch(baseValues, '');
+    const result = await firstSyncedFetch(1, baseValues, '');
 
     expect(result).not.toBeNull();
     expect(result?.name).toBe('Sync Test');
   });
 
   it('returns null when backend has not yet synced (values disagree)', async () => {
-    mockFetchUser.mockResolvedValueOnce(
+    mockFetchUserById.mockResolvedValueOnce(
       fromPartial({
         ...makeSyncedDto(),
         name: 'Old Name',
       })
     );
 
-    const result = await firstSyncedFetch(baseValues, '');
+    const result = await firstSyncedFetch(1, baseValues, '');
 
     expect(result).toBeNull();
   });
 
   it('returns null on fetch error', async () => {
-    mockFetchUser.mockRejectedValueOnce(new Error('network down'));
+    mockFetchUserById.mockRejectedValueOnce(new Error('network down'));
 
-    const result = await firstSyncedFetch(baseValues, '');
+    const result = await firstSyncedFetch(1, baseValues, '');
 
     expect(result).toBeNull();
   });
 
   it('returns null when fetch exceeds timeout (does not block forever)', async () => {
-    mockFetchUser.mockImplementationOnce(
+    mockFetchUserById.mockImplementationOnce(
       () =>
         new Promise<MentorProfileVO | null>(() => {
           // Never resolves — must be cut by the timeout.
         })
     );
 
-    const promise = firstSyncedFetch(baseValues, '', 100);
+    const promise = firstSyncedFetch(1, baseValues, '', 100);
     await vi.advanceTimersByTimeAsync(150);
 
     expect(await promise).toBeNull();
@@ -97,7 +97,7 @@ describe('firstSyncedFetch', () => {
 
   describe('isProfileSynced industry boundary conditions', () => {
     it('syncs successfully when latest.industry matching values.industry', async () => {
-      mockFetchUser.mockResolvedValueOnce(
+      mockFetchUserById.mockResolvedValueOnce(
         fromAny({
           ...makeSyncedDto(),
           industry: { subject_group: 'tech' },
@@ -105,6 +105,7 @@ describe('firstSyncedFetch', () => {
       );
 
       const result = await firstSyncedFetch(
+        1,
         { ...baseValues, industry: 'tech' },
         ''
       );
@@ -112,7 +113,7 @@ describe('firstSyncedFetch', () => {
     });
 
     it('does not sync when latest.industry does not match values.industry', async () => {
-      mockFetchUser.mockResolvedValueOnce(
+      mockFetchUserById.mockResolvedValueOnce(
         fromAny({
           ...makeSyncedDto(),
           industry: { subject_group: 'design' },
@@ -120,6 +121,7 @@ describe('firstSyncedFetch', () => {
       );
 
       const result = await firstSyncedFetch(
+        1,
         { ...baseValues, industry: 'tech' },
         ''
       );
@@ -127,7 +129,7 @@ describe('firstSyncedFetch', () => {
     });
 
     it('syncs successfully when latest.industry is null and values.industry is undefined or empty', async () => {
-      mockFetchUser.mockResolvedValueOnce(
+      mockFetchUserById.mockResolvedValueOnce(
         fromPartial({
           ...makeSyncedDto(),
           industry: null,
@@ -135,6 +137,7 @@ describe('firstSyncedFetch', () => {
       );
 
       const result = await firstSyncedFetch(
+        1,
         { ...baseValues, industry: '' },
         ''
       );
@@ -142,7 +145,7 @@ describe('firstSyncedFetch', () => {
     });
 
     it('does not sync when latest.industry is null but values.industry has a value', async () => {
-      mockFetchUser.mockResolvedValueOnce(
+      mockFetchUserById.mockResolvedValueOnce(
         fromPartial({
           ...makeSyncedDto(),
           industry: null,
@@ -150,6 +153,7 @@ describe('firstSyncedFetch', () => {
       );
 
       const result = await firstSyncedFetch(
+        1,
         { ...baseValues, industry: 'tech' },
         ''
       );
@@ -159,9 +163,10 @@ describe('firstSyncedFetch', () => {
     it('syncs successfully when latest.industry is undefined and values.industry is empty', async () => {
       const dto = makeSyncedDto();
       delete dto.industry;
-      mockFetchUser.mockResolvedValueOnce(dto);
+      mockFetchUserById.mockResolvedValueOnce(dto);
 
       const result = await firstSyncedFetch(
+        1,
         { ...baseValues, industry: '' },
         ''
       );
@@ -171,9 +176,10 @@ describe('firstSyncedFetch', () => {
     it('does not sync when latest.industry is undefined but values.industry has a value', async () => {
       const dto = makeSyncedDto();
       delete dto.industry;
-      mockFetchUser.mockResolvedValueOnce(dto);
+      mockFetchUserById.mockResolvedValueOnce(dto);
 
       const result = await firstSyncedFetch(
+        1,
         { ...baseValues, industry: 'tech' },
         ''
       );
@@ -181,7 +187,7 @@ describe('firstSyncedFetch', () => {
     });
 
     it('does not sync when latest.industry is a primitive invalid value', async () => {
-      mockFetchUser.mockResolvedValueOnce(
+      mockFetchUserById.mockResolvedValueOnce(
         fromAny({
           ...makeSyncedDto(),
           industry: 'not-an-object',
@@ -189,6 +195,7 @@ describe('firstSyncedFetch', () => {
       );
 
       const result = await firstSyncedFetch(
+        1,
         { ...baseValues, industry: 'tech' },
         ''
       );

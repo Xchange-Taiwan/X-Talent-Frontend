@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { createKeyedCache } from '@/lib/createKeyedCache';
 import { fetchUserById } from '@/services/profile/user';
@@ -78,10 +78,13 @@ function startFetchUserById(
   });
 }
 
+export type ProfileFetchError = 'USER_NOT_FOUND' | 'FETCH_FAILED' | null;
+
 export interface UseUserProfileDtoResult {
   userDto: MentorProfileVO | null;
   isLoading: boolean;
-  error: string | null;
+  error: ProfileFetchError;
+  refetch?: () => void;
 }
 
 /**
@@ -93,6 +96,8 @@ export function useUserProfileDto(
   userId: number,
   language: string
 ): UseUserProfileDtoResult {
+  const [retryTrigger, setRetryTrigger] = useState(0);
+
   // Lazy-init from cache so SSR-primed data lands in state on the first
   // render — avoids a one-frame loading flash before useEffect's cache read
   // catches up. When the cache is empty the hook still defaults to
@@ -107,7 +112,15 @@ export function useUserProfileDto(
     if (!isUserIdValid || !language) return false;
     return !readFromDataCache(`${userId}-${language}`);
   });
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ProfileFetchError>(null);
+
+  const refetch = useCallback(() => {
+    const key = `${userId}-${language}`;
+    userProfileDtoCache.delete(key);
+    setError(null);
+    setIsLoading(true);
+    setRetryTrigger((prev) => prev + 1);
+  }, [userId, language]);
 
   useEffect(() => {
     const isUserIdValid = Boolean(userId) && !Number.isNaN(userId);
@@ -158,7 +171,7 @@ export function useUserProfileDto(
         if (cancelled) return;
         if (!data) {
           setUserDto(null);
-          setError('User not found');
+          setError('USER_NOT_FOUND');
           return;
         }
         setUserDto(data);
@@ -168,7 +181,7 @@ export function useUserProfileDto(
         console.error('Failed to load user profile dto:', e);
         if (cancelled) return;
         setUserDto(null);
-        setError('Failed to load user data');
+        setError('FETCH_FAILED');
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -177,7 +190,7 @@ export function useUserProfileDto(
     return () => {
       cancelled = true;
     };
-  }, [userId, language]);
+  }, [userId, language, retryTrigger]);
 
-  return { userDto, isLoading, error };
+  return { userDto, isLoading, error, refetch };
 }

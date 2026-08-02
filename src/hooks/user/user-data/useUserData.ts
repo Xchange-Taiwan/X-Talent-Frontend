@@ -111,6 +111,7 @@ function useUserData(userId: number, language: string) {
     userDto,
     isLoading: dtoLoading,
     error,
+    refetch,
   } = useUserProfileDto(userId, language);
   // Catalog supplies localized labels for the raw subject_group arrays
   // (want_*, have_*) and for the enriched industry. Loads in parallel with
@@ -121,7 +122,7 @@ function useUserData(userId: number, language: string) {
     ? parseUserDtoToUserType(userDto, tagCatalog)
     : null;
 
-  return { userData, isLoading: dtoLoading, error };
+  return { userData, isLoading: dtoLoading, error, refetch };
 }
 
 export default useUserData;

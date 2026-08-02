@@ -229,7 +229,7 @@ describe('useUserData caching', () => {
 
     const first = renderHook(() => useUserData(userId, 'en'));
     await waitFor(() => expect(first.result.current.isLoading).toBe(false));
-    expect(first.result.current.error).toBe('User not found');
+    expect(first.result.current.error).toBe('USER_NOT_FOUND');
     first.unmount();
 
     mockFetchUserById.mockResolvedValueOnce(makeUserDto(userId));

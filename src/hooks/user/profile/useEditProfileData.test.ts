@@ -10,7 +10,10 @@ import {
   vi,
 } from 'vitest';
 
-import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
+import {
+  type ProfileFetchError,
+  useUserProfileDto,
+} from '@/hooks/user/user-data/useUserProfileDto';
 import { MentorProfileVO } from '@/types/user';
 
 import { useEditProfileData } from './useEditProfileData';
@@ -121,7 +124,7 @@ describe('useEditProfileData', () => {
     mockUseUserProfileDto.mockReturnValue({
       userDto: null,
       isLoading: false,
-      error: 'Fetch failed',
+      error: 'FETCH_FAILED',
     });
 
     const { result } = renderHook(() =>
@@ -146,7 +149,7 @@ describe('useEditProfileData', () => {
     mockUseUserProfileDto.mockReturnValue({
       userDto: null,
       isLoading: false,
-      error: 'Network Timeout',
+      error: 'FETCH_FAILED',
     });
 
     const { result, rerender } = renderHook(
@@ -186,7 +189,7 @@ describe('useEditProfileData', () => {
     mockUseUserProfileDto.mockReturnValue({
       userDto: null,
       isLoading: false,
-      error: mockErrorObject as unknown as string,
+      error: mockErrorObject as unknown as ProfileFetchError,
     });
 
     renderHook(() =>
@@ -233,7 +236,7 @@ describe('useEditProfileData', () => {
     mockUseUserProfileDto.mockReturnValue({
       userDto: mockUserDto,
       isLoading: false,
-      error: 'Background Focus Sync Timeout',
+      error: 'FETCH_FAILED',
     });
 
     rerender({
