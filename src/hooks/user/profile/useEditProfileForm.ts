@@ -10,16 +10,20 @@ import {
   ProfileFormValues,
 } from '@/schemas/profileSchema';
 
-export type ProfileFormContext = UseFormReturn<ProfileFormValues>;
+export type ProfileFormContext = UseFormReturn<
+  ProfileFormValues,
+  any,
+  ProfileFormValues
+>;
 
 export function useEditProfileForm(isMentor: boolean): {
   form: ProfileFormContext;
 } {
   const resolver = useMemo(() => {
-    return zodResolver(createProfileFormSchema(isMentor));
+    return zodResolver(createProfileFormSchema(isMentor)) as any;
   }, [isMentor]);
 
-  const form = useForm<ProfileFormValues>({
+  const form = useForm<ProfileFormValues, any, ProfileFormValues>({
     resolver,
     defaultValues: defaultValues as unknown as ProfileFormValues,
   });
