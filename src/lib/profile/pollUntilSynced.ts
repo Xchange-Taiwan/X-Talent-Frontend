@@ -24,6 +24,8 @@ export async function firstSyncedFetch(
   avatar: string,
   timeoutMs = 800
 ): Promise<MentorProfileVO | null> {
+  if (!userId || Number.isNaN(userId)) return null;
+
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<null>((resolve) => {
     timer = setTimeout(() => resolve(null), timeoutMs);
@@ -56,6 +58,8 @@ export async function pollUntilSynced(
   maxRetries = 12,
   intervalMs = 5000
 ): Promise<MentorProfileVO | null> {
+  if (!userId || Number.isNaN(userId)) return null;
+
   let latest: MentorProfileVO | null = null;
   let synced = false;
 

@@ -102,6 +102,27 @@ describe('fetchUserById service', () => {
     expect(apiClient.getUnwrapped).toHaveBeenCalledTimes(1); // No retry
   });
 
+  it('automatically retries once on 5xx server error and succeeds', async () => {
+    const mockUser = { user_id: 1, name: 'Alice' };
+    const serverError = new ApiError(500, 'Internal Server Error');
+    vi.mocked(apiClient.getUnwrapped)
+      .mockRejectedValueOnce(serverError)
+      .mockResolvedValueOnce(mockUser);
+
+    const result = await fetchUserById(1, 'zh_TW');
+
+    expect(result).toEqual(mockUser);
+    expect(apiClient.getUnwrapped).toHaveBeenCalledTimes(2); // Should retry
+  });
+
+  it('does not retry and throws immediately on 400/401 client errors', async () => {
+    const badRequestError = new ApiError(400, 'Bad Request');
+    vi.mocked(apiClient.getUnwrapped).mockRejectedValueOnce(badRequestError);
+
+    await expect(fetchUserById(1, 'zh_TW')).rejects.toThrow('Bad Request');
+    expect(apiClient.getUnwrapped).toHaveBeenCalledTimes(1); // No retry
+  });
+
   it('skips Sentry captureFlowFailure logging when silent is true', async () => {
     vi.mocked(apiClient.getUnwrapped).mockRejectedValue(
       new Error('Silent connection error')
