@@ -82,6 +82,7 @@ export interface UseUserProfileDtoResult {
   userDto: MentorProfileVO | null;
   isLoading: boolean;
   error: string | null;
+  refetch?: () => void;
 }
 
 /**
@@ -93,6 +94,14 @@ export function useUserProfileDto(
   userId: number,
   language: string
 ): UseUserProfileDtoResult {
+  const [retryTrigger, setRetryTrigger] = useState(0);
+
+  const refetch = () => {
+    const key = `${userId}-${language}`;
+    userProfileDtoCache.delete(key);
+    setRetryTrigger((prev) => prev + 1);
+  };
+
   // Lazy-init from cache so SSR-primed data lands in state on the first
   // render — avoids a one-frame loading flash before useEffect's cache read
   // catches up. When the cache is empty the hook still defaults to
@@ -177,7 +186,7 @@ export function useUserProfileDto(
     return () => {
       cancelled = true;
     };
-  }, [userId, language]);
+  }, [userId, language, retryTrigger]);
 
-  return { userDto, isLoading, error };
+  return { userDto, isLoading, error, refetch };
 }

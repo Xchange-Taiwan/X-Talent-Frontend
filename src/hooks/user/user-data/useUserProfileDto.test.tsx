@@ -113,4 +113,30 @@ describe('useUserProfileDto', () => {
     expect(retryResult.current.userDto).toEqual(mockUserDTO);
     expect(fetchUserById).toHaveBeenCalledTimes(2);
   });
+
+  it('provides a refetch function that clears cache and forces refetch', async () => {
+    vi.mocked(fetchUserById).mockResolvedValueOnce(mockUserDTO);
+
+    const { result } = renderHook(() => useUserProfileDto(3, 'zh-TW'));
+
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.userDto).toEqual(mockUserDTO);
+    expect(fetchUserById).toHaveBeenCalledTimes(1);
+
+    // Call refetch
+    vi.mocked(fetchUserById).mockResolvedValueOnce({
+      ...mockUserDTO,
+      name: 'Updated Name',
+    });
+    result.current.refetch?.();
+
+    await vi.waitFor(() => {
+      expect(result.current.userDto?.name).toBe('Updated Name');
+    });
+
+    expect(fetchUserById).toHaveBeenCalledTimes(2);
+  });
 });

@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
+import { Button } from '@/components/ui/button';
 import { BookingSlot, useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfirmation';
@@ -86,10 +87,12 @@ export default function ProfilePageContainer({
     : initialLoginUserId;
   const isLogging = Boolean(loginUserId);
 
-  const { userData, isLoading: userLoading } = useUserData(
-    pageUserIdNumber,
-    'zh_TW'
-  );
+  const {
+    userData,
+    isLoading: userLoading,
+    error,
+    refetch,
+  } = useUserData(pageUserIdNumber, 'zh_TW');
 
   // The S3 avatar URL is a stable key (re-uploads overwrite in place), so a
   // `?v=` query is the only way to bust the Image Optimizer / browser cache.
@@ -122,6 +125,19 @@ export default function ProfilePageContainer({
     selectedSlot,
     setSelectedSlot,
   });
+
+  if (error === 'Failed to load user data') {
+    return (
+      <div className="flex h-[50vh] flex-col items-center justify-center gap-4 text-center">
+        <p className="font-medium text-text-tertiary">
+          載入個人檔案資料時發生連線錯誤
+        </p>
+        <Button onClick={refetch} variant="default" size="default">
+          重新載入
+        </Button>
+      </div>
+    );
+  }
 
   if (!userLoading && !userData) {
     return (
