@@ -44,10 +44,6 @@ export function formatDateTime(dtstart: number, dtend: number) {
  * Resolve the counterparty based on who is currently logged in.
  * Supports both raw ReservationInfoVO and mapped Reservation objects.
  */
-/**
- * Resolve the counterparty based on who is currently logged in.
- * Supports both raw ReservationInfoVO and mapped Reservation objects.
- */
 export function resolveCounterparty(
   reservation: components['schemas']['ReservationInfoVO'],
   myUserId?: string | number | null
@@ -66,63 +62,72 @@ export function resolveCounterparty(
 export function resolveCounterparty(
   reservation: components['schemas']['ReservationInfoVO'] | Reservation,
   myUserId?: string | number | null
-): any {
-  // Check if it is a raw ReservationInfoVO (which has 'sender' or 'participant' fields)
-  if (
-    reservation &&
-    ('sender' in reservation || 'participant' in reservation)
-  ) {
-    const rawRes = reservation as components['schemas']['ReservationInfoVO'];
-    const counterparty =
-      myUserId == null
+):
+  | {
+      name: string;
+      avatar?: string;
+      roleLine: string;
+      cancelledBy?: 'MENTEE' | 'MENTOR';
+    }
+  | string
+  | number {
+  if (!reservation) {
+    return '';
+  }
+
+  // Check if it is a mapped Reservation
+  if ('senderUserId' in reservation || 'participantUserId' in reservation) {
+    const mappedRes = reservation as Reservation;
+    const senderId = mappedRes.senderUserId;
+    if (
+      senderId != null &&
+      myUserId != null &&
+      String(myUserId) === String(senderId)
+    ) {
+      return mappedRes.participantUserId;
+    }
+    return mappedRes.senderUserId;
+  }
+
+  // Otherwise, it is a raw ReservationInfoVO
+  const rawRes = reservation as components['schemas']['ReservationInfoVO'];
+  const counterparty =
+    myUserId == null
+      ? (rawRes.participant ?? rawRes.sender)
+      : rawRes.sender?.user_id != null &&
+          String(myUserId) === String(rawRes.sender.user_id)
         ? (rawRes.participant ?? rawRes.sender)
-        : rawRes.sender?.user_id != null &&
-            String(myUserId) === String(rawRes.sender.user_id)
-          ? (rawRes.participant ?? rawRes.sender)
-          : (rawRes.sender ?? rawRes.participant);
+        : (rawRes.sender ?? rawRes.participant);
 
-    const name = counterparty?.name || '—';
-    const avatar = counterparty?.avatar ?? undefined;
+  const name = counterparty?.name || '—';
+  const avatar = counterparty?.avatar ?? undefined;
 
-    const roleLine = [
-      counterparty?.job_title?.trim() || '',
-      formatExperience(counterparty?.years_of_experience),
-    ]
-      .filter(Boolean)
-      .join(', ');
+  const roleLine = [
+    counterparty?.job_title?.trim() || '',
+    formatExperience(counterparty?.years_of_experience),
+  ]
+    .filter(Boolean)
+    .join(', ');
 
-    const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
-      r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
+  const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
+    r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
 
-    const currentUserSide =
-      counterparty === rawRes.participant ? rawRes.sender : rawRes.participant;
+  const currentUserSide =
+    counterparty === rawRes.participant ? rawRes.sender : rawRes.participant;
 
-    const cancelledBy =
-      counterparty?.status === 'REJECT'
-        ? toRole(counterparty?.role)
-        : currentUserSide?.status === 'REJECT'
-          ? toRole(currentUserSide?.role)
-          : undefined;
+  const cancelledBy =
+    counterparty?.status === 'REJECT'
+      ? toRole(counterparty?.role)
+      : currentUserSide?.status === 'REJECT'
+        ? toRole(currentUserSide?.role)
+        : undefined;
 
-    return {
-      name,
-      avatar,
-      roleLine,
-      cancelledBy,
-    };
-  }
-
-  // Otherwise, it is a mapped Reservation
-  const mappedRes = reservation as Reservation;
-  const senderId = mappedRes.senderUserId;
-  if (
-    senderId != null &&
-    myUserId != null &&
-    String(myUserId) === String(senderId)
-  ) {
-    return mappedRes.participantUserId;
-  }
-  return mappedRes.senderUserId;
+  return {
+    name,
+    avatar,
+    roleLine,
+    cancelledBy,
+  };
 }
 
 /* ================================
