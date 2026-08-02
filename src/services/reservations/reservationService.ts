@@ -1,7 +1,7 @@
 import dayjs from 'dayjs';
 
-import { TotalWorkSpanEnum } from '@/constant/seniority';
 import { apiClient, FetchApiError } from '@/lib/apiClient';
+import { resolveCounterpartyProfile } from '@/lib/reservation/resolveCounterparty';
 import { Reservation, ReservationMessage } from '@/services/reservations/types';
 import { components } from '@/types/api';
 
@@ -25,12 +25,6 @@ export type FetchOptions = {
  * Helpers
  * ================================ */
 
-export function formatExperience(yearsOfExperience?: string | null) {
-  return (
-    TotalWorkSpanEnum[yearsOfExperience as keyof typeof TotalWorkSpanEnum] ?? ''
-  );
-}
-
 export function formatDateTime(dtstart: number, dtend: number) {
   const start = dayjs.unix(dtstart);
   const end = dayjs.unix(dtend);
@@ -39,15 +33,6 @@ export function formatDateTime(dtstart: number, dtend: number) {
     time: `${start.format('h:mm a')} – ${end.format('h:mm a')}`,
   };
 }
-
-/**
- * Resolve the other party's user_id based on who is currently logged in.
- */
-export const resolveOtherId = (
-  it: Reservation,
-  myUserId: string
-): string | number =>
-  String(it.senderUserId) === myUserId ? it.participantUserId : it.senderUserId;
 
 /* ================================
  * Mapping
@@ -70,64 +55,11 @@ function classifyMessageRole(
   return undefined;
 }
 
-export function resolveCounterparty(
-  reservation: components['schemas']['ReservationInfoVO'],
-  myUserId?: string | number | null
-): {
-  name: string;
-  avatar?: string;
-  roleLine: string;
-  cancelledBy?: 'MENTEE' | 'MENTOR';
-} {
-  // If myUserId is provided and equals reservation.sender.user_id, the counterparty is set to reservation.participant.
-  // If myUserId is provided and does NOT equal reservation.sender.user_id, the counterparty is set to reservation.sender.
-  // If myUserId is omitted (null or undefined), the counterparty defaults to reservation.participant for backward compatibility.
-  const counterparty =
-    myUserId == null
-      ? (reservation.participant ?? reservation.sender)
-      : reservation.sender?.user_id != null &&
-          String(myUserId) === String(reservation.sender.user_id)
-        ? (reservation.participant ?? reservation.sender)
-        : (reservation.sender ?? reservation.participant);
-
-  const name = counterparty?.name || '—';
-  const avatar = counterparty?.avatar ?? undefined;
-
-  const roleLine = [
-    counterparty?.job_title?.trim() || '',
-    formatExperience(counterparty?.years_of_experience),
-  ]
-    .filter(Boolean)
-    .join(', ');
-
-  const toRole = (r?: string | null): 'MENTEE' | 'MENTOR' | undefined =>
-    r === 'MENTEE' || r === 'MENTOR' ? r : undefined;
-
-  const currentUserSide =
-    counterparty === reservation.participant
-      ? reservation.sender
-      : reservation.participant;
-
-  const cancelledBy =
-    counterparty?.status === 'REJECT'
-      ? toRole(counterparty?.role)
-      : currentUserSide?.status === 'REJECT'
-        ? toRole(currentUserSide?.role)
-        : undefined;
-
-  return {
-    name,
-    avatar,
-    roleLine,
-    cancelledBy,
-  };
-}
-
 export function mapToReservation(
   reservation: components['schemas']['ReservationInfoVO'],
   myUserId?: string | number | null
 ): Reservation {
-  const { name, avatar, roleLine, cancelledBy } = resolveCounterparty(
+  const { name, avatar, roleLine, cancelledBy } = resolveCounterpartyProfile(
     reservation,
     myUserId
   );

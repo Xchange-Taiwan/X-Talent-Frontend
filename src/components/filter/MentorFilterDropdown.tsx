@@ -1,5 +1,5 @@
 import * as Popover from '@radix-ui/react-popover';
-import { ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, ChevronUp, ListFilter } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 
 import FilterSelect from '@/components/filter/FilterSelect';
@@ -59,7 +59,7 @@ const MentorFilterDropdown = ({
       <Popover.Trigger asChild>
         <button className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-background-border px-4 py-1">
           <div className="flex items-center gap-1">
-            <SlidersHorizontal className="size-5" />
+            <ListFilter className="size-5" />
             <span>篩選</span>
           </div>
           {open ? (

@@ -1,15 +1,15 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 
-import GoogleSignUpButton from './GoogleButton';
+import GoogleButton from './GoogleButton';
 
-const meta: Meta<typeof GoogleSignUpButton> = {
+const meta: Meta<typeof GoogleButton> = {
   title: '業務模組元件/會員驗證(Auth)/GoogleButton',
-  component: GoogleSignUpButton,
+  component: GoogleButton,
   tags: ['autodocs'],
 };
 
 export default meta;
-type Story = StoryObj<typeof GoogleSignUpButton>;
+type Story = StoryObj<typeof GoogleButton>;
 
 export const SignInButton: Story = {
   args: {
