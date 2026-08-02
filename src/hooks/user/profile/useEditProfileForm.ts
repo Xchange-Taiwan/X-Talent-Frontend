@@ -23,7 +23,7 @@ export function useEditProfileForm(isMentor: boolean): {
 } {
   const resolver = useMemo(() => {
     return zodResolver(
-      createProfileFormSchema(isMentor) as z.ZodSchema<
+      createProfileFormSchema(isMentor) as z.ZodType<
         ProfileFormValues,
         z.ZodTypeDef,
         ProfileFormInput
