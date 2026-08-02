@@ -35,6 +35,32 @@ describe('Information Component', () => {
     haveTopicLabels: ['React', 'TypeScript', 'Node.js'],
   };
 
+  // Helper to mock client rect dimensions cleanly and DRY-ly
+  const setupMockClientRect = (displayWidth: number) => {
+    return vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        if (this.getAttribute('data-testid') === 'display-container') {
+          return {
+            width: displayWidth,
+            height: 40,
+            top: 0,
+            left: 0,
+            bottom: 0,
+            right: 0,
+          } as DOMRect;
+        }
+        return {
+          width: 40,
+          height: 20,
+          top: 0,
+          left: 0,
+          bottom: 0,
+          right: 0,
+        } as DOMRect;
+      });
+  };
+
   beforeAll(() => {
     // Safely mock global ResizeObserver without direct contamination or any casting
     vi.stubGlobal('ResizeObserver', MockResizeObserver);
@@ -94,29 +120,7 @@ describe('Information Component', () => {
   });
 
   it('renders correct number of tags and "+N" badge when container width is small on initial mount', () => {
-    // Use vi.spyOn to safely mock HTMLElement.prototype.getBoundingClientRect
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
-      function (this: HTMLElement) {
-        if (this.getAttribute('data-testid') === 'display-container') {
-          return {
-            width: 100,
-            height: 40,
-            top: 0,
-            left: 0,
-            bottom: 0,
-            right: 0,
-          } as DOMRect;
-        }
-        return {
-          width: 40,
-          height: 20,
-          top: 0,
-          left: 0,
-          bottom: 0,
-          right: 0,
-        } as DOMRect;
-      }
-    );
+    setupMockClientRect(100);
 
     render(<Information {...defaultProps} />);
 
@@ -135,30 +139,7 @@ describe('Information Component', () => {
 
   it('dynamically updates visible tags and "+N" badge when ResizeObserver triggers a size change', () => {
     let mockedContainerWidth = 500; // start with a wide width fitting all tags
-
-    // Use vi.spyOn to safely mock HTMLElement.prototype.getBoundingClientRect
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
-      function (this: HTMLElement) {
-        if (this.getAttribute('data-testid') === 'display-container') {
-          return {
-            width: mockedContainerWidth,
-            height: 40,
-            top: 0,
-            left: 0,
-            bottom: 0,
-            right: 0,
-          } as DOMRect;
-        }
-        return {
-          width: 40,
-          height: 20,
-          top: 0,
-          left: 0,
-          bottom: 0,
-          right: 0,
-        } as DOMRect;
-      }
-    );
+    setupMockClientRect(mockedContainerWidth);
 
     render(<Information {...defaultProps} />);
 
