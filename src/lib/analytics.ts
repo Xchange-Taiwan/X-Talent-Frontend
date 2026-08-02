@@ -39,7 +39,7 @@ export interface BehaviorEvent {
   /** snake_case event name — format: <feature>_<action> */
   name: string;
   /** Module or feature area this event belongs to */
-  feature?: 'auth' | 'onboarding' | 'reservation' | 'profile';
+  feature?: 'auth' | 'onboarding' | 'reservation' | 'profile' | 'performance';
   /**
    * Optional key-value metadata for additional context.
    * Do NOT include passwords, tokens, emails, or personal info.
@@ -77,7 +77,10 @@ function getGtag(): GtagFn | undefined {
  *
  * Do NOT include passwords, tokens, emails, or personal info.
  */
-export function trackEvent(event: BehaviorEvent): void {
+export function trackEvent(
+  event: BehaviorEvent,
+  options?: { skipClarity?: boolean }
+): void {
   // — GA4 —
   const gtag = getGtag();
   if (gtag) {
@@ -88,20 +91,22 @@ export function trackEvent(event: BehaviorEvent): void {
   }
 
   // — Clarity —
-  const clarity = getClarity();
-  if (clarity) {
-    clarity('event', event.name);
-    if (event.feature) clarity('set', 'feature', event.feature);
-    if (event.metadata) {
-      for (const [key, value] of Object.entries(event.metadata)) {
-        clarity('set', key, String(value));
+  if (!options?.skipClarity) {
+    const clarity = getClarity();
+    if (clarity) {
+      clarity('event', event.name);
+      if (event.feature) clarity('set', 'feature', event.feature);
+      if (event.metadata) {
+        for (const [key, value] of Object.entries(event.metadata)) {
+          clarity('set', key, String(value));
+        }
       }
     }
   }
 
   // — Local dev debug —
   if (process.env.NODE_ENV === 'development') {
-    console.debug('[analytics] trackEvent', event);
+    console.debug('[analytics] trackEvent', event, options);
   }
 }
 
