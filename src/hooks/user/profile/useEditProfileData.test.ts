@@ -11,7 +11,7 @@ import {
 } from 'vitest';
 
 import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
-import { MentorProfileVO } from '@/services/profile/user';
+import { MentorProfileVO } from '@/types/user';
 
 import { useEditProfileData } from './useEditProfileData';
 

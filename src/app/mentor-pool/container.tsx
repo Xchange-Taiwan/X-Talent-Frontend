@@ -10,7 +10,7 @@ import type {
 import { useMentorPool } from '@/hooks/useMentorPool';
 import useTagCatalog from '@/hooks/user/tags/useTagCatalog';
 import { trackEvent } from '@/lib/analytics';
-import { buildTagLabelMap } from '@/services/profile/tagCatalog';
+import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
 import type { MentorType } from '@/types/mentor';
 import type {
   TagCatalogGroupVO,

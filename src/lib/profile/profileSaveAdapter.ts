@@ -5,7 +5,7 @@ import {
 } from '@/lib/profile/parseUserExperiences';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
 import { defaultValues, ProfileFormValues } from '@/schemas/profileSchema';
-import { MentorProfileVO } from '@/services/profile/user';
+import type { MentorProfileVO } from '@/types/user';
 
 export type ProfileDirtyFields = Partial<
   Record<keyof ProfileFormValues, unknown>

@@ -1,7 +1,6 @@
 import { BASE_URL, fetchServerJson } from '@/lib/apiClient';
 import type { components } from '@/types/api';
-
-import type { MentorProfileVO } from './user';
+import type { MentorProfileVO } from '@/types/user';
 
 const REVALIDATE_SECONDS = 60;
 

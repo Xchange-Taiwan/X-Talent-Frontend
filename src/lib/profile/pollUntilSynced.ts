@@ -1,7 +1,8 @@
 import { captureFlowFailure } from '@/lib/monitoring';
 import { isProfileSynced } from '@/lib/profile/profileSaveAdapter';
 import { ProfileFormValues } from '@/schemas/profileSchema';
-import { fetchUser, MentorProfileVO } from '@/services/profile/user';
+import { fetchUser } from '@/services/profile/user';
+import type { MentorProfileVO } from '@/types/user';
 
 /**
  * Single, fast attempt to read the latest profile and confirm it matches the

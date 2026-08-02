@@ -22,3 +22,11 @@ export type TagBuckets = Record<TagBucketKey, TagCatalogGroupVO[]>;
 export interface TagCatalogsByBucket extends TagBuckets {
   industry: IndustryOption[];
 }
+
+export const TAG_BUCKET_KEYS: readonly TagBucketKey[] = [
+  'want_position',
+  'want_skill',
+  'want_topic',
+  'have_skill',
+  'have_topic',
+];

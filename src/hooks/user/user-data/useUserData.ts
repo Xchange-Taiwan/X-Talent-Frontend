@@ -8,9 +8,9 @@ import {
   type WorkExperienceMetadata,
 } from '@/lib/profile/experienceCodec';
 import { readIndustryTag } from '@/lib/profile/readIndustryTag';
-import { buildTagLabelMap } from '@/services/profile/tagCatalog';
-import { MentorProfileVO } from '@/services/profile/user';
+import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
+import type { MentorProfileVO } from '@/types/user';
 
 import {
   clearUserProfileDtoCache,
