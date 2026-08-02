@@ -1,8 +1,9 @@
-import { Modal, Slider } from '@mui/material';
+import * as SliderPrimitive from '@radix-ui/react-slider';
 import React, { useEffect, useRef, useState } from 'react';
 import AvatarEditor from 'react-avatar-editor';
 
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 
 interface AvatarCropModalProps {
   file: File | null;
@@ -109,55 +110,61 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
   };
 
   return (
-    <Modal open={isOpen} onClose={onClose}>
-      <div
-        className="fixed inset-0 flex items-center justify-center p-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="max-h-full overflow-y-auto rounded-lg bg-avatar-background p-6 shadow-lg">
-          {file && (
-            <div
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              onTouchCancel={handleTouchEnd}
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="max-h-full w-auto max-w-none overflow-y-auto bg-avatar-background sm:rounded-lg [&>button]:hidden">
+        <DialogTitle className="sr-only">裁切頭像</DialogTitle>
+        {file && (
+          <div
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+            style={{ touchAction: 'none' }}
+          >
+            <AvatarEditor
+              ref={editorRef}
+              image={file}
+              width={editorSize}
+              height={editorSize}
+              border={50}
+              borderRadius={300}
+              scale={zoomScale}
               style={{ touchAction: 'none' }}
-            >
-              <AvatarEditor
-                ref={editorRef}
-                image={file}
-                width={editorSize}
-                height={editorSize}
-                border={50}
-                borderRadius={300}
-                scale={zoomScale}
-                style={{ touchAction: 'none' }}
-              />
-            </div>
-          )}
-          <Slider
-            value={zoomScale}
-            min={MIN_SCALE}
-            max={MAX_SCALE}
-            step={0.1}
-            onChange={(_, newScale) => setZoomScale(newScale as number)}
-            className="mt-4"
-          />
-          <div className="mt-4 flex justify-center gap-3">
-            <Button
-              variant="outline"
-              onClick={onClose}
-              className="rounded-xl px-12"
-            >
-              取消
-            </Button>
-            <Button onClick={handleSaveImage} className="rounded-xl px-12">
-              儲存
-            </Button>
+            />
           </div>
+        )}
+        <SliderPrimitive.Root
+          className="relative mt-4 flex h-5 w-full touch-none select-none items-center"
+          value={[zoomScale]}
+          min={MIN_SCALE}
+          max={MAX_SCALE}
+          step={0.1}
+          onValueChange={(value) => setZoomScale(value[0])}
+        >
+          <SliderPrimitive.Track className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-background-border">
+            <SliderPrimitive.Range className="absolute h-full bg-brand-500" />
+          </SliderPrimitive.Track>
+          <SliderPrimitive.Thumb className="block size-5 cursor-pointer rounded-full border-2 border-brand-500 bg-background-white ring-offset-background-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50" />
+        </SliderPrimitive.Root>
+        <div className="mt-4 flex justify-center gap-3">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="rounded-xl px-12"
+          >
+            取消
+          </Button>
+          <Button onClick={handleSaveImage} className="rounded-xl px-12">
+            儲存
+          </Button>
         </div>
-      </div>
-    </Modal>
+      </DialogContent>
+    </Dialog>
   );
 };
 
