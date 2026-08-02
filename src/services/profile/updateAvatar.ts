@@ -74,15 +74,12 @@ async function uploadToS3WithPresignedPost(
 ): Promise<void> {
   const formData = new FormData();
 
-  // S3 Presigned POST: 必須先塞所有 fields
+  // S3 presigned-POST requires fields and policy-matching Content-Type to be appended before the file field.
   Object.entries(presigned.fields).forEach(([k, v]) => {
     formData.append(k, v);
   });
 
-  // 很多 presigned policy 會要求 Content-Type
   formData.append('Content-Type', avatarFile.type);
-
-  // S3 期待 file 欄位名稱是 file
   formData.append('file', avatarFile);
 
   // S3 upload uses raw fetch — not our API, so apiClient is not used here

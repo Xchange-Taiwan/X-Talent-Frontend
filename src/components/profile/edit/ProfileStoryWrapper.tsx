@@ -19,9 +19,7 @@ export const ProfileStoryWrapper = <T extends z.ZodTypeAny>({
   children,
 }: ProfileStoryWrapperProps<T>) => {
   const form = useForm<z.input<T>, unknown, z.infer<T>>({
-    resolver: schema
-      ? zodResolver<z.input<T>, unknown, z.infer<T>>(schema)
-      : undefined,
+    resolver: schema ? zodResolver(schema) : undefined,
     defaultValues,
   });
 

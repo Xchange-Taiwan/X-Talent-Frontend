@@ -33,7 +33,7 @@ export function useProfileSubmit({
   const router = useRouter();
 
   // 概念驗證 (PoC) 呼叫端：此處整合並呼叫統一管理非同步生命週期的 useAsyncAction Hook
-  // 作為 X-Tracker #436 基礎建設的一部分，用於收斂載入狀態、防重複連擊與 Sentry 錯誤上報
+  // 作為基礎建設的一部分，用於收斂載入狀態、防重複連擊與 Sentry 錯誤上報
   const { run, isPending: isSaving } = useAsyncAction({
     flow: 'profile_update',
     step: 'update_profile',
