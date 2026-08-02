@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useRef, useState } from 'react';
 import { Control, FieldValues, Path, useController } from 'react-hook-form';
 
-// Lazy-load the crop modal — it pulls in react-avatar-editor and @mui/material
+// Lazy-load the crop modal — it pulls in react-avatar-editor and Radix UI components
 // (~100kB+), which are only needed when the user actually opens the crop dialog.
 const AvatarCropModal = dynamic(() => import('./avatar-crop-modal'), {
   ssr: false,
