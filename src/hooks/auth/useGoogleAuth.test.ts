@@ -51,7 +51,7 @@ describe('useGoogleAuth', () => {
       'https://google.com/auth/login'
     );
     expect(mockToast).not.toHaveBeenCalled();
-    expect(result.current.isPending).toBe(false);
+    expect(result.current.isPending).toBe(true);
   });
 
   it('should redirect to signup authorize URL on success when isSignIn is false', async () => {
@@ -72,7 +72,7 @@ describe('useGoogleAuth', () => {
       'https://google.com/auth/signup'
     );
     expect(mockToast).not.toHaveBeenCalled();
-    expect(result.current.isPending).toBe(false);
+    expect(result.current.isPending).toBe(true);
   });
 
   it('should trigger destructive toast when login request fails', async () => {

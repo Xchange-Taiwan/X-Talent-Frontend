@@ -27,7 +27,6 @@ export function useGoogleAuth() {
           ? '無法完成 Google 登入，請稍後再試。'
           : '無法完成 Google 註冊，請稍後再試。',
       });
-    } finally {
       setIsPending(false);
     }
   };
