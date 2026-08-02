@@ -21,7 +21,7 @@ export function useEditProfileForm(isMentor: boolean): {
   form: ProfileFormContext;
 } {
   const resolver = useMemo(() => {
-    return zodResolver<ReturnType<typeof createProfileFormSchema>>(
+    return zodResolver<ProfileFormInput, unknown, unknown>(
       createProfileFormSchema(isMentor)
     );
   }, [isMentor]);
