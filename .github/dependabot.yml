@@ -1,0 +1,35 @@
+# GitHub Dependabot configuration file
+# Ref: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # Enable version updates for npm ecosystem (pnpm lockfile at root)
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    open-pull-requests-limit: 10
+    # Group pull requests to reduce PR spam (weekly updates)
+    groups:
+      production-dependencies:
+        dependency-type: 'production'
+        patterns:
+          - '*'
+      development-dependencies:
+        dependency-type: 'development'
+        patterns:
+          - '*'
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    open-pull-requests-limit: 10
+    # Group GitHub Actions updates
+    groups:
+      github-actions:
+        patterns:
+          - '*'
