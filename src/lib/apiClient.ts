@@ -50,6 +50,8 @@ export type RequestOptions = Omit<RequestInit, 'body' | 'headers'> & {
   params?: Record<string, string | number | boolean | undefined | null>;
   /** Extra headers merged on top of defaults */
   headers?: Record<string, string>;
+  /** Treat `path` as a local Next.js API route — skip prefixing BASE_URL. Default: false */
+  isLocal?: boolean;
 };
 
 function isAbortError(error: unknown): boolean {
@@ -70,8 +72,19 @@ function refreshSession(): Promise<Session | null> {
   return pendingRefresh;
 }
 
-function buildUrl(path: string, params?: RequestOptions['params']): string {
-  const url = `${BASE_URL}${path}`;
+function isAbsoluteUrl(path: string): boolean {
+  // Also matches protocol-relative URLs (e.g. //evil.com) — without this,
+  // the browser would resolve them as external, but this check would treat
+  // them as internal and attach the user's auth token to them.
+  return /^(?:https?:)?\/\//i.test(path);
+}
+
+function buildUrl(
+  path: string,
+  params?: RequestOptions['params'],
+  isLocal = false
+): string {
+  const url = isAbsoluteUrl(path) || isLocal ? path : `${BASE_URL}${path}`;
   if (!params) return url;
 
   const query = new URLSearchParams();
@@ -100,21 +113,32 @@ async function request<T>(
   options: RequestOptions = {},
   isRetry = false
 ): Promise<T> {
-  const { auth = true, headers = {}, params, signal, ...restOptions } = options;
+  const {
+    auth = true,
+    headers = {},
+    params,
+    signal,
+    isLocal = false,
+    ...restOptions
+  } = options;
 
-  if (typeof window === 'undefined' && auth) {
+  // Never attach the user's session token to an absolute external URL —
+  // only relative paths (our own backend) are trusted to receive it.
+  const effectiveAuth = auth && !isAbsoluteUrl(path);
+
+  if (typeof window === 'undefined' && effectiveAuth) {
     throw new Error(
       'Server-side authenticated requests are not supported. Use auth: false.'
     );
   }
 
-  const authHeader = auth ? await getAuthHeader() : {};
+  const authHeader = effectiveAuth ? await getAuthHeader() : {};
 
   const startTime = Date.now();
   let response: Response;
 
   try {
-    response = await fetch(buildUrl(path, params), {
+    response = await fetch(buildUrl(path, params, isLocal), {
       method,
       headers: {
         'Content-Type': 'application/json',

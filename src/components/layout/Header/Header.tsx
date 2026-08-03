@@ -38,7 +38,7 @@ function HeaderComponent(): JSX.Element {
     : { label: '成為導師', href: getBecomeMentorHref(userId) };
 
   return (
-    <header className="fixed inset-x-0 z-50 bg-light px-5">
+    <header className="fixed inset-x-0 top-[var(--banner-height,0px)] z-50 bg-light px-5">
       <div className="flex h-[70px] items-center justify-between">
         <div className="flex items-center gap-10">
           <Link href="/" aria-label="Go to homepage">
