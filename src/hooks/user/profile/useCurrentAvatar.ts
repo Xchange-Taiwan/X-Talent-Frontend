@@ -39,7 +39,7 @@ export function useCurrentAvatar(): string | null {
     return override.url;
   }
 
-  if (session) {
+  if (status === 'authenticated') {
     return sessionAvatar;
   }
 
