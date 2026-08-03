@@ -114,6 +114,77 @@ export type UseMentorScheduleReturn = {
 const appendExdate = (exdates: number[], unix: number): number[] =>
   exdates.includes(unix) ? exdates : [...exdates, unix];
 
+function ensureTargetMonthLoaded({
+  targetMonthKey,
+  currentDraftsMap,
+  userId,
+}: {
+  targetMonthKey: MonthKey;
+  currentDraftsMap: Map<MonthKey, RawMentorTimeslot[]>;
+  userId: string;
+}): RawMentorTimeslot[] | null {
+  let targetDraft = currentDraftsMap.get(targetMonthKey);
+  if (!targetDraft) {
+    const { year, month } = parseMonthKey(targetMonthKey);
+    const { cached } = loadMonthScheduleCached({
+      userId,
+      year,
+      month,
+    });
+    if (!cached) {
+      return null;
+    }
+    targetDraft = cached;
+  }
+  return targetDraft;
+}
+
+function checkCrossMonthOverlap({
+  id,
+  occurrenceUnix,
+  newDtstart,
+  durationSeconds,
+  isRecurring,
+  currentDraftsMap,
+  targetDraft,
+}: {
+  id: number;
+  occurrenceUnix: number;
+  newDtstart: number;
+  durationSeconds: number;
+  isRecurring: boolean;
+  currentDraftsMap: Map<MonthKey, RawMentorTimeslot[]>;
+  targetDraft: RawMentorTimeslot[];
+}): boolean {
+  const allCurrentDrafts = Array.from(currentDraftsMap.values()).flat();
+  const draftsToCheck = [...allCurrentDrafts];
+  const isTargetLoaded = currentDraftsMap.has(monthKeyFromUnix(newDtstart));
+  if (!isTargetLoaded) {
+    draftsToCheck.push(...targetDraft);
+  }
+
+  let intermediateDraftsToCheck = draftsToCheck;
+  if (isRecurring) {
+    // If recurring, we simulate exdating the parent row
+    intermediateDraftsToCheck = draftsToCheck.map((r: RawMentorTimeslot) =>
+      r.id === id
+        ? {
+            ...r,
+            exdate: appendExdate(r.exdate, occurrenceUnix),
+          }
+        : r
+    );
+  }
+
+  // Run unified overlap check
+  return hasAnyOccurrenceOverlap(
+    intermediateDraftsToCheck,
+    isRecurring ? null : id, // ignore current row ID only if it is non-recurring
+    [newDtstart],
+    durationSeconds
+  );
+}
+
 export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const { backend } = opts;
 
@@ -524,78 +595,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     draftByMonthRef.current = draftByMonth;
   }, [draftByMonth]);
 
-  const ensureTargetMonthLoaded = useCallback(
-    (
-      targetMonthKey: MonthKey,
-      currentDraftsMap: Map<MonthKey, RawMentorTimeslot[]>
-    ) => {
-      let targetDraft = currentDraftsMap.get(targetMonthKey);
-      if (!targetDraft) {
-        const { year, month } = parseMonthKey(targetMonthKey);
-        const { cached } = loadMonthScheduleCached({
-          userId: backend.userId,
-          year,
-          month,
-        });
-        if (!cached) {
-          return null;
-        }
-        targetDraft = cached;
-      }
-      return targetDraft;
-    },
-    [backend.userId]
-  );
-
-  const checkCrossMonthOverlap = useCallback(
-    ({
-      id,
-      occurrenceUnix,
-      newDtstart,
-      durationSeconds,
-      isRecurring,
-      currentDraftsMap,
-      targetDraft,
-    }: {
-      id: number;
-      occurrenceUnix: number;
-      newDtstart: number;
-      durationSeconds: number;
-      isRecurring: boolean;
-      currentDraftsMap: Map<MonthKey, RawMentorTimeslot[]>;
-      targetDraft: RawMentorTimeslot[];
-    }): boolean => {
-      const allCurrentDrafts = Array.from(currentDraftsMap.values()).flat();
-      const draftsToCheck = [...allCurrentDrafts];
-      const isTargetLoaded = currentDraftsMap.has(monthKeyFromUnix(newDtstart));
-      if (!isTargetLoaded) {
-        draftsToCheck.push(...targetDraft);
-      }
-
-      let intermediateDraftsToCheck = draftsToCheck;
-      if (isRecurring) {
-        // If recurring, we simulate exdating the parent row
-        intermediateDraftsToCheck = draftsToCheck.map((r: RawMentorTimeslot) =>
-          r.id === id
-            ? {
-                ...r,
-                exdate: appendExdate(r.exdate, occurrenceUnix),
-              }
-            : r
-        );
-      }
-
-      // Run unified overlap check
-      return hasAnyOccurrenceOverlap(
-        intermediateDraftsToCheck,
-        isRecurring ? null : id, // ignore current row ID only if it is non-recurring
-        [newDtstart],
-        durationSeconds
-      );
-    },
-    []
-  );
-
   const updateDraftSlot: UseMentorScheduleReturn['updateDraftSlot'] =
     useCallback(
       (id, occurrenceUnix, patch) => {
@@ -633,10 +632,11 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         const targetMonthKey = monthKeyFromUnix(newDtstart);
 
         // Fetch / ensure target draft is loaded/cached outside state setter from ref
-        const targetDraft = ensureTargetMonthLoaded(
+        const targetDraft = ensureTargetMonthLoaded({
           targetMonthKey,
-          currentDraftsMap
-        );
+          currentDraftsMap,
+          userId: backend.userId,
+        });
         if (!targetDraft) {
           return { success: false, reason: 'TARGET_MONTH_NOT_LOADED' };
         }
@@ -748,12 +748,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
         return { success: true };
       },
-      [
-        findMonthForSlotId,
-        markDirty,
-        ensureTargetMonthLoaded,
-        checkCrossMonthOverlap,
-      ]
+      [findMonthForSlotId, markDirty, backend.userId]
     );
 
   const deleteDraftSlot = useCallback(
