@@ -384,8 +384,7 @@ export default function MentorScheduleDialog({
               return;
             }
           } catch (e: unknown) {
-            const err = e as Error;
-            if (err.message === 'TARGET_MONTH_NOT_LOADED') {
+            if (e instanceof Error && e.message === 'TARGET_MONTH_NOT_LOADED') {
               toast({
                 variant: 'destructive',
                 description:
@@ -394,7 +393,7 @@ export default function MentorScheduleDialog({
             } else {
               toast({
                 variant: 'destructive',
-                description: err.message || '更新時段失敗',
+                description: e instanceof Error ? e.message : '更新時段失敗',
               });
             }
             return;

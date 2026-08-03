@@ -509,7 +509,9 @@ describe('useMentorSchedule', () => {
         durationMinutes: 45,
       });
     } catch (e: unknown) {
-      editError = e as Error;
+      if (e instanceof Error) {
+        editError = e;
+      }
     }
 
     expect(success).toBe(false);
