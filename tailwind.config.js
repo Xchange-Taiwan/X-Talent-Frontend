@@ -1,5 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const colors = require('./src/design/tokens/color');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const shadows = require('./src/design/tokens/shadow');
 
 export const content = ['./src/**/*.{js,jsx,ts,tsx}'];
 
@@ -26,6 +28,12 @@ export const theme = {
       lg: 'var(--radius)',
       md: 'calc(var(--radius) - 2px)',
       sm: 'calc(var(--radius) - 4px)',
+    },
+    boxShadow: {
+      card: shadows.card,
+    },
+    backgroundImage: {
+      'auth-card': 'var(--bg-auth-card)',
     },
     keyframes: {
       'accordion-down': {
