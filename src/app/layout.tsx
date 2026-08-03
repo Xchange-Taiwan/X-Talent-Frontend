@@ -9,6 +9,7 @@ import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import Providers from '@/components/Providers';
 import { Toaster } from '@/components/ui/toaster';
+import { SESSION_HINT_INLINE_SCRIPT } from '@/lib/auth/sessionHint';
 import { getSiteUrl } from '@/lib/site-url';
 
 import { notoSansTC } from './font';
@@ -56,6 +57,12 @@ export default function RootLayout({
   return (
     <html lang="zh-TW" className={notoSansTC.className}>
       <head>
+        {/* Instant SSR-Hint CSS Toggle script */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: SESSION_HINT_INLINE_SCRIPT,
+          }}
+        />
         {/* Preconnect to third-party origins so the TLS handshake overlaps with
             HTML parse instead of blocking the first script byte. crossOrigin
             is required so the warmed connection is reused for the actual

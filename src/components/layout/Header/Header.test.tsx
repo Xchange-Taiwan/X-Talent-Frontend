@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/image', () => ({
   // next/image requires width/height derived from a static-import object
@@ -26,11 +26,21 @@ vi.mock('@/hooks/user/auth/useAuthStatus', () => ({
   useAuthStatus: () => mockUseAuthStatus(),
 }));
 
+const mockUseSessionHint = vi.fn();
+vi.mock('@/hooks/user/auth/useSessionHint', () => ({
+  useSessionHint: () => mockUseSessionHint(),
+}));
+
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 
 import { Header } from './Header';
 
 describe('Header', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseSessionHint.mockReturnValue({ status: 'unknown' });
+  });
+
   it('disables the second nav link while resolving a logged-in user, instead of falling back to /auth/signup or /', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
     mockUseAuthStatus.mockReturnValue({
@@ -137,5 +147,32 @@ describe('Header', () => {
     expect(
       screen.queryByRole('link', { name: '我的導師頁面' })
     ).not.toBeInTheDocument();
+  });
+
+  it("renders UserDropdown with hint avatar when logged in per hint but session hasn't resolved yet", () => {
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: 'loading',
+    });
+    mockUseSessionHint.mockReturnValue({
+      status: 'authenticated',
+      isMentor: true,
+      avatar: 'hint-avatar.png',
+    });
+    mockUseAuthStatus.mockReturnValue({
+      authKnown: true,
+      isLoggedIn: true,
+      isMentor: true,
+      userId: undefined,
+      hasFullUser: false,
+      isResolvingUser: true,
+    });
+
+    render(<Header />);
+
+    const avatarImgs = screen.getAllByAltText('我的頭像');
+    expect(avatarImgs).toHaveLength(2);
+    expect(avatarImgs[0]).toHaveAttribute('src', 'hint-avatar.png');
+    expect(avatarImgs[1]).toHaveAttribute('src', 'hint-avatar.png');
   });
 });
