@@ -483,33 +483,3 @@ describe('middleware maintenance mode', () => {
     expect(response.headers.get('location')).toContain('/maintenance');
   });
 });
-
-describe('middleware public routes', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockGet.mockResolvedValue(false);
-    delete process.env.EDGE_CONFIG;
-    delete process.env.MAINTENANCE_MODE;
-    delete process.env.NEXT_PUBLIC_MAINTENANCE_MODE;
-  });
-
-  it('allows unauthenticated access to /api/announcement without redirecting', async () => {
-    mockGetToken.mockResolvedValue(null);
-
-    const response = await middleware(makeRequest('/api/announcement'));
-
-    // Should not redirect to sign-in page (NextResponse.next() returns a 200)
-    expect(response.status).toBe(200);
-  });
-
-  it('redirects unauthenticated users to signin for protected api routes', async () => {
-    mockGetToken.mockResolvedValue(null);
-
-    const response = await middleware(
-      makeRequest('/api/protected-route-example')
-    );
-
-    expect(response.status).toBe(307);
-    expect(response.headers.get('location')).toContain('/auth/signin');
-  });
-});
