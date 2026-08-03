@@ -299,13 +299,18 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     return out;
   }, [draftByMonth]);
 
-  const parsedDraft = useMemo(
-    () =>
-      allDraftRaws
-        .flatMap(formatTimeslot)
-        .sort((a, b) => a.start.getTime() - b.start.getTime()),
-    [allDraftRaws]
-  );
+  const parsedDraft = useMemo(() => {
+    const formatted = allDraftRaws.flatMap(formatTimeslot);
+    const seen = new Set<string>();
+    const out: ParsedMentorTimeslot[] = [];
+    for (const slot of formatted) {
+      if (!seen.has(slot.occurrenceId)) {
+        seen.add(slot.occurrenceId);
+        out.push(slot);
+      }
+    }
+    return out.sort((a, b) => a.start.getTime() - b.start.getTime());
+  }, [allDraftRaws]);
 
   const draftForSelectedDate = useMemo(
     () =>
@@ -522,6 +527,10 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         const parentMonthKey = findMonthForSlotId(id);
         if (!parentMonthKey) return { success: false };
 
+        // Helper to append exdate cleanly
+        const appendExdate = (exdates: number[], unix: number) =>
+          exdates.includes(unix) ? exdates : [...exdates, unix];
+
         // Fetch parentDraft outside state setter from ref
         const currentDraftsMap = draftByMonthRef.current;
         const parentDraft = currentDraftsMap.get(parentMonthKey) ?? [];
@@ -584,9 +593,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
             r.id === id
               ? {
                   ...r,
-                  exdate: r.exdate.includes(occurrenceUnix)
-                    ? r.exdate
-                    : [...r.exdate, occurrenceUnix],
+                  exdate: appendExdate(r.exdate, occurrenceUnix),
                 }
               : r
           );
@@ -632,9 +639,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           if (isRecurring) {
             const updatedParent: RawMentorTimeslot = {
               ...latestTarget,
-              exdate: latestTarget.exdate.includes(occurrenceUnix)
-                ? latestTarget.exdate
-                : [...latestTarget.exdate, occurrenceUnix],
+              exdate: appendExdate(latestTarget.exdate, occurrenceUnix),
             };
             const detachedRow: RawMentorTimeslot = {
               id: nextTempId(Array.from(nextDraft.values()).flat()),
@@ -645,23 +650,21 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
               exdate: [],
             };
 
-            if (targetMonthKey === parentMonthKey) {
-              const intermediate = currentParentDraft.map((r) =>
-                r.id === id ? updatedParent : r
-              );
-              nextDraft.set(parentMonthKey, [...intermediate, detachedRow]);
-            } else {
-              // Update parent draft
-              nextDraft.set(
-                parentMonthKey,
-                currentParentDraft.map((r) => (r.id === id ? updatedParent : r))
-              );
-              // Update target draft
-              nextDraft.set(targetMonthKey, [
-                ...currentTargetDraft,
-                detachedRow,
-              ]);
-            }
+            // Recursively update parent row's exdate across ALL loaded month buffers (Correctness Finding 1)
+            nextDraft.forEach((mDraft, mKey) => {
+              if (mDraft.some((r: RawMentorTimeslot) => r.id === id)) {
+                nextDraft.set(
+                  mKey,
+                  mDraft.map((r: RawMentorTimeslot) =>
+                    r.id === id ? updatedParent : r
+                  )
+                );
+              }
+            });
+
+            // Append the new detached row to the target month buffer
+            const updatedTargetDraft = nextDraft.get(targetMonthKey) ?? [];
+            nextDraft.set(targetMonthKey, [...updatedTargetDraft, detachedRow]);
           } else {
             // Non-recurring slot
             const updatedSlot: RawMentorTimeslot = {

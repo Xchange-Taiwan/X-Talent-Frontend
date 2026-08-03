@@ -358,9 +358,9 @@ describe('useMentorSchedule', () => {
       },
     ];
 
-    // Mock loadMonthScheduleCached for July to return mockRawsJuly, and for August to return []
+    // Mock loadMonthScheduleCached for July and also August to return mockRawsJuly (simulating parent row loaded in both months)
     mockLoadMonthScheduleCached.mockImplementation((ref) => {
-      if (ref.year === 2026 && ref.month === 7) {
+      if (ref.year === 2026 && (ref.month === 7 || ref.month === 8)) {
         return {
           cached: mockRawsJuly,
           revalidate: Promise.resolve(mockRawsJuly),
