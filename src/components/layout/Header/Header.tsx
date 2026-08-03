@@ -3,12 +3,14 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthStatus } from '@/hooks/user/auth/useAuthStatus';
+import { useSessionHint } from '@/hooks/user/auth/useSessionHint';
+import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { trackEvent } from '@/lib/analytics';
 
 import { FEEDBACK_FORM_URL } from './constants';
@@ -20,20 +22,38 @@ import { UserDropdown } from './UserDropdown';
 
 function HeaderComponent(): JSX.Element {
   const { data: session } = useSession();
-  const {
-    authKnown,
-    isLoggedIn,
-    isMentor,
-    userId,
-    hasFullUser,
-    isResolvingUser,
-  } = useAuthStatus();
+  const hint = useSessionHint();
+  const currentAvatar = useCurrentAvatar();
+  const { authKnown, isLoggedIn, isMentor, userId, isResolvingUser } =
+    useAuthStatus();
+
+  const resolvedIsMentor = authKnown
+    ? isMentor
+    : hint.status === 'authenticated'
+      ? hint.isMentor
+      : isMentor;
+
+  const virtualUser = useMemo(() => {
+    if (session?.user) {
+      return {
+        ...session.user,
+        avatar: currentAvatar ?? undefined,
+      };
+    }
+    return {
+      id: userId,
+      isMentor: resolvedIsMentor,
+      avatar: currentAvatar ?? undefined,
+      name: '',
+      email: '',
+    };
+  }, [session?.user, userId, resolvedIsMentor, currentAvatar]);
 
   const findMentorHref = '/mentor-pool';
 
   // `userId` only ever comes from the real session, never the hint — while
   // isResolvingUser is true these hrefs are unused (the link is disabled).
-  const leftSecondNav = isMentor
+  const leftSecondNav = resolvedIsMentor
     ? { label: '我的導師頁面', href: getProfileHref(userId) }
     : { label: '成為導師', href: getBecomeMentorHref(userId) };
 
@@ -54,7 +74,29 @@ function HeaderComponent(): JSX.Element {
             </Link>
 
             {!authKnown ? (
-              <Skeleton className="h-6 w-24" />
+              <>
+                <div className="group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden">
+                  <Skeleton className="h-6 w-24" />
+                </div>
+                <div className="hidden group-data-[auth-state=mentor]:block">
+                  <DisabledAwareLink
+                    href={getProfileHref(userId)}
+                    disabled={isResolvingUser}
+                    className="font-['Open_Sans'] text-base text-text-primary"
+                  >
+                    我的導師頁面
+                  </DisabledAwareLink>
+                </div>
+                <div className="hidden group-data-[auth-state=mentee]:block">
+                  <DisabledAwareLink
+                    href={getBecomeMentorHref(userId)}
+                    disabled={isResolvingUser}
+                    className="font-['Open_Sans'] text-base text-text-primary"
+                  >
+                    成為導師
+                  </DisabledAwareLink>
+                </div>
+              </>
             ) : (
               <DisabledAwareLink
                 href={leftSecondNav.href}
@@ -88,7 +130,12 @@ function HeaderComponent(): JSX.Element {
         <div className="flex items-center gap-3 lg:mr-20">
           <div className="hidden items-center gap-3 lg:flex">
             {!authKnown ? (
-              <Skeleton className="size-9 rounded-full" />
+              <>
+                <div className="group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden">
+                  <Skeleton className="size-9 rounded-full" />
+                </div>
+                <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block" />
+              </>
             ) : !isLoggedIn ? (
               <>
                 <Link href="/auth/signup">
@@ -106,18 +153,24 @@ function HeaderComponent(): JSX.Element {
                   </Button>
                 </Link>
               </>
-            ) : hasFullUser ? (
-              <UserDropdown user={session!.user} />
+            ) : isLoggedIn ? (
+              <UserDropdown user={virtualUser} />
             ) : (
               <Skeleton className="size-9 rounded-full" />
             )}
           </div>
 
           <div className="flex items-center gap-3 lg:hidden">
-            {hasFullUser ? <MobileUserMenu user={session!.user} /> : null}
+            {isLoggedIn ? (
+              <MobileUserMenu user={virtualUser} />
+            ) : (
+              !authKnown && (
+                <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block" />
+              )
+            )}
             <HamburgerMenu
               isLoggedIn={isLoggedIn}
-              isMentor={isMentor}
+              isMentor={resolvedIsMentor}
               userId={userId}
               isResolvingUser={isResolvingUser}
             />
