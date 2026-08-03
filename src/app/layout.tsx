@@ -55,7 +55,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="zh-TW" className={notoSansTC.className}>
+    <html lang="zh-TW" className={`${notoSansTC.className} group`}>
       <head>
         {/* Instant SSR-Hint CSS Toggle script */}
         <script

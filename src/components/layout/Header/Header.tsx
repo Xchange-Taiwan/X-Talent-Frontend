@@ -75,10 +75,10 @@ function HeaderComponent(): JSX.Element {
 
             {!authKnown ? (
               <>
-                <div className="[[data-auth-state='mentee']_&]:hidden [[data-auth-state='mentor']_&]:hidden">
+                <div className="group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden">
                   <Skeleton className="h-6 w-24" />
                 </div>
-                <div className="hidden [[data-auth-state='mentor']_&]:block">
+                <div className="hidden group-data-[auth-state=mentor]:block">
                   <DisabledAwareLink
                     href={getProfileHref(userId)}
                     disabled={isResolvingUser}
@@ -87,7 +87,7 @@ function HeaderComponent(): JSX.Element {
                     我的導師頁面
                   </DisabledAwareLink>
                 </div>
-                <div className="hidden [[data-auth-state='mentee']_&]:block">
+                <div className="hidden group-data-[auth-state=mentee]:block">
                   <DisabledAwareLink
                     href={getBecomeMentorHref(userId)}
                     disabled={isResolvingUser}
@@ -131,10 +131,10 @@ function HeaderComponent(): JSX.Element {
           <div className="hidden items-center gap-3 lg:flex">
             {!authKnown ? (
               <>
-                <div className="[[data-auth-state='mentee']_&]:hidden [[data-auth-state='mentor']_&]:hidden">
+                <div className="group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden">
                   <Skeleton className="size-9 rounded-full" />
                 </div>
-                <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center [[data-auth-state='mentee']_&]:block [[data-auth-state='mentor']_&]:block" />
+                <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block" />
               </>
             ) : !isLoggedIn ? (
               <>
@@ -165,7 +165,7 @@ function HeaderComponent(): JSX.Element {
               <MobileUserMenu user={virtualUser} />
             ) : (
               !authKnown && (
-                <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center [[data-auth-state='mentee']_&]:block [[data-auth-state='mentor']_&]:block" />
+                <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block" />
               )
             )}
             <HamburgerMenu

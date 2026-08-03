@@ -144,10 +144,10 @@ describe('Header', () => {
     const mentorLink = screen.getByRole('link', { name: '我的導師頁面' });
     const menteeLink = screen.getByRole('link', { name: '成為導師' });
     expect(mentorLink.parentElement).toHaveClass(
-      "hidden [[data-auth-state='mentor']_&]:block"
+      'hidden group-data-[auth-state=mentor]:block'
     );
     expect(menteeLink.parentElement).toHaveClass(
-      "hidden [[data-auth-state='mentee']_&]:block"
+      'hidden group-data-[auth-state=mentee]:block'
     );
   });
 
@@ -197,10 +197,10 @@ describe('Header', () => {
     );
     expect(placeholders).toHaveLength(2);
     expect(placeholders[0]).toHaveClass(
-      "hidden [[data-auth-state='mentee']_&]:block [[data-auth-state='mentor']_&]:block"
+      'hidden group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block'
     );
     expect(placeholders[1]).toHaveClass(
-      "hidden [[data-auth-state='mentee']_&]:block [[data-auth-state='mentor']_&]:block"
+      'hidden group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block'
     );
   });
 });
