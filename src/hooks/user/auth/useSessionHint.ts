@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from 'react';
 
-import { decodeSessionHint, SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
+import {
+  decodeSessionHint,
+  DOM_AUTH_AVATAR_ATTR,
+  DOM_AUTH_STATE_ATTR,
+  SESSION_HINT_COOKIE,
+} from '@/lib/auth/sessionHint';
 
 export type SessionHintState =
   | { status: 'unknown' }
@@ -26,7 +31,8 @@ export function useSessionHint(): SessionHintState {
 
   useEffect(() => {
     const hint = decodeSessionHint(readCookie(SESSION_HINT_COOKIE));
-    const authState = document.documentElement.getAttribute('data-auth-state');
+    const authState =
+      document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR);
 
     const resolvedHint =
       hint ??
@@ -34,7 +40,7 @@ export function useSessionHint(): SessionHintState {
         ? {
             isMentor: authState === 'mentor',
             avatar:
-              document.documentElement.getAttribute('data-auth-avatar') ??
+              document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR) ??
               undefined,
           }
         : null);

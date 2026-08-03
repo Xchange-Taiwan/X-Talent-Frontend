@@ -1,7 +1,11 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
+import {
+  DOM_AUTH_AVATAR_ATTR,
+  DOM_AUTH_STATE_ATTR,
+  SESSION_HINT_COOKIE,
+} from '@/lib/auth/sessionHint';
 
 import { useSessionHint } from './useSessionHint';
 
@@ -19,9 +23,9 @@ describe('useSessionHint', () => {
   });
 
   it('uses initial hint from document.documentElement data attributes post-mount', async () => {
-    document.documentElement.setAttribute('data-auth-state', 'mentor');
+    document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentor');
     document.documentElement.setAttribute(
-      'data-auth-avatar',
+      DOM_AUTH_AVATAR_ATTR,
       'https://example.com/avatar.png'
     );
 

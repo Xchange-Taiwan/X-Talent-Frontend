@@ -80,3 +80,42 @@ export function decodeSessionHint(
   }
   return hint;
 }
+
+export const DOM_AUTH_STATE_ATTR = 'data-auth-state';
+export const DOM_AUTH_AVATAR_ATTR = 'data-auth-avatar';
+export const DOM_AVATAR_IMG_ATTR = 'data-avatar-img';
+
+export const SESSION_HINT_INLINE_SCRIPT = `
+  try {
+    var cookie = document.cookie.split('; ').find(function(row) {
+      return row.startsWith('session-hint=');
+    });
+    if (cookie) {
+      var rawValue = cookie.substring('session-hint='.length);
+      var parts = rawValue.split('|');
+      var isMentor = parts[0] === '1';
+      var avatar = '';
+      if (parts[1]) {
+        try {
+          avatar = decodeURIComponent(parts[1]);
+        } catch (_) {
+          avatar = '';
+        }
+      }
+      
+      if (avatar && (avatar.startsWith('https://') || avatar.startsWith('http://') || avatar.startsWith('/'))) {
+        document.documentElement.setAttribute('${DOM_AUTH_AVATAR_ATTR}', avatar);
+        
+        var updateImages = function() {
+          var imgs = document.querySelectorAll('img[${DOM_AVATAR_IMG_ATTR}]');
+          for (var i = 0; i < imgs.length; i++) {
+            imgs[i].src = avatar;
+          }
+        };
+        updateImages();
+        document.addEventListener('DOMContentLoaded', updateImages);
+      }
+      document.documentElement.setAttribute('${DOM_AUTH_STATE_ATTR}', isMentor ? 'mentor' : 'mentee');
+    }
+  } catch (_) {}
+`;

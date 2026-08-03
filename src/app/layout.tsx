@@ -9,6 +9,7 @@ import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import Providers from '@/components/Providers';
 import { Toaster } from '@/components/ui/toaster';
+import { SESSION_HINT_INLINE_SCRIPT } from '@/lib/auth/sessionHint';
 import { getSiteUrl } from '@/lib/site-url';
 
 import { notoSansTC } from './font';
@@ -59,40 +60,7 @@ export default function RootLayout({
         {/* Instant SSR-Hint CSS Toggle script */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `
-              try {
-                var cookie = document.cookie.split('; ').find(function(row) {
-                  return row.startsWith('session-hint=');
-                });
-                if (cookie) {
-                  var rawValue = cookie.split('=')[1];
-                  var parts = rawValue.split('|');
-                  var isMentor = parts[0] === '1';
-                  var avatar = '';
-                  if (parts[1]) {
-                    try {
-                      avatar = decodeURIComponent(parts[1]);
-                    } catch (_) {
-                      avatar = '';
-                    }
-                  }
-                  
-                  if (avatar && (avatar.startsWith('https://') || avatar.startsWith('http://') || avatar.startsWith('/'))) {
-                    document.documentElement.setAttribute('data-auth-avatar', avatar);
-                    
-                    var updateImages = function() {
-                      var imgs = document.querySelectorAll('img[data-avatar-img]');
-                      for (var i = 0; i < imgs.length; i++) {
-                        imgs[i].src = avatar;
-                      }
-                    };
-                    updateImages();
-                    document.addEventListener('DOMContentLoaded', updateImages);
-                  }
-                  document.documentElement.setAttribute('data-auth-state', isMentor ? 'mentor' : 'mentee');
-                }
-              } catch (_) {}
-            `,
+            __html: SESSION_HINT_INLINE_SCRIPT,
           }}
         />
         {/* Preconnect to third-party origins so the TLS handshake overlaps with
