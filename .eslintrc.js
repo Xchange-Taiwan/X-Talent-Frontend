@@ -60,13 +60,27 @@ module.exports = {
   },
   overrides: [
     {
-      // Allow arbitrary Tailwind values (like hardcoded brand colors and Next.js OG Image routes that cannot consume Tailwind classes)
+      // Allow arbitrary Tailwind colors (like hardcoded brand colors and Next.js OG Image routes that cannot consume Tailwind classes), but keep the default Tailwind scales and arbitrary font sizes rules
       files: [
         'src/components/icon/color/*.tsx',
         'src/app/**/opengraph-image.tsx',
       ],
       rules: {
-        'no-restricted-syntax': 'off',
+        'no-restricted-syntax': [
+          'error',
+          {
+            selector:
+              "JSXAttribute[name.name='className'] Literal[value=/(^|\\s|:)(bg|text|border(-[trblxy])?|ring(-offset)?|fill|stroke|from|via|to|divide|shadow|outline|placeholder|decoration|accent|caret)-(slate|zinc|neutral|stone|gray|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\\d+/], JSXAttribute[name.name='className'] TemplateElement[value.raw=/(^|\\s|:)(bg|text|border(-[trblxy])?|ring(-offset)?|fill|stroke|from|via|to|divide|shadow|outline|placeholder|decoration|accent|caret)-(slate|zinc|neutral|stone|gray|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\\d+/], CallExpression[callee.name=/^(cn|clsx|cva)$/] Literal[value=/(^|\\s|:)(bg|text|border(-[trblxy])?|ring(-offset)?|fill|stroke|from|via|to|divide|shadow|outline|placeholder|decoration|accent|caret)-(slate|zinc|neutral|stone|gray|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\\d+/], CallExpression[callee.name=/^(cn|clsx|cva)$/] TemplateElement[value.raw=/(^|\\s|:)(bg|text|border(-[trblxy])?|ring(-offset)?|fill|stroke|from|via|to|divide|shadow|outline|placeholder|decoration|accent|caret)-(slate|zinc|neutral|stone|gray|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\\d+/]",
+            message:
+              'Do not use default Tailwind colors with numeric scales (e.g., neutral-600, blue-600, red-500) because they are not defined in the custom theme palette. Use custom theme tokens from src/design/tokens/color.ts instead (e.g., text-text-secondary, text-status-error-default, bg-brand-500).',
+          },
+          {
+            selector:
+              "JSXAttribute[name.name='className'] Literal[value=/(^|\\s)text-\\[(\\d*\\.)?\\d+(px|rem|em)\\]/], JSXAttribute[name.name='className'] TemplateElement[value.raw=/(^|\\s)text-\\[(\\d*\\.)?\\d+(px|rem|em)\\]/], CallExpression[callee.name=/^(cn|clsx|cva)$/] Literal[value=/(^|\\s)text-\\[(\\d*\\.)?\\d+(px|rem|em)\\]/], CallExpression[callee.name=/^(cn|clsx|cva)$/] TemplateElement[value.raw=/(^|\\s)text-\\[(\\d*\\.)?\\d+(px|rem|em)\\]/]",
+            message:
+              'Do not use arbitrary font sizes (e.g. text-[12px], text-[1.5rem]) in Tailwind classes. Please use standard font size classes like text-sm, text-base, text-14, text-18, etc.',
+          },
+        ],
       },
     },
     {
