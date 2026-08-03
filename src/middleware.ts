@@ -1,4 +1,3 @@
-import * as Sentry from '@sentry/nextjs';
 import { get } from '@vercel/edge-config';
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
@@ -10,6 +9,27 @@ import {
   SESSION_HINT_COOKIE_OPTIONS,
 } from '@/lib/auth/sessionHint';
 import { apiAuthPrefix, DEFAULT_LOGIN, publicRoutes } from '@/routes';
+
+// Helper to read from Edge Config with a timeout to avoid blocking middleware
+async function getWithTimeout(key: string, timeoutMs = 500): Promise<any> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      console.warn(`Edge Config read timed out after ${timeoutMs}ms`);
+      resolve(null);
+    }, timeoutMs);
+
+    get(key)
+      .then((val) => {
+        clearTimeout(timer);
+        resolve(val);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        console.error('Error reading from Edge Config:', err);
+        resolve(null);
+      });
+  });
+}
 
 // Convert Next.js dynamic route → express style (:id)
 function normalizeRoute(route: string): string {
@@ -51,13 +71,8 @@ export async function middleware(req: NextRequest) {
   if (isEnvMaintenance) {
     isInMaintenanceMode = true;
   } else if (process.env.EDGE_CONFIG) {
-    try {
-      const value = await get('isInMaintenanceMode');
-      isInMaintenanceMode = value === true || value === 'true';
-    } catch (error) {
-      console.error('Error reading from Edge Config:', error);
-      Sentry.captureException(error);
-    }
+    const value = await getWithTimeout('isInMaintenanceMode', 500);
+    isInMaintenanceMode = value === true || value === 'true';
   }
 
   const isMaintenancePage = pathname === '/maintenance';

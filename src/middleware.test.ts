@@ -231,7 +231,7 @@ describe('middleware maintenance mode', () => {
     expect(response.status).toBe(200);
   });
 
-  it('safely falls back and allows traffic when Edge Config read fails and logs to Sentry', async () => {
+  it('safely falls back and allows traffic when Edge Config read fails without calling Sentry', async () => {
     process.env.EDGE_CONFIG = 'connection_string';
     const error = new Error('Network Error');
     mockGet.mockRejectedValue(error);
@@ -240,7 +240,20 @@ describe('middleware maintenance mode', () => {
     const response = await middleware(makeRequest('/'));
 
     expect(response.status).toBe(200);
-    expect(mockCaptureException).toHaveBeenCalledWith(error);
+    expect(mockCaptureException).not.toHaveBeenCalled();
+  });
+
+  it('safely falls back and allows traffic when Edge Config read times out', async () => {
+    process.env.EDGE_CONFIG = 'connection_string';
+    // mockGet resolves after 1000ms, which exceeds our 500ms timeout
+    mockGet.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(true), 1000))
+    );
+    mockGetToken.mockResolvedValue(null);
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.status).toBe(200); // Should fall back to false (allows traffic)
   });
 
   it('redirects dynamic routes containing dots (like usernames) under maintenance', async () => {
