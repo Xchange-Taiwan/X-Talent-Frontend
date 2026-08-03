@@ -322,4 +322,103 @@ describe('middleware maintenance mode', () => {
     expect(response.status).toBe(307);
     expect(response.headers.get('location')).toContain('/maintenance');
   });
+
+  it('redirects and sets bypass cookie when correct bypass query param is provided', async () => {
+    process.env.MAINTENANCE_BYPASS_TOKEN = 'test-secret-bypass';
+    process.env.MAINTENANCE_MODE = 'true';
+
+    const req = new NextRequest(
+      'https://example.com/some-page?bypass=test-secret-bypass'
+    );
+    const response = await middleware(req);
+
+    // Should redirect to clean URL without the query param
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe(
+      'https://example.com/some-page'
+    );
+
+    // Cookie should be set with correct value and options
+    const cookie = response.cookies.get('maintenance_bypass');
+    expect(cookie).toBeDefined();
+    expect(cookie?.value).toBe('test-secret-bypass');
+  });
+
+  it('does not bypass maintenance when bypass token is empty/not configured', async () => {
+    delete process.env.MAINTENANCE_BYPASS_TOKEN;
+    process.env.MAINTENANCE_MODE = 'true';
+
+    const req = new NextRequest(
+      'https://example.com/some-page?bypass=something'
+    );
+    const response = await middleware(req);
+
+    // Should redirect to /maintenance since token is not configured
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toContain('/maintenance');
+  });
+
+  it('does not bypass maintenance when incorrect query token is provided', async () => {
+    process.env.MAINTENANCE_BYPASS_TOKEN = 'test-secret-bypass';
+    process.env.MAINTENANCE_MODE = 'true';
+
+    const req = new NextRequest(
+      'https://example.com/some-page?bypass=wrong-token'
+    );
+    const response = await middleware(req);
+
+    // Should redirect to /maintenance since token is incorrect
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toContain('/maintenance');
+  });
+
+  it('bypasses maintenance check and proceeds to session/auth checks when a valid bypass cookie is present', async () => {
+    process.env.MAINTENANCE_BYPASS_TOKEN = 'test-secret-bypass';
+    process.env.MAINTENANCE_MODE = 'true';
+    mockGetToken.mockResolvedValue(null); // Not logged in
+
+    const req = new NextRequest('https://example.com/reservation/mentee', {
+      headers: {
+        cookie: 'maintenance_bypass=test-secret-bypass',
+      },
+    });
+    const response = await middleware(req);
+
+    // Should bypass maintenance check, but still run session/auth checks
+    // Since /reservation/mentee is a protected route and user is not logged in, it should redirect to signin
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toContain('/auth/signin');
+  });
+
+  it('bypasses maintenance check and allows API routes when a valid bypass cookie is present', async () => {
+    process.env.MAINTENANCE_BYPASS_TOKEN = 'test-secret-bypass';
+    process.env.MAINTENANCE_MODE = 'true';
+    mockGetToken.mockResolvedValue({} as never); // Logged in
+
+    const req = new NextRequest('https://example.com/api/mentors', {
+      headers: {
+        cookie: 'maintenance_bypass=test-secret-bypass',
+      },
+    });
+    const response = await middleware(req);
+
+    // Should bypass maintenance check and proceed to normal API handler (returns 200/next)
+    expect(response.status).toBe(200);
+  });
+
+  it('does not bypass maintenance check when bypass cookie is incorrect', async () => {
+    process.env.MAINTENANCE_BYPASS_TOKEN = 'test-secret-bypass';
+    process.env.MAINTENANCE_MODE = 'true';
+
+    const req = new NextRequest('https://example.com/some-page', {
+      headers: {
+        cookie: 'maintenance_bypass=wrong-cookie-value',
+      },
+    });
+    const response = await middleware(req);
+
+    // Should redirect to /maintenance
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toContain('/maintenance');
+  });
 });

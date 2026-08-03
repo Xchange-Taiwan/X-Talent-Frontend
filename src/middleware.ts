@@ -62,6 +62,33 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // -------- 0.05 Check Maintenance Bypass --------
+  const bypassParam = nextUrl.searchParams.get('bypass');
+  const bypassToken = process.env.MAINTENANCE_BYPASS_TOKEN;
+
+  // If correct bypass token is in query param, set cookie and redirect to clear the URL query param
+  if (bypassToken && bypassParam === bypassToken) {
+    const nextUrlClean = new URL(pathname, nextUrl);
+    nextUrl.searchParams.forEach((val, key) => {
+      if (key !== 'bypass') {
+        nextUrlClean.searchParams.set(key, val);
+      }
+    });
+
+    const response = NextResponse.redirect(nextUrlClean);
+    response.cookies.set('maintenance_bypass', bypassToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7200, // 2 hours
+    });
+    return response;
+  }
+
+  const bypassCookie = req.cookies.get('maintenance_bypass')?.value;
+  const hasValidBypass = !!(bypassToken && bypassCookie === bypassToken);
+
   // -------- 0.1 Check Maintenance Mode --------
   let isInMaintenanceMode = false;
   const isEnvMaintenance =
@@ -73,6 +100,11 @@ export async function middleware(req: NextRequest) {
   } else if (process.env.EDGE_CONFIG) {
     const value = await getWithTimeout('isInMaintenanceMode', 500);
     isInMaintenanceMode = value === true || value === 'true';
+  }
+
+  // Override maintenance mode if a valid bypass token is present
+  if (hasValidBypass) {
+    isInMaintenanceMode = false;
   }
 
   const isMaintenancePage = pathname === '/maintenance';
