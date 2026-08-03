@@ -1,80 +1,46 @@
 'use client';
 
 import { AlertTriangle, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 
-interface AnnouncementData {
-  enabled: boolean;
-  message: string;
-  maintenanceTime: string;
-}
+import { useAnnouncement } from '@/hooks/useAnnouncement';
+import { useIsomorphicLayoutEffect } from '@/hooks/useIsomorphicLayoutEffect';
 
 export function AnnouncementBanner(): JSX.Element | null {
-  const [data, setData] = useState<AnnouncementData | null>(null);
-  const [visible, setVisible] = useState(false);
+  const { visible, data, handleDismiss } = useAnnouncement();
   const bannerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    // 1. Check session-level dismissal first
-    const dismissed =
-      sessionStorage.getItem('announcement-dismissed') === 'true';
-    if (dismissed) {
-      return;
-    }
-
-    // 2. Fetch config from our API route
-    fetch('/api/announcement')
-      .then((res) => {
-        if (res.ok) {
-          return res.json() as Promise<AnnouncementData>;
-        }
-        throw new Error('Failed to fetch announcement');
-      })
-      .then((announcement) => {
-        if (!announcement || !announcement.enabled || !announcement.message) {
-          return;
-        }
-
-        // 3. Check if maintenance time has already passed
-        if (announcement.maintenanceTime) {
-          const maintenanceDate = new Date(announcement.maintenanceTime);
-          if (
-            !isNaN(maintenanceDate.getTime()) &&
-            Date.now() >= maintenanceDate.getTime()
-          ) {
-            return;
-          }
-        }
-
-        setData(announcement);
-        setVisible(true);
-      })
-      .catch((err) => {
-        console.error('Error fetching announcement:', err);
-      });
-  }, []);
-
-  // 4. Update the CSS variable --banner-height when visibility or height changes
-  useEffect(() => {
+  // Update the CSS variable --banner-height when visibility or height changes
+  useIsomorphicLayoutEffect(() => {
     if (!visible || !bannerRef.current) {
       document.documentElement.style.setProperty('--banner-height', '0px');
       return;
     }
 
-    const updateHeight = () => {
-      if (bannerRef.current) {
-        const height = bannerRef.current.getBoundingClientRect().height;
-        document.documentElement.style.setProperty(
-          '--banner-height',
-          `${height}px`
-        );
-      }
+    const updateHeight = (height: number) => {
+      document.documentElement.style.setProperty(
+        '--banner-height',
+        `${height}px`
+      );
     };
 
-    updateHeight();
+    // Set initial height
+    const initialHeight = bannerRef.current.getBoundingClientRect().height;
+    updateHeight(initialHeight);
 
     // Observe size changes (e.g., text wrapping on viewport resize)
-    const observer = new ResizeObserver(updateHeight);
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        // Read height from entry, preventing forced reflow (Layout Thrashing)
+        const height =
+          entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height;
+        if (height !== undefined) {
+          updateHeight(height);
+        }
+      }
+    });
+
     observer.observe(bannerRef.current);
 
     return () => {
@@ -82,11 +48,6 @@ export function AnnouncementBanner(): JSX.Element | null {
       document.documentElement.style.setProperty('--banner-height', '0px');
     };
   }, [visible]);
-
-  const handleDismiss = () => {
-    sessionStorage.setItem('announcement-dismissed', 'true');
-    setVisible(false);
-  };
 
   if (!visible || !data) {
     return null;
