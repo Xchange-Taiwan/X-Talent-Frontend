@@ -158,9 +158,9 @@ describe('useMentorSchedule', () => {
       {
         id: 101,
         type: 'ALLOW' as const,
-        dtstart: 1774390000, // occurrence 1 (July 26, 2026 12:46:40 PM UTC)
-        dtend: 1774391800,
-        rrule: 'FREQ=WEEKLY;COUNT=2', // next is 1774994800 (August 2, 2026 12:46:40 PM UTC)
+        dtstart: 1785070000, // occurrence 1 (July 26, 2026 12:46:40 PM UTC)
+        dtend: 1785071800,
+        rrule: 'FREQ=WEEKLY;COUNT=2', // next is 1785674800 (August 2, 2026 12:46:40 PM UTC)
         exdate: [],
       },
     ];
@@ -175,25 +175,25 @@ describe('useMentorSchedule', () => {
     expect(result.current.parsedDraft).toHaveLength(2);
 
     act(() => {
-      // Update occurrence 1 (1774390000)
-      const success = result.current.updateDraftSlot(101, 1774390000, {
+      // Update occurrence 1 (1785070000)
+      const success = result.current.updateDraftSlot(101, 1785070000, {
         startTime: '13:00', // Move to 13:00
         durationMinutes: 45,
       });
       expect(success).toBe(true);
     });
 
-    // The parent slot 101 should now have 1774390000 in its exdate (leaving only 1 active weekly occurrence).
+    // The parent slot 101 should now have 1785070000 in its exdate (leaving only 1 active weekly occurrence).
     // A new detached non-recurring slot (negative temporary ID) should be created at 13:00.
     // So there should be 2 slots in parsedDraft now:
-    // - The remaining weekly occurrence (starts at 1774994800, slot 101)
+    // - The remaining weekly occurrence (starts at 1785674800, slot 101)
     // - The detached, updated slot (starts at 13:00 local, negative temporary ID)
     expect(result.current.parsedDraft).toHaveLength(2);
 
     const parentOcc = result.current.parsedDraft.find((s) => s.id === 101);
-    expect(parentOcc?.occurrenceUnix).toBe(1774994800); // the remaining weekly occurrence is untouched
+    expect(parentOcc?.occurrenceUnix).toBe(1785674800); // the remaining weekly occurrence is untouched
 
-    const baseDate = dayjs(1774390000 * 1000).format('YYYY-MM-DD');
+    const baseDate = dayjs(1785070000 * 1000).format('YYYY-MM-DD');
     const expectedTime = buildDateTime(baseDate, '13:00');
     const expectedUnix = Math.floor(expectedTime.valueOf() / 1000);
 
@@ -334,5 +334,73 @@ describe('useMentorSchedule', () => {
     expect(result.current.parsedDraft).toHaveLength(1);
     expect(result.current.parsedDraft[0].id).toBe(101);
     expect(result.current.parsedDraft[0].occurrenceUnix).toBe(1774994800);
+  });
+
+  it('regression: a recurring ALLOW row whose weekly occurrences cross a month boundary, edited on a cross-boundary occurrence, ends up in exactly one month buffer with no duplicate representation', async () => {
+    // Parent slot 101 starts on July 26, 2026 (Month 7) -> 1785070000
+    // Weekly recurrence count=2 -> Second occurrence is August 2, 2026 (Month 8) -> 1785674800
+    const mockRawsJuly: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW' as const,
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: 'FREQ=WEEKLY;COUNT=2',
+        exdate: [],
+      },
+    ];
+
+    // Mock loadMonthScheduleCached for July to return mockRawsJuly, and for August to return []
+    mockLoadMonthScheduleCached.mockImplementation((ref) => {
+      if (ref.year === 2026 && ref.month === 7) {
+        return {
+          cached: mockRawsJuly,
+          revalidate: Promise.resolve(mockRawsJuly),
+        };
+      }
+      return {
+        cached: [],
+        revalidate: Promise.resolve([]),
+      };
+    });
+
+    const { result } = renderHook(() =>
+      useMentorSchedule({
+        backend: { userId: '123', year: 2026, month: 7 },
+      })
+    );
+
+    await waitFor(() => {
+      expect(result.current.loaded).toBe(true);
+    });
+
+    // There should be 2 active occurrences of slot 101 initially (one in Month 7, one in Month 8)
+    expect(result.current.parsedDraft).toHaveLength(2);
+
+    act(() => {
+      // Edit the August 2 occurrence (1785674800 - Month 8)
+      // Since it is edited, it should detach from the parent in July and be stored in August's buffer
+      const success = result.current.updateDraftSlot(101, 1785674800, {
+        startTime: '13:00', // Move to 13:00
+        durationMinutes: 45,
+      });
+      expect(success).toBe(true);
+    });
+
+    // Total active occurrences should still be 2:
+    // - One in July (the original parent row with exdate)
+    // - One in August (the detached non-recurring slot)
+    expect(result.current.parsedDraft).toHaveLength(2);
+
+    const julyOcc = result.current.parsedDraft.find((s) => s.id === 101);
+    expect(julyOcc?.occurrenceUnix).toBe(1785070000); // July occurrence remains untouched under original parent ID
+
+    const baseDate = dayjs(1785674800 * 1000).format('YYYY-MM-DD');
+    const expectedTime = buildDateTime(baseDate, '13:00');
+    const expectedUnix = Math.floor(expectedTime.valueOf() / 1000);
+
+    const augustOcc = result.current.parsedDraft.find((s) => s.id < 0);
+    expect(augustOcc?.occurrenceUnix).toBe(expectedUnix); // the detached occurrence is updated to 13:00 local of August 2
+    expect(augustOcc?.durationMinutes).toBe(45);
   });
 });
