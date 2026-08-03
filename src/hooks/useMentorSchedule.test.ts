@@ -459,4 +459,135 @@ describe('useMentorSchedule', () => {
     expect(updatedSlot.occurrenceUnix).toBe(1785675600); // has been moved to August 2, 13:00!
     expect(updatedSlot.dateKey).toBe('2026-08-02');
   });
+
+  it('regression: a cross-month edit/move blocks editing and throws an error if the target month is not cached/loaded', async () => {
+    // Parent slot 101 starts on July 26, 2026 (Month 7) -> 1785070000
+    const mockRawsJuly: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW' as const,
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    // Mock loadMonthScheduleCached: July returns cached data, but August returns cached: undefined
+    mockLoadMonthScheduleCached.mockImplementation((ref) => {
+      if (ref.year === 2026 && ref.month === 7) {
+        return {
+          cached: mockRawsJuly,
+          revalidate: Promise.resolve(mockRawsJuly),
+        };
+      }
+      return {
+        cached: undefined, // Cache miss for August!
+        revalidate: Promise.resolve([]),
+      };
+    });
+
+    const { result } = renderHook(() =>
+      useMentorSchedule({
+        backend: { userId: '123', year: 2026, month: 7 },
+      })
+    );
+
+    await waitFor(() => {
+      expect(result.current.loaded).toBe(true);
+    });
+
+    expect(result.current.parsedDraft).toHaveLength(1);
+
+    // Edit the slot to August 2, 2026 (1785674800)
+    // Since August has a cache miss, updateDraftSlot should throw an error, blocking the edit
+    let editError: Error | null = null;
+    let success = false;
+    try {
+      success = result.current.updateDraftSlot(101, 1785674800, {
+        startTime: '13:00',
+        durationMinutes: 45,
+      });
+    } catch (e: unknown) {
+      editError = e as Error;
+    }
+
+    expect(success).toBe(false);
+    expect(editError?.message).toBe('TARGET_MONTH_NOT_LOADED');
+    // Ensure the slot remains in July unchanged
+    expect(result.current.parsedDraft).toHaveLength(1);
+    expect(result.current.parsedDraft[0].id).toBe(101);
+    expect(result.current.parsedDraft[0].occurrenceUnix).toBe(1785070000);
+  });
+
+  it('regression: a cross-month edit/move blocks editing if there is an overlap conflict with existing slots in the target month', async () => {
+    // Parent slot 101 starts on July 26, 2026 (Month 7) -> 1785070000
+    const mockRawsJuly: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW' as const,
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    // August has an existing slot at 13:00 (1785675600)
+    const mockRawsAugust: RawMentorTimeslot[] = [
+      {
+        id: 202,
+        type: 'ALLOW' as const,
+        dtstart: 1785675600, // August 2, 13:00 UTC
+        dtend: 1785677400, // +30 mins
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    // Mock loadMonthScheduleCached
+    mockLoadMonthScheduleCached.mockImplementation((ref) => {
+      if (ref.year === 2026 && ref.month === 7) {
+        return {
+          cached: mockRawsJuly,
+          revalidate: Promise.resolve(mockRawsJuly),
+        };
+      }
+      if (ref.year === 2026 && ref.month === 8) {
+        return {
+          cached: mockRawsAugust,
+          revalidate: Promise.resolve(mockRawsAugust),
+        };
+      }
+      return {
+        cached: [],
+        revalidate: Promise.resolve([]),
+      };
+    });
+
+    const { result } = renderHook(() =>
+      useMentorSchedule({
+        backend: { userId: '123', year: 2026, month: 7 },
+      })
+    );
+
+    await waitFor(() => {
+      expect(result.current.loaded).toBe(true);
+    });
+
+    // Edit slot 101 to August 2 at 13:00 (1785674800 with patch 13:00 results in 1785675600)
+    // This overlaps with August slot 202, so it should be blocked and return false!
+    act(() => {
+      const success = result.current.updateDraftSlot(101, 1785674800, {
+        startTime: '13:00',
+        durationMinutes: 45, // overlaps with 13:00 - 13:30 of slot 202
+      });
+      expect(success).toBe(false);
+    });
+
+    // Ensure slot 101 remains in July and is not moved or modified
+    expect(result.current.parsedDraft).toHaveLength(1);
+    expect(result.current.parsedDraft[0].id).toBe(101);
+    expect(result.current.parsedDraft[0].occurrenceUnix).toBe(1785070000);
+  });
 });

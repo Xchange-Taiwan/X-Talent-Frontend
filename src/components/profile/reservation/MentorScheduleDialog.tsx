@@ -367,19 +367,36 @@ export default function MentorScheduleDialog({
         onClose={() => setActiveDialog(null)}
         onSubmit={(form) => {
           if (activeDialog?.kind !== 'edit') return;
-          const ok = updateDraftSlot(
-            activeDialog.id,
-            activeDialog.occurrenceUnix,
-            {
-              startTime: `${form.startHour}:${form.startMinute}`,
-              durationMinutes: form.durationMinutes,
+          try {
+            const ok = updateDraftSlot(
+              activeDialog.id,
+              activeDialog.occurrenceUnix,
+              {
+                startTime: `${form.startHour}:${form.startMinute}`,
+                durationMinutes: form.durationMinutes,
+              }
+            );
+            if (!ok) {
+              toast({
+                variant: 'destructive',
+                description: '此時段與其他時段重疊',
+              });
+              return;
             }
-          );
-          if (!ok) {
-            toast({
-              variant: 'destructive',
-              description: '此時段與其他時段重疊',
-            });
+          } catch (e: unknown) {
+            const err = e as Error;
+            if (err.message === 'TARGET_MONTH_NOT_LOADED') {
+              toast({
+                variant: 'destructive',
+                description:
+                  '目標月份排程尚未載入，請先在行事曆中切換至目標月份。',
+              });
+            } else {
+              toast({
+                variant: 'destructive',
+                description: err.message || '更新時段失敗',
+              });
+            }
             return;
           }
           setActiveDialog(null);

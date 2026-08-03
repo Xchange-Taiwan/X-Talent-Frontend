@@ -553,7 +553,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           });
           if (!cached) {
             // Cache miss for target month, block the edit to prevent data loss
-            return false;
+            throw new Error('TARGET_MONTH_NOT_LOADED');
           }
           targetDraft = cached;
         }
