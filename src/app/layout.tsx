@@ -55,9 +55,9 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const cookieStore = cookies();
   let initialSessionHint = null;
   try {
-    const cookieStore = cookies();
     const rawHint = cookieStore.get(SESSION_HINT_COOKIE)?.value;
     initialSessionHint = decodeSessionHint(rawHint);
   } catch (err) {

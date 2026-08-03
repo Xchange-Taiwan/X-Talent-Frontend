@@ -30,6 +30,16 @@ export function encodeSessionHint(hint: SessionHint): string {
   return isMentorVal;
 }
 
+function isValidAvatarProtocol(url: string): boolean {
+  return (
+    url.startsWith('https://') ||
+    url.startsWith('https%3A%2F%2F') ||
+    url.startsWith('http://') ||
+    url.startsWith('http%3A%2F%2F') ||
+    url.startsWith('/')
+  );
+}
+
 export function decodeSessionHint(
   value: string | undefined | null
 ): SessionHint | null {
@@ -50,10 +60,15 @@ export function decodeSessionHint(
 
   const hint: SessionHint = { isMentor };
   if (avatarPart) {
+    let avatar: string | undefined;
     try {
-      hint.avatar = decodeURIComponent(avatarPart);
+      avatar = decodeURIComponent(avatarPart);
     } catch {
-      hint.avatar = avatarPart;
+      avatar = avatarPart;
+    }
+
+    if (isValidAvatarProtocol(avatar)) {
+      hint.avatar = avatar;
     }
   }
   return hint;

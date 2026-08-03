@@ -31,6 +31,8 @@ function HeaderComponent(): JSX.Element {
     id: userId,
     isMentor,
     avatar: hintAvatar,
+    name: '',
+    email: '',
   };
 
   const findMentorHref = '/mentor-pool';

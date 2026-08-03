@@ -65,10 +65,12 @@ describe('sessionHint utilities', () => {
     });
 
     it('falls back to raw string on URI decode error', () => {
-      const result = decodeSessionHint('1|invalid%%url');
+      const result = decodeSessionHint(
+        '1|https%3A%2F%2Fexample.com%2Finvalid%%url'
+      );
       expect(result).toEqual({
         isMentor: true,
-        avatar: 'invalid%%url',
+        avatar: 'https%3A%2F%2Fexample.com%2Finvalid%%url',
       });
     });
 

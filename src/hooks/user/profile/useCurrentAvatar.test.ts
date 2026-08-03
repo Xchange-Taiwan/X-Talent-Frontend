@@ -33,7 +33,7 @@ describe('useCurrentAvatar', () => {
     mockUseSession.mockReturnValue({
       data: { user: { id: 'user-123', avatar: 'session-avatar.png' } },
       status: 'authenticated',
-    } as any);
+    } as unknown as ReturnType<typeof useSession>);
     mockUseSessionHint.mockReturnValue({ status: 'unknown' });
     mockUseAvatarOverride.mockReturnValue({
       userId: 'user-123',
@@ -49,7 +49,7 @@ describe('useCurrentAvatar', () => {
     mockUseSession.mockReturnValue({
       data: { user: { id: 'user-123', avatar: 'session-avatar.png' } },
       status: 'authenticated',
-    } as any);
+    } as unknown as ReturnType<typeof useSession>);
     mockUseSessionHint.mockReturnValue({ status: 'unknown' });
     mockUseAvatarOverride.mockReturnValue({
       userId: 'different-user',
@@ -66,7 +66,7 @@ describe('useCurrentAvatar', () => {
     mockUseSession.mockReturnValue({
       data: undefined,
       status: 'loading',
-    } as any);
+    } as unknown as ReturnType<typeof useSession>);
     mockUseSessionHint.mockReturnValue({
       status: 'authenticated',
       isMentor: true,
@@ -84,7 +84,7 @@ describe('useCurrentAvatar', () => {
     mockUseSession.mockReturnValue({
       data: { user: { id: 'user-123', avatar: null } },
       status: 'authenticated',
-    } as any);
+    } as unknown as ReturnType<typeof useSession>);
     mockUseSessionHint.mockReturnValue({
       status: 'authenticated',
       isMentor: true,
@@ -101,7 +101,7 @@ describe('useCurrentAvatar', () => {
     mockUseSession.mockReturnValue({
       data: undefined,
       status: 'loading',
-    } as any);
+    } as unknown as ReturnType<typeof useSession>);
     mockUseSessionHint.mockReturnValue({ status: 'guest' });
     mockUseAvatarOverride.mockReturnValue(null);
 

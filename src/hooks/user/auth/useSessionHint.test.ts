@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
 
 import { SessionHintProvider } from './SessionHintContext';
-import { useSessionHint } from './useSessionHint';
+import { type SessionHintState, useSessionHint } from './useSessionHint';
 
 function setCookie(value: string | undefined): void {
   if (value === undefined) {
@@ -21,7 +21,7 @@ describe('useSessionHint', () => {
   });
 
   it('uses initial hint from context on first render', () => {
-    const renderedStates: any[] = [];
+    const renderedStates: SessionHintState[] = [];
     const TestComponent = () => {
       const state = useSessionHint();
       renderedStates.push(state);
