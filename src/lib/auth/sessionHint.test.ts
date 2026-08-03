@@ -120,8 +120,8 @@ describe('sessionHint utilities', () => {
       document.body.innerHTML = '';
     });
 
-    it('sets state attribute for mentor with avatar and pre-fills CSS custom property', () => {
-      document.cookie = `${SESSION_HINT_COOKIE}=1|https%3A%2F%2Fexample.com%2Favatar.png`;
+    it('sets state attribute for mentor with avatar and injects safe custom style element', () => {
+      document.cookie = `${SESSION_HINT_COOKIE}=1|https%3A%2F%2Fexample.com%2Favatar.png%22%3Bbackground%3Ared`;
 
       runInlineScript();
 
@@ -129,11 +129,15 @@ describe('sessionHint utilities', () => {
         'mentor'
       );
       expect(document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)).toBe(
-        'https://example.com/avatar.png'
+        'https://example.com/avatar.png";background:red'
       );
-      expect(
-        document.documentElement.style.getPropertyValue('--auth-avatar')
-      ).toBe('url("https://example.com/avatar.png")');
+
+      const styleTag = document.getElementById('session-hint-styles');
+      expect(styleTag).not.toBeNull();
+      // Verify quotes are escaped as %22 to block any CSS injection
+      expect(styleTag?.innerHTML).toBe(
+        ':root { --auth-avatar: url("https://example.com/avatar.png%22;background:red"); }'
+      );
     });
 
     it('sets state attribute for mentee without avatar', () => {

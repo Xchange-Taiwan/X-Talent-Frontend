@@ -104,7 +104,10 @@ export const SESSION_HINT_INLINE_SCRIPT = `
 
       if (avatar && (avatar.startsWith('https://') || avatar.startsWith('http://') || avatar.startsWith('/'))) {
         document.documentElement.setAttribute('${DOM_AUTH_AVATAR_ATTR}', avatar);
-        document.documentElement.style.setProperty('--auth-avatar', 'url("' + avatar + '")');
+        var style = document.createElement('style');
+        style.id = 'session-hint-styles';
+        style.innerHTML = ':root { --auth-avatar: url("' + avatar.replace(/"/g, '%22') + '"); }';
+        document.head.appendChild(style);
       }
       document.documentElement.setAttribute('${DOM_AUTH_STATE_ATTR}', isMentor ? 'mentor' : 'mentee');
     }
