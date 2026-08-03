@@ -49,15 +49,27 @@ export function useSessionHint(): SessionHintState {
     const hint: SessionHint | null = decodeSessionHint(
       readCookie(SESSION_HINT_COOKIE)
     );
-    setState(
-      hint
+    setState((prev) => {
+      const nextStatus = hint ? 'authenticated' : 'guest';
+      const nextIsMentor = hint ? hint.isMentor : false;
+      const nextAvatar = hint ? hint.avatar : undefined;
+
+      if (
+        prev.status === nextStatus &&
+        (prev.status !== 'authenticated' ||
+          (prev.isMentor === nextIsMentor && prev.avatar === nextAvatar))
+      ) {
+        return prev;
+      }
+
+      return hint
         ? {
             status: 'authenticated',
             isMentor: hint.isMentor,
             avatar: hint.avatar,
           }
-        : { status: 'guest' }
-    );
+        : { status: 'guest' };
+    });
   }, []);
 
   return state;

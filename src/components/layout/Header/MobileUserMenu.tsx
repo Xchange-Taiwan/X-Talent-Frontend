@@ -65,6 +65,8 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
               sizes="32px"
               className="size-8 rounded-full object-cover"
               priority
+              suppressHydrationWarning
+              data-avatar-img
             />
           </button>
         </SheetTrigger>
@@ -98,6 +100,8 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
                 height={56}
                 sizes="56px"
                 className="size-14 rounded-full object-cover"
+                suppressHydrationWarning
+                data-avatar-img
               />
               <div className="min-w-0">
                 <div className="truncate text-2xl font-semibold text-text-primary">

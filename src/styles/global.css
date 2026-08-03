@@ -83,16 +83,3 @@ html {
     padding-right: 0 !important;
   }
 }
-
-/* =========================
-   Header Instant SSR-Hint CSS
-   ========================= */
-html[data-auth-state='mentor'] .header-auth-skeleton,
-html[data-auth-state='mentee'] .header-auth-skeleton {
-  display: none !important;
-}
-
-html[data-auth-state='mentor'] .header-ssr-fast-path,
-html[data-auth-state='mentee'] .header-ssr-fast-path {
-  display: block !important;
-}

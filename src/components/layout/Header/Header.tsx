@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
 import { Button } from '@/components/ui/button';
@@ -26,20 +26,26 @@ function HeaderComponent(): JSX.Element {
     useAuthStatus();
 
   const hintAvatar = hint.status === 'authenticated' ? hint.avatar : undefined;
+  const resolvedIsMentor =
+    hint.status === 'authenticated' ? hint.isMentor : isMentor;
 
-  const virtualUser = session?.user ?? {
-    id: userId,
-    isMentor,
-    avatar: hintAvatar,
-    name: '',
-    email: '',
-  };
+  const virtualUser = useMemo(() => {
+    return (
+      session?.user ?? {
+        id: userId,
+        isMentor: resolvedIsMentor,
+        avatar: hintAvatar,
+        name: '',
+        email: '',
+      }
+    );
+  }, [session?.user, userId, resolvedIsMentor, hintAvatar]);
 
   const findMentorHref = '/mentor-pool';
 
   // `userId` only ever comes from the real session, never the hint — while
   // isResolvingUser is true these hrefs are unused (the link is disabled).
-  const leftSecondNav = isMentor
+  const leftSecondNav = resolvedIsMentor
     ? { label: '我的導師頁面', href: getProfileHref(userId) }
     : { label: '成為導師', href: getBecomeMentorHref(userId) };
 
@@ -95,10 +101,10 @@ function HeaderComponent(): JSX.Element {
           <div className="hidden items-center gap-3 lg:flex">
             {!authKnown ? (
               <>
-                <div className="header-auth-skeleton">
+                <div className="[[data-auth-state='mentee']_&]:hidden [[data-auth-state='mentor']_&]:hidden">
                   <Skeleton className="size-9 rounded-full" />
                 </div>
-                <div className="header-ssr-fast-path hidden">
+                <div className="hidden [[data-auth-state='mentee']_&]:block [[data-auth-state='mentor']_&]:block">
                   <UserDropdown user={virtualUser} />
                 </div>
               </>
@@ -131,14 +137,14 @@ function HeaderComponent(): JSX.Element {
               <MobileUserMenu user={virtualUser} />
             ) : (
               !authKnown && (
-                <div className="header-ssr-fast-path hidden">
+                <div className="hidden [[data-auth-state='mentee']_&]:block [[data-auth-state='mentor']_&]:block">
                   <MobileUserMenu user={virtualUser} />
                 </div>
               )
             )}
             <HamburgerMenu
               isLoggedIn={isLoggedIn}
-              isMentor={isMentor}
+              isMentor={resolvedIsMentor}
               userId={userId}
               isResolvingUser={isResolvingUser}
             />

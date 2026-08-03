@@ -65,13 +65,22 @@ export default function RootLayout({
                   return row.startsWith('session-hint=');
                 });
                 if (cookie) {
-                  var value = decodeURIComponent(cookie.split('=')[1]);
-                  var parts = value.split('|');
+                  var rawValue = cookie.split('=')[1];
+                  var parts = rawValue.split('|');
                   var isMentor = parts[0] === '1';
-                  var avatar = parts[1] || '';
+                  var avatar = parts[1] ? decodeURIComponent(parts[1]) : '';
                   
                   if (avatar && (avatar.startsWith('https://') || avatar.startsWith('http://') || avatar.startsWith('/'))) {
                     document.documentElement.setAttribute('data-auth-avatar', avatar);
+                    
+                    var updateImages = function() {
+                      var imgs = document.querySelectorAll('img[data-avatar-img]');
+                      for (var i = 0; i < imgs.length; i++) {
+                        imgs[i].src = avatar;
+                      }
+                    };
+                    updateImages();
+                    document.addEventListener('DOMContentLoaded', updateImages);
                   }
                   document.documentElement.setAttribute('data-auth-state', isMentor ? 'mentor' : 'mentee');
                 }

@@ -80,6 +80,8 @@ export const UserDropdown = React.memo(function UserDropdown({
               sizes="32px"
               className="size-8 rounded-full object-cover"
               priority
+              suppressHydrationWarning
+              data-avatar-img
             />
             <span className="text-xl leading-none" aria-hidden="true">
               ▾
