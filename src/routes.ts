@@ -18,6 +18,7 @@ export const publicRoutes: string[] = [
   '/mentor-pool',
   '/privacy',
   '/terms',
+  '/api/announcement',
 ];
 
 /**
