@@ -55,6 +55,7 @@ CLAUDE.md
 /reports/
 /.playwright-mcp/
 /lighthouse-reports/
+/ai-review-report.md
 
 # Playwright E2E
 /playwright-report/
