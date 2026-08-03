@@ -174,6 +174,15 @@ async function request<T>(
   }
 
   if (!response.ok) {
+    if (
+      response.status === 503 &&
+      response.headers.get('X-Maintenance-Mode') === '1' &&
+      typeof window !== 'undefined'
+    ) {
+      window.location.href = '/maintenance';
+      return new Promise(() => {}); // Pause further execution during redirect
+    }
+
     const errorBody = await response.json().catch(() => ({}));
     const message =
       (errorBody as Record<string, string>).msg ||
