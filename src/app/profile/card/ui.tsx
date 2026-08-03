@@ -22,7 +22,7 @@ export default function ProfileCardUI({
   onBackToProfile,
 }: Props) {
   return (
-    <div className="mx-auto w-11/12 max-w-[630px] pb-20 pt-10">
+    <div className="mx-auto w-11/12 max-w-[630px] pt-10 pb-20">
       <div className="text-center">
         {!isMentor && (
           <p className="mb-3 text-4xl font-bold">恭喜你完成個人頁面的建立！</p>

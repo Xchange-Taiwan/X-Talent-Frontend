@@ -355,7 +355,7 @@ const ColorListView: React.FC<ColorViewProps> = ({
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-left">
         <thead>
-          <tr className="border-b border-background-border text-xs font-semibold uppercase text-text-tertiary">
+          <tr className="border-b border-background-border text-xs font-semibold text-text-tertiary uppercase">
             <th className="w-12 px-4 py-3">預覽</th>
             <th className="px-4 py-3">名稱 & KEY</th>
             <th className="px-4 py-3">HEX</th>
@@ -489,11 +489,11 @@ export const ColorPalette: React.FC = () => {
       {/* Search & Tool Bar */}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-text-tertiary" />
+          <Search className="absolute top-1/2 left-3 size-5 -translate-y-1/2 text-text-tertiary" />
           <input
             type="text"
             placeholder="搜尋顏色、變數、HEX、或 Tailwind 類別..."
-            className="w-full rounded-lg border border-background-border bg-background-bottom-secondary py-2.5 pl-11 pr-4 text-sm text-text-primary outline-none transition-colors focus:bg-background-white"
+            className="w-full rounded-lg border border-background-border bg-background-bottom-secondary py-2.5 pr-4 pl-11 text-sm text-text-primary transition-colors outline-none focus:bg-background-white"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />

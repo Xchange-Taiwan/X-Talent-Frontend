@@ -70,7 +70,7 @@ export default function ReservationConversationDialog({
         {trigger ?? (
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-sm text-xs text-text-tertiary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 sm:text-sm"
+            className="inline-flex items-center gap-1 rounded-sm text-xs text-text-tertiary hover:text-text-primary focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none sm:text-sm"
           >
             <MessageSquare className="size-3.5" aria-hidden />
             查看完整對話
@@ -161,7 +161,7 @@ function MessageBubble({
       ) : null}
       <div
         className={cn(
-          'max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2.5 text-sm',
+          'max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm break-words whitespace-pre-wrap',
           isMentor && 'bg-brand-500 text-text-primary',
           isMentee && 'bg-background-bottom text-text-primary',
           !message.role && 'bg-background-bottom/60 text-text-tertiary'

@@ -24,7 +24,7 @@ export function MentorScheduleConfig({
         monthLoaded={monthLoaded}
         renderSlot={(slot) => (
           <div
-            className={`flex h-10 select-none items-center justify-center rounded-lg border text-sm font-medium ${
+            className={`flex h-10 items-center justify-center rounded-lg border text-sm font-medium select-none ${
               slot.isBooked ? BOOKED_SLOT_CLASSES : 'border-background-border'
             }`}
           >

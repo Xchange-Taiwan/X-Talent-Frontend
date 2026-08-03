@@ -24,7 +24,7 @@ export default function Page() {
   });
 
   return (
-    <div className="mx-auto w-11/12 max-w-[630px] pb-20 pt-10">
+    <div className="mx-auto w-11/12 max-w-[630px] pt-10 pb-20">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-10">
           <p className="mb-3 text-4xl font-bold">你的專長領域</p>
