@@ -35,6 +35,7 @@ module.exports = {
         whitelist: ['destructive'],
       },
     ],
+    // Guard against arbitrary Tailwind colors, default Tailwind scales, and arbitrary font sizes
     'no-restricted-syntax': [
       'error',
       {
