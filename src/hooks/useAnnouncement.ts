@@ -45,8 +45,10 @@ export function useAnnouncement() {
         setData(announcement);
         setVisible(true);
 
-        // 3. Set a timeout to automatically hide when maintenance time starts
-        if (timeRemaining > 0) {
+        // 3. Set a timeout to automatically hide when maintenance time starts.
+        // setTimeout's delay is a 32-bit signed int (max ~24.8 days) — beyond
+        // that it wraps and fires immediately, so skip scheduling in that case.
+        if (timeRemaining > 0 && timeRemaining <= 2147483647) {
           timer = setTimeout(() => {
             setVisible(false);
           }, timeRemaining);

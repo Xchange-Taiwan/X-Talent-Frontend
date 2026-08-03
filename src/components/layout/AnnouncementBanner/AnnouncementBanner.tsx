@@ -24,11 +24,9 @@ export function AnnouncementBanner(): JSX.Element | null {
       );
     };
 
-    // Set initial height
-    const initialHeight = bannerRef.current.getBoundingClientRect().height;
-    updateHeight(initialHeight);
-
-    // Observe size changes (e.g., text wrapping on viewport resize)
+    // Observe size changes (e.g., text wrapping on viewport resize).
+    // ResizeObserver fires once on observe() before the next paint, so no
+    // manual initial measurement is needed here.
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (entry) {
