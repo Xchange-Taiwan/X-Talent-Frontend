@@ -78,7 +78,7 @@ export default function Page() {
   return (
     <>
       <section className="flex h-[532px] flex-col items-center justify-center bg-[url('/landing/home-page-hero-sm.svg')] bg-cover bg-no-repeat px-4 text-center sm:bg-[url('/landing/home-page-hero-md.svg')] sm:px-0 lg:h-[640px] lg:bg-none">
-        <h1 className="mb-8 text-3xl font-bold leading-normal text-navy sm:text-4xl md:text-5xl">
+        <h1 className="mb-8 text-3xl leading-normal font-bold text-navy sm:text-4xl md:text-5xl">
           交流讓
           <br className="md:hidden" />
           改變發生
@@ -113,7 +113,7 @@ export default function Page() {
       </section>
 
       <section className="relative contents md:m-auto md:h-[1100px] md:w-[930px] xl:block xl:h-[790px]">
-        <div className="mb-[50px] mt-8 flex flex-col items-center px-4 min-[550px]:px-14 md:mt-[70px] md:flex-row md:items-start md:gap-8 md:px-8 xl:mb-[130px] xl:mt-7 xl:gap-0 xl:px-0">
+        <div className="mt-8 mb-[50px] flex flex-col items-center px-4 min-[550px]:px-14 md:mt-[70px] md:flex-row md:items-start md:gap-8 md:px-8 xl:mt-7 xl:mb-[130px] xl:gap-0 xl:px-0">
           <Image
             src={landingPage_4}
             width={420}
@@ -131,7 +131,7 @@ export default function Page() {
             </p>
           </div>
         </div>
-        <div className="mb-[50px] mt-7 flex flex-col-reverse items-center px-4 min-[550px]:px-14 md:mb-[130px] md:flex-row md:items-start md:gap-8 md:px-8 xl:gap-0 xl:px-0">
+        <div className="mt-7 mb-[50px] flex flex-col-reverse items-center px-4 min-[550px]:px-14 md:mb-[130px] md:flex-row md:items-start md:gap-8 md:px-8 xl:gap-0 xl:px-0">
           <div className="m-auto flex flex-col py-[30px] md:m-0 md:flex-1 md:py-0 xl:pr-[62px]">
             <h2 className="mb-5 text-xl font-bold text-navy md:text-2xl">
               透過 X-Talent 展開深度交流
@@ -152,7 +152,7 @@ export default function Page() {
 
       <section className="flex h-auto w-full bg-navy py-12 md:h-[425px] md:py-0 xl:h-[557px]">
         <div className="relative m-auto flex h-auto flex-col items-center px-6 md:h-full md:w-[767px] md:flex-row md:flex-wrap md:items-center md:justify-center md:px-0 xl:w-[1280px]">
-          <div className="my-[15px] w-auto text-center text-2xl font-bold leading-tight text-light md:col-span-2 md:mt-[40px] md:text-left md:text-4xl md:leading-[58px] xl:absolute xl:left-[60px] xl:top-[176px] xl:mt-0">
+          <div className="my-[15px] w-auto text-center text-2xl leading-tight font-bold text-light md:col-span-2 md:mt-[40px] md:text-left md:text-4xl md:leading-[58px] xl:absolute xl:top-[176px] xl:left-[60px] xl:mt-0">
             <p>9000+ XChangers</p>
             <p>
               for you to <br className="md:hidden" />
@@ -191,7 +191,7 @@ export default function Page() {
                     alt=""
                     role="presentation"
                   />
-                  <div className="ml-[30px] flex flex-col md:ml-0 md:mt-[34px] md:items-center">
+                  <div className="ml-[30px] flex flex-col md:mt-[34px] md:ml-0 md:items-center">
                     <p className="font-medium text-text-primary">分享經驗</p>
                     <p className="font-medium text-text-primary">
                       讓知識傳承延續
@@ -205,7 +205,7 @@ export default function Page() {
                     alt=""
                     role="presentation"
                   />
-                  <div className="ml-[30px] flex h-[43px] flex-col justify-center md:ml-0 md:mt-[34px] md:items-center">
+                  <div className="ml-[30px] flex h-[43px] flex-col justify-center md:mt-[34px] md:ml-0 md:items-center">
                     <p className="font-medium text-text-primary">
                       建立專屬人脈網絡
                     </p>
@@ -218,7 +218,7 @@ export default function Page() {
                     alt=""
                     role="presentation"
                   />
-                  <div className="ml-[30px] flex flex-col md:ml-0 md:mt-[34px] md:items-center">
+                  <div className="ml-[30px] flex flex-col md:mt-[34px] md:ml-0 md:items-center">
                     <p className="font-medium text-text-primary">
                       增加社會影響力
                     </p>
@@ -249,7 +249,7 @@ export default function Page() {
                     alt=""
                     role="presentation"
                   />
-                  <div className="ml-[30px] flex flex-col md:ml-0 md:mt-[34px] md:items-center">
+                  <div className="ml-[30px] flex flex-col md:mt-[34px] md:ml-0 md:items-center">
                     <p className="font-medium text-text-primary">探索產業與</p>
                     <p className="font-medium text-text-primary">
                       職涯發展方向
@@ -263,7 +263,7 @@ export default function Page() {
                     alt=""
                     role="presentation"
                   />
-                  <div className="ml-[35px] flex flex-col justify-center md:ml-0 md:mt-[34px] md:items-center">
+                  <div className="ml-[35px] flex flex-col justify-center md:mt-[34px] md:ml-0 md:items-center">
                     <p className="font-medium text-text-primary">
                       與經驗豐富的 Mentor
                     </p>
@@ -279,7 +279,7 @@ export default function Page() {
                     alt=""
                     role="presentation"
                   />
-                  <div className="ml-[30px] flex flex-col md:ml-0 md:mt-[34px] md:items-center">
+                  <div className="ml-[30px] flex flex-col md:mt-[34px] md:ml-0 md:items-center">
                     <p className="font-medium text-text-primary">
                       學習更多學校沒教的事
                     </p>

@@ -54,7 +54,7 @@ export default function MentorPoolUI({
     <section className="mt-[80px] px-5 pb-10 md:px-10 xl:px-20">
       <div className="mx-auto w-full max-w-screen-xl">
         <PopularPositionChips />
-        <div className="mb-5 mt-6 flex flex-col items-center gap-4 md:flex-row md:items-center md:justify-between md:gap-0">
+        <div className="mt-6 mb-5 flex flex-col items-center gap-4 md:flex-row md:items-center md:justify-between md:gap-0">
           <div
             className={`text-base transition-opacity ${isReplacing ? 'opacity-50' : ''}`}
           >
@@ -81,7 +81,7 @@ export default function MentorPoolUI({
               <Badge
                 key={key}
                 variant={'filter'}
-                className="text-sm font-medium leading-5"
+                className="text-sm leading-5 font-medium"
               >
                 <span>
                   {filter.name}: {label}

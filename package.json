@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@9.15.9",
   "engines": {
-    "node": ">=20.19.0"
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },
   "scripts": {
     "dev": "next dev",
@@ -68,7 +68,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@google/gemini-cli": "0.53.0",
+    "@google/gemini-cli": "0.52.0",
     "@playwright/test": "^1.62.1",
     "@storybook/addon-a11y": "^10.5.5",
     "@storybook/addon-docs": "^10.5.5",
@@ -76,6 +76,7 @@
     "@storybook/blocks": "^8.6.14",
     "@storybook/nextjs": "^10.5.5",
     "@storybook/react": "^10.5.5",
+    "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -106,7 +107,7 @@
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "storybook": "^10.5.5",
-    "tailwindcss": "^3.4.1",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.3.3",
     "vitest": "^4.1.10"
   },

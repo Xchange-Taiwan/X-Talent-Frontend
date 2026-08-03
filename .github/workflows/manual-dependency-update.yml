@@ -1,0 +1,46 @@
+name: Manual Dependency Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: 'Which updates to apply'
+        type: choice
+        options:
+          - minor-patch
+          - latest
+        default: minor-patch
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    name: Manual Dependency Update
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up environment
+        uses: ./.github/actions/setup-env
+        with:
+          frozen-lockfile: 'false'
+
+      - name: Update dependencies (within declared semver ranges)
+        if: ${{ inputs.scope == 'minor-patch' }}
+        run: pnpm update --recursive
+
+      - name: Update dependencies (latest, ignoring declared ranges)
+        if: ${{ inputs.scope == 'latest' }}
+        run: pnpm update --recursive --latest
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: 'chore(deps): manual dependency update'
+          title: 'chore(deps): manual dependency update (${{ inputs.scope }})'
+          body: |
+            Manually triggered dependency update via `workflow_dispatch` (scope: `${{ inputs.scope }}`).
+
+            This ran unattended — review the diff and each package's changelog before merging.
+          branch: chore/manual-dependency-update
+          delete-branch: true
