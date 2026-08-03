@@ -1,3 +1,5 @@
+import { apiClient } from '@/lib/apiClient';
+
 export interface AnnouncementData {
   enabled: boolean;
   message: string;
@@ -5,9 +7,8 @@ export interface AnnouncementData {
 }
 
 export async function fetchAnnouncement(): Promise<AnnouncementData | null> {
-  const res = await fetch('/api/announcement');
-  if (!res.ok) {
-    throw new Error('Failed to fetch announcement');
-  }
-  return res.json() as Promise<AnnouncementData>;
+  const res = await apiClient.get<AnnouncementData>('/api/announcement', {
+    auth: false,
+  });
+  return res || null;
 }

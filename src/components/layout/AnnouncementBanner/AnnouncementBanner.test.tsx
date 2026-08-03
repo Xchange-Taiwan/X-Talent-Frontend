@@ -42,7 +42,7 @@ class MockResizeObserver {
   unobserve() {}
   disconnect() {}
 }
-global.ResizeObserver = MockResizeObserver as any;
+global.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
 
 describe('AnnouncementBanner Component', () => {
   beforeEach(() => {
@@ -69,14 +69,11 @@ describe('AnnouncementBanner Component', () => {
   });
 
   it('renders nothing when announcement is disabled', async () => {
+    const data = { enabled: false, message: '維修公告', maintenanceTime: '' };
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () =>
-        Promise.resolve({
-          enabled: false,
-          message: '維修公告',
-          maintenanceTime: '',
-        }),
+      text: () => Promise.resolve(JSON.stringify(data)),
+      json: () => Promise.resolve(data),
     });
     global.fetch = fetchMock;
 
@@ -92,14 +89,15 @@ describe('AnnouncementBanner Component', () => {
 
   it('renders nothing when maintenance time has already passed', async () => {
     const pastTime = new Date(Date.now() - 10000).toISOString(); // 10s ago
+    const data = {
+      enabled: true,
+      message: '維修公告',
+      maintenanceTime: pastTime,
+    };
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () =>
-        Promise.resolve({
-          enabled: true,
-          message: '維修公告',
-          maintenanceTime: pastTime,
-        }),
+      text: () => Promise.resolve(JSON.stringify(data)),
+      json: () => Promise.resolve(data),
     });
     global.fetch = fetchMock;
 
@@ -115,14 +113,15 @@ describe('AnnouncementBanner Component', () => {
 
   it('renders banner and sets CSS variable when enabled and maintenance time is in the future', async () => {
     const futureTime = new Date(Date.now() + 100000).toISOString(); // In the future
+    const data = {
+      enabled: true,
+      message: '即將進行系統維護公告',
+      maintenanceTime: futureTime,
+    };
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () =>
-        Promise.resolve({
-          enabled: true,
-          message: '即將進行系統維護公告',
-          maintenanceTime: futureTime,
-        }),
+      text: () => Promise.resolve(JSON.stringify(data)),
+      json: () => Promise.resolve(data),
     });
     global.fetch = fetchMock;
 
@@ -141,14 +140,15 @@ describe('AnnouncementBanner Component', () => {
   it('renders nothing when previously dismissed in the same session', async () => {
     sessionStorage.setItem('announcement-dismissed', 'true');
     const futureTime = new Date(Date.now() + 100000).toISOString();
+    const data = {
+      enabled: true,
+      message: '即將進行系統維護公告',
+      maintenanceTime: futureTime,
+    };
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () =>
-        Promise.resolve({
-          enabled: true,
-          message: '即將進行系統維護公告',
-          maintenanceTime: futureTime,
-        }),
+      text: () => Promise.resolve(JSON.stringify(data)),
+      json: () => Promise.resolve(data),
     });
     global.fetch = fetchMock;
 
@@ -163,14 +163,15 @@ describe('AnnouncementBanner Component', () => {
 
   it('can be dismissed and resets CSS variable to 0px', async () => {
     const futureTime = new Date(Date.now() + 100000).toISOString();
+    const data = {
+      enabled: true,
+      message: '即將進行系統維護公告',
+      maintenanceTime: futureTime,
+    };
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () =>
-        Promise.resolve({
-          enabled: true,
-          message: '即將進行系統維護公告',
-          maintenanceTime: futureTime,
-        }),
+      text: () => Promise.resolve(JSON.stringify(data)),
+      json: () => Promise.resolve(data),
     });
     global.fetch = fetchMock;
 
@@ -194,14 +195,15 @@ describe('AnnouncementBanner Component', () => {
   it('automatically hides when maintenance time starts', async () => {
     vi.useFakeTimers();
     const futureTime = new Date(Date.now() + 5000).toISOString(); // 5s in future
+    const data = {
+      enabled: true,
+      message: '倒數自動關閉公告',
+      maintenanceTime: futureTime,
+    };
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: () =>
-        Promise.resolve({
-          enabled: true,
-          message: '倒數自動關閉公告',
-          maintenanceTime: futureTime,
-        }),
+      text: () => Promise.resolve(JSON.stringify(data)),
+      json: () => Promise.resolve(data),
     });
     global.fetch = fetchMock;
 

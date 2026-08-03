@@ -71,7 +71,8 @@ function refreshSession(): Promise<Session | null> {
 }
 
 function buildUrl(path: string, params?: RequestOptions['params']): string {
-  const url = `${BASE_URL}${path}`;
+  const isLocalNextApi = path.startsWith('/api/');
+  const url = isLocalNextApi ? path : `${BASE_URL}${path}`;
   if (!params) return url;
 
   const query = new URLSearchParams();
