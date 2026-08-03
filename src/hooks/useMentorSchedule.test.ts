@@ -29,8 +29,8 @@ describe('useMentorSchedule', () => {
     {
       id: 101,
       type: 'ALLOW' as const,
-      dtstart: 1774390000,
-      dtend: 1774391800,
+      dtstart: 1785070000,
+      dtend: 1785071800,
       rrule: undefined,
       exdate: [],
     },
@@ -59,9 +59,9 @@ describe('useMentorSchedule', () => {
 
     expect(result.current.parsedDraft).toHaveLength(1);
     const slot = result.current.parsedDraft[0];
-    expect(slot.occurrenceId).toBe('101_1774390000');
+    expect(slot.occurrenceId).toBe('101_1785070000');
     expect(slot.id).toBe(101);
-    expect(slot.occurrenceUnix).toBe(1774390000);
+    expect(slot.occurrenceUnix).toBe(1785070000);
   });
 
   it('correctly updates a draft slot', async () => {
@@ -72,14 +72,14 @@ describe('useMentorSchedule', () => {
     });
 
     act(() => {
-      const success = result.current.updateDraftSlot(101, 1774390000, {
+      const success = result.current.updateDraftSlot(101, 1785070000, {
         startTime: '13:00',
         durationMinutes: 45,
       });
       expect(success).toBe(true);
     });
 
-    const baseDate = dayjs(1774390000 * 1000).format('YYYY-MM-DD');
+    const baseDate = dayjs(1785070000 * 1000).format('YYYY-MM-DD');
     const expectedTime = buildDateTime(baseDate, '13:00');
     const expectedUnix = Math.floor(expectedTime.valueOf() / 1000);
 
@@ -99,14 +99,14 @@ describe('useMentorSchedule', () => {
     expect(result.current.parsedDraft).toHaveLength(1);
 
     act(() => {
-      result.current.deleteDraftSlot(101, 1774390000);
+      result.current.deleteDraftSlot(101, 1785070000);
     });
 
     expect(result.current.parsedDraft).toHaveLength(0);
   });
 
   it('prevents updateDraftSlot when it causes an overlap conflict', async () => {
-    const baseDate = dayjs(1774390000 * 1000).format('YYYY-MM-DD');
+    const baseDate = dayjs(1785070000 * 1000).format('YYYY-MM-DD');
 
     // Slot 102 will start at 13:45 in local timezone
     const slot102Start = buildDateTime(baseDate, '13:45');
@@ -116,8 +116,8 @@ describe('useMentorSchedule', () => {
       {
         id: 101,
         type: 'ALLOW' as const,
-        dtstart: 1774390000,
-        dtend: 1774391800,
+        dtstart: 1785070000,
+        dtend: 1785071800,
         rrule: undefined,
         exdate: [],
       },
@@ -141,7 +141,7 @@ describe('useMentorSchedule', () => {
       // Slot 101 starts at 13:30, ends at 14:15 (45 mins duration).
       // Slot 102 starts at 13:45, ends at 14:15.
       // This is a direct overlap conflict!
-      const success = result.current.updateDraftSlot(101, 1774390000, {
+      const success = result.current.updateDraftSlot(101, 1785070000, {
         startTime: '13:30',
         durationMinutes: 45,
       });
@@ -150,7 +150,7 @@ describe('useMentorSchedule', () => {
 
     // Check that slot 101 is unchanged
     const slot101 = result.current.parsedDraft.find((s) => s.id === 101);
-    expect(slot101?.occurrenceUnix).toBe(1774390000);
+    expect(slot101?.occurrenceUnix).toBe(1785070000);
   });
 
   it('correctly detaches a single occurrence of a recurring slot on update', async () => {
@@ -310,9 +310,9 @@ describe('useMentorSchedule', () => {
       {
         id: 101,
         type: 'ALLOW' as const,
-        dtstart: 1774390000, // occurrence 1 (July 26, 2026 12:46:40 PM UTC)
-        dtend: 1774391800,
-        rrule: 'FREQ=WEEKLY;COUNT=2', // next is 1774994800
+        dtstart: 1785070000, // occurrence 1 (July 26, 2026 12:46:40 PM UTC)
+        dtend: 1785071800,
+        rrule: 'FREQ=WEEKLY;COUNT=2', // next is 1785674800
         exdate: [],
       },
     ];
@@ -326,14 +326,14 @@ describe('useMentorSchedule', () => {
     expect(result.current.parsedDraft).toHaveLength(2);
 
     act(() => {
-      // Delete occurrence 1 (1774390000)
-      result.current.deleteDraftSlot(101, 1774390000);
+      // Delete occurrence 1 (1785070000)
+      result.current.deleteDraftSlot(101, 1785070000);
     });
 
-    // Parent should exdate 1774390000, leaving only the second weekly occurrence (1774994800) active.
+    // Parent should exdate 1785070000, leaving only the second weekly occurrence (1785674800) active.
     expect(result.current.parsedDraft).toHaveLength(1);
     expect(result.current.parsedDraft[0].id).toBe(101);
-    expect(result.current.parsedDraft[0].occurrenceUnix).toBe(1774994800);
+    expect(result.current.parsedDraft[0].occurrenceUnix).toBe(1785674800);
   });
 
   it('regression: a recurring ALLOW row whose weekly occurrences cross a month boundary, edited on a cross-boundary occurrence, ends up in exactly one month buffer with no duplicate representation', async () => {
@@ -402,5 +402,61 @@ describe('useMentorSchedule', () => {
     const augustOcc = result.current.parsedDraft.find((s) => s.id < 0);
     expect(augustOcc?.occurrenceUnix).toBe(expectedUnix); // the detached occurrence is updated to 13:00 local of August 2
     expect(augustOcc?.durationMinutes).toBe(45);
+  });
+
+  it('regression: a non-recurring ALLOW slot edited to fall in a different calendar month is correctly moved to the target month buffer', async () => {
+    // Parent slot 101 starts on July 26, 2026 (Month 7) -> 1785070000 (no rrule)
+    const mockRawsJuly: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW' as const,
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    // Mock loadMonthScheduleCached for July to return mockRawsJuly, and for August to return []
+    mockLoadMonthScheduleCached.mockImplementation((ref) => {
+      if (ref.year === 2026 && ref.month === 7) {
+        return {
+          cached: mockRawsJuly,
+          revalidate: Promise.resolve(mockRawsJuly),
+        };
+      }
+      return {
+        cached: [],
+        revalidate: Promise.resolve([]),
+      };
+    });
+
+    const { result } = renderHook(() =>
+      useMentorSchedule({
+        backend: { userId: '123', year: 2026, month: 7 },
+      })
+    );
+
+    await waitFor(() => {
+      expect(result.current.loaded).toBe(true);
+    });
+
+    expect(result.current.parsedDraft).toHaveLength(1);
+
+    // Edit occurrence of slot 101, but the base Date is set to August 2, 2026 (1785674800)
+    // Under the new code, this non-recurring slot is correctly removed from July and added to August buffer.
+    act(() => {
+      const success = result.current.updateDraftSlot(101, 1785674800, {
+        startTime: '13:00',
+        durationMinutes: 45,
+      });
+      expect(success).toBe(true);
+    });
+
+    expect(result.current.parsedDraft).toHaveLength(1);
+    const updatedSlot = result.current.parsedDraft[0];
+    expect(updatedSlot.id).toBe(101); // remains slot 101
+    expect(updatedSlot.occurrenceUnix).toBe(1785675600); // has been moved to August 2, 13:00!
+    expect(updatedSlot.dateKey).toBe('2026-08-02');
   });
 });

@@ -512,42 +512,136 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         const parentMonthKey = findMonthForSlotId(id);
         if (!parentMonthKey) return false;
 
-        let succeeded = false;
+        // Fetch parentDraft outside state setter
+        const parentDraft = draftByMonth.get(parentMonthKey) ?? [];
+        const target = parentDraft.find((r) => r.id === id);
+        if (!target) return false;
 
+        // Date math computed once outside of updater function
+        const baseDate = dayjs(occurrenceUnix * 1000).format('YYYY-MM-DD');
+        const fmtHM = (sec: number) => dayjs(sec * 1000).format('HH:mm');
+        const startHM = patch.startTime ?? fmtHM(occurrenceUnix);
+
+        const s = buildDateTime(baseDate, startHM);
+        if (!s.isValid()) return false;
+
+        const newDtstart = Math.floor(s.valueOf() / 1000);
+        const oldDurationSeconds = target.dtend - target.dtstart;
+        const durationSeconds =
+          (patch.durationMinutes ?? Math.round(oldDurationSeconds / 60)) * 60;
+
+        const isRecurring = !!target.rrule;
+        const noChange =
+          newDtstart === occurrenceUnix &&
+          durationSeconds === oldDurationSeconds;
+
+        if (isRecurring && noChange) {
+          return true;
+        }
+
+        const targetMonthKey = monthKeyFromUnix(newDtstart);
+
+        // Fetch / ensure target draft is loaded/cached outside state setter
+        let targetDraft = draftByMonth.get(targetMonthKey);
+        const isTargetLoaded = !!targetDraft;
+        if (!targetDraft) {
+          const { year, month } = parseMonthKey(targetMonthKey);
+          const { cached } = loadMonthScheduleCached({
+            userId: backend.userId,
+            year,
+            month,
+          });
+          if (!cached) {
+            // Cache miss for target month, block the edit to prevent data loss
+            return false;
+          }
+          targetDraft = cached;
+        }
+
+        // Check overlap in target month buffer before applying state changes
+        if (isRecurring) {
+          if (targetMonthKey === parentMonthKey) {
+            const updatedParent: RawMentorTimeslot = {
+              ...target,
+              exdate: target.exdate.includes(occurrenceUnix)
+                ? target.exdate
+                : [...target.exdate, occurrenceUnix],
+            };
+            const intermediate = parentDraft.map((r) =>
+              r.id === id ? updatedParent : r
+            );
+            if (
+              hasAnyOccurrenceOverlap(
+                intermediate,
+                null,
+                [newDtstart],
+                durationSeconds
+              )
+            ) {
+              return false;
+            }
+          } else {
+            // Different month
+            if (
+              hasAnyOccurrenceOverlap(
+                targetDraft,
+                null,
+                [newDtstart],
+                durationSeconds
+              )
+            ) {
+              return false;
+            }
+          }
+        } else {
+          // Non-recurring slot
+          if (targetMonthKey === parentMonthKey) {
+            if (
+              hasAnyOccurrenceOverlap(
+                parentDraft,
+                id,
+                [newDtstart],
+                durationSeconds
+              )
+            ) {
+              return false;
+            }
+          } else {
+            // Different month
+            if (
+              hasAnyOccurrenceOverlap(
+                targetDraft,
+                null,
+                [newDtstart],
+                durationSeconds
+              )
+            ) {
+              return false;
+            }
+          }
+        }
+
+        // Side-effect: update savedByMonth outside updater if initializing target month
+        if (!isTargetLoaded) {
+          setSavedByMonth((prevSaved) => {
+            const nextSaved = new Map(prevSaved);
+            nextSaved.set(targetMonthKey, targetDraft!);
+            return nextSaved;
+          });
+        }
+
+        // Now run the pure state transformation on draftByMonth
         setDraftByMonth((prevDraft) => {
-          const parentDraft = prevDraft.get(parentMonthKey) ?? [];
-          const target = parentDraft.find((r) => r.id === id);
-          if (!target) return prevDraft;
+          const nextDraft = new Map(prevDraft);
 
-          const baseDate = dayjs(occurrenceUnix * 1000).format('YYYY-MM-DD');
-          const fmtHM = (sec: number) => dayjs(sec * 1000).format('HH:mm');
-          const startHM = patch.startTime ?? fmtHM(occurrenceUnix);
-
-          const s = buildDateTime(baseDate, startHM);
-          if (!s.isValid()) return prevDraft;
-
-          const newDtstart = Math.floor(s.valueOf() / 1000);
-          const oldDurationSeconds = target.dtend - target.dtstart;
-          const durationSeconds =
-            (patch.durationMinutes ?? Math.round(oldDurationSeconds / 60)) * 60;
-
-          // Recurring row: detach this occurrence (exdate it on the parent,
-          // emit a new non-recurring row with the patch) so sibling weeks
-          // stay untouched. Non-recurring row: mutate it in place.
-          const isRecurring = !!target.rrule;
-          const noChange =
-            newDtstart === occurrenceUnix &&
-            durationSeconds === oldDurationSeconds;
-          if (isRecurring && noChange) {
-            // Submitting the edit modal without changes shouldn't surface
-            // an overlap error — report success and skip the mutation.
-            succeeded = true;
-            return prevDraft;
+          // Lazy initialize target month in draft Map if not yet loaded
+          if (!nextDraft.has(targetMonthKey)) {
+            nextDraft.set(targetMonthKey, targetDraft!);
           }
 
-          const targetMonthKey = monthKeyFromUnix(newDtstart);
+          const currentParentDraft = nextDraft.get(parentMonthKey) ?? [];
+          const currentTargetDraft = nextDraft.get(targetMonthKey) ?? [];
 
-          // Build the prospective next state and overlap-check it against
           if (isRecurring) {
             const updatedParent: RawMentorTimeslot = {
               ...target,
@@ -556,7 +650,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
                 : [...target.exdate, occurrenceUnix],
             };
             const detachedRow: RawMentorTimeslot = {
-              id: nextTempId(allDraftRaws),
+              id: nextTempId(Array.from(nextDraft.values()).flat()),
               type: 'ALLOW' as const,
               dtstart: newDtstart,
               dtend: newDtstart + durationSeconds,
@@ -565,120 +659,61 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
             };
 
             if (targetMonthKey === parentMonthKey) {
-              const intermediate = parentDraft.map((r) =>
+              const intermediate = currentParentDraft.map((r) =>
                 r.id === id ? updatedParent : r
               );
-              if (
-                hasAnyOccurrenceOverlap(
-                  intermediate,
-                  null,
-                  [newDtstart],
-                  durationSeconds
-                )
-              ) {
-                return prevDraft;
-              }
-              succeeded = true;
-              const nextDraft = new Map(prevDraft);
               nextDraft.set(parentMonthKey, [...intermediate, detachedRow]);
-              return nextDraft;
             } else {
-              // Different month!
-              // 1. Fetch/ensure target month's draft is loaded
-              let targetDraft = prevDraft.get(targetMonthKey);
-              const isTargetLoaded = !!targetDraft;
-              if (!targetDraft) {
-                const { year, month } = parseMonthKey(targetMonthKey);
-                const { cached } = loadMonthScheduleCached({
-                  userId: backend.userId,
-                  year,
-                  month,
-                });
-                targetDraft = cached ?? [];
-              }
-
-              // Check overlap in target draft
-              if (
-                hasAnyOccurrenceOverlap(
-                  targetDraft,
-                  null,
-                  [newDtstart],
-                  durationSeconds
-                )
-              ) {
-                return prevDraft;
-              }
-
-              succeeded = true;
-
-              // Ensure targetMonthKey is initialized in savedByMonth too
-              if (!isTargetLoaded) {
-                setSavedByMonth((prevSaved) => {
-                  const nextSaved = new Map(prevSaved);
-                  nextSaved.set(targetMonthKey, targetDraft!);
-                  return nextSaved;
-                });
-              }
-
-              const nextDraft = new Map(prevDraft);
-              // Update parent draft (exdate added)
+              // Update parent draft
               nextDraft.set(
                 parentMonthKey,
-                parentDraft.map((r) => (r.id === id ? updatedParent : r))
+                currentParentDraft.map((r) => (r.id === id ? updatedParent : r))
               );
-              // Update target draft (detached row appended)
-              nextDraft.set(targetMonthKey, [...targetDraft, detachedRow]);
-              return nextDraft;
+              // Update target draft
+              nextDraft.set(targetMonthKey, [
+                ...currentTargetDraft,
+                detachedRow,
+              ]);
+            }
+          } else {
+            // Non-recurring slot
+            const updatedSlot: RawMentorTimeslot = {
+              ...target,
+              dtstart: newDtstart,
+              dtend: newDtstart + durationSeconds,
+              rrule: undefined,
+              exdate: [],
+            };
+
+            if (targetMonthKey === parentMonthKey) {
+              nextDraft.set(
+                parentMonthKey,
+                currentParentDraft.map((r) => (r.id === id ? updatedSlot : r))
+              );
+            } else {
+              // Remove from parent draft and add to target draft
+              nextDraft.set(
+                parentMonthKey,
+                currentParentDraft.filter((r) => r.id !== id)
+              );
+              nextDraft.set(targetMonthKey, [
+                ...currentTargetDraft,
+                updatedSlot,
+              ]);
             }
           }
 
-          if (
-            hasAnyOccurrenceOverlap(
-              parentDraft,
-              id,
-              [newDtstart],
-              durationSeconds
-            )
-          ) {
-            return prevDraft;
-          }
-
-          succeeded = true;
-          const nextDraft = new Map(prevDraft);
-          nextDraft.set(
-            parentMonthKey,
-            parentDraft.map((r) =>
-              r.id === id
-                ? {
-                    ...r,
-                    dtstart: newDtstart,
-                    dtend: newDtstart + durationSeconds,
-                    rrule: undefined,
-                    exdate: [],
-                  }
-                : r
-            )
-          );
           return nextDraft;
         });
 
-        if (succeeded) {
-          markDirty(parentMonthKey);
-          const baseDate = dayjs(occurrenceUnix * 1000).format('YYYY-MM-DD');
-          const fmtHM = (sec: number) => dayjs(sec * 1000).format('HH:mm');
-          const startHM = patch.startTime ?? fmtHM(occurrenceUnix);
-          const s = buildDateTime(baseDate, startHM);
-          if (s.isValid()) {
-            const newDtstart = Math.floor(s.valueOf() / 1000);
-            const targetMonthKey = monthKeyFromUnix(newDtstart);
-            if (targetMonthKey !== parentMonthKey) {
-              markDirty(targetMonthKey);
-            }
-          }
+        markDirty(parentMonthKey);
+        if (targetMonthKey !== parentMonthKey) {
+          markDirty(targetMonthKey);
         }
-        return succeeded;
+
+        return true;
       },
-      [findMonthForSlotId, markDirty, allDraftRaws, backend.userId]
+      [findMonthForSlotId, markDirty, backend.userId, draftByMonth]
     );
 
   const deleteDraftSlot = useCallback(
