@@ -26,10 +26,13 @@ export async function middleware(req: NextRequest) {
   const isAsset =
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/static/') ||
-    (!pathname.startsWith('/api/') &&
-      pathname.match(
-        /\.(png|jpg|jpeg|svg|css|js|ico|webp|gif|woff|woff2|ttf|eot)$/i
-      ) !== null);
+    pathname.startsWith('/assets/') ||
+    pathname.startsWith('/landing/') ||
+    pathname === '/favicon.ico' ||
+    pathname === '/logo.svg' ||
+    /^\/profile\/(graphic-design|seo-writing|ui-design|ux-design)\.svg$/.test(
+      pathname
+    );
 
   const isMonitoring =
     pathname === '/monitoring' || pathname.startsWith('/monitoring/');

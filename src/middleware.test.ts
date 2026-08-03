@@ -267,4 +267,15 @@ describe('middleware maintenance mode', () => {
     const body = await response.json();
     expect(body.error).toContain('Service Unavailable');
   });
+
+  it('does not bypass maintenance or authentication checks for dynamic routes with static file extensions (e.g., /profile/john.js)', async () => {
+    process.env.EDGE_CONFIG = 'connection_string';
+    mockGet.mockResolvedValue(true);
+
+    const response = await middleware(makeRequest('/profile/john.js'));
+
+    // Should redirect to /maintenance since it is a dynamic route under maintenance, and NOT bypassed as an asset
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toContain('/maintenance');
+  });
 });
