@@ -120,12 +120,8 @@ describe('sessionHint utilities', () => {
       document.body.innerHTML = '';
     });
 
-    it('sets state attribute for mentor with avatar and pre-fills avatar images', () => {
+    it('sets state attribute for mentor with avatar and pre-fills CSS custom property', () => {
       document.cookie = `${SESSION_HINT_COOKIE}=1|https%3A%2F%2Fexample.com%2Favatar.png`;
-
-      const img1 = document.createElement('img');
-      img1.setAttribute(DOM_AVATAR_IMG_ATTR, 'true');
-      document.body.appendChild(img1);
 
       runInlineScript();
 
@@ -135,7 +131,9 @@ describe('sessionHint utilities', () => {
       expect(document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)).toBe(
         'https://example.com/avatar.png'
       );
-      expect(img1.src).toBe('https://example.com/avatar.png');
+      expect(
+        document.documentElement.style.getPropertyValue('--auth-avatar')
+      ).toBe('url("https://example.com/avatar.png")');
     });
 
     it('sets state attribute for mentee without avatar', () => {
