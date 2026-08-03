@@ -93,7 +93,7 @@
     "eslint-config-next": "15.5.22",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-jsx-a11y": "^6.10.2",
-    "eslint-plugin-simple-import-sort": "^10.0.0",
+    "eslint-plugin-simple-import-sort": "^14.0.0",
     "eslint-plugin-storybook": "^10.5.5",
     "eslint-plugin-tailwindcss": "^3.18.3",
     "husky": "^9.0.10",
