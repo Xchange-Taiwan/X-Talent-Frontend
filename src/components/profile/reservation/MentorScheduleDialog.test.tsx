@@ -353,4 +353,38 @@ describe('MentorScheduleDialog', () => {
       description: '目標月份排程尚未載入，請先在行事曆中切換至目標月份。',
     });
   });
+
+  it('shows precise generic error toast when updateDraftSlot returns success: false without a specific reason', () => {
+    const mockUpdateDraftSlotWithError = vi.fn().mockImplementation(() => {
+      return { success: false }; // returns success: false without reason
+    });
+
+    const mockScheduleWithError = {
+      ...mockSchedule,
+      updateDraftSlot: mockUpdateDraftSlotWithError,
+    } as unknown as UseMentorScheduleReturn;
+
+    render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        schedule={mockScheduleWithError}
+      />
+    );
+
+    const firstSlot = screen
+      .getByText('10:00 – 10:30')
+      .closest('[role="button"]');
+    fireEvent.click(firstSlot!);
+    expect(screen.getByText('編輯時段')).toBeInTheDocument();
+
+    const editSubmitBtn = screen.getByRole('button', { name: '完成' });
+    fireEvent.click(editSubmitBtn);
+
+    expect(mockUpdateDraftSlotWithError).toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      description: '更新時段失敗，發生未知的錯誤，請稍後再試。',
+    });
+  });
 });

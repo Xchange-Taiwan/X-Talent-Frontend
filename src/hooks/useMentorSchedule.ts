@@ -111,6 +111,9 @@ export type UseMentorScheduleReturn = {
   resetChanges: () => void;
 };
 
+const appendExdate = (exdates: number[], unix: number): number[] =>
+  exdates.includes(unix) ? exdates : [...exdates, unix];
+
 export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const { backend } = opts;
 
@@ -521,15 +524,83 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     draftByMonthRef.current = draftByMonth;
   }, [draftByMonth]);
 
+  const ensureTargetMonthLoaded = useCallback(
+    (
+      targetMonthKey: MonthKey,
+      currentDraftsMap: Map<MonthKey, RawMentorTimeslot[]>
+    ) => {
+      let targetDraft = currentDraftsMap.get(targetMonthKey);
+      if (!targetDraft) {
+        const { year, month } = parseMonthKey(targetMonthKey);
+        const { cached } = loadMonthScheduleCached({
+          userId: backend.userId,
+          year,
+          month,
+        });
+        if (!cached) {
+          return null;
+        }
+        targetDraft = cached;
+      }
+      return targetDraft;
+    },
+    [backend.userId]
+  );
+
+  const checkCrossMonthOverlap = useCallback(
+    ({
+      id,
+      occurrenceUnix,
+      newDtstart,
+      durationSeconds,
+      isRecurring,
+      currentDraftsMap,
+      targetDraft,
+    }: {
+      id: number;
+      occurrenceUnix: number;
+      newDtstart: number;
+      durationSeconds: number;
+      isRecurring: boolean;
+      currentDraftsMap: Map<MonthKey, RawMentorTimeslot[]>;
+      targetDraft: RawMentorTimeslot[];
+    }): boolean => {
+      const allCurrentDrafts = Array.from(currentDraftsMap.values()).flat();
+      const draftsToCheck = [...allCurrentDrafts];
+      const isTargetLoaded = currentDraftsMap.has(monthKeyFromUnix(newDtstart));
+      if (!isTargetLoaded) {
+        draftsToCheck.push(...targetDraft);
+      }
+
+      let intermediateDraftsToCheck = draftsToCheck;
+      if (isRecurring) {
+        // If recurring, we simulate exdating the parent row
+        intermediateDraftsToCheck = draftsToCheck.map((r: RawMentorTimeslot) =>
+          r.id === id
+            ? {
+                ...r,
+                exdate: appendExdate(r.exdate, occurrenceUnix),
+              }
+            : r
+        );
+      }
+
+      // Run unified overlap check
+      return hasAnyOccurrenceOverlap(
+        intermediateDraftsToCheck,
+        isRecurring ? null : id, // ignore current row ID only if it is non-recurring
+        [newDtstart],
+        durationSeconds
+      );
+    },
+    []
+  );
+
   const updateDraftSlot: UseMentorScheduleReturn['updateDraftSlot'] =
     useCallback(
       (id, occurrenceUnix, patch) => {
         const parentMonthKey = findMonthForSlotId(id);
         if (!parentMonthKey) return { success: false };
-
-        // Helper to append exdate cleanly
-        const appendExdate = (exdates: number[], unix: number) =>
-          exdates.includes(unix) ? exdates : [...exdates, unix];
 
         // Fetch parentDraft outside state setter from ref
         const currentDraftsMap = draftByMonthRef.current;
@@ -562,52 +633,26 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         const targetMonthKey = monthKeyFromUnix(newDtstart);
 
         // Fetch / ensure target draft is loaded/cached outside state setter from ref
-        let targetDraft = currentDraftsMap.get(targetMonthKey);
-        const isTargetLoaded = !!targetDraft;
+        const targetDraft = ensureTargetMonthLoaded(
+          targetMonthKey,
+          currentDraftsMap
+        );
         if (!targetDraft) {
-          const { year, month } = parseMonthKey(targetMonthKey);
-          const { cached } = loadMonthScheduleCached({
-            userId: backend.userId,
-            year,
-            month,
-          });
-          if (!cached) {
-            // Cache miss for target month, block the edit to prevent data loss
-            return { success: false, reason: 'TARGET_MONTH_NOT_LOADED' };
-          }
-          targetDraft = cached;
+          return { success: false, reason: 'TARGET_MONTH_NOT_LOADED' };
         }
-
-        // Global overlap check across all loaded/cached months' drafts
-        const allCurrentDrafts = Array.from(currentDraftsMap.values()).flat();
-        const draftsToCheck = [...allCurrentDrafts];
-        if (!isTargetLoaded) {
-          draftsToCheck.push(...targetDraft);
-        }
-
-        // Prepare the intermediate drafts for overlap checking by simulating the exdate/move
-        let intermediateDraftsToCheck = draftsToCheck;
-        if (isRecurring) {
-          // If recurring, we simulate exdating the parent row
-          intermediateDraftsToCheck = draftsToCheck.map((r) =>
-            r.id === id
-              ? {
-                  ...r,
-                  exdate: appendExdate(r.exdate, occurrenceUnix),
-                }
-              : r
-          );
-        }
+        const isTargetLoaded = currentDraftsMap.has(targetMonthKey);
 
         // Run unified overlap check
-        if (
-          hasAnyOccurrenceOverlap(
-            intermediateDraftsToCheck,
-            isRecurring ? null : id, // ignore current row ID only if it is non-recurring
-            [newDtstart],
-            durationSeconds
-          )
-        ) {
+        const hasOverlap = checkCrossMonthOverlap({
+          id,
+          occurrenceUnix,
+          newDtstart,
+          durationSeconds,
+          isRecurring,
+          currentDraftsMap,
+          targetDraft,
+        });
+        if (hasOverlap) {
           return { success: false, reason: 'OVERLAP' };
         }
 
@@ -703,7 +748,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
         return { success: true };
       },
-      [findMonthForSlotId, markDirty, backend.userId]
+      [
+        findMonthForSlotId,
+        markDirty,
+        ensureTargetMonthLoaded,
+        checkCrossMonthOverlap,
+      ]
     );
 
   const deleteDraftSlot = useCallback(

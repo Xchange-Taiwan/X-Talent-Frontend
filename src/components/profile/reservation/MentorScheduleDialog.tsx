@@ -382,10 +382,15 @@ export default function MentorScheduleDialog({
                 description:
                   '目標月份排程尚未載入，請先在行事曆中切換至目標月份。',
               });
-            } else {
+            } else if (result.reason === 'OVERLAP') {
               toast({
                 variant: 'destructive',
                 description: '此時段與其他時段重疊',
+              });
+            } else {
+              toast({
+                variant: 'destructive',
+                description: '更新時段失敗，發生未知的錯誤，請稍後再試。',
               });
             }
             return;
