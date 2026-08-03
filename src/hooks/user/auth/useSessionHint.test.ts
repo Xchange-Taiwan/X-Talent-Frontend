@@ -1,10 +1,9 @@
-import { render, renderHook, waitFor } from '@testing-library/react';
-import React from 'react';
+import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
 
-import { type SessionHintState, useSessionHint } from './useSessionHint';
+import { useSessionHint } from './useSessionHint';
 
 function setCookie(value: string | undefined): void {
   if (value === undefined) {
@@ -19,28 +18,23 @@ describe('useSessionHint', () => {
     setCookie(undefined);
   });
 
-  it('uses initial hint from document.documentElement data attributes on first render', () => {
+  it('uses initial hint from document.documentElement data attributes post-mount', async () => {
     document.documentElement.setAttribute('data-auth-state', 'mentor');
     document.documentElement.setAttribute(
       'data-auth-avatar',
       'https://example.com/avatar.png'
     );
 
-    const renderedStates: SessionHintState[] = [];
-    const TestComponent = () => {
-      const state = useSessionHint();
-      renderedStates.push(state);
-      return null;
-    };
+    const { result } = renderHook(() => useSessionHint());
 
     try {
-      render(React.createElement(TestComponent));
-
-      expect(renderedStates[0]).toEqual({
-        status: 'authenticated',
-        isMentor: true,
-        avatar: 'https://example.com/avatar.png',
-      });
+      await waitFor(() =>
+        expect(result.current).toEqual({
+          status: 'authenticated',
+          isMentor: true,
+          avatar: 'https://example.com/avatar.png',
+        })
+      );
     } finally {
       document.documentElement.removeAttribute('data-auth-state');
       document.documentElement.removeAttribute('data-auth-avatar');

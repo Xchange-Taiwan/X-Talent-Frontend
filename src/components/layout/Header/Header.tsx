@@ -66,7 +66,35 @@ function HeaderComponent(): JSX.Element {
             </Link>
 
             {!authKnown ? (
-              <Skeleton className="h-6 w-24" />
+              <>
+                {hint.status === 'authenticated' ? (
+                  <>
+                    <div className="[[data-auth-state='mentee']_&]:hidden [[data-auth-state='mentor']_&]:hidden">
+                      <Skeleton className="h-6 w-24" />
+                    </div>
+                    <div className="hidden [[data-auth-state='mentor']_&]:block">
+                      <DisabledAwareLink
+                        href={getProfileHref(userId)}
+                        disabled={isResolvingUser}
+                        className="font-['Open_Sans'] text-base text-text-primary"
+                      >
+                        我的導師頁面
+                      </DisabledAwareLink>
+                    </div>
+                    <div className="hidden [[data-auth-state='mentee']_&]:block">
+                      <DisabledAwareLink
+                        href={getBecomeMentorHref(userId)}
+                        disabled={isResolvingUser}
+                        className="font-['Open_Sans'] text-base text-text-primary"
+                      >
+                        成為導師
+                      </DisabledAwareLink>
+                    </div>
+                  </>
+                ) : (
+                  <Skeleton className="h-6 w-24" />
+                )}
+              </>
             ) : (
               <DisabledAwareLink
                 href={leftSecondNav.href}
@@ -101,12 +129,18 @@ function HeaderComponent(): JSX.Element {
           <div className="hidden items-center gap-3 lg:flex">
             {!authKnown ? (
               <>
-                <div className="[[data-auth-state='mentee']_&]:hidden [[data-auth-state='mentor']_&]:hidden">
+                {hint.status === 'authenticated' ? (
+                  <>
+                    <div className="[[data-auth-state='mentee']_&]:hidden [[data-auth-state='mentor']_&]:hidden">
+                      <Skeleton className="size-9 rounded-full" />
+                    </div>
+                    <div className="hidden [[data-auth-state='mentee']_&]:block [[data-auth-state='mentor']_&]:block">
+                      <UserDropdown user={virtualUser} />
+                    </div>
+                  </>
+                ) : (
                   <Skeleton className="size-9 rounded-full" />
-                </div>
-                <div className="hidden [[data-auth-state='mentee']_&]:block [[data-auth-state='mentor']_&]:block">
-                  <UserDropdown user={virtualUser} />
-                </div>
+                )}
               </>
             ) : !isLoggedIn ? (
               <>
@@ -136,7 +170,8 @@ function HeaderComponent(): JSX.Element {
             {isLoggedIn ? (
               <MobileUserMenu user={virtualUser} />
             ) : (
-              !authKnown && (
+              !authKnown &&
+              hint.status === 'authenticated' && (
                 <div className="hidden [[data-auth-state='mentee']_&]:block [[data-auth-state='mentor']_&]:block">
                   <MobileUserMenu user={virtualUser} />
                 </div>

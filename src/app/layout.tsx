@@ -68,7 +68,14 @@ export default function RootLayout({
                   var rawValue = cookie.split('=')[1];
                   var parts = rawValue.split('|');
                   var isMentor = parts[0] === '1';
-                  var avatar = parts[1] ? decodeURIComponent(parts[1]) : '';
+                  var avatar = '';
+                  if (parts[1]) {
+                    try {
+                      avatar = decodeURIComponent(parts[1]);
+                    } catch (_) {
+                      avatar = '';
+                    }
+                  }
                   
                   if (avatar && (avatar.startsWith('https://') || avatar.startsWith('http://') || avatar.startsWith('/'))) {
                     document.documentElement.setAttribute('data-auth-avatar', avatar);

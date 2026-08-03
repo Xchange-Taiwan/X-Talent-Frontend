@@ -2,11 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import {
-  decodeSessionHint,
-  SESSION_HINT_COOKIE,
-  type SessionHint,
-} from '@/lib/auth/sessionHint';
+import { decodeSessionHint, SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
 
 export type SessionHintState =
   | { status: 'unknown' }
@@ -26,33 +22,27 @@ function readCookie(name: string): string | undefined {
  * right shape before `useSession()` resolves.
  */
 export function useSessionHint(): SessionHintState {
-  const [state, setState] = useState<SessionHintState>(() => {
-    if (typeof window !== 'undefined') {
-      const authState =
-        document.documentElement.getAttribute('data-auth-state');
-      if (authState) {
-        const isMentor = authState === 'mentor';
-        const avatar =
-          document.documentElement.getAttribute('data-auth-avatar') ??
-          undefined;
-        return {
-          status: 'authenticated',
-          isMentor,
-          avatar,
-        };
-      }
-    }
-    return { status: 'unknown' };
-  });
+  const [state, setState] = useState<SessionHintState>({ status: 'unknown' });
 
   useEffect(() => {
-    const hint: SessionHint | null = decodeSessionHint(
-      readCookie(SESSION_HINT_COOKIE)
-    );
+    const hint = decodeSessionHint(readCookie(SESSION_HINT_COOKIE));
+    const authState = document.documentElement.getAttribute('data-auth-state');
+
+    const resolvedHint =
+      hint ??
+      (authState
+        ? {
+            isMentor: authState === 'mentor',
+            avatar:
+              document.documentElement.getAttribute('data-auth-avatar') ??
+              undefined,
+          }
+        : null);
+
     setState((prev) => {
-      const nextStatus = hint ? 'authenticated' : 'guest';
-      const nextIsMentor = hint ? hint.isMentor : false;
-      const nextAvatar = hint ? hint.avatar : undefined;
+      const nextStatus = resolvedHint ? 'authenticated' : 'guest';
+      const nextIsMentor = resolvedHint ? resolvedHint.isMentor : false;
+      const nextAvatar = resolvedHint ? resolvedHint.avatar : undefined;
 
       if (
         prev.status === nextStatus &&
@@ -62,11 +52,11 @@ export function useSessionHint(): SessionHintState {
         return prev;
       }
 
-      return hint
+      return resolvedHint
         ? {
             status: 'authenticated',
-            isMentor: hint.isMentor,
-            avatar: hint.avatar,
+            isMentor: resolvedHint.isMentor,
+            avatar: resolvedHint.avatar,
           }
         : { status: 'guest' };
     });
