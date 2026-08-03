@@ -665,7 +665,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
         // Dedupe by (dtstart, dtend) within this month; queue any persisted
         // duplicate for deletion to avoid PUT conflicts. Mirrors the original
-        // single-month behaviour from issue #224.
+        // single-month behaviour.
         const seenKeys = new Map<string, number>();
         const upsertPayload: TimeSlotDTO[] = [];
         const extraDeleteIds: number[] = [];
