@@ -2,11 +2,11 @@
 
 import { AlertCircle, SearchXIcon, XIcon } from 'lucide-react';
 
+import MentorFilterDropdown from '@/components/filter/MentorFilterDropdown';
 import {
   FilterOptions,
   SelectFilters,
 } from '@/components/filter/MentorFilterDropdown';
-import MentorFilterDropdown from '@/components/filter/MentorFilterDropdown';
 import { MentorCardList } from '@/components/mentor-pool/mentor-card-list';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
