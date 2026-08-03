@@ -156,8 +156,7 @@ function checkCrossMonthOverlap({
   currentDraftsMap: Map<MonthKey, RawMentorTimeslot[]>;
   targetDraft: RawMentorTimeslot[];
 }): boolean {
-  const allCurrentDrafts = Array.from(currentDraftsMap.values()).flat();
-  const draftsToCheck = [...allCurrentDrafts];
+  const draftsToCheck = Array.from(currentDraftsMap.values()).flat();
   const isTargetLoaded = currentDraftsMap.has(monthKeyFromUnix(newDtstart));
   if (!isTargetLoaded) {
     draftsToCheck.push(...targetDraft);
@@ -590,19 +589,14 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       [selectedDate, updateMonthDraft, markDirty]
     );
 
-  const draftByMonthRef = useRef(draftByMonth);
-  useEffect(() => {
-    draftByMonthRef.current = draftByMonth;
-  }, [draftByMonth]);
-
   const updateDraftSlot: UseMentorScheduleReturn['updateDraftSlot'] =
     useCallback(
       (id, occurrenceUnix, patch) => {
         const parentMonthKey = findMonthForSlotId(id);
         if (!parentMonthKey) return { success: false };
 
-        // Fetch parentDraft outside state setter from ref
-        const currentDraftsMap = draftByMonthRef.current;
+        // Fetch parentDraft outside state setter
+        const currentDraftsMap = draftByMonth;
         const parentDraft = currentDraftsMap.get(parentMonthKey) ?? [];
         const target = parentDraft.find((r) => r.id === id);
         if (!target) return { success: false };
@@ -751,7 +745,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
         return { success: true };
       },
-      [findMonthForSlotId, markDirty, backend.userId]
+      [findMonthForSlotId, markDirty, backend.userId, draftByMonth]
     );
 
   const deleteDraftSlot = useCallback(
@@ -823,14 +817,14 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       }
 
       // Mark all months that contain this parent row as dirty (so exdates are synchronized on save)
-      const currentDraftsMap = draftByMonthRef.current;
+      const currentDraftsMap = draftByMonth;
       currentDraftsMap.forEach((mDraft, mKey) => {
         if (mDraft.some((r: RawMentorTimeslot) => r.id === id)) {
           markDirty(mKey);
         }
       });
     },
-    [findMonthForSlotId, markDirty]
+    [findMonthForSlotId, markDirty, draftByMonth]
   );
 
   const confirmChanges = useCallback(async (): Promise<SyncResult> => {
