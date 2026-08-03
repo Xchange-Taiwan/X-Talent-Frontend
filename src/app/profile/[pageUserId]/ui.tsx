@@ -104,9 +104,9 @@ export default function ProfilePageUI({
               />
             </div>
 
-            <div className="flex min-w-0 flex-col items-center sm:ml-6 sm:mt-10 sm:items-start">
+            <div className="flex min-w-0 flex-col items-center sm:mt-10 sm:ml-6 sm:items-start">
               <div className="mb-2 flex flex-col items-center gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
-                <p className="break-words text-2xl font-semibold">
+                <p className="text-2xl font-semibold break-words">
                   {userData.name}
                 </p>
                 {!!userData.personalLinks?.length && (
@@ -176,7 +176,7 @@ export default function ProfilePageUI({
                 {userData.about && (
                   <div>
                     <p className="mb-4 text-xl font-bold">關於我</p>
-                    <p className="break-words text-sm text-text-tertiary">
+                    <p className="text-sm break-words text-text-tertiary">
                       {userData.about}
                     </p>
                   </div>

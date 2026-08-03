@@ -41,7 +41,7 @@ const ColorIconsGallery: React.FC<ColorIconsGalleryProps> = ({
           <div className="mb-4 flex size-16 items-center justify-center">
             <Icon width={size} height={size} className={className} />
           </div>
-          <span className="select-all font-mono text-xs text-muted-foreground">
+          <span className="font-mono text-xs text-muted-foreground select-all">
             {name}
           </span>
         </div>

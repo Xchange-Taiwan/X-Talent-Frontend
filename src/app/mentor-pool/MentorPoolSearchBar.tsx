@@ -25,7 +25,7 @@ export default function MentorPoolSearchBar() {
   };
 
   return (
-    <div className="absolute left-[calc(50%-169px)] top-[172px] h-20 w-[338px] md:left-[calc(50%-344px)] md:w-[688px] xl:left-[calc(50%-423px)] xl:w-[846px]">
+    <div className="absolute top-[172px] left-[calc(50%-169px)] h-20 w-[338px] md:left-[calc(50%-344px)] md:w-[688px] xl:left-[calc(50%-423px)] xl:w-[846px]">
       <SearchBar
         key={currentQ}
         defaultValue={currentQ}

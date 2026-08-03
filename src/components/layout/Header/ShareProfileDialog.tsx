@@ -95,22 +95,22 @@ export function ShareProfileDialog({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[100] bg-dark/70 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        <Dialog.Overlay className="fixed inset-0 z-[100] bg-dark/70 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
 
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[101] w-[calc(100%-32px)] max-w-screen-sm -translate-x-1/2 -translate-y-1/2 rounded-[24px] border border-background-border bg-light shadow-2xl focus:outline-none">
+        <Dialog.Content className="fixed top-1/2 left-1/2 z-[101] w-[calc(100%-32px)] max-w-screen-sm -translate-x-1/2 -translate-y-1/2 rounded-[24px] border border-background-border bg-light shadow-2xl focus:outline-none">
           <Dialog.Description className="sr-only">
             複製個人頁面連結以分享給他人
           </Dialog.Description>
-          <div className="rounded-[24px] bg-light px-6 pb-8 pt-6 sm:px-8">
+          <div className="rounded-[24px] bg-light px-6 pt-6 pb-8 sm:px-8">
             <div className="relative mb-8 flex items-center justify-center">
-              <Dialog.Title className="text-center text-36 font-semibold leading-none text-text-primary">
+              <Dialog.Title className="text-center text-36 leading-none font-semibold text-text-primary">
                 分享個人頁面
               </Dialog.Title>
 
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="absolute right-0 top-1/2 -translate-y-1/2 text-28 leading-none text-text-primary"
+                  className="absolute top-1/2 right-0 -translate-y-1/2 text-28 leading-none text-text-primary"
                   aria-label="Close share profile dialog"
                 >
                   ×

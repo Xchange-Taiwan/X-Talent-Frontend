@@ -69,7 +69,7 @@ const TagMultiSelectDemo: React.FC<TagMultiSelectDemoProps> = ({
           <div className="flex gap-4">
             <button
               type="submit"
-              className="rounded-lg bg-brand-500 px-4 py-2 text-text-white hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
+              className="rounded-lg bg-brand-500 px-4 py-2 text-text-white hover:bg-brand-600 focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:outline-none"
             >
               提交表單
             </button>

@@ -96,7 +96,7 @@ export const UserDropdown = React.memo(function UserDropdown({
             type="button"
             onClick={handleGoProfile}
             aria-current={isOnProfile ? 'page' : undefined}
-            className="flex w-full items-center gap-4 px-6 pb-4 pt-6 text-left"
+            className="flex w-full items-center gap-4 px-6 pt-6 pb-4 text-left"
           >
             <Image
               src={avatarSrc || DefaultAvatarImgUrl}
