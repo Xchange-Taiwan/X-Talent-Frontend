@@ -99,7 +99,7 @@ export default function ProfilePageUI({
                 alt={'Avatar of ' + userData.name}
                 fill
                 sizes="160px"
-                style={{ objectFit: 'contain' }}
+                className="object-contain"
                 priority
               />
             </div>
