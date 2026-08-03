@@ -84,7 +84,48 @@ describe('apiClient', () => {
       }
     });
 
-    it('503 response on client-side → redirects to /maintenance and throws ApiError', async () => {
+    it('503 response with X-Maintenance-Mode header on client-side → redirects to /maintenance and does not throw', async () => {
+      const originalLocation = window.location;
+      Object.defineProperty(window, 'location', {
+        writable: true,
+        configurable: true,
+        value: {
+          ...originalLocation,
+          href: '',
+        },
+      });
+
+      mockFetch.mockResolvedValue(
+        new Response(JSON.stringify({ message: 'Service Unavailable' }), {
+          status: 503,
+          headers: new Headers({ 'X-Maintenance-Mode': '1' }),
+        })
+      );
+
+      let hasResolvedOrRejected = false;
+      void apiClient
+        .get('/v1/test', { auth: false })
+        .then(() => {
+          hasResolvedOrRejected = true;
+        })
+        .catch(() => {
+          hasResolvedOrRejected = true;
+        });
+
+      // Allow microtasks to run
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(window.location.href).toBe('/maintenance');
+      expect(hasResolvedOrRejected).toBe(false);
+
+      Object.defineProperty(window, 'location', {
+        writable: true,
+        configurable: true,
+        value: originalLocation,
+      });
+    });
+
+    it('503 response without X-Maintenance-Mode header on client-side → does not redirect and throws ApiError normally', async () => {
       const originalLocation = window.location;
       Object.defineProperty(window, 'location', {
         writable: true,
@@ -107,7 +148,7 @@ describe('apiClient', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(ApiError);
         expect((error as ApiError).status).toBe(503);
-        expect(window.location.href).toBe('/maintenance');
+        expect(window.location.href).toBe('');
       } finally {
         Object.defineProperty(window, 'location', {
           writable: true,

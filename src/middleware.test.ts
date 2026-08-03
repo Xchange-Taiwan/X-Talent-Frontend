@@ -180,13 +180,14 @@ describe('middleware maintenance mode', () => {
     expect(response.status).toBe(200);
   });
 
-  it('returns 503 Service Unavailable for API routes under maintenance', async () => {
+  it('returns 503 Service Unavailable for API routes under maintenance and includes X-Maintenance-Mode header', async () => {
     process.env.EDGE_CONFIG = 'connection_string';
     mockGet.mockResolvedValue(true);
 
     const response = await middleware(makeRequest('/api/mentors'));
 
     expect(response.status).toBe(503);
+    expect(response.headers.get('X-Maintenance-Mode')).toBe('1');
     const body = await response.json();
     expect(body.error).toContain('Service Unavailable');
   });
@@ -293,6 +294,7 @@ describe('middleware maintenance mode', () => {
 
     // Should return 503 since it is an API route under maintenance, and NOT bypassed as an asset
     expect(response.status).toBe(503);
+    expect(response.headers.get('X-Maintenance-Mode')).toBe('1');
     const body = await response.json();
     expect(body.error).toContain('Service Unavailable');
   });

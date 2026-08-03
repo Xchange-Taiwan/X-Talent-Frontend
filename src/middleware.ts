@@ -71,7 +71,7 @@ export async function middleware(req: NextRequest) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json(
         { error: 'Service Unavailable (Maintenance Mode)' },
-        { status: 503 }
+        { status: 503, headers: { 'X-Maintenance-Mode': '1' } }
       );
     }
 
