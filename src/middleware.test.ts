@@ -212,4 +212,14 @@ describe('middleware maintenance mode', () => {
 
     expect(response.status).toBe(200);
   });
+
+  it('redirects dynamic routes containing dots (like usernames) under maintenance', async () => {
+    process.env.EDGE_CONFIG = 'connection_string';
+    mockGet.mockResolvedValue(true);
+
+    const response = await middleware(makeRequest('/profile/john.doe'));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toContain('/maintenance');
+  });
 });

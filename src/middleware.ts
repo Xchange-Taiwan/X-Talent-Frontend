@@ -24,9 +24,11 @@ export async function middleware(req: NextRequest) {
   // aren't redirected to /auth/signin (defined by withSentryConfig
   // tunnelRoute in next.config.js).
   const isAsset =
-    pathname.includes('.') ||
     pathname.startsWith('/_next/') ||
-    pathname.startsWith('/static/');
+    pathname.startsWith('/static/') ||
+    pathname.match(
+      /\.(png|jpg|jpeg|svg|css|js|ico|webp|gif|woff|woff2|ttf|eot)$/i
+    ) !== null;
 
   const isMonitoring =
     pathname === '/monitoring' || pathname.startsWith('/monitoring/');
