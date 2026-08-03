@@ -26,9 +26,10 @@ export async function middleware(req: NextRequest) {
   const isAsset =
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/static/') ||
-    pathname.match(
-      /\.(png|jpg|jpeg|svg|css|js|ico|webp|gif|woff|woff2|ttf|eot)$/i
-    ) !== null;
+    (!pathname.startsWith('/api/') &&
+      pathname.match(
+        /\.(png|jpg|jpeg|svg|css|js|ico|webp|gif|woff|woff2|ttf|eot)$/i
+      ) !== null);
 
   const isMonitoring =
     pathname === '/monitoring' || pathname.startsWith('/monitoring/');
@@ -39,18 +40,19 @@ export async function middleware(req: NextRequest) {
 
   // -------- 0.1 Check Maintenance Mode --------
   let isInMaintenanceMode = false;
-  if (process.env.EDGE_CONFIG) {
+  const isEnvMaintenance =
+    process.env.NEXT_PUBLIC_MAINTENANCE_MODE === 'true' ||
+    process.env.MAINTENANCE_MODE === 'true';
+
+  if (isEnvMaintenance) {
+    isInMaintenanceMode = true;
+  } else if (process.env.EDGE_CONFIG) {
     try {
       const value = await get('isInMaintenanceMode');
       isInMaintenanceMode = Boolean(value);
     } catch (error) {
       console.error('Error reading from Edge Config:', error);
     }
-  } else if (
-    process.env.NEXT_PUBLIC_MAINTENANCE_MODE === 'true' ||
-    process.env.MAINTENANCE_MODE === 'true'
-  ) {
-    isInMaintenanceMode = true;
   }
 
   const isMaintenancePage = pathname === '/maintenance';

@@ -222,4 +222,49 @@ describe('middleware maintenance mode', () => {
     expect(response.status).toBe(307);
     expect(response.headers.get('location')).toContain('/maintenance');
   });
+
+  it('allows local environment variable MAINTENANCE_MODE to override Edge Config (when Edge Config is false)', async () => {
+    process.env.EDGE_CONFIG = 'connection_string';
+    mockGet.mockResolvedValue(false);
+    process.env.MAINTENANCE_MODE = 'true';
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toContain('/maintenance');
+  });
+
+  it('allows local environment variable NEXT_PUBLIC_MAINTENANCE_MODE to override Edge Config (when Edge Config is false)', async () => {
+    process.env.EDGE_CONFIG = 'connection_string';
+    mockGet.mockResolvedValue(false);
+    process.env.NEXT_PUBLIC_MAINTENANCE_MODE = 'true';
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toContain('/maintenance');
+  });
+
+  it('does not redirect static assets in public root directory (e.g. /favicon.ico, /assets/logo.svg)', async () => {
+    process.env.EDGE_CONFIG = 'connection_string';
+    mockGet.mockResolvedValue(true);
+
+    const responseFavicon = await middleware(makeRequest('/favicon.ico'));
+    expect(responseFavicon.status).toBe(200);
+
+    const responseLogo = await middleware(makeRequest('/assets/logo.svg'));
+    expect(responseLogo.status).toBe(200);
+  });
+
+  it('does not bypass maintenance or authentication checks for API endpoints with static file extensions (e.g., /api/users/avatar.jpg)', async () => {
+    process.env.EDGE_CONFIG = 'connection_string';
+    mockGet.mockResolvedValue(true);
+
+    const response = await middleware(makeRequest('/api/users/avatar.jpg'));
+
+    // Should return 503 since it is an API route under maintenance, and NOT bypassed as an asset
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.error).toContain('Service Unavailable');
+  });
 });
