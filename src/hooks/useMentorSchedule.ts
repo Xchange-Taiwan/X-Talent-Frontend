@@ -355,8 +355,19 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         }
       }
 
-      result.sort((a, b) => a.start.getTime() - b.start.getTime());
-      return result;
+      // Deduplicate slots with the same start time
+      const uniqueResult: BookingSlot[] = [];
+      const seenStarts = new Set<number>();
+      for (const item of result) {
+        const key = item.start.getTime();
+        if (!seenStarts.has(key)) {
+          seenStarts.add(key);
+          uniqueResult.push(item);
+        }
+      }
+
+      uniqueResult.sort((a, b) => a.start.getTime() - b.start.getTime());
+      return uniqueResult;
     },
     [allDraftRaws]
   );
