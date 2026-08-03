@@ -355,17 +355,19 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         }
       }
 
-      // Deduplicate slots with the same start time
-      const uniqueResult: BookingSlot[] = [];
-      const seenStarts = new Set<number>();
+      // Deduplicate slots with the same start time, merging isBooked status
+      const uniqueMap = new Map<number, BookingSlot>();
       for (const item of result) {
         const key = item.start.getTime();
-        if (!seenStarts.has(key)) {
-          seenStarts.add(key);
-          uniqueResult.push(item);
+        const existing = uniqueMap.get(key);
+        if (existing) {
+          existing.isBooked = existing.isBooked || item.isBooked;
+        } else {
+          uniqueMap.set(key, { ...item });
         }
       }
 
+      const uniqueResult = Array.from(uniqueMap.values());
       uniqueResult.sort((a, b) => a.start.getTime() - b.start.getTime());
       return uniqueResult;
     },

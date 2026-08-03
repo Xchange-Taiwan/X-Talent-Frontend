@@ -368,4 +368,45 @@ describe('useMentorSchedule', () => {
     expect(slots).toHaveLength(1);
     expect(slots[0].start.getTime()).toBe(1822392000 * 1000);
   });
+
+  it('merges isBooked status to true if any duplicate occurrence is booked', async () => {
+    const mockRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW' as const,
+        dtstart: 1822392000, // In the future (Oct 2027)
+        dtend: 1822393800,
+        rrule: undefined,
+        exdate: [],
+      },
+      {
+        id: 102,
+        type: 'ALLOW' as const,
+        dtstart: 1822392000, // Same start time
+        dtend: 1822393800,
+        rrule: undefined,
+        exdate: [],
+      },
+      {
+        id: 103,
+        type: 'BOOKED' as const,
+        dtstart: 1822392000,
+        dtend: 1822393800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    const { result } = setupSchedule(mockRaws);
+
+    await waitFor(() => {
+      expect(result.current.loaded).toBe(true);
+    });
+
+    const baseDate = dayjs(1822392000 * 1000).format('YYYY-MM-DD');
+    const slots = result.current.generateBookingSlots(baseDate);
+
+    expect(slots).toHaveLength(1);
+    expect(slots[0].isBooked).toBe(true);
+  });
 });
