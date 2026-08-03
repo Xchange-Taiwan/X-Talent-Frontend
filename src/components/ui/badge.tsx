@@ -38,12 +38,7 @@ export interface BadgeProps
    * @default 'default'
    */
   variant?:
-    | 'default'
-    | 'secondary'
-    | 'destructive'
-    | 'outline'
-    | 'filter'
-    | null;
+    'default' | 'secondary' | 'destructive' | 'outline' | 'filter' | null;
 }
 
 /**

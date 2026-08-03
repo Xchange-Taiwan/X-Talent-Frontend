@@ -20,7 +20,7 @@ export default function Page() {
         className="mx-auto flex w-[342px] flex-col items-center gap-6 rounded-2xl border border-background-border px-10 py-20 lg:w-[629px]"
         noValidate
       >
-        <main className="flex w-full flex-auto flex-col justify-center gap-6 sm:flex-none ">
+        <main className="flex w-full flex-auto flex-col justify-center gap-6 sm:flex-none">
           <div className="flex flex-col items-center gap-6">
             <h1 className="text-32 font-bold leading-10">忘記密碼</h1>
           </div>

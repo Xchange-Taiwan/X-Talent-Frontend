@@ -26,8 +26,7 @@ export type SyncOutcome =
 
 /** Public — surfaced to UI; success has no payload. */
 export type SyncResult =
-  | { ok: true }
-  | { ok: false; reason: SyncFailureReason; message: string };
+  { ok: true } | { ok: false; reason: SyncFailureReason; message: string };
 
 /** Fetch + filter to slots whose dtstart falls in the requested local month. */
 export async function loadMonthSchedule(

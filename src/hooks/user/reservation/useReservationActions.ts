@@ -11,10 +11,7 @@ import {
 import { Reservation } from '@/types/reservation';
 
 export type Variant =
-  | 'upcoming'
-  | 'pending-mentee'
-  | 'pending-mentor'
-  | 'history';
+  'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';
 
 export const ACCEPT_AFFECTED_TABS: ListKey[] = ['pending', 'upcoming'];
 

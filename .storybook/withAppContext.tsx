@@ -142,9 +142,7 @@ export const withAppContext: Decorator = (Story, context) => {
         context.parameters.status
       )
         ? (context.parameters.status as
-            | 'authenticated'
-            | 'unauthenticated'
-            | 'loading')
+            'authenticated' | 'unauthenticated' | 'loading')
         : undefined,
   };
   const { session, status } = resolveMockSession(nextAuthParams, context.args);
