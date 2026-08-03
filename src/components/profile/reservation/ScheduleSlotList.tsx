@@ -36,7 +36,7 @@ export function ScheduleSlotList({
       ) : (
         <div className="grid w-full grid-cols-2 gap-2">
           {slots.map((slot) => (
-            <React.Fragment key={slot.start.getTime()}>
+            <React.Fragment key={`${slot.scheduleId}_${slot.start.getTime()}`}>
               {renderSlot(slot)}
             </React.Fragment>
           ))}
