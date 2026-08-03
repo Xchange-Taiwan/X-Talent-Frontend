@@ -83,6 +83,19 @@ describe('middleware session hint cookie', () => {
     );
   });
 
+  it('falls back to picture URL in the hint cookie when avatar is not present in the token', async () => {
+    mockGetToken.mockResolvedValue({
+      isMentor: true,
+      picture: 'https://example.com/picture.png',
+    } as never);
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.cookies.get(SESSION_HINT_COOKIE)?.value).toBe(
+      '1|https%3A%2F%2Fexample.com%2Fpicture.png'
+    );
+  });
+
   it('caps the session-hint cookie to avoid large cookies when the avatar URL is extremely long', async () => {
     const longAvatar = 'https://example.com/avatar.png?' + 'a'.repeat(1200);
     mockGetToken.mockResolvedValue({
