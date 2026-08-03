@@ -33,8 +33,7 @@ export const theme = {
       card: shadows.card,
     },
     backgroundImage: {
-      'auth-card':
-        'linear-gradient(90deg, hsl(var(--color-auth-gradient-1)) 0%, hsl(var(--color-auth-gradient-2)) 45%, hsl(var(--color-auth-gradient-3)) 100%)',
+      'auth-card': 'var(--bg-auth-card)',
     },
     keyframes: {
       'accordion-down': {
