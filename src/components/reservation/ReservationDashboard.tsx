@@ -137,7 +137,7 @@ export function ReservationDashboardView({
   return (
     <div className="flex min-h-[calc(100vh-70px)] justify-center pb-12">
       <div className="w-full max-w-[90%] rounded-2xl md:max-w-[800px]">
-        <div className="mx-auto mb-6 text-center font-sans text-2xl font-semibold leading-tight tracking-normal text-text-primary md:text-36 md:leading-tight">
+        <div className="mx-auto mb-6 text-center font-sans text-2xl leading-tight font-semibold tracking-normal text-text-primary md:text-36 md:leading-tight">
           {title}
         </div>
 
@@ -150,7 +150,7 @@ export function ReservationDashboardView({
             <div className="sticky top-0 z-10 bg-background-white pb-2">
               <div className="-mx-3 sm:mx-0">
                 <div
-                  className="mb-3 snap-none overflow-x-auto whitespace-nowrap px-0 py-1 [-ms-overflow-style:none] [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [touch-action:pan-x] sm:snap-x sm:snap-proximity [&::-webkit-scrollbar]:hidden"
+                  className="mb-3 [touch-action:pan-x] snap-none [scrollbar-width:none] overflow-x-auto px-0 py-1 whitespace-nowrap [-ms-overflow-style:none] [-webkit-overflow-scrolling:touch] sm:snap-x sm:snap-proximity [&::-webkit-scrollbar]:hidden"
                   dir="ltr"
                 >
                   <div className="flex justify-center">

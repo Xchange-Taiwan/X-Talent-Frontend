@@ -10,12 +10,12 @@ export default function Page() {
 
   return (
     <div className="bg-background-white">
-      <main className="px-6 pb-20 pt-16">
+      <main className="px-6 pt-16 pb-20">
         <div className="mx-auto w-full max-w-[554px] overflow-hidden rounded-[16px] border border-background-border bg-background-white shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
           <div className="h-[88px] bg-[linear-gradient(90deg,#EAFBFB_0%,#CFEFFF_45%,#EAE4FF_100%)]" />
 
           <div className="px-8 pb-10">
-            <h1 className="relative -mt-5 text-center text-32 font-bold leading-[1.2] text-text-primary">
+            <h1 className="relative -mt-5 text-center text-32 leading-[1.2] font-bold text-text-primary">
               密碼重設成功
             </h1>
 

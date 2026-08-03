@@ -88,7 +88,7 @@ export const Information = ({
           ref={measureRef}
           aria-hidden
           data-testid="measure-container"
-          className="pointer-events-none invisible absolute left-0 top-0 flex flex-wrap gap-2"
+          className="pointer-events-none invisible absolute top-0 left-0 flex flex-wrap gap-2"
         >
           {haveTopicLabels.map((offer) => (
             <Tag label={offer} key={`measure-${offer}`} />

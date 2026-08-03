@@ -151,7 +151,7 @@ function OnboardingUIWizardDemo() {
         </div>
         <button
           onClick={resetAll}
-          className="rounded-lg bg-brand-500 px-6 py-2.5 font-semibold text-text-white hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
+          className="rounded-lg bg-brand-500 px-6 py-2.5 font-semibold text-text-white hover:bg-brand-600 focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:outline-none"
         >
           重新開始
         </button>
