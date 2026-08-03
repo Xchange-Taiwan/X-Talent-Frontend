@@ -125,7 +125,7 @@ describe('Header', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('does not flash the mentee-default "成為導師" label for a mentor before auth is known', () => {
+  it('renders both links with CSS data-auth-state visibility toggles before auth is known', () => {
     // `useAuthStatus` defaults `isMentor` to false until it can be
     // determined — this must not leak into the rendered nav link before
     // `authKnown` is true, or a mentor briefly sees the wrong role's label.
@@ -141,12 +141,14 @@ describe('Header', () => {
 
     render(<Header />);
 
-    expect(
-      screen.queryByRole('link', { name: '成為導師' })
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('link', { name: '我的導師頁面' })
-    ).not.toBeInTheDocument();
+    const mentorLink = screen.getByRole('link', { name: '我的導師頁面' });
+    const menteeLink = screen.getByRole('link', { name: '成為導師' });
+    expect(mentorLink.parentElement).toHaveClass(
+      "hidden [[data-auth-state='mentor']_&]:block"
+    );
+    expect(menteeLink.parentElement).toHaveClass(
+      "hidden [[data-auth-state='mentee']_&]:block"
+    );
   });
 
   it("renders UserDropdown with hint avatar when logged in per hint but session hasn't resolved yet", () => {
