@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/image', () => ({
   // next/image requires width/height derived from a static-import object
@@ -26,11 +26,21 @@ vi.mock('@/hooks/user/auth/useAuthStatus', () => ({
   useAuthStatus: () => mockUseAuthStatus(),
 }));
 
+const mockUseSessionHint = vi.fn();
+vi.mock('@/hooks/user/auth/useSessionHint', () => ({
+  useSessionHint: () => mockUseSessionHint(),
+}));
+
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 
 import { Header } from './Header';
 
 describe('Header', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseSessionHint.mockReturnValue({ status: 'unknown' });
+  });
+
   it('disables the second nav link while resolving a logged-in user, instead of falling back to /auth/signup or /', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
     mockUseAuthStatus.mockReturnValue({
@@ -115,7 +125,7 @@ describe('Header', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('does not flash the mentee-default "成為導師" label for a mentor before auth is known', () => {
+  it('renders both links with CSS data-auth-state visibility toggles before auth is known', () => {
     // `useAuthStatus` defaults `isMentor` to false until it can be
     // determined — this must not leak into the rendered nav link before
     // `authKnown` is true, or a mentor briefly sees the wrong role's label.
@@ -131,11 +141,66 @@ describe('Header', () => {
 
     render(<Header />);
 
-    expect(
-      screen.queryByRole('link', { name: '成為導師' })
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('link', { name: '我的導師頁面' })
-    ).not.toBeInTheDocument();
+    const mentorLink = screen.getByRole('link', { name: '我的導師頁面' });
+    const menteeLink = screen.getByRole('link', { name: '成為導師' });
+    expect(mentorLink.parentElement).toHaveClass(
+      'hidden group-data-[auth-state=mentor]:block'
+    );
+    expect(menteeLink.parentElement).toHaveClass(
+      'hidden group-data-[auth-state=mentee]:block'
+    );
+  });
+
+  it("renders UserDropdown with hint avatar when logged in per hint but session hasn't resolved yet", () => {
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: 'loading',
+    });
+    mockUseSessionHint.mockReturnValue({
+      status: 'authenticated',
+      isMentor: true,
+      avatar: 'hint-avatar.png',
+    });
+    mockUseAuthStatus.mockReturnValue({
+      authKnown: true,
+      isLoggedIn: true,
+      isMentor: true,
+      userId: undefined,
+      hasFullUser: false,
+      isResolvingUser: true,
+    });
+
+    render(<Header />);
+
+    const avatarImgs = screen.getAllByAltText('我的頭像');
+    expect(avatarImgs).toHaveLength(2);
+    expect(avatarImgs[0]).toHaveAttribute('src', 'hint-avatar.png');
+    expect(avatarImgs[1]).toHaveAttribute('src', 'hint-avatar.png');
+  });
+
+  it('renders pre-hydration avatar placeholder with CSS visibility toggles before auth is known', () => {
+    mockUseSession.mockReturnValue({ data: null, status: 'loading' });
+    mockUseAuthStatus.mockReturnValue({
+      authKnown: false,
+      isLoggedIn: false,
+      isMentor: false,
+      userId: undefined,
+      hasFullUser: false,
+      isResolvingUser: false,
+    });
+
+    render(<Header />);
+
+    // Verified the fast-path background image avatar placeholder is rendered in the DOM under !authKnown
+    const placeholders = document.querySelectorAll(
+      '.size-8.rounded-full.bg-\\[image\\:var\\(--auth-avatar\\)\\]'
+    );
+    expect(placeholders).toHaveLength(2);
+    expect(placeholders[0]).toHaveClass(
+      'hidden group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block'
+    );
+    expect(placeholders[1]).toHaveClass(
+      'hidden group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block'
+    );
   });
 });

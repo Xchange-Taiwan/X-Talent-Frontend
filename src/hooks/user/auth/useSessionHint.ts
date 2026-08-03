@@ -31,33 +31,24 @@ export function useSessionHint(): SessionHintState {
 
   useEffect(() => {
     const hint = decodeSessionHint(readCookie(SESSION_HINT_COOKIE));
+    const authState =
+      document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR);
 
-    // 1. Sync or clear data-auth-state based on isMentor
-    if (hint) {
-      document.documentElement.setAttribute(
-        DOM_AUTH_STATE_ATTR,
-        hint.isMentor ? 'mentor' : 'mentee'
-      );
-    } else {
-      document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
-    }
-
-    // 2. Sync or clear data-auth-avatar and CSS custom property --auth-avatar based on avatar
-    if (hint && hint.avatar) {
-      document.documentElement.setAttribute(DOM_AUTH_AVATAR_ATTR, hint.avatar);
-      document.documentElement.style.setProperty(
-        '--auth-avatar',
-        `url("${hint.avatar}")`
-      );
-    } else {
-      document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
-      document.documentElement.style.removeProperty('--auth-avatar');
-    }
+    const resolvedHint =
+      hint ??
+      (authState
+        ? {
+            isMentor: authState === 'mentor',
+            avatar:
+              document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR) ??
+              undefined,
+          }
+        : null);
 
     setState((prev) => {
-      const nextStatus = hint ? 'authenticated' : 'guest';
-      const nextIsMentor = hint ? hint.isMentor : false;
-      const nextAvatar = hint ? hint.avatar : undefined;
+      const nextStatus = resolvedHint ? 'authenticated' : 'guest';
+      const nextIsMentor = resolvedHint ? resolvedHint.isMentor : false;
+      const nextAvatar = resolvedHint ? resolvedHint.avatar : undefined;
 
       if (
         prev.status === nextStatus &&
@@ -67,11 +58,11 @@ export function useSessionHint(): SessionHintState {
         return prev;
       }
 
-      return hint
+      return resolvedHint
         ? {
             status: 'authenticated',
-            isMentor: hint.isMentor,
-            avatar: hint.avatar,
+            isMentor: resolvedHint.isMentor,
+            avatar: resolvedHint.avatar,
           }
         : { status: 'guest' };
     });

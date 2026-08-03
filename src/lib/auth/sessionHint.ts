@@ -88,10 +88,10 @@ export const DOM_AVATAR_IMG_ATTR = 'data-avatar-img';
 export const SESSION_HINT_INLINE_SCRIPT = `
   try {
     var cookie = document.cookie.split('; ').find(function(row) {
-      return row.startsWith('${SESSION_HINT_COOKIE}=');
+      return row.startsWith('session-hint=');
     });
     if (cookie) {
-      var rawValue = cookie.substring('${SESSION_HINT_COOKIE}='.length);
+      var rawValue = cookie.substring('session-hint='.length);
       var parts = rawValue.split('|');
       var isMentor = parts[0] === '1';
       var avatar = '';
@@ -102,10 +102,18 @@ export const SESSION_HINT_INLINE_SCRIPT = `
           avatar = '';
         }
       }
-
+      
       if (avatar && (avatar.startsWith('https://') || avatar.startsWith('http://') || avatar.startsWith('/'))) {
         document.documentElement.setAttribute('${DOM_AUTH_AVATAR_ATTR}', avatar);
-        document.documentElement.style.setProperty('--auth-avatar', 'url("' + avatar + '")');
+        
+        var updateImages = function() {
+          var imgs = document.querySelectorAll('img[${DOM_AVATAR_IMG_ATTR}]');
+          for (var i = 0; i < imgs.length; i++) {
+            imgs[i].src = avatar;
+          }
+        };
+        updateImages();
+        document.addEventListener('DOMContentLoaded', updateImages);
       }
       document.documentElement.setAttribute('${DOM_AUTH_STATE_ATTR}', isMentor ? 'mentor' : 'mentee');
     }
