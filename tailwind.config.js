@@ -34,6 +34,7 @@ export const theme = {
     },
     backgroundImage: {
       'auth-card': 'var(--bg-auth-card)',
+      'mentor-hero': 'var(--bg-mentor-hero)',
     },
     keyframes: {
       'accordion-down': {

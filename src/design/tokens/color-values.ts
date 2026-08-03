@@ -63,6 +63,12 @@ export const rawColors = {
   'auth-gradient-2': '200 100% 91%', // #CFEFFF
   'auth-gradient-3': '253 100% 95%', // #EAE4FF
 
+  // Mentor pool hero gradient tokens
+  'mentor-hero-gradient-1': '60 100% 97%', // #FFFFEF
+  'mentor-hero-gradient-2': '300 100% 98%', // #FFF6FF
+  'mentor-hero-gradient-3': '273 53% 97%', // #F7F2FB
+  'mentor-hero-gradient-4': '180 100% 95%', // #E4FFFF
+
   // Legacy / Landing page specific colors
   navy: '219 59% 22%', // #172E59
   'logo-blue': '200 100% 18%', // #003C5A
