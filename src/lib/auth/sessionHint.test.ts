@@ -4,7 +4,6 @@ import {
   decodeSessionHint,
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
-  DOM_AVATAR_IMG_ATTR,
   encodeSessionHint,
   SESSION_HINT_COOKIE,
   SESSION_HINT_INLINE_SCRIPT,
