@@ -71,6 +71,7 @@ function ReservationItem({
   return (
     <ReservationCard
       item={reservation}
+      myUserId={myUserId}
       variant={cardVariantOf(variant)}
       profileHref={buildProfileHref(reservation)}
       onProfileClick={handleProfileClick}

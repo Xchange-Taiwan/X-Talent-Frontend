@@ -402,6 +402,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/users/{user_id}/reservations/{reservation_id}/google-meet': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Reservation Meet Link */
+    get: operations['get_reservation_meet_link_api_v1_users__user_id__reservations__reservation_id__google_meet_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/users/{user_id}/reservations/{reservation_id}': {
     parameters: {
       query?: never;
@@ -608,6 +625,21 @@ export interface components {
       msg: string;
       data?: components['schemas']['EmailSentVO'] | null;
     };
+    /**
+     * ApiResponse[Error]
+     * @description The `{code, msg, data}` envelope every BFF error handler returns.
+     *
+     *     Declare it through a route's `responses=` so the published OpenAPI document
+     *     carries a typed schema for the failure paths, not only the success one.
+     */
+    ApiResponse_Error_: {
+      /** Code */
+      code: string;
+      /** Msg */
+      msg: string;
+      /** Data */
+      data?: null;
+    };
     /** ApiResponse_FileInfoListVO_ */
     ApiResponse_FileInfoListVO_: {
       /**
@@ -663,6 +695,20 @@ export interface components {
        */
       msg: string;
       data?: components['schemas']['LoginResponseVO'] | null;
+    };
+    /** ApiResponse[MeetLinkVO] */
+    ApiResponse_MeetLinkVO_: {
+      /**
+       * Code
+       * @default 0
+       */
+      code: string;
+      /**
+       * Msg
+       * @default ok
+       */
+      msg: string;
+      data?: components['schemas']['MeetLinkVO'] | null;
     };
     /** ApiResponse[MentorProfileVO] */
     ApiResponse_MentorProfileVO_: {
@@ -1103,6 +1149,11 @@ export interface components {
     LoginResponseVO: {
       auth: components['schemas']['AuthVO'];
       user: components['schemas']['ProfileVO'];
+    };
+    /** MeetLinkVO */
+    MeetLinkVO: {
+      /** Meet Url */
+      meet_url: string;
     };
     /**
      * MentorProfileDTO
@@ -2772,6 +2823,47 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_reservation_meet_link_api_v1_users__user_id__reservations__reservation_id__google_meet_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        user_id: number;
+        reservation_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_MeetLinkVO_'];
+        };
+      };
+      /** @description No Google Meet link: the reservation is unknown to this user, or its meeting is not SCHEDULED */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_Error_'];
+        };
       };
       /** @description Validation Error */
       422: {

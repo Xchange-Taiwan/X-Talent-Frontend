@@ -5,8 +5,11 @@ import * as React from 'react';
 
 import { ReservationStatusBadge } from '@/components/reservation/ReservationStatusBadge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useToast } from '@/components/ui/use-toast';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
+import { fetchReservationMeetLink } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
 export type ReservationCardVariant = 'upcoming' | 'pending' | 'history';
@@ -18,6 +21,7 @@ export function ReservationCard({
   profileHref,
   onProfileClick,
   variant,
+  myUserId,
 }: {
   item: Reservation;
   actions?: React.ReactNode;
@@ -28,6 +32,7 @@ export function ReservationCard({
   onProfileClick?: () => void;
   // Drives upcoming-only affordances (status badge and email hint).
   variant?: ReservationCardVariant;
+  myUserId?: string | number;
 }) {
   const isUpcoming = variant === 'upcoming';
   const { menteeMessage, mentorMessage } = item;
@@ -40,6 +45,63 @@ export function ReservationCard({
     .join('');
 
   const [imageFailed, setImageFailed] = React.useState(false);
+
+  const { toast } = useToast();
+  const [loadingMeetLink, setLoadingMeetLink] = React.useState(false);
+
+  const handleJoinMeet = async () => {
+    if (!myUserId) {
+      toast({
+        variant: 'destructive',
+        title: '錯誤',
+        description: '無法取得目前使用者資訊，請重新登入。',
+      });
+      return;
+    }
+
+    // 先同步 window.open() 開一個空白分頁（避免被瀏覽器彈窗攔截阻擋）
+    const newTab = window.open('about:blank', '_blank');
+
+    try {
+      setLoadingMeetLink(true);
+      const data = await fetchReservationMeetLink({
+        userId: myUserId,
+        reservationId: item.id,
+      });
+
+      if (data.meet_url) {
+        if (newTab) {
+          newTab.location.href = data.meet_url;
+        }
+      } else {
+        if (newTab) newTab.close();
+        toast({
+          variant: 'destructive',
+          title: '找不到會議連結',
+          description: '此預約尚未就緒，或會議連結不存在。',
+        });
+      }
+    } catch (err) {
+      if (newTab) newTab.close();
+      let errMsg = '取得會議連結失敗，請稍後再試。';
+      const code =
+        err && typeof err === 'object' && 'code' in err
+          ? (err as { code?: string }).code
+          : undefined;
+      if (code === '404') {
+        errMsg = '連結尚未就緒或不存在（會議狀態需為已排程）。';
+      } else if (code === '403') {
+        errMsg = '您並非此預約的導師或學員，無法加入。';
+      }
+      toast({
+        variant: 'destructive',
+        title: '錯誤',
+        description: errMsg,
+      });
+    } finally {
+      setLoadingMeetLink(false);
+    }
+  };
 
   const avatar = (
     <Avatar className="size-10 sm:size-12">
@@ -153,9 +215,20 @@ export function ReservationCard({
             {footer ? <div className="mt-3">{footer}</div> : null}
 
             {isUpcoming ? (
-              <div className="mt-3 flex items-center gap-1.5 text-11 text-text-tertiary sm:text-xs">
-                <Mail className="size-3.5 shrink-0" aria-hidden />
-                <span>會議連結已寄至您的信箱</span>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-1.5 text-11 text-text-tertiary sm:text-xs">
+                  <Mail className="size-3.5 shrink-0" aria-hidden />
+                  <span>會議連結已寄至您的信箱</span>
+                </div>
+                <Button
+                  onClick={handleJoinMeet}
+                  disabled={loadingMeetLink}
+                  size="sm"
+                  style={{ backgroundColor: '#2dc9c8', color: '#000000' }}
+                  className="h-8 rounded-lg px-4 text-xs font-medium hover:opacity-90 sm:text-sm"
+                >
+                  {loadingMeetLink ? '載入中...' : '加入 Google Meet'}
+                </Button>
               </div>
             ) : null}
           </div>
