@@ -177,4 +177,30 @@ describe('Header', () => {
     expect(avatarImgs[0]).toHaveAttribute('src', 'hint-avatar.png');
     expect(avatarImgs[1]).toHaveAttribute('src', 'hint-avatar.png');
   });
+
+  it('renders pre-hydration avatar placeholder with CSS visibility toggles before auth is known', () => {
+    mockUseSession.mockReturnValue({ data: null, status: 'loading' });
+    mockUseAuthStatus.mockReturnValue({
+      authKnown: false,
+      isLoggedIn: false,
+      isMentor: false,
+      userId: undefined,
+      hasFullUser: false,
+      isResolvingUser: false,
+    });
+
+    render(<Header />);
+
+    // Verified the fast-path background image avatar placeholder is rendered in the DOM under !authKnown
+    const placeholders = document.querySelectorAll(
+      '.size-8.rounded-full.bg-\\[image\\:var\\(--auth-avatar\\)\\]'
+    );
+    expect(placeholders).toHaveLength(2);
+    expect(placeholders[0]).toHaveClass(
+      "hidden [[data-auth-state='mentee']_&]:block [[data-auth-state='mentor']_&]:block"
+    );
+    expect(placeholders[1]).toHaveClass(
+      "hidden [[data-auth-state='mentee']_&]:block [[data-auth-state='mentor']_&]:block"
+    );
+  });
 });

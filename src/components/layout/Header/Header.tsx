@@ -27,7 +27,6 @@ function HeaderComponent(): JSX.Element {
   const { authKnown, isLoggedIn, isMentor, userId, isResolvingUser } =
     useAuthStatus();
 
-  const hintAvatar = hint.status === 'authenticated' ? hint.avatar : undefined;
   const resolvedIsMentor = authKnown
     ? isMentor
     : hint.status === 'authenticated'
@@ -35,16 +34,20 @@ function HeaderComponent(): JSX.Element {
       : isMentor;
 
   const virtualUser = useMemo(() => {
-    return (
-      session?.user ?? {
-        id: userId,
-        isMentor: resolvedIsMentor,
-        avatar: currentAvatar ?? hintAvatar ?? undefined,
-        name: '',
-        email: '',
-      }
-    );
-  }, [session?.user, userId, resolvedIsMentor, currentAvatar, hintAvatar]);
+    if (session?.user) {
+      return {
+        ...session.user,
+        avatar: currentAvatar ?? undefined,
+      };
+    }
+    return {
+      id: userId,
+      isMentor: resolvedIsMentor,
+      avatar: currentAvatar ?? undefined,
+      name: '',
+      email: '',
+    };
+  }, [session?.user, userId, resolvedIsMentor, currentAvatar]);
 
   const findMentorHref = '/mentor-pool';
 
