@@ -23,6 +23,54 @@ function readCookie(name: string): string | undefined {
     ?.slice(name.length + 1);
 }
 
+function getStyleTag(): HTMLStyleElement | null {
+  if (typeof document === 'undefined') return null;
+  return (
+    (document.getElementById('session-hint-styles') as HTMLStyleElement) ||
+    document.head.querySelector('#session-hint-styles') ||
+    document.querySelector('#session-hint-styles')
+  );
+}
+
+function updateAvatarStyle(avatar: string | undefined): void {
+  if (typeof document === 'undefined') return;
+  const styleTag = getStyleTag();
+  if (avatar) {
+    document.documentElement.setAttribute(DOM_AUTH_AVATAR_ATTR, avatar);
+    const escapedAvatar = avatar.replace(/"/g, '%22');
+    if (styleTag) {
+      styleTag.innerHTML = `:root { --auth-avatar: url("${escapedAvatar}"); }`;
+    } else {
+      const newStyle = document.createElement('style');
+      newStyle.id = 'session-hint-styles';
+      newStyle.innerHTML = `:root { --auth-avatar: url("${escapedAvatar}"); }`;
+      document.head.appendChild(newStyle);
+    }
+  } else {
+    document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
+    if (styleTag) {
+      if (styleTag.parentNode) {
+        styleTag.parentNode.removeChild(styleTag);
+      } else {
+        styleTag.remove();
+      }
+    }
+  }
+}
+
+function removeAvatarStyle(): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
+  const styleTag = getStyleTag();
+  if (styleTag) {
+    if (styleTag.parentNode) {
+      styleTag.parentNode.removeChild(styleTag);
+    } else {
+      styleTag.remove();
+    }
+  }
+}
+
 /**
  * Reads the middleware-written hint cookie so the header can render the
  * right shape before `useSession()` resolves.
@@ -37,20 +85,14 @@ export function useSessionHint(): SessionHintState {
     // 1. If we are explicitly logged out (unauthenticated), clear all DOM state
     if (status === 'unauthenticated') {
       document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
-      document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
-      const styleTag =
-        document.getElementById('session-hint-styles') ||
-        document.head.querySelector('#session-hint-styles') ||
-        document.querySelector('#session-hint-styles');
-      if (styleTag) {
-        if (styleTag.parentNode) {
-          styleTag.parentNode.removeChild(styleTag);
-        } else {
-          styleTag.remove();
-        }
-      }
+      removeAvatarStyle();
 
-      setState({ status: 'guest' });
+      setState((prev) => {
+        if (prev.status === 'guest') {
+          return prev;
+        }
+        return { status: 'guest' };
+      });
       return;
     }
 
@@ -63,31 +105,21 @@ export function useSessionHint(): SessionHintState {
         DOM_AUTH_STATE_ATTR,
         realIsMentor ? 'mentor' : 'mentee'
       );
+      updateAvatarStyle(realAvatar);
 
-      const styleTag =
-        document.getElementById('session-hint-styles') ||
-        document.head.querySelector('#session-hint-styles') ||
-        document.querySelector('#session-hint-styles');
-      if (realAvatar) {
-        document.documentElement.setAttribute(DOM_AUTH_AVATAR_ATTR, realAvatar);
-        const escapedAvatar = realAvatar.replace(/"/g, '%22');
-        if (styleTag) {
-          styleTag.innerHTML = `:root { --auth-avatar: url("${escapedAvatar}"); }`;
-        } else {
-          const newStyle = document.createElement('style');
-          newStyle.id = 'session-hint-styles';
-          newStyle.innerHTML = `:root { --auth-avatar: url("${escapedAvatar}"); }`;
-          document.head.appendChild(newStyle);
+      setState((prev) => {
+        if (
+          prev.status === 'authenticated' &&
+          prev.isMentor === realIsMentor &&
+          prev.avatar === realAvatar
+        ) {
+          return prev;
         }
-      } else {
-        document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
-        if (styleTag) styleTag.remove();
-      }
-
-      setState({
-        status: 'authenticated',
-        isMentor: realIsMentor,
-        avatar: realAvatar,
+        return {
+          status: 'authenticated',
+          isMentor: realIsMentor,
+          avatar: realAvatar,
+        };
       });
       return;
     }
@@ -99,31 +131,10 @@ export function useSessionHint(): SessionHintState {
           DOM_AUTH_STATE_ATTR,
           hint.isMentor ? 'mentor' : 'mentee'
         );
+        updateAvatarStyle(hint.avatar);
       } else {
         document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
-      }
-
-      const styleTag =
-        document.getElementById('session-hint-styles') ||
-        document.head.querySelector('#session-hint-styles') ||
-        document.querySelector('#session-hint-styles');
-      if (hint && hint.avatar) {
-        document.documentElement.setAttribute(
-          DOM_AUTH_AVATAR_ATTR,
-          hint.avatar
-        );
-        const escapedAvatar = hint.avatar.replace(/"/g, '%22');
-        if (styleTag) {
-          styleTag.innerHTML = `:root { --auth-avatar: url("${escapedAvatar}"); }`;
-        } else {
-          const newStyle = document.createElement('style');
-          newStyle.id = 'session-hint-styles';
-          newStyle.innerHTML = `:root { --auth-avatar: url("${escapedAvatar}"); }`;
-          document.head.appendChild(newStyle);
-        }
-      } else {
-        document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
-        if (styleTag) styleTag.remove();
+        removeAvatarStyle();
       }
 
       setState((prev) => {

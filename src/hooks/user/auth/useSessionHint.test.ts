@@ -156,6 +156,30 @@ describe('useSessionHint', () => {
     });
   });
 
+  it('escapes double quotes in avatar URL to prevent CSS injection in the style tag', async () => {
+    setCookie('1|https%3A%2F%2Fexample.com%2Favatar.png%22%3Bbackground%3Ared');
+
+    const { result } = renderHook(() => useSessionHint());
+
+    await waitFor(() => {
+      expect(result.current).toEqual({
+        status: 'authenticated',
+        isMentor: true,
+        avatar: 'https://example.com/avatar.png";background:red',
+      });
+      expect(document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)).toBe(
+        'https://example.com/avatar.png";background:red'
+      );
+
+      const styleTag = document.getElementById('session-hint-styles');
+      expect(styleTag).not.toBeNull();
+      // Verify quotes are escaped to %22 to completely block CSS Injection breakout
+      expect(styleTag?.innerHTML).toBe(
+        ':root { --auth-avatar: url("https://example.com/avatar.png%22;background:red"); }'
+      );
+    });
+  });
+
   it('clears all DOM attributes and style tags on unauthenticated (logout) session status', async () => {
     mockUseSession.mockReturnValue({
       data: null,
