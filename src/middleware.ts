@@ -1,3 +1,4 @@
+import { get } from '@vercel/edge-config';
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { match } from 'path-to-regexp';
@@ -17,6 +18,54 @@ function normalizeRoute(route: string): string {
 export async function middleware(req: NextRequest) {
   const { nextUrl } = req;
   const pathname = nextUrl.pathname;
+
+  // -------- 0. Check Maintenance Mode --------
+  let isInMaintenanceMode = false;
+  if (process.env.EDGE_CONFIG) {
+    try {
+      const value = await get('isInMaintenanceMode');
+      isInMaintenanceMode = Boolean(value);
+    } catch (error) {
+      console.error('Error reading from Edge Config:', error);
+    }
+  } else if (
+    process.env.NEXT_PUBLIC_MAINTENANCE_MODE === 'true' ||
+    process.env.MAINTENANCE_MODE === 'true'
+  ) {
+    isInMaintenanceMode = true;
+  }
+
+  const isMaintenancePage = pathname === '/maintenance';
+
+  if (isInMaintenanceMode) {
+    // Let static assets and Sentry tunnel through
+    const isAsset =
+      pathname.includes('.') ||
+      pathname.startsWith('/_next/') ||
+      pathname.startsWith('/static/');
+
+    if (isMaintenancePage || isAsset) {
+      return NextResponse.next();
+    }
+
+    // For API routes under maintenance, return 503
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { error: 'Service Unavailable (Maintenance Mode)' },
+        { status: 503 }
+      );
+    }
+
+    // Redirect any other page requests to /maintenance
+    const redirectUrl = new URL('/maintenance', nextUrl);
+    return NextResponse.redirect(redirectUrl);
+  } else {
+    // If not in maintenance mode, redirect /maintenance to /
+    if (isMaintenancePage) {
+      const redirectUrl = new URL('/', nextUrl);
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
 
   // Sentry tunnel route — bypass middleware so anonymous-user envelope POSTs
   // aren't redirected to /auth/signin (defined by withSentryConfig

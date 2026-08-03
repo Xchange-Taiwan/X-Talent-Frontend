@@ -1,3 +1,4 @@
+import { get } from '@vercel/edge-config';
 import { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,11 +7,16 @@ vi.mock('next-auth/jwt', () => ({
   getToken: vi.fn(),
 }));
 
+vi.mock('@vercel/edge-config', () => ({
+  get: vi.fn(),
+}));
+
 import { SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
 
 import { middleware } from './middleware';
 
 const mockGetToken = vi.mocked(getToken);
+const mockGet = vi.mocked(get);
 
 function makeRequest(pathname: string, existingHint?: string): NextRequest {
   return new NextRequest(`https://example.com${pathname}`, {
@@ -106,5 +112,85 @@ describe('middleware session hint cookie', () => {
     const response = await middleware(makeRequest('/api/auth/session'));
 
     expect(response.cookies.get(SESSION_HINT_COOKIE)).toBeUndefined();
+  });
+});
+
+describe('middleware maintenance mode', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env = { ...originalEnv };
+  });
+
+  it('redirects to /maintenance when Edge Config is enabled', async () => {
+    process.env.EDGE_CONFIG = 'connection_string';
+    mockGet.mockResolvedValue(true);
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toContain('/maintenance');
+  });
+
+  it('does not redirect and lets /maintenance pass through under maintenance', async () => {
+    process.env.EDGE_CONFIG = 'connection_string';
+    mockGet.mockResolvedValue(true);
+
+    const response = await middleware(makeRequest('/maintenance'));
+
+    expect(response.status).toBe(200);
+  });
+
+  it('does not redirect static assets under maintenance', async () => {
+    process.env.EDGE_CONFIG = 'connection_string';
+    mockGet.mockResolvedValue(true);
+
+    const response = await middleware(
+      makeRequest('/_next/static/css/main.css')
+    );
+
+    expect(response.status).toBe(200);
+  });
+
+  it('returns 503 Service Unavailable for API routes under maintenance', async () => {
+    process.env.EDGE_CONFIG = 'connection_string';
+    mockGet.mockResolvedValue(true);
+
+    const response = await middleware(makeRequest('/api/mentors'));
+
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.error).toContain('Service Unavailable');
+  });
+
+  it('redirects /maintenance to / when maintenance mode is disabled', async () => {
+    process.env.EDGE_CONFIG = 'connection_string';
+    mockGet.mockResolvedValue(false);
+
+    const response = await middleware(makeRequest('/maintenance'));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe('https://example.com/');
+  });
+
+  it('redirects to /maintenance when local MAINTENANCE_MODE environment variable is set to true', async () => {
+    delete process.env.EDGE_CONFIG;
+    process.env.MAINTENANCE_MODE = 'true';
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toContain('/maintenance');
+  });
+
+  it('redirects to /maintenance when local NEXT_PUBLIC_MAINTENANCE_MODE environment variable is set to true', async () => {
+    delete process.env.EDGE_CONFIG;
+    process.env.NEXT_PUBLIC_MAINTENANCE_MODE = 'true';
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toContain('/maintenance');
   });
 });
