@@ -5,12 +5,7 @@ import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import type { MentorProfileVO } from '@/types/user';
 
 export type SocialPlatform =
-  | 'linkedin'
-  | 'facebook'
-  | 'instagram'
-  | 'twitter'
-  | 'youtube'
-  | 'website';
+  'linkedin' | 'facebook' | 'instagram' | 'twitter' | 'youtube' | 'website';
 
 const SOCIAL_PLATFORMS: readonly SocialPlatform[] = [
   'linkedin',
