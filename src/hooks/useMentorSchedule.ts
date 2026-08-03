@@ -708,49 +708,81 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   const deleteDraftSlot = useCallback(
     (id: number, occurrenceUnix: number) => {
-      const monthKey = findMonthForSlotId(id);
-      if (!monthKey) return;
+      const parentMonthKey = findMonthForSlotId(id);
+      if (!parentMonthKey) return;
 
-      let removedFromDraft = false;
-      updateMonthDraft(monthKey, (prev) => {
-        const target = prev.find((r) => r.id === id);
-        if (!target) return prev;
+      let fullyRemovedFromSomeMonth = false;
 
-        // Recurring row: only this occurrence is removed via exdate. If that
-        // would empty the row of active occurrences, drop the row entirely.
+      setDraftByMonth((prevDraft) => {
+        const nextDraft = new Map(prevDraft);
+
+        const parentDraft = nextDraft.get(parentMonthKey) ?? [];
+        const target = parentDraft.find((r) => r.id === id);
+        if (!target) return prevDraft;
+
         if (target.rrule) {
           const updatedExdate = target.exdate.includes(occurrenceUnix)
             ? target.exdate
             : [...target.exdate, occurrenceUnix];
-          const updated: RawMentorTimeslot = {
+          const updatedParent: RawMentorTimeslot = {
             ...target,
             exdate: updatedExdate,
           };
-          if (activeOccurrences(updated).length === 0) {
-            removedFromDraft = true;
-            return prev.filter((r) => r.id !== id);
-          }
-          return prev.map((r) => (r.id === id ? updated : r));
+
+          const isFullyEmpty = activeOccurrences(updatedParent).length === 0;
+
+          // Recursively update or remove parent row across ALL loaded month buffers (Correctness Finding 1)
+          nextDraft.forEach((mDraft, mKey) => {
+            if (mDraft.some((r: RawMentorTimeslot) => r.id === id)) {
+              if (isFullyEmpty) {
+                fullyRemovedFromSomeMonth = true;
+                nextDraft.set(
+                  mKey,
+                  mDraft.filter((r: RawMentorTimeslot) => r.id !== id)
+                );
+              } else {
+                nextDraft.set(
+                  mKey,
+                  mDraft.map((r: RawMentorTimeslot) =>
+                    r.id === id ? updatedParent : r
+                  )
+                );
+              }
+            }
+          });
+        } else {
+          fullyRemovedFromSomeMonth = true;
+          // Non-recurring slot: remove entirely from parent draft
+          nextDraft.set(
+            parentMonthKey,
+            parentDraft.filter((r: RawMentorTimeslot) => r.id !== id)
+          );
         }
 
-        removedFromDraft = true;
-        return prev.filter((r) => r.id !== id);
+        return nextDraft;
       });
 
       // Only persisted rows that were fully removed need a backend DELETE.
       // Detached/exdated rrule rows ride the next save via rrule + exdate.
-      if (removedFromDraft && id > 0) {
+      if (fullyRemovedFromSomeMonth && id > 0) {
         setPendingDeleteByMonth((prev) => {
-          const current = prev.get(monthKey) ?? [];
+          const current = prev.get(parentMonthKey) ?? [];
           if (current.includes(id)) return prev;
           const next = new Map(prev);
-          next.set(monthKey, [...current, id]);
+          next.set(parentMonthKey, [...current, id]);
           return next;
         });
       }
-      markDirty(monthKey);
+
+      // Mark all months that contain this parent row as dirty (so exdates are synchronized on save)
+      const currentDraftsMap = draftByMonthRef.current;
+      currentDraftsMap.forEach((mDraft, mKey) => {
+        if (mDraft.some((r: RawMentorTimeslot) => r.id === id)) {
+          markDirty(mKey);
+        }
+      });
     },
-    [findMonthForSlotId, updateMonthDraft, markDirty]
+    [findMonthForSlotId, markDirty]
   );
 
   const confirmChanges = useCallback(async (): Promise<SyncResult> => {

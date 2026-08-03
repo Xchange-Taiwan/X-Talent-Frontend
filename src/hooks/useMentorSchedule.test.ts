@@ -615,4 +615,70 @@ describe('useMentorSchedule', () => {
     expect(result.current.parsedDraft[0].id).toBe(101);
     expect(result.current.parsedDraft[0].occurrenceUnix).toBe(1785070000);
   });
+
+  it('regression: a recurring ALLOW row whose weekly occurrences cross a month boundary, deleted on a cross-boundary occurrence, successfully exdates the row across all monthly buffers and prevents duplicate representation', async () => {
+    // Parent slot 101 starts on July 26, 2026 (Month 7) -> 1785070000
+    // Weekly recurrence count=2 -> Second occurrence is August 2, 2026 (Month 8) -> 1785674800
+    const mockRawsJuly: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW' as const,
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: 'FREQ=WEEKLY;COUNT=2',
+        exdate: [],
+      },
+    ];
+
+    // Mock loadMonthScheduleCached for both July and August to return mockRawsJuly (simulating parent row loaded in both months)
+    mockLoadMonthScheduleCached.mockImplementation((ref) => {
+      if (ref.year === 2026 && (ref.month === 7 || ref.month === 8)) {
+        return {
+          cached: mockRawsJuly,
+          revalidate: Promise.resolve(mockRawsJuly),
+        };
+      }
+      return {
+        cached: [],
+        revalidate: Promise.resolve([]),
+      };
+    });
+
+    const { result } = renderHook(() =>
+      useMentorSchedule({
+        backend: { userId: '123', year: 2026, month: 7 },
+      })
+    );
+
+    await waitFor(() => {
+      expect(result.current.loaded).toBe(true);
+    });
+
+    // There should be 2 active occurrences of slot 101 initially (one in Month 7, one in Month 8)
+    expect(result.current.parsedDraft).toHaveLength(2);
+
+    act(() => {
+      // Delete the August 2 occurrence (1785674800 - Month 8)
+      // Since it is deleted, it should add 1785674800 to the exdate of row 101 in BOTH July and August buffers!
+      result.current.deleteDraftSlot(101, 1785674800);
+    });
+
+    // Total active occurrences should now be 1:
+    // - Only the July 26 occurrence (since August 2 is exdated on all copies of parent row 101)
+    expect(result.current.parsedDraft).toHaveLength(1);
+
+    const julyOcc = result.current.parsedDraft[0];
+    expect(julyOcc.occurrenceUnix).toBe(1785070000); // Only the July 26 occurrence remains
+    expect(julyOcc.id).toBe(101);
+
+    // Verify both months are marked dirty by ensuring confirmChanges requests syncing for both (Testing Finding 1)
+    const mockSyncMonths = vi.mocked(syncMonths);
+    await result.current.confirmChanges();
+    expect(mockSyncMonths).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ ref: expect.objectContaining({ month: 7 }) }),
+        expect.objectContaining({ ref: expect.objectContaining({ month: 8 }) }),
+      ])
+    );
+  });
 });
