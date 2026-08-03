@@ -11,7 +11,7 @@ import {
 import { apiAuthPrefix, DEFAULT_LOGIN, publicRoutes } from '@/routes';
 
 // Helper to read from Edge Config with a timeout to avoid blocking middleware
-async function getWithTimeout(key: string, timeoutMs = 500): Promise<any> {
+async function getWithTimeout(key: string, timeoutMs = 500): Promise<unknown> {
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       console.warn(`Edge Config read timed out after ${timeoutMs}ms`);
