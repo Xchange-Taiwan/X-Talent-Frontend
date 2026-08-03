@@ -97,6 +97,19 @@ describe('apiClient', () => {
       const [, requestInit] = mockFetch.mock.calls[0];
       expect(requestInit.headers.Authorization).toBeUndefined();
     });
+
+    it('protocol-relative URL (//host/path) → also treated as external, no Authorization header attached', async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({
+        accessToken: 'super-secret-token',
+        expires: '2099-01-01T00:00:00Z',
+      } as Awaited<ReturnType<typeof getSession>>);
+
+      await apiClient.get('//external.example.com/data');
+
+      expect(getSession).not.toHaveBeenCalled();
+      const [, requestInit] = mockFetch.mock.calls[0];
+      expect(requestInit.headers.Authorization).toBeUndefined();
+    });
   });
 
   /* ================================

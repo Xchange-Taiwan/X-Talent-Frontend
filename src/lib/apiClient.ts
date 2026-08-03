@@ -73,7 +73,10 @@ function refreshSession(): Promise<Session | null> {
 }
 
 function isAbsoluteUrl(path: string): boolean {
-  return /^https?:\/\//i.test(path);
+  // Also matches protocol-relative URLs (e.g. //evil.com) — without this,
+  // the browser would resolve them as external, but this check would treat
+  // them as internal and attach the user's auth token to them.
+  return /^(?:https?:)?\/\//i.test(path);
 }
 
 function buildUrl(
