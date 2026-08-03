@@ -24,7 +24,7 @@ jobs:
       plan: ${{ steps.run.outputs.plan }}
     steps:
       - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.base.sha }}
@@ -53,7 +53,7 @@ jobs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
       - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.base.sha }}
@@ -81,7 +81,7 @@ jobs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
       - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.base.sha }}
@@ -109,7 +109,7 @@ jobs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
       - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.base.sha }}
@@ -137,7 +137,7 @@ jobs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
       - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.base.sha }}
@@ -165,7 +165,7 @@ jobs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
       - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.base.sha }}
@@ -193,7 +193,7 @@ jobs:
       findings: ${{ steps.run.outputs.findings }}
     steps:
       - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.base.sha }}
@@ -221,7 +221,7 @@ jobs:
       guide: ${{ steps.run.outputs.guide }}
     steps:
       - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.base.sha }}
@@ -258,13 +258,13 @@ jobs:
     if: ${{ !cancelled() }}
     steps:
       - name: Checkout base branch (trusted scripts)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.base.sha }}
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
 
