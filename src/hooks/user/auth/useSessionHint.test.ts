@@ -113,4 +113,27 @@ describe('useSessionHint', () => {
       ).toBe('');
     });
   });
+
+  it('actively syncs DOM attributes and CSS variables when hint is resolved with avatar', async () => {
+    setCookie('1|https%3A%2F%2Fexample.com%2Favatar.png');
+
+    const { result } = renderHook(() => useSessionHint());
+
+    await waitFor(() => {
+      expect(result.current).toEqual({
+        status: 'authenticated',
+        isMentor: true,
+        avatar: 'https://example.com/avatar.png',
+      });
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'mentor'
+      );
+      expect(document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)).toBe(
+        'https://example.com/avatar.png'
+      );
+      expect(
+        document.documentElement.style.getPropertyValue('--auth-avatar')
+      ).toBe('url("https://example.com/avatar.png")');
+    });
+  });
 });
