@@ -18,10 +18,7 @@ export const formSchema = z.object({
 });
 
 type ExpertiseType =
-  | 'UI Design'
-  | 'UX Design'
-  | 'SEO Writing'
-  | 'Graphic Design';
+  'UI Design' | 'UX Design' | 'SEO Writing' | 'Graphic Design';
 interface Props {
   type: ExpertiseType;
   form?: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
@@ -73,7 +70,7 @@ export const ExpertiseSelectItem: FC<Props> = ({ form, type }) => {
                 <p className="text-base font-normal text-text-primary">
                   {type}
                 </p>
-                <p className=" text-sm text-text-tertiary">文案待 PM 補上</p>
+                <p className="text-sm text-text-tertiary">文案待 PM 補上</p>
               </div>
             </FormLabel>
             <FormControl>

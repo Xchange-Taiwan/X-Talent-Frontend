@@ -1629,12 +1629,7 @@ export interface components {
      * @enum {string}
      */
     SeniorityLevel:
-      | 'NO REVEAL'
-      | 'JUNIOR'
-      | 'INTERMEDIATE'
-      | 'SENIOR'
-      | 'STAFF'
-      | 'MANAGER';
+      'NO REVEAL' | 'JUNIOR' | 'INTERMEDIATE' | 'SENIOR' | 'STAFF' | 'MANAGER';
     /**
      * SignupDTO
      * @example {

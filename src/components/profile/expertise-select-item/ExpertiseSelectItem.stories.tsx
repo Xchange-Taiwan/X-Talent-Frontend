@@ -21,10 +21,7 @@ type Story = StoryObj<typeof ExpertiseSelectItem>;
 const ExpertiseWithForm = (props: {
   type: 'UI Design' | 'UX Design' | 'SEO Writing' | 'Graphic Design';
   initialSelected?: (
-    | 'UI Design'
-    | 'UX Design'
-    | 'SEO Writing'
-    | 'Graphic Design'
+    'UI Design' | 'UX Design' | 'SEO Writing' | 'Graphic Design'
   )[];
 }) => {
   return (

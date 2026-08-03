@@ -97,7 +97,7 @@ export default function Page() {
         />
       </section>
 
-      <section className="flex py-10  sm:py-20">
+      <section className="flex py-10 sm:py-20">
         <div className="flex w-full flex-col items-center justify-center">
           <h2 className="mb-[30px] text-center text-xl font-bold tracking-[0.04em] text-navy md:mb-[70px] md:text-2xl">
             透過 X-Talent 創造你
@@ -112,7 +112,7 @@ export default function Page() {
         </div>
       </section>
 
-      <section className="relative contents md:m-auto md:h-[1100px] md:w-[930px] xl:block xl:h-[790px] ">
+      <section className="relative contents md:m-auto md:h-[1100px] md:w-[930px] xl:block xl:h-[790px]">
         <div className="mb-[50px] mt-8 flex flex-col items-center px-4 min-[550px]:px-14 md:mt-[70px] md:flex-row md:items-start md:gap-8 md:px-8 xl:mb-[130px] xl:mt-7 xl:gap-0 xl:px-0">
           <Image
             src={landingPage_4}

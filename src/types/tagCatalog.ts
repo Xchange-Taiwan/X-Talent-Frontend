@@ -6,11 +6,7 @@ export type TagCatalogGroupVO = components['schemas']['TagCatalogGroupVO'];
 export type TagCatalogLeafVO = components['schemas']['TagCatalogLeafVO'];
 
 export type TagBucketKey =
-  | 'want_position'
-  | 'want_skill'
-  | 'want_topic'
-  | 'have_skill'
-  | 'have_topic';
+  'want_position' | 'want_skill' | 'want_topic' | 'have_skill' | 'have_topic';
 
 export interface IndustryOption {
   subject_group: string;

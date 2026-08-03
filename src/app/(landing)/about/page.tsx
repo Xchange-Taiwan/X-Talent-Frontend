@@ -47,7 +47,7 @@ const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
 export default function Page() {
   return (
     <Fragment>
-      <section className="relative  flex h-[532px] w-full items-center justify-center overflow-hidden bg-[url('/landing/about-page-hero-sm.svg')] bg-cover bg-center sm:bg-[url('/landing/about-page-hero.svg')]">
+      <section className="relative flex h-[532px] w-full items-center justify-center overflow-hidden bg-[url('/landing/about-page-hero-sm.svg')] bg-cover bg-center sm:bg-[url('/landing/about-page-hero.svg')]">
         <h1 className="text-center text-3xl font-bold leading-normal tracking-widest text-navy md:text-5xl">
           關於 <br className="md:hidden" />
           X-Talent
@@ -87,7 +87,7 @@ export default function Page() {
           </div>
           <div>
             <Image src={aboutPage_icon_3} alt="" role="presentation" />
-            <p className="mt-7 font-medium ">成長</p>
+            <p className="mt-7 font-medium">成長</p>
           </div>
         </div>
 

@@ -34,7 +34,7 @@ export const HomePageSlider: FC = () => {
           style={{ width: '100%', margin: 0 }}
         >
           <div className="mb-4 flex flex-col gap-10 px-6 py-8 sm:flex-row">
-            <div className="flex flex-shrink-0 basis-40 flex-col  items-center gap-4">
+            <div className="flex flex-shrink-0 basis-40 flex-col items-center gap-4">
               <div className="relative size-28 overflow-clip rounded-full">
                 <Image
                   fill

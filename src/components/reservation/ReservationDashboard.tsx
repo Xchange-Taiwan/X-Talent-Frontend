@@ -150,13 +150,7 @@ export function ReservationDashboardView({
             <div className="sticky top-0 z-10 bg-background-white pb-2">
               <div className="-mx-3 sm:mx-0">
                 <div
-                  className="
-                    mb-3 snap-none
-                    overflow-x-auto whitespace-nowrap px-0
-                    py-1 [-ms-overflow-style:none]
-                    [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [touch-action:pan-x]
-                    sm:snap-x sm:snap-proximity [&::-webkit-scrollbar]:hidden
-                  "
+                  className="mb-3 snap-none overflow-x-auto whitespace-nowrap px-0 py-1 [-ms-overflow-style:none] [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [touch-action:pan-x] sm:snap-x sm:snap-proximity [&::-webkit-scrollbar]:hidden"
                   dir="ltr"
                 >
                   <div className="flex justify-center">

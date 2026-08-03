@@ -38,7 +38,7 @@ export default function Page() {
           <div className="flex justify-center gap-4">
             <Button
               variant="outline"
-              className="grow rounded-full px-6  py-3 sm:grow-0"
+              className="grow rounded-full px-6 py-3 sm:grow-0"
             >
               之後再成為 Mentor
             </Button>

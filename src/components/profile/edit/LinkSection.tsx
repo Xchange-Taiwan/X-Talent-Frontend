@@ -39,8 +39,7 @@ export const LinksSection = ({ form }: Props) => (
         render={({ field }) => {
           const urlErrorMessage = (
             form.formState.errors[name] as
-              | { url?: { message?: string } }
-              | undefined
+              { url?: { message?: string } } | undefined
           )?.url?.message;
 
           return (
