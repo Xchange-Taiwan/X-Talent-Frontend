@@ -124,9 +124,7 @@ jobs:
           git commit -m "🔧 Auto-fix: Format code and fix linting issues
 
           - Applied Prettier formatting
-          - Fixed auto-fixable ESLint issues
-
-          [skip ci]" || echo "No changes to commit"
+          - Fixed auto-fixable ESLint issues" || echo "No changes to commit"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
 
       - name: Notify about fork PR (no auto-commit)
