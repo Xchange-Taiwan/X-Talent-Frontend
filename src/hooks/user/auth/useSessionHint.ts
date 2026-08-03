@@ -32,27 +32,24 @@ export function useSessionHint(): SessionHintState {
   useEffect(() => {
     const hint = decodeSessionHint(readCookie(SESSION_HINT_COOKIE));
 
-    // Actively sync and clear DOM attributes and CSS variables with Cookie (Single Source of Truth)
+    // 1. Sync or clear data-auth-state based on isMentor
     if (hint) {
       document.documentElement.setAttribute(
         DOM_AUTH_STATE_ATTR,
         hint.isMentor ? 'mentor' : 'mentee'
       );
-      if (hint.avatar) {
-        document.documentElement.setAttribute(
-          DOM_AUTH_AVATAR_ATTR,
-          hint.avatar
-        );
-        document.documentElement.style.setProperty(
-          '--auth-avatar',
-          `url("${hint.avatar}")`
-        );
-      } else {
-        document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
-        document.documentElement.style.removeProperty('--auth-avatar');
-      }
     } else {
       document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
+    }
+
+    // 2. Sync or clear data-auth-avatar and CSS custom property --auth-avatar based on avatar
+    if (hint && hint.avatar) {
+      document.documentElement.setAttribute(DOM_AUTH_AVATAR_ATTR, hint.avatar);
+      document.documentElement.style.setProperty(
+        '--auth-avatar',
+        `url("${hint.avatar}")`
+      );
+    } else {
       document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
       document.documentElement.style.removeProperty('--auth-avatar');
     }

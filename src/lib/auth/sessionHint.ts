@@ -88,10 +88,10 @@ export const DOM_AVATAR_IMG_ATTR = 'data-avatar-img';
 export const SESSION_HINT_INLINE_SCRIPT = `
   try {
     var cookie = document.cookie.split('; ').find(function(row) {
-      return row.startsWith('session-hint=');
+      return row.startsWith('${SESSION_HINT_COOKIE}=');
     });
     if (cookie) {
-      var rawValue = cookie.substring('session-hint='.length);
+      var rawValue = cookie.substring('${SESSION_HINT_COOKIE}='.length);
       var parts = rawValue.split('|');
       var isMentor = parts[0] === '1';
       var avatar = '';
