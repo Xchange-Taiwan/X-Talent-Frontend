@@ -61,13 +61,13 @@ export function AnnouncementBanner(): JSX.Element | null {
     >
       <div className="flex items-center gap-3">
         <AlertTriangle className="size-5 shrink-0 text-status-warning-default" />
-        <span className="font-['Open_Sans'] font-medium leading-relaxed">
+        <span className="font-['Open_Sans'] leading-relaxed font-medium">
           {data.message}
         </span>
       </div>
       <button
         onClick={handleDismiss}
-        className="shrink-0 rounded-full p-1 text-text-secondary transition-colors hover:bg-status-warning-default/20 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        className="shrink-0 rounded-full p-1 text-text-secondary transition-colors hover:bg-status-warning-default/20 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-none"
         aria-label="關閉公告"
       >
         <X className="size-4" />
