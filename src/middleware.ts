@@ -184,7 +184,11 @@ export async function middleware(req: NextRequest) {
   const response = NextResponse.next();
 
   if (isLoggedIn) {
-    const nextHint = encodeSessionHint({ isMentor: Boolean(token?.isMentor) });
+    const nextHint = encodeSessionHint({
+      isMentor: Boolean(token?.isMentor),
+      avatar:
+        ((token?.avatar || token?.picture) as string | undefined) ?? undefined,
+    });
     if (currentHint !== nextHint) {
       response.cookies.set(
         SESSION_HINT_COOKIE,
