@@ -68,12 +68,8 @@ export async function middleware(req: NextRequest) {
 
   // If correct bypass token is in query param, set cookie and redirect to clear the URL query param
   if (bypassToken && bypassParam === bypassToken) {
-    const nextUrlClean = new URL(pathname, nextUrl);
-    nextUrl.searchParams.forEach((val, key) => {
-      if (key !== 'bypass') {
-        nextUrlClean.searchParams.set(key, val);
-      }
-    });
+    const nextUrlClean = new URL(req.url);
+    nextUrlClean.searchParams.delete('bypass');
 
     const response = NextResponse.redirect(nextUrlClean);
     response.cookies.set('maintenance_bypass', bypassToken, {

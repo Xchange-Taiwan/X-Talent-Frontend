@@ -342,6 +342,28 @@ describe('middleware maintenance mode', () => {
     const cookie = response.cookies.get('maintenance_bypass');
     expect(cookie).toBeDefined();
     expect(cookie?.value).toBe('test-secret-bypass');
+
+    // Verify detailed cookie properties
+    expect(cookie?.httpOnly).toBe(true);
+    expect(cookie?.sameSite).toBe('lax');
+    expect(cookie?.path).toBe('/');
+    expect(cookie?.maxAge).toBe(7200);
+  });
+
+  it('redirects and correctly preserves other query parameters (including multi-value/array params) when cleaning up bypass parameter', async () => {
+    process.env.MAINTENANCE_BYPASS_TOKEN = 'test-secret-bypass';
+    process.env.MAINTENANCE_MODE = 'true';
+
+    const req = new NextRequest(
+      'https://example.com/some-page?bypass=test-secret-bypass&foo=bar&category=A&category=B'
+    );
+    const response = await middleware(req);
+
+    // Should redirect to clean URL, preserving other parameters (including duplicate/array parameters)
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe(
+      'https://example.com/some-page?foo=bar&category=A&category=B'
+    );
   });
 
   it('does not bypass maintenance when bypass token is empty/not configured', async () => {
