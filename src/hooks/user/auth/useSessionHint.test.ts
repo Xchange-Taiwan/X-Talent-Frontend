@@ -22,26 +22,32 @@ describe('useSessionHint', () => {
     setCookie(undefined);
   });
 
-  it('uses initial hint from document.documentElement data attributes post-mount', async () => {
-    document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentor');
-    document.documentElement.setAttribute(
-      DOM_AUTH_AVATAR_ATTR,
-      'https://example.com/avatar.png'
-    );
+  it('actively syncs DOM attributes and CSS variables with the cookie on mount', async () => {
+    setCookie('1|https%3A%2F%2Fexample.com%2Favatar.png');
 
     const { result } = renderHook(() => useSessionHint());
 
     try {
-      await waitFor(() =>
+      await waitFor(() => {
         expect(result.current).toEqual({
           status: 'authenticated',
           isMentor: true,
           avatar: 'https://example.com/avatar.png',
-        })
-      );
+        });
+        expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+          'mentor'
+        );
+        expect(
+          document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
+        ).toBe('https://example.com/avatar.png');
+        expect(
+          document.documentElement.style.getPropertyValue('--auth-avatar')
+        ).toBe('url("https://example.com/avatar.png")');
+      });
     } finally {
-      document.documentElement.removeAttribute('data-auth-state');
-      document.documentElement.removeAttribute('data-auth-avatar');
+      document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
+      document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
+      document.documentElement.style.removeProperty('--auth-avatar');
     }
   });
 
