@@ -58,6 +58,11 @@ export const rawColors = {
   'avatar-border': '180 16% 76%', // #B7CBCB
   'avatar-overlay': '0 0% 44%', // #6F6F6F
 
+  // Auth page gradient tokens
+  'auth-gradient-1': '180 63% 95%', // #EAFBFB
+  'auth-gradient-2': '200 100% 91%', // #CFEFFF
+  'auth-gradient-3': '253 100% 95%', // #EAE4FF
+
   // Legacy / Landing page specific colors
   navy: '219 59% 22%', // #172E59
   'logo-blue': '200 100% 18%', // #003C5A
