@@ -16,19 +16,106 @@ export const SESSION_HINT_COOKIE_OPTIONS = {
 
 export interface SessionHint {
   isMentor: boolean;
+  avatar?: string;
 }
 
 const MENTOR_VALUE = '1';
 const NON_MENTOR_VALUE = '0';
 
 export function encodeSessionHint(hint: SessionHint): string {
-  return hint.isMentor ? MENTOR_VALUE : NON_MENTOR_VALUE;
+  const isMentorVal = hint.isMentor ? MENTOR_VALUE : NON_MENTOR_VALUE;
+  if (hint.avatar) {
+    try {
+      const encodedAvatar = encodeURIComponent(hint.avatar);
+      // Prevent cookie bloat (HTTP 431 Request Header Fields Too Large) by capping length
+      if (encodedAvatar.length <= 1000) {
+        return `${isMentorVal}|${encodedAvatar}`;
+      }
+    } catch (err) {
+      console.error('Failed to encode avatar URL for session hint:', err);
+    }
+  }
+  return isMentorVal;
+}
+
+function isValidAvatarProtocol(url: string): boolean {
+  return (
+    url.startsWith('https://') ||
+    url.startsWith('http://') ||
+    url.startsWith('/')
+  );
 }
 
 export function decodeSessionHint(
   value: string | undefined | null
 ): SessionHint | null {
-  if (value === MENTOR_VALUE) return { isMentor: true };
-  if (value === NON_MENTOR_VALUE) return { isMentor: false };
-  return null;
+  if (!value) return null;
+
+  const parts = value.split('|');
+  const isMentorPart = parts[0];
+  const avatarPart = parts[1];
+
+  let isMentor: boolean;
+  if (isMentorPart === MENTOR_VALUE) {
+    isMentor = true;
+  } else if (isMentorPart === NON_MENTOR_VALUE) {
+    isMentor = false;
+  } else {
+    return null;
+  }
+
+  const hint: SessionHint = { isMentor };
+  if (avatarPart) {
+    let avatar: string | undefined;
+    try {
+      avatar = decodeURIComponent(avatarPart);
+    } catch {
+      // Decode failed - discard raw value to avoid broken UI links
+      avatar = undefined;
+    }
+
+    if (avatar && isValidAvatarProtocol(avatar)) {
+      hint.avatar = avatar;
+    }
+  }
+  return hint;
 }
+
+export const DOM_AUTH_STATE_ATTR = 'data-auth-state';
+export const DOM_AUTH_AVATAR_ATTR = 'data-auth-avatar';
+export const DOM_AVATAR_IMG_ATTR = 'data-avatar-img';
+
+export const SESSION_HINT_INLINE_SCRIPT = `
+  try {
+    var cookie = document.cookie.split('; ').find(function(row) {
+      return row.startsWith('session-hint=');
+    });
+    if (cookie) {
+      var rawValue = cookie.substring('session-hint='.length);
+      var parts = rawValue.split('|');
+      var isMentor = parts[0] === '1';
+      var avatar = '';
+      if (parts[1]) {
+        try {
+          avatar = decodeURIComponent(parts[1]);
+        } catch (_) {
+          avatar = '';
+        }
+      }
+      
+      if (avatar && (avatar.startsWith('https://') || avatar.startsWith('http://') || avatar.startsWith('/'))) {
+        document.documentElement.setAttribute('${DOM_AUTH_AVATAR_ATTR}', avatar);
+        
+        var updateImages = function() {
+          var imgs = document.querySelectorAll('img[${DOM_AVATAR_IMG_ATTR}]');
+          for (var i = 0; i < imgs.length; i++) {
+            imgs[i].src = avatar;
+          }
+        };
+        updateImages();
+        document.addEventListener('DOMContentLoaded', updateImages);
+      }
+      document.documentElement.setAttribute('${DOM_AUTH_STATE_ATTR}', isMentor ? 'mentor' : 'mentee');
+    }
+  } catch (_) {}
+`;

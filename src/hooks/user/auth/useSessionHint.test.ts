@@ -1,7 +1,11 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
+import {
+  DOM_AUTH_AVATAR_ATTR,
+  DOM_AUTH_STATE_ATTR,
+  SESSION_HINT_COOKIE,
+} from '@/lib/auth/sessionHint';
 
 import { useSessionHint } from './useSessionHint';
 
@@ -16,6 +20,29 @@ function setCookie(value: string | undefined): void {
 describe('useSessionHint', () => {
   afterEach(() => {
     setCookie(undefined);
+  });
+
+  it('uses initial hint from document.documentElement data attributes post-mount', async () => {
+    document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentor');
+    document.documentElement.setAttribute(
+      DOM_AUTH_AVATAR_ATTR,
+      'https://example.com/avatar.png'
+    );
+
+    const { result } = renderHook(() => useSessionHint());
+
+    try {
+      await waitFor(() =>
+        expect(result.current).toEqual({
+          status: 'authenticated',
+          isMentor: true,
+          avatar: 'https://example.com/avatar.png',
+        })
+      );
+    } finally {
+      document.documentElement.removeAttribute('data-auth-state');
+      document.documentElement.removeAttribute('data-auth-avatar');
+    }
   });
 
   it('resolves to guest when no hint cookie is present', async () => {
