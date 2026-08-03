@@ -150,6 +150,10 @@ async function request<T>(
   }
 
   if (!response.ok) {
+    if (response.status === 503 && typeof window !== 'undefined') {
+      window.location.href = '/maintenance';
+    }
+
     const errorBody = await response.json().catch(() => ({}));
     const message =
       (errorBody as Record<string, string>).msg ||

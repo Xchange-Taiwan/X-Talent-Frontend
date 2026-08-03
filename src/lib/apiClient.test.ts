@@ -84,6 +84,39 @@ describe('apiClient', () => {
       }
     });
 
+    it('503 response on client-side → redirects to /maintenance and throws ApiError', async () => {
+      const originalLocation = window.location;
+      Object.defineProperty(window, 'location', {
+        writable: true,
+        configurable: true,
+        value: {
+          ...originalLocation,
+          href: '',
+        },
+      });
+
+      mockFetch.mockResolvedValue(
+        new Response(JSON.stringify({ message: 'Service Unavailable' }), {
+          status: 503,
+        })
+      );
+
+      try {
+        await apiClient.get('/v1/test', { auth: false });
+        expect.fail('should have thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).status).toBe(503);
+        expect(window.location.href).toBe('/maintenance');
+      } finally {
+        Object.defineProperty(window, 'location', {
+          writable: true,
+          configurable: true,
+          value: originalLocation,
+        });
+      }
+    });
+
     it('204 No Content (empty body) → resolves to undefined without throwing', async () => {
       mockFetch.mockResolvedValue({
         ok: true,

@@ -11,12 +11,19 @@ vi.mock('@vercel/edge-config', () => ({
   get: vi.fn(),
 }));
 
+vi.mock('@sentry/nextjs', () => ({
+  captureException: vi.fn(),
+}));
+
+import * as Sentry from '@sentry/nextjs';
+
 import { SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
 
 import { middleware } from './middleware';
 
 const mockGetToken = vi.mocked(getToken);
 const mockGet = vi.mocked(get);
+const mockCaptureException = vi.mocked(Sentry.captureException);
 
 function makeRequest(pathname: string, existingHint?: string): NextRequest {
   return new NextRequest(`https://example.com${pathname}`, {
@@ -133,6 +140,26 @@ describe('middleware maintenance mode', () => {
     expect(response.headers.get('location')).toContain('/maintenance');
   });
 
+  it('redirects to /maintenance when Edge Config is a string "true"', async () => {
+    process.env.EDGE_CONFIG = 'connection_string';
+    mockGet.mockResolvedValue('true');
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toContain('/maintenance');
+  });
+
+  it('does not redirect to /maintenance when Edge Config is a string "false"', async () => {
+    process.env.EDGE_CONFIG = 'connection_string';
+    mockGet.mockResolvedValue('false');
+    mockGetToken.mockResolvedValue(null);
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.status).not.toBe(307);
+  });
+
   it('does not redirect and lets /maintenance pass through under maintenance', async () => {
     process.env.EDGE_CONFIG = 'connection_string';
     mockGet.mockResolvedValue(true);
@@ -203,14 +230,16 @@ describe('middleware maintenance mode', () => {
     expect(response.status).toBe(200);
   });
 
-  it('safely falls back and allows traffic when Edge Config read fails', async () => {
+  it('safely falls back and allows traffic when Edge Config read fails and logs to Sentry', async () => {
     process.env.EDGE_CONFIG = 'connection_string';
-    mockGet.mockRejectedValue(new Error('Network Error'));
+    const error = new Error('Network Error');
+    mockGet.mockRejectedValue(error);
     mockGetToken.mockResolvedValue(null);
 
     const response = await middleware(makeRequest('/'));
 
     expect(response.status).toBe(200);
+    expect(mockCaptureException).toHaveBeenCalledWith(error);
   });
 
   it('redirects dynamic routes containing dots (like usernames) under maintenance', async () => {

@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import { get } from '@vercel/edge-config';
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
@@ -52,9 +53,10 @@ export async function middleware(req: NextRequest) {
   } else if (process.env.EDGE_CONFIG) {
     try {
       const value = await get('isInMaintenanceMode');
-      isInMaintenanceMode = Boolean(value);
+      isInMaintenanceMode = value === true || value === 'true';
     } catch (error) {
       console.error('Error reading from Edge Config:', error);
+      Sentry.captureException(error);
     }
   }
 
