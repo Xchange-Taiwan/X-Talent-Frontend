@@ -94,7 +94,14 @@ function HeaderComponent(): JSX.Element {
         <div className="flex items-center gap-3 lg:mr-20">
           <div className="hidden items-center gap-3 lg:flex">
             {!authKnown ? (
-              <Skeleton className="size-9 rounded-full" />
+              <>
+                <div className="header-auth-skeleton">
+                  <Skeleton className="size-9 rounded-full" />
+                </div>
+                <div className="header-ssr-fast-path hidden">
+                  <UserDropdown user={virtualUser} />
+                </div>
+              </>
             ) : !isLoggedIn ? (
               <>
                 <Link href="/auth/signup">
@@ -120,7 +127,15 @@ function HeaderComponent(): JSX.Element {
           </div>
 
           <div className="flex items-center gap-3 lg:hidden">
-            {isLoggedIn ? <MobileUserMenu user={virtualUser} /> : null}
+            {isLoggedIn ? (
+              <MobileUserMenu user={virtualUser} />
+            ) : (
+              !authKnown && (
+                <div className="header-ssr-fast-path hidden">
+                  <MobileUserMenu user={virtualUser} />
+                </div>
+              )
+            )}
             <HamburgerMenu
               isLoggedIn={isLoggedIn}
               isMentor={isMentor}

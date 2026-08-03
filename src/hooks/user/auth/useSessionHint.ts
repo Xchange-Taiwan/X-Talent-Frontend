@@ -8,7 +8,10 @@ import {
   type SessionHint,
 } from '@/lib/auth/sessionHint';
 
-import { useInitialSessionHint } from './SessionHintContext';
+export type SessionHintState =
+  | { status: 'unknown' }
+  | { status: 'guest' }
+  | { status: 'authenticated'; isMentor: boolean; avatar?: string };
 
 function readCookie(name: string): string | undefined {
   if (typeof document === 'undefined') return undefined;
@@ -18,25 +21,26 @@ function readCookie(name: string): string | undefined {
     ?.slice(name.length + 1);
 }
 
-export type SessionHintState =
-  | { status: 'unknown' }
-  | { status: 'guest' }
-  | { status: 'authenticated'; isMentor: boolean; avatar?: string };
-
 /**
  * Reads the middleware-written hint cookie so the header can render the
  * right shape before `useSession()` resolves.
  */
 export function useSessionHint(): SessionHintState {
-  const initialHint = useInitialSessionHint();
-
   const [state, setState] = useState<SessionHintState>(() => {
-    if (initialHint) {
-      return {
-        status: 'authenticated',
-        isMentor: initialHint.isMentor,
-        avatar: initialHint.avatar,
-      };
+    if (typeof window !== 'undefined') {
+      const authState =
+        document.documentElement.getAttribute('data-auth-state');
+      if (authState) {
+        const isMentor = authState === 'mentor';
+        const avatar =
+          document.documentElement.getAttribute('data-auth-avatar') ??
+          undefined;
+        return {
+          status: 'authenticated',
+          isMentor,
+          avatar,
+        };
+      }
     }
     return { status: 'unknown' };
   });

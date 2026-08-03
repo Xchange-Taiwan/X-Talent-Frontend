@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
 
-import { SessionHintProvider } from './SessionHintContext';
 import { type SessionHintState, useSessionHint } from './useSessionHint';
 
 function setCookie(value: string | undefined): void {
@@ -20,7 +19,13 @@ describe('useSessionHint', () => {
     setCookie(undefined);
   });
 
-  it('uses initial hint from context on first render', () => {
+  it('uses initial hint from document.documentElement data attributes on first render', () => {
+    document.documentElement.setAttribute('data-auth-state', 'mentor');
+    document.documentElement.setAttribute(
+      'data-auth-avatar',
+      'https://example.com/avatar.png'
+    );
+
     const renderedStates: SessionHintState[] = [];
     const TestComponent = () => {
       const state = useSessionHint();
@@ -28,20 +33,18 @@ describe('useSessionHint', () => {
       return null;
     };
 
-    const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(
-        SessionHintProvider,
-        { value: { isMentor: true, avatar: 'https://example.com/avatar.png' } },
-        children
-      );
+    try {
+      render(React.createElement(TestComponent));
 
-    render(React.createElement(TestComponent), { wrapper });
-
-    expect(renderedStates[0]).toEqual({
-      status: 'authenticated',
-      isMentor: true,
-      avatar: 'https://example.com/avatar.png',
-    });
+      expect(renderedStates[0]).toEqual({
+        status: 'authenticated',
+        isMentor: true,
+        avatar: 'https://example.com/avatar.png',
+      });
+    } finally {
+      document.documentElement.removeAttribute('data-auth-state');
+      document.documentElement.removeAttribute('data-auth-avatar');
+    }
   });
 
   it('resolves to guest when no hint cookie is present', async () => {

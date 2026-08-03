@@ -7,25 +7,14 @@ import GlobalErrorMonitor from '@/components/GlobalErrorMonitor';
 import PageViewTracker from '@/components/PageViewTracker';
 import SessionErrorWatcher from '@/components/SessionErrorWatcher';
 import WebVitalsReporter from '@/components/WebVitalsReporter';
-import { SessionHintProvider } from '@/hooks/user/auth/SessionHintContext';
-import type { SessionHint } from '@/lib/auth/sessionHint';
-
-export default function Providers({
-  children,
-  initialSessionHint,
-}: {
-  children: React.ReactNode;
-  initialSessionHint: SessionHint | null;
-}) {
+export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
-      <SessionHintProvider value={initialSessionHint}>
-        <GlobalErrorMonitor />
-        <PageViewTracker />
-        <WebVitalsReporter />
-        <SessionErrorWatcher />
-        <ErrorBoundary>{children}</ErrorBoundary>
-      </SessionHintProvider>
+      <GlobalErrorMonitor />
+      <PageViewTracker />
+      <WebVitalsReporter />
+      <SessionErrorWatcher />
+      <ErrorBoundary>{children}</ErrorBoundary>
     </SessionProvider>
   );
 }
