@@ -72,13 +72,16 @@ function refreshSession(): Promise<Session | null> {
   return pendingRefresh;
 }
 
+function isAbsoluteUrl(path: string): boolean {
+  return /^https?:\/\//i.test(path);
+}
+
 function buildUrl(
   path: string,
   params?: RequestOptions['params'],
   isLocal = false
 ): string {
-  const isAbsolute = /^https?:\/\//i.test(path);
-  const url = isAbsolute || isLocal ? path : `${BASE_URL}${path}`;
+  const url = isAbsoluteUrl(path) || isLocal ? path : `${BASE_URL}${path}`;
   if (!params) return url;
 
   const query = new URLSearchParams();
@@ -116,13 +119,17 @@ async function request<T>(
     ...restOptions
   } = options;
 
-  if (typeof window === 'undefined' && auth) {
+  // Never attach the user's session token to an absolute external URL —
+  // only relative paths (our own backend) are trusted to receive it.
+  const effectiveAuth = auth && !isAbsoluteUrl(path);
+
+  if (typeof window === 'undefined' && effectiveAuth) {
     throw new Error(
       'Server-side authenticated requests are not supported. Use auth: false.'
     );
   }
 
-  const authHeader = auth ? await getAuthHeader() : {};
+  const authHeader = effectiveAuth ? await getAuthHeader() : {};
 
   const startTime = Date.now();
   let response: Response;

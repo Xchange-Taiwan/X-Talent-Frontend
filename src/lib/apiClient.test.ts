@@ -1,3 +1,4 @@
+import { getSession } from 'next-auth/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -82,6 +83,19 @@ describe('apiClient', () => {
       expect(mockFetch.mock.calls[0][0]).toBe(
         'https://edge-config.vercel.com/ecfg_test?token=test'
       );
+    });
+
+    it('absolute http(s) URL → never attaches the session Authorization header, even with auth: true (default)', async () => {
+      vi.mocked(getSession).mockResolvedValueOnce({
+        accessToken: 'super-secret-token',
+        expires: '2099-01-01T00:00:00Z',
+      } as Awaited<ReturnType<typeof getSession>>);
+
+      await apiClient.get('https://external.example.com/data');
+
+      expect(getSession).not.toHaveBeenCalled();
+      const [, requestInit] = mockFetch.mock.calls[0];
+      expect(requestInit.headers.Authorization).toBeUndefined();
     });
   });
 

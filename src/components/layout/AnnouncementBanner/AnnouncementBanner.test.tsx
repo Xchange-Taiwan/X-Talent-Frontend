@@ -158,6 +158,43 @@ describe('AnnouncementBanner Component', () => {
     });
   });
 
+  it('renders banner and does not auto-hide when maintenanceTime is beyond the 32-bit setTimeout limit (~24.8 days)', async () => {
+    vi.useFakeTimers();
+    const farFutureTime = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+      .toISOString();
+    const data = {
+      enabled: true,
+      message: '遠期維護公告',
+      maintenanceTime: farFutureTime,
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(JSON.stringify(data)),
+      json: () => Promise.resolve(data),
+    });
+    global.fetch = fetchMock;
+
+    render(<AnnouncementBanner />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+
+    // Advance well past the 32-bit setTimeout overflow point (~24.8 days).
+    // If the overflow guard were removed, the timer would fire almost
+    // immediately and the banner would already be gone by this point.
+    await act(async () => {
+      vi.advanceTimersByTime(25 * 24 * 60 * 60 * 1000);
+    });
+
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+
+    vi.useRealTimers();
+  });
+
   it('renders nothing when previously dismissed in the same session', async () => {
     sessionStorage.setItem('announcement-dismissed', 'true');
     const futureTime = new Date(Date.now() + 100000).toISOString();
