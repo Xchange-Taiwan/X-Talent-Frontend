@@ -1,8 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
+import * as z from 'zod';
 
 import { ProfileStoryWrapper } from '../edit/ProfileStoryWrapper';
 import { ExpertiseSelectItem, formSchema } from './ExpertiseSelectItem';
+
+type ExpertiseFormValues = z.infer<typeof formSchema>;
 
 const meta: Meta<typeof ExpertiseSelectItem> = {
   title: '業務模組元件/個人檔案(Profile)/ExpertiseSelectItem',
@@ -28,7 +31,7 @@ const ExpertiseWithForm = (props: {
   )[];
 }) => {
   return (
-    <ProfileStoryWrapper
+    <ProfileStoryWrapper<ExpertiseFormValues>
       schema={formSchema}
       defaultValues={{
         expertise: props.initialSelected ?? [],
@@ -91,7 +94,7 @@ export const InteractiveSelected: StoryObj<typeof ExpertiseSelectItem> = {
 export const InteractiveAllOptions: StoryObj<typeof ExpertiseSelectItem> = {
   render: () => {
     return (
-      <ProfileStoryWrapper
+      <ProfileStoryWrapper<ExpertiseFormValues>
         schema={formSchema}
         defaultValues={{
           expertise: ['UI Design'],

@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
+import type { JSX } from 'react';
 import { memo } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';

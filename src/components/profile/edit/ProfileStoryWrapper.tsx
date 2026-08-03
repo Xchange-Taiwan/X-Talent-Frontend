@@ -1,28 +1,37 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import React from 'react';
-import { useForm, UseFormReturn } from 'react-hook-form';
+import {
+  DefaultValues,
+  FieldValues,
+  useForm,
+  UseFormReturn,
+} from 'react-hook-form';
 import * as z from 'zod';
 
 import { Form } from '@/components/ui/form';
 
-interface ProfileStoryWrapperProps<T extends z.ZodTypeAny> {
-  schema?: T;
-  defaultValues: z.input<T>;
-  children: (
-    form: UseFormReturn<z.input<T>, unknown, z.infer<T>>
-  ) => React.ReactNode;
+interface ProfileStoryWrapperProps<
+  TInput extends FieldValues = FieldValues,
+  TOutput extends FieldValues = TInput,
+> {
+  schema?: z.ZodType<TOutput, TInput>;
+  defaultValues: TInput;
+  children: (form: UseFormReturn<TInput, unknown, TOutput>) => React.ReactNode;
 }
 
-export const ProfileStoryWrapper = <T extends z.ZodTypeAny>({
+export const ProfileStoryWrapper = <
+  TInput extends FieldValues = FieldValues,
+  TOutput extends FieldValues = TInput,
+>({
   schema,
   defaultValues,
   children,
-}: ProfileStoryWrapperProps<T>) => {
-  const form = useForm<z.input<T>, unknown, z.infer<T>>({
+}: ProfileStoryWrapperProps<TInput, TOutput>) => {
+  const form = useForm<TInput, unknown, TOutput>({
     resolver: schema
-      ? zodResolver<z.input<T>, unknown, z.infer<T>>(schema)
+      ? zodResolver<TInput, unknown, TOutput>(schema)
       : undefined,
-    defaultValues,
+    defaultValues: defaultValues as DefaultValues<TInput>,
   });
 
   return (

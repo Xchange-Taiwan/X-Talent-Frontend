@@ -24,7 +24,7 @@ export type UserDropdownProps = {
 
 export const UserDropdown = React.memo(function UserDropdown({
   user,
-}: UserDropdownProps): JSX.Element {
+}: UserDropdownProps): React.JSX.Element {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = React.useState(false);
 

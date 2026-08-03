@@ -4,6 +4,8 @@ import React from 'react';
 import { CategoryMultiSelectField } from './CategoryMultiSelectField';
 import { ProfileStoryWrapper } from './ProfileStoryWrapper';
 
+type CategoryFormValues = { selected_skills: string[] };
+
 const meta: Meta<typeof CategoryMultiSelectField> = {
   title: '業務模組元件/個人檔案(Profile)/Edit/CategoryMultiSelectField',
   component: CategoryMultiSelectField,
@@ -49,7 +51,9 @@ const CATEGORIES = [
 export const TreeStructure: Story = {
   name: '分組樹狀結構 (預設)',
   render: () => (
-    <ProfileStoryWrapper defaultValues={{ selected_skills: [] }}>
+    <ProfileStoryWrapper<CategoryFormValues>
+      defaultValues={{ selected_skills: [] }}
+    >
       {(form) => (
         <div className="space-y-4">
           <p className="text-sm text-text-secondary">
@@ -70,7 +74,9 @@ export const TreeStructure: Story = {
 export const FlatList: Story = {
   name: '扁平化標籤列表 (Flat Mode)',
   render: () => (
-    <ProfileStoryWrapper defaultValues={{ selected_skills: [] }}>
+    <ProfileStoryWrapper<CategoryFormValues>
+      defaultValues={{ selected_skills: [] }}
+    >
       {(form) => (
         <div className="space-y-4">
           <p className="text-sm text-text-secondary">
@@ -93,7 +99,9 @@ export const FlatList: Story = {
 export const LimitSelection: Story = {
   name: '設定選取數量限制 (Limit: 2)',
   render: () => (
-    <ProfileStoryWrapper defaultValues={{ selected_skills: ['frontend'] }}>
+    <ProfileStoryWrapper<CategoryFormValues>
+      defaultValues={{ selected_skills: ['frontend'] }}
+    >
       {(form) => (
         <div className="space-y-4">
           <p className="text-sm text-text-secondary">
@@ -116,7 +124,7 @@ export const LimitSelection: Story = {
 export const SearchAndFilterShowcase: Story = {
   name: '搜尋與過濾功能展示',
   render: () => (
-    <ProfileStoryWrapper
+    <ProfileStoryWrapper<CategoryFormValues>
       defaultValues={{ selected_skills: ['react', 'typescript'] }}
     >
       {(form) => (

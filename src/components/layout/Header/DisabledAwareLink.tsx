@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import type { ComponentProps, MouseEvent } from 'react';
+import type { ComponentProps, JSX, MouseEvent } from 'react';
 
 import { cn } from '@/lib/utils';
 

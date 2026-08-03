@@ -53,7 +53,7 @@ export function DeleteAccountDialogView({
   blockedByReservations,
   onSubmitXC,
   initiateGoogleReauth,
-}: DeleteAccountDialogViewProps): JSX.Element {
+}: DeleteAccountDialogViewProps): React.JSX.Element {
   const router = useRouter();
 
   const handleClose = (): void => {
@@ -180,7 +180,7 @@ export function DeleteAccountDialogView({
 export function DeleteAccountDialog({
   open,
   onOpenChange,
-}: DeleteAccountDialogProps): JSX.Element {
+}: DeleteAccountDialogProps): React.JSX.Element {
   const {
     mode,
     xcForm,

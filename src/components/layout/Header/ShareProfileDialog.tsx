@@ -50,7 +50,7 @@ export function ShareProfileDialog({
   subtitle,
   profilePath,
   personalLinks,
-}: ShareProfileDialogProps): JSX.Element {
+}: ShareProfileDialogProps): React.JSX.Element {
   const [copied, setCopied] = React.useState(false);
   // Seed with the SSR-safe relative path so the server and the first client
   // render agree, then swap in the absolute URL once `window` exists.

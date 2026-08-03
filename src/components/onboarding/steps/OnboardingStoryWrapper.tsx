@@ -1,12 +1,18 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { SessionProvider } from 'next-auth/react';
 import React, { useEffect } from 'react';
-import { Path, useForm, UseFormReturn } from 'react-hook-form';
+import {
+  DefaultValues,
+  FieldValues,
+  Path,
+  useForm,
+  UseFormReturn,
+} from 'react-hook-form';
 import * as z from 'zod';
 
 import { Form } from '@/components/ui/form';
 
-interface OnboardingStoryWrapperProps<T extends z.ZodTypeAny> {
+interface OnboardingStoryWrapperProps<T extends z.ZodType<FieldValues>> {
   schema: T;
   defaultValues: z.infer<T>;
   session?: import('next-auth').Session | null;
@@ -14,7 +20,7 @@ interface OnboardingStoryWrapperProps<T extends z.ZodTypeAny> {
   children: (form: UseFormReturn<z.infer<T>>) => React.ReactNode;
 }
 
-export const OnboardingStoryWrapper = <T extends z.ZodTypeAny>({
+export const OnboardingStoryWrapper = <T extends z.ZodType<FieldValues>>({
   schema,
   defaultValues,
   session,
@@ -22,8 +28,10 @@ export const OnboardingStoryWrapper = <T extends z.ZodTypeAny>({
   children,
 }: OnboardingStoryWrapperProps<T>) => {
   const form = useForm<z.infer<T>>({
-    resolver: zodResolver(schema),
-    defaultValues,
+    resolver: zodResolver<z.infer<T>, unknown, z.infer<T>>(
+      schema as unknown as z.ZodType<z.infer<T>, z.infer<T>>
+    ),
+    defaultValues: defaultValues as unknown as DefaultValues<z.infer<T>>,
   });
 
   useEffect(() => {
@@ -43,14 +51,14 @@ export const OnboardingStoryWrapper = <T extends z.ZodTypeAny>({
   );
 };
 
-interface OnboardingStepDemoWrapperProps<T extends z.ZodTypeAny> {
+interface OnboardingStepDemoWrapperProps<T extends z.ZodType<FieldValues>> {
   schema: T;
   fieldName: string;
   defaultValues: z.infer<T>;
   children: (form: UseFormReturn<z.infer<T>>) => React.ReactNode;
 }
 
-export const OnboardingStepDemoWrapper = <T extends z.ZodTypeAny>({
+export const OnboardingStepDemoWrapper = <T extends z.ZodType<FieldValues>>({
   schema,
   fieldName,
   defaultValues,

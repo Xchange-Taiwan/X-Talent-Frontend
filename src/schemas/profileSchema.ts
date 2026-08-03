@@ -89,7 +89,7 @@ export const createProfileFormSchema = (isMentor: boolean) =>
         ? z.instanceof(File).optional()
         : z.any().optional(),
       name: z.string().min(1, '請輸入姓名').max(20, '最多不可超過 20 字'),
-      location: z.string({ required_error: '請選擇地區' }),
+      location: z.string({ error: '請選擇地區' }),
       statement: z.string(),
       about: isMentor
         ? z.string().min(1, '請填寫關於我')
@@ -97,7 +97,7 @@ export const createProfileFormSchema = (isMentor: boolean) =>
       industry: isMentor
         ? z.string().min(1, '請選擇產業')
         : z.string().optional().default(''),
-      years_of_experience: z.string({ required_error: '請選擇經驗' }),
+      years_of_experience: z.string({ error: '請選擇經驗' }),
       work_experiences: z.array(jobSchema),
       educations: z.array(educationSchema),
       linkedin: linkedinLinkSchema,

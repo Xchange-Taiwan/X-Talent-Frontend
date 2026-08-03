@@ -35,7 +35,7 @@ export function HamburgerMenu({
   isMentor,
   userId,
   isResolvingUser,
-}: HamburgerMenuProps): JSX.Element {
+}: HamburgerMenuProps): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
   const close = (): void => setOpen(false);
 

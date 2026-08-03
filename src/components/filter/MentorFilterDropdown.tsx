@@ -29,7 +29,7 @@ const MentorFilterDropdown = ({
   onChange,
   filterOptions,
   selectOptions,
-}: MentorFilterDropdownProps): JSX.Element => {
+}: MentorFilterDropdownProps): React.JSX.Element => {
   const [open, setOpen] = useState(false);
   const [pendingFilters, setPendingFilters] =
     useState<SelectFilters>(selectOptions);

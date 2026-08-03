@@ -23,7 +23,9 @@ export type MobileUserMenuProps = {
   user: Session['user'];
 };
 
-export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
+export function MobileUserMenu({
+  user,
+}: MobileUserMenuProps): React.JSX.Element {
   const [open, setOpen] = React.useState(false);
 
   const closeMenu = React.useCallback(() => setOpen(false), []);

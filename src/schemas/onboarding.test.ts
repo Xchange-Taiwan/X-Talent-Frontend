@@ -25,7 +25,7 @@ describe('onboarding schemas', () => {
       });
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].message).toBe('請輸入姓名');
+        expect(result.error.issues[0].message).toBe('請輸入姓名');
       }
     });
 
@@ -35,7 +35,7 @@ describe('onboarding schemas', () => {
       });
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].message).toBe('最多不可超過 20 字');
+        expect(result.error.issues[0].message).toBe('最多不可超過 20 字');
       }
     });
 
@@ -89,7 +89,7 @@ describe('onboarding schemas', () => {
       });
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].message).toBe('請至少選擇一個職位');
+        expect(result.error.issues[0].message).toBe('請至少選擇一個職位');
       }
     });
 
@@ -99,7 +99,7 @@ describe('onboarding schemas', () => {
       });
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].message).toBe('最多選 10 個');
+        expect(result.error.issues[0].message).toBe('最多選 10 個');
       }
     });
   });
@@ -118,7 +118,7 @@ describe('onboarding schemas', () => {
       });
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].message).toBe('請至少選擇一個技能');
+        expect(result.error.issues[0].message).toBe('請至少選擇一個技能');
       }
     });
 
@@ -144,7 +144,7 @@ describe('onboarding schemas', () => {
       });
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.errors[0].message).toBe('請至少選擇一個主題');
+        expect(result.error.issues[0].message).toBe('請至少選擇一個主題');
       }
     });
 

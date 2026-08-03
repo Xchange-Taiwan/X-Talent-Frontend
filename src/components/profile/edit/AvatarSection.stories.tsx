@@ -4,6 +4,8 @@ import React from 'react';
 import { AvatarSection } from './AvatarSection';
 import { ProfileStoryWrapper } from './ProfileStoryWrapper';
 
+type AvatarFormValues = { avatar: string | null };
+
 const meta: Meta<typeof AvatarSection> = {
   title: '業務模組元件/個人檔案(Profile)/Edit/AvatarSection',
   component: AvatarSection,
@@ -23,7 +25,7 @@ export const Default: Story = {
     },
   },
   render: () => (
-    <ProfileStoryWrapper defaultValues={{ avatar: null }}>
+    <ProfileStoryWrapper<AvatarFormValues> defaultValues={{ avatar: null }}>
       {(form) => (
         <AvatarSection control={form.control} name="avatar" isMentor={false} />
       )}
@@ -41,7 +43,7 @@ export const WithInitialAvatar: Story = {
     },
   },
   render: () => (
-    <ProfileStoryWrapper defaultValues={{ avatar: null }}>
+    <ProfileStoryWrapper<AvatarFormValues> defaultValues={{ avatar: null }}>
       {(form) => (
         <AvatarSection control={form.control} name="avatar" isMentor={false} />
       )}
@@ -59,7 +61,7 @@ export const MentorRequiredState: Story = {
     },
   },
   render: () => (
-    <ProfileStoryWrapper defaultValues={{ avatar: null }}>
+    <ProfileStoryWrapper<AvatarFormValues> defaultValues={{ avatar: null }}>
       {(form) => (
         <AvatarSection control={form.control} name="avatar" isMentor={true} />
       )}

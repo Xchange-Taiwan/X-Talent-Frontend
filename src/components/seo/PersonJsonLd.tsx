@@ -1,3 +1,5 @@
+import type { JSX } from 'react';
+
 import type { PublicMentorProfile } from '@/lib/seo/sanitizePublicProfile';
 
 interface Props {

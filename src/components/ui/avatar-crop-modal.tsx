@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import AvatarEditor from 'react-avatar-editor';
+import AvatarEditor, { AvatarEditorRef } from 'react-avatar-editor';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -30,7 +30,7 @@ const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
   onSave,
 }) => {
   const [zoomScale, setZoomScale] = useState(1);
-  const editorRef = useRef<AvatarEditor | null>(null);
+  const editorRef = useRef<AvatarEditorRef | null>(null);
   const pinchStartRef = useRef<{ distance: number; scale: number } | null>(
     null
   );
