@@ -18,7 +18,7 @@ import {
  * the header shows the old avatar between submit and the session refetch landing.
  */
 export function useCurrentAvatar(): string | null {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const hint = useSessionHint();
   const override = useAvatarOverride();
   const sessionUserId = session?.user?.id ?? null;
@@ -41,6 +41,10 @@ export function useCurrentAvatar(): string | null {
 
   if (session) {
     return sessionAvatar;
+  }
+
+  if (status === 'unauthenticated') {
+    return null;
   }
 
   if (hint.status === 'authenticated' && hint.avatar) {
