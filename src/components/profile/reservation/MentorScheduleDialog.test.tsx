@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { UseMentorScheduleReturn } from '@/hooks/useMentorSchedule';
+import { mockToast } from '@/test/mocks/useToast';
 
 import MentorScheduleDialog from './MentorScheduleDialog';
 
@@ -317,5 +318,39 @@ describe('MentorScheduleDialog', () => {
     // Even though activeDialog has been set to null, the EditSlotModal form should still hold the values of
     // the last slot, ensuring that the fields don't empty out or flicker during the fade-out exit animation.
     expect(screen.queryByText('新增可預約時段')).not.toBeInTheDocument();
+  });
+
+  it('shows precise destruct warning toast when updateDraftSlot throws TARGET_MONTH_NOT_LOADED error', () => {
+    const mockUpdateDraftSlotWithError = vi.fn().mockImplementation(() => {
+      throw new Error('TARGET_MONTH_NOT_LOADED');
+    });
+
+    const mockScheduleWithError = {
+      ...mockSchedule,
+      updateDraftSlot: mockUpdateDraftSlotWithError,
+    } as unknown as UseMentorScheduleReturn;
+
+    render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        schedule={mockScheduleWithError}
+      />
+    );
+
+    const firstSlot = screen
+      .getByText('10:00 – 10:30')
+      .closest('[role="button"]');
+    fireEvent.click(firstSlot!);
+    expect(screen.getByText('編輯時段')).toBeInTheDocument();
+
+    const editSubmitBtn = screen.getByRole('button', { name: '完成' });
+    fireEvent.click(editSubmitBtn);
+
+    expect(mockUpdateDraftSlotWithError).toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      description: '目標月份排程尚未載入，請先在行事曆中切換至目標月份。',
+    });
   });
 });
