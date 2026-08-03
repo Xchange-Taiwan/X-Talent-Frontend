@@ -72,6 +72,8 @@ export function ReservationCard({
       if (data.meet_url) {
         if (newTab) {
           newTab.location.href = data.meet_url;
+        } else {
+          window.location.href = data.meet_url;
         }
       } else {
         if (newTab) newTab.close();
@@ -224,8 +226,7 @@ export function ReservationCard({
                   onClick={handleJoinMeet}
                   disabled={loadingMeetLink}
                   size="sm"
-                  style={{ backgroundColor: '#2dc9c8', color: '#000000' }}
-                  className="h-8 rounded-lg px-4 text-xs font-medium hover:opacity-90 sm:text-sm"
+                  className="h-8 rounded-lg bg-brand-500 px-4 text-xs font-medium text-text-primary hover:bg-brand-500/90 sm:text-sm"
                 >
                   {loadingMeetLink ? '載入中...' : '加入 Google Meet'}
                 </Button>
