@@ -101,7 +101,7 @@ const defaultScheduleMock: UseMentorScheduleReturn = {
   allowedDates: [todayStr, '2026-08-04'],
   generateBookingSlots: () => [],
   addSlotForSelectedDate: () => ({ added: 1, skipped: 0 }),
-  updateDraftSlot: () => true,
+  updateDraftSlot: () => ({ success: true }),
   deleteDraftSlot: () => {},
   confirmChanges: async () => ({ ok: true }),
   resetChanges: () => {},

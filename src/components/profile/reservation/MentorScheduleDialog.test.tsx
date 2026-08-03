@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { UseMentorScheduleReturn } from '@/hooks/useMentorSchedule';
+import { mockToast } from '@/test/mocks/useToast';
 
 import MentorScheduleDialog from './MentorScheduleDialog';
 
@@ -86,7 +87,7 @@ const mockSchedule = {
   allowedDates: ['2026-07-26'],
   generateBookingSlots: vi.fn(),
   addSlotForSelectedDate: vi.fn().mockReturnValue({ added: 1, skipped: 0 }),
-  updateDraftSlot: vi.fn().mockReturnValue(true),
+  updateDraftSlot: vi.fn().mockReturnValue({ success: true }),
   deleteDraftSlot: vi.fn(),
   confirmChanges: vi.fn().mockResolvedValue({ ok: true }),
   resetChanges: vi.fn(),
@@ -317,5 +318,73 @@ describe('MentorScheduleDialog', () => {
     // Even though activeDialog has been set to null, the EditSlotModal form should still hold the values of
     // the last slot, ensuring that the fields don't empty out or flicker during the fade-out exit animation.
     expect(screen.queryByText('新增可預約時段')).not.toBeInTheDocument();
+  });
+
+  it('shows precise destruct warning toast when updateDraftSlot returns TARGET_MONTH_NOT_LOADED reason', () => {
+    const mockUpdateDraftSlotWithError = vi.fn().mockImplementation(() => {
+      return { success: false, reason: 'TARGET_MONTH_NOT_LOADED' };
+    });
+
+    const mockScheduleWithError = {
+      ...mockSchedule,
+      updateDraftSlot: mockUpdateDraftSlotWithError,
+    } as unknown as UseMentorScheduleReturn;
+
+    render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        schedule={mockScheduleWithError}
+      />
+    );
+
+    const firstSlot = screen
+      .getByText('10:00 – 10:30')
+      .closest('[role="button"]');
+    fireEvent.click(firstSlot!);
+    expect(screen.getByText('編輯時段')).toBeInTheDocument();
+
+    const editSubmitBtn = screen.getByRole('button', { name: '完成' });
+    fireEvent.click(editSubmitBtn);
+
+    expect(mockUpdateDraftSlotWithError).toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      description: '目標月份排程尚未載入，請先在行事曆中切換至目標月份。',
+    });
+  });
+
+  it('shows precise generic error toast when updateDraftSlot returns success: false without a specific reason', () => {
+    const mockUpdateDraftSlotWithError = vi.fn().mockImplementation(() => {
+      return { success: false }; // returns success: false without reason
+    });
+
+    const mockScheduleWithError = {
+      ...mockSchedule,
+      updateDraftSlot: mockUpdateDraftSlotWithError,
+    } as unknown as UseMentorScheduleReturn;
+
+    render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        schedule={mockScheduleWithError}
+      />
+    );
+
+    const firstSlot = screen
+      .getByText('10:00 – 10:30')
+      .closest('[role="button"]');
+    fireEvent.click(firstSlot!);
+    expect(screen.getByText('編輯時段')).toBeInTheDocument();
+
+    const editSubmitBtn = screen.getByRole('button', { name: '完成' });
+    fireEvent.click(editSubmitBtn);
+
+    expect(mockUpdateDraftSlotWithError).toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      description: '更新時段失敗，發生未知的錯誤，請稍後再試。',
+    });
   });
 });

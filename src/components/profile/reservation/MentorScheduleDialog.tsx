@@ -367,7 +367,7 @@ export default function MentorScheduleDialog({
         onClose={() => setActiveDialog(null)}
         onSubmit={(form) => {
           if (activeDialog?.kind !== 'edit') return;
-          const ok = updateDraftSlot(
+          const result = updateDraftSlot(
             activeDialog.id,
             activeDialog.occurrenceUnix,
             {
@@ -375,11 +375,24 @@ export default function MentorScheduleDialog({
               durationMinutes: form.durationMinutes,
             }
           );
-          if (!ok) {
-            toast({
-              variant: 'destructive',
-              description: '此時段與其他時段重疊',
-            });
+          if (!result.success) {
+            if (result.reason === 'TARGET_MONTH_NOT_LOADED') {
+              toast({
+                variant: 'destructive',
+                description:
+                  '目標月份排程尚未載入，請先在行事曆中切換至目標月份。',
+              });
+            } else if (result.reason === 'OVERLAP') {
+              toast({
+                variant: 'destructive',
+                description: '此時段與其他時段重疊',
+              });
+            } else {
+              toast({
+                variant: 'destructive',
+                description: '更新時段失敗，發生未知的錯誤，請稍後再試。',
+              });
+            }
             return;
           }
           setActiveDialog(null);
