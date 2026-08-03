@@ -67,8 +67,8 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@google/gemini-cli": "0.52.0",
-    "@playwright/test": "^1.58.2",
+    "@google/gemini-cli": "0.53.0",
+    "@playwright/test": "^1.62.1",
     "@storybook/addon-a11y": "^10.5.5",
     "@storybook/addon-docs": "^10.5.5",
     "@storybook/addon-onboarding": "^10.5.5",
@@ -85,8 +85,8 @@
     "@types/react-dom": "18.2.18",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^6.19.1",
-    "@vitejs/plugin-react": "^6.0.1",
-    "autoprefixer": "^10.4.17",
+    "@vitejs/plugin-react": "^6.0.5",
+    "autoprefixer": "^10.5.4",
     "cross-env": "^10.1.0",
     "dotenv": "^17.4.2",
     "eslint": "^8.56.0",
@@ -97,17 +97,17 @@
     "eslint-plugin-storybook": "^10.5.5",
     "eslint-plugin-tailwindcss": "^3.18.3",
     "husky": "^9.0.10",
-    "jimp": "^1.6.0",
+    "jimp": "^1.6.1",
     "jsdom": "^30.0.1",
     "lint-staged": "^17.2.0",
     "openapi-typescript": "^7.13.0",
-    "postcss": "^8.4.33",
-    "prettier": "^3.2.4",
-    "prettier-plugin-tailwindcss": "^0.5.11",
+    "postcss": "^8.5.25",
+    "prettier": "^3.9.6",
+    "prettier-plugin-tailwindcss": "^0.8.1",
     "storybook": "^10.5.5",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.3.3",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.10"
   },
   "pnpm": {
     "overrides": {
