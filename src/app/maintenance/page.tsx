@@ -35,7 +35,7 @@ export default function MaintenancePage() {
           <div className="relative flex size-24 items-center justify-center rounded-2xl border border-background-border bg-background-white shadow-md">
             <Wrench className="size-12 animate-pulse text-brand-500" />
           </div>
-          <div className="absolute -bottom-2 -right-2 flex size-10 items-center justify-center rounded-full border border-background-border bg-background-white shadow-sm">
+          <div className="absolute -right-2 -bottom-2 flex size-10 items-center justify-center rounded-full border border-background-border bg-background-white shadow-sm">
             <Clock className="size-5 text-text-secondary" />
           </div>
         </div>
@@ -55,7 +55,7 @@ export default function MaintenancePage() {
         <button
           onClick={handleReload}
           disabled={isReloading}
-          className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-6 py-3 font-semibold text-text-white shadow-sm transition-all hover:bg-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-6 py-3 font-semibold text-text-white shadow-sm transition-all hover:bg-brand-600 focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50"
         >
           <RefreshCw
             className={`size-4 ${isReloading ? 'animate-spin' : ''}`}
