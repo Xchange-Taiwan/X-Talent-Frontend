@@ -102,18 +102,10 @@ export const SESSION_HINT_INLINE_SCRIPT = `
           avatar = '';
         }
       }
-      
+
       if (avatar && (avatar.startsWith('https://') || avatar.startsWith('http://') || avatar.startsWith('/'))) {
         document.documentElement.setAttribute('${DOM_AUTH_AVATAR_ATTR}', avatar);
-        
-        var updateImages = function() {
-          var imgs = document.querySelectorAll('img[${DOM_AVATAR_IMG_ATTR}]');
-          for (var i = 0; i < imgs.length; i++) {
-            imgs[i].src = avatar;
-          }
-        };
-        updateImages();
-        document.addEventListener('DOMContentLoaded', updateImages);
+        document.documentElement.style.setProperty('--auth-avatar', 'url("' + avatar + '")');
       }
       document.documentElement.setAttribute('${DOM_AUTH_STATE_ATTR}', isMentor ? 'mentor' : 'mentee');
     }

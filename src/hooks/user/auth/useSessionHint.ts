@@ -31,24 +31,36 @@ export function useSessionHint(): SessionHintState {
 
   useEffect(() => {
     const hint = decodeSessionHint(readCookie(SESSION_HINT_COOKIE));
-    const authState =
-      document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR);
 
-    const resolvedHint =
-      hint ??
-      (authState
-        ? {
-            isMentor: authState === 'mentor',
-            avatar:
-              document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR) ??
-              undefined,
-          }
-        : null);
+    // Actively sync and clear DOM attributes and CSS variables with Cookie (Single Source of Truth)
+    if (hint) {
+      document.documentElement.setAttribute(
+        DOM_AUTH_STATE_ATTR,
+        hint.isMentor ? 'mentor' : 'mentee'
+      );
+      if (hint.avatar) {
+        document.documentElement.setAttribute(
+          DOM_AUTH_AVATAR_ATTR,
+          hint.avatar
+        );
+        document.documentElement.style.setProperty(
+          '--auth-avatar',
+          `url("${hint.avatar}")`
+        );
+      } else {
+        document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
+        document.documentElement.style.removeProperty('--auth-avatar');
+      }
+    } else {
+      document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
+      document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
+      document.documentElement.style.removeProperty('--auth-avatar');
+    }
 
     setState((prev) => {
-      const nextStatus = resolvedHint ? 'authenticated' : 'guest';
-      const nextIsMentor = resolvedHint ? resolvedHint.isMentor : false;
-      const nextAvatar = resolvedHint ? resolvedHint.avatar : undefined;
+      const nextStatus = hint ? 'authenticated' : 'guest';
+      const nextIsMentor = hint ? hint.isMentor : false;
+      const nextAvatar = hint ? hint.avatar : undefined;
 
       if (
         prev.status === nextStatus &&
@@ -58,11 +70,11 @@ export function useSessionHint(): SessionHintState {
         return prev;
       }
 
-      return resolvedHint
+      return hint
         ? {
             status: 'authenticated',
-            isMentor: resolvedHint.isMentor,
-            avatar: resolvedHint.avatar,
+            isMentor: hint.isMentor,
+            avatar: hint.avatar,
           }
         : { status: 'guest' };
     });
