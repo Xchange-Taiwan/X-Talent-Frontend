@@ -4,14 +4,15 @@ import { useEffect, useState } from 'react';
 
 import { AnnouncementData, fetchAnnouncement } from '@/services/announcement';
 
+const DISMISSED_STORAGE_KEY = 'announcement-dismissed';
+
 export function useAnnouncement() {
   const [data, setData] = useState<AnnouncementData | null>(null);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     // 1. Check session storage synchronously
-    const dismissed =
-      sessionStorage.getItem('announcement-dismissed') === 'true';
+    const dismissed = sessionStorage.getItem(DISMISSED_STORAGE_KEY) === 'true';
     if (dismissed) {
       return;
     }
@@ -64,7 +65,7 @@ export function useAnnouncement() {
   }, []);
 
   const handleDismiss = () => {
-    sessionStorage.setItem('announcement-dismissed', 'true');
+    sessionStorage.setItem(DISMISSED_STORAGE_KEY, 'true');
     setVisible(false);
   };
 

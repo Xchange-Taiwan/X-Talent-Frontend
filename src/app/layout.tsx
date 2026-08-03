@@ -136,7 +136,7 @@ export default function RootLayout({
             <main
               id="main-content"
               tabIndex={-1}
-              className="grow pt-[calc(70px+var(--banner-height,0px))] focus:outline-none"
+              className="grow pt-[calc(70px_+_var(--banner-height,0px))] focus:outline-none"
             >
               {children}
             </main>
