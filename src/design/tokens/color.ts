@@ -93,6 +93,12 @@ module.exports = {
     2: 'hsl(var(--color-auth-gradient-2) / <alpha-value>)',
     3: 'hsl(var(--color-auth-gradient-3) / <alpha-value>)',
   },
+  'mentor-hero-gradient': {
+    1: 'hsl(var(--color-mentor-hero-gradient-1) / <alpha-value>)',
+    2: 'hsl(var(--color-mentor-hero-gradient-2) / <alpha-value>)',
+    3: 'hsl(var(--color-mentor-hero-gradient-3) / <alpha-value>)',
+    4: 'hsl(var(--color-mentor-hero-gradient-4) / <alpha-value>)',
+  },
   // [Item 3: Legacy landing-only tokens]
   // 經過全面代碼檢索（grep），以下 5 個 Token 仍被 (landing)/about、(landing)/page、(landing)/terms、(landing)/privacy、mentor-pool/PopularPositionChips 以及 components/landing/HomePageSlider 廣泛調用，為防樣式損壞，依據工程規範維持保留。
   navy: 'hsl(var(--color-navy) / <alpha-value>)',
