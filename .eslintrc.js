@@ -67,10 +67,11 @@ module.exports = {
   },
   overrides: [
     {
-      // Allow arbitrary Tailwind colors (like hardcoded brand colors and Next.js OG Image routes that cannot consume Tailwind classes), but keep the default Tailwind scales and arbitrary font sizes rules
+      // Allow arbitrary Tailwind colors (like hardcoded brand colors and Next.js OG/Twitter Image routes that cannot consume Tailwind classes), but keep the default Tailwind scales and arbitrary font sizes rules
       files: [
         'src/components/icon/color/*.tsx',
         'src/app/**/opengraph-image.tsx',
+        'src/app/**/twitter-image.tsx',
       ],
       rules: {
         'no-restricted-syntax': [
