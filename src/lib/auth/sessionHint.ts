@@ -25,7 +25,15 @@ const NON_MENTOR_VALUE = '0';
 export function encodeSessionHint(hint: SessionHint): string {
   const isMentorVal = hint.isMentor ? MENTOR_VALUE : NON_MENTOR_VALUE;
   if (hint.avatar) {
-    return `${isMentorVal}|${encodeURIComponent(hint.avatar)}`;
+    try {
+      const encodedAvatar = encodeURIComponent(hint.avatar);
+      // Prevent cookie bloat (HTTP 431 Request Header Fields Too Large) by capping length
+      if (encodedAvatar.length <= 1000) {
+        return `${isMentorVal}|${encodedAvatar}`;
+      }
+    } catch (err) {
+      console.error('Failed to encode avatar URL for session hint:', err);
+    }
   }
   return isMentorVal;
 }
@@ -33,9 +41,7 @@ export function encodeSessionHint(hint: SessionHint): string {
 function isValidAvatarProtocol(url: string): boolean {
   return (
     url.startsWith('https://') ||
-    url.startsWith('https%3A%2F%2F') ||
     url.startsWith('http://') ||
-    url.startsWith('http%3A%2F%2F') ||
     url.startsWith('/')
   );
 }
@@ -64,10 +70,11 @@ export function decodeSessionHint(
     try {
       avatar = decodeURIComponent(avatarPart);
     } catch {
-      avatar = avatarPart;
+      // Decode failed - discard raw value to avoid broken UI links
+      avatar = undefined;
     }
 
-    if (isValidAvatarProtocol(avatar)) {
+    if (avatar && isValidAvatarProtocol(avatar)) {
       hint.avatar = avatar;
     }
   }

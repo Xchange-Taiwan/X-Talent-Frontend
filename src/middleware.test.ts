@@ -83,6 +83,19 @@ describe('middleware session hint cookie', () => {
     );
   });
 
+  it('caps the session-hint cookie to avoid large cookies when the avatar URL is extremely long', async () => {
+    const longAvatar = 'https://example.com/avatar.png?' + 'a'.repeat(1200);
+    mockGetToken.mockResolvedValue({
+      isMentor: true,
+      avatar: longAvatar,
+    } as never);
+
+    const response = await middleware(makeRequest('/'));
+
+    // Encoded URL would exceed 1000 characters, so it should fall back to '1'
+    expect(response.cookies.get(SESSION_HINT_COOKIE)?.value).toBe('1');
+  });
+
   it('does not emit a Set-Cookie for a guest with no existing hint cookie — keeps public routes cacheable', async () => {
     mockGetToken.mockResolvedValue(null);
 

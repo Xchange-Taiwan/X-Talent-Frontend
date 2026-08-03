@@ -31,6 +31,15 @@ describe('sessionHint utilities', () => {
       });
       expect(result).toBe('0|https%3A%2F%2Fexample.com%2Favatar.jpg');
     });
+
+    it('discards avatar when encoded URL exceeds 1000 characters', () => {
+      const longAvatar = 'https://example.com/avatar.png?' + 'a'.repeat(1000);
+      const result = encodeSessionHint({
+        isMentor: true,
+        avatar: longAvatar,
+      });
+      expect(result).toBe('1');
+    });
   });
 
   describe('decodeSessionHint', () => {
@@ -64,13 +73,19 @@ describe('sessionHint utilities', () => {
       });
     });
 
-    it('falls back to raw string on URI decode error', () => {
+    it('discards avatar on URI decode error', () => {
       const result = decodeSessionHint(
         '1|https%3A%2F%2Fexample.com%2Finvalid%%url'
       );
       expect(result).toEqual({
         isMentor: true,
-        avatar: 'https%3A%2F%2Fexample.com%2Finvalid%%url',
+      });
+    });
+
+    it('filters out unsafe avatar protocols', () => {
+      const result = decodeSessionHint('1|javascript%3Aalert(1)');
+      expect(result).toEqual({
+        isMentor: true,
       });
     });
 

@@ -186,7 +186,8 @@ export async function middleware(req: NextRequest) {
   if (isLoggedIn) {
     const nextHint = encodeSessionHint({
       isMentor: Boolean(token?.isMentor),
-      avatar: (token?.avatar as string | undefined) ?? undefined,
+      avatar:
+        ((token?.avatar || token?.picture) as string | undefined) ?? undefined,
     });
     if (currentHint !== nextHint) {
       response.cookies.set(
