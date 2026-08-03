@@ -66,7 +66,7 @@ export function MenteeBookingForm({
             selectedSlot?.start.getTime() === slot.start.getTime();
           return (
             <Button
-              key={`${slot.scheduleId}_${slot.start.getTime()}`}
+              key={slot.start.getTime()}
               type="button"
               variant={isSelected ? 'default' : 'outline'}
               disabled={slot.isBooked}
