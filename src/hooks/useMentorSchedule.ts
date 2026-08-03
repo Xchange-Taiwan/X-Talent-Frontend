@@ -625,7 +625,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           newDtstart === occurrenceUnix &&
           durationSeconds === oldDurationSeconds;
 
-        if (isRecurring && noChange) {
+        if (noChange) {
           return { success: true };
         }
 
@@ -741,10 +741,13 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           return nextDraft;
         });
 
-        markDirty(parentMonthKey);
-        if (targetMonthKey !== parentMonthKey) {
-          markDirty(targetMonthKey);
-        }
+        // Mark all months containing this parent row (and target month) dirty to sync exdates (Correctness Finding 1)
+        currentDraftsMap.forEach((mDraft, mKey) => {
+          if (mDraft.some((r: RawMentorTimeslot) => r.id === id)) {
+            markDirty(mKey);
+          }
+        });
+        markDirty(targetMonthKey);
 
         return { success: true };
       },
