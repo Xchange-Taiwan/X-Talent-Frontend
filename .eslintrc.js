@@ -59,6 +59,16 @@ module.exports = {
   },
   overrides: [
     {
+      // Allow arbitrary Tailwind values (like hardcoded brand colors and Next.js OG Image routes that cannot consume Tailwind classes)
+      files: [
+        'src/components/icon/color/*.tsx',
+        'src/app/**/opengraph-image.tsx',
+      ],
+      rules: {
+        'no-restricted-syntax': 'off',
+      },
+    },
+    {
       files: ['src/lib/profile/saveProfile.ts'],
       rules: {
         'no-restricted-imports': [
