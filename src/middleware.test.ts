@@ -193,4 +193,23 @@ describe('middleware maintenance mode', () => {
     expect(response.status).toBe(307);
     expect(response.headers.get('location')).toContain('/maintenance');
   });
+
+  it('does not redirect and lets Sentry tunnel pass through under maintenance', async () => {
+    process.env.EDGE_CONFIG = 'connection_string';
+    mockGet.mockResolvedValue(true);
+
+    const response = await middleware(makeRequest('/monitoring'));
+
+    expect(response.status).toBe(200);
+  });
+
+  it('safely falls back and allows traffic when Edge Config read fails', async () => {
+    process.env.EDGE_CONFIG = 'connection_string';
+    mockGet.mockRejectedValue(new Error('Network Error'));
+    mockGetToken.mockResolvedValue(null);
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.status).toBe(200);
+  });
 });

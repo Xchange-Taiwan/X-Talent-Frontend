@@ -19,7 +19,23 @@ export async function middleware(req: NextRequest) {
   const { nextUrl } = req;
   const pathname = nextUrl.pathname;
 
-  // -------- 0. Check Maintenance Mode --------
+  // -------- 0. Bypass Static Assets and Sentry Tunnel --------
+  // Sentry tunnel route — bypass middleware so anonymous-user envelope POSTs
+  // aren't redirected to /auth/signin (defined by withSentryConfig
+  // tunnelRoute in next.config.js).
+  const isAsset =
+    pathname.includes('.') ||
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/static/');
+
+  const isMonitoring =
+    pathname === '/monitoring' || pathname.startsWith('/monitoring/');
+
+  if (isAsset || isMonitoring) {
+    return NextResponse.next();
+  }
+
+  // -------- 0.1 Check Maintenance Mode --------
   let isInMaintenanceMode = false;
   if (process.env.EDGE_CONFIG) {
     try {
@@ -38,13 +54,7 @@ export async function middleware(req: NextRequest) {
   const isMaintenancePage = pathname === '/maintenance';
 
   if (isInMaintenanceMode) {
-    // Let static assets and Sentry tunnel through
-    const isAsset =
-      pathname.includes('.') ||
-      pathname.startsWith('/_next/') ||
-      pathname.startsWith('/static/');
-
-    if (isMaintenancePage || isAsset) {
+    if (isMaintenancePage) {
       return NextResponse.next();
     }
 
@@ -65,13 +75,6 @@ export async function middleware(req: NextRequest) {
       const redirectUrl = new URL('/', nextUrl);
       return NextResponse.redirect(redirectUrl);
     }
-  }
-
-  // Sentry tunnel route — bypass middleware so anonymous-user envelope POSTs
-  // aren't redirected to /auth/signin (defined by withSentryConfig
-  // tunnelRoute in next.config.js).
-  if (pathname === '/monitoring' || pathname.startsWith('/monitoring/')) {
-    return NextResponse.next();
   }
 
   // -------- 1. Verify session via NextAuth getToken (JWT signature + exp) --------
