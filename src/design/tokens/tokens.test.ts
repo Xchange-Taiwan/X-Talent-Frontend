@@ -14,6 +14,13 @@ describe('Design Tokens Configuration', () => {
       expect(rawColors['auth-gradient-3']).toBe('253 100% 95%');
     });
 
+    it('should have the new mentor hero gradient stop colors in raw colors', () => {
+      expect(rawColors['mentor-hero-gradient-1']).toBe('60 100% 97%');
+      expect(rawColors['mentor-hero-gradient-2']).toBe('300 100% 98%');
+      expect(rawColors['mentor-hero-gradient-3']).toBe('273 53% 97%');
+      expect(rawColors['mentor-hero-gradient-4']).toBe('180 100% 95%');
+    });
+
     it('should correctly map raw colors into the Tailwind color export', () => {
       expect(colors['auth-gradient']).toBeDefined();
       expect(colors['auth-gradient'][1]).toBe(
@@ -24,6 +31,22 @@ describe('Design Tokens Configuration', () => {
       );
       expect(colors['auth-gradient'][3]).toBe(
         'hsl(var(--color-auth-gradient-3) / <alpha-value>)'
+      );
+    });
+
+    it('should correctly map mentor hero gradient raw colors into the Tailwind color export', () => {
+      expect(colors['mentor-hero-gradient']).toBeDefined();
+      expect(colors['mentor-hero-gradient'][1]).toBe(
+        'hsl(var(--color-mentor-hero-gradient-1) / <alpha-value>)'
+      );
+      expect(colors['mentor-hero-gradient'][2]).toBe(
+        'hsl(var(--color-mentor-hero-gradient-2) / <alpha-value>)'
+      );
+      expect(colors['mentor-hero-gradient'][3]).toBe(
+        'hsl(var(--color-mentor-hero-gradient-3) / <alpha-value>)'
+      );
+      expect(colors['mentor-hero-gradient'][4]).toBe(
+        'hsl(var(--color-mentor-hero-gradient-4) / <alpha-value>)'
       );
     });
   });
