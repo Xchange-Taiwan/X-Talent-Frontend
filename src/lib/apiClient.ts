@@ -50,6 +50,8 @@ export type RequestOptions = Omit<RequestInit, 'body' | 'headers'> & {
   params?: Record<string, string | number | boolean | undefined | null>;
   /** Extra headers merged on top of defaults */
   headers?: Record<string, string>;
+  /** Treat `path` as a local Next.js API route — skip prefixing BASE_URL. Default: false */
+  isLocal?: boolean;
 };
 
 function isAbortError(error: unknown): boolean {
@@ -70,9 +72,13 @@ function refreshSession(): Promise<Session | null> {
   return pendingRefresh;
 }
 
-function buildUrl(path: string, params?: RequestOptions['params']): string {
-  const isLocalNextApi = path.startsWith('/api/');
-  const url = isLocalNextApi ? path : `${BASE_URL}${path}`;
+function buildUrl(
+  path: string,
+  params?: RequestOptions['params'],
+  isLocal = false
+): string {
+  const isAbsolute = /^https?:\/\//i.test(path);
+  const url = isAbsolute || isLocal ? path : `${BASE_URL}${path}`;
   if (!params) return url;
 
   const query = new URLSearchParams();
@@ -101,7 +107,14 @@ async function request<T>(
   options: RequestOptions = {},
   isRetry = false
 ): Promise<T> {
-  const { auth = true, headers = {}, params, signal, ...restOptions } = options;
+  const {
+    auth = true,
+    headers = {},
+    params,
+    signal,
+    isLocal = false,
+    ...restOptions
+  } = options;
 
   if (typeof window === 'undefined' && auth) {
     throw new Error(
@@ -115,7 +128,7 @@ async function request<T>(
   let response: Response;
 
   try {
-    response = await fetch(buildUrl(path, params), {
+    response = await fetch(buildUrl(path, params, isLocal), {
       method,
       headers: {
         'Content-Type': 'application/json',

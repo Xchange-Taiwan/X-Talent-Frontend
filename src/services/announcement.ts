@@ -9,6 +9,7 @@ export interface AnnouncementData {
 export async function fetchAnnouncement(): Promise<AnnouncementData | null> {
   const res = await apiClient.get<AnnouncementData>('/api/announcement', {
     auth: false,
+    isLocal: true,
   });
   return res || null;
 }

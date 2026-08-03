@@ -17,6 +17,8 @@ export function useAnnouncement() {
     }
 
     // 2. Fetch using our service
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
     fetchAnnouncement()
       .then((announcement) => {
         if (!announcement || !announcement.enabled || !announcement.message) {
@@ -45,15 +47,18 @@ export function useAnnouncement() {
 
         // 3. Set a timeout to automatically hide when maintenance time starts
         if (timeRemaining > 0) {
-          const timer = setTimeout(() => {
+          timer = setTimeout(() => {
             setVisible(false);
           }, timeRemaining);
-          return () => clearTimeout(timer);
         }
       })
       .catch((err) => {
         console.error('Error in useAnnouncement:', err);
       });
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   const handleDismiss = () => {

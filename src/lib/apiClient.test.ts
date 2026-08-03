@@ -63,6 +63,26 @@ describe('apiClient', () => {
 
       expect(mockFetch.mock.calls[0][0]).toBe('/v1/test');
     });
+
+    it('isLocal: true → path is used as-is, without prefixing BASE_URL', async () => {
+      await apiClient.get('/api/announcement', {
+        auth: false,
+        isLocal: true,
+      });
+
+      expect(mockFetch.mock.calls[0][0]).toBe('/api/announcement');
+    });
+
+    it('absolute http(s) URL → path is used as-is, even without isLocal', async () => {
+      await apiClient.get(
+        'https://edge-config.vercel.com/ecfg_test?token=test',
+        { auth: false }
+      );
+
+      expect(mockFetch.mock.calls[0][0]).toBe(
+        'https://edge-config.vercel.com/ecfg_test?token=test'
+      );
+    });
   });
 
   /* ================================

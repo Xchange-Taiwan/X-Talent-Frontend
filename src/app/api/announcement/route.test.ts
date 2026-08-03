@@ -42,6 +42,7 @@ describe('Announcement API Route', () => {
 
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
+      text: () => Promise.resolve(JSON.stringify(edgeConfigMockData)),
       json: () => Promise.resolve(edgeConfigMockData),
     });
     global.fetch = fetchMock;
@@ -50,9 +51,10 @@ describe('Announcement API Route', () => {
     expect(response.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledWith(
       'https://edge-config.vercel.com/ecfg_test?token=test',
-      {
+      expect.objectContaining({
+        method: 'GET',
         next: { revalidate: 0 },
-      }
+      })
     );
 
     const json = await response.json();

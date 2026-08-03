@@ -137,6 +137,27 @@ describe('AnnouncementBanner Component', () => {
     });
   });
 
+  it('renders banner and does not auto-hide when maintenanceTime is an invalid date string', async () => {
+    const data = {
+      enabled: true,
+      message: '格式錯誤的維護時間公告',
+      maintenanceTime: 'invalid-date',
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(JSON.stringify(data)),
+      json: () => Promise.resolve(data),
+    });
+    global.fetch = fetchMock;
+
+    render(<AnnouncementBanner />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(screen.getByText('格式錯誤的維護時間公告')).toBeInTheDocument();
+    });
+  });
+
   it('renders nothing when previously dismissed in the same session', async () => {
     sessionStorage.setItem('announcement-dismissed', 'true');
     const futureTime = new Date(Date.now() + 100000).toISOString();

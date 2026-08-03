@@ -136,8 +136,7 @@ export default function RootLayout({
             <main
               id="main-content"
               tabIndex={-1}
-              className="grow transition-[padding-top] duration-300 focus:outline-none"
-              style={{ paddingTop: 'calc(70px + var(--banner-height, 0px))' }}
+              className="grow pt-[calc(70px+var(--banner-height,0px))] focus:outline-none"
             >
               {children}
             </main>
