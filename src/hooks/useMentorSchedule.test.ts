@@ -16,13 +16,20 @@ import {
   buildDateTime,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
-import { loadMonthScheduleCached } from '@/services/mentor-schedule/sync';
+import {
+  loadMonthScheduleCached,
+  syncMonths,
+} from '@/services/mentor-schedule/sync';
 
 const mockLoadMonthScheduleCached = vi.mocked(loadMonthScheduleCached);
 
 describe('useMentorSchedule', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.mocked(syncMonths).mockResolvedValue([
+      { monthKey: '2026-07', outcome: { ok: true, raws: [] } },
+      { monthKey: '2026-08', outcome: { ok: true, raws: [] } },
+    ]);
   });
 
   const defaultMockRaws: RawMentorTimeslot[] = [
@@ -72,11 +79,11 @@ describe('useMentorSchedule', () => {
     });
 
     act(() => {
-      const success = result.current.updateDraftSlot(101, 1785070000, {
+      const res = result.current.updateDraftSlot(101, 1785070000, {
         startTime: '13:00',
         durationMinutes: 45,
       });
-      expect(success).toBe(true);
+      expect(res.success).toBe(true);
     });
 
     const baseDate = dayjs(1785070000 * 1000).format('YYYY-MM-DD');
@@ -141,11 +148,12 @@ describe('useMentorSchedule', () => {
       // Slot 101 starts at 13:30, ends at 14:15 (45 mins duration).
       // Slot 102 starts at 13:45, ends at 14:15.
       // This is a direct overlap conflict!
-      const success = result.current.updateDraftSlot(101, 1785070000, {
+      const res = result.current.updateDraftSlot(101, 1785070000, {
         startTime: '13:30',
         durationMinutes: 45,
       });
-      expect(success).toBe(false);
+      expect(res.success).toBe(false);
+      expect(res.reason).toBe('OVERLAP');
     });
 
     // Check that slot 101 is unchanged
@@ -176,11 +184,11 @@ describe('useMentorSchedule', () => {
 
     act(() => {
       // Update occurrence 1 (1785070000)
-      const success = result.current.updateDraftSlot(101, 1785070000, {
+      const res = result.current.updateDraftSlot(101, 1785070000, {
         startTime: '13:00', // Move to 13:00
         durationMinutes: 45,
       });
-      expect(success).toBe(true);
+      expect(res.success).toBe(true);
     });
 
     // The parent slot 101 should now have 1785070000 in its exdate (leaving only 1 active weekly occurrence).
@@ -380,11 +388,11 @@ describe('useMentorSchedule', () => {
     act(() => {
       // Edit the August 2 occurrence (1785674800 - Month 8)
       // Since it is edited, it should detach from the parent in July and be stored in August's buffer
-      const success = result.current.updateDraftSlot(101, 1785674800, {
+      const res = result.current.updateDraftSlot(101, 1785674800, {
         startTime: '13:00', // Move to 13:00
         durationMinutes: 45,
       });
-      expect(success).toBe(true);
+      expect(res.success).toBe(true);
     });
 
     // Total active occurrences should still be 2:
@@ -402,6 +410,16 @@ describe('useMentorSchedule', () => {
     const augustOcc = result.current.parsedDraft.find((s) => s.id < 0);
     expect(augustOcc?.occurrenceUnix).toBe(expectedUnix); // the detached occurrence is updated to 13:00 local of August 2
     expect(augustOcc?.durationMinutes).toBe(45);
+
+    // Verify both months are marked dirty by ensuring confirmChanges requests syncing for both (Testing Finding 1)
+    const mockSyncMonths = vi.mocked(syncMonths);
+    await result.current.confirmChanges();
+    expect(mockSyncMonths).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ ref: expect.objectContaining({ month: 7 }) }),
+        expect.objectContaining({ ref: expect.objectContaining({ month: 8 }) }),
+      ])
+    );
   });
 
   it('regression: a non-recurring ALLOW slot edited to fall in a different calendar month is correctly moved to the target month buffer', async () => {
@@ -446,11 +464,11 @@ describe('useMentorSchedule', () => {
     // Edit occurrence of slot 101, but the base Date is set to August 2, 2026 (1785674800)
     // Under the new code, this non-recurring slot is correctly removed from July and added to August buffer.
     act(() => {
-      const success = result.current.updateDraftSlot(101, 1785674800, {
+      const res = result.current.updateDraftSlot(101, 1785674800, {
         startTime: '13:00',
         durationMinutes: 45,
       });
-      expect(success).toBe(true);
+      expect(res.success).toBe(true);
     });
 
     expect(result.current.parsedDraft).toHaveLength(1);
@@ -458,6 +476,16 @@ describe('useMentorSchedule', () => {
     expect(updatedSlot.id).toBe(101); // remains slot 101
     expect(updatedSlot.occurrenceUnix).toBe(1785675600); // has been moved to August 2, 13:00!
     expect(updatedSlot.dateKey).toBe('2026-08-02');
+
+    // Verify both months are marked dirty by ensuring confirmChanges requests syncing for both (Testing Finding 1)
+    const mockSyncMonths = vi.mocked(syncMonths);
+    await result.current.confirmChanges();
+    expect(mockSyncMonths).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ ref: expect.objectContaining({ month: 7 }) }),
+        expect.objectContaining({ ref: expect.objectContaining({ month: 8 }) }),
+      ])
+    );
   });
 
   it('regression: a cross-month edit/move blocks editing and throws an error if the target month is not cached/loaded', async () => {
@@ -500,22 +528,16 @@ describe('useMentorSchedule', () => {
     expect(result.current.parsedDraft).toHaveLength(1);
 
     // Edit the slot to August 2, 2026 (1785674800)
-    // Since August has a cache miss, updateDraftSlot should throw an error, blocking the edit
-    let editError: Error | null = null;
-    let success = false;
-    try {
-      success = result.current.updateDraftSlot(101, 1785674800, {
+    // Since August has a cache miss, updateDraftSlot should return TARGET_MONTH_NOT_LOADED, blocking the edit
+    act(() => {
+      const res = result.current.updateDraftSlot(101, 1785674800, {
         startTime: '13:00',
         durationMinutes: 45,
       });
-    } catch (e: unknown) {
-      if (e instanceof Error) {
-        editError = e;
-      }
-    }
+      expect(res.success).toBe(false);
+      expect(res.reason).toBe('TARGET_MONTH_NOT_LOADED');
+    });
 
-    expect(success).toBe(false);
-    expect(editError?.message).toBe('TARGET_MONTH_NOT_LOADED');
     // Ensure the slot remains in July unchanged
     expect(result.current.parsedDraft).toHaveLength(1);
     expect(result.current.parsedDraft[0].id).toBe(101);
@@ -578,13 +600,14 @@ describe('useMentorSchedule', () => {
     });
 
     // Edit slot 101 to August 2 at 13:00 (1785674800 with patch 13:00 results in 1785675600)
-    // This overlaps with August slot 202, so it should be blocked and return false!
+    // This overlaps with August slot 202, so it should be blocked and return OVERLAP!
     act(() => {
-      const success = result.current.updateDraftSlot(101, 1785674800, {
+      const res = result.current.updateDraftSlot(101, 1785674800, {
         startTime: '13:00',
         durationMinutes: 45, // overlaps with 13:00 - 13:30 of slot 202
       });
-      expect(success).toBe(false);
+      expect(res.success).toBe(false);
+      expect(res.reason).toBe('OVERLAP');
     });
 
     // Ensure slot 101 remains in July and is not moved or modified

@@ -367,24 +367,16 @@ export default function MentorScheduleDialog({
         onClose={() => setActiveDialog(null)}
         onSubmit={(form) => {
           if (activeDialog?.kind !== 'edit') return;
-          try {
-            const ok = updateDraftSlot(
-              activeDialog.id,
-              activeDialog.occurrenceUnix,
-              {
-                startTime: `${form.startHour}:${form.startMinute}`,
-                durationMinutes: form.durationMinutes,
-              }
-            );
-            if (!ok) {
-              toast({
-                variant: 'destructive',
-                description: '此時段與其他時段重疊',
-              });
-              return;
+          const result = updateDraftSlot(
+            activeDialog.id,
+            activeDialog.occurrenceUnix,
+            {
+              startTime: `${form.startHour}:${form.startMinute}`,
+              durationMinutes: form.durationMinutes,
             }
-          } catch (e: unknown) {
-            if (e instanceof Error && e.message === 'TARGET_MONTH_NOT_LOADED') {
+          );
+          if (!result.success) {
+            if (result.reason === 'TARGET_MONTH_NOT_LOADED') {
               toast({
                 variant: 'destructive',
                 description:
@@ -393,7 +385,7 @@ export default function MentorScheduleDialog({
             } else {
               toast({
                 variant: 'destructive',
-                description: e instanceof Error ? e.message : '更新時段失敗',
+                description: '此時段與其他時段重疊',
               });
             }
             return;

@@ -87,7 +87,7 @@ const mockSchedule = {
   allowedDates: ['2026-07-26'],
   generateBookingSlots: vi.fn(),
   addSlotForSelectedDate: vi.fn().mockReturnValue({ added: 1, skipped: 0 }),
-  updateDraftSlot: vi.fn().mockReturnValue(true),
+  updateDraftSlot: vi.fn().mockReturnValue({ success: true }),
   deleteDraftSlot: vi.fn(),
   confirmChanges: vi.fn().mockResolvedValue({ ok: true }),
   resetChanges: vi.fn(),
@@ -320,9 +320,9 @@ describe('MentorScheduleDialog', () => {
     expect(screen.queryByText('新增可預約時段')).not.toBeInTheDocument();
   });
 
-  it('shows precise destruct warning toast when updateDraftSlot throws TARGET_MONTH_NOT_LOADED error', () => {
+  it('shows precise destruct warning toast when updateDraftSlot returns TARGET_MONTH_NOT_LOADED reason', () => {
     const mockUpdateDraftSlotWithError = vi.fn().mockImplementation(() => {
-      throw new Error('TARGET_MONTH_NOT_LOADED');
+      return { success: false, reason: 'TARGET_MONTH_NOT_LOADED' };
     });
 
     const mockScheduleWithError = {

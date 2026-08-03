@@ -51,6 +51,11 @@ type Options = {
 
 export type SlotDurationMinutes = 30 | 45 | 60;
 
+export type UpdateDraftSlotResult = {
+  success: boolean;
+  reason?: 'OVERLAP' | 'TARGET_MONTH_NOT_LOADED';
+};
+
 export type UseMentorScheduleReturn = {
   /** Sticky: true once any month has resolved. Use this for first-paint skeletons. */
   loaded: boolean;
@@ -93,7 +98,7 @@ export type UseMentorScheduleReturn = {
       startTime?: string; // HH:mm
       durationMinutes?: SlotDurationMinutes;
     }
-  ) => boolean;
+  ) => UpdateDraftSlotResult;
 
   /**
    * Delete a single occurrence. Non-recurring rows are removed entirely; on
@@ -515,13 +520,13 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     useCallback(
       (id, occurrenceUnix, patch) => {
         const parentMonthKey = findMonthForSlotId(id);
-        if (!parentMonthKey) return false;
+        if (!parentMonthKey) return { success: false };
 
         // Fetch parentDraft outside state setter from ref
         const currentDraftsMap = draftByMonthRef.current;
         const parentDraft = currentDraftsMap.get(parentMonthKey) ?? [];
         const target = parentDraft.find((r) => r.id === id);
-        if (!target) return false;
+        if (!target) return { success: false };
 
         // Date math computed once outside of updater function
         const baseDate = dayjs(occurrenceUnix * 1000).format('YYYY-MM-DD');
@@ -529,7 +534,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         const startHM = patch.startTime ?? fmtHM(occurrenceUnix);
 
         const s = buildDateTime(baseDate, startHM);
-        if (!s.isValid()) return false;
+        if (!s.isValid()) return { success: false };
 
         const newDtstart = Math.floor(s.valueOf() / 1000);
         const oldDurationSeconds = target.dtend - target.dtstart;
@@ -542,7 +547,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           durationSeconds === oldDurationSeconds;
 
         if (isRecurring && noChange) {
-          return true;
+          return { success: true };
         }
 
         const targetMonthKey = monthKeyFromUnix(newDtstart);
@@ -559,7 +564,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           });
           if (!cached) {
             // Cache miss for target month, block the edit to prevent data loss
-            throw new Error('TARGET_MONTH_NOT_LOADED');
+            return { success: false, reason: 'TARGET_MONTH_NOT_LOADED' };
           }
           targetDraft = cached;
         }
@@ -596,7 +601,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
             durationSeconds
           )
         ) {
-          return false;
+          return { success: false, reason: 'OVERLAP' };
         }
 
         // Side-effect: update savedByMonth outside updater if initializing target month
@@ -693,7 +698,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           markDirty(targetMonthKey);
         }
 
-        return true;
+        return { success: true };
       },
       [findMonthForSlotId, markDirty, backend.userId]
     );
