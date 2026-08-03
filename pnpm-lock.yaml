@@ -15,7 +15,7 @@ importers:
     dependencies:
       '@hookform/resolvers':
         specifier: ^5.6.0
-        version: 5.6.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@6.12.6))(ajv@6.12.6)(react-hook-form@7.83.0(react@18.2.0))(zod@3.25.76)
+        version: 5.6.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.17.1))(ajv@8.17.1)(react-hook-form@7.83.0(react@18.2.0))(zod@3.25.76)
       '@radix-ui/react-avatar':
         specifier: ^1.2.6
         version: 1.2.6(@types/react-dom@18.2.18)(@types/react@18.2.48)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -120,8 +120,8 @@ importers:
         version: 3.25.76
     devDependencies:
       '@google/gemini-cli':
-        specifier: 0.53.0
-        version: 0.53.0
+        specifier: 0.52.0
+        version: 0.52.0
       '@playwright/test':
         specifier: ^1.62.1
         version: 1.62.1
@@ -1218,8 +1218,8 @@ packages:
   '@github/keytar@7.10.6':
     resolution: {integrity: sha512-mRW6cUsSG+nj4jp5gp8e91zPySaT73r+2JM6VyMZfrEgksjPmjSMr+tPGNOK3HUHV+GUU9B1LAiiYy/wmAnIxA==}
 
-  '@google/gemini-cli@0.53.0':
-    resolution: {integrity: sha512-2taA43ERfQ4yPzJGYGTQ4LPjDsFs8d52v1SbInm8ZKtzSyXlHJnI4LHL/wGRBY0MGqH/IWCv7zvT+8aZPu3Sew==}
+  '@google/gemini-cli@0.52.0':
+    resolution: {integrity: sha512-/6FvfvlcsOJtn3NAgTp5/ca9xS6nmat4otQ+NEVoT6lovmI2N5jHxtBqGtjLUo+cvBfGgtR2WmkCPxxpHjr61Q==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -8327,7 +8327,7 @@ snapshots:
       node-addon-api: 8.9.1
     optional: true
 
-  '@google/gemini-cli@0.53.0':
+  '@google/gemini-cli@0.52.0':
     optionalDependencies:
       '@github/keytar': 7.10.6
       '@lydell/node-pty': 1.1.0
@@ -8338,14 +8338,14 @@ snapshots:
       '@lydell/node-pty-win32-x64': 1.1.0
       node-pty: 1.0.0
 
-  '@hookform/resolvers@5.6.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@6.12.6))(ajv@6.12.6)(react-hook-form@7.83.0(react@18.2.0))(zod@3.25.76)':
+  '@hookform/resolvers@5.6.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.17.1))(ajv@8.17.1)(react-hook-form@7.83.0(react@18.2.0))(zod@3.25.76)':
     dependencies:
       '@standard-schema/utils': 0.3.0
       react-hook-form: 7.83.0(react@18.2.0)
     optionalDependencies:
       '@standard-schema/spec': 1.1.0
-      ajv: 6.12.6
-      ajv-formats: 2.1.1(ajv@6.12.6)
+      ajv: 8.17.1
+      ajv-formats: 2.1.1(ajv@8.17.1)
       zod: 3.25.76
 
   '@humanwhocodes/config-array@0.13.0':
@@ -10672,11 +10672,6 @@ snapshots:
       - supports-color
 
   agent-base@7.1.4: {}
-
-  ajv-formats@2.1.1(ajv@6.12.6):
-    optionalDependencies:
-      ajv: 6.12.6
-    optional: true
 
   ajv-formats@2.1.1(ajv@8.17.1):
     optionalDependencies:
