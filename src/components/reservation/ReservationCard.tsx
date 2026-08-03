@@ -72,7 +72,7 @@ export function ReservationCard({
               href={profileHref}
               aria-label={profileAriaLabel}
               onClick={onProfileClick}
-              className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+              className="shrink-0 rounded-full focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
             >
               {avatar}
             </Link>
@@ -88,7 +88,7 @@ export function ReservationCard({
                   href={profileHref}
                   aria-label={profileAriaLabel}
                   onClick={onProfileClick}
-                  className="group min-w-0 truncate rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+                  className="group min-w-0 truncate rounded-sm focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                 >
                   <div className="truncate text-sm font-medium group-hover:underline sm:text-base">
                     {item.name}
@@ -176,7 +176,7 @@ function MessageBlock({ label, content }: { label: string; content: string }) {
         <div className="text-11 font-medium text-text-tertiary sm:text-xs">
           {label}
         </div>
-        <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap break-words text-text-primary">
+        <p className="mt-0.5 line-clamp-2 break-words whitespace-pre-wrap text-text-primary">
           {content}
         </p>
       </div>

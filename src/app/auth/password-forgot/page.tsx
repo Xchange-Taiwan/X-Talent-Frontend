@@ -22,7 +22,7 @@ export default function Page() {
       >
         <main className="flex w-full flex-auto flex-col justify-center gap-6 sm:flex-none">
           <div className="flex flex-col items-center gap-6">
-            <h1 className="text-32 font-bold leading-10">忘記密碼</h1>
+            <h1 className="text-32 leading-10 font-bold">忘記密碼</h1>
           </div>
 
           <div className="flex w-full flex-col items-start gap-1">

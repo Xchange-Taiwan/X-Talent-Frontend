@@ -33,7 +33,7 @@ The architectural review is rendered as a single self-contained HTML file in the
       }
     </style>
   </head>
-  <body class="bg-stone-50 text-slate-900 font-sans">
+  <body class="bg-stone-50 font-sans text-slate-900">
     <main class="mx-auto max-w-5xl space-y-12 px-6 py-12">
       <header>...</header>
       <section id="candidates" class="space-y-10">...</section>
@@ -73,7 +73,7 @@ Pick the pattern that fits the candidate. Mix them. Don't make every diagram loo
 Use a Mermaid `flowchart` or `graph` when the point is "X calls Y calls Z, and look at the mess." Wrap it in a Tailwind-styled card so it doesn't feel parachuted in. Style with classDef to colour leakage edges red and the deep module dark. Sequence diagrams work well for "before: 6 round-trips; after: 1."
 
 ```html
-<div class="border-slate-200 bg-white rounded-lg border p-4">
+<div class="rounded-lg border border-slate-200 bg-white p-4">
   <pre class="mermaid">
     flowchart LR
       A[OrderHandler] --> B[OrderValidator]

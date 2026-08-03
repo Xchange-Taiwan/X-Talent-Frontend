@@ -70,7 +70,7 @@ export default function PopularPositionChips() {
     >
       <div
         ref={scrollRef}
-        className="flex gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] xl:mx-auto xl:w-[846px] xl:justify-center xl:overflow-x-visible [&::-webkit-scrollbar]:hidden"
+        className="flex [scrollbar-width:none] gap-2 overflow-x-auto [-ms-overflow-style:none] xl:mx-auto xl:w-[846px] xl:justify-center xl:overflow-x-visible [&::-webkit-scrollbar]:hidden"
         aria-label="熱門職位"
       >
         {POPULAR_POSITIONS.map((position, i) => (
@@ -81,7 +81,7 @@ export default function PopularPositionChips() {
             }}
             type="button"
             onClick={() => handleClick(position)}
-            className={`shrink-0 rounded-full border border-background-border bg-background-white px-4 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-landingPurpleLight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            className={`shrink-0 rounded-full border border-background-border bg-background-white px-4 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-landingPurpleLight focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
               i >= visibleCount ? 'xl:hidden' : ''
             }`}
           >

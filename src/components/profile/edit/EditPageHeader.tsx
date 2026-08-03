@@ -20,7 +20,7 @@ export function EditPageHeader({
           className={`sm:hidden ${isSaving ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}
           onClick={isSaving ? undefined : onBack}
         />
-        <p className="whitespace-nowrap text-4xl font-bold">
+        <p className="text-4xl font-bold whitespace-nowrap">
           {isMentorOnboarding ? '完成個人資料' : '編輯個人頁面'}
         </p>
       </div>
@@ -38,7 +38,7 @@ export function EditPageHeader({
         <Button
           type="submit"
           variant="default"
-          className="min-w-[88px] whitespace-nowrap rounded-full px-4 py-3 sm:w-auto sm:grow-0 sm:px-6"
+          className="min-w-[88px] rounded-full px-4 py-3 whitespace-nowrap sm:w-auto sm:grow-0 sm:px-6"
           form="edit-profile-form"
           disabled={isSaving}
         >

@@ -31,11 +31,11 @@ export const ExperienceItemCard = ({
         </span>
       </div>
       <div>
-        <h2 className="mb-1 break-words text-base font-bold text-text-secondary">
+        <h2 className="mb-1 text-base font-bold break-words text-text-secondary">
           {title}
         </h2>
         {description && (
-          <p className="break-words text-sm text-text-secondary">
+          <p className="text-sm break-words text-text-secondary">
             {description}
           </p>
         )}

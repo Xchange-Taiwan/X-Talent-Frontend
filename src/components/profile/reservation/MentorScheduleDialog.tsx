@@ -268,7 +268,7 @@ export default function MentorScheduleDialog({
                           'flex flex-col gap-2 rounded-lg border bg-background-white p-3 transition-colors lg:p-4',
                           isPast
                             ? 'cursor-not-allowed opacity-50'
-                            : 'cursor-pointer hover:bg-background-bottom/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500'
+                            : 'cursor-pointer hover:bg-background-bottom/50 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none'
                         )}
                       >
                         <div className="flex flex-row flex-nowrap items-center justify-between gap-2 lg:gap-3">

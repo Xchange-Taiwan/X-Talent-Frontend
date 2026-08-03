@@ -152,7 +152,7 @@ export function CategoryMultiSelect({
     >
       <div className="border-b border-background-border p-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-tertiary" />
+          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-text-tertiary" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}

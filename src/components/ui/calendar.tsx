@@ -87,20 +87,20 @@ function Calendar({
 
         nav: cn(
           isProfile
-            ? 'absolute right-0 top-0 flex items-center justify-end gap-1'
+            ? 'absolute top-0 right-0 flex items-center justify-end gap-1'
             : 'absolute inset-x-0 top-0 flex w-full items-center justify-between gap-1',
           defaultClassNames.nav
         ),
 
         button_previous: cn(
           buttonVariants({ variant: buttonVariant }),
-          '!h-[var(--cell-size)] !w-[var(--cell-size)] select-none p-0 aria-disabled:opacity-50',
+          '!h-[var(--cell-size)] !w-[var(--cell-size)] p-0 select-none aria-disabled:opacity-50',
           defaultClassNames.button_previous
         ),
 
         button_next: cn(
           buttonVariants({ variant: buttonVariant }),
-          '!h-[var(--cell-size)] !w-[var(--cell-size)] select-none p-0 aria-disabled:opacity-50',
+          '!h-[var(--cell-size)] !w-[var(--cell-size)] p-0 select-none aria-disabled:opacity-50',
           defaultClassNames.button_next
         ),
 
@@ -121,7 +121,7 @@ function Calendar({
         dropdown_root: cn(
           isProfile
             ? 'relative inline-flex items-center gap-0.5 rounded-md px-1 py-0.5 text-sm font-semibold text-text-primary hover:bg-background-bottom-secondary'
-            : 'has-focus:border-ring has-focus:ring-ring/50 has-focus:ring relative rounded-md border border-background-border shadow-sm',
+            : 'relative rounded-md border border-background-border shadow-sm has-focus:border-ring has-focus:ring has-focus:ring-ring/50',
           defaultClassNames.dropdown_root
         ),
 
@@ -132,13 +132,13 @@ function Calendar({
 
         caption_label: cn(
           isProfile
-            ? 'select-none font-medium text-text-secondary'
-            : 'select-none font-medium',
+            ? 'font-medium text-text-secondary select-none'
+            : 'font-medium select-none',
           captionLayout === 'label'
             ? 'text-[length:var(--calendar-caption-font-size)]'
             : isProfile
               ? 'flex h-8 items-center gap-1 rounded-md text-[length:var(--calendar-caption-font-size)] [&>svg]:size-3.5 [&>svg]:text-text-tertiary'
-              : 'flex h-8 items-center gap-1 rounded-md pl-2 pr-1 text-[length:var(--calendar-caption-font-size)] [&>svg]:size-3.5 [&>svg]:text-text-tertiary',
+              : 'flex h-8 items-center gap-1 rounded-md pr-1 pl-2 text-[length:var(--calendar-caption-font-size)] [&>svg]:size-3.5 [&>svg]:text-text-tertiary',
           defaultClassNames.caption_label
         ),
 
@@ -149,8 +149,8 @@ function Calendar({
 
         weekday: cn(
           isProfile
-            ? 'flex h-[var(--cell-size)] select-none items-center justify-center rounded-md text-[length:var(--calendar-weekday-font-size)] font-semibold text-text-primary'
-            : 'flex h-[var(--cell-size)] select-none items-center justify-center rounded-md text-[length:var(--calendar-weekday-font-size)] font-normal text-text-tertiary',
+            ? 'flex h-[var(--cell-size)] items-center justify-center rounded-md text-[length:var(--calendar-weekday-font-size)] font-semibold text-text-primary select-none'
+            : 'flex h-[var(--cell-size)] items-center justify-center rounded-md text-[length:var(--calendar-weekday-font-size)] font-normal text-text-tertiary select-none',
           defaultClassNames.weekday
         ),
 
@@ -162,12 +162,12 @@ function Calendar({
         ),
 
         week_number: cn(
-          'select-none text-[length:var(--calendar-weekday-font-size)] text-text-tertiary',
+          'text-[length:var(--calendar-weekday-font-size)] text-text-tertiary select-none',
           defaultClassNames.week_number
         ),
 
         day: cn(
-          'group/day relative flex h-[var(--cell-size)] min-w-0 select-none items-center justify-center p-0 text-center [&:first-child[data-selected=true]_button]:rounded-l-full [&:last-child[data-selected=true]_button]:rounded-r-full',
+          'group/day relative flex h-[var(--cell-size)] min-w-0 items-center justify-center p-0 text-center select-none [&:first-child[data-selected=true]_button]:rounded-l-full [&:last-child[data-selected=true]_button]:rounded-r-full',
           defaultClassNames.day
         ),
 

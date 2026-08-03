@@ -10,7 +10,7 @@ const meta: Meta<typeof ProfileBanner> = {
   tags: ['autodocs'],
   decorators: [
     (Story) => (
-      <div className="relative pb-60 pt-10">
+      <div className="relative pt-10 pb-60">
         <Story />
       </div>
     ),

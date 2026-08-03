@@ -48,7 +48,7 @@ export default function Page() {
   return (
     <Fragment>
       <section className="relative flex h-[532px] w-full items-center justify-center overflow-hidden bg-[url('/landing/about-page-hero-sm.svg')] bg-cover bg-center sm:bg-[url('/landing/about-page-hero.svg')]">
-        <h1 className="text-center text-3xl font-bold leading-normal tracking-widest text-navy md:text-5xl">
+        <h1 className="text-center text-3xl leading-normal font-bold tracking-widest text-navy md:text-5xl">
           關於 <br className="md:hidden" />
           X-Talent
         </h1>

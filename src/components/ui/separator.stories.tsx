@@ -24,7 +24,7 @@ export const Horizontal: Story = {
   render: (args) => (
     <div className="max-w-md rounded border bg-background-white p-4">
       <div className="space-y-1">
-        <h4 className="text-sm font-medium leading-none">
+        <h4 className="text-sm leading-none font-medium">
           林小明 (資深前端工程師)
         </h4>
         <p className="text-xs text-text-tertiary">

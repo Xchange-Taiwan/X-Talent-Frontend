@@ -5,7 +5,7 @@ inputs:
   node-version:
     description: 'Node.js version to set up'
     required: false
-    default: '22'
+    default: '24'
   pnpm-version:
     description: 'PNPM version to set up'
     required: false

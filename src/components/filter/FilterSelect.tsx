@@ -23,7 +23,7 @@ function FilterSelect({
 }: FilterSelectProps): JSX.Element {
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-sm font-medium capitalize text-text-primary">
+      <label className="text-sm font-medium text-text-primary capitalize">
         {name}
       </label>
       <Select value={value} onValueChange={onChange}>

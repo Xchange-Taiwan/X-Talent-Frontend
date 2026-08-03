@@ -28,7 +28,7 @@ export default function AuthMessageCard({
         />
       </div>
       <div className={`flex flex-col items-center gap-6 ${contentClassName}`}>
-        <h1 className="text-32 font-bold leading-10">{title}</h1>
+        <h1 className="text-32 leading-10 font-bold">{title}</h1>
         {children}
       </div>
     </div>

@@ -18,9 +18,9 @@ export default function TermsOfServiceCheckbox({
       control={control}
       name="hasReadTermsOfService"
       render={({ field }) => (
-        <div className="flex items-center space-x-3 space-y-0">
+        <div className="flex items-center space-y-0 space-x-3">
           <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-          <span className="text-sm font-medium leading-none text-text-secondary">
+          <span className="text-sm leading-none font-medium text-text-secondary">
             我同意 X-Talent{' '}
             <Link
               href="/privacy"

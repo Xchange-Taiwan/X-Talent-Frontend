@@ -7,7 +7,7 @@ function CardSkeleton() {
       className="w-[334px] animate-pulse overflow-hidden rounded-lg border border-background-border bg-background-white xl:h-[480px] xl:w-[413px]"
     >
       <div className="h-[200px] w-full bg-background-bottom xl:h-[260px]" />
-      <div className="px-4 pb-6 pt-4">
+      <div className="px-4 pt-4 pb-6">
         <div className="mb-3 h-5 w-2/3 rounded bg-background-bottom" />
         <div className="mb-2 h-4 w-1/2 rounded bg-background-bottom" />
         <div className="mb-4 h-3 w-full rounded bg-background-bottom" />

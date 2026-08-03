@@ -23,7 +23,7 @@ export const Default: Story = {
       <PopoverContent className="w-80">
         <div className="grid gap-4">
           <div className="space-y-2">
-            <h4 className="font-medium leading-none">
+            <h4 className="leading-none font-medium">
               林小明 (資深前端工程師)
             </h4>
             <p className="font-mono text-xs text-text-tertiary">

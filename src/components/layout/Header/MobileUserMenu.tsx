@@ -89,7 +89,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
             <button
               type="button"
               onClick={handleGoProfile}
-              className="flex items-center gap-4 pb-6 pt-4 text-left"
+              className="flex items-center gap-4 pt-4 pb-6 text-left"
             >
               <Image
                 src={avatarSrc || DefaultAvatarImgUrl}

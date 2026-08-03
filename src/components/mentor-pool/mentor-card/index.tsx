@@ -48,7 +48,7 @@ const MentorCardBase = forwardRef<HTMLElement, MentorCardProps>(
           name={name}
           priority={priority}
         />
-        <div className="px-4 pb-6 pt-4">
+        <div className="px-4 pt-4 pb-6">
           <Information
             name={name}
             job_title={job_title}
