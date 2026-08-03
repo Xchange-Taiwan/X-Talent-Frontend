@@ -8,7 +8,10 @@ import {
   type SessionHint,
 } from '@/lib/auth/sessionHint';
 
+import { useInitialSessionHint } from './SessionHintContext';
+
 function readCookie(name: string): string | undefined {
+  if (typeof document === 'undefined') return undefined;
   return document.cookie
     .split('; ')
     .find((row) => row.startsWith(`${name}=`))
@@ -18,16 +21,25 @@ function readCookie(name: string): string | undefined {
 export type SessionHintState =
   | { status: 'unknown' }
   | { status: 'guest' }
-  | { status: 'authenticated'; isMentor: boolean };
+  | { status: 'authenticated'; isMentor: boolean; avatar?: string };
 
 /**
  * Reads the middleware-written hint cookie so the header can render the
- * right shape before `useSession()` resolves. Deferred to an effect (rather
- * than a lazy useState initializer) because the server render has no cookie
- * access — reading it during the first client render would mismatch.
+ * right shape before `useSession()` resolves.
  */
 export function useSessionHint(): SessionHintState {
-  const [state, setState] = useState<SessionHintState>({ status: 'unknown' });
+  const initialHint = useInitialSessionHint();
+
+  const [state, setState] = useState<SessionHintState>(() => {
+    if (initialHint) {
+      return {
+        status: 'authenticated',
+        isMentor: initialHint.isMentor,
+        avatar: initialHint.avatar,
+      };
+    }
+    return { status: 'unknown' };
+  });
 
   useEffect(() => {
     const hint: SessionHint | null = decodeSessionHint(
@@ -35,7 +47,11 @@ export function useSessionHint(): SessionHintState {
     );
     setState(
       hint
-        ? { status: 'authenticated', isMentor: hint.isMentor }
+        ? {
+            status: 'authenticated',
+            isMentor: hint.isMentor,
+            avatar: hint.avatar,
+          }
         : { status: 'guest' }
     );
   }, []);

@@ -9,6 +9,7 @@ import LogoImgUrl from '@/assets/logo.svg';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthStatus } from '@/hooks/user/auth/useAuthStatus';
+import { useSessionHint } from '@/hooks/user/auth/useSessionHint';
 import { trackEvent } from '@/lib/analytics';
 
 import { FEEDBACK_FORM_URL } from './constants';
@@ -20,14 +21,17 @@ import { UserDropdown } from './UserDropdown';
 
 function HeaderComponent(): JSX.Element {
   const { data: session } = useSession();
-  const {
-    authKnown,
-    isLoggedIn,
+  const hint = useSessionHint();
+  const { authKnown, isLoggedIn, isMentor, userId, isResolvingUser } =
+    useAuthStatus();
+
+  const hintAvatar = hint.status === 'authenticated' ? hint.avatar : undefined;
+
+  const virtualUser = session?.user ?? {
+    id: userId,
     isMentor,
-    userId,
-    hasFullUser,
-    isResolvingUser,
-  } = useAuthStatus();
+    avatar: hintAvatar,
+  };
 
   const findMentorHref = '/mentor-pool';
 
@@ -106,15 +110,15 @@ function HeaderComponent(): JSX.Element {
                   </Button>
                 </Link>
               </>
-            ) : hasFullUser ? (
-              <UserDropdown user={session!.user} />
+            ) : isLoggedIn ? (
+              <UserDropdown user={virtualUser} />
             ) : (
               <Skeleton className="size-9 rounded-full" />
             )}
           </div>
 
           <div className="flex items-center gap-3 lg:hidden">
-            {hasFullUser ? <MobileUserMenu user={session!.user} /> : null}
+            {isLoggedIn ? <MobileUserMenu user={virtualUser} /> : null}
             <HamburgerMenu
               isLoggedIn={isLoggedIn}
               isMentor={isMentor}

@@ -2,6 +2,7 @@ import '../styles/global.css';
 
 import * as Sentry from '@sentry/nextjs';
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import Script from 'next/script';
 
 import { AnnouncementBanner } from '@/components/layout/AnnouncementBanner';
@@ -9,6 +10,7 @@ import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import Providers from '@/components/Providers';
 import { Toaster } from '@/components/ui/toaster';
+import { decodeSessionHint, SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
 import { getSiteUrl } from '@/lib/site-url';
 
 import { notoSansTC } from './font';
@@ -53,6 +55,15 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  let initialSessionHint = null;
+  try {
+    const cookieStore = cookies();
+    const rawHint = cookieStore.get(SESSION_HINT_COOKIE)?.value;
+    initialSessionHint = decodeSessionHint(rawHint);
+  } catch (err) {
+    console.error('Failed to parse session hint server-side:', err);
+  }
+
   return (
     <html lang="zh-TW" className={notoSansTC.className}>
       <head>
@@ -129,7 +140,7 @@ export default function RootLayout({
             }}
           />
         )}
-        <Providers>
+        <Providers initialSessionHint={initialSessionHint}>
           <div className="flex min-h-screen flex-col">
             <AnnouncementBanner />
             <Header />

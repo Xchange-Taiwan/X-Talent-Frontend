@@ -16,19 +16,45 @@ export const SESSION_HINT_COOKIE_OPTIONS = {
 
 export interface SessionHint {
   isMentor: boolean;
+  avatar?: string;
 }
 
 const MENTOR_VALUE = '1';
 const NON_MENTOR_VALUE = '0';
 
 export function encodeSessionHint(hint: SessionHint): string {
-  return hint.isMentor ? MENTOR_VALUE : NON_MENTOR_VALUE;
+  const isMentorVal = hint.isMentor ? MENTOR_VALUE : NON_MENTOR_VALUE;
+  if (hint.avatar) {
+    return `${isMentorVal}|${encodeURIComponent(hint.avatar)}`;
+  }
+  return isMentorVal;
 }
 
 export function decodeSessionHint(
   value: string | undefined | null
 ): SessionHint | null {
-  if (value === MENTOR_VALUE) return { isMentor: true };
-  if (value === NON_MENTOR_VALUE) return { isMentor: false };
-  return null;
+  if (!value) return null;
+
+  const parts = value.split('|');
+  const isMentorPart = parts[0];
+  const avatarPart = parts[1];
+
+  let isMentor: boolean;
+  if (isMentorPart === MENTOR_VALUE) {
+    isMentor = true;
+  } else if (isMentorPart === NON_MENTOR_VALUE) {
+    isMentor = false;
+  } else {
+    return null;
+  }
+
+  const hint: SessionHint = { isMentor };
+  if (avatarPart) {
+    try {
+      hint.avatar = decodeURIComponent(avatarPart);
+    } catch {
+      hint.avatar = avatarPart;
+    }
+  }
+  return hint;
 }

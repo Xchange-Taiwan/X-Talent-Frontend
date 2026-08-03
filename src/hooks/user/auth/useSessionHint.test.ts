@@ -1,8 +1,10 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { render, renderHook, waitFor } from '@testing-library/react';
+import React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
 
+import { SessionHintProvider } from './SessionHintContext';
 import { useSessionHint } from './useSessionHint';
 
 function setCookie(value: string | undefined): void {
@@ -16,6 +18,30 @@ function setCookie(value: string | undefined): void {
 describe('useSessionHint', () => {
   afterEach(() => {
     setCookie(undefined);
+  });
+
+  it('uses initial hint from context on first render', () => {
+    const renderedStates: any[] = [];
+    const TestComponent = () => {
+      const state = useSessionHint();
+      renderedStates.push(state);
+      return null;
+    };
+
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(
+        SessionHintProvider,
+        { value: { isMentor: true, avatar: 'https://example.com/avatar.png' } },
+        children
+      );
+
+    render(React.createElement(TestComponent), { wrapper });
+
+    expect(renderedStates[0]).toEqual({
+      status: 'authenticated',
+      isMentor: true,
+      avatar: 'https://example.com/avatar.png',
+    });
   });
 
   it('resolves to guest when no hint cookie is present', async () => {

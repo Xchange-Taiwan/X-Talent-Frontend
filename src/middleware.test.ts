@@ -70,6 +70,19 @@ describe('middleware session hint cookie', () => {
     expect(response.cookies.get(SESSION_HINT_COOKIE)?.value).toBe('1');
   });
 
+  it('includes the avatar URL in the hint cookie when present in the token', async () => {
+    mockGetToken.mockResolvedValue({
+      isMentor: true,
+      avatar: 'https://example.com/avatar.png',
+    } as never);
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.cookies.get(SESSION_HINT_COOKIE)?.value).toBe(
+      '1|https%3A%2F%2Fexample.com%2Favatar.png'
+    );
+  });
+
   it('does not emit a Set-Cookie for a guest with no existing hint cookie — keeps public routes cacheable', async () => {
     mockGetToken.mockResolvedValue(null);
 
