@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/nextjs';
 import type { Metadata } from 'next';
 import Script from 'next/script';
 
+import { AnnouncementBanner } from '@/components/layout/AnnouncementBanner';
 import { Footer } from '@/components/layout/Footer';
 import { Header } from '@/components/layout/Header';
 import Providers from '@/components/Providers';
@@ -130,11 +131,13 @@ export default function RootLayout({
         )}
         <Providers>
           <div className="flex min-h-screen flex-col">
+            <AnnouncementBanner />
             <Header />
             <main
               id="main-content"
               tabIndex={-1}
-              className="grow pt-[70px] focus:outline-none"
+              className="grow transition-[padding-top] duration-300 focus:outline-none"
+              style={{ paddingTop: 'calc(70px + var(--banner-height, 0px))' }}
             >
               {children}
             </main>
