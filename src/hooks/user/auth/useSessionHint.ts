@@ -55,20 +55,16 @@ function updateAvatarStyle(avatar: string | undefined): void {
       document.head.appendChild(newStyle);
     }
   } else {
-    document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
-    if (styleTag) {
-      if (styleTag.parentNode) {
-        styleTag.parentNode.removeChild(styleTag);
-      } else {
-        styleTag.remove();
-      }
-    }
+    removeAvatarStyle();
   }
 }
 
 function removeAvatarStyle(): void {
   if (typeof document === 'undefined') return;
   document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
+  // Extremely defensive: also clear any legacy inline style property in case it was set by other scripts/sources
+  document.documentElement.style.removeProperty('--auth-avatar');
+
   const styleTag = getStyleTag();
   if (styleTag) {
     if (styleTag.parentNode) {
@@ -77,6 +73,12 @@ function removeAvatarStyle(): void {
       styleTag.remove();
     }
   }
+}
+
+function clearAuthDOMState(): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
+  removeAvatarStyle();
 }
 
 /**
@@ -92,8 +94,7 @@ export function useSessionHint(): SessionHintState {
 
     // 1. If we are explicitly logged out (unauthenticated), clear all DOM state
     if (status === 'unauthenticated') {
-      document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
-      removeAvatarStyle();
+      clearAuthDOMState();
 
       setState((prev) => {
         if (prev.status === 'guest') {
@@ -141,8 +142,7 @@ export function useSessionHint(): SessionHintState {
         );
         updateAvatarStyle(hint.avatar);
       } else {
-        document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
-        removeAvatarStyle();
+        clearAuthDOMState();
       }
 
       setState((prev) => {
