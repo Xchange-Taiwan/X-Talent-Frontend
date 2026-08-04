@@ -7,6 +7,7 @@ import {
   decodeSessionHint,
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
+  isValidAvatarProtocol,
   SESSION_HINT_COOKIE,
 } from '@/lib/auth/sessionHint';
 
@@ -27,11 +28,7 @@ function updateAvatarStyle(avatar: string | undefined): void {
   if (typeof document === 'undefined') return;
 
   // Guard and validate URL scheme exactly like our pre-hydration inline script
-  const isValidUrl =
-    avatar &&
-    (avatar.startsWith('https://') ||
-      avatar.startsWith('http://') ||
-      avatar.startsWith('/'));
+  const isValidUrl = avatar && isValidAvatarProtocol(avatar);
 
   if (isValidUrl && avatar) {
     document.documentElement.setAttribute(DOM_AUTH_AVATAR_ATTR, avatar);
@@ -109,7 +106,10 @@ export function useSessionHint(): SessionHintState {
       return;
     }
 
-    // 3. During initial loading, fall back to the safe session-hint cookie
+    // 3. During initial loading, fall back to the safe session-hint cookie.
+    // With no hint cookie, we don't yet know if the visitor is a guest or an
+    // authenticated user still resolving - stay 'unknown' so the header keeps
+    // showing its skeleton instead of flashing 'guest' first.
     if (status === 'loading') {
       if (hint) {
         document.documentElement.setAttribute(
@@ -122,25 +122,23 @@ export function useSessionHint(): SessionHintState {
       }
 
       setState((prev) => {
-        const nextStatus = hint ? 'authenticated' : 'guest';
-        const nextIsMentor = hint ? hint.isMentor : false;
-        const nextAvatar = hint ? hint.avatar : undefined;
+        if (!hint) {
+          return prev.status === 'unknown' ? prev : { status: 'unknown' };
+        }
 
         if (
-          prev.status === nextStatus &&
-          (prev.status !== 'authenticated' ||
-            (prev.isMentor === nextIsMentor && prev.avatar === nextAvatar))
+          prev.status === 'authenticated' &&
+          prev.isMentor === hint.isMentor &&
+          prev.avatar === hint.avatar
         ) {
           return prev;
         }
 
-        return hint
-          ? {
-              status: 'authenticated',
-              isMentor: hint.isMentor,
-              avatar: hint.avatar,
-            }
-          : { status: 'guest' };
+        return {
+          status: 'authenticated',
+          isMentor: hint.isMentor,
+          avatar: hint.avatar,
+        };
       });
     }
   }, [session, status]);

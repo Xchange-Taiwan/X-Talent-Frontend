@@ -29,6 +29,14 @@ describe('sessionHint utilities', () => {
       const encoded = encodeSessionHint({ isMentor: true, avatar: longUrl });
       expect(encoded).toBe('1');
     });
+
+    it('falls back to mentor status only when the avatar URL contains an unencodable lone surrogate', () => {
+      const encoded = encodeSessionHint({
+        isMentor: true,
+        avatar: 'https://example.com/\uD800avatar.png',
+      });
+      expect(encoded).toBe('1');
+    });
   });
 
   describe('decodeSessionHint', () => {
@@ -133,6 +141,20 @@ describe('sessionHint utilities', () => {
       expect(
         document.documentElement.style.getPropertyValue('--auth-avatar')
       ).toBe('');
+    });
+
+    it('gracefully handles malformed URI encoding in the inline script', () => {
+      document.cookie = `${SESSION_HINT_COOKIE}=1|https%3A%2F%2Fexample.com%2Finvalid%%url`;
+
+      runInlineScript();
+
+      // Should still set the state attribute and isMentor safely since decodeURIComponent error is caught!
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'mentor'
+      );
+      expect(
+        document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
+      ).toBeNull();
     });
   });
 });

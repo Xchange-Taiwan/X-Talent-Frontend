@@ -27,16 +27,21 @@ export function encodeSessionHint(hint: SessionHint): string {
   if (!hint.avatar) {
     return isMentorVal;
   }
-  const encodedAvatar = encodeURIComponent(hint.avatar);
-  // Completely omit avatar URL if its encoded form exceeds 1000 characters
-  // to avoid massive cookie header overhead (HTTP 431) and broken truncated URLs.
-  if (encodedAvatar.length > 1000) {
-    return isMentorVal;
+  try {
+    const encodedAvatar = encodeURIComponent(hint.avatar);
+    // Completely omit avatar URL if its encoded form exceeds 1000 characters
+    // to avoid massive cookie header overhead (HTTP 431) and broken truncated URLs.
+    if (encodedAvatar.length <= 1000) {
+      return `${isMentorVal}|${encodedAvatar}`;
+    }
+  } catch {
+    // Lone surrogate or otherwise invalid UTF-16 in the avatar URL - fall
+    // back to mentor status only rather than crashing the caller.
   }
-  return `${isMentorVal}|${encodedAvatar}`;
+  return isMentorVal;
 }
 
-function isValidAvatarProtocol(url: string): boolean {
+export function isValidAvatarProtocol(url: string): boolean {
   return (
     url.startsWith('https://') ||
     url.startsWith('http://') ||
