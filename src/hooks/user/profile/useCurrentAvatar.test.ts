@@ -97,6 +97,23 @@ describe('useCurrentAvatar', () => {
     expect(result.current).toBeNull();
   });
 
+  it('returns null when session is unauthenticated, ignoring stale hint', () => {
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: 'unauthenticated',
+    } as unknown as ReturnType<typeof useSession>);
+    mockUseSessionHint.mockReturnValue({
+      status: 'authenticated',
+      isMentor: true,
+      avatar: 'stale-hint-avatar.png',
+    });
+    mockUseAvatarOverride.mockReturnValue(null);
+
+    const { result } = renderHook(() => useCurrentAvatar());
+
+    expect(result.current).toBeNull();
+  });
+
   it('returns null when no avatar source exists', () => {
     mockUseSession.mockReturnValue({
       data: undefined,
