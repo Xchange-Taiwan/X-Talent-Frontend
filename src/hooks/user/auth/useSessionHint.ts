@@ -8,20 +8,33 @@ import {
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
   isValidAvatarProtocol,
+  safeDecodeURIComponent,
   SESSION_HINT_COOKIE,
 } from '@/lib/auth/sessionHint';
 
 export type SessionHintState =
   | { status: 'unknown' }
   | { status: 'guest' }
-  | { status: 'authenticated'; isMentor: boolean; avatar?: string };
+  | {
+      status: 'authenticated';
+      isMentor: boolean;
+      avatar?: string;
+      userId?: string;
+    };
 
 function readCookie(name: string): string | undefined {
   if (typeof document === 'undefined') return undefined;
-  return document.cookie
+  const raw = document.cookie
     .split('; ')
     .find((row) => row.startsWith(`${name}=`))
     ?.slice(name.length + 1);
+  if (raw === undefined) return undefined;
+
+  // `response.cookies.set()` encodeURIComponent's the whole value on write
+  // (including our own `|` separator), so it must be decoded once on read.
+  // Fall back to the raw value on failure rather than discarding the whole
+  // hint - `decodeSessionHint` still safely handles a malformed avatar part.
+  return safeDecodeURIComponent(raw);
 }
 
 function updateAvatarStyle(avatar: string | undefined): void {
@@ -82,6 +95,7 @@ export function useSessionHint(): SessionHintState {
     if (status === 'authenticated' && session?.user) {
       const realIsMentor = session.user.isMentor ?? false;
       const realAvatar = session.user.avatar ?? undefined;
+      const realUserId = session.user.id ?? undefined;
 
       document.documentElement.setAttribute(
         DOM_AUTH_STATE_ATTR,
@@ -93,7 +107,8 @@ export function useSessionHint(): SessionHintState {
         if (
           prev.status === 'authenticated' &&
           prev.isMentor === realIsMentor &&
-          prev.avatar === realAvatar
+          prev.avatar === realAvatar &&
+          prev.userId === realUserId
         ) {
           return prev;
         }
@@ -101,6 +116,7 @@ export function useSessionHint(): SessionHintState {
           status: 'authenticated',
           isMentor: realIsMentor,
           avatar: realAvatar,
+          userId: realUserId,
         };
       });
       return;
@@ -129,7 +145,8 @@ export function useSessionHint(): SessionHintState {
         if (
           prev.status === 'authenticated' &&
           prev.isMentor === hint.isMentor &&
-          prev.avatar === hint.avatar
+          prev.avatar === hint.avatar &&
+          prev.userId === hint.userId
         ) {
           return prev;
         }
@@ -138,6 +155,7 @@ export function useSessionHint(): SessionHintState {
           status: 'authenticated',
           isMentor: hint.isMentor,
           avatar: hint.avatar,
+          userId: hint.userId,
         };
       });
     }

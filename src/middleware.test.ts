@@ -70,6 +70,26 @@ describe('middleware session hint cookie', () => {
     expect(response.cookies.get(SESSION_HINT_COOKIE)?.value).toBe('1');
   });
 
+  it('includes the userId in the hint cookie when present in the token', async () => {
+    mockGetToken.mockResolvedValue({ isMentor: true, id: 'user-123' } as never);
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.cookies.get(SESSION_HINT_COOKIE)?.value).toBe('1|user-123');
+  });
+
+  it('does not re-emit Set-Cookie when the stored hint is the encoded form actually written by .cookies.set()', async () => {
+    mockGetToken.mockResolvedValue({ isMentor: true, id: 'user-123' } as never);
+    // `.cookies.set()` encodeURIComponent's the whole value on write
+    // (including our own `|` separator) - this is what the browser really
+    // sends back on the next request, not the raw `1|user-123` form.
+    const response = await middleware(
+      makeRequest('/', encodeURIComponent('1|user-123'))
+    );
+
+    expect(response.cookies.get(SESSION_HINT_COOKIE)).toBeUndefined();
+  });
+
   it('includes the avatar URL in the hint cookie when present in the token', async () => {
     mockGetToken.mockResolvedValue({
       isMentor: true,
@@ -79,7 +99,7 @@ describe('middleware session hint cookie', () => {
     const response = await middleware(makeRequest('/'));
 
     expect(response.cookies.get(SESSION_HINT_COOKIE)?.value).toBe(
-      '1|https%3A%2F%2Fexample.com%2Favatar.png'
+      '1||https%3A%2F%2Fexample.com%2Favatar.png'
     );
   });
 
@@ -92,7 +112,7 @@ describe('middleware session hint cookie', () => {
     const response = await middleware(makeRequest('/'));
 
     expect(response.cookies.get(SESSION_HINT_COOKIE)?.value).toBe(
-      '1|https%3A%2F%2Fexample.com%2Fpicture.png'
+      '1||https%3A%2F%2Fexample.com%2Fpicture.png'
     );
   });
 

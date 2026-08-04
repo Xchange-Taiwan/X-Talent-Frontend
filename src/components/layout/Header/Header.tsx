@@ -75,27 +75,21 @@ function HeaderComponent(): JSX.Element {
 
             {!authKnown ? (
               <>
-                <div className="group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden">
-                  <Skeleton className="h-6 w-24" />
-                </div>
-                <div className="hidden group-data-[auth-state=mentor]:block">
-                  <DisabledAwareLink
-                    href={getProfileHref(userId)}
-                    disabled={isResolvingUser}
-                    className="font-['Open_Sans'] text-base text-text-primary"
-                  >
-                    我的導師頁面
-                  </DisabledAwareLink>
-                </div>
-                <div className="hidden group-data-[auth-state=mentee]:block">
-                  <DisabledAwareLink
-                    href={getBecomeMentorHref(userId)}
-                    disabled={isResolvingUser}
-                    className="font-['Open_Sans'] text-base text-text-primary"
-                  >
-                    成為導師
-                  </DisabledAwareLink>
-                </div>
+                <Skeleton className="h-6 w-24 group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden" />
+                <DisabledAwareLink
+                  href={getProfileHref(userId)}
+                  disabled={isResolvingUser}
+                  className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentor]:block"
+                >
+                  我的導師頁面
+                </DisabledAwareLink>
+                <DisabledAwareLink
+                  href={getBecomeMentorHref(userId)}
+                  disabled={isResolvingUser}
+                  className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:block"
+                >
+                  成為導師
+                </DisabledAwareLink>
               </>
             ) : (
               <DisabledAwareLink
