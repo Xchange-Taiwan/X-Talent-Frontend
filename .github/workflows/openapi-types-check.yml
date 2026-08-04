@@ -35,7 +35,7 @@ jobs:
       - name: Check for differences
         id: check-diff
         run: |
-          if ! git diff --exit-code src/types/api.ts; then
+          if ! git diff --exit-code --ignore-space-at-eol src/types/api.ts; then
             echo "::error file=src/types/api.ts::API types (src/types/api.ts) are out of sync with the BFF OpenAPI spec."
             echo "=========================================================================="
             echo "❌ 錯誤：前端 API 型別定義 (src/types/api.ts) 與後端 BFF OpenAPI spec 不同步！"
