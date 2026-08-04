@@ -24,18 +24,16 @@ const NON_MENTOR_VALUE = '0';
 
 export function encodeSessionHint(hint: SessionHint): string {
   const isMentorVal = hint.isMentor ? MENTOR_VALUE : NON_MENTOR_VALUE;
-  if (hint.avatar) {
-    try {
-      const encodedAvatar = encodeURIComponent(hint.avatar);
-      // Prevent cookie bloat (HTTP 431 Request Header Fields Too Large) by capping length
-      if (encodedAvatar.length <= 1000) {
-        return `${isMentorVal}|${encodedAvatar}`;
-      }
-    } catch (err) {
-      console.error('Failed to encode avatar URL for session hint:', err);
-    }
+  if (!hint.avatar) {
+    return isMentorVal;
   }
-  return isMentorVal;
+  const encodedAvatar = encodeURIComponent(hint.avatar);
+  // Completely omit avatar URL if its encoded form exceeds 1000 characters
+  // to avoid massive cookie header overhead (HTTP 431) and broken truncated URLs.
+  if (encodedAvatar.length > 1000) {
+    return isMentorVal;
+  }
+  return `${isMentorVal}|${encodedAvatar}`;
 }
 
 function isValidAvatarProtocol(url: string): boolean {
@@ -47,11 +45,13 @@ function isValidAvatarProtocol(url: string): boolean {
 }
 
 export function decodeSessionHint(
-  value: string | undefined | null
+  cookieValue: string | undefined | null
 ): SessionHint | null {
-  if (!value) return null;
+  if (!cookieValue) {
+    return null;
+  }
 
-  const parts = value.split('|');
+  const parts = cookieValue.split('|');
   const isMentorPart = parts[0];
   const avatarPart = parts[1];
 
@@ -92,21 +92,24 @@ export const SESSION_HINT_INLINE_SCRIPT = `
     if (cookie) {
       var rawValue = cookie.substring('${SESSION_HINT_COOKIE}='.length);
       var parts = rawValue.split('|');
-      var isMentor = parts[0] === '1';
-      var avatar = '';
-      if (parts[1]) {
-        try {
-          avatar = decodeURIComponent(parts[1]);
-        } catch (_) {
-          avatar = '';
+      if (parts[0] === '1' || parts[0] === '0') {
+        var isMentor = parts[0] === '1';
+        var avatar = '';
+        if (parts[1]) {
+          try {
+            avatar = decodeURIComponent(parts[1]);
+          } catch (_) {
+            avatar = '';
+          }
         }
+        
+        if (avatar && (avatar.startsWith('https://') || avatar.startsWith('http://') || avatar.startsWith('/'))) {
+          document.documentElement.setAttribute('${DOM_AUTH_AVATAR_ATTR}', avatar);
+          var escapedAvatar = avatar.replace(/"/g, '%22');
+          document.documentElement.style.setProperty('--auth-avatar', 'url("' + escapedAvatar + '")');
+        }
+        document.documentElement.setAttribute('${DOM_AUTH_STATE_ATTR}', isMentor ? 'mentor' : 'mentee');
       }
-
-      if (avatar && (avatar.startsWith('https://') || avatar.startsWith('http://') || avatar.startsWith('/'))) {
-        document.documentElement.setAttribute('${DOM_AUTH_AVATAR_ATTR}', avatar);
-        document.documentElement.style.setProperty('--auth-avatar', 'url("' + avatar + '")');
-      }
-      document.documentElement.setAttribute('${DOM_AUTH_STATE_ATTR}', isMentor ? 'mentor' : 'mentee');
     }
   } catch (_) {}
 `;

@@ -23,18 +23,8 @@ function readCookie(name: string): string | undefined {
     ?.slice(name.length + 1);
 }
 
-function getStyleTag(): HTMLStyleElement | null {
-  if (typeof document === 'undefined') return null;
-  return (
-    (document.getElementById('session-hint-styles') as HTMLStyleElement) ||
-    document.head.querySelector('#session-hint-styles') ||
-    document.querySelector('#session-hint-styles')
-  );
-}
-
 function updateAvatarStyle(avatar: string | undefined): void {
   if (typeof document === 'undefined') return;
-  const styleTag = getStyleTag();
 
   // Guard and validate URL scheme exactly like our pre-hydration inline script
   const isValidUrl =
@@ -46,14 +36,10 @@ function updateAvatarStyle(avatar: string | undefined): void {
   if (isValidUrl && avatar) {
     document.documentElement.setAttribute(DOM_AUTH_AVATAR_ATTR, avatar);
     const escapedAvatar = avatar.replace(/"/g, '%22');
-    if (styleTag) {
-      styleTag.innerHTML = `:root { --auth-avatar: url("${escapedAvatar}"); }`;
-    } else {
-      const newStyle = document.createElement('style');
-      newStyle.id = 'session-hint-styles';
-      newStyle.innerHTML = `:root { --auth-avatar: url("${escapedAvatar}"); }`;
-      document.head.appendChild(newStyle);
-    }
+    document.documentElement.style.setProperty(
+      '--auth-avatar',
+      `url("${escapedAvatar}")`
+    );
   } else {
     removeAvatarStyle();
   }
@@ -62,17 +48,7 @@ function updateAvatarStyle(avatar: string | undefined): void {
 function removeAvatarStyle(): void {
   if (typeof document === 'undefined') return;
   document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
-  // Extremely defensive: also clear any legacy inline style property in case it was set by other scripts/sources
   document.documentElement.style.removeProperty('--auth-avatar');
-
-  const styleTag = getStyleTag();
-  if (styleTag) {
-    if (styleTag.parentNode) {
-      styleTag.parentNode.removeChild(styleTag);
-    } else {
-      styleTag.remove();
-    }
-  }
 }
 
 function clearAuthDOMState(): void {

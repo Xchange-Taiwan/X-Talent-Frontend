@@ -36,12 +36,22 @@ describe('useSessionHint', () => {
     setCookie(undefined);
     document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
     document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
-    const styleTags = document.querySelectorAll('#session-hint-styles');
-    styleTags.forEach((tag) => tag.remove());
+    document.documentElement.style.removeProperty('--auth-avatar');
   });
 
-  it('resolves to guest when no hint cookie is present', async () => {
-    const { result } = renderHook(() => useSessionHint());
+  it('resolves to unknown during loading when no hint cookie is present, then to guest when unauthenticated', async () => {
+    const { result, rerender } = renderHook(() => useSessionHint());
+
+    // During loading with no hint, stays unknown (displays skeleton)
+    expect(result.current.status).toBe('unknown');
+
+    // Once resolved to unauthenticated, transitions to guest
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: 'unauthenticated',
+    } as never);
+    rerender();
+
     await waitFor(() => expect(result.current.status).toBe('guest'));
   });
 
@@ -69,21 +79,30 @@ describe('useSessionHint', () => {
 
   it('treats an unrecognized cookie value as guest', async () => {
     setCookie('garbage');
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: 'unauthenticated',
+    } as never);
+
     const { result } = renderHook(() => useSessionHint());
     await waitFor(() => expect(result.current.status).toBe('guest'));
   });
 
   it('clears DOM attributes and CSS variables when no cookie is present (guest)', async () => {
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: 'unauthenticated',
+    } as never);
+
     document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentor');
     document.documentElement.setAttribute(
       DOM_AUTH_AVATAR_ATTR,
       'https://example.com/avatar.png'
     );
-    const style = document.createElement('style');
-    style.id = 'session-hint-styles';
-    style.innerHTML =
-      ':root { --auth-avatar: url("https://example.com/avatar.png"); }';
-    document.head.appendChild(style);
+    document.documentElement.style.setProperty(
+      '--auth-avatar',
+      'url("https://example.com/avatar.png")'
+    );
 
     const { result } = renderHook(() => useSessionHint());
 
@@ -95,7 +114,9 @@ describe('useSessionHint', () => {
       expect(
         document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
       ).toBeNull();
-      expect(document.getElementById('session-hint-styles')).toBeNull();
+      expect(
+        document.documentElement.style.getPropertyValue('--auth-avatar')
+      ).toBe('');
     });
   });
 
@@ -105,11 +126,10 @@ describe('useSessionHint', () => {
       DOM_AUTH_AVATAR_ATTR,
       'https://example.com/avatar.png'
     );
-    const style = document.createElement('style');
-    style.id = 'session-hint-styles';
-    style.innerHTML =
-      ':root { --auth-avatar: url("https://example.com/avatar.png"); }';
-    document.head.appendChild(style);
+    document.documentElement.style.setProperty(
+      '--auth-avatar',
+      'url("https://example.com/avatar.png")'
+    );
 
     setCookie('1');
 
@@ -126,11 +146,13 @@ describe('useSessionHint', () => {
       expect(
         document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
       ).toBeNull();
-      expect(document.getElementById('session-hint-styles')).toBeNull();
+      expect(
+        document.documentElement.style.getPropertyValue('--auth-avatar')
+      ).toBe('');
     });
   });
 
-  it('actively syncs DOM attributes and style tags when hint is resolved with avatar', async () => {
+  it('actively syncs DOM attributes and style property when hint is resolved with avatar', async () => {
     setCookie('1|https%3A%2F%2Fexample.com%2Favatar.png');
 
     const { result } = renderHook(() => useSessionHint());
@@ -147,16 +169,13 @@ describe('useSessionHint', () => {
       expect(document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)).toBe(
         'https://example.com/avatar.png'
       );
-
-      const styleTag = document.getElementById('session-hint-styles');
-      expect(styleTag).not.toBeNull();
-      expect(styleTag?.innerHTML).toBe(
-        ':root { --auth-avatar: url("https://example.com/avatar.png"); }'
-      );
+      expect(
+        document.documentElement.style.getPropertyValue('--auth-avatar')
+      ).toBe('url("https://example.com/avatar.png")');
     });
   });
 
-  it('escapes double quotes in avatar URL to prevent CSS injection in the style tag', async () => {
+  it('escapes double quotes in avatar URL to prevent CSS injection in style property', async () => {
     setCookie('1|https%3A%2F%2Fexample.com%2Favatar.png%22%3Bbackground%3Ared');
 
     const { result } = renderHook(() => useSessionHint());
@@ -171,16 +190,14 @@ describe('useSessionHint', () => {
         'https://example.com/avatar.png";background:red'
       );
 
-      const styleTag = document.getElementById('session-hint-styles');
-      expect(styleTag).not.toBeNull();
       // Verify quotes are escaped to %22 to completely block CSS Injection breakout
-      expect(styleTag?.innerHTML).toBe(
-        ':root { --auth-avatar: url("https://example.com/avatar.png%22;background:red"); }'
-      );
+      expect(
+        document.documentElement.style.getPropertyValue('--auth-avatar')
+      ).toBe('url("https://example.com/avatar.png%22;background:red")');
     });
   });
 
-  it('clears all DOM attributes and style tags on unauthenticated (logout) session status', async () => {
+  it('clears all DOM attributes and style property on unauthenticated (logout) session status', async () => {
     mockUseSession.mockReturnValue({
       data: null,
       status: 'unauthenticated',
@@ -188,10 +205,7 @@ describe('useSessionHint', () => {
 
     document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentor');
     document.documentElement.setAttribute(DOM_AUTH_AVATAR_ATTR, 'url');
-    const style = document.createElement('style');
-    style.id = 'session-hint-styles';
-    style.innerHTML = ':root { --auth-avatar: url("url"); }';
-    document.head.appendChild(style);
+    document.documentElement.style.setProperty('--auth-avatar', 'url("url")');
 
     const { result } = renderHook(() => useSessionHint());
 
@@ -203,11 +217,13 @@ describe('useSessionHint', () => {
       expect(
         document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
       ).toBeNull();
-      expect(document.getElementById('session-hint-styles')).toBeNull();
+      expect(
+        document.documentElement.style.getPropertyValue('--auth-avatar')
+      ).toBe('');
     });
   });
 
-  it('synchronizes DOM and style tags with real authenticated session data', async () => {
+  it('synchronizes DOM and style property with real authenticated session data', async () => {
     mockUseSession.mockReturnValue({
       data: {
         user: {
@@ -233,12 +249,9 @@ describe('useSessionHint', () => {
       expect(document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)).toBe(
         'https://example.com/real-avatar.png'
       );
-
-      const styleTag = document.getElementById('session-hint-styles');
-      expect(styleTag).not.toBeNull();
-      expect(styleTag?.innerHTML).toBe(
-        ':root { --auth-avatar: url("https://example.com/real-avatar.png"); }'
-      );
+      expect(
+        document.documentElement.style.getPropertyValue('--auth-avatar')
+      ).toBe('url("https://example.com/real-avatar.png")');
     });
   });
 
@@ -269,7 +282,9 @@ describe('useSessionHint', () => {
       expect(
         document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
       ).toBeNull();
-      expect(document.getElementById('session-hint-styles')).toBeNull();
+      expect(
+        document.documentElement.style.getPropertyValue('--auth-avatar')
+      ).toBe('');
     });
   });
 });
