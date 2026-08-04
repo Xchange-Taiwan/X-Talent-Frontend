@@ -1,0 +1,84 @@
+name: OpenAPI Types Check
+
+on:
+  pull_request:
+    branches: ['**']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  openapi-types-check:
+    runs-on: ubuntu-latest
+    name: OpenAPI Types Check
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up environment
+        uses: ./.github/actions/setup-env
+
+      - name: Regenerate API types
+        id: regenerate-types
+        env:
+          BFF_OPENAPI_URL: ${{ secrets.BFF_OPENAPI_URL || vars.BFF_OPENAPI_URL }}
+        run: |
+          if [ -z "$BFF_OPENAPI_URL" ]; then
+            echo "❌ Error: BFF_OPENAPI_URL is not set as a GitHub Secret or Repository Variable."
+            echo "Please configure BFF_OPENAPI_URL in your repository settings."
+            exit 1
+          fi
+          pnpm run generate:types
+
+      - name: Check for differences
+        id: check-diff
+        run: |
+          if ! git diff --exit-code src/types/api.ts; then
+            echo "::error file=src/types/api.ts::API types (src/types/api.ts) are out of sync with the BFF OpenAPI spec."
+            echo "=========================================================================="
+            echo "❌ 錯誤：前端 API 型別定義 (src/types/api.ts) 與後端 BFF OpenAPI spec 不同步！"
+            echo "這表示後端的 API 契約或欄位型別已經變動，而前端目前的型別檔案尚未更新。"
+            echo ""
+            echo "👉 修正方式："
+            echo "   1. 在本地專案根目錄下，確保設定好 BFF_OPENAPI_URL 變數。"
+            echo "   2. 執行：pnpm generate:types"
+            echo "   3. 將更新後的 'src/types/api.ts' 提交 (commit) 並推送到 PR。"
+            echo "=========================================================================="
+            exit 1
+          else
+            echo "✅ API types are perfectly in sync with the BFF OpenAPI spec."
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## OpenAPI Types Check Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ steps.check-diff.outcome }}" == "success" ]]; then
+            echo "### ✅ Status: Passed" >> $GITHUB_STEP_SUMMARY
+            echo "API types in \`src/types/api.ts\` are perfectly in sync with the backend BFF OpenAPI spec." >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ steps.check-diff.outcome }}" == "failure" ]]; then
+            echo "### ❌ Status: Failed" >> $GITHUB_STEP_SUMMARY
+            echo "API types in \`src/types/api.ts\` are **out of sync** with the backend BFF OpenAPI spec." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "#### 🔍 Reason / 原因" >> $GITHUB_STEP_SUMMARY
+            echo "後端的 API 契約或欄位型別已經變動，而前端目前的型別檔案尚未更新。" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "#### 🛠️ How to Fix / 修正方式" >> $GITHUB_STEP_SUMMARY
+            echo "1. 在本地專案根目錄，確保設定好 \`BFF_OPENAPI_URL\`（例如在 \`.env\` 或 \`.env.development.local\` 中）。" >> $GITHUB_STEP_SUMMARY
+            echo "2. 執行指令重新產生型別：" >> $GITHUB_STEP_SUMMARY
+            echo "   \`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "   pnpm generate:types" >> $GITHUB_STEP_SUMMARY
+            echo "   \`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "3. 將更新後的 \`src/types/api.ts\` 提交 (commit) 並推送到 PR：" >> $GITHUB_STEP_SUMMARY
+            echo "   \`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "   git add src/types/api.ts" >> $GITHUB_STEP_SUMMARY
+            echo "   git commit -m \"chore: update API types from BFF OpenAPI spec\"" >> $GITHUB_STEP_SUMMARY
+            echo "   git push" >> $GITHUB_STEP_SUMMARY
+            echo "   \`\`\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ⚠️ Status: Skipped or Failed to run" >> $GITHUB_STEP_SUMMARY
+            echo "Could not complete the OpenAPI types sync check. Please verify if \`BFF_OPENAPI_URL\` is correctly configured." >> $GITHUB_STEP_SUMMARY
+          fi
