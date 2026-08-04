@@ -143,11 +143,13 @@ describe('Header', () => {
 
     const mentorLink = screen.getByRole('link', { name: '我的導師頁面' });
     const menteeLink = screen.getByRole('link', { name: '成為導師' });
-    expect(mentorLink.parentElement).toHaveClass(
-      'hidden group-data-[auth-state=mentor]:block'
+    expect(mentorLink).toHaveClass(
+      'hidden',
+      'group-data-[auth-state=mentor]:block'
     );
-    expect(menteeLink.parentElement).toHaveClass(
-      'hidden group-data-[auth-state=mentee]:block'
+    expect(menteeLink).toHaveClass(
+      'hidden',
+      'group-data-[auth-state=mentee]:block'
     );
   });
 

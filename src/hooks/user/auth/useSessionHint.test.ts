@@ -153,7 +153,7 @@ describe('useSessionHint', () => {
   });
 
   it('actively syncs DOM attributes and style property when hint is resolved with avatar', async () => {
-    setCookie('1|https%3A%2F%2Fexample.com%2Favatar.png');
+    setCookie('1||https%3A%2F%2Fexample.com%2Favatar.png');
 
     const { result } = renderHook(() => useSessionHint());
 
@@ -176,7 +176,9 @@ describe('useSessionHint', () => {
   });
 
   it('escapes double quotes in avatar URL to prevent CSS injection in style property', async () => {
-    setCookie('1|https%3A%2F%2Fexample.com%2Favatar.png%22%3Bbackground%3Ared');
+    setCookie(
+      '1||https%3A%2F%2Fexample.com%2Favatar.png%22%3Bbackground%3Ared'
+    );
 
     const { result } = renderHook(() => useSessionHint());
 
@@ -242,6 +244,7 @@ describe('useSessionHint', () => {
         status: 'authenticated',
         isMentor: true,
         avatar: 'https://example.com/real-avatar.png',
+        userId: 'user-123',
       });
       expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
         'mentor'
@@ -274,6 +277,7 @@ describe('useSessionHint', () => {
         status: 'authenticated',
         isMentor: true,
         avatar: 'javascript:alert(1)',
+        userId: 'user-123',
       });
       expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
         'mentor'
@@ -285,6 +289,25 @@ describe('useSessionHint', () => {
       expect(
         document.documentElement.style.getPropertyValue('--auth-avatar')
       ).toBe('');
+    });
+  });
+
+  it('gracefully handles malformed URI encoding in cookie in useSessionHint without throwing', async () => {
+    setCookie('1||https%3A%2F%2Fexample.com%2Finvalid%%url');
+
+    const { result } = renderHook(() => useSessionHint());
+
+    await waitFor(() => {
+      expect(result.current).toEqual({
+        status: 'authenticated',
+        isMentor: true,
+      });
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'mentor'
+      );
+      expect(
+        document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
+      ).toBeNull();
     });
   });
 });

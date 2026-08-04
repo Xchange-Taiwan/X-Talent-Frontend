@@ -16,6 +16,10 @@ export const SESSION_HINT_COOKIE_OPTIONS = {
 
 export interface SessionHint {
   isMentor: boolean;
+  // Not secret - already public via the `/profile/{userId}` URL. Included so
+  // nav links can resolve their real href before `useSession()` lands,
+  // instead of sitting disabled the whole time. Never used for authorization.
+  userId?: string;
   avatar?: string;
 }
 
@@ -24,21 +28,24 @@ const NON_MENTOR_VALUE = '0';
 
 export function encodeSessionHint(hint: SessionHint): string {
   const isMentorVal = hint.isMentor ? MENTOR_VALUE : NON_MENTOR_VALUE;
+  const userIdPart = hint.userId ? encodeURIComponent(hint.userId) : '';
+  const base = userIdPart ? `${isMentorVal}|${userIdPart}` : isMentorVal;
+
   if (!hint.avatar) {
-    return isMentorVal;
+    return base;
   }
   try {
     const encodedAvatar = encodeURIComponent(hint.avatar);
     // Completely omit avatar URL if its encoded form exceeds 1000 characters
     // to avoid massive cookie header overhead (HTTP 431) and broken truncated URLs.
     if (encodedAvatar.length <= 1000) {
-      return `${isMentorVal}|${encodedAvatar}`;
+      return `${isMentorVal}|${userIdPart}|${encodedAvatar}`;
     }
   } catch {
     // Lone surrogate or otherwise invalid UTF-16 in the avatar URL - fall
-    // back to mentor status only rather than crashing the caller.
+    // back to mentor status (and userId) only rather than crashing the caller.
   }
-  return isMentorVal;
+  return base;
 }
 
 export function isValidAvatarProtocol(url: string): boolean {
@@ -47,6 +54,14 @@ export function isValidAvatarProtocol(url: string): boolean {
     url.startsWith('http://') ||
     url.startsWith('/')
   );
+}
+
+export function safeDecodeURIComponent(val: string): string {
+  try {
+    return decodeURIComponent(val);
+  } catch {
+    return val;
+  }
 }
 
 export function decodeSessionHint(
@@ -58,7 +73,8 @@ export function decodeSessionHint(
 
   const parts = cookieValue.split('|');
   const isMentorPart = parts[0];
-  const avatarPart = parts[1];
+  const userIdPart = parts[1];
+  const avatarPart = parts[2];
 
   let isMentor: boolean;
   if (isMentorPart === MENTOR_VALUE) {
@@ -70,6 +86,18 @@ export function decodeSessionHint(
   }
 
   const hint: SessionHint = { isMentor };
+
+  if (userIdPart) {
+    try {
+      const userId = decodeURIComponent(userIdPart);
+      if (userId && !isValidAvatarProtocol(userId)) {
+        hint.userId = userId;
+      }
+    } catch {
+      // Malformed userId segment - ignore, don't let it break isMentor/avatar.
+    }
+  }
+
   if (avatarPart) {
     let avatar: string | undefined;
     try {
@@ -96,13 +124,16 @@ export const SESSION_HINT_INLINE_SCRIPT = `
     });
     if (cookie) {
       var rawValue = cookie.substring('${SESSION_HINT_COOKIE}='.length);
+      try {
+        rawValue = decodeURIComponent(rawValue);
+      } catch (_) {}
       var parts = rawValue.split('|');
       if (parts[0] === '1' || parts[0] === '0') {
         var isMentor = parts[0] === '1';
         var avatar = '';
-        if (parts[1]) {
+        if (parts[2]) {
           try {
-            avatar = decodeURIComponent(parts[1]);
+            avatar = decodeURIComponent(parts[2]);
           } catch (_) {
             avatar = '';
           }
