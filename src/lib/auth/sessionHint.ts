@@ -24,21 +24,24 @@ const NON_MENTOR_VALUE = '0';
 
 export function encodeSessionHint(hint: SessionHint): string {
   const isMentorVal = hint.isMentor ? MENTOR_VALUE : NON_MENTOR_VALUE;
-  if (hint.avatar) {
-    try {
-      const encodedAvatar = encodeURIComponent(hint.avatar);
-      // Prevent cookie bloat (HTTP 431 Request Header Fields Too Large) by capping length
-      if (encodedAvatar.length <= 1000) {
-        return `${isMentorVal}|${encodedAvatar}`;
-      }
-    } catch (err) {
-      console.error('Failed to encode avatar URL for session hint:', err);
+  if (!hint.avatar) {
+    return isMentorVal;
+  }
+  try {
+    const encodedAvatar = encodeURIComponent(hint.avatar);
+    // Completely omit avatar URL if its encoded form exceeds 1000 characters
+    // to avoid massive cookie header overhead (HTTP 431) and broken truncated URLs.
+    if (encodedAvatar.length <= 1000) {
+      return `${isMentorVal}|${encodedAvatar}`;
     }
+  } catch {
+    // Lone surrogate or otherwise invalid UTF-16 in the avatar URL - fall
+    // back to mentor status only rather than crashing the caller.
   }
   return isMentorVal;
 }
 
-function isValidAvatarProtocol(url: string): boolean {
+export function isValidAvatarProtocol(url: string): boolean {
   return (
     url.startsWith('https://') ||
     url.startsWith('http://') ||
@@ -47,11 +50,13 @@ function isValidAvatarProtocol(url: string): boolean {
 }
 
 export function decodeSessionHint(
-  value: string | undefined | null
+  cookieValue: string | undefined | null
 ): SessionHint | null {
-  if (!value) return null;
+  if (!cookieValue) {
+    return null;
+  }
 
-  const parts = value.split('|');
+  const parts = cookieValue.split('|');
   const isMentorPart = parts[0];
   const avatarPart = parts[1];
 
@@ -83,39 +88,33 @@ export function decodeSessionHint(
 
 export const DOM_AUTH_STATE_ATTR = 'data-auth-state';
 export const DOM_AUTH_AVATAR_ATTR = 'data-auth-avatar';
-export const DOM_AVATAR_IMG_ATTR = 'data-avatar-img';
 
 export const SESSION_HINT_INLINE_SCRIPT = `
   try {
     var cookie = document.cookie.split('; ').find(function(row) {
-      return row.startsWith('session-hint=');
+      return row.startsWith('${SESSION_HINT_COOKIE}=');
     });
     if (cookie) {
-      var rawValue = cookie.substring('session-hint='.length);
+      var rawValue = cookie.substring('${SESSION_HINT_COOKIE}='.length);
       var parts = rawValue.split('|');
-      var isMentor = parts[0] === '1';
-      var avatar = '';
-      if (parts[1]) {
-        try {
-          avatar = decodeURIComponent(parts[1]);
-        } catch (_) {
-          avatar = '';
-        }
-      }
-      
-      if (avatar && (avatar.startsWith('https://') || avatar.startsWith('http://') || avatar.startsWith('/'))) {
-        document.documentElement.setAttribute('${DOM_AUTH_AVATAR_ATTR}', avatar);
-        
-        var updateImages = function() {
-          var imgs = document.querySelectorAll('img[${DOM_AVATAR_IMG_ATTR}]');
-          for (var i = 0; i < imgs.length; i++) {
-            imgs[i].src = avatar;
+      if (parts[0] === '1' || parts[0] === '0') {
+        var isMentor = parts[0] === '1';
+        var avatar = '';
+        if (parts[1]) {
+          try {
+            avatar = decodeURIComponent(parts[1]);
+          } catch (_) {
+            avatar = '';
           }
-        };
-        updateImages();
-        document.addEventListener('DOMContentLoaded', updateImages);
+        }
+        
+        if (avatar && (avatar.startsWith('https://') || avatar.startsWith('http://') || avatar.startsWith('/'))) {
+          document.documentElement.setAttribute('${DOM_AUTH_AVATAR_ATTR}', avatar);
+          var escapedAvatar = avatar.replace(/"/g, '%22');
+          document.documentElement.style.setProperty('--auth-avatar', 'url("' + escapedAvatar + '")');
+        }
+        document.documentElement.setAttribute('${DOM_AUTH_STATE_ATTR}', isMentor ? 'mentor' : 'mentee');
       }
-      document.documentElement.setAttribute('${DOM_AUTH_STATE_ATTR}', isMentor ? 'mentor' : 'mentee');
     }
   } catch (_) {}
 `;

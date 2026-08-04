@@ -1,11 +1,13 @@
 'use client';
 
+import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import {
   decodeSessionHint,
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
+  isValidAvatarProtocol,
   SESSION_HINT_COOKIE,
 } from '@/lib/auth/sessionHint';
 
@@ -22,51 +24,124 @@ function readCookie(name: string): string | undefined {
     ?.slice(name.length + 1);
 }
 
+function updateAvatarStyle(avatar: string | undefined): void {
+  if (typeof document === 'undefined') return;
+
+  // Guard and validate URL scheme exactly like our pre-hydration inline script
+  const isValidUrl = avatar && isValidAvatarProtocol(avatar);
+
+  if (isValidUrl && avatar) {
+    document.documentElement.setAttribute(DOM_AUTH_AVATAR_ATTR, avatar);
+    const escapedAvatar = avatar.replace(/"/g, '%22');
+    document.documentElement.style.setProperty(
+      '--auth-avatar',
+      `url("${escapedAvatar}")`
+    );
+  } else {
+    removeAvatarStyle();
+  }
+}
+
+function removeAvatarStyle(): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
+  document.documentElement.style.removeProperty('--auth-avatar');
+}
+
+function clearAuthDOMState(): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
+  removeAvatarStyle();
+}
+
 /**
  * Reads the middleware-written hint cookie so the header can render the
  * right shape before `useSession()` resolves.
  */
 export function useSessionHint(): SessionHintState {
+  const { data: session, status } = useSession();
   const [state, setState] = useState<SessionHintState>({ status: 'unknown' });
 
   useEffect(() => {
     const hint = decodeSessionHint(readCookie(SESSION_HINT_COOKIE));
-    const authState =
-      document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR);
 
-    const resolvedHint =
-      hint ??
-      (authState
-        ? {
-            isMentor: authState === 'mentor',
-            avatar:
-              document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR) ??
-              undefined,
-          }
-        : null);
+    // 1. If we are explicitly logged out (unauthenticated), clear all DOM state
+    if (status === 'unauthenticated') {
+      clearAuthDOMState();
 
-    setState((prev) => {
-      const nextStatus = resolvedHint ? 'authenticated' : 'guest';
-      const nextIsMentor = resolvedHint ? resolvedHint.isMentor : false;
-      const nextAvatar = resolvedHint ? resolvedHint.avatar : undefined;
+      setState((prev) => {
+        if (prev.status === 'guest') {
+          return prev;
+        }
+        return { status: 'guest' };
+      });
+      return;
+    }
 
-      if (
-        prev.status === nextStatus &&
-        (prev.status !== 'authenticated' ||
-          (prev.isMentor === nextIsMentor && prev.avatar === nextAvatar))
-      ) {
-        return prev;
+    // 2. If the real session is resolved, sync the DOM state with the real session data
+    if (status === 'authenticated' && session?.user) {
+      const realIsMentor = session.user.isMentor ?? false;
+      const realAvatar = session.user.avatar ?? undefined;
+
+      document.documentElement.setAttribute(
+        DOM_AUTH_STATE_ATTR,
+        realIsMentor ? 'mentor' : 'mentee'
+      );
+      updateAvatarStyle(realAvatar);
+
+      setState((prev) => {
+        if (
+          prev.status === 'authenticated' &&
+          prev.isMentor === realIsMentor &&
+          prev.avatar === realAvatar
+        ) {
+          return prev;
+        }
+        return {
+          status: 'authenticated',
+          isMentor: realIsMentor,
+          avatar: realAvatar,
+        };
+      });
+      return;
+    }
+
+    // 3. During initial loading, fall back to the safe session-hint cookie.
+    // With no hint cookie, we don't yet know if the visitor is a guest or an
+    // authenticated user still resolving - stay 'unknown' so the header keeps
+    // showing its skeleton instead of flashing 'guest' first.
+    if (status === 'loading') {
+      if (hint) {
+        document.documentElement.setAttribute(
+          DOM_AUTH_STATE_ATTR,
+          hint.isMentor ? 'mentor' : 'mentee'
+        );
+        updateAvatarStyle(hint.avatar);
+      } else {
+        clearAuthDOMState();
       }
 
-      return resolvedHint
-        ? {
-            status: 'authenticated',
-            isMentor: resolvedHint.isMentor,
-            avatar: resolvedHint.avatar,
-          }
-        : { status: 'guest' };
-    });
-  }, []);
+      setState((prev) => {
+        if (!hint) {
+          return prev.status === 'unknown' ? prev : { status: 'unknown' };
+        }
+
+        if (
+          prev.status === 'authenticated' &&
+          prev.isMentor === hint.isMentor &&
+          prev.avatar === hint.avatar
+        ) {
+          return prev;
+        }
+
+        return {
+          status: 'authenticated',
+          isMentor: hint.isMentor,
+          avatar: hint.avatar,
+        };
+      });
+    }
+  }, [session, status]);
 
   return state;
 }
