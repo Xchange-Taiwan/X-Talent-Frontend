@@ -32,11 +32,8 @@ jobs:
           fi
           pnpm run generate:types
 
-      - name: Debug generated types
-        run: |
-          echo "=== Top of generated api.ts ==="
-          head -n 60 src/types/api.ts
-          echo "=== End of Top ==="
+      - name: Format generated types
+        run: pnpm exec prettier --write src/types/api.ts
 
       - name: Check for differences
         id: check-diff
