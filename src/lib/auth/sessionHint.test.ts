@@ -5,6 +5,7 @@ import {
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
   encodeSessionHint,
+  safeDecodeURIComponent,
   SESSION_HINT_COOKIE,
   SESSION_HINT_INLINE_SCRIPT,
 } from './sessionHint';
@@ -108,12 +109,30 @@ describe('sessionHint utilities', () => {
       });
     });
 
+    it('discards avatar URL from being parsed as userId in legacy format to ensure backward compatibility', () => {
+      expect(
+        decodeSessionHint('1|https%3A%2F%2Fexample.com%2Favatar.png')
+      ).toEqual({
+        isMentor: true,
+      });
+    });
+
     it('returns null on falsy/garbage inputs', () => {
       expect(decodeSessionHint(null as never)).toBeNull();
       expect(decodeSessionHint(undefined)).toBeNull();
       expect(decodeSessionHint('')).toBeNull();
       expect(decodeSessionHint('garbage')).toBeNull();
       expect(decodeSessionHint('garbage|url')).toBeNull();
+    });
+  });
+
+  describe('safeDecodeURIComponent', () => {
+    it('returns decoded value when valid', () => {
+      expect(safeDecodeURIComponent('hello%20world')).toBe('hello world');
+    });
+
+    it('returns raw value on malformed URI error', () => {
+      expect(safeDecodeURIComponent('%invalid')).toBe('%invalid');
     });
   });
 

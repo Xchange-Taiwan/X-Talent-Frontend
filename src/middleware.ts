@@ -5,6 +5,7 @@ import { match } from 'path-to-regexp';
 
 import {
   encodeSessionHint,
+  safeDecodeURIComponent,
   SESSION_HINT_COOKIE,
   SESSION_HINT_COOKIE_OPTIONS,
 } from '@/lib/auth/sessionHint';
@@ -141,14 +142,10 @@ export async function middleware(req: NextRequest) {
   // encodeURIComponent's on write — decode once so it's comparable to a
   // freshly computed `encodeSessionHint()` result below.
   const rawCurrentHint = req.cookies.get(SESSION_HINT_COOKIE)?.value;
-  let currentHint = rawCurrentHint;
-  if (rawCurrentHint !== undefined) {
-    try {
-      currentHint = decodeURIComponent(rawCurrentHint);
-    } catch {
-      currentHint = rawCurrentHint;
-    }
-  }
+  const currentHint =
+    rawCurrentHint !== undefined
+      ? safeDecodeURIComponent(rawCurrentHint)
+      : undefined;
 
   // -------- 2. Allow NextAuth API routes through unconditionally --------
   const isApiAuthRoute = pathname.startsWith(apiAuthPrefix);

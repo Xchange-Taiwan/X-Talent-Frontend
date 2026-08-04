@@ -291,4 +291,23 @@ describe('useSessionHint', () => {
       ).toBe('');
     });
   });
+
+  it('gracefully handles malformed URI encoding in cookie in useSessionHint without throwing', async () => {
+    setCookie('1||https%3A%2F%2Fexample.com%2Finvalid%%url');
+
+    const { result } = renderHook(() => useSessionHint());
+
+    await waitFor(() => {
+      expect(result.current).toEqual({
+        status: 'authenticated',
+        isMentor: true,
+      });
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'mentor'
+      );
+      expect(
+        document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
+      ).toBeNull();
+    });
+  });
 });

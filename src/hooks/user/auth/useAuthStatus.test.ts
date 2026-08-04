@@ -118,4 +118,24 @@ describe('useAuthStatus', () => {
       isResolvingUser: false,
     });
   });
+
+  it('uses the hint userId and clears isResolvingUser when the session is still loading but hint has a userId', () => {
+    mockUseSession.mockReturnValue({ data: null, status: 'loading' });
+    mockUseSessionHint.mockReturnValue({
+      status: 'authenticated',
+      isMentor: true,
+      userId: 'user-123',
+    });
+
+    const { result } = renderHook(() => useAuthStatus());
+
+    expect(result.current).toEqual({
+      authKnown: true,
+      isLoggedIn: true,
+      isMentor: true,
+      userId: 'user-123',
+      hasFullUser: false,
+      isResolvingUser: false,
+    });
+  });
 });

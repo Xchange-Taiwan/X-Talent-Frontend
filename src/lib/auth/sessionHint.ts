@@ -56,6 +56,14 @@ export function isValidAvatarProtocol(url: string): boolean {
   );
 }
 
+export function safeDecodeURIComponent(val: string): string {
+  try {
+    return decodeURIComponent(val);
+  } catch {
+    return val;
+  }
+}
+
 export function decodeSessionHint(
   cookieValue: string | undefined | null
 ): SessionHint | null {
@@ -82,7 +90,7 @@ export function decodeSessionHint(
   if (userIdPart) {
     try {
       const userId = decodeURIComponent(userIdPart);
-      if (userId) {
+      if (userId && !isValidAvatarProtocol(userId)) {
         hint.userId = userId;
       }
     } catch {

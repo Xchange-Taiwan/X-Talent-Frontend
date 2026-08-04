@@ -8,6 +8,7 @@ import {
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
   isValidAvatarProtocol,
+  safeDecodeURIComponent,
   SESSION_HINT_COOKIE,
 } from '@/lib/auth/sessionHint';
 
@@ -33,11 +34,7 @@ function readCookie(name: string): string | undefined {
   // (including our own `|` separator), so it must be decoded once on read.
   // Fall back to the raw value on failure rather than discarding the whole
   // hint - `decodeSessionHint` still safely handles a malformed avatar part.
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    return raw;
-  }
+  return safeDecodeURIComponent(raw);
 }
 
 function updateAvatarStyle(avatar: string | undefined): void {
