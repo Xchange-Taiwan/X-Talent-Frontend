@@ -241,4 +241,35 @@ describe('useSessionHint', () => {
       );
     });
   });
+
+  it('ignores unsafe avatar protocols in updateAvatarStyle and does not write them to DOM', async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          id: 'user-123',
+          isMentor: true,
+          avatar: 'javascript:alert(1)',
+        },
+      },
+      status: 'authenticated',
+    } as never);
+
+    const { result } = renderHook(() => useSessionHint());
+
+    await waitFor(() => {
+      expect(result.current).toEqual({
+        status: 'authenticated',
+        isMentor: true,
+        avatar: 'javascript:alert(1)',
+      });
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'mentor'
+      );
+      // Should NOT set the avatar attribute or styles because javascript: protocol is completely blocked!
+      expect(
+        document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
+      ).toBeNull();
+      expect(document.getElementById('session-hint-styles')).toBeNull();
+    });
+  });
 });

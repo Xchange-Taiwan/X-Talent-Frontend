@@ -35,7 +35,15 @@ function getStyleTag(): HTMLStyleElement | null {
 function updateAvatarStyle(avatar: string | undefined): void {
   if (typeof document === 'undefined') return;
   const styleTag = getStyleTag();
-  if (avatar) {
+
+  // Guard and validate URL scheme exactly like our pre-hydration inline script
+  const isValidUrl =
+    avatar &&
+    (avatar.startsWith('https://') ||
+      avatar.startsWith('http://') ||
+      avatar.startsWith('/'));
+
+  if (isValidUrl && avatar) {
     document.documentElement.setAttribute(DOM_AUTH_AVATAR_ATTR, avatar);
     const escapedAvatar = avatar.replace(/"/g, '%22');
     if (styleTag) {
