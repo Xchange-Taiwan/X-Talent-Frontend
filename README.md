@@ -12,30 +12,30 @@ Access the X-Talent testing website here: [X-Talent Testing Website](https://xta
 
 Ensure you have the following installed:
 
-- [Node.js](https://nodejs.org/) (version 20)
+- [Node.js](https://nodejs.org/) (`^22.22.2`, `^24.15.0`, or `>=26.0.0`)
 - [pnpm](https://pnpm.io/) (version 9)
 
 ### Installation
 
-1. Install Node.js (version 20):
-   - Visit [Node.js](https://nodejs.org/) and download the version 20 installer for your operating system.
+1. Install Node.js (`^22.22.2`, `^24.15.0`, or `>=26.0.0`):
+   - Visit [Node.js](https://nodejs.org/) and download a matching installer for your operating system.
    - Follow the installation instructions provided for your system.
    - Verify the installation by running:
      ```bash
      node -v
      ```
-     You should see the version number `20.x.x`.
+     You should see a version matching one of the ranges above.
 
-2. Install PNPM (version 9.12.3):
+2. Install PNPM (version 9.15.9):
    - Run the following command to install PNPM globally:
      ```bash
-     npm install -g pnpm@9.12.3
+     npm install -g pnpm@9.15.9
      ```
    - Verify the installation by running:
      ```bash
      pnpm -v
      ```
-     You should see the version number `9.12.3`.
+     You should see the version number `9.15.9`.
 
 3. Clone the repository:
 
@@ -61,14 +61,13 @@ Ensure you have the following installed:
 
 ### Troubleshooting
 
-This project requires Node `>=20.19.0` (declared in `package.json` `engines`) and enforces it via `.npmrc` (`engine-strict=true`). Any newer Node (20.19+, 22, 24) works — there is no upper bound. CI runs Node 20 LTS; `.nvmrc` pins `20.19.0` for tooling that reads it.
+This project requires Node `^22.22.2 || ^24.15.0 || >=26.0.0` (declared in `package.json` `engines`) and enforces it via `.npmrc` (`engine-strict=true`). Node 20 is no longer supported. `.nvmrc` pins `24.18.1` for tooling that reads it.
 
-- **`ERR_PNPM_UNSUPPORTED_ENGINE` / `Unsupported engine`** — Your Node version is below `20.19.0`. Upgrade before running `pnpm install`. To install/switch to a specific 20.x:
-  - With **nvm**: `nvm install 20.19.0 && nvm use 20.19.0`
+- **`ERR_PNPM_UNSUPPORTED_ENGINE` / `Unsupported engine`** — Your Node version doesn't match `^22.22.2 || ^24.15.0 || >=26.0.0`. Upgrade before running `pnpm install`. To install/switch to a supported version:
+  - With **nvm**: `nvm install 24.18.1 && nvm use 24.18.1`
   - With **fnm**: `fnm use` (auto-reads `.nvmrc`)
-  - With **Volta**: `volta install node@20.19.0`
+  - With **Volta**: `volta install node@24.18.1`
 - **Wrong package manager** — Always use `pnpm`, not `npm` or `yarn`. The lockfile and version enforcement are pnpm-specific.
-- **Why `>=20.19.0` and not just `>=20`?** — Node `20.19.0` was the first 20.x release where `require(ESM)` is enabled by default. Some test dependencies (jsdom → `html-encoding-sniffer` → `@exodus/bytes`) require this; on Node `<20.19.0`, `pnpm test` fails with `ERR_REQUIRE_ESM`.
 
 ### Running the Application
 
