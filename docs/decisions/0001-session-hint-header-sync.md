@@ -1,6 +1,6 @@
 # ADR 0001: Session-Hint Cookie for Flash-Free Header (Mentor Status / Avatar)
 
-- **Status:** Shipped (code); ticket X-Tracker #525 confirmed as stale and scheduled for closure with rewritten ACs (see below)
+- **Status:** Shipped (code); ticket X-Tracker #525 closed with rewritten ACs (see below). This ADR is a detail doc absorbed under [ADR 0002 (Auth & Session Strategy)](./0002-auth-session-strategy.md) — read 0002 first for the architectural context; this file keeps the full PR-by-PR timeline and bug history for the session-hint mechanism specifically.
 - **Date:** 2026-08-03 → 2026-08-04 (implementation); reconciled via retro interview with the implementer on 2026-08-04
 - **Tracker:** [X-Tracker #525](https://github.com/Xchange-Taiwan/X-Talent-Tracker/issues/525) — "Header: render mentor-status text and avatar from SSR-read session hint (no flash)"
 - **PRs:** [#888](https://github.com/Xchange-Taiwan/X-Talent-Frontend/pull/888), [#891](https://github.com/Xchange-Taiwan/X-Talent-Frontend/pull/891), [#892](https://github.com/Xchange-Taiwan/X-Talent-Frontend/pull/892), [#893](https://github.com/Xchange-Taiwan/X-Talent-Frontend/pull/893), [#896](https://github.com/Xchange-Taiwan/X-Talent-Frontend/pull/896)
