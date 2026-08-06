@@ -7,7 +7,7 @@
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-REASON="$("$SCRIPT_DIR/../check-board-status.sh")"
+REASON="$(bash "$SCRIPT_DIR/../check-board-status.sh")"
 STATUS=$?
 
 if [ "$STATUS" -eq 1 ] && [ -n "$REASON" ]; then
