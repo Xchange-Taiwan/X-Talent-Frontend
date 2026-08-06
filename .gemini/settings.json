@@ -6,5 +6,20 @@
       "env": {},
       "trust": true
     }
+  },
+  "hooks": {
+    "AfterAgent": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .agents/scripts/hooks/gemini-verify-board-status.sh",
+            "timeout": 30000,
+            "name": "verify-board-status"
+          }
+        ]
+      }
+    ]
   }
 }
