@@ -11,6 +11,6 @@ REASON="$("$SCRIPT_DIR/../check-board-status.sh")"
 STATUS=$?
 
 if [ "$STATUS" -eq 1 ] && [ -n "$REASON" ]; then
-  printf '{"decision":"deny","reason":%s}\n' "$(node -e 'console.log(JSON.stringify(process.argv[1]))' "$REASON")"
+  printf '{"decision":"deny","reason":%s}\n' "$(REASON="$REASON" node -e 'console.log(JSON.stringify(process.env.REASON))')"
 fi
 exit 0

@@ -37,6 +37,7 @@ source .agents/scripts/load-config.sh 2>/dev/null || exit 0
 [ -z "${ORG:-}" ] && exit 0
 
 OPEN_PR_COUNT=$(gh pr list --repo "$ORG/$FRONTEND_REPO" --head "$BRANCH_NAME" --state open --json number --jq 'length' 2>/dev/null)
+[ $? -ne 0 ] && exit 0
 
 if [ "${OPEN_PR_COUNT:-0}" -gt 0 ] 2>/dev/null; then
   EXPECTED_OPTION_ID="$PR_REVIEW_OPTION_ID"
@@ -50,20 +51,11 @@ else
   WRONG_LABEL="Backlog"
 fi
 
-ITEM_ID=$(gh api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$TRACKER_REPO" -f query='
-  query($login: String!, $issue_number: Int!, $repo_name: String!) {
-    organization(login: $login) {
-      repository(name: $repo_name) {
-        issue(number: $issue_number) {
-          projectItems(first: 5) { nodes { id project { number } } }
-        }
-      }
-    }
-  }
-' --jq ".data.organization.repository.issue.projectItems.nodes[] | select(.project.number == $PROJECT_NUMBER) | .id" 2>/dev/null)
-
-if [ -z "$ITEM_ID" ]; then
-  ITEM_ID=$(gh api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$FRONTEND_REPO" -f query='
+# Same projectItems lookup against a given repo; only the repo name varies
+# between the tracker-repo attempt and the frontend-repo fallback below.
+get_item_id() {
+  local repo_name="$1"
+  gh api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$repo_name" -f query='
     query($login: String!, $issue_number: Int!, $repo_name: String!) {
       organization(login: $login) {
         repository(name: $repo_name) {
@@ -73,8 +65,11 @@ if [ -z "$ITEM_ID" ]; then
         }
       }
     }
-  ' --jq ".data.organization.repository.issue.projectItems.nodes[] | select(.project.number == $PROJECT_NUMBER) | .id" 2>/dev/null)
-fi
+  ' --jq ".data.organization.repository.issue.projectItems.nodes[] | select(.project.number == $PROJECT_NUMBER) | .id" 2>/dev/null
+}
+
+ITEM_ID=$(get_item_id "$TRACKER_REPO")
+[ -z "$ITEM_ID" ] && ITEM_ID=$(get_item_id "$FRONTEND_REPO")
 [ -z "$ITEM_ID" ] && exit 0
 
 ACTUAL_OPTION_ID=$(gh api graphql -F item_id="$ITEM_ID" -f query='
