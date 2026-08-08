@@ -55,3 +55,8 @@
    - **軟性規則防禦 (AI Review Boundary Rules)**：**【已啟用】**。專案已在 `_shared/project-context.md` 中寫明文字規則，限制 `src/lib/**` 與 `src/services/**` 直接引用前端 React/Next UI 或狀態依賴。CI 的 AI Review 流程會對此進行嚴格自動化阻攔。
 4. **測試拒絕 `as` 斷言 (Shoehorn) 【已啟用】**：
    本專案已安裝並啟用 `@total-typescript/shoehorn` 局部 Mock 套件。在編寫測試（`*.test.ts` / `*.spec.ts`）時，**嚴格禁止**在測試資料中使用不安全的 `as any` 或 `as ComplexType` 雙重斷言。請優先採用 `@total-typescript/shoehorn` 提供之 `fromPartial()`（局部型別安全 Mock）與 `fromAny()`（故意傳遞錯誤型別之測試）函式，確保測試資料的型別安全性（已於 `src/lib/profile/pollUntilSynced.test.ts` 中完成範例落地與驗證）。
+5. **工具與自動化偏好 (Tool & Automation Preferences) 【已啟用】**：
+   為了提高團隊開發與 AI 協同的自動化效率，凡是涉及 GitHub 操作（Issue、PR、Workflows、Releases 等）或瀏覽器自動化（測試、網頁抓取、自動化驗證等），**嚴格規定**必須優先使用對應的 AXI 工具，不得隨意使用標準 CLI 或其他不相容的瀏覽器自動化工具：
+   - **GitHub 操作**：一律優先使用 `gh-axi`（透過 `npx -y gh-axi` 或是全域安裝版本）。
+   - **瀏覽器自動化**：一律優先使用 `chrome-devtools-axi`（透過 `npx -y chrome-devtools-axi`）。
+     AI 審查與自動化工作流均會針對此規範進行自動化合規性驗證。

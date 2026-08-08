@@ -26,6 +26,17 @@
 
 set -u
 
+# Define a wrapper for gh to use gh-axi if available
+gh() {
+  if command -v gh-axi >/dev/null 2>&1; then
+    gh-axi "$@"
+  elif command -v npx >/dev/null 2>&1; then
+    npx -y gh-axi "$@"
+  else
+    command gh "$@"
+  fi
+}
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT" || exit 0
 
