@@ -17,15 +17,14 @@ import { FEEDBACK_FORM_URL } from './constants';
 import { DisabledAwareLink } from './DisabledAwareLink';
 import { HamburgerMenu } from './HamburgerMenu';
 import { MobileUserMenu } from './MobileUserMenu';
-import { getBecomeMentorHref, getProfileHref } from './navHrefs';
+import { getBecomeMentorHref } from './navHrefs';
 import { UserDropdown } from './UserDropdown';
 
 function HeaderComponent(): JSX.Element {
   const { data: session } = useSession();
   const hint = useSessionHint();
   const currentAvatar = useCurrentAvatar();
-  const { authKnown, isLoggedIn, isMentor, userId, isResolvingUser } =
-    useAuthStatus();
+  const { authKnown, isLoggedIn, isMentor, userId } = useAuthStatus();
 
   const resolvedIsMentor = authKnown
     ? isMentor
@@ -51,12 +50,6 @@ function HeaderComponent(): JSX.Element {
 
   const findMentorHref = '/mentor-pool';
 
-  // `userId` only ever comes from the real session, never the hint — while
-  // isResolvingUser is true these hrefs are unused (the link is disabled).
-  const leftSecondNav = resolvedIsMentor
-    ? { label: '我的導師頁面', href: getProfileHref(userId) }
-    : { label: '成為導師', href: getBecomeMentorHref(userId) };
-
   return (
     <header className="fixed inset-x-0 top-[var(--banner-height,0px)] z-50 bg-light px-5">
       <div className="flex h-[70px] items-center justify-between">
@@ -76,31 +69,16 @@ function HeaderComponent(): JSX.Element {
             )}
 
             {!authKnown ? (
-              <>
-                <Skeleton className="h-6 w-24 group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden" />
+              <Skeleton className="h-6 w-24 group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden" />
+            ) : (
+              !isLoggedIn && (
                 <DisabledAwareLink
-                  href={getProfileHref(userId)}
-                  disabled={isResolvingUser}
-                  className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentor]:block"
-                >
-                  我的導師頁面
-                </DisabledAwareLink>
-                <DisabledAwareLink
-                  href={getBecomeMentorHref(userId)}
-                  disabled={isResolvingUser}
-                  className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:block"
+                  href={getBecomeMentorHref(undefined)}
+                  className="font-['Open_Sans'] text-base text-text-primary"
                 >
                   成為導師
                 </DisabledAwareLink>
-              </>
-            ) : (
-              <DisabledAwareLink
-                href={leftSecondNav.href}
-                disabled={isResolvingUser}
-                className="font-['Open_Sans'] text-base text-text-primary"
-              >
-                {leftSecondNav.label}
-              </DisabledAwareLink>
+              )
             )}
 
             {!isLoggedIn && (

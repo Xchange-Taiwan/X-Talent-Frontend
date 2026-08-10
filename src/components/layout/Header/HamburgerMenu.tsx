@@ -15,6 +15,7 @@ import {
 import { trackEvent } from '@/lib/analytics';
 
 import { FEEDBACK_FORM_URL } from './constants';
+import { getBecomeMentorHref } from './navHrefs';
 
 export function HamburgerMenu(): JSX.Element {
   const [open, setOpen] = React.useState(false);
@@ -50,7 +51,7 @@ export function HamburgerMenu(): JSX.Element {
             </Link>
 
             <Link
-              href="/auth/signup"
+              href={getBecomeMentorHref(undefined)}
               onClick={close}
               className="text-text-primary"
             >
