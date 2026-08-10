@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import type { Session } from 'next-auth';
 import { describe, expect, it, vi } from 'vitest';
@@ -63,5 +63,28 @@ describe('MobileUserMenu', () => {
     );
     const fallbackImg = screen.getByRole('img', { name: '我的頭像' });
     expect(fallbackImg).toBeInTheDocument();
+  });
+
+  it('renders the merged header navigation links (尋找導師, 關於 X-Talent, 提供回饋) inside the mobile user menu after opening it', () => {
+    render(<MobileUserMenu user={buildUser()} />);
+
+    const trigger = screen.getByRole('button', { name: '開啟用戶選單' });
+    fireEvent.click(trigger);
+
+    const findMentorLink = screen.getByRole('link', { name: '尋找導師' });
+    const aboutLink = screen.getByRole('link', { name: '關於 X-Talent' });
+    const feedbackLink = screen.getByRole('link', { name: '提供回饋' });
+
+    expect(findMentorLink).toBeInTheDocument();
+    expect(findMentorLink).toHaveAttribute('href', '/mentor-pool');
+
+    expect(aboutLink).toBeInTheDocument();
+    expect(aboutLink).toHaveAttribute('href', '/about');
+
+    expect(feedbackLink).toBeInTheDocument();
+    expect(feedbackLink).toHaveAttribute(
+      'href',
+      'https://forms.gle/594hMVdTyoR3Pgtg9'
+    );
   });
 });

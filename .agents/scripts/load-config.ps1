@@ -12,8 +12,9 @@ function gh {
 # Fetch config file from tracker repository (using main branch)
 $CONFIG_MD = (gh api repos/Xchange-Taiwan/X-Talent-Tracker/contents/docs/agents/project-config.md?ref=main -H "Accept: application/vnd.github.raw" 2>$null)
 
-# Fallback to local file if fetch failed (checks exit status or empty variable)
-if ($LastExitCode -ne 0 -or -not $CONFIG_MD) {
+# Fallback to local file if fetch failed (checks exit status, empty variable, error message, or missing json block)
+$hasJsonBlock = $CONFIG_MD -and ($CONFIG_MD -match '(?s)```json\s*(.*?)\s*```')
+if ($LastExitCode -ne 0 -or -not $CONFIG_MD -or -not $hasJsonBlock -or $CONFIG_MD.Contains('"message": "Not Found"')) {
   if (Test-Path "docs/agents/project-config.md") {
     $CONFIG_MD = (Get-Content -Raw -Path "docs/agents/project-config.md")
   } else {
