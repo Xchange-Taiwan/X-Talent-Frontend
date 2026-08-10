@@ -12,7 +12,10 @@
       "run_shell_command(npx -y gh-axi)",
       "run_shell_command(gh-axi)",
       "run_shell_command(npx -y chrome-devtools-axi)",
-      "run_shell_command(chrome-devtools-axi)"
+      "run_shell_command(chrome-devtools-axi)",
+      "run_shell_command(npx -y lavish-axi)",
+      "run_shell_command(lavish-axi)",
+      "run_shell_command(git)"
     ]
   },
   "hooks": {
