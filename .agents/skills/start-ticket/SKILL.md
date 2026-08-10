@@ -30,11 +30,11 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
 2. **Fetch issue details**
    - **On macOS/Linux (Bash/Zsh)**:
      ```bash
-     gh issue view <issue-number> --repo "$ORG/$TRACKER_REPO" --json number,title,body,comments
+     gh-axi issue view <issue-number> --repo "$ORG/$TRACKER_REPO" --json number,title,body,comments
      ```
    - **On Windows (PowerShell)**:
      ```powershell
-     gh issue view <issue-number> --repo "$ORG/$TRACKER_REPO" --json number,title,body,comments
+     gh-axi issue view <issue-number> --repo "$ORG/$TRACKER_REPO" --json number,title,body,comments
      ```
 
 3. **Create a Programmatically Linked Branch (Cross-Repo Connection)**
@@ -49,7 +49,7 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
         - **On macOS/Linux (Bash/Zsh)**:
 
           ```bash
-          ISSUE_NODE_ID=$(gh api graphql -F login="$ORG" -F repo="$TRACKER_REPO" -F issue_number=<issue-number> -f query='
+          ISSUE_NODE_ID=$(gh-axi api graphql -F login="$ORG" -F repo="$TRACKER_REPO" -F issue_number=<issue-number> -f query='
             query($login: String!, $repo: String!, $issue_number: Int!) {
               repository(owner: $login, name: $repo) {
                 issue(number: $issue_number) { id }
@@ -57,7 +57,7 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
             }
           ' --jq '.data.repository.issue.id')
 
-          REPO_NODE_ID=$(gh api graphql -F login="$ORG" -F repo="$FRONTEND_REPO" -f query='
+          REPO_NODE_ID=$(gh-axi api graphql -F login="$ORG" -F repo="$FRONTEND_REPO" -f query='
             query($login: String!, $repo: String!) {
               repository(owner: $login, name: $repo) { id }
             }
@@ -67,7 +67,7 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
         - **On Windows (PowerShell)**:
 
           ```powershell
-          $ISSUE_NODE_ID = (gh api graphql -F login="$ORG" -F repo="$TRACKER_REPO" -F issue_number=<issue-number> -f query='
+          $ISSUE_NODE_ID = (gh-axi api graphql -F login="$ORG" -F repo="$TRACKER_REPO" -F issue_number=<issue-number> -f query='
             query($login: String!, $repo: String!, $issue_number: Int!) {
               repository(owner: $login, name: $repo) {
                 issue(number: $issue_number) { id }
@@ -75,7 +75,7 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
             }
           ' --jq '.data.repository.issue.id')
 
-          $REPO_NODE_ID = (gh api graphql -F login="$ORG" -F repo="$FRONTEND_REPO" -f query='
+          $REPO_NODE_ID = (gh-axi api graphql -F login="$ORG" -F repo="$FRONTEND_REPO" -f query='
             query($login: String!, $repo: String!) {
               repository(owner: $login, name: $repo) { id }
             }
@@ -85,7 +85,7 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
      3. Call mutation to create and link:
         - **On macOS/Linux (Bash/Zsh)**:
           ```bash
-          gh api graphql -f query='
+          gh-axi api graphql -f query='
             mutation($issueId: ID!, $repositoryId: ID!, $oid: GitObjectID!, $name: String!) {
               createLinkedBranch(input: {issueId: $issueId, repositoryId: $repositoryId, oid: $oid, name: $name}) {
                 linkedBranch { id }
@@ -94,7 +94,7 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
           ```
         - **On Windows (PowerShell)**:
           ```powershell
-          gh api graphql -f query='
+          gh-axi api graphql -f query='
             mutation($issueId: ID!, $repositoryId: ID!, $oid: GitObjectID!, $name: String!) {
               createLinkedBranch(input: {issueId: $issueId, repositoryId: $repositoryId, oid: $oid, name: $name}) {
                 linkedBranch { id }
@@ -110,11 +110,11 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
    - **Same repo (e.g. ticket directly in X-Talent-Frontend)**:
      - **On macOS/Linux (Bash/Zsh)**:
        ```bash
-       gh issue develop <issue-number> --repo "$ORG/$FRONTEND_REPO" --name "feat/<issue-number>-<slug>" --base develop --checkout
+       gh-axi issue develop <issue-number> --repo "$ORG/$FRONTEND_REPO" --name "feat/<issue-number>-<slug>" --base develop --checkout
        ```
      - **On Windows (PowerShell)**:
        ```powershell
-       gh issue develop <issue-number> --repo "$ORG/$FRONTEND_REPO" --name "feat/<issue-number>-<slug>" --base develop --checkout
+       gh-axi issue develop <issue-number> --repo "$ORG/$FRONTEND_REPO" --name "feat/<issue-number>-<slug>" --base develop --checkout
        ```
 
 4. **Move Ticket on Board to "In progress"**
@@ -122,7 +122,7 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
      - **On macOS/Linux (Bash/Zsh)**:
 
        ```bash
-       ITEM_ID=$(gh api graphql -F login="$ORG" -F issue_number="<issue-number>" -F repo_name="$TRACKER_REPO" -f query='
+       ITEM_ID=$(gh-axi api graphql -F login="$ORG" -F issue_number="<issue-number>" -F repo_name="$TRACKER_REPO" -f query='
          query($login: String!, $issue_number: Int!, $repo_name: String!) {
            organization(login: $login) {
              repository(name: $repo_name) {
@@ -135,7 +135,7 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
        ' --jq ".data.organization.repository.issue.projectItems.nodes[] | select(.project.number == $PROJECT_NUMBER) | .id" 2>/dev/null)
 
        if [ -z "$ITEM_ID" ]; then
-         ITEM_ID=$(gh api graphql -F login="$ORG" -F issue_number="<issue-number>" -F repo_name="$FRONTEND_REPO" -f query='
+         ITEM_ID=$(gh-axi api graphql -F login="$ORG" -F issue_number="<issue-number>" -F repo_name="$FRONTEND_REPO" -f query='
            query($login: String!, $issue_number: Int!, $repo_name: String!) {
              organization(login: $login) {
                repository(name: $repo_name) {
@@ -152,7 +152,7 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
      - **On Windows (PowerShell)**:
 
        ```powershell
-       $ITEM_ID = (gh api graphql -F login="$ORG" -F issue_number="<issue-number>" -F repo_name="$TRACKER_REPO" -f query='
+       $ITEM_ID = (gh-axi api graphql -F login="$ORG" -F issue_number="<issue-number>" -F repo_name="$TRACKER_REPO" -f query='
          query($login: String!, $issue_number: Int!, $repo_name: String!) {
            organization(login: $login) {
              repository(name: $repo_name) {
@@ -165,7 +165,7 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
        ' --jq ".data.organization.repository.issue.projectItems.nodes[] | select(.project.number == $PROJECT_NUMBER) | .id" 2>$null)
 
        if (-not $ITEM_ID) {
-         $ITEM_ID = (gh api graphql -F login="$ORG" -F issue_number="<issue-number>" -F repo_name="$FRONTEND_REPO" -f query='
+         $ITEM_ID = (gh-axi api graphql -F login="$ORG" -F issue_number="<issue-number>" -F repo_name="$FRONTEND_REPO" -f query='
            query($login: String!, $issue_number: Int!, $repo_name: String!) {
              organization(login: $login) {
                repository(name: $repo_name) {
@@ -183,7 +183,7 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
      - **On macOS/Linux (Bash/Zsh)**:
        ```bash
        if [ -n "$ITEM_ID" ] && [ -n "$IN_PROGRESS_OPTION_ID" ] && [ "$IN_PROGRESS_OPTION_ID" != "null" ]; then
-         gh api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$IN_PROGRESS_OPTION_ID" -f query='
+         gh-axi api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$IN_PROGRESS_OPTION_ID" -f query='
            mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
              updateProjectV2ItemFieldValue(
                input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
@@ -195,7 +195,7 @@ Prepare a branch for a GitHub issue, fetch details, and link it.
      - **On Windows (PowerShell)**:
        ```powershell
        if ($ITEM_ID -and $IN_PROGRESS_OPTION_ID -and $IN_PROGRESS_OPTION_ID -ne "null") {
-         gh api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$IN_PROGRESS_OPTION_ID" -f query='
+         gh-axi api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$IN_PROGRESS_OPTION_ID" -f query='
            mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
              updateProjectV2ItemFieldValue(
                input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
