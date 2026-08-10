@@ -148,7 +148,11 @@ export const UserDropdown = React.memo(function UserDropdown({
             </DropdownMenuItem>
 
             {isMentor && (
-              <DropdownMenuItem className="px-4 py-3 text-2xl" asChild>
+              <DropdownMenuItem
+                className="px-4 py-3 text-2xl"
+                disabled={isResolvingUser}
+                asChild
+              >
                 <DisabledAwareLink
                   href={profilePath}
                   disabled={isResolvingUser}
