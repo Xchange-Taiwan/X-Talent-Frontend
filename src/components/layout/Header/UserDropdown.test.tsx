@@ -113,14 +113,14 @@ describe('UserDropdown share flow', () => {
     render(<UserDropdown user={buildUser()} />);
 
     openMenu();
-    const feedbackLink = screen.getByRole('link', { name: '提供回饋' });
+    const feedbackLink = screen.getByRole('menuitem', { name: '提供回饋' });
 
     fireEvent.click(feedbackLink);
 
     expect(trackEvent).toHaveBeenCalledWith({ name: 'feedback_open' });
     // And verify the dropdown closed (which means the feedback link is no longer in the document)
     expect(
-      screen.queryByRole('link', { name: '提供回饋' })
+      screen.queryByRole('menuitem', { name: '提供回饋' })
     ).not.toBeInTheDocument();
   });
 });

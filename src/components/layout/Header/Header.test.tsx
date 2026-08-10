@@ -250,7 +250,9 @@ describe('Header', () => {
     expect(
       screen.getByRole('link', { name: '關於 X-Talent' })
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '提供回饋' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: '提供回饋（另開新分頁）' })
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: '開啟導航選單' })
     ).toBeInTheDocument();
