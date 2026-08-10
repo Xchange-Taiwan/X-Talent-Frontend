@@ -1729,21 +1729,27 @@
       <code class="inline">src/app/(landing)/page.tsx</code>
       目前上線的首頁：AnnouncementBanner、Header（沿用既有
       <code class="inline">.lavish/header_rwd.html</code>
-      還原成果）、主視覺、特色列、雙欄圖文介紹、9000+ XChangers
-      職能色塊、成為 Mentor／Mentee 區塊、學員見證輪播、Footer，並套用
+      還原成果）、主視覺、特色列、雙欄圖文介紹、9000+ XChangers 職能色塊、成為
+      Mentor／Mentee 區塊、學員見證輪播、Footer，並套用
       <code class="inline">src/styles/tokens.css</code> 的實際顏色 token。
-      下方裝置外框以 CSS container query 模擬 <code class="inline">sm/md/lg/xl</code>
-      （640 / 768 / 1024 / 1280px）斷點，可拖曳寬度滑桿即時觀察版型切換，也可切換公告列與登入狀態測試互動。
+      下方裝置外框以 CSS container query 模擬
+      <code class="inline">sm/md/lg/xl</code>
+      （640 / 768 / 1024 /
+      1280px）斷點，可拖曳寬度滑桿即時觀察版型切換，也可切換公告列與登入狀態測試互動。
     </p>
     <div class="source-note">
       🎨 <b>設計來源：</b>本專案（X-Talent-Frontend）既有的 Tailwind 設計 token
       與首頁 / Header / Footer 元件原始碼，確保與正式環境視覺一致。
     </div>
     <span class="flag-note">
-      ⚠️ <b>發現一處可能的既有問題：</b>Hero 主視覺圖片（<code class="inline">HomePageHeroImgUrl</code>）使用
-      Next.js <code class="inline">fill</code>，但其父層 <code class="inline">&lt;section&gt;</code>
-      並未加上 <code class="inline">relative</code>，理論上該圖片會以最近的「已定位」祖先元素為基準定位，而非這個
-      532/640px 高的 hero 區塊本身。此還原為求可用性已在圖片外層補上定位錨點，但建議回頭確認正式站上這張圖是否真的如預期被裁切在
+      ⚠️ <b>發現一處可能的既有問題：</b>Hero 主視覺圖片（<code class="inline"
+        >HomePageHeroImgUrl</code
+      >）使用 Next.js <code class="inline">fill</code>，但其父層
+      <code class="inline">&lt;section&gt;</code> 並未加上
+      <code class="inline">relative</code
+      >，理論上該圖片會以最近的「已定位」祖先元素為基準定位，而非這個 532/640px
+      高的 hero
+      區塊本身。此還原為求可用性已在圖片外層補上定位錨點，但建議回頭確認正式站上這張圖是否真的如預期被裁切在
       hero 區塊內。
     </span>
   </div>
@@ -1837,7 +1843,8 @@
                 />
               </svg>
               <span
-                >系統將於本週六 02:00–04:00 進行例行性維護，期間服務可能短暫中斷，造成不便敬請見諒。</span
+                >系統將於本週六 02:00–04:00
+                進行例行性維護，期間服務可能短暫中斷，造成不便敬請見諒。</span
               >
             </div>
             <button
@@ -2188,10 +2195,11 @@
           <main class="xt-main" id="xt-main">
             <!-- hero -->
             <section class="hero">
-              <h1>
-                交流讓<br class="hide-md" />改變發生
-              </h1>
-              <p>Find your Mentor/Mentee to build up connections, break up limits.</p>
+              <h1>交流讓<br class="hide-md" />改變發生</h1>
+              <p>
+                Find your Mentor/Mentee to build up connections, break up
+                limits.
+              </p>
               <img
                 class="hero-photo"
                 src="home-page-assets/home-page-hero.webp"
@@ -2217,7 +2225,10 @@
                     <p>填寫問卷尋找導師</p>
                   </div>
                   <div class="feature-item">
-                    <img src="home-page-assets/landingPage_icon_10.svg" alt="" />
+                    <img
+                      src="home-page-assets/landingPage_icon_10.svg"
+                      alt=""
+                    />
                     <p>一對一深度交流</p>
                   </div>
                 </div>
@@ -2285,20 +2296,29 @@
                     <h2>成為 Mentor，你將可以‧‧‧</h2>
                     <div class="role-points">
                       <div class="role-point">
-                        <img src="home-page-assets/landingPage_icon_1.svg" alt="" />
+                        <img
+                          src="home-page-assets/landingPage_icon_1.svg"
+                          alt=""
+                        />
                         <div class="role-point-text">
                           <p>分享經驗</p>
                           <p>讓知識傳承延續</p>
                         </div>
                       </div>
                       <div class="role-point">
-                        <img src="home-page-assets/landingPage_icon_2.svg" alt="" />
+                        <img
+                          src="home-page-assets/landingPage_icon_2.svg"
+                          alt=""
+                        />
                         <div class="role-point-text">
                           <p>建立專屬人脈網絡</p>
                         </div>
                       </div>
                       <div class="role-point">
-                        <img src="home-page-assets/landingPage_icon_3.svg" alt="" />
+                        <img
+                          src="home-page-assets/landingPage_icon_3.svg"
+                          alt=""
+                        />
                         <div class="role-point-text">
                           <p>增加社會影響力</p>
                           <p>與他人共創美好價值</p>
@@ -2318,21 +2338,30 @@
                     <h2>成為 Mentee，你將可以‧‧‧</h2>
                     <div class="role-points">
                       <div class="role-point">
-                        <img src="home-page-assets/landingPage_icon_4.svg" alt="" />
+                        <img
+                          src="home-page-assets/landingPage_icon_4.svg"
+                          alt=""
+                        />
                         <div class="role-point-text">
                           <p>探索產業與</p>
                           <p>職涯發展方向</p>
                         </div>
                       </div>
                       <div class="role-point">
-                        <img src="home-page-assets/landingPage_icon_5.svg" alt="" />
+                        <img
+                          src="home-page-assets/landingPage_icon_5.svg"
+                          alt=""
+                        />
                         <div class="role-point-text">
                           <p>與經驗豐富的 Mentor</p>
                           <p>互動獲取第一手職涯秘笈</p>
                         </div>
                       </div>
                       <div class="role-point">
-                        <img src="home-page-assets/landingPage_icon_6.svg" alt="" />
+                        <img
+                          src="home-page-assets/landingPage_icon_6.svg"
+                          alt=""
+                        />
                         <div class="role-point-text">
                           <p>學習更多學校沒教的事</p>
                           <p>讓你快速成長</p>
@@ -2400,8 +2429,9 @@
       <tr>
         <td><code>src/app/(landing)/page.tsx</code></td>
         <td class="desc">
-          Hero、特色列（featureData）、雙欄圖文介紹、9000+ XChangers 職能色塊（ROLE_CHIPS）、成為
-          Mentor／Mentee 區塊、見證輪播容器的結構與文案來源。
+          Hero、特色列（featureData）、雙欄圖文介紹、9000+ XChangers
+          職能色塊（ROLE_CHIPS）、成為 Mentor／Mentee
+          區塊、見證輪播容器的結構與文案來源。
         </td>
       </tr>
       <tr>
@@ -2409,13 +2439,15 @@
         <td class="desc">featureData：特色列 4 個項目的圖示與文字。</td>
       </tr>
       <tr>
-        <td><code>HomePageSlider.tsx</code> / <code>HomePageSliderClient.tsx</code></td>
+        <td>
+          <code>HomePageSlider.tsx</code> /
+          <code>HomePageSliderClient.tsx</code>
+        </td>
         <td class="desc">
-          真實實作用 Swiper（<code>loop</code>、<code>autoplay 5000ms</code>、<code>pagination</code>，<code
-            >width &gt; lg(1024)</code
-          >
-          時 <code>slidesPerView=2</code> 否則 1）。此還原以純 JS 手刻相同行為，因此以下輪播為忠實的行為重現而非原生
-          Swiper 元件。
+          真實實作用 Swiper（<code>loop</code>、<code>autoplay 5000ms</code
+          >、<code>pagination</code>，<code>width &gt; lg(1024)</code> 時
+          <code>slidesPerView=2</code> 否則 1）。此還原以純 JS
+          手刻相同行為，因此以下輪播為忠實的行為重現而非原生 Swiper 元件。
         </td>
       </tr>
       <tr>
@@ -2423,29 +2455,38 @@
         <td class="desc">sliderList：6 則學員見證（頭像／姓名／內容）。</td>
       </tr>
       <tr>
-        <td><code>Header.tsx</code> / <code>HamburgerMenu.tsx</code> / <code>UserDropdown.tsx</code></td>
+        <td>
+          <code>Header.tsx</code> / <code>HamburgerMenu.tsx</code> /
+          <code>UserDropdown.tsx</code>
+        </td>
         <td class="desc">
-          沿用既有 <code>.lavish/header_rwd.html</code> 還原成果：70px 固定列、桌機導覽列 / 漢堡選單切換（&gt;=1024px）、已登入下拉選單／行動版
+          沿用既有 <code>.lavish/header_rwd.html</code> 還原成果：70px
+          固定列、桌機導覽列 /
+          漢堡選單切換（&gt;=1024px）、已登入下拉選單／行動版
           Sheet、分享個人頁面 Dialog。
         </td>
       </tr>
       <tr>
         <td><code>AnnouncementBanner.tsx</code></td>
         <td class="desc">
-          可關閉的頂部公告列，關閉後透過 <code>--banner-height</code> 變數把 Header 與內容區塊往上收（此還原以
-          JS 直接調整 <code>top</code> / <code>padding-top</code> 模擬相同機制）。
+          可關閉的頂部公告列，關閉後透過 <code>--banner-height</code> 變數把
+          Header 與內容區塊往上收（此還原以 JS 直接調整 <code>top</code> /
+          <code>padding-top</code> 模擬相同機制）。
         </td>
       </tr>
       <tr>
         <td><code>Footer.tsx</code></td>
         <td class="desc">
-          Logo ＋「關於」「相關連結」「XChange 社群連結」三欄連結，&lt;768px 置中堆疊，&gt;=768px 水平排列。
+          Logo ＋「關於」「相關連結」「XChange 社群連結」三欄連結，&lt;768px
+          置中堆疊，&gt;=768px 水平排列。
         </td>
       </tr>
       <tr>
         <td><code>src/styles/tokens.css</code></td>
         <td class="desc">
-          navy <code>#172E59</code>、logoBlue <code>#003C5A</code>、jade/bdBlue/marketingOrange/lime/pink/blue/purple-active
+          navy <code>#172E59</code>、logoBlue
+          <code>#003C5A</code
+          >、jade/bdBlue/marketingOrange/lime/pink/blue/purple-active
           等職能色塊顏色、brand-500 <code>#2CCBCB</code> 等實際 token 來源。
         </td>
       </tr>
@@ -2776,7 +2817,8 @@
 
   function goTo(i) {
     const max = sliderList.length - slidesPerView;
-    slideIndex = ((i % sliderList.length) + sliderList.length) % sliderList.length;
+    slideIndex =
+      ((i % sliderList.length) + sliderList.length) % sliderList.length;
     if (slideIndex > max) slideIndex = 0;
     renderCarousel();
   }
