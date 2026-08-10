@@ -57,6 +57,10 @@ CLAUDE.md
 /lighthouse-reports/
 /ai-review-report.md
 
+# Scratch screenshots captured for PR evidence (published out-of-band by
+# .agents/scripts/publish-evidence.sh, never committed to a code branch)
+/.agents/tmp/
+
 # Playwright E2E
 /playwright-report/
 /test-results/

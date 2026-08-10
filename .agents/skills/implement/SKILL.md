@@ -16,6 +16,7 @@ If the workspace is an `X-Frontend` project (e.g., `X-Talent-Frontend` or simila
 2. **Implement Feature:**
    - Implement the requirements step-by-step. Use TDD where possible.
    - Run typechecking and tests regularly.
+   - **Capture screenshot evidence for UI-facing changes:** while verifying the change in a browser against the dev server (CLAUDE.md requires this before reporting UI work done), take a screenshot of the changed UI with `chrome-devtools-axi screenshot <path>` for each meaningful state (e.g. before/after, both mentor and mentee views if role-specific). Save the files under a scratch directory (e.g. `.agents/tmp/evidence/`) and keep the list of paths — `/submit-pr` Step 3 publishes them and embeds the resulting links in the PR body. Skip this for changes with no visible UI surface (pure logic, config, tests).
 
 3. **Run AI Review Locally:**
    - Once implementation is complete, call the `/ai-review` skill to launch parallel sub-agents (Security, Correctness, Business Logic, Performance, Testing, Architecture, and Review Guide).
