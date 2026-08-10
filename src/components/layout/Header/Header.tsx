@@ -14,7 +14,6 @@ import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { trackEvent } from '@/lib/analytics';
 
 import { FEEDBACK_FORM_URL } from './constants';
-import { DisabledAwareLink } from './DisabledAwareLink';
 import { HamburgerMenu } from './HamburgerMenu';
 import { MobileUserMenu } from './MobileUserMenu';
 import { getBecomeMentorHref } from './navHrefs';
@@ -24,7 +23,8 @@ function HeaderComponent(): JSX.Element {
   const { data: session } = useSession();
   const hint = useSessionHint();
   const currentAvatar = useCurrentAvatar();
-  const { authKnown, isLoggedIn, isMentor, userId } = useAuthStatus();
+  const { authKnown, isLoggedIn, isMentor, userId, isResolvingUser } =
+    useAuthStatus();
 
   const resolvedIsMentor = authKnown
     ? isMentor
@@ -68,17 +68,13 @@ function HeaderComponent(): JSX.Element {
               </Link>
             )}
 
-            {!authKnown ? (
-              <Skeleton className="h-6 w-24 group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden" />
-            ) : (
-              !isLoggedIn && (
-                <DisabledAwareLink
-                  href={getBecomeMentorHref(undefined)}
-                  className="font-['Open_Sans'] text-base text-text-primary"
-                >
-                  成為導師
-                </DisabledAwareLink>
-              )
+            {!isLoggedIn && (
+              <Link
+                href={getBecomeMentorHref(undefined)}
+                className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
+              >
+                成為導師
+              </Link>
             )}
 
             {!isLoggedIn && (
@@ -135,6 +131,7 @@ function HeaderComponent(): JSX.Element {
               <UserDropdown
                 user={virtualUser}
                 findMentorHref={findMentorHref}
+                isResolvingUser={isResolvingUser}
               />
             ) : (
               <Skeleton className="size-9 rounded-full" />
@@ -146,6 +143,7 @@ function HeaderComponent(): JSX.Element {
               <MobileUserMenu
                 user={virtualUser}
                 findMentorHref={findMentorHref}
+                isResolvingUser={isResolvingUser}
               />
             ) : (
               <>

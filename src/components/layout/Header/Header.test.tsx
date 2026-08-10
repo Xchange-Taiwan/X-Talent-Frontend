@@ -173,6 +173,7 @@ describe('Header', () => {
     render(<Header />);
 
     const findMentorLink = screen.getByRole('link', { name: '尋找導師' });
+    const becomeMentorLink = screen.getByRole('link', { name: '成為導師' });
     const aboutLink = screen.getByRole('link', { name: '關於 X-Talent' });
     const feedbackLink = screen.getByRole('link', {
       name: '提供回饋（另開新分頁）',
@@ -181,6 +182,12 @@ describe('Header', () => {
 
     expect(findMentorLink).toBeInTheDocument();
     expect(findMentorLink).toHaveClass(
+      'group-data-[auth-state=mentee]:hidden',
+      'group-data-[auth-state=mentor]:hidden'
+    );
+
+    expect(becomeMentorLink).toBeInTheDocument();
+    expect(becomeMentorLink).toHaveClass(
       'group-data-[auth-state=mentee]:hidden',
       'group-data-[auth-state=mentor]:hidden'
     );
