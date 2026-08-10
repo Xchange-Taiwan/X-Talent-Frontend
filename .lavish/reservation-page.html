@@ -1651,16 +1651,23 @@
       <code class="inline">src/app/reservation/mentee/page.tsx</code> 與
       <code class="inline">src/app/reservation/mentor/page.tsx</code>
       （兩者皆渲染同一個
-      <code class="inline">ReservationDashboard</code>，只差在 <code class="inline">userRole</code>
+      <code class="inline">ReservationDashboard</code>，只差在
+      <code class="inline">userRole</code>
       prop）：三個分頁（即將到來／待回復／歷史紀錄）、四個真實互動對話框（接受／拒絕／取消／查看完整對話）、狀態徽章（依
-      <code class="inline">dtstart/dtend</code> 即時計算 far/soon/imminent/live/ended）、歷史紀錄的延遲載入
+      <code class="inline">dtstart/dtend</code> 即時計算
+      far/soon/imminent/live/ended）、歷史紀錄的延遲載入
       Skeleton、載入更多、空清單狀態。並套用
-      <code class="inline">src/styles/tokens.css</code> 的實際顏色 token。下方裝置外框以 CSS
-      container query 模擬 <code class="inline">sm/md/lg</code>（640 / 768 / 1024px）斷點。
+      <code class="inline">src/styles/tokens.css</code> 的實際顏色
+      token。下方裝置外框以 CSS container query 模擬
+      <code class="inline">sm/md/lg</code>（640 / 768 / 1024px）斷點。
     </p>
     <div class="source-note">
-      🎨 <b>設計來源：</b>本專案（X-Talent-Frontend）既有的 Tailwind 設計 token、shadcn/ui 元件（Tabs／Card／Badge／Avatar／Button／Dialog／Textarea）與預約頁元件原始碼，確保與正式環境視覺一致。示範資料取自專案自身的
-      <code class="inline">src/components/reservation/__mocks__/reservations.mock.ts</code>。
+      🎨 <b>設計來源：</b>本專案（X-Talent-Frontend）既有的 Tailwind 設計
+      token、shadcn/ui
+      元件（Tabs／Card／Badge／Avatar／Button／Dialog／Textarea）與預約頁元件原始碼，確保與正式環境視覺一致。示範資料取自專案自身的
+      <code class="inline"
+        >src/components/reservation/__mocks__/reservations.mock.ts</code
+      >。
     </div>
   </div>
 
@@ -1717,24 +1724,57 @@
         <span class="dot" style="background: #ff6159"></span>
         <span class="dot" style="background: #ffbd2e"></span>
         <span class="dot" style="background: #28ca41"></span>
-        <span class="url" id="url-bar">x-talent.example.com/reservation/mentee</span>
+        <span class="url" id="url-bar"
+          >x-talent.example.com/reservation/mentee</span
+        >
       </div>
       <div class="frame" id="frame">
         <!-- Header.tsx (simplified: this route requires login, so no guest state) -->
         <header class="xt-header">
           <div class="xt-header-inner">
             <div class="xt-left">
-              <a href="#" class="xt-logo" aria-label="Go to homepage" onclick="return false;">
-                <svg width="120" height="24" viewBox="0 0 151 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M41.8876 16.4878C44.5017 16.4878 46.6209 14.4925 46.6209 12.0313C46.6209 9.56997 44.5017 7.57471 41.8876 7.57471C39.2735 7.57471 37.1543 9.56997 37.1543 12.0313C37.1543 14.4925 39.2735 16.4878 41.8876 16.4878Z" fill="#003C5A"/>
-                  <path d="M41.9651 0C38.4686 0 35.2971 1.32445 32.9895 3.46929L32.7532 3.69177C31.7379 4.65122 31.7379 6.2051 32.7569 7.16454C33.7759 8.12399 35.43 8.12399 36.449 7.16107L36.6669 6.9525C38.1954 5.53766 40.2556 4.80765 42.4118 4.92584C46.2 5.13094 49.2792 8.02318 49.5081 11.5898C49.7739 15.7161 46.2849 19.1506 41.9614 19.1506C39.9676 19.1506 38.0883 18.4241 36.6632 17.1101L22.035 3.46929C19.7274 1.32445 16.5595 0 13.0594 0C5.81911 0 -0.0181448 5.66976 0.291994 12.5527C0.565212 18.6709 5.77481 23.6698 12.2656 24.0417C12.8563 24.0765 13.4397 24.0695 14.0083 24.0313C15.5626 23.9235 16.7035 22.6165 16.4414 21.1703C16.2125 19.9119 15.0125 19.0255 13.6944 19.1298C13.484 19.1472 13.2735 19.1541 13.0594 19.1541C8.7359 19.1541 5.24683 15.7161 5.51267 11.5933C5.74158 8.02666 8.82082 5.13789 12.6089 4.92932C14.7688 4.81113 16.8254 5.54114 18.3539 6.95597L32.9895 20.6002C35.3968 22.8389 38.7418 24.1808 42.4229 24.0626C49.1832 23.8401 54.6439 18.591 54.7435 12.2225C54.8506 5.48552 49.0872 0 41.9651 0Z" fill="#003C5A"/>
-                  <path d="M27.514 21.0904C26.8826 21.0904 26.2845 21.2085 25.7344 21.4171L17.512 13.6755C17.7262 13.168 17.8443 12.6118 17.8443 12.0313C17.8443 9.57007 15.725 7.57471 13.111 7.57471C10.497 7.57471 8.37769 9.57007 8.37769 12.0313C8.37769 14.4924 10.497 16.4878 13.111 16.4878C13.7276 16.4878 14.3146 16.3766 14.8537 16.1749L23.0982 23.9374C22.8915 24.4345 22.7807 24.9768 22.7807 25.5434C22.7807 28.0046 24.9 30 27.514 30C30.128 30 32.2473 28.0046 32.2473 25.5434C32.2473 23.0857 30.128 21.0904 27.514 21.0904Z" fill="#003C5A"/>
-                  <text x="63" y="21" font-family="Open Sans, sans-serif" font-size="17" font-weight="700" fill="#003C5A">X-Talent</text>
+              <a
+                href="#"
+                class="xt-logo"
+                aria-label="Go to homepage"
+                onclick="return false;"
+              >
+                <svg
+                  width="120"
+                  height="24"
+                  viewBox="0 0 151 30"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M41.8876 16.4878C44.5017 16.4878 46.6209 14.4925 46.6209 12.0313C46.6209 9.56997 44.5017 7.57471 41.8876 7.57471C39.2735 7.57471 37.1543 9.56997 37.1543 12.0313C37.1543 14.4925 39.2735 16.4878 41.8876 16.4878Z"
+                    fill="#003C5A"
+                  />
+                  <path
+                    d="M41.9651 0C38.4686 0 35.2971 1.32445 32.9895 3.46929L32.7532 3.69177C31.7379 4.65122 31.7379 6.2051 32.7569 7.16454C33.7759 8.12399 35.43 8.12399 36.449 7.16107L36.6669 6.9525C38.1954 5.53766 40.2556 4.80765 42.4118 4.92584C46.2 5.13094 49.2792 8.02318 49.5081 11.5898C49.7739 15.7161 46.2849 19.1506 41.9614 19.1506C39.9676 19.1506 38.0883 18.4241 36.6632 17.1101L22.035 3.46929C19.7274 1.32445 16.5595 0 13.0594 0C5.81911 0 -0.0181448 5.66976 0.291994 12.5527C0.565212 18.6709 5.77481 23.6698 12.2656 24.0417C12.8563 24.0765 13.4397 24.0695 14.0083 24.0313C15.5626 23.9235 16.7035 22.6165 16.4414 21.1703C16.2125 19.9119 15.0125 19.0255 13.6944 19.1298C13.484 19.1472 13.2735 19.1541 13.0594 19.1541C8.7359 19.1541 5.24683 15.7161 5.51267 11.5933C5.74158 8.02666 8.82082 5.13789 12.6089 4.92932C14.7688 4.81113 16.8254 5.54114 18.3539 6.95597L32.9895 20.6002C35.3968 22.8389 38.7418 24.1808 42.4229 24.0626C49.1832 23.8401 54.6439 18.591 54.7435 12.2225C54.8506 5.48552 49.0872 0 41.9651 0Z"
+                    fill="#003C5A"
+                  />
+                  <path
+                    d="M27.514 21.0904C26.8826 21.0904 26.2845 21.2085 25.7344 21.4171L17.512 13.6755C17.7262 13.168 17.8443 12.6118 17.8443 12.0313C17.8443 9.57007 15.725 7.57471 13.111 7.57471C10.497 7.57471 8.37769 9.57007 8.37769 12.0313C8.37769 14.4924 10.497 16.4878 13.111 16.4878C13.7276 16.4878 14.3146 16.3766 14.8537 16.1749L23.0982 23.9374C22.8915 24.4345 22.7807 24.9768 22.7807 25.5434C22.7807 28.0046 24.9 30 27.514 30C30.128 30 32.2473 28.0046 32.2473 25.5434C32.2473 23.0857 30.128 21.0904 27.514 21.0904Z"
+                    fill="#003C5A"
+                  />
+                  <text
+                    x="63"
+                    y="21"
+                    font-family="Open Sans, sans-serif"
+                    font-size="17"
+                    font-weight="700"
+                    fill="#003C5A"
+                  >
+                    X-Talent
+                  </text>
                 </svg>
               </a>
               <nav class="xt-nav">
                 <a href="#" onclick="return false;">尋找導師</a>
-                <a href="#" class="role-label" onclick="return false;">成為導師</a>
+                <a href="#" class="role-label" onclick="return false;"
+                  >成為導師</a
+                >
                 <a href="#" onclick="return false;">關於 X-Talent</a>
                 <a href="#" onclick="return false;">提供回饋</a>
               </nav>
@@ -1743,7 +1783,13 @@
             <div class="xt-right">
               <div class="xt-right-desktop">
                 <div class="dropdown-anchor" id="desktop-dropdown-anchor">
-                  <button type="button" class="dropdown-trigger" id="dropdown-trigger" aria-label="開啟用戶選單" aria-expanded="false">
+                  <button
+                    type="button"
+                    class="dropdown-trigger"
+                    id="dropdown-trigger"
+                    aria-label="開啟用戶選單"
+                    aria-expanded="false"
+                  >
                     <span class="avatar avatar-32" id="dd-avatar-32">王</span>
                     <span class="chev" aria-hidden="true">▾</span>
                   </button>
@@ -1754,20 +1800,49 @@
                     </button>
                     <div class="dd-divider"></div>
                     <div class="dd-items">
-                      <button type="button" class="dd-item role-label" role="menuitem">成為導師</button>
-                      <button type="button" class="dd-item is-active" role="menuitem">我的預約</button>
-                      <button type="button" class="dd-item" role="menuitem">登出</button>
+                      <button
+                        type="button"
+                        class="dd-item role-label"
+                        role="menuitem"
+                      >
+                        成為導師
+                      </button>
+                      <button
+                        type="button"
+                        class="dd-item is-active"
+                        role="menuitem"
+                      >
+                        我的預約
+                      </button>
+                      <button type="button" class="dd-item" role="menuitem">
+                        登出
+                      </button>
                     </div>
                   </div>
                 </div>
               </div>
               <div class="xt-right-mobile">
-                <button type="button" class="icon-btn" id="mobile-avatar-trigger" aria-label="開啟用戶選單">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  id="mobile-avatar-trigger"
+                  aria-label="開啟用戶選單"
+                >
                   <span class="avatar avatar-32" id="mobile-avatar-32">王</span>
                 </button>
-                <button type="button" class="icon-btn" id="hamburger-trigger" aria-label="開啟導航選單">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  id="hamburger-trigger"
+                  aria-label="開啟導航選單"
+                >
                   <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-                    <path d="M3 6H19M3 11H19M3 16H19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                    <path
+                      d="M3 6H19M3 11H19M3 16H19"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                    />
                   </svg>
                 </button>
               </div>
@@ -1776,10 +1851,25 @@
         </header>
 
         <div class="sheet-overlay" id="nav-sheet-overlay"></div>
-        <div class="sheet-panel" id="nav-sheet-panel" role="dialog" aria-label="導航選單">
-          <button type="button" class="sheet-close" id="nav-sheet-close" aria-label="關閉導航選單">
+        <div
+          class="sheet-panel"
+          id="nav-sheet-panel"
+          role="dialog"
+          aria-label="導航選單"
+        >
+          <button
+            type="button"
+            class="sheet-close"
+            id="nav-sheet-close"
+            aria-label="關閉導航選單"
+          >
             <svg width="24" height="24" viewBox="0 0 26 26" fill="none">
-              <path d="M6 6L20 20M20 6L6 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              <path
+                d="M6 6L20 20M20 6L6 20"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
             </svg>
           </button>
           <div class="sheet-nav-links">
@@ -1791,16 +1881,33 @@
         </div>
 
         <div class="sheet-overlay" id="user-sheet-overlay"></div>
-        <div class="sheet-panel" id="user-sheet-panel" role="dialog" aria-label="用戶選單">
-          <button type="button" class="sheet-close" id="user-sheet-close" aria-label="關閉用戶選單">
+        <div
+          class="sheet-panel"
+          id="user-sheet-panel"
+          role="dialog"
+          aria-label="用戶選單"
+        >
+          <button
+            type="button"
+            class="sheet-close"
+            id="user-sheet-close"
+            aria-label="關閉用戶選單"
+          >
             <svg width="24" height="24" viewBox="0 0 26 26" fill="none">
-              <path d="M6 6L20 20M20 6L6 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              <path
+                d="M6 6L20 20M20 6L6 20"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
             </svg>
           </button>
           <button type="button" class="sheet-user-profile">
             <span class="avatar avatar-56" id="sheet-avatar-56">王</span>
             <span>
-              <span class="name" id="sheet-user-name" style="display: block">王小明</span>
+              <span class="name" id="sheet-user-name" style="display: block"
+                >王小明</span
+              >
             </span>
           </button>
           <nav class="sheet-user-nav">
@@ -1822,14 +1929,36 @@
                     <div class="rv-tabs-scroll">
                       <div class="rv-tabslist-outer">
                         <div class="rv-tabslist" role="tablist">
-                          <button class="rv-tab" data-tab="upcoming" aria-selected="true" role="tab">
-                            即將到來<span class="rv-count" id="count-upcoming">4</span>
+                          <button
+                            class="rv-tab"
+                            data-tab="upcoming"
+                            aria-selected="true"
+                            role="tab"
+                          >
+                            即將到來<span class="rv-count" id="count-upcoming"
+                              >4</span
+                            >
                           </button>
-                          <button class="rv-tab" data-tab="pending" aria-selected="false" role="tab">
-                            <span id="pending-label">等待回復</span><span class="rv-count" id="count-pending">1</span>
+                          <button
+                            class="rv-tab"
+                            data-tab="pending"
+                            aria-selected="false"
+                            role="tab"
+                          >
+                            <span id="pending-label">等待回復</span
+                            ><span class="rv-count" id="count-pending">1</span>
                           </button>
-                          <button class="rv-tab" data-tab="history" aria-selected="false" role="tab">
-                            歷史紀錄<span class="rv-count" id="count-history" hidden></span>
+                          <button
+                            class="rv-tab"
+                            data-tab="history"
+                            aria-selected="false"
+                            role="tab"
+                          >
+                            歷史紀錄<span
+                              class="rv-count"
+                              id="count-history"
+                              hidden
+                            ></span>
                           </button>
                         </div>
                       </div>
@@ -1890,23 +2019,74 @@
 
         <!-- AcceptReservationDialog.tsx -->
         <div class="rv-dialog-overlay" id="accept-overlay"></div>
-        <div class="rv-dialog" id="accept-dialog" role="dialog" aria-label="接受學員預約">
-          <button type="button" class="rv-dialog-close" id="accept-close" aria-label="關閉">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <div
+          class="rv-dialog"
+          id="accept-dialog"
+          role="dialog"
+          aria-label="接受學員預約"
+        >
+          <button
+            type="button"
+            class="rv-dialog-close"
+            id="accept-close"
+            aria-label="關閉"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M6 6l12 12M18 6 6 18"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
           </button>
           <div class="rv-dialog-inner">
             <div class="rv-dialog-title">接受學員預約</div>
             <div class="rv-dialog-summary">
               <div class="rv-dialog-summary-top">
-                <span class="rv-avatar-img" style="width: 40px; height: 40px" id="accept-avatar"></span>
+                <span
+                  class="rv-avatar-img"
+                  style="width: 40px; height: 40px"
+                  id="accept-avatar"
+                ></span>
                 <div style="min-width: 0">
                   <div class="rv-dialog-summary-name" id="accept-name"></div>
-                  <div class="rv-dialog-summary-role" id="accept-roleline"></div>
+                  <div
+                    class="rv-dialog-summary-role"
+                    id="accept-roleline"
+                  ></div>
                 </div>
               </div>
               <div class="rv-dialog-summary-grid">
-                <div><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 2v3M17 2v3M3.5 9h17M4 5h16a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="accept-date"></span></div>
-                <div><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="accept-time"></span></div>
+                <div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M7 2v3M17 2v3M3.5 9h17M4 5h16a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    /></svg
+                  ><span id="accept-date"></span>
+                </div>
+                <div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="9"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                    />
+                    <path
+                      d="M12 7v5l3 3"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    /></svg
+                  ><span id="accept-time"></span>
+                </div>
               </div>
             </div>
             <div id="accept-message-wrap" style="margin-top: 24px">
@@ -1914,77 +2094,225 @@
               <div class="rv-dialog-textblock" id="accept-message"></div>
             </div>
             <div style="margin-top: 24px">
-              <button type="button" class="rv-dialog-reply-toggle" id="accept-reply-open">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M14 3h5a2 2 0 0 1 2 2v13a1 1 0 0 1-1.6.8L15 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3M12 3v6M9 6h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <button
+                type="button"
+                class="rv-dialog-reply-toggle"
+                id="accept-reply-open"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M14 3h5a2 2 0 0 1 2 2v13a1 1 0 0 1-1.6.8L15 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3M12 3v6M9 6h6"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
                 附上回覆訊息（選填）
               </button>
               <div id="accept-reply-wrap" hidden>
-                <div class="rv-dialog-textblock-label">給學員的回覆（選填）</div>
+                <div class="rv-dialog-textblock-label">
+                  給學員的回覆（選填）
+                </div>
                 <div class="rv-textarea-frame">
-                  <textarea class="rv-textarea" id="accept-reply-textarea" placeholder="例如：屆時於 Google Meet 見,請先準備一份履歷。"></textarea>
+                  <textarea
+                    class="rv-textarea"
+                    id="accept-reply-textarea"
+                    placeholder="例如：屆時於 Google Meet 見,請先準備一份履歷。"
+                  ></textarea>
                 </div>
               </div>
             </div>
             <div class="rv-dialog-footer">
-              <button type="button" class="rv-btn rv-btn-outline" id="accept-cancel-btn">取消</button>
-              <button type="button" class="rv-btn rv-btn-primary" id="accept-confirm-btn">接受</button>
+              <button
+                type="button"
+                class="rv-btn rv-btn-outline"
+                id="accept-cancel-btn"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                class="rv-btn rv-btn-primary"
+                id="accept-confirm-btn"
+              >
+                接受
+              </button>
             </div>
           </div>
         </div>
 
         <!-- RejectReservationDialog.tsx -->
         <div class="rv-dialog-overlay" id="reject-overlay"></div>
-        <div class="rv-dialog" id="reject-dialog" role="dialog" aria-label="拒絕學員預約的原因">
-          <button type="button" class="rv-dialog-close" id="reject-close" aria-label="關閉">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <div
+          class="rv-dialog"
+          id="reject-dialog"
+          role="dialog"
+          aria-label="拒絕學員預約的原因"
+        >
+          <button
+            type="button"
+            class="rv-dialog-close"
+            id="reject-close"
+            aria-label="關閉"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M6 6l12 12M18 6 6 18"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
           </button>
           <div class="rv-dialog-inner">
             <div class="rv-dialog-title">拒絕學員預約的原因</div>
             <div class="rv-dialog-desc">請說明無法接受此預約的原因。</div>
             <div class="rv-textarea-frame" style="margin-top: 16px">
-              <textarea class="rv-textarea" id="reject-reason" placeholder="請在此輸入原因..." style="min-height: 120px"></textarea>
+              <textarea
+                class="rv-textarea"
+                id="reject-reason"
+                placeholder="請在此輸入原因..."
+                style="min-height: 120px"
+              ></textarea>
             </div>
             <div class="rv-dialog-footer">
-              <button type="button" class="rv-btn rv-btn-outline" id="reject-cancel-btn">取消</button>
-              <button type="button" class="rv-btn rv-btn-destructive" id="reject-confirm-btn" disabled>拒絕</button>
+              <button
+                type="button"
+                class="rv-btn rv-btn-outline"
+                id="reject-cancel-btn"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                class="rv-btn rv-btn-destructive"
+                id="reject-confirm-btn"
+                disabled
+              >
+                拒絕
+              </button>
             </div>
           </div>
         </div>
 
         <!-- CancelReservationDialog.tsx -->
         <div class="rv-dialog-overlay" id="cancel-overlay"></div>
-        <div class="rv-dialog" id="cancel-dialog" role="dialog" aria-label="取消預約">
-          <button type="button" class="rv-dialog-close" id="cancel-close" aria-label="關閉">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <div
+          class="rv-dialog"
+          id="cancel-dialog"
+          role="dialog"
+          aria-label="取消預約"
+        >
+          <button
+            type="button"
+            class="rv-dialog-close"
+            id="cancel-close"
+            aria-label="關閉"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M6 6l12 12M18 6 6 18"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
           </button>
           <div class="rv-dialog-inner">
             <div class="rv-dialog-title" id="cancel-title">取消預約</div>
             <div class="rv-dialog-desc">請說明取消預約的原因。</div>
-            <textarea class="rv-textarea" id="cancel-reason" placeholder="您好，..." style="margin-top: 16px; min-height: 140px"></textarea>
+            <textarea
+              class="rv-textarea"
+              id="cancel-reason"
+              placeholder="您好，..."
+              style="margin-top: 16px; min-height: 140px"
+            ></textarea>
             <div class="rv-dialog-footer">
-              <button type="button" class="rv-btn rv-btn-outline" id="cancel-close-btn">維持預約</button>
-              <button type="button" class="rv-btn rv-btn-destructive" id="cancel-confirm-btn" disabled>取消預約</button>
+              <button
+                type="button"
+                class="rv-btn rv-btn-outline"
+                id="cancel-close-btn"
+              >
+                維持預約
+              </button>
+              <button
+                type="button"
+                class="rv-btn rv-btn-destructive"
+                id="cancel-confirm-btn"
+                disabled
+              >
+                取消預約
+              </button>
             </div>
           </div>
         </div>
 
         <!-- ReservationConversationDialog.tsx -->
         <div class="rv-dialog-overlay" id="conv-overlay"></div>
-        <div class="rv-dialog rv-conv-dialog" id="conv-dialog" role="dialog" aria-label="完整對話紀錄">
-          <button type="button" class="rv-dialog-close" id="conv-close" aria-label="關閉">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <div
+          class="rv-dialog rv-conv-dialog"
+          id="conv-dialog"
+          role="dialog"
+          aria-label="完整對話紀錄"
+        >
+          <button
+            type="button"
+            class="rv-dialog-close"
+            id="conv-close"
+            aria-label="關閉"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M6 6l12 12M18 6 6 18"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
           </button>
           <div class="rv-conv-header">
             <div class="rv-conv-header-top">
-              <span class="rv-avatar-img" style="width: 40px; height: 40px" id="conv-avatar"></span>
+              <span
+                class="rv-avatar-img"
+                style="width: 40px; height: 40px"
+                id="conv-avatar"
+              ></span>
               <div style="min-width: 0">
                 <div class="rv-conv-header-name">完整對話紀錄</div>
                 <div class="rv-conv-header-sub" id="conv-sub"></div>
               </div>
             </div>
             <div class="rv-conv-header-meta">
-              <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 2v3M17 2v3M3.5 9h17M4 5h16a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="conv-date"></span></span>
-              <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="conv-time"></span></span>
+              <span
+                ><svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M7 2v3M17 2v3M3.5 9h17M4 5h16a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  /></svg
+                ><span id="conv-date"></span
+              ></span>
+              <span
+                ><svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="9"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                  />
+                  <path
+                    d="M12 7v5l3 3"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  /></svg
+                ><span id="conv-time"></span
+              ></span>
             </div>
           </div>
           <div class="rv-conv-body" id="conv-body"></div>
@@ -1997,40 +2325,85 @@
     <h2>元件對應（可回原始碼比對）</h2>
     <table>
       <tr>
-        <td><code>src/app/reservation/mentee/page.tsx</code><br /><code>src/app/reservation/mentor/page.tsx</code></td>
-        <td class="desc">兩個路由皆只是把 <code>userRole</code> 傳給同一個 <code>ReservationDashboard</code>；此還原用單一「身份」切換器同時驅動兩者。</td>
+        <td>
+          <code>src/app/reservation/mentee/page.tsx</code><br /><code
+            >src/app/reservation/mentor/page.tsx</code
+          >
+        </td>
+        <td class="desc">
+          兩個路由皆只是把 <code>userRole</code> 傳給同一個
+          <code>ReservationDashboard</code
+          >；此還原用單一「身份」切換器同時驅動兩者。
+        </td>
       </tr>
       <tr>
         <td><code>ReservationDashboard.tsx</code></td>
-        <td class="desc">標題（預約導師／擔任導師）、三個 Tabs（即將到來／待回復 label 依角色不同／歷史紀錄）、history 分頁延遲載入（<code>isHistoryLoaded</code>）邏輯。</td>
+        <td class="desc">
+          標題（預約導師／擔任導師）、三個 Tabs（即將到來／待回復 label
+          依角色不同／歷史紀錄）、history
+          分頁延遲載入（<code>isHistoryLoaded</code>）邏輯。
+        </td>
       </tr>
       <tr>
-        <td><code>ReservationList.tsx</code> / <code>ReservationCard.tsx</code></td>
-        <td class="desc">卡片版面（頭像／姓名／角色列／日期時間／狀態徽章／留言預覽／操作區），空清單與載入更多按鈕。</td>
+        <td>
+          <code>ReservationList.tsx</code> / <code>ReservationCard.tsx</code>
+        </td>
+        <td class="desc">
+          卡片版面（頭像／姓名／角色列／日期時間／狀態徽章／留言預覽／操作區），空清單與載入更多按鈕。
+        </td>
       </tr>
       <tr>
-        <td><code>ReservationStatusBadge.tsx</code> / <code>useReservationTimeStatus.ts</code></td>
-        <td class="desc">依 <code>dtstart/dtend</code> 即時計算 far／soon／imminent／live／ended 五種狀態徽章樣式與文案，此還原採用相同演算法。</td>
+        <td>
+          <code>ReservationStatusBadge.tsx</code> /
+          <code>useReservationTimeStatus.ts</code>
+        </td>
+        <td class="desc">
+          依 <code>dtstart/dtend</code> 即時計算
+          far／soon／imminent／live／ended
+          五種狀態徽章樣式與文案，此還原採用相同演算法。
+        </td>
       </tr>
       <tr>
-        <td><code>AcceptReservationDialog.tsx</code> / <code>RejectReservationDialog.tsx</code></td>
-        <td class="desc">僅 <code>pending-mentor</code> 卡片顯示；接受可選填回覆訊息，拒絕需填寫原因才能送出。</td>
+        <td>
+          <code>AcceptReservationDialog.tsx</code> /
+          <code>RejectReservationDialog.tsx</code>
+        </td>
+        <td class="desc">
+          僅
+          <code>pending-mentor</code>
+          卡片顯示；接受可選填回覆訊息，拒絕需填寫原因才能送出。
+        </td>
       </tr>
       <tr>
         <td><code>CancelReservationDialog.tsx</code></td>
-        <td class="desc"><code>upcoming</code> 與 <code>pending-mentee</code> 卡片皆顯示；需填寫原因才能送出。</td>
+        <td class="desc">
+          <code>upcoming</code> 與
+          <code>pending-mentee</code> 卡片皆顯示；需填寫原因才能送出。
+        </td>
       </tr>
       <tr>
         <td><code>ReservationConversationDialog.tsx</code></td>
-        <td class="desc">僅 history 且 <code>messages.length &gt; 0</code> 時顯示，訊息以 <code>[...messages].reverse()</code> 由新到舊排列，導師訊息靠右（brand-500 底色）。</td>
+        <td class="desc">
+          僅 history 且 <code>messages.length &gt; 0</code> 時顯示，訊息以
+          <code>[...messages].reverse()</code>
+          由新到舊排列，導師訊息靠右（brand-500 底色）。
+        </td>
       </tr>
       <tr>
-        <td><code>src/components/reservation/__mocks__/reservations.mock.ts</code></td>
-        <td class="desc">示範資料直接取自專案既有的 Storybook mock，涵蓋 far/soon/imminent/live 四種狀態徽章與已取消（導師／學員）兩種歷史紀錄。</td>
+        <td>
+          <code>src/components/reservation/__mocks__/reservations.mock.ts</code>
+        </td>
+        <td class="desc">
+          示範資料直接取自專案既有的 Storybook mock，涵蓋 far/soon/imminent/live
+          四種狀態徽章與已取消（導師／學員）兩種歷史紀錄。
+        </td>
       </tr>
       <tr>
         <td><code>src/styles/tokens.css</code></td>
-        <td class="desc">brand-500 <code>#2CCBCB</code>、status-success/warning/error、dark <code>#282828</code>（作用中分頁底色）等實際 token 來源。</td>
+        <td class="desc">
+          brand-500 <code>#2CCBCB</code>、status-success/warning/error、dark
+          <code>#282828</code>（作用中分頁底色）等實際 token 來源。
+        </td>
       </tr>
     </table>
   </div>
@@ -2045,124 +2418,207 @@
 
   const UPCOMING = [
     {
-      id: 'res-upcoming-far-3', name: '王小華 (Grace Wang)',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&auto=format&fit=crop&q=80',
+      id: 'res-upcoming-far-3',
+      name: '王小華 (Grace Wang)',
+      avatar:
+        'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&auto=format&fit=crop&q=80',
       roleLine: '國立台灣大學 資訊工程學系 / 碩士班二年級',
-      date: '2026年8月5日 (星期三)', time: '14:00 – 15:00',
-      menteeMessage: '導師您好！我目前的碩士論文方向是機器學習與邊緣運算優化。因為畢業在即，想向導師諮詢關於 AI 軟體工程師、演算法開發工程師的職涯定位，以及如何準備外商公司的白板面試與 behavior questions，謝謝！',
-      mentorMessage: 'Grace 你好！很高興收到你的諮詢。這個論文方向非常有潛力，我當天會針對外商 AI 工程師的面試準備要領提供詳細拆解。期待與你聊聊！',
-      dtstart: daysFromNow(3), dtend: daysFromNow(3) + 3600,
+      date: '2026年8月5日 (星期三)',
+      time: '14:00 – 15:00',
+      menteeMessage:
+        '導師您好！我目前的碩士論文方向是機器學習與邊緣運算優化。因為畢業在即，想向導師諮詢關於 AI 軟體工程師、演算法開發工程師的職涯定位，以及如何準備外商公司的白板面試與 behavior questions，謝謝！',
+      mentorMessage:
+        'Grace 你好！很高興收到你的諮詢。這個論文方向非常有潛力，我當天會針對外商 AI 工程師的面試準備要領提供詳細拆解。期待與你聊聊！',
+      dtstart: daysFromNow(3),
+      dtend: daysFromNow(3) + 3600,
     },
     {
-      id: 'res-upcoming-soon-4', name: '李建國 (James Lee)',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+      id: 'res-upcoming-soon-4',
+      name: '李建國 (James Lee)',
+      avatar:
+        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
       roleLine: '蝦皮購物 Senior Data Analyst',
-      date: '今天 (2026年7月29日)', time: '21:00 – 22:00',
-      menteeMessage: '導師您好！我是 James。目前團隊正在規畫基於數據驅動的行銷自動化漏斗。希望跟導師請教在大規模 A/B 測試的指標設定，謝謝導師！',
-      mentorMessage: 'James 你好！非常硬核且實用的題目。我當天會分享幾個大型網路平台使用的技術，今晚見！',
-      dtstart: hoursFromNow(3), dtend: hoursFromNow(4),
+      date: '今天 (2026年7月29日)',
+      time: '21:00 – 22:00',
+      menteeMessage:
+        '導師您好！我是 James。目前團隊正在規畫基於數據驅動的行銷自動化漏斗。希望跟導師請教在大規模 A/B 測試的指標設定，謝謝導師！',
+      mentorMessage:
+        'James 你好！非常硬核且實用的題目。我當天會分享幾個大型網路平台使用的技術，今晚見！',
+      dtstart: hoursFromNow(3),
+      dtend: hoursFromNow(4),
     },
     {
-      id: 'res-upcoming-imminent-5', name: '葉書雅 (Sylvia Yeh)',
-      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+      id: 'res-upcoming-imminent-5',
+      name: '葉書雅 (Sylvia Yeh)',
+      avatar:
+        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
       roleLine: 'Trend Micro Frontend Engineer / 工作 2 年',
-      date: '今天 (2026年7月29日)', time: '18:40 – 19:40',
-      menteeMessage: '導師您好，我是 Sylvia。目前工作上遇到了跨組協作的溝通瓶頸，希望想跟導師請教如何建立更有信任感的同步機制，謝謝！',
+      date: '今天 (2026年7月29日)',
+      time: '18:40 – 19:40',
+      menteeMessage:
+        '導師您好，我是 Sylvia。目前工作上遇到了跨組協作的溝通瓶頸，希望想跟導師請教如何建立更有信任感的同步機制，謝謝！',
       mentorMessage: 'Sylvia 妳好！這幾乎是所有工程師必經的痛點。等下見！',
-      dtstart: minutesFromNow(15), dtend: minutesFromNow(75),
+      dtstart: minutesFromNow(15),
+      dtend: minutesFromNow(75),
     },
     {
-      id: 'res-upcoming-live-6', name: '徐偉傑 (Albert Hsu)',
-      avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
+      id: 'res-upcoming-live-6',
+      name: '徐偉傑 (Albert Hsu)',
+      avatar:
+        'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
       roleLine: 'CyberLink Product Manager',
-      date: '今天 (2026年7月29日)', time: '18:00 – 19:00',
-      menteeMessage: '導師您好！我是 Albert。近期正推行敏捷開發 Scrum，希望能向導師請教如何塑造心理安全感並優化 Retrospective 流程，謝謝！',
-      mentorMessage: 'Albert 你好！Scrum 最難的是 Mindset 轉變而非流程。等會見！',
-      dtstart: minutesFromNow(-15), dtend: minutesFromNow(45),
+      date: '今天 (2026年7月29日)',
+      time: '18:00 – 19:00',
+      menteeMessage:
+        '導師您好！我是 Albert。近期正推行敏捷開發 Scrum，希望能向導師請教如何塑造心理安全感並優化 Retrospective 流程，謝謝！',
+      mentorMessage:
+        'Albert 你好！Scrum 最難的是 Mindset 轉變而非流程。等會見！',
+      dtstart: minutesFromNow(-15),
+      dtend: minutesFromNow(45),
     },
   ];
 
   const PENDING_MENTOR = [
     {
-      id: 'res-pending-mentor-1', name: '林小英 (Chloe Lin)',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
+      id: 'res-pending-mentor-1',
+      name: '林小英 (Chloe Lin)',
+      avatar:
+        'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
       roleLine: 'UIUX 新人 / 轉職探索中',
-      date: '2026年8月10日 (星期一)', time: '19:00 – 20:00',
-      menteeMessage: '導師您好！我目前正在自學 UIUX 設計，正在建立第一個作品集。想請教導師在設計 User Flow 與 Wireframe 時有沒有什麼實務上的秘訣？謝謝！',
-      dtstart: daysFromNow(5), dtend: daysFromNow(5) + 3600,
+      date: '2026年8月10日 (星期一)',
+      time: '19:00 – 20:00',
+      menteeMessage:
+        '導師您好！我目前正在自學 UIUX 設計，正在建立第一個作品集。想請教導師在設計 User Flow 與 Wireframe 時有沒有什麼實務上的秘訣？謝謝！',
+      dtstart: daysFromNow(5),
+      dtend: daysFromNow(5) + 3600,
     },
   ];
 
   const PENDING_MENTEE = [
     {
-      id: 'res-pending-mentee-2', name: '張大同 (Harrison Chang)',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+      id: 'res-pending-mentee-2',
+      name: '張大同 (Harrison Chang)',
+      avatar:
+        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
       roleLine: 'LINE 台灣 Technical Lead / 雲端架構專家',
-      date: '2026年8月12日 (星期三)', time: '21:00 – 22:00',
-      menteeMessage: 'Harrison 導師您好！我目前任職於中型企業，團隊正在評估將傳統伺服器架構遷移至 AWS 雲端，希望能跟導師探討最佳實踐，謝謝！',
-      dtstart: daysFromNow(7), dtend: daysFromNow(7) + 3600,
+      date: '2026年8月12日 (星期三)',
+      time: '21:00 – 22:00',
+      menteeMessage:
+        'Harrison 導師您好！我目前任職於中型企業，團隊正在評估將傳統伺服器架構遷移至 AWS 雲端，希望能跟導師探討最佳實踐，謝謝！',
+      dtstart: daysFromNow(7),
+      dtend: daysFromNow(7) + 3600,
     },
   ];
 
   const HISTORY = [
     {
-      id: 'res-history-ended-7', name: '周杰倫 (Jay Chou)',
-      avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
+      id: 'res-history-ended-7',
+      name: '周杰倫 (Jay Chou)',
+      avatar:
+        'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
       roleLine: '國立清華大學 資工系四年級 / 準備轉戰產品經理',
-      date: '2026年7月20日 (星期一)', time: '20:00 – 21:00',
+      date: '2026年7月20日 (星期一)',
+      time: '20:00 – 21:00',
       messages: [
-        { content: '導師您好！我是 Jay。我雖然是資工背景，但我更希望未來能成為跨領域的產品經理。想請教導師身為無經驗的畢業生，應如何展現自己的優勢？謝謝！', role: 'MENTEE' },
-        { content: 'Jay 你好！資工背景在產品經理中其實非常搶手（尤其是 Technical PM 領域）。我會幫你剖析如何把系統性思考包裝成產品管理的優勢。期待交流！', role: 'MENTOR' },
+        {
+          content:
+            '導師您好！我是 Jay。我雖然是資工背景，但我更希望未來能成為跨領域的產品經理。想請教導師身為無經驗的畢業生，應如何展現自己的優勢？謝謝！',
+          role: 'MENTEE',
+        },
+        {
+          content:
+            'Jay 你好！資工背景在產品經理中其實非常搶手（尤其是 Technical PM 領域）。我會幫你剖析如何把系統性思考包裝成產品管理的優勢。期待交流！',
+          role: 'MENTOR',
+        },
       ],
       cancelledBy: null,
     },
     {
-      id: 'res-history-cancelled-mentor-8', name: '林建華 (Arthur Lin)',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+      id: 'res-history-cancelled-mentor-8',
+      name: '林建華 (Arthur Lin)',
+      avatar:
+        'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
       roleLine: 'Microsoft 總部 Senior Azure Principal Consultant',
-      date: '2026年7月15日 (星期三)', time: '10:00 – 11:00',
+      date: '2026年7月15日 (星期三)',
+      time: '10:00 – 11:00',
       messages: [
-        { content: 'Arthur 導師您好，非常感謝您撥空。我想向您請教關於微服務架構下的分散式交易處理的最佳決策路徑，謝謝您！', role: 'MENTEE' },
+        {
+          content:
+            'Arthur 導師您好，非常感謝您撥空。我想向您請教關於微服務架構下的分散式交易處理的最佳決策路徑，謝謝您！',
+          role: 'MENTEE',
+        },
       ],
       cancelledBy: 'MENTOR',
     },
     {
-      id: 'res-history-cancelled-mentee-9', name: '蔡依林 (Jolin Tsai)',
-      avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&auto=format&fit=crop&q=80',
+      id: 'res-history-cancelled-mentee-9',
+      name: '蔡依林 (Jolin Tsai)',
+      avatar:
+        'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&auto=format&fit=crop&q=80',
       roleLine: '新創公司 UIUX 設計師 / 工作 1 年',
-      date: '2026年7月10日 (星期五)', time: '15:00 – 16:00',
+      date: '2026年7月10日 (星期五)',
+      time: '15:00 – 16:00',
       messages: [
-        { content: '導師您好，目前團隊剛開始推行 Design System，想向導師取經，了解在中大型專案中如何建立持久且彈性的 Token 系統。謝謝！', role: 'MENTEE' },
+        {
+          content:
+            '導師您好，目前團隊剛開始推行 Design System，想向導師取經，了解在中大型專案中如何建立持久且彈性的 Token 系統。謝謝！',
+          role: 'MENTEE',
+        },
       ],
       cancelledBy: 'MENTEE',
     },
   ];
 
   /* ================= icons ================= */
-  const ICON_CALENDAR = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 2v3M17 2v3M3.5 9h17M4 5h16a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  const ICON_CLOCK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  const ICON_MAIL = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="m4 7 8 6 8-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  const ICON_MSG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5 8.4 8.4 0 0 1-3.4-.7L3 21l1.7-4.6A8.4 8.4 0 0 1 3.5 12.5 8.5 8.5 0 0 1 12 4a8.5 8.5 0 0 1 9 7.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+  const ICON_CALENDAR =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 2v3M17 2v3M3.5 9h17M4 5h16a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICON_CLOCK =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICON_MAIL =
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="m4 7 8 6 8-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICON_MSG =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5 8.4 8.4 0 0 1-3.4-.7L3 21l1.7-4.6A8.4 8.4 0 0 1 3.5 12.5 8.5 8.5 0 0 1 12 4a8.5 8.5 0 0 1 9 7.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
 
   function initials(name) {
-    return name.split(' ').map((n) => n[0]).slice(0, 2).join('') || 'U';
+    return (
+      name
+        .split(' ')
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join('') || 'U'
+    );
   }
 
   function avatarHtml(item, size) {
-    return `<img src="${item.avatar}" alt="${item.name}" onerror="this.remove()" />` +
-      `<span class="rv-avatar-fallback">${initials(item.name)}</span>`;
+    return (
+      `<img src="${item.avatar}" alt="${item.name}" onerror="this.remove()" />` +
+      `<span class="rv-avatar-fallback">${initials(item.name)}</span>`
+    );
   }
 
   /* ================= status badge (useReservationTimeStatus reproduction) ================= */
-  const ONE_MIN = 60000, ONE_HOUR = 3.6e6, ONE_DAY = 8.64e7;
+  const ONE_MIN = 60000,
+    ONE_HOUR = 3.6e6,
+    ONE_DAY = 8.64e7;
   function computeStatus(dtstart, dtend) {
-    const startMs = dtstart * 1000, endMs = dtend * 1000, nowMs = Date.now();
+    const startMs = dtstart * 1000,
+      endMs = dtend * 1000,
+      nowMs = Date.now();
     if (nowMs >= endMs) return { status: 'ended', label: '已結束' };
     if (nowMs >= startMs) return { status: 'live', label: '進行中' };
     const diff = startMs - nowMs;
-    if (diff >= ONE_DAY) return { status: 'far', label: `${Math.floor(diff / ONE_DAY)} 天後` };
-    if (diff >= ONE_HOUR) return { status: 'soon', label: `${Math.floor(diff / ONE_HOUR)} 小時後開始` };
-    if (diff >= ONE_MIN) return { status: 'imminent', label: `${Math.floor(diff / ONE_MIN)} 分鐘後開始` };
+    if (diff >= ONE_DAY)
+      return { status: 'far', label: `${Math.floor(diff / ONE_DAY)} 天後` };
+    if (diff >= ONE_HOUR)
+      return {
+        status: 'soon',
+        label: `${Math.floor(diff / ONE_HOUR)} 小時後開始`,
+      };
+    if (diff >= ONE_MIN)
+      return {
+        status: 'imminent',
+        label: `${Math.floor(diff / ONE_MIN)} 分鐘後開始`,
+      };
     return { status: 'imminent', label: '即將開始' };
   }
   function statusBadgeHtml(item) {
@@ -2213,12 +2669,18 @@
   function messagesHtml(item) {
     const blocks = [];
     if (item.menteeMessage) {
-      blocks.push(`<div class="rv-message-block">${ICON_MSG}<div style="min-width:0;flex:1"><div class="rv-message-label">學員留言</div><div class="rv-message-content">${item.menteeMessage}</div></div></div>`);
+      blocks.push(
+        `<div class="rv-message-block">${ICON_MSG}<div style="min-width:0;flex:1"><div class="rv-message-label">學員留言</div><div class="rv-message-content">${item.menteeMessage}</div></div></div>`
+      );
     }
     if (item.mentorMessage) {
-      blocks.push(`<div class="rv-message-block">${ICON_MSG}<div style="min-width:0;flex:1"><div class="rv-message-label">導師回覆</div><div class="rv-message-content">${item.mentorMessage}</div></div></div>`);
+      blocks.push(
+        `<div class="rv-message-block">${ICON_MSG}<div style="min-width:0;flex:1"><div class="rv-message-label">導師回覆</div><div class="rv-message-content">${item.mentorMessage}</div></div></div>`
+      );
     }
-    return blocks.length ? `<div class="rv-messages">${blocks.join('')}</div>` : '';
+    return blocks.length
+      ? `<div class="rv-messages">${blocks.join('')}</div>`
+      : '';
   }
 
   function cardHtml(item, variant) {
@@ -2276,12 +2738,15 @@
     if (!items.length) html = emptyHtml();
     if (items.length && state.upcomingHasMore) html += loadMoreHtml('upcoming');
     el.innerHTML = html;
-    document.getElementById('count-upcoming').textContent = String(items.length);
+    document.getElementById('count-upcoming').textContent = String(
+      items.length
+    );
   }
 
   function renderPending() {
     const el = document.getElementById('list-pending');
-    const variant = state.role === 'mentor' ? 'pending-mentor' : 'pending-mentee';
+    const variant =
+      state.role === 'mentor' ? 'pending-mentor' : 'pending-mentee';
     const items = state.emptyMode ? [] : state.pending[state.role];
     let html = items.map((it) => cardHtml(it, variant)).join('');
     if (!items.length) html = emptyHtml();
@@ -2313,9 +2778,14 @@
 
   function updateRoleUI() {
     const isMentee = state.role === 'mentee';
-    document.getElementById('rv-title').textContent = isMentee ? '預約導師' : '擔任導師';
-    document.getElementById('pending-label').textContent = isMentee ? '等待回復' : '待您回復';
-    document.getElementById('url-bar').textContent = `x-talent.example.com/reservation/${state.role}`;
+    document.getElementById('rv-title').textContent = isMentee
+      ? '預約導師'
+      : '擔任導師';
+    document.getElementById('pending-label').textContent = isMentee
+      ? '等待回復'
+      : '待您回復';
+    document.getElementById('url-bar').textContent =
+      `x-talent.example.com/reservation/${state.role}`;
   }
 
   /* ================= tabs ================= */
@@ -2324,11 +2794,17 @@
     btn.addEventListener('click', () => {
       const tab = btn.dataset.tab;
       state.activeTab = tab;
-      tabButtons.forEach((b) => b.setAttribute('aria-selected', String(b === btn)));
+      tabButtons.forEach((b) =>
+        b.setAttribute('aria-selected', String(b === btn))
+      );
       document.querySelectorAll('.rv-tabpanel').forEach((p) => {
         p.hidden = p.dataset.panel !== tab;
       });
-      if (tab === 'history' && !state.isHistoryLoaded && !state.isHistoryLoading) {
+      if (
+        tab === 'history' &&
+        !state.isHistoryLoaded &&
+        !state.isHistoryLoading
+      ) {
         state.isHistoryLoading = true;
         document.getElementById('list-history').innerHTML = skeletonHtml(3);
         setTimeout(() => {
@@ -2346,7 +2822,9 @@
     const btn = e.target.closest('button[data-role]');
     if (!btn) return;
     state.role = btn.dataset.role;
-    document.querySelectorAll('#role-toggle button').forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+    document
+      .querySelectorAll('#role-toggle button')
+      .forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
     syncHeaderUser();
     renderAll();
   });
@@ -2366,12 +2844,15 @@
       state.upcoming.push({
         id: 'res-upcoming-extra-' + Date.now(),
         name: '陳冠宇 (Kevin Chen)',
-        avatar: 'https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=150&auto=format&fit=crop&q=80',
+        avatar:
+          'https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=150&auto=format&fit=crop&q=80',
         roleLine: 'Cathay Financial Holdings / 數據工程師',
-        date: '2026年8月18日 (星期二)', time: '20:00 – 21:00',
+        date: '2026年8月18日 (星期二)',
+        time: '20:00 – 21:00',
         menteeMessage: '',
         mentorMessage: '',
-        dtstart: daysFromNow(9), dtend: daysFromNow(9) + 3600,
+        dtstart: daysFromNow(9),
+        dtend: daysFromNow(9) + 3600,
       });
       state.upcomingHasMore = false;
       renderUpcoming();
@@ -2421,7 +2902,8 @@
     const msgWrap = document.getElementById('accept-message-wrap');
     if (item.menteeMessage) {
       msgWrap.hidden = false;
-      document.getElementById('accept-message').textContent = item.menteeMessage;
+      document.getElementById('accept-message').textContent =
+        item.menteeMessage;
     } else {
       msgWrap.hidden = true;
     }
@@ -2436,19 +2918,27 @@
     acceptDialog.classList.remove('is-open');
     acceptTargetId = null;
   }
-  document.getElementById('accept-close').addEventListener('click', closeAcceptDialog);
-  document.getElementById('accept-cancel-btn').addEventListener('click', closeAcceptDialog);
+  document
+    .getElementById('accept-close')
+    .addEventListener('click', closeAcceptDialog);
+  document
+    .getElementById('accept-cancel-btn')
+    .addEventListener('click', closeAcceptDialog);
   acceptOverlay.addEventListener('click', closeAcceptDialog);
-  document.getElementById('accept-reply-open').addEventListener('click', (e) => {
-    document.getElementById('accept-reply-wrap').hidden = false;
-    e.currentTarget.hidden = true;
-  });
-  document.getElementById('accept-confirm-btn').addEventListener('click', () => {
-    if (!acceptTargetId) return;
-    findAndRemove(state.pending.mentor, acceptTargetId);
-    closeAcceptDialog();
-    renderAll();
-  });
+  document
+    .getElementById('accept-reply-open')
+    .addEventListener('click', (e) => {
+      document.getElementById('accept-reply-wrap').hidden = false;
+      e.currentTarget.hidden = true;
+    });
+  document
+    .getElementById('accept-confirm-btn')
+    .addEventListener('click', () => {
+      if (!acceptTargetId) return;
+      findAndRemove(state.pending.mentor, acceptTargetId);
+      closeAcceptDialog();
+      renderAll();
+    });
 
   /* ---- reject dialog ---- */
   const rejectOverlay = document.getElementById('reject-overlay');
@@ -2472,8 +2962,12 @@
   rejectReason.addEventListener('input', () => {
     rejectConfirmBtn.disabled = rejectReason.value.trim().length === 0;
   });
-  document.getElementById('reject-close').addEventListener('click', closeRejectDialog);
-  document.getElementById('reject-cancel-btn').addEventListener('click', closeRejectDialog);
+  document
+    .getElementById('reject-close')
+    .addEventListener('click', closeRejectDialog);
+  document
+    .getElementById('reject-cancel-btn')
+    .addEventListener('click', closeRejectDialog);
   rejectOverlay.addEventListener('click', closeRejectDialog);
   rejectConfirmBtn.addEventListener('click', () => {
     if (!rejectTargetId || rejectReason.value.trim().length === 0) return;
@@ -2493,7 +2987,9 @@
     const item = findItem(id);
     cancelTargetId = id;
     cancelReason.value = '';
-    cancelReason.placeholder = item ? `您好 ${item.name.split(' ')[0]}，...` : '您好，...';
+    cancelReason.placeholder = item
+      ? `您好 ${item.name.split(' ')[0]}，...`
+      : '您好，...';
     cancelConfirmBtn.disabled = true;
     cancelOverlay.classList.add('is-open');
     cancelDialog.classList.add('is-open');
@@ -2506,8 +3002,12 @@
   cancelReason.addEventListener('input', () => {
     cancelConfirmBtn.disabled = cancelReason.value.trim().length === 0;
   });
-  document.getElementById('cancel-close').addEventListener('click', closeCancelDialog);
-  document.getElementById('cancel-close-btn').addEventListener('click', closeCancelDialog);
+  document
+    .getElementById('cancel-close')
+    .addEventListener('click', closeCancelDialog);
+  document
+    .getElementById('cancel-close-btn')
+    .addEventListener('click', closeCancelDialog);
   cancelOverlay.addEventListener('click', closeCancelDialog);
   cancelConfirmBtn.addEventListener('click', () => {
     if (!cancelTargetId || cancelReason.value.trim().length === 0) return;
@@ -2525,13 +3025,16 @@
     const item = findItem(id);
     if (!item) return;
     document.getElementById('conv-avatar').innerHTML = avatarHtml(item);
-    document.getElementById('conv-sub').textContent = item.roleLine ? `${item.name} · ${item.roleLine}` : item.name;
+    document.getElementById('conv-sub').textContent = item.roleLine
+      ? `${item.name} · ${item.roleLine}`
+      : item.name;
     document.getElementById('conv-date').textContent = item.date;
     document.getElementById('conv-time').textContent = item.time;
     const body = document.getElementById('conv-body');
     const messages = (item.messages || []).slice().reverse();
     if (!messages.length) {
-      body.innerHTML = '<p style="text-align:center;color:var(--color-text-tertiary);font-size:14px;padding:32px 0">尚無對話內容</p>';
+      body.innerHTML =
+        '<p style="text-align:center;color:var(--color-text-tertiary);font-size:14px;padding:32px 0">尚無對話內容</p>';
     } else {
       body.innerHTML = messages
         .map((m, i, arr) => {
@@ -2552,7 +3055,9 @@
     convOverlay.classList.remove('is-open');
     convDialog.classList.remove('is-open');
   }
-  document.getElementById('conv-close').addEventListener('click', closeConversationDialog);
+  document
+    .getElementById('conv-close')
+    .addEventListener('click', closeConversationDialog);
   convOverlay.addEventListener('click', closeConversationDialog);
 
   document.addEventListener('keydown', (e) => {
@@ -2560,7 +3065,8 @@
     if (acceptDialog.classList.contains('is-open')) closeAcceptDialog();
     else if (rejectDialog.classList.contains('is-open')) closeRejectDialog();
     else if (cancelDialog.classList.contains('is-open')) closeCancelDialog();
-    else if (convDialog.classList.contains('is-open')) closeConversationDialog();
+    else if (convDialog.classList.contains('is-open'))
+      closeConversationDialog();
     else if (state.sheet) closeAnySheet();
     else if (state.dropdownOpen) closeDropdown();
   });
@@ -2586,9 +3092,13 @@
 
   function syncHeaderUser() {
     const user = USERS[state.role];
-    document.querySelectorAll('#dd-avatar-32, #dd-avatar-56, #mobile-avatar-32, #sheet-avatar-56').forEach((el) => {
-      el.textContent = user.initial;
-    });
+    document
+      .querySelectorAll(
+        '#dd-avatar-32, #dd-avatar-56, #mobile-avatar-32, #sheet-avatar-56'
+      )
+      .forEach((el) => {
+        el.textContent = user.initial;
+      });
     document.getElementById('dd-name').textContent = user.name;
     document.getElementById('sheet-user-name').textContent = user.name;
     document.querySelectorAll('.role-label').forEach((el) => {
@@ -2606,12 +3116,15 @@
     dropdownPanel.classList.remove('is-open');
     dropdownTrigger.setAttribute('aria-expanded', 'false');
   }
-  dropdownTrigger.addEventListener('click', () => (state.dropdownOpen ? closeDropdown() : openDropdown()));
+  dropdownTrigger.addEventListener('click', () =>
+    state.dropdownOpen ? closeDropdown() : openDropdown()
+  );
   dropdownPanel.addEventListener('click', (e) => {
     if (e.target.closest('.dd-item, .dd-profile')) closeDropdown();
   });
   document.addEventListener('click', (e) => {
-    if (state.dropdownOpen && !dropdownAnchor.contains(e.target)) closeDropdown();
+    if (state.dropdownOpen && !dropdownAnchor.contains(e.target))
+      closeDropdown();
   });
 
   function openSheet(which) {
@@ -2636,19 +3149,28 @@
   }
   hamburgerTrigger.addEventListener('click', () => openSheet('nav'));
   mobileAvatarTrigger.addEventListener('click', () => openSheet('user'));
-  document.getElementById('nav-sheet-close').addEventListener('click', () => closeSheet('nav'));
-  document.getElementById('user-sheet-close').addEventListener('click', () => closeSheet('user'));
+  document
+    .getElementById('nav-sheet-close')
+    .addEventListener('click', () => closeSheet('nav'));
+  document
+    .getElementById('user-sheet-close')
+    .addEventListener('click', () => closeSheet('user'));
   navOverlay.addEventListener('click', () => closeSheet('nav'));
   userOverlay.addEventListener('click', () => closeSheet('user'));
-  navPanel.querySelectorAll('a').forEach((el) => el.addEventListener('click', () => closeSheet('nav')));
-  userPanel.querySelectorAll('button').forEach((el) => el.addEventListener('click', () => closeSheet('user')));
+  navPanel
+    .querySelectorAll('a')
+    .forEach((el) => el.addEventListener('click', () => closeSheet('nav')));
+  userPanel
+    .querySelectorAll('button')
+    .forEach((el) => el.addEventListener('click', () => closeSheet('user')));
 
   /* ================= width control ================= */
   const slider = document.getElementById('width-slider');
   const widthNum = document.getElementById('width-num');
   const bpPill = document.getElementById('bp-pill');
   const presetRow = document.getElementById('preset-row');
-  const MIN_W = 320, MAX_W = 1100;
+  const MIN_W = 320,
+    MAX_W = 1100;
 
   function bpLabel(px) {
     if (px >= 768) return 'md+ 版型';
@@ -2663,7 +3185,11 @@
     widthNum.textContent = px + 'px';
     bpPill.innerHTML = bpLabel(px);
     if (syncPresets !== false) {
-      presetRow.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.w) === px)));
+      presetRow
+        .querySelectorAll('button')
+        .forEach((b) =>
+          b.setAttribute('aria-pressed', String(Number(b.dataset.w) === px))
+        );
     }
     closeAnySheet();
     closeDropdown();
