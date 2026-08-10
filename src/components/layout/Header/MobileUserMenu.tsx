@@ -124,7 +124,7 @@ export function MobileUserMenu({
             {/* Share Profile */}
             <Button
               variant="outline"
-              className="mb-6 h-12 w-full rounded-2xl text-base font-semibold"
+              className="mb-4 h-12 w-full rounded-2xl text-base font-semibold"
               onClick={handleShareProfile}
               disabled={!userId}
             >
@@ -134,7 +134,7 @@ export function MobileUserMenu({
             <div className="h-px w-full bg-background-bottom" />
 
             {/* Account actions */}
-            <nav className="flex flex-col py-2">
+            <nav className="flex flex-col pt-0 pb-2">
               <button
                 type="button"
                 onClick={handleAsMentor}
