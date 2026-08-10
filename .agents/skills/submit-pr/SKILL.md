@@ -42,19 +42,28 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
        ```
 
 3. **Publish Screenshot Evidence (UI-facing changes only)**
-   - If `/implement` Step 2 captured screenshot files for this change, publish them to the shared evidence branch to get stable, embeddable links:
+   - **Mandatory Screenshot Policy**: For any UI-facing change (any visual change on pages, components, layout, navigation, onboarding, profile, header, or footer), screenshot evidence **MUST** be present.
+   - **Automatic Local Screenshot Generation**: If `.agents/tmp/evidence/` is empty or missing, you **MUST NOT** skip this step. Instead, automatically:
+     1. Start the local dev server (`pnpm dev`) in the background.
+     2. Wait for it to become ready (listen on port 3000).
+     3. Launch Playwright or `chrome-devtools-axi` to navigate to `http://localhost:3000`.
+     4. Authenticate for real through the sign-in form using the respective role credentials (`DESIGN_AUDIT_MENTEE_EMAIL` / `DESIGN_AUDIT_MENTEE_PASSWORD` and `DESIGN_AUDIT_MENTOR_EMAIL` / `DESIGN_AUDIT_MENTOR_PASSWORD` from `.env.development.local`).
+     5. Capture screenshots for all reachable states and roles (visitor, mentee, mentor) in both Desktop (1280x800) and Mobile (375x812) viewports.
+     6. Save files into `.agents/tmp/evidence/`.
+     7. Shut down/kill the background dev server process.
+   - Publish the captured screenshot files to the shared evidence branch to get stable, embeddable links:
      - **On macOS/Linux (Bash/Zsh)**:
        ```bash
-       bash .agents/scripts/publish-evidence.sh <file1> [<file2> ...]
+       bash .agents/scripts/publish-evidence.sh .agents/tmp/evidence/*.png
        ```
      - **On Windows (PowerShell)**:
        ```powershell
-       & .agents/scripts/publish-evidence.ps1 <file1> [<file2> ...]
+       Get-ChildItem -Path .agents\tmp\evidence\*.png | ForEach-Object { & .agents/scripts/publish-evidence.ps1 $_.FullName }
        ```
    - Each stdout line is one `https://raw.githubusercontent.com/...` URL, in the same order as the input files — one per screenshot. Keep these for Step 4's commit message.
    - The script pushes straight to a dedicated `pr-evidence` branch via git plumbing (`hash-object`/`read-tree`/`commit-tree`); it never touches your current branch, working tree, staged changes, or index, so it is safe to run at any point in this flow.
    - **Failure is non-blocking**: if the script errors (e.g. no push permission), do not halt the PR — skip embedding screenshots and leave the `## Screenshot` section as `N/A`.
-   - If there is no UI-facing change or no screenshots were captured, skip this step entirely.
+   - If there is no UI-facing change at all (e.g. pure config, backend tests, server scripts), skip this step entirely.
 
 4. **Commit with High-lighted Changes & Push**
    - Write a mature, professional conventional commit message.
