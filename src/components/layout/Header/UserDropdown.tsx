@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { Session } from 'next-auth';
 import * as React from 'react';
@@ -15,7 +16,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAccountMenu } from '@/hooks/layout/useAccountMenu';
+import { trackEvent } from '@/lib/analytics';
 
+import { FEEDBACK_FORM_URL } from './constants';
 import { ShareProfileDialog } from './ShareProfileDialog';
 
 export type UserDropdownProps = {
@@ -145,6 +148,32 @@ export const UserDropdown = React.memo(function UserDropdown({
               aria-current={isOnMenteeReservation ? 'page' : undefined}
             >
               我的預約
+            </DropdownMenuItem>
+
+            <DropdownMenuItem className="px-4 py-3 text-2xl" asChild>
+              <Link href="/mentor-pool" onClick={closeMenu}>
+                尋找導師
+              </Link>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem className="px-4 py-3 text-2xl" asChild>
+              <Link href="/about" onClick={closeMenu}>
+                關於 X-Talent
+              </Link>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem className="px-4 py-3 text-2xl" asChild>
+              <a
+                href={FEEDBACK_FORM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  trackEvent({ name: 'feedback_open' });
+                  closeMenu();
+                }}
+              >
+                提供回饋
+              </a>
             </DropdownMenuItem>
 
             <DropdownMenuItem

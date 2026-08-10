@@ -2,6 +2,7 @@
 
 import { Cross2Icon } from '@radix-ui/react-icons';
 import Image from 'next/image';
+import Link from 'next/link';
 import type { Session } from 'next-auth';
 import * as React from 'react';
 
@@ -16,7 +17,9 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { useAccountMenu } from '@/hooks/layout/useAccountMenu';
+import { trackEvent } from '@/lib/analytics';
 
+import { FEEDBACK_FORM_URL } from './constants';
 import { ShareProfileDialog } from './ShareProfileDialog';
 
 export type MobileUserMenuProps = {
@@ -140,6 +143,32 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
               >
                 我的預約
               </button>
+              <Link
+                href="/mentor-pool"
+                onClick={closeMenu}
+                className="py-4 text-left text-xl text-text-primary"
+              >
+                尋找導師
+              </Link>
+              <Link
+                href="/about"
+                onClick={closeMenu}
+                className="py-4 text-left text-xl text-text-primary"
+              >
+                關於 X-Talent
+              </Link>
+              <a
+                href={FEEDBACK_FORM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  trackEvent({ name: 'feedback_open' });
+                  closeMenu();
+                }}
+                className="py-4 text-left text-xl text-text-primary"
+              >
+                提供回饋
+              </a>
             </nav>
 
             <div className="flex flex-col pb-6">

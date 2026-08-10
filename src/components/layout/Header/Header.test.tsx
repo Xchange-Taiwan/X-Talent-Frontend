@@ -205,4 +205,31 @@ describe('Header', () => {
       'hidden group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block'
     );
   });
+
+  it('hides inline navigation links on desktop when the user is logged in', () => {
+    mockUseSession.mockReturnValue({
+      data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
+      status: 'authenticated',
+    });
+    mockUseAuthStatus.mockReturnValue({
+      authKnown: true,
+      isLoggedIn: true,
+      isMentor: false,
+      userId: 'user-123',
+      hasFullUser: true,
+      isResolvingUser: false,
+    });
+
+    render(<Header />);
+
+    expect(
+      screen.queryByRole('link', { name: '尋找導師' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: '關於 X-Talent' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: '提供回饋' })
+    ).not.toBeInTheDocument();
+  });
 });
