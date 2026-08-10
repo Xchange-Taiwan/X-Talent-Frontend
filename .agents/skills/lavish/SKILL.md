@@ -21,6 +21,11 @@ In restricted subprocess sandboxes, CI, or agent harnesses where `npx -y` exits 
 
 - The version above is pinned deliberately (`@0.1.45`). Do not drop the version pin or bump it without a maintainer reviewing the change - `lavish-axi` is a young, single-maintainer, fast-releasing third-party CLI, and pinning avoids an unreviewed update executing on a teammate's machine.
 - Never run the `share` command on artifacts that contain X-Talent product, architecture, customer, or user data. `share` publishes to the third-party host ht-ml.app and is PUBLIC by default. Only use `export` (local file) unless the user explicitly asks for a public/password-protected link and confirms the content is safe to leave the org's control.
+- Every artifact built in this repo must use X-Talent's own design system, not the DaisyUI/CDN fallback and not hand-picked colors or ad-hoc styling:
+  - Colors, shadows, and other tokens come from `src/design/tokens/` (`color.ts`, `color-values.ts`, `shadow.ts`) as consumed by `tailwind.config.js` - never hardcode a hex/rgb value or invent a shade that isn't backed by a token.
+  - UI elements are built from the existing components in `src/components/ui/*.tsx` (CVA variants) - reuse the matching component and variant instead of recreating its look with raw HTML/CSS.
+  - Only create a new component (in the artifact's own HTML/CSS) if no existing `src/components/ui` component covers that element; when you do, still restyle it using the project's design tokens rather than arbitrary values.
+  - This applies regardless of what the artifact is about (product UI mockups, plans, comparisons, reports, diagrams, etc.) - the artifact's own chrome should still look like an X-Talent surface.
 
 ## Request
 
