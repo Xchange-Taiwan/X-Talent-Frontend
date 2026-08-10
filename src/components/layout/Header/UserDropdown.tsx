@@ -144,6 +144,14 @@ export const UserDropdown = React.memo(function UserDropdown({
               {isMentor ? '導師預約管理' : '成為導師'}
             </DropdownMenuItem>
 
+            {isMentor && (
+              <DropdownMenuItem className="px-4 py-3 text-2xl" asChild>
+                <Link href={profilePath} onClick={closeMenu}>
+                  我的導師頁面
+                </Link>
+              </DropdownMenuItem>
+            )}
+
             <DropdownMenuItem
               className="px-4 py-3 text-2xl"
               onClick={handleMyReservation}

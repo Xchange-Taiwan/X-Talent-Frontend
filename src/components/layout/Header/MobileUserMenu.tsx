@@ -140,6 +140,15 @@ export function MobileUserMenu({
               >
                 {isMentor ? '導師預約管理' : '成為導師'}
               </button>
+              {isMentor && (
+                <Link
+                  href={profilePath}
+                  onClick={closeMenu}
+                  className="py-4 text-left text-xl text-text-primary"
+                >
+                  我的導師頁面
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={handleMyReservation}

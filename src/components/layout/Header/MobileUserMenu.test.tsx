@@ -90,4 +90,30 @@ describe('MobileUserMenu', () => {
       screen.queryByRole('link', { name: '提供回饋' })
     ).not.toBeInTheDocument();
   });
+
+  it('renders "我的導師頁面" link if user is a mentor, but not if they are a guest/mentee', () => {
+    // 1. Mentee (isMentor: false)
+    const { rerender } = render(
+      <MobileUserMenu user={buildUser({ isMentor: false, id: 'user-123' })} />
+    );
+    // Open user menu
+    const trigger = screen.getByRole('button', { name: '開啟用戶選單' });
+    fireEvent.click(trigger);
+
+    expect(
+      screen.queryByRole('link', { name: '我的導師頁面' })
+    ).not.toBeInTheDocument();
+
+    // 2. Mentor (isMentor: true)
+    rerender(
+      <MobileUserMenu user={buildUser({ isMentor: true, id: 'user-123' })} />
+    );
+    expect(
+      screen.getByRole('link', { name: '我的導師頁面' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '我的導師頁面' })).toHaveAttribute(
+      'href',
+      '/profile/user-123'
+    );
+  });
 });

@@ -15,32 +15,10 @@ import {
 import { trackEvent } from '@/lib/analytics';
 
 import { FEEDBACK_FORM_URL } from './constants';
-import { DisabledAwareLink } from './DisabledAwareLink';
-import { getBecomeMentorHref, getProfileHref } from './navHrefs';
 
-export type HamburgerMenuProps = {
-  isLoggedIn: boolean;
-  isMentor: boolean;
-  userId?: string;
-  /**
-   * Logged in per the fast session hint, but `userId` hasn't landed yet —
-   * owned by Header's `useAuthStatus()`, passed down rather than re-derived
-   * here so the two never drift out of sync.
-   */
-  isResolvingUser: boolean;
-};
-
-export function HamburgerMenu({
-  isLoggedIn,
-  isMentor,
-  userId,
-  isResolvingUser,
-}: HamburgerMenuProps): JSX.Element {
+export function HamburgerMenu(): JSX.Element {
   const [open, setOpen] = React.useState(false);
   const close = (): void => setOpen(false);
-
-  const profilePath = getProfileHref(userId);
-  const becomeMentorPath = getBecomeMentorHref(userId);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -71,25 +49,13 @@ export function HamburgerMenu({
               尋找導師
             </Link>
 
-            {isMentor ? (
-              <DisabledAwareLink
-                href={profilePath}
-                onClick={close}
-                disabled={isResolvingUser}
-                className="text-text-primary"
-              >
-                我的導師頁面
-              </DisabledAwareLink>
-            ) : (
-              <DisabledAwareLink
-                href={becomeMentorPath}
-                onClick={close}
-                disabled={isResolvingUser}
-                className="text-text-primary"
-              >
-                成為導師
-              </DisabledAwareLink>
-            )}
+            <Link
+              href="/auth/signup"
+              onClick={close}
+              className="text-text-primary"
+            >
+              成為導師
+            </Link>
 
             <Link href="/about" onClick={close} className="text-text-primary">
               關於 X-Talent
@@ -110,23 +76,21 @@ export function HamburgerMenu({
             </a>
           </div>
 
-          {!isLoggedIn && (
-            <div className="mt-auto flex flex-col items-center gap-6 pb-6">
-              <Link href="/auth/signin" onClick={close}>
-                <Button className="w-40 bg-brand-500 hover:bg-brand-500">
-                  登入
-                </Button>
-              </Link>
-              <Link href="/auth/signup" onClick={close}>
-                <Button
-                  variant="outline"
-                  className="w-40 border-brand-500 text-brand-500 hover:text-brand-500"
-                >
-                  註冊
-                </Button>
-              </Link>
-            </div>
-          )}
+          <div className="mt-auto flex flex-col items-center gap-6 pb-6">
+            <Link href="/auth/signin" onClick={close}>
+              <Button className="w-40 bg-brand-500 hover:bg-brand-500">
+                登入
+              </Button>
+            </Link>
+            <Link href="/auth/signup" onClick={close}>
+              <Button
+                variant="outline"
+                className="w-40 border-brand-500 text-brand-500 hover:text-brand-500"
+              >
+                註冊
+              </Button>
+            </Link>
+          </div>
         </div>
       </SheetContent>
     </Sheet>

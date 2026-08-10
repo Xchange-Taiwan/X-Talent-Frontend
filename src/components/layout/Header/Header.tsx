@@ -175,12 +175,7 @@ function HeaderComponent(): JSX.Element {
                   <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block" />
                 )}
                 <div className="group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden">
-                  <HamburgerMenu
-                    isLoggedIn={isLoggedIn}
-                    isMentor={resolvedIsMentor}
-                    userId={userId}
-                    isResolvingUser={isResolvingUser}
-                  />
+                  <HamburgerMenu />
                 </div>
               </>
             )}

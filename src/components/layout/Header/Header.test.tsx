@@ -246,15 +246,35 @@ describe('Header', () => {
 
     render(<Header />);
 
-    expect(screen.getByRole('link', { name: '尋找導師' })).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: '關於 X-Talent' })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: '提供回饋（另開新分頁）' })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: '開啟導航選單' })
-    ).toBeInTheDocument();
+    const findMentorLink = screen.getByRole('link', { name: '尋找導師' });
+    const aboutLink = screen.getByRole('link', { name: '關於 X-Talent' });
+    const feedbackLink = screen.getByRole('link', {
+      name: '提供回饋（另開新分頁）',
+    });
+    const hamburgerBtn = screen.getByRole('button', { name: '開啟導航選單' });
+
+    expect(findMentorLink).toBeInTheDocument();
+    expect(findMentorLink).toHaveClass(
+      'group-data-[auth-state=mentee]:hidden',
+      'group-data-[auth-state=mentor]:hidden'
+    );
+
+    expect(aboutLink).toBeInTheDocument();
+    expect(aboutLink).toHaveClass(
+      'group-data-[auth-state=mentee]:hidden',
+      'group-data-[auth-state=mentor]:hidden'
+    );
+
+    expect(feedbackLink).toBeInTheDocument();
+    expect(feedbackLink).toHaveClass(
+      'group-data-[auth-state=mentee]:hidden',
+      'group-data-[auth-state=mentor]:hidden'
+    );
+
+    expect(hamburgerBtn).toBeInTheDocument();
+    expect(hamburgerBtn.parentElement).toHaveClass(
+      'group-data-[auth-state=mentee]:hidden',
+      'group-data-[auth-state=mentor]:hidden'
+    );
   });
 });

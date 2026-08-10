@@ -123,4 +123,26 @@ describe('UserDropdown share flow', () => {
       screen.queryByRole('menuitem', { name: '提供回饋' })
     ).not.toBeInTheDocument();
   });
+
+  it('renders "我的導師頁面" dropdown item if user is a mentor, but not if they are a mentee', () => {
+    // 1. Mentee (isMentor: false)
+    const { rerender } = render(
+      <UserDropdown user={buildUser({ isMentor: false, id: 'user-123' })} />
+    );
+    openMenu();
+    expect(
+      screen.queryByRole('menuitem', { name: '我的導師頁面' })
+    ).not.toBeInTheDocument();
+
+    // 2. Mentor (isMentor: true)
+    rerender(
+      <UserDropdown user={buildUser({ isMentor: true, id: 'user-123' })} />
+    );
+    expect(
+      screen.getByRole('menuitem', { name: '我的導師頁面' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: '我的導師頁面' })
+    ).toHaveAttribute('href', '/profile/user-123');
+  });
 });
