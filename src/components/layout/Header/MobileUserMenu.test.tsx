@@ -116,4 +116,21 @@ describe('MobileUserMenu', () => {
       '/profile/user-123'
     );
   });
+
+  it('disables "我的導師頁面" link if isResolvingUser is true', () => {
+    render(
+      <MobileUserMenu
+        user={buildUser({ isMentor: true, id: 'user-123' })}
+        isResolvingUser={true}
+      />
+    );
+    // Open user menu
+    const trigger = screen.getByRole('button', { name: '開啟用戶選單' });
+    fireEvent.click(trigger);
+
+    const mentorLink = screen.getByRole('link', { name: '我的導師頁面' });
+    expect(mentorLink).toBeInTheDocument();
+    expect(mentorLink).toHaveAttribute('aria-disabled', 'true');
+    expect(mentorLink).toHaveClass('pointer-events-none');
+  });
 });

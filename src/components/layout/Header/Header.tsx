@@ -60,25 +60,21 @@ function HeaderComponent(): JSX.Element {
 
           <nav className="hidden items-center gap-7 lg:flex">
             {!isLoggedIn && (
-              <Link
-                href={findMentorHref}
-                className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
-              >
-                尋找導師
-              </Link>
-            )}
-
-            {!isLoggedIn && (
-              <Link
-                href={getBecomeMentorHref(undefined)}
-                className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
-              >
-                成為導師
-              </Link>
-            )}
-
-            {!isLoggedIn && (
               <>
+                <Link
+                  href={findMentorHref}
+                  className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
+                >
+                  尋找導師
+                </Link>
+
+                <Link
+                  href={getBecomeMentorHref(undefined)}
+                  className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
+                >
+                  成為導師
+                </Link>
+
                 <Link
                   href="/about"
                   className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"

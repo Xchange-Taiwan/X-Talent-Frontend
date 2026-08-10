@@ -145,4 +145,19 @@ describe('UserDropdown share flow', () => {
       screen.getByRole('menuitem', { name: '我的導師頁面' })
     ).toHaveAttribute('href', '/profile/user-123');
   });
+
+  it('disables "我的導師頁面" dropdown item if isResolvingUser is true', () => {
+    render(
+      <UserDropdown
+        user={buildUser({ isMentor: true, id: 'user-123' })}
+        isResolvingUser={true}
+      />
+    );
+    openMenu();
+
+    const mentorLink = screen.getByRole('menuitem', { name: '我的導師頁面' });
+    expect(mentorLink).toBeInTheDocument();
+    expect(mentorLink).toHaveAttribute('aria-disabled', 'true');
+    expect(mentorLink).toHaveClass('pointer-events-none');
+  });
 });
