@@ -123,41 +123,4 @@ describe('UserDropdown share flow', () => {
       screen.queryByRole('menuitem', { name: '提供回饋' })
     ).not.toBeInTheDocument();
   });
-
-  it('renders "我的導師頁面" dropdown item if user is a mentor, but not if they are a mentee', () => {
-    // 1. Mentee (isMentor: false)
-    const { rerender } = render(
-      <UserDropdown user={buildUser({ isMentor: false, id: 'user-123' })} />
-    );
-    openMenu();
-    expect(
-      screen.queryByRole('menuitem', { name: '我的導師頁面' })
-    ).not.toBeInTheDocument();
-
-    // 2. Mentor (isMentor: true)
-    rerender(
-      <UserDropdown user={buildUser({ isMentor: true, id: 'user-123' })} />
-    );
-    expect(
-      screen.getByRole('menuitem', { name: '我的導師頁面' })
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('menuitem', { name: '我的導師頁面' })
-    ).toHaveAttribute('href', '/profile/user-123');
-  });
-
-  it('disables "我的導師頁面" dropdown item if isResolvingUser is true', () => {
-    render(
-      <UserDropdown
-        user={buildUser({ isMentor: true, id: 'user-123' })}
-        isResolvingUser={true}
-      />
-    );
-    openMenu();
-
-    const mentorLink = screen.getByRole('menuitem', { name: '我的導師頁面' });
-    expect(mentorLink).toBeInTheDocument();
-    expect(mentorLink).toHaveAttribute('aria-disabled', 'true');
-    expect(mentorLink).toHaveClass('pointer-events-none');
-  });
 });

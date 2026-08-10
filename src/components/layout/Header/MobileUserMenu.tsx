@@ -20,19 +20,16 @@ import { useAccountMenu } from '@/hooks/layout/useAccountMenu';
 import { trackEvent } from '@/lib/analytics';
 
 import { FEEDBACK_FORM_URL } from './constants';
-import { DisabledAwareLink } from './DisabledAwareLink';
 import { ShareProfileDialog } from './ShareProfileDialog';
 
 export type MobileUserMenuProps = {
   user: Session['user'];
   findMentorHref?: string;
-  isResolvingUser?: boolean;
 };
 
 export function MobileUserMenu({
   user,
   findMentorHref = '/mentor-pool',
-  isResolvingUser = false,
 }: MobileUserMenuProps): JSX.Element {
   const [open, setOpen] = React.useState(false);
 
@@ -143,16 +140,6 @@ export function MobileUserMenu({
               >
                 {isMentor ? '導師預約管理' : '成為導師'}
               </button>
-              {isMentor && (
-                <DisabledAwareLink
-                  href={profilePath}
-                  disabled={isResolvingUser}
-                  onClick={closeMenu}
-                  className="py-4 text-left text-xl text-text-primary"
-                >
-                  我的導師頁面
-                </DisabledAwareLink>
-              )}
               <button
                 type="button"
                 onClick={handleMyReservation}

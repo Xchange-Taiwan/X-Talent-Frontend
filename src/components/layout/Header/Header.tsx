@@ -23,8 +23,7 @@ function HeaderComponent(): JSX.Element {
   const { data: session } = useSession();
   const hint = useSessionHint();
   const currentAvatar = useCurrentAvatar();
-  const { authKnown, isLoggedIn, isMentor, userId, isResolvingUser } =
-    useAuthStatus();
+  const { authKnown, isLoggedIn, isMentor, userId } = useAuthStatus();
 
   const resolvedIsMentor = authKnown
     ? isMentor
@@ -127,7 +126,6 @@ function HeaderComponent(): JSX.Element {
               <UserDropdown
                 user={virtualUser}
                 findMentorHref={findMentorHref}
-                isResolvingUser={isResolvingUser}
               />
             ) : (
               <Skeleton className="size-9 rounded-full" />
@@ -139,7 +137,6 @@ function HeaderComponent(): JSX.Element {
               <MobileUserMenu
                 user={virtualUser}
                 findMentorHref={findMentorHref}
-                isResolvingUser={isResolvingUser}
               />
             ) : (
               <>

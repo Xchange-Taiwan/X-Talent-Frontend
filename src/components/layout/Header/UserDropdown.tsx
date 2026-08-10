@@ -19,19 +19,16 @@ import { useAccountMenu } from '@/hooks/layout/useAccountMenu';
 import { trackEvent } from '@/lib/analytics';
 
 import { FEEDBACK_FORM_URL } from './constants';
-import { DisabledAwareLink } from './DisabledAwareLink';
 import { ShareProfileDialog } from './ShareProfileDialog';
 
 export type UserDropdownProps = {
   user: Session['user'];
   findMentorHref?: string;
-  isResolvingUser?: boolean;
 };
 
 export const UserDropdown = React.memo(function UserDropdown({
   user,
   findMentorHref = '/mentor-pool',
-  isResolvingUser = false,
 }: UserDropdownProps): JSX.Element {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = React.useState(false);
@@ -146,22 +143,6 @@ export const UserDropdown = React.memo(function UserDropdown({
             >
               {isMentor ? '導師預約管理' : '成為導師'}
             </DropdownMenuItem>
-
-            {isMentor && (
-              <DropdownMenuItem
-                className="px-4 py-3 text-2xl"
-                disabled={isResolvingUser}
-                asChild
-              >
-                <DisabledAwareLink
-                  href={profilePath}
-                  disabled={isResolvingUser}
-                  onClick={closeMenu}
-                >
-                  我的導師頁面
-                </DisabledAwareLink>
-              </DropdownMenuItem>
-            )}
 
             <DropdownMenuItem
               className="px-4 py-3 text-2xl"
