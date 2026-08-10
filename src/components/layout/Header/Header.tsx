@@ -69,7 +69,7 @@ function HeaderComponent(): JSX.Element {
             {!isLoggedIn && (
               <Link
                 href={findMentorHref}
-                className="font-['Open_Sans'] text-base text-text-primary"
+                className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
               >
                 尋找導師
               </Link>
@@ -107,7 +107,7 @@ function HeaderComponent(): JSX.Element {
               <>
                 <Link
                   href="/about"
-                  className="font-['Open_Sans'] text-base text-text-primary"
+                  className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
                 >
                   關於 X-Talent
                 </Link>
@@ -118,7 +118,7 @@ function HeaderComponent(): JSX.Element {
                   rel="noopener noreferrer"
                   aria-label="提供回饋（另開新分頁）"
                   onClick={() => trackEvent({ name: 'feedback_open' })}
-                  className="font-['Open_Sans'] text-base text-text-primary"
+                  className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
                 >
                   提供回饋
                 </a>
@@ -154,7 +154,10 @@ function HeaderComponent(): JSX.Element {
                 </Link>
               </>
             ) : isLoggedIn ? (
-              <UserDropdown user={virtualUser} />
+              <UserDropdown
+                user={virtualUser}
+                findMentorHref={findMentorHref}
+              />
             ) : (
               <Skeleton className="size-9 rounded-full" />
             )}
@@ -162,18 +165,23 @@ function HeaderComponent(): JSX.Element {
 
           <div className="flex items-center gap-3 lg:hidden">
             {isLoggedIn ? (
-              <MobileUserMenu user={virtualUser} />
+              <MobileUserMenu
+                user={virtualUser}
+                findMentorHref={findMentorHref}
+              />
             ) : (
               <>
                 {!authKnown && (
                   <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block" />
                 )}
-                <HamburgerMenu
-                  isLoggedIn={isLoggedIn}
-                  isMentor={resolvedIsMentor}
-                  userId={userId}
-                  isResolvingUser={isResolvingUser}
-                />
+                <div className="group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden">
+                  <HamburgerMenu
+                    isLoggedIn={isLoggedIn}
+                    isMentor={resolvedIsMentor}
+                    userId={userId}
+                    isResolvingUser={isResolvingUser}
+                  />
+                </div>
               </>
             )}
           </div>

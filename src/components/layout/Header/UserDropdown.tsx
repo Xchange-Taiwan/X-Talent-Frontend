@@ -23,10 +23,12 @@ import { ShareProfileDialog } from './ShareProfileDialog';
 
 export type UserDropdownProps = {
   user: Session['user'];
+  findMentorHref?: string;
 };
 
 export const UserDropdown = React.memo(function UserDropdown({
   user,
+  findMentorHref = '/mentor-pool',
 }: UserDropdownProps): JSX.Element {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = React.useState(false);
@@ -151,7 +153,7 @@ export const UserDropdown = React.memo(function UserDropdown({
             </DropdownMenuItem>
 
             <DropdownMenuItem className="px-4 py-3 text-2xl" asChild>
-              <Link href="/mentor-pool" onClick={closeMenu}>
+              <Link href={findMentorHref} onClick={closeMenu}>
                 尋找導師
               </Link>
             </DropdownMenuItem>

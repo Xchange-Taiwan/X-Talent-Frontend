@@ -232,4 +232,27 @@ describe('Header', () => {
       screen.queryByRole('link', { name: '提供回饋' })
     ).not.toBeInTheDocument();
   });
+
+  it('shows inline navigation links on desktop and hamburger menu on mobile when the user is not logged in', () => {
+    mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+    mockUseAuthStatus.mockReturnValue({
+      authKnown: true,
+      isLoggedIn: false,
+      isMentor: false,
+      userId: undefined,
+      hasFullUser: false,
+      isResolvingUser: false,
+    });
+
+    render(<Header />);
+
+    expect(screen.getByRole('link', { name: '尋找導師' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: '關於 X-Talent' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '提供回饋' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '開啟導航選單' })
+    ).toBeInTheDocument();
+  });
 });

@@ -22,6 +22,11 @@ vi.mock('next/navigation', async () => {
   return navigationMockFactory();
 });
 
+vi.mock('@/lib/analytics', () => ({
+  trackEvent: vi.fn(),
+}));
+
+import { trackEvent } from '@/lib/analytics';
 import { mockSession } from '@/test/mocks/nextAuth';
 
 import { UserDropdown } from './UserDropdown';
@@ -39,6 +44,7 @@ describe('UserDropdown share flow', () => {
   let queuedFrames: FrameRequestCallback[];
 
   beforeEach(() => {
+    vi.clearAllMocks();
     queuedFrames = [];
     vi.stubGlobal(
       'ResizeObserver',
@@ -101,5 +107,20 @@ describe('UserDropdown share flow', () => {
     openMenu();
     const shareButton = screen.getByRole('button', { name: '分享個人頁面' });
     expect(shareButton).toBeDisabled();
+  });
+
+  it('calls trackEvent and closeMenu when clicking the "提供回饋" link', () => {
+    render(<UserDropdown user={buildUser()} />);
+
+    openMenu();
+    const feedbackLink = screen.getByRole('link', { name: '提供回饋' });
+
+    fireEvent.click(feedbackLink);
+
+    expect(trackEvent).toHaveBeenCalledWith({ name: 'feedback_open' });
+    // And verify the dropdown closed (which means the feedback link is no longer in the document)
+    expect(
+      screen.queryByRole('link', { name: '提供回饋' })
+    ).not.toBeInTheDocument();
   });
 });

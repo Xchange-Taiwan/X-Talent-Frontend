@@ -24,9 +24,13 @@ import { ShareProfileDialog } from './ShareProfileDialog';
 
 export type MobileUserMenuProps = {
   user: Session['user'];
+  findMentorHref?: string;
 };
 
-export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
+export function MobileUserMenu({
+  user,
+  findMentorHref = '/mentor-pool',
+}: MobileUserMenuProps): JSX.Element {
   const [open, setOpen] = React.useState(false);
 
   const closeMenu = React.useCallback(() => setOpen(false), []);
@@ -144,7 +148,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
                 我的預約
               </button>
               <Link
-                href="/mentor-pool"
+                href={findMentorHref}
                 onClick={closeMenu}
                 className="py-4 text-left text-xl text-text-primary"
               >

@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { fromPartial } from '@total-typescript/shoehorn';
 import type { Session } from 'next-auth';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/image', () => ({
   default: ({ src, alt }: { src: string | { src: string }; alt: string }) => (
@@ -20,6 +20,11 @@ vi.mock('next/navigation', async () => {
   return navigationMockFactory();
 });
 
+vi.mock('@/lib/analytics', () => ({
+  trackEvent: vi.fn(),
+}));
+
+import { trackEvent } from '@/lib/analytics';
 import { mockSession } from '@/test/mocks/nextAuth';
 
 import { MobileUserMenu } from './MobileUserMenu';
@@ -34,6 +39,10 @@ function buildUser(overrides: Partial<Session['user']> = {}): Session['user'] {
 }
 
 describe('MobileUserMenu', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('renders correctly with default mock user showing proper alt text', () => {
     render(<MobileUserMenu user={buildUser({ name: 'Ada Lovelace' })} />);
     const avatarImg = screen.getByRole('img', { name: 'Ada Lovelace 的頭像' });
@@ -63,5 +72,22 @@ describe('MobileUserMenu', () => {
     );
     const fallbackImg = screen.getByRole('img', { name: '我的頭像' });
     expect(fallbackImg).toBeInTheDocument();
+  });
+
+  it('calls trackEvent and closeMenu when clicking the "提供回饋" link', () => {
+    render(<MobileUserMenu user={buildUser()} />);
+
+    // Open user menu
+    const trigger = screen.getByRole('button', { name: '開啟用戶選單' });
+    fireEvent.click(trigger);
+
+    const feedbackLink = screen.getByRole('link', { name: '提供回饋' });
+    fireEvent.click(feedbackLink);
+
+    expect(trackEvent).toHaveBeenCalledWith({ name: 'feedback_open' });
+    // Verify menu closed (the feedback link is no longer visible)
+    expect(
+      screen.queryByRole('link', { name: '提供回饋' })
+    ).not.toBeInTheDocument();
   });
 });
