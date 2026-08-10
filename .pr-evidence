@@ -1,0 +1,5 @@
+Evidence branch for PR screenshots, published by .agents/scripts/publish-evidence.sh.
+
+This is an orphan branch: it shares no history with the repository code
+branches. Pull request bodies link into it by commit sha, so links stay
+stable even after later runs overwrite the same paths at the branch tip.
