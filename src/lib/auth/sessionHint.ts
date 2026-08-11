@@ -117,6 +117,14 @@ export function decodeSessionHint(
 export const DOM_AUTH_STATE_ATTR = 'data-auth-state';
 export const DOM_AUTH_AVATAR_ATTR = 'data-auth-avatar';
 
+export function clearSessionHint(): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${SESSION_HINT_COOKIE}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0;`;
+  document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
+  document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
+  document.documentElement.style.removeProperty('--auth-avatar');
+}
+
 export const SESSION_HINT_INLINE_SCRIPT = `
   try {
     var cookie = document.cookie.split('; ').find(function(row) {

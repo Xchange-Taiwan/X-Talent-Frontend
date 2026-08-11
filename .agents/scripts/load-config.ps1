@@ -10,24 +10,27 @@ function gh {
 }
 
 # Fetch config file from tracker repository (using main branch)
-$CONFIG_MD = (gh api repos/Xchange-Taiwan/X-Talent-Tracker/contents/docs/agents/project-config.md?ref=main -H "Accept: application/vnd.github.raw" 2>$null)
+$CONFIG_MD = $null
+try {
+  $CONFIG_MD = (gh api /repos/Xchange-Taiwan/X-Talent-Tracker/contents/docs/agents/project-config.md?ref=main -H "Accept: application/vnd.github.raw" 2>$null)
+} catch {}
 
-# Fallback to local file if fetch failed (checks exit status or empty variable)
-if ($LastExitCode -ne 0 -or -not $CONFIG_MD) {
+# Parse JSON block from fetched content
+$CONFIG_JSON_STRING = $null
+if ($CONFIG_MD) {
+  $CONFIG_JSON_STRING = [regex]::Match($CONFIG_MD, '(?s)```json\s*(.*?)\s*```').Groups[1].Value
+}
+
+# Fallback to local file if fetch failed, returned an error, or had no valid JSON block
+if ([string]::IsNullOrWhiteSpace($CONFIG_JSON_STRING) -or $CONFIG_JSON_STRING -eq "null") {
   if (Test-Path "docs/agents/project-config.md") {
     $CONFIG_MD = (Get-Content -Raw -Path "docs/agents/project-config.md")
+    $CONFIG_JSON_STRING = [regex]::Match($CONFIG_MD, '(?s)```json\s*(.*?)\s*```').Groups[1].Value
   } else {
     $CONFIG_MD = $null
+    $CONFIG_JSON_STRING = $null
   }
 }
-
-# Check if config content is present
-if (-not $CONFIG_MD) {
-  throw "ERROR: project-config.md not found — aborting to avoid null ID API calls"
-}
-
-# Extract and parse JSON
-$CONFIG_JSON_STRING = [regex]::Match($CONFIG_MD, '(?s)```json\s*(.*?)\s*```').Groups[1].Value
 
 # Validate extracted JSON content
 if ([string]::IsNullOrWhiteSpace($CONFIG_JSON_STRING) -or $CONFIG_JSON_STRING -eq "null") {

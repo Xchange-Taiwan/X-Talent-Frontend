@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import {
+  clearSessionHint,
   decodeSessionHint,
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
@@ -62,9 +63,7 @@ function removeAvatarStyle(): void {
 }
 
 function clearAuthDOMState(): void {
-  if (typeof document === 'undefined') return;
-  document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
-  removeAvatarStyle();
+  clearSessionHint();
 }
 
 /**
