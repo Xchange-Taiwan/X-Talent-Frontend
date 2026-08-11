@@ -18,7 +18,7 @@ import {
 import { useAccountMenu } from '@/hooks/layout/useAccountMenu';
 import { trackEvent } from '@/lib/analytics';
 
-import { FEEDBACK_FORM_URL } from './constants';
+import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
 import { ShareProfileDialog } from './ShareProfileDialog';
 
 export type UserDropdownProps = {
@@ -159,7 +159,7 @@ export const UserDropdown = React.memo(function UserDropdown({
               asChild
               className="cursor-pointer px-4 py-3 text-2xl"
             >
-              <Link href="/mentor-pool">尋找導師</Link>
+              <Link href={FIND_MENTOR_HREF}>尋找導師</Link>
             </DropdownMenuItem>
 
             <DropdownMenuItem

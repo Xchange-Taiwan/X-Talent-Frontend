@@ -19,7 +19,7 @@ import {
 import { useAccountMenu } from '@/hooks/layout/useAccountMenu';
 import { trackEvent } from '@/lib/analytics';
 
-import { FEEDBACK_FORM_URL } from './constants';
+import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
 import { ShareProfileDialog } from './ShareProfileDialog';
 
 export type MobileUserMenuProps = {
@@ -145,7 +145,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
               </button>
 
               <Link
-                href="/mentor-pool"
+                href={FIND_MENTOR_HREF}
                 onClick={closeMenu}
                 className="py-4 text-left text-xl text-text-primary"
               >
