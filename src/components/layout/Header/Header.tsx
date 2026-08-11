@@ -13,7 +13,7 @@ import { useSessionHint } from '@/hooks/user/auth/useSessionHint';
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { trackEvent } from '@/lib/analytics';
 
-import { FEEDBACK_FORM_URL } from './constants';
+import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
 import { DisabledAwareLink } from './DisabledAwareLink';
 import { HamburgerMenu } from './HamburgerMenu';
 import { MobileUserMenu } from './MobileUserMenu';
@@ -49,8 +49,6 @@ function HeaderComponent(): JSX.Element {
     };
   }, [session?.user, userId, resolvedIsMentor, currentAvatar]);
 
-  const findMentorHref = '/mentor-pool';
-
   // `userId` only ever comes from the real session, never the hint — while
   // isResolvingUser is true these hrefs are unused (the link is disabled).
   const leftSecondNav = resolvedIsMentor
@@ -67,8 +65,8 @@ function HeaderComponent(): JSX.Element {
 
           <nav className="hidden items-center gap-7 lg:flex">
             <Link
-              href={findMentorHref}
-              className="font-['Open_Sans'] text-base text-text-primary"
+              href={FIND_MENTOR_HREF}
+              className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
             >
               尋找導師
             </Link>
@@ -103,7 +101,7 @@ function HeaderComponent(): JSX.Element {
 
             <Link
               href="/about"
-              className="font-['Open_Sans'] text-base text-text-primary"
+              className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
             >
               關於 X-Talent
             </Link>
@@ -114,7 +112,7 @@ function HeaderComponent(): JSX.Element {
               rel="noopener noreferrer"
               aria-label="提供回饋（另開新分頁）"
               onClick={() => trackEvent({ name: 'feedback_open' })}
-              className="font-['Open_Sans'] text-base text-text-primary"
+              className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
             >
               提供回饋
             </a>
@@ -162,12 +160,14 @@ function HeaderComponent(): JSX.Element {
                 <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block" />
               )
             )}
-            <HamburgerMenu
-              isLoggedIn={isLoggedIn}
-              isMentor={resolvedIsMentor}
-              userId={userId}
-              isResolvingUser={isResolvingUser}
-            />
+            <div className="group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden">
+              <HamburgerMenu
+                isLoggedIn={isLoggedIn}
+                isMentor={resolvedIsMentor}
+                userId={userId}
+                isResolvingUser={isResolvingUser}
+              />
+            </div>
           </div>
         </div>
       </div>

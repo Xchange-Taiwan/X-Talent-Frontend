@@ -22,7 +22,8 @@ if ($CONFIG_MD) {
 }
 
 # Fallback to local file if fetch failed, returned an error, or had no valid JSON block
-if ([string]::IsNullOrWhiteSpace($CONFIG_JSON_STRING) -or $CONFIG_JSON_STRING -eq "null") {
+$isNotFound = $CONFIG_MD -and ($CONFIG_MD -match '"message": "Not Found"')
+if ($LastExitCode -ne 0 -or $isNotFound -or [string]::IsNullOrWhiteSpace($CONFIG_JSON_STRING) -or $CONFIG_JSON_STRING -eq "null") {
   if (Test-Path "docs/agents/project-config.md") {
     $CONFIG_MD = (Get-Content -Raw -Path "docs/agents/project-config.md")
     $CONFIG_JSON_STRING = [regex]::Match($CONFIG_MD, '(?s)```json\s*(.*?)\s*```').Groups[1].Value
