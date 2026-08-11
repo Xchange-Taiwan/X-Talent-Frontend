@@ -13,6 +13,7 @@ export const rawColors = {
   'background-bottom-secondary': '0 0% 98%', // #FAFAFA
   'background-white': '0 0% 100%', // #FFFFFF
   'background-border': '210 9% 91%', // #E6E8EA
+  'background-hover': '206 31% 96%', // #F2F6F9
   'brand-50': '180 62% 95%', // #EAFAFA
   'brand-100': '180 62% 90%', // #D5F5F5
   'brand-200': '180 60% 79%', // #ABEAEA
