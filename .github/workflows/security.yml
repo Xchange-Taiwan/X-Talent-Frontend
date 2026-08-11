@@ -80,7 +80,7 @@ jobs:
         id: depcheck
         run: |
           output=$(npx depcheck \
-            --ignores="@types/*,eslint-*,prettier-*,postcss,autoprefixer,tailwindcss,@tailwindcss/postcss,husky,lint-staged,tailwindcss-animate,jimp,sharp,@playwright/test,@testing-library/user-event,openapi-typescript,@google/gemini-cli,@storybook/*,storybook,cross-env" \
+            --ignores="@types/*,eslint-*,prettier-*,postcss,autoprefixer,tailwindcss,@tailwindcss/postcss,husky,lint-staged,tailwindcss-animate,jimp,sharp,@playwright/test,@testing-library/user-event,openapi-typescript,@google/gemini-cli,@storybook/*,storybook,cross-env,chrome-devtools-axi,gh-axi,lavish-axi" \
             2>&1) || true
           echo "$output"
           if echo "$output" | grep -qE "^Unused (dependencies|devDependencies)"; then
