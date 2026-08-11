@@ -1,6 +1,14 @@
 'use client';
 
-import { Bell } from 'lucide-react';
+import {
+  AlertCircle,
+  Bell,
+  CalendarCheck,
+  CalendarOff,
+  CalendarPlus,
+  CalendarX,
+  Clock,
+} from 'lucide-react';
 import * as React from 'react';
 
 import {
@@ -8,7 +16,22 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+
+export type NotificationItem = {
+  id: string;
+  type:
+    | 'reservation_new'
+    | 'reservation_success'
+    | 'reservation_failed'
+    | 'reservation_canceled'
+    | 'reservation_upcoming';
+  menteeName?: string;
+  mentorName?: string;
+  createdAt: string; // ISO string
+  unread?: boolean;
+};
 
 export type NotificationBellProps = {
   /**
@@ -20,19 +43,173 @@ export type NotificationBellProps = {
    * Optional custom classes for the trigger button (e.g. for responsive RWD displays).
    */
   className?: string;
+  /**
+   * Initial display status of the notification center dropdown.
+   * @default 'success'
+   */
+  initialStatus?: 'loading' | 'error' | 'empty' | 'success';
+  /**
+   * Initial list of notifications. If omitted, will default to mock notifications.
+   */
+  initialNotifications?: NotificationItem[];
+  /**
+   * Optional callback when the retry button is clicked.
+   */
+  onRetry?: () => void;
 };
+
+export const defaultMockNotifications: NotificationItem[] = [
+  {
+    id: '1',
+    type: 'reservation_new',
+    menteeName: '小明',
+    createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), // 1 小時前
+    unread: true,
+  },
+  {
+    id: '2',
+    type: 'reservation_success',
+    mentorName: '林導師',
+    createdAt: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(), // 23 小時前
+    unread: true,
+  },
+  {
+    id: '3',
+    type: 'reservation_failed',
+    mentorName: '王導師',
+    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 天前
+    unread: false,
+  },
+  {
+    id: '4',
+    type: 'reservation_canceled',
+    mentorName: '陳導師',
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 天前
+    unread: false,
+  },
+  {
+    id: '5',
+    type: 'reservation_upcoming',
+    mentorName: '張導師',
+    createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 天前
+    unread: false,
+  },
+];
+
+/**
+ * Formats elapsed time relative to the current time.
+ * - Under 24 hours: formats in hours (e.g., "1 小時", "23 小時")
+ * - 24 hours or more: formats in days (e.g., "1 天", "30 天")
+ */
+export function formatRelativeTime(dateInput: Date | string): string {
+  const date = new Date(dateInput);
+  const now = new Date();
+  const diffMs = Math.max(0, now.getTime() - date.getTime());
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+
+  if (diffHours < 24) {
+    const hours = Math.max(1, diffHours);
+    return `${hours} 小時`;
+  } else {
+    const days = Math.floor(diffHours / 24);
+    return `${days} 天`;
+  }
+}
+
+/**
+ * Returns content templates (title, body, styles) for notification items.
+ */
+export function getNotificationContent(item: NotificationItem) {
+  switch (item.type) {
+    case 'reservation_new':
+      return {
+        title: '您有新的預約',
+        body: `${item.menteeName || 'Mentee'} 與您提出預約需求，請前往接受預約`,
+        iconBgClass: 'bg-brand-50 text-brand-600',
+      };
+    case 'reservation_success':
+      return {
+        title: `${item.mentorName || 'Mentor'} 已接受您的預約`,
+        body: '前往查看您的預約詳情',
+        iconBgClass: 'bg-status-success-default/10 text-status-success-default',
+      };
+    case 'reservation_failed':
+      return {
+        title: `您與 ${item.mentorName || 'Mentor'} 的預約已被拒絕`,
+        body: '您的預約已被拒絕，歡迎重新預約',
+        iconBgClass: 'bg-status-error-default/10 text-status-error-default',
+      };
+    case 'reservation_canceled': {
+      const name = item.mentorName || item.menteeName || '導師';
+      return {
+        title: `您與 ${name} 的預約已被取消`,
+        body: '您的預約已被取消，歡迎重新預約',
+        iconBgClass: 'bg-background-hover text-text-secondary',
+      };
+    }
+    case 'reservation_upcoming':
+      return {
+        title: `您與 ${item.mentorName || 'Mentor'} 的預約即將到來`,
+        body: `您 24 小時後有與 ${item.mentorName || 'Mentor'} 的會議，請準時上線`,
+        iconBgClass: 'bg-status-warning-default/10 text-status-warning-default',
+      };
+    default:
+      return {
+        title: '通知',
+        body: '您有一則新通知',
+        iconBgClass: 'bg-background-bottom text-text-primary',
+      };
+  }
+}
+
+function getNotificationIcon(type: string) {
+  switch (type) {
+    case 'reservation_new':
+      return <CalendarPlus className="size-5" />;
+    case 'reservation_success':
+      return <CalendarCheck className="size-5" />;
+    case 'reservation_failed':
+      return <CalendarX className="size-5" />;
+    case 'reservation_canceled':
+      return <CalendarOff className="size-5" />;
+    case 'reservation_upcoming':
+      return <Clock className="size-5" />;
+    default:
+      return <Bell className="size-5" />;
+  }
+}
 
 export const NotificationBell = React.memo(function NotificationBell({
   unreadCount = 5,
   className,
+  initialStatus = 'success',
+  initialNotifications,
+  onRetry,
 }: NotificationBellProps): JSX.Element {
   const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
+  const [status, setStatus] = React.useState(initialStatus);
+  const [notifications, setNotifications] = React.useState<NotificationItem[]>(
+    initialNotifications ?? defaultMockNotifications
+  );
 
   const handleOpenChange = React.useCallback((open: boolean) => {
     if (open) {
       setHasBeenClicked(true);
     }
   }, []);
+
+  const handleRetry = React.useCallback(() => {
+    setStatus('loading');
+    if (onRetry) {
+      onRetry();
+    } else {
+      // Simulating a clean reload back to mock success list
+      setTimeout(() => {
+        setNotifications(defaultMockNotifications);
+        setStatus('success');
+      }, 1000);
+    }
+  }, [onRetry]);
 
   const showBadge = !hasBeenClicked && unreadCount > 0;
   const formattedCount = unreadCount > 99 ? '99+' : String(unreadCount);
@@ -65,14 +242,97 @@ export const NotificationBell = React.memo(function NotificationBell({
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-80 rounded-2xl border border-background-border bg-background-white p-6 shadow-xl outline-none"
+        className="w-[360px] rounded-2xl border border-background-border bg-background-white p-5 shadow-xl outline-none"
       >
-        <div className="flex flex-col items-center justify-center py-8 text-center">
-          <Bell className="mb-3 size-12 text-text-tertiary" />
-          <p className="text-base font-medium text-text-secondary">
-            尚無新通知
-          </p>
+        <div className="mb-3 flex items-center justify-between border-b border-background-border pb-3">
+          <span className="text-lg font-bold text-text-primary">通知</span>
         </div>
+
+        {status === 'loading' && (
+          <div className="flex flex-col gap-3 py-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex items-start gap-3 py-2">
+                <Skeleton className="size-10 shrink-0 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-3/4 rounded" />
+                  <Skeleton className="h-3 w-5/6 rounded" />
+                  <Skeleton className="h-3 w-12 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {status === 'error' && (
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <AlertCircle className="mb-2 size-8 text-status-error-default" />
+            <p className="mb-3 text-sm font-medium text-text-secondary">
+              載入失敗，請重試
+            </p>
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="inline-flex h-8 items-center justify-center rounded-lg border border-background-border px-3 text-xs font-medium text-text-primary transition-all hover:bg-background-hover"
+            >
+              重新嘗試
+            </button>
+          </div>
+        )}
+
+        {status === 'empty' && (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <Bell className="mb-3 size-10 text-text-tertiary" />
+            <p className="text-sm font-medium text-text-secondary">
+              尚無新通知
+            </p>
+          </div>
+        )}
+
+        {status === 'success' && notifications.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <Bell className="mb-3 size-10 text-text-tertiary" />
+            <p className="text-sm font-medium text-text-secondary">
+              尚無新通知
+            </p>
+          </div>
+        )}
+
+        {status === 'success' && notifications.length > 0 && (
+          <div className="flex max-h-[360px] flex-col gap-1 overflow-y-auto pr-1">
+            {notifications.map((item) => {
+              const { title, body, iconBgClass } = getNotificationContent(item);
+              return (
+                <div
+                  key={item.id}
+                  className="group/item relative flex items-start gap-3 rounded-xl p-3 transition-all duration-200 hover:bg-background-hover"
+                >
+                  <div
+                    className={cn(
+                      'flex size-10 shrink-0 items-center justify-center rounded-full',
+                      iconBgClass
+                    )}
+                  >
+                    {getNotificationIcon(item.type)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="mb-1 text-sm leading-tight font-semibold break-words text-text-primary">
+                      {title}
+                    </p>
+                    <p className="mb-1.5 text-xs leading-normal break-words text-text-secondary">
+                      {body}
+                    </p>
+                    <span className="text-11 leading-none text-text-tertiary">
+                      {formatRelativeTime(item.createdAt)}
+                    </span>
+                  </div>
+                  {item.unread && (
+                    <span className="absolute top-4 right-3 size-2 rounded-full bg-status-error-default" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

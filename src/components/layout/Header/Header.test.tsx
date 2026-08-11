@@ -310,16 +310,16 @@ describe('Header', () => {
       name: '開啟用戶選單',
     })[0];
 
-    expect(screen.queryByText('尚無新通知')).not.toBeInTheDocument();
+    expect(screen.queryByText('您有新的預約')).not.toBeInTheDocument();
 
     fireEvent.click(bellButton);
-    expect(screen.getByText('尚無新通知')).toBeInTheDocument();
+    expect(screen.getByText('您有新的預約')).toBeInTheDocument();
 
     // Radix Popover listens to low-level pointerDown and mouseDown on document to close on click-outside
     fireEvent.pointerDown(avatarButton, { bubbles: true });
     fireEvent.mouseDown(avatarButton, { bubbles: true });
     fireEvent.click(avatarButton);
 
-    expect(screen.queryByText('尚無新通知')).not.toBeInTheDocument();
+    expect(screen.queryByText('您有新的預約')).not.toBeInTheDocument();
   });
 });

@@ -9,7 +9,7 @@ const meta: Meta<typeof NotificationBell> = {
   tags: ['autodocs'],
   decorators: [
     (Story) => (
-      <div className="flex h-[150px] items-center justify-center bg-background-bottom p-10">
+      <div className="flex h-[450px] items-start justify-center bg-background-bottom p-10">
         <Story />
       </div>
     ),
@@ -22,17 +22,34 @@ type Story = StoryObj<typeof NotificationBell>;
 export const Default: Story = {
   args: {
     unreadCount: 5,
+    initialStatus: 'success',
+  },
+};
+
+export const LoadingState: Story = {
+  args: {
+    unreadCount: 5,
+    initialStatus: 'loading',
+  },
+};
+
+export const ErrorState: Story = {
+  args: {
+    unreadCount: 5,
+    initialStatus: 'error',
+  },
+};
+
+export const EmptyState: Story = {
+  args: {
+    unreadCount: 0,
+    initialStatus: 'empty',
   },
 };
 
 export const Over99Notifications: Story = {
   args: {
     unreadCount: 120,
-  },
-};
-
-export const NoNotifications: Story = {
-  args: {
-    unreadCount: 0,
+    initialStatus: 'success',
   },
 };
