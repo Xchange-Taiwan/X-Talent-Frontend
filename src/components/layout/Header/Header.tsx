@@ -18,6 +18,7 @@ import { DisabledAwareLink } from './DisabledAwareLink';
 import { HamburgerMenu } from './HamburgerMenu';
 import { MobileUserMenu } from './MobileUserMenu';
 import { getBecomeMentorHref, getProfileHref } from './navHrefs';
+import { NotificationBell } from './NotificationBell';
 import { UserDropdown } from './UserDropdown';
 
 function HeaderComponent(): JSX.Element {
@@ -146,7 +147,10 @@ function HeaderComponent(): JSX.Element {
                 </Link>
               </>
             ) : isLoggedIn ? (
-              <UserDropdown user={virtualUser} />
+              <>
+                <NotificationBell />
+                <UserDropdown user={virtualUser} />
+              </>
             ) : (
               <Skeleton className="size-9 rounded-full" />
             )}
