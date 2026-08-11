@@ -47,7 +47,6 @@ export function ShareProfileDialog({
   onOpenChange,
   name,
   avatarSrc,
-  subtitle,
   profilePath,
   personalLinks,
 }: ShareProfileDialogProps): JSX.Element {
@@ -151,12 +150,6 @@ export function ShareProfileDialog({
                         </a>
                       ))}
                   </div>
-
-                  {subtitle ? (
-                    <p className="mt-1 text-14 font-medium text-text-primary">
-                      {subtitle}
-                    </p>
-                  ) : null}
                 </div>
               </div>
             </div>
