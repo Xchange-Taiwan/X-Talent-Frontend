@@ -20,6 +20,11 @@ vi.mock('next/navigation', async () => {
   return navigationMockFactory();
 });
 
+const trackEvent = vi.fn();
+vi.mock('@/lib/analytics', () => ({
+  trackEvent: (...args: unknown[]) => trackEvent(...args),
+}));
+
 import { mockSession } from '@/test/mocks/nextAuth';
 
 import { MobileUserMenu } from './MobileUserMenu';
@@ -86,5 +91,20 @@ describe('MobileUserMenu', () => {
       'href',
       'https://forms.gle/594hMVdTyoR3Pgtg9'
     );
+  });
+
+  it('tracks feedback_open and closes the sheet when 提供回饋 is clicked', () => {
+    trackEvent.mockClear();
+    render(<MobileUserMenu user={buildUser()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '開啟用戶選單' }));
+    const feedbackLink = screen.getByRole('link', { name: '提供回饋' });
+
+    fireEvent.click(feedbackLink);
+
+    expect(trackEvent).toHaveBeenCalledWith({ name: 'feedback_open' });
+    expect(
+      screen.queryByRole('link', { name: '提供回饋' })
+    ).not.toBeInTheDocument();
   });
 });

@@ -22,6 +22,11 @@ vi.mock('next/navigation', async () => {
   return navigationMockFactory();
 });
 
+const trackEvent = vi.fn();
+vi.mock('@/lib/analytics', () => ({
+  trackEvent: (...args: unknown[]) => trackEvent(...args),
+}));
+
 import { mockSession } from '@/test/mocks/nextAuth';
 
 import { UserDropdown } from './UserDropdown';
@@ -123,5 +128,15 @@ describe('UserDropdown share flow', () => {
       'href',
       'https://forms.gle/594hMVdTyoR3Pgtg9'
     );
+  });
+
+  it('tracks feedback_open when 提供回饋 is clicked', () => {
+    trackEvent.mockClear();
+    render(<UserDropdown user={buildUser()} />);
+
+    openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: '提供回饋' }));
+
+    expect(trackEvent).toHaveBeenCalledWith({ name: 'feedback_open' });
   });
 });

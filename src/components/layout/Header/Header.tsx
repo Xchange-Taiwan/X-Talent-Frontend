@@ -66,14 +66,12 @@ function HeaderComponent(): JSX.Element {
           </Link>
 
           <nav className="hidden items-center gap-7 lg:flex">
-            {!isLoggedIn && (
-              <Link
-                href={findMentorHref}
-                className="font-['Open_Sans'] text-base text-text-primary"
-              >
-                尋找導師
-              </Link>
-            )}
+            <Link
+              href={findMentorHref}
+              className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
+            >
+              尋找導師
+            </Link>
 
             {!authKnown ? (
               <>
@@ -103,27 +101,23 @@ function HeaderComponent(): JSX.Element {
               </DisabledAwareLink>
             )}
 
-            {!isLoggedIn && (
-              <>
-                <Link
-                  href="/about"
-                  className="font-['Open_Sans'] text-base text-text-primary"
-                >
-                  關於 X-Talent
-                </Link>
+            <Link
+              href="/about"
+              className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
+            >
+              關於 X-Talent
+            </Link>
 
-                <a
-                  href={FEEDBACK_FORM_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="提供回饋（另開新分頁）"
-                  onClick={() => trackEvent({ name: 'feedback_open' })}
-                  className="font-['Open_Sans'] text-base text-text-primary"
-                >
-                  提供回饋
-                </a>
-              </>
-            )}
+            <a
+              href={FEEDBACK_FORM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="提供回饋（另開新分頁）"
+              onClick={() => trackEvent({ name: 'feedback_open' })}
+              className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
+            >
+              提供回饋
+            </a>
           </nav>
         </div>
 
@@ -168,14 +162,14 @@ function HeaderComponent(): JSX.Element {
                 <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block" />
               )
             )}
-            {!isLoggedIn && (
+            <div className="group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden">
               <HamburgerMenu
                 isLoggedIn={isLoggedIn}
                 isMentor={resolvedIsMentor}
                 userId={userId}
                 isResolvingUser={isResolvingUser}
               />
-            )}
+            </div>
           </div>
         </div>
       </div>
