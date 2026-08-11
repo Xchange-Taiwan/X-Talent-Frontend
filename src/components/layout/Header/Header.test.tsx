@@ -248,4 +248,78 @@ describe('Header', () => {
       'hidden group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block'
     );
   });
+
+  it('does not render NotificationBell when logged out', () => {
+    mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+    mockUseAuthStatus.mockReturnValue({
+      authKnown: true,
+      isLoggedIn: false,
+      isMentor: false,
+      userId: undefined,
+      hasFullUser: false,
+      isResolvingUser: false,
+    });
+
+    render(<Header />);
+    expect(
+      screen.queryByRole('button', { name: '開啟通知選單' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders NotificationBell when logged in', () => {
+    mockUseSession.mockReturnValue({
+      data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
+      status: 'authenticated',
+    });
+    mockUseAuthStatus.mockReturnValue({
+      authKnown: true,
+      isLoggedIn: true,
+      isMentor: false,
+      userId: 'user-123',
+      hasFullUser: true,
+      isResolvingUser: false,
+    });
+
+    render(<Header />);
+    expect(
+      screen.getByRole('button', { name: '開啟通知選單' })
+    ).toBeInTheDocument();
+  });
+
+  it('closes NotificationBell popover when UserDropdown avatar is clicked', () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        ...mockSession,
+        user: { ...mockSession.user, id: 'user-123', image: 'avatar.png' },
+      },
+      status: 'authenticated',
+    });
+    mockUseAuthStatus.mockReturnValue({
+      authKnown: true,
+      isLoggedIn: true,
+      isMentor: false,
+      userId: 'user-123',
+      hasFullUser: true,
+      isResolvingUser: false,
+    });
+
+    render(<Header />);
+
+    const bellButton = screen.getByRole('button', { name: '開啟通知選單' });
+    const avatarButton = screen.getAllByRole('button', {
+      name: '開啟用戶選單',
+    })[0];
+
+    expect(screen.queryByText('尚無新通知')).not.toBeInTheDocument();
+
+    fireEvent.click(bellButton);
+    expect(screen.getByText('尚無新通知')).toBeInTheDocument();
+
+    // Radix Popover listens to low-level pointerDown and mouseDown on document to close on click-outside
+    fireEvent.pointerDown(avatarButton, { bubbles: true });
+    fireEvent.mouseDown(avatarButton, { bubbles: true });
+    fireEvent.click(avatarButton);
+
+    expect(screen.queryByText('尚無新通知')).not.toBeInTheDocument();
+  });
 });

@@ -15,6 +15,7 @@ module.exports = {
       'hsl(var(--color-background-bottom-secondary) / <alpha-value>)',
     white: 'hsl(var(--color-background-white) / <alpha-value>)',
     border: 'hsl(var(--color-background-border) / <alpha-value>)',
+    hover: 'hsl(var(--color-background-hover) / <alpha-value>)',
   },
   brand: {
     50: 'hsl(var(--color-brand-50) / <alpha-value>)',

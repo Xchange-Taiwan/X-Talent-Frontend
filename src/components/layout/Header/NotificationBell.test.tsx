@@ -41,4 +41,19 @@ describe('NotificationBell', () => {
     // Badge is hidden once clicked/opened
     expect(screen.queryByText('5')).not.toBeInTheDocument();
   });
+
+  it('contains tailwind CSS classes for hover and open states to avoid JS state overhead', () => {
+    render(<NotificationBell unreadCount={5} />);
+    const button = screen.getByRole('button', { name: '開啟通知選單' });
+
+    expect(button).toHaveClass('hover:bg-background-hover');
+    expect(button).toHaveClass('hover:border-transparent');
+    expect(button).toHaveClass('data-[state=open]:bg-background-hover');
+    expect(button).toHaveClass('data-[state=open]:border-transparent');
+
+    const bell = button.querySelector('svg');
+    expect(bell).not.toBeNull();
+    expect(bell).toHaveClass('group-hover:fill-current');
+    expect(bell).toHaveClass('group-data-[state=open]:fill-current');
+  });
 });

@@ -16,47 +16,42 @@ export type NotificationBellProps = {
    * @default 5
    */
   unreadCount?: number;
+  /**
+   * Optional custom classes for the trigger button (e.g. for responsive RWD displays).
+   */
+  className?: string;
 };
 
 export const NotificationBell = React.memo(function NotificationBell({
   unreadCount = 5,
+  className,
 }: NotificationBellProps): JSX.Element {
-  const [isOpen, setIsOpen] = React.useState(false);
-  const [isHovered, setIsHovered] = React.useState(false);
   const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
 
   const handleOpenChange = React.useCallback((open: boolean) => {
-    setIsOpen(open);
     if (open) {
       setHasBeenClicked(true);
     }
   }, []);
 
-  const showBadge = !isOpen && !hasBeenClicked && unreadCount > 0;
+  const showBadge = !hasBeenClicked && unreadCount > 0;
   const formattedCount = unreadCount > 99 ? '99+' : String(unreadCount);
-  const isFilled = isOpen || isHovered;
 
   return (
-    <Popover open={isOpen} onOpenChange={handleOpenChange}>
+    <Popover onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
           title="通知"
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-          style={{
-            backgroundColor: isFilled ? '#f2f6f9' : 'transparent',
-            borderColor: isFilled ? 'transparent' : undefined,
-          }}
           className={cn(
-            'relative flex h-9 w-9 items-center justify-center rounded-full border border-background-border text-text-primary transition-all duration-200 outline-none'
+            'group relative flex h-9 w-9 items-center justify-center rounded-full border border-background-border bg-transparent text-text-primary transition-all duration-200 outline-none hover:border-transparent hover:bg-background-hover data-[state=open]:border-transparent data-[state=open]:bg-background-hover',
+            className
           )}
           aria-label="開啟通知選單"
         >
           <Bell
             className={cn(
-              'size-5 text-text-primary transition-all',
-              isFilled && 'fill-current'
+              'size-5 text-text-primary transition-all group-hover:fill-current group-data-[state=open]:fill-current'
             )}
           />
 
