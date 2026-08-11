@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   clearSessionHint,
@@ -255,6 +255,12 @@ describe('sessionHint utilities', () => {
       expect(
         document.documentElement.style.getPropertyValue('--auth-avatar')
       ).toBe('');
+    });
+
+    it('gracefully early returns in SSR environment where document is undefined', () => {
+      vi.stubGlobal('document', undefined);
+      expect(() => clearSessionHint()).not.toThrow();
+      vi.unstubAllGlobals();
     });
   });
 });
