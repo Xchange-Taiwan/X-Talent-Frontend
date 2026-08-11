@@ -135,6 +135,9 @@ export function useReservationData({
       return;
     }
 
+    setInitialUpcoming('loading');
+    setInitialPending('loading');
+
     let cancelled = false;
 
     const fetchOne = async (
