@@ -1,0 +1,1822 @@
+<title>X-Talent 個人檔案（檢視頁）還原 — 載入／登入／導師／預約流程互動版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Open+Sans:wght@400;500;600;700&display=swap"
+  rel="stylesheet"
+/>
+
+<style>
+  :root {
+    --color-text-primary: #1e2026;
+    --color-text-secondary: #474d57;
+    --color-text-tertiary: #76808f;
+    --color-text-disable: #aeb4bc;
+    --color-text-white: #ffffff;
+    --color-background-bottom: #f5f5f5;
+    --color-background-bottom-secondary: #fafafa;
+    --color-background-white: #ffffff;
+    --color-background-border: #e6e8ea;
+    --color-brand-50: #eafafa;
+    --color-brand-100: #d5f5f5;
+    --color-brand-300: #80e0e0;
+    --color-brand-500: #2ccbcb;
+    --color-brand-500-rgb: 44, 203, 203;
+    --color-brand-900: #092929;
+    --color-status-error-default: #ee3911;
+    --color-status-success-default: #00ba34;
+    --color-blue-active: #97eeff;
+    --color-pink-active: #ff9bbd;
+    --color-light: #ffffff;
+    --color-dark: #282828;
+    --radius: 8px;
+    --page-bg: #eef1f3;
+    --page-ink: #1e2026;
+    --page-muted: #6b7280;
+    --page-card: #ffffff;
+    --page-border: #e2e5e9;
+    --accent: #2ccbcb;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: var(--page-bg);
+    color: var(--page-ink);
+    font-family: 'Noto Sans TC', 'Open Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ---------- intro ---------- */
+  .intro h1 {
+    font-size: 26px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  .intro p {
+    margin: 0;
+    color: var(--page-muted);
+    font-size: 14.5px;
+    line-height: 1.7;
+    max-width: 860px;
+  }
+  .intro .source-note {
+    margin-top: 14px;
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 12.5px;
+    color: #2c7a7a;
+    background: #e9fbfb;
+    border: 1px solid #c9f1f1;
+    padding: 7px 12px;
+    border-radius: 999px;
+  }
+  .intro .source-note b {
+    font-weight: 700;
+  }
+  code.inline {
+    background: #f1f3f5;
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-family: ui-monospace, 'SFMono-Regular', monospace;
+    font-size: 12px;
+  }
+
+  /* ---------- control panel ---------- */
+  .panel {
+    margin-top: 28px;
+    background: var(--page-card);
+    border: 1px solid var(--page-border);
+    border-radius: 16px;
+    padding: 18px 22px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px 32px;
+    align-items: flex-start;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  }
+  .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .control-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #9aa1ac;
+  }
+  .segmented {
+    display: inline-flex;
+    background: var(--page-bg);
+    border: 1px solid var(--page-border);
+    border-radius: 999px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .seg-btn {
+    border: 0;
+    background: transparent;
+    padding: 6px 13px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--page-muted);
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  .seg-btn.active {
+    background: var(--page-card);
+    color: var(--page-ink);
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.12);
+  }
+  .seg-btn:hover:not(.active) {
+    color: var(--page-ink);
+  }
+  .dialog-jump {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: 360px;
+  }
+  .dialog-jump button {
+    border: 1px solid var(--page-border);
+    background: var(--page-card);
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--page-ink);
+  }
+  .dialog-jump button.active {
+    border-color: var(--accent);
+    background: #e9fbfb;
+    color: #14807f;
+    font-weight: 700;
+  }
+
+  /* ---------- device frame ---------- */
+  .frame-shell {
+    margin-top: 26px;
+    display: flex;
+    justify-content: center;
+  }
+  .frame-chrome {
+    background: #1c2027;
+    border-radius: 16px;
+    padding: 10px 10px 0;
+    box-shadow: 0 20px 45px -18px rgba(16, 24, 40, 0.35);
+    max-width: 100%;
+  }
+  .frame-chrome-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 6px 10px;
+  }
+  .frame-chrome-bar .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #3a4150;
+  }
+  .frame-chrome-bar .url {
+    margin-left: 10px;
+    background: #2a303b;
+    color: #8b93a1;
+    font-size: 11.5px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+  }
+
+  .width-controls {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .width-slider-row {
+    position: relative;
+    padding-top: 18px;
+  }
+  .width-slider-row input[type='range'] {
+    width: 100%;
+  }
+  .bp-flag {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+  }
+  .bp-flag .tag {
+    font-size: 10px;
+    font-weight: 700;
+    color: #9aa1ac;
+    white-space: nowrap;
+  }
+  .bp-flag .line {
+    width: 1px;
+    height: 26px;
+    background: #d7dbe0;
+    margin-top: 2px;
+  }
+  .width-readout {
+    font-size: 12.5px;
+    color: var(--page-muted);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .width-readout .num {
+    font-weight: 700;
+    color: var(--page-ink);
+    font-family: ui-monospace, monospace;
+  }
+  .bp-pill {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #e9fbfb;
+    color: #1a7a7a;
+  }
+
+  .frame {
+    position: relative;
+    width: 1024px;
+    max-width: 100%;
+    height: 900px;
+    background: var(--color-background-bottom);
+    overflow: hidden;
+    border-radius: 8px 8px 0 0;
+    container-type: inline-size;
+    container-name: pv-demo;
+  }
+
+  .page-body {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    background: var(--color-background-white);
+  }
+
+  /* ---------- header (faithful reproduction of Header.tsx / HamburgerMenu.tsx / UserDropdown.tsx / MobileUserMenu.tsx / ShareProfileDialog.tsx) ----------
+     Real Header is `fixed`; here it is `sticky` inside this page's own scroll
+     container instead, since a true `position:fixed` would escape this
+     device-frame demo and pin to the browser viewport instead of the frame.
+     Visually identical while scrolling — this is a demo-frame adaptation, not
+     a design change. */
+  .xt-header {
+    position: sticky;
+    top: 0;
+    height: 70px;
+    background: var(--color-light);
+    z-index: 40;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+  }
+  .xt-header-inner { width: 100%; height: 100%; display: flex; align-items: center; justify-content: space-between; }
+  .xt-left { display: flex; align-items: center; gap: 40px; min-width: 0; }
+  .xt-logo { display: flex; align-items: center; flex-shrink: 0; }
+  .xt-logo svg { display: block; height: 26px; width: auto; }
+  .xt-nav { display: none; align-items: center; gap: 28px; }
+  .xt-nav a { font-family: 'Open Sans', sans-serif; font-size: 16px; color: var(--color-text-primary); text-decoration: none; white-space: nowrap; }
+  .xt-nav a:hover { color: #14807f; }
+  .xt-right { display: flex; align-items: center; gap: 12px; }
+  .xt-right-desktop { display: none; align-items: center; gap: 12px; }
+  .xt-right-mobile { display: flex; align-items: center; gap: 12px; }
+  /* >=1024px mirrors the app's `lg:` breakpoint, scoped to this page's own container */
+  @container pv-demo (min-width: 1024px) {
+    .xt-nav { display: flex; }
+    .xt-right-desktop { display: flex; }
+    .xt-right-mobile { display: none; }
+    .xt-right { margin-right: 80px; }
+  }
+
+  /* Header's own buttons are namespaced `.hbtn*` (not `.btn*`) so they don't
+     collide with this page's own pill-shaped `.btn` (編輯個人資訊 / 成為導師). */
+  .hbtn { appearance: none; border: none; font: inherit; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 500; height: 40px; padding: 0 16px; border-radius: 6px; white-space: nowrap; }
+  .hbtn-primary { background: var(--color-brand-500); color: var(--color-text-primary); }
+  .hbtn-primary:hover { background: #24b6b6; }
+  .hbtn-outline { background: var(--color-background-white); color: var(--color-text-primary); border: 1px solid var(--color-background-border); }
+  .hbtn-outline:hover { background: var(--color-background-bottom); }
+  .hbtn-outline-brand { background: var(--color-background-white); color: var(--color-brand-500); border: 1px solid var(--color-brand-500); }
+  .hbtn-outline-brand:hover { background: #eafafa; }
+
+  .icon-btn { appearance: none; border: none; background: transparent; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 6px; color: var(--color-text-primary); }
+  .icon-btn:hover { background: var(--color-background-bottom); }
+
+  .avatar { border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; color: #06403f; background: linear-gradient(135deg, #9bf1ef, #4fdad6); flex-shrink: 0; }
+  .avatar-32 { width: 32px; height: 32px; font-size: 13px; }
+  .avatar-56 { width: 56px; height: 56px; font-size: 20px; }
+  .avatar-64 { width: 64px; height: 64px; font-size: 22px; }
+
+  .dropdown-trigger { appearance: none; border: none; background: transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 2px; }
+  .dropdown-trigger .chev { font-size: 19px; line-height: 1; color: var(--color-text-primary); transition: transform 0.15s ease; }
+  .dropdown-trigger[aria-expanded='true'] .chev { transform: rotate(180deg); }
+  .dropdown-anchor { position: relative; }
+  .dropdown-panel {
+    position: absolute; top: calc(100% + 4px); right: 0; width: 360px; max-height: 440px; overflow-y: auto;
+    background: var(--color-background-white); border: 1px solid var(--color-background-border); border-radius: 16px;
+    box-shadow: 0 12px 32px -8px rgba(16, 24, 40, 0.22); z-index: 95; transform-origin: top right;
+    opacity: 0; transform: scale(0.96); pointer-events: none; transition: opacity 0.12s ease, transform 0.12s ease;
+  }
+  .dropdown-panel.is-open { opacity: 1; transform: scale(1); pointer-events: auto; }
+  .dd-profile { width: 100%; display: flex; align-items: center; gap: 16px; padding: 24px 24px 16px; background: none; border: none; cursor: pointer; text-align: left; font: inherit; }
+  .dd-profile .name { font-size: 22px; font-weight: 600; color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dd-share { padding: 0 24px 20px; }
+  .dd-share .hbtn { width: 100%; height: 56px; border-radius: 16px; font-size: 17px; font-weight: 600; }
+  .dd-divider { height: 1px; background: var(--color-background-bottom); }
+  .dd-items { padding: 12px 8px; display: flex; flex-direction: column; }
+  .dd-item { appearance: none; border: none; background: none; text-align: left; font: inherit; font-size: 17px; color: var(--color-text-primary); padding: 12px 16px; border-radius: 6px; cursor: pointer; }
+  .dd-item:hover { background: var(--color-background-bottom); }
+  .dd-item.is-danger { color: var(--color-status-error-default); }
+
+  .sheet-overlay { position: absolute; inset: 0; background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(2px); z-index: 96; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+  .sheet-overlay.is-open { opacity: 1; pointer-events: auto; }
+  .sheet-panel {
+    position: absolute; inset: 0 0 0 auto; width: 100%; background: var(--color-background-white); z-index: 97;
+    padding: 24px; display: flex; flex-direction: column; transform: translateX(100%);
+    transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1); box-shadow: -8px 0 24px -12px rgba(16, 24, 40, 0.2);
+  }
+  .sheet-panel.is-open { transform: translateX(0); }
+  .sheet-close { margin-left: auto; appearance: none; border: none; background: none; cursor: pointer; color: var(--color-brand-900); padding: 4px; display: inline-flex; }
+  .sheet-nav-links { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 32px; font-size: 22px; }
+  .sheet-nav-links a { color: var(--color-text-primary); text-decoration: none; }
+  .sheet-nav-bottom { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: 20px; padding-bottom: 8px; }
+  .sheet-nav-bottom .hbtn { width: 160px; }
+  .sheet-user-profile { display: flex; align-items: center; gap: 16px; padding: 16px 0 24px; text-align: left; background: none; border: none; cursor: pointer; font: inherit; }
+  .sheet-user-profile .name { font-size: 20px; font-weight: 600; color: var(--color-text-primary); }
+  .sheet-user-profile .subtitle { margin-top: 4px; font-size: 13px; color: var(--color-text-tertiary); }
+  .sheet-user-share { margin-bottom: 24px; }
+  .sheet-user-share .hbtn { width: 100%; height: 48px; border-radius: 16px; font-size: 15px; font-weight: 600; }
+  .sheet-user-nav { display: flex; flex-direction: column; padding: 8px 0; }
+  .sheet-user-nav button { appearance: none; border: none; background: none; text-align: left; font: inherit; padding: 14px 0; font-size: 17px; color: var(--color-text-primary); cursor: pointer; }
+  .sheet-user-bottom { display: flex; flex-direction: column; padding-bottom: 16px; }
+  .sheet-user-bottom button { appearance: none; border: none; background: none; text-align: left; font: inherit; padding: 14px 0; font-size: 17px; color: var(--color-text-primary); cursor: pointer; }
+  .sheet-user-bottom button.is-danger { color: var(--color-status-error-default); }
+
+  .share-overlay { position: absolute; inset: 0; background: rgba(40, 40, 40, 0.7); z-index: 98; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+  .share-overlay.is-open { opacity: 1; pointer-events: auto; }
+  .share-dialog {
+    position: absolute; top: 50%; left: 50%; width: calc(100% - 32px); max-width: 440px; z-index: 99;
+    border-radius: 24px; border: 1px solid var(--color-background-border); background: var(--color-light);
+    box-shadow: 0 25px 60px -15px rgba(16, 24, 40, 0.35); opacity: 0; pointer-events: none;
+    transform: translate(-50%, -48%) scale(0.97); transition: opacity 0.16s ease, transform 0.16s ease;
+  }
+  .share-dialog.is-open { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
+  .share-dialog-inner { padding: 24px 24px 32px; }
+  .share-dialog-head { position: relative; margin-bottom: 24px; display: flex; align-items: center; justify-content: center; }
+  .share-dialog-title { font-size: 28px; font-weight: 600; color: var(--color-text-primary); line-height: 1; text-align: center; }
+  .share-dialog-close { position: absolute; right: 0; top: 50%; transform: translateY(-50%); font-size: 26px; line-height: 1; color: var(--color-text-primary); background: none; border: none; cursor: pointer; padding: 4px; }
+  .share-profile-card { margin-bottom: 20px; display: flex; align-items: center; gap: 16px; border-radius: 20px; border: 1px solid var(--color-background-border); background: var(--color-light); padding: 18px 20px; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04); }
+  .share-profile-name { font-size: 18px; font-weight: 600; color: var(--color-text-primary); }
+  .share-profile-subtitle { margin-top: 4px; font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
+  .share-link-label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
+  .share-link-row { display: flex; align-items: center; gap: 10px; border-radius: 14px; border: 1px solid var(--color-background-border); background: var(--color-light); padding: 10px 14px; }
+  .share-link-row input { flex: 1; min-width: 0; border: none; background: transparent; font: inherit; font-size: 13px; color: var(--color-text-primary); outline: none; }
+  .share-copy-btn { height: 38px; flex-shrink: 0; border-radius: 10px; padding: 0 14px; font-size: 13px; }
+
+  [hidden] { display: none !important; }
+
+  /* ---------- banner ---------- */
+  .banner {
+    position: relative;
+    height: 111px;
+    background: linear-gradient(to bottom right, var(--color-blue-active), var(--color-pink-active));
+  }
+  @container pv-demo (min-width: 640px) {
+    .banner {
+      height: 100px;
+    }
+  }
+
+  /* ---------- container ---------- */
+  .pv-container {
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 2rem;
+    max-width: 1024px;
+    margin-bottom: 5rem;
+  }
+  @container pv-demo (min-width: 1536px) {
+    .pv-container {
+      max-width: 1280px;
+    }
+  }
+
+  /* ---------- animate-pulse skeleton ---------- */
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .skel {
+    background: var(--color-background-bottom);
+    border-radius: var(--radius);
+    animation: pulse 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* ---------- profile head ---------- */
+  .profile-head {
+    display: flex;
+    flex-direction: column;
+    transform: translateY(-40px);
+  }
+  @container pv-demo (min-width: 640px) {
+    .profile-head {
+      flex-direction: row;
+      align-items: flex-start;
+    }
+  }
+  .avatar-wrap {
+    position: relative;
+    margin: 0 auto;
+    height: 160px;
+    width: 160px;
+    flex-shrink: 0;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--color-background-white);
+    box-shadow: 0 0 0 4px var(--color-background-white);
+  }
+  @container pv-demo (min-width: 640px) {
+    .avatar-wrap { margin: 0; }
+  }
+  .avatar-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .avatar-skel {
+    height: 160px;
+    width: 160px;
+    border-radius: 999px;
+    flex-shrink: 0;
+    margin: 0 auto;
+  }
+  @container pv-demo (min-width: 640px) {
+    .avatar-skel { margin: 0; }
+  }
+
+  .info-col {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+  }
+  @container pv-demo (min-width: 640px) {
+    .info-col {
+      margin-top: 2.5rem;
+      margin-left: 1.5rem;
+      align-items: flex-start;
+    }
+  }
+  .name-row {
+    margin-bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  @container pv-demo (min-width: 640px) {
+    .name-row { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
+  }
+  .name-text {
+    font-size: 24px;
+    font-weight: 600;
+    word-break: break-word;
+    margin: 0;
+  }
+  .link-icons {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  @container pv-demo (min-width: 640px) {
+    .link-icons { justify-content: flex-start; }
+  }
+  .link-icons a {
+    color: var(--color-text-secondary);
+    display: inline-flex;
+  }
+  .link-icons a:hover { color: var(--color-brand-500); }
+  .job-line {
+    font-size: 14px;
+    color: var(--color-text-primary);
+    margin: 0;
+  }
+  .job-line .at { color: var(--color-text-tertiary); }
+  .action-row {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+  @container pv-demo (min-width: 640px) {
+    .action-row { justify-content: flex-start; }
+  }
+
+  /* ---------- buttons (from Button CVA) ---------- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 500;
+    transition: colors 0.15s;
+    border-radius: 999px;
+    padding: 12px 24px;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+  }
+  .btn-outline {
+    border: 1px solid var(--color-background-border);
+    background: var(--color-background-white);
+    color: var(--color-text-primary);
+  }
+  .btn-outline:hover { background: var(--color-background-bottom); }
+  .btn-default {
+    background: var(--color-brand-500);
+    color: var(--color-text-primary);
+  }
+  .btn-default:hover { background: rgba(var(--color-brand-500-rgb), 0.9); }
+  .btn-default:disabled, .btn-default[disabled] {
+    background: var(--color-background-border);
+    color: var(--color-text-disable);
+    cursor: not-allowed;
+  }
+  .btn-ghost { background: transparent; color: var(--color-text-primary); }
+  .btn-ghost:hover { background: var(--color-background-bottom); }
+  .btn-icon { width: 40px; height: 40px; padding: 0; border-radius: 6px; }
+  .btn-full { width: 100%; }
+  .btn:disabled, .btn[disabled] { opacity: 0.5; pointer-events: none; }
+
+  /* ---------- content columns ---------- */
+  .content-cols {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+  @container pv-demo (min-width: 1536px) {
+    .content-cols { flex-direction: row; gap: 48px; }
+  }
+  .left-col { width: 100%; }
+  @container pv-demo (min-width: 1536px) {
+    .left-col { width: 60%; }
+  }
+  .right-col { width: 100%; }
+  @container pv-demo (min-width: 1536px) {
+    .right-col { width: 40%; }
+  }
+
+  .section-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 16px;
+  }
+  .about-text {
+    font-size: 14px;
+    color: var(--color-text-tertiary);
+    word-break: break-word;
+    margin: 0;
+  }
+  .badge-section { margin-top: 40px; }
+  .badge-row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+    background: var(--color-brand-500);
+    color: var(--color-text-primary);
+    padding: 2px 10px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .exp-block { margin-top: 40px; }
+  .exp-item { margin-bottom: 24px; display: flex; flex-direction: column; gap: 12px; }
+  .exp-item .exp-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--color-text-secondary);
+  }
+  .exp-item .exp-top .exp-dates { flex-shrink: 0; font-size: 12px; }
+  .exp-item h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-text-secondary);
+    margin: 0 0 4px;
+    word-break: break-word;
+  }
+  .exp-item .exp-desc {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    margin: 0;
+    word-break: break-word;
+  }
+  .exp-divider {
+    height: 1px;
+    background: var(--color-background-border);
+    margin: 0 0 24px;
+  }
+
+  /* ---------- schedule card ---------- */
+  .right-col-inner { display: flex; flex-direction: column; gap: 16px; max-width: 335px; }
+  @container pv-demo (min-width: 768px) {
+    .right-col-inner { max-width: 695px; }
+  }
+  @container pv-demo (min-width: 1536px) {
+    .right-col-inner { max-width: 414px; }
+  }
+  .schedule-card {
+    width: 100%;
+    border-radius: 16px;
+    border: 1px solid var(--color-background-border);
+    background: var(--color-background-white);
+    padding: 20px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  }
+  .schedule-card-head {
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--color-background-border);
+    padding-bottom: 12px;
+  }
+  .schedule-card-head .label {
+    margin: 0 0 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-tertiary);
+  }
+  .schedule-card-head h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--color-text-primary);
+  }
+
+  /* ---------- calendar reproduction (src/components/ui/calendar.tsx via ScheduleCalendar) ---------- */
+  .cal { width: 100%; background: var(--color-background-white); }
+  .cal-month { position: relative; display: flex; flex-direction: column; gap: 4px; }
+  .cal-caption-row { display: flex; align-items: center; justify-content: flex-start; gap: 2px; height: 32px; }
+  .cal-caption-row-default { justify-content: center; padding: 0 32px; }
+  .cal-dropdown {
+    display: inline-flex; align-items: center; gap: 2px; border-radius: 6px; padding: 2px 4px;
+    font-size: 14px; font-weight: 600; color: var(--color-text-secondary); cursor: pointer; background: transparent; border: none; font-family: inherit;
+  }
+  .cal-dropdown:hover { background: var(--color-background-bottom-secondary); }
+  .cal-dropdown svg { color: var(--color-text-tertiary); flex-shrink: 0; }
+  .cal-dropdown-boxed { border: 1px solid var(--color-background-border); border-radius: 6px; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04); font-weight: 500; color: var(--color-text-primary); padding: 4px 8px; }
+  .cal-nav-profile { position: absolute; top: 0; right: 0; display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+  .cal-nav-default { position: absolute; inset: 0 0 auto 0; display: flex; width: 100%; align-items: center; justify-content: space-between; }
+  .cal-month .nav-btn { width: 32px; height: 32px; border-radius: 6px; border: none; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--color-text-primary); flex-shrink: 0; }
+  .cal-month .nav-btn:hover { background: var(--color-background-bottom); }
+  .cal-weekdays, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-weekdays div { text-align: center; font-size: 13px; font-weight: 600; color: var(--color-text-primary); padding: 6px 0; }
+  .cal-grid { margin-top: 4px; }
+  .cal-day { position: relative; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 999px; font-size: 14px; font-weight: 500; cursor: pointer; color: var(--color-text-primary); background: transparent; border: none; font-family: inherit; }
+  .cal-day.outside { color: var(--color-text-tertiary); font-weight: 400; }
+  .cal-day.available { background: rgba(var(--color-brand-500-rgb), 0.2); }
+  .cal-day.available:hover { background: rgba(var(--color-brand-500-rgb), 0.3); }
+  .cal-day.disabled { color: var(--color-text-tertiary); opacity: 0.5; cursor: not-allowed; font-weight: 400; }
+  .cal-day.selected { background: var(--color-brand-100); border: 1px solid var(--color-brand-300); }
+  .cal-day.selected-default { background: var(--color-brand-500); color: var(--color-text-primary); }
+  .cal-day.today-ring { border: 1px solid var(--color-brand-500); color: var(--color-brand-500); }
+  .cal-loading-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.4); }
+  .spinner {
+    width: 22px; height: 22px; border-radius: 999px;
+    border: 2.5px solid var(--color-background-border);
+    border-top-color: var(--color-text-tertiary);
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* booking form */
+  .slot-list-label { margin: 0 0 16px; font-size: 14px; }
+  .slot-empty { min-height: 40px; display: flex; align-items: center; color: var(--color-text-disable); font-size: 14px; }
+  .slot-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .slot-btn {
+    height: 40px; border-radius: 8px; font-size: 14px; display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--color-background-border); background: var(--color-background-white); color: var(--color-text-primary);
+    cursor: pointer; font-family: inherit; font-weight: 500;
+  }
+  .slot-btn:hover { background: var(--color-background-bottom); }
+  .slot-btn.selected { background: var(--color-brand-500); color: var(--color-text-primary); border-color: var(--color-brand-500); }
+  .slot-btn.booked {
+    cursor: not-allowed; border-color: var(--color-background-border); background: var(--color-background-bottom); color: var(--color-text-disable);
+  }
+  .booking-textarea-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+  .booking-textarea-wrap label { font-size: 14px; font-weight: 600; }
+  .booking-textarea {
+    height: 156px; width: 100%; border-radius: 8px; border: 1px solid var(--color-background-border); background: transparent;
+    padding: 8px 12px; font-size: 14px; font-family: inherit; resize: vertical; color: var(--color-text-primary);
+  }
+  .booking-textarea::placeholder { color: var(--color-text-tertiary); }
+
+  /* generic skeleton pieces */
+  .skel-h4 { height: 16px; }
+  .skel-h5 { height: 20px; }
+  .skel-h6 { height: 24px; }
+  .skel-h7 { height: 28px; }
+  .skel-pill { border-radius: 999px; }
+  .skel-round { border-radius: 999px; }
+
+  /* ---------- MentorScheduleDialog overlays ---------- */
+  .msd-overlay, .msd-overlay-2 {
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    background: rgba(40, 40, 40, 0.8);
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 24px 12px;
+    overflow-y: auto;
+  }
+  .msd-overlay-2 { z-index: 60; }
+  .dialog-card {
+    width: 100%;
+    max-width: 440px;
+    background: var(--color-background-white);
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0 20px 45px -18px rgba(16, 24, 40, 0.5);
+    position: relative;
+  }
+  .dialog-card h3 { margin: 0 0 4px; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+  .dialog-card .dialog-desc { margin: 0; font-size: 14px; color: var(--color-text-tertiary); }
+  .dialog-close {
+    position: absolute; top: 16px; right: 16px; background: transparent; border: none; cursor: pointer;
+    color: var(--color-text-tertiary); opacity: 0.7; display: flex;
+  }
+  .dialog-close:hover { opacity: 1; }
+  .dialog-footer { margin-top: 16px; display: flex; gap: 12px; justify-content: center; }
+  .msd-slot-row {
+    display: flex; flex-direction: column; gap: 8px; border-radius: 8px; border: 1px solid var(--color-background-border);
+    background: var(--color-background-white); padding: 12px; cursor: pointer;
+  }
+  .msd-slot-row:hover { background: rgba(245,245,245,0.5); }
+  .msd-slot-row.past { cursor: not-allowed; opacity: 0.5; }
+  .msd-slot-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .msd-slot-time { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 500; }
+  .msd-slot-dur { font-size: 13px; color: var(--color-text-tertiary); }
+  .field-label { font-size: 14px; font-weight: 500; margin: 0 0 8px; }
+  .time-pair { display: flex; align-items: center; gap: 12px; }
+  .time-select {
+    height: 48px; width: 96px; border-radius: 8px; border: 1px solid var(--color-background-border);
+    background: var(--color-background-white); font-size: 16px; padding: 0 12px; font-family: inherit;
+  }
+  .duration-radio { display: flex; gap: 8px; }
+  .duration-radio button {
+    flex: 1; border-radius: 8px; border: 1px solid var(--color-background-border); background: var(--color-background-white);
+    padding: 8px 16px; font-size: 16px; cursor: pointer; font-family: inherit;
+  }
+  .duration-radio button.active { border-color: var(--color-brand-500); background: rgba(var(--color-brand-500-rgb), 0.1); color: var(--color-brand-500); }
+  .weekly-check-row { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+  .weekly-check-row input { width: 16px; height: 16px; accent-color: var(--color-brand-500); }
+
+  /* device frame breakpoint zone tint */
+  .zone-hint { display:none; }
+
+  footer.note {
+    max-width: 1180px;
+    margin: 22px auto 0;
+    padding: 0 24px;
+    font-size: 12.5px;
+    color: var(--page-muted);
+  }
+
+  /* ---------- site footer (src/components/layout/Footer/Footer.tsx) ---------- */
+  .pv-footer { display: flex; width: 100%; background: var(--color-dark); padding-bottom: 50px; }
+  .pv-footer-inner { display: flex; width: 100%; flex-direction: column; align-items: center; padding: 50px 20px 0; }
+  @container pv-demo (min-width: 768px) {
+    .pv-footer-inner { flex-direction: row; align-items: flex-start; justify-content: space-between; padding: 50px 70px 0; }
+  }
+  .pv-footer-logo {
+    display: flex; align-items: center; justify-content: center;
+    width: 146px; height: 39px; flex-shrink: 0;
+    font-family: 'Open Sans', sans-serif; font-weight: 700; font-size: 20px; color: var(--color-text-white);
+  }
+  @container pv-demo (min-width: 768px) { .pv-footer-logo { justify-content: flex-start; } }
+  .pv-footer-cols { margin-top: 32px; display: flex; flex-direction: column; align-items: center; gap: 32px; color: var(--color-text-white); }
+  @container pv-demo (min-width: 768px) { .pv-footer-cols { margin-top: 0; flex-direction: row; align-items: flex-start; gap: 64px; } }
+  .pv-footer-col { display: flex; flex-direction: column; align-items: center; }
+  @container pv-demo (min-width: 768px) { .pv-footer-col { align-items: flex-start; } }
+  .pv-footer-col p { margin: 0 0 20px; font-size: 20px; font-weight: 700; letter-spacing: 0.085em; }
+  .pv-footer-links { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  @container pv-demo (min-width: 768px) { .pv-footer-links { align-items: flex-start; } }
+  .pv-footer-links a { color: var(--color-text-white); text-decoration: none; font-weight: 400; }
+  .pv-footer-links a:hover { text-decoration: underline; }
+</style>
+
+<div class="wrap">
+  <div class="intro">
+    <h1>個人檔案頁（檢視）互動還原</h1>
+    <p>
+      對應
+      <code class="inline">src/app/profile/[pageUserId]/{page,ui,container,skeleton}.tsx</code>
+      與其子元件（ProfileBanner、ProfileBadgeSection、ExperienceSection、BookingForm →
+      MentorScheduleConfig／MenteeBookingForm、ScheduleCalendar、MentorScheduleDialog），也包含站台全域
+      <code class="inline">Header</code>（RWD／漢堡選單／帳號下拉／分享個人頁面對話框，還原自
+      <code class="inline">.lavish/header_rwd.html</code>）與 <code class="inline">Footer</code>。左側控制面板可切換載入、登入、身份與預約流程狀態；拖動下方滑桿模擬
+      sm(640) / md(768) / lg(1024，Header 導覽列切換點) / 2xl(1536) 響應式斷點（以 CSS container query 模擬，因為此還原被嵌入在較大的頁面中）。
+    </p>
+    <div class="source-note"><b>設計來源：</b>本 repo 自身的 design tokens（src/styles/tokens.css）與 src/components/ui/*（CVA variants）</div>
+  </div>
+
+  <div class="panel">
+    <div class="control-group">
+      <div class="control-label">資料載入</div>
+      <div class="segmented" data-group="loading">
+        <button class="seg-btn active" data-val="0">已載入</button>
+        <button class="seg-btn" data-val="1">載入中</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">登入狀態</div>
+      <div class="segmented" data-group="logged">
+        <button class="seg-btn active" data-val="1">已登入</button>
+        <button class="seg-btn" data-val="0">未登入</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">檢視對象（需已登入）</div>
+      <div class="segmented" data-group="own">
+        <button class="seg-btn" data-val="1">自己的檔案</button>
+        <button class="seg-btn active" data-val="0">他人的檔案</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">身份</div>
+      <div class="segmented" data-group="mentor">
+        <button class="seg-btn active" data-val="1">導師</button>
+        <button class="seg-btn" data-val="0">一般會員</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">排程資料</div>
+      <div class="segmented" data-group="sched">
+        <button class="seg-btn active" data-val="1">已載入</button>
+        <button class="seg-btn" data-val="0">載入中</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">月份切換</div>
+      <div class="segmented" data-group="month">
+        <button class="seg-btn active" data-val="0">穩定</button>
+        <button class="seg-btn" data-val="1">切換中</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">MentorScheduleDialog（預約設定彈窗，需「自己的檔案」+「導師」）</div>
+      <div class="dialog-jump" data-group="dialog">
+        <button class="active" data-val="closed">關閉</button>
+        <button data-val="main">主列表</button>
+        <button data-val="add">新增時段</button>
+        <button data-val="edit">編輯時段</button>
+        <button data-val="booked">阻擋：已預約</button>
+        <button data-val="pending">阻擋：待確認</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="width-controls">
+    <div class="width-slider-row">
+      <div class="bp-flag" style="left: 26.3%"><span class="tag">sm 640</span><span class="line"></span></div>
+      <div class="bp-flag" style="left: 36.8%"><span class="tag">md 768</span><span class="line"></span></div>
+      <div class="bp-flag" style="left: 57.9%"><span class="tag">lg 1024</span><span class="line"></span></div>
+      <div class="bp-flag" style="left: 100%"><span class="tag">2xl 1536</span><span class="line"></span></div>
+      <input type="range" id="width-slider" min="320" max="1536" value="1024" step="1" />
+    </div>
+    <div class="width-readout">
+      容器寬度 <span class="num" id="width-num">1024px</span>
+      <span class="bp-pill" id="bp-pill">md+ 版型</span>
+    </div>
+  </div>
+</div>
+
+<div class="frame-shell">
+  <div class="frame-chrome">
+    <div class="frame-chrome-bar">
+      <span class="dot" style="background: #ff6159"></span>
+      <span class="dot" style="background: #ffbd2e"></span>
+      <span class="dot" style="background: #28ca41"></span>
+      <span class="url">x-talent.example.com/profile/1024</span>
+    </div>
+    <div class="frame" id="frame">
+      <div class="page-body" id="page-body" data-loading="0" data-logged="1" data-own="0" data-mentor="1" data-sched="1" data-month="0" data-dialog="closed" data-show-schedule="1" data-own-mentor="0">
+        <header class="xt-header">
+          <div class="xt-header-inner">
+            <div class="xt-left">
+              <a href="#" class="xt-logo" aria-label="Go to homepage" onclick="return false;">
+                <svg width="110" height="22" viewBox="0 0 151 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M41.8876 16.4878C44.5017 16.4878 46.6209 14.4925 46.6209 12.0313C46.6209 9.56997 44.5017 7.57471 41.8876 7.57471C39.2735 7.57471 37.1543 9.56997 37.1543 12.0313C37.1543 14.4925 39.2735 16.4878 41.8876 16.4878Z" fill="#003C5A" />
+                  <path d="M41.9651 0C38.4686 0 35.2971 1.32445 32.9895 3.46929L32.7532 3.69177C31.7379 4.65122 31.7379 6.2051 32.7569 7.16454C33.7759 8.12399 35.43 8.12399 36.449 7.16107L36.6669 6.9525C38.1954 5.53766 40.2556 4.80765 42.4118 4.92584C46.2 5.13094 49.2792 8.02318 49.5081 11.5898C49.7739 15.7161 46.2849 19.1506 41.9614 19.1506C39.9676 19.1506 38.0883 18.4241 36.6632 17.1101L22.035 3.46929C19.7274 1.32445 16.5595 0 13.0594 0C5.81911 0 -0.0181448 5.66976 0.291994 12.5527C0.565212 18.6709 5.77481 23.6698 12.2656 24.0417C12.8563 24.0765 13.4397 24.0695 14.0083 24.0313C15.5626 23.9235 16.7035 22.6165 16.4414 21.1703C16.2125 19.9119 15.0125 19.0255 13.6944 19.1298C13.484 19.1472 13.2735 19.1541 13.0594 19.1541C8.7359 19.1541 5.24683 15.7161 5.51267 11.5933C5.74158 8.02666 8.82082 5.13789 12.6089 4.92932C14.7688 4.81113 16.8254 5.54114 18.3539 6.95597L32.9895 20.6002C35.3968 22.8389 38.7418 24.1808 42.4229 24.0626C49.1832 23.8401 54.6439 18.591 54.7435 12.2225C54.8506 5.48552 49.0872 0 41.9651 0Z" fill="#003C5A" />
+                  <path d="M27.514 21.0904C26.8826 21.0904 26.2845 21.2085 25.7344 21.4171L17.512 13.6755C17.7262 13.168 17.8443 12.6118 17.8443 12.0313C17.8443 9.57007 15.725 7.57471 13.111 7.57471C10.497 7.57471 8.37769 9.57007 8.37769 12.0313C8.37769 14.4924 10.497 16.4878 13.111 16.4878C13.7276 16.4878 14.3146 16.3766 14.8537 16.1749L23.0982 23.9374C22.8915 24.4345 22.7807 24.9768 22.7807 25.5434C22.7807 28.0046 24.9 30 27.514 30C30.128 30 32.2473 28.0046 32.2473 25.5434C32.2473 23.0857 30.128 21.0904 27.514 21.0904Z" fill="#003C5A" />
+                  <text x="63" y="21" font-family="Open Sans, sans-serif" font-size="17" font-weight="700" fill="#003C5A">X-Talent</text>
+                </svg>
+              </a>
+
+              <nav class="xt-nav">
+                <a href="#" onclick="return false;">尋找導師</a>
+                <a href="#" class="role-label" onclick="return false;">成為導師</a>
+                <a href="#" onclick="return false;">關於 X-Talent</a>
+                <a href="#" onclick="return false;">提供回饋</a>
+              </nav>
+            </div>
+
+            <div class="xt-right">
+              <div class="xt-right-desktop">
+                <div class="auth-guest-only" style="display: contents">
+                  <a href="#" onclick="return false;"><button class="hbtn hbtn-outline-brand">註冊</button></a>
+                  <a href="#" onclick="return false;"><button class="hbtn hbtn-primary">登入</button></a>
+                </div>
+                <div class="auth-loggedin-only dropdown-anchor" style="display: none" id="desktop-dropdown-anchor">
+                  <button type="button" class="dropdown-trigger" id="dropdown-trigger" aria-label="開啟用戶選單" aria-expanded="false">
+                    <span class="avatar avatar-32" id="dd-avatar-32">陳</span>
+                    <span class="chev" aria-hidden="true">▾</span>
+                  </button>
+                  <div class="dropdown-panel" id="dropdown-panel" role="menu">
+                    <button type="button" class="dd-profile">
+                      <span class="avatar avatar-56" id="dd-avatar-56">陳</span>
+                      <span class="name" id="dd-name">陳雅婷</span>
+                    </button>
+                    <div class="dd-share">
+                      <button type="button" class="hbtn hbtn-outline" id="dd-share-btn">分享個人頁面</button>
+                    </div>
+                    <div class="dd-divider"></div>
+                    <div class="dd-items">
+                      <button type="button" class="dd-item role-label" role="menuitem">成為導師</button>
+                      <button type="button" class="dd-item" role="menuitem">我的預約</button>
+                      <button type="button" class="dd-item" role="menuitem">登出</button>
+                      <button type="button" class="dd-item is-danger delete-account-item" role="menuitem" hidden>刪除帳號</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="xt-right-mobile">
+                <button type="button" class="icon-btn auth-loggedin-only" style="display: none" id="mobile-avatar-trigger" aria-label="開啟用戶選單">
+                  <span class="avatar avatar-32" id="mobile-avatar-32">陳</span>
+                </button>
+                <button type="button" class="icon-btn" id="hamburger-trigger" aria-label="開啟導航選單">
+                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                    <path d="M3 6H19M3 11H19M3 16H19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <!-- Sheets / share-dialog are portalled as siblings of the header's 70px box, not
+             nested inside it — matching Radix's real DOM behavior so their `inset:0`
+             resolves against the full frame instead of the header's own small box. -->
+        <div class="sheet-overlay" id="nav-sheet-overlay"></div>
+        <div class="sheet-panel" id="nav-sheet-panel" role="dialog" aria-label="導航選單">
+          <button type="button" class="sheet-close" id="nav-sheet-close" aria-label="關閉導航選單">
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none"><path d="M6 6L20 20M20 6L6 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
+          </button>
+          <div class="sheet-nav-links">
+            <a href="#" onclick="return false;">尋找導師</a>
+            <a href="#" class="role-label" onclick="return false;">成為導師</a>
+            <a href="#" onclick="return false;">關於 X-Talent</a>
+            <a href="#" onclick="return false;">提供回饋</a>
+          </div>
+          <div class="sheet-nav-bottom auth-guest-only" data-display-when-guest="flex">
+            <a href="#" onclick="return false;"><button class="hbtn hbtn-primary">登入</button></a>
+            <a href="#" onclick="return false;"><button class="hbtn hbtn-outline-brand">註冊</button></a>
+          </div>
+        </div>
+
+        <div class="sheet-overlay" id="user-sheet-overlay"></div>
+        <div class="sheet-panel" id="user-sheet-panel" role="dialog" aria-label="用戶選單">
+          <button type="button" class="sheet-close" id="user-sheet-close" aria-label="關閉用戶選單">
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none"><path d="M6 6L20 20M20 6L6 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
+          </button>
+          <button type="button" class="sheet-user-profile">
+            <span class="avatar avatar-56" id="sheet-avatar-56">陳</span>
+            <span>
+              <span class="name" id="sheet-user-name" style="display: block">陳雅婷</span>
+              <span class="subtitle" id="sheet-user-subtitle">資深後端工程師 at 樂天國際商業股份有限公司</span>
+            </span>
+          </button>
+          <div class="sheet-user-share">
+            <button type="button" class="hbtn hbtn-outline" id="sheet-share-btn">分享個人頁面</button>
+          </div>
+          <div class="dd-divider"></div>
+          <nav class="sheet-user-nav">
+            <button type="button" class="role-label">成為導師</button>
+            <button type="button">我的預約</button>
+          </nav>
+          <div class="sheet-user-bottom">
+            <button type="button">登出</button>
+            <button type="button" class="is-danger delete-account-item" hidden>刪除帳號</button>
+          </div>
+        </div>
+
+        <!-- Share profile dialog (ShareProfileDialog.tsx) -->
+        <div class="share-overlay" id="share-overlay"></div>
+        <div class="share-dialog" id="share-dialog" role="dialog" aria-label="分享個人頁面">
+          <div class="share-dialog-inner">
+            <div class="share-dialog-head">
+              <div class="share-dialog-title">分享個人頁面</div>
+              <button type="button" class="share-dialog-close" id="share-dialog-close" aria-label="關閉">×</button>
+            </div>
+            <div class="share-profile-card">
+              <span class="avatar avatar-64" id="share-avatar">陳</span>
+              <div style="min-width: 0">
+                <div class="share-profile-name" id="share-name">陳雅婷</div>
+                <div class="share-profile-subtitle" id="share-subtitle">資深後端工程師 at 樂天國際商業股份有限公司</div>
+              </div>
+            </div>
+            <div>
+              <label class="share-link-label" for="share-link-input">個人頁面連結</label>
+              <div class="share-link-row">
+                <input type="text" id="share-link-input" readonly value="" />
+                <button type="button" class="hbtn hbtn-outline share-copy-btn" id="share-copy-btn">複製</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="banner"></div>
+
+        <div class="pv-container">
+          <!-- ============ profile head: skeleton ============ -->
+          <div class="profile-head loading-only">
+            <div class="skel avatar-skel"></div>
+            <div style="display:flex;flex-direction:column;gap:12px;margin-top:24px;">
+              <div class="skel skel-h7" style="width:192px;"></div>
+              <div class="skel skel-h4" style="width:128px;"></div>
+            </div>
+          </div>
+
+          <!-- ============ profile head: loaded ============ -->
+          <div class="profile-head loaded-only">
+            <div class="avatar-wrap">
+              <img src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=320&auto=format&fit=crop&q=80" alt="Avatar of 陳雅婷" />
+            </div>
+            <div class="info-col">
+              <div class="name-row">
+                <p class="name-text">陳雅婷 (Emma Chen)</p>
+                <div class="link-icons">
+                  <a href="#" onclick="return false;" title="LinkedIn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#0A66C2"><path d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94v5.67H9.36V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.38-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.12 20.45H3.56V9h3.56v11.45z"/></svg>
+                  </a>
+                  <a href="#" onclick="return false;" title="個人網站">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#474D57" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z"/></svg>
+                  </a>
+                </div>
+              </div>
+              <p class="job-line"><span class="job-title">資深後端工程師</span><span class="at"> at </span><span class="company">樂天國際商業股份有限公司</span></p>
+              <div class="action-row">
+                <button class="btn btn-outline own-only" onclick="return false;">編輯個人資訊</button>
+                <button class="btn btn-default own-only become-mentor-btn" onclick="return false;">成為導師</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="content-cols">
+            <div class="left-col">
+              <!-- content skeleton -->
+              <div class="loading-only" style="display:flex;flex-direction:column;gap:32px;">
+                <div style="display:flex;flex-direction:column;gap:12px;">
+                  <div class="skel skel-h6" style="width:64px;"></div>
+                  <div class="skel skel-h4" style="width:100%;"></div>
+                  <div class="skel skel-h4" style="width:100%;"></div>
+                  <div class="skel skel-h4" style="width:75%;"></div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:12px;">
+                  <div class="skel skel-h6" style="width:96px;"></div>
+                  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                    <div class="skel skel-h6 skel-pill" style="width:80px;"></div>
+                    <div class="skel skel-h6 skel-pill" style="width:80px;"></div>
+                    <div class="skel skel-h6 skel-pill" style="width:80px;"></div>
+                    <div class="skel skel-h6 skel-pill" style="width:80px;"></div>
+                    <div class="skel skel-h6 skel-pill" style="width:80px;"></div>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:12px;">
+                  <div class="skel skel-h6" style="width:80px;"></div>
+                  <div style="display:flex;flex-direction:column;gap:16px;">
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                      <div class="skel skel-h5" style="width:160px;"></div>
+                      <div class="skel skel-h4" style="width:112px;"></div>
+                      <div class="skel skel-h4" style="width:100%;"></div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                      <div class="skel skel-h5" style="width:160px;"></div>
+                      <div class="skel skel-h4" style="width:112px;"></div>
+                      <div class="skel skel-h4" style="width:100%;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- content loaded -->
+              <div class="loaded-only">
+                <div>
+                  <p class="section-title">關於我</p>
+                  <p class="about-text">熱衷於分散式系統與後端效能優化，過去五年在電商與金融科技產業累積豐富經驗，樂於分享職涯轉換與技術面試的實務心得。</p>
+                </div>
+
+                <div class="badge-section">
+                  <p class="section-title">經驗</p>
+                  <div class="badge-row"><span class="badge">5-10 年</span></div>
+                </div>
+
+                <div class="badge-section">
+                  <p class="section-title">產業</p>
+                  <div class="badge-row"><span class="badge">電子商務</span></div>
+                </div>
+
+                <div class="badge-section mentor-only">
+                  <p class="section-title">專業能力</p>
+                  <div class="badge-row">
+                    <span class="badge">後端架構設計</span>
+                    <span class="badge">系統效能調校</span>
+                    <span class="badge">技術面試準備</span>
+                  </div>
+                </div>
+
+                <div class="badge-section mentor-only">
+                  <p class="section-title">我能提供的服務</p>
+                  <div class="badge-row">
+                    <span class="badge">職涯諮詢</span>
+                    <span class="badge">履歷健檢</span>
+                    <span class="badge">模擬面試</span>
+                  </div>
+                </div>
+
+                <div class="badge-section">
+                  <p class="section-title">有興趣多了解的職位</p>
+                  <div class="badge-row">
+                    <span class="badge">技術主管</span>
+                    <span class="badge">解決方案架構師</span>
+                  </div>
+                </div>
+
+                <div class="badge-section">
+                  <p class="section-title">想多了解、加強的技能</p>
+                  <div class="badge-row">
+                    <span class="badge">團隊管理</span>
+                    <span class="badge">系統設計面談</span>
+                  </div>
+                </div>
+
+                <div class="badge-section">
+                  <p class="section-title">想多了解的主題</p>
+                  <div class="badge-row">
+                    <span class="badge">遠端團隊協作</span>
+                    <span class="badge">技術寫作</span>
+                  </div>
+                </div>
+
+                <div class="exp-block">
+                  <p class="section-title">工作經驗</p>
+                  <div class="exp-item">
+                    <div class="exp-top"><span>樂天國際商業股份有限公司</span><span class="exp-dates">2022/03 - 至今</span></div>
+                    <h3>資深後端工程師</h3>
+                    <p class="exp-desc">負責訂單系統與金流服務的架構設計，帶領 4 人小組完成微服務化改造，將尖峰時段延遲降低 40%。</p>
+                  </div>
+                  <div class="exp-divider"></div>
+                  <div class="exp-item">
+                    <div class="exp-top"><span>蝦皮購物</span><span class="exp-dates">2019/07 - 2022/02</span></div>
+                    <h3>後端工程師</h3>
+                    <p class="exp-desc">開發並維護商品推薦服務，導入快取層將 API 平均回應時間從 220ms 降至 60ms。</p>
+                  </div>
+                </div>
+
+                <div class="exp-block">
+                  <p class="section-title">教育</p>
+                  <div class="exp-item">
+                    <div class="exp-top"><span>國立台灣大學</span><span class="exp-dates">2015/09 - 2019/06</span></div>
+                    <h3>資訊工程學系</h3>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="right-col schedule-region">
+              <div class="right-col-inner">
+                <!-- schedule skeleton -->
+                <div class="sched-loading-only" style="display:flex;flex-direction:column;gap:16px;">
+                  <div class="skel skel-h6" style="width:96px;"></div>
+                  <div class="skel" style="height:256px;width:100%;border-radius:16px;"></div>
+                  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
+                    <div class="skel" style="height:40px;border-radius:8px;"></div>
+                    <div class="skel" style="height:40px;border-radius:8px;"></div>
+                    <div class="skel" style="height:40px;border-radius:8px;"></div>
+                    <div class="skel" style="height:40px;border-radius:8px;"></div>
+                  </div>
+                  <div class="skel" style="height:40px;width:100%;border-radius:999px;"></div>
+                </div>
+
+                <!-- schedule loaded -->
+                <div class="sched-loaded-only" style="display:flex;flex-direction:column;gap:16px;">
+                  <div class="schedule-card">
+                    <div class="schedule-card-head">
+                      <p class="label">可預約日期</p>
+                      <h2 id="selected-date-label">8月12日 (三)</h2>
+                    </div>
+                    <div class="cal" style="position:relative;">
+                      <div class="cal-month">
+                        <div class="cal-caption-row">
+                          <button type="button" class="cal-dropdown" onclick="return false;">8月<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></button>
+                          <button type="button" class="cal-dropdown" onclick="return false;">2026<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></button>
+                        </div>
+                        <div class="cal-nav-profile">
+                          <button type="button" class="nav-btn" onclick="return false;" aria-label="上個月"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+                          <button type="button" class="nav-btn" onclick="return false;" aria-label="下個月"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+                        </div>
+                      </div>
+                      <div class="cal-weekdays" id="cal-weekdays-view"></div>
+                      <div class="cal-grid" id="cal-grid-view"></div>
+                      <div class="cal-loading-overlay month-loading-only"><div class="spinner"></div></div>
+                    </div>
+                  </div>
+
+                  <!-- BookingForm: loading (reuses top-level loading flag) -->
+                  <div class="loading-only" style="display:flex;flex-direction:column;gap:16px;">
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                      <div class="skel skel-h4" style="width:112px;"></div>
+                      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
+                        <div class="skel" style="height:40px;border-radius:8px;"></div>
+                        <div class="skel" style="height:40px;border-radius:8px;"></div>
+                      </div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                      <div class="skel skel-h4" style="width:128px;"></div>
+                      <div class="skel" style="height:160px;border-radius:8px;"></div>
+                    </div>
+                    <div class="skel" style="height:48px;border-radius:999px;"></div>
+                  </div>
+
+                  <!-- MentorScheduleConfig: own + mentor -->
+                  <div class="loaded-only own-mentor-only" style="display:flex;flex-direction:column;gap:16px;">
+                    <div class="slot-list-label">當日可預約時段</div>
+                    <div class="slot-grid">
+                      <div class="slot-btn">10:00 – 10:30</div>
+                      <div class="slot-btn booked">14:00 – 14:30</div>
+                      <div class="slot-btn">16:00 – 16:30</div>
+                    </div>
+                    <button class="btn btn-default btn-full" id="open-msd-btn">預約設定</button>
+                  </div>
+
+                  <!-- MenteeBookingForm: not own-mentor -->
+                  <form class="loaded-only not-own-mentor-only" style="display:flex;flex-direction:column;gap:16px;" onsubmit="return false;">
+                    <div class="slot-list-label">當日可預約時段</div>
+                    <div class="slot-grid">
+                      <button type="button" class="slot-btn" data-slotbtn>10:00 – 10:30</button>
+                      <button type="button" class="slot-btn booked" disabled>14:00 – 14:30</button>
+                      <button type="button" class="slot-btn" data-slotbtn>16:00 – 16:30</button>
+                    </div>
+                    <div class="booking-textarea-wrap">
+                      <label for="booking-q">你想問導師的問題</label>
+                      <textarea id="booking-q" class="booking-textarea" placeholder="請在此輸入你的問題..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-default btn-full" id="mentee-submit-btn" disabled>預約時間</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <footer class="pv-footer">
+          <div class="pv-footer-inner">
+            <div class="pv-footer-logo">X-Talent</div>
+            <div class="pv-footer-cols">
+              <div class="pv-footer-col">
+                <p>關於</p>
+                <div class="pv-footer-links">
+                  <a href="#" onclick="return false;">隱私權政策</a>
+                  <a href="#" onclick="return false;">服務條款</a>
+                </div>
+              </div>
+              <div class="pv-footer-col">
+                <p>相關連結</p>
+                <div class="pv-footer-links">
+                  <a href="#" onclick="return false;">XChange Website</a>
+                  <a href="#" onclick="return false;">X-IMPACT Podcast</a>
+                  <a href="#" onclick="return false;">XChange Medium</a>
+                </div>
+              </div>
+              <div class="pv-footer-col">
+                <p>XChange 社群連結</p>
+                <div class="pv-footer-links">
+                  <a href="#" onclick="return false;">Facebook 粉絲專頁</a>
+                  <a href="#" onclick="return false;">Instagram 商業檔案</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </footer>
+
+        <!-- ============ MentorScheduleDialog: main list ============ -->
+        <div class="msd-overlay" id="msd-main">
+          <div class="dialog-card" style="max-width:560px;">
+            <button class="dialog-close" onclick="setDialog('closed')" aria-label="關閉">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <h3>設定可預約時段</h3>
+            <div style="display:flex;flex-direction:column;gap:16px;padding:16px 0;">
+              <div class="cal">
+                <div class="cal-month">
+                  <div class="cal-nav-default">
+                    <button type="button" class="nav-btn" onclick="return false;" aria-label="上個月"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+                    <button type="button" class="nav-btn" onclick="return false;" aria-label="下個月"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+                  </div>
+                  <div class="cal-caption-row cal-caption-row-default">
+                    <button type="button" class="cal-dropdown cal-dropdown-boxed" onclick="return false;">8月<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></button>
+                    <button type="button" class="cal-dropdown cal-dropdown-boxed" onclick="return false;">2026<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></button>
+                  </div>
+                </div>
+                <div class="cal-weekdays" id="cal-weekdays-msd"></div>
+                <div class="cal-grid" id="cal-grid-msd"></div>
+              </div>
+              <div>
+                <p style="font-weight:600;margin:0 0 12px;">可預約時段</p>
+                <div style="display:flex;flex-direction:column;gap:12px;">
+                  <div class="msd-slot-row" onclick="setDialog('edit')">
+                    <div class="msd-slot-top">
+                      <div class="msd-slot-time">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#76808F" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+                        10:00 – 10:30 <span class="msd-slot-dur">(30 分)</span>
+                      </div>
+                      <button class="btn btn-ghost btn-icon" onclick="event.stopPropagation(); return false;" aria-label="刪除">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="msd-slot-row" onclick="setDialog('booked')">
+                    <div class="msd-slot-top">
+                      <div class="msd-slot-time">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#76808F" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+                        14:00 – 14:30 <span class="msd-slot-dur">(30 分)</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="msd-slot-row" onclick="setDialog('pending')">
+                    <div class="msd-slot-top">
+                      <div class="msd-slot-time">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#76808F" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+                        16:00 – 16:30 <span class="msd-slot-dur">(30 分)</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button class="btn btn-ghost" style="height:40px;width:100%;" onclick="setDialog('add')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="dialog-footer">
+              <button class="btn btn-outline" onclick="setDialog('closed')">取消</button>
+              <button class="btn btn-default" onclick="setDialog('closed')">儲存</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ AddSlotModal ============ -->
+        <div class="msd-overlay-2" id="msd-add">
+          <div class="dialog-card">
+            <button class="dialog-close" onclick="setDialog('main')" aria-label="關閉">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <h3>新增可預約時段</h3>
+            <p class="dialog-desc">2026/08/12 (週三)</p>
+            <div style="display:flex;flex-direction:column;gap:20px;padding:8px 0;">
+              <div>
+                <p class="field-label">開始時間</p>
+                <div class="time-pair">
+                  <select class="time-select"><option>09</option></select>
+                  <span style="color:var(--color-text-tertiary);">:</span>
+                  <select class="time-select"><option>00</option></select>
+                </div>
+              </div>
+              <div>
+                <p class="field-label">會議長度</p>
+                <div class="duration-radio">
+                  <button class="active" onclick="return false;">15 分</button>
+                  <button onclick="return false;">30 分</button>
+                  <button onclick="return false;">60 分</button>
+                </div>
+              </div>
+              <label class="weekly-check-row"><input type="checkbox" /> 套用至本月剩餘的每週三</label>
+            </div>
+            <div class="dialog-footer">
+              <button class="btn btn-outline" onclick="setDialog('main')">取消</button>
+              <button class="btn btn-default" onclick="setDialog('main')">建立</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ EditSlotModal ============ -->
+        <div class="msd-overlay-2" id="msd-edit">
+          <div class="dialog-card">
+            <button class="dialog-close" onclick="setDialog('main')" aria-label="關閉">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <h3>編輯時段</h3>
+            <div style="display:flex;flex-direction:column;gap:20px;padding:16px 0 8px;">
+              <div>
+                <p class="field-label">開始時間</p>
+                <div class="time-pair">
+                  <select class="time-select"><option>10</option></select>
+                  <span style="color:var(--color-text-tertiary);">:</span>
+                  <select class="time-select"><option>00</option></select>
+                </div>
+              </div>
+              <div>
+                <p class="field-label">會議長度</p>
+                <div class="duration-radio">
+                  <button onclick="return false;">15 分</button>
+                  <button class="active" onclick="return false;">30 分</button>
+                  <button onclick="return false;">60 分</button>
+                </div>
+              </div>
+            </div>
+            <div class="dialog-footer">
+              <button class="btn btn-outline" onclick="setDialog('main')">取消</button>
+              <button class="btn btn-default" onclick="setDialog('main')">完成</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ prompt: booked ============ -->
+        <div class="msd-overlay-2" id="msd-booked">
+          <div class="dialog-card" style="max-width:400px;">
+            <button class="dialog-close" onclick="setDialog('main')" aria-label="關閉">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <h3>此時段已有預約</h3>
+            <p class="dialog-desc">此時段已有 mentee 預約成功，無法編輯或移除。如需取消，請至「預約管理」頁面處理。</p>
+            <div class="dialog-footer">
+              <button class="btn btn-outline" onclick="setDialog('main')">取消</button>
+              <button class="btn btn-default" onclick="setDialog('main')">前往預約管理</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ prompt: pending ============ -->
+        <div class="msd-overlay-2" id="msd-pending">
+          <div class="dialog-card" style="max-width:400px;">
+            <button class="dialog-close" onclick="setDialog('main')" aria-label="關閉">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <h3>此時段有未處理的預約申請</h3>
+            <p class="dialog-desc">請至「預約管理」頁面接受或拒絕該申請，僅在拒絕後此時段才會重新釋出。</p>
+            <div class="dialog-footer">
+              <button class="btn btn-outline" onclick="setDialog('main')">取消</button>
+              <button class="btn btn-default" onclick="setDialog('main')">前往預約管理</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="note">
+  已知會刻意保留的「不尋常」排版：avatar 區塊以 <code class="inline">translateY(-40px)</code> 疊在 banner 上（來源 <code class="inline">-translate-y-10</code>），非本次還原引入的瑕疵。MentorScheduleDialog 的子彈窗（新增／編輯／阻擋提示）在真實元件中各自獨立 portal 到 document.body，此處以第二層 overlay 疊加在主列表 dialog 之上重現同樣的視覺堆疊，而非巢狀在頭像／banner 這類小尺寸定位祖先內。
+</footer>
+
+<script>
+  const pageBody = document.getElementById('page-body');
+  const state = {
+    loading: '0',
+    logged: '1',
+    own: '0',
+    mentor: '1',
+    sched: '1',
+    month: '0',
+    dialog: 'closed',
+  };
+
+  function applyDerived() {
+    const own = state.own === '1' && state.logged === '1';
+    const mentor = state.mentor === '1';
+    const showSchedule = state.loading === '1' || mentor;
+    const ownMentor = own && mentor;
+
+    pageBody.dataset.loading = state.loading;
+    pageBody.dataset.logged = state.logged;
+    pageBody.dataset.own = own ? '1' : '0';
+    pageBody.dataset.mentor = state.mentor;
+    pageBody.dataset.sched = state.sched;
+    pageBody.dataset.month = state.month;
+    pageBody.dataset.dialog = state.dialog;
+    pageBody.dataset.showSchedule = showSchedule ? '1' : '0';
+    pageBody.dataset.ownMentor = ownMentor ? '1' : '0';
+    updateHeaderAuthUI();
+  }
+
+  function bindSegmented(group) {
+    const wrap = document.querySelector(`.segmented[data-group="${group}"]`);
+    wrap.querySelectorAll('.seg-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state[group] = btn.dataset.val;
+        wrap.querySelectorAll('.seg-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (group === 'logged' && state.logged === '0') {
+          state.own = '0';
+          const ownWrap = document.querySelector('.segmented[data-group="own"]');
+          ownWrap.querySelectorAll('.seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.val === '0'));
+        }
+        applyDerived();
+      });
+    });
+  }
+  ['loading', 'logged', 'own', 'mentor', 'sched', 'month'].forEach(bindSegmented);
+
+  function setDialog(val) {
+    state.dialog = val;
+    document.querySelectorAll('.dialog-jump button').forEach((b) => b.classList.toggle('active', b.dataset.val === val));
+    applyDerived();
+  }
+  document.querySelectorAll('.dialog-jump button').forEach((btn) => {
+    btn.addEventListener('click', () => setDialog(btn.dataset.val));
+  });
+  document.getElementById('open-msd-btn').addEventListener('click', () => setDialog('main'));
+
+  document.querySelectorAll('[data-slotbtn]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-slotbtn]').forEach((b) => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      document.getElementById('mentee-submit-btn').disabled = false;
+    });
+  });
+
+  /* ---- calendar render ----
+     Two distinct instances, matching each call site's real props:
+     - profile calendar (ui.tsx): ScheduleCalendar size="profile" -> variant="profile",
+       showTodayStyle={false}, disableEmptyDates={true} (only dates with slots are
+       clickable), disablePastDates not set (false).
+     - MentorScheduleDialog calendar: ScheduleCalendar with no `size` prop, which
+       defaults to size="compact" -> variant="default" (NOT "profile"), and passes
+       showTodayStyle left at Calendar's own default (true), disableEmptyDates={false}
+       (any future date is clickable so a mentor can add new availability),
+       disablePastDates={true}, highlightAvailableDates={true}. */
+  function renderCalendar(weekdaysId, gridId, opts) {
+    const weekdaysEl = document.getElementById(weekdaysId);
+    const gridEl = document.getElementById(gridId);
+    if (!weekdaysEl || !gridEl) return;
+    const daysInMonth = 31; // Aug 2026
+    const startWeekday = 6; // Aug 1 2026 is a Saturday
+    const available = new Set([3, 5, 8, 10, 12, 14, 17, 19, 21, 24, 26, 28]);
+    const selected = 12;
+    const today = 10;
+
+    const weekdayLabels = opts.variant === 'profile'
+      ? ['日', '一', '二', '三', '四', '五', '六']
+      : ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+    weekdaysEl.innerHTML = weekdayLabels.map((w) => `<div>${w}</div>`).join('');
+
+    let html = '';
+    for (let i = 0; i < startWeekday; i++) {
+      html += `<div class="cal-day outside">${31 - startWeekday + i + 1}</div>`;
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      const isAvail = available.has(d);
+      const isSel = d === selected;
+      const isToday = d === today;
+      const isPast = opts.disablePast && d < today;
+      const isEmpty = opts.disableEmpty && !isAvail;
+      const isDisabled = isPast || isEmpty;
+      let cls = 'cal-day';
+      if (opts.highlightAvailable && isAvail && !isSel && !isDisabled) cls += ' available';
+      if (isSel) cls += opts.variant === 'profile' ? ' selected' : ' selected-default';
+      if (isDisabled && !isSel) cls += ' disabled';
+      if (isToday && opts.showToday && !isSel) cls += ' today-ring';
+      html += isDisabled
+        ? `<button type="button" class="${cls}" disabled>${d}</button>`
+        : `<button type="button" class="${cls}" onclick="return false;">${d}</button>`;
+    }
+    gridEl.innerHTML = html;
+  }
+  renderCalendar('cal-weekdays-view', 'cal-grid-view', { variant: 'profile', disablePast: false, disableEmpty: true, showToday: false, highlightAvailable: true });
+  renderCalendar('cal-weekdays-msd', 'cal-grid-msd', { variant: 'default', disablePast: true, disableEmpty: false, showToday: true, highlightAvailable: true });
+
+  /* ---- header (Header.tsx / HamburgerMenu.tsx / UserDropdown.tsx / MobileUserMenu.tsx / ShareProfileDialog.tsx) ----
+     Reuses this page's own state.logged / state.own / state.mentor instead of a
+     separate auth control, since the header's login identity and the profile
+     page's own "own profile" state must stay in sync. */
+  const HEADER_USER = { name: '陳雅婷', subtitle: '資深後端工程師 at 樂天國際商業股份有限公司', initial: '陳', id: 'u_2290' };
+
+  const dropdownAnchor = document.getElementById('desktop-dropdown-anchor');
+  const dropdownTrigger = document.getElementById('dropdown-trigger');
+  const dropdownPanel = document.getElementById('dropdown-panel');
+  const mobileAvatarTrigger = document.getElementById('mobile-avatar-trigger');
+  const hamburgerTrigger = document.getElementById('hamburger-trigger');
+  const navOverlay = document.getElementById('nav-sheet-overlay');
+  const navPanel = document.getElementById('nav-sheet-panel');
+  const userOverlay = document.getElementById('user-sheet-overlay');
+  const userPanel = document.getElementById('user-sheet-panel');
+
+  let dropdownOpen = false;
+  let openSheetName = null;
+
+  function updateHeaderAuthUI() {
+    const loggedIn = state.logged === '1';
+    document.querySelectorAll('.auth-guest-only').forEach((el) => {
+      el.style.display = loggedIn ? 'none' : (el.dataset.displayWhenGuest || 'contents');
+    });
+    document.querySelectorAll('.auth-loggedin-only').forEach((el) => {
+      const isDropdownAnchor = el === dropdownAnchor;
+      el.style.display = loggedIn ? (isDropdownAnchor ? 'block' : 'inline-flex') : 'none';
+    });
+    document.querySelectorAll('.role-label').forEach((el) => {
+      el.textContent = state.mentor === '1' ? '我的導師頁面' : '成為導師';
+    });
+    document.querySelectorAll('.delete-account-item').forEach((el) => { el.hidden = true; });
+    if (!loggedIn) {
+      closeDropdown();
+      closeSheet('user');
+      closeShareDialog();
+    }
+  }
+
+  function openDropdown() {
+    dropdownOpen = true;
+    dropdownPanel.classList.add('is-open');
+    dropdownTrigger.setAttribute('aria-expanded', 'true');
+  }
+  function closeDropdown() {
+    dropdownOpen = false;
+    dropdownPanel.classList.remove('is-open');
+    dropdownTrigger.setAttribute('aria-expanded', 'false');
+  }
+  dropdownTrigger.addEventListener('click', () => (dropdownOpen ? closeDropdown() : openDropdown()));
+  dropdownPanel.addEventListener('click', (e) => {
+    if (e.target.closest('.dd-item, .dd-profile')) closeDropdown();
+  });
+  document.addEventListener('click', (e) => {
+    if (dropdownOpen && !dropdownAnchor.contains(e.target)) closeDropdown();
+  });
+
+  function openSheet(which) {
+    closeDropdown();
+    openSheetName = which;
+    const overlay = which === 'nav' ? navOverlay : userOverlay;
+    const panel = which === 'nav' ? navPanel : userPanel;
+    overlay.classList.add('is-open');
+    panel.classList.add('is-open');
+  }
+  function closeSheet(which) {
+    if (which && openSheetName !== which) return;
+    const overlay = (which || openSheetName) === 'nav' ? navOverlay : userOverlay;
+    const panel = (which || openSheetName) === 'nav' ? navPanel : userPanel;
+    overlay.classList.remove('is-open');
+    panel.classList.remove('is-open');
+    openSheetName = null;
+  }
+  function closeAnySheet() {
+    closeSheet('nav');
+    closeSheet('user');
+  }
+  hamburgerTrigger.addEventListener('click', () => openSheet('nav'));
+  mobileAvatarTrigger.addEventListener('click', () => openSheet('user'));
+  document.getElementById('nav-sheet-close').addEventListener('click', () => closeSheet('nav'));
+  document.getElementById('user-sheet-close').addEventListener('click', () => closeSheet('user'));
+  navOverlay.addEventListener('click', () => closeSheet('nav'));
+  userOverlay.addEventListener('click', () => closeSheet('user'));
+  navPanel.querySelectorAll('a, button').forEach((el) => el.addEventListener('click', () => closeSheet('nav')));
+  userPanel.querySelectorAll('button').forEach((el) => {
+    if (el.closest('.sheet-user-share')) return;
+    el.addEventListener('click', () => closeSheet('user'));
+  });
+
+  const shareOverlay = document.getElementById('share-overlay');
+  const shareDialog = document.getElementById('share-dialog');
+  const shareLinkInput = document.getElementById('share-link-input');
+  const shareCopyBtn = document.getElementById('share-copy-btn');
+  let shareSource = null;
+  let shareCopyResetTimer = null;
+
+  function openShareDialog(source) {
+    if (state.logged !== '1') return;
+    shareLinkInput.value = `https://x-talent.example.com/profile/${HEADER_USER.id}`;
+    shareCopyBtn.textContent = '複製';
+    shareSource = source;
+    shareOverlay.classList.add('is-open');
+    shareDialog.classList.add('is-open');
+  }
+  function closeShareDialog() {
+    shareOverlay.classList.remove('is-open');
+    shareDialog.classList.remove('is-open');
+    if (shareSource === 'mobile') closeSheet('user');
+    shareSource = null;
+  }
+  document.getElementById('dd-share-btn').addEventListener('click', () => {
+    closeDropdown();
+    setTimeout(() => openShareDialog('desktop'), 60);
+  });
+  document.getElementById('sheet-share-btn').addEventListener('click', () => openShareDialog('mobile'));
+  shareCopyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(shareLinkInput.value);
+    } catch {
+      shareLinkInput.select();
+    }
+    shareCopyBtn.textContent = '已複製';
+    clearTimeout(shareCopyResetTimer);
+    shareCopyResetTimer = setTimeout(() => { shareCopyBtn.textContent = '複製'; }, 1500);
+  });
+  document.getElementById('share-dialog-close').addEventListener('click', closeShareDialog);
+  shareOverlay.addEventListener('click', closeShareDialog);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (shareDialog.classList.contains('is-open')) closeShareDialog();
+    else if (openSheetName) closeAnySheet();
+    else if (dropdownOpen) closeDropdown();
+  });
+
+  /* ---- resizer ---- */
+  const frame = document.getElementById('frame');
+  const slider = document.getElementById('width-slider');
+  const widthNum = document.getElementById('width-num');
+  const bpPill = document.getElementById('bp-pill');
+  function updateWidth() {
+    const w = parseInt(slider.value, 10);
+    frame.style.width = w + 'px';
+    widthNum.textContent = w + 'px';
+    let label;
+    if (w >= 1536) label = '2xl+ 版型（雙欄並排 ／ Header 導覽列）';
+    else if (w >= 1024) label = 'lg+ 版型（Header 顯示導覽列＋帳號選單）';
+    else if (w >= 768) label = 'md+ 版型（Header 顯示漢堡選單）';
+    else if (w >= 640) label = 'sm+ 版型（頭像列改橫排，Header 顯示漢堡選單）';
+    else label = '< sm 版型（單欄堆疊，Header 顯示漢堡選單）';
+    bpPill.textContent = label;
+    if (w >= 1024) closeAnySheet();
+    else closeDropdown();
+  }
+  slider.addEventListener('input', updateWidth);
+  updateWidth();
+
+  applyDerived();
+</script>
+
+<style>
+  /* ---- state-driven visibility (kept at end so it wins the cascade) ---- */
+  #page-body[data-loading="1"] .loaded-only { display: none !important; }
+  #page-body[data-loading="0"] .loading-only { display: none !important; }
+
+  #page-body[data-logged="1"] .logged-out-only { display: none !important; }
+  #page-body[data-logged="0"] .logged-in-only { display: none !important; }
+
+  #page-body[data-own="0"] .own-only { display: none !important; }
+  #page-body[data-mentor="1"] .become-mentor-btn { display: none !important; }
+
+  #page-body[data-mentor="0"] .mentor-only { display: none !important; }
+
+  #page-body[data-show-schedule="0"] .schedule-region { display: none !important; }
+
+  #page-body[data-sched="1"] .sched-loading-only { display: none !important; }
+  #page-body[data-sched="0"] .sched-loaded-only { display: none !important; }
+
+  #page-body[data-month="0"] .month-loading-only { display: none !important; }
+
+  #page-body[data-own-mentor="1"] .not-own-mentor-only { display: none !important; }
+  #page-body[data-own-mentor="0"] .own-mentor-only { display: none !important; }
+
+  #page-body:not([data-dialog="closed"]) #msd-main { display: flex !important; }
+  #page-body[data-dialog="add"] #msd-add { display: flex !important; }
+  #page-body[data-dialog="edit"] #msd-edit { display: flex !important; }
+  #page-body[data-dialog="booked"] #msd-booked { display: flex !important; }
+  #page-body[data-dialog="pending"] #msd-pending { display: flex !important; }
+</style>
