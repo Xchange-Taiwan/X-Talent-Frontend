@@ -132,13 +132,15 @@ export function getNotificationContent(item: NotificationItem) {
         icon: <CalendarOff className="size-5" />,
       };
     }
-    case 'reservation_upcoming':
+    case 'reservation_upcoming': {
+      const name = item.mentorName || item.menteeName || '導師';
       return {
-        title: `您與 ${item.mentorName || 'Mentor'} 的預約即將到來`,
-        body: `您 24 小時後有與 ${item.mentorName || 'Mentor'} 的會議，請準時上線`,
+        title: `您與 ${name} 的預約即將到來`,
+        body: `您 24 小時後有與 ${name} 的會議，請準時上線`,
         iconBgClass: 'bg-status-warning-default/10 text-status-warning-default',
         icon: <Clock className="size-5" />,
       };
+    }
     default:
       return {
         title: '通知',
@@ -161,6 +163,26 @@ export const NotificationBell = React.memo(function NotificationBell({
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
     initialNotifications ?? defaultMockNotifications
   );
+
+  // Sync state if props change (solving uncontrolled-to-controlled locking issues)
+  React.useEffect(() => {
+    setStatus(initialStatus);
+  }, [initialStatus]);
+
+  React.useEffect(() => {
+    if (initialNotifications) {
+      setNotifications(initialNotifications);
+    }
+  }, [initialNotifications]);
+
+  // Track unreadCount changes and reset hasBeenClicked if new notifications arrive (solving badge hidden bug)
+  const prevUnreadCountRef = React.useRef(unreadCount);
+  React.useEffect(() => {
+    if (unreadCount > prevUnreadCountRef.current) {
+      setHasBeenClicked(false);
+    }
+    prevUnreadCountRef.current = unreadCount;
+  }, [unreadCount]);
 
   const handleOpenChange = React.useCallback((open: boolean) => {
     if (open) {
