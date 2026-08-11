@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/sheet';
 import { trackEvent } from '@/lib/analytics';
 
-import { FEEDBACK_FORM_URL } from './constants';
+import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
 import { DisabledAwareLink } from './DisabledAwareLink';
 import { getBecomeMentorHref, getProfileHref } from './navHrefs';
 
@@ -64,7 +64,7 @@ export function HamburgerMenu({
 
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8 text-2xl">
             <Link
-              href="/mentor-pool"
+              href={FIND_MENTOR_HREF}
               onClick={close}
               className="text-text-primary"
             >

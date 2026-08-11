@@ -22,6 +22,11 @@ vi.mock('next/navigation', async () => {
   return navigationMockFactory();
 });
 
+const trackEvent = vi.fn();
+vi.mock('@/lib/analytics', () => ({
+  trackEvent: (...args: unknown[]) => trackEvent(...args),
+}));
+
 import { mockSession } from '@/test/mocks/nextAuth';
 
 import { UserDropdown } from './UserDropdown';
@@ -101,5 +106,37 @@ describe('UserDropdown share flow', () => {
     openMenu();
     const shareButton = screen.getByRole('button', { name: '分享個人頁面' });
     expect(shareButton).toBeDisabled();
+  });
+
+  it('renders the merged header navigation links (尋找導師, 關於 X-Talent, 提供回饋) inside the dropdown menu', () => {
+    render(<UserDropdown user={buildUser()} />);
+
+    openMenu();
+
+    const findMentorLink = screen.getByRole('menuitem', { name: '尋找導師' });
+    const aboutLink = screen.getByRole('menuitem', { name: '關於 X-Talent' });
+    const feedbackLink = screen.getByRole('menuitem', { name: '提供回饋' });
+
+    expect(findMentorLink).toBeInTheDocument();
+    expect(findMentorLink).toHaveAttribute('href', '/mentor-pool');
+
+    expect(aboutLink).toBeInTheDocument();
+    expect(aboutLink).toHaveAttribute('href', '/about');
+
+    expect(feedbackLink).toBeInTheDocument();
+    expect(feedbackLink).toHaveAttribute(
+      'href',
+      'https://forms.gle/594hMVdTyoR3Pgtg9'
+    );
+  });
+
+  it('tracks feedback_open when 提供回饋 is clicked', () => {
+    trackEvent.mockClear();
+    render(<UserDropdown user={buildUser()} />);
+
+    openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: '提供回饋' }));
+
+    expect(trackEvent).toHaveBeenCalledWith({ name: 'feedback_open' });
   });
 });
