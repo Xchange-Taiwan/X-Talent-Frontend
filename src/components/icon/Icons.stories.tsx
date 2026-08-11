@@ -1,4 +1,4 @@
-import { IconGallery, IconItem } from '@storybook/addon-docs/blocks';
+import { IconGallery, IconItem } from '@storybook/blocks';
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
