@@ -1,8 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
-import { useForm } from 'react-hook-form';
 
-import { Form, FormField, FormItem } from '@/components/ui/form';
+import { FormMockWrapper } from '@/test/mocks/FormMockWrapper';
 
 import ForgotPasswordLink from './ForgotPasswordLink';
 
@@ -15,28 +14,10 @@ const meta: Meta<typeof ForgotPasswordLink> = {
 export default meta;
 type Story = StoryObj<typeof ForgotPasswordLink>;
 
-const StoryWrapper = () => {
-  const form = useForm({
-    defaultValues: {
-      password: '',
-    },
-  });
-
-  return (
-    <Form {...form}>
-      <FormField
-        control={form.control}
-        name="password"
-        render={() => (
-          <FormItem>
-            <ForgotPasswordLink />
-          </FormItem>
-        )}
-      />
-    </Form>
-  );
-};
-
 export const Default: Story = {
-  render: () => <StoryWrapper />,
+  render: () => (
+    <FormMockWrapper defaultValues={{ password: '' }} fieldName="password">
+      <ForgotPasswordLink />
+    </FormMockWrapper>
+  ),
 };

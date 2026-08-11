@@ -15,7 +15,7 @@ importers:
     dependencies:
       '@hookform/resolvers':
         specifier: ^5.6.0
-        version: 5.6.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.17.1))(ajv@8.17.1)(react-hook-form@7.83.0(react@18.2.0))(zod@3.25.76)
+        version: 5.6.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@6.12.6))(ajv@6.12.6)(react-hook-form@7.83.0(react@18.2.0))(zod@3.25.76)
       '@radix-ui/react-avatar':
         specifier: ^1.2.6
         version: 1.2.6(@types/react-dom@18.2.18)(@types/react@18.2.48)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -138,8 +138,8 @@ importers:
         specifier: ^10.5.5
         version: 10.5.5(storybook@10.5.5(@types/react@18.2.48)(prettier@3.9.6)(react@18.2.0))
       '@storybook/blocks':
-        specifier: ^8.6.14
-        version: 8.6.14(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(storybook@10.5.5(@types/react@18.2.48)(prettier@3.9.6)(react@18.2.0))
+        specifier: ^8.6.18
+        version: 8.6.18(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(storybook@10.5.5(@types/react@18.2.48)(prettier@3.9.6)(react@18.2.0))
       '@storybook/nextjs':
         specifier: ^10.5.5
         version: 10.5.5(@types/react-dom@18.2.18)(@types/react@18.2.48)(esbuild@0.28.1)(next@14.2.35(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0))(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(storybook@10.5.5(@types/react@18.2.48)(prettier@3.9.6)(react@18.2.0))(type-fest@4.41.0)(typescript@5.9.3)(webpack-hot-middleware@2.26.1)(webpack@5.104.1(esbuild@0.28.1))
@@ -2945,12 +2945,12 @@ packages:
     peerDependencies:
       storybook: ^10.5.5
 
-  '@storybook/blocks@8.6.14':
-    resolution: {integrity: sha512-rBMHAfA39AGHgkrDze4RmsnQTMw1ND5fGWobr9pDcJdnDKWQWNRD7Nrlxj0gFlN3n4D9lEZhWGdFrCbku7FVAQ==}
+  '@storybook/blocks@8.6.18':
+    resolution: {integrity: sha512-esZv4msPQ9LxgTb8YUIZhhxVMuI6BPi5bkXtk8c7w7sWuAsqsCe/RnVInn7ooUry2gjnD4hd9+8Eqj0b8oTVoA==}
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
-      storybook: ^8.6.14
+      storybook: ^8.6.18
     peerDependenciesMeta:
       react:
         optional: true
@@ -8398,14 +8398,14 @@ snapshots:
       '@lydell/node-pty-win32-x64': 1.1.0
       node-pty: 1.0.0
 
-  '@hookform/resolvers@5.6.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.17.1))(ajv@8.17.1)(react-hook-form@7.83.0(react@18.2.0))(zod@3.25.76)':
+  '@hookform/resolvers@5.6.0(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@6.12.6))(ajv@6.12.6)(react-hook-form@7.83.0(react@18.2.0))(zod@3.25.76)':
     dependencies:
       '@standard-schema/utils': 0.3.0
       react-hook-form: 7.83.0(react@18.2.0)
     optionalDependencies:
       '@standard-schema/spec': 1.1.0
-      ajv: 8.17.1
-      ajv-formats: 2.1.1(ajv@8.17.1)
+      ajv: 6.12.6
+      ajv-formats: 2.1.1(ajv@6.12.6)
       zod: 3.25.76
 
   '@humanwhocodes/config-array@0.13.0':
@@ -9965,7 +9965,7 @@ snapshots:
     dependencies:
       storybook: 10.5.5(@types/react@18.2.48)(prettier@3.9.6)(react@18.2.0)
 
-  '@storybook/blocks@8.6.14(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(storybook@10.5.5(@types/react@18.2.48)(prettier@3.9.6)(react@18.2.0))':
+  '@storybook/blocks@8.6.18(react-dom@18.2.0(react@18.2.0))(react@18.2.0)(storybook@10.5.5(@types/react@18.2.48)(prettier@3.9.6)(react@18.2.0))':
     dependencies:
       '@storybook/icons': 1.6.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       storybook: 10.5.5(@types/react@18.2.48)(prettier@3.9.6)(react@18.2.0)
@@ -10810,6 +10810,11 @@ snapshots:
       - supports-color
 
   agent-base@7.1.4: {}
+
+  ajv-formats@2.1.1(ajv@6.12.6):
+    optionalDependencies:
+      ajv: 6.12.6
+    optional: true
 
   ajv-formats@2.1.1(ajv@8.17.1):
     optionalDependencies:
