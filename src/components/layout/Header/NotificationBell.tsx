@@ -103,6 +103,9 @@ export const defaultMockNotifications: NotificationItem[] = [
  */
 export function formatRelativeTime(dateInput: Date | string): string {
   const date = new Date(dateInput);
+  if (isNaN(date.getTime())) {
+    return '';
+  }
   const now = new Date();
   const diffMs = Math.max(0, now.getTime() - date.getTime());
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -117,7 +120,7 @@ export function formatRelativeTime(dateInput: Date | string): string {
 }
 
 /**
- * Returns content templates (title, body, styles) for notification items.
+ * Returns content templates (title, body, styles, and icon) for notification items.
  */
 export function getNotificationContent(item: NotificationItem) {
   switch (item.type) {
@@ -126,18 +129,21 @@ export function getNotificationContent(item: NotificationItem) {
         title: '您有新的預約',
         body: `${item.menteeName || 'Mentee'} 與您提出預約需求，請前往接受預約`,
         iconBgClass: 'bg-brand-50 text-brand-600',
+        icon: <CalendarPlus className="size-5" />,
       };
     case 'reservation_success':
       return {
         title: `${item.mentorName || 'Mentor'} 已接受您的預約`,
         body: '前往查看您的預約詳情',
         iconBgClass: 'bg-status-success-default/10 text-status-success-default',
+        icon: <CalendarCheck className="size-5" />,
       };
     case 'reservation_failed':
       return {
         title: `您與 ${item.mentorName || 'Mentor'} 的預約已被拒絕`,
         body: '您的預約已被拒絕，歡迎重新預約',
         iconBgClass: 'bg-status-error-default/10 text-status-error-default',
+        icon: <CalendarX className="size-5" />,
       };
     case 'reservation_canceled': {
       const name = item.mentorName || item.menteeName || '導師';
@@ -145,6 +151,7 @@ export function getNotificationContent(item: NotificationItem) {
         title: `您與 ${name} 的預約已被取消`,
         body: '您的預約已被取消，歡迎重新預約',
         iconBgClass: 'bg-background-hover text-text-secondary',
+        icon: <CalendarOff className="size-5" />,
       };
     }
     case 'reservation_upcoming':
@@ -152,30 +159,15 @@ export function getNotificationContent(item: NotificationItem) {
         title: `您與 ${item.mentorName || 'Mentor'} 的預約即將到來`,
         body: `您 24 小時後有與 ${item.mentorName || 'Mentor'} 的會議，請準時上線`,
         iconBgClass: 'bg-status-warning-default/10 text-status-warning-default',
+        icon: <Clock className="size-5" />,
       };
     default:
       return {
         title: '通知',
         body: '您有一則新通知',
         iconBgClass: 'bg-background-bottom text-text-primary',
+        icon: <Bell className="size-5" />,
       };
-  }
-}
-
-function getNotificationIcon(type: string) {
-  switch (type) {
-    case 'reservation_new':
-      return <CalendarPlus className="size-5" />;
-    case 'reservation_success':
-      return <CalendarCheck className="size-5" />;
-    case 'reservation_failed':
-      return <CalendarX className="size-5" />;
-    case 'reservation_canceled':
-      return <CalendarOff className="size-5" />;
-    case 'reservation_upcoming':
-      return <Clock className="size-5" />;
-    default:
-      return <Bell className="size-5" />;
   }
 }
 
@@ -300,7 +292,8 @@ export const NotificationBell = React.memo(function NotificationBell({
         {status === 'success' && notifications.length > 0 && (
           <div className="flex max-h-[360px] flex-col gap-1 overflow-y-auto pr-1">
             {notifications.map((item) => {
-              const { title, body, iconBgClass } = getNotificationContent(item);
+              const { title, body, iconBgClass, icon } =
+                getNotificationContent(item);
               return (
                 <div
                   key={item.id}
@@ -312,7 +305,7 @@ export const NotificationBell = React.memo(function NotificationBell({
                       iconBgClass
                     )}
                   >
-                    {getNotificationIcon(item.type)}
+                    {icon}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="mb-1 text-sm leading-tight font-semibold break-words text-text-primary">

@@ -136,6 +136,13 @@ describe('NotificationBell', () => {
     it('correctly calculates relative time', () => {
       const now = new Date();
 
+      // 0 minutes ago (just happened)
+      expect(formatRelativeTime(now)).toBe('1 小時');
+
+      // 30 minutes ago (less than 1 hour)
+      const thirtyMinsAgo = new Date(now.getTime() - 30 * 60 * 1000);
+      expect(formatRelativeTime(thirtyMinsAgo)).toBe('1 小時');
+
       // 1 hour ago
       const oneHourAgo = new Date(now.getTime() - 1 * 60 * 60 * 1000);
       expect(formatRelativeTime(oneHourAgo)).toBe('1 小時');
@@ -151,6 +158,9 @@ describe('NotificationBell', () => {
       // 30 days ago
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       expect(formatRelativeTime(thirtyDaysAgo)).toBe('30 天');
+
+      // Invalid date
+      expect(formatRelativeTime('invalid-date-string')).toBe('');
     });
   });
 
@@ -158,7 +168,7 @@ describe('NotificationBell', () => {
     it('returns template content for unknown notification types as fallback', () => {
       const result = getNotificationContent({
         id: '99',
-        type: 'unknown_type' as any,
+        type: 'unknown_type' as unknown as NotificationItem['type'],
         createdAt: new Date().toISOString(),
       });
       expect(result.title).toBe('通知');

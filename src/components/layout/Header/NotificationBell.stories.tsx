@@ -53,3 +53,19 @@ export const Over99Notifications: Story = {
     initialStatus: 'success',
   },
 };
+
+export const LongText: Story = {
+  args: {
+    unreadCount: 1,
+    initialStatus: 'success',
+    initialNotifications: [
+      {
+        id: 'long-1',
+        type: 'reservation_new',
+        menteeName: '超級長長長長長長長長長長長長長長長長長名字使用者',
+        createdAt: new Date().toISOString(),
+        unread: true,
+      },
+    ],
+  },
+};
