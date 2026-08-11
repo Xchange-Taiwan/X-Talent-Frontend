@@ -17,6 +17,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatRelativeTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
 export type NotificationItem = {
@@ -95,29 +96,6 @@ export const defaultMockNotifications: NotificationItem[] = [
     unread: false,
   },
 ];
-
-/**
- * Formats elapsed time relative to the current time.
- * - Under 24 hours: formats in hours (e.g., "1 小時", "23 小時")
- * - 24 hours or more: formats in days (e.g., "1 天", "30 天")
- */
-export function formatRelativeTime(dateInput: Date | string): string {
-  const date = new Date(dateInput);
-  if (isNaN(date.getTime())) {
-    return '';
-  }
-  const now = new Date();
-  const diffMs = Math.max(0, now.getTime() - date.getTime());
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-
-  if (diffHours < 24) {
-    const hours = Math.max(1, diffHours);
-    return `${hours} 小時`;
-  } else {
-    const days = Math.floor(diffHours / 24);
-    return `${days} 天`;
-  }
-}
 
 /**
  * Returns content templates (title, body, styles, and icon) for notification items.
@@ -271,16 +249,8 @@ export const NotificationBell = React.memo(function NotificationBell({
           </div>
         )}
 
-        {status === 'empty' && (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Bell className="mb-3 size-10 text-text-tertiary" />
-            <p className="text-sm font-medium text-text-secondary">
-              尚無新通知
-            </p>
-          </div>
-        )}
-
-        {status === 'success' && notifications.length === 0 && (
+        {(status === 'empty' ||
+          (status === 'success' && notifications.length === 0)) && (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <Bell className="mb-3 size-10 text-text-tertiary" />
             <p className="text-sm font-medium text-text-secondary">

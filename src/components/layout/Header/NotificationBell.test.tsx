@@ -1,8 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+import { formatRelativeTime } from '@/lib/dateUtils';
 
 import {
-  formatRelativeTime,
   getNotificationContent,
   NotificationBell,
   type NotificationItem,
@@ -130,6 +131,28 @@ describe('NotificationBell', () => {
       expect(
         screen.getByRole('button', { name: '重新嘗試' })
       ).toBeInTheDocument();
+    });
+
+    it('triggers onRetry callback and transitions to loading when clicking retry button', () => {
+      const onRetryMock = vi.fn();
+      render(
+        <NotificationBell
+          unreadCount={5}
+          initialStatus="error"
+          onRetry={onRetryMock}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      const retryButton = screen.getByRole('button', { name: '重新嘗試' });
+      fireEvent.click(retryButton);
+
+      // Verify that onRetry callback was called
+      expect(onRetryMock).toHaveBeenCalledTimes(1);
+
+      // Verify that UI transitions to loading state (error text disappears)
+      expect(screen.queryByText('載入失敗，請重試')).not.toBeInTheDocument();
     });
   });
 
