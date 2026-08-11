@@ -19,7 +19,7 @@ const config: StorybookConfig = {
     if (config.resolve) {
       config.resolve.alias = {
         ...config.resolve.alias,
-        '@storybook/blocks': require.resolve('@storybook/addon-docs/blocks'),
+        'storybook/internal/theming': require.resolve('storybook/theming'),
       };
     }
     return config;

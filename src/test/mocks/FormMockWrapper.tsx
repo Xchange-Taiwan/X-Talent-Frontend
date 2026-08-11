@@ -1,20 +1,20 @@
 import React from 'react';
-import { FieldValues, useForm, UseFormProps } from 'react-hook-form';
+import { FieldValues, Path,useForm, UseFormProps } from 'react-hook-form';
 
 import { Form, FormField, FormItem } from '@/components/ui/form';
 
 interface FormMockWrapperProps<TFieldValues extends FieldValues = FieldValues> {
   children: React.ReactNode;
-  defaultValues?: UseFormProps<TFieldValues>['defaultValues'];
-  fieldName?: string;
+  defaultValues: UseFormProps<TFieldValues>['defaultValues'];
+  fieldName: Path<TFieldValues>;
 }
 
 export const FormMockWrapper = <
   TFieldValues extends FieldValues = FieldValues,
 >({
   children,
-  defaultValues = { password: '' } as any,
-  fieldName = 'password',
+  defaultValues,
+  fieldName,
 }: FormMockWrapperProps<TFieldValues>) => {
   const form = useForm<TFieldValues>({
     defaultValues,
@@ -24,7 +24,7 @@ export const FormMockWrapper = <
     <Form {...form}>
       <FormField
         control={form.control}
-        name={fieldName as any}
+        name={fieldName}
         render={() => <FormItem>{children}</FormItem>}
       />
     </Form>

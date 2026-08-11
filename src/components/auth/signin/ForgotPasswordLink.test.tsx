@@ -16,7 +16,7 @@ vi.mock('next/navigation', () => ({
 describe('ForgotPasswordLink', () => {
   it('renders successfully when wrapped in form context', () => {
     render(
-      <FormMockWrapper>
+      <FormMockWrapper defaultValues={{ password: '' }} fieldName="password">
         <ForgotPasswordLink />
       </FormMockWrapper>
     );
@@ -26,7 +26,7 @@ describe('ForgotPasswordLink', () => {
 
   it('navigates to forgot password page on click', () => {
     render(
-      <FormMockWrapper>
+      <FormMockWrapper defaultValues={{ password: '' }} fieldName="password">
         <ForgotPasswordLink />
       </FormMockWrapper>
     );

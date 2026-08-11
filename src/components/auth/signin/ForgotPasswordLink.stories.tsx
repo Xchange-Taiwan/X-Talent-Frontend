@@ -16,7 +16,7 @@ type Story = StoryObj<typeof ForgotPasswordLink>;
 
 export const Default: Story = {
   render: () => (
-    <FormMockWrapper>
+    <FormMockWrapper defaultValues={{ password: '' }} fieldName="password">
       <ForgotPasswordLink />
     </FormMockWrapper>
   ),
