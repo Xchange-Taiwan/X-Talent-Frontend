@@ -49,11 +49,7 @@ export const NotificationBell = React.memo(function NotificationBell({
           )}
           aria-label="開啟通知選單"
         >
-          <Bell
-            className={cn(
-              'size-5 text-text-primary transition-all group-hover:fill-current group-data-[state=open]:fill-current'
-            )}
-          />
+          <Bell className="size-5 text-text-primary" />
 
           {showBadge && (
             <span

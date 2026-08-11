@@ -50,10 +50,5 @@ describe('NotificationBell', () => {
     expect(button).toHaveClass('hover:border-transparent');
     expect(button).toHaveClass('data-[state=open]:bg-background-hover');
     expect(button).toHaveClass('data-[state=open]:border-transparent');
-
-    const bell = button.querySelector('svg');
-    expect(bell).not.toBeNull();
-    expect(bell).toHaveClass('group-hover:fill-current');
-    expect(bell).toHaveClass('group-data-[state=open]:fill-current');
   });
 });
