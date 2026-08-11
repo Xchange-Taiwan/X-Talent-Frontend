@@ -38,6 +38,12 @@ describe('NotificationBell', () => {
     // Popover content should be visible
     expect(screen.getByText('尚無新通知')).toBeInTheDocument();
 
+    const popoverContent = screen
+      .getByText('尚無新通知')
+      .closest('[class*="max-w-"]');
+    expect(popoverContent).toBeInTheDocument();
+    expect(popoverContent).toHaveClass('max-w-[calc(100vw-32px)]');
+
     // Badge is hidden once clicked/opened
     expect(screen.queryByText('5')).not.toBeInTheDocument();
   });
