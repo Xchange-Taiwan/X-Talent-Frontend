@@ -430,8 +430,8 @@
     <p>
       對照 <code>src/components/layout/Footer/Footer.tsx</code>
       原始碼逐一還原的可互動預覽。唯一的斷點是 Tailwind 預設的
-      <code>md</code>（768px）：手機版所有內容置中並垂直堆疊，桌機版切換為
-      logo 靠左、三組連結靠右並排的水平排版。拖曳下方滑桿或點選預設寬度即可即時觀察排版切換；連結為真實的
+      <code>md</code>（768px）：手機版所有內容置中並垂直堆疊，桌機版切換為 logo
+      靠左、三組連結靠右並排的水平排版。拖曳下方滑桿或點選預設寬度即可即時觀察排版切換；連結為真實的
       <code>&lt;a&gt;</code>，hover 會顯示底線，與正式站行為一致。
     </p>
     <div class="source-note">
@@ -514,7 +514,10 @@
               <div class="xt-footer-group">
                 <p class="xt-footer-group-title">相關連結</p>
                 <div class="xt-footer-links">
-                  <a href="https://xchange.com.tw/" target="_blank" rel="noreferrer"
+                  <a
+                    href="https://xchange.com.tw/"
+                    target="_blank"
+                    rel="noreferrer"
                     >XChange Website</a
                   >
                   <a
@@ -572,21 +575,25 @@
       <li>
         「關於」下的兩個連結在原始碼中是 Next.js
         <code>&lt;Link&gt;</code>（站內導覽），其餘四個社群/相關連結是原生
-        <code>&lt;a target="_blank"&gt;</code>；此還原中站內連結已攔截預設導覽以免離開預覽頁，外部連結維持真實開新分頁行為。
+        <code>&lt;a target="_blank"&gt;</code
+        >；此還原中站內連結已攔截預設導覽以免離開預覽頁，外部連結維持真實開新分頁行為。
       </li>
       <li>
         非對稱間距如實還原：<code>pt-[50px]</code> / <code>pb-[50px]</code> /
         桌機 <code>px-[70px]</code>、<code>md:min-h-[290px]</code>，以及標題
-        <code>tracking-[0.085em]</code> 字距 — 這些是原設計本身的數值，非本次調整。
+        <code>tracking-[0.085em]</code> 字距 —
+        這些是原設計本身的數值，非本次調整。
       </li>
     </ul>
   </div>
 </div>
 
 <script>
-  document.querySelectorAll('.xt-footer-links a[data-internal]').forEach((a) => {
-    a.addEventListener('click', (e) => e.preventDefault());
-  });
+  document
+    .querySelectorAll('.xt-footer-links a[data-internal]')
+    .forEach((a) => {
+      a.addEventListener('click', (e) => e.preventDefault());
+    });
 
   /* ---------- width control ---------- */
   const frame = document.getElementById('frame');
