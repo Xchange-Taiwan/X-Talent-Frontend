@@ -5,6 +5,7 @@ import {
   formatRelativeTime,
   getNotificationContent,
   NotificationBell,
+  type NotificationItem,
 } from './NotificationBell';
 
 describe('NotificationBell', () => {
