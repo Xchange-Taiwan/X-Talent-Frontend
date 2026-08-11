@@ -17,6 +17,11 @@ vi.mock('@/hooks/user/profile/useCurrentAvatar', () => ({
   useCurrentAvatar: () => mockUseCurrentAvatar(),
 }));
 
+import {
+  DOM_AUTH_AVATAR_ATTR,
+  DOM_AUTH_STATE_ATTR,
+  SESSION_HINT_COOKIE,
+} from '@/lib/auth/sessionHint';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockSignOut } from '@/test/mocks/nextAuth';
 
@@ -243,7 +248,19 @@ describe('useAccountMenu', () => {
   });
 
   describe('handleLogout', () => {
-    it('closes the menu and signs the user out', () => {
+    it('closes the menu, clears the session hint cookie & DOM state, and signs the user out', () => {
+      // Set initial values
+      document.cookie = `${SESSION_HINT_COOKIE}=1||https%3A%2F%2Fexample.com%2Favatar.png`;
+      document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentor');
+      document.documentElement.setAttribute(
+        DOM_AUTH_AVATAR_ATTR,
+        'https://example.com/avatar.png'
+      );
+      document.documentElement.style.setProperty(
+        '--auth-avatar',
+        'url("https://example.com/avatar.png")'
+      );
+
       const { result } = renderHook(() =>
         useAccountMenu({ user: buildUser(), closeMenu })
       );
@@ -254,6 +271,18 @@ describe('useAccountMenu', () => {
 
       expect(closeMenu).toHaveBeenCalledOnce();
       expect(mockSignOut).toHaveBeenCalledOnce();
+
+      // Verify they are completely cleared upon logout
+      expect(document.cookie).not.toContain(`${SESSION_HINT_COOKIE}=`);
+      expect(
+        document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)
+      ).toBeNull();
+      expect(
+        document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
+      ).toBeNull();
+      expect(
+        document.documentElement.style.getPropertyValue('--auth-avatar')
+      ).toBe('');
     });
   });
 
