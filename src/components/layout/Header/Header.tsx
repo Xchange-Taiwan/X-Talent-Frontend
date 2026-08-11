@@ -158,7 +158,10 @@ function HeaderComponent(): JSX.Element {
 
           <div className="flex items-center gap-3 lg:hidden">
             {isLoggedIn ? (
-              <MobileUserMenu user={virtualUser} />
+              <>
+                <NotificationBell />
+                <MobileUserMenu user={virtualUser} />
+              </>
             ) : (
               !authKnown && (
                 <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block" />

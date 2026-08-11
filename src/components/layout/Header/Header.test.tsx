@@ -281,9 +281,10 @@ describe('Header', () => {
     });
 
     render(<Header />);
-    expect(
-      screen.getByRole('button', { name: '開啟通知選單' })
-    ).toBeInTheDocument();
+    const bellButtons = screen.getAllByRole('button', { name: '開啟通知選單' });
+    expect(bellButtons).toHaveLength(2);
+    expect(bellButtons[0]).toBeInTheDocument();
+    expect(bellButtons[1]).toBeInTheDocument();
   });
 
   it('closes NotificationBell popover when UserDropdown avatar is clicked', () => {
@@ -305,7 +306,9 @@ describe('Header', () => {
 
     render(<Header />);
 
-    const bellButton = screen.getByRole('button', { name: '開啟通知選單' });
+    const bellButton = screen.getAllByRole('button', {
+      name: '開啟通知選單',
+    })[0];
     const avatarButton = screen.getAllByRole('button', {
       name: '開啟用戶選單',
     })[0];
