@@ -38,6 +38,12 @@ describe('NotificationBell', () => {
     // Popover content should be visible
     expect(screen.getByText('尚無新通知')).toBeInTheDocument();
 
+    const popoverContent = screen
+      .getByText('尚無新通知')
+      .closest('[class*="max-w-"]');
+    expect(popoverContent).toBeInTheDocument();
+    expect(popoverContent).toHaveClass('max-w-[calc(100vw-32px)]');
+
     // Badge is hidden once clicked/opened
     expect(screen.queryByText('5')).not.toBeInTheDocument();
   });
@@ -46,8 +52,12 @@ describe('NotificationBell', () => {
     render(<NotificationBell unreadCount={5} />);
     const button = screen.getByRole('button', { name: '開啟通知選單' });
 
-    expect(button).toHaveClass('hover:bg-background-hover');
-    expect(button).toHaveClass('hover:border-transparent');
+    expect(button).toHaveClass(
+      '[@media(hover:hover)]:hover:bg-background-hover'
+    );
+    expect(button).toHaveClass(
+      '[@media(hover:hover)]:hover:border-transparent'
+    );
   });
 
   it('contains tailwind CSS classes for the open state, matching the reservation tab active style', () => {
