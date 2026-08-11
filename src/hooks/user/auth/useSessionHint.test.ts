@@ -199,11 +199,13 @@ describe('useSessionHint', () => {
     });
   });
 
-  it('clears all DOM attributes and style property on unauthenticated (logout) session status', async () => {
+  it('clears all DOM attributes, style property, and cookie on unauthenticated (logout) session status', async () => {
     mockUseSession.mockReturnValue({
       data: null,
       status: 'unauthenticated',
     } as never);
+
+    setCookie('1');
 
     document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentor');
     document.documentElement.setAttribute(DOM_AUTH_AVATAR_ATTR, 'url');
@@ -222,6 +224,7 @@ describe('useSessionHint', () => {
       expect(
         document.documentElement.style.getPropertyValue('--auth-avatar')
       ).toBe('');
+      expect(document.cookie).not.toContain(`${SESSION_HINT_COOKIE}=`);
     });
   });
 

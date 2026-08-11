@@ -6,6 +6,7 @@ import { signOut } from 'next-auth/react';
 import * as React from 'react';
 
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
+import { clearSessionHint } from '@/lib/auth/sessionHint';
 import { getMentorOnboardingUrl } from '@/lib/routes';
 import type { PersonalLink } from '@/types/types';
 
@@ -101,6 +102,7 @@ export function useAccountMenu({
 
   const handleLogout = React.useCallback((): void => {
     closeMenu();
+    clearSessionHint();
     signOut();
   }, [closeMenu]);
 

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  clearSessionHint,
   decodeSessionHint,
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
@@ -211,6 +212,49 @@ describe('sessionHint utilities', () => {
       expect(
         document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
       ).toBeNull();
+    });
+  });
+
+  describe('clearSessionHint', () => {
+    it('deletes the cookie and clears all DOM attributes and CSS variables', () => {
+      // Set initial values
+      document.cookie = `${SESSION_HINT_COOKIE}=1||https%3A%2F%2Fexample.com%2Favatar.png`;
+      document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentor');
+      document.documentElement.setAttribute(
+        DOM_AUTH_AVATAR_ATTR,
+        'https://example.com/avatar.png'
+      );
+      document.documentElement.style.setProperty(
+        '--auth-avatar',
+        'url("https://example.com/avatar.png")'
+      );
+
+      // Verify they are set
+      expect(document.cookie).toContain(`${SESSION_HINT_COOKIE}=`);
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'mentor'
+      );
+      expect(document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)).toBe(
+        'https://example.com/avatar.png'
+      );
+      expect(
+        document.documentElement.style.getPropertyValue('--auth-avatar')
+      ).toContain('url(');
+
+      // Call clearSessionHint
+      clearSessionHint();
+
+      // Verify they are completely cleared
+      expect(document.cookie).not.toContain(`${SESSION_HINT_COOKIE}=`);
+      expect(
+        document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)
+      ).toBeNull();
+      expect(
+        document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
+      ).toBeNull();
+      expect(
+        document.documentElement.style.getPropertyValue('--auth-avatar')
+      ).toBe('');
     });
   });
 });
