@@ -121,7 +121,10 @@ function HeaderComponent(): JSX.Element {
         </div>
 
         <div className="flex items-center gap-3 lg:mr-20">
-          <div className="hidden items-center gap-3 lg:flex">
+          <div
+            className="hidden items-center gap-3 lg:flex"
+            data-testid="desktop-header-right"
+          >
             {!authKnown ? (
               <>
                 <div className="group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden">
@@ -156,7 +159,10 @@ function HeaderComponent(): JSX.Element {
             )}
           </div>
 
-          <div className="flex items-center gap-3 lg:hidden">
+          <div
+            className="flex items-center gap-3 lg:hidden"
+            data-testid="mobile-header-right"
+          >
             {isLoggedIn ? (
               <>
                 <NotificationBell />
