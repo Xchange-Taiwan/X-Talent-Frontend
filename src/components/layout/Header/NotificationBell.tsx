@@ -44,12 +44,12 @@ export const NotificationBell = React.memo(function NotificationBell({
           type="button"
           title="通知"
           className={cn(
-            'group relative flex h-9 w-9 items-center justify-center rounded-full border border-background-border bg-transparent text-text-primary transition-all duration-200 outline-none hover:border-transparent hover:bg-background-hover data-[state=open]:border-transparent data-[state=open]:bg-background-hover',
+            'group relative flex h-9 w-9 items-center justify-center rounded-full border border-background-border bg-transparent text-text-primary transition-all duration-200 outline-none hover:border-transparent hover:bg-background-hover data-[state=open]:border-dark data-[state=open]:bg-dark data-[state=open]:text-text-white',
             className
           )}
           aria-label="開啟通知選單"
         >
-          <Bell className="size-5 text-text-primary" />
+          <Bell className="size-5 text-text-primary transition-all group-data-[state=open]:fill-current group-data-[state=open]:text-text-white" />
 
           {showBadge && (
             <span

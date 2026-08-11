@@ -42,13 +42,25 @@ describe('NotificationBell', () => {
     expect(screen.queryByText('5')).not.toBeInTheDocument();
   });
 
-  it('contains tailwind CSS classes for hover and open states to avoid JS state overhead', () => {
+  it('contains tailwind CSS classes for the hover state to avoid JS state overhead', () => {
     render(<NotificationBell unreadCount={5} />);
     const button = screen.getByRole('button', { name: '開啟通知選單' });
 
     expect(button).toHaveClass('hover:bg-background-hover');
     expect(button).toHaveClass('hover:border-transparent');
-    expect(button).toHaveClass('data-[state=open]:bg-background-hover');
-    expect(button).toHaveClass('data-[state=open]:border-transparent');
+  });
+
+  it('contains tailwind CSS classes for the open state, matching the reservation tab active style', () => {
+    render(<NotificationBell unreadCount={5} />);
+    const button = screen.getByRole('button', { name: '開啟通知選單' });
+
+    expect(button).toHaveClass('data-[state=open]:bg-dark');
+    expect(button).toHaveClass('data-[state=open]:border-dark');
+    expect(button).toHaveClass('data-[state=open]:text-text-white');
+
+    const bell = button.querySelector('svg');
+    expect(bell).not.toBeNull();
+    expect(bell).toHaveClass('group-data-[state=open]:fill-current');
+    expect(bell).toHaveClass('group-data-[state=open]:text-text-white');
   });
 });
