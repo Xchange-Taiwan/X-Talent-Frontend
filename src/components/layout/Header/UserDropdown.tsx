@@ -114,6 +114,11 @@ export const UserDropdown = React.memo(function UserDropdown({
               <div className="truncate text-3xl font-semibold text-text-primary">
                 {name || '我的個人頁面'}
               </div>
+              {subtitle ? (
+                <div className="mt-1 truncate text-sm text-text-tertiary">
+                  {subtitle}
+                </div>
+              ) : null}
             </div>
           </button>
 

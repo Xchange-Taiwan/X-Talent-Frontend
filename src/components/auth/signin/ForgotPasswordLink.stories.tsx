@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
+import { FormMockWrapper } from '@/test/mocks/FormMockWrapper';
+
 import ForgotPasswordLink from './ForgotPasswordLink';
 
 const meta: Meta<typeof ForgotPasswordLink> = {
@@ -13,5 +15,9 @@ export default meta;
 type Story = StoryObj<typeof ForgotPasswordLink>;
 
 export const Default: Story = {
-  render: () => <ForgotPasswordLink />,
+  render: () => (
+    <FormMockWrapper defaultValues={{ password: '' }} fieldName="password">
+      <ForgotPasswordLink />
+    </FormMockWrapper>
+  ),
 };
