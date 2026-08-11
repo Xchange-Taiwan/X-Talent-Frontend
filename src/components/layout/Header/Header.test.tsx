@@ -249,6 +249,29 @@ describe('Header', () => {
     );
   });
 
+  it('renders mobile pre-hydration NotificationBell skeleton placeholder with CSS visibility toggles before auth is known', () => {
+    mockUseSession.mockReturnValue({ data: null, status: 'loading' });
+    mockUseAuthStatus.mockReturnValue({
+      authKnown: false,
+      isLoggedIn: false,
+      isMentor: false,
+      userId: undefined,
+      hasFullUser: false,
+      isResolvingUser: false,
+    });
+
+    render(<Header />);
+
+    const mobileContainer = screen.getByTestId('mobile-header-right');
+    const skeleton = mobileContainer.querySelector('.size-9.rounded-full');
+    expect(skeleton).toBeInTheDocument();
+    expect(skeleton).toHaveClass(
+      'hidden',
+      'group-data-[auth-state=mentee]:block',
+      'group-data-[auth-state=mentor]:block'
+    );
+  });
+
   it('does not render NotificationBell when logged out', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
     mockUseAuthStatus.mockReturnValue({
