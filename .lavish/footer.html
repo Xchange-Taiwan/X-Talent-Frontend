@@ -1,0 +1,635 @@
+<title>X-Talent Footer — RWD 還原</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap"
+  rel="stylesheet"
+/>
+
+<style>
+  :root {
+    --color-dark: #282828;
+    --color-text-white: #ffffff;
+    --page-bg: #eef1f3;
+    --page-ink: #1e2026;
+    --page-muted: #6b7280;
+    --page-card: #ffffff;
+    --page-border: #e2e5e9;
+    --accent: #2ccbcb;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: var(--page-bg);
+    color: var(--page-ink);
+    font-family: 'Noto Sans TC', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ---------- intro ---------- */
+  .intro h1 {
+    font-size: 26px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  .intro p {
+    margin: 0;
+    color: var(--page-muted);
+    font-size: 14.5px;
+    line-height: 1.7;
+    max-width: 820px;
+  }
+  .intro .source-note {
+    margin-top: 14px;
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 12.5px;
+    color: #2c7a7a;
+    background: #e9fbfb;
+    border: 1px solid #c9f1f1;
+    padding: 7px 12px;
+    border-radius: 999px;
+  }
+  .intro .source-note b {
+    font-weight: 700;
+  }
+
+  /* ---------- control panel ---------- */
+  .panel {
+    margin-top: 28px;
+    background: var(--page-card);
+    border: 1px solid var(--page-border);
+    border-radius: 16px;
+    padding: 18px 22px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px 32px;
+    align-items: flex-start;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  }
+  .control-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #9aa1ac;
+    margin-bottom: 8px;
+  }
+  .width-controls {
+    flex: 1 1 320px;
+    min-width: 280px;
+  }
+  .preset-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .preset-row button {
+    appearance: none;
+    border: 1px solid var(--page-border);
+    background: #fff;
+    padding: 6px 11px;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--page-ink);
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition:
+      border-color 0.15s ease,
+      color 0.15s ease;
+  }
+  .preset-row button:hover {
+    border-color: var(--accent);
+    color: #1a7a7a;
+  }
+  .preset-row button[aria-pressed='true'] {
+    border-color: var(--accent);
+    background: #eafafa;
+    color: #1a7a7a;
+  }
+
+  .slider-track {
+    position: relative;
+    padding-top: 14px;
+  }
+  .slider-track input[type='range'] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 5px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #dfe3e7, #dfe3e7);
+    outline: none;
+    margin: 0;
+  }
+  .slider-track input[type='range']::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 1px var(--accent);
+    cursor: grab;
+    margin-top: -6.5px;
+  }
+  .slider-track input[type='range']::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 1px var(--accent);
+    cursor: grab;
+  }
+  .bp-flag {
+    position: absolute;
+    top: -4px;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+  }
+  .bp-flag .line {
+    width: 1.5px;
+    height: 18px;
+    background: #ff7a45;
+    opacity: 0.8;
+  }
+  .bp-flag .tag {
+    position: absolute;
+    top: -18px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #b14e1f;
+    background: #fff1e8;
+    border: 1px solid #ffd9be;
+    padding: 1px 5px;
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+  .width-readout {
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--page-muted);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .width-readout .num {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--page-ink);
+  }
+  .bp-pill {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+  }
+  .bp-pill.is-desktop {
+    background: #e9fbfb;
+    color: #1a7a7a;
+  }
+  .bp-pill.is-mobile {
+    background: #fff1e8;
+    color: #b14e1f;
+  }
+
+  /* ---------- device frame ---------- */
+  .frame-shell {
+    margin-top: 26px;
+    display: flex;
+    justify-content: center;
+  }
+  .frame-chrome {
+    background: #1c2027;
+    border-radius: 16px;
+    padding: 10px 10px 0;
+    box-shadow: 0 20px 45px -18px rgba(16, 24, 40, 0.35);
+    max-width: 100%;
+  }
+  .frame-chrome-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 6px 10px;
+  }
+  .frame-chrome-bar .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #3a4150;
+  }
+  .frame-chrome-bar .url {
+    margin-left: 10px;
+    background: #2a303b;
+    color: #8b93a1;
+    font-size: 11.5px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+  }
+
+  .frame {
+    position: relative;
+    width: 1440px;
+    max-width: 100%;
+    background: #f5f5f5;
+    overflow: hidden;
+    border-radius: 8px 8px 0 0;
+    container-type: inline-size;
+    container-name: footer-demo;
+  }
+
+  .page-body-hint {
+    padding: 28px 28px 0;
+    font-size: 13px;
+    color: var(--page-muted);
+  }
+  .page-body-hint .rest-of-page {
+    margin-top: 14px;
+    height: 90px;
+    border-radius: 12px;
+    background: repeating-linear-gradient(
+      135deg,
+      #eceef0,
+      #eceef0 10px,
+      #e4e7e9 10px,
+      #e4e7e9 20px
+    );
+  }
+
+  /* ---------- footer replica (Footer.tsx) ---------- */
+  .xt-footer {
+    display: flex;
+    width: 100%;
+    background: var(--color-dark);
+    padding-bottom: 50px;
+    margin-top: 28px;
+  }
+  @container footer-demo (min-width: 768px) {
+    .xt-footer {
+      min-height: 290px;
+    }
+  }
+
+  .xt-footer-inner {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+    padding: 50px 20px 0;
+  }
+  @container footer-demo (min-width: 768px) {
+    .xt-footer-inner {
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 50px 70px 0;
+    }
+  }
+
+  .xt-footer-logo-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  @container footer-demo (min-width: 768px) {
+    .xt-footer-logo-col {
+      align-items: flex-start;
+    }
+  }
+  .xt-footer-logo-col img {
+    height: 39px;
+    width: 146px;
+    display: block;
+  }
+
+  .xt-footer-groups {
+    margin-top: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    color: var(--color-text-white);
+  }
+  @container footer-demo (min-width: 768px) {
+    .xt-footer-groups {
+      margin-top: 0;
+      flex-direction: row;
+      column-gap: 64px;
+    }
+  }
+
+  .xt-footer-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  @container footer-demo (min-width: 768px) {
+    .xt-footer-group {
+      align-items: flex-start;
+    }
+  }
+  .xt-footer-group-title {
+    margin: 0 0 20px;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.085em;
+  }
+  .xt-footer-links {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  @container footer-demo (min-width: 768px) {
+    .xt-footer-links {
+      align-items: flex-start;
+    }
+  }
+  .xt-footer-links a {
+    display: block;
+    font-weight: 400;
+    font-size: 14px;
+    color: var(--color-text-white);
+    text-decoration: none;
+  }
+  .xt-footer-links a:hover {
+    text-decoration: underline;
+  }
+
+  /* ---------- callouts on the frame ---------- */
+  .measure-callout {
+    position: absolute;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #b14e1f;
+    background: #fff1e8;
+    border: 1px solid #ffd9be;
+    padding: 2px 6px;
+    border-radius: 5px;
+    white-space: nowrap;
+    pointer-events: none;
+    display: none;
+  }
+  .show-measurements .measure-callout {
+    display: block;
+  }
+
+  /* ---------- footnotes ---------- */
+  .footnotes {
+    margin-top: 26px;
+    background: var(--page-card);
+    border: 1px solid var(--page-border);
+    border-radius: 16px;
+    padding: 20px 24px;
+  }
+  .footnotes h2 {
+    font-size: 14px;
+    margin: 0 0 12px;
+    color: var(--page-ink);
+  }
+  .footnotes ul {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--page-muted);
+  }
+  .footnotes code {
+    background: #f1f3f5;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 12px;
+    color: #14807f;
+  }
+</style>
+
+<div class="wrap">
+  <div class="intro">
+    <h1>Footer — RWD 還原</h1>
+    <p>
+      對照 <code>src/components/layout/Footer/Footer.tsx</code>
+      原始碼逐一還原的可互動預覽。唯一的斷點是 Tailwind 預設的
+      <code>md</code>（768px）：手機版所有內容置中並垂直堆疊，桌機版切換為
+      logo 靠左、三組連結靠右並排的水平排版。拖曳下方滑桿或點選預設寬度即可即時觀察排版切換；連結為真實的
+      <code>&lt;a&gt;</code>，hover 會顯示底線，與正式站行為一致。
+    </p>
+    <div class="source-note">
+      <b>來源</b> Footer.tsx + tokens.css（--color-dark #282828 /
+      --color-text-white #FFFFFF）
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="width-controls">
+      <div class="control-label">裝置寬度 / Breakpoint</div>
+      <div class="preset-row" id="preset-row">
+        <button type="button" data-w="375" aria-pressed="false">
+          📱 Mobile 375
+        </button>
+        <button type="button" data-w="768" aria-pressed="false">
+          📐 md 768
+        </button>
+        <button type="button" data-w="1024" aria-pressed="false">
+          💻 Tablet 1024
+        </button>
+        <button type="button" data-w="1440" aria-pressed="true">
+          🖥️ Desktop 1440
+        </button>
+      </div>
+      <div class="slider-track">
+        <input
+          type="range"
+          id="width-slider"
+          min="320"
+          max="1600"
+          step="1"
+          value="1440"
+        />
+        <div class="bp-flag" id="bp-flag">
+          <span class="line"></span>
+          <span class="tag">md 768px</span>
+        </div>
+      </div>
+      <div class="width-readout">
+        <span>寬度：<span class="num" id="width-num">1440px</span></span>
+        <span class="bp-pill is-desktop" id="bp-pill"
+          >Desktop 版型（水平排列）</span
+        >
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-shell">
+    <div class="frame-chrome">
+      <div class="frame-chrome-bar">
+        <span class="dot"></span><span class="dot"></span
+        ><span class="dot"></span>
+        <span class="url">x-talent.tw</span>
+      </div>
+      <div class="frame" id="frame">
+        <div class="page-body-hint">
+          （頁面主要內容，Footer 位於頁尾）
+          <div class="rest-of-page"></div>
+        </div>
+
+        <footer class="xt-footer">
+          <div class="xt-footer-inner">
+            <div class="xt-footer-logo-col">
+              <img
+                src="data:image/png;base64,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"
+                alt="logo"
+              />
+            </div>
+
+            <div class="xt-footer-groups">
+              <div class="xt-footer-group">
+                <p class="xt-footer-group-title">關於</p>
+                <div class="xt-footer-links">
+                  <a href="/privacy" data-internal>隱私權政策</a>
+                  <a href="/terms" data-internal>服務條款</a>
+                </div>
+              </div>
+
+              <div class="xt-footer-group">
+                <p class="xt-footer-group-title">相關連結</p>
+                <div class="xt-footer-links">
+                  <a href="https://xchange.com.tw/" target="_blank" rel="noreferrer"
+                    >XChange Website</a
+                  >
+                  <a
+                    href="https://podcasts.apple.com/us/podcast/x-impact/id1514930493?l=zh-Hant-TW"
+                    target="_blank"
+                    rel="noreferrer"
+                    >X-IMPACT Podcast</a
+                  >
+                  <a
+                    href="https://xchange-taiwan.medium.com/"
+                    target="_blank"
+                    rel="noreferrer"
+                    >XChange Medium</a
+                  >
+                </div>
+              </div>
+
+              <div class="xt-footer-group">
+                <p class="xt-footer-group-title">XChange 社群連結</p>
+                <div class="xt-footer-links">
+                  <a
+                    href="https://www.facebook.com/XChange.tw/?locale=zh_TW"
+                    target="_blank"
+                    rel="noreferrer"
+                    >Facebook 粉絲專頁</a
+                  >
+                  <a
+                    href="https://www.instagram.com/xchange.tw/"
+                    target="_blank"
+                    rel="noreferrer"
+                    >Instagram 商業檔案</a
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+        </footer>
+      </div>
+    </div>
+  </div>
+
+  <div class="footnotes">
+    <h2>還原對照筆記</h2>
+    <ul>
+      <li>
+        唯一斷點為 Tailwind 預設 <code>md</code>（768px），非本 repo 常見的
+        <code>lg</code>（1024px）自訂斷點 — Footer.tsx 只用了 <code>md:</code>
+        前綴。
+      </li>
+      <li>
+        背景色 <code>bg-dark</code> = <code>#282828</code>，文字色
+        <code>text-text-white</code> = <code>#FFFFFF</code>（見
+        <code>src/styles/tokens.css</code>）。
+      </li>
+      <li>
+        「關於」下的兩個連結在原始碼中是 Next.js
+        <code>&lt;Link&gt;</code>（站內導覽），其餘四個社群/相關連結是原生
+        <code>&lt;a target="_blank"&gt;</code>；此還原中站內連結已攔截預設導覽以免離開預覽頁，外部連結維持真實開新分頁行為。
+      </li>
+      <li>
+        非對稱間距如實還原：<code>pt-[50px]</code> / <code>pb-[50px]</code> /
+        桌機 <code>px-[70px]</code>、<code>md:min-h-[290px]</code>，以及標題
+        <code>tracking-[0.085em]</code> 字距 — 這些是原設計本身的數值，非本次調整。
+      </li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.xt-footer-links a[data-internal]').forEach((a) => {
+    a.addEventListener('click', (e) => e.preventDefault());
+  });
+
+  /* ---------- width control ---------- */
+  const frame = document.getElementById('frame');
+  const slider = document.getElementById('width-slider');
+  const widthNum = document.getElementById('width-num');
+  const bpPill = document.getElementById('bp-pill');
+  const bpFlag = document.getElementById('bp-flag');
+  const presetRow = document.getElementById('preset-row');
+  const MIN_W = 320,
+    MAX_W = 1600,
+    BP = 768;
+
+  function positionFlag() {
+    const pct = ((BP - MIN_W) / (MAX_W - MIN_W)) * 100;
+    bpFlag.style.left = pct + '%';
+  }
+
+  function setWidth(px, syncPresets) {
+    px = Math.max(MIN_W, Math.min(MAX_W, px));
+    frame.style.width = px + 'px';
+    slider.value = px;
+    widthNum.textContent = px + 'px';
+    const isDesktop = px >= BP;
+    bpPill.textContent = isDesktop
+      ? 'Desktop 版型（水平排列）'
+      : 'Mobile 版型（垂直堆疊、置中）';
+    bpPill.className = 'bp-pill ' + (isDesktop ? 'is-desktop' : 'is-mobile');
+    if (syncPresets !== false) {
+      presetRow
+        .querySelectorAll('button')
+        .forEach((b) =>
+          b.setAttribute('aria-pressed', String(Number(b.dataset.w) === px))
+        );
+    }
+  }
+
+  slider.addEventListener('input', () => setWidth(Number(slider.value)));
+  presetRow.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-w]');
+    if (!btn) return;
+    setWidth(Number(btn.dataset.w));
+  });
+
+  positionFlag();
+  setWidth(1440);
+</script>
