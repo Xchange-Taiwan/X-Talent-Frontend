@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/image', () => ({
@@ -249,6 +249,29 @@ describe('Header', () => {
     );
   });
 
+  it('renders mobile pre-hydration NotificationBell skeleton placeholder with CSS visibility toggles before auth is known', () => {
+    mockUseSession.mockReturnValue({ data: null, status: 'loading' });
+    mockUseAuthStatus.mockReturnValue({
+      authKnown: false,
+      isLoggedIn: false,
+      isMentor: false,
+      userId: undefined,
+      hasFullUser: false,
+      isResolvingUser: false,
+    });
+
+    render(<Header />);
+
+    const mobileContainer = screen.getByTestId('mobile-header-right');
+    const skeleton = mobileContainer.querySelector('.size-9.rounded-full');
+    expect(skeleton).toBeInTheDocument();
+    expect(skeleton).toHaveClass(
+      'hidden',
+      'group-data-[auth-state=mentee]:block',
+      'group-data-[auth-state=mentor]:block'
+    );
+  });
+
   it('does not render NotificationBell when logged out', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
     mockUseAuthStatus.mockReturnValue({
@@ -266,7 +289,7 @@ describe('Header', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('renders NotificationBell when logged in', () => {
+  it('renders NotificationBell on both desktop and mobile/tablet when logged in', () => {
     mockUseSession.mockReturnValue({
       data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
       status: 'authenticated',
@@ -281,12 +304,21 @@ describe('Header', () => {
     });
 
     render(<Header />);
-    expect(
-      screen.getByRole('button', { name: '開啟通知選單' })
-    ).toBeInTheDocument();
+    const desktopContainer = screen.getByTestId('desktop-header-right');
+    const mobileContainer = screen.getByTestId('mobile-header-right');
+
+    const desktopBell = within(desktopContainer).getByRole('button', {
+      name: '開啟通知選單',
+    });
+    const mobileBell = within(mobileContainer).getByRole('button', {
+      name: '開啟通知選單',
+    });
+
+    expect(desktopBell).toBeInTheDocument();
+    expect(mobileBell).toBeInTheDocument();
   });
 
-  it('closes NotificationBell popover when UserDropdown avatar is clicked', () => {
+  it('closes desktop NotificationBell popover when desktop UserDropdown avatar is clicked', () => {
     mockUseSession.mockReturnValue({
       data: {
         ...mockSession,
@@ -305,10 +337,53 @@ describe('Header', () => {
 
     render(<Header />);
 
-    const bellButton = screen.getByRole('button', { name: '開啟通知選單' });
-    const avatarButton = screen.getAllByRole('button', {
+    const desktopContainer = screen.getByTestId('desktop-header-right');
+    const bellButton = within(desktopContainer).getByRole('button', {
+      name: '開啟通知選單',
+    });
+    const avatarButton = within(desktopContainer).getByRole('button', {
       name: '開啟用戶選單',
-    })[0];
+    });
+
+    expect(screen.queryByText('尚無新通知')).not.toBeInTheDocument();
+
+    fireEvent.click(bellButton);
+    expect(screen.getByText('尚無新通知')).toBeInTheDocument();
+
+    // Radix Popover listens to low-level pointerDown and mouseDown on document to close on click-outside
+    fireEvent.pointerDown(avatarButton, { bubbles: true });
+    fireEvent.mouseDown(avatarButton, { bubbles: true });
+    fireEvent.click(avatarButton);
+
+    expect(screen.queryByText('尚無新通知')).not.toBeInTheDocument();
+  });
+
+  it('closes mobile NotificationBell popover when mobile MobileUserMenu avatar is clicked', () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        ...mockSession,
+        user: { ...mockSession.user, id: 'user-123', image: 'avatar.png' },
+      },
+      status: 'authenticated',
+    });
+    mockUseAuthStatus.mockReturnValue({
+      authKnown: true,
+      isLoggedIn: true,
+      isMentor: false,
+      userId: 'user-123',
+      hasFullUser: true,
+      isResolvingUser: false,
+    });
+
+    render(<Header />);
+
+    const mobileContainer = screen.getByTestId('mobile-header-right');
+    const bellButton = within(mobileContainer).getByRole('button', {
+      name: '開啟通知選單',
+    });
+    const avatarButton = within(mobileContainer).getByRole('button', {
+      name: '開啟用戶選單',
+    });
 
     expect(screen.queryByText('尚無新通知')).not.toBeInTheDocument();
 
