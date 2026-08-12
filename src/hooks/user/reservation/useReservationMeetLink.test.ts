@@ -1,11 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fetchReservationMeetLink } from '@/services/reservations';
 import { mockToast } from '@/test/mocks/useToast';
-import type { Reservation } from '@/types/reservation';
 
-import { ReservationCard } from './ReservationCard';
+import { useReservationMeetLink } from './useReservationMeetLink';
 
 // Mock useToast
 vi.mock('@/components/ui/use-toast', async () => {
@@ -18,22 +17,7 @@ vi.mock('@/services/reservations', () => ({
   fetchReservationMeetLink: vi.fn(),
 }));
 
-const mockReservation: Reservation = {
-  id: 'res-123',
-  name: 'John Doe',
-  roleLine: 'UIUX Designer',
-  date: 'Mon, Aug 03, 2026',
-  time: '10:00 am – 11:00 am',
-  avatar: undefined,
-  messages: [],
-  senderUserId: 1,
-  participantUserId: 2,
-  dtstart: 0,
-  dtend: 0,
-  scheduleId: 0,
-};
-
-describe('ReservationCard', () => {
+describe('useReservationMeetLink', () => {
   let originalWindowOpen: typeof window.open;
   const mockWindowOpen = vi.fn();
 
@@ -47,39 +31,10 @@ describe('ReservationCard', () => {
     window.open = originalWindowOpen;
   });
 
-  it('renders standard card details', () => {
-    render(<ReservationCard item={mockReservation} variant="upcoming" />);
+  it('shows error toast when myUserId is missing', async () => {
+    const { result } = renderHook(() => useReservationMeetLink({}));
 
-    expect(screen.getByText('John Doe')).toBeInTheDocument();
-    expect(screen.getByText('UIUX Designer')).toBeInTheDocument();
-    expect(screen.getByText('Mon, Aug 03, 2026')).toBeInTheDocument();
-    expect(screen.getByText('10:00 am – 11:00 am')).toBeInTheDocument();
-  });
-
-  it('renders "Join Google Meet" button only when variant is upcoming', () => {
-    const { rerender } = render(
-      <ReservationCard item={mockReservation} variant="upcoming" />
-    );
-    expect(
-      screen.getByRole('button', { name: /加入 Google Meet/i })
-    ).toBeInTheDocument();
-
-    rerender(<ReservationCard item={mockReservation} variant="pending" />);
-    expect(
-      screen.queryByRole('button', { name: /加入 Google Meet/i })
-    ).not.toBeInTheDocument();
-
-    rerender(<ReservationCard item={mockReservation} variant="history" />);
-    expect(
-      screen.queryByRole('button', { name: /加入 Google Meet/i })
-    ).not.toBeInTheDocument();
-  });
-
-  it('shows error toast when myUserId is missing', () => {
-    render(<ReservationCard item={mockReservation} variant="upcoming" />);
-
-    const button = screen.getByRole('button', { name: /加入 Google Meet/i });
-    fireEvent.click(button);
+    await result.current.joinMeet('res-123');
 
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
@@ -98,16 +53,11 @@ describe('ReservationCard', () => {
       meet_url: 'https://meet.google.com/abc-defg-hij',
     });
 
-    render(
-      <ReservationCard
-        item={mockReservation}
-        variant="upcoming"
-        myUserId="user-456"
-      />
+    const { result } = renderHook(() =>
+      useReservationMeetLink({ myUserId: 'user-456' })
     );
 
-    const button = screen.getByRole('button', { name: /加入 Google Meet/i });
-    fireEvent.click(button);
+    result.current.joinMeet('res-123');
 
     expect(mockWindowOpen).toHaveBeenCalledWith('about:blank', '_blank');
     expect(fetchReservationMeetLink).toHaveBeenCalledWith({
@@ -128,16 +78,11 @@ describe('ReservationCard', () => {
     const mockError = { code: '404', msg: 'not found' };
     vi.mocked(fetchReservationMeetLink).mockRejectedValue(mockError);
 
-    render(
-      <ReservationCard
-        item={mockReservation}
-        variant="upcoming"
-        myUserId="user-456"
-      />
+    const { result } = renderHook(() =>
+      useReservationMeetLink({ myUserId: 'user-456' })
     );
 
-    const button = screen.getByRole('button', { name: /加入 Google Meet/i });
-    fireEvent.click(button);
+    result.current.joinMeet('res-123');
 
     expect(mockWindowOpen).toHaveBeenCalledWith('about:blank', '_blank');
 
@@ -159,16 +104,11 @@ describe('ReservationCard', () => {
     const mockError = { code: '403', msg: 'forbidden' };
     vi.mocked(fetchReservationMeetLink).mockRejectedValue(mockError);
 
-    render(
-      <ReservationCard
-        item={mockReservation}
-        variant="upcoming"
-        myUserId="user-456"
-      />
+    const { result } = renderHook(() =>
+      useReservationMeetLink({ myUserId: 'user-456' })
     );
 
-    const button = screen.getByRole('button', { name: /加入 Google Meet/i });
-    fireEvent.click(button);
+    result.current.joinMeet('res-123');
 
     await waitFor(() => {
       expect(mockClose).toHaveBeenCalled();
@@ -188,16 +128,11 @@ describe('ReservationCard', () => {
     const mockError = new Error('unexpected');
     vi.mocked(fetchReservationMeetLink).mockRejectedValue(mockError);
 
-    render(
-      <ReservationCard
-        item={mockReservation}
-        variant="upcoming"
-        myUserId="user-456"
-      />
+    const { result } = renderHook(() =>
+      useReservationMeetLink({ myUserId: 'user-456' })
     );
 
-    const button = screen.getByRole('button', { name: /加入 Google Meet/i });
-    fireEvent.click(button);
+    result.current.joinMeet('res-123');
 
     await waitFor(() => {
       expect(mockClose).toHaveBeenCalled();
@@ -218,16 +153,11 @@ describe('ReservationCard', () => {
       meet_url: '',
     });
 
-    render(
-      <ReservationCard
-        item={mockReservation}
-        variant="upcoming"
-        myUserId="user-456"
-      />
+    const { result } = renderHook(() =>
+      useReservationMeetLink({ myUserId: 'user-456' })
     );
 
-    const button = screen.getByRole('button', { name: /加入 Google Meet/i });
-    fireEvent.click(button);
+    result.current.joinMeet('res-123');
 
     await waitFor(() => {
       expect(mockClose).toHaveBeenCalled();
@@ -251,16 +181,11 @@ describe('ReservationCard', () => {
       meet_url: 'https://meet.google.com/abc-defg-hij',
     });
 
-    render(
-      <ReservationCard
-        item={mockReservation}
-        variant="upcoming"
-        myUserId="user-456"
-      />
+    const { result } = renderHook(() =>
+      useReservationMeetLink({ myUserId: 'user-456' })
     );
 
-    const button = screen.getByRole('button', { name: /加入 Google Meet/i });
-    fireEvent.click(button);
+    result.current.joinMeet('res-123');
 
     expect(mockWindowOpen).toHaveBeenCalledWith('about:blank', '_blank');
 
@@ -269,5 +194,74 @@ describe('ReservationCard', () => {
     });
 
     (window as unknown as { location: unknown }).location = originalLocation;
+  });
+
+  it('closes the opened window and shows error toast upon API failure (status-based 404)', async () => {
+    const mockClose = vi.fn();
+    const mockOpenedWindow = { location: { href: '' }, close: mockClose };
+    mockWindowOpen.mockReturnValue(mockOpenedWindow);
+
+    const mockError = { status: 404, message: 'not found' };
+    vi.mocked(fetchReservationMeetLink).mockRejectedValue(mockError);
+
+    const { result } = renderHook(() =>
+      useReservationMeetLink({ myUserId: 'user-456' })
+    );
+
+    result.current.joinMeet('res-123');
+
+    await waitFor(() => {
+      expect(mockClose).toHaveBeenCalled();
+      expect(mockToast).toHaveBeenCalledWith({
+        variant: 'destructive',
+        title: '錯誤',
+        description: '連結尚未就緒或不存在（會議狀態需為已排程）。',
+      });
+    });
+  });
+
+  it('closes the opened window and throws error for unsafe/invalid meet_url', async () => {
+    const mockClose = vi.fn();
+    const mockOpenedWindow = { location: { href: '' }, close: mockClose };
+    mockWindowOpen.mockReturnValue(mockOpenedWindow);
+
+    vi.mocked(fetchReservationMeetLink).mockResolvedValue({
+      meet_url: 'https://unsafe-hijack-domain.com/some-path',
+    });
+
+    const { result } = renderHook(() =>
+      useReservationMeetLink({ myUserId: 'user-456' })
+    );
+
+    result.current.joinMeet('res-123');
+
+    await waitFor(() => {
+      expect(mockClose).toHaveBeenCalled();
+      expect(mockToast).toHaveBeenCalledWith({
+        variant: 'destructive',
+        title: '錯誤',
+        description: '取得會議連結失敗，請稍後再試。',
+      });
+    });
+  });
+
+  it('closes the opened window and ignores ConcurrentActionError without showing toast', async () => {
+    const mockClose = vi.fn();
+    const mockOpenedWindow = { location: { href: '' }, close: mockClose };
+    mockWindowOpen.mockReturnValue(mockOpenedWindow);
+
+    const mockError = { name: 'ConcurrentActionError', message: 'prevented' };
+    vi.mocked(fetchReservationMeetLink).mockRejectedValue(mockError);
+
+    const { result } = renderHook(() =>
+      useReservationMeetLink({ myUserId: 'user-456' })
+    );
+
+    result.current.joinMeet('res-123');
+
+    await waitFor(() => {
+      expect(mockClose).toHaveBeenCalled();
+      expect(mockToast).not.toHaveBeenCalled();
+    });
   });
 });
