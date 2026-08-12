@@ -40,9 +40,9 @@ export type NotificationBellProps = {
    */
   initialNotifications?: NotificationItem[];
   /**
-   * Optional callback fired when a single notification card is clicked and marked as read.
+   * Optional callback fired when a single notification card is clicked or all are marked as read.
    */
-  onMarkRead?: (id: string) => void | Promise<void>;
+  onMarkRead?: (id: string | string[]) => void | Promise<void>;
 };
 
 /**

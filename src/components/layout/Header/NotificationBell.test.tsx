@@ -457,9 +457,9 @@ describe('NotificationBell', () => {
       expect(unreadTitle).toHaveClass('font-normal');
       expect(unreadTitle).not.toHaveClass('font-bold');
 
-      // Verify that onMarkRead was called EXACTLY once, and with the unread notification ID 'unread-1'
+      // Verify that onMarkRead was called EXACTLY once with the array of unread IDs
       expect(onMarkReadMock).toHaveBeenCalledTimes(1);
-      expect(onMarkReadMock).toHaveBeenCalledWith('unread-1');
+      expect(onMarkReadMock).toHaveBeenCalledWith(['unread-1']);
     });
 
     it('disables "Mark all as read" button when there are no unread notifications', () => {
