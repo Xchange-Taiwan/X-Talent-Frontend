@@ -9,6 +9,7 @@ import {
   CalendarX,
   Clock,
 } from 'lucide-react';
+import Link from 'next/link';
 import * as React from 'react';
 
 import {
@@ -57,6 +58,11 @@ export type NotificationBellProps = {
    * Optional callback when the retry button is clicked.
    */
   onRetry?: () => void;
+  /**
+   * Whether the logged in user is a mentor.
+   * @default false
+   */
+  isMentor?: boolean;
 };
 
 export const defaultMockNotifications: NotificationItem[] = [
@@ -151,13 +157,40 @@ export function getNotificationContent(item: NotificationItem) {
   }
 }
 
+/**
+ * Returns the target navigation URL for each notification item.
+ */
+export function getNotificationTargetUrl(
+  item: NotificationItem,
+  isMentor: boolean
+): string {
+  switch (item.type) {
+    case 'reservation_new':
+      return '/reservation/mentor?tab=pending';
+    case 'reservation_success':
+      return '/reservation/mentee?tab=upcoming';
+    case 'reservation_failed':
+      return '/mentor-pool';
+    case 'reservation_canceled':
+      return isMentor ? '/reservation/mentor?tab=history' : '/mentor-pool';
+    case 'reservation_upcoming':
+      return isMentor
+        ? '/reservation/mentor?tab=upcoming'
+        : '/reservation/mentee?tab=upcoming';
+    default:
+      return '#';
+  }
+}
+
 export const NotificationBell = React.memo(function NotificationBell({
   unreadCount = 5,
   className,
   initialStatus = 'success',
   initialNotifications,
   onRetry,
+  isMentor = false,
 }: NotificationBellProps): JSX.Element {
+  const [isOpen, setIsOpen] = React.useState(false);
   const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
   const [status, setStatus] = React.useState(initialStatus);
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
@@ -185,6 +218,7 @@ export const NotificationBell = React.memo(function NotificationBell({
   }, [unreadCount]);
 
   const handleOpenChange = React.useCallback((open: boolean) => {
+    setIsOpen(open);
     if (open) {
       setHasBeenClicked(true);
     }
@@ -207,7 +241,7 @@ export const NotificationBell = React.memo(function NotificationBell({
   const formattedCount = unreadCount > 99 ? '99+' : String(unreadCount);
 
   return (
-    <Popover onOpenChange={handleOpenChange}>
+    <Popover open={isOpen} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -286,9 +320,12 @@ export const NotificationBell = React.memo(function NotificationBell({
             {notifications.map((item) => {
               const { title, body, iconBgClass, icon } =
                 getNotificationContent(item);
+              const targetUrl = getNotificationTargetUrl(item, isMentor);
               return (
-                <div
+                <Link
                   key={item.id}
+                  href={targetUrl}
+                  onClick={() => setIsOpen(false)}
                   className="group/item relative flex items-start gap-3 rounded-xl p-3 transition-all duration-200 hover:bg-background-hover"
                 >
                   <div
@@ -313,7 +350,7 @@ export const NotificationBell = React.memo(function NotificationBell({
                   {item.unread && (
                     <span className="absolute top-4 right-3 size-2 rounded-full bg-status-error-default" />
                   )}
-                </div>
+                </Link>
               );
             })}
           </div>

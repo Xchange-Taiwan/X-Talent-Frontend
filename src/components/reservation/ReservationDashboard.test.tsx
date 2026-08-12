@@ -9,6 +9,14 @@ import {
 
 import { ReservationDashboard } from './ReservationDashboard';
 
+// Mock next/navigation
+const mockGet = vi.fn().mockReturnValue(null);
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => ({
+    get: mockGet,
+  }),
+}));
+
 // Mock the hook
 vi.mock('@/hooks/user/reservation/useReservationData', () => ({
   useReservationData: vi.fn(),
@@ -41,14 +49,20 @@ vi.mock('@/components/ui/tabs', () => {
     Tabs: ({
       children,
       onValueChange,
+      value,
       defaultValue,
     }: {
       children: React.ReactNode;
       onValueChange?: (value: string) => void;
+      value?: string;
       defaultValue?: string;
     }) => (
       <TabsContext.Provider value={{ onValueChange }}>
-        <div data-testid="tabs" data-default-value={defaultValue}>
+        <div
+          data-testid="tabs"
+          data-value={value}
+          data-default-value={defaultValue}
+        >
           {children}
         </div>
       </TabsContext.Provider>
@@ -258,5 +272,49 @@ describe('ReservationDashboard', () => {
     const historyLoadMore = screen.getByTestId('load-more-history');
     fireEvent.click(historyLoadMore);
     expect(mockLoadMore).toHaveBeenCalledWith('history');
+  });
+
+  describe('Controlled Query Parameter tab selection', () => {
+    it('sets initial tab to pending when tab=pending is supplied in URL', () => {
+      mockGet.mockReturnValue('pending');
+      vi.mocked(useReservationData).mockReturnValue(
+        baseHookReturnValue as unknown as UseReservationDataReturn
+      );
+
+      render(<ReservationDashboard userRole="mentee" />);
+
+      const tabsElement = screen.getByTestId('tabs');
+      expect(tabsElement).toHaveAttribute('data-value', 'pending-mentee');
+    });
+
+    it('sets initial tab to history when tab=history is supplied in URL and triggers loadHistory if not loaded', () => {
+      mockGet.mockReturnValue('history');
+      const notLoadedHistoryReturnValue = {
+        ...baseHookReturnValue,
+        isHistoryLoaded: false,
+        isLoadingHistory: false,
+      };
+      vi.mocked(useReservationData).mockReturnValue(
+        notLoadedHistoryReturnValue as unknown as UseReservationDataReturn
+      );
+
+      render(<ReservationDashboard userRole="mentee" />);
+
+      const tabsElement = screen.getByTestId('tabs');
+      expect(tabsElement).toHaveAttribute('data-value', 'history');
+      expect(mockLoadHistory).toHaveBeenCalledTimes(1);
+    });
+
+    it('sets initial tab to upcoming when tab=upcoming is supplied in URL', () => {
+      mockGet.mockReturnValue('upcoming');
+      vi.mocked(useReservationData).mockReturnValue(
+        baseHookReturnValue as unknown as UseReservationDataReturn
+      );
+
+      render(<ReservationDashboard userRole="mentee" />);
+
+      const tabsElement = screen.getByTestId('tabs');
+      expect(tabsElement).toHaveAttribute('data-value', 'upcoming-mentee');
+    });
   });
 });

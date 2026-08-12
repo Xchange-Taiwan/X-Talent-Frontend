@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 
 import { ReservationListSkeleton } from '@/app/reservation/skeleton';
 import { ReservationList } from '@/components/reservation/ReservationList';
@@ -116,6 +117,40 @@ export function ReservationDashboardView({
   const upcomingTabValue = isMentee ? 'upcoming-mentee' : 'upcoming-mentor';
   const pendingTabValue = isMentee ? 'pending-mentee' : 'pending-mentor';
 
+  const searchParams = useSearchParams();
+  const tabParam = searchParams ? searchParams.get('tab') : null;
+
+  // Determine initial tab from query parameter or default
+  const getInitialTab = () => {
+    if (tabParam === 'pending') return pendingTabValue;
+    if (tabParam === 'history') return 'history';
+    if (tabParam === 'upcoming') return upcomingTabValue;
+    return upcomingTabValue;
+  };
+
+  const [activeTab, setActiveTab] = useState(getInitialTab());
+
+  // Also sync activeTab if tabParam changes
+  useEffect(() => {
+    if (tabParam === 'pending') {
+      setActiveTab(pendingTabValue);
+    } else if (tabParam === 'history') {
+      setActiveTab('history');
+      if (!isHistoryLoaded && !isLoadingHistory) {
+        onLoadHistory();
+      }
+    } else if (tabParam === 'upcoming') {
+      setActiveTab(upcomingTabValue);
+    }
+  }, [
+    tabParam,
+    pendingTabValue,
+    upcomingTabValue,
+    isHistoryLoaded,
+    isLoadingHistory,
+    onLoadHistory,
+  ]);
+
   const triggerClass =
     'group shrink-0 rounded-full border border-background-border px-3 py-1.5 text-sm ' +
     'bg-transparent text-text-primary ' +
@@ -125,6 +160,7 @@ export function ReservationDashboardView({
     'ml-1 text-xs text-text-tertiary group-data-[state=active]:text-text-white/80';
 
   const handleValueChange = (value: string) => {
+    setActiveTab(value);
     if (value === 'history' && !isHistoryLoaded && !isLoadingHistory) {
       onLoadHistory();
     }
@@ -143,7 +179,7 @@ export function ReservationDashboardView({
 
         <div className="mx-auto w-full max-w-3xl px-0 sm:px-4 lg:px-6">
           <Tabs
-            defaultValue={upcomingTabValue}
+            value={activeTab}
             className="w-full"
             onValueChange={handleValueChange}
           >

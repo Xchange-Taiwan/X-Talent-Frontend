@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   getNotificationContent,
+  getNotificationTargetUrl,
   NotificationBell,
   type NotificationItem,
 } from './NotificationBell';
@@ -173,6 +174,84 @@ describe('NotificationBell', () => {
       });
       expect(result.title).toBe('通知');
       expect(result.body).toBe('您有一則新通知');
+    });
+  });
+
+  describe('Notification Card Redirections', () => {
+    it('verifies getNotificationTargetUrl mappings for Mentee (isMentor=false)', () => {
+      const cases: { type: NotificationItem['type']; expected: string }[] = [
+        {
+          type: 'reservation_new',
+          expected: '/reservation/mentor?tab=pending',
+        },
+        {
+          type: 'reservation_success',
+          expected: '/reservation/mentee?tab=upcoming',
+        },
+        { type: 'reservation_failed', expected: '/mentor-pool' },
+        { type: 'reservation_canceled', expected: '/mentor-pool' },
+        {
+          type: 'reservation_upcoming',
+          expected: '/reservation/mentee?tab=upcoming',
+        },
+      ];
+
+      cases.forEach(({ type, expected }) => {
+        const item: NotificationItem = {
+          id: 'mock',
+          type,
+          createdAt: new Date().toISOString(),
+        };
+        expect(getNotificationTargetUrl(item, false)).toBe(expected);
+      });
+    });
+
+    it('verifies getNotificationTargetUrl mappings for Mentor (isMentor=true)', () => {
+      const cases: { type: NotificationItem['type']; expected: string }[] = [
+        {
+          type: 'reservation_new',
+          expected: '/reservation/mentor?tab=pending',
+        },
+        {
+          type: 'reservation_success',
+          expected: '/reservation/mentee?tab=upcoming',
+        },
+        { type: 'reservation_failed', expected: '/mentor-pool' },
+        {
+          type: 'reservation_canceled',
+          expected: '/reservation/mentor?tab=history',
+        },
+        {
+          type: 'reservation_upcoming',
+          expected: '/reservation/mentor?tab=upcoming',
+        },
+      ];
+
+      cases.forEach(({ type, expected }) => {
+        const item: NotificationItem = {
+          id: 'mock',
+          type,
+          createdAt: new Date().toISOString(),
+        };
+        expect(getNotificationTargetUrl(item, true)).toBe(expected);
+      });
+    });
+
+    it('closes popover when a notification item is clicked', () => {
+      render(<NotificationBell unreadCount={5} initialStatus="success" />);
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      // Check that the popover is open
+      expect(screen.getByText('您有新的預約')).toBeInTheDocument();
+
+      // Click on a notification item link
+      const linkItem = screen.getByText('您有新的預約').closest('a');
+      expect(linkItem).not.toBeNull();
+      fireEvent.click(linkItem!);
+
+      // Since isOpen is controlled and set to false, popover content should be hidden
+      expect(screen.queryByText('您有新的預約')).not.toBeInTheDocument();
     });
   });
 });
