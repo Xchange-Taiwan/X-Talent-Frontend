@@ -189,6 +189,23 @@ describe('NotificationBell', () => {
       expect(screen.getByText('30 天')).toBeInTheDocument();
     });
 
+    it('renders a sub-1-hour notification clamped to "1 小時", end-to-end through the component', () => {
+      renderAndOpenBell({
+        initialStatus: 'success',
+        initialNotifications: [
+          {
+            id: 'recent-1',
+            type: 'reservation_success',
+            mentorName: '林導師',
+            createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+            unread: true,
+          },
+        ],
+      });
+
+      expect(screen.getByText('1 小時')).toBeInTheDocument();
+    });
+
     it('renders empty state under success status with zero notifications', () => {
       renderAndOpenBell({
         initialStatus: 'success',
