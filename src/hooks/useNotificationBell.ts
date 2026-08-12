@@ -79,23 +79,37 @@ export function useNotificationBell({
     [onMarkRead]
   );
 
-  const handleMarkAllAsRead = React.useCallback(() => {
+  const handleMarkAllAsRead = React.useCallback(async () => {
     const unreadIds = notifications
       .filter((item) => item.unread)
       .map((item) => item.id);
     if (unreadIds.length === 0) return;
 
-    if (onMarkAllRead) {
-      onMarkAllRead(unreadIds);
-    } else {
-      unreadIds.forEach((id) => onMarkRead?.(id));
-    }
-    setHasBeenClicked(true);
+    // Capture original state for rollback on error
+    const originalNotifications = [...notifications];
 
+    // Optimistic state updates
+    setHasBeenClicked(true);
     setNotifications((prev) =>
       prev.map((item) => (item.unread ? { ...item, unread: false } : item))
     );
-  }, [notifications, onMarkRead, onMarkAllRead]);
+
+    try {
+      if (onMarkAllRead) {
+        await onMarkAllRead(unreadIds);
+      } else if (onMarkRead) {
+        // Fallback with sequential processing to prevent concurrent API flooding
+        for (const id of unreadIds) {
+          await onMarkRead(id);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+      // Rollback to original state on failure
+      setNotifications(originalNotifications);
+      setHasBeenClicked(false);
+    }
+  }, [notifications, hasBeenClicked, onMarkRead, onMarkAllRead]);
 
   const handleRetry = React.useCallback(() => {
     setStatus('loading');

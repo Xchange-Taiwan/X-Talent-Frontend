@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { fromAny } from '@total-typescript/shoehorn';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -406,7 +412,7 @@ describe('NotificationBell', () => {
       expect(unreadTitle).toHaveClass('font-bold');
     });
 
-    it('marks all notifications as read when "Mark all as read" is clicked and calls onMarkAllRead exactly for unread items', () => {
+    it('marks all notifications as read when "Mark all as read" is clicked and calls onMarkAllRead exactly for unread items', async () => {
       const onMarkAllReadMock = vi.fn();
       const mixedNotifications: NotificationItem[] = [
         {
@@ -454,15 +460,17 @@ describe('NotificationBell', () => {
       fireEvent.click(markAllBtn);
 
       // Verify that the unread notification title style changes to normal (read)
-      expect(unreadTitle).toHaveClass('font-normal');
-      expect(unreadTitle).not.toHaveClass('font-bold');
+      await waitFor(() => {
+        expect(unreadTitle).toHaveClass('font-normal');
+        expect(unreadTitle).not.toHaveClass('font-bold');
+      });
 
       // Verify that onMarkAllRead was called EXACTLY once with the array of unread IDs
       expect(onMarkAllReadMock).toHaveBeenCalledTimes(1);
       expect(onMarkAllReadMock).toHaveBeenCalledWith(['unread-1']);
     });
 
-    it('successfully falls back to calling onMarkRead individually for unread notifications when onMarkAllRead is not provided', () => {
+    it('successfully falls back to calling onMarkRead individually for unread notifications when onMarkAllRead is not provided', async () => {
       const onMarkReadMock = vi.fn();
       const mixedNotifications: NotificationItem[] = [
         {
@@ -506,9 +514,60 @@ describe('NotificationBell', () => {
       fireEvent.click(markAllBtn);
 
       // Verify that onMarkRead was called EXACTLY twice (for unread-1 and unread-2, but NOT for read-3)
-      expect(onMarkReadMock).toHaveBeenCalledTimes(2);
+      await waitFor(() => {
+        expect(onMarkReadMock).toHaveBeenCalledTimes(2);
+      });
       expect(onMarkReadMock).toHaveBeenCalledWith('unread-1');
       expect(onMarkReadMock).toHaveBeenCalledWith('unread-2');
+    });
+
+    it('rolls back state to original unread notifications and restores the unread badge when onMarkAllRead API call fails', async () => {
+      const onMarkAllReadErrorMock = vi
+        .fn()
+        .mockRejectedValue(new Error('Network error'));
+      const mixedNotifications: NotificationItem[] = [
+        {
+          id: 'unread-1',
+          type: 'reservation_new',
+          menteeName: '小明',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+      ];
+
+      render(
+        <NotificationBell
+          unreadCount={1}
+          initialStatus="success"
+          initialNotifications={mixedNotifications}
+          onMarkAllRead={onMarkAllReadErrorMock}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+
+      // Badge is visible
+      expect(screen.getByText('1')).toBeInTheDocument();
+
+      fireEvent.click(button);
+
+      // Verify unread notification has bold font
+      const unreadTitle = screen.getByText('您有新的預約');
+      expect(unreadTitle).toHaveClass('font-bold');
+
+      // Find the Mark all as read button and click it
+      const markAllBtn = screen.getByRole('button', {
+        name: 'Mark all as read',
+      });
+      fireEvent.click(markAllBtn);
+
+      // Check that it first optimistically marks as read (becomes font-normal)
+      expect(unreadTitle).toHaveClass('font-normal');
+
+      // Verify that it rolled back to unread state (restores font-bold) and restores badge
+      await waitFor(() => {
+        expect(unreadTitle).toHaveClass('font-bold');
+        expect(screen.getByText('1')).toBeInTheDocument();
+      });
     });
 
     it('disables "Mark all as read" button when there are no unread notifications', () => {
