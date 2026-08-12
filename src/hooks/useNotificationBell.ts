@@ -12,6 +12,7 @@ export type NotificationItem = {
   mentorName?: string;
   createdAt: string; // ISO string
   unread?: boolean;
+  role?: 'mentor' | 'mentee';
 };
 
 export type UseNotificationBellProps = {
@@ -19,6 +20,7 @@ export type UseNotificationBellProps = {
   initialStatus: 'loading' | 'error' | 'empty' | 'success';
   initialNotifications?: NotificationItem[];
   defaultNotifications?: NotificationItem[];
+  onMarkRead?: (id: string) => void | Promise<void>;
 };
 
 export function useNotificationBell({
@@ -26,7 +28,9 @@ export function useNotificationBell({
   initialStatus,
   initialNotifications,
   defaultNotifications = [],
+  onMarkRead,
 }: UseNotificationBellProps) {
+  const [open, setOpen] = React.useState(false);
   const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
   const [status, setStatus] = React.useState(initialStatus);
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
@@ -52,8 +56,9 @@ export function useNotificationBell({
     }
   }
 
-  const handleOpenChange = React.useCallback((open: boolean) => {
-    if (open) {
+  const handleOpenChange = React.useCallback((nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (nextOpen) {
       setHasBeenClicked(true);
       setNotifications((prev) => {
         const hasUnread = prev.some((item) => item.unread);
@@ -63,6 +68,20 @@ export function useNotificationBell({
       });
     }
   }, []);
+
+  const closePopover = React.useCallback(() => {
+    setOpen(false);
+  }, []);
+
+  const handleNotificationClick = React.useCallback(
+    (id: string) => {
+      setNotifications((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, unread: false } : item))
+      );
+      onMarkRead?.(id);
+    },
+    [onMarkRead]
+  );
 
   const handleRetry = React.useCallback(() => {
     setStatus('loading');
@@ -83,11 +102,14 @@ export function useNotificationBell({
   const formattedCount = unreadCount > 99 ? '99+' : String(unreadCount);
 
   return {
+    open,
+    closePopover,
     status,
     notifications,
     showBadge,
     formattedCount,
     handleOpenChange,
     handleRetry,
+    handleNotificationClick,
   };
 }

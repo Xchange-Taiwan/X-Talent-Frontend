@@ -1,13 +1,26 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import * as React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  useReservationData,
-  type UseReservationDataReturn,
-} from '@/hooks/user/reservation/useReservationData';
+import { useReservationData } from '@/hooks/user/reservation/useReservationData';
 
 import { ReservationDashboard } from './ReservationDashboard';
+
+// Mock next/navigation
+const mockReplace = vi.fn();
+const mockGet = vi.fn().mockReturnValue(null);
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => ({
+    get: (key: string) => mockGet(key),
+    toString: () => '',
+  }),
+  useRouter: () => ({
+    replace: (url: string) => mockReplace(url),
+  }),
+  usePathname: () => '/reservation/mentor',
+}));
 
 // Mock the hook
 vi.mock('@/hooks/user/reservation/useReservationData', () => ({
@@ -42,13 +55,15 @@ vi.mock('@/components/ui/tabs', () => {
       children,
       onValueChange,
       defaultValue,
+      value,
     }: {
       children: React.ReactNode;
       onValueChange?: (value: string) => void;
       defaultValue?: string;
+      value?: string;
     }) => (
       <TabsContext.Provider value={{ onValueChange }}>
-        <div data-testid="tabs" data-default-value={defaultValue}>
+        <div data-testid="tabs" data-default-value={defaultValue || value}>
           {children}
         </div>
       </TabsContext.Provider>
@@ -96,9 +111,9 @@ describe('ReservationDashboard', () => {
       nextTokens: { upcoming: 0, pending: 0, history: 0 },
     },
     initialState: {
-      upcoming: 'ready',
-      pending: 'ready',
-      history: 'ready',
+      upcoming: 'ready' as const,
+      pending: 'ready' as const,
+      history: 'ready' as const,
     },
     loadingMoreStates: {
       upcoming: false,
@@ -120,7 +135,7 @@ describe('ReservationDashboard', () => {
 
   it('renders correctly for role "mentee"', () => {
     vi.mocked(useReservationData).mockReturnValue(
-      baseHookReturnValue as unknown as UseReservationDataReturn
+      fromPartial(baseHookReturnValue)
     );
 
     render(<ReservationDashboard userRole="mentee" />);
@@ -145,7 +160,7 @@ describe('ReservationDashboard', () => {
 
   it('renders correctly for role "mentor"', () => {
     vi.mocked(useReservationData).mockReturnValue(
-      baseHookReturnValue as unknown as UseReservationDataReturn
+      fromPartial(baseHookReturnValue)
     );
 
     render(<ReservationDashboard userRole="mentor" />);
@@ -168,14 +183,14 @@ describe('ReservationDashboard', () => {
     const loadingHookReturnValue = {
       ...baseHookReturnValue,
       initialState: {
-        upcoming: 'loading',
-        pending: 'loading',
-        history: 'idle',
+        upcoming: 'loading' as const,
+        pending: 'loading' as const,
+        history: 'idle' as const,
       },
       isHistoryLoaded: false,
     };
     vi.mocked(useReservationData).mockReturnValue(
-      loadingHookReturnValue as unknown as UseReservationDataReturn
+      fromPartial(loadingHookReturnValue)
     );
 
     render(<ReservationDashboard userRole="mentee" />);
@@ -193,7 +208,7 @@ describe('ReservationDashboard', () => {
       isLoadingHistory: false,
     };
     vi.mocked(useReservationData).mockReturnValue(
-      notLoadedHistoryReturnValue as unknown as UseReservationDataReturn
+      fromPartial(notLoadedHistoryReturnValue)
     );
 
     render(<ReservationDashboard userRole="mentee" />);
@@ -208,7 +223,7 @@ describe('ReservationDashboard', () => {
 
   it('correctly maps and triggers onLoadMore params for role "mentee"', () => {
     vi.mocked(useReservationData).mockReturnValue(
-      baseHookReturnValue as unknown as UseReservationDataReturn
+      fromPartial(baseHookReturnValue)
     );
 
     render(<ReservationDashboard userRole="mentee" />);
@@ -235,7 +250,7 @@ describe('ReservationDashboard', () => {
 
   it('correctly maps and triggers onLoadMore params for role "mentor"', () => {
     vi.mocked(useReservationData).mockReturnValue(
-      baseHookReturnValue as unknown as UseReservationDataReturn
+      fromPartial(baseHookReturnValue)
     );
 
     render(<ReservationDashboard userRole="mentor" />);
@@ -258,5 +273,49 @@ describe('ReservationDashboard', () => {
     const historyLoadMore = screen.getByTestId('load-more-history');
     fireEvent.click(historyLoadMore);
     expect(mockLoadMore).toHaveBeenCalledWith('history');
+  });
+
+  it('initializes the active tab based on "tab" search parameter and triggers loadHistory if history is selected and not loaded', () => {
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial({
+        ...baseHookReturnValue,
+        isHistoryLoaded: false,
+      })
+    );
+
+    // Test with tab=pending
+    mockGet.mockReturnValue('pending');
+    const { rerender } = render(<ReservationDashboard userRole="mentor" />);
+    expect(screen.getByTestId('tabs')).toHaveAttribute(
+      'data-default-value',
+      'pending-mentor'
+    );
+
+    // Test with tab=history (which should also trigger loadHistory since isHistoryLoaded is false)
+    mockGet.mockReturnValue('history');
+    rerender(<ReservationDashboard userRole="mentor" />);
+    expect(screen.getByTestId('tabs')).toHaveAttribute(
+      'data-default-value',
+      'history'
+    );
+    expect(mockLoadHistory).toHaveBeenCalled();
+  });
+
+  it('updates the URL search parameter "tab" when switching tabs', () => {
+    vi.mocked(useReservationData).mockReturnValue(
+      fromPartial(baseHookReturnValue)
+    );
+    mockGet.mockReturnValue('upcoming');
+
+    render(<ReservationDashboard userRole="mentor" />);
+
+    // Switch to Pending tab
+    const pendingTrigger = screen.getByTestId('trigger-pending-mentor');
+    fireEvent.click(pendingTrigger);
+
+    // It should replace the URL with tab=pending
+    expect(mockReplace).toHaveBeenCalledWith(
+      expect.stringContaining('tab=pending')
+    );
   });
 });
