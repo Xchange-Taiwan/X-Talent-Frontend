@@ -1,14 +1,6 @@
 'use client';
 
-import {
-  AlertCircle,
-  Bell,
-  CalendarCheck,
-  CalendarOff,
-  CalendarPlus,
-  CalendarX,
-  Clock,
-} from 'lucide-react';
+import { AlertCircle, Bell } from 'lucide-react';
 import * as React from 'react';
 
 import {
@@ -51,23 +43,6 @@ export type NotificationBellProps = {
   onRetry?: () => void | Promise<void>;
 };
 
-function renderIcon(iconType: string) {
-  switch (iconType) {
-    case 'calendar-plus':
-      return <CalendarPlus className="size-5" />;
-    case 'calendar-check':
-      return <CalendarCheck className="size-5" />;
-    case 'calendar-x':
-      return <CalendarX className="size-5" />;
-    case 'calendar-off':
-      return <CalendarOff className="size-5" />;
-    case 'clock':
-      return <Clock className="size-5" />;
-    default:
-      return <Bell className="size-5" />;
-  }
-}
-
 export const NotificationBell = React.memo(function NotificationBell({
   unreadCount = 5,
   className,
@@ -82,6 +57,7 @@ export const NotificationBell = React.memo(function NotificationBell({
     formattedCount,
     handleOpenChange,
     handleRetry,
+    handleMarkAllRead,
   } = useNotificationState({
     unreadCount,
     initialStatus,
@@ -124,10 +100,13 @@ export const NotificationBell = React.memo(function NotificationBell({
         </div>
 
         {status === 'loading' && (
-          <div className="flex flex-col gap-3 py-2">
+          <div className="flex flex-col divide-y divide-background-border">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="flex items-start gap-3 py-2">
-                <Skeleton className="size-10 shrink-0 rounded-full" />
+              <div
+                key={i}
+                className="flex items-start gap-2.5 py-3 first:pt-0 last:pb-0"
+              >
+                <div className="mt-1.5 size-4 shrink-0" />
                 <div className="flex-1 space-y-2">
                   <Skeleton className="h-4 w-3/4 rounded" />
                   <Skeleton className="h-3 w-5/6 rounded" />
@@ -165,40 +144,50 @@ export const NotificationBell = React.memo(function NotificationBell({
         )}
 
         {status === 'success' && notifications.length > 0 && (
-          <div className="flex max-h-[360px] flex-col gap-1 overflow-y-auto pr-1">
-            {notifications.map((item) => {
-              const { title, body, iconBgClass, iconType } =
-                getNotificationContent(item);
-              return (
-                <div
-                  key={item.id}
-                  className="group/item relative flex items-start gap-3 rounded-xl p-3 transition-all duration-200 hover:bg-background-hover"
-                >
+          <div className="flex max-h-[360px] flex-col overflow-y-auto pr-1">
+            <div className="flex flex-col divide-y divide-background-border">
+              {notifications.map((item) => {
+                const { title, body } = getNotificationContent(item);
+                return (
                   <div
-                    className={cn(
-                      'flex size-10 shrink-0 items-center justify-center rounded-full',
-                      iconBgClass
-                    )}
+                    key={item.id}
+                    className="flex items-start gap-2.5 py-3 first:pt-0 last:pb-0"
                   >
-                    {renderIcon(iconType)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="mb-1 text-sm leading-tight font-semibold break-words text-text-primary">
-                      {title}
-                    </p>
-                    <p className="mb-1.5 text-xs leading-normal break-words text-text-secondary">
-                      {body}
-                    </p>
-                    <span className="text-11 leading-none text-text-tertiary">
-                      {formatRelativeTime(item.createdAt)}
+                    <span className="mt-1.5 flex size-4 shrink-0 items-center justify-center">
+                      {item.unread && (
+                        <span
+                          className="size-2 rounded-full bg-brand-500"
+                          aria-hidden="true"
+                        />
+                      )}
                     </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="mb-1 text-sm leading-tight font-semibold break-words text-text-primary">
+                        {title}
+                      </p>
+                      <p className="mb-1.5 text-xs leading-normal break-words text-text-secondary">
+                        {body}
+                      </p>
+                      <span className="text-11 leading-none text-text-tertiary">
+                        {formatRelativeTime(item.createdAt)}
+                      </span>
+                    </div>
                   </div>
-                  {item.unread && (
-                    <span className="absolute top-4 right-3 size-2 rounded-full bg-status-error-default" />
-                  )}
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+
+            {notifications.some((item) => item.unread) && (
+              <div className="mt-1 border-t border-background-border pt-3">
+                <button
+                  type="button"
+                  onClick={handleMarkAllRead}
+                  className="text-sm font-medium text-brand-500 hover:underline"
+                >
+                  全部標為已讀
+                </button>
+              </div>
+            )}
           </div>
         )}
       </PopoverContent>

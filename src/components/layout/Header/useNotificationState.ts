@@ -41,6 +41,12 @@ export function useNotificationState({
     }
   }, []);
 
+  const handleMarkAllRead = React.useCallback(() => {
+    setNotifications((prev) =>
+      prev.map((item) => ({ ...item, unread: false }))
+    );
+  }, []);
+
   const handleRetry = React.useCallback(async () => {
     setStatus('loading');
     if (onRetry) {
@@ -72,5 +78,6 @@ export function useNotificationState({
     formattedCount,
     handleOpenChange,
     handleRetry,
+    handleMarkAllRead,
   };
 }

@@ -51,9 +51,9 @@ export const getDefaultMockNotifications = (): NotificationItem[] => [
 ];
 
 /**
- * Returns content templates (title, body, styles, and iconType) for notification items.
- * Keeping the logic pure by returning string identifiers (iconType) rather than React JSX elements,
- * ensuring complete separation of concerns and high testability.
+ * Returns content templates (title and body) for notification items.
+ * Keeping the logic pure and free of React JSX elements ensures complete
+ * separation of concerns and high testability.
  */
 export function getNotificationContent(item: NotificationItem) {
   switch (item.type) {
@@ -61,30 +61,22 @@ export function getNotificationContent(item: NotificationItem) {
       return {
         title: '您有新的預約',
         body: `${item.menteeName || 'Mentee'} 與您提出預約需求，請前往接受預約`,
-        iconBgClass: 'bg-brand-50 text-brand-600',
-        iconType: 'calendar-plus',
       };
     case 'reservation_success':
       return {
         title: `${item.mentorName || 'Mentor'} 已接受您的預約`,
         body: '前往查看您的預約詳情',
-        iconBgClass: 'bg-status-success-default/10 text-status-success-default',
-        iconType: 'calendar-check',
       };
     case 'reservation_failed':
       return {
         title: `您與 ${item.mentorName || 'Mentor'} 的預約已被拒絕`,
         body: '您的預約已被拒絕，歡迎重新預約',
-        iconBgClass: 'bg-status-error-default/10 text-status-error-default',
-        iconType: 'calendar-x',
       };
     case 'reservation_canceled': {
       const name = item.mentorName || item.menteeName || '導師';
       return {
         title: `您與 ${name} 的預約已被取消`,
         body: '您的預約已被取消，歡迎重新預約',
-        iconBgClass: 'bg-background-hover text-text-secondary',
-        iconType: 'calendar-off',
       };
     }
     case 'reservation_upcoming': {
@@ -92,16 +84,12 @@ export function getNotificationContent(item: NotificationItem) {
       return {
         title: `您與 ${name} 的預約即將到來`,
         body: `您 24 小時後有與 ${name} 的會議，請準時上線`,
-        iconBgClass: 'bg-status-warning-default/10 text-status-warning-default',
-        iconType: 'clock',
       };
     }
     default:
       return {
         title: '通知',
         body: '您有一則新通知',
-        iconBgClass: 'bg-background-bottom text-text-primary',
-        iconType: 'bell',
       };
   }
 }
