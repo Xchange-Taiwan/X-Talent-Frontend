@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { fromAny } from '@total-typescript/shoehorn';
 import { describe, expect, it, vi } from 'vitest';
 
+import { type NotificationItem } from '@/hooks/useNotificationBell';
+
 import { getNotificationContent, NotificationBell } from './NotificationBell';
 
 describe('NotificationBell', () => {
@@ -216,6 +218,126 @@ describe('NotificationBell', () => {
       );
       expect(result.title).toBe('通知');
       expect(result.body).toBe('您有一則新通知');
+    });
+  });
+
+  describe('Notification card click and navigation', () => {
+    it('renders notification items as links with correct href based on contextual roles', () => {
+      render(<NotificationBell unreadCount={5} initialStatus="success" />);
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      // Check reservation_new href (Mentor page)
+      const newReservationLink = screen.getByText('您有新的預約').closest('a');
+      expect(newReservationLink).toHaveAttribute(
+        'href',
+        '/reservation/mentor?tab=pending'
+      );
+
+      // Check reservation_success href
+      const successLink = screen
+        .getByText('林導師 已接受您的預約')
+        .closest('a');
+      expect(successLink).toHaveAttribute(
+        'href',
+        '/reservation/mentee?tab=upcoming'
+      );
+
+      // Check reservation_failed href
+      const failedLink = screen
+        .getByText('您與 王導師 的預約已被拒絕')
+        .closest('a');
+      expect(failedLink).toHaveAttribute('href', '/mentor-pool');
+
+      // Check reservation_canceled href for Mentee (has mentorName, goes to mentor-pool)
+      const canceledLink = screen
+        .getByText('您與 陳導師 的預約已被取消')
+        .closest('a');
+      expect(canceledLink).toHaveAttribute('href', '/mentor-pool');
+
+      // Check reservation_upcoming href for Mentee (has mentorName, goes to reservation/mentee?tab=upcoming)
+      const upcomingLink = screen
+        .getByText('您與 張導師 的預約即將到來')
+        .closest('a');
+      expect(upcomingLink).toHaveAttribute(
+        'href',
+        '/reservation/mentee?tab=upcoming'
+      );
+    });
+
+    it('renders canceled and upcoming notification hrefs correctly for Mentor context', () => {
+      // Create explicit notifications for a Mentor context (using explicit role property or menteeName)
+      const mentorNotifications: NotificationItem[] = [
+        {
+          id: 'canceled-mentor-explicit',
+          type: 'reservation_canceled',
+          menteeName: '小明',
+          role: 'mentor',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+        {
+          id: 'upcoming-mentor-inferred',
+          type: 'reservation_upcoming',
+          menteeName: '小華',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+      ];
+
+      render(
+        <NotificationBell
+          unreadCount={2}
+          initialStatus="success"
+          initialNotifications={mentorNotifications}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      // Check reservation_canceled href for Mentor context (goes to reservation/mentor?tab=history)
+      const canceledLink = screen
+        .getByText('您與 小明 的預約已被取消')
+        .closest('a');
+      expect(canceledLink).toHaveAttribute(
+        'href',
+        '/reservation/mentor?tab=history'
+      );
+
+      // Check reservation_upcoming href for Mentor context (goes to reservation/mentor?tab=upcoming)
+      const upcomingLink = screen
+        .getByText('您與 小華 的預約即將到來')
+        .closest('a');
+      expect(upcomingLink).toHaveAttribute(
+        'href',
+        '/reservation/mentor?tab=upcoming'
+      );
+    });
+
+    it('marks clicked notification as read, triggers onMarkRead, and closes popover on click', () => {
+      const onMarkReadMock = vi.fn();
+
+      render(
+        <NotificationBell
+          unreadCount={5}
+          initialStatus="success"
+          onMarkRead={onMarkReadMock}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      // Click the first notification (which is unread)
+      const link = screen.getByText('您有新的預約').closest('a');
+      expect(link).toBeInTheDocument();
+
+      fireEvent.click(link!);
+
+      // Verify persistence callback was called with the notification's ID ('1')
+      expect(onMarkReadMock).toHaveBeenCalledWith('1');
+
+      // Popover should be closed
+      expect(screen.queryByText('通知')).not.toBeInTheDocument();
     });
   });
 

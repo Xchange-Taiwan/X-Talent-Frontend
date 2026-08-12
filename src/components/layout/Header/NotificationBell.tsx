@@ -9,6 +9,7 @@ import {
   CalendarX,
   Clock,
 } from 'lucide-react';
+import Link from 'next/link';
 import * as React from 'react';
 
 import {
@@ -25,6 +26,7 @@ import { formatRelativeTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
 import { defaultMockNotifications } from './mockNotifications';
+import { getNotificationHref } from './notificationUtils';
 
 export type NotificationBellProps = {
   /**
@@ -45,6 +47,10 @@ export type NotificationBellProps = {
    * Initial list of notifications. If omitted, will default to mock notifications.
    */
   initialNotifications?: NotificationItem[];
+  /**
+   * Optional callback fired when a single notification card is clicked and marked as read.
+   */
+  onMarkRead?: (id: string) => void | Promise<void>;
 };
 
 /**
@@ -106,23 +112,28 @@ export const NotificationBell = React.memo(function NotificationBell({
   className,
   initialStatus = 'success',
   initialNotifications,
+  onMarkRead,
 }: NotificationBellProps): JSX.Element {
   const {
+    open,
+    closePopover,
     status,
     notifications,
     showBadge,
     formattedCount,
     handleOpenChange,
     handleRetry,
+    handleNotificationClick,
   } = useNotificationBell({
     unreadCount,
     initialStatus,
     initialNotifications,
     defaultNotifications: defaultMockNotifications,
+    onMarkRead,
   });
 
   return (
-    <Popover onOpenChange={handleOpenChange}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -201,9 +212,15 @@ export const NotificationBell = React.memo(function NotificationBell({
             {notifications.map((item) => {
               const { title, body, iconBgClass, icon } =
                 getNotificationContent(item);
+              const href = getNotificationHref(item);
               return (
-                <div
+                <Link
                   key={item.id}
+                  href={href}
+                  onClick={() => {
+                    handleNotificationClick(item.id);
+                    closePopover();
+                  }}
                   className="group/item relative flex items-start gap-3 rounded-xl p-3 transition-all duration-200 hover:bg-background-hover"
                 >
                   <div
@@ -228,7 +245,7 @@ export const NotificationBell = React.memo(function NotificationBell({
                   {item.unread && (
                     <span className="absolute top-4 right-3 size-2 rounded-full bg-status-error-default" />
                   )}
-                </div>
+                </Link>
               );
             })}
           </div>
