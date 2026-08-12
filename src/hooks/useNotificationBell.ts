@@ -66,8 +66,24 @@ export function useNotificationBell({
   const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
   const [status, setStatus] = React.useState(initialStatus);
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
-    initialNotifications ?? defaultMockNotifications
+    () => initialNotifications ?? []
   );
+
+  const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  React.useEffect(() => {
+    if (!initialNotifications) {
+      setNotifications(defaultMockNotifications);
+    }
+  }, [initialNotifications]);
+
+  React.useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
 
   const [prevUnreadCount, setPrevUnreadCount] = React.useState(unreadCount);
   const [localUnreadCount, setLocalUnreadCount] = React.useState(unreadCount);
@@ -92,8 +108,11 @@ export function useNotificationBell({
 
   const handleRetry = React.useCallback(() => {
     setStatus('loading');
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
     // Simulating a clean reload back to initial or default success list
-    setTimeout(() => {
+    timerRef.current = setTimeout(() => {
       setNotifications(initialNotifications ?? defaultMockNotifications);
       setStatus('success');
     }, 1000);

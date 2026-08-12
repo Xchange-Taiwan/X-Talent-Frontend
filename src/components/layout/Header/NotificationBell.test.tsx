@@ -1,7 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { fromAny } from '@total-typescript/shoehorn';
 import { describe, expect, it, vi } from 'vitest';
-
-import { type NotificationItem } from '@/hooks/useNotificationBell';
 
 import { getNotificationContent, NotificationBell } from './NotificationBell';
 
@@ -165,11 +164,13 @@ describe('NotificationBell', () => {
 
   describe('Notification Content mappings', () => {
     it('returns template content for unknown notification types as fallback', () => {
-      const result = getNotificationContent({
-        id: '99',
-        type: 'unknown_type' as unknown as NotificationItem['type'],
-        createdAt: new Date().toISOString(),
-      });
+      const result = getNotificationContent(
+        fromAny({
+          id: '99',
+          type: 'unknown_type',
+          createdAt: new Date().toISOString(),
+        })
+      );
       expect(result.title).toBe('通知');
       expect(result.body).toBe('您有一則新通知');
     });
