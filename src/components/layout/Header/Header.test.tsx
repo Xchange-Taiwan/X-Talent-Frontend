@@ -180,7 +180,7 @@ describe('Header', () => {
     expect(avatarImgs[1]).toHaveAttribute('src', 'hint-avatar.png');
   });
 
-  it('keeps 尋找導師/關於 X-Talent/提供回饋/漢堡選單 mounted for logged-in users too, hiding them via CSS data-auth-state toggles instead of unmounting them (avoids a flash before authKnown settles)', () => {
+  it('keeps 尋找導師/關於 X-Talent/提供回饋/漢堡選單 mounted for logged-in users too, with navigation links always visible on desktop (avoids a flash before authKnown settles)', () => {
     mockUseSession.mockReturnValue({
       data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
       status: 'authenticated',
@@ -205,16 +205,18 @@ describe('Header', () => {
       name: '開啟導航選單',
     });
 
-    expect(findMentorLink).toHaveClass(
-      'group-data-[auth-state=mentee]:hidden',
+    expect(findMentorLink).not.toHaveClass(
+      'group-data-[auth-state=mentee]:hidden'
+    );
+    expect(findMentorLink).not.toHaveClass(
       'group-data-[auth-state=mentor]:hidden'
     );
-    expect(aboutLink).toHaveClass(
-      'group-data-[auth-state=mentee]:hidden',
-      'group-data-[auth-state=mentor]:hidden'
+    expect(aboutLink).not.toHaveClass('group-data-[auth-state=mentee]:hidden');
+    expect(aboutLink).not.toHaveClass('group-data-[auth-state=mentor]:hidden');
+    expect(feedbackLink).not.toHaveClass(
+      'group-data-[auth-state=mentee]:hidden'
     );
-    expect(feedbackLink).toHaveClass(
-      'group-data-[auth-state=mentee]:hidden',
+    expect(feedbackLink).not.toHaveClass(
       'group-data-[auth-state=mentor]:hidden'
     );
     expect(hamburgerTrigger.parentElement).toHaveClass(
