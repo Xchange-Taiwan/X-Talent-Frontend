@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect } from 'react';
+import { Suspense, useCallback, useEffect } from 'react';
 
 import { ReservationListSkeleton } from '@/app/reservation/skeleton';
 import { ReservationList } from '@/components/reservation/ReservationList';
@@ -47,24 +47,34 @@ export function ReservationDashboard({ userRole }: ReservationDashboardProps) {
   const isLoadingPending = initialState.pending === 'loading';
 
   return (
-    <ReservationDashboardView
-      userRole={userRole}
-      myUserId={myUserId}
-      upcoming={upcoming}
-      pending={pending}
-      history={history}
-      isLoadingUpcoming={isLoadingUpcoming}
-      isLoadingPending={isLoadingPending}
-      isLoadingHistory={isLoadingHistory}
-      isHistoryLoaded={isHistoryLoaded}
-      nextTokens={nextTokens}
-      loadingMoreStates={loadingMoreStates}
-      onLoadMoreUpcoming={loadMoreUpcoming}
-      onLoadMorePending={loadMorePending}
-      onLoadMoreHistory={loadMoreHistory}
-      onLoadHistory={loadHistory}
-      onMutationSuccess={onMutationSuccess}
-    />
+    <Suspense
+      fallback={
+        <div className="flex min-h-[calc(100vh-70px)] justify-center pb-12">
+          <div className="w-full max-w-[90%] rounded-2xl md:max-w-[800px]">
+            <ReservationListSkeleton />
+          </div>
+        </div>
+      }
+    >
+      <ReservationDashboardView
+        userRole={userRole}
+        myUserId={myUserId}
+        upcoming={upcoming}
+        pending={pending}
+        history={history}
+        isLoadingUpcoming={isLoadingUpcoming}
+        isLoadingPending={isLoadingPending}
+        isLoadingHistory={isLoadingHistory}
+        isHistoryLoaded={isHistoryLoaded}
+        nextTokens={nextTokens}
+        loadingMoreStates={loadingMoreStates}
+        onLoadMoreUpcoming={loadMoreUpcoming}
+        onLoadMorePending={loadMorePending}
+        onLoadMoreHistory={loadMoreHistory}
+        onLoadHistory={loadHistory}
+        onMutationSuccess={onMutationSuccess}
+      />
+    </Suspense>
   );
 }
 
