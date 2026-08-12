@@ -78,19 +78,19 @@ export function useNotificationBell({
   );
 
   const handleMarkAllAsRead = React.useCallback(() => {
-    setNotifications((prev) => {
-      const hasUnread = prev.some((item) => item.unread);
-      if (!hasUnread) return prev;
+    const hasUnread = notifications.some((item) => item.unread);
+    if (!hasUnread) return;
 
-      prev.forEach((item) => {
-        if (item.unread) {
-          onMarkRead?.(item.id);
-        }
-      });
-
-      return prev.map((item) => ({ ...item, unread: false }));
+    notifications.forEach((item) => {
+      if (item.unread) {
+        onMarkRead?.(item.id);
+      }
     });
-  }, [onMarkRead]);
+
+    setNotifications((prev) =>
+      prev.map((item) => ({ ...item, unread: false }))
+    );
+  }, [notifications, onMarkRead]);
 
   const handleRetry = React.useCallback(() => {
     setStatus('loading');
