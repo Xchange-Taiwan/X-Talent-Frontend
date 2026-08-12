@@ -165,17 +165,6 @@ export const NotificationBell = React.memo(function NotificationBell({
   );
   const [localUnreadCount, setLocalUnreadCount] = React.useState(unreadCount);
 
-  // Sync state if props change (solving uncontrolled-to-controlled locking issues)
-  React.useEffect(() => {
-    setStatus(initialStatus);
-  }, [initialStatus]);
-
-  React.useEffect(() => {
-    if (initialNotifications) {
-      setNotifications(initialNotifications);
-    }
-  }, [initialNotifications]);
-
   // Track unreadCount changes and reset hasBeenClicked if new notifications arrive (solving badge hidden bug)
   const prevUnreadCountRef = React.useRef(unreadCount);
   React.useEffect(() => {

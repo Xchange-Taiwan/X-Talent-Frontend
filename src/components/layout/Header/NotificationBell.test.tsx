@@ -194,5 +194,23 @@ describe('NotificationBell', () => {
       const unreadDots = document.querySelectorAll('.bg-status-error-default');
       expect(unreadDots.length).toBe(0);
     });
+
+    it('resets hasBeenClicked and displays the unread badge again when unreadCount increases', () => {
+      const { rerender } = render(<NotificationBell unreadCount={5} />);
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+
+      // Badge is initially 5
+      expect(screen.getByText('5')).toBeInTheDocument();
+
+      // Click to open and clear badge
+      fireEvent.click(button);
+      expect(screen.queryByText('5')).not.toBeInTheDocument();
+
+      // Rerender with a larger unreadCount (e.g. 6) representing a new notification arriving
+      rerender(<NotificationBell unreadCount={6} />);
+
+      // Badge should reappear showing 6
+      expect(screen.getByText('6')).toBeInTheDocument();
+    });
   });
 });
