@@ -402,6 +402,54 @@ describe('NotificationBell', () => {
       // Popover should be closed
       expect(screen.queryByText('通知')).not.toBeInTheDocument();
     });
+
+    it('rolls back an individually clicked notification to unread and shows an error toast when onMarkRead fails', async () => {
+      const onMarkReadErrorMock = vi
+        .fn()
+        .mockRejectedValue(new Error('Network error'));
+      const mixedNotifications: NotificationItem[] = [
+        {
+          id: 'unread-1',
+          type: 'reservation_new',
+          menteeName: '小明',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+      ];
+
+      render(
+        <NotificationBell
+          unreadCount={1}
+          initialStatus="success"
+          initialNotifications={mixedNotifications}
+          onMarkRead={onMarkReadErrorMock}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      const link = screen.getByText('您有新的預約').closest('a');
+      fireEvent.click(link!);
+
+      await waitFor(() => {
+        expect(onMarkReadErrorMock).toHaveBeenCalledWith('unread-1');
+      });
+
+      // Reopen the popover (it closes on click) to inspect the rolled-back state
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        const rolledBackTitle = screen.getByText('您有新的預約');
+        expect(rolledBackTitle).toHaveClass('font-bold');
+      });
+
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          description: '無法將通知標示為已讀，請稍後再試',
+        })
+      );
+    });
   });
 
   describe('Notification Read Syncing behavior', () => {

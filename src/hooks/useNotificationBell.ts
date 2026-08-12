@@ -122,13 +122,30 @@ export function useNotificationBell({
   }, []);
 
   const handleNotificationClick = React.useCallback(
-    (id: string) => {
+    async (id: string) => {
       setNotifications((prev) =>
         prev.map((item) => (item.id === id ? { ...item, unread: false } : item))
       );
-      onMarkRead?.(id);
+
+      if (!onMarkRead) return;
+
+      try {
+        await onMarkRead(id);
+      } catch (error) {
+        reportMarkAsReadFailure(`mark_read_click:${id}`, error);
+        setNotifications((prev) =>
+          prev.map((item) =>
+            item.id === id ? { ...item, unread: true } : item
+          )
+        );
+        toast({
+          variant: 'destructive',
+          title: '操作失敗',
+          description: '無法將通知標示為已讀，請稍後再試',
+        });
+      }
     },
-    [onMarkRead]
+    [onMarkRead, toast]
   );
 
   const handleMarkAllAsRead = React.useCallback(async () => {
