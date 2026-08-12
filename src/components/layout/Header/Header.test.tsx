@@ -21,6 +21,11 @@ vi.mock('next/navigation', async () => {
   return navigationMockFactory();
 });
 
+const trackEvent = vi.fn();
+vi.mock('@/lib/analytics', () => ({
+  trackEvent: (...args: unknown[]) => trackEvent(...args),
+}));
+
 const mockUseAuthStatus = vi.fn();
 vi.mock('@/hooks/user/auth/useAuthStatus', () => ({
   useAuthStatus: () => mockUseAuthStatus(),
@@ -180,7 +185,7 @@ describe('Header', () => {
     expect(avatarImgs[1]).toHaveAttribute('src', 'hint-avatar.png');
   });
 
-  it('keeps 尋找導師/關於 X-Talent/提供回饋/漢堡選單 mounted for logged-in users too, hiding them via CSS data-auth-state toggles instead of unmounting them (avoids a flash before authKnown settles)', () => {
+  it('keeps 尋找導師/關於 X-Talent/提供回饋/漢堡選單 mounted for logged-in users too, with navigation links always visible on desktop (avoids a flash before authKnown settles)', () => {
     mockUseSession.mockReturnValue({
       data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
       status: 'authenticated',
@@ -205,22 +210,46 @@ describe('Header', () => {
       name: '開啟導航選單',
     });
 
-    expect(findMentorLink).toHaveClass(
-      'group-data-[auth-state=mentee]:hidden',
+    expect(findMentorLink).not.toHaveClass(
+      'group-data-[auth-state=mentee]:hidden'
+    );
+    expect(findMentorLink).not.toHaveClass(
       'group-data-[auth-state=mentor]:hidden'
     );
-    expect(aboutLink).toHaveClass(
-      'group-data-[auth-state=mentee]:hidden',
-      'group-data-[auth-state=mentor]:hidden'
+    expect(aboutLink).not.toHaveClass('group-data-[auth-state=mentee]:hidden');
+    expect(aboutLink).not.toHaveClass('group-data-[auth-state=mentor]:hidden');
+    expect(feedbackLink).not.toHaveClass(
+      'group-data-[auth-state=mentee]:hidden'
     );
-    expect(feedbackLink).toHaveClass(
-      'group-data-[auth-state=mentee]:hidden',
+    expect(feedbackLink).not.toHaveClass(
       'group-data-[auth-state=mentor]:hidden'
     );
     expect(hamburgerTrigger.parentElement).toHaveClass(
       'group-data-[auth-state=mentee]:hidden',
       'group-data-[auth-state=mentor]:hidden'
     );
+  });
+
+  it('tracks feedback_open when the desktop Header "提供回饋" link is clicked', () => {
+    trackEvent.mockClear();
+    mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+    mockUseAuthStatus.mockReturnValue({
+      authKnown: true,
+      isLoggedIn: false,
+      isMentor: false,
+      userId: undefined,
+      hasFullUser: false,
+      isResolvingUser: false,
+    });
+
+    render(<Header />);
+
+    const feedbackLink = screen.getByRole('link', {
+      name: '提供回饋（另開新分頁）',
+    });
+    fireEvent.click(feedbackLink);
+
+    expect(trackEvent).toHaveBeenCalledWith({ name: 'feedback_open' });
   });
 
   it('renders pre-hydration avatar placeholder with CSS visibility toggles before auth is known', () => {

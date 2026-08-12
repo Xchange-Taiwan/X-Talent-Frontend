@@ -67,7 +67,7 @@ function HeaderComponent(): JSX.Element {
           <nav className="hidden items-center gap-7 lg:flex">
             <Link
               href={FIND_MENTOR_HREF}
-              className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
+              className="font-['Open_Sans'] text-base text-text-primary"
             >
               尋找導師
             </Link>
@@ -102,7 +102,7 @@ function HeaderComponent(): JSX.Element {
 
             <Link
               href="/about"
-              className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
+              className="font-['Open_Sans'] text-base text-text-primary"
             >
               關於 X-Talent
             </Link>
@@ -113,7 +113,7 @@ function HeaderComponent(): JSX.Element {
               rel="noopener noreferrer"
               aria-label="提供回饋（另開新分頁）"
               onClick={() => trackEvent({ name: 'feedback_open' })}
-              className="font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden"
+              className="font-['Open_Sans'] text-base text-text-primary"
             >
               提供回饋
             </a>
