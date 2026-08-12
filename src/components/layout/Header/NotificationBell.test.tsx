@@ -56,12 +56,8 @@ describe('NotificationBell', () => {
     render(<NotificationBell unreadCount={5} />);
     const button = screen.getByRole('button', { name: '開啟通知選單' });
 
-    expect(button).toHaveClass(
-      '[@media(hover:hover)]:hover:bg-background-hover'
-    );
-    expect(button).toHaveClass(
-      '[@media(hover:hover)]:hover:border-transparent'
-    );
+    expect(button).toHaveClass('[@media(hover:hover)]:hover:bg-dark');
+    expect(button).toHaveClass('[@media(hover:hover)]:hover:border-dark');
   });
 
   it('contains tailwind CSS classes for the open state, matching the reservation tab active style', () => {
@@ -74,8 +70,8 @@ describe('NotificationBell', () => {
 
     const bell = button.querySelector('svg');
     expect(bell).not.toBeNull();
-    expect(bell).toHaveClass('group-data-[state=open]:fill-current');
-    expect(bell).toHaveClass('group-data-[state=open]:text-text-white');
+    expect(bell).toHaveClass('group-data-[state=open]/bell:fill-current');
+    expect(bell).toHaveClass('group-data-[state=open]/bell:text-text-white');
   });
 
   describe('Notification Dropdown Rendering states', () => {

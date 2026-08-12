@@ -1,14 +1,6 @@
 'use client';
 
-import {
-  AlertCircle,
-  Bell,
-  CalendarCheck,
-  CalendarOff,
-  CalendarPlus,
-  CalendarX,
-  Clock,
-} from 'lucide-react';
+import { AlertCircle, Bell } from 'lucide-react';
 import Link from 'next/link';
 import * as React from 'react';
 
@@ -54,7 +46,7 @@ export type NotificationBellProps = {
 };
 
 /**
- * Returns content templates (title, body, styles, and icon) for notification items.
+ * Returns content templates (title, body) for notification items.
  */
 export function getNotificationContent(item: NotificationItem) {
   switch (item.type) {
@@ -62,30 +54,22 @@ export function getNotificationContent(item: NotificationItem) {
       return {
         title: '您有新的預約',
         body: `${item.menteeName || 'Mentee'} 與您提出預約需求，請前往接受預約`,
-        iconBgClass: 'bg-brand-50 text-brand-600',
-        icon: <CalendarPlus className="size-5" />,
       };
     case 'reservation_success':
       return {
         title: `${item.mentorName || 'Mentor'} 已接受您的預約`,
         body: '前往查看您的預約詳情',
-        iconBgClass: 'bg-status-success-default/10 text-status-success-default',
-        icon: <CalendarCheck className="size-5" />,
       };
     case 'reservation_failed':
       return {
         title: `您與 ${item.mentorName || 'Mentor'} 的預約已被拒絕`,
         body: '您的預約已被拒絕，歡迎重新預約',
-        iconBgClass: 'bg-status-error-default/10 text-status-error-default',
-        icon: <CalendarX className="size-5" />,
       };
     case 'reservation_canceled': {
       const name = item.mentorName || item.menteeName || '導師';
       return {
         title: `您與 ${name} 的預約已被取消`,
         body: '您的預約已被取消，歡迎重新預約',
-        iconBgClass: 'bg-background-hover text-text-secondary',
-        icon: <CalendarOff className="size-5" />,
       };
     }
     case 'reservation_upcoming': {
@@ -93,16 +77,12 @@ export function getNotificationContent(item: NotificationItem) {
       return {
         title: `您與 ${name} 的預約即將到來`,
         body: `您 24 小時後有與 ${name} 的會議，請準時上線`,
-        iconBgClass: 'bg-status-warning-default/10 text-status-warning-default',
-        icon: <Clock className="size-5" />,
       };
     }
     default:
       return {
         title: '通知',
         body: '您有一則新通知',
-        iconBgClass: 'bg-background-bottom text-text-primary',
-        icon: <Bell className="size-5" />,
       };
   }
 }
@@ -139,12 +119,12 @@ export const NotificationBell = React.memo(function NotificationBell({
           type="button"
           title="通知"
           className={cn(
-            'group relative flex h-9 w-9 items-center justify-center rounded-full border border-background-border bg-transparent text-text-primary transition-all duration-200 outline-none data-[state=open]:border-dark data-[state=open]:bg-dark data-[state=open]:text-text-white [@media(hover:hover)]:hover:border-transparent [@media(hover:hover)]:hover:bg-background-hover',
+            'group/bell relative flex size-[30px] items-center justify-center rounded-full border border-background-border bg-transparent text-text-primary transition-all duration-200 outline-none data-[state=open]:border-dark data-[state=open]:bg-dark data-[state=open]:text-text-white [@media(hover:hover)]:hover:border-dark [@media(hover:hover)]:hover:bg-dark [@media(hover:hover)]:hover:text-text-white',
             className
           )}
           aria-label="開啟通知選單"
         >
-          <Bell className="size-5 text-text-primary transition-all group-data-[state=open]:fill-current group-data-[state=open]:text-text-white" />
+          <Bell className="size-5 text-text-primary transition-all group-data-[state=open]/bell:fill-current group-data-[state=open]/bell:text-text-white [@media(hover:hover)]:group-hover/bell:fill-current [@media(hover:hover)]:group-hover/bell:text-text-white" />
 
           {showBadge && (
             <span
@@ -160,17 +140,17 @@ export const NotificationBell = React.memo(function NotificationBell({
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-[360px] max-w-[calc(100vw-32px)] rounded-2xl border border-background-border bg-background-white p-5 shadow-xl outline-none"
+        className="w-[360px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-background-border bg-background-white px-0 py-5 shadow-xl outline-none"
       >
-        <div className="mb-3 flex items-center justify-between border-b border-background-border pb-3">
+        <div className="flex items-center justify-between border-b border-background-border px-5 pb-3">
           <span className="text-lg font-bold text-text-primary">通知</span>
         </div>
 
         {status === 'loading' && (
-          <div className="flex flex-col gap-3 py-2">
+          <div className="flex flex-col divide-y divide-background-border px-5">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="flex items-start gap-3 py-2">
-                <Skeleton className="size-10 shrink-0 rounded-full" />
+              <div key={i} className="flex items-start gap-2.5 py-3">
+                <div className="mt-1.5 size-4 shrink-0" />
                 <div className="flex-1 space-y-2">
                   <Skeleton className="h-4 w-3/4 rounded" />
                   <Skeleton className="h-3 w-5/6 rounded" />
@@ -182,7 +162,7 @@ export const NotificationBell = React.memo(function NotificationBell({
         )}
 
         {status === 'error' && (
-          <div className="flex flex-col items-center justify-center py-6 text-center">
+          <div className="flex flex-col items-center justify-center px-5 py-6 text-center">
             <AlertCircle className="mb-2 size-8 text-status-error-default" />
             <p className="mb-3 text-sm font-medium text-text-secondary">
               載入失敗，請重試
@@ -199,7 +179,7 @@ export const NotificationBell = React.memo(function NotificationBell({
 
         {(status === 'empty' ||
           (status === 'success' && notifications.length === 0)) && (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
+          <div className="flex flex-col items-center justify-center px-5 py-8 text-center">
             <Bell className="mb-3 size-10 text-text-tertiary" />
             <p className="text-sm font-medium text-text-secondary">
               尚無新通知
@@ -208,46 +188,44 @@ export const NotificationBell = React.memo(function NotificationBell({
         )}
 
         {status === 'success' && notifications.length > 0 && (
-          <div className="flex max-h-[360px] flex-col gap-1 overflow-y-auto pr-1">
-            {notifications.map((item) => {
-              const { title, body, iconBgClass, icon } =
-                getNotificationContent(item);
-              const href = getNotificationHref(item);
-              return (
-                <Link
-                  key={item.id}
-                  href={href}
-                  onClick={() => {
-                    handleNotificationClick(item.id);
-                    closePopover();
-                  }}
-                  className="group/item relative flex items-start gap-3 rounded-xl p-3 transition-all duration-200 hover:bg-background-hover"
-                >
-                  <div
-                    className={cn(
-                      'flex size-10 shrink-0 items-center justify-center rounded-full',
-                      iconBgClass
-                    )}
+          <div className="flex max-h-[360px] [scrollbar-width:none] flex-col overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex flex-col divide-y divide-background-border">
+              {notifications.map((item) => {
+                const { title, body } = getNotificationContent(item);
+                const href = getNotificationHref(item);
+                return (
+                  <Link
+                    key={item.id}
+                    href={href}
+                    onClick={() => {
+                      handleNotificationClick(item.id);
+                      closePopover();
+                    }}
+                    className="flex items-start gap-2.5 px-5 py-3 transition-colors hover:no-underline [@media(hover:hover)]:hover:bg-background-hover"
                   >
-                    {icon}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="mb-1 text-sm leading-tight font-semibold break-words text-text-primary">
-                      {title}
-                    </p>
-                    <p className="mb-1.5 text-xs leading-normal break-words text-text-secondary">
-                      {body}
-                    </p>
-                    <span className="text-11 leading-none text-text-tertiary">
-                      {formatRelativeTime(item.createdAt)}
+                    <span className="mt-1.5 flex size-4 shrink-0 items-center justify-center">
+                      {item.unread && (
+                        <span
+                          className="size-2 rounded-full bg-brand-500"
+                          aria-hidden="true"
+                        />
+                      )}
                     </span>
-                  </div>
-                  {item.unread && (
-                    <span className="absolute top-4 right-3 size-2 rounded-full bg-status-error-default" />
-                  )}
-                </Link>
-              );
-            })}
+                    <div className="min-w-0 flex-1">
+                      <p className="mb-1 text-sm leading-tight font-semibold break-words text-text-primary">
+                        {title}
+                      </p>
+                      <p className="mb-1.5 text-xs leading-normal break-words text-text-secondary">
+                        {body}
+                      </p>
+                      <span className="text-11 leading-none text-text-tertiary">
+                        {formatRelativeTime(item.createdAt)}
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         )}
       </PopoverContent>
