@@ -1,11 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { NotificationBell } from './NotificationBell';
 import {
   getNotificationContent,
-  NotificationBell,
   type NotificationItem,
-} from './NotificationBell';
+} from './notificationUtils';
 
 describe('NotificationBell', () => {
   it('renders the bell icon button with title and aria-label', () => {
@@ -211,6 +211,97 @@ describe('NotificationBell', () => {
 
       // Verify that UI transitions to loading state (error text disappears)
       expect(screen.queryByText('載入失敗，請重試')).not.toBeInTheDocument();
+    });
+
+    it('transitions back to success state when async onRetry resolves successfully', async () => {
+      let resolveRetry: () => void = () => {};
+      const onRetryMock = vi.fn().mockImplementation(() => {
+        return new Promise<void>((resolve) => {
+          resolveRetry = resolve;
+        });
+      });
+
+      render(
+        <NotificationBell
+          unreadCount={5}
+          initialStatus="error"
+          onRetry={onRetryMock}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      const retryButton = screen.getByRole('button', { name: '重新嘗試' });
+      fireEvent.click(retryButton);
+
+      // Verify that UI transitions to loading state
+      expect(screen.queryByText('載入失敗，請重試')).not.toBeInTheDocument();
+
+      // Resolve the Promise
+      await act(async () => {
+        resolveRetry();
+      });
+
+      // Verify that UI transitions back to success state (mock notifications rendered)
+      expect(screen.getByText('您有新的預約')).toBeInTheDocument();
+    });
+
+    it('transitions back to error state when async onRetry rejects', async () => {
+      let rejectRetry: (reason?: any) => void = () => {};
+      const onRetryMock = vi.fn().mockImplementation(() => {
+        return new Promise<void>((_, reject) => {
+          rejectRetry = reject;
+        });
+      });
+
+      render(
+        <NotificationBell
+          unreadCount={5}
+          initialStatus="error"
+          onRetry={onRetryMock}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      const retryButton = screen.getByRole('button', { name: '重新嘗試' });
+      fireEvent.click(retryButton);
+
+      // Verify that UI transitions to loading state
+      expect(screen.queryByText('載入失敗，請重試')).not.toBeInTheDocument();
+
+      // Reject the Promise
+      await act(async () => {
+        rejectRetry(new Error('fail'));
+      });
+
+      // Verify that UI transitions back to error state
+      expect(screen.getByText('載入失敗，請重試')).toBeInTheDocument();
+    });
+
+    it('uses default setTimeout fallback to transition to success after 1000ms when onRetry is omitted', async () => {
+      vi.useFakeTimers();
+      render(<NotificationBell unreadCount={5} initialStatus="error" />);
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      const retryButton = screen.getByRole('button', { name: '重新嘗試' });
+
+      // Click retry
+      fireEvent.click(retryButton);
+
+      // Verify that UI is in loading state
+      expect(screen.queryByText('載入失敗，請重試')).not.toBeInTheDocument();
+
+      // Fast-forward 1000ms
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      // Verify that UI is back in success state showing notifications
+      expect(screen.getByText('您有新的預約')).toBeInTheDocument();
+
+      vi.useRealTimers();
     });
   });
 

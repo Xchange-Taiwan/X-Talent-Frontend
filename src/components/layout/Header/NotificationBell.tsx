@@ -21,16 +21,10 @@ import { formatRelativeTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
 import {
-  getDefaultMockNotifications,
   getNotificationContent,
   type NotificationItem,
 } from './notificationUtils';
-
-export {
-  getDefaultMockNotifications,
-  getNotificationContent,
-  type NotificationItem,
-};
+import { useNotificationState } from './useNotificationState';
 
 export type NotificationBellProps = {
   /**
@@ -81,49 +75,19 @@ export const NotificationBell = React.memo(function NotificationBell({
   initialNotifications,
   onRetry,
 }: NotificationBellProps): JSX.Element {
-  const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
-  const [status, setStatus] = React.useState(initialStatus);
-
-  // Lazy state initialization to completely avoid SSR Hydration discrepancies on Dates
-  const [notifications, setNotifications] = React.useState<NotificationItem[]>(
-    () => initialNotifications ?? getDefaultMockNotifications()
-  );
-
-  // Track unreadCount changes and reset hasBeenClicked if new notifications arrive (solving badge hidden bug)
-  const [prevUnread, setPrevUnread] = React.useState(unreadCount);
-  if (unreadCount > prevUnread) {
-    setPrevUnread(unreadCount);
-    setHasBeenClicked(false);
-  } else if (unreadCount !== prevUnread) {
-    setPrevUnread(unreadCount);
-  }
-
-  const handleOpenChange = React.useCallback((open: boolean) => {
-    if (open) {
-      setHasBeenClicked(true);
-    }
-  }, []);
-
-  const handleRetry = React.useCallback(async () => {
-    setStatus('loading');
-    if (onRetry) {
-      try {
-        await onRetry();
-        setStatus('success');
-      } catch (e) {
-        setStatus('error');
-      }
-    } else {
-      // Simulating a clean reload back to mock success list
-      setTimeout(() => {
-        setNotifications(getDefaultMockNotifications());
-        setStatus('success');
-      }, 1000);
-    }
-  }, [onRetry]);
-
-  const showBadge = !hasBeenClicked && unreadCount > 0;
-  const formattedCount = unreadCount > 99 ? '99+' : String(unreadCount);
+  const {
+    status,
+    notifications,
+    showBadge,
+    formattedCount,
+    handleOpenChange,
+    handleRetry,
+  } = useNotificationState({
+    unreadCount,
+    initialStatus,
+    initialNotifications,
+    onRetry,
+  });
 
   return (
     <Popover onOpenChange={handleOpenChange}>
