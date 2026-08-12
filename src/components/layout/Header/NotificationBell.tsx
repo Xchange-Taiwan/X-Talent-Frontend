@@ -40,9 +40,13 @@ export type NotificationBellProps = {
    */
   initialNotifications?: NotificationItem[];
   /**
-   * Optional callback fired when a single notification card is clicked or all are marked as read.
+   * Optional callback fired when a single notification card is clicked and marked as read.
    */
-  onMarkRead?: (id: string | string[]) => void | Promise<void>;
+  onMarkRead?: (id: string) => void | Promise<void>;
+  /**
+   * Optional callback fired when all notifications are marked as read at once.
+   */
+  onMarkAllRead?: (ids: string[]) => void | Promise<void>;
 };
 
 /**
@@ -93,6 +97,7 @@ export const NotificationBell = React.memo(function NotificationBell({
   initialStatus = 'success',
   initialNotifications,
   onMarkRead,
+  onMarkAllRead,
 }: NotificationBellProps): JSX.Element {
   const {
     open,
@@ -111,6 +116,7 @@ export const NotificationBell = React.memo(function NotificationBell({
     initialNotifications,
     defaultNotifications: defaultMockNotifications,
     onMarkRead,
+    onMarkAllRead,
   });
 
   return (

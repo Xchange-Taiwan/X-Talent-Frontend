@@ -20,7 +20,8 @@ export type UseNotificationBellProps = {
   initialStatus: 'loading' | 'error' | 'empty' | 'success';
   initialNotifications?: NotificationItem[];
   defaultNotifications?: NotificationItem[];
-  onMarkRead?: (id: string | string[]) => void | Promise<void>;
+  onMarkRead?: (id: string) => void | Promise<void>;
+  onMarkAllRead?: (ids: string[]) => void | Promise<void>;
 };
 
 export function useNotificationBell({
@@ -29,6 +30,7 @@ export function useNotificationBell({
   initialNotifications,
   defaultNotifications = [],
   onMarkRead,
+  onMarkAllRead,
 }: UseNotificationBellProps) {
   const [open, setOpen] = React.useState(false);
   const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
@@ -83,13 +85,17 @@ export function useNotificationBell({
       .map((item) => item.id);
     if (unreadIds.length === 0) return;
 
-    onMarkRead?.(unreadIds);
+    if (onMarkAllRead) {
+      onMarkAllRead(unreadIds);
+    } else {
+      unreadIds.forEach((id) => onMarkRead?.(id));
+    }
     setHasBeenClicked(true);
 
     setNotifications((prev) =>
       prev.map((item) => ({ ...item, unread: false }))
     );
-  }, [notifications, onMarkRead]);
+  }, [notifications, onMarkRead, onMarkAllRead]);
 
   const handleRetry = React.useCallback(() => {
     setStatus('loading');

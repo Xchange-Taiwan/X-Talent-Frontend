@@ -406,8 +406,8 @@ describe('NotificationBell', () => {
       expect(unreadTitle).toHaveClass('font-bold');
     });
 
-    it('marks all notifications as read when "Mark all as read" is clicked and calls onMarkRead exactly for unread items', () => {
-      const onMarkReadMock = vi.fn();
+    it('marks all notifications as read when "Mark all as read" is clicked and calls onMarkAllRead exactly for unread items', () => {
+      const onMarkAllReadMock = vi.fn();
       const mixedNotifications: NotificationItem[] = [
         {
           id: 'unread-1',
@@ -430,7 +430,7 @@ describe('NotificationBell', () => {
           unreadCount={1}
           initialStatus="success"
           initialNotifications={mixedNotifications}
-          onMarkRead={onMarkReadMock}
+          onMarkAllRead={onMarkAllReadMock}
         />
       );
       const button = screen.getByRole('button', { name: '開啟通知選單' });
@@ -457,9 +457,9 @@ describe('NotificationBell', () => {
       expect(unreadTitle).toHaveClass('font-normal');
       expect(unreadTitle).not.toHaveClass('font-bold');
 
-      // Verify that onMarkRead was called EXACTLY once with the array of unread IDs
-      expect(onMarkReadMock).toHaveBeenCalledTimes(1);
-      expect(onMarkReadMock).toHaveBeenCalledWith(['unread-1']);
+      // Verify that onMarkAllRead was called EXACTLY once with the array of unread IDs
+      expect(onMarkAllReadMock).toHaveBeenCalledTimes(1);
+      expect(onMarkAllReadMock).toHaveBeenCalledWith(['unread-1']);
     });
 
     it('disables "Mark all as read" button when there are no unread notifications', () => {
