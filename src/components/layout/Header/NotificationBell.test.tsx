@@ -7,11 +7,6 @@ import {
   type NotificationItem,
 } from './notificationUtils';
 
-const mockUseAuthStatus = vi.fn().mockReturnValue({ isMentor: false });
-vi.mock('@/hooks/user/auth/useAuthStatus', () => ({
-  useAuthStatus: () => mockUseAuthStatus(),
-}));
-
 describe('NotificationBell', () => {
   it('renders the bell icon button with title and aria-label', () => {
     render(<NotificationBell unreadCount={5} />);
@@ -380,10 +375,7 @@ describe('NotificationBell', () => {
   });
 
   describe('Notification card click and navigation', () => {
-    it('renders notification items as links with correct href based on type and role', () => {
-      // Test when user is Mentee (isMentor: false)
-      mockUseAuthStatus.mockReturnValue({ isMentor: false });
-
+    it('renders notification items as links with correct href based on contextual roles', () => {
       render(<NotificationBell unreadCount={5} initialStatus="success" />);
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
@@ -410,13 +402,13 @@ describe('NotificationBell', () => {
         .closest('a');
       expect(failedLink).toHaveAttribute('href', '/mentor-pool');
 
-      // Check reservation_canceled href for Mentee (goes to mentor-pool)
+      // Check reservation_canceled href for Mentee (has mentorName, goes to mentor-pool)
       const canceledLink = screen
         .getByText('您與 陳導師 的預約已被取消')
         .closest('a');
       expect(canceledLink).toHaveAttribute('href', '/mentor-pool');
 
-      // Check reservation_upcoming href for Mentee (goes to reservation/mentee?tab=upcoming)
+      // Check reservation_upcoming href for Mentee (has mentorName, goes to reservation/mentee?tab=upcoming)
       const upcomingLink = screen
         .getByText('您與 張導師 的預約即將到來')
         .closest('a');
@@ -426,26 +418,48 @@ describe('NotificationBell', () => {
       );
     });
 
-    it('renders canceled and upcoming notification hrefs correctly for Mentor', () => {
-      // Test when user is Mentor (isMentor: true)
-      mockUseAuthStatus.mockReturnValue({ isMentor: true });
+    it('renders canceled and upcoming notification hrefs correctly for Mentor context', () => {
+      // Create explicit notifications for a Mentor context (using explicit role property or menteeName)
+      const mentorNotifications: NotificationItem[] = [
+        {
+          id: 'canceled-mentor-explicit',
+          type: 'reservation_canceled',
+          menteeName: '小明',
+          role: 'mentor',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+        {
+          id: 'upcoming-mentor-inferred',
+          type: 'reservation_upcoming',
+          menteeName: '小華',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+      ];
 
-      render(<NotificationBell unreadCount={5} initialStatus="success" />);
+      render(
+        <NotificationBell
+          unreadCount={2}
+          initialStatus="success"
+          initialNotifications={mentorNotifications}
+        />
+      );
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      // Check reservation_canceled href for Mentor (goes to reservation/mentor?tab=history)
+      // Check reservation_canceled href for Mentor context (goes to reservation/mentor?tab=history)
       const canceledLink = screen
-        .getByText('您與 陳導師 的預約已被取消')
+        .getByText('您與 小明 的預約已被取消')
         .closest('a');
       expect(canceledLink).toHaveAttribute(
         'href',
         '/reservation/mentor?tab=history'
       );
 
-      // Check reservation_upcoming href for Mentor (goes to reservation/mentor?tab=upcoming)
+      // Check reservation_upcoming href for Mentor context (goes to reservation/mentor?tab=upcoming)
       const upcomingLink = screen
-        .getByText('您與 張導師 的預約即將到來')
+        .getByText('您與 小華 的預約即將到來')
         .closest('a');
       expect(upcomingLink).toHaveAttribute(
         'href',
@@ -453,10 +467,16 @@ describe('NotificationBell', () => {
       );
     });
 
-    it('marks clicked notification as read and closes popover on click', () => {
-      mockUseAuthStatus.mockReturnValue({ isMentor: false });
+    it('marks clicked notification as read, triggers onMarkRead, and closes popover on click', () => {
+      const onMarkReadMock = vi.fn();
 
-      render(<NotificationBell unreadCount={5} initialStatus="success" />);
+      render(
+        <NotificationBell
+          unreadCount={5}
+          initialStatus="success"
+          onMarkRead={onMarkReadMock}
+        />
+      );
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
@@ -469,8 +489,17 @@ describe('NotificationBell', () => {
 
       fireEvent.click(link!);
 
+      // Verify persistence callback was called
+      expect(onMarkReadMock).toHaveBeenCalledWith('1');
+
       // Popover should be closed
       expect(screen.queryByText('通知')).not.toBeInTheDocument();
+
+      // Open popover again to verify the unread dot is gone!
+      fireEvent.click(button);
+      expect(screen.getByText('通知')).toBeInTheDocument();
+      // The first item is now read, so only 1 unread dot remains!
+      expect(document.querySelectorAll('.bg-brand-500')).toHaveLength(1);
     });
   });
 });

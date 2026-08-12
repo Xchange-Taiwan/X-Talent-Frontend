@@ -127,19 +127,24 @@ export function ReservationDashboardView({
   const upcomingTabValue = isMentee ? 'upcoming-mentee' : 'upcoming-mentor';
   const pendingTabValue = isMentee ? 'pending-mentee' : 'pending-mentor';
 
+  const TAB_MAPPING: Record<string, string> = {
+    upcoming: upcomingTabValue,
+    pending: pendingTabValue,
+    history: 'history',
+  };
+
+  const URL_PARAM_MAPPING: Record<string, string> = {
+    [upcomingTabValue]: 'upcoming',
+    [pendingTabValue]: 'pending',
+    history: 'history',
+  };
+
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
 
   const tabParam = searchParams.get('tab');
-  let activeTab = upcomingTabValue;
-  if (tabParam === 'pending') {
-    activeTab = pendingTabValue;
-  } else if (tabParam === 'history') {
-    activeTab = 'history';
-  } else if (tabParam === 'upcoming') {
-    activeTab = upcomingTabValue;
-  }
+  const activeTab = (tabParam && TAB_MAPPING[tabParam]) || upcomingTabValue;
 
   // Load history automatically if activeTab starts as history and is not loaded
   useEffect(() => {
@@ -162,12 +167,9 @@ export function ReservationDashboardView({
     }
 
     const params = new URLSearchParams(searchParams.toString());
-    if (value === upcomingTabValue) {
-      params.set('tab', 'upcoming');
-    } else if (value === pendingTabValue) {
-      params.set('tab', 'pending');
-    } else if (value === 'history') {
-      params.set('tab', 'history');
+    const paramValue = URL_PARAM_MAPPING[value];
+    if (paramValue) {
+      params.set('tab', paramValue);
     }
     router.replace(`${pathname}?${params.toString()}`);
   };

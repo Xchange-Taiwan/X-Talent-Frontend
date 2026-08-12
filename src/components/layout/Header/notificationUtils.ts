@@ -10,6 +10,7 @@ export type NotificationItem = {
   mentorName?: string;
   createdAt: string; // ISO string
   unread?: boolean;
+  role?: 'mentor' | 'mentee';
 };
 
 export const getDefaultMockNotifications = (): NotificationItem[] => [
@@ -95,13 +96,12 @@ export function getNotificationContent(item: NotificationItem) {
 }
 
 /**
- * Returns the destination URL for a given notification item,
- * taking into account the user's role (isMentor).
+ * Returns the destination URL for a given notification item contextually.
  */
-export function getNotificationHref(
-  item: NotificationItem,
-  isMentor: boolean
-): string {
+export function getNotificationHref(item: NotificationItem): string {
+  const isMentorContext =
+    item.role === 'mentor' || (item.role === undefined && !!item.menteeName);
+
   switch (item.type) {
     case 'reservation_new':
       return '/reservation/mentor?tab=pending';
@@ -110,9 +110,11 @@ export function getNotificationHref(
     case 'reservation_failed':
       return '/mentor-pool';
     case 'reservation_canceled':
-      return isMentor ? '/reservation/mentor?tab=history' : '/mentor-pool';
+      return isMentorContext
+        ? '/reservation/mentor?tab=history'
+        : '/mentor-pool';
     case 'reservation_upcoming':
-      return isMentor
+      return isMentorContext
         ? '/reservation/mentor?tab=upcoming'
         : '/reservation/mentee?tab=upcoming';
     default:

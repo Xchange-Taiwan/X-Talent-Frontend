@@ -10,7 +10,6 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuthStatus } from '@/hooks/user/auth/useAuthStatus';
 import { formatRelativeTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
@@ -50,6 +49,10 @@ export type NotificationBellProps = {
    * keep it in sync.
    */
   onMarkAllRead?: () => void;
+  /**
+   * Optional callback fired when a single notification card is clicked and marked as read.
+   */
+  onMarkRead?: (id: string) => void | Promise<void>;
 };
 
 export const NotificationBell = React.memo(function NotificationBell({
@@ -59,8 +62,8 @@ export const NotificationBell = React.memo(function NotificationBell({
   initialNotifications,
   onRetry,
   onMarkAllRead,
+  onMarkRead,
 }: NotificationBellProps): JSX.Element {
-  const { isMentor } = useAuthStatus();
   const {
     open,
     closePopover,
@@ -78,6 +81,7 @@ export const NotificationBell = React.memo(function NotificationBell({
     initialNotifications,
     onRetry,
     onMarkAllRead,
+    onMarkRead,
   });
 
   return (
@@ -160,7 +164,7 @@ export const NotificationBell = React.memo(function NotificationBell({
             <div className="flex flex-col divide-y divide-background-border">
               {notifications.map((item) => {
                 const { title, body } = getNotificationContent(item);
-                const href = getNotificationHref(item, isMentor);
+                const href = getNotificationHref(item);
                 return (
                   <Link
                     key={item.id}

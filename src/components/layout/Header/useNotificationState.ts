@@ -11,6 +11,7 @@ export type UseNotificationStateProps = {
   initialNotifications?: NotificationItem[];
   onRetry?: () => void | Promise<void>;
   onMarkAllRead?: () => void;
+  onMarkRead?: (id: string) => void | Promise<void>;
 };
 
 export function useNotificationState({
@@ -19,6 +20,7 @@ export function useNotificationState({
   initialNotifications,
   onRetry,
   onMarkAllRead,
+  onMarkRead,
 }: UseNotificationStateProps) {
   const [open, setOpen] = React.useState(false);
   const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
@@ -70,11 +72,15 @@ export function useNotificationState({
     onMarkAllRead?.();
   }, [onMarkAllRead]);
 
-  const handleNotificationClick = React.useCallback((id: string) => {
-    setNotifications((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, unread: false } : item))
-    );
-  }, []);
+  const handleNotificationClick = React.useCallback(
+    (id: string) => {
+      setNotifications((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, unread: false } : item))
+      );
+      onMarkRead?.(id);
+    },
+    [onMarkRead]
+  );
 
   const handleRetry = React.useCallback(async () => {
     setStatus('loading');
