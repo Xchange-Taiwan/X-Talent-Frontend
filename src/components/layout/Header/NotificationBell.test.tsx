@@ -163,6 +163,8 @@ describe('NotificationBell', () => {
           handleRetry: vi.fn(),
           handleNotificationClick: vi.fn(),
           handleMarkAllAsRead: vi.fn(),
+          setNotifications: vi.fn(),
+          setHasBeenClicked: vi.fn(),
         });
 
       render(<NotificationBell unreadCount={1} initialStatus="success" />);

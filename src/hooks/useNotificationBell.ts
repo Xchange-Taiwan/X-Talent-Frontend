@@ -91,51 +91,24 @@ export function useNotificationBell({
       prev.map((item) => (item.unread ? { ...item, unread: false } : item))
     );
 
-    if (onMarkAllRead) {
-      try {
+    try {
+      if (onMarkAllRead) {
         await onMarkAllRead(unreadIds);
-      } catch (error) {
-        console.error(
-          'Failed to mark all notifications as read:',
-          error instanceof Error ? error.message : String(error)
-        );
-        // Rollback only the affected items via functional state update to prevent data loss
-        setNotifications((prev) =>
-          prev.map((item) =>
-            unreadIds.includes(item.id) ? { ...item, unread: true } : item
-          )
-        );
-        setHasBeenClicked(false);
       }
-    } else if (onMarkRead) {
-      // Fallback with sequential processing to prevent concurrent API flooding
-      // and perform granular error recovery per item!
-      try {
-        for (const id of unreadIds) {
-          try {
-            await onMarkRead(id);
-          } catch (error) {
-            console.error(
-              `Failed to mark notification ${id} as read:`,
-              error instanceof Error ? error.message : String(error)
-            );
-            // Granular recovery: rollback ONLY this failed notification to unread
-            setNotifications((prev) =>
-              prev.map((item) =>
-                item.id === id ? { ...item, unread: true } : item
-              )
-            );
-            setHasBeenClicked(false); // Restore unread badge
-          }
-        }
-      } catch (error) {
-        console.error(
-          'Unexpected error in fallback mark-all-read loop:',
-          error instanceof Error ? error.message : String(error)
-        );
-      }
+    } catch (error) {
+      console.error(
+        'Failed to mark all notifications as read:',
+        error instanceof Error ? error.message : String(error)
+      );
+      // Rollback only the affected items via functional state update to prevent data loss
+      setNotifications((prev) =>
+        prev.map((item) =>
+          unreadIds.includes(item.id) ? { ...item, unread: true } : item
+        )
+      );
+      setHasBeenClicked(false);
     }
-  }, [notifications, onMarkRead, onMarkAllRead]);
+  }, [notifications, onMarkAllRead]);
 
   const handleRetry = React.useCallback(() => {
     setStatus('loading');
@@ -160,6 +133,8 @@ export function useNotificationBell({
     closePopover,
     status,
     notifications,
+    setNotifications,
+    setHasBeenClicked,
     showBadge,
     formattedCount,
     handleOpenChange,
