@@ -1,7 +1,5 @@
 import * as React from 'react';
 
-import { captureApiFailure } from '@/lib/monitoring';
-
 export type NotificationItem = {
   id: string;
   type:
@@ -87,9 +85,6 @@ export function useNotificationBell({
       .map((item) => item.id);
     if (unreadIds.length === 0) return;
 
-    // Capture original state for rollback on error
-    const originalNotifications = [...notifications];
-
     // Optimistic state updates
     setHasBeenClicked(true);
     setNotifications((prev) =>
@@ -100,15 +95,16 @@ export function useNotificationBell({
       try {
         await onMarkAllRead(unreadIds);
       } catch (error) {
-        console.error('Failed to mark all notifications as read:', error);
-        captureApiFailure({
-          endpoint: '/api/notifications/read-all',
-          method: 'POST',
-          status: 0,
-          message: error instanceof Error ? error.message : String(error),
-        });
-        // Rollback on batch API failure
-        setNotifications(originalNotifications);
+        console.error(
+          'Failed to mark all notifications as read:',
+          error instanceof Error ? error.message : String(error)
+        );
+        // Rollback only the affected items via functional state update to prevent data loss
+        setNotifications((prev) =>
+          prev.map((item) =>
+            unreadIds.includes(item.id) ? { ...item, unread: true } : item
+          )
+        );
         setHasBeenClicked(false);
       }
     } else if (onMarkRead) {
@@ -119,13 +115,10 @@ export function useNotificationBell({
           try {
             await onMarkRead(id);
           } catch (error) {
-            console.error(`Failed to mark notification ${id} as read:`, error);
-            captureApiFailure({
-              endpoint: `/api/notifications/${id}/read`,
-              method: 'POST',
-              status: 0,
-              message: error instanceof Error ? error.message : String(error),
-            });
+            console.error(
+              `Failed to mark notification ${id} as read:`,
+              error instanceof Error ? error.message : String(error)
+            );
             // Granular recovery: rollback ONLY this failed notification to unread
             setNotifications((prev) =>
               prev.map((item) =>
@@ -138,7 +131,7 @@ export function useNotificationBell({
       } catch (error) {
         console.error(
           'Unexpected error in fallback mark-all-read loop:',
-          error
+          error instanceof Error ? error.message : String(error)
         );
       }
     }
