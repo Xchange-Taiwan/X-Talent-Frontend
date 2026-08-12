@@ -165,4 +165,24 @@ describe('NotificationBell', () => {
       expect(result.body).toBe('您有一則新通知');
     });
   });
+
+  describe('Notification Read Syncing behavior', () => {
+    it('marks all notifications as read and clears unread badge when the dropdown opens', () => {
+      render(<NotificationBell unreadCount={5} initialStatus="success" />);
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+
+      // Badge is initially visible
+      expect(screen.getByText('5')).toBeInTheDocument();
+
+      // Click the bell button to open the popover
+      fireEvent.click(button);
+
+      // Badge should be hidden now
+      expect(screen.queryByText('5')).not.toBeInTheDocument();
+
+      // Every notification item in the dropdown should have its unread red dot removed
+      const unreadDots = document.querySelectorAll('.bg-status-error-default');
+      expect(unreadDots.length).toBe(0);
+    });
+  });
 });

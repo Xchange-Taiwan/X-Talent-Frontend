@@ -163,6 +163,7 @@ export const NotificationBell = React.memo(function NotificationBell({
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
     initialNotifications ?? defaultMockNotifications
   );
+  const [localUnreadCount, setLocalUnreadCount] = React.useState(unreadCount);
 
   // Sync state if props change (solving uncontrolled-to-controlled locking issues)
   React.useEffect(() => {
@@ -181,12 +182,17 @@ export const NotificationBell = React.memo(function NotificationBell({
     if (unreadCount > prevUnreadCountRef.current) {
       setHasBeenClicked(false);
     }
+    setLocalUnreadCount(unreadCount);
     prevUnreadCountRef.current = unreadCount;
   }, [unreadCount]);
 
   const handleOpenChange = React.useCallback((open: boolean) => {
     if (open) {
       setHasBeenClicked(true);
+      setLocalUnreadCount(0);
+      setNotifications((prev) =>
+        prev.map((item) => ({ ...item, unread: false }))
+      );
     }
   }, []);
 
@@ -203,8 +209,9 @@ export const NotificationBell = React.memo(function NotificationBell({
     }
   }, [onRetry]);
 
-  const showBadge = !hasBeenClicked && unreadCount > 0;
-  const formattedCount = unreadCount > 99 ? '99+' : String(unreadCount);
+  const showBadge = !hasBeenClicked && localUnreadCount > 0;
+  const formattedCount =
+    localUnreadCount > 99 ? '99+' : String(localUnreadCount);
 
   return (
     <Popover onOpenChange={handleOpenChange}>
@@ -223,7 +230,7 @@ export const NotificationBell = React.memo(function NotificationBell({
           {showBadge && (
             <span
               className="absolute -right-0.5 -bottom-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border border-background-white bg-status-error-default px-1 text-11 leading-none font-bold text-text-white select-none"
-              aria-label={`有 ${unreadCount} 則未讀通知`}
+              aria-label={`有 ${localUnreadCount} 則未讀通知`}
             >
               {formattedCount}
             </span>
