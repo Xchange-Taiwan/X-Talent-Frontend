@@ -58,15 +58,15 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
           <button
             type="button"
             aria-label="開啟用戶選單"
-            className="flex size-9 items-center justify-center overflow-hidden rounded-full"
+            className="flex items-center"
           >
             <Image
               src={avatarSrc || DefaultAvatarImgUrl}
               alt={name ? `${name} 的頭像` : '我的頭像'}
-              width={36}
-              height={36}
-              sizes="36px"
-              className="size-9 rounded-full object-cover"
+              width={30}
+              height={30}
+              sizes="30px"
+              className="size-[30px] rounded-full object-cover"
               priority
             />
           </button>

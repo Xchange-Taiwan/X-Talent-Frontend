@@ -108,8 +108,28 @@ describe('NotificationBell', () => {
 
     const bell = button.querySelector('svg');
     expect(bell).not.toBeNull();
-    expect(bell).toHaveClass('group-data-[state=open]:fill-current');
-    expect(bell).toHaveClass('group-data-[state=open]:text-text-white');
+    expect(bell).toHaveClass('group-data-[state=open]/bell:fill-current');
+    expect(bell).toHaveClass('group-data-[state=open]/bell:text-text-white');
+  });
+
+  it('scopes the icon hover/open color change to its own trigger via a named group, not the page-wide auth-state group on <html>', () => {
+    render(<NotificationBell unreadCount={5} />);
+    const button = screen.getByRole('button', { name: '開啟通知選單' });
+
+    // `<html>` carries an unnamed `group` class for auth-state visibility
+    // toggles; the trigger must use a *named* group (`group/bell`) so the
+    // icon's hover/open color only reacts to this button being hovered or
+    // open, not to the mouse being anywhere else on the page.
+    expect(button).toHaveClass('group/bell');
+    expect(button).not.toHaveClass('group');
+
+    const bell = button.querySelector('svg');
+    expect(bell).toHaveClass(
+      '[@media(hover:hover)]:group-hover/bell:fill-current'
+    );
+    expect(bell).toHaveClass(
+      '[@media(hover:hover)]:group-hover/bell:text-text-white'
+    );
   });
 
   describe('Notification Dropdown Rendering states', () => {
