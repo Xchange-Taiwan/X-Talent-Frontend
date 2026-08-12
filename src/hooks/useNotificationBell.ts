@@ -92,12 +92,12 @@ export function useNotificationBell({
 
   const handleRetry = React.useCallback(() => {
     setStatus('loading');
-    // Simulating a clean reload back to mock success list
+    // Simulating a clean reload back to initial or default success list
     setTimeout(() => {
-      setNotifications(defaultMockNotifications);
+      setNotifications(initialNotifications ?? defaultMockNotifications);
       setStatus('success');
     }, 1000);
-  }, []);
+  }, [initialNotifications]);
 
   const showBadge = !hasBeenClicked && localUnreadCount > 0;
   const formattedCount =

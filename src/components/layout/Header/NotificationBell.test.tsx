@@ -211,5 +211,24 @@ describe('NotificationBell', () => {
       // Badge should reappear showing 6
       expect(screen.getByText('6')).toBeInTheDocument();
     });
+
+    it('does not reset hasBeenClicked and keeps the badge hidden when unreadCount decreases', () => {
+      const { rerender } = render(<NotificationBell unreadCount={5} />);
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+
+      // Badge is initially 5
+      expect(screen.getByText('5')).toBeInTheDocument();
+
+      // Click to open and clear badge
+      fireEvent.click(button);
+      expect(screen.queryByText('5')).not.toBeInTheDocument();
+
+      // Rerender with a smaller unreadCount (e.g. 3) representing some notifications read elsewhere
+      rerender(<NotificationBell unreadCount={3} />);
+
+      // Badge should remain hidden
+      expect(screen.queryByText('3')).not.toBeInTheDocument();
+      expect(screen.queryByText('5')).not.toBeInTheDocument();
+    });
   });
 });
