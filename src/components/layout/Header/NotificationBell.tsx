@@ -213,7 +213,7 @@ export const NotificationBell = React.memo(function NotificationBell({
           type="button"
           title="通知"
           className={cn(
-            'group relative flex h-9 w-9 items-center justify-center rounded-full border border-background-border bg-transparent text-text-primary transition-all duration-200 outline-none hover:border-transparent hover:bg-background-hover data-[state=open]:border-dark data-[state=open]:bg-dark data-[state=open]:text-text-white',
+            'group relative flex h-9 w-9 items-center justify-center rounded-full border border-background-border bg-transparent text-text-primary transition-all duration-200 outline-none data-[state=open]:border-dark data-[state=open]:bg-dark data-[state=open]:text-text-white [@media(hover:hover)]:hover:border-transparent [@media(hover:hover)]:hover:bg-background-hover',
             className
           )}
           aria-label="開啟通知選單"
@@ -234,7 +234,7 @@ export const NotificationBell = React.memo(function NotificationBell({
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-[360px] rounded-2xl border border-background-border bg-background-white p-5 shadow-xl outline-none"
+        className="w-[360px] max-w-[calc(100vw-32px)] rounded-2xl border border-background-border bg-background-white p-5 shadow-xl outline-none"
       >
         <div className="mb-3 flex items-center justify-between border-b border-background-border pb-3">
           <span className="text-lg font-bold text-text-primary">通知</span>
