@@ -406,21 +406,43 @@ describe('NotificationBell', () => {
       expect(unreadTitle).toHaveClass('font-bold');
     });
 
-    it('marks all notifications as read when "Mark all as read" is clicked and calls onMarkRead', () => {
+    it('marks all notifications as read when "Mark all as read" is clicked and calls onMarkRead exactly for unread items', () => {
       const onMarkReadMock = vi.fn();
+      const mixedNotifications: NotificationItem[] = [
+        {
+          id: 'unread-1',
+          type: 'reservation_new',
+          menteeName: '小明',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+        {
+          id: 'read-2',
+          type: 'reservation_success',
+          mentorName: '林導師',
+          createdAt: new Date().toISOString(),
+          unread: false,
+        },
+      ];
+
       render(
         <NotificationBell
-          unreadCount={5}
+          unreadCount={1}
           initialStatus="success"
+          initialNotifications={mixedNotifications}
           onMarkRead={onMarkReadMock}
         />
       );
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      // Verify at least one notification has unread style (bold text)
+      // Verify unread notification has bold font
       const unreadTitle = screen.getByText('您有新的預約');
       expect(unreadTitle).toHaveClass('font-bold');
+
+      // Verify read notification has normal font
+      const readTitle = screen.getByText('林導師 已接受您的預約');
+      expect(readTitle).toHaveClass('font-normal');
 
       // Find the Mark all as read button
       const markAllBtn = screen.getByRole('button', {
@@ -431,12 +453,13 @@ describe('NotificationBell', () => {
       // Click it
       fireEvent.click(markAllBtn);
 
-      // Verify that the title style changes to read (font-normal)
+      // Verify that the unread notification title style changes to normal (read)
       expect(unreadTitle).toHaveClass('font-normal');
       expect(unreadTitle).not.toHaveClass('font-bold');
 
-      // Verify that onMarkRead was called for the notifications
-      expect(onMarkReadMock).toHaveBeenCalled();
+      // Verify that onMarkRead was called EXACTLY once, and with the unread notification ID 'unread-1'
+      expect(onMarkReadMock).toHaveBeenCalledTimes(1);
+      expect(onMarkReadMock).toHaveBeenCalledWith('unread-1');
     });
 
     it('disables "Mark all as read" button when there are no unread notifications', () => {
