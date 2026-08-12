@@ -93,7 +93,7 @@ export function useNotificationBell({
     setHasBeenClicked(true);
 
     setNotifications((prev) =>
-      prev.map((item) => ({ ...item, unread: false }))
+      prev.map((item) => (item.unread ? { ...item, unread: false } : item))
     );
   }, [notifications, onMarkRead, onMarkAllRead]);
 

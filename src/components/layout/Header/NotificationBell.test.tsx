@@ -462,6 +462,55 @@ describe('NotificationBell', () => {
       expect(onMarkAllReadMock).toHaveBeenCalledWith(['unread-1']);
     });
 
+    it('successfully falls back to calling onMarkRead individually for unread notifications when onMarkAllRead is not provided', () => {
+      const onMarkReadMock = vi.fn();
+      const mixedNotifications: NotificationItem[] = [
+        {
+          id: 'unread-1',
+          type: 'reservation_new',
+          menteeName: '小明',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+        {
+          id: 'unread-2',
+          type: 'reservation_upcoming',
+          mentorName: '王導師',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+        {
+          id: 'read-3',
+          type: 'reservation_success',
+          mentorName: '林導師',
+          createdAt: new Date().toISOString(),
+          unread: false,
+        },
+      ];
+
+      render(
+        <NotificationBell
+          unreadCount={2}
+          initialStatus="success"
+          initialNotifications={mixedNotifications}
+          onMarkRead={onMarkReadMock}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      // Find the Mark all as read button and click it
+      const markAllBtn = screen.getByRole('button', {
+        name: 'Mark all as read',
+      });
+      fireEvent.click(markAllBtn);
+
+      // Verify that onMarkRead was called EXACTLY twice (for unread-1 and unread-2, but NOT for read-3)
+      expect(onMarkReadMock).toHaveBeenCalledTimes(2);
+      expect(onMarkReadMock).toHaveBeenCalledWith('unread-1');
+      expect(onMarkReadMock).toHaveBeenCalledWith('unread-2');
+    });
+
     it('disables "Mark all as read" button when there are no unread notifications', () => {
       const readNotifications: NotificationItem[] = [
         {
