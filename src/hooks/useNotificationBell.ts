@@ -68,17 +68,17 @@ export function useNotificationBell({
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
     initialNotifications ?? defaultMockNotifications
   );
+
+  const [prevUnreadCount, setPrevUnreadCount] = React.useState(unreadCount);
   const [localUnreadCount, setLocalUnreadCount] = React.useState(unreadCount);
 
-  // Track unreadCount changes and reset hasBeenClicked if new notifications arrive (solving badge hidden bug)
-  const prevUnreadCountRef = React.useRef(unreadCount);
-  React.useEffect(() => {
-    if (unreadCount > prevUnreadCountRef.current) {
+  if (unreadCount !== prevUnreadCount) {
+    setPrevUnreadCount(unreadCount);
+    setLocalUnreadCount(unreadCount);
+    if (unreadCount > prevUnreadCount) {
       setHasBeenClicked(false);
     }
-    setLocalUnreadCount(unreadCount);
-    prevUnreadCountRef.current = unreadCount;
-  }, [unreadCount]);
+  }
 
   const handleOpenChange = React.useCallback((open: boolean) => {
     if (open) {
