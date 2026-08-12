@@ -197,7 +197,7 @@ export const NotificationBell = React.memo(function NotificationBell({
 
         {status === 'success' && notifications.length > 0 && (
           <>
-            <div className="flex max-h-[360px] [scrollbar-width:none] flex-col overflow-y-auto hover:[scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-text-tertiary/30">
+            <div className="flex max-h-[360px] [scrollbar-width:thin] [scrollbar-color:hsl(var(--color-text-tertiary)/0.2)_transparent] flex-col overflow-y-auto transition-[scrollbar-color] duration-200 hover:[scrollbar-color:hsl(var(--color-text-tertiary)/0.45)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-text-tertiary/20 [&::-webkit-scrollbar-thumb]:transition-colors [&::-webkit-scrollbar-thumb]:duration-200 hover:[&::-webkit-scrollbar-thumb]:bg-text-tertiary/45 [&::-webkit-scrollbar-track]:bg-transparent">
               <div className="flex flex-col divide-y divide-background-border">
                 {notifications.map((item) => {
                   const { title, body } = getNotificationContent(item);

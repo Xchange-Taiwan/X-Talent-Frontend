@@ -1,5 +1,48 @@
 import * as React from 'react';
 
+import { toast } from '@/components/ui/use-toast';
+
+const MARK_ALL_READ_BATCH_SIZE = 5;
+
+/**
+ * Marks IDs as read in fixed-size batches (instead of one unbounded
+ * Promise.allSettled) to avoid exhausting the browser's per-origin
+ * connection pool or tripping backend rate limits when there are many
+ * unread notifications.
+ */
+async function markReadInBatches(
+  ids: string[],
+  onMarkRead: (id: string) => void | Promise<void>,
+  batchSize: number = MARK_ALL_READ_BATCH_SIZE
+): Promise<string[]> {
+  const failedIds: string[] = [];
+
+  for (let i = 0; i < ids.length; i += batchSize) {
+    const batch = ids.slice(i, i + batchSize);
+    const results = await Promise.allSettled(
+      batch.map(async (id) => {
+        try {
+          await onMarkRead(id);
+        } catch (error) {
+          console.error(
+            `Failed to mark notification ${id} as read:`,
+            error instanceof Error ? error.message : String(error)
+          );
+          throw error; // Let Promise.allSettled see this as rejected
+        }
+      })
+    );
+
+    results.forEach((res, index) => {
+      if (res.status === 'rejected') {
+        failedIds.push(batch[index]);
+      }
+    });
+  }
+
+  return failedIds;
+}
+
 export type NotificationItem = {
   id: string;
   type:
@@ -106,32 +149,16 @@ export function useNotificationBell({
           )
         );
         setHasBeenClicked(false);
+        toast({
+          variant: 'destructive',
+          title: '操作失敗',
+          description: '無法將全部通知標示為已讀，請稍後再試',
+        });
       }
     } else if (onMarkRead) {
-      // Fallback with parallel execution using Promise.allSettled to prevent sequential waterfall,
-      // while preserving granular error rollback per failed item!
-      const results = await Promise.allSettled(
-        unreadIds.map(async (id) => {
-          try {
-            await onMarkRead(id);
-            return id;
-          } catch (error) {
-            console.error(
-              `Failed to mark notification ${id} as read:`,
-              error instanceof Error ? error.message : String(error)
-            );
-            throw error; // Let Promise.allSettled see this as rejected
-          }
-        })
-      );
-
-      // Scan results for any rejected promises and perform granular rollback for failed IDs
-      const failedIds: string[] = [];
-      results.forEach((res, index) => {
-        if (res.status === 'rejected') {
-          failedIds.push(unreadIds[index]);
-        }
-      });
+      // Fallback: mark individually in bounded batches (see markReadInBatches),
+      // with granular error rollback per failed item.
+      const failedIds = await markReadInBatches(unreadIds, onMarkRead);
 
       if (failedIds.length > 0) {
         setNotifications((prev) =>
@@ -140,6 +167,14 @@ export function useNotificationBell({
           )
         );
         setHasBeenClicked(false); // Restore unread badge if at least one failed
+        toast({
+          variant: 'destructive',
+          title: '操作失敗',
+          description:
+            failedIds.length === unreadIds.length
+              ? '無法將通知標示為已讀，請稍後再試'
+              : '部分通知標示為已讀失敗，請稍後再試',
+        });
       }
     }
   }, [notifications, onMarkRead, onMarkAllRead]);
