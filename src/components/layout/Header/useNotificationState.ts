@@ -10,6 +10,7 @@ export type UseNotificationStateProps = {
   initialStatus: 'loading' | 'error' | 'empty' | 'success';
   initialNotifications?: NotificationItem[];
   onRetry?: () => void | Promise<void>;
+  onMarkAllRead?: () => void;
 };
 
 export function useNotificationState({
@@ -17,6 +18,7 @@ export function useNotificationState({
   initialStatus,
   initialNotifications,
   onRetry,
+  onMarkAllRead,
 }: UseNotificationStateProps) {
   const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
   const [status, setStatus] = React.useState(initialStatus);
@@ -45,7 +47,8 @@ export function useNotificationState({
     setNotifications((prev) =>
       prev.map((item) => ({ ...item, unread: false }))
     );
-  }, []);
+    onMarkAllRead?.();
+  }, [onMarkAllRead]);
 
   const handleRetry = React.useCallback(async () => {
     setStatus('loading');

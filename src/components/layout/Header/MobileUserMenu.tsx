@@ -1,12 +1,10 @@
 'use client';
 
 import { Cross2Icon } from '@radix-ui/react-icons';
-import Image from 'next/image';
 import Link from 'next/link';
 import type { Session } from 'next-auth';
 import * as React from 'react';
 
-import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { DeleteAccountDialog } from '@/components/auth/DeleteAccountDialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +19,7 @@ import { trackEvent } from '@/lib/analytics';
 
 import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
 import { ShareProfileDialog } from './ShareProfileDialog';
+import { UserAvatar } from './UserAvatar';
 
 export type MobileUserMenuProps = {
   user: Session['user'];
@@ -60,13 +59,11 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
             aria-label="開啟用戶選單"
             className="flex items-center"
           >
-            <Image
-              src={avatarSrc || DefaultAvatarImgUrl}
-              alt={name ? `${name} 的頭像` : '我的頭像'}
-              width={30}
-              height={30}
-              sizes="30px"
-              className="size-[30px] rounded-full object-cover"
+            <UserAvatar
+              src={avatarSrc}
+              name={name}
+              size={30}
+              className="size-[30px]"
               priority
             />
           </button>
@@ -94,13 +91,11 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
               onClick={handleGoProfile}
               className="flex items-center gap-4 pt-4 pb-6 text-left"
             >
-              <Image
-                src={avatarSrc || DefaultAvatarImgUrl}
-                alt={name ? `${name} 的頭像` : '我的頭像'}
-                width={56}
-                height={56}
-                sizes="56px"
-                className="size-14 rounded-full object-cover"
+              <UserAvatar
+                src={avatarSrc}
+                name={name}
+                size={56}
+                className="size-14"
               />
               <div className="min-w-0">
                 <div className="truncate text-2xl font-semibold text-text-primary">

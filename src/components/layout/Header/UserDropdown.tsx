@@ -1,12 +1,10 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { Session } from 'next-auth';
 import * as React from 'react';
 
-import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { DeleteAccountDialog } from '@/components/auth/DeleteAccountDialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,6 +18,7 @@ import { trackEvent } from '@/lib/analytics';
 
 import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
 import { ShareProfileDialog } from './ShareProfileDialog';
+import { UserAvatar } from './UserAvatar';
 
 export type UserDropdownProps = {
   user: Session['user'];
@@ -75,13 +74,11 @@ export const UserDropdown = React.memo(function UserDropdown({
             className="flex items-center gap-2"
             aria-label="開啟用戶選單"
           >
-            <Image
-              src={avatarSrc || DefaultAvatarImgUrl}
-              alt={name ? `${name} 的頭像` : '我的頭像'}
-              width={30}
-              height={30}
-              sizes="30px"
-              className="size-[30px] rounded-full object-cover"
+            <UserAvatar
+              src={avatarSrc}
+              name={name}
+              size={30}
+              className="size-[30px]"
               priority
             />
             <span className="text-xl leading-none" aria-hidden="true">
@@ -101,13 +98,11 @@ export const UserDropdown = React.memo(function UserDropdown({
             aria-current={isOnProfile ? 'page' : undefined}
             className="flex w-full items-center gap-4 px-6 pt-6 pb-4 text-left"
           >
-            <Image
-              src={avatarSrc || DefaultAvatarImgUrl}
-              alt={name ? `${name} 的頭像` : '我的頭像'}
-              width={56}
-              height={56}
-              sizes="56px"
-              className="size-14 rounded-full object-cover"
+            <UserAvatar
+              src={avatarSrc}
+              name={name}
+              size={56}
+              className="size-14"
             />
 
             <div className="min-w-0">

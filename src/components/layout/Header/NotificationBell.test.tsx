@@ -322,6 +322,18 @@ describe('NotificationBell', () => {
       ).not.toBeInTheDocument();
       expect(document.querySelectorAll('.bg-brand-500')).toHaveLength(0);
     });
+
+    it('calls onMarkAllRead so a caller-supplied unread count can stay in sync', () => {
+      const onMarkAllReadMock = vi.fn();
+      renderAndOpenBell({
+        initialStatus: 'success',
+        onMarkAllRead: onMarkAllReadMock,
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: '全部標為已讀' }));
+
+      expect(onMarkAllReadMock).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('Notification Content mappings', () => {

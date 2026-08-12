@@ -41,6 +41,12 @@ export type NotificationBellProps = {
    * Optional callback when the retry button is clicked. Supports async promises.
    */
   onRetry?: () => void | Promise<void>;
+  /**
+   * Optional callback fired when the "全部標為已讀" button clears every
+   * notification's unread state, so a caller with a real unread count can
+   * keep it in sync.
+   */
+  onMarkAllRead?: () => void;
 };
 
 export const NotificationBell = React.memo(function NotificationBell({
@@ -49,6 +55,7 @@ export const NotificationBell = React.memo(function NotificationBell({
   initialStatus = 'success',
   initialNotifications,
   onRetry,
+  onMarkAllRead,
 }: NotificationBellProps): JSX.Element {
   const {
     status,
@@ -63,6 +70,7 @@ export const NotificationBell = React.memo(function NotificationBell({
     initialStatus,
     initialNotifications,
     onRetry,
+    onMarkAllRead,
   });
 
   return (
