@@ -72,6 +72,23 @@ describe('NotificationBell', () => {
     expect(badge).toHaveAttribute('aria-label', '有 6 則未讀通知');
   });
 
+  it('keeps unread badge hidden when unreadCount decreases', () => {
+    const { rerender } = render(
+      <NotificationBell unreadCount={5} initialStatus="empty" />
+    );
+    const button = screen.getByRole('button', { name: '開啟通知選單' });
+
+    // Click the bell button to open the popover and hide the badge
+    fireEvent.click(button);
+    expect(screen.queryByText('5')).not.toBeInTheDocument();
+
+    // Rerender with a decreased unreadCount (e.g., 4)
+    rerender(<NotificationBell unreadCount={4} initialStatus="empty" />);
+
+    // Assert that the badge stays hidden
+    expect(screen.queryByText('4')).not.toBeInTheDocument();
+  });
+
   it('contains tailwind CSS classes for the hover state to avoid JS state overhead', () => {
     render(<NotificationBell unreadCount={5} />);
     const button = screen.getByRole('button', { name: '開啟通知選單' });
@@ -137,6 +154,20 @@ describe('NotificationBell', () => {
       expect(
         screen.getByText('您 24 小時後有與 張導師 的會議，請準時上線')
       ).toBeInTheDocument();
+    });
+
+    it('renders empty state under success status with zero notifications', () => {
+      render(
+        <NotificationBell
+          unreadCount={5}
+          initialStatus="success"
+          initialNotifications={[]}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      expect(screen.getByText('尚無新通知')).toBeInTheDocument();
     });
 
     it('renders skeletons when in loading state', () => {

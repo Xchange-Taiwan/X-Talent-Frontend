@@ -1,6 +1,14 @@
 'use client';
 
-import { AlertCircle, Bell } from 'lucide-react';
+import {
+  AlertCircle,
+  Bell,
+  CalendarCheck,
+  CalendarOff,
+  CalendarPlus,
+  CalendarX,
+  Clock,
+} from 'lucide-react';
 import * as React from 'react';
 
 import {
@@ -13,13 +21,13 @@ import { formatRelativeTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
 import {
-  defaultMockNotifications,
+  getDefaultMockNotifications,
   getNotificationContent,
   type NotificationItem,
 } from './notificationUtils';
 
 export {
-  defaultMockNotifications,
+  getDefaultMockNotifications,
   getNotificationContent,
   type NotificationItem,
 };
@@ -44,10 +52,27 @@ export type NotificationBellProps = {
    */
   initialNotifications?: NotificationItem[];
   /**
-   * Optional callback when the retry button is clicked.
+   * Optional callback when the retry button is clicked. Supports async promises.
    */
-  onRetry?: () => void;
+  onRetry?: () => void | Promise<void>;
 };
+
+function renderIcon(iconType: string) {
+  switch (iconType) {
+    case 'calendar-plus':
+      return <CalendarPlus className="size-5" />;
+    case 'calendar-check':
+      return <CalendarCheck className="size-5" />;
+    case 'calendar-x':
+      return <CalendarX className="size-5" />;
+    case 'calendar-off':
+      return <CalendarOff className="size-5" />;
+    case 'clock':
+      return <Clock className="size-5" />;
+    default:
+      return <Bell className="size-5" />;
+  }
+}
 
 export const NotificationBell = React.memo(function NotificationBell({
   unreadCount = 5,
@@ -58,8 +83,10 @@ export const NotificationBell = React.memo(function NotificationBell({
 }: NotificationBellProps): JSX.Element {
   const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
   const [status, setStatus] = React.useState(initialStatus);
+
+  // Lazy state initialization to completely avoid SSR Hydration discrepancies on Dates
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
-    initialNotifications ?? defaultMockNotifications
+    () => initialNotifications ?? getDefaultMockNotifications()
   );
 
   // Track unreadCount changes and reset hasBeenClicked if new notifications arrive (solving badge hidden bug)
@@ -77,14 +104,19 @@ export const NotificationBell = React.memo(function NotificationBell({
     }
   }, []);
 
-  const handleRetry = React.useCallback(() => {
+  const handleRetry = React.useCallback(async () => {
     setStatus('loading');
     if (onRetry) {
-      onRetry();
+      try {
+        await onRetry();
+        setStatus('success');
+      } catch (e) {
+        setStatus('error');
+      }
     } else {
       // Simulating a clean reload back to mock success list
       setTimeout(() => {
-        setNotifications(defaultMockNotifications);
+        setNotifications(getDefaultMockNotifications());
         setStatus('success');
       }, 1000);
     }
@@ -171,7 +203,7 @@ export const NotificationBell = React.memo(function NotificationBell({
         {status === 'success' && notifications.length > 0 && (
           <div className="flex max-h-[360px] flex-col gap-1 overflow-y-auto pr-1">
             {notifications.map((item) => {
-              const { title, body, iconBgClass, icon } =
+              const { title, body, iconBgClass, iconType } =
                 getNotificationContent(item);
               return (
                 <div
@@ -184,7 +216,7 @@ export const NotificationBell = React.memo(function NotificationBell({
                       iconBgClass
                     )}
                   >
-                    {icon}
+                    {renderIcon(iconType)}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="mb-1 text-sm leading-tight font-semibold break-words text-text-primary">
