@@ -178,6 +178,15 @@ describe('NotificationBell', () => {
       expect(
         screen.getByText('您 24 小時後有與 張導師 的會議，請準時上線')
       ).toBeInTheDocument();
+
+      // Relative time strings, per each mock notification's createdAt
+      // offset (getDefaultMockNotifications): under-24h renders in hours,
+      // 24h-or-more renders in days.
+      expect(screen.getByText('1 小時')).toBeInTheDocument();
+      expect(screen.getByText('23 小時')).toBeInTheDocument();
+      expect(screen.getByText('1 天')).toBeInTheDocument();
+      expect(screen.getByText('5 天')).toBeInTheDocument();
+      expect(screen.getByText('30 天')).toBeInTheDocument();
     });
 
     it('renders empty state under success status with zero notifications', () => {

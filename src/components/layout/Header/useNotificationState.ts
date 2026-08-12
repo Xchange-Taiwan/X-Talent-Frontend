@@ -23,10 +23,24 @@ export function useNotificationState({
   const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
   const [status, setStatus] = React.useState(initialStatus);
 
-  // Lazy state initialization to completely avoid SSR Hydration discrepancies on Dates
+  // The default mock notifications embed Date.now()-derived timestamps, so
+  // computing them in a useState lazy initializer would still run once
+  // during SSR and again during client hydration at two different instants
+  // - a real (if currently dormant, since this component is gated behind a
+  // client-only auth check) hydration-mismatch risk. Start from a
+  // deterministic empty array instead and populate the non-deterministic
+  // mock data only after mount, client-side.
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
-    () => initialNotifications ?? getDefaultMockNotifications()
+    () => initialNotifications ?? []
   );
+
+  React.useEffect(() => {
+    if (!initialNotifications) {
+      setNotifications(getDefaultMockNotifications());
+    }
+    // Only ever needs to run once, to seed the mock data after mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Track unreadCount changes and reset hasBeenClicked if new notifications arrive (solving badge hidden bug)
   const [prevUnread, setPrevUnread] = React.useState(unreadCount);
