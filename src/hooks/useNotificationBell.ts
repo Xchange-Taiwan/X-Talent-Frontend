@@ -60,12 +60,6 @@ export function useNotificationBell({
     setOpen(nextOpen);
     if (nextOpen) {
       setHasBeenClicked(true);
-      setNotifications((prev) => {
-        const hasUnread = prev.some((item) => item.unread);
-        return hasUnread
-          ? prev.map((item) => ({ ...item, unread: false }))
-          : prev;
-      });
     }
   }, []);
 
@@ -82,6 +76,21 @@ export function useNotificationBell({
     },
     [onMarkRead]
   );
+
+  const handleMarkAllAsRead = React.useCallback(() => {
+    setNotifications((prev) => {
+      const hasUnread = prev.some((item) => item.unread);
+      if (!hasUnread) return prev;
+
+      prev.forEach((item) => {
+        if (item.unread) {
+          onMarkRead?.(item.id);
+        }
+      });
+
+      return prev.map((item) => ({ ...item, unread: false }));
+    });
+  }, [onMarkRead]);
 
   const handleRetry = React.useCallback(() => {
     setStatus('loading');
@@ -111,5 +120,6 @@ export function useNotificationBell({
     handleOpenChange,
     handleRetry,
     handleNotificationClick,
+    handleMarkAllAsRead,
   };
 }

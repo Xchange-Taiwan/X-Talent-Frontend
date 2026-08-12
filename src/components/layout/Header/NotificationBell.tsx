@@ -104,6 +104,7 @@ export const NotificationBell = React.memo(function NotificationBell({
     handleOpenChange,
     handleRetry,
     handleNotificationClick,
+    handleMarkAllAsRead,
   } = useNotificationBell({
     unreadCount,
     initialStatus,
@@ -188,52 +189,63 @@ export const NotificationBell = React.memo(function NotificationBell({
         )}
 
         {status === 'success' && notifications.length > 0 && (
-          <div className="flex max-h-[360px] [scrollbar-width:none] flex-col overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex flex-col divide-y divide-background-border">
-              {notifications.map((item) => {
-                const { title, body } = getNotificationContent(item);
-                const href = getNotificationHref(item);
-                return (
-                  <Link
-                    key={item.id}
-                    href={href}
-                    onClick={() => {
-                      handleNotificationClick(item.id);
-                      closePopover();
-                    }}
-                    className="flex items-start gap-2.5 px-5 py-3 transition-colors hover:no-underline [@media(hover:hover)]:hover:bg-background-hover"
-                  >
-                    <span className="mt-1.5 flex size-4 shrink-0 items-center justify-center">
-                      {item.unread && (
-                        <span
-                          className="size-2 rounded-full bg-brand-500"
-                          aria-hidden="true"
-                        />
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={cn(
-                          'mb-1 text-sm leading-tight break-words',
-                          item.unread
-                            ? 'font-bold text-text-primary'
-                            : 'font-normal text-text-secondary'
+          <>
+            <div className="flex max-h-[360px] [scrollbar-width:none] flex-col overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex flex-col divide-y divide-background-border">
+                {notifications.map((item) => {
+                  const { title, body } = getNotificationContent(item);
+                  const href = getNotificationHref(item);
+                  return (
+                    <Link
+                      key={item.id}
+                      href={href}
+                      onClick={() => {
+                        handleNotificationClick(item.id);
+                        closePopover();
+                      }}
+                      className="flex items-start gap-2.5 px-5 py-3 transition-colors hover:no-underline [@media(hover:hover)]:hover:bg-background-hover"
+                    >
+                      <span className="mt-1.5 flex size-4 shrink-0 items-center justify-center">
+                        {item.unread && (
+                          <span
+                            className="size-2 rounded-full bg-brand-500"
+                            aria-hidden="true"
+                          />
                         )}
-                      >
-                        {title}
-                      </p>
-                      <p className="mb-1.5 text-xs leading-normal break-words text-text-secondary">
-                        {body}
-                      </p>
-                      <span className="text-11 leading-none text-text-tertiary">
-                        {formatRelativeTime(item.createdAt)}
                       </span>
-                    </div>
-                  </Link>
-                );
-              })}
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={cn(
+                            'mb-1 text-sm leading-tight break-words',
+                            item.unread
+                              ? 'font-bold text-text-primary'
+                              : 'font-normal text-text-secondary'
+                          )}
+                        >
+                          {title}
+                        </p>
+                        <p className="mb-1.5 text-xs leading-normal break-words text-text-secondary">
+                          {body}
+                        </p>
+                        <span className="text-11 leading-none text-text-tertiary">
+                          {formatRelativeTime(item.createdAt)}
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+            <div className="mt-3 flex items-center justify-center border-t border-background-border px-5 pt-3">
+              <button
+                type="button"
+                onClick={handleMarkAllAsRead}
+                className="text-xs font-semibold text-brand-500 transition-colors hover:text-brand-600 hover:underline focus:outline-none"
+              >
+                Mark all as read
+              </button>
+            </div>
+          </>
         )}
       </PopoverContent>
     </Popover>

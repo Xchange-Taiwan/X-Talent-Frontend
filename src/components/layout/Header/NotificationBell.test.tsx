@@ -156,6 +156,7 @@ describe('NotificationBell', () => {
           handleOpenChange: vi.fn(),
           handleRetry: vi.fn(),
           handleNotificationClick: vi.fn(),
+          handleMarkAllAsRead: vi.fn(),
         });
 
       render(<NotificationBell unreadCount={1} initialStatus="success" />);
@@ -387,7 +388,7 @@ describe('NotificationBell', () => {
   });
 
   describe('Notification Read Syncing behavior', () => {
-    it('marks all notifications as read and clears unread badge when the dropdown opens', () => {
+    it('clears unread badge when the dropdown opens, while keeping notifications unread', () => {
       render(<NotificationBell unreadCount={5} initialStatus="success" />);
       const button = screen.getByRole('button', { name: '開啟通知選單' });
 
@@ -400,9 +401,42 @@ describe('NotificationBell', () => {
       // Badge should be hidden now
       expect(screen.queryByText('5')).not.toBeInTheDocument();
 
-      // Every notification item in the dropdown should have its unread red dot removed
-      const unreadDots = document.querySelectorAll('.bg-status-error-default');
-      expect(unreadDots.length).toBe(0);
+      // Notifications in the dropdown list should still be unread (bold titles)
+      const unreadTitle = screen.getByText('您有新的預約');
+      expect(unreadTitle).toHaveClass('font-bold');
+    });
+
+    it('marks all notifications as read when "Mark all as read" is clicked and calls onMarkRead', () => {
+      const onMarkReadMock = vi.fn();
+      render(
+        <NotificationBell
+          unreadCount={5}
+          initialStatus="success"
+          onMarkRead={onMarkReadMock}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      // Verify at least one notification has unread style (bold text)
+      const unreadTitle = screen.getByText('您有新的預約');
+      expect(unreadTitle).toHaveClass('font-bold');
+
+      // Find the Mark all as read button
+      const markAllBtn = screen.getByRole('button', {
+        name: 'Mark all as read',
+      });
+      expect(markAllBtn).toBeInTheDocument();
+
+      // Click it
+      fireEvent.click(markAllBtn);
+
+      // Verify that the title style changes to read (font-normal)
+      expect(unreadTitle).toHaveClass('font-normal');
+      expect(unreadTitle).not.toHaveClass('font-bold');
+
+      // Verify that onMarkRead was called for the notifications
+      expect(onMarkReadMock).toHaveBeenCalled();
     });
 
     it('resets hasBeenClicked and displays the unread badge again when unreadCount increases', () => {
