@@ -1,8 +1,19 @@
 import * as React from 'react';
 
-import { toast } from '@/components/ui/use-toast';
+import { useToast } from '@/components/ui/use-toast';
+import { captureFlowFailure } from '@/lib/monitoring';
 
 const MARK_ALL_READ_BATCH_SIZE = 5;
+
+function reportMarkAsReadFailure(step: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[useNotificationBell] ${step} failed:`, message);
+  void captureFlowFailure({
+    flow: 'notification_mark_all_read',
+    step,
+    message,
+  });
+}
 
 /**
  * Marks IDs as read in fixed-size batches (instead of one unbounded
@@ -24,10 +35,7 @@ async function markReadInBatches(
         try {
           await onMarkRead(id);
         } catch (error) {
-          console.error(
-            `Failed to mark notification ${id} as read:`,
-            error instanceof Error ? error.message : String(error)
-          );
+          reportMarkAsReadFailure(`mark_read_fallback:${id}`, error);
           throw error; // Let Promise.allSettled see this as rejected
         }
       })
@@ -75,6 +83,7 @@ export function useNotificationBell({
   onMarkRead,
   onMarkAllRead,
 }: UseNotificationBellProps) {
+  const { toast } = useToast();
   const [open, setOpen] = React.useState(false);
   const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
   const [status, setStatus] = React.useState(initialStatus);
@@ -128,6 +137,17 @@ export function useNotificationBell({
       .map((item) => item.id);
     if (unreadIds.length === 0) return;
 
+    // Rolls back only the affected items via functional state update (to
+    // prevent data loss) and restores the unread badge.
+    const rollbackNotifications = (ids: string[]) => {
+      setNotifications((prev) =>
+        prev.map((item) =>
+          ids.includes(item.id) ? { ...item, unread: true } : item
+        )
+      );
+      setHasBeenClicked(false);
+    };
+
     // Optimistic state updates
     setHasBeenClicked(true);
     setNotifications((prev) =>
@@ -138,17 +158,8 @@ export function useNotificationBell({
       try {
         await onMarkAllRead(unreadIds);
       } catch (error) {
-        console.error(
-          'Failed to mark all notifications as read:',
-          error instanceof Error ? error.message : String(error)
-        );
-        // Rollback only the affected items via functional state update to prevent data loss
-        setNotifications((prev) =>
-          prev.map((item) =>
-            unreadIds.includes(item.id) ? { ...item, unread: true } : item
-          )
-        );
-        setHasBeenClicked(false);
+        reportMarkAsReadFailure('mark_all_read', error);
+        rollbackNotifications(unreadIds);
         toast({
           variant: 'destructive',
           title: '操作失敗',
@@ -161,12 +172,7 @@ export function useNotificationBell({
       const failedIds = await markReadInBatches(unreadIds, onMarkRead);
 
       if (failedIds.length > 0) {
-        setNotifications((prev) =>
-          prev.map((item) =>
-            failedIds.includes(item.id) ? { ...item, unread: true } : item
-          )
-        );
-        setHasBeenClicked(false); // Restore unread badge if at least one failed
+        rollbackNotifications(failedIds);
         toast({
           variant: 'destructive',
           title: '操作失敗',
@@ -177,7 +183,7 @@ export function useNotificationBell({
         });
       }
     }
-  }, [notifications, onMarkRead, onMarkAllRead]);
+  }, [notifications, onMarkRead, onMarkAllRead, toast]);
 
   const handleRetry = React.useCallback(() => {
     setStatus('loading');

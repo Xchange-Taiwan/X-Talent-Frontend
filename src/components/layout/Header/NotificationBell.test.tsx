@@ -6,14 +6,24 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { fromAny } from '@total-typescript/shoehorn';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as useNotificationBellModule from '@/hooks/useNotificationBell';
 import { type NotificationItem } from '@/hooks/useNotificationBell';
+import { mockToast } from '@/test/mocks/useToast';
 
 import { getNotificationContent, NotificationBell } from './NotificationBell';
 
+vi.mock('@/components/ui/use-toast', async () => {
+  const { useToastMockFactory } = await import('@/test/mocks/useToast');
+  return useToastMockFactory();
+});
+
 describe('NotificationBell', () => {
+  beforeEach(() => {
+    mockToast.mockClear();
+  });
+
   it('renders the bell icon button with title and aria-label', () => {
     render(<NotificationBell unreadCount={5} />);
     const button = screen.getByRole('button', { name: '開啟通知選單' });
@@ -569,6 +579,14 @@ describe('NotificationBell', () => {
         expect(unreadTitle).toHaveClass('font-bold');
         expect(screen.getByText('1')).toBeInTheDocument();
       });
+
+      // Verify the user is shown an error toast instead of a silent failure
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          description: '無法將全部通知標示為已讀，請稍後再試',
+        })
+      );
     });
 
     it('rolls back ONLY the failed notification state while successfully updating others during sequential onMarkRead fallback failure', async () => {
@@ -636,6 +654,58 @@ describe('NotificationBell', () => {
         expect(title2).not.toHaveClass('font-normal');
         expect(screen.getByText('2')).toBeInTheDocument();
       });
+
+      // Verify the user is shown a "partial failure" toast, distinct from a
+      // total failure, since only one of the two items actually failed
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          description: '部分通知標示為已讀失敗，請稍後再試',
+        })
+      );
+    });
+
+    it('processes onMarkRead fallback calls in batches of 5 when there are more unread notifications than the batch size', async () => {
+      const onMarkReadMock = vi.fn().mockResolvedValue(undefined);
+      const manyUnreadNotifications: NotificationItem[] = Array.from(
+        { length: 6 },
+        (_, i) => ({
+          id: `unread-${i}`,
+          type: 'reservation_new',
+          menteeName: '小明',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        })
+      );
+
+      render(
+        <NotificationBell
+          unreadCount={6}
+          initialStatus="success"
+          initialNotifications={manyUnreadNotifications}
+          onMarkRead={onMarkReadMock}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      const markAllBtn = screen.getByRole('button', {
+        name: 'Mark all as read',
+      });
+      fireEvent.click(markAllBtn);
+
+      // All 6 unread items should eventually be marked read across two
+      // batches (5 + 1), proving the for-loop in markReadInBatches runs
+      // more than once instead of firing all 6 requests concurrently.
+      await waitFor(() => {
+        expect(onMarkReadMock).toHaveBeenCalledTimes(6);
+      });
+      manyUnreadNotifications.forEach((item) => {
+        expect(onMarkReadMock).toHaveBeenCalledWith(item.id);
+      });
+
+      // A fully successful run should not surface any error toast
+      expect(mockToast).not.toHaveBeenCalled();
     });
 
     it('disables "Mark all as read" button when there are no unread notifications', () => {
