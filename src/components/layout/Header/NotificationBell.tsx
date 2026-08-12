@@ -212,7 +212,14 @@ export const NotificationBell = React.memo(function NotificationBell({
                       )}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="mb-1 text-sm leading-tight font-semibold break-words text-text-primary">
+                      <p
+                        className={cn(
+                          'mb-1 text-sm leading-tight break-words',
+                          item.unread
+                            ? 'font-bold text-text-primary'
+                            : 'font-normal text-text-secondary'
+                        )}
+                      >
                         {title}
                       </p>
                       <p className="mb-1.5 text-xs leading-normal break-words text-text-secondary">
