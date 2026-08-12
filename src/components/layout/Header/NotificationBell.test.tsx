@@ -281,6 +281,27 @@ describe('NotificationBell', () => {
 
       vi.useRealTimers();
     });
+
+    it('marks all notifications as read when clicking "全部標為已讀", hiding the button and unread dots', () => {
+      renderAndOpenBell({ initialStatus: 'success' });
+
+      // Popover content renders into a portal appended to document.body, so
+      // the unread dots must be queried from `document`, not RTL's `container`.
+      // The default mock data has 2 unread notifications, each showing an
+      // unread dot indicator next to its title.
+      expect(
+        screen.getByRole('button', { name: '全部標為已讀' })
+      ).toBeInTheDocument();
+      expect(document.querySelectorAll('.bg-brand-500')).toHaveLength(2);
+
+      fireEvent.click(screen.getByRole('button', { name: '全部標為已讀' }));
+
+      // Once nothing is unread, the button and every dot disappear.
+      expect(
+        screen.queryByRole('button', { name: '全部標為已讀' })
+      ).not.toBeInTheDocument();
+      expect(document.querySelectorAll('.bg-brand-500')).toHaveLength(0);
+    });
   });
 
   describe('Notification Content mappings', () => {

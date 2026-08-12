@@ -72,21 +72,18 @@ export const UserDropdown = React.memo(function UserDropdown({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="flex items-center gap-2"
+            className="flex size-9 items-center justify-center overflow-hidden rounded-full"
             aria-label="開啟用戶選單"
           >
             <Image
               src={avatarSrc || DefaultAvatarImgUrl}
               alt={name ? `${name} 的頭像` : '我的頭像'}
-              width={32}
-              height={32}
-              sizes="32px"
-              className="size-8 rounded-full object-cover"
+              width={36}
+              height={36}
+              sizes="36px"
+              className="size-9 rounded-full object-cover"
               priority
             />
-            <span className="text-xl leading-none" aria-hidden="true">
-              ▾
-            </span>
           </button>
         </DropdownMenuTrigger>
 

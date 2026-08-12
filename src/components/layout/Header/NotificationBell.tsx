@@ -93,14 +93,14 @@ export const NotificationBell = React.memo(function NotificationBell({
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-[360px] max-w-[calc(100vw-32px)] rounded-2xl border border-background-border bg-background-white p-5 shadow-xl outline-none"
+        className="w-[360px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-background-border bg-background-white py-5 shadow-xl outline-none"
       >
-        <div className="mb-3 flex items-center justify-between border-b border-background-border pb-3">
+        <div className="mb-3 flex items-center justify-between border-b border-background-border px-5 pb-3">
           <span className="text-lg font-bold text-text-primary">通知</span>
         </div>
 
         {status === 'loading' && (
-          <div className="flex flex-col divide-y divide-background-border">
+          <div className="flex flex-col divide-y divide-background-border px-5">
             {Array.from({ length: 3 }).map((_, i) => (
               <div
                 key={i}
@@ -118,7 +118,7 @@ export const NotificationBell = React.memo(function NotificationBell({
         )}
 
         {status === 'error' && (
-          <div className="flex flex-col items-center justify-center py-6 text-center">
+          <div className="flex flex-col items-center justify-center px-5 py-6 text-center">
             <AlertCircle className="mb-2 size-8 text-status-error-default" />
             <p className="mb-3 text-sm font-medium text-text-secondary">
               載入失敗，請重試
@@ -135,7 +135,7 @@ export const NotificationBell = React.memo(function NotificationBell({
 
         {(status === 'empty' ||
           (status === 'success' && notifications.length === 0)) && (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
+          <div className="flex flex-col items-center justify-center px-5 py-8 text-center">
             <Bell className="mb-3 size-10 text-text-tertiary" />
             <p className="text-sm font-medium text-text-secondary">
               尚無新通知
@@ -144,14 +144,14 @@ export const NotificationBell = React.memo(function NotificationBell({
         )}
 
         {status === 'success' && notifications.length > 0 && (
-          <div className="flex max-h-[360px] flex-col overflow-y-auto pr-1">
+          <div className="flex max-h-[360px] [scrollbar-width:none] flex-col overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex flex-col divide-y divide-background-border">
               {notifications.map((item) => {
                 const { title, body } = getNotificationContent(item);
                 return (
                   <div
                     key={item.id}
-                    className="-mx-2 flex items-start gap-2.5 rounded-lg px-2 py-3 transition-colors first:pt-0 last:pb-0 [@media(hover:hover)]:hover:bg-background-hover"
+                    className="flex items-start gap-2.5 px-5 py-3 transition-colors first:pt-0 last:pb-0 [@media(hover:hover)]:hover:bg-background-hover"
                   >
                     <span className="mt-1.5 flex size-4 shrink-0 items-center justify-center">
                       {item.unread && (
@@ -178,7 +178,7 @@ export const NotificationBell = React.memo(function NotificationBell({
             </div>
 
             {notifications.some((item) => item.unread) && (
-              <div className="mt-1 border-t border-background-border pt-3">
+              <div className="mt-1 border-t border-background-border px-5 pt-3">
                 <button
                   type="button"
                   onClick={handleMarkAllRead}
