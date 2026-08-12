@@ -93,7 +93,7 @@ export const NotificationBell = React.memo(function NotificationBell({
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-[360px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-background-border bg-background-white py-5 shadow-xl outline-none"
+        className="w-[360px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-background-border bg-background-white px-0 py-5 shadow-xl outline-none"
       >
         <div className="mb-3 flex items-center justify-between border-b border-background-border px-5 pb-3">
           <span className="text-lg font-bold text-text-primary">通知</span>
