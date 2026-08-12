@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -141,26 +141,27 @@ describe('NotificationBell', () => {
       ).toBeInTheDocument();
     });
 
-    it('triggers onRetry callback and transitions to loading when clicking retry button', () => {
-      const onRetryMock = vi.fn();
-      render(
-        <NotificationBell
-          unreadCount={5}
-          initialStatus="error"
-          onRetry={onRetryMock}
-        />
-      );
+    it('transitions to loading and then success when clicking retry button', () => {
+      vi.useFakeTimers();
+      render(<NotificationBell unreadCount={5} initialStatus="error" />);
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
       const retryButton = screen.getByRole('button', { name: '重新嘗試' });
       fireEvent.click(retryButton);
 
-      // Verify that onRetry callback was called
-      expect(onRetryMock).toHaveBeenCalledTimes(1);
-
-      // Verify that UI transitions to loading state (error text disappears)
+      // Verify that UI immediately transitions to loading state (error text disappears)
       expect(screen.queryByText('載入失敗，請重試')).not.toBeInTheDocument();
+
+      // Fast-forward 1000ms inside act
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      // Verify that UI transitions to success state (notifications appear)
+      expect(screen.getByText('您有新的預約')).toBeInTheDocument();
+
+      vi.useRealTimers();
     });
   });
 

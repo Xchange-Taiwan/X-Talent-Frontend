@@ -53,10 +53,6 @@ export type NotificationBellProps = {
    * Initial list of notifications. If omitted, will default to mock notifications.
    */
   initialNotifications?: NotificationItem[];
-  /**
-   * Optional callback when the retry button is clicked.
-   */
-  onRetry?: () => void;
 };
 
 export const defaultMockNotifications: NotificationItem[] = [
@@ -151,13 +147,17 @@ export function getNotificationContent(item: NotificationItem) {
   }
 }
 
-export const NotificationBell = React.memo(function NotificationBell({
-  unreadCount = 5,
-  className,
-  initialStatus = 'success',
+export type UseNotificationBellProps = {
+  unreadCount: number;
+  initialStatus: 'loading' | 'error' | 'empty' | 'success';
+  initialNotifications?: NotificationItem[];
+};
+
+export function useNotificationBell({
+  unreadCount,
+  initialStatus,
   initialNotifications,
-  onRetry,
-}: NotificationBellProps): JSX.Element {
+}: UseNotificationBellProps) {
   const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
   const [status, setStatus] = React.useState(initialStatus);
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
@@ -187,20 +187,47 @@ export const NotificationBell = React.memo(function NotificationBell({
 
   const handleRetry = React.useCallback(() => {
     setStatus('loading');
-    if (onRetry) {
-      onRetry();
-    } else {
-      // Simulating a clean reload back to mock success list
-      setTimeout(() => {
-        setNotifications(defaultMockNotifications);
-        setStatus('success');
-      }, 1000);
-    }
-  }, [onRetry]);
+    // Simulating a clean reload back to mock success list
+    setTimeout(() => {
+      setNotifications(defaultMockNotifications);
+      setStatus('success');
+    }, 1000);
+  }, []);
 
   const showBadge = !hasBeenClicked && localUnreadCount > 0;
   const formattedCount =
     localUnreadCount > 99 ? '99+' : String(localUnreadCount);
+
+  return {
+    status,
+    notifications,
+    localUnreadCount,
+    showBadge,
+    formattedCount,
+    handleOpenChange,
+    handleRetry,
+  };
+}
+
+export const NotificationBell = React.memo(function NotificationBell({
+  unreadCount = 5,
+  className,
+  initialStatus = 'success',
+  initialNotifications,
+}: NotificationBellProps): JSX.Element {
+  const {
+    status,
+    notifications,
+    localUnreadCount,
+    showBadge,
+    formattedCount,
+    handleOpenChange,
+    handleRetry,
+  } = useNotificationBell({
+    unreadCount,
+    initialStatus,
+    initialNotifications,
+  });
 
   return (
     <Popover onOpenChange={handleOpenChange}>
