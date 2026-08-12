@@ -240,7 +240,8 @@ export const NotificationBell = React.memo(function NotificationBell({
               <button
                 type="button"
                 onClick={handleMarkAllAsRead}
-                className="text-xs font-semibold text-brand-500 transition-colors hover:text-brand-600 hover:underline focus:outline-none"
+                disabled={!notifications.some((item) => item.unread)}
+                className="text-xs font-semibold text-brand-500 transition-colors hover:text-brand-600 hover:underline focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:no-underline"
               >
                 Mark all as read
               </button>

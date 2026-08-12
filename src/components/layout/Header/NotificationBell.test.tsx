@@ -439,6 +439,33 @@ describe('NotificationBell', () => {
       expect(onMarkReadMock).toHaveBeenCalled();
     });
 
+    it('disables "Mark all as read" button when there are no unread notifications', () => {
+      const readNotifications: NotificationItem[] = [
+        {
+          id: 'read-1',
+          type: 'reservation_new',
+          createdAt: new Date().toISOString(),
+          unread: false,
+        },
+      ];
+      render(
+        <NotificationBell
+          unreadCount={0}
+          initialStatus="success"
+          initialNotifications={readNotifications}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      // Find the Mark all as read button
+      const markAllBtn = screen.getByRole('button', {
+        name: 'Mark all as read',
+      });
+      expect(markAllBtn).toBeInTheDocument();
+      expect(markAllBtn).toBeDisabled();
+    });
+
     it('resets hasBeenClicked and displays the unread badge again when unreadCount increases', () => {
       const { rerender } = render(<NotificationBell unreadCount={5} />);
       const button = screen.getByRole('button', { name: '開啟通知選單' });
