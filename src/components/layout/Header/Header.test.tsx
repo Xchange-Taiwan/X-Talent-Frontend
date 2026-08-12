@@ -21,6 +21,11 @@ vi.mock('next/navigation', async () => {
   return navigationMockFactory();
 });
 
+const trackEvent = vi.fn();
+vi.mock('@/lib/analytics', () => ({
+  trackEvent: (...args: unknown[]) => trackEvent(...args),
+}));
+
 const mockUseAuthStatus = vi.fn();
 vi.mock('@/hooks/user/auth/useAuthStatus', () => ({
   useAuthStatus: () => mockUseAuthStatus(),
@@ -223,6 +228,28 @@ describe('Header', () => {
       'group-data-[auth-state=mentee]:hidden',
       'group-data-[auth-state=mentor]:hidden'
     );
+  });
+
+  it('tracks feedback_open when the desktop Header "提供回饋" link is clicked', () => {
+    trackEvent.mockClear();
+    mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+    mockUseAuthStatus.mockReturnValue({
+      authKnown: true,
+      isLoggedIn: false,
+      isMentor: false,
+      userId: undefined,
+      hasFullUser: false,
+      isResolvingUser: false,
+    });
+
+    render(<Header />);
+
+    const feedbackLink = screen.getByRole('link', {
+      name: '提供回饋（另開新分頁）',
+    });
+    fireEvent.click(feedbackLink);
+
+    expect(trackEvent).toHaveBeenCalledWith({ name: 'feedback_open' });
   });
 
   it('renders pre-hydration avatar placeholder with CSS visibility toggles before auth is known', () => {
