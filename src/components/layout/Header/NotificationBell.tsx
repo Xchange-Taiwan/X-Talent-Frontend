@@ -15,7 +15,6 @@ import {
   useNotificationBell,
 } from '@/hooks/useNotificationBell';
 import { formatRelativeTime } from '@/lib/dateUtils';
-import { captureApiFailure } from '@/lib/monitoring';
 import { cn } from '@/lib/utils';
 
 import { defaultMockNotifications } from './mockNotifications';
@@ -100,19 +99,14 @@ export const NotificationBell = React.memo(function NotificationBell({
   onMarkRead,
   onMarkAllRead,
 }: NotificationBellProps): JSX.Element {
-  const handleFallbackBatchRef = React.useRef<(ids: string[]) => Promise<void>>(
-    () => Promise.resolve()
-  );
-
   const {
     open,
     closePopover,
     status,
     notifications,
-    setNotifications,
-    setHasBeenClicked,
     showBadge,
     formattedCount,
+    hasUnread,
     handleOpenChange,
     handleRetry,
     handleNotificationClick,
@@ -123,54 +117,8 @@ export const NotificationBell = React.memo(function NotificationBell({
     initialNotifications,
     defaultNotifications: defaultMockNotifications,
     onMarkRead,
-    onMarkAllRead: (ids) => handleFallbackBatchRef.current(ids),
+    onMarkAllRead,
   });
-
-  // Implement the fallback fallbackBatch on the component layer to keep hook generic and decoupled
-  const handleFallbackBatch = React.useCallback(
-    async (ids: string[]) => {
-      try {
-        if (onMarkAllRead) {
-          await onMarkAllRead(ids);
-        } else if (onMarkRead) {
-          // Fallback with sequential processing to prevent concurrent API flooding
-          for (const id of ids) {
-            try {
-              await onMarkRead(id);
-            } catch (error) {
-              console.error(
-                `Failed to mark notification ${id} as read:`,
-                error instanceof Error ? error.message : String(error)
-              );
-              // Perform granular rollback of ONLY this failed item
-              setNotifications((prev) =>
-                prev.map((item) =>
-                  item.id === id ? { ...item, unread: true } : item
-                )
-              );
-              setHasBeenClicked(false);
-            }
-          }
-        }
-      } catch (error) {
-        // Capture API failure on Sentry
-        captureApiFailure({
-          endpoint: onMarkAllRead
-            ? '/api/notifications/read-all'
-            : '/api/notifications/fallback-read',
-          method: 'POST',
-          status: 0,
-          message: error instanceof Error ? error.message : String(error),
-        });
-        throw error; // Rethrow to let hook roll back
-      }
-    },
-    [onMarkRead, onMarkAllRead, setNotifications, setHasBeenClicked]
-  );
-
-  React.useEffect(() => {
-    handleFallbackBatchRef.current = handleFallbackBatch;
-  }, [handleFallbackBatch]);
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -299,7 +247,7 @@ export const NotificationBell = React.memo(function NotificationBell({
               <button
                 type="button"
                 onClick={handleMarkAllAsRead}
-                disabled={!notifications.some((item) => item.unread)}
+                disabled={!hasUnread}
                 className="text-xs font-semibold text-brand-500 transition-colors hover:text-brand-600 hover:underline focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:no-underline"
               >
                 Mark all as read
