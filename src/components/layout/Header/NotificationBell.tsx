@@ -72,12 +72,12 @@ export const NotificationBell = React.memo(function NotificationBell({
           type="button"
           title="通知"
           className={cn(
-            'group relative flex h-9 w-9 items-center justify-center rounded-full border border-background-border bg-transparent text-text-primary transition-all duration-200 outline-none data-[state=open]:border-dark data-[state=open]:bg-dark data-[state=open]:text-text-white [@media(hover:hover)]:hover:border-transparent [@media(hover:hover)]:hover:bg-background-hover',
+            'group relative flex h-9 w-9 items-center justify-center rounded-full border border-background-border bg-transparent text-text-primary transition-all duration-200 outline-none data-[state=open]:border-dark data-[state=open]:bg-dark data-[state=open]:text-text-white [@media(hover:hover)]:hover:border-dark [@media(hover:hover)]:hover:bg-dark [@media(hover:hover)]:hover:text-text-white',
             className
           )}
           aria-label="開啟通知選單"
         >
-          <Bell className="size-5 text-text-primary transition-all group-data-[state=open]:fill-current group-data-[state=open]:text-text-white" />
+          <Bell className="size-5 text-text-primary transition-all group-data-[state=open]:fill-current group-data-[state=open]:text-text-white [@media(hover:hover)]:group-hover:fill-current [@media(hover:hover)]:group-hover:text-text-white" />
 
           {showBadge && (
             <span
@@ -151,7 +151,7 @@ export const NotificationBell = React.memo(function NotificationBell({
                 return (
                   <div
                     key={item.id}
-                    className="flex items-start gap-2.5 py-3 first:pt-0 last:pb-0"
+                    className="-mx-2 flex items-start gap-2.5 rounded-lg px-2 py-3 transition-colors first:pt-0 last:pb-0 [@media(hover:hover)]:hover:bg-background-hover"
                   >
                     <span className="mt-1.5 flex size-4 shrink-0 items-center justify-center">
                       {item.unread && (
