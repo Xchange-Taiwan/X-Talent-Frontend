@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { fromAny } from '@total-typescript/shoehorn';
 import { describe, expect, it, vi } from 'vitest';
 
+import * as useNotificationBellModule from '@/hooks/useNotificationBell';
 import { type NotificationItem } from '@/hooks/useNotificationBell';
 
 import { getNotificationContent, NotificationBell } from './NotificationBell';
@@ -127,6 +128,54 @@ describe('NotificationBell', () => {
       fireEvent.click(button);
 
       expect(screen.getByText('尚無新通知')).toBeInTheDocument();
+    });
+
+    it('applies unread and read classes appropriately to notification titles based on unread status', () => {
+      const spy = vi
+        .spyOn(useNotificationBellModule, 'useNotificationBell')
+        .mockReturnValue({
+          open: true,
+          closePopover: vi.fn(),
+          status: 'success',
+          notifications: [
+            {
+              id: '1',
+              type: 'reservation_new',
+              createdAt: new Date().toISOString(),
+              unread: true,
+            },
+            {
+              id: '2',
+              type: 'reservation_success',
+              createdAt: new Date().toISOString(),
+              unread: false,
+            },
+          ],
+          showBadge: false,
+          formattedCount: '1',
+          handleOpenChange: vi.fn(),
+          handleRetry: vi.fn(),
+          handleNotificationClick: vi.fn(),
+        });
+
+      render(<NotificationBell unreadCount={1} initialStatus="success" />);
+
+      // Since open is mocked to true, the popover is already open and notifications are rendered
+      // Check an unread notification
+      const unreadTitle = screen.getByText('您有新的預約');
+      expect(unreadTitle).toHaveClass('font-bold');
+      expect(unreadTitle).toHaveClass('text-text-primary');
+      expect(unreadTitle).not.toHaveClass('font-normal');
+      expect(unreadTitle).not.toHaveClass('text-text-secondary');
+
+      // Check a read notification
+      const readTitle = screen.getByText('Mentor 已接受您的預約');
+      expect(readTitle).toHaveClass('font-normal');
+      expect(readTitle).toHaveClass('text-text-secondary');
+      expect(readTitle).not.toHaveClass('font-bold');
+      expect(readTitle).not.toHaveClass('text-text-primary');
+
+      spy.mockRestore();
     });
 
     it('renders skeletons when in loading state', () => {
