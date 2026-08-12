@@ -171,7 +171,7 @@ export function ReservationDashboardView({
     if (paramValue) {
       params.set('tab', paramValue);
     }
-    router.replace(`${pathname}?${params.toString()}`);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   const title = isMentee ? '預約導師' : '擔任導師';
