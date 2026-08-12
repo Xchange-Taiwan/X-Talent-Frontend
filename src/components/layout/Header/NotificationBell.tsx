@@ -24,6 +24,8 @@ import {
 import { formatRelativeTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
+import { defaultMockNotifications } from './mockNotifications';
+
 export type NotificationBellProps = {
   /**
    * The mock count of unread notifications.
@@ -117,6 +119,7 @@ export const NotificationBell = React.memo(function NotificationBell({
     unreadCount,
     initialStatus,
     initialNotifications,
+    defaultNotifications: defaultMockNotifications,
   });
 
   return (

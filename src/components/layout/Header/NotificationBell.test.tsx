@@ -154,25 +154,54 @@ describe('NotificationBell', () => {
 
     it('transitions to loading and then success when clicking retry button', () => {
       vi.useFakeTimers();
-      render(<NotificationBell unreadCount={5} initialStatus="error" />);
-      const button = screen.getByRole('button', { name: '開啟通知選單' });
-      fireEvent.click(button);
+      try {
+        render(<NotificationBell unreadCount={5} initialStatus="error" />);
+        const button = screen.getByRole('button', { name: '開啟通知選單' });
+        fireEvent.click(button);
 
-      const retryButton = screen.getByRole('button', { name: '重新嘗試' });
-      fireEvent.click(retryButton);
+        const retryButton = screen.getByRole('button', { name: '重新嘗試' });
+        fireEvent.click(retryButton);
 
-      // Verify that UI immediately transitions to loading state (error text disappears)
-      expect(screen.queryByText('載入失敗，請重試')).not.toBeInTheDocument();
+        // Verify that UI immediately transitions to loading state (error text disappears)
+        expect(screen.queryByText('載入失敗，請重試')).not.toBeInTheDocument();
 
-      // Fast-forward 1000ms inside act
-      act(() => {
-        vi.advanceTimersByTime(1000);
-      });
+        // Fast-forward 1000ms inside act
+        act(() => {
+          vi.advanceTimersByTime(1000);
+        });
 
-      // Verify that UI transitions to success state (notifications appear)
-      expect(screen.getByText('您有新的預約')).toBeInTheDocument();
+        // Verify that UI transitions to success state (notifications appear)
+        expect(screen.getByText('您有新的預約')).toBeInTheDocument();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
 
-      vi.useRealTimers();
+    it('clears active timeouts on unmount during retry loading', () => {
+      vi.useFakeTimers();
+      try {
+        const { unmount } = render(
+          <NotificationBell unreadCount={5} initialStatus="error" />
+        );
+        const button = screen.getByRole('button', { name: '開啟通知選單' });
+        fireEvent.click(button);
+
+        const retryButton = screen.getByRole('button', { name: '重新嘗試' });
+        fireEvent.click(retryButton);
+
+        // Verify that UI immediately transitions to loading state (error text disappears)
+        expect(screen.queryByText('載入失敗，請重試')).not.toBeInTheDocument();
+
+        // Unmount the component immediately during loading
+        unmount();
+
+        // Fast-forward 1000ms inside act
+        act(() => {
+          vi.advanceTimersByTime(1000);
+        });
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 
