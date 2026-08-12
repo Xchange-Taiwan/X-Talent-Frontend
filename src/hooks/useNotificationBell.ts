@@ -66,16 +66,10 @@ export function useNotificationBell({
   const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
   const [status, setStatus] = React.useState(initialStatus);
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
-    () => initialNotifications ?? []
+    () => initialNotifications ?? defaultMockNotifications
   );
 
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
-
-  React.useEffect(() => {
-    if (!initialNotifications) {
-      setNotifications(defaultMockNotifications);
-    }
-  }, [initialNotifications]);
 
   React.useEffect(() => {
     return () => {

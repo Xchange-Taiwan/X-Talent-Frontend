@@ -117,6 +117,20 @@ describe('NotificationBell', () => {
       ).toBeInTheDocument();
     });
 
+    it('renders empty state under success status with zero notifications', () => {
+      render(
+        <NotificationBell
+          unreadCount={0}
+          initialStatus="success"
+          initialNotifications={[]}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      expect(screen.getByText('尚無新通知')).toBeInTheDocument();
+    });
+
     it('renders skeletons when in loading state', () => {
       render(<NotificationBell unreadCount={5} initialStatus="loading" />);
       const button = screen.getByRole('button', { name: '開啟通知選單' });
