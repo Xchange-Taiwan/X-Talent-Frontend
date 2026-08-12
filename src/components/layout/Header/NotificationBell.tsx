@@ -110,7 +110,6 @@ export const NotificationBell = React.memo(function NotificationBell({
   const {
     status,
     notifications,
-    localUnreadCount,
     showBadge,
     formattedCount,
     handleOpenChange,
@@ -139,7 +138,7 @@ export const NotificationBell = React.memo(function NotificationBell({
           {showBadge && (
             <span
               className="absolute -right-0.5 -bottom-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border border-background-white bg-status-error-default px-1 text-11 leading-none font-bold text-text-white select-none"
-              aria-label={`有 ${localUnreadCount} 則未讀通知`}
+              aria-label={`有 ${unreadCount} 則未讀通知`}
             >
               {formattedCount}
             </span>

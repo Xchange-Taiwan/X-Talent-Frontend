@@ -44,11 +44,9 @@ export function useNotificationBell({
   }, []);
 
   const [prevUnreadCount, setPrevUnreadCount] = React.useState(unreadCount);
-  const [localUnreadCount, setLocalUnreadCount] = React.useState(unreadCount);
 
   if (unreadCount !== prevUnreadCount) {
     setPrevUnreadCount(unreadCount);
-    setLocalUnreadCount(unreadCount);
     if (unreadCount > prevUnreadCount) {
       setHasBeenClicked(false);
     }
@@ -57,7 +55,6 @@ export function useNotificationBell({
   const handleOpenChange = React.useCallback((open: boolean) => {
     if (open) {
       setHasBeenClicked(true);
-      setLocalUnreadCount(0);
       setNotifications((prev) => {
         const hasUnread = prev.some((item) => item.unread);
         return hasUnread
@@ -74,19 +71,20 @@ export function useNotificationBell({
     }
     // Simulating a clean reload back to initial or default success list
     timerRef.current = setTimeout(() => {
-      setNotifications(initialNotifications ?? defaultNotifications);
+      const loaded = initialNotifications ?? defaultNotifications;
+      setNotifications(
+        hasBeenClicked ? loaded.map((n) => ({ ...n, unread: false })) : loaded
+      );
       setStatus('success');
     }, 1000);
-  }, [initialNotifications, defaultNotifications]);
+  }, [initialNotifications, defaultNotifications, hasBeenClicked]);
 
-  const showBadge = !hasBeenClicked && localUnreadCount > 0;
-  const formattedCount =
-    localUnreadCount > 99 ? '99+' : String(localUnreadCount);
+  const showBadge = !hasBeenClicked && unreadCount > 0;
+  const formattedCount = unreadCount > 99 ? '99+' : String(unreadCount);
 
   return {
     status,
     notifications,
-    localUnreadCount,
     showBadge,
     formattedCount,
     handleOpenChange,
