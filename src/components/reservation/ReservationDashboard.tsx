@@ -136,20 +136,17 @@ export function ReservationDashboardView({
       setActiveTab(pendingTabValue);
     } else if (tabParam === 'history') {
       setActiveTab('history');
-      if (!isHistoryLoaded && !isLoadingHistory) {
-        onLoadHistory();
-      }
     } else if (tabParam === 'upcoming') {
       setActiveTab(upcomingTabValue);
     }
-  }, [
-    tabParam,
-    pendingTabValue,
-    upcomingTabValue,
-    isHistoryLoaded,
-    isLoadingHistory,
-    onLoadHistory,
-  ]);
+  }, [tabParam, pendingTabValue, upcomingTabValue]);
+
+  // Load history data when activeTab becomes 'history'
+  useEffect(() => {
+    if (activeTab === 'history' && !isHistoryLoaded && !isLoadingHistory) {
+      onLoadHistory();
+    }
+  }, [activeTab, isHistoryLoaded, isLoadingHistory, onLoadHistory]);
 
   const triggerClass =
     'group shrink-0 rounded-full border border-background-border px-3 py-1.5 text-sm ' +
@@ -161,9 +158,6 @@ export function ReservationDashboardView({
 
   const handleValueChange = (value: string) => {
     setActiveTab(value);
-    if (value === 'history' && !isHistoryLoaded && !isLoadingHistory) {
-      onLoadHistory();
-    }
   };
 
   const title = isMentee ? '預約導師' : '擔任導師';

@@ -253,5 +253,47 @@ describe('NotificationBell', () => {
       // Since isOpen is controlled and set to false, popover content should be hidden
       expect(screen.queryByText('您有新的預約')).not.toBeInTheDocument();
     });
+
+    it('correctly resolves role context for dual-role users based on item fields', () => {
+      // Mentee cancelled notification (the other party is a mentor, so mentorName is present)
+      // Even if user's global profile state isMentor=true, they should still go to Mentee's mentor-pool
+      const itemAsMentee: NotificationItem = {
+        id: '1',
+        type: 'reservation_canceled',
+        mentorName: '林導師',
+        createdAt: new Date().toISOString(),
+      };
+      expect(getNotificationTargetUrl(itemAsMentee, true)).toBe('/mentor-pool');
+
+      // Mentor cancelled notification (the other party is a mentee, so menteeName is present)
+      // Even if user's global profile state isMentor=false, they should still go to Mentor's history
+      const itemAsMentor: NotificationItem = {
+        id: '2',
+        type: 'reservation_canceled',
+        menteeName: '小明',
+        createdAt: new Date().toISOString(),
+      };
+      expect(getNotificationTargetUrl(itemAsMentor, false)).toBe(
+        '/reservation/mentor?tab=history'
+      );
+    });
+
+    it('shows the red badge again when unreadCount increases (resets hasBeenClicked)', () => {
+      const { rerender } = render(<NotificationBell unreadCount={1} />);
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+
+      // Badge is visible with '1'
+      expect(screen.getByText('1')).toBeInTheDocument();
+
+      // Click to hide badge (opens popover)
+      fireEvent.click(button);
+      expect(screen.queryByText('1')).not.toBeInTheDocument();
+
+      // Rerender with larger unreadCount
+      rerender(<NotificationBell unreadCount={2} />);
+
+      // Badge should show up again with '2'
+      expect(screen.getByText('2')).toBeInTheDocument();
+    });
   });
 });

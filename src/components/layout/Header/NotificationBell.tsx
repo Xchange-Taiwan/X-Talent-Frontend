@@ -164,6 +164,16 @@ export function getNotificationTargetUrl(
   item: NotificationItem,
   isMentor: boolean
 ): string {
+  // Deduce actual role context from item name presence to correctly handle dual-role users!
+  // If menteeName is present and mentorName is not -> recipient is the Mentor
+  // If mentorName is present and menteeName is not -> recipient is the Mentee
+  const isMentorContext =
+    item.menteeName && !item.mentorName
+      ? true
+      : item.mentorName && !item.menteeName
+        ? false
+        : isMentor;
+
   switch (item.type) {
     case 'reservation_new':
       return '/reservation/mentor?tab=pending';
@@ -172,9 +182,11 @@ export function getNotificationTargetUrl(
     case 'reservation_failed':
       return '/mentor-pool';
     case 'reservation_canceled':
-      return isMentor ? '/reservation/mentor?tab=history' : '/mentor-pool';
+      return isMentorContext
+        ? '/reservation/mentor?tab=history'
+        : '/mentor-pool';
     case 'reservation_upcoming':
-      return isMentor
+      return isMentorContext
         ? '/reservation/mentor?tab=upcoming'
         : '/reservation/mentee?tab=upcoming';
     default:
