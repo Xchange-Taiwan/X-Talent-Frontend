@@ -164,25 +164,29 @@ export const NotificationBell = React.memo(function NotificationBell({
     initialNotifications ?? defaultMockNotifications
   );
 
-  // Sync state if props change (solving uncontrolled-to-controlled locking issues)
-  React.useEffect(() => {
+  // Derived state synchronization during render (no useEffect, zero flashing)
+  const [prevStatusProp, setPrevStatusProp] = React.useState(initialStatus);
+  if (initialStatus !== prevStatusProp) {
+    setPrevStatusProp(initialStatus);
     setStatus(initialStatus);
-  }, [initialStatus]);
+  }
 
-  React.useEffect(() => {
+  const [prevNotificationsProp, setPrevNotificationsProp] =
+    React.useState(initialNotifications);
+  if (initialNotifications !== prevNotificationsProp) {
+    setPrevNotificationsProp(initialNotifications);
     if (initialNotifications) {
       setNotifications(initialNotifications);
     }
-  }, [initialNotifications]);
+  }
 
-  // Track unreadCount changes and reset hasBeenClicked if new notifications arrive (solving badge hidden bug)
-  const prevUnreadCountRef = React.useRef(unreadCount);
-  React.useEffect(() => {
-    if (unreadCount > prevUnreadCountRef.current) {
-      setHasBeenClicked(false);
-    }
-    prevUnreadCountRef.current = unreadCount;
-  }, [unreadCount]);
+  const [prevUnread, setPrevUnread] = React.useState(unreadCount);
+  if (unreadCount > prevUnread) {
+    setPrevUnread(unreadCount);
+    setHasBeenClicked(false);
+  } else if (unreadCount !== prevUnread) {
+    setPrevUnread(unreadCount);
+  }
 
   const handleOpenChange = React.useCallback((open: boolean) => {
     if (open) {

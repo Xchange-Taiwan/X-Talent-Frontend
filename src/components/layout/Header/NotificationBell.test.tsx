@@ -53,6 +53,25 @@ describe('NotificationBell', () => {
     expect(screen.queryByText('5')).not.toBeInTheDocument();
   });
 
+  it('resets clicked state and shows unread badge again when unreadCount increases', () => {
+    const { rerender } = render(
+      <NotificationBell unreadCount={5} initialStatus="empty" />
+    );
+    const button = screen.getByRole('button', { name: '開啟通知選單' });
+
+    // Click the bell button to open the popover and hide the badge
+    fireEvent.click(button);
+    expect(screen.queryByText('5')).not.toBeInTheDocument();
+
+    // Rerender with an increased unreadCount (e.g., 6)
+    rerender(<NotificationBell unreadCount={6} initialStatus="empty" />);
+
+    // Assert that the badge correctly reappears with the new count
+    const badge = screen.getByText('6');
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveAttribute('aria-label', '有 6 則未讀通知');
+  });
+
   it('contains tailwind CSS classes for the hover state to avoid JS state overhead', () => {
     render(<NotificationBell unreadCount={5} />);
     const button = screen.getByRole('button', { name: '開啟通知選單' });
