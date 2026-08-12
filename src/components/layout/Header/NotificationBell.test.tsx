@@ -116,10 +116,17 @@ describe('NotificationBell', () => {
   });
 
   describe('Notification Dropdown Rendering states', () => {
-    it('renders all 5 types of notification card contents under success state', () => {
-      render(<NotificationBell unreadCount={5} initialStatus="success" />);
+    const renderAndOpenBell = (
+      props?: Partial<React.ComponentProps<typeof NotificationBell>>
+    ) => {
+      const result = render(<NotificationBell unreadCount={5} {...props} />);
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
+      return result;
+    };
+
+    it('renders all 5 types of notification card contents under success state', () => {
+      renderAndOpenBell({ initialStatus: 'success' });
 
       // Check header
       expect(screen.getByText('通知')).toBeInTheDocument();
@@ -157,23 +164,16 @@ describe('NotificationBell', () => {
     });
 
     it('renders empty state under success status with zero notifications', () => {
-      render(
-        <NotificationBell
-          unreadCount={5}
-          initialStatus="success"
-          initialNotifications={[]}
-        />
-      );
-      const button = screen.getByRole('button', { name: '開啟通知選單' });
-      fireEvent.click(button);
+      renderAndOpenBell({
+        initialStatus: 'success',
+        initialNotifications: [],
+      });
 
       expect(screen.getByText('尚無新通知')).toBeInTheDocument();
     });
 
     it('renders skeletons when in loading state', () => {
-      render(<NotificationBell unreadCount={5} initialStatus="loading" />);
-      const button = screen.getByRole('button', { name: '開啟通知選單' });
-      fireEvent.click(button);
+      renderAndOpenBell({ initialStatus: 'loading' });
 
       // Ensure the text '尚無新通知' or mock notifications are NOT shown
       expect(screen.queryByText('尚無新通知')).not.toBeInTheDocument();
@@ -181,9 +181,7 @@ describe('NotificationBell', () => {
     });
 
     it('renders error state and a retry button', () => {
-      render(<NotificationBell unreadCount={5} initialStatus="error" />);
-      const button = screen.getByRole('button', { name: '開啟通知選單' });
-      fireEvent.click(button);
+      renderAndOpenBell({ initialStatus: 'error' });
 
       expect(screen.getByText('載入失敗，請重試')).toBeInTheDocument();
       expect(
@@ -193,15 +191,10 @@ describe('NotificationBell', () => {
 
     it('triggers onRetry callback and transitions to loading when clicking retry button', () => {
       const onRetryMock = vi.fn();
-      render(
-        <NotificationBell
-          unreadCount={5}
-          initialStatus="error"
-          onRetry={onRetryMock}
-        />
-      );
-      const button = screen.getByRole('button', { name: '開啟通知選單' });
-      fireEvent.click(button);
+      renderAndOpenBell({
+        initialStatus: 'error',
+        onRetry: onRetryMock,
+      });
 
       const retryButton = screen.getByRole('button', { name: '重新嘗試' });
       fireEvent.click(retryButton);
@@ -221,15 +214,10 @@ describe('NotificationBell', () => {
         });
       });
 
-      render(
-        <NotificationBell
-          unreadCount={5}
-          initialStatus="error"
-          onRetry={onRetryMock}
-        />
-      );
-      const button = screen.getByRole('button', { name: '開啟通知選單' });
-      fireEvent.click(button);
+      renderAndOpenBell({
+        initialStatus: 'error',
+        onRetry: onRetryMock,
+      });
 
       const retryButton = screen.getByRole('button', { name: '重新嘗試' });
       fireEvent.click(retryButton);
@@ -247,22 +235,17 @@ describe('NotificationBell', () => {
     });
 
     it('transitions back to error state when async onRetry rejects', async () => {
-      let rejectRetry: (reason?: any) => void = () => {};
+      let rejectRetry: (reason?: unknown) => void = () => {};
       const onRetryMock = vi.fn().mockImplementation(() => {
         return new Promise<void>((_, reject) => {
           rejectRetry = reject;
         });
       });
 
-      render(
-        <NotificationBell
-          unreadCount={5}
-          initialStatus="error"
-          onRetry={onRetryMock}
-        />
-      );
-      const button = screen.getByRole('button', { name: '開啟通知選單' });
-      fireEvent.click(button);
+      renderAndOpenBell({
+        initialStatus: 'error',
+        onRetry: onRetryMock,
+      });
 
       const retryButton = screen.getByRole('button', { name: '重新嘗試' });
       fireEvent.click(retryButton);
@@ -281,9 +264,7 @@ describe('NotificationBell', () => {
 
     it('uses default setTimeout fallback to transition to success after 1000ms when onRetry is omitted', async () => {
       vi.useFakeTimers();
-      render(<NotificationBell unreadCount={5} initialStatus="error" />);
-      const button = screen.getByRole('button', { name: '開啟通知選單' });
-      fireEvent.click(button);
+      renderAndOpenBell({ initialStatus: 'error' });
 
       const retryButton = screen.getByRole('button', { name: '重新嘗試' });
 
