@@ -1,5 +1,7 @@
 import * as React from 'react';
 
+import { captureApiFailure } from '@/lib/monitoring';
+
 export type NotificationItem = {
   id: string;
   type:
@@ -94,22 +96,53 @@ export function useNotificationBell({
       prev.map((item) => (item.unread ? { ...item, unread: false } : item))
     );
 
-    try {
-      if (onMarkAllRead) {
+    if (onMarkAllRead) {
+      try {
         await onMarkAllRead(unreadIds);
-      } else if (onMarkRead) {
-        // Fallback with sequential processing to prevent concurrent API flooding
-        for (const id of unreadIds) {
-          await onMarkRead(id);
-        }
+      } catch (error) {
+        console.error('Failed to mark all notifications as read:', error);
+        captureApiFailure({
+          endpoint: '/api/notifications/read-all',
+          method: 'POST',
+          status: 0,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        // Rollback on batch API failure
+        setNotifications(originalNotifications);
+        setHasBeenClicked(false);
       }
-    } catch (error) {
-      console.error('Failed to mark all as read:', error);
-      // Rollback to original state on failure
-      setNotifications(originalNotifications);
-      setHasBeenClicked(false);
+    } else if (onMarkRead) {
+      // Fallback with sequential processing to prevent concurrent API flooding
+      // and perform granular error recovery per item!
+      try {
+        for (const id of unreadIds) {
+          try {
+            await onMarkRead(id);
+          } catch (error) {
+            console.error(`Failed to mark notification ${id} as read:`, error);
+            captureApiFailure({
+              endpoint: `/api/notifications/${id}/read`,
+              method: 'POST',
+              status: 0,
+              message: error instanceof Error ? error.message : String(error),
+            });
+            // Granular recovery: rollback ONLY this failed notification to unread
+            setNotifications((prev) =>
+              prev.map((item) =>
+                item.id === id ? { ...item, unread: true } : item
+              )
+            );
+            setHasBeenClicked(false); // Restore unread badge
+          }
+        }
+      } catch (error) {
+        console.error(
+          'Unexpected error in fallback mark-all-read loop:',
+          error
+        );
+      }
     }
-  }, [notifications, hasBeenClicked, onMarkRead, onMarkAllRead]);
+  }, [notifications, onMarkRead, onMarkAllRead]);
 
   const handleRetry = React.useCallback(() => {
     setStatus('loading');

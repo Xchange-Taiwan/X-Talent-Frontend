@@ -570,6 +570,73 @@ describe('NotificationBell', () => {
       });
     });
 
+    it('rolls back ONLY the failed notification state while successfully updating others during sequential onMarkRead fallback failure', async () => {
+      // First call succeeds, second fails
+      const onMarkReadMixedMock = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('Individual error'));
+
+      const mixedNotifications: NotificationItem[] = [
+        {
+          id: 'unread-1',
+          type: 'reservation_new',
+          menteeName: '小明',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+        {
+          id: 'unread-2',
+          type: 'reservation_upcoming',
+          mentorName: '王導師',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+      ];
+
+      render(
+        <NotificationBell
+          unreadCount={2}
+          initialStatus="success"
+          initialNotifications={mixedNotifications}
+          onMarkRead={onMarkReadMixedMock}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+
+      // Badge is visible before click
+      expect(screen.getByText('2')).toBeInTheDocument();
+
+      fireEvent.click(button);
+
+      // Verify both are bold
+      const title1 = screen.getByText('您有新的預約');
+      const title2 = screen.getByText('您與 王導師 的預約即將到來');
+      expect(title1).toHaveClass('font-bold');
+      expect(title2).toHaveClass('font-bold');
+
+      // Click Mark all as read button
+      const markAllBtn = screen.getByRole('button', {
+        name: 'Mark all as read',
+      });
+      fireEvent.click(markAllBtn);
+
+      // Optimistically both become font-normal
+      expect(title1).toHaveClass('font-normal');
+      expect(title2).toHaveClass('font-normal');
+
+      // Wait for sequential async fallback execution.
+      // title1 succeeds -> remains font-normal
+      // title2 fails -> rolls back to font-bold, badge restored
+      await waitFor(() => {
+        expect(title1).toHaveClass('font-normal');
+        expect(title1).not.toHaveClass('font-bold');
+        expect(title2).toHaveClass('font-bold');
+        expect(title2).not.toHaveClass('font-normal');
+        expect(screen.getByText('2')).toBeInTheDocument();
+      });
+    });
+
     it('disables "Mark all as read" button when there are no unread notifications', () => {
       const readNotifications: NotificationItem[] = [
         {
