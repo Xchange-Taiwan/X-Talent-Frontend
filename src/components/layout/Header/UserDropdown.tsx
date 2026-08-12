@@ -30,6 +30,7 @@ export const UserDropdown = React.memo(function UserDropdown({
   const closeMenu = React.useCallback(() => setMenuOpen(false), []);
   const {
     userId,
+    isMentor,
     canDeleteAccount,
     name,
     avatarSrc,
@@ -42,12 +43,15 @@ export const UserDropdown = React.memo(function UserDropdown({
     setDeleteDialogOpen,
     handleGoProfile,
     handleShareProfile,
+    handleAsMentor,
     handleMyReservation,
     handleDeleteAccount,
     handleLogout,
   } = useAccountMenu({ user, closeMenu });
 
   const isOnProfile = Boolean(userId) && pathname === profilePath;
+  const isOnMentorReservation =
+    pathname?.startsWith('/reservation/mentor') ?? false;
   const isOnMenteeReservation =
     pathname?.startsWith('/reservation/mentee') ?? false;
 
@@ -124,6 +128,17 @@ export const UserDropdown = React.memo(function UserDropdown({
           <div className="h-px w-full bg-background-bottom" />
 
           <div className="px-2 py-3">
+            <DropdownMenuItem
+              className="px-4 py-3 text-2xl"
+              onClick={handleAsMentor}
+              disabled={!userId}
+              aria-current={
+                isMentor && isOnMentorReservation ? 'page' : undefined
+              }
+            >
+              {isMentor ? '導師預約管理' : '成為導師'}
+            </DropdownMenuItem>
+
             <DropdownMenuItem
               className="px-4 py-3 text-2xl"
               onClick={handleMyReservation}
