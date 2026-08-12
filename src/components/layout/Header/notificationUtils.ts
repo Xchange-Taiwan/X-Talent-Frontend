@@ -93,3 +93,29 @@ export function getNotificationContent(item: NotificationItem) {
       };
   }
 }
+
+/**
+ * Returns the destination URL for a given notification item,
+ * taking into account the user's role (isMentor).
+ */
+export function getNotificationHref(
+  item: NotificationItem,
+  isMentor: boolean
+): string {
+  switch (item.type) {
+    case 'reservation_new':
+      return '/reservation/mentor?tab=pending';
+    case 'reservation_success':
+      return '/reservation/mentee?tab=upcoming';
+    case 'reservation_failed':
+      return '/mentor-pool';
+    case 'reservation_canceled':
+      return isMentor ? '/reservation/mentor?tab=history' : '/mentor-pool';
+    case 'reservation_upcoming':
+      return isMentor
+        ? '/reservation/mentor?tab=upcoming'
+        : '/reservation/mentee?tab=upcoming';
+    default:
+      return '/';
+  }
+}

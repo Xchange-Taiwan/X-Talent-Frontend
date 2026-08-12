@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect } from 'react';
 
 import { ReservationListSkeleton } from '@/app/reservation/skeleton';
 import { ReservationList } from '@/components/reservation/ReservationList';
@@ -116,6 +117,27 @@ export function ReservationDashboardView({
   const upcomingTabValue = isMentee ? 'upcoming-mentee' : 'upcoming-mentor';
   const pendingTabValue = isMentee ? 'pending-mentee' : 'pending-mentor';
 
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const tabParam = searchParams.get('tab');
+  let activeTab = upcomingTabValue;
+  if (tabParam === 'pending') {
+    activeTab = pendingTabValue;
+  } else if (tabParam === 'history') {
+    activeTab = 'history';
+  } else if (tabParam === 'upcoming') {
+    activeTab = upcomingTabValue;
+  }
+
+  // Load history automatically if activeTab starts as history and is not loaded
+  useEffect(() => {
+    if (activeTab === 'history' && !isHistoryLoaded && !isLoadingHistory) {
+      onLoadHistory();
+    }
+  }, [activeTab, isHistoryLoaded, isLoadingHistory, onLoadHistory]);
+
   const triggerClass =
     'group shrink-0 rounded-full border border-background-border px-3 py-1.5 text-sm ' +
     'bg-transparent text-text-primary ' +
@@ -128,6 +150,16 @@ export function ReservationDashboardView({
     if (value === 'history' && !isHistoryLoaded && !isLoadingHistory) {
       onLoadHistory();
     }
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === upcomingTabValue) {
+      params.set('tab', 'upcoming');
+    } else if (value === pendingTabValue) {
+      params.set('tab', 'pending');
+    } else if (value === 'history') {
+      params.set('tab', 'history');
+    }
+    router.replace(`${pathname}?${params.toString()}`);
   };
 
   const title = isMentee ? '預約導師' : '擔任導師';
@@ -143,7 +175,7 @@ export function ReservationDashboardView({
 
         <div className="mx-auto w-full max-w-3xl px-0 sm:px-4 lg:px-6">
           <Tabs
-            defaultValue={upcomingTabValue}
+            value={activeTab}
             className="w-full"
             onValueChange={handleValueChange}
           >

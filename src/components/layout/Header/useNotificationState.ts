@@ -20,6 +20,7 @@ export function useNotificationState({
   onRetry,
   onMarkAllRead,
 }: UseNotificationStateProps) {
+  const [open, setOpen] = React.useState(false);
   const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
   const [status, setStatus] = React.useState(initialStatus);
 
@@ -51,10 +52,15 @@ export function useNotificationState({
     setPrevUnread(unreadCount);
   }
 
-  const handleOpenChange = React.useCallback((open: boolean) => {
-    if (open) {
+  const handleOpenChange = React.useCallback((nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (nextOpen) {
       setHasBeenClicked(true);
     }
+  }, []);
+
+  const closePopover = React.useCallback(() => {
+    setOpen(false);
   }, []);
 
   const handleMarkAllRead = React.useCallback(() => {
@@ -63,6 +69,12 @@ export function useNotificationState({
     );
     onMarkAllRead?.();
   }, [onMarkAllRead]);
+
+  const handleNotificationClick = React.useCallback((id: string) => {
+    setNotifications((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, unread: false } : item))
+    );
+  }, []);
 
   const handleRetry = React.useCallback(async () => {
     setStatus('loading');
@@ -89,6 +101,8 @@ export function useNotificationState({
   const formattedCount = unreadCount > 99 ? '99+' : String(unreadCount);
 
   return {
+    open,
+    closePopover,
     status,
     notifications,
     showBadge,
@@ -96,5 +110,6 @@ export function useNotificationState({
     handleOpenChange,
     handleRetry,
     handleMarkAllRead,
+    handleNotificationClick,
   };
 }

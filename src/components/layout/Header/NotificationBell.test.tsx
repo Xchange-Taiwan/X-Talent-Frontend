@@ -7,6 +7,11 @@ import {
   type NotificationItem,
 } from './notificationUtils';
 
+const mockUseAuthStatus = vi.fn().mockReturnValue({ isMentor: false });
+vi.mock('@/hooks/user/auth/useAuthStatus', () => ({
+  useAuthStatus: () => mockUseAuthStatus(),
+}));
+
 describe('NotificationBell', () => {
   it('renders the bell icon button with title and aria-label', () => {
     render(<NotificationBell unreadCount={5} />);
@@ -371,6 +376,101 @@ describe('NotificationBell', () => {
       });
       expect(result.title).toBe('通知');
       expect(result.body).toBe('您有一則新通知');
+    });
+  });
+
+  describe('Notification card click and navigation', () => {
+    it('renders notification items as links with correct href based on type and role', () => {
+      // Test when user is Mentee (isMentor: false)
+      mockUseAuthStatus.mockReturnValue({ isMentor: false });
+
+      render(<NotificationBell unreadCount={5} initialStatus="success" />);
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      // Check reservation_new href (Mentor page)
+      const newReservationLink = screen.getByText('您有新的預約').closest('a');
+      expect(newReservationLink).toHaveAttribute(
+        'href',
+        '/reservation/mentor?tab=pending'
+      );
+
+      // Check reservation_success href
+      const successLink = screen
+        .getByText('林導師 已接受您的預約')
+        .closest('a');
+      expect(successLink).toHaveAttribute(
+        'href',
+        '/reservation/mentee?tab=upcoming'
+      );
+
+      // Check reservation_failed href
+      const failedLink = screen
+        .getByText('您與 王導師 的預約已被拒絕')
+        .closest('a');
+      expect(failedLink).toHaveAttribute('href', '/mentor-pool');
+
+      // Check reservation_canceled href for Mentee (goes to mentor-pool)
+      const canceledLink = screen
+        .getByText('您與 陳導師 的預約已被取消')
+        .closest('a');
+      expect(canceledLink).toHaveAttribute('href', '/mentor-pool');
+
+      // Check reservation_upcoming href for Mentee (goes to reservation/mentee?tab=upcoming)
+      const upcomingLink = screen
+        .getByText('您與 張導師 的預約即將到來')
+        .closest('a');
+      expect(upcomingLink).toHaveAttribute(
+        'href',
+        '/reservation/mentee?tab=upcoming'
+      );
+    });
+
+    it('renders canceled and upcoming notification hrefs correctly for Mentor', () => {
+      // Test when user is Mentor (isMentor: true)
+      mockUseAuthStatus.mockReturnValue({ isMentor: true });
+
+      render(<NotificationBell unreadCount={5} initialStatus="success" />);
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      // Check reservation_canceled href for Mentor (goes to reservation/mentor?tab=history)
+      const canceledLink = screen
+        .getByText('您與 陳導師 的預約已被取消')
+        .closest('a');
+      expect(canceledLink).toHaveAttribute(
+        'href',
+        '/reservation/mentor?tab=history'
+      );
+
+      // Check reservation_upcoming href for Mentor (goes to reservation/mentor?tab=upcoming)
+      const upcomingLink = screen
+        .getByText('您與 張導師 的預約即將到來')
+        .closest('a');
+      expect(upcomingLink).toHaveAttribute(
+        'href',
+        '/reservation/mentor?tab=upcoming'
+      );
+    });
+
+    it('marks clicked notification as read and closes popover on click', () => {
+      mockUseAuthStatus.mockReturnValue({ isMentor: false });
+
+      render(<NotificationBell unreadCount={5} initialStatus="success" />);
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      // Verify unread count dot exists
+      expect(document.querySelectorAll('.bg-brand-500')).toHaveLength(2);
+
+      // Click the first notification (which is unread)
+      const link = screen.getByText('您有新的預約').closest('a');
+      expect(link).toBeInTheDocument();
+
+      fireEvent.click(link!);
+
+      // Popover should be closed
+      expect(screen.queryByText('通知')).not.toBeInTheDocument();
     });
   });
 });

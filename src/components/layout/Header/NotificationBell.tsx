@@ -1,6 +1,7 @@
 'use client';
 
 import { AlertCircle, Bell } from 'lucide-react';
+import Link from 'next/link';
 import * as React from 'react';
 
 import {
@@ -9,11 +10,13 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuthStatus } from '@/hooks/user/auth/useAuthStatus';
 import { formatRelativeTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
 import {
   getNotificationContent,
+  getNotificationHref,
   type NotificationItem,
 } from './notificationUtils';
 import { useNotificationState } from './useNotificationState';
@@ -57,7 +60,10 @@ export const NotificationBell = React.memo(function NotificationBell({
   onRetry,
   onMarkAllRead,
 }: NotificationBellProps): JSX.Element {
+  const { isMentor } = useAuthStatus();
   const {
+    open,
+    closePopover,
     status,
     notifications,
     showBadge,
@@ -65,6 +71,7 @@ export const NotificationBell = React.memo(function NotificationBell({
     handleOpenChange,
     handleRetry,
     handleMarkAllRead,
+    handleNotificationClick,
   } = useNotificationState({
     unreadCount,
     initialStatus,
@@ -74,7 +81,7 @@ export const NotificationBell = React.memo(function NotificationBell({
   });
 
   return (
-    <Popover onOpenChange={handleOpenChange}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -153,10 +160,16 @@ export const NotificationBell = React.memo(function NotificationBell({
             <div className="flex flex-col divide-y divide-background-border">
               {notifications.map((item) => {
                 const { title, body } = getNotificationContent(item);
+                const href = getNotificationHref(item, isMentor);
                 return (
-                  <div
+                  <Link
                     key={item.id}
-                    className="flex items-start gap-2.5 px-5 py-3 transition-colors [@media(hover:hover)]:hover:bg-background-hover"
+                    href={href}
+                    onClick={() => {
+                      handleNotificationClick(item.id);
+                      closePopover();
+                    }}
+                    className="flex items-start gap-2.5 px-5 py-3 transition-colors hover:no-underline [@media(hover:hover)]:hover:bg-background-hover"
                   >
                     <span className="mt-1.5 flex size-4 shrink-0 items-center justify-center">
                       {item.unread && (
@@ -177,7 +190,7 @@ export const NotificationBell = React.memo(function NotificationBell({
                         {formatRelativeTime(item.createdAt)}
                       </span>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
