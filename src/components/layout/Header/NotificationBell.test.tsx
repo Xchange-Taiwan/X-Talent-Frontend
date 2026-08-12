@@ -1,11 +1,9 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  getNotificationContent,
-  NotificationBell,
-  type NotificationItem,
-} from './NotificationBell';
+import { type NotificationItem } from '@/hooks/useNotificationBell';
+
+import { getNotificationContent, NotificationBell } from './NotificationBell';
 
 describe('NotificationBell', () => {
   it('renders the bell icon button with title and aria-label', () => {
