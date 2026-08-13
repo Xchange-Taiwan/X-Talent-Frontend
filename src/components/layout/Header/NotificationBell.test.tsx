@@ -1029,5 +1029,29 @@ describe('NotificationBell', () => {
         ).not.toBeInTheDocument();
       });
     });
+
+    it('cleans up all global event listeners on unmount to prevent memory leaks', () => {
+      const removeListenerSpy = vi.spyOn(window, 'removeEventListener');
+
+      // Render the component
+      const { unmount } = render(
+        <NotificationBell unreadCount={5} userId="user-123" />
+      );
+
+      // Unmount it
+      unmount();
+
+      // Verify removeEventListener was called for both storage and custom events
+      expect(removeListenerSpy).toHaveBeenCalledWith(
+        'storage',
+        expect.any(Function)
+      );
+      expect(removeListenerSpy).toHaveBeenCalledWith(
+        'notif_seen_updated',
+        expect.any(Function)
+      );
+
+      removeListenerSpy.mockRestore();
+    });
   });
 });

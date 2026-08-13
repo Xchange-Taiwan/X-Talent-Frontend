@@ -105,12 +105,23 @@ export function useNotificationBell({
 
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
 
+  // Helper to read and safely parse value from localStorage
+  const getStoredSeenCount = React.useCallback((key: string): number => {
+    const stored = safeGetStorage(key);
+    const parsed = stored !== null ? Number(stored) : 0;
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }, []);
+
   // Helper to write to localStorage and dispatch custom update event to other instances
   const writeAndNotifySeen = React.useCallback(
     (val: number) => {
       safeSetStorage(storageKey, String(val));
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('notif_seen_updated'));
+        window.dispatchEvent(
+          new CustomEvent('notif_seen_updated', {
+            detail: { storageKey, seenCount: val },
+          })
+        );
       }
     },
     [storageKey]
@@ -126,12 +137,9 @@ export function useNotificationBell({
   }, []);
 
   // Sync seenUnreadCount from localStorage when storageKey (userId) changes or on mount.
-  // We use strict Number.isNaN protection to handle corrupted or invalid data gracefully.
   React.useEffect(() => {
-    const stored = safeGetStorage(storageKey);
-    const parsed = stored !== null ? Number(stored) : 0;
-    setSeenUnreadCount(Number.isNaN(parsed) ? 0 : parsed);
-  }, [storageKey]);
+    setSeenUnreadCount(getStoredSeenCount(storageKey));
+  }, [storageKey, getStoredSeenCount]);
 
   // Keep seenUnreadCount clamped to unreadCount to prevent stale values,
   // but only when we are not in a loading status to avoid accidental cache overwriting during API load.
@@ -144,26 +152,47 @@ export function useNotificationBell({
 
   // Synchronize state across multiple instances (e.g. desktop vs mobile notification bells in Header) and browser tabs
   React.useEffect(() => {
-    const handleSync = () => {
-      const stored = safeGetStorage(storageKey);
-      const parsed = stored !== null ? Number(stored) : 0;
-      const finalCount = Number.isNaN(parsed) ? 0 : parsed;
-      setSeenUnreadCount(finalCount);
+    const handleCustomSync = (e: Event) => {
+      const customEvent = e as CustomEvent<{
+        storageKey: string;
+        seenCount: number;
+      }>;
+      if (customEvent.detail && customEvent.detail.storageKey === storageKey) {
+        const val = customEvent.detail.seenCount;
+        setSeenUnreadCount(val);
+        if (val >= unreadCount) {
+          setHasBeenClicked(true);
+        } else {
+          setHasBeenClicked(false);
+        }
+      }
+    };
 
-      if (finalCount >= unreadCount) {
-        setHasBeenClicked(true);
+    const handleStorageSync = (e: StorageEvent) => {
+      if (e.key === storageKey) {
+        const val = e.newValue !== null ? Number(e.newValue) : 0;
+        const finalCount = Number.isNaN(val) ? 0 : val;
+        setSeenUnreadCount(finalCount);
+        if (finalCount >= unreadCount) {
+          setHasBeenClicked(true);
+        } else {
+          setHasBeenClicked(false);
+        }
       }
     };
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('storage', handleSync);
-      window.addEventListener('notif_seen_updated', handleSync);
+      window.addEventListener('storage', handleStorageSync as EventListener);
+      window.addEventListener('notif_seen_updated', handleCustomSync);
     }
 
     return () => {
       if (typeof window !== 'undefined') {
-        window.removeEventListener('storage', handleSync);
-        window.removeEventListener('notif_seen_updated', handleSync);
+        window.removeEventListener(
+          'storage',
+          handleStorageSync as EventListener
+        );
+        window.removeEventListener('notif_seen_updated', handleCustomSync);
       }
     };
   }, [storageKey, unreadCount]);
