@@ -101,12 +101,11 @@ function parseArgs(argv) {
   return parsed;
 }
 
-// Mirrors e2e/fixtures/auth.setup.ts: the auth Lambda can cold-start, so the
-// first sign-in occasionally times out even though it actually completed. Each
-// retry re-navigates to /auth/signin first and treats an immediate redirect
-// away from it as success, so a slow-but-successful prior attempt doesn't get
-// stuck retrying against a page that's no longer showing the form.
-async function signIn(page, role) {
+// Deliberately separate from signIn(): a missing env var is a plain config
+// error containing no secret (only the var *names*), and must reach the
+// user un-redacted. Keeping this check outside signIn()'s try/catch means
+// it can never get caught up in the credential-redaction path below.
+function resolveCredentials(role) {
   const cred = ROLE_CREDENTIALS[role];
   const email = process.env[cred.email];
   const password = process.env[cred.password];
@@ -115,7 +114,15 @@ async function signIn(page, role) {
       `${cred.email} / ${cred.password} must be set in .env.development.local to capture evidence as "${role}".`
     );
   }
+  return { email, password };
+}
 
+// Mirrors e2e/fixtures/auth.setup.ts: the auth Lambda can cold-start, so the
+// first sign-in occasionally times out even though it actually completed. Each
+// retry re-navigates to /auth/signin first and treats an immediate redirect
+// away from it as success, so a slow-but-successful prior attempt doesn't get
+// stuck retrying against a page that's no longer showing the form.
+async function signIn(page, email, password) {
   const MAX_ATTEMPTS = 3;
   let lastError;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -163,8 +170,9 @@ async function main() {
 
   try {
     if (role !== 'visitor') {
+      const { email, password } = resolveCredentials(role);
       try {
-        await signIn(page, role);
+        await signIn(page, email, password);
       } catch {
         // Report and exit right here instead of re-throwing: a Playwright
         // timeout/action error can echo back the value it was acting on
