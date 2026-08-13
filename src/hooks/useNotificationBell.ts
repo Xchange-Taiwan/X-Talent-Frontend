@@ -52,6 +52,103 @@ async function markReadInBatches(
   return failedIds;
 }
 
+/**
+ * Custom helper hook to manage seen notifications count state, localStorage persistence,
+ * and multi-instance (Desktop/Mobile) / cross-tab synchronization.
+ */
+function usePersistedSeenCount(
+  storageKey: string,
+  unreadCount: number,
+  status: string
+) {
+  // Initialize synchronously to 0 to prevent Next.js SSR Hydration Mismatch.
+  // The state will be populated correctly on mount by the useEffect block below.
+  const [seenUnreadCount, setSeenUnreadCount] = React.useState<number>(0);
+  const [isMounted, setIsMounted] = React.useState(false);
+
+  // Helper to read and safely parse value from localStorage
+  const getStoredSeenCount = React.useCallback((key: string): number => {
+    const stored = safeGetStorage(key);
+    const parsed = stored !== null ? Number(stored) : 0;
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }, []);
+
+  // Helper to write to localStorage and dispatch custom update event to other instances
+  const writeAndNotifySeen = React.useCallback(
+    (val: number) => {
+      safeSetStorage(storageKey, String(val));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('notif_seen_updated', {
+            detail: { storageKey, seenCount: val },
+          })
+        );
+      }
+    },
+    [storageKey]
+  );
+
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Sync seenUnreadCount from localStorage when storageKey (userId) changes or on mount.
+  React.useEffect(() => {
+    setSeenUnreadCount(getStoredSeenCount(storageKey));
+  }, [storageKey, getStoredSeenCount]);
+
+  // Keep seenUnreadCount clamped to unreadCount to prevent stale values,
+  // but only when we are not in a loading status to avoid accidental cache overwriting during API load.
+  React.useEffect(() => {
+    if (status !== 'loading' && seenUnreadCount > unreadCount) {
+      setSeenUnreadCount(unreadCount);
+      writeAndNotifySeen(unreadCount);
+    }
+  }, [unreadCount, seenUnreadCount, writeAndNotifySeen, status]);
+
+  // Synchronize state across multiple instances (e.g. desktop vs mobile notification bells in Header) and browser tabs
+  React.useEffect(() => {
+    const handleCustomSync = (e: Event) => {
+      const customEvent = e as CustomEvent<{
+        storageKey: string;
+        seenCount: number;
+      }>;
+      if (customEvent.detail && customEvent.detail.storageKey === storageKey) {
+        setSeenUnreadCount(customEvent.detail.seenCount);
+      }
+    };
+
+    const handleStorageSync = (e: StorageEvent) => {
+      if (e.key === storageKey) {
+        const val = e.newValue !== null ? Number(e.newValue) : 0;
+        setSeenUnreadCount(Number.isNaN(val) ? 0 : val);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleStorageSync as EventListener);
+      window.addEventListener('notif_seen_updated', handleCustomSync);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(
+          'storage',
+          handleStorageSync as EventListener
+        );
+        window.removeEventListener('notif_seen_updated', handleCustomSync);
+      }
+    };
+  }, [storageKey]);
+
+  return {
+    seenUnreadCount,
+    setSeenUnreadCount,
+    isMounted,
+    writeAndNotifySeen,
+  };
+}
+
 export type NotificationItem = {
   id: string;
   type:
@@ -88,7 +185,6 @@ export function useNotificationBell({
 }: UseNotificationBellProps) {
   const { toast } = useToast();
   const [open, setOpen] = React.useState(false);
-  const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
   const [status, setStatus] = React.useState(initialStatus);
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
     () => initialNotifications ?? defaultNotifications
@@ -98,124 +194,21 @@ export function useNotificationBell({
     ? `notif_seen_unread_count_${userId}`
     : 'notif_seen_unread_count_generic';
 
-  // Initialize synchronously to 0 to prevent Next.js SSR Hydration Mismatch.
-  // The state will be populated correctly on mount by the useEffect block below.
-  const [seenUnreadCount, setSeenUnreadCount] = React.useState<number>(0);
-  const [isMounted, setIsMounted] = React.useState(false);
+  // Delegate persistent seen counts, synchronization, and localStorage lifecycle to usePersistedSeenCount
+  const { seenUnreadCount, setSeenUnreadCount, isMounted, writeAndNotifySeen } =
+    usePersistedSeenCount(storageKey, unreadCount, status);
 
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
-
-  // Helper to read and safely parse value from localStorage
-  const getStoredSeenCount = React.useCallback((key: string): number => {
-    const stored = safeGetStorage(key);
-    const parsed = stored !== null ? Number(stored) : 0;
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }, []);
-
-  // Helper to write to localStorage and dispatch custom update event to other instances
-  const writeAndNotifySeen = React.useCallback(
-    (val: number) => {
-      safeSetStorage(storageKey, String(val));
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('notif_seen_updated', {
-            detail: { storageKey, seenCount: val },
-          })
-        );
-      }
-    },
-    [storageKey]
-  );
-
-  React.useEffect(() => {
-    setIsMounted(true);
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
-    };
-  }, []);
-
-  // Sync seenUnreadCount from localStorage when storageKey (userId) changes or on mount.
-  React.useEffect(() => {
-    setSeenUnreadCount(getStoredSeenCount(storageKey));
-  }, [storageKey, getStoredSeenCount]);
-
-  // Keep seenUnreadCount clamped to unreadCount to prevent stale values,
-  // but only when we are not in a loading status to avoid accidental cache overwriting during API load.
-  React.useEffect(() => {
-    if (status !== 'loading' && seenUnreadCount > unreadCount) {
-      setSeenUnreadCount(unreadCount);
-      writeAndNotifySeen(unreadCount);
-    }
-  }, [unreadCount, seenUnreadCount, writeAndNotifySeen, status]);
-
-  // Synchronize state across multiple instances (e.g. desktop vs mobile notification bells in Header) and browser tabs
-  React.useEffect(() => {
-    const handleCustomSync = (e: Event) => {
-      const customEvent = e as CustomEvent<{
-        storageKey: string;
-        seenCount: number;
-      }>;
-      if (customEvent.detail && customEvent.detail.storageKey === storageKey) {
-        const val = customEvent.detail.seenCount;
-        setSeenUnreadCount(val);
-        if (val >= unreadCount) {
-          setHasBeenClicked(true);
-        } else {
-          setHasBeenClicked(false);
-        }
-      }
-    };
-
-    const handleStorageSync = (e: StorageEvent) => {
-      if (e.key === storageKey) {
-        const val = e.newValue !== null ? Number(e.newValue) : 0;
-        const finalCount = Number.isNaN(val) ? 0 : val;
-        setSeenUnreadCount(finalCount);
-        if (finalCount >= unreadCount) {
-          setHasBeenClicked(true);
-        } else {
-          setHasBeenClicked(false);
-        }
-      }
-    };
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('storage', handleStorageSync as EventListener);
-      window.addEventListener('notif_seen_updated', handleCustomSync);
-    }
-
-    return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener(
-          'storage',
-          handleStorageSync as EventListener
-        );
-        window.removeEventListener('notif_seen_updated', handleCustomSync);
-      }
-    };
-  }, [storageKey, unreadCount]);
-
-  const [prevUnreadCount, setPrevUnreadCount] = React.useState(unreadCount);
-
-  if (unreadCount !== prevUnreadCount) {
-    setPrevUnreadCount(unreadCount);
-    if (unreadCount > prevUnreadCount) {
-      setHasBeenClicked(false);
-    }
-  }
 
   const handleOpenChange = React.useCallback(
     (nextOpen: boolean) => {
       setOpen(nextOpen);
       if (nextOpen) {
-        setHasBeenClicked(true);
         setSeenUnreadCount(unreadCount);
         writeAndNotifySeen(unreadCount);
       }
     },
-    [unreadCount, writeAndNotifySeen]
+    [unreadCount, setSeenUnreadCount, writeAndNotifySeen]
   );
 
   const closePopover = React.useCallback(() => {
@@ -264,7 +257,6 @@ export function useNotificationBell({
           idSet.has(item.id) ? { ...item, unread: true } : item
         )
       );
-      setHasBeenClicked(false);
       setSeenUnreadCount(0);
       writeAndNotifySeen(0);
     };
@@ -275,7 +267,6 @@ export function useNotificationBell({
     // real-time push) doesn't get marked read in the UI without ever
     // being sent to the server.
     const unreadIdSet = new Set(unreadIds);
-    setHasBeenClicked(true);
     setNotifications((prev) =>
       prev.map((item) =>
         unreadIdSet.has(item.id) ? { ...item, unread: false } : item
@@ -311,7 +302,14 @@ export function useNotificationBell({
         });
       }
     }
-  }, [notifications, onMarkRead, onMarkAllRead, toast, writeAndNotifySeen]);
+  }, [
+    notifications,
+    onMarkRead,
+    onMarkAllRead,
+    toast,
+    setSeenUnreadCount,
+    writeAndNotifySeen,
+  ]);
 
   const handleRetry = React.useCallback(() => {
     setStatus('loading');
@@ -322,14 +320,15 @@ export function useNotificationBell({
     timerRef.current = setTimeout(() => {
       const loaded = initialNotifications ?? defaultNotifications;
       setNotifications(
-        hasBeenClicked ? loaded.map((n) => ({ ...n, unread: false })) : loaded
+        seenUnreadCount > 0
+          ? loaded.map((n) => ({ ...n, unread: false }))
+          : loaded
       );
       setStatus('success');
     }, 1000);
-  }, [initialNotifications, defaultNotifications, hasBeenClicked]);
+  }, [initialNotifications, defaultNotifications, seenUnreadCount]);
 
-  const showBadge =
-    isMounted && !hasBeenClicked && unreadCount > seenUnreadCount;
+  const showBadge = isMounted && unreadCount > seenUnreadCount;
   const formattedCount = unreadCount > 99 ? '99+' : String(unreadCount);
   const hasUnread = notifications.some((item) => item.unread);
 
