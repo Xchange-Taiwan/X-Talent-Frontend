@@ -93,6 +93,83 @@ export function getNotificationContent(item: NotificationItem) {
   }
 }
 
+type NotificationListProps = {
+  notifications: NotificationItem[];
+  scrollRefCallback: React.RefCallback<HTMLDivElement>;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  onItemClick: (id: string) => void;
+  onNavigate: () => void;
+};
+
+/**
+ * Memoized so scroll-driven thumb position updates in the parent don't
+ * force this list (and its per-item `getNotificationContent` /
+ * `getNotificationHref` calls) to re-render on every frame.
+ */
+const NotificationList = React.memo(function NotificationList({
+  notifications,
+  scrollRefCallback,
+  onMouseEnter,
+  onMouseLeave,
+  onItemClick,
+  onNavigate,
+}: NotificationListProps) {
+  return (
+    <div
+      ref={scrollRefCallback}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      className="flex max-h-[360px] [scrollbar-width:none] flex-col overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+    >
+      <div className="flex flex-col divide-y divide-background-border">
+        {notifications.map((item) => {
+          const { title, body } = getNotificationContent(item);
+          const href = getNotificationHref(item);
+          return (
+            <Link
+              key={item.id}
+              href={href}
+              onClick={() => {
+                onItemClick(item.id);
+                onNavigate();
+              }}
+              className="flex items-start gap-2.5 px-5 py-3 transition-colors hover:no-underline [@media(hover:hover)]:hover:bg-background-hover"
+            >
+              <span className="mt-1.5 flex size-4 shrink-0 items-center justify-center">
+                {item.unread && (
+                  <span
+                    className="size-2 rounded-full bg-brand-500"
+                    aria-hidden="true"
+                  />
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p
+                  className={cn(
+                    'mb-1 text-sm leading-tight break-words',
+                    item.unread
+                      ? 'font-bold text-text-primary'
+                      : 'font-normal text-text-secondary'
+                  )}
+                >
+                  {title}
+                </p>
+                <p className="mb-1.5 text-xs leading-normal break-words text-text-secondary">
+                  {body}
+                </p>
+                <span className="text-11 leading-none text-text-tertiary">
+                  {formatRelativeTime(item.createdAt)}
+                </span>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 export const NotificationBell = React.memo(function NotificationBell({
   unreadCount = 5,
   className,
@@ -211,57 +288,14 @@ export const NotificationBell = React.memo(function NotificationBell({
             )}
 
             {status === 'success' && notifications.length > 0 && (
-              <div
-                ref={scrollThumbHandlers.scrollRefCallback}
+              <NotificationList
+                notifications={notifications}
+                scrollRefCallback={scrollThumbHandlers.scrollRefCallback}
                 onMouseEnter={scrollThumbHandlers.onMouseEnter}
                 onMouseLeave={scrollThumbHandlers.onMouseLeave}
-                className="flex max-h-[360px] [scrollbar-width:none] flex-col overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-              >
-                <div className="flex flex-col divide-y divide-background-border">
-                  {notifications.map((item) => {
-                    const { title, body } = getNotificationContent(item);
-                    const href = getNotificationHref(item);
-                    return (
-                      <Link
-                        key={item.id}
-                        href={href}
-                        onClick={() => {
-                          handleNotificationClick(item.id);
-                          closePopover();
-                        }}
-                        className="flex items-start gap-2.5 px-5 py-3 transition-colors hover:no-underline [@media(hover:hover)]:hover:bg-background-hover"
-                      >
-                        <span className="mt-1.5 flex size-4 shrink-0 items-center justify-center">
-                          {item.unread && (
-                            <span
-                              className="size-2 rounded-full bg-brand-500"
-                              aria-hidden="true"
-                            />
-                          )}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p
-                            className={cn(
-                              'mb-1 text-sm leading-tight break-words',
-                              item.unread
-                                ? 'font-bold text-text-primary'
-                                : 'font-normal text-text-secondary'
-                            )}
-                          >
-                            {title}
-                          </p>
-                          <p className="mb-1.5 text-xs leading-normal break-words text-text-secondary">
-                            {body}
-                          </p>
-                          <span className="text-11 leading-none text-text-tertiary">
-                            {formatRelativeTime(item.createdAt)}
-                          </span>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
+                onItemClick={handleNotificationClick}
+                onNavigate={closePopover}
+              />
             )}
 
             {scrollThumb.visible && (

@@ -157,9 +157,10 @@ export function useNotificationBell({
     // Rolls back only the affected items via functional state update (to
     // prevent data loss) and restores the unread badge.
     const rollbackNotifications = (ids: string[]) => {
+      const idSet = new Set(ids);
       setNotifications((prev) =>
         prev.map((item) =>
-          ids.includes(item.id) ? { ...item, unread: true } : item
+          idSet.has(item.id) ? { ...item, unread: true } : item
         )
       );
       setHasBeenClicked(false);
@@ -170,10 +171,11 @@ export function useNotificationBell({
     // arrives between the snapshot above and this update (e.g. via a
     // real-time push) doesn't get marked read in the UI without ever
     // being sent to the server.
+    const unreadIdSet = new Set(unreadIds);
     setHasBeenClicked(true);
     setNotifications((prev) =>
       prev.map((item) =>
-        unreadIds.includes(item.id) ? { ...item, unread: false } : item
+        unreadIdSet.has(item.id) ? { ...item, unread: false } : item
       )
     );
 
