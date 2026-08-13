@@ -1,13 +1,35 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { fromAny } from '@total-typescript/shoehorn';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as useNotificationBellModule from '@/hooks/useNotificationBell';
 import { type NotificationItem } from '@/hooks/useNotificationBell';
+import { captureFlowFailure } from '@/lib/monitoring';
+import { mockToast } from '@/test/mocks/useToast';
 
 import { getNotificationContent, NotificationBell } from './NotificationBell';
 
+vi.mock('@/components/ui/use-toast', async () => {
+  const { useToastMockFactory } = await import('@/test/mocks/useToast');
+  return useToastMockFactory();
+});
+
+vi.mock('@/lib/monitoring', () => ({
+  captureFlowFailure: vi.fn(),
+}));
+
 describe('NotificationBell', () => {
+  beforeEach(() => {
+    mockToast.mockClear();
+    vi.mocked(captureFlowFailure).mockClear();
+  });
+
   it('renders the bell icon button with title and aria-label', () => {
     render(<NotificationBell unreadCount={5} />);
     const button = screen.getByRole('button', { name: '開啟通知選單' });
@@ -47,7 +69,8 @@ describe('NotificationBell', () => {
       .getByText('尚無新通知')
       .closest('[class*="max-w-"]');
     expect(popoverContent).toBeInTheDocument();
-    expect(popoverContent).toHaveClass('max-w-[calc(100vw-32px)]');
+    expect(popoverContent).toHaveClass('max-w-[min(300px,calc(100vw-32px))]');
+    expect(popoverContent).toHaveClass('lg:max-w-[calc(100vw-32px)]');
 
     // Badge is hidden once clicked/opened
     expect(screen.queryByText('5')).not.toBeInTheDocument();
@@ -153,9 +176,11 @@ describe('NotificationBell', () => {
           ],
           showBadge: false,
           formattedCount: '1',
+          hasUnread: true,
           handleOpenChange: vi.fn(),
           handleRetry: vi.fn(),
           handleNotificationClick: vi.fn(),
+          handleMarkAllAsRead: vi.fn(),
         });
 
       render(<NotificationBell unreadCount={1} initialStatus="success" />);
@@ -384,10 +409,66 @@ describe('NotificationBell', () => {
       // Popover should be closed
       expect(screen.queryByText('通知')).not.toBeInTheDocument();
     });
+
+    it('rolls back an individually clicked notification to unread and shows an error toast when onMarkRead fails', async () => {
+      const onMarkReadErrorMock = vi
+        .fn()
+        .mockRejectedValue(new Error('Network error'));
+      const mixedNotifications: NotificationItem[] = [
+        {
+          id: 'unread-1',
+          type: 'reservation_new',
+          menteeName: '小明',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+      ];
+
+      render(
+        <NotificationBell
+          unreadCount={1}
+          initialStatus="success"
+          initialNotifications={mixedNotifications}
+          onMarkRead={onMarkReadErrorMock}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      const link = screen.getByText('您有新的預約').closest('a');
+      fireEvent.click(link!);
+
+      await waitFor(() => {
+        expect(onMarkReadErrorMock).toHaveBeenCalledWith('unread-1');
+      });
+
+      // Reopen the popover (it closes on click) to inspect the rolled-back state
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        const rolledBackTitle = screen.getByText('您有新的預約');
+        expect(rolledBackTitle).toHaveClass('font-bold');
+      });
+
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          description: '無法將通知標示為已讀，請稍後再試',
+        })
+      );
+
+      expect(captureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'notification_mark_all_read',
+          step: 'mark_read_click:unread-1',
+          message: 'Network error',
+        })
+      );
+    });
   });
 
   describe('Notification Read Syncing behavior', () => {
-    it('marks all notifications as read and clears unread badge when the dropdown opens', () => {
+    it('clears unread badge when the dropdown opens, while keeping notifications unread', () => {
       render(<NotificationBell unreadCount={5} initialStatus="success" />);
       const button = screen.getByRole('button', { name: '開啟通知選單' });
 
@@ -400,9 +481,337 @@ describe('NotificationBell', () => {
       // Badge should be hidden now
       expect(screen.queryByText('5')).not.toBeInTheDocument();
 
-      // Every notification item in the dropdown should have its unread red dot removed
-      const unreadDots = document.querySelectorAll('.bg-status-error-default');
-      expect(unreadDots.length).toBe(0);
+      // Notifications in the dropdown list should still be unread (bold titles)
+      const unreadTitle = screen.getByText('您有新的預約');
+      expect(unreadTitle).toHaveClass('font-bold');
+    });
+
+    it('marks all notifications as read when "Mark all as read" is clicked and calls onMarkAllRead exactly for unread items', async () => {
+      const onMarkAllReadMock = vi.fn();
+      const mixedNotifications: NotificationItem[] = [
+        {
+          id: 'unread-1',
+          type: 'reservation_new',
+          menteeName: '小明',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+        {
+          id: 'read-2',
+          type: 'reservation_success',
+          mentorName: '林導師',
+          createdAt: new Date().toISOString(),
+          unread: false,
+        },
+      ];
+
+      render(
+        <NotificationBell
+          unreadCount={1}
+          initialStatus="success"
+          initialNotifications={mixedNotifications}
+          onMarkAllRead={onMarkAllReadMock}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      // Verify unread notification has bold font
+      const unreadTitle = screen.getByText('您有新的預約');
+      expect(unreadTitle).toHaveClass('font-bold');
+
+      // Verify read notification has normal font
+      const readTitle = screen.getByText('林導師 已接受您的預約');
+      expect(readTitle).toHaveClass('font-normal');
+
+      // Find the Mark all as read button
+      const markAllBtn = screen.getByRole('button', {
+        name: 'Mark all as read',
+      });
+      expect(markAllBtn).toBeInTheDocument();
+
+      // Click it
+      fireEvent.click(markAllBtn);
+
+      // Verify that the unread notification title style changes to normal (read)
+      await waitFor(() => {
+        expect(unreadTitle).toHaveClass('font-normal');
+        expect(unreadTitle).not.toHaveClass('font-bold');
+      });
+
+      // Verify that onMarkAllRead was called EXACTLY once with the array of unread IDs
+      expect(onMarkAllReadMock).toHaveBeenCalledTimes(1);
+      expect(onMarkAllReadMock).toHaveBeenCalledWith(['unread-1']);
+    });
+
+    it('successfully falls back to calling onMarkRead individually for unread notifications when onMarkAllRead is not provided', async () => {
+      const onMarkReadMock = vi.fn();
+      const mixedNotifications: NotificationItem[] = [
+        {
+          id: 'unread-1',
+          type: 'reservation_new',
+          menteeName: '小明',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+        {
+          id: 'unread-2',
+          type: 'reservation_upcoming',
+          mentorName: '王導師',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+        {
+          id: 'read-3',
+          type: 'reservation_success',
+          mentorName: '林導師',
+          createdAt: new Date().toISOString(),
+          unread: false,
+        },
+      ];
+
+      render(
+        <NotificationBell
+          unreadCount={2}
+          initialStatus="success"
+          initialNotifications={mixedNotifications}
+          onMarkRead={onMarkReadMock}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      // Find the Mark all as read button and click it
+      const markAllBtn = screen.getByRole('button', {
+        name: 'Mark all as read',
+      });
+      fireEvent.click(markAllBtn);
+
+      // Verify that onMarkRead was called EXACTLY twice (for unread-1 and unread-2, but NOT for read-3)
+      await waitFor(() => {
+        expect(onMarkReadMock).toHaveBeenCalledTimes(2);
+      });
+      expect(onMarkReadMock).toHaveBeenCalledWith('unread-1');
+      expect(onMarkReadMock).toHaveBeenCalledWith('unread-2');
+    });
+
+    it('rolls back state to original unread notifications and restores the unread badge when onMarkAllRead API call fails', async () => {
+      const onMarkAllReadErrorMock = vi
+        .fn()
+        .mockRejectedValue(new Error('Network error'));
+      const mixedNotifications: NotificationItem[] = [
+        {
+          id: 'unread-1',
+          type: 'reservation_new',
+          menteeName: '小明',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+      ];
+
+      render(
+        <NotificationBell
+          unreadCount={1}
+          initialStatus="success"
+          initialNotifications={mixedNotifications}
+          onMarkAllRead={onMarkAllReadErrorMock}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+
+      // Badge is visible
+      expect(screen.getByText('1')).toBeInTheDocument();
+
+      fireEvent.click(button);
+
+      // Verify unread notification has bold font
+      const unreadTitle = screen.getByText('您有新的預約');
+      expect(unreadTitle).toHaveClass('font-bold');
+
+      // Find the Mark all as read button and click it
+      const markAllBtn = screen.getByRole('button', {
+        name: 'Mark all as read',
+      });
+      fireEvent.click(markAllBtn);
+
+      // Check that it first optimistically marks as read (becomes font-normal)
+      expect(unreadTitle).toHaveClass('font-normal');
+
+      // Verify that it rolled back to unread state (restores font-bold) and restores badge
+      await waitFor(() => {
+        expect(unreadTitle).toHaveClass('font-bold');
+        expect(screen.getByText('1')).toBeInTheDocument();
+      });
+
+      // Verify the user is shown an error toast instead of a silent failure
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          description: '無法將全部通知標示為已讀，請稍後再試',
+        })
+      );
+
+      expect(captureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'notification_mark_all_read',
+          step: 'mark_all_read',
+          message: 'Network error',
+        })
+      );
+    });
+
+    it('rolls back ONLY the failed notification state while successfully updating others during sequential onMarkRead fallback failure', async () => {
+      // First call succeeds, second fails
+      const onMarkReadMixedMock = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('Individual error'));
+
+      const mixedNotifications: NotificationItem[] = [
+        {
+          id: 'unread-1',
+          type: 'reservation_new',
+          menteeName: '小明',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+        {
+          id: 'unread-2',
+          type: 'reservation_upcoming',
+          mentorName: '王導師',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+      ];
+
+      render(
+        <NotificationBell
+          unreadCount={2}
+          initialStatus="success"
+          initialNotifications={mixedNotifications}
+          onMarkRead={onMarkReadMixedMock}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+
+      // Badge is visible before click
+      expect(screen.getByText('2')).toBeInTheDocument();
+
+      fireEvent.click(button);
+
+      // Verify both are bold
+      const title1 = screen.getByText('您有新的預約');
+      const title2 = screen.getByText('您與 王導師 的預約即將到來');
+      expect(title1).toHaveClass('font-bold');
+      expect(title2).toHaveClass('font-bold');
+
+      // Click Mark all as read button
+      const markAllBtn = screen.getByRole('button', {
+        name: 'Mark all as read',
+      });
+      fireEvent.click(markAllBtn);
+
+      // Optimistically both become font-normal
+      expect(title1).toHaveClass('font-normal');
+      expect(title2).toHaveClass('font-normal');
+
+      // Wait for sequential async fallback execution.
+      // title1 succeeds -> remains font-normal
+      // title2 fails -> rolls back to font-bold, badge restored
+      await waitFor(() => {
+        expect(title1).toHaveClass('font-normal');
+        expect(title1).not.toHaveClass('font-bold');
+        expect(title2).toHaveClass('font-bold');
+        expect(title2).not.toHaveClass('font-normal');
+        expect(screen.getByText('2')).toBeInTheDocument();
+      });
+
+      // Verify the user is shown a "partial failure" toast, distinct from a
+      // total failure, since only one of the two items actually failed
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          description: '部分通知標示為已讀失敗，請稍後再試',
+        })
+      );
+
+      expect(captureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'notification_mark_all_read',
+          step: 'mark_read_fallback:unread-2',
+          message: 'Individual error',
+        })
+      );
+    });
+
+    it('processes onMarkRead fallback calls in batches of 5 when there are more unread notifications than the batch size', async () => {
+      const onMarkReadMock = vi.fn().mockResolvedValue(undefined);
+      const manyUnreadNotifications: NotificationItem[] = Array.from(
+        { length: 6 },
+        (_, i) => ({
+          id: `unread-${i}`,
+          type: 'reservation_new',
+          menteeName: '小明',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        })
+      );
+
+      render(
+        <NotificationBell
+          unreadCount={6}
+          initialStatus="success"
+          initialNotifications={manyUnreadNotifications}
+          onMarkRead={onMarkReadMock}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      const markAllBtn = screen.getByRole('button', {
+        name: 'Mark all as read',
+      });
+      fireEvent.click(markAllBtn);
+
+      // All 6 unread items should eventually be marked read across two
+      // batches (5 + 1), proving the for-loop in markReadInBatches runs
+      // more than once instead of firing all 6 requests concurrently.
+      await waitFor(() => {
+        expect(onMarkReadMock).toHaveBeenCalledTimes(6);
+      });
+      manyUnreadNotifications.forEach((item) => {
+        expect(onMarkReadMock).toHaveBeenCalledWith(item.id);
+      });
+
+      // A fully successful run should not surface any error toast
+      expect(mockToast).not.toHaveBeenCalled();
+    });
+
+    it('disables "Mark all as read" button when there are no unread notifications', () => {
+      const readNotifications: NotificationItem[] = [
+        {
+          id: 'read-1',
+          type: 'reservation_new',
+          createdAt: new Date().toISOString(),
+          unread: false,
+        },
+      ];
+      render(
+        <NotificationBell
+          unreadCount={0}
+          initialStatus="success"
+          initialNotifications={readNotifications}
+        />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      // Find the Mark all as read button
+      const markAllBtn = screen.getByRole('button', {
+        name: 'Mark all as read',
+      });
+      expect(markAllBtn).toBeInTheDocument();
+      expect(markAllBtn).toBeDisabled();
     });
 
     it('resets hasBeenClicked and displays the unread badge again when unreadCount increases', () => {

@@ -6,6 +6,7 @@ import * as React from 'react';
 
 import {
   Popover,
+  PopoverArrow,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
@@ -14,6 +15,7 @@ import {
   type NotificationItem,
   useNotificationBell,
 } from '@/hooks/useNotificationBell';
+import { useScrollThumb } from '@/hooks/useScrollThumb';
 import { formatRelativeTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
@@ -43,6 +45,10 @@ export type NotificationBellProps = {
    * Optional callback fired when a single notification card is clicked and marked as read.
    */
   onMarkRead?: (id: string) => void | Promise<void>;
+  /**
+   * Optional callback fired when all notifications are marked as read at once.
+   */
+  onMarkAllRead?: (ids: string[]) => void | Promise<void>;
 };
 
 /**
@@ -87,12 +93,90 @@ export function getNotificationContent(item: NotificationItem) {
   }
 }
 
+type NotificationListProps = {
+  notifications: NotificationItem[];
+  scrollRefCallback: React.RefCallback<HTMLDivElement>;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  onItemClick: (id: string) => void;
+  onNavigate: () => void;
+};
+
+/**
+ * Memoized so scroll-driven thumb position updates in the parent don't
+ * force this list (and its per-item `getNotificationContent` /
+ * `getNotificationHref` calls) to re-render on every frame.
+ */
+const NotificationList = React.memo(function NotificationList({
+  notifications,
+  scrollRefCallback,
+  onMouseEnter,
+  onMouseLeave,
+  onItemClick,
+  onNavigate,
+}: NotificationListProps) {
+  return (
+    <div
+      ref={scrollRefCallback}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      className="flex max-h-[360px] [scrollbar-width:none] flex-col overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+    >
+      <div className="flex flex-col divide-y divide-background-border">
+        {notifications.map((item) => {
+          const { title, body } = getNotificationContent(item);
+          const href = getNotificationHref(item);
+          return (
+            <Link
+              key={item.id}
+              href={href}
+              onClick={() => {
+                onItemClick(item.id);
+                onNavigate();
+              }}
+              className="flex items-start gap-2.5 px-5 py-3 transition-colors hover:no-underline [@media(hover:hover)]:hover:bg-background-hover"
+            >
+              <span className="mt-1.5 flex size-4 shrink-0 items-center justify-center">
+                {item.unread && (
+                  <span
+                    className="size-2 rounded-full bg-brand-500"
+                    aria-hidden="true"
+                  />
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p
+                  className={cn(
+                    'mb-1 text-sm leading-tight break-words',
+                    item.unread
+                      ? 'font-bold text-text-primary'
+                      : 'font-normal text-text-secondary'
+                  )}
+                >
+                  {title}
+                </p>
+                <p className="mb-1.5 text-xs leading-normal break-words text-text-secondary">
+                  {body}
+                </p>
+                <span className="text-11 leading-none text-text-tertiary">
+                  {formatRelativeTime(item.createdAt)}
+                </span>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 export const NotificationBell = React.memo(function NotificationBell({
   unreadCount = 5,
   className,
   initialStatus = 'success',
   initialNotifications,
   onMarkRead,
+  onMarkAllRead,
 }: NotificationBellProps): JSX.Element {
   const {
     open,
@@ -101,16 +185,21 @@ export const NotificationBell = React.memo(function NotificationBell({
     notifications,
     showBadge,
     formattedCount,
+    hasUnread,
     handleOpenChange,
     handleRetry,
     handleNotificationClick,
+    handleMarkAllAsRead,
   } = useNotificationBell({
     unreadCount,
     initialStatus,
     initialNotifications,
     defaultNotifications: defaultMockNotifications,
     onMarkRead,
+    onMarkAllRead,
   });
+
+  const [scrollThumbHandlers, scrollThumb] = useScrollThumb();
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -140,101 +229,100 @@ export const NotificationBell = React.memo(function NotificationBell({
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-[360px] max-w-[calc(100vw-32px)] overflow-hidden rounded-2xl border border-background-border bg-background-white px-0 py-5 shadow-xl outline-none"
+        className="w-[360px] max-w-[min(300px,calc(100vw-32px))] rounded-2xl border border-background-border bg-background-white p-0 shadow-xl outline-none lg:max-w-[calc(100vw-32px)]"
       >
-        <div className="flex items-center justify-between border-b border-background-border px-5 pb-3">
-          <span className="text-lg font-bold text-text-primary">通知</span>
-        </div>
-
-        {status === 'loading' && (
-          <div className="flex flex-col divide-y divide-background-border px-5">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="flex items-start gap-2.5 py-3">
-                <div className="mt-1.5 size-4 shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-4 w-3/4 rounded" />
-                  <Skeleton className="h-3 w-5/6 rounded" />
-                  <Skeleton className="h-3 w-12 rounded" />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {status === 'error' && (
-          <div className="flex flex-col items-center justify-center px-5 py-6 text-center">
-            <AlertCircle className="mb-2 size-8 text-status-error-default" />
-            <p className="mb-3 text-sm font-medium text-text-secondary">
-              載入失敗，請重試
-            </p>
-            <button
-              type="button"
-              onClick={handleRetry}
-              className="inline-flex h-8 items-center justify-center rounded-lg border border-background-border px-3 text-xs font-medium text-text-primary transition-all hover:bg-background-hover"
-            >
-              重新嘗試
-            </button>
-          </div>
-        )}
-
-        {(status === 'empty' ||
-          (status === 'success' && notifications.length === 0)) && (
-          <div className="flex flex-col items-center justify-center px-5 py-8 text-center">
-            <Bell className="mb-3 size-10 text-text-tertiary" />
-            <p className="text-sm font-medium text-text-secondary">
-              尚無新通知
-            </p>
-          </div>
-        )}
-
-        {status === 'success' && notifications.length > 0 && (
-          <div className="flex max-h-[360px] [scrollbar-width:none] flex-col overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex flex-col divide-y divide-background-border">
-              {notifications.map((item) => {
-                const { title, body } = getNotificationContent(item);
-                const href = getNotificationHref(item);
-                return (
-                  <Link
-                    key={item.id}
-                    href={href}
-                    onClick={() => {
-                      handleNotificationClick(item.id);
-                      closePopover();
-                    }}
-                    className="flex items-start gap-2.5 px-5 py-3 transition-colors hover:no-underline [@media(hover:hover)]:hover:bg-background-hover"
-                  >
-                    <span className="mt-1.5 flex size-4 shrink-0 items-center justify-center">
-                      {item.unread && (
-                        <span
-                          className="size-2 rounded-full bg-brand-500"
-                          aria-hidden="true"
-                        />
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={cn(
-                          'mb-1 text-sm leading-tight break-words',
-                          item.unread
-                            ? 'font-bold text-text-primary'
-                            : 'font-normal text-text-secondary'
-                        )}
-                      >
-                        {title}
-                      </p>
-                      <p className="mb-1.5 text-xs leading-normal break-words text-text-secondary">
-                        {body}
-                      </p>
-                      <span className="text-11 leading-none text-text-tertiary">
-                        {formatRelativeTime(item.createdAt)}
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
+        {/* Content may be shifted away from the trigger by collision
+            avoidance on narrow viewports; the arrow keeps a visual link
+            to the bell regardless of exact horizontal alignment. */}
+        <PopoverArrow
+          className="fill-background-white stroke-background-border"
+          strokeWidth={1}
+          width={16}
+          height={8}
+        />
+        <div className="overflow-hidden rounded-2xl py-5">
+          <div ref={scrollThumbHandlers.trackRefCallback} className="relative">
+            <div className="flex items-center justify-between px-5 pb-3">
+              <span className="text-lg font-bold text-text-primary">通知</span>
             </div>
+
+            {status === 'loading' && (
+              <div className="flex flex-col divide-y divide-background-border px-5">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-start gap-2.5 py-3">
+                    <div className="mt-1.5 size-4 shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-3/4 rounded" />
+                      <Skeleton className="h-3 w-5/6 rounded" />
+                      <Skeleton className="h-3 w-12 rounded" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {status === 'error' && (
+              <div className="flex flex-col items-center justify-center px-5 py-6 text-center">
+                <AlertCircle className="mb-2 size-8 text-status-error-default" />
+                <p className="mb-3 text-sm font-medium text-text-secondary">
+                  載入失敗，請重試
+                </p>
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  className="inline-flex h-8 items-center justify-center rounded-lg border border-background-border px-3 text-xs font-medium text-text-primary transition-all hover:bg-background-hover"
+                >
+                  重新嘗試
+                </button>
+              </div>
+            )}
+
+            {(status === 'empty' ||
+              (status === 'success' && notifications.length === 0)) && (
+              <div className="flex flex-col items-center justify-center px-5 py-8 text-center">
+                <Bell className="mb-3 size-10 text-text-tertiary" />
+                <p className="text-sm font-medium text-text-secondary">
+                  尚無新通知
+                </p>
+              </div>
+            )}
+
+            {status === 'success' && notifications.length > 0 && (
+              <NotificationList
+                notifications={notifications}
+                scrollRefCallback={scrollThumbHandlers.scrollRefCallback}
+                onMouseEnter={scrollThumbHandlers.onMouseEnter}
+                onMouseLeave={scrollThumbHandlers.onMouseLeave}
+                onItemClick={handleNotificationClick}
+                onNavigate={closePopover}
+              />
+            )}
+
+            {scrollThumb.visible && (
+              <div
+                aria-hidden="true"
+                className={cn(
+                  'pointer-events-none absolute right-0.5 w-1.5 rounded-full bg-background-border transition-opacity duration-200',
+                  scrollThumb.active ? 'opacity-100' : 'opacity-0'
+                )}
+                style={{ top: scrollThumb.top, height: scrollThumb.height }}
+              />
+            )}
           </div>
-        )}
+
+          {status === 'success' && notifications.length > 0 && (
+            <div className="mt-3 flex items-center justify-start border-t border-background-border px-5 pt-3">
+              <button
+                type="button"
+                onClick={handleMarkAllAsRead}
+                disabled={!hasUnread}
+                className="text-xs font-semibold text-brand-500 transition-colors hover:text-brand-600 hover:underline focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:no-underline"
+              >
+                Mark all as read
+              </button>
+            </div>
+          )}
+        </div>
       </PopoverContent>
     </Popover>
   );

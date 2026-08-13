@@ -47,4 +47,11 @@ const PopoverContent = React.forwardRef<
 ));
 PopoverContent.displayName = PopoverPrimitive.Content.displayName;
 
-export { Popover, PopoverContent, PopoverTrigger };
+/**
+ * PopoverArrow 指向觸發元件的小箭頭，作為 PopoverContent 的子元件放置。
+ *
+ * 當內容因避免碰撞（collision avoidance）而偏離觸發元件時，箭頭能維持視覺上的連結。
+ */
+const PopoverArrow = PopoverPrimitive.Arrow;
+
+export { Popover, PopoverArrow, PopoverContent, PopoverTrigger };
