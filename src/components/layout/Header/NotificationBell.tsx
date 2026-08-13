@@ -23,6 +23,10 @@ import { getNotificationHref } from './notificationUtils';
 
 export type NotificationBellProps = {
   /**
+   * Optional user ID for per-user persistent tracking in localStorage.
+   */
+  userId?: string;
+  /**
    * The mock count of unread notifications.
    * @default 5
    */
@@ -170,6 +174,7 @@ const NotificationList = React.memo(function NotificationList({
 });
 
 export const NotificationBell = React.memo(function NotificationBell({
+  userId,
   unreadCount = 5,
   className,
   initialStatus = 'success',
@@ -191,6 +196,7 @@ export const NotificationBell = React.memo(function NotificationBell({
     handleMarkAllAsRead,
   } = useNotificationBell({
     unreadCount,
+    userId,
     initialStatus,
     initialNotifications,
     defaultNotifications: defaultMockNotifications,

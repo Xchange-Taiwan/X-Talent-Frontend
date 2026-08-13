@@ -1,6 +1,10 @@
 import * as React from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
+import {
+  NotificationStatus,
+  usePersistedSeenCount,
+} from '@/hooks/usePersistedSeenCount';
 import { captureFlowFailure } from '@/lib/monitoring';
 
 const MARK_ALL_READ_BATCH_SIZE = 5;
@@ -68,7 +72,8 @@ export type NotificationItem = {
 
 export type UseNotificationBellProps = {
   unreadCount: number;
-  initialStatus: 'loading' | 'error' | 'empty' | 'success';
+  userId?: string;
+  initialStatus: NotificationStatus;
   initialNotifications?: NotificationItem[];
   defaultNotifications?: NotificationItem[];
   onMarkRead?: (id: string) => void | Promise<void>;
@@ -77,6 +82,7 @@ export type UseNotificationBellProps = {
 
 export function useNotificationBell({
   unreadCount,
+  userId,
   initialStatus,
   initialNotifications,
   defaultNotifications = [],
@@ -85,13 +91,30 @@ export function useNotificationBell({
 }: UseNotificationBellProps) {
   const { toast } = useToast();
   const [open, setOpen] = React.useState(false);
-  const [hasBeenClicked, setHasBeenClicked] = React.useState(false);
-  const [status, setStatus] = React.useState(initialStatus);
+  const [status, setStatus] = React.useState<NotificationStatus>(initialStatus);
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
     () => initialNotifications ?? defaultNotifications
   );
 
+  const storageKey = userId
+    ? `notif_seen_unread_count_${userId}`
+    : 'notif_seen_unread_count_generic';
+
+  // Delegate persistent seen counts, synchronization, and localStorage lifecycle to usePersistedSeenCount
+  const { seenUnreadCount, setSeenUnreadCount, isMounted, writeAndNotifySeen } =
+    usePersistedSeenCount(storageKey, unreadCount, status);
+
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Sync initialStatus prop changes into internal status state during the Render Phase.
+  // This derived state update guarantees zero-lag, flicker-free rendering with immediate consistency,
+  // preventing clamping logic from running with stale success states during new API load phases.
+  const [prevInitialStatus, setPrevInitialStatus] =
+    React.useState<NotificationStatus>(initialStatus);
+  if (initialStatus !== prevInitialStatus) {
+    setPrevInitialStatus(initialStatus);
+    setStatus(initialStatus);
+  }
 
   React.useEffect(() => {
     return () => {
@@ -101,21 +124,16 @@ export function useNotificationBell({
     };
   }, []);
 
-  const [prevUnreadCount, setPrevUnreadCount] = React.useState(unreadCount);
-
-  if (unreadCount !== prevUnreadCount) {
-    setPrevUnreadCount(unreadCount);
-    if (unreadCount > prevUnreadCount) {
-      setHasBeenClicked(false);
-    }
-  }
-
-  const handleOpenChange = React.useCallback((nextOpen: boolean) => {
-    setOpen(nextOpen);
-    if (nextOpen) {
-      setHasBeenClicked(true);
-    }
-  }, []);
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      setOpen(nextOpen);
+      if (nextOpen) {
+        setSeenUnreadCount(unreadCount);
+        writeAndNotifySeen(unreadCount);
+      }
+    },
+    [unreadCount, setSeenUnreadCount, writeAndNotifySeen]
+  );
 
   const closePopover = React.useCallback(() => {
     setOpen(false);
@@ -154,8 +172,9 @@ export function useNotificationBell({
       .map((item) => item.id);
     if (unreadIds.length === 0) return;
 
-    // Rolls back only the affected items via functional state update (to
-    // prevent data loss) and restores the unread badge.
+    // Rolls back only the affected items via functional state update (to prevent data loss).
+    // Note: We do NOT reset seenUnreadCount to 0, because the user has already opened the dropdown
+    // and seen these notifications (seen status is decoupled from backend unread state).
     const rollbackNotifications = (ids: string[]) => {
       const idSet = new Set(ids);
       setNotifications((prev) =>
@@ -163,7 +182,6 @@ export function useNotificationBell({
           idSet.has(item.id) ? { ...item, unread: true } : item
         )
       );
-      setHasBeenClicked(false);
     };
 
     // Optimistic state updates. Only flip the exact IDs being sent to the
@@ -172,7 +190,6 @@ export function useNotificationBell({
     // real-time push) doesn't get marked read in the UI without ever
     // being sent to the server.
     const unreadIdSet = new Set(unreadIds);
-    setHasBeenClicked(true);
     setNotifications((prev) =>
       prev.map((item) =>
         unreadIdSet.has(item.id) ? { ...item, unread: false } : item
@@ -215,17 +232,16 @@ export function useNotificationBell({
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
-    // Simulating a clean reload back to initial or default success list
+    // Simulating a clean reload back to initial or default success list.
+    // Unread status of notifications is preserved, adhering to specifications.
     timerRef.current = setTimeout(() => {
       const loaded = initialNotifications ?? defaultNotifications;
-      setNotifications(
-        hasBeenClicked ? loaded.map((n) => ({ ...n, unread: false })) : loaded
-      );
+      setNotifications(loaded);
       setStatus('success');
     }, 1000);
-  }, [initialNotifications, defaultNotifications, hasBeenClicked]);
+  }, [initialNotifications, defaultNotifications]);
 
-  const showBadge = !hasBeenClicked && unreadCount > 0;
+  const showBadge = isMounted && unreadCount > seenUnreadCount;
   const formattedCount = unreadCount > 99 ? '99+' : String(unreadCount);
   const hasUnread = notifications.some((item) => item.unread);
 

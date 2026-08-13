@@ -28,6 +28,7 @@ describe('NotificationBell', () => {
   beforeEach(() => {
     mockToast.mockClear();
     vi.mocked(captureFlowFailure).mockClear();
+    localStorage.clear();
   });
 
   it('renders the bell icon button with title and aria-label', () => {
@@ -637,10 +638,10 @@ describe('NotificationBell', () => {
       // Check that it first optimistically marks as read (becomes font-normal)
       expect(unreadTitle).toHaveClass('font-normal');
 
-      // Verify that it rolled back to unread state (restores font-bold) and restores badge
+      // Verify that it rolled back to unread state (restores font-bold) but keeps badge hidden (since they have seen it)
       await waitFor(() => {
         expect(unreadTitle).toHaveClass('font-bold');
-        expect(screen.getByText('1')).toBeInTheDocument();
+        expect(screen.queryByText('1')).not.toBeInTheDocument();
       });
 
       // Verify the user is shown an error toast instead of a silent failure
@@ -717,13 +718,13 @@ describe('NotificationBell', () => {
 
       // Wait for sequential async fallback execution.
       // title1 succeeds -> remains font-normal
-      // title2 fails -> rolls back to font-bold, badge restored
+      // title2 fails -> rolls back to font-bold, but badge remains hidden (since they have seen it)
       await waitFor(() => {
         expect(title1).toHaveClass('font-normal');
         expect(title1).not.toHaveClass('font-bold');
         expect(title2).toHaveClass('font-bold');
         expect(title2).not.toHaveClass('font-normal');
-        expect(screen.getByText('2')).toBeInTheDocument();
+        expect(screen.queryByText('2')).not.toBeInTheDocument();
       });
 
       // Verify the user is shown a "partial failure" toast, distinct from a
@@ -849,6 +850,248 @@ describe('NotificationBell', () => {
       // Badge should remain hidden
       expect(screen.queryByText('3')).not.toBeInTheDocument();
       expect(screen.queryByText('5')).not.toBeInTheDocument();
+    });
+
+    it('persists unreadCount to localStorage and keeps the badge hidden on subsequent mount with the same unreadCount', () => {
+      // 1. Render and click to open (seen)
+      const { unmount } = render(
+        <NotificationBell unreadCount={5} userId="user-123" />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+      expect(screen.queryByText('5')).not.toBeInTheDocument();
+      expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
+        '5'
+      );
+
+      // 2. Unmount to simulate page refresh / new mount
+      unmount();
+
+      // 3. Re-render (remount) with the same unreadCount
+      render(<NotificationBell unreadCount={5} userId="user-123" />);
+      // Badge should remain hidden because unreadCount (5) is not greater than the persisted seenUnreadCount (5)
+      expect(screen.queryByText('5')).not.toBeInTheDocument();
+    });
+
+    it('displays the badge on subsequent mount if unreadCount increases past the persisted localStorage count', () => {
+      // 1. Render and click to open (seen)
+      const { unmount } = render(
+        <NotificationBell unreadCount={5} userId="user-123" />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+      unmount();
+
+      // 2. Re-render with larger unreadCount
+      render(<NotificationBell unreadCount={6} userId="user-123" />);
+      // Badge should appear showing 6
+      expect(screen.getByText('6')).toBeInTheDocument();
+    });
+
+    it('isolates persisted seen counts between different users', () => {
+      // 1. User 1 opens with 5 notifications
+      const { unmount: unmount1 } = render(
+        <NotificationBell unreadCount={5} userId="user-1" />
+      );
+      fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
+      unmount1();
+
+      // 2. User 2 mounts with 5 notifications
+      render(<NotificationBell unreadCount={5} userId="user-2" />);
+      // User 2 has never seen these, so the badge should be visible!
+      expect(screen.getByText('5')).toBeInTheDocument();
+    });
+
+    it('does NOT reset seenUnreadCount to 0 and keeps localStorage intact when rollback occurs on mark all as read failure', async () => {
+      const onMarkAllReadErrorMock = vi
+        .fn()
+        .mockRejectedValue(new Error('Network error'));
+      render(
+        <NotificationBell
+          unreadCount={1}
+          userId="user-123"
+          initialStatus="success"
+          onMarkAllRead={onMarkAllReadErrorMock}
+        />
+      );
+      // Open dropdown
+      fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
+      expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
+        '1'
+      );
+
+      // Click Mark all as read
+      const markAllBtn = screen.getByRole('button', {
+        name: 'Mark all as read',
+      });
+      fireEvent.click(markAllBtn);
+
+      // Verify rollback keeps it as 1
+      await waitFor(() => {
+        expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
+          '1'
+        );
+      });
+    });
+
+    it('handles localStorage blocking / exceptions gracefully without crashing the component', () => {
+      const getItemSpy = vi
+        .spyOn(Storage.prototype, 'getItem')
+        .mockImplementation(() => {
+          throw new Error('localStorage is blocked');
+        });
+      const setItemSpy = vi
+        .spyOn(Storage.prototype, 'setItem')
+        .mockImplementation(() => {
+          throw new Error('localStorage is blocked');
+        });
+
+      try {
+        // Render the component with localStorage throwing errors
+        render(<NotificationBell unreadCount={5} userId="user-123" />);
+
+        // It should render normally with the badge showing because localStorage read returned 0/null safely
+        const badge = screen.getByText('5');
+        expect(badge).toBeInTheDocument();
+
+        // Click to open should also not crash and hide the badge normally
+        const button = screen.getByRole('button', { name: '開啟通知選單' });
+        fireEvent.click(button);
+        expect(screen.queryByText('5')).not.toBeInTheDocument();
+      } finally {
+        getItemSpy.mockRestore();
+        setItemSpy.mockRestore();
+      }
+    });
+
+    it('handles invalid non-numeric (NaN) data in localStorage gracefully and falls back to 0', () => {
+      localStorage.setItem(
+        'notif_seen_unread_count_user-123',
+        'invalid-non-numeric-value'
+      );
+
+      // Render the component - it should read 'invalid-non-numeric-value', try to parse it, get NaN, and fallback to 0 safely.
+      render(<NotificationBell unreadCount={5} userId="user-123" />);
+
+      // Badge should be visible with count 5 since seenUnreadCount fell back to 0 (5 > 0 is true)
+      expect(screen.getByText('5')).toBeInTheDocument();
+    });
+
+    it('correctly clamps seenUnreadCount and localStorage when unreadCount decreases', async () => {
+      // 1. Initial render with 5 unread, click to open (sets seen count to 5)
+      const { rerender } = render(
+        <NotificationBell unreadCount={5} userId="user-123" />
+      );
+      fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
+      expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
+        '5'
+      );
+
+      // 2. Rerender with smaller unreadCount (3) representing some notifications read elsewhere
+      rerender(<NotificationBell unreadCount={3} userId="user-123" />);
+
+      // 3. The localStorage value should be clamped down to 3
+      await waitFor(() => {
+        expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
+          '3'
+        );
+      });
+    });
+
+    it('synchronizes seen states across multiple rendered instances on the same page', async () => {
+      // Render two instances representing Desktop and Mobile bells on the same page
+      const { container: container1 } = render(
+        <NotificationBell unreadCount={5} userId="user-123" />
+      );
+      const { container: container2 } = render(
+        <NotificationBell unreadCount={5} userId="user-123" />
+      );
+
+      // Both instances initially show their badges
+      expect(screen.queryAllByText('5').length).toBe(2);
+
+      // Open the dropdown of the first instance to mark it as "seen"
+      const button1 = container1.querySelector(
+        'button[aria-label="開啟通知選單"]'
+      );
+      expect(button1).toBeInTheDocument();
+      fireEvent.click(button1!);
+
+      // The first instance has no badge now
+      expect(
+        container1.querySelector('span[aria-label*="未讀通知"]')
+      ).not.toBeInTheDocument();
+
+      // The second instance should automatically hide its badge due to our custom event syncing!
+      await waitFor(() => {
+        expect(
+          container2.querySelector('span[aria-label*="未讀通知"]')
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it('cleans up all global event listeners on unmount to prevent memory leaks', () => {
+      const removeListenerSpy = vi.spyOn(window, 'removeEventListener');
+
+      // Render the component
+      const { unmount } = render(
+        <NotificationBell unreadCount={5} userId="user-123" />
+      );
+
+      // Unmount it
+      unmount();
+
+      // Verify removeEventListener was called for both storage and custom events
+      expect(removeListenerSpy).toHaveBeenCalledWith(
+        'storage',
+        expect.any(Function)
+      );
+      expect(removeListenerSpy).toHaveBeenCalledWith(
+        'notif_seen_updated',
+        expect.any(Function)
+      );
+
+      removeListenerSpy.mockRestore();
+    });
+
+    it('synchronizes seen states across different browser tabs via StorageEvent', async () => {
+      render(<NotificationBell unreadCount={5} userId="user-123" />);
+
+      // Badge is visible initially (count 5)
+      expect(screen.getByText('5')).toBeInTheDocument();
+
+      // Simulate a StorageEvent from another tab setting seen count to 5
+      fireEvent(
+        window,
+        new StorageEvent('storage', {
+          key: 'notif_seen_unread_count_user-123',
+          newValue: '5',
+        })
+      );
+
+      // The badge should automatically hide because seenUnreadCount is synced to 5 (5 > 5 is false)
+      await waitFor(() => {
+        expect(screen.queryByText('5')).not.toBeInTheDocument();
+      });
+    });
+
+    it('does NOT trigger clamping and overwrite localStorage when in loading status', async () => {
+      // 1. Manually seed localStorage with seen count = 5
+      localStorage.setItem('notif_seen_unread_count_user-123', '5');
+
+      // 2. Render with initialStatus='loading' and unreadCount = 0 (simulating load start)
+      render(
+        <NotificationBell
+          unreadCount={0}
+          userId="user-123"
+          initialStatus="loading"
+        />
+      );
+
+      // 3. Since it is loading, clamping must NOT trigger, so localStorage should remain '5'
+      expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
+        '5'
+      );
     });
   });
 });
