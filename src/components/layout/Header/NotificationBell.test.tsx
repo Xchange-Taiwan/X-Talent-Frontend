@@ -638,10 +638,10 @@ describe('NotificationBell', () => {
       // Check that it first optimistically marks as read (becomes font-normal)
       expect(unreadTitle).toHaveClass('font-normal');
 
-      // Verify that it rolled back to unread state (restores font-bold) and restores badge
+      // Verify that it rolled back to unread state (restores font-bold) but keeps badge hidden (since they have seen it)
       await waitFor(() => {
         expect(unreadTitle).toHaveClass('font-bold');
-        expect(screen.getByText('1')).toBeInTheDocument();
+        expect(screen.queryByText('1')).not.toBeInTheDocument();
       });
 
       // Verify the user is shown an error toast instead of a silent failure
@@ -718,13 +718,13 @@ describe('NotificationBell', () => {
 
       // Wait for sequential async fallback execution.
       // title1 succeeds -> remains font-normal
-      // title2 fails -> rolls back to font-bold, badge restored
+      // title2 fails -> rolls back to font-bold, but badge remains hidden (since they have seen it)
       await waitFor(() => {
         expect(title1).toHaveClass('font-normal');
         expect(title1).not.toHaveClass('font-bold');
         expect(title2).toHaveClass('font-bold');
         expect(title2).not.toHaveClass('font-normal');
-        expect(screen.getByText('2')).toBeInTheDocument();
+        expect(screen.queryByText('2')).not.toBeInTheDocument();
       });
 
       // Verify the user is shown a "partial failure" toast, distinct from a
@@ -902,7 +902,7 @@ describe('NotificationBell', () => {
       expect(screen.getByText('5')).toBeInTheDocument();
     });
 
-    it('resets seenUnreadCount to 0 and writes to localStorage when rollback occurs on mark all as read failure', async () => {
+    it('does NOT reset seenUnreadCount to 0 and keeps localStorage intact when rollback occurs on mark all as read failure', async () => {
       const onMarkAllReadErrorMock = vi
         .fn()
         .mockRejectedValue(new Error('Network error'));
@@ -926,10 +926,10 @@ describe('NotificationBell', () => {
       });
       fireEvent.click(markAllBtn);
 
-      // Verify rollback resets it to 0
+      // Verify rollback keeps it as 1
       await waitFor(() => {
         expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
-          '0'
+          '1'
         );
       });
     });
@@ -1052,6 +1052,27 @@ describe('NotificationBell', () => {
       );
 
       removeListenerSpy.mockRestore();
+    });
+
+    it('synchronizes seen states across different browser tabs via StorageEvent', async () => {
+      render(<NotificationBell unreadCount={5} userId="user-123" />);
+
+      // Badge is visible initially (count 5)
+      expect(screen.getByText('5')).toBeInTheDocument();
+
+      // Simulate a StorageEvent from another tab setting seen count to 5
+      fireEvent(
+        window,
+        new StorageEvent('storage', {
+          key: 'notif_seen_unread_count_user-123',
+          newValue: '5',
+        })
+      );
+
+      // The badge should automatically hide because seenUnreadCount is synced to 5 (5 > 5 is false)
+      await waitFor(() => {
+        expect(screen.queryByText('5')).not.toBeInTheDocument();
+      });
     });
   });
 });

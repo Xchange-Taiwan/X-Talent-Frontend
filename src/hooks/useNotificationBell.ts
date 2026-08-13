@@ -200,6 +200,11 @@ export function useNotificationBell({
 
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
 
+  // Sync initialStatus prop changes into internal status state
+  React.useEffect(() => {
+    setStatus(initialStatus);
+  }, [initialStatus]);
+
   const handleOpenChange = React.useCallback(
     (nextOpen: boolean) => {
       setOpen(nextOpen);
@@ -248,8 +253,9 @@ export function useNotificationBell({
       .map((item) => item.id);
     if (unreadIds.length === 0) return;
 
-    // Rolls back only the affected items via functional state update (to
-    // prevent data loss) and restores the unread badge.
+    // Rolls back only the affected items via functional state update (to prevent data loss).
+    // Note: We do NOT reset seenUnreadCount to 0, because the user has already opened the dropdown
+    // and seen these notifications (seen status is decoupled from backend unread state).
     const rollbackNotifications = (ids: string[]) => {
       const idSet = new Set(ids);
       setNotifications((prev) =>
@@ -257,8 +263,6 @@ export function useNotificationBell({
           idSet.has(item.id) ? { ...item, unread: true } : item
         )
       );
-      setSeenUnreadCount(0);
-      writeAndNotifySeen(0);
     };
 
     // Optimistic state updates. Only flip the exact IDs being sent to the
@@ -302,14 +306,7 @@ export function useNotificationBell({
         });
       }
     }
-  }, [
-    notifications,
-    onMarkRead,
-    onMarkAllRead,
-    toast,
-    setSeenUnreadCount,
-    writeAndNotifySeen,
-  ]);
+  }, [notifications, onMarkRead, onMarkAllRead, toast]);
 
   const handleRetry = React.useCallback(() => {
     setStatus('loading');
