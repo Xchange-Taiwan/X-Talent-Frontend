@@ -2,6 +2,8 @@ import * as React from 'react';
 
 import { safeGetStorage, safeSetStorage } from '@/lib/storage';
 
+export type NotificationStatus = 'loading' | 'error' | 'empty' | 'success';
+
 /**
  * Reusable custom hook to manage seen notifications count state, localStorage persistence,
  * and multi-instance (Desktop/Mobile) / cross-tab synchronization.
@@ -9,7 +11,7 @@ import { safeGetStorage, safeSetStorage } from '@/lib/storage';
 export function usePersistedSeenCount(
   storageKey: string,
   unreadCount: number,
-  status: string
+  status: NotificationStatus
 ) {
   // Initialize synchronously to 0 to prevent Next.js SSR Hydration Mismatch.
   // The state will be populated correctly on mount by the useEffect block below.

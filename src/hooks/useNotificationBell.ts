@@ -1,7 +1,10 @@
 import * as React from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
-import { usePersistedSeenCount } from '@/hooks/usePersistedSeenCount';
+import {
+  NotificationStatus,
+  usePersistedSeenCount,
+} from '@/hooks/usePersistedSeenCount';
 import { captureFlowFailure } from '@/lib/monitoring';
 
 const MARK_ALL_READ_BATCH_SIZE = 5;
@@ -70,7 +73,7 @@ export type NotificationItem = {
 export type UseNotificationBellProps = {
   unreadCount: number;
   userId?: string;
-  initialStatus: 'loading' | 'error' | 'empty' | 'success';
+  initialStatus: NotificationStatus;
   initialNotifications?: NotificationItem[];
   defaultNotifications?: NotificationItem[];
   onMarkRead?: (id: string) => void | Promise<void>;
@@ -88,7 +91,7 @@ export function useNotificationBell({
 }: UseNotificationBellProps) {
   const { toast } = useToast();
   const [open, setOpen] = React.useState(false);
-  const [status, setStatus] = React.useState(initialStatus);
+  const [status, setStatus] = React.useState<NotificationStatus>(initialStatus);
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
     () => initialNotifications ?? defaultNotifications
   );
@@ -107,7 +110,7 @@ export function useNotificationBell({
   // This derived state update guarantees zero-lag, flicker-free rendering with immediate consistency,
   // preventing clamping logic from running with stale success states during new API load phases.
   const [prevInitialStatus, setPrevInitialStatus] =
-    React.useState(initialStatus);
+    React.useState<NotificationStatus>(initialStatus);
   if (initialStatus !== prevInitialStatus) {
     setPrevInitialStatus(initialStatus);
     setStatus(initialStatus);
