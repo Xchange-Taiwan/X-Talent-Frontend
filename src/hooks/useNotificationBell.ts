@@ -205,6 +205,14 @@ export function useNotificationBell({
     setStatus(initialStatus);
   }, [initialStatus]);
 
+  React.useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
   const handleOpenChange = React.useCallback(
     (nextOpen: boolean) => {
       setOpen(nextOpen);
@@ -313,17 +321,14 @@ export function useNotificationBell({
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
-    // Simulating a clean reload back to initial or default success list
+    // Simulating a clean reload back to initial or default success list.
+    // Unread status of notifications is preserved, adhering to specifications.
     timerRef.current = setTimeout(() => {
       const loaded = initialNotifications ?? defaultNotifications;
-      setNotifications(
-        seenUnreadCount > 0
-          ? loaded.map((n) => ({ ...n, unread: false }))
-          : loaded
-      );
+      setNotifications(loaded);
       setStatus('success');
     }, 1000);
-  }, [initialNotifications, defaultNotifications, seenUnreadCount]);
+  }, [initialNotifications, defaultNotifications]);
 
   const showBadge = isMounted && unreadCount > seenUnreadCount;
   const formattedCount = unreadCount > 99 ? '99+' : String(unreadCount);
