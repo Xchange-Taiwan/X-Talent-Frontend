@@ -151,7 +151,7 @@ function HeaderComponent(): JSX.Element {
               </>
             ) : isLoggedIn ? (
               <>
-                <NotificationBell className="hidden lg:flex" />
+                <NotificationBell className="hidden lg:flex" userId={userId} />
                 <UserDropdown user={virtualUser} />
               </>
             ) : (
@@ -165,7 +165,7 @@ function HeaderComponent(): JSX.Element {
           >
             {isLoggedIn ? (
               <>
-                <NotificationBell />
+                <NotificationBell userId={userId} />
                 <MobileUserMenu user={virtualUser} />
               </>
             ) : (

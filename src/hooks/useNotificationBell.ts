@@ -68,6 +68,7 @@ export type NotificationItem = {
 
 export type UseNotificationBellProps = {
   unreadCount: number;
+  userId?: string;
   initialStatus: 'loading' | 'error' | 'empty' | 'success';
   initialNotifications?: NotificationItem[];
   defaultNotifications?: NotificationItem[];
@@ -77,6 +78,7 @@ export type UseNotificationBellProps = {
 
 export function useNotificationBell({
   unreadCount,
+  userId,
   initialStatus,
   initialNotifications,
   defaultNotifications = [],
@@ -91,6 +93,26 @@ export function useNotificationBell({
     () => initialNotifications ?? defaultNotifications
   );
 
+  const storageKey = userId
+    ? `notif_seen_unread_count_${userId}`
+    : 'notif_seen_unread_count_generic';
+
+  const [seenUnreadCount, setSeenUnreadCount] = React.useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(storageKey);
+        return stored !== null ? Number(stored) : 0;
+      } catch (e) {
+        console.error(
+          '[useNotificationBell] Failed to read from localStorage:',
+          e
+        );
+        return 0;
+      }
+    }
+    return 0;
+  });
+
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   React.useEffect(() => {
@@ -101,6 +123,38 @@ export function useNotificationBell({
     };
   }, []);
 
+  // Keep seenUnreadCount in sync when storageKey (userId) changes
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(storageKey);
+        setSeenUnreadCount(stored !== null ? Number(stored) : 0);
+      } catch (e) {
+        console.error(
+          '[useNotificationBell] Failed to read from localStorage:',
+          e
+        );
+      }
+    }
+  }, [storageKey]);
+
+  // Keep seenUnreadCount clamped to unreadCount
+  React.useEffect(() => {
+    if (seenUnreadCount > unreadCount) {
+      setSeenUnreadCount(unreadCount);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(storageKey, String(unreadCount));
+        } catch (e) {
+          console.error(
+            '[useNotificationBell] Failed to write to localStorage:',
+            e
+          );
+        }
+      }
+    }
+  }, [unreadCount, seenUnreadCount, storageKey]);
+
   const [prevUnreadCount, setPrevUnreadCount] = React.useState(unreadCount);
 
   if (unreadCount !== prevUnreadCount) {
@@ -110,12 +164,26 @@ export function useNotificationBell({
     }
   }
 
-  const handleOpenChange = React.useCallback((nextOpen: boolean) => {
-    setOpen(nextOpen);
-    if (nextOpen) {
-      setHasBeenClicked(true);
-    }
-  }, []);
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      setOpen(nextOpen);
+      if (nextOpen) {
+        setHasBeenClicked(true);
+        setSeenUnreadCount(unreadCount);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(storageKey, String(unreadCount));
+          } catch (e) {
+            console.error(
+              '[useNotificationBell] Failed to write to localStorage:',
+              e
+            );
+          }
+        }
+      }
+    },
+    [unreadCount, storageKey]
+  );
 
   const closePopover = React.useCallback(() => {
     setOpen(false);
@@ -164,6 +232,17 @@ export function useNotificationBell({
         )
       );
       setHasBeenClicked(false);
+      setSeenUnreadCount(0);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(storageKey, '0');
+        } catch (e) {
+          console.error(
+            '[useNotificationBell] Failed to write to localStorage:',
+            e
+          );
+        }
+      }
     };
 
     // Optimistic state updates. Only flip the exact IDs being sent to the
@@ -208,7 +287,7 @@ export function useNotificationBell({
         });
       }
     }
-  }, [notifications, onMarkRead, onMarkAllRead, toast]);
+  }, [notifications, onMarkRead, onMarkAllRead, toast, storageKey]);
 
   const handleRetry = React.useCallback(() => {
     setStatus('loading');
@@ -225,7 +304,7 @@ export function useNotificationBell({
     }, 1000);
   }, [initialNotifications, defaultNotifications, hasBeenClicked]);
 
-  const showBadge = !hasBeenClicked && unreadCount > 0;
+  const showBadge = !hasBeenClicked && unreadCount > seenUnreadCount;
   const formattedCount = unreadCount > 99 ? '99+' : String(unreadCount);
   const hasUnread = notifications.some((item) => item.unread);
 

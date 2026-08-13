@@ -28,6 +28,7 @@ describe('NotificationBell', () => {
   beforeEach(() => {
     mockToast.mockClear();
     vi.mocked(captureFlowFailure).mockClear();
+    localStorage.clear();
   });
 
   it('renders the bell icon button with title and aria-label', () => {
@@ -849,6 +850,56 @@ describe('NotificationBell', () => {
       // Badge should remain hidden
       expect(screen.queryByText('3')).not.toBeInTheDocument();
       expect(screen.queryByText('5')).not.toBeInTheDocument();
+    });
+
+    it('persists unreadCount to localStorage and keeps the badge hidden on subsequent mount with the same unreadCount', () => {
+      // 1. Render and click to open (seen)
+      const { unmount } = render(
+        <NotificationBell unreadCount={5} userId="user-123" />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+      expect(screen.queryByText('5')).not.toBeInTheDocument();
+      expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
+        '5'
+      );
+
+      // 2. Unmount to simulate page refresh / new mount
+      unmount();
+
+      // 3. Re-render (remount) with the same unreadCount
+      render(<NotificationBell unreadCount={5} userId="user-123" />);
+      // Badge should remain hidden because unreadCount (5) is not greater than the persisted seenUnreadCount (5)
+      expect(screen.queryByText('5')).not.toBeInTheDocument();
+    });
+
+    it('displays the badge on subsequent mount if unreadCount increases past the persisted localStorage count', () => {
+      // 1. Render and click to open (seen)
+      const { unmount } = render(
+        <NotificationBell unreadCount={5} userId="user-123" />
+      );
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+      unmount();
+
+      // 2. Re-render with larger unreadCount
+      render(<NotificationBell unreadCount={6} userId="user-123" />);
+      // Badge should appear showing 6
+      expect(screen.getByText('6')).toBeInTheDocument();
+    });
+
+    it('isolates persisted seen counts between different users', () => {
+      // 1. User 1 opens with 5 notifications
+      const { unmount: unmount1 } = render(
+        <NotificationBell unreadCount={5} userId="user-1" />
+      );
+      fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
+      unmount1();
+
+      // 2. User 2 mounts with 5 notifications
+      render(<NotificationBell unreadCount={5} userId="user-2" />);
+      // User 2 has never seen these, so the badge should be visible!
+      expect(screen.getByText('5')).toBeInTheDocument();
     });
   });
 });
