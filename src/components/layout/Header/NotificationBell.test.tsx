@@ -1074,5 +1074,24 @@ describe('NotificationBell', () => {
         expect(screen.queryByText('5')).not.toBeInTheDocument();
       });
     });
+
+    it('does NOT trigger clamping and overwrite localStorage when in loading status', async () => {
+      // 1. Manually seed localStorage with seen count = 5
+      localStorage.setItem('notif_seen_unread_count_user-123', '5');
+
+      // 2. Render with initialStatus='loading' and unreadCount = 0 (simulating load start)
+      render(
+        <NotificationBell
+          unreadCount={0}
+          userId="user-123"
+          initialStatus="loading"
+        />
+      );
+
+      // 3. Since it is loading, clamping must NOT trigger, so localStorage should remain '5'
+      expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
+        '5'
+      );
+    });
   });
 });
