@@ -115,11 +115,11 @@ export function useNotificationBell({
   }, []);
 
   // Sync seenUnreadCount from localStorage when storageKey (userId) changes or on mount.
-  // Also resets hasBeenClicked to false on storageKey (userId) change to prevent cross-user state pollution.
+  // We use strict Number.isNaN protection to handle corrupted or invalid data gracefully.
   React.useEffect(() => {
-    setHasBeenClicked(false);
     const stored = safeGetStorage(storageKey);
-    setSeenUnreadCount(stored !== null ? Number(stored) : 0);
+    const parsed = stored !== null ? Number(stored) : 0;
+    setSeenUnreadCount(Number.isNaN(parsed) ? 0 : parsed);
   }, [storageKey]);
 
   // Keep seenUnreadCount clamped to unreadCount

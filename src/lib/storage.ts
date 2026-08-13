@@ -6,7 +6,7 @@ export function safeGetStorage(key: string): string | null {
     try {
       return localStorage.getItem(key);
     } catch (e) {
-      console.error(`[storage] Failed to read ${key} from localStorage:`, e);
+      console.error('[storage] Failed to read from localStorage:', e);
     }
   }
   return null;
@@ -20,7 +20,7 @@ export function safeSetStorage(key: string, value: string): void {
     try {
       localStorage.setItem(key, value);
     } catch (e) {
-      console.error(`[storage] Failed to write ${key} to localStorage:`, e);
+      console.error('[storage] Failed to write to localStorage:', e);
     }
   }
 }

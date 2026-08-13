@@ -961,5 +961,18 @@ describe('NotificationBell', () => {
       getItemSpy.mockRestore();
       setItemSpy.mockRestore();
     });
+
+    it('handles invalid non-numeric (NaN) data in localStorage gracefully and falls back to 0', () => {
+      localStorage.setItem(
+        'notif_seen_unread_count_user-123',
+        'invalid-non-numeric-value'
+      );
+
+      // Render the component - it should read 'invalid-non-numeric-value', try to parse it, get NaN, and fallback to 0 safely.
+      render(<NotificationBell unreadCount={5} userId="user-123" />);
+
+      // Badge should be visible with count 5 since seenUnreadCount fell back to 0 (5 > 0 is true)
+      expect(screen.getByText('5')).toBeInTheDocument();
+    });
   });
 });
