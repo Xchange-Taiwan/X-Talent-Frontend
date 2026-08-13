@@ -165,10 +165,16 @@ export function useNotificationBell({
       setHasBeenClicked(false);
     };
 
-    // Optimistic state updates
+    // Optimistic state updates. Only flip the exact IDs being sent to the
+    // API — not every currently-unread item — so a notification that
+    // arrives between the snapshot above and this update (e.g. via a
+    // real-time push) doesn't get marked read in the UI without ever
+    // being sent to the server.
     setHasBeenClicked(true);
     setNotifications((prev) =>
-      prev.map((item) => (item.unread ? { ...item, unread: false } : item))
+      prev.map((item) =>
+        unreadIds.includes(item.id) ? { ...item, unread: false } : item
+      )
     );
 
     if (onMarkAllRead) {

@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as useNotificationBellModule from '@/hooks/useNotificationBell';
 import { type NotificationItem } from '@/hooks/useNotificationBell';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { mockToast } from '@/test/mocks/useToast';
 
 import { getNotificationContent, NotificationBell } from './NotificationBell';
@@ -19,9 +20,14 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
+vi.mock('@/lib/monitoring', () => ({
+  captureFlowFailure: vi.fn(),
+}));
+
 describe('NotificationBell', () => {
   beforeEach(() => {
     mockToast.mockClear();
+    vi.mocked(captureFlowFailure).mockClear();
   });
 
   it('renders the bell icon button with title and aria-label', () => {
@@ -450,6 +456,14 @@ describe('NotificationBell', () => {
           description: '無法將通知標示為已讀，請稍後再試',
         })
       );
+
+      expect(captureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'notification_mark_all_read',
+          step: 'mark_read_click:unread-1',
+          message: 'Network error',
+        })
+      );
     });
   });
 
@@ -636,6 +650,14 @@ describe('NotificationBell', () => {
           description: '無法將全部通知標示為已讀，請稍後再試',
         })
       );
+
+      expect(captureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'notification_mark_all_read',
+          step: 'mark_all_read',
+          message: 'Network error',
+        })
+      );
     });
 
     it('rolls back ONLY the failed notification state while successfully updating others during sequential onMarkRead fallback failure', async () => {
@@ -710,6 +732,14 @@ describe('NotificationBell', () => {
         expect.objectContaining({
           variant: 'destructive',
           description: '部分通知標示為已讀失敗，請稍後再試',
+        })
+      );
+
+      expect(captureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'notification_mark_all_read',
+          step: 'mark_read_fallback:unread-2',
+          message: 'Individual error',
         })
       );
     });
