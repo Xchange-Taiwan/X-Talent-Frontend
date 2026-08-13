@@ -26,6 +26,7 @@
     "generate:types": "node scripts/generate-types.mjs",
     "generate:tokens": "node scripts/generate-tokens.mjs",
     "generate:tokens:check": "node scripts/generate-tokens.mjs --check",
+    "capture:evidence": "node scripts/capture-ui-evidence.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
