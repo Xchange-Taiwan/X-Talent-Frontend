@@ -39,7 +39,13 @@ const ROLE_CREDENTIALS = {
   },
 };
 
-const FLAGS_WITH_VALUE = ['--routes', '--role', '--viewport', '--out', '--base-url'];
+const FLAGS_WITH_VALUE = [
+  '--routes',
+  '--role',
+  '--viewport',
+  '--out',
+  '--base-url',
+];
 
 function parseArgs(argv) {
   const parsed = {
@@ -132,7 +138,8 @@ async function signIn(page, role) {
 }
 
 function fileNameFor(role, viewport, route) {
-  const slug = route === '/' ? 'root' : route.replace(/^\/|\/$/g, '').replace(/\//g, '_');
+  const slug =
+    route === '/' ? 'root' : route.replace(/^\/|\/$/g, '').replace(/\//g, '_');
   return `${role}-${viewport}-${slug}.png`;
 }
 
