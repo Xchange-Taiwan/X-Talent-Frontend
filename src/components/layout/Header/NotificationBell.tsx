@@ -6,7 +6,6 @@ import * as React from 'react';
 
 import {
   Popover,
-  PopoverArrow,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
@@ -231,15 +230,6 @@ export const NotificationBell = React.memo(function NotificationBell({
         sideOffset={8}
         className="w-[360px] max-w-[min(300px,calc(100vw-32px))] rounded-2xl border border-background-border bg-background-white p-0 shadow-xl outline-none lg:max-w-[calc(100vw-32px)]"
       >
-        {/* Content may be shifted away from the trigger by collision
-            avoidance on narrow viewports; the arrow keeps a visual link
-            to the bell regardless of exact horizontal alignment. */}
-        <PopoverArrow
-          className="fill-background-white stroke-background-border"
-          strokeWidth={1}
-          width={16}
-          height={8}
-        />
         <div className="overflow-hidden rounded-2xl py-5">
           <div ref={scrollThumbHandlers.trackRefCallback} className="relative">
             <div className="flex items-center justify-between px-5 pb-3">
