@@ -138,8 +138,13 @@ async function signIn(page, role) {
 }
 
 function fileNameFor(role, viewport, route) {
+  // Routes can carry a query string (e.g. /profile?tab=settings); `?`, `=`,
+  // and friends are illegal in Windows filenames, so collapse anything that
+  // isn't alphanumeric/dash/underscore instead of just swapping slashes.
   const slug =
-    route === '/' ? 'root' : route.replace(/^\/|\/$/g, '').replace(/\//g, '_');
+    route === '/'
+      ? 'root'
+      : route.replace(/^\/|\/$/g, '').replace(/[^a-zA-Z0-9-_]+/g, '_');
   return `${role}-${viewport}-${slug}.png`;
 }
 
