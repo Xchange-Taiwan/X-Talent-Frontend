@@ -901,5 +901,37 @@ describe('NotificationBell', () => {
       // User 2 has never seen these, so the badge should be visible!
       expect(screen.getByText('5')).toBeInTheDocument();
     });
+
+    it('resets seenUnreadCount to 0 and writes to localStorage when rollback occurs on mark all as read failure', async () => {
+      const onMarkAllReadErrorMock = vi
+        .fn()
+        .mockRejectedValue(new Error('Network error'));
+      render(
+        <NotificationBell
+          unreadCount={1}
+          userId="user-123"
+          initialStatus="success"
+          onMarkAllRead={onMarkAllReadErrorMock}
+        />
+      );
+      // Open dropdown
+      fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
+      expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
+        '1'
+      );
+
+      // Click Mark all as read
+      const markAllBtn = screen.getByRole('button', {
+        name: 'Mark all as read',
+      });
+      fireEvent.click(markAllBtn);
+
+      // Verify rollback resets it to 0
+      await waitFor(() => {
+        expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
+          '0'
+        );
+      });
+    });
   });
 });

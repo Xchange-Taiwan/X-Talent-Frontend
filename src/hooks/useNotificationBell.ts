@@ -16,6 +16,39 @@ function reportMarkAsReadFailure(step: string, error: unknown): void {
 }
 
 /**
+ * Safe helper to read from localStorage. Returns null if not in browser or on error.
+ */
+function safeGetStorage(key: string): string | null {
+  if (typeof window !== 'undefined') {
+    try {
+      return localStorage.getItem(key);
+    } catch (e) {
+      console.error(
+        `[useNotificationBell] Failed to read ${key} from localStorage:`,
+        e
+      );
+    }
+  }
+  return null;
+}
+
+/**
+ * Safe helper to write to localStorage. No-op if not in browser or on error.
+ */
+function safeSetStorage(key: string, value: string): void {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      console.error(
+        `[useNotificationBell] Failed to write ${key} to localStorage:`,
+        e
+      );
+    }
+  }
+}
+
+/**
  * Marks IDs as read in fixed-size batches (instead of one unbounded
  * Promise.allSettled) to avoid exhausting the browser's per-origin
  * connection pool or tripping backend rate limits when there are many
@@ -97,21 +130,9 @@ export function useNotificationBell({
     ? `notif_seen_unread_count_${userId}`
     : 'notif_seen_unread_count_generic';
 
-  const [seenUnreadCount, setSeenUnreadCount] = React.useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem(storageKey);
-        return stored !== null ? Number(stored) : 0;
-      } catch (e) {
-        console.error(
-          '[useNotificationBell] Failed to read from localStorage:',
-          e
-        );
-        return 0;
-      }
-    }
-    return 0;
-  });
+  // Initialize synchronously to 0 to prevent Next.js SSR Hydration Mismatch.
+  // The state will be populated correctly on mount by the useEffect block below.
+  const [seenUnreadCount, setSeenUnreadCount] = React.useState<number>(0);
 
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -123,35 +144,17 @@ export function useNotificationBell({
     };
   }, []);
 
-  // Keep seenUnreadCount in sync when storageKey (userId) changes
+  // Sync seenUnreadCount from localStorage when storageKey (userId) changes or on mount
   React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem(storageKey);
-        setSeenUnreadCount(stored !== null ? Number(stored) : 0);
-      } catch (e) {
-        console.error(
-          '[useNotificationBell] Failed to read from localStorage:',
-          e
-        );
-      }
-    }
+    const stored = safeGetStorage(storageKey);
+    setSeenUnreadCount(stored !== null ? Number(stored) : 0);
   }, [storageKey]);
 
   // Keep seenUnreadCount clamped to unreadCount
   React.useEffect(() => {
     if (seenUnreadCount > unreadCount) {
       setSeenUnreadCount(unreadCount);
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(storageKey, String(unreadCount));
-        } catch (e) {
-          console.error(
-            '[useNotificationBell] Failed to write to localStorage:',
-            e
-          );
-        }
-      }
+      safeSetStorage(storageKey, String(unreadCount));
     }
   }, [unreadCount, seenUnreadCount, storageKey]);
 
@@ -170,16 +173,7 @@ export function useNotificationBell({
       if (nextOpen) {
         setHasBeenClicked(true);
         setSeenUnreadCount(unreadCount);
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem(storageKey, String(unreadCount));
-          } catch (e) {
-            console.error(
-              '[useNotificationBell] Failed to write to localStorage:',
-              e
-            );
-          }
-        }
+        safeSetStorage(storageKey, String(unreadCount));
       }
     },
     [unreadCount, storageKey]
@@ -233,16 +227,7 @@ export function useNotificationBell({
       );
       setHasBeenClicked(false);
       setSeenUnreadCount(0);
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem(storageKey, '0');
-        } catch (e) {
-          console.error(
-            '[useNotificationBell] Failed to write to localStorage:',
-            e
-          );
-        }
-      }
+      safeSetStorage(storageKey, '0');
     };
 
     // Optimistic state updates. Only flip the exact IDs being sent to the
