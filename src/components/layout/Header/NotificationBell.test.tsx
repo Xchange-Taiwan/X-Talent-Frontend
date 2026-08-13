@@ -946,20 +946,22 @@ describe('NotificationBell', () => {
           throw new Error('localStorage is blocked');
         });
 
-      // Render the component with localStorage throwing errors
-      render(<NotificationBell unreadCount={5} userId="user-123" />);
+      try {
+        // Render the component with localStorage throwing errors
+        render(<NotificationBell unreadCount={5} userId="user-123" />);
 
-      // It should render normally with the badge showing because localStorage read returned 0/null safely
-      const badge = screen.getByText('5');
-      expect(badge).toBeInTheDocument();
+        // It should render normally with the badge showing because localStorage read returned 0/null safely
+        const badge = screen.getByText('5');
+        expect(badge).toBeInTheDocument();
 
-      // Click to open should also not crash and hide the badge normally
-      const button = screen.getByRole('button', { name: '開啟通知選單' });
-      fireEvent.click(button);
-      expect(screen.queryByText('5')).not.toBeInTheDocument();
-
-      getItemSpy.mockRestore();
-      setItemSpy.mockRestore();
+        // Click to open should also not crash and hide the badge normally
+        const button = screen.getByRole('button', { name: '開啟通知選單' });
+        fireEvent.click(button);
+        expect(screen.queryByText('5')).not.toBeInTheDocument();
+      } finally {
+        getItemSpy.mockRestore();
+        setItemSpy.mockRestore();
+      }
     });
 
     it('handles invalid non-numeric (NaN) data in localStorage gracefully and falls back to 0', () => {
@@ -973,6 +975,59 @@ describe('NotificationBell', () => {
 
       // Badge should be visible with count 5 since seenUnreadCount fell back to 0 (5 > 0 is true)
       expect(screen.getByText('5')).toBeInTheDocument();
+    });
+
+    it('correctly clamps seenUnreadCount and localStorage when unreadCount decreases', async () => {
+      // 1. Initial render with 5 unread, click to open (sets seen count to 5)
+      const { rerender } = render(
+        <NotificationBell unreadCount={5} userId="user-123" />
+      );
+      fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
+      expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
+        '5'
+      );
+
+      // 2. Rerender with smaller unreadCount (3) representing some notifications read elsewhere
+      rerender(<NotificationBell unreadCount={3} userId="user-123" />);
+
+      // 3. The localStorage value should be clamped down to 3
+      await waitFor(() => {
+        expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
+          '3'
+        );
+      });
+    });
+
+    it('synchronizes seen states across multiple rendered instances on the same page', async () => {
+      // Render two instances representing Desktop and Mobile bells on the same page
+      const { container: container1 } = render(
+        <NotificationBell unreadCount={5} userId="user-123" />
+      );
+      const { container: container2 } = render(
+        <NotificationBell unreadCount={5} userId="user-123" />
+      );
+
+      // Both instances initially show their badges
+      expect(screen.queryAllByText('5').length).toBe(2);
+
+      // Open the dropdown of the first instance to mark it as "seen"
+      const button1 = container1.querySelector(
+        'button[aria-label="開啟通知選單"]'
+      );
+      expect(button1).toBeInTheDocument();
+      fireEvent.click(button1!);
+
+      // The first instance has no badge now
+      expect(
+        container1.querySelector('span[aria-label*="未讀通知"]')
+      ).not.toBeInTheDocument();
+
+      // The second instance should automatically hide its badge due to our custom event syncing!
+      await waitFor(() => {
+        expect(
+          container2.querySelector('span[aria-label*="未讀通知"]')
+        ).not.toBeInTheDocument();
+      });
     });
   });
 });

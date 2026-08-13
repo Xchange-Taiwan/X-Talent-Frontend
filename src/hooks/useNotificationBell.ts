@@ -105,6 +105,17 @@ export function useNotificationBell({
 
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
 
+  // Helper to write to localStorage and dispatch custom update event to other instances
+  const writeAndNotifySeen = React.useCallback(
+    (val: number) => {
+      safeSetStorage(storageKey, String(val));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('notif_seen_updated'));
+      }
+    },
+    [storageKey]
+  );
+
   React.useEffect(() => {
     setIsMounted(true);
     return () => {
@@ -122,13 +133,40 @@ export function useNotificationBell({
     setSeenUnreadCount(Number.isNaN(parsed) ? 0 : parsed);
   }, [storageKey]);
 
-  // Keep seenUnreadCount clamped to unreadCount
+  // Keep seenUnreadCount clamped to unreadCount to prevent stale values,
+  // but only when we are not in a loading status to avoid accidental cache overwriting during API load.
   React.useEffect(() => {
-    if (seenUnreadCount > unreadCount) {
+    if (status !== 'loading' && seenUnreadCount > unreadCount) {
       setSeenUnreadCount(unreadCount);
-      safeSetStorage(storageKey, String(unreadCount));
+      writeAndNotifySeen(unreadCount);
     }
-  }, [unreadCount, seenUnreadCount, storageKey]);
+  }, [unreadCount, seenUnreadCount, writeAndNotifySeen, status]);
+
+  // Synchronize state across multiple instances (e.g. desktop vs mobile notification bells in Header) and browser tabs
+  React.useEffect(() => {
+    const handleSync = () => {
+      const stored = safeGetStorage(storageKey);
+      const parsed = stored !== null ? Number(stored) : 0;
+      const finalCount = Number.isNaN(parsed) ? 0 : parsed;
+      setSeenUnreadCount(finalCount);
+
+      if (finalCount >= unreadCount) {
+        setHasBeenClicked(true);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleSync);
+      window.addEventListener('notif_seen_updated', handleSync);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', handleSync);
+        window.removeEventListener('notif_seen_updated', handleSync);
+      }
+    };
+  }, [storageKey, unreadCount]);
 
   const [prevUnreadCount, setPrevUnreadCount] = React.useState(unreadCount);
 
@@ -145,10 +183,10 @@ export function useNotificationBell({
       if (nextOpen) {
         setHasBeenClicked(true);
         setSeenUnreadCount(unreadCount);
-        safeSetStorage(storageKey, String(unreadCount));
+        writeAndNotifySeen(unreadCount);
       }
     },
-    [unreadCount, storageKey]
+    [unreadCount, writeAndNotifySeen]
   );
 
   const closePopover = React.useCallback(() => {
@@ -199,7 +237,7 @@ export function useNotificationBell({
       );
       setHasBeenClicked(false);
       setSeenUnreadCount(0);
-      safeSetStorage(storageKey, '0');
+      writeAndNotifySeen(0);
     };
 
     // Optimistic state updates. Only flip the exact IDs being sent to the
@@ -244,7 +282,7 @@ export function useNotificationBell({
         });
       }
     }
-  }, [notifications, onMarkRead, onMarkAllRead, toast, storageKey]);
+  }, [notifications, onMarkRead, onMarkAllRead, toast, writeAndNotifySeen]);
 
   const handleRetry = React.useCallback(() => {
     setStatus('loading');
