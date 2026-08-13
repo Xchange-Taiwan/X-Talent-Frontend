@@ -103,10 +103,15 @@ export function useNotificationBell({
 
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  // Sync initialStatus prop changes into internal status state
-  React.useEffect(() => {
+  // Sync initialStatus prop changes into internal status state during the Render Phase.
+  // This derived state update guarantees zero-lag, flicker-free rendering with immediate consistency,
+  // preventing clamping logic from running with stale success states during new API load phases.
+  const [prevInitialStatus, setPrevInitialStatus] =
+    React.useState(initialStatus);
+  if (initialStatus !== prevInitialStatus) {
+    setPrevInitialStatus(initialStatus);
     setStatus(initialStatus);
-  }, [initialStatus]);
+  }
 
   React.useEffect(() => {
     return () => {
