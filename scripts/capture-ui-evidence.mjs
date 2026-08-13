@@ -5,6 +5,22 @@ import { config } from 'dotenv';
 
 config({ path: path.resolve('.env.development.local') });
 
+// Deliberate exception to this project's "prefer chrome-devtools-axi for all
+// browser automation" convention (scripts/ai-review/prompts/_shared/project-context.md).
+// chrome-devtools-axi 0.1.29 has two reproducible bugs on Windows that make it
+// unusable for this script's job:
+//   1. `chrome-devtools-axi run <script>` (the only way to drive multi-step
+//      page interaction from Node) crashes on start: the ESM loader rejects
+//      the temp script file's Windows path ("Only URLs with a scheme in:
+//      file, data, and node are supported... Received protocol 'c:'").
+//   2. `chrome-devtools-axi screenshot <path>` reports success (exit 0, and
+//      echoes back the correct resolved absolute path) but never actually
+//      writes the file — reproduced with a fresh session, a flat filename,
+//      an explicit absolute path, and a post-write delay; nothing ever lands
+//      on disk anywhere under the target dir or %TEMP%.
+// If chrome-devtools-axi ships a fix for either on Windows, this should be
+// revisited — see PR discussion for the AI Review finding this responds to.
+
 const VIEWPORTS = {
   desktop: { width: 1280, height: 800 },
   mobile: { width: 375, height: 812 },
@@ -23,6 +39,8 @@ const ROLE_CREDENTIALS = {
   },
 };
 
+const FLAGS_WITH_VALUE = ['--routes', '--role', '--viewport', '--out', '--base-url'];
+
 function parseArgs(argv) {
   const parsed = {
     routes: [],
@@ -33,7 +51,11 @@ function parseArgs(argv) {
   };
 
   for (let i = 0; i < argv.length; i++) {
-    switch (argv[i]) {
+    const flag = argv[i];
+    if (FLAGS_WITH_VALUE.includes(flag) && i + 1 >= argv.length) {
+      throw new Error(`Missing value for ${flag}`);
+    }
+    switch (flag) {
       case '--routes':
         parsed.routes = argv[++i].split(',').map((r) => r.trim());
         break;
@@ -50,7 +72,7 @@ function parseArgs(argv) {
         parsed.baseUrl = argv[++i];
         break;
       default:
-        throw new Error(`Unknown argument: ${argv[i]}`);
+        throw new Error(`Unknown argument: ${flag}`);
     }
   }
 
@@ -73,6 +95,11 @@ function parseArgs(argv) {
   return parsed;
 }
 
+// Mirrors e2e/fixtures/auth.setup.ts: the auth Lambda can cold-start, so the
+// first sign-in occasionally times out even though it actually completed. Each
+// retry re-navigates to /auth/signin first and treats an immediate redirect
+// away from it as success, so a slow-but-successful prior attempt doesn't get
+// stuck retrying against a page that's no longer showing the form.
 async function signIn(page, role) {
   const cred = ROLE_CREDENTIALS[role];
   const email = process.env[cred.email];
@@ -83,13 +110,13 @@ async function signIn(page, role) {
     );
   }
 
-  // Mirrors e2e/fixtures/auth.setup.ts: the auth Lambda can cold-start, so the
-  // first sign-in occasionally times out even though a retry succeeds quickly.
   const MAX_ATTEMPTS = 3;
   let lastError;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
       await page.goto('/auth/signin');
+      if (!page.url().includes('/auth/signin')) return;
+
       await page.fill('input[name="email"]', email);
       await page.fill('input[name="password"]', password);
       await page.click('button[type="submit"]');
@@ -105,8 +132,7 @@ async function signIn(page, role) {
 }
 
 function fileNameFor(role, viewport, route) {
-  const slug =
-    route === '/' ? 'root' : route.replace(/^\/|\/$/g, '').replace(/\//g, '_');
+  const slug = route === '/' ? 'root' : route.replace(/^\/|\/$/g, '').replace(/\//g, '_');
   return `${role}-${viewport}-${slug}.png`;
 }
 
