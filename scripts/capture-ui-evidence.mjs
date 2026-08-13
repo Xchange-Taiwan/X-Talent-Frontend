@@ -105,7 +105,8 @@ async function signIn(page, role) {
 }
 
 function fileNameFor(role, viewport, route) {
-  const slug = route === '/' ? 'root' : route.replace(/^\/|\/$/g, '').replace(/\//g, '_');
+  const slug =
+    route === '/' ? 'root' : route.replace(/^\/|\/$/g, '').replace(/\//g, '_');
   return `${role}-${viewport}-${slug}.png`;
 }
 
