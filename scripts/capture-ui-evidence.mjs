@@ -161,12 +161,15 @@ async function main() {
       try {
         await signIn(page, role);
       } catch {
-        // Never let the original error (or its .message) escape sign-in: a
-        // Playwright timeout/action error can echo back the value it was
-        // acting on, which here could be the password. Re-throw generic.
-        throw new Error(
+        // Report and exit right here instead of re-throwing: a Playwright
+        // timeout/action error can echo back the value it was acting on
+        // (here, potentially the password), so the original error object
+        // must never reach the generic catch below or its console.error.
+        console.error(
           `sign-in failed for role "${role}" (details withheld: may contain credentials)`
         );
+        process.exitCode = 1;
+        return;
       }
     }
 
