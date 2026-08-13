@@ -158,7 +158,16 @@ async function main() {
 
   try {
     if (role !== 'visitor') {
-      await signIn(page, role);
+      try {
+        await signIn(page, role);
+      } catch {
+        // Never let the original error (or its .message) escape sign-in: a
+        // Playwright timeout/action error can echo back the value it was
+        // acting on, which here could be the password. Re-throw generic.
+        throw new Error(
+          `sign-in failed for role "${role}" (details withheld: may contain credentials)`
+        );
+      }
     }
 
     for (const route of routes) {
