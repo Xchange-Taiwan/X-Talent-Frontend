@@ -43,14 +43,16 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
 
 3. **Publish Screenshot Evidence (UI-facing changes only)**
    - **Mandatory Screenshot Policy**: For any UI-facing change (any visual change on pages, components, layout, navigation, onboarding, profile, header, or footer), screenshot evidence **MUST** be present.
-   - **Automatic Local Screenshot Generation**: If `.agents/tmp/evidence/` is empty or missing, you **MUST NOT** skip this step. Instead, automatically:
+   - **Automatic Local Screenshot Generation**: If `.agents/tmp/evidence/` is empty or missing, this means `/implement` Step 2 was skipped or failed — you **MUST NOT** skip this step or degrade straight to `N/A`. Instead, automatically:
      1. Start the local dev server (`pnpm dev`) in the background.
      2. Wait for it to become ready (listen on port 3000).
-     3. Launch Playwright or `chrome-devtools-axi` to navigate to `http://localhost:3000`.
-     4. Authenticate for real through the sign-in form using the respective role credentials (`DESIGN_AUDIT_MENTEE_EMAIL` / `DESIGN_AUDIT_MENTEE_PASSWORD` and `DESIGN_AUDIT_MENTOR_EMAIL` / `DESIGN_AUDIT_MENTOR_PASSWORD` from `.env.development.local`).
-     5. Capture screenshots for all reachable states and roles (visitor, mentee, mentor) in both Desktop (1280x800) and Mobile (375x812) viewports.
-     6. Save files into `.agents/tmp/evidence/`.
-     7. Shut down/kill the background dev server process.
+     3. For each role that's reachable on the changed surface (visitor, mentee, mentor) and each viewport in scope (desktop, mobile), run:
+        ```bash
+        node scripts/capture-ui-evidence.mjs --routes <route1,route2,...> --role visitor|mentee|mentor --viewport desktop|mobile
+        ```
+        This is the same script `/implement` Step 2 uses — it drives a real Playwright browser, signs in for real using the `DESIGN_AUDIT_MENTEE_*`/`DESIGN_AUDIT_MENTOR_*` credentials from `.env.development.local` when the role isn't `visitor`, and saves PNGs straight into `.agents/tmp/evidence/`. There is no separate authenticate/capture/save choreography to improvise here.
+     4. Shut down/kill the background dev server process.
+     - **If the script itself errors** (e.g. a selector changed, a route 404s): fix the underlying cause (check the route exists, check `.env.development.local` has the credentials) and retry. Do not silently give up and write `N/A` — an empty evidence folder for a UI change should be rare enough that hitting it here means something upstream is actually broken and worth surfacing, not routing around.
    - Publish the captured screenshot files to the shared evidence branch to get stable, embeddable links:
      - **On macOS/Linux (Bash/Zsh)**:
        ```bash
