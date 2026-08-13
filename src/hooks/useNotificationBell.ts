@@ -2,6 +2,7 @@ import * as React from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { safeGetStorage, safeSetStorage } from '@/lib/storage';
 
 const MARK_ALL_READ_BATCH_SIZE = 5;
 
@@ -13,39 +14,6 @@ function reportMarkAsReadFailure(step: string, error: unknown): void {
     step,
     message,
   });
-}
-
-/**
- * Safe helper to read from localStorage. Returns null if not in browser or on error.
- */
-function safeGetStorage(key: string): string | null {
-  if (typeof window !== 'undefined') {
-    try {
-      return localStorage.getItem(key);
-    } catch (e) {
-      console.error(
-        `[useNotificationBell] Failed to read ${key} from localStorage:`,
-        e
-      );
-    }
-  }
-  return null;
-}
-
-/**
- * Safe helper to write to localStorage. No-op if not in browser or on error.
- */
-function safeSetStorage(key: string, value: string): void {
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem(key, value);
-    } catch (e) {
-      console.error(
-        `[useNotificationBell] Failed to write ${key} to localStorage:`,
-        e
-      );
-    }
-  }
 }
 
 /**
@@ -133,10 +101,12 @@ export function useNotificationBell({
   // Initialize synchronously to 0 to prevent Next.js SSR Hydration Mismatch.
   // The state will be populated correctly on mount by the useEffect block below.
   const [seenUnreadCount, setSeenUnreadCount] = React.useState<number>(0);
+  const [isMounted, setIsMounted] = React.useState(false);
 
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   React.useEffect(() => {
+    setIsMounted(true);
     return () => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
@@ -144,8 +114,10 @@ export function useNotificationBell({
     };
   }, []);
 
-  // Sync seenUnreadCount from localStorage when storageKey (userId) changes or on mount
+  // Sync seenUnreadCount from localStorage when storageKey (userId) changes or on mount.
+  // Also resets hasBeenClicked to false on storageKey (userId) change to prevent cross-user state pollution.
   React.useEffect(() => {
+    setHasBeenClicked(false);
     const stored = safeGetStorage(storageKey);
     setSeenUnreadCount(stored !== null ? Number(stored) : 0);
   }, [storageKey]);
@@ -289,7 +261,8 @@ export function useNotificationBell({
     }, 1000);
   }, [initialNotifications, defaultNotifications, hasBeenClicked]);
 
-  const showBadge = !hasBeenClicked && unreadCount > seenUnreadCount;
+  const showBadge =
+    isMounted && !hasBeenClicked && unreadCount > seenUnreadCount;
   const formattedCount = unreadCount > 99 ? '99+' : String(unreadCount);
   const hasUnread = notifications.some((item) => item.unread);
 

@@ -933,5 +933,33 @@ describe('NotificationBell', () => {
         );
       });
     });
+
+    it('handles localStorage blocking / exceptions gracefully without crashing the component', () => {
+      const getItemSpy = vi
+        .spyOn(Storage.prototype, 'getItem')
+        .mockImplementation(() => {
+          throw new Error('localStorage is blocked');
+        });
+      const setItemSpy = vi
+        .spyOn(Storage.prototype, 'setItem')
+        .mockImplementation(() => {
+          throw new Error('localStorage is blocked');
+        });
+
+      // Render the component with localStorage throwing errors
+      render(<NotificationBell unreadCount={5} userId="user-123" />);
+
+      // It should render normally with the badge showing because localStorage read returned 0/null safely
+      const badge = screen.getByText('5');
+      expect(badge).toBeInTheDocument();
+
+      // Click to open should also not crash and hide the badge normally
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+      expect(screen.queryByText('5')).not.toBeInTheDocument();
+
+      getItemSpy.mockRestore();
+      setItemSpy.mockRestore();
+    });
   });
 });
