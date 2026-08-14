@@ -131,7 +131,9 @@ function HeaderComponent(): JSX.Element {
                   <Skeleton className="size-9 rounded-full" />
                 </div>
                 <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block" />
-                <GuestActionButtons wrapperClassName="hidden items-center gap-3 group-data-[auth-state=guest]:flex" />
+                <div className="hidden items-center gap-3 group-data-[auth-state=guest]:flex">
+                  <GuestActionButtons />
+                </div>
               </>
             ) : !isLoggedIn ? (
               <GuestActionButtons />

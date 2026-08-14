@@ -2,25 +2,14 @@ import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 
-export interface GuestActionButtonsProps {
-  /**
-   * Wraps the buttons in a `<div>` with this className. Used by the
-   * pre-hydration CSS fast path (see Header.tsx), which needs its own
-   * flex/gap container that toggles as a unit on `data-auth-state=guest`.
-   * Omit to render the buttons directly, unwrapped.
-   */
-  wrapperClassName?: string;
-}
-
 /**
  * The desktop header's guest sign-up/sign-in buttons. Rendered twice in
- * Header.tsx: once CSS-gated for the pre-hydration guest fast path, and
- * once for the fully resolved `!isLoggedIn` state.
+ * Header.tsx: once inside a CSS-gated wrapper for the pre-hydration guest
+ * fast path, and once unwrapped for the fully resolved `!isLoggedIn` state.
+ * Layout/wrapping is the caller's responsibility, not this component's.
  */
-export function GuestActionButtons({
-  wrapperClassName,
-}: GuestActionButtonsProps): JSX.Element {
-  const buttons = (
+export function GuestActionButtons(): JSX.Element {
+  return (
     <>
       <Button
         asChild
@@ -34,10 +23,4 @@ export function GuestActionButtons({
       </Button>
     </>
   );
-
-  if (!wrapperClassName) {
-    return buttons;
-  }
-
-  return <div className={wrapperClassName}>{buttons}</div>;
 }
