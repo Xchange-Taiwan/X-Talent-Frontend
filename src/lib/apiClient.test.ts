@@ -421,6 +421,61 @@ describe('apiClient', () => {
   });
 
   /* ================================
+   * 401 Refresh Deduplication
+   * ================================ */
+
+  describe('401 Refresh Deduplication', () => {
+    beforeEach(() => {
+      vi.mocked(getSession).mockClear();
+    });
+
+    it('coalesces concurrent 401 response refresh attempts and triggers getSession exactly once', async () => {
+      // Setup mock getSession to delay so we can trigger multiple calls concurrently
+      let resolveSession: (val: any) => void = () => {};
+      const sessionPromise = new Promise((resolve) => {
+        resolveSession = resolve;
+      });
+      vi.mocked(getSession).mockImplementation(() => sessionPromise as any);
+
+      // Setup mock fetch to return 401 status and clear initial auth header getSession calls
+      mockFetch.mockImplementation(async () => {
+        vi.mocked(getSession).mockClear();
+        return new Response('Unauthorized', { status: 401 });
+      });
+
+      // Fire off two concurrent requests with auth: true
+      const p1 = apiClient.get('/v1/req1');
+      const p2 = apiClient.get('/v1/req2');
+
+      // Allow microtasks to execute
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Both requests should have fetched and received 401, triggering refreshSession()
+      // Because we coalesced, getSession should only be called once
+      expect(getSession).toHaveBeenCalledTimes(1);
+
+      // Now resolve the getSession refresh with a fresh valid session so it retries
+      const freshSession = {
+        accessToken: 'fresh-token',
+        expires: '2099-01-01T00:00:00Z',
+      };
+
+      // Setup mock fetch for the retries to return 200 OK
+      mockFetch.mockImplementation(
+        async () => new Response('"success"', { status: 200 })
+      );
+      resolveSession(freshSession);
+
+      const [r1, r2] = await Promise.all([p1, p2]);
+      expect(r1).toBe('success');
+      expect(r2).toBe('success');
+
+      // Ensure fetch was called for req1 first try, req2 first try, then retries with Authorization header
+      expect(mockFetch).toHaveBeenCalledTimes(4);
+    });
+  });
+
+  /* ================================
    * getExternalBlob
    * ================================ */
 

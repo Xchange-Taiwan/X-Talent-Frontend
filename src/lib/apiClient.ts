@@ -3,6 +3,8 @@ import { getSession } from 'next-auth/react';
 
 import { captureApiFailure } from '@/lib/monitoring';
 
+import { singleFlight } from './singleFlight';
+
 // ─── Custom Errors ───────────────────────────────────────────────────────────
 export class ApiError extends Error {
   constructor(
@@ -60,16 +62,11 @@ function isAbortError(error: unknown): boolean {
 
 // Deduplicate concurrent 401 refresh calls — if multiple requests fail at once,
 // they all wait on the same refresh rather than each triggering a new one.
-let pendingRefresh: Promise<Session | null> | null = null;
+const refreshMap = new Map<'refresh', Promise<Session | null>>();
 
 function refreshSession(): Promise<Session | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
-  if (!pendingRefresh) {
-    pendingRefresh = getSession().finally(() => {
-      pendingRefresh = null;
-    });
-  }
-  return pendingRefresh;
+  return singleFlight(refreshMap, 'refresh', () => getSession());
 }
 
 function isAbsoluteUrl(path: string): boolean {
