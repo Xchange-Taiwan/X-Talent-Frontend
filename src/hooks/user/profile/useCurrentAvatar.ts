@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react';
 import { useEffect } from 'react';
 
 import { useSessionHint } from '@/hooks/user/auth/useSessionHint';
+import { resolveIdentity } from '@/lib/auth/sessionHint';
 import {
   clearAvatarOverride,
   useAvatarOverride,
@@ -35,23 +36,12 @@ export function useCurrentAvatar(): string | null {
     }
   }, [override, sessionUserId, sessionAvatar]);
 
-  // Fast, synchronous path on render to prevent 1-frame flash on update
-  if (override && override.userId === sessionUserId) {
-    return override.url;
-  }
+  // Derived completely via resolveIdentity for single source of truth correctness
+  const hint =
+    status === 'loading' && hintState.status === 'authenticated'
+      ? hintState
+      : null;
+  const identity = resolveIdentity(override, session, status, hint);
 
-  if (status === 'authenticated') {
-    return sessionAvatar;
-  }
-
-  // Fallback to hintState strictly for loading stages
-  if (
-    status === 'loading' &&
-    hintState.status === 'authenticated' &&
-    hintState.avatar
-  ) {
-    return hintState.avatar;
-  }
-
-  return null;
+  return identity.avatar ?? null;
 }

@@ -49,6 +49,7 @@ export function useProfileAuth(pageUserId: string) {
       status === 'loading' && rawCookie !== undefined && !identity.isLoggedIn;
 
     if (sessionSettled || isDifferentUserHint || isGuestHint) {
+      setIsAuthorized(false);
       router.push('/');
     }
   }, [pageUserId, router, session, status]);
