@@ -54,8 +54,10 @@ export function resolveMentorExperienceLinks(
         typeof l === 'object' &&
         l !== null &&
         'url' in l &&
-        typeof (l as any).url === 'string' &&
-        Boolean((l as any).url)
+        'platform' in l &&
+        typeof (l as Record<string, unknown>).url === 'string' &&
+        typeof (l as Record<string, unknown>).platform === 'string' &&
+        Boolean((l as Record<string, unknown>).url)
     );
 }
 

@@ -124,5 +124,23 @@ describe('auth.config', () => {
         { platform: 'GitHub', url: 'https://github.com/test' },
       ]);
     });
+
+    it('should filter out links with missing or invalid platform property', () => {
+      const experiences: MentorExperience[] = [
+        fromPartial({
+          category: 'LINK',
+          mentor_experiences_metadata: {
+            data: [
+              fromPartial({ url: 'https://github.com/test' }), // missing platform
+              fromPartial({ platform: 123, url: 'https://github.com/test' }), // platform not a string
+              { platform: 'GitHub', url: 'https://github.com/test' }, // correct
+            ],
+          },
+        }),
+      ];
+      expect(resolveMentorExperienceLinks(experiences)).toEqual([
+        { platform: 'GitHub', url: 'https://github.com/test' },
+      ]);
+    });
   });
 });
