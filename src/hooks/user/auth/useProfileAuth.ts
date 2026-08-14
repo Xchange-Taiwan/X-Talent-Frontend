@@ -14,8 +14,11 @@ export function useProfileAuth(pageUserId: string) {
   // Lazy-init from a cached session or session-hint so client-side navigation does not flash
   // a false isAuthorized for one frame before the effect catches up.
   const [isAuthorized, setIsAuthorized] = useState(() => {
-    const loginUserId =
-      hintState.status === 'authenticated' ? hintState.userId : undefined;
+    const loginUserId = session?.user?.id
+      ? String(session.user.id)
+      : hintState.status === 'authenticated'
+        ? hintState.userId
+        : undefined;
     return Boolean(loginUserId) && loginUserId === pageUserId;
   });
 
@@ -23,8 +26,12 @@ export function useProfileAuth(pageUserId: string) {
     const hasFullUser = Boolean(session?.user?.id);
     const sessionSettled = hasFullUser || status !== 'loading';
 
-    const loginUserId =
-      hintState.status === 'authenticated' ? hintState.userId : undefined;
+    // Synchronously check session first, fallback to hintState if loading to avoid 1-frame async lag
+    const loginUserId = session?.user?.id
+      ? String(session.user.id)
+      : hintState.status === 'authenticated'
+        ? hintState.userId
+        : undefined;
 
     // 1. If matching, authorize immediately
     if (loginUserId === pageUserId) {

@@ -153,9 +153,7 @@ export function resolveIdentity(
 
   // 1. Resolve userId
   const userId = hasFullUser
-    ? session?.user?.id
-      ? String(session.user.id)
-      : undefined
+    ? String(session!.user!.id)
     : sessionSettled
       ? undefined
       : (hint?.userId ?? undefined);

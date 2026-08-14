@@ -18,7 +18,7 @@ import {
  * the header shows the old avatar between submit and the session refetch landing.
  */
 export function useCurrentAvatar(): string | null {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const hintState = useSessionHint();
   const override = useAvatarOverride();
   const sessionUserId = session?.user?.id ?? null;
@@ -35,6 +35,16 @@ export function useCurrentAvatar(): string | null {
     }
   }, [override, sessionUserId, sessionAvatar]);
 
+  // Fast, synchronous path on render to prevent 1-frame flash on update
+  if (override && override.userId === sessionUserId) {
+    return override.url;
+  }
+
+  if (status === 'authenticated') {
+    return sessionAvatar;
+  }
+
+  // Fallback to hintState for loading stages
   if (hintState.status === 'authenticated' && hintState.avatar) {
     return hintState.avatar;
   }
