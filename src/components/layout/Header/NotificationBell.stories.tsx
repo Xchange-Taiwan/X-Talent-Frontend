@@ -19,44 +19,49 @@ const meta: Meta<typeof NotificationBell> = {
 export default meta;
 type Story = StoryObj<typeof NotificationBell>;
 
+const generateNotifications = (count: number) =>
+  Array.from({ length: count }, (_, i) => ({
+    id: `${i}`,
+    type: 'reservation_new' as const,
+    menteeName: `Mentee ${i}`,
+    createdAt: new Date().toISOString(),
+    unread: true,
+  }));
+
 export const Default: Story = {
   args: {
-    unreadCount: 5,
     initialStatus: 'success',
   },
 };
 
 export const LoadingState: Story = {
   args: {
-    unreadCount: 5,
     initialStatus: 'loading',
   },
 };
 
 export const ErrorState: Story = {
   args: {
-    unreadCount: 5,
     initialStatus: 'error',
   },
 };
 
 export const EmptyState: Story = {
   args: {
-    unreadCount: 0,
+    initialNotifications: [],
     initialStatus: 'empty',
   },
 };
 
 export const Over99Notifications: Story = {
   args: {
-    unreadCount: 120,
+    initialNotifications: generateNotifications(120),
     initialStatus: 'success',
   },
 };
 
 export const LongText: Story = {
   args: {
-    unreadCount: 1,
     initialStatus: 'success',
     initialNotifications: [
       {
