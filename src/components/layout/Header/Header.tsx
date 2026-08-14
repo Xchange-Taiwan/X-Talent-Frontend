@@ -132,37 +132,31 @@ function HeaderComponent(): JSX.Element {
                 </div>
                 <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block" />
                 <div className="hidden items-center gap-3 group-data-[auth-state=guest]:flex">
-                  <Link href="/auth/signup">
-                    <Button
-                      variant="outline"
-                      className="border-brand-500 text-brand-500 hover:text-brand-500"
-                    >
-                      註冊
-                    </Button>
-                  </Link>
-                  <Link href="/auth/signin">
-                    <Button className="bg-brand-500 hover:bg-brand-500">
-                      登入
-                    </Button>
-                  </Link>
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="border-brand-500 text-brand-500 hover:text-brand-500"
+                  >
+                    <Link href="/auth/signup">註冊</Link>
+                  </Button>
+                  <Button asChild className="bg-brand-500 hover:bg-brand-500">
+                    <Link href="/auth/signin">登入</Link>
+                  </Button>
                 </div>
               </>
             ) : !isLoggedIn ? (
               <>
-                <Link href="/auth/signup">
-                  <Button
-                    variant="outline"
-                    className="border-brand-500 text-brand-500 hover:text-brand-500"
-                  >
-                    註冊
-                  </Button>
-                </Link>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="border-brand-500 text-brand-500 hover:text-brand-500"
+                >
+                  <Link href="/auth/signup">註冊</Link>
+                </Button>
 
-                <Link href="/auth/signin">
-                  <Button className="bg-brand-500 hover:bg-brand-500">
-                    登入
-                  </Button>
-                </Link>
+                <Button asChild className="bg-brand-500 hover:bg-brand-500">
+                  <Link href="/auth/signin">登入</Link>
+                </Button>
               </>
             ) : isLoggedIn ? (
               <>

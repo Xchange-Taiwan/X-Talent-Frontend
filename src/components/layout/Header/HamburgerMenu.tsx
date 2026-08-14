@@ -112,19 +112,20 @@ export function HamburgerMenu({
 
           {!isLoggedIn && (
             <div className="mt-auto flex flex-col items-center gap-6 pb-6">
-              <Link href="/auth/signin" onClick={close}>
-                <Button className="w-40 bg-brand-500 hover:bg-brand-500">
+              <Button asChild className="w-40 bg-brand-500 hover:bg-brand-500">
+                <Link href="/auth/signin" onClick={close}>
                   登入
-                </Button>
-              </Link>
-              <Link href="/auth/signup" onClick={close}>
-                <Button
-                  variant="outline"
-                  className="w-40 border-brand-500 text-brand-500 hover:text-brand-500"
-                >
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                className="w-40 border-brand-500 text-brand-500 hover:text-brand-500"
+              >
+                <Link href="/auth/signup" onClick={close}>
                   註冊
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
           )}
         </div>
