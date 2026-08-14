@@ -45,6 +45,8 @@ export default function Page() {
             alt="X-Talent 起源 — XChange 社群成員交流情境"
             sizes="500px"
             priority={false}
+            placeholder="blur"
+            blurDataURL="data:image/webp;base64,UklGRmgAAABXRUJQVlA4IFwAAAAwAgCdASoKAAYAAUAmJZQAEPN8bsW11HJORAD+4Nv7ydzvgf+ppALM/+CXSyN+wgP/5CcvuL+rtpayQ/47L7f6tIIsv1J0vQKcYlJL2kGx3aUh553HrmuM09DAAA=="
           />
           <p className="max-w-5xl px-8 text-center text-base md:text-xl lg:px-0">
             X-Talent 源自於台灣最大的互聯網工作者社群 XChange
