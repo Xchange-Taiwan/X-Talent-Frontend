@@ -13,23 +13,37 @@ import {
 
 export interface MentorExperience {
   category: string;
-  mentor_experiences_metadata?: { data?: unknown[] };
+  mentor_experiences_metadata?: {
+    data?: unknown[];
+  };
+}
+
+export interface PersonalLink {
+  platform: string;
+  url: string;
 }
 
 export function resolveMentorExperienceLinks(
-  experiences?: MentorExperience[]
-): { platform: string; url: string }[] {
+  experiences: MentorExperience[] | undefined | null
+): PersonalLink[] {
   if (!experiences) return [];
   return experiences
     .filter((exp) => exp.category === 'LINK')
-    .flatMap(
-      (exp) =>
-        (exp.mentor_experiences_metadata?.data ?? []) as {
-          platform: string;
-          url: string;
-        }[]
-    )
-    .filter((l) => Boolean(l.url) && isSafeUrl(l.url));
+    .flatMap((exp) => {
+      const list = exp.mentor_experiences_metadata?.data;
+      return Array.isArray(list) ? list : [];
+    })
+    .filter(
+      (l): l is PersonalLink =>
+        typeof l === 'object' &&
+        l !== null &&
+        'url' in l &&
+        'platform' in l &&
+        typeof (l as Record<string, unknown>).url === 'string' &&
+        typeof (l as Record<string, unknown>).platform === 'string' &&
+        Boolean((l as Record<string, unknown>).url) &&
+        isSafeUrl((l as Record<string, unknown>).url as string)
+    );
 }
 
 export const REFRESH_SKEW_SECONDS = 300;
