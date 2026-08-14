@@ -1,17 +1,6 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 
-import HomePageHeroImgUrl from '@/assets/landing/home-page-hero.webp';
-import landingPage_4 from '@/assets/landing/landingPage_4.webp';
-import landingPage_5 from '@/assets/landing/landingPage_5.webp';
-import landingPage_6 from '@/assets/landing/landingPage_6.webp';
-import landingPage_7 from '@/assets/landing/landingPage_7.webp';
-import landingPage_icon_1 from '@/assets/landing/landingPage_icon_1.svg';
-import landingPage_icon_2 from '@/assets/landing/landingPage_icon_2.svg';
-import landingPage_icon_3 from '@/assets/landing/landingPage_icon_3.svg';
-import landingPage_icon_4 from '@/assets/landing/landingPage_icon_4.svg';
-import landingPage_icon_5 from '@/assets/landing/landingPage_icon_5.svg';
-import landingPage_icon_6 from '@/assets/landing/landingPage_icon_6.svg';
 import { HomePageSliderClient } from '@/components/landing/HomePageSliderClient';
 
 import { featureData } from './data';
@@ -20,12 +9,24 @@ export const metadata: Metadata = {
   alternates: { canonical: '/' },
 };
 
-const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
+const FeatureItem = ({
+  icon,
+  width,
+  height,
+  text,
+}: {
+  icon: string;
+  width: number;
+  height: number;
+  text: string;
+}) => {
   return (
     <div className="mb-6 flex items-center md:mb-[50px] md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto">
       <Image
         className="size-12 md:h-[70px] md:w-[70px]"
         src={icon}
+        width={width}
+        height={height}
         alt=""
         role="presentation"
       />
@@ -88,7 +89,7 @@ export default function Page() {
         </p>
 
         <Image
-          src={HomePageHeroImgUrl}
+          src="/landing/home-page-hero.webp"
           alt="X-Talent 平台主視覺：專業工作者交流情境"
           fill
           sizes="1800px"
@@ -106,7 +107,13 @@ export default function Page() {
           </h2>
           <div className="flex flex-col flex-wrap justify-center font-bold text-text-primary md:flex-row">
             {featureData.map((item) => (
-              <FeatureItem key={item.text} icon={item.icon} text={item.text} />
+              <FeatureItem
+                key={item.text}
+                icon={item.icon}
+                width={item.width}
+                height={item.height}
+                text={item.text}
+              />
             ))}
           </div>
         </div>
@@ -115,7 +122,7 @@ export default function Page() {
       <section className="relative contents md:m-auto md:h-[1100px] md:w-[930px] xl:block xl:h-[790px]">
         <div className="mt-8 mb-[50px] flex flex-col items-center px-4 min-[550px]:px-14 md:mt-[70px] md:flex-row md:items-start md:gap-8 md:px-8 xl:mt-7 xl:mb-[130px] xl:gap-0 xl:px-0">
           <Image
-            src={landingPage_4}
+            src="/landing/landingPage_4.webp"
             width={420}
             height={270}
             alt="Mentor 與 Mentee 線上交流情境"
@@ -142,7 +149,9 @@ export default function Page() {
             </p>
           </div>
           <Image
-            src={landingPage_5}
+            src="/landing/landingPage_5.webp"
+            width={420}
+            height={270}
             alt="Mentor 一對一指導 Mentee 情境"
             sizes="(min-width: 768px) 40vw, 100vw"
             className="max-w-full shrink-0 md:w-2/5"
@@ -174,7 +183,9 @@ export default function Page() {
         <div className="m-auto flex h-auto w-full max-w-screen-xl flex-col items-center justify-center px-4 md:h-full md:px-8 xl:px-0">
           <div className="flex">
             <Image
-              src={landingPage_6}
+              src="/landing/landingPage_6.webp"
+              width={750}
+              height={500}
               alt="成為 Mentor 主視覺"
               sizes="363px"
               className="hidden w-[363px] xl:block"
@@ -187,7 +198,9 @@ export default function Page() {
                 <div className="mb-6 flex items-center md:m-0 md:flex-col xl:w-[180px]">
                   <Image
                     className="ml-4 md:m-0"
-                    src={landingPage_icon_1}
+                    src="/landing/landingPage_icon_1.svg"
+                    width={44}
+                    height={44}
                     alt=""
                     role="presentation"
                   />
@@ -201,7 +214,9 @@ export default function Page() {
                 <div className="mb-6 flex items-center md:m-0 md:ml-[80px] md:flex-col xl:w-[180px]">
                   <Image
                     className="ml-4 md:m-0"
-                    src={landingPage_icon_2}
+                    src="/landing/landingPage_icon_2.svg"
+                    width={46}
+                    height={46}
                     alt=""
                     role="presentation"
                   />
@@ -214,7 +229,9 @@ export default function Page() {
                 <div className="flex items-center md:ml-[80px] md:flex-col xl:w-[180px]">
                   <Image
                     className="ml-4 md:m-0"
-                    src={landingPage_icon_3}
+                    src="/landing/landingPage_icon_3.svg"
+                    width={44}
+                    height={45}
                     alt=""
                     role="presentation"
                   />
@@ -232,7 +249,9 @@ export default function Page() {
           </div>
           <div className="mt-10 flex md:mt-[116px]">
             <Image
-              src={landingPage_7}
+              src="/landing/landingPage_7.webp"
+              width={750}
+              height={473}
               alt="成為 Mentee 主視覺"
               sizes="363px"
               className="hidden w-[363px] xl:block"
@@ -245,7 +264,9 @@ export default function Page() {
                 <div className="mb-6 flex items-center md:m-0 md:flex-col xl:w-[180px]">
                   <Image
                     className="ml-4 md:m-0"
-                    src={landingPage_icon_4}
+                    src="/landing/landingPage_icon_4.svg"
+                    width={44}
+                    height={44}
                     alt=""
                     role="presentation"
                   />
@@ -259,7 +280,9 @@ export default function Page() {
                 <div className="mb-6 flex items-center md:m-0 md:ml-[80px] md:flex-col xl:w-[180px]">
                   <Image
                     className="ml-4 md:m-0"
-                    src={landingPage_icon_5}
+                    src="/landing/landingPage_icon_5.svg"
+                    width={35}
+                    height={42}
                     alt=""
                     role="presentation"
                   />
@@ -275,7 +298,9 @@ export default function Page() {
                 <div className="flex items-center md:ml-[80px] md:flex-col xl:w-[180px]">
                   <Image
                     className="ml-4 md:m-0"
-                    src={landingPage_icon_6}
+                    src="/landing/landingPage_icon_6.svg"
+                    width={44}
+                    height={44}
                     alt=""
                     role="presentation"
                   />
