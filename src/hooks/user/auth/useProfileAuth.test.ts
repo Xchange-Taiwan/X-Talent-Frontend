@@ -140,7 +140,7 @@ describe('useProfileAuth', () => {
     expect(result.current.isAuthorized).toBe(false);
   });
 
-  it('lazy-inits isAuthorized to true on first render when loading but hint is matching pageUserId', () => {
+  it('lazy-inits isAuthorized to false when loading (to avoid hydration mismatch) even if hint matches pageUserId, but resolves to true in useEffect', async () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
     mockReadCookie.mockReturnValue(`1|${PAGE_USER_ID}`);
     const { result } = renderHook(() => useProfileAuth(PAGE_USER_ID));

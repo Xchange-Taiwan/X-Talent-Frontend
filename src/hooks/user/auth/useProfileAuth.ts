@@ -15,12 +15,12 @@ export function useProfileAuth(pageUserId: string) {
   const router = useRouter();
   const { data: session, status } = useSession();
 
-  // Lazy-init from a cached session or session-hint so client-side navigation does not flash
+  // Lazy-init from a cached session so client-side navigation does not flash
   // a false isAuthorized for one frame before the effect catches up.
+  // Avoids reading document.cookie during lazy-init to prevent React Hydration Mismatch.
   const [isAuthorized, setIsAuthorized] = useState(() => {
-    const hint = decodeSessionHint(readCookie(SESSION_HINT_COOKIE));
-    const identity = resolveIdentity(null, session, status, hint);
-    return Boolean(identity.userId) && identity.userId === pageUserId;
+    const loginUserId = session?.user?.id ? String(session.user.id) : undefined;
+    return Boolean(loginUserId) && loginUserId === pageUserId;
   });
 
   useEffect(() => {
