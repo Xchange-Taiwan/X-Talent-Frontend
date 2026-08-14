@@ -13,7 +13,11 @@ import { type NotificationItem } from '@/hooks/useNotificationCenter';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { mockToast } from '@/test/mocks/useToast';
 
-import { getNotificationContent, NotificationBell } from './NotificationBell';
+import {
+  getNotificationContent,
+  NotificationBell,
+  type NotificationBellProps,
+} from './NotificationBell';
 
 vi.mock('@/components/ui/use-toast', async () => {
   const { useToastMockFactory } = await import('@/test/mocks/useToast');
@@ -48,7 +52,9 @@ function getMockNotifications(count: number): NotificationItem[] {
   }));
 }
 
-function renderBell(props: any = {}) {
+function renderBell(
+  props: Partial<NotificationBellProps> & { unreadCount?: number } = {}
+) {
   const { unreadCount = 5, initialNotifications, ...rest } = props;
   const notifications =
     initialNotifications !== undefined
@@ -254,7 +260,9 @@ describe('NotificationBell', () => {
           markRead: vi.fn(),
           markAllRead: vi.fn(),
           handleRetry: vi.fn(),
-        } as any);
+        } as unknown as ReturnType<
+          typeof useNotificationCenterModule.useNotificationCenter
+        >);
 
       renderBell({ initialStatus: 'success' });
 
