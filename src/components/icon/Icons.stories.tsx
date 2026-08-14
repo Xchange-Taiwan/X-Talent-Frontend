@@ -29,7 +29,7 @@ import * as Icons from './index';
  *    ```
  */
 const meta: Meta = {
-  title: '系統設計/圖示庫 (Icon Gallery)',
+  title: 'System/Icon Gallery',
   tags: ['autodocs'],
   parameters: {
     docs: {
