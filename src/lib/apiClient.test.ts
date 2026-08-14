@@ -447,12 +447,10 @@ describe('apiClient', () => {
       const p1 = apiClient.get('/v1/req1');
       const p2 = apiClient.get('/v1/req2');
 
-      // Allow microtasks to execute
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      // Both requests should have fetched and received 401, triggering refreshSession()
-      // Because we coalesced, getSession should only be called once
-      expect(getSession).toHaveBeenCalledTimes(1);
+      // Dynamically wait for the coalesced refresh call to trigger getSession exactly once (prevents flaky timing)
+      await vi.waitFor(() => {
+        expect(getSession).toHaveBeenCalledTimes(1);
+      });
 
       // Now resolve the getSession refresh with a fresh valid session so it retries
       const freshSession = {

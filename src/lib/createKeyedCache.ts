@@ -141,16 +141,22 @@ export function createKeyedCache<K, V>(
       }
     }
 
+    // eslint-disable-next-line prefer-const
+    let innerPromise: Promise<V>;
     const finalPromise = singleFlight(inflightCache, key, () => {
-      return fetcher().then((value) => {
-        // Race Condition fix: Only write to cache if this is still the current inflight promise
-        if (getInflight(key) === finalPromise) {
+      innerPromise = fetcher().then((value) => {
+        const currentInflight = getInflight(key);
+        if (
+          currentInflight &&
+          (currentInflight === finalPromise || currentInflight === innerPromise)
+        ) {
           if (!options?.shouldCache || options.shouldCache(value)) {
             set(key, value, options?.ttlMs);
           }
         }
         return value;
       });
+      return innerPromise;
     });
 
     return finalPromise;
