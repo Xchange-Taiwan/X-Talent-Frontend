@@ -1,3 +1,4 @@
+import type { Session } from 'next-auth';
 import { getSession } from 'next-auth/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -431,11 +432,11 @@ describe('apiClient', () => {
 
     it('coalesces concurrent 401 response refresh attempts and triggers getSession exactly once', async () => {
       // Setup mock getSession to delay so we can trigger multiple calls concurrently
-      let resolveSession: (val: any) => void = () => {};
-      const sessionPromise = new Promise((resolve) => {
+      let resolveSession: (val: Session | null) => void = () => {};
+      const sessionPromise = new Promise<Session | null>((resolve) => {
         resolveSession = resolve;
       });
-      vi.mocked(getSession).mockImplementation(() => sessionPromise as any);
+      vi.mocked(getSession).mockImplementation(() => sessionPromise);
 
       // Setup mock fetch to return 401 status and clear initial auth header getSession calls
       mockFetch.mockImplementation(async () => {
@@ -453,9 +454,14 @@ describe('apiClient', () => {
       });
 
       // Now resolve the getSession refresh with a fresh valid session so it retries
-      const freshSession = {
+      const freshSession: Session = {
         accessToken: 'fresh-token',
         expires: '2099-01-01T00:00:00Z',
+        user: {
+          id: 'test-user',
+          name: 'Test User',
+          email: 'test@example.com',
+        },
       };
 
       // Setup mock fetch for the retries to return 200 OK
