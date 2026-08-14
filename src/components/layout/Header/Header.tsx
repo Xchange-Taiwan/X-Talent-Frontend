@@ -6,7 +6,6 @@ import { useSession } from 'next-auth/react';
 import { memo, useMemo } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthStatus } from '@/hooks/user/auth/useAuthStatus';
 import { useSessionHint } from '@/hooks/user/auth/useSessionHint';
@@ -15,6 +14,7 @@ import { trackEvent } from '@/lib/analytics';
 
 import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
 import { DisabledAwareLink } from './DisabledAwareLink';
+import { GuestActionButtons } from './GuestActionButtons';
 import { HamburgerMenu } from './HamburgerMenu';
 import { MobileUserMenu } from './MobileUserMenu';
 import { getBecomeMentorHref, getProfileHref } from './navHrefs';
@@ -74,7 +74,7 @@ function HeaderComponent(): JSX.Element {
 
             {!authKnown ? (
               <>
-                <Skeleton className="h-6 w-24 group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden" />
+                <Skeleton className="h-6 w-24 group-data-[auth-state=guest]:hidden group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden" />
                 <DisabledAwareLink
                   href={getProfileHref(userId)}
                   disabled={isResolvingUser}
@@ -85,7 +85,7 @@ function HeaderComponent(): JSX.Element {
                 <DisabledAwareLink
                   href={getBecomeMentorHref(userId)}
                   disabled={isResolvingUser}
-                  className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentee]:block"
+                  className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=guest]:block group-data-[auth-state=mentee]:block"
                 >
                   成為導師
                 </DisabledAwareLink>
@@ -127,28 +127,16 @@ function HeaderComponent(): JSX.Element {
           >
             {!authKnown ? (
               <>
-                <div className="group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden">
+                <div className="group-data-[auth-state=guest]:hidden group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden">
                   <Skeleton className="size-9 rounded-full" />
                 </div>
                 <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block" />
+                <div className="hidden items-center gap-3 group-data-[auth-state=guest]:flex">
+                  <GuestActionButtons />
+                </div>
               </>
             ) : !isLoggedIn ? (
-              <>
-                <Link href="/auth/signup">
-                  <Button
-                    variant="outline"
-                    className="border-brand-500 text-brand-500 hover:text-brand-500"
-                  >
-                    註冊
-                  </Button>
-                </Link>
-
-                <Link href="/auth/signin">
-                  <Button className="bg-brand-500 hover:bg-brand-500">
-                    登入
-                  </Button>
-                </Link>
-              </>
+              <GuestActionButtons />
             ) : isLoggedIn ? (
               <>
                 <NotificationBell
