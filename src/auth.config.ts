@@ -25,6 +25,42 @@ function decodeJwtExp(jwtString: string): number | null {
   }
 }
 
+export const REFRESH_SKEW_SECONDS = 300;
+
+export interface MentorExperience {
+  category: string;
+  mentor_experiences_metadata?: {
+    data?: unknown[];
+  };
+}
+
+export interface PersonalLink {
+  platform: string;
+  url: string;
+}
+
+export function resolveMentorExperienceLinks(
+  experiences: MentorExperience[] | undefined | null
+): PersonalLink[] {
+  if (!experiences) return [];
+  return experiences
+    .filter((exp) => exp.category === 'LINK')
+    .flatMap((exp) => {
+      const list = exp.mentor_experiences_metadata?.data;
+      return Array.isArray(list) ? list : [];
+    })
+    .filter(
+      (l): l is PersonalLink =>
+        typeof l === 'object' &&
+        l !== null &&
+        'url' in l &&
+        'platform' in l &&
+        typeof (l as Record<string, unknown>).url === 'string' &&
+        typeof (l as Record<string, unknown>).platform === 'string' &&
+        Boolean((l as Record<string, unknown>).url)
+    );
+}
+
 // BFF rotates the refresh_token on every /v1/auth/token call (revokes the old
 // rt:* index immediately). Concurrent jwt callbacks reading the same stored
 // refresh token would all POST it; first wins, the rest get invalid_grant.
@@ -72,20 +108,9 @@ const authOptions = {
         const response = await res.json();
         if (!res.ok || !response?.data) return null;
 
-        const experiences: {
-          category: string;
-          mentor_experiences_metadata?: { data?: unknown[] };
-        }[] = response.data.user.experiences ?? [];
-        const personalLinks = experiences
-          .filter((exp) => exp.category === 'LINK')
-          .flatMap(
-            (exp) =>
-              (exp.mentor_experiences_metadata?.data ?? []) as {
-                platform: string;
-                url: string;
-              }[]
-          )
-          .filter((l) => Boolean(l.url));
+        const personalLinks = resolveMentorExperienceLinks(
+          response.data.user.experiences
+        );
 
         return {
           id: String(response.data.auth.user_id),
@@ -124,20 +149,7 @@ const authOptions = {
           )?.value;
           cookieStore.delete(OAUTH_REFRESH_BRIDGE_COOKIE);
 
-          const experiences: {
-            category: string;
-            mentor_experiences_metadata?: { data?: unknown[] };
-          }[] = user.experiences ?? [];
-          const personalLinks = experiences
-            .filter((exp) => exp.category === 'LINK')
-            .flatMap(
-              (exp) =>
-                (exp.mentor_experiences_metadata?.data ?? []) as {
-                  platform: string;
-                  url: string;
-                }[]
-            )
-            .filter((l) => Boolean(l.url));
+          const personalLinks = resolveMentorExperienceLinks(user.experiences);
 
           return {
             id: String(user.user_id),
@@ -182,7 +194,8 @@ const authOptions = {
 
       if (backendToken && storedRefreshToken) {
         const exp = decodeJwtExp(backendToken);
-        const isExpiringSoon = exp !== null && exp - Date.now() / 1000 < 300;
+        const isExpiringSoon =
+          exp !== null && exp - Date.now() / 1000 < REFRESH_SKEW_SECONDS;
 
         if (isExpiringSoon) {
           try {
