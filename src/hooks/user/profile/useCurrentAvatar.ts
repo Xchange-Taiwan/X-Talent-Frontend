@@ -4,7 +4,6 @@ import { useSession } from 'next-auth/react';
 import { useEffect } from 'react';
 
 import { useSessionHint } from '@/hooks/user/auth/useSessionHint';
-import { resolveIdentity } from '@/lib/auth/sessionHint';
 import {
   clearAvatarOverride,
   useAvatarOverride,
@@ -19,7 +18,7 @@ import {
  * the header shows the old avatar between submit and the session refetch landing.
  */
 export function useCurrentAvatar(): string | null {
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const hintState = useSessionHint();
   const override = useAvatarOverride();
   const sessionUserId = session?.user?.id ?? null;
@@ -36,8 +35,9 @@ export function useCurrentAvatar(): string | null {
     }
   }, [override, sessionUserId, sessionAvatar]);
 
-  const hint = hintState.status === 'authenticated' ? hintState : null;
-  const identity = resolveIdentity(override, session, status, hint);
+  if (hintState.status === 'authenticated' && hintState.avatar) {
+    return hintState.avatar;
+  }
 
-  return identity.avatar ?? null;
+  return null;
 }

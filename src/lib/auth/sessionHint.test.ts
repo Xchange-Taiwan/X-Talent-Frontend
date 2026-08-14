@@ -6,6 +6,7 @@ import {
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
   encodeSessionHint,
+  readCookie,
   resolveIdentity,
   safeDecodeURIComponent,
   SESSION_HINT_COOKIE,
@@ -135,6 +136,34 @@ describe('sessionHint utilities', () => {
 
     it('returns raw value on malformed URI error', () => {
       expect(safeDecodeURIComponent('%invalid')).toBe('%invalid');
+    });
+  });
+
+  describe('readCookie', () => {
+    beforeEach(() => {
+      // Clear cookies before each test
+      document.cookie = `${SESSION_HINT_COOKIE}=; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+      document.cookie = 'other-cookie=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    });
+
+    it('returns undefined when cookie is not present', () => {
+      expect(readCookie('non-existent')).toBeUndefined();
+    });
+
+    it('reads and decodes a simple cookie value', () => {
+      document.cookie = 'test-cookie=hello%20world';
+      expect(readCookie('test-cookie')).toBe('hello world');
+    });
+
+    it('reads the correct cookie among multiple cookies', () => {
+      document.cookie = 'first-cookie=first-val';
+      document.cookie = 'second-cookie=second-val';
+      expect(readCookie('second-cookie')).toBe('second-val');
+    });
+
+    it('falls back to raw value on decode failure', () => {
+      document.cookie = 'bad-cookie=%invalid';
+      expect(readCookie('bad-cookie')).toBe('%invalid');
     });
   });
 

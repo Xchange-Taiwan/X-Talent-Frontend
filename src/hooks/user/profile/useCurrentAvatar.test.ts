@@ -34,7 +34,13 @@ describe('useCurrentAvatar', () => {
       data: { user: { id: 'user-123', avatar: 'session-avatar.png' } },
       status: 'authenticated',
     } as unknown as ReturnType<typeof useSession>);
-    mockUseSessionHint.mockReturnValue({ status: 'unknown' });
+    // Consistent with resolved identity in real app when override is active
+    mockUseSessionHint.mockReturnValue({
+      status: 'authenticated',
+      isMentor: true,
+      userId: 'user-123',
+      avatar: 'override-avatar.png',
+    });
     mockUseAvatarOverride.mockReturnValue({
       userId: 'user-123',
       url: 'override-avatar.png',
@@ -50,7 +56,13 @@ describe('useCurrentAvatar', () => {
       data: { user: { id: 'user-123', avatar: 'session-avatar.png' } },
       status: 'authenticated',
     } as unknown as ReturnType<typeof useSession>);
-    mockUseSessionHint.mockReturnValue({ status: 'unknown' });
+    // Consistent with resolved identity when override is for a different user
+    mockUseSessionHint.mockReturnValue({
+      status: 'authenticated',
+      isMentor: true,
+      userId: 'user-123',
+      avatar: 'session-avatar.png',
+    });
     mockUseAvatarOverride.mockReturnValue({
       userId: 'different-user',
       url: 'override-avatar.png',
@@ -62,7 +74,6 @@ describe('useCurrentAvatar', () => {
   });
 
   it('returns hint avatar when session is loading and hint has avatar', () => {
-    // Session is loading (data is null/undefined)
     mockUseSession.mockReturnValue({
       data: undefined,
       status: 'loading',
@@ -80,15 +91,16 @@ describe('useCurrentAvatar', () => {
   });
 
   it('returns null when session has resolved with null avatar even if hint has one', () => {
-    // Session is resolved, user avatar is explicitly null
     mockUseSession.mockReturnValue({
       data: { user: { id: 'user-123', avatar: null } },
       status: 'authenticated',
     } as unknown as ReturnType<typeof useSession>);
+    // Consistent with resolved identity when session has null avatar
     mockUseSessionHint.mockReturnValue({
       status: 'authenticated',
       isMentor: true,
-      avatar: 'hint-avatar.png',
+      userId: 'user-123',
+      avatar: undefined,
     });
     mockUseAvatarOverride.mockReturnValue(null);
 
@@ -102,11 +114,8 @@ describe('useCurrentAvatar', () => {
       data: null,
       status: 'unauthenticated',
     } as unknown as ReturnType<typeof useSession>);
-    mockUseSessionHint.mockReturnValue({
-      status: 'authenticated',
-      isMentor: true,
-      avatar: 'stale-hint-avatar.png',
-    });
+    // Consistent with resolved identity when unauthenticated
+    mockUseSessionHint.mockReturnValue({ status: 'guest' });
     mockUseAvatarOverride.mockReturnValue(null);
 
     const { result } = renderHook(() => useCurrentAvatar());

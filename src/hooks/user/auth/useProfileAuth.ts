@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import { useSessionHint } from '@/hooks/user/auth/useSessionHint';
-import { resolveIdentity } from '@/lib/auth/sessionHint';
 
 export function useProfileAuth(pageUserId: string) {
   const router = useRouter();
@@ -15,32 +14,35 @@ export function useProfileAuth(pageUserId: string) {
   // Lazy-init from a cached session or session-hint so client-side navigation does not flash
   // a false isAuthorized for one frame before the effect catches up.
   const [isAuthorized, setIsAuthorized] = useState(() => {
-    const hint = hintState.status === 'authenticated' ? hintState : null;
-    const identity = resolveIdentity(null, session, status, hint);
-    return Boolean(identity.userId) && identity.userId === pageUserId;
+    const loginUserId =
+      hintState.status === 'authenticated' ? hintState.userId : undefined;
+    return Boolean(loginUserId) && loginUserId === pageUserId;
   });
 
   useEffect(() => {
-    const hint = hintState.status === 'authenticated' ? hintState : null;
-    const identity = resolveIdentity(null, session, status, hint);
-
     const hasFullUser = Boolean(session?.user?.id);
     const sessionSettled = hasFullUser || status !== 'loading';
 
+    const loginUserId =
+      hintState.status === 'authenticated' ? hintState.userId : undefined;
+
     // 1. If matching, authorize immediately
-    if (identity.userId === pageUserId) {
+    if (loginUserId === pageUserId) {
       setIsAuthorized(true);
       return;
     }
 
     // 2. Redirect if either session is fully settled (and did not match)
-    // OR we are loading but have an authenticated hint with a different userId.
+    // OR we are loading but have an authenticated hint with a different userId
+    // OR we are loading but have a guest hint.
     const isDifferentUserHint =
       status === 'loading' &&
-      identity.userId !== undefined &&
-      identity.userId !== pageUserId;
+      loginUserId !== undefined &&
+      loginUserId !== pageUserId;
 
-    if (sessionSettled || isDifferentUserHint) {
+    const isGuestHint = status === 'loading' && hintState.status === 'guest';
+
+    if (sessionSettled || isDifferentUserHint || isGuestHint) {
       router.push('/');
     }
   }, [pageUserId, router, session, status, hintState]);
