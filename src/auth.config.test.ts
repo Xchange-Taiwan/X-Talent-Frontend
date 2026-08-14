@@ -1,5 +1,5 @@
 import { fromPartial } from '@total-typescript/shoehorn';
-import { describe, expect,it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
   type MentorExperience,
