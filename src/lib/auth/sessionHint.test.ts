@@ -6,6 +6,7 @@ import {
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
   encodeSessionHint,
+  resolveIdentity,
   safeDecodeURIComponent,
   SESSION_HINT_COOKIE,
   SESSION_HINT_INLINE_SCRIPT,
@@ -282,6 +283,167 @@ describe('sessionHint utilities', () => {
       vi.stubGlobal('document', undefined);
       expect(() => clearSessionHint()).not.toThrow();
       vi.unstubAllGlobals();
+    });
+  });
+
+  describe('resolveIdentity', () => {
+    const defaultOverride = {
+      userId: 'user-123',
+      url: 'https://example.com/override.png',
+    };
+    const defaultSession = {
+      user: {
+        id: 'user-123',
+        avatar: 'https://example.com/session.png',
+        isMentor: true,
+      },
+    };
+    const defaultHint = {
+      isMentor: false,
+      userId: 'user-123',
+      avatar: 'https://example.com/hint.png',
+    };
+
+    it('prefers session over hint when authenticated', () => {
+      const identity = resolveIdentity(
+        null,
+        defaultSession,
+        'authenticated',
+        defaultHint
+      );
+      expect(identity.userId).toBe('user-123');
+      expect(identity.isMentor).toBe(true);
+      expect(identity.avatar).toBe('https://example.com/session.png');
+      expect(identity.isLoggedIn).toBe(true);
+    });
+
+    it('falls back to hint when loading and session is not settled', () => {
+      const identity = resolveIdentity(null, null, 'loading', defaultHint);
+      expect(identity.userId).toBe('user-123');
+      expect(identity.isMentor).toBe(false);
+      expect(identity.avatar).toBe('https://example.com/hint.png');
+      expect(identity.isLoggedIn).toBe(true);
+    });
+
+    it('applies avatar override when override userId matches resolved userId', () => {
+      // Authenticated matching override
+      const identityAuth = resolveIdentity(
+        defaultOverride,
+        defaultSession,
+        'authenticated',
+        null
+      );
+      expect(identityAuth.avatar).toBe('https://example.com/override.png');
+      expect(identityAuth.isLoggedIn).toBe(true);
+
+      // Loading matching override (from hint)
+      const identityLoading = resolveIdentity(
+        defaultOverride,
+        null,
+        'loading',
+        defaultHint
+      );
+      expect(identityLoading.avatar).toBe('https://example.com/override.png');
+      expect(identityLoading.isLoggedIn).toBe(true);
+    });
+
+    it('does not apply avatar override when override userId does not match resolved userId', () => {
+      const mismatchedOverride = {
+        userId: 'user-999',
+        url: 'https://example.com/override.png',
+      };
+      const identity = resolveIdentity(
+        mismatchedOverride,
+        defaultSession,
+        'authenticated',
+        null
+      );
+      expect(identity.avatar).toBe('https://example.com/session.png');
+      expect(identity.isLoggedIn).toBe(true);
+    });
+
+    it('resolves to guest/undefined when unauthenticated', () => {
+      const identity = resolveIdentity(
+        null,
+        null,
+        'unauthenticated',
+        defaultHint
+      );
+      expect(identity.userId).toBeUndefined();
+      expect(identity.isMentor).toBe(false);
+      expect(identity.avatar).toBeUndefined();
+      expect(identity.isLoggedIn).toBe(false);
+    });
+
+    it('resolves to guest/undefined when loading and no hint is present', () => {
+      const identity = resolveIdentity(null, null, 'loading', null);
+      expect(identity.userId).toBeUndefined();
+      expect(identity.isMentor).toBe(false);
+      expect(identity.avatar).toBeUndefined();
+      expect(identity.isLoggedIn).toBe(false);
+    });
+  });
+
+  describe('golden fixture for session hint decoding and inline script', () => {
+    const runInlineScript = () => {
+      // eslint-disable-next-line no-eval
+      eval(SESSION_HINT_INLINE_SCRIPT);
+    };
+
+    beforeEach(() => {
+      document.cookie = `${SESSION_HINT_COOKIE}=; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+      document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
+      document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
+      document.documentElement.style.removeProperty('--auth-avatar');
+    });
+
+    it('produces identical DOM/state output for all possible cookie value fixtures', () => {
+      const fixtures = [
+        '1||https%3A%2F%2Fexample.com%2Favatar.png',
+        '0||https%3A%2F%2Fexample.com%2Favatar.png',
+        '1|user-123|https%3A%2F%2Fexample.com%2Favatar.png',
+        '1|user-123',
+        '1',
+        '0',
+        'garbage',
+        '',
+        '1||javascript%3Aalert(1)',
+        '1||https%3A%2F%2Fexample.com%2Favatar.png%22%3Bbackground%3Ared',
+      ];
+
+      for (const cookieVal of fixtures) {
+        // --- 1. Inline script behavior ---
+        // Clean state
+        document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
+        document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
+        document.documentElement.style.removeProperty('--auth-avatar');
+
+        if (cookieVal) {
+          document.cookie = `${SESSION_HINT_COOKIE}=${cookieVal}`;
+        } else {
+          document.cookie = `${SESSION_HINT_COOKIE}=; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+        }
+
+        runInlineScript();
+
+        const inlineState =
+          document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR);
+        const inlineAvatar =
+          document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR);
+
+        // --- 2. decodeSessionHint behavior ---
+        const decoded = decodeSessionHint(cookieVal || null);
+        let decodedState = 'guest';
+        let decodedAvatar = null;
+
+        if (decoded) {
+          decodedState = decoded.isMentor ? 'mentor' : 'mentee';
+          decodedAvatar = decoded.avatar ?? null;
+        }
+
+        expect(inlineState).toBe(decodedState);
+        expect(inlineAvatar).toBe(decodedAvatar);
+      }
     });
   });
 });

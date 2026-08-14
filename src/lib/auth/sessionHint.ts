@@ -114,6 +114,77 @@ export function decodeSessionHint(
   return hint;
 }
 
+export function readCookie(name: string): string | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const raw = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith(`${name}=`))
+    ?.slice(name.length + 1);
+  if (raw === undefined) return undefined;
+  return safeDecodeURIComponent(raw);
+}
+
+export interface ResolvedIdentity {
+  userId: string | undefined;
+  avatar: string | undefined;
+  isMentor: boolean;
+  isLoggedIn: boolean;
+}
+
+export function resolveIdentity(
+  override: { userId: string; url: string } | null | undefined,
+  session:
+    | {
+        user?: {
+          id?: string | number;
+          avatar?: string | null;
+          isMentor?: boolean;
+        };
+      }
+    | null
+    | undefined,
+  status: 'loading' | 'authenticated' | 'unauthenticated',
+  hint: SessionHint | null | undefined
+): ResolvedIdentity {
+  const hasFullUser = Boolean(session?.user?.id);
+  const sessionSettled = hasFullUser || status !== 'loading';
+
+  const isLoggedIn = hasFullUser || (!sessionSettled && Boolean(hint));
+
+  // 1. Resolve userId
+  const userId = hasFullUser
+    ? session?.user?.id
+      ? String(session.user.id)
+      : undefined
+    : sessionSettled
+      ? undefined
+      : (hint?.userId ?? undefined);
+
+  // 2. Resolve isMentor
+  const isMentor = hasFullUser
+    ? Boolean(session?.user?.isMentor)
+    : sessionSettled
+      ? false
+      : Boolean(hint?.isMentor);
+
+  // 3. Resolve avatar
+  let avatar: string | undefined = undefined;
+  if (override && userId && override.userId === userId) {
+    avatar = override.url;
+  } else if (hasFullUser) {
+    avatar = session?.user?.avatar ?? undefined;
+  } else if (!sessionSettled && hint) {
+    avatar = hint.avatar ?? undefined;
+  }
+
+  return {
+    userId,
+    isMentor,
+    avatar,
+    isLoggedIn,
+  };
+}
+
 export const DOM_AUTH_STATE_ATTR = 'data-auth-state';
 export const DOM_AUTH_AVATAR_ATTR = 'data-auth-avatar';
 
