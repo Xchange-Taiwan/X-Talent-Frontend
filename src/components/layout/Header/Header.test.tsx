@@ -165,6 +165,27 @@ describe('Header', () => {
     );
   });
 
+  it('never disables the guest fast-path "成為導師" link, since isResolvingUser can only be true for a logged-in user', () => {
+    // isResolvingUser = isLoggedIn && !userId (see useAuthStatus.ts) — a
+    // guest's isLoggedIn is always false, so this link must stay clickable
+    // through the whole pre-hydration fast path, not just after authKnown.
+    mockUseSession.mockReturnValue({ data: null, status: 'loading' });
+    mockUseAuthStatus.mockReturnValue({
+      authKnown: false,
+      isLoggedIn: false,
+      isMentor: false,
+      userId: undefined,
+      hasFullUser: false,
+      isResolvingUser: false,
+    });
+
+    render(<Header />);
+
+    const menteeLink = screen.getByRole('link', { name: '成為導師' });
+    expect(menteeLink).toHaveAttribute('aria-disabled', 'false');
+    expect(menteeLink).toHaveAttribute('href', '/auth/signup');
+  });
+
   it("renders UserDropdown with hint avatar when logged in per hint but session hasn't resolved yet", () => {
     mockUseSession.mockReturnValue({
       data: null,
