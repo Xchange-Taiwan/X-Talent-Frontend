@@ -2,7 +2,7 @@ import { renderHook } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { readCookie } from '@/lib/auth/sessionHint';
+import { useSessionHint } from '@/hooks/user/auth/useSessionHint';
 import { useAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 
 import { useCurrentAvatar } from './useCurrentAvatar';
@@ -11,14 +11,9 @@ vi.mock('next-auth/react', () => ({
   useSession: vi.fn(),
 }));
 
-vi.mock('@/lib/auth/sessionHint', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@/lib/auth/sessionHint')>();
-  return {
-    ...actual,
-    readCookie: vi.fn(),
-  };
-});
+vi.mock('@/hooks/user/auth/useSessionHint', () => ({
+  useSessionHint: vi.fn(),
+}));
 
 vi.mock('@/lib/avatar/avatarOverrideStore', () => ({
   clearAvatarOverride: vi.fn(),
@@ -26,7 +21,7 @@ vi.mock('@/lib/avatar/avatarOverrideStore', () => ({
 }));
 
 const mockUseSession = vi.mocked(useSession);
-const mockReadCookie = vi.mocked(readCookie);
+const mockUseSessionHint = vi.mocked(useSessionHint);
 const mockUseAvatarOverride = vi.mocked(useAvatarOverride);
 
 describe('useCurrentAvatar', () => {
@@ -39,7 +34,7 @@ describe('useCurrentAvatar', () => {
       data: { user: { id: 'user-123', avatar: 'session-avatar.png' } },
       status: 'authenticated',
     } as unknown as ReturnType<typeof useSession>);
-    mockReadCookie.mockReturnValue(undefined);
+    mockUseSessionHint.mockReturnValue({ status: 'unknown' });
     mockUseAvatarOverride.mockReturnValue({
       userId: 'user-123',
       url: 'override-avatar.png',
@@ -55,7 +50,7 @@ describe('useCurrentAvatar', () => {
       data: { user: { id: 'user-123', avatar: 'session-avatar.png' } },
       status: 'authenticated',
     } as unknown as ReturnType<typeof useSession>);
-    mockReadCookie.mockReturnValue(undefined);
+    mockUseSessionHint.mockReturnValue({ status: 'unknown' });
     mockUseAvatarOverride.mockReturnValue({
       userId: 'different-user',
       url: 'override-avatar.png',
@@ -71,12 +66,16 @@ describe('useCurrentAvatar', () => {
       data: undefined,
       status: 'loading',
     } as unknown as ReturnType<typeof useSession>);
-    mockReadCookie.mockReturnValue('1||https://example.com/hint-avatar.png');
+    mockUseSessionHint.mockReturnValue({
+      status: 'authenticated',
+      isMentor: true,
+      avatar: 'hint-avatar.png',
+    });
     mockUseAvatarOverride.mockReturnValue(null);
 
     const { result } = renderHook(() => useCurrentAvatar());
 
-    expect(result.current).toBe('https://example.com/hint-avatar.png');
+    expect(result.current).toBe('hint-avatar.png');
   });
 
   it('returns null when session has resolved with null avatar even if hint has one', () => {
@@ -84,7 +83,11 @@ describe('useCurrentAvatar', () => {
       data: { user: { id: 'user-123', avatar: null } },
       status: 'authenticated',
     } as unknown as ReturnType<typeof useSession>);
-    mockReadCookie.mockReturnValue('1||https://example.com/hint-avatar.png');
+    mockUseSessionHint.mockReturnValue({
+      status: 'authenticated',
+      isMentor: true,
+      avatar: 'hint-avatar.png',
+    });
     mockUseAvatarOverride.mockReturnValue(null);
 
     const { result } = renderHook(() => useCurrentAvatar());
@@ -97,9 +100,11 @@ describe('useCurrentAvatar', () => {
       data: null,
       status: 'unauthenticated',
     } as unknown as ReturnType<typeof useSession>);
-    mockReadCookie.mockReturnValue(
-      '1||https://example.com/stale-hint-avatar.png'
-    );
+    mockUseSessionHint.mockReturnValue({
+      status: 'authenticated',
+      isMentor: true,
+      avatar: 'stale-hint-avatar.png',
+    });
     mockUseAvatarOverride.mockReturnValue(null);
 
     const { result } = renderHook(() => useCurrentAvatar());
@@ -112,7 +117,7 @@ describe('useCurrentAvatar', () => {
       data: undefined,
       status: 'loading',
     } as unknown as ReturnType<typeof useSession>);
-    mockReadCookie.mockReturnValue('0');
+    mockUseSessionHint.mockReturnValue({ status: 'guest' });
     mockUseAvatarOverride.mockReturnValue(null);
 
     const { result } = renderHook(() => useCurrentAvatar());
