@@ -200,6 +200,27 @@ describe('sessionHint utilities', () => {
       ).toBe('');
     });
 
+    it('sets guest state attribute when no hint cookie is present', () => {
+      runInlineScript();
+
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'guest'
+      );
+      expect(
+        document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
+      ).toBeNull();
+    });
+
+    it('sets guest state attribute when the cookie value is unrecognized', () => {
+      document.cookie = `${SESSION_HINT_COOKIE}=garbage`;
+
+      runInlineScript();
+
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'guest'
+      );
+    });
+
     it('gracefully handles malformed URI encoding in the inline script', () => {
       document.cookie = `${SESSION_HINT_COOKIE}=1||https%3A%2F%2Fexample.com%2Finvalid%%url`;
 
