@@ -41,6 +41,14 @@ export async function generateMetadata({
   );
 }
 
+interface CustomUser {
+  id?: string;
+}
+
+function hasUserProperties(user: unknown): user is CustomUser {
+  return typeof user === 'object' && user !== null && 'id' in user;
+}
+
 export default async function Page({ params: { pageUserId } }: PageProps) {
   const userIdNum = Number(pageUserId);
   if (!Number.isFinite(userIdNum)) notFound();
@@ -53,7 +61,9 @@ export default async function Page({ params: { pageUserId } }: PageProps) {
 
   if (!initialDto) notFound();
 
-  const initialLoginUserId = session?.user?.id ? String(session.user.id) : '';
+  const user = session?.user;
+  const initialLoginUserId =
+    hasUserProperties(user) && user.id ? String(user.id) : '';
   const publicProfile = sanitizePublicProfile(
     initialDto,
     buildTagLabelMap(catalogs)

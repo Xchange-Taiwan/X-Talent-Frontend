@@ -4,6 +4,19 @@ import { getServerSession } from 'next-auth/next';
 import CoverImgUrl from '@/assets/auth/signIn-cover.webp';
 import authOptions from '@/auth.config';
 
+interface CustomUser {
+  id?: string;
+  onBoarding?: boolean;
+}
+
+function hasUserProperties(user: unknown): user is CustomUser {
+  return (
+    typeof user === 'object' &&
+    user !== null &&
+    ('id' in user || 'onBoarding' in user)
+  );
+}
+
 export default async function AuthOperationLayout({
   children,
 }: {
@@ -12,7 +25,9 @@ export default async function AuthOperationLayout({
   const session = await getServerSession(authOptions);
   // Redirect logged-in users away from signin/signup, but let users with
   // incomplete onboarding (onBoarding === false) through to /auth/onboarding.
-  if (session?.user?.id && session.user.onBoarding !== false) redirect('/');
+  const user = session?.user;
+  if (hasUserProperties(user) && user.id && user.onBoarding !== false)
+    redirect('/');
 
   return (
     <div className="flex lg:min-h-screen">
