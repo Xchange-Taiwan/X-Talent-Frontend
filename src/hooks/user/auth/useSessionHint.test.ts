@@ -39,13 +39,18 @@ describe('useSessionHint', () => {
     document.documentElement.style.removeProperty('--auth-avatar');
   });
 
-  it('resolves to unknown during loading when no hint cookie is present, then to guest when unauthenticated', async () => {
+  it('resolves to guest immediately during loading when no hint cookie is present, and stays guest once unauthenticated is confirmed', async () => {
     const { result, rerender } = renderHook(() => useSessionHint());
 
-    // During loading with no hint, stays unknown (displays skeleton)
-    expect(result.current.status).toBe('unknown');
+    // No hint cookie means the last middleware pass saw no valid token, so
+    // treat the visitor as a guest right away instead of waiting on
+    // useSession() to resolve.
+    await waitFor(() => expect(result.current.status).toBe('guest'));
+    expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+      'guest'
+    );
 
-    // Once resolved to unauthenticated, transitions to guest
+    // Once resolved to unauthenticated, stays guest
     mockUseSession.mockReturnValue({
       data: null,
       status: 'unauthenticated',
@@ -88,7 +93,7 @@ describe('useSessionHint', () => {
     await waitFor(() => expect(result.current.status).toBe('guest'));
   });
 
-  it('clears DOM attributes and CSS variables when no cookie is present (guest)', async () => {
+  it('clears stale mentor/mentee DOM attributes and marks guest when no cookie is present', async () => {
     mockUseSession.mockReturnValue({
       data: null,
       status: 'unauthenticated',
@@ -108,9 +113,9 @@ describe('useSessionHint', () => {
 
     await waitFor(() => {
       expect(result.current.status).toBe('guest');
-      expect(
-        document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)
-      ).toBeNull();
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'guest'
+      );
       expect(
         document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
       ).toBeNull();
@@ -199,7 +204,7 @@ describe('useSessionHint', () => {
     });
   });
 
-  it('clears all DOM attributes, style property, and cookie on unauthenticated (logout) session status', async () => {
+  it('clears stale avatar/cookie state and marks guest on unauthenticated (logout) session status', async () => {
     mockUseSession.mockReturnValue({
       data: null,
       status: 'unauthenticated',
@@ -215,9 +220,9 @@ describe('useSessionHint', () => {
 
     await waitFor(() => {
       expect(result.current.status).toBe('guest');
-      expect(
-        document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)
-      ).toBeNull();
+      expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
+        'guest'
+      );
       expect(
         document.documentElement.getAttribute(DOM_AUTH_AVATAR_ATTR)
       ).toBeNull();

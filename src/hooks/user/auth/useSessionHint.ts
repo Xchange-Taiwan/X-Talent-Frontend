@@ -77,9 +77,12 @@ export function useSessionHint(): SessionHintState {
   useEffect(() => {
     const hint = decodeSessionHint(readCookie(SESSION_HINT_COOKIE));
 
-    // 1. If we are explicitly logged out (unauthenticated), clear all DOM state
+    // 1. If we are explicitly logged out (unauthenticated), clear stale hint
+    // state but keep the DOM marked as 'guest' so the CSS-toggled guest UI
+    // (see SESSION_HINT_INLINE_SCRIPT) doesn't revert to a loading skeleton.
     if (status === 'unauthenticated') {
       clearAuthDOMState();
+      document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'guest');
 
       setState((prev) => {
         if (prev.status === 'guest') {
@@ -122,9 +125,9 @@ export function useSessionHint(): SessionHintState {
     }
 
     // 3. During initial loading, fall back to the safe session-hint cookie.
-    // With no hint cookie, we don't yet know if the visitor is a guest or an
-    // authenticated user still resolving - stay 'unknown' so the header keeps
-    // showing its skeleton instead of flashing 'guest' first.
+    // No hint cookie means the middleware didn't see a valid token on the
+    // last request, so treat the visitor as a guest immediately instead of
+    // waiting on the slower useSession() round trip.
     if (status === 'loading') {
       if (hint) {
         document.documentElement.setAttribute(
@@ -134,11 +137,12 @@ export function useSessionHint(): SessionHintState {
         updateAvatarStyle(hint.avatar);
       } else {
         clearAuthDOMState();
+        document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'guest');
       }
 
       setState((prev) => {
         if (!hint) {
-          return prev.status === 'unknown' ? prev : { status: 'unknown' };
+          return prev.status === 'guest' ? prev : { status: 'guest' };
         }
 
         if (

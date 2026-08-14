@@ -130,30 +130,33 @@ export const SESSION_HINT_INLINE_SCRIPT = `
     var cookie = document.cookie.split('; ').find(function(row) {
       return row.startsWith('${SESSION_HINT_COOKIE}=');
     });
+    var parts = null;
     if (cookie) {
       var rawValue = cookie.substring('${SESSION_HINT_COOKIE}='.length);
       try {
         rawValue = decodeURIComponent(rawValue);
       } catch (_) {}
-      var parts = rawValue.split('|');
-      if (parts[0] === '1' || parts[0] === '0') {
-        var isMentor = parts[0] === '1';
-        var avatar = '';
-        if (parts[2]) {
-          try {
-            avatar = decodeURIComponent(parts[2]);
-          } catch (_) {
-            avatar = '';
-          }
+      parts = rawValue.split('|');
+    }
+    if (parts && (parts[0] === '1' || parts[0] === '0')) {
+      var isMentor = parts[0] === '1';
+      var avatar = '';
+      if (parts[2]) {
+        try {
+          avatar = decodeURIComponent(parts[2]);
+        } catch (_) {
+          avatar = '';
         }
-        
-        if (avatar && (avatar.startsWith('https://') || avatar.startsWith('http://') || avatar.startsWith('/'))) {
-          document.documentElement.setAttribute('${DOM_AUTH_AVATAR_ATTR}', avatar);
-          var escapedAvatar = avatar.replace(/"/g, '%22');
-          document.documentElement.style.setProperty('--auth-avatar', 'url("' + escapedAvatar + '")');
-        }
-        document.documentElement.setAttribute('${DOM_AUTH_STATE_ATTR}', isMentor ? 'mentor' : 'mentee');
       }
+
+      if (avatar && (avatar.startsWith('https://') || avatar.startsWith('http://') || avatar.startsWith('/'))) {
+        document.documentElement.setAttribute('${DOM_AUTH_AVATAR_ATTR}', avatar);
+        var escapedAvatar = avatar.replace(/"/g, '%22');
+        document.documentElement.style.setProperty('--auth-avatar', 'url("' + escapedAvatar + '")');
+      }
+      document.documentElement.setAttribute('${DOM_AUTH_STATE_ATTR}', isMentor ? 'mentor' : 'mentee');
+    } else {
+      document.documentElement.setAttribute('${DOM_AUTH_STATE_ATTR}', 'guest');
     }
   } catch (_) {}
 `;

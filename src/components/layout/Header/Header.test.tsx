@@ -109,7 +109,10 @@ describe('Header', () => {
     expect(screen.getByRole('link', { name: '登入' })).toBeInTheDocument();
   });
 
-  it('shows a loading skeleton, not guest actions, before auth is known at all', () => {
+  it('pre-renders guest sign-in/sign-up actions with CSS data-auth-state visibility toggles before auth is known', () => {
+    // No session-hint cookie means the visitor is a guest until proven
+    // otherwise, so the guest actions render immediately (CSS-gated on
+    // data-auth-state=guest) instead of waiting on authKnown.
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
     mockUseAuthStatus.mockReturnValue({
       authKnown: false,
@@ -122,12 +125,16 @@ describe('Header', () => {
 
     render(<Header />);
 
-    expect(
-      screen.queryByRole('link', { name: '登入' })
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('link', { name: '註冊' })
-    ).not.toBeInTheDocument();
+    const signupLink = screen.getByRole('link', { name: '註冊' });
+    const signinLink = screen.getByRole('link', { name: '登入' });
+    expect(signupLink.parentElement).toHaveClass(
+      'hidden',
+      'group-data-[auth-state=guest]:flex'
+    );
+    expect(signinLink.parentElement).toHaveClass(
+      'hidden',
+      'group-data-[auth-state=guest]:flex'
+    );
   });
 
   it('renders both links with CSS data-auth-state visibility toggles before auth is known', () => {
