@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import { FC, Fragment, ReactNode } from 'react';
 
+import { FeatureItem } from '@/components/landing/FeatureItem';
+
 import { featureData } from '../data';
 
 export const metadata: Metadata = {
@@ -22,34 +24,6 @@ const SectionTitle: FC<{ children: ReactNode }> = ({ children }) => (
     {children}
   </h2>
 );
-
-const FeatureItem = ({
-  icon,
-  width,
-  height,
-  text,
-}: {
-  icon: string;
-  width: number;
-  height: number;
-  text: string;
-}) => {
-  return (
-    <div className="mb-[50px] flex items-center md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto">
-      <Image
-        className="h-[70px] w-[70px]"
-        src={icon}
-        width={width}
-        height={height}
-        alt=""
-        role="presentation"
-      />
-      <p className="ml-[20px] text-base tracking-[0.085em] md:mt-8 md:text-xl">
-        {text}
-      </p>
-    </div>
-  );
-};
 
 export default function Page() {
   return (
@@ -138,6 +112,8 @@ export default function Page() {
                 width={item.width}
                 height={item.height}
                 text={item.text}
+                className="mb-[50px] flex items-center md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto"
+                imageClassName="h-[70px] w-[70px]"
               />
             ))}
           </div>

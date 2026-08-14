@@ -1,40 +1,13 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 
+import { FeatureItem } from '@/components/landing/FeatureItem';
 import { HomePageSliderClient } from '@/components/landing/HomePageSliderClient';
 
 import { featureData } from './data';
 
 export const metadata: Metadata = {
   alternates: { canonical: '/' },
-};
-
-const FeatureItem = ({
-  icon,
-  width,
-  height,
-  text,
-}: {
-  icon: string;
-  width: number;
-  height: number;
-  text: string;
-}) => {
-  return (
-    <div className="mb-6 flex items-center md:mb-[50px] md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto">
-      <Image
-        className="size-12 md:h-[70px] md:w-[70px]"
-        src={icon}
-        width={width}
-        height={height}
-        alt=""
-        role="presentation"
-      />
-      <p className="ml-[20px] text-base tracking-[0.085em] md:mt-8 md:text-xl">
-        {text}
-      </p>
-    </div>
-  );
 };
 
 const ROLE_CHIPS = [
