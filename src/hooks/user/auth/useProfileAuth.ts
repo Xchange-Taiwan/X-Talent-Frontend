@@ -4,55 +4,54 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
-import { useSessionHint } from '@/hooks/user/auth/useSessionHint';
+import {
+  decodeSessionHint,
+  readCookie,
+  resolveIdentity,
+  SESSION_HINT_COOKIE,
+} from '@/lib/auth/sessionHint';
 
 export function useProfileAuth(pageUserId: string) {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const hintState = useSessionHint();
 
   // Lazy-init from a cached session or session-hint so client-side navigation does not flash
   // a false isAuthorized for one frame before the effect catches up.
   const [isAuthorized, setIsAuthorized] = useState(() => {
-    const loginUserId = session?.user?.id
-      ? String(session.user.id)
-      : hintState.status === 'authenticated'
-        ? hintState.userId
-        : undefined;
-    return Boolean(loginUserId) && loginUserId === pageUserId;
+    const hint = decodeSessionHint(readCookie(SESSION_HINT_COOKIE));
+    const identity = resolveIdentity(null, session, status, hint);
+    return Boolean(identity.userId) && identity.userId === pageUserId;
   });
 
   useEffect(() => {
+    const rawCookie = readCookie(SESSION_HINT_COOKIE);
+    const hint = decodeSessionHint(rawCookie);
+    const identity = resolveIdentity(null, session, status, hint);
+
     const hasFullUser = Boolean(session?.user?.id);
     const sessionSettled = hasFullUser || status !== 'loading';
 
-    // Synchronously check session first, fallback to hintState if loading to avoid 1-frame async lag
-    const loginUserId = session?.user?.id
-      ? String(session.user.id)
-      : hintState.status === 'authenticated'
-        ? hintState.userId
-        : undefined;
-
     // 1. If matching, authorize immediately
-    if (loginUserId === pageUserId) {
+    if (identity.userId === pageUserId) {
       setIsAuthorized(true);
       return;
     }
 
     // 2. Redirect if either session is fully settled (and did not match)
     // OR we are loading but have an authenticated hint with a different userId
-    // OR we are loading but have a guest hint.
+    // OR we are loading but have an explicit guest hint (cookie is present but not logged in).
     const isDifferentUserHint =
       status === 'loading' &&
-      loginUserId !== undefined &&
-      loginUserId !== pageUserId;
+      identity.userId !== undefined &&
+      identity.userId !== pageUserId;
 
-    const isGuestHint = status === 'loading' && hintState.status === 'guest';
+    const isGuestHint =
+      status === 'loading' && rawCookie !== undefined && !identity.isLoggedIn;
 
     if (sessionSettled || isDifferentUserHint || isGuestHint) {
       router.push('/');
     }
-  }, [pageUserId, router, session, status, hintState]);
+  }, [pageUserId, router, session, status]);
 
   return { isAuthorized };
 }
