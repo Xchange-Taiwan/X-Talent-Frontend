@@ -182,12 +182,14 @@ export function useNotificationCenter({
   const [nextCursor, setNextCursor] = React.useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [unreadCountState, setUnreadCountState] = React.useState<number>(0);
+  const isFetchingRef = React.useRef(false);
 
   const storageKey = userId
     ? `notif_seen_unread_count_${userId}`
     : 'notif_seen_unread_count_generic';
 
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const markingReadIdsRef = React.useRef(new Set<string>());
 
   // Sync initialStatus prop changes into internal status state during the Render Phase.
   const [prevInitialStatus, setPrevInitialStatus] =
@@ -272,6 +274,8 @@ export function useNotificationCenter({
   // Infinite Scroll / Fetch more
   const loadMore = React.useCallback(async () => {
     if (isUsingProps || isLoadingMore || !nextCursor) return;
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     setIsLoadingMore(true);
     try {
       const { items, next_created_at } = await listNotifications(
@@ -290,6 +294,7 @@ export function useNotificationCenter({
       });
     } finally {
       setIsLoadingMore(false);
+      isFetchingRef.current = false;
     }
   }, [isUsingProps, isLoadingMore, nextCursor, toast]);
 
@@ -381,8 +386,12 @@ export function useNotificationCenter({
 
   const markRead = React.useCallback(
     async (id: string) => {
+      if (markingReadIdsRef.current.has(id)) return;
+
       const targetItem = notifications.find((n) => n.id === id);
       if (!targetItem || !targetItem.unread) return;
+
+      markingReadIdsRef.current.add(id);
 
       setNotifications((prev) =>
         prev.map((item) => (item.id === id ? { ...item, unread: false } : item))
@@ -392,7 +401,10 @@ export function useNotificationCenter({
       }
 
       const action = onMarkRead || (!isUsingProps ? markOneRead : null);
-      if (!action) return;
+      if (!action) {
+        markingReadIdsRef.current.delete(id);
+        return;
+      }
 
       setIsPending(true);
       try {
@@ -414,6 +426,7 @@ export function useNotificationCenter({
         });
       } finally {
         setIsPending(false);
+        markingReadIdsRef.current.delete(id);
       }
     },
     [notifications, onMarkRead, isUsingProps, toast]
