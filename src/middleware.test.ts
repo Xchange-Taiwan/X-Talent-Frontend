@@ -195,6 +195,12 @@ describe('middleware maintenance mode', () => {
     );
   };
 
+  const mockConfigSyncError = () => {
+    mockGet.mockImplementation(() => {
+      throw new Error('Sync Connection Error');
+    });
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     process.env = { ...originalEnv };
@@ -334,6 +340,17 @@ describe('middleware maintenance mode', () => {
     expect(response.status).toBe(200); // Should fall back to false (allows traffic)
   });
 
+  it('safely falls back and allows traffic when Edge Config read throws a synchronous error without calling Sentry', async () => {
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    mockConfigSyncError();
+    mockGetToken.mockResolvedValue(null);
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.status).toBe(200);
+    expect(mockCaptureException).not.toHaveBeenCalled();
+  });
+
   it('allows access to a normal page (e.g. /) without redirecting to /maintenance when Global Config read fails', async () => {
     process.env.GLOBAL_CONFIG = 'connection_string';
     mockConfigFailure();
@@ -366,6 +383,15 @@ describe('middleware maintenance mode', () => {
   it('does not redirect and lets /maintenance pass through when Edge Config read times out', async () => {
     process.env.GLOBAL_CONFIG = 'connection_string';
     mockConfigTimeout();
+
+    const response = await middleware(makeRequest('/maintenance'));
+
+    expect(response.status).toBe(200);
+  });
+
+  it('does not redirect and lets /maintenance pass through when Edge Config read throws a synchronous error', async () => {
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    mockConfigSyncError();
 
     const response = await middleware(makeRequest('/maintenance'));
 

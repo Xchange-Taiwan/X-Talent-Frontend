@@ -22,16 +22,22 @@ async function getWithTimeout(
       resolve({ success: false, value: null });
     }, timeoutMs);
 
-    get(key)
-      .then((val) => {
-        clearTimeout(timer);
-        resolve({ success: true, value: val });
-      })
-      .catch((err) => {
-        clearTimeout(timer);
-        console.error('Error reading from Global/Edge Config:', err);
-        resolve({ success: false, value: null });
-      });
+    try {
+      get(key)
+        .then((val) => {
+          clearTimeout(timer);
+          resolve({ success: true, value: val });
+        })
+        .catch((err) => {
+          clearTimeout(timer);
+          console.error('Error reading from Global/Edge Config:', err);
+          resolve({ success: false, value: null });
+        });
+    } catch (err) {
+      clearTimeout(timer);
+      console.error('Sync error reading from Global/Edge Config:', err);
+      resolve({ success: false, value: null });
+    }
   });
 }
 
