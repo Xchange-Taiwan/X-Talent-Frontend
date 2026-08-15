@@ -62,7 +62,6 @@ describe('useCurrentAvatar', () => {
   });
 
   it('returns hint avatar when session is loading and hint has avatar', () => {
-    // Session is loading (data is null/undefined)
     mockUseSession.mockReturnValue({
       data: undefined,
       status: 'loading',
@@ -80,7 +79,6 @@ describe('useCurrentAvatar', () => {
   });
 
   it('returns null when session has resolved with null avatar even if hint has one', () => {
-    // Session is resolved, user avatar is explicitly null
     mockUseSession.mockReturnValue({
       data: { user: { id: 'user-123', avatar: null } },
       status: 'authenticated',
