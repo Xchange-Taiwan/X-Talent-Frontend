@@ -327,6 +327,27 @@ describe('middleware maintenance mode', () => {
     expect(response.status).toBe(200); // Should fall back to false (allows traffic)
   });
 
+  it('does not redirect and lets /maintenance pass through when Edge Config read fails', async () => {
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    const error = new Error('Network Error');
+    mockGet.mockRejectedValue(error);
+
+    const response = await middleware(makeRequest('/maintenance'));
+
+    expect(response.status).toBe(200);
+  });
+
+  it('does not redirect and lets /maintenance pass through when Edge Config read times out', async () => {
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    mockGet.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(true), 1000))
+    );
+
+    const response = await middleware(makeRequest('/maintenance'));
+
+    expect(response.status).toBe(200);
+  });
+
   it('redirects dynamic routes containing dots (like usernames) under maintenance', async () => {
     process.env.GLOBAL_CONFIG = 'connection_string';
     mockGet.mockResolvedValue(true);
