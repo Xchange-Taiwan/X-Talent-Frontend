@@ -1,0 +1,192 @@
+# ==============================================================================
+# REQUIRED SETUP (one-time, in GitHub repo Settings):
+#
+# 1. Secrets (Settings > Secrets and variables > Actions):
+#    - VERCEL_API_TOKEN        A Vercel personal/team API token with write
+#                              access. Create at https://vercel.com/account/tokens.
+#                              NOTE: this token is account/team-scoped, not
+#                              limited to this one Global Config store - keep
+#                              it out of logs and rotate it periodically.
+#    - VERCEL_GLOBAL_CONFIG_ID The target store's ID (starts with `ecfg_`).
+#                              Find it on the Global Config's detail page in
+#                              the Vercel dashboard.
+#    - VERCEL_TEAM_ID          The Vercel Team ID that owns the store
+#                              (Team Settings > General). Leave the secret
+#                              value empty if the store is on a personal
+#                              (non-team) account.
+#
+# 2. (Recommended) Settings > Environments > create an environment named
+#    "maintenance-mode" and add required reviewers, so flipping maintenance
+#    mode on production needs a second person's approval before it runs.
+#    Without this, anyone with write access to the repo can trigger it
+#    unattended.
+# ==============================================================================
+
+name: Toggle Maintenance Mode
+
+on:
+  workflow_dispatch:
+    inputs:
+      maintenance_mode:
+        description: 'Maintenance mode (hard down - redirects all traffic to /maintenance)'
+        type: choice
+        required: true
+        options:
+          - no-change
+          - "on"
+          - "off"
+        default: no-change
+      confirm_maintenance_on:
+        description: 'I understand this takes the whole site down (required when turning maintenance_mode on)'
+        type: boolean
+        required: false
+        default: false
+      announcement_enabled:
+        description: 'Announcement banner (soft warning shown at the top of the site, does not take it down)'
+        type: choice
+        required: true
+        options:
+          - no-change
+          - "on"
+          - "off"
+        default: no-change
+      announcement_message:
+        description: 'Announcement text (leave blank to keep the current message)'
+        type: string
+        required: false
+      announcement_time:
+        description: 'ISO 8601 maintenance time, e.g. 2026-08-20T22:00:00+08:00 (leave blank to keep the current value)'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  update-global-config:
+    runs-on: ubuntu-latest
+    name: Update Global Config
+    environment: maintenance-mode
+    env:
+      VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
+      GLOBAL_CONFIG_ID: ${{ secrets.VERCEL_GLOBAL_CONFIG_ID }}
+      VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+      MAINTENANCE_MODE: ${{ inputs.maintenance_mode }}
+      CONFIRM_MAINTENANCE_ON: ${{ inputs.confirm_maintenance_on }}
+      ANNOUNCEMENT_ENABLED: ${{ inputs.announcement_enabled }}
+      ANNOUNCEMENT_MESSAGE: ${{ inputs.announcement_message }}
+      ANNOUNCEMENT_TIME: ${{ inputs.announcement_time }}
+
+    steps:
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+
+          if [ "$MAINTENANCE_MODE" = "on" ] && [ "$CONFIRM_MAINTENANCE_ON" != "true" ]; then
+            echo "::error::maintenance_mode is 'on' but confirm_maintenance_on was not checked. Re-run and tick the confirmation box to take the site down on purpose."
+            exit 1
+          fi
+
+          if [ "$MAINTENANCE_MODE" = "no-change" ] && \
+             [ "$ANNOUNCEMENT_ENABLED" = "no-change" ] && \
+             [ -z "$ANNOUNCEMENT_MESSAGE" ] && \
+             [ -z "$ANNOUNCEMENT_TIME" ]; then
+            echo "::error::Nothing to change - every input is left as no-change/blank."
+            exit 1
+          fi
+
+      - name: Fetch current Global Config items
+        run: |
+          set -euo pipefail
+
+          response=$(curl -sS -w '\n%{http_code}' \
+            "https://api.vercel.com/v1/global-config/${GLOBAL_CONFIG_ID}/items?teamId=${VERCEL_TEAM_ID}" \
+            -H "Authorization: Bearer ${VERCEL_API_TOKEN}")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          if [ "$http_code" -ge 300 ]; then
+            echo "::error::Failed to read current Global Config items (HTTP $http_code)"
+            echo "$body"
+            exit 1
+          fi
+
+          echo "$body" > current.json
+
+      - name: Build items payload
+        run: |
+          set -euo pipefail
+
+          current_announcement=$(jq -c '.announcement // {"enabled": false, "message": "", "maintenanceTime": ""}' current.json)
+
+          new_enabled=$(echo "$current_announcement" | jq -r '.enabled // false')
+          [ "$ANNOUNCEMENT_ENABLED" = "on" ] && new_enabled=true
+          [ "$ANNOUNCEMENT_ENABLED" = "off" ] && new_enabled=false
+
+          new_message=$(echo "$current_announcement" | jq -r '.message // ""')
+          [ -n "$ANNOUNCEMENT_MESSAGE" ] && new_message="$ANNOUNCEMENT_MESSAGE"
+
+          new_time=$(echo "$current_announcement" | jq -r '.maintenanceTime // ""')
+          [ -n "$ANNOUNCEMENT_TIME" ] && new_time="$ANNOUNCEMENT_TIME"
+
+          new_announcement=$(jq -n \
+            --argjson enabled "$new_enabled" \
+            --arg message "$new_message" \
+            --arg time "$new_time" \
+            '{enabled: $enabled, message: $message, maintenanceTime: $time}')
+
+          items='[]'
+
+          if [ "$MAINTENANCE_MODE" != "no-change" ]; then
+            mode_bool=false
+            [ "$MAINTENANCE_MODE" = "on" ] && mode_bool=true
+            items=$(echo "$items" | jq --argjson v "$mode_bool" '. + [{"operation":"upsert","key":"isInMaintenanceMode","value":$v}]')
+          fi
+
+          announcement_changed=false
+          if [ "$ANNOUNCEMENT_ENABLED" != "no-change" ] || [ -n "$ANNOUNCEMENT_MESSAGE" ] || [ -n "$ANNOUNCEMENT_TIME" ]; then
+            announcement_changed=true
+          fi
+          if [ "$announcement_changed" = "true" ]; then
+            items=$(echo "$items" | jq --argjson v "$new_announcement" '. + [{"operation":"upsert","key":"announcement","value":$v}]')
+          fi
+
+          echo "$items" > items.json
+          echo "Pending changes:"
+          jq . items.json
+
+      - name: Update Global Config
+        run: |
+          set -euo pipefail
+
+          payload=$(jq -n --argjson items "$(cat items.json)" '{items: $items}')
+
+          response=$(curl -sS -w '\n%{http_code}' -X PATCH \
+            "https://api.vercel.com/v1/global-config/${GLOBAL_CONFIG_ID}/items?teamId=${VERCEL_TEAM_ID}" \
+            -H "Authorization: Bearer ${VERCEL_API_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -d "$payload")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "$body"
+
+          if [ "$http_code" -ge 300 ]; then
+            echo "::error::Update failed (HTTP $http_code)"
+            exit 1
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Maintenance / Announcement change"
+            echo ""
+            echo "| Input | Value |"
+            echo "|---|---|"
+            echo "| maintenance_mode | \`${MAINTENANCE_MODE}\` |"
+            echo "| announcement_enabled | \`${ANNOUNCEMENT_ENABLED}\` |"
+            echo "| announcement_message | \`${ANNOUNCEMENT_MESSAGE}\` |"
+            echo "| announcement_time | \`${ANNOUNCEMENT_TIME}\` |"
+            echo "| Triggered by | \`${GITHUB_ACTOR}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
