@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth/next';
 
 import authOptions from '@/auth.config';
 import { PersonJsonLd } from '@/components/seo/PersonJsonLd';
+import { hasUserProperties } from '@/lib/auth/userGuard';
 import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
 import { buildMentorMetadata } from '@/lib/seo/buildMentorMetadata';
 import { sanitizePublicProfile } from '@/lib/seo/sanitizePublicProfile';
@@ -39,14 +40,6 @@ export async function generateMetadata({
   return buildMentorMetadata(
     sanitizePublicProfile(dto, buildTagLabelMap(catalogs))
   );
-}
-
-interface CustomUser {
-  id?: string;
-}
-
-function hasUserProperties(user: unknown): user is CustomUser {
-  return typeof user === 'object' && user !== null && 'id' in user;
 }
 
 export default async function Page({ params: { pageUserId } }: PageProps) {

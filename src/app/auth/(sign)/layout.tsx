@@ -3,19 +3,7 @@ import { getServerSession } from 'next-auth/next';
 
 import CoverImgUrl from '@/assets/auth/signIn-cover.webp';
 import authOptions from '@/auth.config';
-
-interface CustomUser {
-  id?: string;
-  onBoarding?: boolean;
-}
-
-function hasUserProperties(user: unknown): user is CustomUser {
-  return (
-    typeof user === 'object' &&
-    user !== null &&
-    ('id' in user || 'onBoarding' in user)
-  );
-}
+import { hasUserProperties } from '@/lib/auth/userGuard';
 
 export default async function AuthOperationLayout({
   children,

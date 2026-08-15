@@ -341,6 +341,46 @@ describe('auth.config', () => {
         error: 'RefreshTokenError',
       });
     });
+
+    it('deduplicates concurrent refresh requests using singleFlight so refreshAccessToken is called only once', async () => {
+      const expiringTime = Math.floor(Date.now() / 1000) + 100; // expiring soon
+      const mockToken = createMockJwt(expiringTime);
+
+      // Introduce a brief delay to simulate overlapping concurrent executions
+      mockRefreshAccessToken.mockImplementation(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        return {
+          token: 'new-token',
+          refreshToken: 'new-refresh-token',
+        };
+      });
+
+      const token = {
+        token: mockToken,
+        refreshToken: 'old-refresh-token',
+      };
+
+      // Concurrent invocation of the jwtCallback
+      const [res1, res2] = await Promise.all([
+        jwtCallback!(fromPartial({ token })),
+        jwtCallback!(fromPartial({ token })),
+      ]);
+
+      // Assert that the real refreshAccessToken API was invoked exactly once
+      expect(mockRefreshAccessToken).toHaveBeenCalledTimes(1);
+
+      // Verify that both concurrent calls returned the same deduplicated token payload
+      expect(res1).toEqual({
+        token: 'new-token',
+        refreshToken: 'new-refresh-token',
+        error: undefined,
+      });
+      expect(res2).toEqual({
+        token: 'new-token',
+        refreshToken: 'new-refresh-token',
+        error: undefined,
+      });
+    });
   });
 
   describe('sessionCallback', () => {
@@ -460,6 +500,51 @@ describe('auth.config', () => {
       // Verify that a second read gets no refresh token, proving the single-use contract
       expect(authorizeResult2).toBeDefined();
       expect(authorizeResult2?.refreshToken).toBeUndefined();
+    });
+
+    it('prevents concurrent race conditions by ensuring only one concurrent authorize call retrieves the refresh token', async () => {
+      // 1. Manually write the cookie in mock store
+      cookieJar.set('g_oauth_rt', {
+        name: 'g_oauth_rt',
+        value: 'concurrent-token',
+        maxAge: 60,
+      });
+
+      // Find the Google-bridge provider
+      const googleProvider = authOptions.providers.find(
+        (p) =>
+          p.options?.id === 'custom-google-token' ||
+          p.id === 'custom-google-token'
+      );
+      expect(googleProvider).toBeDefined();
+
+      // 2. Concurrently execute multiple authorize calls (Promise.all)
+      const [res1, res2] = await Promise.all([
+        googleProvider!.options.authorize(
+          {
+            token: 'google-access-token',
+            email: 'user@example.com',
+            user: JSON.stringify({ user_id: 123, experiences: [] }),
+          },
+          fromPartial({})
+        ),
+        googleProvider!.options.authorize(
+          {
+            token: 'google-access-token',
+            email: 'user@example.com',
+            user: JSON.stringify({ user_id: 123, experiences: [] }),
+          },
+          fromPartial({})
+        ),
+      ]);
+
+      // 3. Assert that exactly one concurrent call succeeded in retrieving the token, and the other got undefined
+      const refreshTokens = [res1?.refreshToken, res2?.refreshToken];
+      expect(refreshTokens).toContain('concurrent-token');
+      expect(refreshTokens).toContain(undefined);
+
+      // Verify that the cookie is completely deleted afterward
+      expect(cookieJar.get('g_oauth_rt')).toBeUndefined();
     });
   });
 });
