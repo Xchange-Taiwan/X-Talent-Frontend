@@ -99,6 +99,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          # /v1/global-config is correct here, not /v1/edge-config - Vercel's
+          # rename docs (vercel.com/docs/global-config/migration-guide) say
+          # new integrations should use /v1/global-config; /v1/edge-config
+          # only still works for backward compatibility. Store IDs keep the
+          # `ecfg_` prefix regardless of which path you call.
           team_query=""
           [ -n "$VERCEL_TEAM_ID" ] && team_query="?teamId=${VERCEL_TEAM_ID}"
 
