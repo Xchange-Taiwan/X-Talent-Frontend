@@ -1,4 +1,4 @@
-import { get } from '@vercel/edge-config';
+import { get } from '@vercel/global-config';
 import { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,7 +7,7 @@ vi.mock('next-auth/jwt', () => ({
   getToken: vi.fn(),
 }));
 
-vi.mock('@vercel/edge-config', () => ({
+vi.mock('@vercel/global-config', () => ({
   get: vi.fn(),
 }));
 
@@ -190,6 +190,16 @@ describe('middleware maintenance mode', () => {
   });
 
   it('redirects to /maintenance when Edge Config is enabled', async () => {
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    mockGet.mockResolvedValue(true);
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toContain('/maintenance');
+  });
+
+  it('still reads from the legacy EDGE_CONFIG env var when GLOBAL_CONFIG is not set', async () => {
     process.env.EDGE_CONFIG = 'connection_string';
     mockGet.mockResolvedValue(true);
 
@@ -200,7 +210,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('redirects to /maintenance when Edge Config is a string "true"', async () => {
-    process.env.EDGE_CONFIG = 'connection_string';
+    process.env.GLOBAL_CONFIG = 'connection_string';
     mockGet.mockResolvedValue('true');
 
     const response = await middleware(makeRequest('/'));
@@ -210,7 +220,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('does not redirect to /maintenance when Edge Config is a string "false"', async () => {
-    process.env.EDGE_CONFIG = 'connection_string';
+    process.env.GLOBAL_CONFIG = 'connection_string';
     mockGet.mockResolvedValue('false');
     mockGetToken.mockResolvedValue(null);
 
@@ -220,7 +230,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('does not redirect and lets /maintenance pass through under maintenance', async () => {
-    process.env.EDGE_CONFIG = 'connection_string';
+    process.env.GLOBAL_CONFIG = 'connection_string';
     mockGet.mockResolvedValue(true);
 
     const response = await middleware(makeRequest('/maintenance'));
@@ -229,7 +239,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('does not redirect static assets under maintenance', async () => {
-    process.env.EDGE_CONFIG = 'connection_string';
+    process.env.GLOBAL_CONFIG = 'connection_string';
     mockGet.mockResolvedValue(true);
 
     const response = await middleware(
@@ -240,7 +250,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('returns 503 Service Unavailable for API routes under maintenance and includes X-Maintenance-Mode header', async () => {
-    process.env.EDGE_CONFIG = 'connection_string';
+    process.env.GLOBAL_CONFIG = 'connection_string';
     mockGet.mockResolvedValue(true);
 
     const response = await middleware(makeRequest('/api/mentors'));
@@ -252,7 +262,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('redirects /maintenance to / when maintenance mode is disabled', async () => {
-    process.env.EDGE_CONFIG = 'connection_string';
+    process.env.GLOBAL_CONFIG = 'connection_string';
     mockGet.mockResolvedValue(false);
 
     const response = await middleware(makeRequest('/maintenance'));
@@ -262,6 +272,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('redirects to /maintenance when local MAINTENANCE_MODE environment variable is set to true', async () => {
+    delete process.env.GLOBAL_CONFIG;
     delete process.env.EDGE_CONFIG;
     process.env.MAINTENANCE_MODE = 'true';
 
@@ -272,6 +283,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('redirects to /maintenance when local NEXT_PUBLIC_MAINTENANCE_MODE environment variable is set to true', async () => {
+    delete process.env.GLOBAL_CONFIG;
     delete process.env.EDGE_CONFIG;
     process.env.NEXT_PUBLIC_MAINTENANCE_MODE = 'true';
 
@@ -282,7 +294,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('does not redirect and lets Sentry tunnel pass through under maintenance', async () => {
-    process.env.EDGE_CONFIG = 'connection_string';
+    process.env.GLOBAL_CONFIG = 'connection_string';
     mockGet.mockResolvedValue(true);
 
     const response = await middleware(makeRequest('/monitoring'));
@@ -291,7 +303,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('safely falls back and allows traffic when Edge Config read fails without calling Sentry', async () => {
-    process.env.EDGE_CONFIG = 'connection_string';
+    process.env.GLOBAL_CONFIG = 'connection_string';
     const error = new Error('Network Error');
     mockGet.mockRejectedValue(error);
     mockGetToken.mockResolvedValue(null);
@@ -303,7 +315,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('safely falls back and allows traffic when Edge Config read times out', async () => {
-    process.env.EDGE_CONFIG = 'connection_string';
+    process.env.GLOBAL_CONFIG = 'connection_string';
     // mockGet resolves after 1000ms, which exceeds our 500ms timeout
     mockGet.mockImplementation(
       () => new Promise((resolve) => setTimeout(() => resolve(true), 1000))
@@ -316,7 +328,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('redirects dynamic routes containing dots (like usernames) under maintenance', async () => {
-    process.env.EDGE_CONFIG = 'connection_string';
+    process.env.GLOBAL_CONFIG = 'connection_string';
     mockGet.mockResolvedValue(true);
 
     const response = await middleware(makeRequest('/profile/john.doe'));
@@ -326,7 +338,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('allows local environment variable MAINTENANCE_MODE to override Edge Config (when Edge Config is false)', async () => {
-    process.env.EDGE_CONFIG = 'connection_string';
+    process.env.GLOBAL_CONFIG = 'connection_string';
     mockGet.mockResolvedValue(false);
     process.env.MAINTENANCE_MODE = 'true';
 
@@ -337,7 +349,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('allows local environment variable NEXT_PUBLIC_MAINTENANCE_MODE to override Edge Config (when Edge Config is false)', async () => {
-    process.env.EDGE_CONFIG = 'connection_string';
+    process.env.GLOBAL_CONFIG = 'connection_string';
     mockGet.mockResolvedValue(false);
     process.env.NEXT_PUBLIC_MAINTENANCE_MODE = 'true';
 
@@ -348,7 +360,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('does not redirect static assets in public root directory (e.g. /favicon.ico, /assets/logo.svg)', async () => {
-    process.env.EDGE_CONFIG = 'connection_string';
+    process.env.GLOBAL_CONFIG = 'connection_string';
     mockGet.mockResolvedValue(true);
 
     const responseFavicon = await middleware(makeRequest('/favicon.ico'));
@@ -359,7 +371,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('does not bypass maintenance or authentication checks for API endpoints with static file extensions (e.g., /api/users/avatar.jpg)', async () => {
-    process.env.EDGE_CONFIG = 'connection_string';
+    process.env.GLOBAL_CONFIG = 'connection_string';
     mockGet.mockResolvedValue(true);
 
     const response = await middleware(makeRequest('/api/users/avatar.jpg'));
@@ -372,7 +384,7 @@ describe('middleware maintenance mode', () => {
   });
 
   it('does not bypass maintenance or authentication checks for dynamic routes with static file extensions (e.g., /profile/john.js)', async () => {
-    process.env.EDGE_CONFIG = 'connection_string';
+    process.env.GLOBAL_CONFIG = 'connection_string';
     mockGet.mockResolvedValue(true);
 
     const response = await middleware(makeRequest('/profile/john.js'));
@@ -508,6 +520,7 @@ describe('middleware public routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGet.mockResolvedValue(false);
+    delete process.env.GLOBAL_CONFIG;
     delete process.env.EDGE_CONFIG;
     delete process.env.MAINTENANCE_MODE;
     delete process.env.NEXT_PUBLIC_MAINTENANCE_MODE;

@@ -1,4 +1,4 @@
-import { get } from '@vercel/edge-config';
+import { get } from '@vercel/global-config';
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { match } from 'path-to-regexp';
@@ -94,7 +94,11 @@ export async function middleware(req: NextRequest) {
 
   if (isEnvMaintenance) {
     isInMaintenanceMode = true;
-  } else if (process.env.EDGE_CONFIG) {
+  } else if (process.env.GLOBAL_CONFIG || process.env.EDGE_CONFIG) {
+    // Bare get() from @vercel/global-config already falls back to
+    // EDGE_CONFIG internally when GLOBAL_CONFIG is unset (its init()
+    // resolves the connection string via `GLOBAL_CONFIG ?? EDGE_CONFIG`),
+    // so no explicit createClient() call is needed here.
     const value = await getWithTimeout('isInMaintenanceMode', 500);
     isInMaintenanceMode = value === true || value === 'true';
   }
