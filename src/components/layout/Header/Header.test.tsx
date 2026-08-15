@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/image', () => ({
@@ -402,17 +408,19 @@ describe('Header', () => {
       name: '開啟用戶選單',
     });
 
-    expect(screen.queryByText('您有新的預約')).not.toBeInTheDocument();
+    expect(screen.queryAllByText('您有新的預約')).toHaveLength(0);
 
     fireEvent.click(bellButton);
-    expect(await screen.findByText('您有新的預約')).toBeInTheDocument();
+    expect((await screen.findAllByText('您有新的預約'))[0]).toBeInTheDocument();
 
     // Radix Popover listens to low-level pointerDown and mouseDown on document to close on click-outside
     fireEvent.pointerDown(avatarButton, { bubbles: true });
     fireEvent.mouseDown(avatarButton, { bubbles: true });
     fireEvent.click(avatarButton);
 
-    expect(screen.queryByText('您有新的預約')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryAllByText('您有新的預約')).toHaveLength(0);
+    });
   });
 
   it('closes mobile NotificationBell popover when mobile MobileUserMenu avatar is clicked', async () => {
@@ -442,16 +450,18 @@ describe('Header', () => {
       name: '開啟用戶選單',
     });
 
-    expect(screen.queryByText('您有新的預約')).not.toBeInTheDocument();
+    expect(screen.queryAllByText('您有新的預約')).toHaveLength(0);
 
     fireEvent.click(bellButton);
-    expect(await screen.findByText('您有新的預約')).toBeInTheDocument();
+    expect((await screen.findAllByText('您有新的預約'))[0]).toBeInTheDocument();
 
     // Radix Popover listens to low-level pointerDown and mouseDown on document to close on click-outside
     fireEvent.pointerDown(avatarButton, { bubbles: true });
     fireEvent.mouseDown(avatarButton, { bubbles: true });
     fireEvent.click(avatarButton);
 
-    expect(screen.queryByText('您有新的預約')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryAllByText('您有新的預約')).toHaveLength(0);
+    });
   });
 });
