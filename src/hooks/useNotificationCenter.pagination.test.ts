@@ -228,4 +228,32 @@ describe('useNotificationCenter pagination and service integration', () => {
     expect(successSpy).toHaveBeenCalled();
     successSpy.mockRestore();
   });
+
+  it('prevents duplicate parallel requests when calling markRead concurrently for the same ID', async () => {
+    const { result } = renderHook(() => useNotificationCenter());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('success');
+    });
+
+    const markOneReadSpy = vi
+      .spyOn(mockService, 'markOneRead')
+      .mockResolvedValue(undefined);
+
+    // Get an unread item
+    const unreadItem = result.current.items.find((i) => i.unread);
+    expect(unreadItem).toBeDefined();
+
+    // Trigger markRead twice concurrently for the same ID
+    await act(async () => {
+      await Promise.all([
+        result.current.markRead(unreadItem!.id),
+        result.current.markRead(unreadItem!.id),
+      ]);
+    });
+
+    // markOneRead should only be called once because of markingReadIdsRef locking!
+    expect(markOneReadSpy).toHaveBeenCalledTimes(1);
+    markOneReadSpy.mockRestore();
+  });
 });

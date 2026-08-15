@@ -94,6 +94,8 @@ export function mapApiNotificationToFrontend(
     createdAt: apiItem.created_at,
     unread: isUnread,
     role: role,
+    menteeName: mentee_name,
+    mentorName: mentor_name,
   };
 
   if (
@@ -101,16 +103,10 @@ export function mapApiNotificationToFrontend(
     apiItem.type === 'reservation_upcoming'
   ) {
     if (role === 'mentor') {
-      item.menteeName = mentee_name;
+      item.mentorName = undefined;
     } else if (role === 'mentee') {
-      item.mentorName = mentor_name;
-    } else {
-      item.menteeName = mentee_name;
-      item.mentorName = mentor_name;
+      item.menteeName = undefined;
     }
-  } else {
-    item.menteeName = mentee_name;
-    item.mentorName = mentor_name;
   }
 
   return item;
@@ -190,6 +186,7 @@ export function useNotificationCenter({
 
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
   const markingReadIdsRef = React.useRef(new Set<string>());
+  const isMarkingAllRef = React.useRef(false);
 
   // Sync initialStatus prop changes into internal status state during the Render Phase.
   const [prevInitialStatus, setPrevInitialStatus] =
@@ -461,10 +458,14 @@ export function useNotificationCenter({
   );
 
   const markAllRead = React.useCallback(async () => {
+    if (isMarkingAllRef.current) return;
+
     const unreadIds = notifications
       .filter((item) => item.unread)
       .map((item) => item.id);
     if (unreadIds.length === 0 && isUsingProps) return;
+
+    isMarkingAllRef.current = true;
 
     // Rolls back only the affected items via functional state update (to prevent data loss).
     const rollbackNotifications = (ids: string[]) => {
@@ -526,6 +527,7 @@ export function useNotificationCenter({
       });
     } finally {
       setIsPending(false);
+      isMarkingAllRef.current = false;
     }
   }, [
     notifications,
