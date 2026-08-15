@@ -1,7 +1,14 @@
 import type { Session } from 'next-auth';
-import { getSession } from 'next-auth/react';
 
 import { captureApiFailure } from '@/lib/monitoring';
+
+import { singleFlight } from './singleFlight';
+
+let sessionGetter: () => Promise<Session | null> = () => Promise.resolve(null);
+
+export function setSessionGetter(getter: () => Promise<Session | null>) {
+  sessionGetter = getter;
+}
 
 // ─── Custom Errors ───────────────────────────────────────────────────────────
 export class ApiError extends Error {
@@ -60,16 +67,11 @@ function isAbortError(error: unknown): boolean {
 
 // Deduplicate concurrent 401 refresh calls — if multiple requests fail at once,
 // they all wait on the same refresh rather than each triggering a new one.
-let pendingRefresh: Promise<Session | null> | null = null;
+const refreshMap = new Map<'refresh', Promise<Session | null>>();
 
 function refreshSession(): Promise<Session | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
-  if (!pendingRefresh) {
-    pendingRefresh = getSession().finally(() => {
-      pendingRefresh = null;
-    });
-  }
-  return pendingRefresh;
+  return singleFlight(refreshMap, 'refresh', () => sessionGetter());
 }
 
 function isAbsoluteUrl(path: string): boolean {
@@ -100,7 +102,7 @@ function buildUrl(
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   if (typeof window === 'undefined') return {};
-  const session = await getSession();
+  const session = await sessionGetter();
   const token = session?.accessToken;
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };

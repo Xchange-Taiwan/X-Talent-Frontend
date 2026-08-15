@@ -283,4 +283,31 @@ describe('createKeyedCache', () => {
     // Cache should remain 777, not overwritten by 100
     expect(cache.get('key1')).toBe(777);
   });
+
+  it('allows cache write even when getInflight returns either finalPromise or innerPromise (robust singleFlight mapping)', async () => {
+    const cache = createKeyedCache<string, number>();
+
+    let resolveFetcher: (val: number) => void = () => {};
+    const fetcherPromise = new Promise<number>((resolve) => {
+      resolveFetcher = resolve;
+    });
+
+    const fetcher = vi.fn(() => fetcherPromise);
+
+    // Trigger two concurrent fetches to start and coalesce single-flight
+    const p1 = cache.fetch('key1', fetcher);
+    const p2 = cache.fetch('key1', fetcher);
+
+    // Ensure they both refer to the exact same coalesced in-flight promise
+    expect(p2).toBe(p1);
+
+    // Resolve fetcher
+    resolveFetcher(500);
+    const [r1, r2] = await Promise.all([p1, p2]);
+    expect(r1).toBe(500);
+    expect(r2).toBe(500);
+
+    // Cache should be successfully populated with 500
+    expect(cache.get('key1')).toBe(500);
+  });
 });
