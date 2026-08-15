@@ -97,6 +97,42 @@ describe('Announcement API Route', () => {
     );
   });
 
+  it('prioritizes GLOBAL_CONFIG over EDGE_CONFIG when both are set', async () => {
+    process.env.GLOBAL_CONFIG =
+      'https://global-config.vercel.com/gcfg_priority?token=test';
+    process.env.EDGE_CONFIG =
+      'https://edge-config.vercel.com/ecfg_priority?token=test';
+
+    const globalConfigMockData = {
+      announcement: {
+        enabled: true,
+        message: '應該來自 Global Config',
+        maintenanceTime: '2026-08-12T12:00:00Z',
+      },
+    };
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve(JSON.stringify(globalConfigMockData)),
+      json: () => Promise.resolve(globalConfigMockData),
+    });
+    global.fetch = fetchMock;
+
+    const response = await GET();
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://global-config.vercel.com/gcfg_priority?token=test',
+      expect.objectContaining({
+        method: 'GET',
+        next: { revalidate: 0 },
+      })
+    );
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      'https://edge-config.vercel.com/ecfg_priority?token=test',
+      expect.anything()
+    );
+  });
+
   it('falls back to mock data when Global Config fetch fails', async () => {
     process.env.GLOBAL_CONFIG =
       'https://global-config.vercel.com/gcfg_test?token=test';
