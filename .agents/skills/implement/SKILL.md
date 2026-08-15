@@ -56,4 +56,4 @@ Once done, use /code-review to review the work.
 
 Commit your work to the current branch.
 
-Please use the `gh-axi` GitHub CLI wrapper (falling back to `gh` only if `gh-axi` is unavailable) / 請優先使用 `gh-axi` 進行所有 GitHub 相關操作（如建立/提交 PR），僅在 `gh-axi` 無法使用時退回 `gh`。
+Use the standard `gh` GitHub CLI for all GitHub operations / 請使用標準 `gh` CLI 進行所有 GitHub 相關操作（如建立/提交 PR）。

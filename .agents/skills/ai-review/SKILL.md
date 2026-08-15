@@ -19,7 +19,7 @@ Run a complete, parallelized multi-stage AI Review locally using concurrent sub-
    - Detect the current branch name and extract the associated issue number (e.g., `feat/45-xxx` -> issue `45`).
    - If an issue number is found, automatically use GitHub CLI to fetch the full issue context (title, body, and comments) from `Xchange-Taiwan/X-Talent-Tracker` (or fallback to the current repo if needed):
      ```bash
-     gh-axi issue view <issue-number> --repo Xchange-Taiwan/X-Talent-Tracker --json title,body,comments
+     gh issue view <issue-number> --repo Xchange-Taiwan/X-Talent-Tracker --json title,body,comments
      ```
 
 2. **Invoke Parallel Sub-Agents with Shared Context**:
