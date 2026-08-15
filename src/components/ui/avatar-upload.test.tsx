@@ -114,4 +114,27 @@ describe('AvatarUpload', () => {
     expect(clickSpy).not.toHaveBeenCalled();
     clickSpy.mockRestore();
   });
+
+  it('does not re-trigger the file input when clicking inside the crop modal', () => {
+    const { container } = render(<TestFormWrapper />);
+
+    const fileInput = container.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
+    const clickSpy = vi.spyOn(fileInput, 'click');
+
+    fireEvent.click(screen.getByRole('button')); // open the native picker
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+
+    const file = new File(['x'], 'test.png', { type: 'image/png' });
+    fireEvent.change(fileInput, { target: { files: [file] } }); // user picks a file
+
+    // Regression: a click inside the crop modal (e.g. releasing a drag on
+    // the editor canvas, or clicking the zoom slider) must not bubble up to
+    // the avatar trigger's onClick and reopen the native file picker.
+    fireEvent.click(screen.getByTestId('mock-crop-modal'));
+
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    clickSpy.mockRestore();
+  });
 });
