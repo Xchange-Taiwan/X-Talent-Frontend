@@ -327,6 +327,29 @@ describe('middleware maintenance mode', () => {
     expect(response.status).toBe(200); // Should fall back to false (allows traffic)
   });
 
+  it('allows access to a normal page (e.g. /) without redirecting to /maintenance when Global Config read fails', async () => {
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    const error = new Error('Network Error');
+    mockGet.mockRejectedValue(error);
+    mockGetToken.mockResolvedValue(null);
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.status).toBe(200);
+  });
+
+  it('allows access to a normal page (e.g. /) without redirecting to /maintenance when Global Config read times out', async () => {
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    mockGet.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(true), 1000))
+    );
+    mockGetToken.mockResolvedValue(null);
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.status).toBe(200);
+  });
+
   it('does not redirect and lets /maintenance pass through when Edge Config read fails', async () => {
     process.env.GLOBAL_CONFIG = 'connection_string';
     const error = new Error('Network Error');
