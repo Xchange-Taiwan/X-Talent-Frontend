@@ -294,12 +294,18 @@ describe('createKeyedCache', () => {
 
     const fetcher = vi.fn(() => fetcherPromise);
 
-    // Trigger fetch to start single-flight
+    // Trigger two concurrent fetches to start and coalesce single-flight
     const p1 = cache.fetch('key1', fetcher);
+    const p2 = cache.fetch('key1', fetcher);
+
+    // Ensure they both refer to the exact same coalesced in-flight promise
+    expect(p2).toBe(p1);
 
     // Resolve fetcher
     resolveFetcher(500);
-    await p1;
+    const [r1, r2] = await Promise.all([p1, p2]);
+    expect(r1).toBe(500);
+    expect(r2).toBe(500);
 
     // Cache should be successfully populated with 500
     expect(cache.get('key1')).toBe(500);

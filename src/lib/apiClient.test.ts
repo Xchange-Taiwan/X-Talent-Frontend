@@ -478,6 +478,10 @@ describe('apiClient', () => {
 
       // Ensure fetch was called for req1 first try, req2 first try, then retries with Authorization header
       expect(mockFetch).toHaveBeenCalledTimes(4);
+
+      // Verify that throughout the entire lifecycle, getSession was only called exactly 3 times
+      // (1 coalesced refresh + 2 auth header retrieves during retries)
+      expect(vi.mocked(getSession)).toHaveBeenCalledTimes(3);
     });
   });
 
