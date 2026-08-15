@@ -8,6 +8,7 @@ import {
   FetchApiError,
   FetchHttpError,
   fetchServerJson,
+  setSessionGetter,
 } from '@/lib/apiClient';
 import { captureApiFailure } from '@/lib/monitoring';
 
@@ -24,6 +25,7 @@ describe('apiClient', () => {
 
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch);
+    setSessionGetter(getSession);
   });
 
   afterEach(() => {

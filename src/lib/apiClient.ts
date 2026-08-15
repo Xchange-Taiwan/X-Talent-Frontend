@@ -1,9 +1,18 @@
 import type { Session } from 'next-auth';
-import { getSession } from 'next-auth/react';
 
 import { captureApiFailure } from '@/lib/monitoring';
 
 import { singleFlight } from './singleFlight';
+
+let sessionGetter: () => Promise<Session | null> = async () => {
+  if (typeof window === 'undefined') return null;
+  const { getSession: nextAuthGetSession } = await import('next-auth/react');
+  return nextAuthGetSession();
+};
+
+export function setSessionGetter(getter: () => Promise<Session | null>) {
+  sessionGetter = getter;
+}
 
 // ─── Custom Errors ───────────────────────────────────────────────────────────
 export class ApiError extends Error {
@@ -66,7 +75,7 @@ const refreshMap = new Map<'refresh', Promise<Session | null>>();
 
 function refreshSession(): Promise<Session | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
-  return singleFlight(refreshMap, 'refresh', () => getSession());
+  return singleFlight(refreshMap, 'refresh', () => sessionGetter());
 }
 
 function isAbsoluteUrl(path: string): boolean {
@@ -97,7 +106,7 @@ function buildUrl(
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   if (typeof window === 'undefined') return {};
-  const session = await getSession();
+  const session = await sessionGetter();
   const token = session?.accessToken;
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };
