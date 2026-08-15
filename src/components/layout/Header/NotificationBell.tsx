@@ -106,6 +106,7 @@ type NotificationListProps = {
  * Memoized so scroll-driven thumb position updates in the parent don't
  * force this list (and its per-item `getNotificationContent` /
  * `getNotificationHref` calls) to re-render on every frame.
+ * Uses modern IntersectionObserver with a sentinel element for un-throttled performance.
  */
 const NotificationList = React.memo(function NotificationList({
   notifications,
@@ -118,27 +119,41 @@ const NotificationList = React.memo(function NotificationList({
   hasMore,
   onLoadMore,
 }: NotificationListProps) {
-  const handleScroll = React.useCallback(
-    (e: React.UIEvent<HTMLDivElement>) => {
-      const target = e.currentTarget;
-      if (
-        hasMore &&
-        !isLoadingMore &&
-        onLoadMore &&
-        target.scrollHeight - target.scrollTop <= target.clientHeight + 15
-      ) {
-        onLoadMore();
+  const sentinelRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!hasMore || isLoadingMore || !onLoadMore) return;
+    if (typeof window === 'undefined' || !('IntersectionObserver' in window)) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          onLoadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentSentinel = sentinelRef.current;
+    if (currentSentinel) {
+      observer.observe(currentSentinel);
+    }
+
+    return () => {
+      if (currentSentinel) {
+        observer.unobserve(currentSentinel);
       }
-    },
-    [hasMore, isLoadingMore, onLoadMore]
-  );
+      observer.disconnect();
+    };
+  }, [hasMore, isLoadingMore, onLoadMore]);
 
   return (
     <div
       ref={scrollRefCallback}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      onScroll={handleScroll}
       className="flex max-h-[360px] [scrollbar-width:none] flex-col overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
     >
       <div className="flex flex-col divide-y divide-background-border">
@@ -190,6 +205,9 @@ const NotificationList = React.memo(function NotificationList({
             <span className="size-4 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
           </div>
         )}
+
+        {/* Sentinel element to trigger next page load cleanly when scrolled into view */}
+        <div ref={sentinelRef} className="h-1 w-full" aria-hidden="true" />
       </div>
     </div>
   );

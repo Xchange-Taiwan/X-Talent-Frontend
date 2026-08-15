@@ -124,6 +124,17 @@ describe('NotificationBell', () => {
     mockToast.mockClear();
     vi.mocked(captureFlowFailure).mockClear();
     localStorage.clear();
+    global.IntersectionObserver = class IntersectionObserver {
+      readonly root: Element | null = null;
+      readonly rootMargin: string = '';
+      readonly thresholds: ReadonlyArray<number> = [];
+      disconnect() {}
+      observe() {}
+      takeRecords() {
+        return [];
+      }
+      unobserve() {}
+    } as any;
   });
 
   it('renders the bell icon button with title and aria-label', () => {

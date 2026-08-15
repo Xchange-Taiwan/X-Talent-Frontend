@@ -1,4 +1,19 @@
-import { type ApiNotificationItem } from '@/hooks/useNotificationCenter';
+export interface ApiNotificationItem {
+  id: string;
+  type:
+    | 'reservation_new'
+    | 'reservation_success'
+    | 'reservation_failed'
+    | 'reservation_canceled'
+    | 'reservation_upcoming';
+  metadata: {
+    role?: 'mentor' | 'mentee';
+    mentee_name?: string;
+    mentor_name?: string;
+  };
+  created_at: string;
+  read_at: string | null;
+}
 
 // Simulated database of mock notifications (in-memory stateful copy)
 let dbNotifications: ApiNotificationItem[] = [

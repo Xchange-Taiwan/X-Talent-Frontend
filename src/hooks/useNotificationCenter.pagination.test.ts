@@ -1,9 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import * as mockService from '@/components/layout/Header/mockNotificationService';
 import { useNotificationCenter } from '@/hooks/useNotificationCenter';
-import { type ApiNotificationItem } from '@/hooks/useNotificationCenter';
+import * as mockService from '@/services/mockNotificationService';
+import { type ApiNotificationItem } from '@/services/mockNotificationService';
 
 vi.mock('@/components/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
@@ -111,5 +111,79 @@ describe('useNotificationCenter pagination and service integration', () => {
 
     listSpy.mockRestore();
     countSpy.mockRestore();
+  });
+
+  it('prevents duplicate parallel requests when calling loadMore concurrently', async () => {
+    const { result } = renderHook(() => useNotificationCenter());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('success');
+    });
+
+    const listSpy = vi.spyOn(mockService, 'listNotifications');
+
+    // Call loadMore twice concurrently
+    await act(async () => {
+      await Promise.all([result.current.loadMore(), result.current.loadMore()]);
+    });
+
+    // listNotifications should only be called once because of the isFetchingRef.current lock!
+    expect(listSpy).toHaveBeenCalledTimes(1);
+    listSpy.mockRestore();
+  });
+
+  it('optimistically decrements badgeCount on markRead and rolls back if service fails', async () => {
+    const { result } = renderHook(() => useNotificationCenter());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('success');
+    });
+
+    // Make markOneRead reject/fail
+    const markOneReadSpy = vi
+      .spyOn(mockService, 'markOneRead')
+      .mockRejectedValue(new Error('Network Error'));
+
+    expect(result.current.badgeCount).toBe(5);
+
+    // Get an unread item
+    const unreadItem = result.current.items.find((i) => i.unread);
+    expect(unreadItem).toBeDefined();
+
+    await act(async () => {
+      await result.current.markRead(unreadItem!.id);
+    });
+
+    // badgeCount should be optimistically decremented to 4, then rolled back to 5!
+    expect(result.current.badgeCount).toBe(5);
+    expect(
+      result.current.items.find((i) => i.id === unreadItem!.id)?.unread
+    ).toBe(true);
+
+    markOneReadSpy.mockRestore();
+  });
+
+  it('optimistically clears badgeCount on markAllRead and rolls back if service fails', async () => {
+    const { result } = renderHook(() => useNotificationCenter());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('success');
+    });
+
+    // Make markAllRead reject/fail
+    const markAllReadSpy = vi
+      .spyOn(mockService, 'markAllRead')
+      .mockRejectedValue(new Error('Network Error'));
+
+    expect(result.current.badgeCount).toBe(5);
+
+    await act(async () => {
+      await result.current.markAllRead();
+    });
+
+    // badgeCount should be optimistically cleared to 0, then rolled back to 5!
+    expect(result.current.badgeCount).toBe(5);
+
+    markAllReadSpy.mockRestore();
   });
 });

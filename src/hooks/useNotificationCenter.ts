@@ -1,14 +1,15 @@
 import * as React from 'react';
 
+import { useToast } from '@/components/ui/use-toast';
+import { captureFlowFailure } from '@/lib/monitoring';
+import { safeGetStorage, safeSetStorage } from '@/lib/storage';
 import {
+  type ApiNotificationItem,
   fetchUnreadCount,
   listNotifications,
   markAllRead as mockMarkAllRead,
   markOneRead,
-} from '@/components/layout/Header/mockNotificationService';
-import { useToast } from '@/components/ui/use-toast';
-import { captureFlowFailure } from '@/lib/monitoring';
-import { safeGetStorage, safeSetStorage } from '@/lib/storage';
+} from '@/services/mockNotificationService';
 
 const MARK_ALL_READ_BATCH_SIZE = 5;
 
@@ -72,23 +73,6 @@ export type NotificationItem = {
   unread?: boolean;
   role?: 'mentor' | 'mentee';
 };
-
-export interface ApiNotificationItem {
-  id: string;
-  type:
-    | 'reservation_new'
-    | 'reservation_success'
-    | 'reservation_failed'
-    | 'reservation_canceled'
-    | 'reservation_upcoming';
-  metadata: {
-    role?: 'mentor' | 'mentee';
-    mentee_name?: string;
-    mentor_name?: string;
-  };
-  created_at: string;
-  read_at: string | null;
-}
 
 export function mapApiNotificationToFrontend(
   apiItem: ApiNotificationItem
@@ -247,6 +231,8 @@ export function useNotificationCenter({
   const loadInitialData = React.useCallback(
     async (showLoading = true) => {
       if (isUsingProps) return;
+      if (isFetchingRef.current) return;
+      isFetchingRef.current = true;
       if (showLoading) {
         setStatus('loading');
       }
@@ -262,6 +248,8 @@ export function useNotificationCenter({
         setStatus(mapped.length === 0 ? 'empty' : 'success');
       } catch (error) {
         setStatus('error');
+      } finally {
+        isFetchingRef.current = false;
       }
     },
     [isUsingProps]
@@ -312,6 +300,15 @@ export function useNotificationCenter({
       writeAndNotifySeen(badgeCount);
     }
   }, [badgeCount, seenUnreadCount, writeAndNotifySeen, status, isPending]);
+
+  // Synchronize seenUnreadCount when the dropdown is open and badgeCount increases (e.g. from loadInitialData)
+  // to prevent unread badge from reappearing incorrectly upon close.
+  React.useEffect(() => {
+    if (!isUsingProps && open && badgeCount > seenUnreadCount) {
+      setSeenUnreadCount(badgeCount);
+      writeAndNotifySeen(badgeCount);
+    }
+  }, [open, badgeCount, seenUnreadCount, writeAndNotifySeen, isUsingProps]);
 
   // Synchronize state across multiple instances (e.g. desktop vs mobile notification bells in Header) and browser tabs
   React.useEffect(() => {

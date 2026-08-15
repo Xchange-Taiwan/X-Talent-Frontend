@@ -50,6 +50,17 @@ describe('Header', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseSessionHint.mockReturnValue({ status: 'unknown' });
+    global.IntersectionObserver = class IntersectionObserver {
+      readonly root: Element | null = null;
+      readonly rootMargin: string = '';
+      readonly thresholds: ReadonlyArray<number> = [];
+      disconnect() {}
+      observe() {}
+      takeRecords() {
+        return [];
+      }
+      unobserve() {}
+    } as any;
   });
 
   it('disables the second nav link while resolving a logged-in user, instead of falling back to /auth/signup or /', () => {
