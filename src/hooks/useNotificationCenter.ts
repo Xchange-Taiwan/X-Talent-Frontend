@@ -283,10 +283,15 @@ export function useNotificationCenter({
       setNextCursor(next_created_at);
     } catch (error) {
       console.error('[useNotificationCenter] loadMore failed:', error);
+      toast({
+        variant: 'destructive',
+        title: '載入失敗',
+        description: '無法載入更多通知，請稍後再試',
+      });
     } finally {
       setIsLoadingMore(false);
     }
-  }, [isUsingProps, isLoadingMore, nextCursor]);
+  }, [isUsingProps, isLoadingMore, nextCursor, toast]);
 
   // Sync seenUnreadCount from localStorage when storageKey (userId) changes or on mount.
   React.useEffect(() => {
@@ -376,6 +381,9 @@ export function useNotificationCenter({
 
   const markRead = React.useCallback(
     async (id: string) => {
+      const targetItem = notifications.find((n) => n.id === id);
+      if (!targetItem || !targetItem.unread) return;
+
       setNotifications((prev) =>
         prev.map((item) => (item.id === id ? { ...item, unread: false } : item))
       );
@@ -408,7 +416,7 @@ export function useNotificationCenter({
         setIsPending(false);
       }
     },
-    [onMarkRead, isUsingProps, toast]
+    [notifications, onMarkRead, isUsingProps, toast]
   );
 
   const markAllRead = React.useCallback(async () => {
