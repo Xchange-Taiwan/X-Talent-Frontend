@@ -1069,4 +1069,39 @@ describe('NotificationBell', () => {
       );
     });
   });
+
+  describe('IntersectionObserver Infinite Scroll Integration', () => {
+    it('observes the sentinel on render and disconnects on unmount', async () => {
+      const observeSpy = vi.fn();
+      const unobserveSpy = vi.fn();
+      const disconnectSpy = vi.fn();
+
+      global.IntersectionObserver = class IntersectionObserver {
+        readonly root = null;
+        readonly rootMargin = '';
+        readonly thresholds = [];
+        observe = observeSpy;
+        unobserve = unobserveSpy;
+        disconnect = disconnectSpy;
+        takeRecords() {
+          return [];
+        }
+      } as any;
+
+      const { unmount } = render(<NotificationBell />);
+
+      // Click to open popover so NotificationList is mounted and observer is created
+      fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
+
+      // Wait for service items to load and render in success state
+      await screen.findAllByText('您有新的預約');
+
+      expect(observeSpy).toHaveBeenCalled();
+
+      // Unmount the component to trigger cleanup
+      unmount();
+
+      expect(disconnectSpy).toHaveBeenCalled();
+    });
+  });
 });
