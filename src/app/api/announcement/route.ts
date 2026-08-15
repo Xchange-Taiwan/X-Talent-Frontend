@@ -1,6 +1,6 @@
+import { get } from '@vercel/global-config';
 import { NextResponse } from 'next/server';
 
-import { apiClient } from '@/lib/apiClient';
 import type { AnnouncementData } from '@/services/announcement';
 
 export const dynamic = 'force-dynamic';
@@ -8,19 +8,16 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   let announcement: AnnouncementData | null = null;
 
-  const configUrl = process.env.GLOBAL_CONFIG || process.env.EDGE_CONFIG;
-
-  if (configUrl) {
+  if (process.env.GLOBAL_CONFIG || process.env.EDGE_CONFIG) {
     try {
-      const data = await apiClient.get<{ announcement?: AnnouncementData }>(
-        configUrl,
-        { auth: false, next: { revalidate: 0 } } // avoid caching in Next.js
-      );
-      announcement = data.announcement ?? null;
+      // Read through the SDK rather than a raw fetch to the connection
+      // string — the SDK resolves the correct sub-path/format for a single
+      // item internally, which a bare fetch to the base connection string
+      // does not.
+      announcement = (await get<AnnouncementData>('announcement')) ?? null;
     } catch {
-      // Fetch/response failures are already reported by apiClient's internal
-      // error handling (sanitized — the Edge Config URL's token is masked).
-      // Fall through to the local fallback below.
+      // Fetch/response failures are already reported by the SDK's internal
+      // error handling. Fall through to the local fallback below.
     }
   }
 
