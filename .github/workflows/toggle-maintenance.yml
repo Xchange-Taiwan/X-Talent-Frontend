@@ -21,6 +21,16 @@
 #    mode on production needs a second person's approval before it runs.
 #    Without this, anyone with write access to the repo can trigger it
 #    unattended.
+#
+# TWO SEPARATE THINGS THIS WORKFLOW CONTROLS - DO NOT CONFUSE THEM:
+#   - maintenance_mode (isInMaintenanceMode in the store): the real switch.
+#     "開啟" hard-redirects all traffic to /maintenance - the site goes down.
+#   - announcement_time_action + month/day/hour/minute (maintenanceTime in
+#     the store): ONLY controls when the announcement BANNER text auto-hides
+#     itself on the client. It does NOT schedule maintenance_mode to turn on
+#     by itself - nothing here flips isInMaintenanceMode automatically at
+#     that time. To actually take the site down at that time, you still have
+#     to come back and run this workflow again with maintenance_mode=開啟.
 # ==============================================================================
 
 name: Toggle Maintenance Mode
@@ -29,7 +39,7 @@ on:
   workflow_dispatch:
     inputs:
       maintenance_mode:
-        description: '維護模式(直接封站,所有流量導向 /maintenance)'
+        description: '維護模式(真正封站,所有流量導向 /maintenance;跟下面的「公告顯示時間」是兩件事,不會互相觸發)'
         type: choice
         required: true
         options:
@@ -56,7 +66,7 @@ on:
         type: string
         required: false
       announcement_time_action:
-        description: '維護時間動作(選「設定時間」下面的月/日/時/分才會生效)'
+        description: '公告顯示時間 - 不是維護模式!只控制上面公告 banner 幾點自動消失,時間到了不會自動封站(選「設定時間」下面的月/日/時/分才會生效)'
         type: choice
         required: true
         options:
@@ -334,6 +344,8 @@ jobs:
             echo "| announcement_enabled | \`${ANNOUNCEMENT_ENABLED}\` |"
             echo "| announcement_message | \`${ANNOUNCEMENT_MESSAGE}\` |"
             echo "| announcement_time_action | \`${ANNOUNCEMENT_TIME_ACTION}\` |"
-            echo "| announcement_time | \`${ANNOUNCEMENT_TIME_MONTH}/${ANNOUNCEMENT_TIME_DAY} ${ANNOUNCEMENT_TIME_HOUR}:${ANNOUNCEMENT_TIME_MINUTE}\` |"
+            echo "| announcement_time(公告倒數用,不是維護模式) | \`${ANNOUNCEMENT_TIME_MONTH}/${ANNOUNCEMENT_TIME_DAY} ${ANNOUNCEMENT_TIME_HOUR}:${ANNOUNCEMENT_TIME_MINUTE}\` |"
             echo "| 觸發者 | \`${GITHUB_ACTOR}\` |"
+            echo ""
+            echo "> ⚠️ 提醒:上面的 announcement_time 只影響公告 banner 何時自動消失,不會自動封站。要真的封站請把 maintenance_mode 設為「開啟」。"
           } >> "$GITHUB_STEP_SUMMARY"
