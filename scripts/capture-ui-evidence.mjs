@@ -5,22 +5,6 @@ import { config } from 'dotenv';
 
 config({ path: path.resolve('.env.development.local') });
 
-// Deliberate exception to this project's "prefer chrome-devtools-axi for all
-// browser automation" convention (scripts/ai-review/prompts/_shared/project-context.md).
-// chrome-devtools-axi 0.1.29 has two reproducible bugs on Windows that make it
-// unusable for this script's job:
-//   1. `chrome-devtools-axi run <script>` (the only way to drive multi-step
-//      page interaction from Node) crashes on start: the ESM loader rejects
-//      the temp script file's Windows path ("Only URLs with a scheme in:
-//      file, data, and node are supported... Received protocol 'c:'").
-//   2. `chrome-devtools-axi screenshot <path>` reports success (exit 0, and
-//      echoes back the correct resolved absolute path) but never actually
-//      writes the file — reproduced with a fresh session, a flat filename,
-//      an explicit absolute path, and a post-write delay; nothing ever lands
-//      on disk anywhere under the target dir or %TEMP%.
-// If chrome-devtools-axi ships a fix for either on Windows, this should be
-// revisited — see PR discussion for the AI Review finding this responds to.
-
 const VIEWPORTS = {
   desktop: { width: 1280, height: 800 },
   mobile: { width: 375, height: 812 },

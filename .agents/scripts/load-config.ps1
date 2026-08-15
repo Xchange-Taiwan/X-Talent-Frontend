@@ -1,14 +1,3 @@
-# Define a wrapper for gh to use gh-axi if available
-function gh {
-  if (Get-Command gh-axi -ErrorAction SilentlyContinue) {
-    & gh-axi $args
-  } elseif (Get-Command npx -ErrorAction SilentlyContinue) {
-    & npx -y gh-axi $args
-  } else {
-    & (Get-Command gh -CommandType Application) $args
-  }
-}
-
 # Fetch config file from tracker repository (using main branch)
 $CONFIG_MD = $null
 try {
