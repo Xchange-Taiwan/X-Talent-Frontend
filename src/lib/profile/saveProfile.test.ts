@@ -408,6 +408,37 @@ describe('saveProfile (Deep Module)', () => {
     expect(updateSession).toHaveBeenCalledTimes(1);
   });
 
+  // ── Post-sync revalidate (mentor-pool ISR race) ─────────────────────────────
+
+  it('background sync confirms latest → revalidateProfilePath is called again (post-sync)', async () => {
+    mockFirstSyncedFetch.mockResolvedValueOnce(null);
+    mockPollUntilSynced.mockResolvedValueOnce(mockUserDTO);
+
+    const revalidateProfilePath = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({ revalidateProfilePath });
+    await saveProfile(baseValues, deps);
+
+    await vi.waitFor(() => {
+      expect(revalidateProfilePath).toHaveBeenCalledTimes(2);
+    });
+    expect(revalidateProfilePath).toHaveBeenNthCalledWith(1, 'test-user-id');
+    expect(revalidateProfilePath).toHaveBeenNthCalledWith(2, 'test-user-id');
+  });
+
+  it('background sync never confirms (poll exhausted, latest stays null) → revalidateProfilePath is NOT called again', async () => {
+    mockFirstSyncedFetch.mockResolvedValueOnce(null);
+    mockPollUntilSynced.mockResolvedValueOnce(null);
+
+    const revalidateProfilePath = vi.fn().mockResolvedValue(undefined);
+    const deps = makeDeps({ revalidateProfilePath });
+    await saveProfile(baseValues, deps);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(revalidateProfilePath).toHaveBeenCalledTimes(1);
+  });
+
   // ── Cache prime vs fallback ────────────────────────────────────────────────
 
   it('firstSyncedFetch returns dto → primeUserDataCache called, pollUntilSynced NOT called', async () => {
