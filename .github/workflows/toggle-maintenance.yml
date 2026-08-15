@@ -224,7 +224,11 @@ jobs:
             exit 1
           fi
 
-          echo "$body" > current.json
+          # This endpoint returns a JSON array of {key, value, ...} records,
+          # not the flat key-value map the global-config.vercel.com read
+          # endpoint returns - flatten it here so the rest of the workflow
+          # can treat current.json as a plain object.
+          echo "$body" | jq -c 'map({(.key): .value}) | add // {}' > current.json
 
       - name: Build items payload
         run: |
