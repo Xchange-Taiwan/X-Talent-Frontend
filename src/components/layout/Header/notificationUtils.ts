@@ -1,4 +1,4 @@
-import type { NotificationItem } from '@/hooks/useNotificationBell';
+import type { NotificationItem } from '@/hooks/useNotificationCenter';
 
 /**
  * Returns the destination URL for a given notification item contextually.

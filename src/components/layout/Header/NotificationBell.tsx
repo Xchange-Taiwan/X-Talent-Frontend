@@ -12,8 +12,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   type NotificationItem,
-  useNotificationBell,
-} from '@/hooks/useNotificationBell';
+  useNotificationCenter,
+} from '@/hooks/useNotificationCenter';
 import { useScrollThumb } from '@/hooks/useScrollThumb';
 import { formatRelativeTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
@@ -26,11 +26,6 @@ export type NotificationBellProps = {
    * Optional user ID for per-user persistent tracking in localStorage.
    */
   userId?: string;
-  /**
-   * The mock count of unread notifications.
-   * @default 5
-   */
-  unreadCount?: number;
   /**
    * Optional custom classes for the trigger button (e.g. for responsive RWD displays).
    */
@@ -175,7 +170,6 @@ const NotificationList = React.memo(function NotificationList({
 
 export const NotificationBell = React.memo(function NotificationBell({
   userId,
-  unreadCount = 5,
   className,
   initialStatus = 'success',
   initialNotifications,
@@ -184,18 +178,18 @@ export const NotificationBell = React.memo(function NotificationBell({
 }: NotificationBellProps): JSX.Element {
   const {
     open,
-    closePopover,
     status,
-    notifications,
+    items: notifications,
+    badgeCount,
     showBadge,
     formattedCount,
     hasUnread,
-    handleOpenChange,
+    onOpenChange,
+    closeCenter: closePopover,
+    markRead: handleNotificationClick,
+    markAllRead: handleMarkAllAsRead,
     handleRetry,
-    handleNotificationClick,
-    handleMarkAllAsRead,
-  } = useNotificationBell({
-    unreadCount,
+  } = useNotificationCenter({
     userId,
     initialStatus,
     initialNotifications,
@@ -207,7 +201,7 @@ export const NotificationBell = React.memo(function NotificationBell({
   const [scrollThumbHandlers, scrollThumb] = useScrollThumb();
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
+    <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -223,7 +217,7 @@ export const NotificationBell = React.memo(function NotificationBell({
           {showBadge && (
             <span
               className="absolute -right-0.5 -bottom-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border border-background-white bg-status-error-default px-1 text-11 leading-none font-bold text-text-white select-none"
-              aria-label={`有 ${unreadCount} 則未讀通知`}
+              aria-label={`有 ${badgeCount} 則未讀通知`}
             >
               {formattedCount}
             </span>
