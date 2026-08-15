@@ -10,6 +10,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useIntersectionObserver } from '@/hooks/useIntersectionObserver';
 import {
   type NotificationItem,
   useNotificationCenter,
@@ -18,7 +19,6 @@ import { useScrollThumb } from '@/hooks/useScrollThumb';
 import { formatRelativeTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
-import { defaultMockNotifications } from './mockNotifications';
 import { getNotificationHref } from './notificationUtils';
 
 export type NotificationBellProps = {
@@ -98,12 +98,17 @@ type NotificationListProps = {
   onMouseLeave: () => void;
   onItemClick: (id: string) => void;
   onNavigate: () => void;
+  isLoadingMore?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: (isRetry?: boolean) => void | Promise<void>;
+  hasLoadMoreError?: boolean;
 };
 
 /**
  * Memoized so scroll-driven thumb position updates in the parent don't
  * force this list (and its per-item `getNotificationContent` /
  * `getNotificationHref` calls) to re-render on every frame.
+ * Uses custom useIntersectionObserver hook with a sentinel element for performance.
  */
 const NotificationList = React.memo(function NotificationList({
   notifications,
@@ -112,7 +117,26 @@ const NotificationList = React.memo(function NotificationList({
   onMouseLeave,
   onItemClick,
   onNavigate,
+  isLoadingMore,
+  hasMore,
+  onLoadMore,
+  hasLoadMoreError,
 }: NotificationListProps) {
+  const sentinelRef = React.useRef<HTMLDivElement>(null);
+
+  // Trigger loading next page of notifications
+  const handleIntersect = React.useCallback(() => {
+    if (onLoadMore) {
+      void onLoadMore(false);
+    }
+  }, [onLoadMore]);
+
+  // Use reusable custom IntersectionObserver hook
+  useIntersectionObserver(sentinelRef, handleIntersect, {
+    enabled: !!hasMore && !isLoadingMore && !hasLoadMoreError,
+    threshold: 0.1,
+  });
+
   return (
     <div
       ref={scrollRefCallback}
@@ -163,6 +187,28 @@ const NotificationList = React.memo(function NotificationList({
             </Link>
           );
         })}
+
+        {hasLoadMoreError ? (
+          <div className="flex flex-col items-center justify-center gap-1.5 py-4 text-center">
+            <span className="text-xs text-text-secondary">載入失敗</span>
+            <button
+              type="button"
+              onClick={() => onLoadMore && onLoadMore(true)}
+              className="text-xs font-semibold text-brand-500 transition-colors outline-none hover:text-brand-600 hover:underline"
+            >
+              點擊重試
+            </button>
+          </div>
+        ) : (
+          isLoadingMore && (
+            <div className="flex items-center justify-center py-4">
+              <span className="size-4 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+            </div>
+          )
+        )}
+
+        {/* Sentinel element to trigger next page load cleanly when scrolled into view */}
+        <div ref={sentinelRef} className="h-1 w-full" aria-hidden="true" />
       </div>
     </div>
   );
@@ -189,11 +235,14 @@ export const NotificationBell = React.memo(function NotificationBell({
     markRead: handleNotificationClick,
     markAllRead: handleMarkAllAsRead,
     handleRetry,
+    isLoadingMore,
+    hasMore,
+    loadMore,
+    hasLoadMoreError,
   } = useNotificationCenter({
     userId,
     initialStatus,
     initialNotifications,
-    defaultNotifications: defaultMockNotifications,
     onMarkRead,
     onMarkAllRead,
   });
@@ -285,6 +334,10 @@ export const NotificationBell = React.memo(function NotificationBell({
                 onMouseLeave={scrollThumbHandlers.onMouseLeave}
                 onItemClick={handleNotificationClick}
                 onNavigate={closePopover}
+                isLoadingMore={isLoadingMore}
+                hasMore={hasMore}
+                onLoadMore={loadMore}
+                hasLoadMoreError={hasLoadMoreError}
               />
             )}
 

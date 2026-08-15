@@ -124,6 +124,17 @@ describe('NotificationBell', () => {
     mockToast.mockClear();
     vi.mocked(captureFlowFailure).mockClear();
     localStorage.clear();
+    global.IntersectionObserver = class IntersectionObserver {
+      readonly root: Element | null = null;
+      readonly rootMargin: string = '';
+      readonly thresholds: ReadonlyArray<number> = [];
+      disconnect() {}
+      observe() {}
+      takeRecords() {
+        return [];
+      }
+      unobserve() {}
+    } as unknown as typeof IntersectionObserver;
   });
 
   it('renders the bell icon button with title and aria-label', () => {
@@ -1056,6 +1067,89 @@ describe('NotificationBell', () => {
       expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
         '5'
       );
+    });
+  });
+
+  describe('IntersectionObserver Infinite Scroll Integration', () => {
+    it('observes the sentinel on render and disconnects on unmount', async () => {
+      const observeSpy = vi.fn();
+      const unobserveSpy = vi.fn();
+      const disconnectSpy = vi.fn();
+
+      global.IntersectionObserver = class IntersectionObserver {
+        readonly root = null;
+        readonly rootMargin = '';
+        readonly thresholds = [];
+        observe = observeSpy;
+        unobserve = unobserveSpy;
+        disconnect = disconnectSpy;
+        takeRecords() {
+          return [];
+        }
+      } as unknown as typeof IntersectionObserver;
+
+      const { unmount } = render(<NotificationBell />);
+
+      // Click to open popover so NotificationList is mounted and observer is created
+      fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
+
+      // Wait for service items to load and render in success state
+      await screen.findAllByText('您有新的預約');
+
+      expect(observeSpy).toHaveBeenCalled();
+
+      // Unmount the component to trigger cleanup
+      unmount();
+
+      expect(disconnectSpy).toHaveBeenCalled();
+    });
+
+    it('triggers onLoadMore when IntersectionObserver intersects (isIntersecting)', async () => {
+      let observerCallback:
+        ((entries: Array<{ isIntersecting: boolean }>) => void) | null = null;
+
+      global.IntersectionObserver = class IntersectionObserver {
+        readonly root = null;
+        readonly rootMargin = '';
+        readonly thresholds = [];
+        constructor(
+          callback: (entries: Array<{ isIntersecting: boolean }>) => void
+        ) {
+          observerCallback = callback;
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+        takeRecords() {
+          return [];
+        }
+      } as unknown as typeof IntersectionObserver;
+
+      const mockService = await import('@/mocks/mockNotificationService');
+      const listSpy = vi.spyOn(mockService, 'listNotifications');
+
+      render(<NotificationBell />);
+
+      // Click to open popover so NotificationList is mounted and observer is created
+      fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
+
+      // Wait for service items to load in success state
+      await screen.findAllByText('您有新的預約');
+
+      expect(observerCallback).toBeDefined();
+      expect(listSpy).toHaveBeenCalledTimes(1);
+
+      // Trigger the intersection observer callback manually
+      await act(async () => {
+        if (observerCallback) {
+          observerCallback([{ isIntersecting: true }]);
+        }
+      });
+
+      // It should trigger loadMore, resulting in listNotifications being called again!
+      expect(listSpy).toHaveBeenCalledTimes(2);
+
+      listSpy.mockRestore();
     });
   });
 });
