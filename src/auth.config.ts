@@ -214,7 +214,7 @@ const authOptions = {
         try {
           const user = JSON.parse(credentials.user as string);
 
-          const cookieStore = cookies();
+          const cookieStore = await cookies();
           const refreshToken = cookieStore.get(
             OAUTH_REFRESH_BRIDGE_COOKIE
           )?.value;

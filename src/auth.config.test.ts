@@ -40,15 +40,16 @@ interface MockCookie {
 const cookieJar = new Map<string, MockCookie>();
 
 vi.mock('next/headers', () => ({
-  cookies: () => ({
-    get: (name: string) => cookieJar.get(name),
-    set: (name: string, value: string, options?: CookieOptions) => {
-      cookieJar.set(name, { name, value, ...options });
-    },
-    delete: (name: string) => {
-      cookieJar.delete(name);
-    },
-  }),
+  cookies: () =>
+    Promise.resolve({
+      get: (name: string) => cookieJar.get(name),
+      set: (name: string, value: string, options?: CookieOptions) => {
+        cookieJar.set(name, { name, value, ...options });
+      },
+      delete: (name: string) => {
+        cookieJar.delete(name);
+      },
+    }),
 }));
 
 // Helper to create valid-looking JWT for decodeJwtExp
