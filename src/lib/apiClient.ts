@@ -4,11 +4,7 @@ import { captureApiFailure } from '@/lib/monitoring';
 
 import { singleFlight } from './singleFlight';
 
-let sessionGetter: () => Promise<Session | null> = async () => {
-  if (typeof window === 'undefined') return null;
-  const { getSession: nextAuthGetSession } = await import('next-auth/react');
-  return nextAuthGetSession();
-};
+let sessionGetter: () => Promise<Session | null> = () => Promise.resolve(null);
 
 export function setSessionGetter(getter: () => Promise<Session | null>) {
   sessionGetter = getter;
