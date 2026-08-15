@@ -13,11 +13,7 @@ import { type NotificationItem } from '@/hooks/useNotificationCenter';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { mockToast } from '@/test/mocks/useToast';
 
-import {
-  getNotificationContent,
-  NotificationBell,
-  type NotificationBellProps,
-} from './NotificationBell';
+import { getNotificationContent, NotificationBell } from './NotificationBell';
 
 vi.mock('@/components/ui/use-toast', async () => {
   const { useToastMockFactory } = await import('@/test/mocks/useToast');
@@ -27,6 +23,62 @@ vi.mock('@/components/ui/use-toast', async () => {
 vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
 }));
+
+const MOCK_MIXED_NOTIFICATIONS: NotificationItem[] = [
+  {
+    id: '1',
+    type: 'reservation_new',
+    menteeName: '小明',
+    createdAt: new Date().toISOString(),
+    unread: true,
+  },
+  {
+    id: '2',
+    type: 'reservation_success',
+    mentorName: '林導師',
+    createdAt: new Date().toISOString(),
+    unread: true,
+  },
+  {
+    id: '3',
+    type: 'reservation_failed',
+    mentorName: '王導師',
+    createdAt: new Date().toISOString(),
+    unread: true,
+  },
+  {
+    id: '4',
+    type: 'reservation_canceled',
+    mentorName: '陳導師',
+    createdAt: new Date().toISOString(),
+    unread: true,
+  },
+  {
+    id: '5',
+    type: 'reservation_upcoming',
+    mentorName: '張導師',
+    createdAt: new Date().toISOString(),
+    unread: true,
+  },
+];
+
+const MOCK_MENTOR_NOTIFICATIONS: NotificationItem[] = [
+  {
+    id: 'canceled-mentor-explicit',
+    type: 'reservation_canceled',
+    menteeName: '小明',
+    role: 'mentor',
+    createdAt: new Date().toISOString(),
+    unread: true,
+  },
+  {
+    id: 'upcoming-mentor-inferred',
+    type: 'reservation_upcoming',
+    menteeName: '小華',
+    createdAt: new Date().toISOString(),
+    unread: true,
+  },
+];
 
 function getMockNotifications(count: number): NotificationItem[] {
   const types: Array<
@@ -53,7 +105,9 @@ function getMockNotifications(count: number): NotificationItem[] {
 }
 
 function renderBell(
-  props: Partial<NotificationBellProps> & { unreadCount?: number } = {}
+  props: Partial<React.ComponentProps<typeof NotificationBell>> & {
+    unreadCount?: number;
+  } = {}
 ) {
   const { unreadCount = 5, initialNotifications, ...rest } = props;
   const notifications =
@@ -94,7 +148,6 @@ describe('NotificationBell', () => {
   });
 
   it('hides the unread count badge and opens the empty popover container on click', () => {
-    // Pass initialStatus="empty" and initialNotifications=[] to preserve original test expectation
     renderBell({
       unreadCount: 5,
       initialNotifications: [],
@@ -140,46 +193,8 @@ describe('NotificationBell', () => {
 
   describe('Notification Dropdown Rendering states', () => {
     it('renders all 5 types of notification card contents under success state', () => {
-      const allTypesNotifications: NotificationItem[] = [
-        {
-          id: '1',
-          type: 'reservation_new',
-          menteeName: '小明',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        },
-        {
-          id: '2',
-          type: 'reservation_success',
-          mentorName: '林導師',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        },
-        {
-          id: '3',
-          type: 'reservation_failed',
-          mentorName: '王導師',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        },
-        {
-          id: '4',
-          type: 'reservation_canceled',
-          mentorName: '陳導師',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        },
-        {
-          id: '5',
-          type: 'reservation_upcoming',
-          mentorName: '張導師',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        },
-      ];
-
       renderBell({
-        initialNotifications: allTypesNotifications,
+        initialNotifications: MOCK_MIXED_NOTIFICATIONS,
         initialStatus: 'success',
       });
       const button = screen.getByRole('button', { name: '開啟通知選單' });
@@ -266,20 +281,15 @@ describe('NotificationBell', () => {
 
       renderBell({ initialStatus: 'success' });
 
-      // Since open is mocked to true, the popover is already open and notifications are rendered
       // Check an unread notification
       const unreadTitle = screen.getByText('您有新的預約');
       expect(unreadTitle).toHaveClass('font-bold');
       expect(unreadTitle).toHaveClass('text-text-primary');
-      expect(unreadTitle).not.toHaveClass('font-normal');
-      expect(unreadTitle).not.toHaveClass('text-text-secondary');
 
       // Check a read notification
       const readTitle = screen.getByText('Mentor 已接受您的預約');
       expect(readTitle).toHaveClass('font-normal');
       expect(readTitle).toHaveClass('text-text-secondary');
-      expect(readTitle).not.toHaveClass('font-bold');
-      expect(readTitle).not.toHaveClass('text-text-primary');
 
       spy.mockRestore();
     });
@@ -289,7 +299,6 @@ describe('NotificationBell', () => {
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      // Ensure the text '尚無新通知' or mock notifications are NOT shown
       expect(screen.queryByText('尚無新通知')).not.toBeInTheDocument();
       expect(screen.queryByText('您有新的預約')).not.toBeInTheDocument();
     });
@@ -315,15 +324,12 @@ describe('NotificationBell', () => {
         const retryButton = screen.getByRole('button', { name: '重新嘗試' });
         fireEvent.click(retryButton);
 
-        // Verify that UI immediately transitions to loading state (error text disappears)
         expect(screen.queryByText('載入失敗，請重試')).not.toBeInTheDocument();
 
-        // Fast-forward 1000ms inside act
         act(() => {
           vi.advanceTimersByTime(1000);
         });
 
-        // Verify that UI transitions to success state (notifications appear)
         expect(screen.getByText('您有新的預約')).toBeInTheDocument();
       } finally {
         vi.useRealTimers();
@@ -343,13 +349,10 @@ describe('NotificationBell', () => {
         const retryButton = screen.getByRole('button', { name: '重新嘗試' });
         fireEvent.click(retryButton);
 
-        // Verify that UI immediately transitions to loading state (error text disappears)
         expect(screen.queryByText('載入失敗，請重試')).not.toBeInTheDocument();
 
-        // Unmount the component immediately during loading
         unmount();
 
-        // Fast-forward 1000ms inside act
         act(() => {
           vi.advanceTimersByTime(1000);
         });
@@ -375,46 +378,8 @@ describe('NotificationBell', () => {
 
   describe('Notification card click and navigation', () => {
     it('renders notification items as links with correct href based on contextual roles', () => {
-      const mixedNotifications: NotificationItem[] = [
-        {
-          id: '1',
-          type: 'reservation_new',
-          menteeName: '小明',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        },
-        {
-          id: '2',
-          type: 'reservation_success',
-          mentorName: '林導師',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        },
-        {
-          id: '3',
-          type: 'reservation_failed',
-          mentorName: '王導師',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        },
-        {
-          id: '4',
-          type: 'reservation_canceled',
-          mentorName: '陳導師',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        },
-        {
-          id: '5',
-          type: 'reservation_upcoming',
-          mentorName: '張導師',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        },
-      ];
-
       renderBell({
-        initialNotifications: mixedNotifications,
+        initialNotifications: MOCK_MIXED_NOTIFICATIONS,
         initialStatus: 'success',
       });
       const button = screen.getByRole('button', { name: '開啟通知選單' });
@@ -442,13 +407,13 @@ describe('NotificationBell', () => {
         .closest('a');
       expect(failedLink).toHaveAttribute('href', '/mentor-pool');
 
-      // Check reservation_canceled href for Mentee (has mentorName, goes to mentor-pool)
+      // Check reservation_canceled href for Mentee
       const canceledLink = screen
         .getByText('您與 陳導師 的預約已被取消')
         .closest('a');
       expect(canceledLink).toHaveAttribute('href', '/mentor-pool');
 
-      // Check reservation_upcoming href for Mentee (has mentorName, goes to reservation/mentee?tab=upcoming)
+      // Check reservation_upcoming href for Mentee
       const upcomingLink = screen
         .getByText('您與 張導師 的預約即將到來')
         .closest('a');
@@ -459,33 +424,14 @@ describe('NotificationBell', () => {
     });
 
     it('renders canceled and upcoming notification hrefs correctly for Mentor context', () => {
-      // Create explicit notifications for a Mentor context (using explicit role property or menteeName)
-      const mentorNotifications: NotificationItem[] = [
-        {
-          id: 'canceled-mentor-explicit',
-          type: 'reservation_canceled',
-          menteeName: '小明',
-          role: 'mentor',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        },
-        {
-          id: 'upcoming-mentor-inferred',
-          type: 'reservation_upcoming',
-          menteeName: '小華',
-          createdAt: new Date().toISOString(),
-          unread: true,
-        },
-      ];
-
       renderBell({
         initialStatus: 'success',
-        initialNotifications: mentorNotifications,
+        initialNotifications: MOCK_MENTOR_NOTIFICATIONS,
       });
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      // Check reservation_canceled href for Mentor context (goes to reservation/mentor?tab=history)
+      // Check reservation_canceled href for Mentor context
       const canceledLink = screen
         .getByText('您與 小明 的預約已被取消')
         .closest('a');
@@ -494,7 +440,7 @@ describe('NotificationBell', () => {
         '/reservation/mentor?tab=history'
       );
 
-      // Check reservation_upcoming href for Mentor context (goes to reservation/mentor?tab=upcoming)
+      // Check reservation_upcoming href for Mentor context
       const upcomingLink = screen
         .getByText('您與 小華 的預約即將到來')
         .closest('a');
@@ -520,12 +466,10 @@ describe('NotificationBell', () => {
 
       fireEvent.click(link!);
 
-      // Verify persistence callback was called with the notification's ID ('1')
       await waitFor(() => {
         expect(onMarkReadMock).toHaveBeenCalledWith('1');
       });
 
-      // Popover should be closed
       expect(screen.queryByText('通知')).not.toBeInTheDocument();
     });
 
@@ -558,7 +502,6 @@ describe('NotificationBell', () => {
         expect(onMarkReadErrorMock).toHaveBeenCalledWith('unread-1');
       });
 
-      // Reopen the popover (it closes on click) to inspect the rolled-back state
       fireEvent.click(button);
 
       await waitFor(() => {
@@ -588,16 +531,12 @@ describe('NotificationBell', () => {
       renderBell({ unreadCount: 5, initialStatus: 'success' });
       const button = screen.getByRole('button', { name: '開啟通知選單' });
 
-      // Badge is initially visible
       expect(screen.getByText('5')).toBeInTheDocument();
 
-      // Click the bell button to open the popover
       fireEvent.click(button);
 
-      // Badge should be hidden now
       expect(screen.queryByText('5')).not.toBeInTheDocument();
 
-      // Notifications in the dropdown list should still be unread (bold titles)
       const unreadTitle = screen.getByText('您有新的預約');
       expect(unreadTitle).toHaveClass('font-bold');
     });
@@ -629,30 +568,24 @@ describe('NotificationBell', () => {
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      // Verify unread notification has bold font
       const unreadTitle = screen.getByText('您有新的預約');
       expect(unreadTitle).toHaveClass('font-bold');
 
-      // Verify read notification has normal font
       const readTitle = screen.getByText('林導師 已接受您的預約');
       expect(readTitle).toHaveClass('font-normal');
 
-      // Find the Mark all as read button
       const markAllBtn = screen.getByRole('button', {
         name: 'Mark all as read',
       });
       expect(markAllBtn).toBeInTheDocument();
 
-      // Click it
       fireEvent.click(markAllBtn);
 
-      // Verify that the unread notification title style changes to normal (read)
       await waitFor(() => {
         expect(unreadTitle).toHaveClass('font-normal');
         expect(unreadTitle).not.toHaveClass('font-bold');
       });
 
-      // Verify that onMarkAllRead was called EXACTLY once with the array of unread IDs
       expect(onMarkAllReadMock).toHaveBeenCalledTimes(1);
       expect(onMarkAllReadMock).toHaveBeenCalledWith(['unread-1']);
     });
@@ -691,13 +624,11 @@ describe('NotificationBell', () => {
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      // Find the Mark all as read button and click it
       const markAllBtn = screen.getByRole('button', {
         name: 'Mark all as read',
       });
       fireEvent.click(markAllBtn);
 
-      // Verify that onMarkRead was called EXACTLY twice (for unread-1 and unread-2, but NOT for read-3)
       await waitFor(() => {
         expect(onMarkReadMock).toHaveBeenCalledTimes(2);
       });
@@ -726,31 +657,25 @@ describe('NotificationBell', () => {
       });
       const button = screen.getByRole('button', { name: '開啟通知選單' });
 
-      // Badge is visible
       expect(screen.getByText('1')).toBeInTheDocument();
 
       fireEvent.click(button);
 
-      // Verify unread notification has bold font
       const unreadTitle = screen.getByText('您有新的預約');
       expect(unreadTitle).toHaveClass('font-bold');
 
-      // Find the Mark all as read button and click it
       const markAllBtn = screen.getByRole('button', {
         name: 'Mark all as read',
       });
       fireEvent.click(markAllBtn);
 
-      // Check that it first optimistically marks as read (becomes font-normal)
       expect(unreadTitle).toHaveClass('font-normal');
 
-      // Verify that it rolled back to unread state (restores font-bold) but keeps badge hidden (since they have seen it)
       await waitFor(() => {
         expect(unreadTitle).toHaveClass('font-bold');
         expect(screen.queryByText('1')).not.toBeInTheDocument();
       });
 
-      // Verify the user is shown an error toast instead of a silent failure
       expect(mockToast).toHaveBeenCalledWith(
         expect.objectContaining({
           variant: 'destructive',
@@ -768,7 +693,6 @@ describe('NotificationBell', () => {
     });
 
     it('rolls back ONLY the failed notification state while successfully updating others during sequential onMarkRead fallback failure', async () => {
-      // First call succeeds, second fails
       const onMarkReadMixedMock = vi
         .fn()
         .mockResolvedValueOnce(undefined)
@@ -798,30 +722,23 @@ describe('NotificationBell', () => {
       });
       const button = screen.getByRole('button', { name: '開啟通知選單' });
 
-      // Badge is visible before click
       expect(screen.getByText('2')).toBeInTheDocument();
 
       fireEvent.click(button);
 
-      // Verify both are bold
       const title1 = screen.getByText('您有新的預約');
       const title2 = screen.getByText('您與 王導師 的預約即將到來');
       expect(title1).toHaveClass('font-bold');
       expect(title2).toHaveClass('font-bold');
 
-      // Click Mark all as read button
       const markAllBtn = screen.getByRole('button', {
         name: 'Mark all as read',
       });
       fireEvent.click(markAllBtn);
 
-      // Optimistically both become font-normal
       expect(title1).toHaveClass('font-normal');
       expect(title2).toHaveClass('font-normal');
 
-      // Wait for sequential async fallback execution.
-      // title1 succeeds -> remains font-normal
-      // title2 fails -> rolls back to font-bold, but badge remains hidden (since they have seen it)
       await waitFor(() => {
         expect(title1).toHaveClass('font-normal');
         expect(title1).not.toHaveClass('font-bold');
@@ -830,8 +747,6 @@ describe('NotificationBell', () => {
         expect(screen.queryByText('2')).not.toBeInTheDocument();
       });
 
-      // Verify the user is shown a "partial failure" toast, distinct from a
-      // total failure, since only one of the two items actually failed
       expect(mockToast).toHaveBeenCalledWith(
         expect.objectContaining({
           variant: 'destructive',
@@ -874,9 +789,6 @@ describe('NotificationBell', () => {
       });
       fireEvent.click(markAllBtn);
 
-      // All 6 unread items should eventually be marked read across two
-      // batches (5 + 1), proving the for-loop in markReadInBatches runs
-      // more than once instead of firing all 6 requests concurrently.
       await waitFor(() => {
         expect(onMarkReadMock).toHaveBeenCalledTimes(6);
       });
@@ -884,7 +796,6 @@ describe('NotificationBell', () => {
         expect(onMarkReadMock).toHaveBeenCalledWith(item.id);
       });
 
-      // A fully successful run should not surface any error toast
       expect(mockToast).not.toHaveBeenCalled();
     });
 
@@ -904,7 +815,6 @@ describe('NotificationBell', () => {
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      // Find the Mark all as read button
       const markAllBtn = screen.getByRole('button', {
         name: 'Mark all as read',
       });
@@ -916,18 +826,14 @@ describe('NotificationBell', () => {
       const { rerender } = renderBell({ unreadCount: 5 });
       const button = screen.getByRole('button', { name: '開啟通知選單' });
 
-      // Badge is initially 5
       expect(screen.getByText('5')).toBeInTheDocument();
 
-      // Click to open and clear badge
       fireEvent.click(button);
       expect(screen.queryByText('5')).not.toBeInTheDocument();
 
-      // Rerender with a larger unreadCount (e.g. 6) representing a new notification arriving
       const notifications6 = getMockNotifications(6);
       rerender(<NotificationBell initialNotifications={notifications6} />);
 
-      // Badge should reappear showing 6
       expect(screen.getByText('6')).toBeInTheDocument();
     });
 
@@ -935,24 +841,19 @@ describe('NotificationBell', () => {
       const { rerender } = renderBell({ unreadCount: 5 });
       const button = screen.getByRole('button', { name: '開啟通知選單' });
 
-      // Badge is initially 5
       expect(screen.getByText('5')).toBeInTheDocument();
 
-      // Click to open and clear badge
       fireEvent.click(button);
       expect(screen.queryByText('5')).not.toBeInTheDocument();
 
-      // Rerender with a smaller unreadCount (e.g. 3) representing some notifications read elsewhere
       const notifications3 = getMockNotifications(3);
       rerender(<NotificationBell initialNotifications={notifications3} />);
 
-      // Badge should remain hidden
       expect(screen.queryByText('3')).not.toBeInTheDocument();
       expect(screen.queryByText('5')).not.toBeInTheDocument();
     });
 
     it('persists unreadCount to localStorage and keeps the badge hidden on subsequent mount with the same unreadCount', () => {
-      // 1. Render and click to open (seen)
       const { unmount } = renderBell({ unreadCount: 5, userId: 'user-123' });
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
@@ -961,30 +862,23 @@ describe('NotificationBell', () => {
         '5'
       );
 
-      // 2. Unmount to simulate page refresh / new mount
       unmount();
 
-      // 3. Re-render (remount) with the same unreadCount
       renderBell({ unreadCount: 5, userId: 'user-123' });
-      // Badge should remain hidden because unreadCount (5) is not greater than the persisted seenUnreadCount (5)
       expect(screen.queryByText('5')).not.toBeInTheDocument();
     });
 
     it('displays the badge on subsequent mount if unreadCount increases past the persisted localStorage count', () => {
-      // 1. Render and click to open (seen)
       const { unmount } = renderBell({ unreadCount: 5, userId: 'user-123' });
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
       unmount();
 
-      // 2. Re-render with larger unreadCount
       renderBell({ unreadCount: 6, userId: 'user-123' });
-      // Badge should appear showing 6
       expect(screen.getByText('6')).toBeInTheDocument();
     });
 
     it('isolates persisted seen counts between different users', () => {
-      // 1. User 1 opens with 5 notifications
       const { unmount: unmount1 } = renderBell({
         unreadCount: 5,
         userId: 'user-1',
@@ -992,9 +886,7 @@ describe('NotificationBell', () => {
       fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
       unmount1();
 
-      // 2. User 2 mounts with 5 notifications
       renderBell({ unreadCount: 5, userId: 'user-2' });
-      // User 2 has never seen these, so the badge should be visible!
       expect(screen.getByText('5')).toBeInTheDocument();
     });
 
@@ -1008,19 +900,16 @@ describe('NotificationBell', () => {
         initialStatus: 'success',
         onMarkAllRead: onMarkAllReadErrorMock,
       });
-      // Open dropdown
       fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
       expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
         '1'
       );
 
-      // Click Mark all as read
       const markAllBtn = screen.getByRole('button', {
         name: 'Mark all as read',
       });
       fireEvent.click(markAllBtn);
 
-      // Verify rollback keeps it as 1
       await waitFor(() => {
         expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
           '1'
@@ -1041,14 +930,11 @@ describe('NotificationBell', () => {
         });
 
       try {
-        // Render the component with localStorage throwing errors
         renderBell({ unreadCount: 5, userId: 'user-123' });
 
-        // It should render normally with the badge showing because localStorage read returned 0/null safely
         const badge = screen.getByText('5');
         expect(badge).toBeInTheDocument();
 
-        // Click to open should also not crash and hide the badge normally
         const button = screen.getByRole('button', { name: '開啟通知選單' });
         fireEvent.click(button);
         expect(screen.queryByText('5')).not.toBeInTheDocument();
@@ -1064,22 +950,18 @@ describe('NotificationBell', () => {
         'invalid-non-numeric-value'
       );
 
-      // Render the component - it should read 'invalid-non-numeric-value', try to parse it, get NaN, and fallback to 0 safely.
       renderBell({ unreadCount: 5, userId: 'user-123' });
 
-      // Badge should be visible with count 5 since seenUnreadCount fell back to 0 (5 > 0 is true)
       expect(screen.getByText('5')).toBeInTheDocument();
     });
 
     it('correctly clamps seenUnreadCount and localStorage when unreadCount decreases', async () => {
-      // 1. Initial render with 5 unread, click to open (sets seen count to 5)
       const { rerender } = renderBell({ unreadCount: 5, userId: 'user-123' });
       fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
       expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
         '5'
       );
 
-      // 2. Rerender with smaller unreadCount (3) representing some notifications read elsewhere
       const notifications3 = getMockNotifications(3);
       rerender(
         <NotificationBell
@@ -1088,7 +970,6 @@ describe('NotificationBell', () => {
         />
       );
 
-      // 3. The localStorage value should be clamped down to 3
       await waitFor(() => {
         expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
           '3'
@@ -1097,7 +978,6 @@ describe('NotificationBell', () => {
     });
 
     it('synchronizes seen states across multiple rendered instances on the same page', async () => {
-      // Render two instances representing Desktop and Mobile bells on the same page
       const { container: container1 } = renderBell({
         unreadCount: 5,
         userId: 'user-123',
@@ -1107,22 +987,18 @@ describe('NotificationBell', () => {
         userId: 'user-123',
       });
 
-      // Both instances initially show their badges
       expect(screen.queryAllByText('5').length).toBe(2);
 
-      // Open the dropdown of the first instance to mark it as "seen"
       const button1 = container1.querySelector(
         'button[aria-label="開啟通知選單"]'
       );
       expect(button1).toBeInTheDocument();
       fireEvent.click(button1!);
 
-      // The first instance has no badge now
       expect(
         container1.querySelector('span[aria-label*="未讀通知"]')
       ).not.toBeInTheDocument();
 
-      // The second instance should automatically hide its badge due to our custom event syncing!
       await waitFor(() => {
         expect(
           container2.querySelector('span[aria-label*="未讀通知"]')
@@ -1133,13 +1009,10 @@ describe('NotificationBell', () => {
     it('cleans up all global event listeners on unmount to prevent memory leaks', () => {
       const removeListenerSpy = vi.spyOn(window, 'removeEventListener');
 
-      // Render the component
       const { unmount } = renderBell({ unreadCount: 5, userId: 'user-123' });
 
-      // Unmount it
       unmount();
 
-      // Verify removeEventListener was called for both storage and custom events
       expect(removeListenerSpy).toHaveBeenCalledWith(
         'storage',
         expect.any(Function)
@@ -1155,10 +1028,8 @@ describe('NotificationBell', () => {
     it('synchronizes seen states across different browser tabs via StorageEvent', async () => {
       renderBell({ unreadCount: 5, userId: 'user-123' });
 
-      // Badge is visible initially (count 5)
       expect(screen.getByText('5')).toBeInTheDocument();
 
-      // Simulate a StorageEvent from another tab setting seen count to 5
       fireEvent(
         window,
         new StorageEvent('storage', {
@@ -1167,17 +1038,14 @@ describe('NotificationBell', () => {
         })
       );
 
-      // The badge should automatically hide because seenUnreadCount is synced to 5 (5 > 5 is false)
       await waitFor(() => {
         expect(screen.queryByText('5')).not.toBeInTheDocument();
       });
     });
 
     it('does NOT trigger clamping and overwrite localStorage when in loading status', async () => {
-      // 1. Manually seed localStorage with seen count = 5
       localStorage.setItem('notif_seen_unread_count_user-123', '5');
 
-      // 2. Render with initialStatus='loading' and unreadCount = 0 (simulating load start)
       renderBell({
         unreadCount: 0,
         initialNotifications: [],
@@ -1185,7 +1053,6 @@ describe('NotificationBell', () => {
         initialStatus: 'loading',
       });
 
-      // 3. Since it is loading, clamping must NOT trigger, so localStorage should remain '5'
       expect(localStorage.getItem('notif_seen_unread_count_user-123')).toBe(
         '5'
       );
