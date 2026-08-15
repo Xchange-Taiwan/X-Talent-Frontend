@@ -60,7 +60,7 @@ describe('Header', () => {
         return [];
       }
       unobserve() {}
-    } as any;
+    } as unknown as typeof IntersectionObserver;
   });
 
   it('disables the second nav link while resolving a logged-in user, instead of falling back to /auth/signup or /', () => {

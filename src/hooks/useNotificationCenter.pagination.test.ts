@@ -2,11 +2,13 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useNotificationCenter } from '@/hooks/useNotificationCenter';
-import * as mockService from '@/services/mockNotificationService';
-import { type ApiNotificationItem } from '@/services/mockNotificationService';
 
+import * as mockService from './mockNotificationService';
+import { type ApiNotificationItem } from './mockNotificationService';
+
+const mockToastFn = vi.fn();
 vi.mock('@/components/ui/use-toast', () => ({
-  useToast: () => ({ toast: vi.fn() }),
+  useToast: () => ({ toast: mockToastFn }),
 }));
 
 const mockApiNotifications: ApiNotificationItem[] = Array.from(

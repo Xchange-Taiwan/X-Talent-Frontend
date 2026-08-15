@@ -1,3 +1,5 @@
+import { type NotificationItem } from './useNotificationCenter';
+
 export interface ApiNotificationItem {
   id: string;
   type:
@@ -13,6 +15,40 @@ export interface ApiNotificationItem {
   };
   created_at: string;
   read_at: string | null;
+}
+
+export function mapApiNotificationToFrontend(
+  apiItem: ApiNotificationItem
+): NotificationItem {
+  const isUnread = !apiItem.read_at;
+  const { role, mentee_name, mentor_name } = apiItem.metadata;
+
+  const item: NotificationItem = {
+    id: apiItem.id,
+    type: apiItem.type,
+    createdAt: apiItem.created_at,
+    unread: isUnread,
+    role: role,
+  };
+
+  if (
+    apiItem.type === 'reservation_canceled' ||
+    apiItem.type === 'reservation_upcoming'
+  ) {
+    if (role === 'mentor') {
+      item.menteeName = mentee_name;
+    } else if (role === 'mentee') {
+      item.mentorName = mentor_name;
+    } else {
+      item.menteeName = mentee_name;
+      item.mentorName = mentor_name;
+    }
+  } else {
+    item.menteeName = mentee_name;
+    item.mentorName = mentor_name;
+  }
+
+  return item;
 }
 
 // Simulated database of mock notifications (in-memory stateful copy)

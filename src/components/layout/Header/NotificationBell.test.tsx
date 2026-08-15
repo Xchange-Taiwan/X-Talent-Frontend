@@ -134,7 +134,7 @@ describe('NotificationBell', () => {
         return [];
       }
       unobserve() {}
-    } as any;
+    } as unknown as typeof IntersectionObserver;
   });
 
   it('renders the bell icon button with title and aria-label', () => {
@@ -1086,7 +1086,7 @@ describe('NotificationBell', () => {
         takeRecords() {
           return [];
         }
-      } as any;
+      } as unknown as typeof IntersectionObserver;
 
       const { unmount } = render(<NotificationBell />);
 
