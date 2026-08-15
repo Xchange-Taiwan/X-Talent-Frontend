@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth/next';
 
 import authOptions from '@/auth.config';
 import { PersonJsonLd } from '@/components/seo/PersonJsonLd';
+import { hasUserProperties } from '@/lib/auth/userGuard';
 import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
 import { buildMentorMetadata } from '@/lib/seo/buildMentorMetadata';
 import { sanitizePublicProfile } from '@/lib/seo/sanitizePublicProfile';
@@ -53,7 +54,9 @@ export default async function Page({ params: { pageUserId } }: PageProps) {
 
   if (!initialDto) notFound();
 
-  const initialLoginUserId = session?.user?.id ? String(session.user.id) : '';
+  const user = session?.user;
+  const initialLoginUserId =
+    hasUserProperties(user) && user.id ? String(user.id) : '';
   const publicProfile = sanitizePublicProfile(
     initialDto,
     buildTagLabelMap(catalogs)
