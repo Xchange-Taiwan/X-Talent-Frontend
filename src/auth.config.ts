@@ -23,6 +23,17 @@ export interface PersonalLink {
   url: string;
 }
 
+function isPersonalLink(l: unknown): l is PersonalLink {
+  if (typeof l !== 'object' || l === null) return false;
+  const raw = l as Record<string, unknown>;
+  return (
+    typeof raw.url === 'string' &&
+    typeof raw.platform === 'string' &&
+    Boolean(raw.url) &&
+    isSafeUrl(raw.url)
+  );
+}
+
 export function resolveMentorExperienceLinks(
   experiences: MentorExperience[] | undefined | null
 ): PersonalLink[] {
@@ -33,17 +44,7 @@ export function resolveMentorExperienceLinks(
       const list = exp.mentor_experiences_metadata?.data;
       return Array.isArray(list) ? list : [];
     })
-    .filter(
-      (l): l is PersonalLink =>
-        typeof l === 'object' &&
-        l !== null &&
-        'url' in l &&
-        'platform' in l &&
-        typeof (l as Record<string, unknown>).url === 'string' &&
-        typeof (l as Record<string, unknown>).platform === 'string' &&
-        Boolean((l as Record<string, unknown>).url) &&
-        isSafeUrl((l as Record<string, unknown>).url as string)
-    );
+    .filter(isPersonalLink);
 }
 
 export const REFRESH_SKEW_SECONDS = 300;
