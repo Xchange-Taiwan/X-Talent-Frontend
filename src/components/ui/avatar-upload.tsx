@@ -87,16 +87,6 @@ const AvatarUpload = <T extends FieldValues>({
           <Camera size={50} className="text-avatar-border" />
         </div>
 
-        {/* Modal for cropping image — lazy-loaded on first open */}
-        {open && (
-          <AvatarCropModal
-            file={selectedImage}
-            isOpen={open}
-            onClose={handleClose}
-            onSave={handleSaveImage}
-          />
-        )}
-
         {imagePreviewUrl ? (
           <Image
             src={imagePreviewUrl}
@@ -116,6 +106,19 @@ const AvatarUpload = <T extends FieldValues>({
         <p className="mt-2 text-center text-sm font-medium text-status-error-default lg:text-left">
           {errorMessage}
         </p>
+      )}
+
+      {/* Rendered outside the trigger div — nesting it inside would let clicks
+          inside the modal (e.g. releasing a drag on the editor canvas) bubble
+          through the React tree to the trigger's onClick and reopen the file
+          picker, even though the modal itself portals elsewhere in the DOM. */}
+      {open && (
+        <AvatarCropModal
+          file={selectedImage}
+          isOpen={open}
+          onClose={handleClose}
+          onSave={handleSaveImage}
+        />
       )}
     </div>
   );
