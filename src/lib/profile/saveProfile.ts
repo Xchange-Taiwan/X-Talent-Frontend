@@ -218,6 +218,23 @@ export async function saveProfile(
         );
       }
       reconcileSession(latest);
+
+      // The immediate revalidateProfilePath call above (step 3) can race the
+      // backend's own eventual consistency: if /v1/mentors hasn't indexed
+      // this write yet when Next.js re-fetches, the stale list gets locked
+      // into the 24h ISR cache (mentors.server.ts REVALIDATE_SECONDS) until
+      // someone else edits a profile. Re-revalidate now that `latest`
+      // confirms the backend is actually synced.
+      if (latest) {
+        await revalidateProfilePath(pageUserId).catch((e: unknown) => {
+          captureFlowFailure({
+            flow: 'profile_update',
+            step: 'post_sync_revalidate',
+            message: e instanceof Error ? e.message : String(e),
+            level: 'warning',
+          });
+        });
+      }
     } catch (e) {
       captureFlowFailure({
         flow: 'profile_update',
