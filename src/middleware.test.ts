@@ -184,6 +184,23 @@ describe('middleware session hint cookie', () => {
 describe('middleware maintenance mode', () => {
   const originalEnv = process.env;
 
+  const mockConfigFailure = () => {
+    const error = new Error('Network Error');
+    mockGet.mockRejectedValue(error);
+  };
+
+  const mockConfigTimeout = (timeoutMs = 1000) => {
+    mockGet.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(true), timeoutMs))
+    );
+  };
+
+  const mockConfigSyncError = () => {
+    mockGet.mockImplementation(() => {
+      throw new Error('Sync Connection Error');
+    });
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     process.env = { ...originalEnv };
@@ -304,8 +321,7 @@ describe('middleware maintenance mode', () => {
 
   it('safely falls back and allows traffic when Edge Config read fails without calling Sentry', async () => {
     process.env.GLOBAL_CONFIG = 'connection_string';
-    const error = new Error('Network Error');
-    mockGet.mockRejectedValue(error);
+    mockConfigFailure();
     mockGetToken.mockResolvedValue(null);
 
     const response = await middleware(makeRequest('/'));
@@ -316,15 +332,70 @@ describe('middleware maintenance mode', () => {
 
   it('safely falls back and allows traffic when Edge Config read times out', async () => {
     process.env.GLOBAL_CONFIG = 'connection_string';
-    // mockGet resolves after 1000ms, which exceeds our 500ms timeout
-    mockGet.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(true), 1000))
-    );
+    mockConfigTimeout();
     mockGetToken.mockResolvedValue(null);
 
     const response = await middleware(makeRequest('/'));
 
     expect(response.status).toBe(200); // Should fall back to false (allows traffic)
+  });
+
+  it('safely falls back and allows traffic when Edge Config read throws a synchronous error without calling Sentry', async () => {
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    mockConfigSyncError();
+    mockGetToken.mockResolvedValue(null);
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.status).toBe(200);
+    expect(mockCaptureException).not.toHaveBeenCalled();
+  });
+
+  it('allows access to a normal page (e.g. /) without redirecting to /maintenance when Global Config read fails', async () => {
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    mockConfigFailure();
+    mockGetToken.mockResolvedValue(null);
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.status).toBe(200);
+  });
+
+  it('allows access to a normal page (e.g. /) without redirecting to /maintenance when Global Config read times out', async () => {
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    mockConfigTimeout();
+    mockGetToken.mockResolvedValue(null);
+
+    const response = await middleware(makeRequest('/'));
+
+    expect(response.status).toBe(200);
+  });
+
+  it('does not redirect and lets /maintenance pass through when Edge Config read fails', async () => {
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    mockConfigFailure();
+
+    const response = await middleware(makeRequest('/maintenance'));
+
+    expect(response.status).toBe(200);
+  });
+
+  it('does not redirect and lets /maintenance pass through when Edge Config read times out', async () => {
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    mockConfigTimeout();
+
+    const response = await middleware(makeRequest('/maintenance'));
+
+    expect(response.status).toBe(200);
+  });
+
+  it('does not redirect and lets /maintenance pass through when Edge Config read throws a synchronous error', async () => {
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    mockConfigSyncError();
+
+    const response = await middleware(makeRequest('/maintenance'));
+
+    expect(response.status).toBe(200);
   });
 
   it('redirects dynamic routes containing dots (like usernames) under maintenance', async () => {
@@ -496,6 +567,38 @@ describe('middleware maintenance mode', () => {
     const response = await middleware(req);
 
     // Should bypass maintenance check and proceed to normal API handler (returns 200/next)
+    expect(response.status).toBe(200);
+  });
+
+  it('bypasses maintenance check and allows API routes when a valid bypass cookie is present even when Edge Config read times out', async () => {
+    process.env.MAINTENANCE_BYPASS_TOKEN = 'test-secret-bypass';
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    mockGetToken.mockResolvedValue({} as never); // Logged in
+    mockConfigTimeout();
+
+    const req = new NextRequest('https://example.com/api/mentors', {
+      headers: {
+        cookie: 'maintenance_bypass=test-secret-bypass',
+      },
+    });
+    const response = await middleware(req);
+
+    expect(response.status).toBe(200);
+  });
+
+  it('bypasses maintenance check and allows API routes when a valid bypass cookie is present even when Edge Config read fails', async () => {
+    process.env.MAINTENANCE_BYPASS_TOKEN = 'test-secret-bypass';
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    mockGetToken.mockResolvedValue({} as never); // Logged in
+    mockConfigFailure();
+
+    const req = new NextRequest('https://example.com/api/mentors', {
+      headers: {
+        cookie: 'maintenance_bypass=test-secret-bypass',
+      },
+    });
+    const response = await middleware(req);
+
     expect(response.status).toBe(200);
   });
 
