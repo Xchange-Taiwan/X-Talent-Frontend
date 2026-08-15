@@ -11,24 +11,33 @@ import {
 } from '@/lib/auth/sessionHint';
 import { apiAuthPrefix, DEFAULT_LOGIN, publicRoutes } from '@/routes';
 
-// Helper to read from Edge Config with a timeout to avoid blocking middleware
-async function getWithTimeout(key: string, timeoutMs = 500): Promise<unknown> {
+// Helper to read from Global/Edge Config with a timeout to avoid blocking middleware
+async function getWithTimeout(
+  key: string,
+  timeoutMs = 500
+): Promise<{ success: boolean; value: unknown }> {
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
-      console.warn(`Edge Config read timed out after ${timeoutMs}ms`);
-      resolve(null);
+      console.warn(`Global/Edge Config read timed out after ${timeoutMs}ms`);
+      resolve({ success: false, value: null });
     }, timeoutMs);
 
-    get(key)
-      .then((val) => {
-        clearTimeout(timer);
-        resolve(val);
-      })
-      .catch((err) => {
-        clearTimeout(timer);
-        console.error('Error reading from Edge Config:', err);
-        resolve(null);
-      });
+    try {
+      get(key)
+        .then((val) => {
+          clearTimeout(timer);
+          resolve({ success: true, value: val });
+        })
+        .catch((err) => {
+          clearTimeout(timer);
+          console.error('Error reading from Global/Edge Config:', err);
+          resolve({ success: false, value: null });
+        });
+    } catch (err) {
+      clearTimeout(timer);
+      console.error('Sync error reading from Global/Edge Config:', err);
+      resolve({ success: false, value: null });
+    }
   });
 }
 
@@ -86,6 +95,8 @@ export async function middleware(req: NextRequest) {
   const bypassCookie = req.cookies.get('maintenance_bypass')?.value;
   const hasValidBypass = !!(bypassToken && bypassCookie === bypassToken);
 
+  const isMaintenancePage = pathname === '/maintenance';
+
   // -------- 0.1 Check Maintenance Mode --------
   let isInMaintenanceMode = false;
   const isEnvMaintenance =
@@ -99,16 +110,21 @@ export async function middleware(req: NextRequest) {
     // EDGE_CONFIG internally when GLOBAL_CONFIG is unset (its init()
     // resolves the connection string via `GLOBAL_CONFIG ?? EDGE_CONFIG`),
     // so no explicit createClient() call is needed here.
-    const value = await getWithTimeout('isInMaintenanceMode', 500);
-    isInMaintenanceMode = value === true || value === 'true';
+    const result = await getWithTimeout('isInMaintenanceMode', 500);
+    if (!result.success) {
+      // If we timed out or encountered an error, use a safe fallback:
+      // If the user is already on the maintenance page, assume they should stay there.
+      // If they are on a normal page, let them continue (don't force maintenance).
+      isInMaintenanceMode = isMaintenancePage;
+    } else {
+      isInMaintenanceMode = result.value === true || result.value === 'true';
+    }
   }
 
   // Override maintenance mode if a valid bypass token is present
   if (hasValidBypass) {
     isInMaintenanceMode = false;
   }
-
-  const isMaintenancePage = pathname === '/maintenance';
 
   if (isInMaintenanceMode) {
     if (isMaintenancePage) {
