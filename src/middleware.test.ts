@@ -184,6 +184,17 @@ describe('middleware session hint cookie', () => {
 describe('middleware maintenance mode', () => {
   const originalEnv = process.env;
 
+  const mockConfigFailure = () => {
+    const error = new Error('Network Error');
+    mockGet.mockRejectedValue(error);
+  };
+
+  const mockConfigTimeout = (timeoutMs = 1000) => {
+    mockGet.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(true), timeoutMs))
+    );
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     process.env = { ...originalEnv };
@@ -304,8 +315,7 @@ describe('middleware maintenance mode', () => {
 
   it('safely falls back and allows traffic when Edge Config read fails without calling Sentry', async () => {
     process.env.GLOBAL_CONFIG = 'connection_string';
-    const error = new Error('Network Error');
-    mockGet.mockRejectedValue(error);
+    mockConfigFailure();
     mockGetToken.mockResolvedValue(null);
 
     const response = await middleware(makeRequest('/'));
@@ -316,10 +326,7 @@ describe('middleware maintenance mode', () => {
 
   it('safely falls back and allows traffic when Edge Config read times out', async () => {
     process.env.GLOBAL_CONFIG = 'connection_string';
-    // mockGet resolves after 1000ms, which exceeds our 500ms timeout
-    mockGet.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(true), 1000))
-    );
+    mockConfigTimeout();
     mockGetToken.mockResolvedValue(null);
 
     const response = await middleware(makeRequest('/'));
@@ -329,8 +336,7 @@ describe('middleware maintenance mode', () => {
 
   it('allows access to a normal page (e.g. /) without redirecting to /maintenance when Global Config read fails', async () => {
     process.env.GLOBAL_CONFIG = 'connection_string';
-    const error = new Error('Network Error');
-    mockGet.mockRejectedValue(error);
+    mockConfigFailure();
     mockGetToken.mockResolvedValue(null);
 
     const response = await middleware(makeRequest('/'));
@@ -340,9 +346,7 @@ describe('middleware maintenance mode', () => {
 
   it('allows access to a normal page (e.g. /) without redirecting to /maintenance when Global Config read times out', async () => {
     process.env.GLOBAL_CONFIG = 'connection_string';
-    mockGet.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(true), 1000))
-    );
+    mockConfigTimeout();
     mockGetToken.mockResolvedValue(null);
 
     const response = await middleware(makeRequest('/'));
@@ -352,8 +356,7 @@ describe('middleware maintenance mode', () => {
 
   it('does not redirect and lets /maintenance pass through when Edge Config read fails', async () => {
     process.env.GLOBAL_CONFIG = 'connection_string';
-    const error = new Error('Network Error');
-    mockGet.mockRejectedValue(error);
+    mockConfigFailure();
 
     const response = await middleware(makeRequest('/maintenance'));
 
@@ -362,9 +365,7 @@ describe('middleware maintenance mode', () => {
 
   it('does not redirect and lets /maintenance pass through when Edge Config read times out', async () => {
     process.env.GLOBAL_CONFIG = 'connection_string';
-    mockGet.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(true), 1000))
-    );
+    mockConfigTimeout();
 
     const response = await middleware(makeRequest('/maintenance'));
 
@@ -547,9 +548,7 @@ describe('middleware maintenance mode', () => {
     process.env.MAINTENANCE_BYPASS_TOKEN = 'test-secret-bypass';
     process.env.GLOBAL_CONFIG = 'connection_string';
     mockGetToken.mockResolvedValue({} as never); // Logged in
-    mockGet.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(true), 1000))
-    );
+    mockConfigTimeout();
 
     const req = new NextRequest('https://example.com/api/mentors', {
       headers: {
@@ -565,8 +564,7 @@ describe('middleware maintenance mode', () => {
     process.env.MAINTENANCE_BYPASS_TOKEN = 'test-secret-bypass';
     process.env.GLOBAL_CONFIG = 'connection_string';
     mockGetToken.mockResolvedValue({} as never); // Logged in
-    const error = new Error('Network Error');
-    mockGet.mockRejectedValue(error);
+    mockConfigFailure();
 
     const req = new NextRequest('https://example.com/api/mentors', {
       headers: {
