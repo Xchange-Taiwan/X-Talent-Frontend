@@ -10,10 +10,11 @@
 #    - VERCEL_GLOBAL_CONFIG_ID The target store's ID (starts with `ecfg_`).
 #                              Find it on the Global Config's detail page in
 #                              the Vercel dashboard.
-#    - VERCEL_TEAM_ID          The Vercel Team ID that owns the store
-#                              (Team Settings > General). Leave the secret
-#                              value empty if the store is on a personal
-#                              (non-team) account.
+#    - VERCEL_ORG_ID           Reuses the same secret deploy-prod.yml/
+#                              deploy-dev.yml already use. For a team-owned
+#                              project this is the same value as the Team ID
+#                              (Team Settings > General) - no separate secret
+#                              needed.
 #
 # 2. (Recommended) Settings > Environments > create an environment named
 #    "maintenance-mode" and add required reviewers, so flipping maintenance
@@ -28,36 +29,136 @@ on:
   workflow_dispatch:
     inputs:
       maintenance_mode:
-        description: 'Maintenance mode (hard down - redirects all traffic to /maintenance)'
+        description: '維護模式(直接封站,所有流量導向 /maintenance)'
         type: choice
         required: true
         options:
-          - no-change
-          - 'on'
-          - 'off'
-        default: no-change
+          - 不變更
+          - 開啟
+          - 關閉
+        default: 不變更
       confirm_maintenance_on:
-        description: 'I understand this takes the whole site down (required when turning maintenance_mode on)'
+        description: '我了解這會讓整個網站無法使用(選「開啟」維護模式前必須勾選)'
         type: boolean
         required: false
         default: false
       announcement_enabled:
-        description: 'Announcement banner (soft warning shown at the top of the site, does not take it down)'
+        description: '公告 banner(只是提醒用的橫幅,不會封站)'
         type: choice
         required: true
         options:
-          - no-change
-          - 'on'
-          - 'off'
-        default: no-change
+          - 不變更
+          - 開啟
+          - 關閉
+        default: 不變更
       announcement_message:
-        description: 'Announcement text (leave blank to keep the current message)'
+        description: '公告文字(留空 = 保留目前的訊息)'
         type: string
         required: false
-      announcement_time:
-        description: 'ISO 8601 maintenance time, e.g. 2026-08-20T22:00:00+08:00 (leave blank to keep the current value)'
-        type: string
-        required: false
+      announcement_time_action:
+        description: '維護時間動作(選「設定時間」下面的月/日/時/分才會生效)'
+        type: choice
+        required: true
+        options:
+          - 不變更
+          - 設定時間
+          - 清空
+        default: 不變更
+      announcement_time_month:
+        description: '月(僅在上面選「設定時間」時生效;以台灣時間為準)'
+        type: choice
+        required: true
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - '7'
+          - '8'
+          - '9'
+          - '10'
+          - '11'
+          - '12'
+        default: '1'
+      announcement_time_day:
+        description: '日(僅在上面選「設定時間」時生效;以台灣時間為準)'
+        type: choice
+        required: true
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - '7'
+          - '8'
+          - '9'
+          - '10'
+          - '11'
+          - '12'
+          - '13'
+          - '14'
+          - '15'
+          - '16'
+          - '17'
+          - '18'
+          - '19'
+          - '20'
+          - '21'
+          - '22'
+          - '23'
+          - '24'
+          - '25'
+          - '26'
+          - '27'
+          - '28'
+          - '29'
+          - '30'
+          - '31'
+        default: '1'
+      announcement_time_hour:
+        description: '時,24 小時制(僅在上面選「設定時間」時生效;以台灣時間為準)'
+        type: choice
+        required: true
+        options:
+          - '0'
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - '7'
+          - '8'
+          - '9'
+          - '10'
+          - '11'
+          - '12'
+          - '13'
+          - '14'
+          - '15'
+          - '16'
+          - '17'
+          - '18'
+          - '19'
+          - '20'
+          - '21'
+          - '22'
+          - '23'
+        default: '0'
+      announcement_time_minute:
+        description: '分(僅在上面選「設定時間」時生效;以台灣時間為準)'
+        type: choice
+        required: true
+        options:
+          - '00'
+          - '15'
+          - '30'
+          - '45'
+        default: '00'
 
 permissions:
   contents: read
@@ -70,28 +171,32 @@ jobs:
     env:
       VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
       GLOBAL_CONFIG_ID: ${{ secrets.VERCEL_GLOBAL_CONFIG_ID }}
-      VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+      VERCEL_TEAM_ID: ${{ secrets.VERCEL_ORG_ID }}
       MAINTENANCE_MODE: ${{ inputs.maintenance_mode }}
       CONFIRM_MAINTENANCE_ON: ${{ inputs.confirm_maintenance_on }}
       ANNOUNCEMENT_ENABLED: ${{ inputs.announcement_enabled }}
       ANNOUNCEMENT_MESSAGE: ${{ inputs.announcement_message }}
-      ANNOUNCEMENT_TIME: ${{ inputs.announcement_time }}
+      ANNOUNCEMENT_TIME_ACTION: ${{ inputs.announcement_time_action }}
+      ANNOUNCEMENT_TIME_MONTH: ${{ inputs.announcement_time_month }}
+      ANNOUNCEMENT_TIME_DAY: ${{ inputs.announcement_time_day }}
+      ANNOUNCEMENT_TIME_HOUR: ${{ inputs.announcement_time_hour }}
+      ANNOUNCEMENT_TIME_MINUTE: ${{ inputs.announcement_time_minute }}
 
     steps:
       - name: Validate inputs
         run: |
           set -euo pipefail
 
-          if [ "$MAINTENANCE_MODE" = "on" ] && [ "$CONFIRM_MAINTENANCE_ON" != "true" ]; then
-            echo "::error::maintenance_mode is 'on' but confirm_maintenance_on was not checked. Re-run and tick the confirmation box to take the site down on purpose."
+          if [ "$MAINTENANCE_MODE" = "開啟" ] && [ "$CONFIRM_MAINTENANCE_ON" != "true" ]; then
+            echo "::error::maintenance_mode 選了「開啟」,但沒有勾選確認選項(confirm_maintenance_on)。請重新執行並勾選確認,避免手殘誤觸封站。"
             exit 1
           fi
 
-          if [ "$MAINTENANCE_MODE" = "no-change" ] && \
-             [ "$ANNOUNCEMENT_ENABLED" = "no-change" ] && \
+          if [ "$MAINTENANCE_MODE" = "不變更" ] && \
+             [ "$ANNOUNCEMENT_ENABLED" = "不變更" ] && \
              [ -z "$ANNOUNCEMENT_MESSAGE" ] && \
-             [ -z "$ANNOUNCEMENT_TIME" ]; then
-            echo "::error::Nothing to change - every input is left as no-change/blank."
+             [ "$ANNOUNCEMENT_TIME_ACTION" = "不變更" ]; then
+            echo "::error::沒有任何要變更的內容,結束。"
             exit 1
           fi
 
@@ -128,14 +233,40 @@ jobs:
           current_announcement=$(jq -c '.announcement // {"enabled": false, "message": "", "maintenanceTime": ""}' current.json)
 
           new_enabled=$(echo "$current_announcement" | jq -r '.enabled // false')
-          [ "$ANNOUNCEMENT_ENABLED" = "on" ] && new_enabled=true
-          [ "$ANNOUNCEMENT_ENABLED" = "off" ] && new_enabled=false
+          [ "$ANNOUNCEMENT_ENABLED" = "開啟" ] && new_enabled=true
+          [ "$ANNOUNCEMENT_ENABLED" = "關閉" ] && new_enabled=false
 
           new_message=$(echo "$current_announcement" | jq -r '.message // ""')
           [ -n "$ANNOUNCEMENT_MESSAGE" ] && new_message="$ANNOUNCEMENT_MESSAGE"
 
+          # workflow_dispatch has no native date picker, so month/day/hour/
+          # minute are separate dropdowns (all Asia/Taipei) instead of a
+          # hand-typed ISO 8601 string. The year is inferred: if the chosen
+          # month/day already happened this year, roll forward to next year.
           new_time=$(echo "$current_announcement" | jq -r '.maintenanceTime // ""')
-          [ -n "$ANNOUNCEMENT_TIME" ] && new_time="$ANNOUNCEMENT_TIME"
+          case "$ANNOUNCEMENT_TIME_ACTION" in
+            不變更) : ;;
+            清空) new_time="" ;;
+            設定時間)
+              today="$(TZ='Asia/Taipei' date +%Y-%m-%d)"
+              this_year="$(TZ='Asia/Taipei' date +%Y)"
+              target_this_year=$(printf '%04d-%02d-%02d' "$this_year" "$ANNOUNCEMENT_TIME_MONTH" "$ANNOUNCEMENT_TIME_DAY")
+
+              target_year="$this_year"
+              if [[ "$target_this_year" < "$today" ]]; then
+                target_year=$((this_year + 1))
+              fi
+
+              new_time=$(printf '%04d-%02d-%02dT%02d:%02d:00+08:00' \
+                "$target_year" "$ANNOUNCEMENT_TIME_MONTH" "$ANNOUNCEMENT_TIME_DAY" \
+                "$ANNOUNCEMENT_TIME_HOUR" "$ANNOUNCEMENT_TIME_MINUTE")
+
+              if ! TZ='Asia/Taipei' date -d "$new_time" >/dev/null 2>&1; then
+                echo "::error::選到不存在的日期(例如 2 月 30 號),請重新選擇月/日"
+                exit 1
+              fi
+              ;;
+          esac
 
           new_announcement=$(jq -n \
             --argjson enabled "$new_enabled" \
@@ -145,14 +276,14 @@ jobs:
 
           items='[]'
 
-          if [ "$MAINTENANCE_MODE" != "no-change" ]; then
+          if [ "$MAINTENANCE_MODE" != "不變更" ]; then
             mode_bool=false
-            [ "$MAINTENANCE_MODE" = "on" ] && mode_bool=true
+            [ "$MAINTENANCE_MODE" = "開啟" ] && mode_bool=true
             items=$(echo "$items" | jq --argjson v "$mode_bool" '. + [{"operation":"upsert","key":"isInMaintenanceMode","value":$v}]')
           fi
 
           announcement_changed=false
-          if [ "$ANNOUNCEMENT_ENABLED" != "no-change" ] || [ -n "$ANNOUNCEMENT_MESSAGE" ] || [ -n "$ANNOUNCEMENT_TIME" ]; then
+          if [ "$ANNOUNCEMENT_ENABLED" != "不變更" ] || [ -n "$ANNOUNCEMENT_MESSAGE" ] || [ "$ANNOUNCEMENT_TIME_ACTION" != "不變更" ]; then
             announcement_changed=true
           fi
           if [ "$announcement_changed" = "true" ]; then
@@ -191,13 +322,14 @@ jobs:
         if: always()
         run: |
           {
-            echo "### Maintenance / Announcement change"
+            echo "### 維護模式 / 公告變更"
             echo ""
-            echo "| Input | Value |"
+            echo "| 欄位 | 值 |"
             echo "|---|---|"
             echo "| maintenance_mode | \`${MAINTENANCE_MODE}\` |"
             echo "| announcement_enabled | \`${ANNOUNCEMENT_ENABLED}\` |"
             echo "| announcement_message | \`${ANNOUNCEMENT_MESSAGE}\` |"
-            echo "| announcement_time | \`${ANNOUNCEMENT_TIME}\` |"
-            echo "| Triggered by | \`${GITHUB_ACTOR}\` |"
+            echo "| announcement_time_action | \`${ANNOUNCEMENT_TIME_ACTION}\` |"
+            echo "| announcement_time | \`${ANNOUNCEMENT_TIME_MONTH}/${ANNOUNCEMENT_TIME_DAY} ${ANNOUNCEMENT_TIME_HOUR}:${ANNOUNCEMENT_TIME_MINUTE}\` |"
+            echo "| 觸發者 | \`${GITHUB_ACTOR}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
