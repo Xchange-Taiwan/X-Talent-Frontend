@@ -10,10 +10,11 @@
 #    - VERCEL_GLOBAL_CONFIG_ID The target store's ID (starts with `ecfg_`).
 #                              Find it on the Global Config's detail page in
 #                              the Vercel dashboard.
-#    - VERCEL_TEAM_ID          The Vercel Team ID that owns the store
-#                              (Team Settings > General). Leave the secret
-#                              value empty if the store is on a personal
-#                              (non-team) account.
+#    - VERCEL_ORG_ID           Reuses the same secret deploy-prod.yml/
+#                              deploy-dev.yml already use. For a team-owned
+#                              project this is the same value as the Team ID
+#                              (Team Settings > General) - no separate secret
+#                              needed.
 #
 # 2. (Recommended) Settings > Environments > create an environment named
 #    "maintenance-mode" and add required reviewers, so flipping maintenance
@@ -70,7 +71,7 @@ jobs:
     env:
       VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
       GLOBAL_CONFIG_ID: ${{ secrets.VERCEL_GLOBAL_CONFIG_ID }}
-      VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+      VERCEL_TEAM_ID: ${{ secrets.VERCEL_ORG_ID }}
       MAINTENANCE_MODE: ${{ inputs.maintenance_mode }}
       CONFIRM_MAINTENANCE_ON: ${{ inputs.confirm_maintenance_on }}
       ANNOUNCEMENT_ENABLED: ${{ inputs.announcement_enabled }}
