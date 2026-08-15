@@ -1,5 +1,11 @@
 import * as React from 'react';
 
+import {
+  fetchUnreadCount,
+  listNotifications,
+  markAllRead as mockMarkAllRead,
+  markOneRead,
+} from '@/components/layout/Header/mockNotificationService';
 import { useToast } from '@/components/ui/use-toast';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { safeGetStorage, safeSetStorage } from '@/lib/storage';
@@ -67,6 +73,57 @@ export type NotificationItem = {
   role?: 'mentor' | 'mentee';
 };
 
+export interface ApiNotificationItem {
+  id: string;
+  type:
+    | 'reservation_new'
+    | 'reservation_success'
+    | 'reservation_failed'
+    | 'reservation_canceled'
+    | 'reservation_upcoming';
+  metadata: {
+    role?: 'mentor' | 'mentee';
+    mentee_name?: string;
+    mentor_name?: string;
+  };
+  created_at: string;
+  read_at: string | null;
+}
+
+export function mapApiNotificationToFrontend(
+  apiItem: ApiNotificationItem
+): NotificationItem {
+  const isUnread = !apiItem.read_at;
+  const { role, mentee_name, mentor_name } = apiItem.metadata;
+
+  const item: NotificationItem = {
+    id: apiItem.id,
+    type: apiItem.type,
+    createdAt: apiItem.created_at,
+    unread: isUnread,
+    role: role,
+  };
+
+  if (
+    apiItem.type === 'reservation_canceled' ||
+    apiItem.type === 'reservation_upcoming'
+  ) {
+    if (role === 'mentor') {
+      item.menteeName = mentee_name;
+    } else if (role === 'mentee') {
+      item.mentorName = mentor_name;
+    } else {
+      item.menteeName = mentee_name;
+      item.mentorName = mentor_name;
+    }
+  } else {
+    item.menteeName = mentee_name;
+    item.mentorName = mentor_name;
+  }
+
+  return item;
+}
+
 export type NotificationStatus = 'loading' | 'error' | 'empty' | 'success';
 
 export type UseNotificationCenterProps = {
@@ -104,13 +161,27 @@ export function useNotificationCenter({
 }: UseNotificationCenterProps = {}) {
   const { toast } = useToast();
   const [open, setOpen] = React.useState(false);
-  const [status, setStatus] = React.useState<NotificationStatus>(initialStatus);
+
+  const isUsingProps = initialNotifications !== undefined;
+
+  const [status, setStatus] = React.useState<NotificationStatus>(() => {
+    if (isUsingProps) {
+      return initialStatus;
+    }
+    return 'loading';
+  });
+
   const [notifications, setNotifications] = React.useState<NotificationItem[]>(
-    () => initialNotifications ?? defaultNotifications
+    () => initialNotifications ?? []
   );
   const [seenUnreadCount, setSeenUnreadCount] = React.useState<number>(0);
   const [isMounted, setIsMounted] = React.useState(false);
   const [isPending, setIsPending] = React.useState(false);
+
+  // Pagination states
+  const [nextCursor, setNextCursor] = React.useState<string | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
+  const [unreadCountState, setUnreadCountState] = React.useState<number>(0);
 
   const storageKey = userId
     ? `notif_seen_unread_count_${userId}`
@@ -136,10 +207,12 @@ export function useNotificationCenter({
     }
   }
 
-  // Derive unread count from the actual notifications state list
+  // Derive unread count from the actual notifications state list (for fallback/props usage)
   const unreadCount = React.useMemo(() => {
     return notifications.filter((item) => item.unread).length;
   }, [notifications]);
+
+  const badgeCount = isUsingProps ? unreadCount : unreadCountState;
 
   // Set isMounted on client
   React.useEffect(() => {
@@ -168,20 +241,67 @@ export function useNotificationCenter({
     [storageKey]
   );
 
+  // Load initial notifications and unread count from service
+  const loadInitialData = React.useCallback(
+    async (showLoading = true) => {
+      if (isUsingProps) return;
+      if (showLoading) {
+        setStatus('loading');
+      }
+      try {
+        const [unreadRes, notificationsRes] = await Promise.all([
+          fetchUnreadCount(),
+          listNotifications(undefined, 20),
+        ]);
+        setUnreadCountState(unreadRes.count);
+        const mapped = notificationsRes.items.map(mapApiNotificationToFrontend);
+        setNotifications(mapped);
+        setNextCursor(notificationsRes.next_created_at);
+        setStatus(mapped.length === 0 ? 'empty' : 'success');
+      } catch (error) {
+        setStatus('error');
+      }
+    },
+    [isUsingProps]
+  );
+
+  React.useEffect(() => {
+    loadInitialData(!isUsingProps);
+  }, [loadInitialData, isUsingProps]);
+
+  // Infinite Scroll / Fetch more
+  const loadMore = React.useCallback(async () => {
+    if (isUsingProps || isLoadingMore || !nextCursor) return;
+    setIsLoadingMore(true);
+    try {
+      const { items, next_created_at } = await listNotifications(
+        nextCursor,
+        20
+      );
+      const mapped = items.map(mapApiNotificationToFrontend);
+      setNotifications((prev) => [...prev, ...mapped]);
+      setNextCursor(next_created_at);
+    } catch (error) {
+      console.error('[useNotificationCenter] loadMore failed:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isUsingProps, isLoadingMore, nextCursor]);
+
   // Sync seenUnreadCount from localStorage when storageKey (userId) changes or on mount.
   React.useEffect(() => {
     setSeenUnreadCount(getStoredSeenCount(storageKey));
   }, [storageKey, getStoredSeenCount]);
 
-  // Keep seenUnreadCount clamped to unreadCount to prevent stale values,
+  // Keep seenUnreadCount clamped to badgeCount to prevent stale values,
   // but only when we are not in a loading status and there is no active write/mutation in progress
   // to avoid accidental seen count cache destruction during optimistic loading states.
   React.useEffect(() => {
-    if (status !== 'loading' && !isPending && seenUnreadCount > unreadCount) {
-      setSeenUnreadCount(unreadCount);
-      writeAndNotifySeen(unreadCount);
+    if (status !== 'loading' && !isPending && seenUnreadCount > badgeCount) {
+      setSeenUnreadCount(badgeCount);
+      writeAndNotifySeen(badgeCount);
     }
-  }, [unreadCount, seenUnreadCount, writeAndNotifySeen, status, isPending]);
+  }, [badgeCount, seenUnreadCount, writeAndNotifySeen, status, isPending]);
 
   // Synchronize state across multiple instances (e.g. desktop vs mobile notification bells in Header) and browser tabs
   React.useEffect(() => {
@@ -228,9 +348,13 @@ export function useNotificationCenter({
 
   const openCenter = React.useCallback(() => {
     setOpen(true);
-    setSeenUnreadCount(unreadCount);
-    writeAndNotifySeen(unreadCount);
-  }, [unreadCount, writeAndNotifySeen]);
+    setSeenUnreadCount(badgeCount);
+    writeAndNotifySeen(badgeCount);
+    // Fetch fresh details when dropdown is opened
+    if (!isUsingProps) {
+      loadInitialData(false);
+    }
+  }, [badgeCount, writeAndNotifySeen, isUsingProps, loadInitialData]);
 
   const closeCenter = React.useCallback(() => {
     setOpen(false);
@@ -240,11 +364,14 @@ export function useNotificationCenter({
     (nextOpen: boolean) => {
       setOpen(nextOpen);
       if (nextOpen) {
-        setSeenUnreadCount(unreadCount);
-        writeAndNotifySeen(unreadCount);
+        setSeenUnreadCount(badgeCount);
+        writeAndNotifySeen(badgeCount);
+        if (!isUsingProps) {
+          loadInitialData(false);
+        }
       }
     },
-    [unreadCount, writeAndNotifySeen]
+    [badgeCount, writeAndNotifySeen, isUsingProps, loadInitialData]
   );
 
   const markRead = React.useCallback(
@@ -252,12 +379,16 @@ export function useNotificationCenter({
       setNotifications((prev) =>
         prev.map((item) => (item.id === id ? { ...item, unread: false } : item))
       );
+      if (!isUsingProps) {
+        setUnreadCountState((prev) => Math.max(0, prev - 1));
+      }
 
-      if (!onMarkRead) return;
+      const action = onMarkRead || (!isUsingProps ? markOneRead : null);
+      if (!action) return;
 
       setIsPending(true);
       try {
-        await onMarkRead(id);
+        await action(id);
       } catch (error) {
         reportMarkAsReadFailure(`mark_read_click:${id}`, error);
         setNotifications((prev) =>
@@ -265,6 +396,9 @@ export function useNotificationCenter({
             item.id === id ? { ...item, unread: true } : item
           )
         );
+        if (!isUsingProps) {
+          setUnreadCountState((prev) => prev + 1);
+        }
         toast({
           variant: 'destructive',
           title: '操作失敗',
@@ -274,14 +408,14 @@ export function useNotificationCenter({
         setIsPending(false);
       }
     },
-    [onMarkRead, toast]
+    [onMarkRead, isUsingProps, toast]
   );
 
   const markAllRead = React.useCallback(async () => {
     const unreadIds = notifications
       .filter((item) => item.unread)
       .map((item) => item.id);
-    if (unreadIds.length === 0) return;
+    if (unreadIds.length === 0 && isUsingProps) return;
 
     // Rolls back only the affected items via functional state update (to prevent data loss).
     const rollbackNotifications = (ids: string[]) => {
@@ -300,6 +434,10 @@ export function useNotificationCenter({
         unreadIdSet.has(item.id) ? { ...item, unread: false } : item
       )
     );
+    const prevUnreadCountState = unreadCountState;
+    if (!isUsingProps) {
+      setUnreadCountState(0);
+    }
 
     setIsPending(true);
     try {
@@ -311,6 +449,9 @@ export function useNotificationCenter({
 
         if (failedIds.length > 0) {
           rollbackNotifications(failedIds);
+          if (!isUsingProps) {
+            setUnreadCountState((prev) => prev + failedIds.length);
+          }
           toast({
             variant: 'destructive',
             title: '操作失敗',
@@ -320,10 +461,15 @@ export function useNotificationCenter({
                 : '部分通知標示為已讀失敗，請稍後再試',
           });
         }
+      } else if (!isUsingProps) {
+        await mockMarkAllRead();
       }
     } catch (error) {
       reportMarkAsReadFailure('mark_all_read', error);
       rollbackNotifications(unreadIds);
+      if (!isUsingProps) {
+        setUnreadCountState(prevUnreadCountState);
+      }
       toast({
         variant: 'destructive',
         title: '操作失敗',
@@ -332,29 +478,47 @@ export function useNotificationCenter({
     } finally {
       setIsPending(false);
     }
-  }, [notifications, onMarkRead, onMarkAllRead, toast]);
+  }, [
+    notifications,
+    onMarkRead,
+    onMarkAllRead,
+    isUsingProps,
+    unreadCountState,
+    toast,
+  ]);
 
   const handleRetry = React.useCallback(() => {
     setStatus('loading');
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
-    timerRef.current = setTimeout(() => {
-      const loaded = initialNotifications ?? defaultNotifications;
-      setNotifications(loaded);
-      setStatus('success');
-    }, 1000);
-  }, [initialNotifications, defaultNotifications]);
+    if (isUsingProps) {
+      timerRef.current = setTimeout(() => {
+        const loaded = initialNotifications ?? defaultNotifications;
+        setNotifications(loaded);
+        setStatus('success');
+      }, 1000);
+    } else {
+      loadInitialData(true);
+    }
+  }, [
+    initialNotifications,
+    defaultNotifications,
+    isUsingProps,
+    loadInitialData,
+  ]);
 
-  const showBadge = isMounted && unreadCount > seenUnreadCount;
-  const formattedCount = unreadCount > 99 ? '99+' : String(unreadCount);
-  const hasUnread = notifications.some((item) => item.unread);
+  const showBadge = isMounted && badgeCount > seenUnreadCount;
+  const formattedCount = badgeCount > 99 ? '99+' : String(badgeCount);
+  const hasUnread = isUsingProps
+    ? notifications.some((item) => item.unread)
+    : badgeCount > 0;
 
   return {
     open,
     status,
     items: notifications,
-    badgeCount: unreadCount,
+    badgeCount,
     showBadge,
     formattedCount,
     hasUnread,
@@ -364,5 +528,8 @@ export function useNotificationCenter({
     markRead,
     markAllRead,
     handleRetry,
+    isLoadingMore,
+    hasMore: nextCursor !== null,
+    loadMore,
   };
 }

@@ -375,7 +375,7 @@ describe('Header', () => {
     expect(mobileBell).toBeInTheDocument();
   });
 
-  it('closes desktop NotificationBell popover when desktop UserDropdown avatar is clicked', () => {
+  it('closes desktop NotificationBell popover when desktop UserDropdown avatar is clicked', async () => {
     mockUseSession.mockReturnValue({
       data: {
         ...mockSession,
@@ -405,7 +405,7 @@ describe('Header', () => {
     expect(screen.queryByText('您有新的預約')).not.toBeInTheDocument();
 
     fireEvent.click(bellButton);
-    expect(screen.getByText('您有新的預約')).toBeInTheDocument();
+    expect(await screen.findByText('您有新的預約')).toBeInTheDocument();
 
     // Radix Popover listens to low-level pointerDown and mouseDown on document to close on click-outside
     fireEvent.pointerDown(avatarButton, { bubbles: true });
@@ -415,7 +415,7 @@ describe('Header', () => {
     expect(screen.queryByText('您有新的預約')).not.toBeInTheDocument();
   });
 
-  it('closes mobile NotificationBell popover when mobile MobileUserMenu avatar is clicked', () => {
+  it('closes mobile NotificationBell popover when mobile MobileUserMenu avatar is clicked', async () => {
     mockUseSession.mockReturnValue({
       data: {
         ...mockSession,
@@ -445,7 +445,7 @@ describe('Header', () => {
     expect(screen.queryByText('您有新的預約')).not.toBeInTheDocument();
 
     fireEvent.click(bellButton);
-    expect(screen.getByText('您有新的預約')).toBeInTheDocument();
+    expect(await screen.findByText('您有新的預約')).toBeInTheDocument();
 
     // Radix Popover listens to low-level pointerDown and mouseDown on document to close on click-outside
     fireEvent.pointerDown(avatarButton, { bubbles: true });

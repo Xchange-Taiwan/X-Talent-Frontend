@@ -18,7 +18,6 @@ import { useScrollThumb } from '@/hooks/useScrollThumb';
 import { formatRelativeTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
-import { defaultMockNotifications } from './mockNotifications';
 import { getNotificationHref } from './notificationUtils';
 
 export type NotificationBellProps = {
@@ -98,6 +97,9 @@ type NotificationListProps = {
   onMouseLeave: () => void;
   onItemClick: (id: string) => void;
   onNavigate: () => void;
+  isLoadingMore?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
 };
 
 /**
@@ -112,12 +114,31 @@ const NotificationList = React.memo(function NotificationList({
   onMouseLeave,
   onItemClick,
   onNavigate,
+  isLoadingMore,
+  hasMore,
+  onLoadMore,
 }: NotificationListProps) {
+  const handleScroll = React.useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const target = e.currentTarget;
+      if (
+        hasMore &&
+        !isLoadingMore &&
+        onLoadMore &&
+        target.scrollHeight - target.scrollTop <= target.clientHeight + 15
+      ) {
+        onLoadMore();
+      }
+    },
+    [hasMore, isLoadingMore, onLoadMore]
+  );
+
   return (
     <div
       ref={scrollRefCallback}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
+      onScroll={handleScroll}
       className="flex max-h-[360px] [scrollbar-width:none] flex-col overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
     >
       <div className="flex flex-col divide-y divide-background-border">
@@ -163,6 +184,12 @@ const NotificationList = React.memo(function NotificationList({
             </Link>
           );
         })}
+
+        {isLoadingMore && (
+          <div className="flex items-center justify-center py-4">
+            <span className="size-4 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -189,11 +216,13 @@ export const NotificationBell = React.memo(function NotificationBell({
     markRead: handleNotificationClick,
     markAllRead: handleMarkAllAsRead,
     handleRetry,
+    isLoadingMore,
+    hasMore,
+    loadMore,
   } = useNotificationCenter({
     userId,
     initialStatus,
     initialNotifications,
-    defaultNotifications: defaultMockNotifications,
     onMarkRead,
     onMarkAllRead,
   });
@@ -285,6 +314,9 @@ export const NotificationBell = React.memo(function NotificationBell({
                 onMouseLeave={scrollThumbHandlers.onMouseLeave}
                 onItemClick={handleNotificationClick}
                 onNavigate={closePopover}
+                isLoadingMore={isLoadingMore}
+                hasMore={hasMore}
+                onLoadMore={loadMore}
               />
             )}
 
