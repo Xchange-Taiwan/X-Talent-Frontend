@@ -8,10 +8,12 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   let announcement: AnnouncementData | null = null;
 
-  if (process.env.EDGE_CONFIG) {
+  const configUrl = process.env.GLOBAL_CONFIG || process.env.EDGE_CONFIG;
+
+  if (configUrl) {
     try {
       const data = await apiClient.get<{ announcement?: AnnouncementData }>(
-        process.env.EDGE_CONFIG,
+        configUrl,
         { auth: false, next: { revalidate: 0 } } // avoid caching in Next.js
       );
       announcement = data.announcement ?? null;
