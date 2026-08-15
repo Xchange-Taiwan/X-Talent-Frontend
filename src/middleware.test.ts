@@ -520,6 +520,41 @@ describe('middleware maintenance mode', () => {
     expect(response.status).toBe(200);
   });
 
+  it('bypasses maintenance check and allows API routes when a valid bypass cookie is present even when Edge Config read times out', async () => {
+    process.env.MAINTENANCE_BYPASS_TOKEN = 'test-secret-bypass';
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    mockGetToken.mockResolvedValue({} as never); // Logged in
+    mockGet.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(true), 1000))
+    );
+
+    const req = new NextRequest('https://example.com/api/mentors', {
+      headers: {
+        cookie: 'maintenance_bypass=test-secret-bypass',
+      },
+    });
+    const response = await middleware(req);
+
+    expect(response.status).toBe(200);
+  });
+
+  it('bypasses maintenance check and allows API routes when a valid bypass cookie is present even when Edge Config read fails', async () => {
+    process.env.MAINTENANCE_BYPASS_TOKEN = 'test-secret-bypass';
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    mockGetToken.mockResolvedValue({} as never); // Logged in
+    const error = new Error('Network Error');
+    mockGet.mockRejectedValue(error);
+
+    const req = new NextRequest('https://example.com/api/mentors', {
+      headers: {
+        cookie: 'maintenance_bypass=test-secret-bypass',
+      },
+    });
+    const response = await middleware(req);
+
+    expect(response.status).toBe(200);
+  });
+
   it('does not bypass maintenance check when bypass cookie is incorrect', async () => {
     process.env.MAINTENANCE_BYPASS_TOKEN = 'test-secret-bypass';
     process.env.MAINTENANCE_MODE = 'true';
