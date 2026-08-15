@@ -2,9 +2,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useNotificationCenter } from '@/hooks/useNotificationCenter';
-
-import * as mockService from './mockNotificationService';
-import { type ApiNotificationItem } from './mockNotificationService';
+import * as mockService from '@/mocks/mockNotificationService';
+import { type ApiNotificationItem } from '@/mocks/mockNotificationService';
 
 const mockToastFn = vi.fn();
 vi.mock('@/components/ui/use-toast', () => ({
@@ -29,6 +28,7 @@ const mockApiNotifications: ApiNotificationItem[] = Array.from(
 describe('useNotificationCenter pagination and service integration', () => {
   beforeEach(() => {
     localStorage.clear();
+    mockToastFn.mockClear();
     // Initialize mock database with predictable 25 items
     mockService.resetMockNotificationDatabase(mockApiNotifications);
   });
@@ -187,5 +187,45 @@ describe('useNotificationCenter pagination and service integration', () => {
     expect(result.current.badgeCount).toBe(5);
 
     markAllReadSpy.mockRestore();
+  });
+
+  it('sets hasLoadMoreError to true and allows retry when loadMore fails', async () => {
+    const { result } = renderHook(() => useNotificationCenter());
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('success');
+    });
+
+    // Make listNotifications reject/fail
+    const listSpy = vi
+      .spyOn(mockService, 'listNotifications')
+      .mockRejectedValue(new Error('Network Error'));
+
+    expect(result.current.hasLoadMoreError).toBe(false);
+
+    // Trigger load more which fails
+    await act(async () => {
+      await result.current.loadMore();
+    });
+
+    expect(result.current.hasLoadMoreError).toBe(true);
+    expect(mockToastFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: '載入失敗',
+      })
+    );
+
+    // Restore spy and mock success for retry
+    listSpy.mockRestore();
+    const successSpy = vi.spyOn(mockService, 'listNotifications');
+
+    // Trigger loadMore retry (pass true to bypass error gate)
+    await act(async () => {
+      await result.current.loadMore(true);
+    });
+
+    expect(result.current.hasLoadMoreError).toBe(false);
+    expect(successSpy).toHaveBeenCalled();
+    successSpy.mockRestore();
   });
 });

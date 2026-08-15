@@ -3,7 +3,6 @@ import * as React from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { safeGetStorage, safeSetStorage } from '@/lib/storage';
-
 /**
  * --------------------------------------------------------------------------------
  * SEAM & isolated module boundary:
@@ -13,12 +12,12 @@ import { safeGetStorage, safeSetStorage } from '@/lib/storage';
  * --------------------------------------------------------------------------------
  */
 import {
+  type ApiNotificationItem,
   fetchUnreadCount,
   listNotifications,
-  mapApiNotificationToFrontend,
   markAllRead as mockMarkAllRead,
   markOneRead,
-} from './mockNotificationService';
+} from '@/mocks/mockNotificationService';
 
 const MARK_ALL_READ_BATCH_SIZE = 5;
 
@@ -83,6 +82,40 @@ export type NotificationItem = {
   role?: 'mentor' | 'mentee';
 };
 
+export function mapApiNotificationToFrontend(
+  apiItem: ApiNotificationItem
+): NotificationItem {
+  const isUnread = !apiItem.read_at;
+  const { role, mentee_name, mentor_name } = apiItem.metadata;
+
+  const item: NotificationItem = {
+    id: apiItem.id,
+    type: apiItem.type,
+    createdAt: apiItem.created_at,
+    unread: isUnread,
+    role: role,
+  };
+
+  if (
+    apiItem.type === 'reservation_canceled' ||
+    apiItem.type === 'reservation_upcoming'
+  ) {
+    if (role === 'mentor') {
+      item.menteeName = mentee_name;
+    } else if (role === 'mentee') {
+      item.mentorName = mentor_name;
+    } else {
+      item.menteeName = mentee_name;
+      item.mentorName = mentor_name;
+    }
+  } else {
+    item.menteeName = mentee_name;
+    item.mentorName = mentor_name;
+  }
+
+  return item;
+}
+
 export type NotificationStatus = 'loading' | 'error' | 'empty' | 'success';
 
 export type UseNotificationCenterProps = {
@@ -141,12 +174,11 @@ export function useNotificationCenter({
   const [nextCursor, setNextCursor] = React.useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const [unreadCountState, setUnreadCountState] = React.useState<number>(0);
+  const [hasLoadMoreError, setHasLoadMoreError] = React.useState(false);
 
-  // Concurrency and race condition refs
+  // Concurrency refs
   const isFetchingRef = React.useRef(false);
-  const pendingLoadMoreRef = React.useRef(false);
   const notificationsRef = React.useRef<NotificationItem[]>(notifications);
-  const loadMoreRef = React.useRef<() => Promise<void>>();
 
   React.useEffect(() => {
     notificationsRef.current = notifications;
@@ -212,38 +244,37 @@ export function useNotificationCenter({
   );
 
   // Infinite Scroll / Fetch more
-  const loadMore = React.useCallback(async () => {
-    if (isUsingProps || isLoadingMore || !nextCursor) return;
-    if (isFetchingRef.current) {
-      pendingLoadMoreRef.current = true;
-      return;
-    }
-    isFetchingRef.current = true;
-    setIsLoadingMore(true);
-    try {
-      const { items, next_created_at } = await listNotifications(
-        nextCursor,
-        20
-      );
-      const mapped = items.map(mapApiNotificationToFrontend);
-      setNotifications((prev) => [...prev, ...mapped]);
-      setNextCursor(next_created_at);
-    } catch (error) {
-      console.error('[useNotificationCenter] loadMore failed:', error);
-      toast({
-        variant: 'destructive',
-        title: '載入失敗',
-        description: '無法載入更多通知，請稍後再試',
-      });
-    } finally {
-      setIsLoadingMore(false);
-      isFetchingRef.current = false;
-    }
-  }, [isUsingProps, isLoadingMore, nextCursor, toast]);
-
-  React.useEffect(() => {
-    loadMoreRef.current = loadMore;
-  }, [loadMore]);
+  const loadMore = React.useCallback(
+    async (isRetry = false) => {
+      if (isUsingProps || isLoadingMore || !nextCursor) return;
+      if (hasLoadMoreError && !isRetry) return;
+      if (isFetchingRef.current) return;
+      isFetchingRef.current = true;
+      setIsLoadingMore(true);
+      setHasLoadMoreError(false);
+      try {
+        const { items, next_created_at } = await listNotifications(
+          nextCursor,
+          20
+        );
+        const mapped = items.map(mapApiNotificationToFrontend);
+        setNotifications((prev) => [...prev, ...mapped]);
+        setNextCursor(next_created_at);
+      } catch (error) {
+        console.error('[useNotificationCenter] loadMore failed:', error);
+        setHasLoadMoreError(true);
+        toast({
+          variant: 'destructive',
+          title: '載入失敗',
+          description: '無法載入更多通知，請點擊重試',
+        });
+      } finally {
+        setIsLoadingMore(false);
+        isFetchingRef.current = false;
+      }
+    },
+    [isUsingProps, isLoadingMore, nextCursor, hasLoadMoreError, toast]
+  );
 
   // Load initial notifications and unread count from service
   const loadInitialData = React.useCallback(
@@ -264,6 +295,7 @@ export function useNotificationCenter({
         setNotifications(mapped);
         setNextCursor(notificationsRes.next_created_at);
         setStatus(mapped.length === 0 ? 'empty' : 'success');
+        setHasLoadMoreError(false);
       } catch (error) {
         if (!showLoading || notificationsRef.current.length > 0) {
           toast({
@@ -276,12 +308,6 @@ export function useNotificationCenter({
         }
       } finally {
         isFetchingRef.current = false;
-        if (pendingLoadMoreRef.current) {
-          pendingLoadMoreRef.current = false;
-          if (loadMoreRef.current) {
-            void loadMoreRef.current();
-          }
-        }
       }
     },
     [isUsingProps, toast]
@@ -554,5 +580,6 @@ export function useNotificationCenter({
     isLoadingMore,
     hasMore: nextCursor !== null,
     loadMore,
+    hasLoadMoreError,
   };
 }
