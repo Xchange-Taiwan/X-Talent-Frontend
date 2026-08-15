@@ -28,7 +28,8 @@ export async function googleCallback(
 
   const refreshToken = extractRefreshToken(res.headers);
   if (refreshToken) {
-    cookies().set(OAUTH_REFRESH_BRIDGE_COOKIE, refreshToken, {
+    const cookieStore = await cookies();
+    cookieStore.set(OAUTH_REFRESH_BRIDGE_COOKIE, refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

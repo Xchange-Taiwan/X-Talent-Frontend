@@ -19,7 +19,7 @@ import ProfilePageContainer from './container';
 export const revalidate = 60;
 
 interface PageProps {
-  params: { pageUserId: string };
+  params: Promise<{ pageUserId: string }>;
 }
 
 const FALLBACK_METADATA: Metadata = {
@@ -30,7 +30,8 @@ const FALLBACK_METADATA: Metadata = {
 export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
-  const userIdNum = Number(params.pageUserId);
+  const { pageUserId } = await params;
+  const userIdNum = Number(pageUserId);
   if (!Number.isFinite(userIdNum)) return FALLBACK_METADATA;
   const [dto, catalogs] = await Promise.all([
     fetchUserByIdServer(userIdNum, 'zh_TW'),
@@ -42,7 +43,8 @@ export async function generateMetadata({
   );
 }
 
-export default async function Page({ params: { pageUserId } }: PageProps) {
+export default async function Page({ params }: PageProps) {
+  const { pageUserId } = await params;
   const userIdNum = Number(pageUserId);
   if (!Number.isFinite(userIdNum)) notFound();
 
