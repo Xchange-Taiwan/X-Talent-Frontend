@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react';
 import { useEffect } from 'react';
 
 import { useSessionHint } from '@/hooks/user/auth/useSessionHint';
+import { resolveIdentity } from '@/lib/auth/sessionHint';
 import {
   clearAvatarOverride,
   useAvatarOverride,
@@ -19,7 +20,7 @@ import {
  */
 export function useCurrentAvatar(): string | null {
   const { data: session, status } = useSession();
-  const hint = useSessionHint();
+  const hintState = useSessionHint();
   const override = useAvatarOverride();
   const sessionUserId = session?.user?.id ?? null;
   const sessionAvatar = session?.user?.avatar ?? null;
@@ -35,21 +36,12 @@ export function useCurrentAvatar(): string | null {
     }
   }, [override, sessionUserId, sessionAvatar]);
 
-  if (override && override.userId === sessionUserId) {
-    return override.url;
-  }
+  // Derived completely via resolveIdentity for single source of truth correctness
+  const hint =
+    status === 'loading' && hintState.status === 'authenticated'
+      ? hintState
+      : null;
+  const identity = resolveIdentity(override, session, status, hint);
 
-  if (status === 'authenticated') {
-    return sessionAvatar;
-  }
-
-  if (status === 'unauthenticated') {
-    return null;
-  }
-
-  if (hint.status === 'authenticated' && hint.avatar) {
-    return hint.avatar;
-  }
-
-  return null;
+  return identity.avatar ?? null;
 }

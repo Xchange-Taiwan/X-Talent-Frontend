@@ -9,9 +9,11 @@ import {
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
   isValidAvatarProtocol,
-  safeDecodeURIComponent,
+  readCookie,
+  resolveIdentity,
   SESSION_HINT_COOKIE,
 } from '@/lib/auth/sessionHint';
+import { useAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 
 export type SessionHintState =
   | { status: 'unknown' }
@@ -22,21 +24,6 @@ export type SessionHintState =
       avatar?: string;
       userId?: string;
     };
-
-function readCookie(name: string): string | undefined {
-  if (typeof document === 'undefined') return undefined;
-  const raw = document.cookie
-    .split('; ')
-    .find((row) => row.startsWith(`${name}=`))
-    ?.slice(name.length + 1);
-  if (raw === undefined) return undefined;
-
-  // `response.cookies.set()` encodeURIComponent's the whole value on write
-  // (including our own `|` separator), so it must be decoded once on read.
-  // Fall back to the raw value on failure rather than discarding the whole
-  // hint - `decodeSessionHint` still safely handles a malformed avatar part.
-  return safeDecodeURIComponent(raw);
-}
 
 function updateAvatarStyle(avatar: string | undefined): void {
   if (typeof document === 'undefined') return;
@@ -72,15 +59,14 @@ function clearAuthDOMState(): void {
  */
 export function useSessionHint(): SessionHintState {
   const { data: session, status } = useSession();
+  const override = useAvatarOverride();
   const [state, setState] = useState<SessionHintState>({ status: 'unknown' });
 
   useEffect(() => {
     const hint = decodeSessionHint(readCookie(SESSION_HINT_COOKIE));
+    const identity = resolveIdentity(override, session, status, hint);
 
-    // 1. If we are explicitly logged out (unauthenticated), clear stale hint
-    // state but keep the DOM marked as 'guest' so the CSS-toggled guest UI
-    // (see SESSION_HINT_INLINE_SCRIPT) doesn't revert to a loading skeleton.
-    if (status === 'unauthenticated') {
+    if (!identity.isLoggedIn) {
       clearAuthDOMState();
       document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'guest');
 
@@ -90,79 +76,31 @@ export function useSessionHint(): SessionHintState {
         }
         return { status: 'guest' };
       });
-      return;
-    }
-
-    // 2. If the real session is resolved, sync the DOM state with the real session data
-    if (status === 'authenticated' && session?.user) {
-      const realIsMentor = session.user.isMentor ?? false;
-      const realAvatar = session.user.avatar ?? undefined;
-      const realUserId = session.user.id ?? undefined;
-
+    } else {
       document.documentElement.setAttribute(
         DOM_AUTH_STATE_ATTR,
-        realIsMentor ? 'mentor' : 'mentee'
+        identity.isMentor ? 'mentor' : 'mentee'
       );
-      updateAvatarStyle(realAvatar);
+      updateAvatarStyle(identity.avatar);
 
       setState((prev) => {
         if (
           prev.status === 'authenticated' &&
-          prev.isMentor === realIsMentor &&
-          prev.avatar === realAvatar &&
-          prev.userId === realUserId
+          prev.isMentor === identity.isMentor &&
+          prev.avatar === identity.avatar &&
+          prev.userId === identity.userId
         ) {
           return prev;
         }
         return {
           status: 'authenticated',
-          isMentor: realIsMentor,
-          avatar: realAvatar,
-          userId: realUserId,
-        };
-      });
-      return;
-    }
-
-    // 3. During initial loading, fall back to the safe session-hint cookie.
-    // No hint cookie means the middleware didn't see a valid token on the
-    // last request, so treat the visitor as a guest immediately instead of
-    // waiting on the slower useSession() round trip.
-    if (status === 'loading') {
-      if (hint) {
-        document.documentElement.setAttribute(
-          DOM_AUTH_STATE_ATTR,
-          hint.isMentor ? 'mentor' : 'mentee'
-        );
-        updateAvatarStyle(hint.avatar);
-      } else {
-        clearAuthDOMState();
-        document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'guest');
-      }
-
-      setState((prev) => {
-        if (!hint) {
-          return prev.status === 'guest' ? prev : { status: 'guest' };
-        }
-
-        if (
-          prev.status === 'authenticated' &&
-          prev.isMentor === hint.isMentor &&
-          prev.avatar === hint.avatar &&
-          prev.userId === hint.userId
-        ) {
-          return prev;
-        }
-
-        return {
-          status: 'authenticated',
-          isMentor: hint.isMentor,
-          avatar: hint.avatar,
-          userId: hint.userId,
+          isMentor: identity.isMentor,
+          avatar: identity.avatar,
+          userId: identity.userId,
         };
       });
     }
-  }, [session, status]);
+  }, [session, status, override]);
 
   return state;
 }
