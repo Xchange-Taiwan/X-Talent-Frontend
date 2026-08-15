@@ -226,8 +226,13 @@ export async function saveProfile(
       // someone else edits a profile. Re-revalidate now that `latest`
       // confirms the backend is actually synced.
       if (latest) {
-        await revalidateProfilePath(pageUserId).catch((e) => {
-          console.error('revalidateProfilePath (post-sync) failed:', e);
+        await revalidateProfilePath(pageUserId).catch((e: unknown) => {
+          captureFlowFailure({
+            flow: 'profile_update',
+            step: 'post_sync_revalidate',
+            message: e instanceof Error ? e.message : String(e),
+            level: 'warning',
+          });
         });
       }
     } catch (e) {

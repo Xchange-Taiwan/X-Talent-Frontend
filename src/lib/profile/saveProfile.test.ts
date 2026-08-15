@@ -439,6 +439,35 @@ describe('saveProfile (Deep Module)', () => {
     expect(revalidateProfilePath).toHaveBeenCalledTimes(1);
   });
 
+  it('post-sync revalidateProfilePath rejects → caught via captureFlowFailure, does not throw or block background reconcile', async () => {
+    mockFirstSyncedFetch.mockResolvedValueOnce(null);
+    mockPollUntilSynced.mockResolvedValueOnce(mockUserDTO);
+
+    const revalidateProfilePath = vi
+      .fn()
+      .mockResolvedValueOnce(undefined) // step 3: immediate call succeeds
+      .mockRejectedValueOnce(new Error('revalidate failed')); // post-sync call fails
+    const updateSession = vi.fn().mockResolvedValue(mockSession);
+    const deps = makeDeps({ revalidateProfilePath, updateSession });
+
+    await expect(saveProfile(baseValues, deps)).resolves.not.toThrow();
+
+    await vi.waitFor(() => {
+      expect(revalidateProfilePath).toHaveBeenCalledTimes(2);
+    });
+
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'profile_update',
+        step: 'post_sync_revalidate',
+        message: 'revalidate failed',
+        level: 'warning',
+      })
+    );
+    // reconcileSession still ran despite the revalidate rejection
+    expect(updateSession).toHaveBeenCalled();
+  });
+
   // ── Cache prime vs fallback ────────────────────────────────────────────────
 
   it('firstSyncedFetch returns dto → primeUserDataCache called, pollUntilSynced NOT called', async () => {
