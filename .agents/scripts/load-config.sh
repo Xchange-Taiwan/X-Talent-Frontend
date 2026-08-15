@@ -1,16 +1,5 @@
 #!/usr/bin/env bash
 
-# Define a wrapper for gh to use gh-axi if available
-gh() {
-  if command -v gh-axi >/dev/null 2>&1; then
-    gh-axi "$@"
-  elif command -v npx >/dev/null 2>&1; then
-    npx -y gh-axi "$@"
-  else
-    command gh "$@"
-  fi
-}
-
 # Fetch config file from tracker repository (using main branch)
 CONFIG_MD=$(gh api repos/Xchange-Taiwan/X-Talent-Tracker/contents/docs/agents/project-config.md?ref=main -H "Accept: application/vnd.github.raw" 2>/dev/null)
 

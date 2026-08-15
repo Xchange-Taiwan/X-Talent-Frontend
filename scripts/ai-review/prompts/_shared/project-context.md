@@ -9,6 +9,6 @@
 - Auth：NextAuth.js v4（JWT），Google OAuth + email/password credentials
 - 平台有 mentor / mentee 兩種角色：角色未 resolve 前不可 render 角色專屬 UI，避免 flash 錯誤角色內容
 - 監控：Sentry（`src/lib/monitoring.ts`）+ GA4（`src/lib/analytics.ts`），任何情況都不可記錄 PII（email、密碼、token 等）。團隊在 Sentry 查詢 Issue 列表時，應習慣加上 `statsPeriod=30d`（或 `90d`）與 `sort=date` 進行篩選與排序，以避免被 Sentry 預設的權重/總量排序誤導，誤將早已不發生的舊 issue 當作「目前仍在發生」的問題。
-- 工具與自動化偏好：所有 GitHub 相關操作（Issue、PR、Workflows 等）一律優先使用 `gh-axi`（透過 `npx -y gh-axi` 或是全域安裝版本）；所有瀏覽器自動化（測試、抓取、網頁自動化等）一律優先使用 `chrome-devtools-axi`（透過 `npx -y chrome-devtools-axi`）。團隊內與 AI 協作時應嚴格遵守此規範。
+- 工具與自動化偏好：所有 GitHub 相關操作（Issue、PR、Workflows 等）一律使用標準 `gh` CLI；所有瀏覽器自動化（測試、抓取、網頁自動化等）一律直接使用 `playwright` 套件本身，不透過第三方 CLI wrapper。
 
 請以此作為判斷基準，而非套用泛用的最佳實踐；若通用最佳實踐跟本專案既有慣例衝突，以本專案慣例為準。

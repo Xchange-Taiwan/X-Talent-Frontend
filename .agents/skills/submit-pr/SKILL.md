@@ -104,7 +104,7 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
        ```
 
 5. **Create PR**
-   - **Create the PR**: Run `gh-axi pr create --fill --base develop` (use `gh-axi` — the token-efficient AI-agent wrapper for GitHub CLI — not raw `gh`)
+   - **Create the PR**: Run `gh pr create --fill --base develop`
    - **PR Already Exists Fallback**: If the command fails because a pull request already exists for the branch, treat this as a successful update and proceed gracefully. Do not halt or abort.
 
 6. **Move Ticket on Board to "PR Review"**
@@ -121,7 +121,7 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
        exit 0
      fi
 
-     ITEM_ID=$(gh-axi api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$TRACKER_REPO" -f query='
+     ITEM_ID=$(gh api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$TRACKER_REPO" -f query='
        query($login: String!, $issue_number: Int!, $repo_name: String!) {
          organization(login: $login) {
            repository(name: $repo_name) {
@@ -134,7 +134,7 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
      ' --jq ".data.organization.repository.issue.projectItems.nodes[] | select(.project.number == $PROJECT_NUMBER) | .id" 2>/dev/null)
 
      if [ -z "$ITEM_ID" ]; then
-       ITEM_ID=$(gh-axi api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$FRONTEND_REPO" -f query='
+       ITEM_ID=$(gh api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$FRONTEND_REPO" -f query='
          query($login: String!, $issue_number: Int!, $repo_name: String!) {
            organization(login: $login) {
              repository(name: $repo_name) {
@@ -153,7 +153,7 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
      fi
 
      if [ -n "$PR_REVIEW_OPTION_ID" ] && [ "$PR_REVIEW_OPTION_ID" != "null" ]; then
-       gh-axi api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$PR_REVIEW_OPTION_ID" -f query='
+       gh api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$PR_REVIEW_OPTION_ID" -f query='
          mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
            updateProjectV2ItemFieldValue(
              input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
@@ -176,7 +176,7 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
        return
      }
 
-     $ITEM_ID = (gh-axi api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$TRACKER_REPO" -f query='
+     $ITEM_ID = (gh api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$TRACKER_REPO" -f query='
        query($login: String!, $issue_number: Int!, $repo_name: String!) {
          organization(login: $login) {
            repository(name: $repo_name) {
@@ -189,7 +189,7 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
      ' --jq ".data.organization.repository.issue.projectItems.nodes[] | select(.project.number == $PROJECT_NUMBER) | .id" 2>$null)
 
      if (-not $ITEM_ID) {
-       $ITEM_ID = (gh-axi api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$FRONTEND_REPO" -f query='
+       $ITEM_ID = (gh api graphql -F login="$ORG" -F issue_number="$ISSUE_NUMBER" -F repo_name="$FRONTEND_REPO" -f query='
          query($login: String!, $issue_number: Int!, $repo_name: String!) {
            organization(login: $login) {
              repository(name: $repo_name) {
@@ -208,7 +208,7 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
      }
 
      if ($PR_REVIEW_OPTION_ID -and $PR_REVIEW_OPTION_ID -ne "null") {
-       gh-axi api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$PR_REVIEW_OPTION_ID" -f query='
+       gh api graphql -F project_id="$PROJECT_ID" -F item_id="$ITEM_ID" -F field_id="$FIELD_ID" -F option_id="$PR_REVIEW_OPTION_ID" -f query='
          mutation($project_id: ID!, $item_id: ID!, $field_id: ID!, $option_id: String!) {
            updateProjectV2ItemFieldValue(
              input: { projectId: $project_id, itemId: $item_id, fieldId: $field_id, value: { singleSelectOptionId: $option_id } }
