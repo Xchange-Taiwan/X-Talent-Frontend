@@ -1,4 +1,4 @@
-import { type NotificationItem } from '@/hooks/useNotificationBell';
+import { type NotificationItem } from '@/hooks/useNotificationCenter';
 
 export const defaultMockNotifications: NotificationItem[] = [
   {
