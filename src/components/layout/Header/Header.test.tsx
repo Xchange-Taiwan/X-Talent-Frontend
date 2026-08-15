@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/image', () => ({
@@ -44,6 +50,17 @@ describe('Header', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseSessionHint.mockReturnValue({ status: 'unknown' });
+    global.IntersectionObserver = class IntersectionObserver {
+      readonly root: Element | null = null;
+      readonly rootMargin: string = '';
+      readonly thresholds: ReadonlyArray<number> = [];
+      disconnect() {}
+      observe() {}
+      takeRecords() {
+        return [];
+      }
+      unobserve() {}
+    } as unknown as typeof IntersectionObserver;
   });
 
   it('disables the second nav link while resolving a logged-in user, instead of falling back to /auth/signup or /', () => {
@@ -375,7 +392,7 @@ describe('Header', () => {
     expect(mobileBell).toBeInTheDocument();
   });
 
-  it('closes desktop NotificationBell popover when desktop UserDropdown avatar is clicked', () => {
+  it('closes desktop NotificationBell popover when desktop UserDropdown avatar is clicked', async () => {
     mockUseSession.mockReturnValue({
       data: {
         ...mockSession,
@@ -402,20 +419,22 @@ describe('Header', () => {
       name: '開啟用戶選單',
     });
 
-    expect(screen.queryByText('您有新的預約')).not.toBeInTheDocument();
+    expect(screen.queryAllByText('您有新的預約')).toHaveLength(0);
 
     fireEvent.click(bellButton);
-    expect(screen.getByText('您有新的預約')).toBeInTheDocument();
+    expect((await screen.findAllByText('您有新的預約'))[0]).toBeInTheDocument();
 
     // Radix Popover listens to low-level pointerDown and mouseDown on document to close on click-outside
     fireEvent.pointerDown(avatarButton, { bubbles: true });
     fireEvent.mouseDown(avatarButton, { bubbles: true });
     fireEvent.click(avatarButton);
 
-    expect(screen.queryByText('您有新的預約')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryAllByText('您有新的預約')).toHaveLength(0);
+    });
   });
 
-  it('closes mobile NotificationBell popover when mobile MobileUserMenu avatar is clicked', () => {
+  it('closes mobile NotificationBell popover when mobile MobileUserMenu avatar is clicked', async () => {
     mockUseSession.mockReturnValue({
       data: {
         ...mockSession,
@@ -442,16 +461,18 @@ describe('Header', () => {
       name: '開啟用戶選單',
     });
 
-    expect(screen.queryByText('您有新的預約')).not.toBeInTheDocument();
+    expect(screen.queryAllByText('您有新的預約')).toHaveLength(0);
 
     fireEvent.click(bellButton);
-    expect(screen.getByText('您有新的預約')).toBeInTheDocument();
+    expect((await screen.findAllByText('您有新的預約'))[0]).toBeInTheDocument();
 
     // Radix Popover listens to low-level pointerDown and mouseDown on document to close on click-outside
     fireEvent.pointerDown(avatarButton, { bubbles: true });
     fireEvent.mouseDown(avatarButton, { bubbles: true });
     fireEvent.click(avatarButton);
 
-    expect(screen.queryByText('您有新的預約')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryAllByText('您有新的預約')).toHaveLength(0);
+    });
   });
 });
