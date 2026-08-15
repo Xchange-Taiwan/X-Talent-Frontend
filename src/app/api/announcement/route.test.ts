@@ -5,9 +5,16 @@ vi.mock('@vercel/global-config', () => ({
   get: vi.fn(),
 }));
 
+vi.mock('@/lib/monitoring', () => ({
+  captureApiFailure: vi.fn(),
+}));
+
+import { captureApiFailure } from '@/lib/monitoring';
+
 import { GET } from './route';
 
 const mockGet = vi.mocked(get);
+const mockCaptureApiFailure = vi.mocked(captureApiFailure);
 
 describe('Announcement API Route', () => {
   const originalEnv = process.env;
@@ -73,7 +80,7 @@ describe('Announcement API Route', () => {
     expect(json.message).toBe('來自 Edge Config 的公告');
   });
 
-  it('falls back to mock data when the SDK read throws', async () => {
+  it('falls back to mock data when the SDK read throws, and reports the failure', async () => {
     process.env.GLOBAL_CONFIG = 'connection_string';
     process.env.MOCK_ANNOUNCEMENT_ENABLED = 'true';
     process.env.MOCK_ANNOUNCEMENT_MESSAGE = '連線失敗的備份公告';
@@ -83,6 +90,14 @@ describe('Announcement API Route', () => {
 
     const response = await GET();
     expect(response.status).toBe(200);
+    expect(mockCaptureApiFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpoint: 'global-config:announcement',
+        method: 'GET',
+        status: 0,
+        message: 'Fetch failed',
+      })
+    );
 
     const json = await response.json();
     expect(json).toEqual({

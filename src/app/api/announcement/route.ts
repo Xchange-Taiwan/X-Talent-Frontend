@@ -1,6 +1,7 @@
 import { get } from '@vercel/global-config';
 import { NextResponse } from 'next/server';
 
+import { captureApiFailure } from '@/lib/monitoring';
 import type { AnnouncementData } from '@/services/announcement';
 
 export const dynamic = 'force-dynamic';
@@ -9,15 +10,25 @@ export async function GET() {
   let announcement: AnnouncementData | null = null;
 
   if (process.env.GLOBAL_CONFIG || process.env.EDGE_CONFIG) {
+    const startTime = Date.now();
     try {
       // Read through the SDK rather than a raw fetch to the connection
       // string — the SDK resolves the correct sub-path/format for a single
       // item internally, which a bare fetch to the base connection string
       // does not.
       announcement = (await get<AnnouncementData>('announcement')) ?? null;
-    } catch {
-      // Fetch/response failures are already reported by the SDK's internal
-      // error handling. Fall through to the local fallback below.
+    } catch (error) {
+      // Unlike apiClient, the SDK doesn't report into this project's
+      // monitoring — do it here so a broken store/token doesn't silently
+      // fall through to the mock fallback unnoticed.
+      captureApiFailure({
+        endpoint: 'global-config:announcement',
+        method: 'GET',
+        status: 0,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        duration: Date.now() - startTime,
+      });
+      // Fall through to the local fallback below.
     }
   }
 
