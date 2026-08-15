@@ -5,13 +5,14 @@ import EditProfileContainer from './container';
 export default async function Page({
   params,
 }: {
-  params: { pageUserId: string };
+  params: Promise<{ pageUserId: string }>;
 }) {
+  const { pageUserId } = await params;
   const initialTagCatalog = await fetchTagCatalogServer('zh_TW');
 
   return (
     <EditProfileContainer
-      pageUserId={params.pageUserId}
+      pageUserId={pageUserId}
       initialTagCatalog={initialTagCatalog}
     />
   );
