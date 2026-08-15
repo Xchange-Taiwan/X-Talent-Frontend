@@ -55,21 +55,110 @@ on:
         description: '公告文字(留空 = 保留目前的訊息)'
         type: string
         required: false
-      announcement_time:
-        description: '維護時間(從現在開始算;選「清空」會移除倒數時間)'
+      announcement_time_action:
+        description: '維護時間動作(選「設定時間」下面的月/日/時/分才會生效)'
         type: choice
         required: true
         options:
           - 不變更
-          - 30分鐘後
-          - 1小時後
-          - 2小時後
-          - 3小時後
-          - 6小時後
-          - 12小時後
-          - 24小時後
+          - 設定時間
           - 清空
         default: 不變更
+      announcement_time_month:
+        description: '月(僅在上面選「設定時間」時生效;以台灣時間為準)'
+        type: choice
+        required: true
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - '7'
+          - '8'
+          - '9'
+          - '10'
+          - '11'
+          - '12'
+        default: '1'
+      announcement_time_day:
+        description: '日(僅在上面選「設定時間」時生效;以台灣時間為準)'
+        type: choice
+        required: true
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - '7'
+          - '8'
+          - '9'
+          - '10'
+          - '11'
+          - '12'
+          - '13'
+          - '14'
+          - '15'
+          - '16'
+          - '17'
+          - '18'
+          - '19'
+          - '20'
+          - '21'
+          - '22'
+          - '23'
+          - '24'
+          - '25'
+          - '26'
+          - '27'
+          - '28'
+          - '29'
+          - '30'
+          - '31'
+        default: '1'
+      announcement_time_hour:
+        description: '時,24 小時制(僅在上面選「設定時間」時生效;以台灣時間為準)'
+        type: choice
+        required: true
+        options:
+          - '0'
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - '7'
+          - '8'
+          - '9'
+          - '10'
+          - '11'
+          - '12'
+          - '13'
+          - '14'
+          - '15'
+          - '16'
+          - '17'
+          - '18'
+          - '19'
+          - '20'
+          - '21'
+          - '22'
+          - '23'
+        default: '0'
+      announcement_time_minute:
+        description: '分(僅在上面選「設定時間」時生效;以台灣時間為準)'
+        type: choice
+        required: true
+        options:
+          - '00'
+          - '15'
+          - '30'
+          - '45'
+        default: '00'
 
 permissions:
   contents: read
@@ -87,7 +176,11 @@ jobs:
       CONFIRM_MAINTENANCE_ON: ${{ inputs.confirm_maintenance_on }}
       ANNOUNCEMENT_ENABLED: ${{ inputs.announcement_enabled }}
       ANNOUNCEMENT_MESSAGE: ${{ inputs.announcement_message }}
-      ANNOUNCEMENT_TIME: ${{ inputs.announcement_time }}
+      ANNOUNCEMENT_TIME_ACTION: ${{ inputs.announcement_time_action }}
+      ANNOUNCEMENT_TIME_MONTH: ${{ inputs.announcement_time_month }}
+      ANNOUNCEMENT_TIME_DAY: ${{ inputs.announcement_time_day }}
+      ANNOUNCEMENT_TIME_HOUR: ${{ inputs.announcement_time_hour }}
+      ANNOUNCEMENT_TIME_MINUTE: ${{ inputs.announcement_time_minute }}
 
     steps:
       - name: Validate inputs
@@ -102,7 +195,7 @@ jobs:
           if [ "$MAINTENANCE_MODE" = "不變更" ] && \
              [ "$ANNOUNCEMENT_ENABLED" = "不變更" ] && \
              [ -z "$ANNOUNCEMENT_MESSAGE" ] && \
-             [ "$ANNOUNCEMENT_TIME" = "不變更" ]; then
+             [ "$ANNOUNCEMENT_TIME_ACTION" = "不變更" ]; then
             echo "::error::沒有任何要變更的內容,結束。"
             exit 1
           fi
@@ -146,20 +239,33 @@ jobs:
           new_message=$(echo "$current_announcement" | jq -r '.message // ""')
           [ -n "$ANNOUNCEMENT_MESSAGE" ] && new_message="$ANNOUNCEMENT_MESSAGE"
 
-          # announcement_time is a relative-offset dropdown (no native date
-          # picker in workflow_dispatch), so compute the absolute ISO 8601
-          # timestamp here rather than asking the operator to type one.
+          # workflow_dispatch has no native date picker, so month/day/hour/
+          # minute are separate dropdowns (all Asia/Taipei) instead of a
+          # hand-typed ISO 8601 string. The year is inferred: if the chosen
+          # month/day already happened this year, roll forward to next year.
           new_time=$(echo "$current_announcement" | jq -r '.maintenanceTime // ""')
-          case "$ANNOUNCEMENT_TIME" in
+          case "$ANNOUNCEMENT_TIME_ACTION" in
             不變更) : ;;
             清空) new_time="" ;;
-            30分鐘後) new_time=$(TZ='Asia/Taipei' date -d '+30 minutes' '+%Y-%m-%dT%H:%M:%S+08:00') ;;
-            1小時後) new_time=$(TZ='Asia/Taipei' date -d '+1 hour' '+%Y-%m-%dT%H:%M:%S+08:00') ;;
-            2小時後) new_time=$(TZ='Asia/Taipei' date -d '+2 hours' '+%Y-%m-%dT%H:%M:%S+08:00') ;;
-            3小時後) new_time=$(TZ='Asia/Taipei' date -d '+3 hours' '+%Y-%m-%dT%H:%M:%S+08:00') ;;
-            6小時後) new_time=$(TZ='Asia/Taipei' date -d '+6 hours' '+%Y-%m-%dT%H:%M:%S+08:00') ;;
-            12小時後) new_time=$(TZ='Asia/Taipei' date -d '+12 hours' '+%Y-%m-%dT%H:%M:%S+08:00') ;;
-            24小時後) new_time=$(TZ='Asia/Taipei' date -d '+24 hours' '+%Y-%m-%dT%H:%M:%S+08:00') ;;
+            設定時間)
+              today="$(TZ='Asia/Taipei' date +%Y-%m-%d)"
+              this_year="$(TZ='Asia/Taipei' date +%Y)"
+              target_this_year=$(printf '%04d-%02d-%02d' "$this_year" "$ANNOUNCEMENT_TIME_MONTH" "$ANNOUNCEMENT_TIME_DAY")
+
+              target_year="$this_year"
+              if [[ "$target_this_year" < "$today" ]]; then
+                target_year=$((this_year + 1))
+              fi
+
+              new_time=$(printf '%04d-%02d-%02dT%02d:%02d:00+08:00' \
+                "$target_year" "$ANNOUNCEMENT_TIME_MONTH" "$ANNOUNCEMENT_TIME_DAY" \
+                "$ANNOUNCEMENT_TIME_HOUR" "$ANNOUNCEMENT_TIME_MINUTE")
+
+              if ! TZ='Asia/Taipei' date -d "$new_time" >/dev/null 2>&1; then
+                echo "::error::選到不存在的日期(例如 2 月 30 號),請重新選擇月/日"
+                exit 1
+              fi
+              ;;
           esac
 
           new_announcement=$(jq -n \
@@ -177,7 +283,7 @@ jobs:
           fi
 
           announcement_changed=false
-          if [ "$ANNOUNCEMENT_ENABLED" != "不變更" ] || [ -n "$ANNOUNCEMENT_MESSAGE" ] || [ "$ANNOUNCEMENT_TIME" != "不變更" ]; then
+          if [ "$ANNOUNCEMENT_ENABLED" != "不變更" ] || [ -n "$ANNOUNCEMENT_MESSAGE" ] || [ "$ANNOUNCEMENT_TIME_ACTION" != "不變更" ]; then
             announcement_changed=true
           fi
           if [ "$announcement_changed" = "true" ]; then
@@ -223,6 +329,7 @@ jobs:
             echo "| maintenance_mode | \`${MAINTENANCE_MODE}\` |"
             echo "| announcement_enabled | \`${ANNOUNCEMENT_ENABLED}\` |"
             echo "| announcement_message | \`${ANNOUNCEMENT_MESSAGE}\` |"
-            echo "| announcement_time | \`${ANNOUNCEMENT_TIME}\` |"
+            echo "| announcement_time_action | \`${ANNOUNCEMENT_TIME_ACTION}\` |"
+            echo "| announcement_time | \`${ANNOUNCEMENT_TIME_MONTH}/${ANNOUNCEMENT_TIME_DAY} ${ANNOUNCEMENT_TIME_HOUR}:${ANNOUNCEMENT_TIME_MINUTE}\` |"
             echo "| 觸發者 | \`${GITHUB_ACTOR}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
