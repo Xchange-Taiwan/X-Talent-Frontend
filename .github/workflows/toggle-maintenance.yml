@@ -29,36 +29,47 @@ on:
   workflow_dispatch:
     inputs:
       maintenance_mode:
-        description: 'Maintenance mode (hard down - redirects all traffic to /maintenance)'
+        description: '維護模式(直接封站,所有流量導向 /maintenance)'
         type: choice
         required: true
         options:
-          - no-change
-          - 'on'
-          - 'off'
-        default: no-change
+          - 不變更
+          - 開啟
+          - 關閉
+        default: 不變更
       confirm_maintenance_on:
-        description: 'I understand this takes the whole site down (required when turning maintenance_mode on)'
+        description: '我了解這會讓整個網站無法使用(選「開啟」維護模式前必須勾選)'
         type: boolean
         required: false
         default: false
       announcement_enabled:
-        description: 'Announcement banner (soft warning shown at the top of the site, does not take it down)'
+        description: '公告 banner(只是提醒用的橫幅,不會封站)'
         type: choice
         required: true
         options:
-          - no-change
-          - 'on'
-          - 'off'
-        default: no-change
+          - 不變更
+          - 開啟
+          - 關閉
+        default: 不變更
       announcement_message:
-        description: 'Announcement text (leave blank to keep the current message)'
+        description: '公告文字(留空 = 保留目前的訊息)'
         type: string
         required: false
       announcement_time:
-        description: 'ISO 8601 maintenance time, e.g. 2026-08-20T22:00:00+08:00 (leave blank to keep the current value)'
-        type: string
-        required: false
+        description: '維護時間(從現在開始算;選「清空」會移除倒數時間)'
+        type: choice
+        required: true
+        options:
+          - 不變更
+          - 30分鐘後
+          - 1小時後
+          - 2小時後
+          - 3小時後
+          - 6小時後
+          - 12小時後
+          - 24小時後
+          - 清空
+        default: 不變更
 
 permissions:
   contents: read
@@ -83,16 +94,16 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ "$MAINTENANCE_MODE" = "on" ] && [ "$CONFIRM_MAINTENANCE_ON" != "true" ]; then
-            echo "::error::maintenance_mode is 'on' but confirm_maintenance_on was not checked. Re-run and tick the confirmation box to take the site down on purpose."
+          if [ "$MAINTENANCE_MODE" = "開啟" ] && [ "$CONFIRM_MAINTENANCE_ON" != "true" ]; then
+            echo "::error::maintenance_mode 選了「開啟」,但沒有勾選確認選項(confirm_maintenance_on)。請重新執行並勾選確認,避免手殘誤觸封站。"
             exit 1
           fi
 
-          if [ "$MAINTENANCE_MODE" = "no-change" ] && \
-             [ "$ANNOUNCEMENT_ENABLED" = "no-change" ] && \
+          if [ "$MAINTENANCE_MODE" = "不變更" ] && \
+             [ "$ANNOUNCEMENT_ENABLED" = "不變更" ] && \
              [ -z "$ANNOUNCEMENT_MESSAGE" ] && \
-             [ -z "$ANNOUNCEMENT_TIME" ]; then
-            echo "::error::Nothing to change - every input is left as no-change/blank."
+             [ "$ANNOUNCEMENT_TIME" = "不變更" ]; then
+            echo "::error::沒有任何要變更的內容,結束。"
             exit 1
           fi
 
@@ -129,14 +140,27 @@ jobs:
           current_announcement=$(jq -c '.announcement // {"enabled": false, "message": "", "maintenanceTime": ""}' current.json)
 
           new_enabled=$(echo "$current_announcement" | jq -r '.enabled // false')
-          [ "$ANNOUNCEMENT_ENABLED" = "on" ] && new_enabled=true
-          [ "$ANNOUNCEMENT_ENABLED" = "off" ] && new_enabled=false
+          [ "$ANNOUNCEMENT_ENABLED" = "開啟" ] && new_enabled=true
+          [ "$ANNOUNCEMENT_ENABLED" = "關閉" ] && new_enabled=false
 
           new_message=$(echo "$current_announcement" | jq -r '.message // ""')
           [ -n "$ANNOUNCEMENT_MESSAGE" ] && new_message="$ANNOUNCEMENT_MESSAGE"
 
+          # announcement_time is a relative-offset dropdown (no native date
+          # picker in workflow_dispatch), so compute the absolute ISO 8601
+          # timestamp here rather than asking the operator to type one.
           new_time=$(echo "$current_announcement" | jq -r '.maintenanceTime // ""')
-          [ -n "$ANNOUNCEMENT_TIME" ] && new_time="$ANNOUNCEMENT_TIME"
+          case "$ANNOUNCEMENT_TIME" in
+            不變更) : ;;
+            清空) new_time="" ;;
+            30分鐘後) new_time=$(TZ='Asia/Taipei' date -d '+30 minutes' '+%Y-%m-%dT%H:%M:%S+08:00') ;;
+            1小時後) new_time=$(TZ='Asia/Taipei' date -d '+1 hour' '+%Y-%m-%dT%H:%M:%S+08:00') ;;
+            2小時後) new_time=$(TZ='Asia/Taipei' date -d '+2 hours' '+%Y-%m-%dT%H:%M:%S+08:00') ;;
+            3小時後) new_time=$(TZ='Asia/Taipei' date -d '+3 hours' '+%Y-%m-%dT%H:%M:%S+08:00') ;;
+            6小時後) new_time=$(TZ='Asia/Taipei' date -d '+6 hours' '+%Y-%m-%dT%H:%M:%S+08:00') ;;
+            12小時後) new_time=$(TZ='Asia/Taipei' date -d '+12 hours' '+%Y-%m-%dT%H:%M:%S+08:00') ;;
+            24小時後) new_time=$(TZ='Asia/Taipei' date -d '+24 hours' '+%Y-%m-%dT%H:%M:%S+08:00') ;;
+          esac
 
           new_announcement=$(jq -n \
             --argjson enabled "$new_enabled" \
@@ -146,14 +170,14 @@ jobs:
 
           items='[]'
 
-          if [ "$MAINTENANCE_MODE" != "no-change" ]; then
+          if [ "$MAINTENANCE_MODE" != "不變更" ]; then
             mode_bool=false
-            [ "$MAINTENANCE_MODE" = "on" ] && mode_bool=true
+            [ "$MAINTENANCE_MODE" = "開啟" ] && mode_bool=true
             items=$(echo "$items" | jq --argjson v "$mode_bool" '. + [{"operation":"upsert","key":"isInMaintenanceMode","value":$v}]')
           fi
 
           announcement_changed=false
-          if [ "$ANNOUNCEMENT_ENABLED" != "no-change" ] || [ -n "$ANNOUNCEMENT_MESSAGE" ] || [ -n "$ANNOUNCEMENT_TIME" ]; then
+          if [ "$ANNOUNCEMENT_ENABLED" != "不變更" ] || [ -n "$ANNOUNCEMENT_MESSAGE" ] || [ "$ANNOUNCEMENT_TIME" != "不變更" ]; then
             announcement_changed=true
           fi
           if [ "$announcement_changed" = "true" ]; then
@@ -192,13 +216,13 @@ jobs:
         if: always()
         run: |
           {
-            echo "### Maintenance / Announcement change"
+            echo "### 維護模式 / 公告變更"
             echo ""
-            echo "| Input | Value |"
+            echo "| 欄位 | 值 |"
             echo "|---|---|"
             echo "| maintenance_mode | \`${MAINTENANCE_MODE}\` |"
             echo "| announcement_enabled | \`${ANNOUNCEMENT_ENABLED}\` |"
             echo "| announcement_message | \`${ANNOUNCEMENT_MESSAGE}\` |"
             echo "| announcement_time | \`${ANNOUNCEMENT_TIME}\` |"
-            echo "| Triggered by | \`${GITHUB_ACTOR}\` |"
+            echo "| 觸發者 | \`${GITHUB_ACTOR}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
