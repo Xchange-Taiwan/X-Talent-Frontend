@@ -50,7 +50,7 @@ describe('Announcement API Route', () => {
 
     const response = await GET();
     expect(response.status).toBe(200);
-    expect(mockGetAnnouncement).toHaveBeenCalledWith(500);
+    expect(mockGetAnnouncement).toHaveBeenCalledWith(3000);
 
     const json = await response.json();
     expect(json).toEqual({
@@ -74,7 +74,7 @@ describe('Announcement API Route', () => {
 
     const response = await GET();
     expect(response.status).toBe(200);
-    expect(mockGetAnnouncement).toHaveBeenCalledWith(500);
+    expect(mockGetAnnouncement).toHaveBeenCalledWith(3000);
 
     const json = await response.json();
     expect(json.message).toBe('來自 Edge Config 的公告');
@@ -93,7 +93,7 @@ describe('Announcement API Route', () => {
 
     const response = await GET();
     expect(response.status).toBe(200);
-    expect(mockGetAnnouncement).toHaveBeenCalledWith(500);
+    expect(mockGetAnnouncement).toHaveBeenCalledWith(3000);
 
     const json = await response.json();
     expect(json).toEqual({

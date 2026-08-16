@@ -31,69 +31,71 @@ async function readWithTimeoutAndReporting<T>(
   timeoutMs = 500
 ): Promise<{ success: boolean; value: T | null }> {
   const startTime = Date.now();
+  let isSettled = false;
+
   return new Promise((resolve) => {
-    const timer = setTimeout(() => {
+    // Shared settlement logic to prevent race conditions and double reporting
+    const settle = (
+      success: boolean,
+      value: T | null,
+      errorToReport?: unknown,
+      timeoutMessage?: string
+    ) => {
+      if (isSettled) return;
+      isSettled = true;
+      clearTimeout(timer);
+
       const duration = Date.now() - startTime;
-      const message = `Global Config read timed out after ${timeoutMs}ms`;
-      console.warn(message);
 
-      // Report timeout to monitoring
-      captureApiFailure({
-        endpoint: `global-config:${key}`,
-        method: 'GET',
-        status: 0,
-        message,
-        duration,
-      });
+      if (timeoutMessage) {
+        console.warn(timeoutMessage);
+        captureApiFailure({
+          endpoint: `global-config:${key}`,
+          method: 'GET',
+          status: 0,
+          message: timeoutMessage,
+          duration,
+        });
+      } else if (errorToReport !== undefined) {
+        const message =
+          errorToReport instanceof Error
+            ? errorToReport.message
+            : 'Unknown error';
 
-      resolve({ success: false, value: null });
+        // Log safe message locally to prevent credentials/token leaks from raw error objects
+        console.error(`Global Config read failed for key ${key}: ${message}`);
+
+        captureApiFailure({
+          endpoint: `global-config:${key}`,
+          method: 'GET',
+          status: 0,
+          message,
+          duration,
+        });
+      }
+
+      resolve({ success, value });
+    };
+
+    const timer = setTimeout(() => {
+      settle(
+        false,
+        null,
+        undefined,
+        `Global Config read timed out after ${timeoutMs}ms`
+      );
     }, timeoutMs);
 
     try {
       get<T>(key)
         .then((val) => {
-          clearTimeout(timer);
-          resolve({ success: true, value: val ?? null });
+          settle(true, val ?? null);
         })
         .catch((err) => {
-          clearTimeout(timer);
-          const duration = Date.now() - startTime;
-          const message = err instanceof Error ? err.message : 'Unknown error';
-          console.error(
-            `Error reading from Global Config for key ${key}:`,
-            err
-          );
-
-          // Report SDK read error to monitoring
-          captureApiFailure({
-            endpoint: `global-config:${key}`,
-            method: 'GET',
-            status: 0,
-            message,
-            duration,
-          });
-
-          resolve({ success: false, value: null });
+          settle(false, null, err);
         });
     } catch (err) {
-      clearTimeout(timer);
-      const duration = Date.now() - startTime;
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      console.error(
-        `Sync error reading from Global Config for key ${key}:`,
-        err
-      );
-
-      // Report synchronous error to monitoring
-      captureApiFailure({
-        endpoint: `global-config:${key}`,
-        method: 'GET',
-        status: 0,
-        message,
-        duration,
-      });
-
-      resolve({ success: false, value: null });
+      settle(false, null, err);
     }
   });
 }

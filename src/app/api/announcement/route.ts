@@ -9,7 +9,7 @@ export async function GET() {
   let announcement: AnnouncementData | null = null;
 
   if (process.env.GLOBAL_CONFIG || process.env.EDGE_CONFIG) {
-    const result = await getAnnouncement(500);
+    const result = await getAnnouncement(3000);
     if (result.success) {
       announcement = result.value;
     }
