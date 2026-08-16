@@ -25,7 +25,7 @@ export interface SessionHint {
 
 export type SessionHintState =
   | { status: 'unknown' }
-  | { status: 'guest' }
+  | { status: 'guest'; hasCookie?: boolean }
   | {
       status: 'authenticated';
       isMentor: boolean;

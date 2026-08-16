@@ -172,4 +172,20 @@ describe('useProfileAuth', () => {
     const { result } = renderHook(() => useProfileAuth(PAGE_USER_ID));
     expect(result.current.isAuthorized).toBe(false);
   });
+
+  it('does not trigger redirect in useProfileAuth during loading when isResolvingUser is true', async () => {
+    mockUseSession.mockReturnValue({ data: null, status: 'loading' });
+    mockUseSessionHint.mockReturnValue({
+      status: 'authenticated',
+      isMentor: false,
+      userId: undefined,
+    });
+
+    const { result } = await act(async () =>
+      renderHook(() => useProfileAuth(PAGE_USER_ID))
+    );
+
+    expect(result.current.isAuthorized).toBe(false);
+    expect(mockRouter.push).not.toHaveBeenCalled();
+  });
 });

@@ -26,6 +26,9 @@ export function useIdentity(
 
   const parsedHint = useMemo((): SessionHint | null | undefined => {
     if (hint.status === 'guest') {
+      if (hint.hasCookie === false) {
+        return undefined;
+      }
       return null;
     }
     if (hint.status === 'authenticated') {
