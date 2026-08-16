@@ -24,10 +24,8 @@ export async function googleCallback(
   const data = (await res.json()) as OAuthCallbackResponse;
 
   const refreshToken = extractRefreshToken(res.headers);
-  if (refreshToken) {
-    const cookieStore = await cookies();
-    setOAuthRefreshBridge(cookieStore, refreshToken);
-  }
+  const cookieStore = await cookies();
+  setOAuthRefreshBridge(cookieStore, refreshToken);
 
   return data;
 }

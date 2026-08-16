@@ -7,13 +7,14 @@ export type CookieStore = Awaited<ReturnType<typeof cookies>>;
 
 /**
  * Sets the OAuth refresh token in the cookie bridge.
- * If token is empty, null, or undefined, it silently does nothing.
+ * If token is empty, null, or undefined, it deletes any existing bridge cookie.
  */
 export function setOAuthRefreshBridge(
   cookieStore: CookieStore,
   token: string | null | undefined
 ): void {
   if (!token) {
+    cookieStore.delete(OAUTH_REFRESH_BRIDGE_COOKIE);
     return;
   }
   cookieStore.set(OAUTH_REFRESH_BRIDGE_COOKIE, token, {

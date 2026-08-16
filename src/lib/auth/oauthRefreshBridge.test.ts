@@ -32,7 +32,7 @@ describe('oauthRefreshBridge', () => {
       );
     });
 
-    it('does nothing when token is empty, null, or undefined', () => {
+    it('deletes the cookie when token is empty, null, or undefined', () => {
       const mockCookieStore = {
         get: vi.fn(),
         set: vi.fn(),
@@ -40,8 +40,19 @@ describe('oauthRefreshBridge', () => {
       } as unknown as CookieStore;
 
       setOAuthRefreshBridge(mockCookieStore, null);
+      expect(mockCookieStore.delete).toHaveBeenLastCalledWith(
+        OAUTH_REFRESH_BRIDGE_COOKIE
+      );
+
       setOAuthRefreshBridge(mockCookieStore, undefined);
+      expect(mockCookieStore.delete).toHaveBeenLastCalledWith(
+        OAUTH_REFRESH_BRIDGE_COOKIE
+      );
+
       setOAuthRefreshBridge(mockCookieStore, '');
+      expect(mockCookieStore.delete).toHaveBeenLastCalledWith(
+        OAUTH_REFRESH_BRIDGE_COOKIE
+      );
 
       expect(mockCookieStore.set).not.toHaveBeenCalled();
     });
