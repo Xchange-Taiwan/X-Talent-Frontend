@@ -1,0 +1,134 @@
+import { get } from '@vercel/global-config';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { getAnnouncement, getMaintenanceMode } from '@/lib/globalConfig';
+import { captureApiFailure } from '@/lib/monitoring';
+
+vi.mock('@vercel/global-config', () => ({
+  get: vi.fn(),
+}));
+
+vi.mock('@/lib/monitoring', () => ({
+  captureApiFailure: vi.fn(),
+}));
+
+const mockGet = vi.mocked(get);
+const mockCaptureApiFailure = vi.mocked(captureApiFailure);
+
+describe('globalConfig module', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('getMaintenanceMode', () => {
+    it('returns success and true when the store contains true', async () => {
+      mockGet.mockResolvedValue(true);
+      const result = await getMaintenanceMode();
+      expect(result).toEqual({ success: true, value: true });
+      expect(mockGet).toHaveBeenCalledWith('isInMaintenanceMode');
+      expect(mockCaptureApiFailure).not.toHaveBeenCalled();
+    });
+
+    it('returns success and true when the store contains string "true"', async () => {
+      mockGet.mockResolvedValue('true');
+      const result = await getMaintenanceMode();
+      expect(result).toEqual({ success: true, value: true });
+      expect(mockCaptureApiFailure).not.toHaveBeenCalled();
+    });
+
+    it('returns success and false when the store contains false', async () => {
+      mockGet.mockResolvedValue(false);
+      const result = await getMaintenanceMode();
+      expect(result).toEqual({ success: true, value: false });
+      expect(mockCaptureApiFailure).not.toHaveBeenCalled();
+    });
+
+    it('returns success and false when the store contains string "false"', async () => {
+      mockGet.mockResolvedValue('false');
+      const result = await getMaintenanceMode();
+      expect(result).toEqual({ success: true, value: false });
+      expect(mockCaptureApiFailure).not.toHaveBeenCalled();
+    });
+
+    it('returns success: false and reports failure when the read fails', async () => {
+      mockGet.mockRejectedValue(new Error('Fetch failed'));
+      const result = await getMaintenanceMode();
+      expect(result).toEqual({ success: false, value: false });
+      expect(mockCaptureApiFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpoint: 'global-config:isInMaintenanceMode',
+          method: 'GET',
+          status: 0,
+          message: 'Fetch failed',
+        })
+      );
+    });
+
+    it('returns success: false and reports failure when the read throws a sync error', async () => {
+      mockGet.mockImplementation(() => {
+        throw new Error('Sync error');
+      });
+      const result = await getMaintenanceMode();
+      expect(result).toEqual({ success: false, value: false });
+      expect(mockCaptureApiFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpoint: 'global-config:isInMaintenanceMode',
+          method: 'GET',
+          status: 0,
+          message: 'Sync error',
+        })
+      );
+    });
+
+    it('returns success: false and reports failure when the read times out', async () => {
+      mockGet.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            // Keep unresolved to trigger timeout
+            setTimeout(() => resolve(true), 1000);
+          })
+      );
+      // Use short timeout
+      const result = await getMaintenanceMode(50);
+      expect(result).toEqual({ success: false, value: false });
+      expect(mockCaptureApiFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpoint: 'global-config:isInMaintenanceMode',
+          method: 'GET',
+          status: 0,
+          message: 'Global Config read timed out after 50ms',
+        })
+      );
+    });
+  });
+
+  describe('getAnnouncement', () => {
+    const mockAnnouncement = {
+      enabled: true,
+      message: 'Test message',
+      maintenanceTime: '2026-08-16T12:00:00Z',
+    };
+
+    it('returns success and announcement data when read successfully', async () => {
+      mockGet.mockResolvedValue(mockAnnouncement);
+      const result = await getAnnouncement();
+      expect(result).toEqual({ success: true, value: mockAnnouncement });
+      expect(mockGet).toHaveBeenCalledWith('announcement');
+      expect(mockCaptureApiFailure).not.toHaveBeenCalled();
+    });
+
+    it('returns success: false and reports failure when the read fails', async () => {
+      mockGet.mockRejectedValue(new Error('Network error'));
+      const result = await getAnnouncement();
+      expect(result).toEqual({ success: false, value: null });
+      expect(mockCaptureApiFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpoint: 'global-config:announcement',
+          method: 'GET',
+          status: 0,
+          message: 'Network error',
+        })
+      );
+    });
+  });
+});
