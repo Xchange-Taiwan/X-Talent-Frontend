@@ -12,18 +12,8 @@ import {
   readCookie,
   resolveIdentity,
   SESSION_HINT_COOKIE,
+  SessionHintState,
 } from '@/lib/auth/sessionHint';
-import { useAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
-
-export type SessionHintState =
-  | { status: 'unknown' }
-  | { status: 'guest' }
-  | {
-      status: 'authenticated';
-      isMentor: boolean;
-      avatar?: string;
-      userId?: string;
-    };
 
 function updateAvatarStyle(avatar: string | undefined): void {
   if (typeof document === 'undefined') return;
@@ -56,27 +46,26 @@ function clearAuthDOMState(): void {
 /**
  * Reads the middleware-written hint cookie so the header can render the
  * right shape before `useSession()` resolves.
+ *
+ * Deliberately never applies the client-only avatar override: this hook's
+ * DOM writes only matter during the pre-`authKnown` skeleton window, before
+ * a profile edit (the only source of an override) could ever have happened.
+ * Baking the override in here would make its avatar value differ across the
+ * several components that mount this hook, racing each other's DOM writes.
+ * `resolveIdentity` is still the single place an override is applied, from
+ * whichever call site actually cares about it (see `useIdentity`).
  */
 export function useSessionHint(): SessionHintState {
   const { data: session, status } = useSession();
-  const override = useAvatarOverride();
   const [state, setState] = useState<SessionHintState>({ status: 'unknown' });
 
   useEffect(() => {
-    const hint = decodeSessionHint(readCookie(SESSION_HINT_COOKIE));
-    const identity = resolveIdentity(override, session, status, hint);
+    const rawCookie = readCookie(SESSION_HINT_COOKIE);
+    const hasCookie = rawCookie !== undefined;
+    const decoded = hasCookie ? decodeSessionHint(rawCookie) : undefined;
+    const identity = resolveIdentity(null, session, status, decoded);
 
-    if (!identity.isLoggedIn) {
-      clearAuthDOMState();
-      document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'guest');
-
-      setState((prev) => {
-        if (prev.status === 'guest') {
-          return prev;
-        }
-        return { status: 'guest' };
-      });
-    } else {
+    if (identity.isLoggedIn) {
       document.documentElement.setAttribute(
         DOM_AUTH_STATE_ATTR,
         identity.isMentor ? 'mentor' : 'mentee'
@@ -99,8 +88,18 @@ export function useSessionHint(): SessionHintState {
           userId: identity.userId,
         };
       });
+    } else {
+      clearAuthDOMState();
+      document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'guest');
+
+      setState((prev) => {
+        if (prev.status === 'guest' && prev.hasCookie === hasCookie) {
+          return prev;
+        }
+        return { status: 'guest', hasCookie };
+      });
     }
-  }, [session, status, override]);
+  }, [session, status]);
 
   return state;
 }

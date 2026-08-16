@@ -411,6 +411,13 @@ describe('sessionHint utilities', () => {
       expect(identity.avatar).toBeUndefined();
       expect(identity.isLoggedIn).toBe(false);
     });
+
+    it('behaves correctly in an SSR environment', () => {
+      const identity = resolveIdentity(null, null, 'loading');
+      expect(identity.authKnown).toBe(false);
+      expect(identity.isLoggedIn).toBe(false);
+      expect(identity.userId).toBeUndefined();
+    });
   });
 
   describe('golden fixture for session hint decoding and inline script', () => {

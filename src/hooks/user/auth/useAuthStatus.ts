@@ -1,8 +1,8 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
+import { useMemo } from 'react';
 
-import { useSessionHint } from './useSessionHint';
+import { useIdentity } from './useIdentity';
 
 export interface AuthStatus {
   /** Whether we know anything at all (from hint or real session) yet. */
@@ -34,42 +34,17 @@ export interface AuthStatus {
  * always wins once it lands.
  */
 export function useAuthStatus(): AuthStatus {
-  const { data: session, status } = useSession();
-  const hint = useSessionHint();
+  const identity = useIdentity(null);
 
-  const realUserId = session?.user?.id;
-  const hasFullUser = Boolean(realUserId);
-  // `status` only reliably means "no session data at all" when there is no
-  // cached session yet — during a NextAuth `update()` call `status` flips
-  // back to "loading" while `data` still holds the previous session. Gate on
-  // `hasFullUser` first so an in-flight `update()` doesn't fall back to a
-  // (possibly stale) hint; only once neither is available do we consult it.
-  const sessionSettled = hasFullUser || status !== 'loading';
-
-  const authKnown = sessionSettled || hint.status !== 'unknown';
-  const isLoggedIn = sessionSettled
-    ? hasFullUser
-    : hint.status === 'authenticated';
-  const isMentor = hasFullUser
-    ? Boolean(session?.user?.isMentor)
-    : sessionSettled
-      ? false
-      : hint.status === 'authenticated' && hint.isMentor;
-  const userId = hasFullUser
-    ? realUserId
-    : sessionSettled
-      ? undefined
-      : hint.status === 'authenticated'
-        ? hint.userId
-        : undefined;
-  const isResolvingUser = isLoggedIn && !userId;
-
-  return {
-    authKnown,
-    isLoggedIn,
-    isMentor,
-    userId,
-    hasFullUser,
-    isResolvingUser,
-  };
+  return useMemo(
+    () => ({
+      authKnown: identity.authKnown,
+      isLoggedIn: identity.isLoggedIn,
+      isMentor: identity.isMentor,
+      userId: identity.userId,
+      hasFullUser: identity.hasFullUser,
+      isResolvingUser: identity.isResolvingUser,
+    }),
+    [identity]
+  );
 }
