@@ -5,10 +5,13 @@ import { useEffect, useState } from 'react';
 
 import {
   clearSessionHint,
+  decodeSessionHint,
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
   isValidAvatarProtocol,
+  readCookie,
   resolveIdentity,
+  SESSION_HINT_COOKIE,
   SessionHintState,
 } from '@/lib/auth/sessionHint';
 import { useAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
@@ -51,7 +54,9 @@ export function useSessionHint(): SessionHintState {
   const [state, setState] = useState<SessionHintState>({ status: 'unknown' });
 
   useEffect(() => {
-    const identity = resolveIdentity(override, session, status);
+    const rawCookie = readCookie(SESSION_HINT_COOKIE);
+    const decoded = decodeSessionHint(rawCookie);
+    const identity = resolveIdentity(override, session, status, decoded);
 
     if (identity.isLoggedIn) {
       document.documentElement.setAttribute(

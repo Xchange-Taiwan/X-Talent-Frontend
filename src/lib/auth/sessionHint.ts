@@ -185,15 +185,7 @@ export function resolveIdentity(
   } else if (hintInput === null) {
     isHintGuest = true;
   } else if (hintInput === undefined) {
-    const rawCookie = readCookie(SESSION_HINT_COOKIE);
-    if (rawCookie !== undefined) {
-      hint = decodeSessionHint(rawCookie);
-      if (!hint) {
-        isHintGuest = true;
-      }
-    } else {
-      isHintUnknown = true;
-    }
+    isHintUnknown = true;
   }
 
   const authKnown = sessionSettled || !isHintUnknown;

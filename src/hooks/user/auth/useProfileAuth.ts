@@ -6,11 +6,14 @@ import { useEffect } from 'react';
 
 import { resolveIdentity } from '@/lib/auth/sessionHint';
 
+import { useSessionHint } from './useSessionHint';
+
 export function useProfileAuth(pageUserId: string) {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const hint = useSessionHint();
 
-  const identity = resolveIdentity(null, session, status);
+  const identity = resolveIdentity(null, session, status, hint);
   const isAuthorized = identity.userId === pageUserId;
 
   useEffect(() => {

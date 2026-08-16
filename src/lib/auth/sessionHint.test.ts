@@ -440,29 +440,11 @@ describe('sessionHint utilities', () => {
       expect(identityAuthenticated.isMentor).toBe(false);
     });
 
-    it('falls back to reading the cookie when hintInput is omitted', () => {
-      document.cookie = 'session-hint=0%7Cuser-abc%7C%2Favatar.png';
-
-      const identity = resolveIdentity(null, null, 'loading');
-      expect(identity.userId).toBe('user-abc');
-      expect(identity.isMentor).toBe(false);
-      expect(identity.avatar).toBe('/avatar.png');
-      expect(identity.isLoggedIn).toBe(true);
-
-      // Clean up cookie to prevent test pollution
-      document.cookie = 'session-hint=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-    });
-
-    it('behaves correctly and does not throw in an SSR environment when reading fallback cookie', () => {
-      const originalDocument = globalThis.document;
-      vi.stubGlobal('document', undefined);
-
+    it('behaves correctly in an SSR environment', () => {
       const identity = resolveIdentity(null, null, 'loading');
       expect(identity.authKnown).toBe(false);
       expect(identity.isLoggedIn).toBe(false);
       expect(identity.userId).toBeUndefined();
-
-      vi.stubGlobal('document', originalDocument);
     });
   });
 

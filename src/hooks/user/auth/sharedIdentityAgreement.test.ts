@@ -159,18 +159,4 @@ describe('sharedIdentityAgreement integration test', () => {
       isResolvingUser: false,
     });
   });
-
-  it('does not trigger redirect in useProfileAuth during loading if identity is unknown', () => {
-    mockUseSession.mockReturnValue(
-      fromPartial({
-        data: null,
-        status: 'loading',
-      })
-    );
-
-    const { result } = renderHook(() => useProfileAuth('user-123'));
-
-    expect(result.current.isAuthorized).toBe(false);
-    expect(mockPush).not.toHaveBeenCalled();
-  });
 });

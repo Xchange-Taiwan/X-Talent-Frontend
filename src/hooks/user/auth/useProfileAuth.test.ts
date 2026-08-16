@@ -11,7 +11,11 @@ vi.mock('next-auth/react', async () => {
   return nextAuthMockFactory();
 });
 
-import { SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
+const mockUseSessionHint = vi.fn();
+vi.mock('./useSessionHint', () => ({
+  useSessionHint: () => mockUseSessionHint(),
+}));
+
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 
@@ -26,12 +30,12 @@ describe('useProfileAuth', () => {
       data: mockSession,
       status: 'authenticated',
     });
-    // Clean up cookies
-    document.cookie = `${SESSION_HINT_COOKIE}=; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+    mockUseSessionHint.mockReturnValue({ status: 'unknown' });
   });
 
   it('status: loading and hint: unknown (no cookie) → isAuthorized is false, router.push is NOT called', async () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
+    mockUseSessionHint.mockReturnValue({ status: 'unknown' });
 
     const { result } = await act(async () =>
       renderHook(() => useProfileAuth(PAGE_USER_ID))
@@ -43,8 +47,7 @@ describe('useProfileAuth', () => {
 
   it('status: loading and hint: guest → triggers immediate redirect to "/"', async () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    // Any garbage or malformed cookie decodes to guest (isLoggedIn = false)
-    document.cookie = `${SESSION_HINT_COOKIE}=garbage`;
+    mockUseSessionHint.mockReturnValue({ status: 'guest' });
 
     const { result } = await act(async () =>
       renderHook(() => useProfileAuth(PAGE_USER_ID))
@@ -56,7 +59,11 @@ describe('useProfileAuth', () => {
 
   it('status: loading and hint: authenticated with mismatched userId → triggers immediate redirect to "/"', async () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    document.cookie = `${SESSION_HINT_COOKIE}=1|different-user-id`;
+    mockUseSessionHint.mockReturnValue({
+      status: 'authenticated',
+      userId: 'different-user-id',
+      isMentor: false,
+    });
 
     const { result } = await act(async () =>
       renderHook(() => useProfileAuth(PAGE_USER_ID))
@@ -68,7 +75,11 @@ describe('useProfileAuth', () => {
 
   it('status: loading and hint: authenticated with matching userId → authorizes immediately without redirect', async () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    document.cookie = `${SESSION_HINT_COOKIE}=1|${PAGE_USER_ID}`;
+    mockUseSessionHint.mockReturnValue({
+      status: 'authenticated',
+      userId: PAGE_USER_ID,
+      isMentor: false,
+    });
 
     const { result } = await act(async () =>
       renderHook(() => useProfileAuth(PAGE_USER_ID))
@@ -125,14 +136,28 @@ describe('useProfileAuth', () => {
 
   it('lazy-inits isAuthorized to false when session is still loading on first render and hint is unknown', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
+    mockUseSessionHint.mockReturnValue({ status: 'unknown' });
     const { result } = renderHook(() => useProfileAuth(PAGE_USER_ID));
     expect(result.current.isAuthorized).toBe(false);
   });
 
-  it('lazy-inits isAuthorized to false when loading (to avoid hydration mismatch) even if hint matches pageUserId, but resolves to true in useEffect', async () => {
+  it('lazy-inits isAuthorized to false when loading (to avoid hydration mismatch) even if hint matches pageUserId, but resolves to true after hint updates', async () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    document.cookie = `${SESSION_HINT_COOKIE}=1|${PAGE_USER_ID}`;
-    const { result } = renderHook(() => useProfileAuth(PAGE_USER_ID));
+    // First render returns unknown (isAuthorized is false)
+    mockUseSessionHint.mockReturnValueOnce({ status: 'unknown' });
+    // Second render returns authenticated matching userId
+    mockUseSessionHint.mockReturnValue({
+      status: 'authenticated',
+      userId: PAGE_USER_ID,
+      isMentor: false,
+    });
+
+    const { result, rerender } = renderHook(() => useProfileAuth(PAGE_USER_ID));
+    // Verify it was false on initial render
+    expect(result.current.isAuthorized).toBe(false);
+
+    // Re-render to let the hook resolve
+    rerender();
     expect(result.current.isAuthorized).toBe(true);
   });
 
