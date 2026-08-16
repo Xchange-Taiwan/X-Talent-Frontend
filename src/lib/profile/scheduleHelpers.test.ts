@@ -108,17 +108,55 @@ describe('checkCrossMonthOverlap', () => {
 
     expect(hasOverlap).toBe(true);
   });
+
+  it('correctly simulates exdate on parent row when isRecurring is true', () => {
+    const row1: RawMentorTimeslot = {
+      id: 101,
+      type: 'ALLOW',
+      dtstart: 1000,
+      dtend: 1500, // duration 500
+      rrule: 'FREQ=WEEKLY;COUNT=2', // occurrences at 1000, 605800 (1 week later)
+      exdate: [],
+    };
+    const currentDraftsMap = new Map<string, RawMentorTimeslot[]>([
+      ['1970-01', [row1]],
+    ]);
+
+    // Move occurrence at 1000 to 605850 (overlaps with the second occurrence at 605800)
+    const hasOverlap = checkCrossMonthOverlap({
+      id: 101,
+      occurrenceUnix: 1000,
+      newDtstart: 605850,
+      durationSeconds: 500,
+      isRecurring: true,
+      currentDraftsMap,
+      targetDraft: [],
+    });
+    expect(hasOverlap).toBe(true);
+
+    // Move occurrence at 1000 to 1050. Since 1000 is exdated, 1050 does not overlap with the remaining occurrence at 605800
+    const hasOverlapAt1050 = checkCrossMonthOverlap({
+      id: 101,
+      occurrenceUnix: 1000,
+      newDtstart: 1050,
+      durationSeconds: 500,
+      isRecurring: true,
+      currentDraftsMap,
+      targetDraft: [],
+    });
+    expect(hasOverlapAt1050).toBe(false);
+  });
 });
 
 describe('deduplicateRawSlots', () => {
-  it('correctly removes duplicate RawMentorTimeslots with the same id > 0', () => {
+  it('correctly removes duplicate RawMentorTimeslots with the same id > 0 and merges exdate arrays via union', () => {
     const row1: RawMentorTimeslot = {
       id: 101,
       type: 'ALLOW',
       dtstart: 1000,
       dtend: 2000,
       rrule: 'FREQ=WEEKLY',
-      exdate: [],
+      exdate: [1200],
     };
     const row2: RawMentorTimeslot = {
       id: 101,
@@ -126,7 +164,7 @@ describe('deduplicateRawSlots', () => {
       dtstart: 1000,
       dtend: 2000,
       rrule: 'FREQ=WEEKLY',
-      exdate: [1500], // slightly different exdate, simulating same slot loaded from different month cache
+      exdate: [1200, 1500], // overlapping exdate
     };
     const row3: RawMentorTimeslot = {
       id: -1,
@@ -140,6 +178,7 @@ describe('deduplicateRawSlots', () => {
     const result = deduplicateRawSlots([row1, row2, row3]);
     expect(result).toHaveLength(2);
     expect(result[0].id).toBe(101);
+    expect(result[0].exdate).toEqual([1200, 1500]); // Union of exdates
     expect(result[1].id).toBe(-1);
   });
 });

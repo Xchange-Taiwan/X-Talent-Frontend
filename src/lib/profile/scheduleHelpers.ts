@@ -255,18 +255,31 @@ export function checkCrossMonthOverlap({
 }
 
 /**
- * Deduplicates raw timeslots by id (for id > 0) to fix duplicate representations at their source.
+ * Deduplicates raw timeslots by id (for id > 0) to fix duplicate representations at their source,
+ * merging the exdate arrays of any duplicates.
  */
 export function deduplicateRawSlots(
   slots: RawMentorTimeslot[]
 ): RawMentorTimeslot[] {
-  const seen = new Set<number>();
-  return slots.filter((slot) => {
-    if (slot.id <= 0) return true;
-    if (seen.has(slot.id)) return false;
-    seen.add(slot.id);
-    return true;
-  });
+  const map = new Map<number, RawMentorTimeslot>();
+  const out: RawMentorTimeslot[] = [];
+  for (const slot of slots) {
+    if (slot.id <= 0) {
+      out.push(slot);
+      continue;
+    }
+    const existing = map.get(slot.id);
+    if (existing) {
+      existing.exdate = Array.from(
+        new Set([...existing.exdate, ...slot.exdate])
+      );
+    } else {
+      const copy = { ...slot, exdate: [...slot.exdate] };
+      map.set(slot.id, copy);
+      out.push(copy);
+    }
+  }
+  return out;
 }
 
 /**
