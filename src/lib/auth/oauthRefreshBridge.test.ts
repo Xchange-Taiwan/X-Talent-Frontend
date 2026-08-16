@@ -92,5 +92,23 @@ describe('oauthRefreshBridge', () => {
       );
       expect(mockCookieStore.delete).not.toHaveBeenCalled();
     });
+
+    it('deletes the cookie even if the cookie value is an empty string', () => {
+      const mockCookieStore = {
+        get: vi.fn().mockReturnValue({ value: '' }),
+        set: vi.fn(),
+        delete: vi.fn(),
+      } as unknown as CookieStore;
+
+      const result = consumeOAuthRefreshBridge(mockCookieStore);
+
+      expect(result).toBe('');
+      expect(mockCookieStore.get).toHaveBeenCalledWith(
+        OAUTH_REFRESH_BRIDGE_COOKIE
+      );
+      expect(mockCookieStore.delete).toHaveBeenCalledWith(
+        OAUTH_REFRESH_BRIDGE_COOKIE
+      );
+    });
   });
 });

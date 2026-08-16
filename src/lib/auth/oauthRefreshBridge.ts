@@ -33,9 +33,9 @@ export function setOAuthRefreshBridge(
 export function consumeOAuthRefreshBridge(
   cookieStore: CookieStore
 ): string | undefined {
-  const value = cookieStore.get(OAUTH_REFRESH_BRIDGE_COOKIE)?.value;
-  if (value) {
+  const cookie = cookieStore.get(OAUTH_REFRESH_BRIDGE_COOKIE);
+  if (cookie) {
     cookieStore.delete(OAUTH_REFRESH_BRIDGE_COOKIE);
   }
-  return value;
+  return cookie?.value;
 }
