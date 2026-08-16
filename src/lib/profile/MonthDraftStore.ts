@@ -51,6 +51,7 @@ export class MonthDraftStore {
   private dirtyMonths = new Set<MonthKey>();
   private listeners = new Set<StoreListener>();
   private loadMonthScheduleCached?: LoadMonthScheduleCachedFn;
+  private currentSnapshot: MonthDraftStoreSnapshot | null = null;
 
   constructor(
     initialData?: Partial<MonthDraftStoreSnapshot>,
@@ -73,17 +74,26 @@ export class MonthDraftStore {
   }
 
   private emitChange() {
-    const snap = this.snapshot();
-    this.listeners.forEach((l) => l(snap));
-  }
-
-  public snapshot(): MonthDraftStoreSnapshot {
-    return {
+    this.currentSnapshot = {
       savedByMonth: this.savedByMonth,
       draftByMonth: this.draftByMonth,
       pendingDeleteByMonth: this.pendingDeleteByMonth,
       dirtyMonths: this.dirtyMonths,
     };
+    const snap = this.currentSnapshot;
+    this.listeners.forEach((l) => l(snap));
+  }
+
+  public snapshot(): MonthDraftStoreSnapshot {
+    if (!this.currentSnapshot) {
+      this.currentSnapshot = {
+        savedByMonth: this.savedByMonth,
+        draftByMonth: this.draftByMonth,
+        pendingDeleteByMonth: this.pendingDeleteByMonth,
+        dirtyMonths: this.dirtyMonths,
+      };
+    }
+    return this.currentSnapshot;
   }
 
   private findMonthForSlotId(id: number): MonthKey | null {

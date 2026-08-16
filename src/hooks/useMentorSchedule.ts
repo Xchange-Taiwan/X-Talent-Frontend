@@ -4,7 +4,14 @@ import dayjs from 'dayjs';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 dayjs.extend(isSameOrBefore);
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 
 import { MonthDraftStore } from '@/lib/profile/MonthDraftStore';
 import {
@@ -114,13 +121,11 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const [store] = useState(
     () => new MonthDraftStore(undefined, { loadMonthScheduleCached })
   );
-  const [storeState, setStoreState] = useState(() => store.snapshot());
 
-  useEffect(() => {
-    return store.subscribe((newSnap) => {
-      setStoreState(newSnap);
-    });
-  }, [store]);
+  const storeState = useSyncExternalStore(
+    useCallback((listener) => store.subscribe(listener), [store]),
+    useCallback(() => store.snapshot(), [store])
+  );
 
   const { savedByMonth, draftByMonth, pendingDeleteByMonth, dirtyMonths } =
     storeState;

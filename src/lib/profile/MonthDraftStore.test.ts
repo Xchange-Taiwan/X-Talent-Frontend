@@ -324,4 +324,40 @@ describe('MonthDraftStore Unit Tests', () => {
     // Draft should remain edited/dirty and not overwritten
     expect(store.snapshot().draftByMonth.get('2026-07')).toEqual(editedDraft);
   });
+
+  it('correctly implements atomic overlap check for weeklyWithinMonth', () => {
+    const mockRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW' as const,
+        dtstart: 1785070000, // July 26, 2026 12:46:40 PM UTC (Sunday)
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+    const draftMap = new Map<string, RawMentorTimeslot[]>([
+      ['2026-07', mockRaws],
+    ]);
+    const store = new MonthDraftStore({
+      draftByMonth: draftMap,
+    });
+
+    const startHM = dayjs(1785070000 * 1000).format('HH:mm');
+    const res = store.edit(
+      0,
+      0,
+      {
+        startTime: startHM,
+        durationMinutes: 30,
+        weeklyWithinMonth: true,
+        selectedDate: '2026-07-05', // July 5, Sunday
+      },
+      '123'
+    );
+
+    expect(res.success).toBe(false);
+    expect(res.reason).toBe('OVERLAP');
+    expect(res.skipped).toBe(4); // 4 Sundays in July 2026
+  });
 });
