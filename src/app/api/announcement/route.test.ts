@@ -26,7 +26,7 @@ describe('Announcement API Route', () => {
     process.env.MOCK_ANNOUNCEMENT_TIME = '2026-08-10T00:00:00Z';
 
     mockGetAnnouncement.mockResolvedValue({
-      success: false,
+      success: true,
       value: null,
     });
 

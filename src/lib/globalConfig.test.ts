@@ -216,16 +216,16 @@ describe('globalConfig module', () => {
       delete process.env.EDGE_CONFIG;
     });
 
-    it('getMaintenanceMode returns success: false and value: false without calling get() or capturing failure', async () => {
+    it('getMaintenanceMode returns success: true and value: false without calling get() or capturing failure', async () => {
       const result = await getMaintenanceMode();
-      expect(result).toEqual({ success: false, value: false });
+      expect(result).toEqual({ success: true, value: false });
       expect(mockGet).not.toHaveBeenCalled();
       expect(mockCaptureApiFailure).not.toHaveBeenCalled();
     });
 
-    it('getAnnouncement returns success: false and value: null without calling get() or capturing failure', async () => {
+    it('getAnnouncement returns success: true and value: null without calling get() or capturing failure', async () => {
       const result = await getAnnouncement();
-      expect(result).toEqual({ success: false, value: null });
+      expect(result).toEqual({ success: true, value: null });
       expect(mockGet).not.toHaveBeenCalled();
       expect(mockCaptureApiFailure).not.toHaveBeenCalled();
     });
