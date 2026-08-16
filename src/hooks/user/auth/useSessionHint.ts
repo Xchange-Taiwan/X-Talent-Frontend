@@ -14,7 +14,6 @@ import {
   SESSION_HINT_COOKIE,
   SessionHintState,
 } from '@/lib/auth/sessionHint';
-import { useAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 
 function updateAvatarStyle(avatar: string | undefined): void {
   if (typeof document === 'undefined') return;
@@ -47,17 +46,24 @@ function clearAuthDOMState(): void {
 /**
  * Reads the middleware-written hint cookie so the header can render the
  * right shape before `useSession()` resolves.
+ *
+ * Deliberately never applies the client-only avatar override: this hook's
+ * DOM writes only matter during the pre-`authKnown` skeleton window, before
+ * a profile edit (the only source of an override) could ever have happened.
+ * Baking the override in here would make its avatar value differ across the
+ * several components that mount this hook, racing each other's DOM writes.
+ * `resolveIdentity` is still the single place an override is applied, from
+ * whichever call site actually cares about it (see `useIdentity`).
  */
 export function useSessionHint(): SessionHintState {
   const { data: session, status } = useSession();
-  const override = useAvatarOverride();
   const [state, setState] = useState<SessionHintState>({ status: 'unknown' });
 
   useEffect(() => {
     const rawCookie = readCookie(SESSION_HINT_COOKIE);
     const hasCookie = rawCookie !== undefined;
     const decoded = hasCookie ? decodeSessionHint(rawCookie) : undefined;
-    const identity = resolveIdentity(override, session, status, decoded);
+    const identity = resolveIdentity(null, session, status, decoded);
 
     if (identity.isLoggedIn) {
       document.documentElement.setAttribute(
@@ -93,7 +99,7 @@ export function useSessionHint(): SessionHintState {
         return { status: 'guest', hasCookie };
       });
     }
-  }, [session, status, override]);
+  }, [session, status]);
 
   return state;
 }
