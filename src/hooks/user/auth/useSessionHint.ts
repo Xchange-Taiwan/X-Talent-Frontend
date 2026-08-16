@@ -55,8 +55,8 @@ export function useSessionHint(): SessionHintState {
 
   useEffect(() => {
     const rawCookie = readCookie(SESSION_HINT_COOKIE);
-    const decoded =
-      rawCookie === undefined ? undefined : decodeSessionHint(rawCookie);
+    const hasCookie = rawCookie !== undefined;
+    const decoded = hasCookie ? decodeSessionHint(rawCookie) : undefined;
     const identity = resolveIdentity(override, session, status, decoded);
 
     if (identity.isLoggedIn) {
@@ -87,10 +87,10 @@ export function useSessionHint(): SessionHintState {
       document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'guest');
 
       setState((prev) => {
-        if (prev.status === 'guest') {
+        if (prev.status === 'guest' && prev.hasCookie === hasCookie) {
           return prev;
         }
-        return { status: 'guest' };
+        return { status: 'guest', hasCookie };
       });
     }
   }, [session, status, override]);

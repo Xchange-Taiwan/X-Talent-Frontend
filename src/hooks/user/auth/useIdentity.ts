@@ -8,21 +8,22 @@ import {
   resolveIdentity,
   SessionHint,
 } from '@/lib/auth/sessionHint';
-import { useAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 
 import { useSessionHint } from './useSessionHint';
 
 /**
  * Custom Hook that combines `useSession()`, `useSessionHint()` and optional avatar override
  * to resolve the unified user authentication identity synchronously.
+ *
+ * Callers that don't care about the avatar (e.g. `useAuthStatus`, `useProfileAuth`)
+ * must pass `null` rather than omitting the argument, so this hook never has to
+ * subscribe to the avatar override store itself and trigger unrelated re-renders.
  */
 export function useIdentity(
-  overrideInput?: { userId: string; url: string } | null
+  override: { userId: string; url: string } | null
 ): ResolvedIdentity {
   const { data: session, status } = useSession();
   const hint = useSessionHint();
-  const localOverride = useAvatarOverride();
-  const override = overrideInput !== undefined ? overrideInput : localOverride;
 
   const parsedHint = useMemo((): SessionHint | null | undefined => {
     if (hint.status === 'guest') {

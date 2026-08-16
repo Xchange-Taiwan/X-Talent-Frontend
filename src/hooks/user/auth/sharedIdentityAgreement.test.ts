@@ -93,7 +93,7 @@ describe('sharedIdentityAgreement integration test', () => {
     );
     const { result: authStatusResult } = renderHook(() => useAuthStatus());
 
-    expect(hintResult.current).toEqual({ status: 'guest' });
+    expect(hintResult.current).toEqual({ status: 'guest', hasCookie: false });
     expect(avatarResult.current).toBeNull();
     expect(profileAuthResult.current.isAuthorized).toBe(false);
     expect(mockPush).toHaveBeenCalledWith('/');
@@ -160,7 +160,7 @@ describe('sharedIdentityAgreement integration test', () => {
     });
   });
 
-  it('all four call sites agree on identity during loading and no cookie hint is present', () => {
+  it('all four call sites agree on identity during loading and no cookie hint is present, and does not prematurely redirect', () => {
     mockUseSession.mockReturnValue(
       fromPartial({
         data: null,
@@ -176,12 +176,15 @@ describe('sharedIdentityAgreement integration test', () => {
     );
     const { result: authStatusResult } = renderHook(() => useAuthStatus());
 
-    expect(hintResult.current).toEqual({ status: 'guest' });
+    // No cookie means the visitor's identity is genuinely unknown while the
+    // session is still loading (they could still turn out to be logged in) -
+    // so this must NOT be treated as a confirmed guest yet.
+    expect(hintResult.current).toEqual({ status: 'guest', hasCookie: false });
     expect(avatarResult.current).toBeNull();
     expect(profileAuthResult.current.isAuthorized).toBe(false);
-    expect(mockPush).toHaveBeenCalledWith('/');
+    expect(mockPush).not.toHaveBeenCalled();
     expect(authStatusResult.current).toMatchObject({
-      authKnown: true,
+      authKnown: false,
       isLoggedIn: false,
       isMentor: false,
       userId: undefined,
