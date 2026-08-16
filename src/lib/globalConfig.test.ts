@@ -1,5 +1,5 @@
 import { get } from '@vercel/global-config';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getAnnouncement, getMaintenanceMode } from '@/lib/globalConfig';
 import { captureApiFailure } from '@/lib/monitoring';
@@ -17,8 +17,11 @@ const mockGet = vi.mocked(get);
 const mockCaptureApiFailure = vi.mocked(captureApiFailure);
 
 describe('globalConfig module', () => {
+  const originalEnv = process.env;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env = { ...originalEnv, GLOBAL_CONFIG: 'connection_string' };
   });
 
   describe('getMaintenanceMode', () => {
@@ -205,5 +208,30 @@ describe('globalConfig module', () => {
         })
       );
     });
+  });
+
+  describe('when Global/Edge Config is not configured', () => {
+    beforeEach(() => {
+      delete process.env.GLOBAL_CONFIG;
+      delete process.env.EDGE_CONFIG;
+    });
+
+    it('getMaintenanceMode returns success: false and value: false without calling get() or capturing failure', async () => {
+      const result = await getMaintenanceMode();
+      expect(result).toEqual({ success: false, value: false });
+      expect(mockGet).not.toHaveBeenCalled();
+      expect(mockCaptureApiFailure).not.toHaveBeenCalled();
+    });
+
+    it('getAnnouncement returns success: false and value: null without calling get() or capturing failure', async () => {
+      const result = await getAnnouncement();
+      expect(result).toEqual({ success: false, value: null });
+      expect(mockGet).not.toHaveBeenCalled();
+      expect(mockCaptureApiFailure).not.toHaveBeenCalled();
+    });
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
   });
 });

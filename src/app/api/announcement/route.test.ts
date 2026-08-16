@@ -25,9 +25,14 @@ describe('Announcement API Route', () => {
     process.env.MOCK_ANNOUNCEMENT_MESSAGE = '測試公告訊息';
     process.env.MOCK_ANNOUNCEMENT_TIME = '2026-08-10T00:00:00Z';
 
+    mockGetAnnouncement.mockResolvedValue({
+      success: false,
+      value: null,
+    });
+
     const response = await GET();
     expect(response.status).toBe(200);
-    expect(mockGetAnnouncement).not.toHaveBeenCalled();
+    expect(mockGetAnnouncement).toHaveBeenCalledWith(3000);
 
     const json = await response.json();
     expect(json).toEqual({

@@ -75,10 +75,11 @@ export async function middleware(req: NextRequest) {
 
   if (isEnvMaintenance) {
     isInMaintenanceMode = true;
-  } else if (process.env.GLOBAL_CONFIG || process.env.EDGE_CONFIG) {
+  } else {
     const result = await getMaintenanceMode(500);
     if (!result.success) {
-      // If we timed out or encountered an error, use a safe fallback:
+      // If we timed out, encountered an error, or Global Config is not configured,
+      // use a safe fallback:
       // If the user is already on the maintenance page, assume they should stay there.
       // If they are on a normal page, let them continue (don't force maintenance).
       isInMaintenanceMode = isMaintenancePage;
