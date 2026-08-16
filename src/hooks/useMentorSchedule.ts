@@ -10,6 +10,9 @@ import {
   activeOccurrences,
   BookingSlot,
   buildDateTime,
+  checkCrossMonthOverlap,
+  deduplicateBookingSlots,
+  deduplicateRawSlots,
   expandRrule,
   findRestorableExdatedRow,
   formatTimeslot,
@@ -137,51 +140,6 @@ function ensureTargetMonthLoaded({
     targetDraft = cached;
   }
   return targetDraft;
-}
-
-function checkCrossMonthOverlap({
-  id,
-  occurrenceUnix,
-  newDtstart,
-  durationSeconds,
-  isRecurring,
-  currentDraftsMap,
-  targetDraft,
-}: {
-  id: number;
-  occurrenceUnix: number;
-  newDtstart: number;
-  durationSeconds: number;
-  isRecurring: boolean;
-  currentDraftsMap: Map<MonthKey, RawMentorTimeslot[]>;
-  targetDraft: RawMentorTimeslot[];
-}): boolean {
-  const draftsToCheck = Array.from(currentDraftsMap.values()).flat();
-  const isTargetLoaded = currentDraftsMap.has(monthKeyFromUnix(newDtstart));
-  if (!isTargetLoaded) {
-    draftsToCheck.push(...targetDraft);
-  }
-
-  let intermediateDraftsToCheck = draftsToCheck;
-  if (isRecurring) {
-    // If recurring, we simulate exdating the parent row
-    intermediateDraftsToCheck = draftsToCheck.map((r: RawMentorTimeslot) =>
-      r.id === id
-        ? {
-            ...r,
-            exdate: appendExdate(r.exdate, occurrenceUnix),
-          }
-        : r
-    );
-  }
-
-  // Run unified overlap check
-  return hasAnyOccurrenceOverlap(
-    intermediateDraftsToCheck,
-    isRecurring ? null : id, // ignore current row ID only if it is non-recurring
-    [newDtstart],
-    durationSeconds
-  );
 }
 
 export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
@@ -369,20 +327,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const allDraftRaws = useMemo(() => {
     const out: RawMentorTimeslot[] = [];
     draftByMonth.forEach((raws) => out.push(...raws));
-    return out;
+    return deduplicateRawSlots(out);
   }, [draftByMonth]);
 
   const parsedDraft = useMemo(() => {
     const formatted = allDraftRaws.flatMap(formatTimeslot);
-    const seen = new Set<string>();
-    const out: ParsedMentorTimeslot[] = [];
-    for (const slot of formatted) {
-      if (!seen.has(slot.occurrenceId)) {
-        seen.add(slot.occurrenceId);
-        out.push(slot);
-      }
-    }
-    return out.sort((a, b) => a.start.getTime() - b.start.getTime());
+    return formatted.sort((a, b) => a.start.getTime() - b.start.getTime());
   }, [allDraftRaws]);
 
   const draftForSelectedDate = useMemo(
@@ -439,21 +389,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         }
       }
 
-      // Deduplicate slots with the same start time, merging isBooked status
-      const uniqueMap = new Map<number, BookingSlot>();
-      for (const item of result) {
-        const key = item.start.getTime();
-        const existing = uniqueMap.get(key);
-        if (existing) {
-          existing.isBooked = existing.isBooked || item.isBooked;
-        } else {
-          uniqueMap.set(key, { ...item });
-        }
-      }
-
-      const uniqueResult = Array.from(uniqueMap.values());
-      uniqueResult.sort((a, b) => a.start.getTime() - b.start.getTime());
-      return uniqueResult;
+      return deduplicateBookingSlots(result);
     },
     [allDraftRaws]
   );
