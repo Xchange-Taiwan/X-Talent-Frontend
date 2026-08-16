@@ -412,34 +412,6 @@ describe('sessionHint utilities', () => {
       expect(identity.isLoggedIn).toBe(false);
     });
 
-    it('resolves SessionHintState inputs', () => {
-      // 1. Unknown state
-      const identityUnknown = resolveIdentity(null, null, 'loading', {
-        status: 'unknown',
-      });
-      expect(identityUnknown.authKnown).toBe(false);
-      expect(identityUnknown.isLoggedIn).toBe(false);
-
-      // 2. Guest state
-      const identityGuest = resolveIdentity(null, null, 'loading', {
-        status: 'guest',
-      });
-      expect(identityGuest.authKnown).toBe(true);
-      expect(identityGuest.isLoggedIn).toBe(false);
-
-      // 3. Authenticated state
-      const identityAuthenticated = resolveIdentity(null, null, 'loading', {
-        status: 'authenticated',
-        isMentor: false,
-        avatar: 'avatar.png',
-        userId: 'user-789',
-      });
-      expect(identityAuthenticated.authKnown).toBe(true);
-      expect(identityAuthenticated.isLoggedIn).toBe(true);
-      expect(identityAuthenticated.userId).toBe('user-789');
-      expect(identityAuthenticated.isMentor).toBe(false);
-    });
-
     it('behaves correctly in an SSR environment', () => {
       const identity = resolveIdentity(null, null, 'loading');
       expect(identity.authKnown).toBe(false);

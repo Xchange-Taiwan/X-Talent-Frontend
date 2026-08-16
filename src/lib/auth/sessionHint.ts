@@ -157,7 +157,7 @@ export function resolveIdentity(
     | null
     | undefined,
   status: 'loading' | 'authenticated' | 'unauthenticated',
-  hintInput?: SessionHint | SessionHintState | null
+  hintInput?: SessionHint | null
 ): ResolvedIdentity {
   const hasFullUser = Boolean(session?.user?.id);
   const sessionSettled = hasFullUser || status !== 'loading';
@@ -167,21 +167,7 @@ export function resolveIdentity(
   let isHintGuest = false;
 
   if (hintInput && typeof hintInput === 'object') {
-    if ('status' in hintInput) {
-      if (hintInput.status === 'unknown') {
-        isHintUnknown = true;
-      } else if (hintInput.status === 'guest') {
-        isHintGuest = true;
-      } else if (hintInput.status === 'authenticated') {
-        hint = {
-          isMentor: hintInput.isMentor,
-          avatar: hintInput.avatar,
-          userId: hintInput.userId,
-        };
-      }
-    } else {
-      hint = hintInput as SessionHint;
-    }
+    hint = hintInput;
   } else if (hintInput === null) {
     isHintGuest = true;
   } else if (hintInput === undefined) {

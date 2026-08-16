@@ -1,8 +1,13 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
+import { useMemo } from 'react';
 
-import { ResolvedIdentity, resolveIdentity } from '@/lib/auth/sessionHint';
+import {
+  ResolvedIdentity,
+  resolveIdentity,
+  SessionHint,
+} from '@/lib/auth/sessionHint';
 import { useAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 
 import { useSessionHint } from './useSessionHint';
@@ -19,5 +24,22 @@ export function useIdentity(
   const localOverride = useAvatarOverride();
   const override = overrideInput !== undefined ? overrideInput : localOverride;
 
-  return resolveIdentity(override, session, status, hint);
+  const parsedHint = useMemo((): SessionHint | null | undefined => {
+    if (hint.status === 'guest') {
+      return null;
+    }
+    if (hint.status === 'authenticated') {
+      return {
+        isMentor: hint.isMentor,
+        avatar: hint.avatar,
+        userId: hint.userId,
+      };
+    }
+    return undefined; // status === 'unknown'
+  }, [hint]);
+
+  return useMemo(
+    () => resolveIdentity(override, session, status, parsedHint),
+    [override, session, status, parsedHint]
+  );
 }

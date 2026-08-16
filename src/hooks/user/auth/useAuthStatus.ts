@@ -1,5 +1,7 @@
 'use client';
 
+import { useMemo } from 'react';
+
 import { useIdentity } from './useIdentity';
 
 export interface AuthStatus {
@@ -34,12 +36,15 @@ export interface AuthStatus {
 export function useAuthStatus(): AuthStatus {
   const identity = useIdentity(null);
 
-  return {
-    authKnown: identity.authKnown,
-    isLoggedIn: identity.isLoggedIn,
-    isMentor: identity.isMentor,
-    userId: identity.userId,
-    hasFullUser: identity.hasFullUser,
-    isResolvingUser: identity.isResolvingUser,
-  };
+  return useMemo(
+    () => ({
+      authKnown: identity.authKnown,
+      isLoggedIn: identity.isLoggedIn,
+      isMentor: identity.isMentor,
+      userId: identity.userId,
+      hasFullUser: identity.hasFullUser,
+      isResolvingUser: identity.isResolvingUser,
+    }),
+    [identity]
+  );
 }

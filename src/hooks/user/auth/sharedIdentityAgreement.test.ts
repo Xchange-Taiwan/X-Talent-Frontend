@@ -159,4 +159,34 @@ describe('sharedIdentityAgreement integration test', () => {
       isResolvingUser: false,
     });
   });
+
+  it('all four call sites agree on identity during loading and no cookie hint is present', () => {
+    mockUseSession.mockReturnValue(
+      fromPartial({
+        data: null,
+        status: 'loading',
+      })
+    );
+    mockPush.mockClear();
+
+    const { result: hintResult } = renderHook(() => useSessionHint());
+    const { result: avatarResult } = renderHook(() => useCurrentAvatar());
+    const { result: profileAuthResult } = renderHook(() =>
+      useProfileAuth('user-123')
+    );
+    const { result: authStatusResult } = renderHook(() => useAuthStatus());
+
+    expect(hintResult.current).toEqual({ status: 'guest' });
+    expect(avatarResult.current).toBeNull();
+    expect(profileAuthResult.current.isAuthorized).toBe(false);
+    expect(mockPush).toHaveBeenCalledWith('/');
+    expect(authStatusResult.current).toMatchObject({
+      authKnown: true,
+      isLoggedIn: false,
+      isMentor: false,
+      userId: undefined,
+      hasFullUser: false,
+      isResolvingUser: false,
+    });
+  });
 });
