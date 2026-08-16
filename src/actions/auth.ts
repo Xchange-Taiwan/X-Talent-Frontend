@@ -5,19 +5,9 @@ import { after } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 
 import authOptions from '@/auth.config';
-import { hasUserProperties } from '@/lib/auth/userGuard';
+import { hasUserProperties, isValidUserId } from '@/lib/auth/userGuard';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { pollUntilUserDeleted } from '@/lib/profile/pollUntilSynced';
-
-// Server Actions are just POST endpoints under the hood — callable
-// directly with any payload, bypassing whatever UI normally supplies
-// `userId`. `unknown` (not `string`) because that payload isn't
-// guaranteed to even be a string at runtime; TypeScript's `userId: string`
-// on the exported functions below is a compile-time contract for typed
-// callers, not a runtime guarantee for a hand-crafted request.
-function isValidUserId(userId: unknown): userId is string {
-  return typeof userId === 'string' && /^\d+$/.test(userId);
-}
 
 /**
  * Account-deletion variant of `revalidateProfilePath`

@@ -2,9 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 
-function isValidUserId(userId: unknown): userId is string {
-  return typeof userId === 'string' && /^\d+$/.test(userId);
-}
+import { isValidUserId } from '@/lib/auth/userGuard';
 
 /**
  * Invalidate the ISR-cached SSR render of /profile/[userId] and the
