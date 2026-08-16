@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 
-import { ResolvedIdentity,resolveIdentity } from '@/lib/auth/sessionHint';
+import { ResolvedIdentity, resolveIdentity } from '@/lib/auth/sessionHint';
 import { useAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 
 import { useSessionHint } from './useSessionHint';
