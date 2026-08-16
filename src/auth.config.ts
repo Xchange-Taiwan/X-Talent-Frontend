@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
-import { OAUTH_REFRESH_BRIDGE_COOKIE } from '@/lib/auth/oauthRefreshBridge';
+import { consumeOAuthRefreshBridge } from '@/lib/auth/oauthRefreshBridge';
 import { singleFlight } from '@/lib/singleFlight';
 import { isSafeUrl } from '@/lib/url/isSafeUrl';
 import { SignInSchema } from '@/schemas/auth';
@@ -215,10 +215,7 @@ const authOptions = {
           const user = JSON.parse(credentials.user as string);
 
           const cookieStore = await cookies();
-          const refreshToken = cookieStore.get(
-            OAUTH_REFRESH_BRIDGE_COOKIE
-          )?.value;
-          cookieStore.delete(OAUTH_REFRESH_BRIDGE_COOKIE);
+          const refreshToken = consumeOAuthRefreshBridge(cookieStore);
 
           const personalLinks = resolveMentorExperienceLinks(user.experiences);
 
