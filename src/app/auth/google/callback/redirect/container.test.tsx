@@ -1,14 +1,13 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { revalidateProfilePathAfterDelete } from '@/app/profile/[pageUserId]/actions';
 import { trackEvent } from '@/lib/analytics';
+import { dispatchDeleteAccountRevalidate } from '@/lib/auth/dispatchDeleteAccountRevalidate';
 import {
   clearPendingDeleteAccountEmail,
   resolveOAuthOutcome,
   signInWithGoogleToken,
 } from '@/lib/auth/oauthOutcome';
-import { captureFlowFailure } from '@/lib/monitoring';
 import { deleteAccount } from '@/services/auth/deleteAccount';
 import type { components } from '@/types/api';
 
@@ -52,16 +51,12 @@ vi.mock('next-auth/react', () => ({
 }));
 
 // Mock actions and services
-vi.mock('@/app/profile/[pageUserId]/actions', () => ({
-  revalidateProfilePathAfterDelete: vi.fn(),
-}));
-
 vi.mock('@/lib/analytics', () => ({
   trackEvent: vi.fn(),
 }));
 
-vi.mock('@/lib/monitoring', () => ({
-  captureFlowFailure: vi.fn(),
+vi.mock('@/lib/auth/dispatchDeleteAccountRevalidate', () => ({
+  dispatchDeleteAccountRevalidate: vi.fn(),
 }));
 
 vi.mock('@/services/auth/deleteAccount', () => ({
@@ -80,16 +75,15 @@ const mockClearPendingDeleteEmail = vi.mocked(clearPendingDeleteAccountEmail);
 const mockResolveOAuthOutcome = vi.mocked(resolveOAuthOutcome);
 const mockSignInWithGoogleToken = vi.mocked(signInWithGoogleToken);
 const mockDeleteAccount = vi.mocked(deleteAccount);
-const mockRevalidateProfileAfterDelete = vi.mocked(
-  revalidateProfilePathAfterDelete
+const mockDispatchDeleteAccountRevalidate = vi.mocked(
+  dispatchDeleteAccountRevalidate
 );
 const mockTrackEvent = vi.mocked(trackEvent);
-const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 describe('GoogleOAuthRedirectPage Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRevalidateProfileAfterDelete.mockResolvedValue(undefined);
+    mockDispatchDeleteAccountRevalidate.mockResolvedValue(undefined);
 
     // Stub sessionStorage
     const store: Record<string, string> = {};
@@ -373,54 +367,23 @@ describe('GoogleOAuthRedirectPage Component', () => {
           name: 'delete_account_succeeded',
           feature: 'auth',
         });
-        expect(mockRevalidateProfileAfterDelete).toHaveBeenCalledWith(
-          '789',
-          'Delete Me'
-        );
+        // id/name are no longer passed from the client — the server action
+        // derives them from the caller's own session (see actions.ts).
+        expect(mockDispatchDeleteAccountRevalidate).toHaveBeenCalledWith();
 
         // Performs NextAuth signOut
         expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
       });
 
-      // revalidateProfilePathAfterDelete must resolve before signOut, but it
-      // returns immediately (the wait runs server-side, after the response).
-      const revalidateOrder =
-        mockRevalidateProfileAfterDelete.mock.invocationCallOrder[0];
+      // Must resolve before signOut, but dispatchDeleteAccountRevalidate
+      // never throws and the underlying action returns immediately (the
+      // wait runs server-side, after the response), so this never delays
+      // sign-out, and can't fall through to the outer catch-all below
+      // (which would show a misleading "Login failed" toast instead).
+      const dispatchOrder =
+        mockDispatchDeleteAccountRevalidate.mock.invocationCallOrder[0];
       const signOutOrder = mockSignOut.mock.invocationCallOrder[0];
-      expect(revalidateOrder).toBeLessThan(signOutOrder);
-    });
-
-    it('revalidateProfilePathAfterDelete rejects → signOut still runs and the failure is reported (not the generic "Login failed" path)', async () => {
-      mockResolveOAuthOutcome.mockResolvedValue({
-        type: 'RESUME_DELETE_ACCOUNT',
-        data: mockData,
-        email: 'delete@example.com',
-      });
-
-      mockDeleteAccount.mockResolvedValue({
-        status: 'success',
-      });
-      mockRevalidateProfileAfterDelete.mockRejectedValueOnce(
-        new Error('network down')
-      );
-
-      render(<GoogleOAuthRedirectPage />);
-
-      await waitFor(() => {
-        expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
-        expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-          expect.objectContaining({
-            flow: 'delete_account',
-            step: 'revalidate_dispatch',
-            message: 'network down',
-            level: 'warning',
-          })
-        );
-        // Must not fall through to the outer catch-all's generic toast.
-        expect(mockToast).not.toHaveBeenCalledWith(
-          expect.objectContaining({ title: 'Login failed' })
-        );
-      });
+      expect(dispatchOrder).toBeLessThan(signOutOrder);
     });
 
     it('handles blocked by reservations deletion flow correctly', async () => {

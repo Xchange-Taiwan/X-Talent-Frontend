@@ -2,16 +2,15 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getSession, signOut } from 'next-auth/react';
 import { useEffect, useRef, useState } from 'react';
 
-import { revalidateProfilePathAfterDelete } from '@/app/profile/[pageUserId]/actions';
 import { useToast } from '@/components/ui/use-toast';
 import { trackEvent } from '@/lib/analytics';
+import { dispatchDeleteAccountRevalidate } from '@/lib/auth/dispatchDeleteAccountRevalidate';
 import {
   clearPendingDeleteAccountEmail,
   getPendingDeleteAccountEmail,
   resolveOAuthOutcome,
   signInWithGoogleToken,
 } from '@/lib/auth/oauthOutcome';
-import { captureFlowFailure } from '@/lib/monitoring';
 import { deleteAccount } from '@/services/auth/deleteAccount';
 import type { components } from '@/types/api';
 
@@ -112,26 +111,10 @@ export function useGoogleOAuthCallback() {
 
       if (result.status === 'success') {
         trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
-        if (user?.user_id) {
-          // Best-effort: the account is already deleted server-side by this
-          // point, so a dispatch failure here (network blip, 5xx) must
-          // never block signOut and strand the user in a "deleted but still
-          // logged in" state — nor fall through to the outer catch below,
-          // which would show a misleading "Login failed" toast instead.
-          try {
-            await revalidateProfilePathAfterDelete(
-              String(user.user_id),
-              user.name ?? undefined
-            );
-          } catch (e) {
-            captureFlowFailure({
-              flow: 'delete_account',
-              step: 'revalidate_dispatch',
-              message: e instanceof Error ? e.message : String(e),
-              level: 'warning',
-            });
-          }
-        }
+        // dispatchDeleteAccountRevalidate never throws, so this can't fall
+        // through to the outer catch below (which would show a misleading
+        // "Login failed" toast instead of just continuing to sign out).
+        await dispatchDeleteAccountRevalidate();
         await signOut({ callbackUrl: '/' });
         return;
       }

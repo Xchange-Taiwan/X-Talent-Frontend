@@ -16,8 +16,8 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
-vi.mock('@/app/profile/[pageUserId]/actions', () => ({
-  revalidateProfilePathAfterDelete: vi.fn(),
+vi.mock('@/lib/auth/dispatchDeleteAccountRevalidate', () => ({
+  dispatchDeleteAccountRevalidate: vi.fn(),
 }));
 
 vi.mock('@/services/auth/deleteAccount', () => ({
@@ -37,8 +37,8 @@ vi.mock('@/lib/analytics', () => ({
   trackEvent: vi.fn(),
 }));
 
-import { revalidateProfilePathAfterDelete } from '@/app/profile/[pageUserId]/actions';
 import { trackEvent } from '@/lib/analytics';
+import { dispatchDeleteAccountRevalidate } from '@/lib/auth/dispatchDeleteAccountRevalidate';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { deleteAccount } from '@/services/auth/deleteAccount';
 import { getGoogleAuthorizeLoginUrl } from '@/services/auth/googleAuthorize';
@@ -56,8 +56,8 @@ const mockDeleteAccount = vi.mocked(deleteAccount);
 const mockGetGoogleAuthorizeLoginUrl = vi.mocked(getGoogleAuthorizeLoginUrl);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 const mockTrackEvent = vi.mocked(trackEvent);
-const mockRevalidateProfilePathAfterDelete = vi.mocked(
-  revalidateProfilePathAfterDelete
+const mockDispatchDeleteAccountRevalidate = vi.mocked(
+  dispatchDeleteAccountRevalidate
 );
 
 describe('useDeleteAccountForm', () => {
@@ -65,7 +65,7 @@ describe('useDeleteAccountForm', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRevalidateProfilePathAfterDelete.mockResolvedValue(undefined);
+    mockDispatchDeleteAccountRevalidate.mockResolvedValue(undefined);
     process.env = { ...originalEnv, NEXT_PUBLIC_CAN_DELETE_ACCOUNT: 'true' };
     mockUseSession.mockReturnValue({
       data: mockSession,
@@ -148,47 +148,19 @@ describe('useDeleteAccountForm', () => {
       name: 'delete_account_succeeded',
       feature: 'auth',
     });
-    expect(mockRevalidateProfilePathAfterDelete).toHaveBeenCalledWith(
-      'test-user-id',
-      'Test User'
-    );
+    // id/name are no longer passed from the client — the server action
+    // derives them from the caller's own session (see actions.ts).
+    expect(mockDispatchDeleteAccountRevalidate).toHaveBeenCalledWith();
     expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
 
-    // revalidateProfilePathAfterDelete must resolve before signOut, but it
-    // returns immediately (the poll-until-synced wait runs server-side,
-    // after the response — see actions.ts) so it never delays sign-out.
-    const revalidateOrder =
-      mockRevalidateProfilePathAfterDelete.mock.invocationCallOrder[0];
+    // Must resolve before signOut, but dispatchDeleteAccountRevalidate
+    // never throws and the underlying action returns immediately (the
+    // poll-until-synced wait runs server-side, after the response — see
+    // actions.ts), so this never delays sign-out.
+    const dispatchOrder =
+      mockDispatchDeleteAccountRevalidate.mock.invocationCallOrder[0];
     const signOutOrder = mockSignOut.mock.invocationCallOrder[0];
-    expect(revalidateOrder).toBeLessThan(signOutOrder);
-  });
-
-  it('onSubmitXC success flow, revalidateProfilePathAfterDelete rejects → signOut still runs and the failure is reported', async () => {
-    mockDeleteAccount.mockResolvedValueOnce({
-      status: 'success',
-    });
-    mockRevalidateProfilePathAfterDelete.mockRejectedValueOnce(
-      new Error('network down')
-    );
-
-    const { result } = renderHook(() => useDeleteAccountForm());
-
-    await act(async () => {
-      await result.current.onSubmitXC({
-        email: 'test@example.com',
-        password: 'Password1!',
-      });
-    });
-
-    expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: 'delete_account',
-        step: 'revalidate_dispatch',
-        message: 'network down',
-        level: 'warning',
-      })
-    );
+    expect(dispatchOrder).toBeLessThan(signOutOrder);
   });
 
   it('onSubmitXC blocked_reservations flow', async () => {

@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('next-auth/next', () => ({
+  getServerSession: vi.fn(),
+}));
+
+vi.mock('@/auth.config', () => ({
+  default: {},
+}));
+
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
 }));
@@ -18,6 +26,7 @@ vi.mock('@/lib/profile/pollUntilSynced', () => ({
 
 import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
+import { getServerSession } from 'next-auth/next';
 
 import { captureFlowFailure } from '@/lib/monitoring';
 import { pollUntilUserDeleted } from '@/lib/profile/pollUntilSynced';
@@ -27,6 +36,7 @@ import {
   revalidateProfilePathAfterDelete,
 } from './actions';
 
+const mockGetServerSession = vi.mocked(getServerSession);
 const mockRevalidatePath = vi.mocked(revalidatePath);
 const mockAfter = vi.mocked(after);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
@@ -74,19 +84,33 @@ describe('revalidateProfilePathAfterDelete', () => {
     mockPollUntilUserDeleted.mockResolvedValue(true);
   });
 
-  it('no-ops for an empty userId', async () => {
-    await revalidateProfilePathAfterDelete('');
+  it('no-ops when there is no session (anonymous/unauthenticated caller)', async () => {
+    mockGetServerSession.mockResolvedValueOnce(null);
+
+    await revalidateProfilePathAfterDelete();
 
     expect(mockAfter).not.toHaveBeenCalled();
   });
 
-  it('no-ops for a non-numeric userId (e.g. path traversal) without scheduling any work', async () => {
-    await revalidateProfilePathAfterDelete('../about');
+  // Not a realistic NextAuth shape (id is always a numeric-string here),
+  // but this is the same "don't trust the payload" reasoning as
+  // revalidateProfilePath's isValidUserId cases — belt-and-suspenders
+  // against a malformed/tampered session object reaching this far.
+  it('no-ops when the session has a non-numeric user id', async () => {
+    mockGetServerSession.mockResolvedValueOnce({
+      user: { id: '../about', name: 'Someone' },
+    } as never);
+
+    await revalidateProfilePathAfterDelete();
 
     expect(mockAfter).not.toHaveBeenCalled();
   });
 
-  it('returns immediately, deferring the poll + revalidate to run after the response via after()', async () => {
+  it("derives the id/name from the caller's own session and returns immediately, deferring the poll + revalidate to run after the response via after()", async () => {
+    mockGetServerSession.mockResolvedValueOnce({
+      user: { id: '42', name: 'Jane Doe' },
+    } as never);
+
     let resolvePoll: (value: boolean) => void = () => {};
     mockPollUntilUserDeleted.mockReturnValueOnce(
       new Promise<boolean>((resolve) => {
@@ -94,7 +118,7 @@ describe('revalidateProfilePathAfterDelete', () => {
       })
     );
 
-    await revalidateProfilePathAfterDelete('42', 'Jane Doe');
+    await revalidateProfilePathAfterDelete();
 
     // Scheduled via after(), but nothing has run yet — the caller (e.g.
     // useDeleteAccountForm, right before signOut) is never blocked on this.
@@ -114,8 +138,12 @@ describe('revalidateProfilePathAfterDelete', () => {
     expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');
   });
 
-  it('works without a name (falls back to an unscoped poll)', async () => {
-    await revalidateProfilePathAfterDelete('42');
+  it('works without a session name (falls back to an unscoped poll)', async () => {
+    mockGetServerSession.mockResolvedValueOnce({
+      user: { id: '42' },
+    } as never);
+
+    await revalidateProfilePathAfterDelete();
     const deferredWork = mockAfter.mock.calls[0][0] as () => Promise<void>;
     await deferredWork();
 
@@ -123,9 +151,12 @@ describe('revalidateProfilePathAfterDelete', () => {
   });
 
   it('revalidates even if the poll exhausts its retry budget without confirming', async () => {
+    mockGetServerSession.mockResolvedValueOnce({
+      user: { id: '42', name: 'Jane Doe' },
+    } as never);
     mockPollUntilUserDeleted.mockResolvedValueOnce(false);
 
-    await revalidateProfilePathAfterDelete('42');
+    await revalidateProfilePathAfterDelete();
     const deferredWork = mockAfter.mock.calls[0][0] as () => Promise<void>;
     await deferredWork();
 
@@ -134,9 +165,12 @@ describe('revalidateProfilePathAfterDelete', () => {
   });
 
   it('deferred work failure (pollUntilUserDeleted throws) is caught and reported, not left as an unhandled rejection', async () => {
+    mockGetServerSession.mockResolvedValueOnce({
+      user: { id: '42', name: 'Jane Doe' },
+    } as never);
     mockPollUntilUserDeleted.mockRejectedValueOnce(new Error('poll blew up'));
 
-    await revalidateProfilePathAfterDelete('42');
+    await revalidateProfilePathAfterDelete();
     const deferredWork = mockAfter.mock.calls[0][0] as () => Promise<void>;
 
     await expect(deferredWork()).resolves.not.toThrow();
