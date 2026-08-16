@@ -13,6 +13,7 @@ vi.mock('@vercel/global-config', () => ({
 
 vi.mock('@/lib/monitoring', () => ({
   captureApiFailure: vi.fn(),
+  sanitize: vi.fn((text) => text),
 }));
 
 import { SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';

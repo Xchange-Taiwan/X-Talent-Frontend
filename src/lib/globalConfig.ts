@@ -1,6 +1,6 @@
 import { get } from '@vercel/global-config';
 
-import { captureApiFailure } from '@/lib/monitoring';
+import { captureApiFailure, sanitize } from '@/lib/monitoring';
 import type { AnnouncementData } from '@/services/announcement';
 
 /**
@@ -35,7 +35,7 @@ async function readWithTimeoutAndReporting<T>(
 
   return new Promise((resolve) => {
     // Shared settlement logic to prevent race conditions and double reporting
-    const settle = async (
+    const settle = (
       success: boolean,
       value: T | null,
       errorToReport?: unknown,
@@ -45,54 +45,51 @@ async function readWithTimeoutAndReporting<T>(
       isSettled = true;
       clearTimeout(timer);
 
+      // Resolve immediately to avoid blocking the caller's response
+      resolve({ success, value });
+
+      // Logging and reporting runs asynchronously in the background
       const duration = Date.now() - startTime;
+      let logMessage = '';
 
-      try {
-        if (timeoutMessage) {
-          console.warn(timeoutMessage);
-          await captureApiFailure({
-            endpoint: `global-config:${key}`,
-            method: 'GET',
-            status: 0,
-            message: timeoutMessage,
-            duration,
-          }).catch((logErr) => {
-            console.error(
-              `Failed to log timeout monitoring event for key ${key}:`,
-              logErr
-            );
-          });
-        } else if (!success) {
-          const message =
-            errorToReport instanceof Error
-              ? errorToReport.message
-              : typeof errorToReport === 'string' && errorToReport
-                ? errorToReport
-                : 'Unknown error';
+      if (timeoutMessage) {
+        console.warn(timeoutMessage);
+        logMessage = timeoutMessage;
+      } else if (!success) {
+        const rawMessage =
+          errorToReport instanceof Error
+            ? errorToReport.message
+            : typeof errorToReport === 'string' && errorToReport
+              ? errorToReport
+              : 'Unknown error';
 
-          // Log safe message locally to prevent credentials/token leaks from raw error objects
-          console.error(`Global Config read failed for key ${key}: ${message}`);
-
-          await captureApiFailure({
-            endpoint: `global-config:${key}`,
-            method: 'GET',
-            status: 0,
-            message,
-            duration,
-          }).catch((logErr) => {
-            console.error(
-              `Failed to log failure monitoring event for key ${key}:`,
-              logErr
-            );
-          });
-        }
-      } catch (logErr) {
+        // Sanitize to prevent token leaks
+        logMessage = sanitize(rawMessage) ?? 'Unknown error';
         console.error(
-          `Failed to report Global Config status for key ${key}:`,
-          logErr
+          `Global Config read failed for key ${key}: ${logMessage}`
         );
-      } finally {
-        resolve({ success, value });
+      }
+
+      if (logMessage) {
+        try {
+          captureApiFailure({
+            endpoint: `global-config:${key}`,
+            method: 'GET',
+            status: 0,
+            message: logMessage,
+            duration,
+          }).catch((logErr) => {
+            console.error(
+              `Failed to log monitoring event for key ${key}:`,
+              logErr
+            );
+          });
+        } catch (logErr) {
+          console.error(
+            `Synchronous error reporting Global Config status for key ${key}:`,
+            logErr
+          );
+        }
       }
     };
 

@@ -10,6 +10,7 @@ vi.mock('@vercel/global-config', () => ({
 
 vi.mock('@/lib/monitoring', () => ({
   captureApiFailure: vi.fn(),
+  sanitize: vi.fn((text) => text),
 }));
 
 const mockGet = vi.mocked(get);
