@@ -11,19 +11,19 @@ vi.mock('@vercel/global-config', () => ({
   get: vi.fn(),
 }));
 
-vi.mock('@sentry/nextjs', () => ({
-  captureException: vi.fn(),
+vi.mock('@/lib/monitoring', () => ({
+  captureApiFailure: vi.fn(),
+  sanitize: vi.fn((text) => text),
 }));
 
-import * as Sentry from '@sentry/nextjs';
-
 import { SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
+import { captureApiFailure } from '@/lib/monitoring';
 
 import { middleware } from './middleware';
 
 const mockGetToken = vi.mocked(getToken);
 const mockGet = vi.mocked(get);
-const mockCaptureException = vi.mocked(Sentry.captureException);
+const mockCaptureApiFailure = vi.mocked(captureApiFailure);
 
 function makeRequest(pathname: string, existingHint?: string): NextRequest {
   return new NextRequest(`https://example.com${pathname}`, {
@@ -319,7 +319,7 @@ describe('middleware maintenance mode', () => {
     expect(response.status).toBe(200);
   });
 
-  it('safely falls back and allows traffic when Edge Config read fails without calling Sentry', async () => {
+  it('safely falls back, allows traffic and reports failure when Edge Config read fails', async () => {
     process.env.GLOBAL_CONFIG = 'connection_string';
     mockConfigFailure();
     mockGetToken.mockResolvedValue(null);
@@ -327,10 +327,17 @@ describe('middleware maintenance mode', () => {
     const response = await middleware(makeRequest('/'));
 
     expect(response.status).toBe(200);
-    expect(mockCaptureException).not.toHaveBeenCalled();
+    expect(mockCaptureApiFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpoint: 'global-config:isInMaintenanceMode',
+        method: 'GET',
+        status: 0,
+        message: 'Network Error',
+      })
+    );
   });
 
-  it('safely falls back and allows traffic when Edge Config read times out', async () => {
+  it('safely falls back, allows traffic and reports timeout when Edge Config read times out', async () => {
     process.env.GLOBAL_CONFIG = 'connection_string';
     mockConfigTimeout();
     mockGetToken.mockResolvedValue(null);
@@ -338,9 +345,17 @@ describe('middleware maintenance mode', () => {
     const response = await middleware(makeRequest('/'));
 
     expect(response.status).toBe(200); // Should fall back to false (allows traffic)
+    expect(mockCaptureApiFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpoint: 'global-config:isInMaintenanceMode',
+        method: 'GET',
+        status: 0,
+        message: expect.stringContaining('Global Config read timed out'),
+      })
+    );
   });
 
-  it('safely falls back and allows traffic when Edge Config read throws a synchronous error without calling Sentry', async () => {
+  it('safely falls back, allows traffic and reports sync error when Edge Config read throws a synchronous error', async () => {
     process.env.GLOBAL_CONFIG = 'connection_string';
     mockConfigSyncError();
     mockGetToken.mockResolvedValue(null);
@@ -348,7 +363,14 @@ describe('middleware maintenance mode', () => {
     const response = await middleware(makeRequest('/'));
 
     expect(response.status).toBe(200);
-    expect(mockCaptureException).not.toHaveBeenCalled();
+    expect(mockCaptureApiFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpoint: 'global-config:isInMaintenanceMode',
+        method: 'GET',
+        status: 0,
+        message: 'Sync Connection Error',
+      })
+    );
   });
 
   it('allows access to a normal page (e.g. /) without redirecting to /maintenance when Global Config read fails', async () => {
