@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   type NotificationItem,
+  notificationStoreManager,
   resetNotificationStore,
   useNotificationCenter,
 } from '@/hooks/useNotificationCenter';
@@ -259,5 +260,65 @@ describe('useNotificationCenter', () => {
         '2'
       );
     });
+  });
+
+  it('unsubscribes from the store manager on unmount to prevent memory leaks', () => {
+    const unsubscribeSpy = vi.fn();
+    const originalSubscribe = notificationStoreManager.subscribe.bind(
+      notificationStoreManager
+    );
+    vi.spyOn(notificationStoreManager, 'subscribe').mockImplementation(
+      (key, listener) => {
+        const unsub = originalSubscribe(key, listener);
+        return () => {
+          unsubscribeSpy();
+          unsub();
+        };
+      }
+    );
+
+    const { unmount } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-cleanup-test',
+        initialNotifications: mockNotifications,
+      })
+    );
+
+    unmount();
+    expect(unsubscribeSpy).toHaveBeenCalled();
+  });
+
+  it('isolates state and unread count between different users', () => {
+    const { result: userAHook } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-A',
+        initialNotifications: mockNotifications,
+      })
+    );
+
+    const { result: userBHook } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-B',
+        initialNotifications: [
+          {
+            id: 'n1-b',
+            type: 'reservation_new',
+            createdAt: new Date().toISOString(),
+            unread: true,
+          },
+        ],
+      })
+    );
+
+    expect(userAHook.current.badgeCount).toBe(2);
+    expect(userBHook.current.badgeCount).toBe(1);
+
+    // Open User A's bell: should update A's seen count, but NOT B's!
+    act(() => {
+      userAHook.current.openCenter();
+    });
+
+    expect(userAHook.current.showBadge).toBe(false);
+    expect(userBHook.current.showBadge).toBe(true);
   });
 });
