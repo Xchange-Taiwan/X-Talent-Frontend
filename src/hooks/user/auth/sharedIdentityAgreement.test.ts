@@ -9,10 +9,12 @@ import { useSessionHint } from '@/hooks/user/auth/useSessionHint';
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { readCookie } from '@/lib/auth/sessionHint';
 
+const mockPush = vi.fn();
+
 vi.mock('next/navigation', async () => {
   return {
     useRouter: () => ({
-      push: vi.fn(),
+      push: mockPush,
     }),
   };
 });
@@ -106,5 +108,21 @@ describe('sharedIdentityAgreement integration test', () => {
       hasFullUser: false,
       isResolvingUser: false,
     });
+  });
+
+  it('does not trigger redirect in useProfileAuth during loading if identity is unknown', () => {
+    mockUseSession.mockReturnValue(
+      fromPartial({
+        data: null,
+        status: 'loading',
+      })
+    );
+    mockReadCookie.mockReturnValue(undefined);
+    mockPush.mockClear();
+
+    const { result } = renderHook(() => useProfileAuth('user-123'));
+
+    expect(result.current.isAuthorized).toBe(false);
+    expect(mockPush).not.toHaveBeenCalled();
   });
 });

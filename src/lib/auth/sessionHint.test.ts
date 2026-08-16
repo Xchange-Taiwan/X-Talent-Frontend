@@ -411,6 +411,57 @@ describe('sessionHint utilities', () => {
       expect(identity.avatar).toBeUndefined();
       expect(identity.isLoggedIn).toBe(false);
     });
+
+    it('resolves raw cookie string passed as hintInput', () => {
+      const identity = resolveIdentity(
+        null,
+        null,
+        'loading',
+        '1|user-456|https://example.com/avatar.png'
+      );
+      expect(identity.userId).toBe('user-456');
+      expect(identity.isMentor).toBe(true);
+      expect(identity.avatar).toBe('https://example.com/avatar.png');
+      expect(identity.isLoggedIn).toBe(true);
+    });
+
+    it('resolves SessionHintState inputs', () => {
+      // 1. Unknown state
+      const identityUnknown = resolveIdentity(null, null, 'loading', {
+        status: 'unknown',
+      });
+      expect(identityUnknown.authKnown).toBe(false);
+      expect(identityUnknown.isLoggedIn).toBe(false);
+
+      // 2. Guest state
+      const identityGuest = resolveIdentity(null, null, 'loading', {
+        status: 'guest',
+      });
+      expect(identityGuest.authKnown).toBe(true);
+      expect(identityGuest.isLoggedIn).toBe(false);
+
+      // 3. Authenticated state
+      const identityAuthenticated = resolveIdentity(null, null, 'loading', {
+        status: 'authenticated',
+        isMentor: false,
+        avatar: 'avatar.png',
+        userId: 'user-789',
+      });
+      expect(identityAuthenticated.authKnown).toBe(true);
+      expect(identityAuthenticated.isLoggedIn).toBe(true);
+      expect(identityAuthenticated.userId).toBe('user-789');
+      expect(identityAuthenticated.isMentor).toBe(false);
+    });
+
+    it('falls back to reading the cookie when hintInput is omitted', () => {
+      document.cookie = 'session-hint=0%7Cuser-abc%7C%2Favatar.png';
+
+      const identity = resolveIdentity(null, null, 'loading');
+      expect(identity.userId).toBe('user-abc');
+      expect(identity.isMentor).toBe(false);
+      expect(identity.avatar).toBe('/avatar.png');
+      expect(identity.isLoggedIn).toBe(true);
+    });
   });
 
   describe('golden fixture for session hint decoding and inline script', () => {

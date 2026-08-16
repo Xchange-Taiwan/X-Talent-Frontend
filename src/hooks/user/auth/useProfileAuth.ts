@@ -33,7 +33,7 @@ export function useProfileAuth(pageUserId: string) {
     }
 
     // 2. Redirect if identity is fully known (either session settled or hint is known and did not match)
-    if (identity.authKnown) {
+    if (identity.authKnown && !identity.isResolvingUser) {
       setIsAuthorized(false);
       router.push('/');
     }
