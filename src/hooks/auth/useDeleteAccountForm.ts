@@ -5,10 +5,10 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
-import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useToast } from '@/components/ui/use-toast';
 import useAsyncAction from '@/hooks/useAsyncAction';
 import { trackEvent } from '@/lib/analytics';
+import { dispatchDeleteAccountRevalidate } from '@/lib/auth/dispatchDeleteAccountRevalidate';
 import { DeleteAccountXCSchema } from '@/schemas/auth';
 import { deleteAccount } from '@/services/auth/deleteAccount';
 import { getGoogleAuthorizeLoginUrl } from '@/services/auth/googleAuthorize';
@@ -61,9 +61,7 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
 
         if (result.status === 'success') {
           trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
-          if (session?.user?.id) {
-            await revalidateProfilePath(String(session.user.id));
-          }
+          await dispatchDeleteAccountRevalidate();
           await signOut({ callbackUrl: '/' });
           return;
         }
