@@ -16,6 +16,7 @@ vi.mock('./useSessionHint', () => ({
   useSessionHint: () => mockUseSessionHint(),
 }));
 
+import { SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 
@@ -48,6 +49,7 @@ describe('useProfileAuth', () => {
   it('status: loading and hint: guest → triggers immediate redirect to "/"', async () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
     mockUseSessionHint.mockReturnValue({ status: 'guest' });
+    document.cookie = `${SESSION_HINT_COOKIE}=garbage`;
 
     const { result } = await act(async () =>
       renderHook(() => useProfileAuth(PAGE_USER_ID))
@@ -64,6 +66,7 @@ describe('useProfileAuth', () => {
       userId: 'different-user-id',
       isMentor: false,
     });
+    document.cookie = `${SESSION_HINT_COOKIE}=1|different-user-id`;
 
     const { result } = await act(async () =>
       renderHook(() => useProfileAuth(PAGE_USER_ID))

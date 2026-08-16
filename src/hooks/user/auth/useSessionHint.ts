@@ -55,7 +55,8 @@ export function useSessionHint(): SessionHintState {
 
   useEffect(() => {
     const rawCookie = readCookie(SESSION_HINT_COOKIE);
-    const decoded = decodeSessionHint(rawCookie);
+    const decoded =
+      rawCookie === undefined ? undefined : decodeSessionHint(rawCookie);
     const identity = resolveIdentity(override, session, status, decoded);
 
     if (identity.isLoggedIn) {

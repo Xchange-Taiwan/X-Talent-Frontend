@@ -4,24 +4,33 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect } from 'react';
 
-import { resolveIdentity } from '@/lib/auth/sessionHint';
+import { readCookie, SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
 
-import { useSessionHint } from './useSessionHint';
+import { useIdentity } from './useIdentity';
 
 export function useProfileAuth(pageUserId: string) {
   const router = useRouter();
-  const { data: session, status } = useSession();
-  const hint = useSessionHint();
+  const { status } = useSession();
 
-  const identity = resolveIdentity(null, session, status, hint);
+  const identity = useIdentity(null);
   const isAuthorized = identity.userId === pageUserId;
 
   useEffect(() => {
-    // Redirect if identity is fully known (either session settled or hint is known and did not match)
-    if (identity.authKnown && !identity.isResolvingUser && !isAuthorized) {
+    const rawCookie = readCookie(SESSION_HINT_COOKIE);
+    const hasCookie = rawCookie !== undefined;
+    const sessionSettled = status !== 'loading';
+
+    // Only redirect if:
+    // - Session has settled (status !== 'loading')
+    // - OR we have a cookie and it is confirmed unauthorized/guest (and is not resolving)
+    if (
+      (sessionSettled || hasCookie) &&
+      !identity.isResolvingUser &&
+      !isAuthorized
+    ) {
       router.push('/');
     }
-  }, [isAuthorized, identity.authKnown, identity.isResolvingUser, router]);
+  }, [isAuthorized, identity.isResolvingUser, status, router]);
 
   return { isAuthorized };
 }

@@ -1,10 +1,6 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
-
-import { resolveIdentity } from '@/lib/auth/sessionHint';
-
-import { useSessionHint } from './useSessionHint';
+import { useIdentity } from './useIdentity';
 
 export interface AuthStatus {
   /** Whether we know anything at all (from hint or real session) yet. */
@@ -36,10 +32,7 @@ export interface AuthStatus {
  * always wins once it lands.
  */
 export function useAuthStatus(): AuthStatus {
-  const { data: session, status } = useSession();
-  const hint = useSessionHint();
-
-  const identity = resolveIdentity(null, session, status, hint);
+  const identity = useIdentity(null);
 
   return {
     authKnown: identity.authKnown,
