@@ -62,7 +62,10 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
         if (result.status === 'success') {
           trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
           if (session?.user?.id) {
-            await revalidateProfilePathAfterDelete(String(session.user.id));
+            await revalidateProfilePathAfterDelete(
+              String(session.user.id),
+              session.user.name ?? undefined
+            );
           }
           await signOut({ callbackUrl: '/' });
           return;

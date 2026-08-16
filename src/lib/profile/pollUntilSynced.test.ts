@@ -241,16 +241,28 @@ describe('pollUntilUserDeleted', () => {
     expect(mockFetchMentors).not.toHaveBeenCalled();
   });
 
-  it('returns true as soon as the user is absent from the mentor-pool listing', async () => {
+  it('returns true as soon as the user is absent from the mentor-pool listing (no name → unfiltered search)', async () => {
     mockFetchMentors.mockResolvedValueOnce([makeMentor(2), makeMentor(3)]);
 
-    const result = await pollUntilUserDeleted(1, 6, 2000);
+    const result = await pollUntilUserDeleted(1, undefined, 6, 2000);
 
     expect(result).toBe(true);
     expect(mockFetchMentors).toHaveBeenCalledTimes(1);
     expect(mockFetchMentors).toHaveBeenCalledWith({
       search_pattern: '',
-      limit: 9,
+      limit: 20,
+      cursor: '',
+    });
+  });
+
+  it('scopes the query to search_pattern when a name is given', async () => {
+    mockFetchMentors.mockResolvedValueOnce([]);
+
+    await pollUntilUserDeleted(1, 'Jane Doe', 6, 2000);
+
+    expect(mockFetchMentors).toHaveBeenCalledWith({
+      search_pattern: 'Jane Doe',
+      limit: 20,
       cursor: '',
     });
   });
@@ -261,7 +273,7 @@ describe('pollUntilUserDeleted', () => {
       .mockResolvedValueOnce([makeMentor(1)])
       .mockResolvedValueOnce([makeMentor(2)]);
 
-    const promise = pollUntilUserDeleted(1, 6, 2000);
+    const promise = pollUntilUserDeleted(1, undefined, 6, 2000);
     await vi.advanceTimersByTimeAsync(2000 * 2);
 
     expect(await promise).toBe(true);
@@ -273,7 +285,7 @@ describe('pollUntilUserDeleted', () => {
       .mockRejectedValueOnce(new Error('network down'))
       .mockResolvedValueOnce([makeMentor(2)]);
 
-    const promise = pollUntilUserDeleted(1, 6, 2000);
+    const promise = pollUntilUserDeleted(1, undefined, 6, 2000);
     await vi.advanceTimersByTimeAsync(2000);
 
     expect(await promise).toBe(true);
@@ -283,7 +295,7 @@ describe('pollUntilUserDeleted', () => {
   it('returns false and reports a flow failure once the retry budget is exhausted', async () => {
     mockFetchMentors.mockResolvedValue([makeMentor(1)]);
 
-    const promise = pollUntilUserDeleted(1, 3, 2000);
+    const promise = pollUntilUserDeleted(1, undefined, 3, 2000);
     await vi.advanceTimersByTimeAsync(2000 * 3);
 
     expect(await promise).toBe(false);
@@ -330,6 +342,13 @@ describe('pollUntilMentorPoolSynced', () => {
 
     expect(result).toBe(true);
     expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+    // Scoped by search_pattern (not an unfiltered listing) so a mentor
+    // buried past the unfiltered page size is still found.
+    expect(mockFetchMentors).toHaveBeenCalledWith({
+      search_pattern: 'New Name',
+      limit: 20,
+      cursor: '',
+    });
   });
 
   it('keeps retrying while the card still shows the old name, then succeeds', async () => {

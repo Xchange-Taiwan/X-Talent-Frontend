@@ -3,7 +3,18 @@
 import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
 
+import { captureFlowFailure } from '@/lib/monitoring';
 import { pollUntilUserDeleted } from '@/lib/profile/pollUntilSynced';
+
+// Both actions below are callable directly (Server Actions are just POST
+// endpoints under the hood) with any string, bypassing whatever UI
+// normally supplies `userId`. Without this check, a crafted id like
+// `../about` would make `revalidatePath` purge an arbitrary route, not
+// just this user's profile — a free-standing cache-busting primitive an
+// attacker could hammer to force the site back to full SSR on every hit.
+function isValidUserId(userId: string): boolean {
+  return /^\d+$/.test(userId);
+}
 
 /**
  * Invalidate the ISR-cached SSR render of /profile/[userId] and the
@@ -13,11 +24,11 @@ import { pollUntilUserDeleted } from '@/lib/profile/pollUntilSynced';
  * the new avatar / name / personal_statement etc. Called from
  * `useProfileSubmit` after the parallel-write step succeeds.
  *
- * Safe to call with any string id — `revalidatePath` no-ops on unknown
- * paths and never throws.
+ * Safe to call with any string id — invalid or unknown ids no-op and this
+ * never throws.
  */
 export async function revalidateProfilePath(userId: string): Promise<void> {
-  if (!userId) return;
+  if (!isValidUserId(userId)) return;
   revalidatePath(`/profile/${userId}`);
   revalidatePath('/mentor-pool');
 }
@@ -34,16 +45,29 @@ export async function revalidateProfilePath(userId: string): Promise<void> {
  * `signOut` triggers a hard browser navigation, which kills any in-flight
  * client JS before it could finish waiting. Running the wait server-side,
  * decoupled from the response via `after`, survives that.
+ *
+ * `name`, when available, scopes the poll to a search-pattern match
+ * instead of scanning the unfiltered listing — see `pollUntilUserDeleted`.
  */
 export async function revalidateProfilePathAfterDelete(
-  userId: string
+  userId: string,
+  name?: string
 ): Promise<void> {
-  if (!userId) return;
+  if (!isValidUserId(userId)) return;
   const numericUserId = Number(userId);
 
   after(async () => {
-    await pollUntilUserDeleted(numericUserId);
-    revalidatePath(`/profile/${userId}`);
-    revalidatePath('/mentor-pool');
+    try {
+      await pollUntilUserDeleted(numericUserId, name);
+      revalidatePath(`/profile/${userId}`);
+      revalidatePath('/mentor-pool');
+    } catch (e) {
+      captureFlowFailure({
+        flow: 'delete_account',
+        step: 'after_revalidate',
+        message: e instanceof Error ? e.message : String(e),
+        level: 'warning',
+      });
+    }
   });
 }

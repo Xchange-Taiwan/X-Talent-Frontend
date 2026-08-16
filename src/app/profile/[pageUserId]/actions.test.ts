@@ -8,6 +8,10 @@ vi.mock('next/server', () => ({
   after: vi.fn(),
 }));
 
+vi.mock('@/lib/monitoring', () => ({
+  captureFlowFailure: vi.fn(),
+}));
+
 vi.mock('@/lib/profile/pollUntilSynced', () => ({
   pollUntilUserDeleted: vi.fn(),
 }));
@@ -15,6 +19,7 @@ vi.mock('@/lib/profile/pollUntilSynced', () => ({
 import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
 
+import { captureFlowFailure } from '@/lib/monitoring';
 import { pollUntilUserDeleted } from '@/lib/profile/pollUntilSynced';
 
 import {
@@ -24,6 +29,7 @@ import {
 
 const mockRevalidatePath = vi.mocked(revalidatePath);
 const mockAfter = vi.mocked(after);
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 const mockPollUntilUserDeleted = vi.mocked(pollUntilUserDeleted);
 
 describe('revalidateProfilePath', () => {
@@ -43,6 +49,23 @@ describe('revalidateProfilePath', () => {
     expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42');
     expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');
   });
+
+  // A Server Action is just a POST endpoint under the hood — reachable
+  // directly with any string, not just what the UI happens to pass.
+  it.each([
+    ['path traversal', '../about'],
+    ['non-numeric garbage', 'abc'],
+    ['leading zero-width numeric-looking id', '1e5'],
+    ['negative number', '-1'],
+    ['decimal', '1.5'],
+  ])(
+    'no-ops for an id that is not a plain positive integer (%s: %s)',
+    async (_label, userId) => {
+      await revalidateProfilePath(userId);
+
+      expect(mockRevalidatePath).not.toHaveBeenCalled();
+    }
+  );
 });
 
 describe('revalidateProfilePathAfterDelete', () => {
@@ -57,6 +80,12 @@ describe('revalidateProfilePathAfterDelete', () => {
     expect(mockAfter).not.toHaveBeenCalled();
   });
 
+  it('no-ops for a non-numeric userId (e.g. path traversal) without scheduling any work', async () => {
+    await revalidateProfilePathAfterDelete('../about');
+
+    expect(mockAfter).not.toHaveBeenCalled();
+  });
+
   it('returns immediately, deferring the poll + revalidate to run after the response via after()', async () => {
     let resolvePoll: (value: boolean) => void = () => {};
     mockPollUntilUserDeleted.mockReturnValueOnce(
@@ -65,7 +94,7 @@ describe('revalidateProfilePathAfterDelete', () => {
       })
     );
 
-    await revalidateProfilePathAfterDelete('42');
+    await revalidateProfilePathAfterDelete('42', 'Jane Doe');
 
     // Scheduled via after(), but nothing has run yet — the caller (e.g.
     // useDeleteAccountForm, right before signOut) is never blocked on this.
@@ -80,9 +109,17 @@ describe('revalidateProfilePathAfterDelete', () => {
     resolvePoll(true);
     await workPromise;
 
-    expect(mockPollUntilUserDeleted).toHaveBeenCalledWith(42);
+    expect(mockPollUntilUserDeleted).toHaveBeenCalledWith(42, 'Jane Doe');
     expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42');
     expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');
+  });
+
+  it('works without a name (falls back to an unscoped poll)', async () => {
+    await revalidateProfilePathAfterDelete('42');
+    const deferredWork = mockAfter.mock.calls[0][0] as () => Promise<void>;
+    await deferredWork();
+
+    expect(mockPollUntilUserDeleted).toHaveBeenCalledWith(42, undefined);
   });
 
   it('revalidates even if the poll exhausts its retry budget without confirming', async () => {
@@ -94,5 +131,24 @@ describe('revalidateProfilePathAfterDelete', () => {
 
     expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42');
     expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');
+  });
+
+  it('deferred work failure (pollUntilUserDeleted throws) is caught and reported, not left as an unhandled rejection', async () => {
+    mockPollUntilUserDeleted.mockRejectedValueOnce(new Error('poll blew up'));
+
+    await revalidateProfilePathAfterDelete('42');
+    const deferredWork = mockAfter.mock.calls[0][0] as () => Promise<void>;
+
+    await expect(deferredWork()).resolves.not.toThrow();
+
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'delete_account',
+        step: 'after_revalidate',
+        message: 'poll blew up',
+        level: 'warning',
+      })
+    );
   });
 });

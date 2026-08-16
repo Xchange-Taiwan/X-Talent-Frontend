@@ -112,7 +112,10 @@ export function useGoogleOAuthCallback() {
       if (result.status === 'success') {
         trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
         if (user?.user_id) {
-          await revalidateProfilePathAfterDelete(String(user.user_id));
+          await revalidateProfilePathAfterDelete(
+            String(user.user_id),
+            user.name ?? undefined
+          );
         }
         await signOut({ callbackUrl: '/' });
         return;

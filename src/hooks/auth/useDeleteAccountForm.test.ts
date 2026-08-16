@@ -149,7 +149,8 @@ describe('useDeleteAccountForm', () => {
       feature: 'auth',
     });
     expect(mockRevalidateProfilePathAfterDelete).toHaveBeenCalledWith(
-      'test-user-id'
+      'test-user-id',
+      'Test User'
     );
     expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
 

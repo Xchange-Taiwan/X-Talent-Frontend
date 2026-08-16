@@ -325,7 +325,7 @@ describe('GoogleOAuthRedirectPage Component', () => {
     const mockData = {
       auth_type: 'LOGIN' as const,
       auth: { token: 'tok_3', email: 'user@example.com' },
-      user: { user_id: 789 } as unknown as ProfileVO,
+      user: { user_id: 789, name: 'Delete Me' } as unknown as ProfileVO,
       id_token: 'id_token_123',
     };
 
@@ -350,7 +350,10 @@ describe('GoogleOAuthRedirectPage Component', () => {
         expect(mockSignInWithGoogleToken).toHaveBeenCalledWith(
           'tok_3',
           'user@example.com',
-          { user_id: 789 } as unknown as Record<string, unknown>
+          { user_id: 789, name: 'Delete Me' } as unknown as Record<
+            string,
+            unknown
+          >
         );
 
         // Calls delete account API
@@ -364,7 +367,10 @@ describe('GoogleOAuthRedirectPage Component', () => {
           name: 'delete_account_succeeded',
           feature: 'auth',
         });
-        expect(mockRevalidateProfileAfterDelete).toHaveBeenCalledWith('789');
+        expect(mockRevalidateProfileAfterDelete).toHaveBeenCalledWith(
+          '789',
+          'Delete Me'
+        );
 
         // Performs NextAuth signOut
         expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
