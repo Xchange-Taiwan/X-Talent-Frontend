@@ -205,3 +205,102 @@ export function hasAnyOccurrenceOverlap(
     });
   });
 }
+
+const appendExdate = (exdates: number[], unix: number): number[] =>
+  exdates.includes(unix) ? exdates : [...exdates, unix];
+
+export function checkCrossMonthOverlap({
+  id,
+  occurrenceUnix,
+  newDtstart,
+  durationSeconds,
+  isRecurring,
+  currentDraftsMap,
+  targetDraft,
+}: {
+  id: number;
+  occurrenceUnix: number;
+  newDtstart: number;
+  durationSeconds: number;
+  isRecurring: boolean;
+  currentDraftsMap: Map<MonthKey, RawMentorTimeslot[]>;
+  targetDraft: RawMentorTimeslot[];
+}): boolean {
+  const draftsToCheck = Array.from(currentDraftsMap.values()).flat();
+  const isTargetLoaded = currentDraftsMap.has(monthKeyFromUnix(newDtstart));
+  if (!isTargetLoaded) {
+    draftsToCheck.push(...targetDraft);
+  }
+
+  let intermediateDraftsToCheck = draftsToCheck;
+  if (isRecurring) {
+    // If recurring, we simulate exdating the parent row
+    intermediateDraftsToCheck = draftsToCheck.map((r: RawMentorTimeslot) =>
+      r.id === id
+        ? {
+            ...r,
+            exdate: appendExdate(r.exdate, occurrenceUnix),
+          }
+        : r
+    );
+  }
+
+  // Run unified overlap check
+  return hasAnyOccurrenceOverlap(
+    intermediateDraftsToCheck,
+    isRecurring ? null : id, // ignore current row ID only if it is non-recurring
+    [newDtstart],
+    durationSeconds
+  );
+}
+
+/**
+ * Deduplicates raw timeslots by id (for id > 0) to fix duplicate representations at their source,
+ * merging the exdate arrays of any duplicates.
+ */
+export function deduplicateRawSlots(
+  slots: RawMentorTimeslot[]
+): RawMentorTimeslot[] {
+  const map = new Map<number, RawMentorTimeslot>();
+  const out: RawMentorTimeslot[] = [];
+  for (const slot of slots) {
+    if (slot.id <= 0) {
+      out.push(slot);
+      continue;
+    }
+    const existing = map.get(slot.id);
+    if (existing) {
+      existing.exdate.push(...slot.exdate);
+    } else {
+      const copy = { ...slot, exdate: [...slot.exdate] };
+      map.set(slot.id, copy);
+      out.push(copy);
+    }
+  }
+
+  map.forEach((slot) => {
+    slot.exdate = Array.from(new Set(slot.exdate));
+  });
+
+  return out;
+}
+
+/**
+ * Deduplicates slots with the same start time, merging isBooked status.
+ */
+export function deduplicateBookingSlots(slots: BookingSlot[]): BookingSlot[] {
+  const uniqueMap = new Map<number, BookingSlot>();
+  for (const item of slots) {
+    const key = item.start.getTime();
+    const existing = uniqueMap.get(key);
+    if (existing) {
+      existing.isBooked = existing.isBooked || item.isBooked;
+    } else {
+      uniqueMap.set(key, { ...item });
+    }
+  }
+
+  const uniqueResult = Array.from(uniqueMap.values());
+  uniqueResult.sort((a, b) => a.start.getTime() - b.start.getTime());
+  return uniqueResult;
+}
