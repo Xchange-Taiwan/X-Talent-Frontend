@@ -139,6 +139,124 @@ function areNotificationsChanged(
   );
 }
 
+// Centralized Notification Shared State Interface
+interface SharedNotificationState {
+  status: NotificationStatus;
+  notifications: NotificationItem[];
+  seenUnreadCount: number;
+  nextCursor: string | null;
+  unreadCountState: number;
+  isLoadingMore: boolean;
+  isPending: boolean;
+  hasLoadMoreError: boolean;
+  isFetching: boolean;
+  fetchPromise: Promise<void> | null;
+}
+
+const getStoredSeenCount = (key: string): number => {
+  if (typeof window === 'undefined') return 0;
+  const stored = safeGetStorage(key);
+  const parsed = stored !== null ? Number(stored) : 0;
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const createInitialState = (
+  userId?: string,
+  initialNotifications?: NotificationItem[],
+  initialStatus: NotificationStatus = 'success'
+): SharedNotificationState => {
+  const isUsingProps = initialNotifications !== undefined;
+  const storageKey = userId
+    ? `notif_seen_unread_count_${userId}`
+    : 'notif_seen_unread_count_generic';
+
+  return {
+    status: isUsingProps ? initialStatus : 'loading',
+    notifications: initialNotifications ?? [],
+    seenUnreadCount: getStoredSeenCount(storageKey),
+    nextCursor: null,
+    unreadCountState: 0,
+    isLoadingMore: false,
+    isPending: false,
+    hasLoadMoreError: false,
+    isFetching: false,
+    fetchPromise: null,
+  };
+};
+
+class NotificationStoreManager {
+  private states = new Map<string, SharedNotificationState>();
+  private listeners = new Map<string, Set<() => void>>();
+
+  getOrCreateState(
+    userId?: string,
+    initialNotifications?: NotificationItem[],
+    initialStatus?: NotificationStatus
+  ): SharedNotificationState {
+    const key = userId || 'generic';
+    if (!this.states.has(key)) {
+      this.states.set(
+        key,
+        createInitialState(userId, initialNotifications, initialStatus)
+      );
+    }
+    return this.states.get(key)!;
+  }
+
+  updateState(key: string, updates: Partial<SharedNotificationState>) {
+    const currentState = this.states.get(key);
+    if (!currentState) return;
+
+    this.states.set(key, {
+      ...currentState,
+      ...updates,
+    });
+
+    this.notify(key);
+  }
+
+  subscribe(key: string, listener: () => void): () => void {
+    if (!this.listeners.has(key)) {
+      this.listeners.set(key, new Set());
+    }
+    this.listeners.get(key)!.add(listener);
+
+    return () => {
+      const set = this.listeners.get(key);
+      if (set) {
+        set.delete(listener);
+        if (set.size === 0) {
+          this.listeners.delete(key);
+        }
+      }
+    };
+  }
+
+  private notify(key: string) {
+    const set = this.listeners.get(key);
+    if (set) {
+      set.forEach((listener) => {
+        try {
+          listener();
+        } catch (e) {
+          console.error('[NotificationStoreManager] listener error:', e);
+        }
+      });
+    }
+  }
+
+  reset() {
+    this.states.clear();
+    this.listeners.clear();
+  }
+}
+
+export const notificationStoreManager = new NotificationStoreManager();
+
+export function resetNotificationStore(): void {
+  notificationStoreManager.reset();
+}
+
 export function useNotificationCenter({
   userId,
   initialStatus = 'success',
@@ -151,215 +269,245 @@ export function useNotificationCenter({
   const [open, setOpen] = React.useState(false);
 
   const isUsingProps = initialNotifications !== undefined;
+  const storeKey = userId || 'generic';
 
-  const [status, setStatus] = React.useState<NotificationStatus>(() => {
-    if (isUsingProps) {
-      return initialStatus;
-    }
-    return 'loading';
-  });
-
-  const [notifications, setNotifications] = React.useState<NotificationItem[]>(
-    () => initialNotifications ?? []
+  // Retrieve current state from store and subscribe to changes
+  const [storeState, setStoreState] = React.useState(() =>
+    notificationStoreManager.getOrCreateState(
+      userId,
+      initialNotifications,
+      initialStatus
+    )
   );
-  const [seenUnreadCount, setSeenUnreadCount] = React.useState<number>(0);
-  const [isMounted, setIsMounted] = React.useState(false);
-  const [isPending, setIsPending] = React.useState(false);
-
-  // Pagination states
-  const [nextCursor, setNextCursor] = React.useState<string | null>(null);
-  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
-  const [unreadCountState, setUnreadCountState] = React.useState<number>(0);
-  const [hasLoadMoreError, setHasLoadMoreError] = React.useState(false);
-
-  // Concurrency refs
-  const isFetchingRef = React.useRef(false);
-  const notificationsRef = React.useRef<NotificationItem[]>(notifications);
 
   React.useEffect(() => {
-    notificationsRef.current = notifications;
-  }, [notifications]);
+    // Sync local hook state when userId, initialNotifications, or initialStatus changes
+    const state = notificationStoreManager.getOrCreateState(
+      userId,
+      initialNotifications,
+      initialStatus
+    );
+    setStoreState(state);
 
-  const storageKey = userId
-    ? `notif_seen_unread_count_${userId}`
-    : 'notif_seen_unread_count_generic';
+    const unsubscribe = notificationStoreManager.subscribe(storeKey, () => {
+      const updatedState = notificationStoreManager.getOrCreateState(
+        userId,
+        initialNotifications,
+        initialStatus
+      );
+      setStoreState(updatedState);
+    });
+
+    return unsubscribe;
+  }, [userId, initialNotifications, initialStatus, storeKey]);
+
+  // Sync initialStatus/initialNotifications prop changes structurally into the shared store
+  React.useEffect(() => {
+    if (initialNotifications) {
+      const state = notificationStoreManager.getOrCreateState(userId);
+      if (
+        areNotificationsChanged(initialNotifications, state.notifications) ||
+        initialStatus !== state.status
+      ) {
+        notificationStoreManager.updateState(storeKey, {
+          notifications: initialNotifications,
+          status: initialStatus,
+        });
+      }
+    }
+  }, [initialNotifications, initialStatus, userId, storeKey]);
+
+  const [isMounted, setIsMounted] = React.useState(false);
 
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
   const markingReadIdsRef = React.useRef(new Set<string>());
   const isMarkingAllRef = React.useRef(false);
 
-  // Sync initialStatus prop changes into internal status state during the Render Phase.
-  const [prevInitialStatus, setPrevInitialStatus] =
-    React.useState<NotificationStatus>(initialStatus);
-  if (initialStatus !== prevInitialStatus) {
-    setPrevInitialStatus(initialStatus);
-    setStatus(initialStatus);
-  }
-
-  // Sync initialNotifications prop changes structurally into internal notifications state
-  const [prevInitialNotifications, setPrevInitialNotifications] =
-    React.useState<NotificationItem[] | undefined>(initialNotifications);
-  if (areNotificationsChanged(initialNotifications, prevInitialNotifications)) {
-    setPrevInitialNotifications(initialNotifications);
-    if (initialNotifications) {
-      setNotifications(initialNotifications);
-    }
-  }
-
   // Derive unread count from the actual notifications state list (for fallback/props usage)
   const unreadCount = React.useMemo(() => {
-    return notifications.filter((item) => item.unread).length;
-  }, [notifications]);
+    return storeState.notifications.filter((item) => item.unread).length;
+  }, [storeState.notifications]);
 
-  const badgeCount = isUsingProps ? unreadCount : unreadCountState;
+  const badgeCount = isUsingProps ? unreadCount : storeState.unreadCountState;
 
   // Set isMounted on client
   React.useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Helper to read and safely parse value from localStorage
-  const getStoredSeenCount = React.useCallback((key: string): number => {
-    const stored = safeGetStorage(key);
-    const parsed = stored !== null ? Number(stored) : 0;
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }, []);
-
-  // Helper to write to localStorage and dispatch custom update event to other instances
-  const writeAndNotifySeen = React.useCallback(
+  // Helper to write to localStorage and notify shared store instances
+  const writeSeenCount = React.useCallback(
     (val: number) => {
+      const storageKey = userId
+        ? `notif_seen_unread_count_${userId}`
+        : 'notif_seen_unread_count_generic';
       safeSetStorage(storageKey, String(val));
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(
-          new CustomEvent('notif_seen_updated', {
-            detail: { storageKey, seenCount: val },
-          })
-        );
-      }
+      notificationStoreManager.updateState(storeKey, { seenUnreadCount: val });
     },
-    [storageKey]
+    [userId, storeKey]
   );
 
   // Infinite Scroll / Fetch more
   const loadMore = React.useCallback(
     async (isRetry = false) => {
-      if (isUsingProps || isLoadingMore || !nextCursor) return;
-      if (hasLoadMoreError && !isRetry) return;
-      if (isFetchingRef.current) return;
-      isFetchingRef.current = true;
-      setIsLoadingMore(true);
-      setHasLoadMoreError(false);
+      if (isUsingProps) return;
+      const key = userId || 'generic';
+      const state = notificationStoreManager.getOrCreateState(userId);
+
+      if (state.isLoadingMore || !state.nextCursor) return;
+      if (state.hasLoadMoreError && !isRetry) return;
+      if (state.isFetching) return;
+
+      notificationStoreManager.updateState(key, {
+        isLoadingMore: true,
+        hasLoadMoreError: false,
+      });
+
       try {
         const { items, next_created_at } = await listNotifications(
-          nextCursor,
+          state.nextCursor,
           20
         );
         const mapped = items.map(mapApiNotificationToFrontend);
-        setNotifications((prev) => [...prev, ...mapped]);
-        setNextCursor(next_created_at);
+        const currentNotifications =
+          notificationStoreManager.getOrCreateState(userId).notifications;
+
+        notificationStoreManager.updateState(key, {
+          notifications: [...currentNotifications, ...mapped],
+          nextCursor: next_created_at,
+        });
       } catch (error) {
         console.error('[useNotificationCenter] loadMore failed:', error);
-        setHasLoadMoreError(true);
+        notificationStoreManager.updateState(key, { hasLoadMoreError: true });
         toast({
           variant: 'destructive',
           title: '載入失敗',
           description: '無法載入更多通知，請點擊重試',
         });
       } finally {
-        setIsLoadingMore(false);
-        isFetchingRef.current = false;
+        notificationStoreManager.updateState(key, { isLoadingMore: false });
       }
     },
-    [isUsingProps, isLoadingMore, nextCursor, hasLoadMoreError, toast]
+    [userId, isUsingProps, toast]
   );
 
   // Load initial notifications and unread count from service
   const loadInitialData = React.useCallback(
     async (showLoading = true) => {
       if (isUsingProps) return;
-      if (isFetchingRef.current) return;
-      isFetchingRef.current = true;
-      if (showLoading) {
-        setStatus('loading');
-      }
-      try {
-        const [unreadRes, notificationsRes] = await Promise.all([
-          fetchUnreadCount(),
-          listNotifications(undefined, 20),
-        ]);
-        setUnreadCountState(unreadRes.count);
-        const mapped = notificationsRes.items.map(mapApiNotificationToFrontend);
-        setNotifications(mapped);
-        setNextCursor(notificationsRes.next_created_at);
-        setStatus(mapped.length === 0 ? 'empty' : 'success');
-        setHasLoadMoreError(false);
-      } catch (error) {
-        if (!showLoading || notificationsRef.current.length > 0) {
-          toast({
-            variant: 'destructive',
-            title: '更新失敗',
-            description: '無法更新最新通知，請稍後再試',
-          });
-        } else {
-          setStatus('error');
+      const key = userId || 'generic';
+      const state = notificationStoreManager.getOrCreateState(userId);
+
+      if (state.isFetching) {
+        if (state.fetchPromise) {
+          await state.fetchPromise;
         }
-      } finally {
-        isFetchingRef.current = false;
+        return;
       }
+
+      notificationStoreManager.updateState(key, { isFetching: true });
+      if (showLoading) {
+        notificationStoreManager.updateState(key, { status: 'loading' });
+      }
+
+      const fetchPromise = (async () => {
+        try {
+          const [unreadRes, notificationsRes] = await Promise.all([
+            fetchUnreadCount(),
+            listNotifications(undefined, 20),
+          ]);
+          const mapped = notificationsRes.items.map(
+            mapApiNotificationToFrontend
+          );
+
+          notificationStoreManager.updateState(key, {
+            unreadCountState: unreadRes.count,
+            notifications: mapped,
+            nextCursor: notificationsRes.next_created_at,
+            status: mapped.length === 0 ? 'empty' : 'success',
+            hasLoadMoreError: false,
+          });
+        } catch (error) {
+          const currentNotifications =
+            notificationStoreManager.getOrCreateState(userId).notifications;
+          if (!showLoading || currentNotifications.length > 0) {
+            toast({
+              variant: 'destructive',
+              title: '更新失敗',
+              description: '無法更新最新通知，請稍後再試',
+            });
+          } else {
+            notificationStoreManager.updateState(key, { status: 'error' });
+          }
+        } finally {
+          notificationStoreManager.updateState(key, {
+            isFetching: false,
+            fetchPromise: null,
+          });
+        }
+      })();
+
+      notificationStoreManager.updateState(key, { fetchPromise });
+      await fetchPromise;
     },
-    [isUsingProps, toast]
+    [userId, isUsingProps, toast]
   );
 
   React.useEffect(() => {
     loadInitialData(!isUsingProps);
   }, [loadInitialData, isUsingProps]);
 
-  // Sync seenUnreadCount from localStorage when storageKey (userId) changes or on mount.
-  React.useEffect(() => {
-    setSeenUnreadCount(getStoredSeenCount(storageKey));
-  }, [storageKey, getStoredSeenCount]);
-
   // Keep seenUnreadCount clamped to badgeCount to prevent stale values,
   // but only when we are not in a loading status and there is no active write/mutation in progress
   // to avoid accidental seen count cache destruction during optimistic loading states.
   React.useEffect(() => {
-    if (status !== 'loading' && !isPending && seenUnreadCount > badgeCount) {
-      setSeenUnreadCount(badgeCount);
-      writeAndNotifySeen(badgeCount);
+    if (
+      storeState.status !== 'loading' &&
+      !storeState.isPending &&
+      storeState.seenUnreadCount > badgeCount
+    ) {
+      writeSeenCount(badgeCount);
     }
-  }, [badgeCount, seenUnreadCount, writeAndNotifySeen, status, isPending]);
+  }, [
+    badgeCount,
+    storeState.seenUnreadCount,
+    writeSeenCount,
+    storeState.status,
+    storeState.isPending,
+  ]);
 
   // Synchronize seenUnreadCount when the dropdown is open and badgeCount increases (e.g. from loadInitialData)
   // to prevent unread badge from reappearing incorrectly upon close.
   React.useEffect(() => {
-    if (!isUsingProps && open && badgeCount > seenUnreadCount) {
-      setSeenUnreadCount(badgeCount);
-      writeAndNotifySeen(badgeCount);
+    if (!isUsingProps && open && badgeCount > storeState.seenUnreadCount) {
+      writeSeenCount(badgeCount);
     }
-  }, [open, badgeCount, seenUnreadCount, writeAndNotifySeen, isUsingProps]);
+  }, [
+    open,
+    badgeCount,
+    storeState.seenUnreadCount,
+    writeSeenCount,
+    isUsingProps,
+  ]);
 
-  // Synchronize state across multiple instances (e.g. desktop vs mobile notification bells in Header) and browser tabs
+  // Synchronize state across different browser tabs via storage event
   React.useEffect(() => {
-    const handleCustomSync = (e: Event) => {
-      const customEvent = e as CustomEvent<{
-        storageKey: string;
-        seenCount: number;
-      }>;
-      if (customEvent.detail && customEvent.detail.storageKey === storageKey) {
-        setSeenUnreadCount(customEvent.detail.seenCount);
-      }
-    };
+    const storageKey = userId
+      ? `notif_seen_unread_count_${userId}`
+      : 'notif_seen_unread_count_generic';
 
     const handleStorageSync = (e: StorageEvent) => {
       if (e.key === storageKey) {
         const val = e.newValue !== null ? Number(e.newValue) : 0;
-        setSeenUnreadCount(Number.isNaN(val) ? 0 : val);
+        const parsedVal = Number.isNaN(val) ? 0 : val;
+        notificationStoreManager.updateState(storeKey, {
+          seenUnreadCount: parsedVal,
+        });
       }
     };
 
     if (typeof window !== 'undefined') {
       window.addEventListener('storage', handleStorageSync as EventListener);
-      window.addEventListener('notif_seen_updated', handleCustomSync);
     }
 
     return () => {
@@ -368,10 +516,9 @@ export function useNotificationCenter({
           'storage',
           handleStorageSync as EventListener
         );
-        window.removeEventListener('notif_seen_updated', handleCustomSync);
       }
     };
-  }, [storageKey]);
+  }, [userId, storeKey]);
 
   React.useEffect(() => {
     return () => {
@@ -383,13 +530,12 @@ export function useNotificationCenter({
 
   const openCenter = React.useCallback(() => {
     setOpen(true);
-    setSeenUnreadCount(badgeCount);
-    writeAndNotifySeen(badgeCount);
+    writeSeenCount(badgeCount);
     // Fetch fresh details when dropdown is opened
     if (!isUsingProps) {
       loadInitialData(false);
     }
-  }, [badgeCount, writeAndNotifySeen, isUsingProps, loadInitialData]);
+  }, [badgeCount, writeSeenCount, isUsingProps, loadInitialData]);
 
   const closeCenter = React.useCallback(() => {
     setOpen(false);
@@ -399,31 +545,35 @@ export function useNotificationCenter({
     (nextOpen: boolean) => {
       setOpen(nextOpen);
       if (nextOpen) {
-        setSeenUnreadCount(badgeCount);
-        writeAndNotifySeen(badgeCount);
+        writeSeenCount(badgeCount);
         if (!isUsingProps) {
           loadInitialData(false);
         }
       }
     },
-    [badgeCount, writeAndNotifySeen, isUsingProps, loadInitialData]
+    [badgeCount, writeSeenCount, isUsingProps, loadInitialData]
   );
 
   const markRead = React.useCallback(
     async (id: string) => {
+      const key = userId || 'generic';
+      const state = notificationStoreManager.getOrCreateState(userId);
+
       if (markingReadIdsRef.current.has(id)) return;
 
-      const targetItem = notifications.find((n) => n.id === id);
+      const targetItem = state.notifications.find((n) => n.id === id);
       if (!targetItem || !targetItem.unread) return;
 
       markingReadIdsRef.current.add(id);
 
-      setNotifications((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, unread: false } : item))
-      );
-      if (!isUsingProps) {
-        setUnreadCountState((prev) => Math.max(0, prev - 1));
-      }
+      notificationStoreManager.updateState(key, {
+        notifications: state.notifications.map((item) =>
+          item.id === id ? { ...item, unread: false } : item
+        ),
+        unreadCountState: isUsingProps
+          ? state.unreadCountState
+          : Math.max(0, state.unreadCountState - 1),
+      });
 
       const action = onMarkRead || (!isUsingProps ? markOneRead : null);
       if (!action) {
@@ -431,36 +581,44 @@ export function useNotificationCenter({
         return;
       }
 
-      setIsPending(true);
+      notificationStoreManager.updateState(key, { isPending: true });
       try {
         await action(id);
       } catch (error) {
         reportMarkAsReadFailure(`mark_read_click:${id}`, error);
-        setNotifications((prev) =>
-          prev.map((item) =>
+        const currentNotifications =
+          notificationStoreManager.getOrCreateState(userId).notifications;
+        const currentUnreadCountState =
+          notificationStoreManager.getOrCreateState(userId).unreadCountState;
+
+        notificationStoreManager.updateState(key, {
+          notifications: currentNotifications.map((item) =>
             item.id === id ? { ...item, unread: true } : item
-          )
-        );
-        if (!isUsingProps) {
-          setUnreadCountState((prev) => prev + 1);
-        }
+          ),
+          unreadCountState: isUsingProps
+            ? currentUnreadCountState
+            : currentUnreadCountState + 1,
+        });
         toast({
           variant: 'destructive',
           title: '操作失敗',
           description: '無法將通知標示為已讀，請稍後再試',
         });
       } finally {
-        setIsPending(false);
+        notificationStoreManager.updateState(key, { isPending: false });
         markingReadIdsRef.current.delete(id);
       }
     },
-    [notifications, onMarkRead, isUsingProps, toast]
+    [userId, onMarkRead, isUsingProps, toast]
   );
 
   const markAllRead = React.useCallback(async () => {
     if (isMarkingAllRef.current) return;
 
-    const unreadIds = notifications
+    const key = userId || 'generic';
+    const state = notificationStoreManager.getOrCreateState(userId);
+
+    const unreadIds = state.notifications
       .filter((item) => item.unread)
       .map((item) => item.id);
     if (unreadIds.length === 0 && isUsingProps) return;
@@ -470,26 +628,28 @@ export function useNotificationCenter({
     // Rolls back only the affected items via functional state update (to prevent data loss).
     const rollbackNotifications = (ids: string[]) => {
       const idSet = new Set(ids);
-      setNotifications((prev) =>
-        prev.map((item) =>
+      const currentNotifications =
+        notificationStoreManager.getOrCreateState(userId).notifications;
+      notificationStoreManager.updateState(key, {
+        notifications: currentNotifications.map((item) =>
           idSet.has(item.id) ? { ...item, unread: true } : item
-        )
-      );
+        ),
+      });
     };
 
     // Optimistic state updates
     const unreadIdSet = new Set(unreadIds);
-    setNotifications((prev) =>
-      prev.map((item) =>
+    notificationStoreManager.updateState(key, {
+      notifications: state.notifications.map((item) =>
         unreadIdSet.has(item.id) ? { ...item, unread: false } : item
-      )
-    );
-    const prevUnreadCountState = unreadCountState;
+      ),
+    });
+    const prevUnreadCountState = state.unreadCountState;
     if (!isUsingProps) {
-      setUnreadCountState(0);
+      notificationStoreManager.updateState(key, { unreadCountState: 0 });
     }
 
-    setIsPending(true);
+    notificationStoreManager.updateState(key, { isPending: true });
     try {
       if (onMarkAllRead) {
         await onMarkAllRead(unreadIds);
@@ -500,7 +660,13 @@ export function useNotificationCenter({
         if (failedIds.length > 0) {
           rollbackNotifications(failedIds);
           if (!isUsingProps) {
-            setUnreadCountState((prev) => prev + failedIds.length);
+            const currentCount =
+              notificationStoreManager.getOrCreateState(
+                userId
+              ).unreadCountState;
+            notificationStoreManager.updateState(key, {
+              unreadCountState: currentCount + failedIds.length,
+            });
           }
           toast({
             variant: 'destructive',
@@ -518,7 +684,9 @@ export function useNotificationCenter({
       reportMarkAsReadFailure('mark_all_read', error);
       rollbackNotifications(unreadIds);
       if (!isUsingProps) {
-        setUnreadCountState(prevUnreadCountState);
+        notificationStoreManager.updateState(key, {
+          unreadCountState: prevUnreadCountState,
+        });
       }
       toast({
         variant: 'destructive',
@@ -526,49 +694,46 @@ export function useNotificationCenter({
         description: '無法將全部通知標示為已讀，請稍後再試',
       });
     } finally {
-      setIsPending(false);
+      notificationStoreManager.updateState(key, { isPending: false });
       isMarkingAllRef.current = false;
     }
-  }, [
-    notifications,
-    onMarkRead,
-    onMarkAllRead,
-    isUsingProps,
-    unreadCountState,
-    toast,
-  ]);
+  }, [userId, onMarkRead, onMarkAllRead, isUsingProps, toast]);
 
   const handleRetry = React.useCallback(() => {
-    setStatus('loading');
+    const key = userId || 'generic';
+    notificationStoreManager.updateState(key, { status: 'loading' });
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
     if (isUsingProps) {
       timerRef.current = setTimeout(() => {
         const loaded = initialNotifications ?? defaultNotifications;
-        setNotifications(loaded);
-        setStatus('success');
+        notificationStoreManager.updateState(key, {
+          notifications: loaded,
+          status: 'success',
+        });
       }, 1000);
     } else {
       loadInitialData(true);
     }
   }, [
+    userId,
     initialNotifications,
     defaultNotifications,
     isUsingProps,
     loadInitialData,
   ]);
 
-  const showBadge = isMounted && badgeCount > seenUnreadCount;
+  const showBadge = isMounted && badgeCount > storeState.seenUnreadCount;
   const formattedCount = badgeCount > 99 ? '99+' : String(badgeCount);
   const hasUnread = isUsingProps
-    ? notifications.some((item) => item.unread)
+    ? storeState.notifications.some((item) => item.unread)
     : badgeCount > 0;
 
   return {
     open,
-    status,
-    items: notifications,
+    status: storeState.status,
+    items: storeState.notifications,
     badgeCount,
     showBadge,
     formattedCount,
@@ -579,9 +744,9 @@ export function useNotificationCenter({
     markRead,
     markAllRead,
     handleRetry,
-    isLoadingMore,
-    hasMore: nextCursor !== null,
+    isLoadingMore: storeState.isLoadingMore,
+    hasMore: storeState.nextCursor !== null,
     loadMore,
-    hasLoadMoreError,
+    hasLoadMoreError: storeState.hasLoadMoreError,
   };
 }

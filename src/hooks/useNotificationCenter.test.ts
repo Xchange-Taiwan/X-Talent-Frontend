@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   type NotificationItem,
+  resetNotificationStore,
   useNotificationCenter,
 } from '@/hooks/useNotificationCenter';
 import { captureFlowFailure } from '@/lib/monitoring';
@@ -43,6 +44,7 @@ describe('useNotificationCenter', () => {
     mockToast.mockClear();
     vi.mocked(captureFlowFailure).mockClear();
     localStorage.clear();
+    resetNotificationStore();
   });
 
   it('initializes with default state', () => {
@@ -201,31 +203,33 @@ describe('useNotificationCenter', () => {
     expect(onMarkReadMock).toHaveBeenCalledTimes(6);
   });
 
-  it('synchronizes seen state across different browser tabs / instances', async () => {
-    const { result } = renderHook(() =>
+  it('synchronizes seen state across different instances on the same page via shared store and across browser tabs via storage event', async () => {
+    const { result: hook1 } = renderHook(() =>
       useNotificationCenter({
         userId: 'user-123',
         initialNotifications: mockNotifications,
       })
     );
 
-    expect(result.current.showBadge).toBe(true);
+    const { result: hook2 } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-123',
+        initialNotifications: mockNotifications,
+      })
+    );
 
-    // Simulate custom event sync (same page / other instance)
+    expect(hook1.current.showBadge).toBe(true);
+    expect(hook2.current.showBadge).toBe(true);
+
+    // Open hook1: this should update seen count for user-123 to 2, hiding badge on both!
     act(() => {
-      window.dispatchEvent(
-        new CustomEvent('notif_seen_updated', {
-          detail: {
-            storageKey: 'notif_seen_unread_count_user-123',
-            seenCount: 2,
-          },
-        })
-      );
+      hook1.current.openCenter();
     });
 
-    expect(result.current.showBadge).toBe(false);
+    expect(hook1.current.showBadge).toBe(false);
+    expect(hook2.current.showBadge).toBe(false);
 
-    // Simulate storage event sync (other browser tab)
+    // Simulate storage event sync from another browser tab setting seen count back to 0
     act(() => {
       window.dispatchEvent(
         new StorageEvent('storage', {
@@ -235,7 +239,8 @@ describe('useNotificationCenter', () => {
       );
     });
 
-    expect(result.current.showBadge).toBe(true);
+    expect(hook1.current.showBadge).toBe(true);
+    expect(hook2.current.showBadge).toBe(true);
   });
 
   it('clamps seenUnreadCount to current unreadCount on render/sync unless loading', async () => {

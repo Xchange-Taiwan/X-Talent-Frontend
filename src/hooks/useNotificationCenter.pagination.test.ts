@@ -1,7 +1,10 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useNotificationCenter } from '@/hooks/useNotificationCenter';
+import {
+  resetNotificationStore,
+  useNotificationCenter,
+} from '@/hooks/useNotificationCenter';
 import * as mockService from '@/mocks/mockNotificationService';
 import { type ApiNotificationItem } from '@/mocks/mockNotificationService';
 
@@ -29,6 +32,7 @@ describe('useNotificationCenter pagination and service integration', () => {
   beforeEach(() => {
     localStorage.clear();
     mockToastFn.mockClear();
+    resetNotificationStore();
     // Initialize mock database with predictable 25 items
     mockService.resetMockNotificationDatabase(mockApiNotifications);
   });

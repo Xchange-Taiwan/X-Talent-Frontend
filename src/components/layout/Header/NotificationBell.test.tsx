@@ -9,7 +9,10 @@ import { fromAny } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as useNotificationCenterModule from '@/hooks/useNotificationCenter';
-import { type NotificationItem } from '@/hooks/useNotificationCenter';
+import {
+  type NotificationItem,
+  resetNotificationStore,
+} from '@/hooks/useNotificationCenter';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { mockToast } from '@/test/mocks/useToast';
 
@@ -124,6 +127,7 @@ describe('NotificationBell', () => {
     mockToast.mockClear();
     vi.mocked(captureFlowFailure).mockClear();
     localStorage.clear();
+    resetNotificationStore();
     global.IntersectionObserver = class IntersectionObserver {
       readonly root: Element | null = null;
       readonly rootMargin: string = '';
@@ -1026,10 +1030,6 @@ describe('NotificationBell', () => {
 
       expect(removeListenerSpy).toHaveBeenCalledWith(
         'storage',
-        expect.any(Function)
-      );
-      expect(removeListenerSpy).toHaveBeenCalledWith(
-        'notif_seen_updated',
         expect.any(Function)
       );
 
