@@ -5,6 +5,8 @@ import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   firstSyncedFetch as defaultFirstSyncedFetch,
+  type MentorCardFields,
+  pollUntilMentorPoolSynced as defaultPollUntilMentorPoolSynced,
   pollUntilSynced as defaultPollUntilSynced,
 } from '@/lib/profile/pollUntilSynced';
 import {
@@ -54,6 +56,10 @@ export interface SaveProfileDeps {
     values: ProfileFormValues,
     avatar: string
   ) => Promise<MentorProfileVO | null>;
+  pollUntilMentorPoolSynced?: (
+    userId: number,
+    fields: MentorCardFields
+  ) => Promise<boolean>;
 }
 
 export async function saveProfile(
@@ -73,6 +79,7 @@ export async function saveProfile(
     primeUserDataCache,
     firstSyncedFetch = defaultFirstSyncedFetch,
     pollUntilSynced = defaultPollUntilSynced,
+    pollUntilMentorPoolSynced = defaultPollUntilMentorPoolSynced,
   } = deps;
 
   // 1) avatar — consume background upload if wired, else upload now.
@@ -220,12 +227,29 @@ export async function saveProfile(
       reconcileSession(latest);
 
       // The immediate revalidateProfilePath call above (step 3) can race the
-      // backend's own eventual consistency: if /v1/mentors hasn't indexed
-      // this write yet when Next.js re-fetches, the stale list gets locked
-      // into the 24h ISR cache (mentors.server.ts REVALIDATE_SECONDS) until
-      // someone else edits a profile. Re-revalidate now that `latest`
-      // confirms the backend is actually synced.
-      if (latest) {
+      // backend's own async (SQS-driven) update of the Elasticsearch index
+      // /mentor-pool actually reads from, re-caching a stale card. `latest`
+      // confirming the DB write synced (firstSyncedFetch/pollUntilSynced,
+      // which read /v1/mentors/{id}/profile) is NOT sufficient proof of
+      // that — the DB and the search index are updated by two different,
+      // independently-lagging paths, so re-checking against the DB again
+      // here would just repeat the same race. Poll the actual mentor-pool
+      // listing query instead, then revalidate once it's confirmed synced.
+      const isMentorRelevant =
+        isMentorOnboarding ||
+        Boolean(sessionUser?.isMentor) ||
+        Boolean(latest?.is_mentor);
+      if (isMentorRelevant) {
+        const userIdForPoll = sessionUserId ?? Number(pageUserId);
+        await pollUntilMentorPoolSynced(userIdForPoll, {
+          name: values.name,
+          jobTitle: job_title,
+          company: companyFromPrimary,
+          about: values.about ?? '',
+          yearsOfExperience: values.years_of_experience,
+          haveTopic: values.have_topic,
+          avatar: avatar ?? '',
+        });
         await revalidateProfilePath(pageUserId).catch((e: unknown) => {
           captureFlowFailure({
             flow: 'profile_update',
