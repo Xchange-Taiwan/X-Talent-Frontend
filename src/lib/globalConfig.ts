@@ -50,12 +50,19 @@ async function readWithTimeoutAndReporting<T>(
       try {
         if (timeoutMessage) {
           console.warn(timeoutMessage);
-          captureApiFailure({
-            endpoint: `global-config:${key}`,
-            method: 'GET',
-            status: 0,
-            message: timeoutMessage,
-            duration,
+          Promise.resolve(
+            captureApiFailure({
+              endpoint: `global-config:${key}`,
+              method: 'GET',
+              status: 0,
+              message: timeoutMessage,
+              duration,
+            })
+          ).catch((logErr) => {
+            console.error(
+              `Failed to log timeout monitoring event for key ${key}:`,
+              logErr
+            );
           });
         } else if (errorToReport !== undefined) {
           const message =
@@ -66,12 +73,19 @@ async function readWithTimeoutAndReporting<T>(
           // Log safe message locally to prevent credentials/token leaks from raw error objects
           console.error(`Global Config read failed for key ${key}: ${message}`);
 
-          captureApiFailure({
-            endpoint: `global-config:${key}`,
-            method: 'GET',
-            status: 0,
-            message,
-            duration,
+          Promise.resolve(
+            captureApiFailure({
+              endpoint: `global-config:${key}`,
+              method: 'GET',
+              status: 0,
+              message,
+              duration,
+            })
+          ).catch((logErr) => {
+            console.error(
+              `Failed to log failure monitoring event for key ${key}:`,
+              logErr
+            );
           });
         }
       } catch (logErr) {

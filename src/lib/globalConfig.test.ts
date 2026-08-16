@@ -151,6 +151,15 @@ describe('globalConfig module', () => {
       const result = await getMaintenanceMode();
       expect(result).toEqual({ success: false, value: false });
     });
+
+    it('successfully resolves Promise even if Sentry captureApiFailure returns a Rejected Promise', async () => {
+      mockGet.mockRejectedValue(new Error('Fetch failed'));
+      mockCaptureApiFailure.mockRejectedValue(new Error('Sentry async error'));
+
+      // Should still resolve successfully and not cause unhandled rejection
+      const result = await getMaintenanceMode();
+      expect(result).toEqual({ success: false, value: false });
+    });
   });
 
   describe('getAnnouncement', () => {
