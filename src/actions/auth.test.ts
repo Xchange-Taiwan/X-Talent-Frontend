@@ -125,7 +125,7 @@ describe('revalidateProfilePathAfterDelete', () => {
     expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');
   });
 
-  it('deferred work failure (pollUntilUserDeleted throws) is caught and reported, not left as an unhandled rejection', async () => {
+  it('pollUntilUserDeleted throwing (contract violation) is reported but does not skip revalidation — the account is already deleted, so the cache purge must run unconditionally', async () => {
     mockGetServerSession.mockResolvedValueOnce({
       user: { id: '42', name: 'Jane Doe' },
     } as never);
@@ -136,12 +136,38 @@ describe('revalidateProfilePathAfterDelete', () => {
 
     await expect(deferredWork()).resolves.not.toThrow();
 
-    expect(mockRevalidatePath).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42');
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'delete_account',
+        step: 'after_poll',
+        message: 'poll blew up',
+        level: 'warning',
+      })
+    );
+  });
+
+  it('revalidatePath(/profile/...) throwing is reported but does not prevent the mentor-pool revalidatePath call from running', async () => {
+    mockGetServerSession.mockResolvedValueOnce({
+      user: { id: '42', name: 'Jane Doe' },
+    } as never);
+    mockRevalidatePath.mockImplementationOnce(() => {
+      throw new Error('revalidate blew up');
+    });
+
+    await revalidateProfilePathAfterDelete();
+    const deferredWork = mockAfter.mock.calls[0][0] as () => Promise<void>;
+
+    await expect(deferredWork()).resolves.not.toThrow();
+
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42');
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');
     expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
       expect.objectContaining({
         flow: 'delete_account',
         step: 'after_revalidate',
-        message: 'poll blew up',
+        message: 'revalidate blew up',
         level: 'warning',
       })
     );

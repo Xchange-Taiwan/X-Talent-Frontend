@@ -57,9 +57,40 @@ export async function revalidateProfilePathAfterDelete(): Promise<void> {
   const numericUserId = Number(userId);
 
   after(async () => {
+    // pollUntilUserDeleted never throws by contract (it swallows its own
+    // fetch errors and returns false on timeout rather than rejecting),
+    // but this guards that contract anyway: revalidation below must run
+    // unconditionally. The account is already deleted server-side by this
+    // point, so skipping the cache purge because *waiting* for the index
+    // to catch up hit a snag would leave stale, already-deleted data
+    // exposed on the cache indefinitely — worse than the race this whole
+    // poll exists to close.
     try {
       await pollUntilUserDeleted(numericUserId, name);
+    } catch (e) {
+      captureFlowFailure({
+        flow: 'delete_account',
+        step: 'after_poll',
+        message: e instanceof Error ? e.message : String(e),
+        level: 'warning',
+      });
+    }
+
+    // Each revalidatePath call is independently guarded so mentor-pool
+    // still gets purged even if the profile-path one somehow throws (and
+    // vice versa) — one failing must not take the other down with it.
+    try {
       revalidatePath(`/profile/${userId}`);
+    } catch (e) {
+      captureFlowFailure({
+        flow: 'delete_account',
+        step: 'after_revalidate',
+        message: e instanceof Error ? e.message : String(e),
+        level: 'warning',
+      });
+    }
+
+    try {
       revalidatePath('/mentor-pool');
     } catch (e) {
       captureFlowFailure({

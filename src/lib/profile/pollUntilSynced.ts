@@ -139,6 +139,19 @@ async function pollUntil(
  * listing's first page. Without it, falls back to an unfiltered query,
  * which can only prove absence from that page, not the full listing.
  *
+ * Known false-positive window (accepted, not fixed here): "no match"
+ * isn't proof of deletion — it's also what a missing/stale `name` looks
+ * like (a session whose JWT predates a since-changed display name, or a
+ * caller with no name at all falling back to the unfiltered query, which
+ * can miss a real match sitting past `MENTOR_POOL_POLL_LIMIT`). Either
+ * can make this return `true` before the index has actually caught up.
+ * A fully airtight check needs a backend endpoint that confirms deletion
+ * by id directly against the search index, which doesn't exist yet — the
+ * caller's `revalidatePath('/mentor-pool')` re-caching a stale card in
+ * that window is bounded by the same 24h ISR TTL (`mentors.server.ts`)
+ * that already backstops every other gap in this poll, not a new,
+ * unbounded exposure.
+ *
  * Never throws. Returns false (without blocking further than the retry
  * budget) if the search index hasn't caught up in time — callers should
  * proceed with revalidation regardless so the user isn't stuck waiting
