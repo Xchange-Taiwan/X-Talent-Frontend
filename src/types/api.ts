@@ -436,6 +436,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/users/{user_id}/notifications': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Notifications */
+    get: operations['list_notifications_api_v1_users__user_id__notifications_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/users/{user_id}/notifications/unread-count': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Unread Notification Count */
+    get: operations['get_unread_notification_count_api_v1_users__user_id__notifications_unread_count_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/users/{user_id}/notifications/read-all': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Mark All Notifications Read */
+    put: operations['mark_all_notifications_read_api_v1_users__user_id__notifications_read_all_put'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/users/{user_id}/notifications/{notification_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Mark Notification Read */
+    put: operations['mark_notification_read_api_v1_users__user_id__notifications__notification_id__put'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/storage/': {
     parameters: {
       query?: never;
@@ -696,6 +764,20 @@ export interface components {
       msg: string;
       data?: components['schemas']['LoginResponseVO'] | null;
     };
+    /** ApiResponse[MarkAllNotificationsReadVO] */
+    ApiResponse_MarkAllNotificationsReadVO_: {
+      /**
+       * Code
+       * @default 0
+       */
+      code: string;
+      /**
+       * Msg
+       * @default ok
+       */
+      msg: string;
+      data?: components['schemas']['MarkAllNotificationsReadVO'] | null;
+    };
     /** ApiResponse[MeetLinkVO] */
     ApiResponse_MeetLinkVO_: {
       /**
@@ -766,6 +848,34 @@ export interface components {
       msg: string;
       /** Data */
       data?: null;
+    };
+    /** ApiResponse[NotificationListVO] */
+    ApiResponse_NotificationListVO_: {
+      /**
+       * Code
+       * @default 0
+       */
+      code: string;
+      /**
+       * Msg
+       * @default ok
+       */
+      msg: string;
+      data?: components['schemas']['NotificationListVO'] | null;
+    };
+    /** ApiResponse[NotificationVO] */
+    ApiResponse_NotificationVO_: {
+      /**
+       * Code
+       * @default 0
+       */
+      code: string;
+      /**
+       * Msg
+       * @default ok
+       */
+      msg: string;
+      data?: components['schemas']['NotificationVO'] | null;
     };
     /** ApiResponse[ProfileVO] */
     ApiResponse_ProfileVO_: {
@@ -892,6 +1002,20 @@ export interface components {
        */
       msg: string;
       data?: components['schemas']['UniversityListVO'] | null;
+    };
+    /** ApiResponse[UnreadNotificationCountVO] */
+    ApiResponse_UnreadNotificationCountVO_: {
+      /**
+       * Code
+       * @default 0
+       */
+      code: string;
+      /**
+       * Msg
+       * @default ok
+       */
+      msg: string;
+      data?: components['schemas']['UnreadNotificationCountVO'] | null;
     };
     /** ApiResponse_bool_ */
     ApiResponse_bool_: {
@@ -1150,6 +1274,11 @@ export interface components {
       auth: components['schemas']['AuthVO'];
       user: components['schemas']['ProfileVO'];
     };
+    /** MarkAllNotificationsReadVO */
+    MarkAllNotificationsReadVO: {
+      /** Ids */
+      ids?: number[];
+    };
     /** MeetLinkVO */
     MeetLinkVO: {
       /** Meet Url */
@@ -1323,6 +1452,28 @@ export interface components {
     MentorScheduleVO: {
       /** Timeslots */
       timeslots?: components['schemas']['TimeSlotDTO'][];
+    };
+    /** NotificationListVO */
+    NotificationListVO: {
+      /** Notifications */
+      notifications?: components['schemas']['NotificationVO'][];
+      /** Next Cursor */
+      next_cursor?: string | null;
+    };
+    /** NotificationVO */
+    NotificationVO: {
+      /** Id */
+      id: number;
+      /** Type */
+      type: string;
+      /** Metadata */
+      metadata: {
+        [key: string]: unknown;
+      };
+      /** Created At */
+      created_at: number;
+      /** Read At */
+      read_at: number | null;
     };
     /** PreviousReserveRef */
     PreviousReserveRef: {
@@ -1803,6 +1954,11 @@ export interface components {
        * @default []
        */
       universities: string[];
+    };
+    /** UnreadNotificationCountVO */
+    UnreadNotificationCountVO: {
+      /** Unread Count */
+      unread_count: number;
     };
     /** UpdatePasswordDTO */
     UpdatePasswordDTO: {
@@ -2907,6 +3063,135 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  list_notifications_api_v1_users__user_id__notifications_get: {
+    parameters: {
+      query?: {
+        batch?: number | null;
+        cursor?: string | null;
+        read?: boolean | null;
+      };
+      header?: never;
+      path: {
+        user_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_NotificationListVO_'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_unread_notification_count_api_v1_users__user_id__notifications_unread_count_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        user_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_UnreadNotificationCountVO_'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  mark_all_notifications_read_api_v1_users__user_id__notifications_read_all_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        user_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_MarkAllNotificationsReadVO_'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  mark_notification_read_api_v1_users__user_id__notifications__notification_id__put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        user_id: number;
+        notification_id: number;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ApiResponse_NotificationVO_'];
+        };
       };
       /** @description Validation Error */
       422: {
