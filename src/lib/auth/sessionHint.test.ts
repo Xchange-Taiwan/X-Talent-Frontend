@@ -448,6 +448,9 @@ describe('sessionHint utilities', () => {
       expect(identity.isMentor).toBe(false);
       expect(identity.avatar).toBe('/avatar.png');
       expect(identity.isLoggedIn).toBe(true);
+
+      // Clean up cookie to prevent test pollution
+      document.cookie = 'session-hint=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     });
 
     it('behaves correctly and does not throw in an SSR environment when reading fallback cookie', () => {

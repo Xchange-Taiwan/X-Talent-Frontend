@@ -213,7 +213,7 @@ export function resolveIdentity(
     ? Boolean(session?.user?.isMentor)
     : sessionSettled
       ? false
-      : Boolean(hint?.isMentor);
+      : isLoggedIn && Boolean(hint?.isMentor);
 
   // 3. Resolve avatar
   let avatar: string | undefined = undefined;
@@ -221,7 +221,7 @@ export function resolveIdentity(
     avatar = override.url;
   } else if (hasFullUser) {
     avatar = session?.user?.avatar ?? undefined;
-  } else if (!sessionSettled && hint) {
+  } else if (!sessionSettled && isLoggedIn && hint) {
     avatar = hint.avatar ?? undefined;
   }
 
