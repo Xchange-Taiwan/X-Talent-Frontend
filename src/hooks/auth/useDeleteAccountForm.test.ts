@@ -163,6 +163,34 @@ describe('useDeleteAccountForm', () => {
     expect(revalidateOrder).toBeLessThan(signOutOrder);
   });
 
+  it('onSubmitXC success flow, revalidateProfilePathAfterDelete rejects → signOut still runs and the failure is reported', async () => {
+    mockDeleteAccount.mockResolvedValueOnce({
+      status: 'success',
+    });
+    mockRevalidateProfilePathAfterDelete.mockRejectedValueOnce(
+      new Error('network down')
+    );
+
+    const { result } = renderHook(() => useDeleteAccountForm());
+
+    await act(async () => {
+      await result.current.onSubmitXC({
+        email: 'test@example.com',
+        password: 'Password1!',
+      });
+    });
+
+    expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'delete_account',
+        step: 'revalidate_dispatch',
+        message: 'network down',
+        level: 'warning',
+      })
+    );
+  });
+
   it('onSubmitXC blocked_reservations flow', async () => {
     mockDeleteAccount.mockResolvedValueOnce({
       status: 'blocked_reservations',

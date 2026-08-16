@@ -5,6 +5,7 @@ import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   firstSyncedFetch as defaultFirstSyncedFetch,
+  type MentorCardFields,
   pollUntilMentorPoolSynced as defaultPollUntilMentorPoolSynced,
   pollUntilSynced as defaultPollUntilSynced,
 } from '@/lib/profile/pollUntilSynced';
@@ -57,8 +58,7 @@ export interface SaveProfileDeps {
   ) => Promise<MentorProfileVO | null>;
   pollUntilMentorPoolSynced?: (
     userId: number,
-    name: string,
-    avatar: string
+    fields: MentorCardFields
   ) => Promise<boolean>;
 }
 
@@ -241,11 +241,15 @@ export async function saveProfile(
         Boolean(latest?.is_mentor);
       if (isMentorRelevant) {
         const userIdForPoll = sessionUserId ?? Number(pageUserId);
-        await pollUntilMentorPoolSynced(
-          userIdForPoll,
-          values.name,
-          avatar ?? ''
-        );
+        await pollUntilMentorPoolSynced(userIdForPoll, {
+          name: values.name,
+          jobTitle: job_title,
+          company: companyFromPrimary,
+          about: values.about ?? '',
+          yearsOfExperience: values.years_of_experience,
+          haveTopic: values.have_topic,
+          avatar: avatar ?? '',
+        });
         await revalidateProfilePath(pageUserId).catch((e: unknown) => {
           captureFlowFailure({
             flow: 'profile_update',

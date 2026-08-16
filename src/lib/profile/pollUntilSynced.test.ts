@@ -21,6 +21,7 @@ import type { MentorProfileVO } from '@/types/user';
 
 import {
   firstSyncedFetch,
+  type MentorCardFields,
   pollUntilMentorPoolSynced,
   pollUntilUserDeleted,
 } from './pollUntilSynced';
@@ -33,7 +34,30 @@ const makeMentor = (
   user_id: number,
   overrides: Partial<MentorType> = {}
 ): MentorType =>
-  fromPartial({ user_id, name: `Mentor ${user_id}`, ...overrides });
+  fromPartial({
+    user_id,
+    name: `Mentor ${user_id}`,
+    job_title: '',
+    company: '',
+    about: '',
+    years_of_experience: '',
+    have_topic: [],
+    avatar: '',
+    ...overrides,
+  });
+
+const makeFields = (
+  overrides: Partial<MentorCardFields> = {}
+): MentorCardFields => ({
+  name: 'New Name',
+  jobTitle: '',
+  company: '',
+  about: '',
+  yearsOfExperience: '',
+  haveTopic: [],
+  avatar: '',
+  ...overrides,
+});
 
 const baseValues = {
   ...defaultValues,
@@ -321,24 +345,35 @@ describe('pollUntilMentorPoolSynced', () => {
   });
 
   it('returns true immediately for a falsy/NaN userId without fetching', async () => {
-    const result = await pollUntilMentorPoolSynced(NaN, 'Name', '');
+    const result = await pollUntilMentorPoolSynced(NaN, makeFields());
 
     expect(result).toBe(true);
     expect(mockFetchMentors).not.toHaveBeenCalled();
   });
 
-  it('returns true once the card reflects the new name and avatar', async () => {
+  it('returns true once the card reflects every card-visible field', async () => {
+    const fields = makeFields({
+      name: 'New Name',
+      jobTitle: 'Engineer',
+      company: 'Acme',
+      about: 'new about',
+      yearsOfExperience: '5_10',
+      haveTopic: ['career', 'leadership'],
+      avatar: 'https://cdn/a.png',
+    });
     mockFetchMentors.mockResolvedValueOnce([
-      makeMentor(1, { name: 'New Name', avatar: 'https://cdn/a.png?cb=123' }),
+      makeMentor(1, {
+        name: 'New Name',
+        job_title: 'Engineer',
+        company: 'Acme',
+        about: 'new about',
+        years_of_experience: '5_10',
+        have_topic: ['leadership', 'career'], // order-independent
+        avatar: 'https://cdn/a.png?cb=123',
+      }),
     ]);
 
-    const result = await pollUntilMentorPoolSynced(
-      1,
-      'New Name',
-      'https://cdn/a.png',
-      6,
-      2000
-    );
+    const result = await pollUntilMentorPoolSynced(1, fields, 6, 2000);
 
     expect(result).toBe(true);
     expect(mockFetchMentors).toHaveBeenCalledTimes(1);
@@ -351,12 +386,46 @@ describe('pollUntilMentorPoolSynced', () => {
     });
   });
 
+  it('keeps retrying when name and avatar already match but another card-visible field (job_title) is still stale', async () => {
+    const fields = makeFields({
+      name: 'Same Name',
+      jobTitle: 'Senior Engineer',
+      avatar: 'https://cdn/a.png',
+    });
+    mockFetchMentors
+      .mockResolvedValueOnce([
+        makeMentor(1, {
+          name: 'Same Name',
+          job_title: 'Engineer', // stale — only this field lags
+          avatar: 'https://cdn/a.png?cb=123',
+        }),
+      ])
+      .mockResolvedValueOnce([
+        makeMentor(1, {
+          name: 'Same Name',
+          job_title: 'Senior Engineer',
+          avatar: 'https://cdn/a.png?cb=124',
+        }),
+      ]);
+
+    const promise = pollUntilMentorPoolSynced(1, fields, 6, 2000);
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(await promise).toBe(true);
+    expect(mockFetchMentors).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps retrying while the card still shows the old name, then succeeds', async () => {
     mockFetchMentors
       .mockResolvedValueOnce([makeMentor(1, { name: 'Old Name' })])
       .mockResolvedValueOnce([makeMentor(1, { name: 'New Name' })]);
 
-    const promise = pollUntilMentorPoolSynced(1, 'New Name', '', 6, 2000);
+    const promise = pollUntilMentorPoolSynced(
+      1,
+      makeFields({ name: 'New Name' }),
+      6,
+      2000
+    );
     await vi.advanceTimersByTimeAsync(2000);
 
     expect(await promise).toBe(true);
@@ -371,7 +440,12 @@ describe('pollUntilMentorPoolSynced', () => {
         makeMentor(2),
       ]);
 
-    const promise = pollUntilMentorPoolSynced(1, 'New Mentor', '', 6, 2000);
+    const promise = pollUntilMentorPoolSynced(
+      1,
+      makeFields({ name: 'New Mentor' }),
+      6,
+      2000
+    );
     await vi.advanceTimersByTimeAsync(2000);
 
     expect(await promise).toBe(true);
@@ -380,7 +454,12 @@ describe('pollUntilMentorPoolSynced', () => {
   it('returns false and reports a flow failure once the retry budget is exhausted', async () => {
     mockFetchMentors.mockResolvedValue([makeMentor(1, { name: 'Old Name' })]);
 
-    const promise = pollUntilMentorPoolSynced(1, 'New Name', '', 3, 2000);
+    const promise = pollUntilMentorPoolSynced(
+      1,
+      makeFields({ name: 'New Name' }),
+      3,
+      2000
+    );
     await vi.advanceTimersByTimeAsync(2000 * 3);
 
     expect(await promise).toBe(false);

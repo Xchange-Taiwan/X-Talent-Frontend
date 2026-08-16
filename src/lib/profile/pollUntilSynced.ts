@@ -177,12 +177,33 @@ export async function pollUntilUserDeleted(
   return confirmed;
 }
 
+// Every field the mentor card (`MentorCardProps` /
+// `mentor-card-list/index.tsx`) actually renders. Checking only a subset
+// (e.g. name + avatar) would report "synced" the instant a save that left
+// those two untouched hits the search index, even though other rendered
+// fields (job title, company, about, topics) are still stale on it.
+export interface MentorCardFields {
+  name: string;
+  jobTitle: string;
+  company: string;
+  about: string;
+  yearsOfExperience: string;
+  haveTopic: string[];
+  avatar: string;
+}
+
+function sameTopics(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sortedB = [...b].sort();
+  return [...a].sort().every((topic, i) => topic === sortedB[i]);
+}
+
 /**
- * Polls the mentor-pool search query (scoped to `name` via
+ * Polls the mentor-pool search query (scoped to `fields.name` via
  * `search_pattern`, so it isn't limited to the unfiltered listing's first
- * page) until this user's card reflects the just-saved name and avatar
- * (or, for a user newly becoming a mentor, until the card appears at
- * all). Only meaningful for mentors — callers should skip this for
+ * page) until this user's card reflects every just-saved, card-visible
+ * field (or, for a user newly becoming a mentor, until the card appears
+ * at all). Only meaningful for mentors — callers should skip this for
  * mentee saves, since those never appear in the listing.
  *
  * Same rationale as `pollUntilUserDeleted`: `/v1/mentors` is Elasticsearch-
@@ -198,8 +219,7 @@ export async function pollUntilUserDeleted(
  */
 export async function pollUntilMentorPoolSynced(
   userId: number,
-  name: string,
-  avatar: string,
+  fields: MentorCardFields,
   maxRetries = 6,
   intervalMs = 2000
 ): Promise<boolean> {
@@ -208,17 +228,29 @@ export async function pollUntilMentorPoolSynced(
   const confirmed = await pollUntil(
     async () => {
       const mentors = await fetchMentors({
-        search_pattern: name,
+        search_pattern: fields.name,
         limit: MENTOR_POOL_POLL_LIMIT,
         cursor: '',
       });
       const card = mentors.find((mentor) => mentor.user_id === userId);
+      if (!card) return false;
+
       // mapMentor appends `?cb=<updated_at>` to the avatar URL, so compare
       // by prefix rather than exact equality.
       const avatarSynced =
-        !avatar ||
-        (typeof card?.avatar === 'string' && card.avatar.startsWith(avatar));
-      return Boolean(card && card.name === name && avatarSynced);
+        !fields.avatar ||
+        (typeof card.avatar === 'string' &&
+          card.avatar.startsWith(fields.avatar));
+
+      return (
+        card.name === fields.name &&
+        card.job_title === fields.jobTitle &&
+        card.company === fields.company &&
+        card.about === fields.about &&
+        card.years_of_experience === fields.yearsOfExperience &&
+        sameTopics(card.have_topic, fields.haveTopic) &&
+        avatarSynced
+      );
     },
     maxRetries,
     intervalMs

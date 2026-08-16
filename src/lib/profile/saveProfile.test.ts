@@ -432,8 +432,7 @@ describe('saveProfile (Deep Module)', () => {
     await vi.waitFor(() => {
       expect(mockPollUntilMentorPoolSynced).toHaveBeenCalledWith(
         Number(mockSession.user!.id),
-        baseValues.name,
-        expect.any(String)
+        expect.objectContaining({ name: baseValues.name })
       );
       expect(revalidateProfilePath).toHaveBeenCalledTimes(2);
     });

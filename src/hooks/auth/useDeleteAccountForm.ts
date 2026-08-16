@@ -9,6 +9,7 @@ import { revalidateProfilePathAfterDelete } from '@/app/profile/[pageUserId]/act
 import { useToast } from '@/components/ui/use-toast';
 import useAsyncAction from '@/hooks/useAsyncAction';
 import { trackEvent } from '@/lib/analytics';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { DeleteAccountXCSchema } from '@/schemas/auth';
 import { deleteAccount } from '@/services/auth/deleteAccount';
 import { getGoogleAuthorizeLoginUrl } from '@/services/auth/googleAuthorize';
@@ -62,10 +63,23 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
         if (result.status === 'success') {
           trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
           if (session?.user?.id) {
-            await revalidateProfilePathAfterDelete(
-              String(session.user.id),
-              session.user.name ?? undefined
-            );
+            // Best-effort: the account is already deleted server-side by
+            // this point, so a dispatch failure here (network blip, 5xx)
+            // must never block signOut and strand the user in a "deleted
+            // but still logged in" state.
+            try {
+              await revalidateProfilePathAfterDelete(
+                String(session.user.id),
+                session.user.name ?? undefined
+              );
+            } catch (e) {
+              captureFlowFailure({
+                flow: 'delete_account',
+                step: 'revalidate_dispatch',
+                message: e instanceof Error ? e.message : String(e),
+                level: 'warning',
+              });
+            }
           }
           await signOut({ callbackUrl: '/' });
           return;

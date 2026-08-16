@@ -11,6 +11,7 @@ import {
   resolveOAuthOutcome,
   signInWithGoogleToken,
 } from '@/lib/auth/oauthOutcome';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { deleteAccount } from '@/services/auth/deleteAccount';
 import type { components } from '@/types/api';
 
@@ -112,10 +113,24 @@ export function useGoogleOAuthCallback() {
       if (result.status === 'success') {
         trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
         if (user?.user_id) {
-          await revalidateProfilePathAfterDelete(
-            String(user.user_id),
-            user.name ?? undefined
-          );
+          // Best-effort: the account is already deleted server-side by this
+          // point, so a dispatch failure here (network blip, 5xx) must
+          // never block signOut and strand the user in a "deleted but still
+          // logged in" state — nor fall through to the outer catch below,
+          // which would show a misleading "Login failed" toast instead.
+          try {
+            await revalidateProfilePathAfterDelete(
+              String(user.user_id),
+              user.name ?? undefined
+            );
+          } catch (e) {
+            captureFlowFailure({
+              flow: 'delete_account',
+              step: 'revalidate_dispatch',
+              message: e instanceof Error ? e.message : String(e),
+              level: 'warning',
+            });
+          }
         }
         await signOut({ callbackUrl: '/' });
         return;

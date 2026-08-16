@@ -8,6 +8,7 @@ import {
   resolveOAuthOutcome,
   signInWithGoogleToken,
 } from '@/lib/auth/oauthOutcome';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { deleteAccount } from '@/services/auth/deleteAccount';
 import type { components } from '@/types/api';
 
@@ -59,6 +60,10 @@ vi.mock('@/lib/analytics', () => ({
   trackEvent: vi.fn(),
 }));
 
+vi.mock('@/lib/monitoring', () => ({
+  captureFlowFailure: vi.fn(),
+}));
+
 vi.mock('@/services/auth/deleteAccount', () => ({
   deleteAccount: vi.fn(),
 }));
@@ -79,6 +84,7 @@ const mockRevalidateProfileAfterDelete = vi.mocked(
   revalidateProfilePathAfterDelete
 );
 const mockTrackEvent = vi.mocked(trackEvent);
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 describe('GoogleOAuthRedirectPage Component', () => {
   beforeEach(() => {
@@ -382,6 +388,39 @@ describe('GoogleOAuthRedirectPage Component', () => {
         mockRevalidateProfileAfterDelete.mock.invocationCallOrder[0];
       const signOutOrder = mockSignOut.mock.invocationCallOrder[0];
       expect(revalidateOrder).toBeLessThan(signOutOrder);
+    });
+
+    it('revalidateProfilePathAfterDelete rejects → signOut still runs and the failure is reported (not the generic "Login failed" path)', async () => {
+      mockResolveOAuthOutcome.mockResolvedValue({
+        type: 'RESUME_DELETE_ACCOUNT',
+        data: mockData,
+        email: 'delete@example.com',
+      });
+
+      mockDeleteAccount.mockResolvedValue({
+        status: 'success',
+      });
+      mockRevalidateProfileAfterDelete.mockRejectedValueOnce(
+        new Error('network down')
+      );
+
+      render(<GoogleOAuthRedirectPage />);
+
+      await waitFor(() => {
+        expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
+        expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+          expect.objectContaining({
+            flow: 'delete_account',
+            step: 'revalidate_dispatch',
+            message: 'network down',
+            level: 'warning',
+          })
+        );
+        // Must not fall through to the outer catch-all's generic toast.
+        expect(mockToast).not.toHaveBeenCalledWith(
+          expect.objectContaining({ title: 'Login failed' })
+        );
+      });
     });
 
     it('handles blocked by reservations deletion flow correctly', async () => {
