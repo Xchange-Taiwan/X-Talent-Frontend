@@ -266,4 +266,62 @@ describe('MonthDraftStore Unit Tests', () => {
     store.reset([['2026-07', reloadedRaws]]);
     expect(store.snapshot().draftByMonth.get('2026-07')).toEqual(reloadedRaws);
   });
+
+  it('correctly handles partial failure during commit', () => {
+    const store = new MonthDraftStore();
+    store.ensureMonthLoaded('2026-07', defaultMockRaws);
+    store.ensureMonthLoaded('2026-08', defaultMockRaws);
+
+    // Make both dirty
+    store.edit(101, 1785070000, { startTime: '13:00' }, '123');
+    // For august
+    const augRaws: RawMentorTimeslot[] = [
+      {
+        id: 102,
+        type: 'ALLOW',
+        dtstart: 1787664000,
+        dtend: 1787667600,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+    store.ensureMonthLoaded('2026-08', augRaws);
+    store.edit(102, 1787664000, { startTime: '15:00' }, '123');
+
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+    expect(store.snapshot().dirtyMonths.has('2026-08')).toBe(true);
+
+    // Commit with July successful and August failed
+    store.commit([
+      {
+        monthKey: '2026-07',
+        outcome: { ok: true, raws: defaultMockRaws },
+      },
+      {
+        monthKey: '2026-08',
+        outcome: { ok: false, reason: 'unknown', message: 'Failed' },
+      },
+    ]);
+
+    const snap = store.snapshot();
+    expect(snap.dirtyMonths.has('2026-07')).toBe(false); // Success, cleared dirty
+    expect(snap.dirtyMonths.has('2026-08')).toBe(true); // Failed, remains dirty!
+  });
+
+  it('ensureMonthLoaded bails out and does not overwrite if month is dirty', () => {
+    const store = new MonthDraftStore();
+    store.ensureMonthLoaded('2026-07', defaultMockRaws);
+
+    // Make dirty
+    store.edit(101, 1785070000, { startTime: '13:00' }, '123');
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+
+    const editedDraft = store.snapshot().draftByMonth.get('2026-07');
+
+    // Call ensureMonthLoaded with old/original raws
+    store.ensureMonthLoaded('2026-07', defaultMockRaws);
+
+    // Draft should remain edited/dirty and not overwritten
+    expect(store.snapshot().draftByMonth.get('2026-07')).toEqual(editedDraft);
+  });
 });

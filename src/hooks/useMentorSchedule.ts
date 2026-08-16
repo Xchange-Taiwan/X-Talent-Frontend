@@ -111,7 +111,9 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const { backend } = opts;
 
   // External standalone MonthDraftStore for cross-month states and synchronization logic
-  const [store] = useState(() => new MonthDraftStore());
+  const [store] = useState(
+    () => new MonthDraftStore(undefined, { loadMonthScheduleCached })
+  );
   const [storeState, setStoreState] = useState(() => store.snapshot());
 
   useEffect(() => {

@@ -15,10 +15,7 @@ import {
   parseMonthKey,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
-import {
-  loadMonthScheduleCached,
-  MonthSyncResult,
-} from '@/services/mentor-schedule/sync';
+import { MonthSyncResult } from '@/services/mentor-schedule/sync';
 
 export type SlotDurationMinutes = 30 | 45 | 60;
 
@@ -36,30 +33,13 @@ export interface MonthDraftStoreSnapshot {
 
 export type StoreListener = (snapshot: MonthDraftStoreSnapshot) => void;
 
-function ensureTargetMonthLoaded({
-  targetMonthKey,
-  currentDraftsMap,
-  userId,
-}: {
-  targetMonthKey: MonthKey;
-  currentDraftsMap: Map<MonthKey, RawMentorTimeslot[]>;
+export type LoadMonthScheduleCachedFn = (ref: {
   userId: string;
-}): RawMentorTimeslot[] | null {
-  let targetDraft = currentDraftsMap.get(targetMonthKey);
-  if (!targetDraft) {
-    const { year, month } = parseMonthKey(targetMonthKey);
-    const { cached } = loadMonthScheduleCached({
-      userId,
-      year,
-      month,
-    });
-    if (!cached) {
-      return null;
-    }
-    targetDraft = cached;
-  }
-  return targetDraft;
-}
+  year: number;
+  month: number;
+}) => {
+  cached: RawMentorTimeslot[] | undefined;
+};
 
 const appendExdate = (exdates: number[], unix: number): number[] =>
   exdates.includes(unix) ? exdates : [...exdates, unix];
@@ -70,8 +50,13 @@ export class MonthDraftStore {
   private pendingDeleteByMonth = new Map<MonthKey, number[]>();
   private dirtyMonths = new Set<MonthKey>();
   private listeners = new Set<StoreListener>();
+  private loadMonthScheduleCached?: LoadMonthScheduleCachedFn;
 
-  constructor(initialData?: Partial<MonthDraftStoreSnapshot>) {
+  constructor(
+    initialData?: Partial<MonthDraftStoreSnapshot>,
+    options?: { loadMonthScheduleCached?: LoadMonthScheduleCachedFn }
+  ) {
+    this.loadMonthScheduleCached = options?.loadMonthScheduleCached;
     if (initialData) {
       this.savedByMonth = initialData.savedByMonth ?? new Map();
       this.draftByMonth = initialData.draftByMonth ?? new Map();
@@ -94,10 +79,10 @@ export class MonthDraftStore {
 
   public snapshot(): MonthDraftStoreSnapshot {
     return {
-      savedByMonth: new Map(this.savedByMonth),
-      draftByMonth: new Map(this.draftByMonth),
-      pendingDeleteByMonth: new Map(this.pendingDeleteByMonth),
-      dirtyMonths: new Set(this.dirtyMonths),
+      savedByMonth: this.savedByMonth,
+      draftByMonth: this.draftByMonth,
+      pendingDeleteByMonth: this.pendingDeleteByMonth,
+      dirtyMonths: this.dirtyMonths,
     };
   }
 
@@ -111,7 +96,38 @@ export class MonthDraftStore {
   }
 
   private markDirty(monthKey: MonthKey) {
-    this.dirtyMonths.add(monthKey);
+    if (!this.dirtyMonths.has(monthKey)) {
+      this.dirtyMonths = new Set(this.dirtyMonths);
+      this.dirtyMonths.add(monthKey);
+    }
+  }
+
+  private ensureTargetMonthLoaded({
+    targetMonthKey,
+    currentDraftsMap,
+    userId,
+  }: {
+    targetMonthKey: MonthKey;
+    currentDraftsMap: Map<MonthKey, RawMentorTimeslot[]>;
+    userId: string;
+  }): RawMentorTimeslot[] | null {
+    let targetDraft = currentDraftsMap.get(targetMonthKey);
+    if (!targetDraft) {
+      if (!this.loadMonthScheduleCached) {
+        return null;
+      }
+      const { year, month } = parseMonthKey(targetMonthKey);
+      const { cached } = this.loadMonthScheduleCached({
+        userId,
+        year,
+        month,
+      });
+      if (!cached) {
+        return null;
+      }
+      targetDraft = cached;
+    }
+    return targetDraft;
   }
 
   public ensureMonthLoaded(
@@ -119,6 +135,8 @@ export class MonthDraftStore {
     raws: RawMentorTimeslot[]
   ): void {
     if (this.dirtyMonths.has(monthKey)) return;
+    this.savedByMonth = new Map(this.savedByMonth);
+    this.draftByMonth = new Map(this.draftByMonth);
     this.savedByMonth.set(monthKey, raws);
     this.draftByMonth.set(monthKey, raws);
     this.emitChange();
@@ -201,6 +219,7 @@ export class MonthDraftStore {
                 }
               : r
           );
+          this.draftByMonth = new Map(this.draftByMonth);
           this.draftByMonth.set(monthKey, updated);
           this.markDirty(monthKey);
           this.emitChange();
@@ -214,6 +233,7 @@ export class MonthDraftStore {
 
       added = count;
       const nextId = nextTempId(Array.from(this.draftByMonth.values()).flat());
+      this.draftByMonth = new Map(this.draftByMonth);
       this.draftByMonth.set(monthKey, [
         ...prev,
         {
@@ -261,7 +281,7 @@ export class MonthDraftStore {
 
     const targetMonthKey = monthKeyFromUnix(newDtstart);
 
-    const targetDraft = ensureTargetMonthLoaded({
+    const targetDraft = this.ensureTargetMonthLoaded({
       targetMonthKey,
       currentDraftsMap: this.draftByMonth,
       userId,
@@ -284,7 +304,10 @@ export class MonthDraftStore {
       return { success: false, reason: 'OVERLAP' };
     }
 
+    this.draftByMonth = new Map(this.draftByMonth);
+
     if (!isTargetLoaded) {
+      this.savedByMonth = new Map(this.savedByMonth);
       this.savedByMonth.set(targetMonthKey, targetDraft);
     }
 
@@ -375,6 +398,8 @@ export class MonthDraftStore {
     const target = parentDraft.find((r) => r.id === id);
     if (!target) return;
 
+    this.draftByMonth = new Map(this.draftByMonth);
+
     if (target.rrule) {
       const updatedExdate = target.exdate.includes(occurrenceUnix)
         ? target.exdate
@@ -413,6 +438,7 @@ export class MonthDraftStore {
     }
 
     if (fullyRemovedFromSomeMonth && id > 0) {
+      this.pendingDeleteByMonth = new Map(this.pendingDeleteByMonth);
       const current = this.pendingDeleteByMonth.get(parentMonthKey) ?? [];
       if (!current.includes(id)) {
         this.pendingDeleteByMonth.set(parentMonthKey, [...current, id]);
@@ -429,18 +455,33 @@ export class MonthDraftStore {
   }
 
   public commit(results: MonthSyncResult[]): void {
+    let changed = false;
     for (const r of results) {
       if (r.outcome.ok) {
+        if (!changed) {
+          this.savedByMonth = new Map(this.savedByMonth);
+          this.draftByMonth = new Map(this.draftByMonth);
+          this.pendingDeleteByMonth = new Map(this.pendingDeleteByMonth);
+          this.dirtyMonths = new Set(this.dirtyMonths);
+          changed = true;
+        }
         this.savedByMonth.set(r.monthKey, r.outcome.raws);
         this.draftByMonth.set(r.monthKey, r.outcome.raws);
         this.pendingDeleteByMonth.delete(r.monthKey);
         this.dirtyMonths.delete(r.monthKey);
       }
     }
-    this.emitChange();
+    if (changed) {
+      this.emitChange();
+    }
   }
 
   public reset(reloaded: (readonly [MonthKey, RawMentorTimeslot[]])[]): void {
+    this.savedByMonth = new Map(this.savedByMonth);
+    this.draftByMonth = new Map(this.draftByMonth);
+    this.pendingDeleteByMonth = new Map(this.pendingDeleteByMonth);
+    this.dirtyMonths = new Set(this.dirtyMonths);
+
     if (reloaded.length === 0) {
       this.savedByMonth.clear();
       this.draftByMonth.clear();
