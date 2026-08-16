@@ -7,7 +7,7 @@ import { setSignedSessionCookie } from '../../helpers/session';
 // Following the codebase convention (e.g. mentor-pool.spec.ts), we test against
 // the live dev database directly, avoiding cargo-cult browser-only mocks.
 const REAL_MENTOR_ID = '7468899508961767'; // Jonas Lo (Mentor)
-const REAL_MENTEE_ID = '7462904718734737'; // Visitor (Mentee)
+const REAL_MENTEE_ID = '7482008160728083'; // Visitor (Mentee)
 
 // Helper to construct a flat NextAuth JWT Payload matching e2e/helpers/session.ts's SessionPayload.
 // NextAuth stores the flat JWT payload inside the encrypted cookie, which is then decrypted
@@ -33,8 +33,11 @@ test('檢視他人的 mentor 個人檔案 → 基本資訊、可預約時段區�
   const mentorId = REAL_MENTOR_ID;
   await page.goto(`/profile/${mentorId}`);
 
-  // Assert Name & Basic Info region using semantic locator (checking the user-facing text)
-  const nameElement = page.getByText('Jonas Lo');
+  // Assert Name & Basic Info region using semantic locator (checking the user-facing text).
+  // Scoped to <main> — the mentor's name is also baked into <title> by
+  // generateMetadata, and an unscoped getByText() matches both, tripping
+  // Playwright's strict mode.
+  const nameElement = page.getByRole('main').getByText('Jonas Lo');
   await expect(nameElement).toBeVisible({ timeout: 15_000 });
 
   // Assert schedule calendar / booking section is visible
@@ -45,8 +48,9 @@ test('檢視他人的 mentee 個人檔案 → 預約區塊不存在', async ({ p
   const menteeId = REAL_MENTEE_ID;
   await page.goto(`/profile/${menteeId}`);
 
-  // Assert name is visible using the correct semantic locator
-  const nameElement = page.getByText('Visitor');
+  // Assert name is visible using the correct semantic locator.
+  // Scoped to <main> for the same reason as the mentor case above.
+  const nameElement = page.getByRole('main').getByText('Visitor');
   await expect(nameElement).toBeVisible({ timeout: 15_000 });
 
   // Assert the schedule calendar / booking section is collapsed (not visible)
