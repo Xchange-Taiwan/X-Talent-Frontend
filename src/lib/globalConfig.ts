@@ -47,34 +47,41 @@ async function readWithTimeoutAndReporting<T>(
 
       const duration = Date.now() - startTime;
 
-      if (timeoutMessage) {
-        console.warn(timeoutMessage);
-        captureApiFailure({
-          endpoint: `global-config:${key}`,
-          method: 'GET',
-          status: 0,
-          message: timeoutMessage,
-          duration,
-        });
-      } else if (errorToReport !== undefined) {
-        const message =
-          errorToReport instanceof Error
-            ? errorToReport.message
-            : 'Unknown error';
+      try {
+        if (timeoutMessage) {
+          console.warn(timeoutMessage);
+          captureApiFailure({
+            endpoint: `global-config:${key}`,
+            method: 'GET',
+            status: 0,
+            message: timeoutMessage,
+            duration,
+          });
+        } else if (errorToReport !== undefined) {
+          const message =
+            errorToReport instanceof Error
+              ? errorToReport.message
+              : 'Unknown error';
 
-        // Log safe message locally to prevent credentials/token leaks from raw error objects
-        console.error(`Global Config read failed for key ${key}: ${message}`);
+          // Log safe message locally to prevent credentials/token leaks from raw error objects
+          console.error(`Global Config read failed for key ${key}: ${message}`);
 
-        captureApiFailure({
-          endpoint: `global-config:${key}`,
-          method: 'GET',
-          status: 0,
-          message,
-          duration,
-        });
+          captureApiFailure({
+            endpoint: `global-config:${key}`,
+            method: 'GET',
+            status: 0,
+            message,
+            duration,
+          });
+        }
+      } catch (logErr) {
+        console.error(
+          `Failed to report Global Config status for key ${key}:`,
+          logErr
+        );
+      } finally {
+        resolve({ success, value });
       }
-
-      resolve({ success, value });
     };
 
     const timer = setTimeout(() => {

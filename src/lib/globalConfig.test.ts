@@ -100,6 +100,57 @@ describe('globalConfig module', () => {
         })
       );
     });
+
+    it('prevents double reporting on late resolution after a timeout', async () => {
+      let triggerLateResolve!: (val: unknown) => void;
+      mockGet.mockImplementation(() => {
+        return new Promise((resolve) => {
+          triggerLateResolve = resolve;
+        });
+      });
+
+      // Triggers timeout first
+      const result = await getMaintenanceMode(50);
+      expect(result).toEqual({ success: false, value: false });
+      expect(mockCaptureApiFailure).toHaveBeenCalledTimes(1);
+
+      // Now resolve the late Promise
+      triggerLateResolve(true);
+
+      // Verify no extra report was sent
+      expect(mockCaptureApiFailure).toHaveBeenCalledTimes(1);
+    });
+
+    it('prevents double reporting on late rejection after a timeout', async () => {
+      let triggerLateReject!: (err: Error) => void;
+      mockGet.mockImplementation(() => {
+        return new Promise((_, reject) => {
+          triggerLateReject = reject;
+        });
+      });
+
+      // Triggers timeout first
+      const result = await getMaintenanceMode(50);
+      expect(result).toEqual({ success: false, value: false });
+      expect(mockCaptureApiFailure).toHaveBeenCalledTimes(1);
+
+      // Now reject the late Promise
+      triggerLateReject(new Error('Late network error'));
+
+      // Verify no extra report was sent
+      expect(mockCaptureApiFailure).toHaveBeenCalledTimes(1);
+    });
+
+    it('successfully resolves Promise even if Sentry captureApiFailure throws an error', async () => {
+      mockGet.mockRejectedValue(new Error('Fetch failed'));
+      mockCaptureApiFailure.mockImplementation(() => {
+        throw new Error('Sentry error');
+      });
+
+      // Should still resolve successfully and not hang
+      const result = await getMaintenanceMode();
+      expect(result).toEqual({ success: false, value: false });
+    });
   });
 
   describe('getAnnouncement', () => {
