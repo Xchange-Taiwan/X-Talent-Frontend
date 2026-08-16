@@ -160,6 +160,20 @@ describe('globalConfig module', () => {
       const result = await getMaintenanceMode();
       expect(result).toEqual({ success: false, value: false });
     });
+
+    it('prevents silent fail by reporting error even if errorToReport is undefined or falsy', async () => {
+      mockGet.mockRejectedValue(undefined); // Reject with undefined
+      const result = await getMaintenanceMode();
+      expect(result).toEqual({ success: false, value: false });
+      expect(mockCaptureApiFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpoint: 'global-config:isInMaintenanceMode',
+          method: 'GET',
+          status: 0,
+          message: 'Unknown error',
+        })
+      );
+    });
   });
 
   describe('getAnnouncement', () => {

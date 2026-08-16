@@ -35,7 +35,7 @@ async function readWithTimeoutAndReporting<T>(
 
   return new Promise((resolve) => {
     // Shared settlement logic to prevent race conditions and double reporting
-    const settle = (
+    const settle = async (
       success: boolean,
       value: T | null,
       errorToReport?: unknown,
@@ -50,38 +50,36 @@ async function readWithTimeoutAndReporting<T>(
       try {
         if (timeoutMessage) {
           console.warn(timeoutMessage);
-          Promise.resolve(
-            captureApiFailure({
-              endpoint: `global-config:${key}`,
-              method: 'GET',
-              status: 0,
-              message: timeoutMessage,
-              duration,
-            })
-          ).catch((logErr) => {
+          await captureApiFailure({
+            endpoint: `global-config:${key}`,
+            method: 'GET',
+            status: 0,
+            message: timeoutMessage,
+            duration,
+          }).catch((logErr) => {
             console.error(
               `Failed to log timeout monitoring event for key ${key}:`,
               logErr
             );
           });
-        } else if (errorToReport !== undefined) {
+        } else if (!success) {
           const message =
             errorToReport instanceof Error
               ? errorToReport.message
-              : 'Unknown error';
+              : typeof errorToReport === 'string' && errorToReport
+                ? errorToReport
+                : 'Unknown error';
 
           // Log safe message locally to prevent credentials/token leaks from raw error objects
           console.error(`Global Config read failed for key ${key}: ${message}`);
 
-          Promise.resolve(
-            captureApiFailure({
-              endpoint: `global-config:${key}`,
-              method: 'GET',
-              status: 0,
-              message,
-              duration,
-            })
-          ).catch((logErr) => {
+          await captureApiFailure({
+            endpoint: `global-config:${key}`,
+            method: 'GET',
+            status: 0,
+            message,
+            duration,
+          }).catch((logErr) => {
             console.error(
               `Failed to log failure monitoring event for key ${key}:`,
               logErr
