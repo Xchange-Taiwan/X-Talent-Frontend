@@ -1,4 +1,3 @@
-import { get } from '@vercel/global-config';
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 import { match } from 'path-to-regexp';
@@ -9,37 +8,8 @@ import {
   SESSION_HINT_COOKIE,
   SESSION_HINT_COOKIE_OPTIONS,
 } from '@/lib/auth/sessionHint';
+import { getMaintenanceMode } from '@/lib/globalConfig';
 import { apiAuthPrefix, DEFAULT_LOGIN, publicRoutes } from '@/routes';
-
-// Helper to read from Global/Edge Config with a timeout to avoid blocking middleware
-async function getWithTimeout(
-  key: string,
-  timeoutMs = 500
-): Promise<{ success: boolean; value: unknown }> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      console.warn(`Global/Edge Config read timed out after ${timeoutMs}ms`);
-      resolve({ success: false, value: null });
-    }, timeoutMs);
-
-    try {
-      get(key)
-        .then((val) => {
-          clearTimeout(timer);
-          resolve({ success: true, value: val });
-        })
-        .catch((err) => {
-          clearTimeout(timer);
-          console.error('Error reading from Global/Edge Config:', err);
-          resolve({ success: false, value: null });
-        });
-    } catch (err) {
-      clearTimeout(timer);
-      console.error('Sync error reading from Global/Edge Config:', err);
-      resolve({ success: false, value: null });
-    }
-  });
-}
 
 // Convert Next.js dynamic route → express style (:id)
 function normalizeRoute(route: string): string {
@@ -106,18 +76,14 @@ export async function middleware(req: NextRequest) {
   if (isEnvMaintenance) {
     isInMaintenanceMode = true;
   } else if (process.env.GLOBAL_CONFIG || process.env.EDGE_CONFIG) {
-    // Bare get() from @vercel/global-config already falls back to
-    // EDGE_CONFIG internally when GLOBAL_CONFIG is unset (its init()
-    // resolves the connection string via `GLOBAL_CONFIG ?? EDGE_CONFIG`),
-    // so no explicit createClient() call is needed here.
-    const result = await getWithTimeout('isInMaintenanceMode', 500);
+    const result = await getMaintenanceMode(500);
     if (!result.success) {
       // If we timed out or encountered an error, use a safe fallback:
       // If the user is already on the maintenance page, assume they should stay there.
       // If they are on a normal page, let them continue (don't force maintenance).
       isInMaintenanceMode = isMaintenancePage;
     } else {
-      isInMaintenanceMode = result.value === true || result.value === 'true';
+      isInMaintenanceMode = result.value;
     }
   }
 
