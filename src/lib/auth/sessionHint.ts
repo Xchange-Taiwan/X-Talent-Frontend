@@ -187,7 +187,9 @@ export function resolveIdentity(
     } else {
       hint = hintInput as SessionHint;
     }
-  } else if (hintInput === null || hintInput === undefined) {
+  } else if (hintInput === null) {
+    isHintGuest = true;
+  } else if (hintInput === undefined) {
     const rawCookie = readCookie(SESSION_HINT_COOKIE);
     if (rawCookie !== undefined) {
       hint = decodeSessionHint(rawCookie);
