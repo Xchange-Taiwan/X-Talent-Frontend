@@ -5,25 +5,13 @@ import { useEffect, useState } from 'react';
 
 import {
   clearSessionHint,
-  decodeSessionHint,
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
   isValidAvatarProtocol,
-  readCookie,
   resolveIdentity,
-  SESSION_HINT_COOKIE,
+  SessionHintState,
 } from '@/lib/auth/sessionHint';
 import { useAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
-
-export type SessionHintState =
-  | { status: 'unknown' }
-  | { status: 'guest' }
-  | {
-      status: 'authenticated';
-      isMentor: boolean;
-      avatar?: string;
-      userId?: string;
-    };
 
 function updateAvatarStyle(avatar: string | undefined): void {
   if (typeof document === 'undefined') return;
@@ -63,8 +51,7 @@ export function useSessionHint(): SessionHintState {
   const [state, setState] = useState<SessionHintState>({ status: 'unknown' });
 
   useEffect(() => {
-    const hint = decodeSessionHint(readCookie(SESSION_HINT_COOKIE));
-    const identity = resolveIdentity(override, session, status, hint);
+    const identity = resolveIdentity(override, session, status);
 
     if (!identity.isLoggedIn) {
       clearAuthDOMState();

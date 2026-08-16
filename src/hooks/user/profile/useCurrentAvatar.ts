@@ -37,11 +37,7 @@ export function useCurrentAvatar(): string | null {
   }, [override, sessionUserId, sessionAvatar]);
 
   // Derived completely via resolveIdentity for single source of truth correctness
-  const hint =
-    status === 'loading' && hintState.status === 'authenticated'
-      ? hintState
-      : null;
-  const identity = resolveIdentity(override, session, status, hint);
+  const identity = resolveIdentity(override, session, status, hintState);
 
   return identity.avatar ?? null;
 }

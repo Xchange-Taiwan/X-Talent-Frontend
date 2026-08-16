@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import {
-  decodeSessionHint,
   readCookie,
   resolveIdentity,
   SESSION_HINT_COOKIE,
@@ -25,11 +24,7 @@ export function useProfileAuth(pageUserId: string) {
 
   useEffect(() => {
     const rawCookie = readCookie(SESSION_HINT_COOKIE);
-    const hint = decodeSessionHint(rawCookie);
-    const identity = resolveIdentity(null, session, status, hint);
-
-    const hasFullUser = Boolean(session?.user?.id);
-    const sessionSettled = hasFullUser || status !== 'loading';
+    const identity = resolveIdentity(null, session, status, rawCookie);
 
     // 1. If matching, authorize immediately
     if (identity.userId === pageUserId) {
@@ -37,18 +32,8 @@ export function useProfileAuth(pageUserId: string) {
       return;
     }
 
-    // 2. Redirect if either session is fully settled (and did not match)
-    // OR we are loading but have an authenticated hint with a different userId
-    // OR we are loading but have an explicit guest hint (cookie is present but not logged in).
-    const isDifferentUserHint =
-      status === 'loading' &&
-      identity.userId !== undefined &&
-      identity.userId !== pageUserId;
-
-    const isGuestHint =
-      status === 'loading' && rawCookie !== undefined && !identity.isLoggedIn;
-
-    if (sessionSettled || isDifferentUserHint || isGuestHint) {
+    // 2. Redirect if identity is fully known (either session settled or hint is known and did not match)
+    if (identity.authKnown) {
       setIsAuthorized(false);
       router.push('/');
     }

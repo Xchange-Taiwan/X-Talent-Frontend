@@ -23,6 +23,16 @@ export interface SessionHint {
   avatar?: string;
 }
 
+export type SessionHintState =
+  | { status: 'unknown' }
+  | { status: 'guest' }
+  | {
+      status: 'authenticated';
+      isMentor: boolean;
+      avatar?: string;
+      userId?: string;
+    };
+
 const MENTOR_VALUE = '1';
 const NON_MENTOR_VALUE = '0';
 
@@ -129,6 +139,9 @@ export interface ResolvedIdentity {
   avatar: string | undefined;
   isMentor: boolean;
   isLoggedIn: boolean;
+  hasFullUser: boolean;
+  isResolvingUser: boolean;
+  authKnown: boolean;
 }
 
 export function resolveIdentity(
@@ -144,12 +157,52 @@ export function resolveIdentity(
     | null
     | undefined,
   status: 'loading' | 'authenticated' | 'unauthenticated',
-  hint: SessionHint | null | undefined
+  hintInput?: SessionHint | SessionHintState | string | null | undefined
 ): ResolvedIdentity {
   const hasFullUser = Boolean(session?.user?.id);
   const sessionSettled = hasFullUser || status !== 'loading';
 
-  const isLoggedIn = hasFullUser || (!sessionSettled && Boolean(hint));
+  let hint: SessionHint | null = null;
+  let isHintUnknown = false;
+  let isHintGuest = false;
+
+  if (typeof hintInput === 'string') {
+    hint = decodeSessionHint(hintInput);
+    if (!hint) {
+      isHintGuest = true;
+    }
+  } else if (hintInput && typeof hintInput === 'object') {
+    if ('status' in hintInput) {
+      if (hintInput.status === 'unknown') {
+        isHintUnknown = true;
+      } else if (hintInput.status === 'guest') {
+        isHintGuest = true;
+      } else if (hintInput.status === 'authenticated') {
+        hint = {
+          isMentor: hintInput.isMentor,
+          avatar: hintInput.avatar,
+          userId: hintInput.userId,
+        };
+      }
+    } else {
+      hint = hintInput as SessionHint;
+    }
+  } else if (hintInput === null || hintInput === undefined) {
+    const rawCookie = readCookie(SESSION_HINT_COOKIE);
+    if (rawCookie !== undefined) {
+      hint = decodeSessionHint(rawCookie);
+      if (!hint) {
+        isHintGuest = true;
+      }
+    } else {
+      isHintUnknown = true;
+    }
+  }
+
+  const authKnown = sessionSettled || !isHintUnknown;
+  const isLoggedIn =
+    hasFullUser ||
+    (!sessionSettled && !isHintUnknown && !isHintGuest && Boolean(hint));
 
   // 1. Resolve userId
   const userId = hasFullUser
@@ -175,11 +228,16 @@ export function resolveIdentity(
     avatar = hint.avatar ?? undefined;
   }
 
+  const isResolvingUser = isLoggedIn && !userId;
+
   return {
     userId,
-    isMentor,
     avatar,
+    isMentor,
     isLoggedIn,
+    hasFullUser,
+    isResolvingUser,
+    authKnown,
   };
 }
 
