@@ -1,4 +1,4 @@
-import { revalidateProfilePathAfterDelete } from '@/app/profile/[pageUserId]/actions';
+import { revalidateProfilePathAfterDelete } from '@/actions/auth';
 import { captureFlowFailure } from '@/lib/monitoring';
 
 /**

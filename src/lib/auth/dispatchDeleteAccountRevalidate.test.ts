@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/app/profile/[pageUserId]/actions', () => ({
+vi.mock('@/actions/auth', () => ({
   revalidateProfilePathAfterDelete: vi.fn(),
 }));
 
@@ -8,7 +8,7 @@ vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
 }));
 
-import { revalidateProfilePathAfterDelete } from '@/app/profile/[pageUserId]/actions';
+import { revalidateProfilePathAfterDelete } from '@/actions/auth';
 import { captureFlowFailure } from '@/lib/monitoring';
 
 import { dispatchDeleteAccountRevalidate } from './dispatchDeleteAccountRevalidate';
