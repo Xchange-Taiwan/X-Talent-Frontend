@@ -11,23 +11,13 @@ vi.mock('next-auth/react', async () => {
   return nextAuthMockFactory();
 });
 
-vi.mock('@/lib/auth/sessionHint', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@/lib/auth/sessionHint')>();
-  return {
-    ...actual,
-    readCookie: vi.fn(),
-  };
-});
-
-import { readCookie } from '@/lib/auth/sessionHint';
+import { SESSION_HINT_COOKIE } from '@/lib/auth/sessionHint';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 
 import { useProfileAuth } from './useProfileAuth';
 
 const PAGE_USER_ID = 'test-user-id';
-const mockReadCookie = vi.mocked(readCookie);
 
 describe('useProfileAuth', () => {
   beforeEach(() => {
@@ -36,12 +26,12 @@ describe('useProfileAuth', () => {
       data: mockSession,
       status: 'authenticated',
     });
-    mockReadCookie.mockReturnValue(undefined);
+    // Clean up cookies
+    document.cookie = `${SESSION_HINT_COOKIE}=; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
   });
 
   it('status: loading and hint: unknown (no cookie) → isAuthorized is false, router.push is NOT called', async () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    mockReadCookie.mockReturnValue(undefined);
 
     const { result } = await act(async () =>
       renderHook(() => useProfileAuth(PAGE_USER_ID))
@@ -54,7 +44,7 @@ describe('useProfileAuth', () => {
   it('status: loading and hint: guest → triggers immediate redirect to "/"', async () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
     // Any garbage or malformed cookie decodes to guest (isLoggedIn = false)
-    mockReadCookie.mockReturnValue('garbage');
+    document.cookie = `${SESSION_HINT_COOKIE}=garbage`;
 
     const { result } = await act(async () =>
       renderHook(() => useProfileAuth(PAGE_USER_ID))
@@ -66,7 +56,7 @@ describe('useProfileAuth', () => {
 
   it('status: loading and hint: authenticated with mismatched userId → triggers immediate redirect to "/"', async () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    mockReadCookie.mockReturnValue('1|different-user-id');
+    document.cookie = `${SESSION_HINT_COOKIE}=1|different-user-id`;
 
     const { result } = await act(async () =>
       renderHook(() => useProfileAuth(PAGE_USER_ID))
@@ -78,7 +68,7 @@ describe('useProfileAuth', () => {
 
   it('status: loading and hint: authenticated with matching userId → authorizes immediately without redirect', async () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    mockReadCookie.mockReturnValue(`1|${PAGE_USER_ID}`);
+    document.cookie = `${SESSION_HINT_COOKIE}=1|${PAGE_USER_ID}`;
 
     const { result } = await act(async () =>
       renderHook(() => useProfileAuth(PAGE_USER_ID))
@@ -135,14 +125,13 @@ describe('useProfileAuth', () => {
 
   it('lazy-inits isAuthorized to false when session is still loading on first render and hint is unknown', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    mockReadCookie.mockReturnValue(undefined);
     const { result } = renderHook(() => useProfileAuth(PAGE_USER_ID));
     expect(result.current.isAuthorized).toBe(false);
   });
 
   it('lazy-inits isAuthorized to false when loading (to avoid hydration mismatch) even if hint matches pageUserId, but resolves to true in useEffect', async () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    mockReadCookie.mockReturnValue(`1|${PAGE_USER_ID}`);
+    document.cookie = `${SESSION_HINT_COOKIE}=1|${PAGE_USER_ID}`;
     const { result } = renderHook(() => useProfileAuth(PAGE_USER_ID));
     expect(result.current.isAuthorized).toBe(true);
   });

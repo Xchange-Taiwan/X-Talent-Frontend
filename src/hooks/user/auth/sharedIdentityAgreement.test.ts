@@ -84,6 +84,7 @@ describe('sharedIdentityAgreement integration test', () => {
         status: 'unauthenticated',
       })
     );
+    mockPush.mockClear();
 
     const { result: hintResult } = renderHook(() => useSessionHint());
     const { result: avatarResult } = renderHook(() => useCurrentAvatar());
@@ -95,6 +96,7 @@ describe('sharedIdentityAgreement integration test', () => {
     expect(hintResult.current).toEqual({ status: 'guest' });
     expect(avatarResult.current).toBeNull();
     expect(profileAuthResult.current.isAuthorized).toBe(false);
+    expect(mockPush).toHaveBeenCalledWith('/');
     expect(authStatusResult.current).toMatchObject({
       authKnown: true,
       isLoggedIn: false,
@@ -103,6 +105,23 @@ describe('sharedIdentityAgreement integration test', () => {
       hasFullUser: false,
       isResolvingUser: false,
     });
+  });
+
+  it('redirects useProfileAuth when user is logged in but pageUserId does not match resolved userId', () => {
+    mockUseSession.mockReturnValue(
+      fromPartial({
+        data: fromPartial({
+          user: { id: 'user-mismatched', isMentor: false },
+        }),
+        status: 'authenticated',
+      })
+    );
+    mockPush.mockClear();
+
+    const { result } = renderHook(() => useProfileAuth('user-123'));
+
+    expect(result.current.isAuthorized).toBe(false);
+    expect(mockPush).toHaveBeenCalledWith('/');
   });
 
   it('all four call sites agree on identity during loading when a valid cookie hint is present', () => {

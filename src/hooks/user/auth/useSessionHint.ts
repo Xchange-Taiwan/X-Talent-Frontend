@@ -53,17 +53,7 @@ export function useSessionHint(): SessionHintState {
   useEffect(() => {
     const identity = resolveIdentity(override, session, status);
 
-    if (!identity.isLoggedIn) {
-      clearAuthDOMState();
-      document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'guest');
-
-      setState((prev) => {
-        if (prev.status === 'guest') {
-          return prev;
-        }
-        return { status: 'guest' };
-      });
-    } else {
+    if (identity.isLoggedIn) {
       document.documentElement.setAttribute(
         DOM_AUTH_STATE_ATTR,
         identity.isMentor ? 'mentor' : 'mentee'
@@ -85,6 +75,16 @@ export function useSessionHint(): SessionHintState {
           avatar: identity.avatar,
           userId: identity.userId,
         };
+      });
+    } else {
+      clearAuthDOMState();
+      document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'guest');
+
+      setState((prev) => {
+        if (prev.status === 'guest') {
+          return prev;
+        }
+        return { status: 'guest' };
       });
     }
   }, [session, status, override]);

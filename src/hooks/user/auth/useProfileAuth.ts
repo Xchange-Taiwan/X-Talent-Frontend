@@ -4,11 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
-import {
-  readCookie,
-  resolveIdentity,
-  SESSION_HINT_COOKIE,
-} from '@/lib/auth/sessionHint';
+import { resolveIdentity } from '@/lib/auth/sessionHint';
 
 export function useProfileAuth(pageUserId: string) {
   const router = useRouter();
@@ -23,8 +19,7 @@ export function useProfileAuth(pageUserId: string) {
   });
 
   useEffect(() => {
-    const rawCookie = readCookie(SESSION_HINT_COOKIE);
-    const identity = resolveIdentity(null, session, status, rawCookie);
+    const identity = resolveIdentity(null, session, status);
 
     // 1. If matching, authorize immediately
     if (identity.userId === pageUserId) {

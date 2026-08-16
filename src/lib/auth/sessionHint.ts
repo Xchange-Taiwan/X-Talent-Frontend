@@ -157,7 +157,7 @@ export function resolveIdentity(
     | null
     | undefined,
   status: 'loading' | 'authenticated' | 'unauthenticated',
-  hintInput?: SessionHint | SessionHintState | string | null | undefined
+  hintInput?: SessionHint | SessionHintState | null
 ): ResolvedIdentity {
   const hasFullUser = Boolean(session?.user?.id);
   const sessionSettled = hasFullUser || status !== 'loading';
@@ -166,12 +166,7 @@ export function resolveIdentity(
   let isHintUnknown = false;
   let isHintGuest = false;
 
-  if (typeof hintInput === 'string') {
-    hint = decodeSessionHint(hintInput);
-    if (!hint) {
-      isHintGuest = true;
-    }
-  } else if (hintInput && typeof hintInput === 'object') {
+  if (hintInput && typeof hintInput === 'object') {
     if ('status' in hintInput) {
       if (hintInput.status === 'unknown') {
         isHintUnknown = true;

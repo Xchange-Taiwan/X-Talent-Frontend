@@ -412,19 +412,6 @@ describe('sessionHint utilities', () => {
       expect(identity.isLoggedIn).toBe(false);
     });
 
-    it('resolves raw cookie string passed as hintInput', () => {
-      const identity = resolveIdentity(
-        null,
-        null,
-        'loading',
-        '1|user-456|https://example.com/avatar.png'
-      );
-      expect(identity.userId).toBe('user-456');
-      expect(identity.isMentor).toBe(true);
-      expect(identity.avatar).toBe('https://example.com/avatar.png');
-      expect(identity.isLoggedIn).toBe(true);
-    });
-
     it('resolves SessionHintState inputs', () => {
       // 1. Unknown state
       const identityUnknown = resolveIdentity(null, null, 'loading', {
@@ -461,6 +448,18 @@ describe('sessionHint utilities', () => {
       expect(identity.isMentor).toBe(false);
       expect(identity.avatar).toBe('/avatar.png');
       expect(identity.isLoggedIn).toBe(true);
+    });
+
+    it('behaves correctly and does not throw in an SSR environment when reading fallback cookie', () => {
+      const originalDocument = globalThis.document;
+      vi.stubGlobal('document', undefined);
+
+      const identity = resolveIdentity(null, null, 'loading');
+      expect(identity.authKnown).toBe(false);
+      expect(identity.isLoggedIn).toBe(false);
+      expect(identity.userId).toBeUndefined();
+
+      vi.stubGlobal('document', originalDocument);
     });
   });
 
