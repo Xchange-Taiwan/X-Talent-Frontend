@@ -23,6 +23,16 @@ export interface SessionHint {
   avatar?: string;
 }
 
+export type SessionHintState =
+  | { status: 'unknown' }
+  | { status: 'guest'; hasCookie?: boolean }
+  | {
+      status: 'authenticated';
+      isMentor: boolean;
+      avatar?: string;
+      userId?: string;
+    };
+
 const MENTOR_VALUE = '1';
 const NON_MENTOR_VALUE = '0';
 
@@ -129,6 +139,9 @@ export interface ResolvedIdentity {
   avatar: string | undefined;
   isMentor: boolean;
   isLoggedIn: boolean;
+  hasFullUser: boolean;
+  isResolvingUser: boolean;
+  authKnown: boolean;
 }
 
 export function resolveIdentity(
@@ -144,12 +157,27 @@ export function resolveIdentity(
     | null
     | undefined,
   status: 'loading' | 'authenticated' | 'unauthenticated',
-  hint: SessionHint | null | undefined
+  hintInput?: SessionHint | null
 ): ResolvedIdentity {
   const hasFullUser = Boolean(session?.user?.id);
   const sessionSettled = hasFullUser || status !== 'loading';
 
-  const isLoggedIn = hasFullUser || (!sessionSettled && Boolean(hint));
+  let hint: SessionHint | null = null;
+  let isHintUnknown = false;
+  let isHintGuest = false;
+
+  if (hintInput && typeof hintInput === 'object') {
+    hint = hintInput;
+  } else if (hintInput === null) {
+    isHintGuest = true;
+  } else if (hintInput === undefined) {
+    isHintUnknown = true;
+  }
+
+  const authKnown = sessionSettled || !isHintUnknown;
+  const isLoggedIn =
+    hasFullUser ||
+    (!sessionSettled && !isHintUnknown && !isHintGuest && Boolean(hint));
 
   // 1. Resolve userId
   const userId = hasFullUser
@@ -163,7 +191,7 @@ export function resolveIdentity(
     ? Boolean(session?.user?.isMentor)
     : sessionSettled
       ? false
-      : Boolean(hint?.isMentor);
+      : isLoggedIn && Boolean(hint?.isMentor);
 
   // 3. Resolve avatar
   let avatar: string | undefined = undefined;
@@ -171,15 +199,20 @@ export function resolveIdentity(
     avatar = override.url;
   } else if (hasFullUser) {
     avatar = session?.user?.avatar ?? undefined;
-  } else if (!sessionSettled && hint) {
+  } else if (!sessionSettled && isLoggedIn && hint) {
     avatar = hint.avatar ?? undefined;
   }
 
+  const isResolvingUser = isLoggedIn && !userId;
+
   return {
     userId,
-    isMentor,
     avatar,
+    isMentor,
     isLoggedIn,
+    hasFullUser,
+    isResolvingUser,
+    authKnown,
   };
 }
 
