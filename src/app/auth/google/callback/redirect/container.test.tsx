@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
+import { revalidateProfilePathAfterDelete } from '@/app/profile/[pageUserId]/actions';
 import { trackEvent } from '@/lib/analytics';
 import {
   clearPendingDeleteAccountEmail,
@@ -52,7 +52,7 @@ vi.mock('next-auth/react', () => ({
 
 // Mock actions and services
 vi.mock('@/app/profile/[pageUserId]/actions', () => ({
-  revalidateProfilePath: vi.fn(),
+  revalidateProfilePathAfterDelete: vi.fn(),
 }));
 
 vi.mock('@/lib/analytics', () => ({
@@ -75,12 +75,15 @@ const mockClearPendingDeleteEmail = vi.mocked(clearPendingDeleteAccountEmail);
 const mockResolveOAuthOutcome = vi.mocked(resolveOAuthOutcome);
 const mockSignInWithGoogleToken = vi.mocked(signInWithGoogleToken);
 const mockDeleteAccount = vi.mocked(deleteAccount);
-const mockRevalidateProfile = vi.mocked(revalidateProfilePath);
+const mockRevalidateProfileAfterDelete = vi.mocked(
+  revalidateProfilePathAfterDelete
+);
 const mockTrackEvent = vi.mocked(trackEvent);
 
 describe('GoogleOAuthRedirectPage Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRevalidateProfileAfterDelete.mockResolvedValue(undefined);
 
     // Stub sessionStorage
     const store: Record<string, string> = {};
@@ -361,11 +364,18 @@ describe('GoogleOAuthRedirectPage Component', () => {
           name: 'delete_account_succeeded',
           feature: 'auth',
         });
-        expect(mockRevalidateProfile).toHaveBeenCalledWith('789');
+        expect(mockRevalidateProfileAfterDelete).toHaveBeenCalledWith('789');
 
         // Performs NextAuth signOut
         expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
       });
+
+      // revalidateProfilePathAfterDelete must resolve before signOut, but it
+      // returns immediately (the wait runs server-side, after the response).
+      const revalidateOrder =
+        mockRevalidateProfileAfterDelete.mock.invocationCallOrder[0];
+      const signOutOrder = mockSignOut.mock.invocationCallOrder[0];
+      expect(revalidateOrder).toBeLessThan(signOutOrder);
     });
 
     it('handles blocked by reservations deletion flow correctly', async () => {

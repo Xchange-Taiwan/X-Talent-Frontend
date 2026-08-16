@@ -4,17 +4,36 @@ vi.mock('@/services/profile/user', () => ({
   fetchUserById: vi.fn(),
 }));
 
+vi.mock('@/services/search-mentor/mentors', () => ({
+  fetchMentors: vi.fn(),
+}));
+
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 
 import { fromAny, fromPartial } from '@total-typescript/shoehorn';
 
+import { captureFlowFailure } from '@/lib/monitoring';
 import { defaultValues } from '@/schemas/profileSchema';
 import { fetchUserById } from '@/services/profile/user';
+import { fetchMentors } from '@/services/search-mentor/mentors';
+import type { MentorType } from '@/types/mentor';
 import type { MentorProfileVO } from '@/types/user';
 
-import { firstSyncedFetch } from './pollUntilSynced';
+import {
+  firstSyncedFetch,
+  pollUntilMentorPoolSynced,
+  pollUntilUserDeleted,
+} from './pollUntilSynced';
 
 const mockFetchUserById = vi.mocked(fetchUserById);
+const mockFetchMentors = vi.mocked(fetchMentors);
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
+
+const makeMentor = (
+  user_id: number,
+  overrides: Partial<MentorType> = {}
+): MentorType =>
+  fromPartial({ user_id, name: `Mentor ${user_id}`, ...overrides });
 
 const baseValues = {
   ...defaultValues,
@@ -201,5 +220,157 @@ describe('firstSyncedFetch', () => {
       );
       expect(result).toBeNull();
     });
+  });
+});
+
+describe('pollUntilUserDeleted', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockFetchMentors.mockReset();
+    mockCaptureFlowFailure.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns true immediately for a falsy/NaN userId without fetching', async () => {
+    const result = await pollUntilUserDeleted(NaN);
+
+    expect(result).toBe(true);
+    expect(mockFetchMentors).not.toHaveBeenCalled();
+  });
+
+  it('returns true as soon as the user is absent from the mentor-pool listing', async () => {
+    mockFetchMentors.mockResolvedValueOnce([makeMentor(2), makeMentor(3)]);
+
+    const result = await pollUntilUserDeleted(1, 6, 2000);
+
+    expect(result).toBe(true);
+    expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+    expect(mockFetchMentors).toHaveBeenCalledWith({
+      search_pattern: '',
+      limit: 9,
+      cursor: '',
+    });
+  });
+
+  it('keeps retrying while the user is still in the listing, then succeeds', async () => {
+    mockFetchMentors
+      .mockResolvedValueOnce([makeMentor(1), makeMentor(2)])
+      .mockResolvedValueOnce([makeMentor(1)])
+      .mockResolvedValueOnce([makeMentor(2)]);
+
+    const promise = pollUntilUserDeleted(1, 6, 2000);
+    await vi.advanceTimersByTimeAsync(2000 * 2);
+
+    expect(await promise).toBe(true);
+    expect(mockFetchMentors).toHaveBeenCalledTimes(3);
+  });
+
+  it('treats fetch errors as inconclusive and keeps retrying', async () => {
+    mockFetchMentors
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce([makeMentor(2)]);
+
+    const promise = pollUntilUserDeleted(1, 6, 2000);
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(await promise).toBe(true);
+    expect(mockFetchMentors).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns false and reports a flow failure once the retry budget is exhausted', async () => {
+    mockFetchMentors.mockResolvedValue([makeMentor(1)]);
+
+    const promise = pollUntilUserDeleted(1, 3, 2000);
+    await vi.advanceTimersByTimeAsync(2000 * 3);
+
+    expect(await promise).toBe(false);
+    expect(mockFetchMentors).toHaveBeenCalledTimes(3);
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'delete_account',
+        step: 'poll_deletion_sync',
+      })
+    );
+  });
+});
+
+describe('pollUntilMentorPoolSynced', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockFetchMentors.mockReset();
+    mockCaptureFlowFailure.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns true immediately for a falsy/NaN userId without fetching', async () => {
+    const result = await pollUntilMentorPoolSynced(NaN, 'Name', '');
+
+    expect(result).toBe(true);
+    expect(mockFetchMentors).not.toHaveBeenCalled();
+  });
+
+  it('returns true once the card reflects the new name and avatar', async () => {
+    mockFetchMentors.mockResolvedValueOnce([
+      makeMentor(1, { name: 'New Name', avatar: 'https://cdn/a.png?cb=123' }),
+    ]);
+
+    const result = await pollUntilMentorPoolSynced(
+      1,
+      'New Name',
+      'https://cdn/a.png',
+      6,
+      2000
+    );
+
+    expect(result).toBe(true);
+    expect(mockFetchMentors).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps retrying while the card still shows the old name, then succeeds', async () => {
+    mockFetchMentors
+      .mockResolvedValueOnce([makeMentor(1, { name: 'Old Name' })])
+      .mockResolvedValueOnce([makeMentor(1, { name: 'New Name' })]);
+
+    const promise = pollUntilMentorPoolSynced(1, 'New Name', '', 6, 2000);
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(await promise).toBe(true);
+    expect(mockFetchMentors).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps retrying while the card is missing entirely (newly-mentor case), then succeeds', async () => {
+    mockFetchMentors
+      .mockResolvedValueOnce([makeMentor(2)])
+      .mockResolvedValueOnce([
+        makeMentor(1, { name: 'New Mentor' }),
+        makeMentor(2),
+      ]);
+
+    const promise = pollUntilMentorPoolSynced(1, 'New Mentor', '', 6, 2000);
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(await promise).toBe(true);
+  });
+
+  it('returns false and reports a flow failure once the retry budget is exhausted', async () => {
+    mockFetchMentors.mockResolvedValue([makeMentor(1, { name: 'Old Name' })]);
+
+    const promise = pollUntilMentorPoolSynced(1, 'New Name', '', 3, 2000);
+    await vi.advanceTimersByTimeAsync(2000 * 3);
+
+    expect(await promise).toBe(false);
+    expect(mockFetchMentors).toHaveBeenCalledTimes(3);
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'profile_update',
+        step: 'poll_mentor_pool_sync',
+      })
+    );
   });
 });

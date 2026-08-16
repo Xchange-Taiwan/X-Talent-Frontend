@@ -2,7 +2,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getSession, signOut } from 'next-auth/react';
 import { useEffect, useRef, useState } from 'react';
 
-import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
+import { revalidateProfilePathAfterDelete } from '@/app/profile/[pageUserId]/actions';
 import { useToast } from '@/components/ui/use-toast';
 import { trackEvent } from '@/lib/analytics';
 import {
@@ -112,7 +112,7 @@ export function useGoogleOAuthCallback() {
       if (result.status === 'success') {
         trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
         if (user?.user_id) {
-          await revalidateProfilePath(String(user.user_id));
+          await revalidateProfilePathAfterDelete(String(user.user_id));
         }
         await signOut({ callbackUrl: '/' });
         return;

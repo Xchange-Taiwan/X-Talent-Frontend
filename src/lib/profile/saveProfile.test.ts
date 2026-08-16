@@ -12,6 +12,7 @@ vi.mock('@/services/profile/updateProfile', () => ({
 vi.mock('@/lib/profile/pollUntilSynced', () => ({
   pollUntilSynced: vi.fn(),
   firstSyncedFetch: vi.fn(),
+  pollUntilMentorPoolSynced: vi.fn(),
 }));
 
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
@@ -25,6 +26,7 @@ import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   firstSyncedFetch,
+  pollUntilMentorPoolSynced,
   pollUntilSynced,
 } from '@/lib/profile/pollUntilSynced';
 import { ExperienceType } from '@/services/profile/experienceType';
@@ -39,6 +41,7 @@ const mockUpdateAvatar = vi.mocked(updateAvatar);
 const mockUpdateProfile = vi.mocked(updateProfile);
 const mockPollUntilSynced = vi.mocked(pollUntilSynced);
 const mockFirstSyncedFetch = vi.mocked(firstSyncedFetch);
+const mockPollUntilMentorPoolSynced = vi.mocked(pollUntilMentorPoolSynced);
 const mockSetAvatarOverride = vi.mocked(setAvatarOverride);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
@@ -75,6 +78,7 @@ describe('saveProfile (Deep Module)', () => {
     mockUpdateProfile.mockResolvedValue(undefined);
     mockPollUntilSynced.mockResolvedValue(mockUserDTO);
     mockFirstSyncedFetch.mockResolvedValue(null);
+    mockPollUntilMentorPoolSynced.mockResolvedValue(true);
   });
 
   // ── Avatar upload ──────────────────────────────────────────────────────────
@@ -408,9 +412,16 @@ describe('saveProfile (Deep Module)', () => {
     expect(updateSession).toHaveBeenCalledTimes(1);
   });
 
-  // ── Post-sync revalidate (mentor-pool ISR race) ─────────────────────────────
+  // ── Post-sync mentor-pool re-sync (search-index race) ───────────────────────
+  //
+  // The immediate revalidateProfilePath call (step 3) can race the backend's
+  // async (SQS-driven) update of the Elasticsearch index /mentor-pool reads
+  // from. Confirming the (synchronous, DB-backed) profile write synced via
+  // firstSyncedFetch/pollUntilSynced is NOT sufficient proof the search
+  // index caught up too — pollUntilMentorPoolSynced checks that directly
+  // before the background block revalidates a second time.
 
-  it('background sync confirms latest → revalidateProfilePath is called again (post-sync)', async () => {
+  it('mentor session → background pollUntilMentorPoolSynced runs, then revalidateProfilePath fires again', async () => {
     mockFirstSyncedFetch.mockResolvedValueOnce(null);
     mockPollUntilSynced.mockResolvedValueOnce(mockUserDTO);
 
@@ -419,23 +430,39 @@ describe('saveProfile (Deep Module)', () => {
     await saveProfile(baseValues, deps);
 
     await vi.waitFor(() => {
+      expect(mockPollUntilMentorPoolSynced).toHaveBeenCalledWith(
+        Number(mockSession.user!.id),
+        baseValues.name,
+        expect.any(String)
+      );
       expect(revalidateProfilePath).toHaveBeenCalledTimes(2);
     });
     expect(revalidateProfilePath).toHaveBeenNthCalledWith(1, 'test-user-id');
     expect(revalidateProfilePath).toHaveBeenNthCalledWith(2, 'test-user-id');
   });
 
-  it('background sync never confirms (poll exhausted, latest stays null) → revalidateProfilePath is NOT called again', async () => {
+  it('mentee session (not onboarding, backend never confirms mentor) → skips the mentor-pool re-sync poll entirely', async () => {
+    const menteeSession: Session = {
+      ...mockSession,
+      user: { ...mockSession.user!, isMentor: false },
+    };
     mockFirstSyncedFetch.mockResolvedValueOnce(null);
     mockPollUntilSynced.mockResolvedValueOnce(null);
 
     const revalidateProfilePath = vi.fn().mockResolvedValue(undefined);
-    const deps = makeDeps({ revalidateProfilePath });
+    const deps = makeDeps({
+      session: menteeSession,
+      isMentorOnboarding: false,
+      revalidateProfilePath,
+    });
     await saveProfile(baseValues, deps);
 
     await Promise.resolve();
     await Promise.resolve();
+    await Promise.resolve();
 
+    expect(mockPollUntilMentorPoolSynced).not.toHaveBeenCalled();
+    // Only the immediate step-3 call — no background re-sync call.
     expect(revalidateProfilePath).toHaveBeenCalledTimes(1);
   });
 
@@ -466,6 +493,25 @@ describe('saveProfile (Deep Module)', () => {
     );
     // reconcileSession still ran despite the revalidate rejection
     expect(updateSession).toHaveBeenCalled();
+  });
+
+  it('mentor-pool re-sync failure (pollUntilMentorPoolSynced throws) → quietly caught and logged', async () => {
+    mockPollUntilMentorPoolSynced.mockRejectedValueOnce(
+      new Error('Search index poll failed')
+    );
+    const deps = makeDeps();
+
+    await saveProfile(baseValues, deps);
+
+    await vi.waitFor(() => {
+      expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'profile_update',
+          step: 'background_reconcile',
+          message: 'Error: Search index poll failed',
+        })
+      );
+    });
   });
 
   // ── Cache prime vs fallback ────────────────────────────────────────────────
@@ -666,6 +712,7 @@ describe('saveProfile (Deep Module)', () => {
     const navigate = vi.fn();
     const revalidateProfilePath = vi
       .fn()
+      .mockResolvedValue(undefined)
       .mockRejectedValueOnce(new Error('Revalidate failed'));
     const deps = makeDeps({ navigate, revalidateProfilePath });
 

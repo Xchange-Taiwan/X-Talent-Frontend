@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
-import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
+import { revalidateProfilePathAfterDelete } from '@/app/profile/[pageUserId]/actions';
 import { useToast } from '@/components/ui/use-toast';
 import useAsyncAction from '@/hooks/useAsyncAction';
 import { trackEvent } from '@/lib/analytics';
@@ -62,7 +62,7 @@ export default function useDeleteAccountForm(): UseDeleteAccountFormReturn {
         if (result.status === 'success') {
           trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
           if (session?.user?.id) {
-            await revalidateProfilePath(String(session.user.id));
+            await revalidateProfilePathAfterDelete(String(session.user.id));
           }
           await signOut({ callbackUrl: '/' });
           return;
