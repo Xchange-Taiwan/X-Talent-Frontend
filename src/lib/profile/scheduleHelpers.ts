@@ -270,15 +270,18 @@ export function deduplicateRawSlots(
     }
     const existing = map.get(slot.id);
     if (existing) {
-      existing.exdate = Array.from(
-        new Set([...existing.exdate, ...slot.exdate])
-      );
+      existing.exdate.push(...slot.exdate);
     } else {
       const copy = { ...slot, exdate: [...slot.exdate] };
       map.set(slot.id, copy);
       out.push(copy);
     }
   }
+
+  map.forEach((slot) => {
+    slot.exdate = Array.from(new Set(slot.exdate));
+  });
+
   return out;
 }
 

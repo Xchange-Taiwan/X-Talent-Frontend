@@ -332,7 +332,15 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   const parsedDraft = useMemo(() => {
     const formatted = allDraftRaws.flatMap(formatTimeslot);
-    return formatted.sort((a, b) => a.start.getTime() - b.start.getTime());
+    const seen = new Set<string>();
+    const out: ParsedMentorTimeslot[] = [];
+    for (const slot of formatted) {
+      if (!seen.has(slot.occurrenceId)) {
+        seen.add(slot.occurrenceId);
+        out.push(slot);
+      }
+    }
+    return out.sort((a, b) => a.start.getTime() - b.start.getTime());
   }, [allDraftRaws]);
 
   const draftForSelectedDate = useMemo(

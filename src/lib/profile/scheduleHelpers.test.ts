@@ -146,6 +146,45 @@ describe('checkCrossMonthOverlap', () => {
     });
     expect(hasOverlapAt1050).toBe(false);
   });
+
+  it('correctly utilizes targetDraft to detect overlap when target month is not loaded', () => {
+    // Current loaded month is July (2026-07). August (2026-08) is NOT loaded.
+    const row1: RawMentorTimeslot = {
+      id: 1,
+      type: 'ALLOW',
+      dtstart: 1785070000, // July
+      dtend: 1785071800,
+      rrule: undefined,
+      exdate: [],
+    };
+    const currentDraftsMap = new Map<string, RawMentorTimeslot[]>([
+      ['2026-07', [row1]],
+    ]);
+
+    // August has a cached/unloaded slot starting at August 2, 13:00 (1785675600)
+    const targetDraftRow: RawMentorTimeslot = {
+      id: 202,
+      type: 'ALLOW',
+      dtstart: 1785675600, // August 2, 13:00
+      dtend: 1785677400, // +30 mins
+      rrule: undefined,
+      exdate: [],
+    };
+
+    // We check if a new slot at August 2, 13:15 (1785676500) overlaps.
+    // Since August is not loaded, it should fall back to targetDraft and detect the overlap with targetDraftRow (slot 202).
+    const hasOverlap = checkCrossMonthOverlap({
+      id: 303,
+      occurrenceUnix: 0,
+      newDtstart: 1785676500, // August 2, 13:15
+      durationSeconds: 1800,
+      isRecurring: false,
+      currentDraftsMap,
+      targetDraft: [targetDraftRow], // pass the target month's draft explicitly
+    });
+
+    expect(hasOverlap).toBe(true);
+  });
 });
 
 describe('deduplicateRawSlots', () => {
