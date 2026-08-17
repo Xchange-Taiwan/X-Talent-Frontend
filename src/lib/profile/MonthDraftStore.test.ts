@@ -64,19 +64,14 @@ describe('MonthDraftStore Unit Tests', () => {
     expect(triggerCount).toBe(1); // unsubscribed, should not increment
   });
 
-  it('correctly implements slot adding via edit with id=0', () => {
+  it('correctly implements slot adding via add', () => {
     const store = new MonthDraftStore();
     const dateStr = '2026-07-26';
-    const res = store.edit(
-      0,
-      0,
-      {
-        startTime: '13:00',
-        durationMinutes: 45,
-        selectedDate: dateStr,
-      },
-      '123'
-    );
+    const res = store.add({
+      startTime: '13:00',
+      durationMinutes: 45,
+      selectedDate: dateStr,
+    });
 
     expect(res.success).toBe(true);
     expect(res.added).toBe(1);
@@ -101,16 +96,11 @@ describe('MonthDraftStore Unit Tests', () => {
     // July 26, 2026 12:46:40 PM UTC = unix 1785070000.
     // Let's add an overlapping slot.
     const startHM = dayjs(1785070000 * 1000).format('HH:mm'); // e.g. '12:46'
-    const res = store.edit(
-      0,
-      0,
-      {
-        startTime: startHM,
-        durationMinutes: 30,
-        selectedDate: '2026-07-26',
-      },
-      '123'
-    );
+    const res = store.add({
+      startTime: startHM,
+      durationMinutes: 30,
+      selectedDate: '2026-07-26',
+    });
 
     expect(res.success).toBe(false);
     expect(res.reason).toBe('OVERLAP');
@@ -344,17 +334,12 @@ describe('MonthDraftStore Unit Tests', () => {
     });
 
     const startHM = dayjs(1785070000 * 1000).format('HH:mm');
-    const res = store.edit(
-      0,
-      0,
-      {
-        startTime: startHM,
-        durationMinutes: 30,
-        weeklyWithinMonth: true,
-        selectedDate: '2026-07-05', // July 5, Sunday
-      },
-      '123'
-    );
+    const res = store.add({
+      startTime: startHM,
+      durationMinutes: 30,
+      weeklyWithinMonth: true,
+      selectedDate: '2026-07-05', // July 5, Sunday
+    });
 
     expect(res.success).toBe(false);
     expect(res.reason).toBe('OVERLAP');
@@ -384,16 +369,11 @@ describe('MonthDraftStore Unit Tests', () => {
     store.delete(101, 1785070000);
 
     // 2. Add to August
-    const res = store.edit(
-      0,
-      0,
-      {
-        startTime: '12:00',
-        durationMinutes: 30,
-        selectedDate: '2026-08-02',
-      },
-      '123'
-    );
+    const res = store.add({
+      startTime: '12:00',
+      durationMinutes: 30,
+      selectedDate: '2026-08-02',
+    });
 
     expect(res.success).toBe(true);
 
@@ -403,5 +383,59 @@ describe('MonthDraftStore Unit Tests', () => {
     // August month should have the new slot
     const augDraft = snap.draftByMonth.get('2026-08') ?? [];
     expect(augDraft).toHaveLength(1);
+  });
+
+  it('syncs a recurring parent exdate across every loaded month buffer when editing an occurrence in a later month', () => {
+    const mockRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW' as const,
+        dtstart: 1785070000, // occurrence 1: July 26, 2026
+        dtend: 1785071800,
+        rrule: 'FREQ=WEEKLY;COUNT=2', // occurrence 2: August 2, 2026
+        exdate: [],
+      },
+    ];
+    // The recurring row is loaded into BOTH month buffers, with July
+    // inserted first so findMonthForSlotId resolves the parent to July even
+    // though the edited occurrence itself falls in August.
+    const draftMap = new Map<string, RawMentorTimeslot[]>([
+      ['2026-07', mockRaws],
+      ['2026-08', mockRaws],
+    ]);
+    const store = new MonthDraftStore({
+      draftByMonth: draftMap,
+    });
+
+    const augustOccurrenceUnix = 1785070000 + 7 * 24 * 60 * 60; // August 2, 2026
+    const res = store.edit(
+      101,
+      augustOccurrenceUnix,
+      { startTime: '15:00' },
+      '123'
+    );
+
+    expect(res.success).toBe(true);
+
+    const snap = store.snapshot();
+    const julDraft = snap.draftByMonth.get('2026-07') ?? [];
+    const augDraft = snap.draftByMonth.get('2026-08') ?? [];
+
+    // Both buffers hold the same parent row (id 101); the exdate must be
+    // synced onto both, not just the buffer the detached row lands in.
+    const julParent = julDraft.find((r) => r.id === 101);
+    const augParent = augDraft.find((r) => r.id === 101);
+    expect(julParent?.exdate).toContain(augustOccurrenceUnix);
+    expect(augParent?.exdate).toContain(augustOccurrenceUnix);
+
+    // The edited occurrence detaches into a new row that belongs in August
+    // (where it actually falls), not July (where the parent was found).
+    expect(julDraft.some((r) => r.id < 0)).toBe(false);
+    const detached = augDraft.find((r) => r.id < 0);
+    expect(detached).toBeDefined();
+    expect(detached!.dtend - detached!.dtstart).toBe(30 * 60);
+
+    expect(snap.dirtyMonths.has('2026-07')).toBe(true);
+    expect(snap.dirtyMonths.has('2026-08')).toBe(true);
   });
 });

@@ -152,116 +152,111 @@ export class MonthDraftStore {
     this.emitChange();
   }
 
+  public add(patch: {
+    startTime: string;
+    durationMinutes: SlotDurationMinutes;
+    weeklyWithinMonth?: boolean;
+    selectedDate: string;
+  }): UpdateDraftSlotResult & { added: number; skipped: number } {
+    const { startTime, durationMinutes, weeklyWithinMonth, selectedDate } =
+      patch;
+    if (!selectedDate || !startTime || !durationMinutes) {
+      return { success: false, added: 0, skipped: 0 };
+    }
+
+    const startDayjs = buildDateTime(selectedDate, startTime);
+    if (!startDayjs.isValid()) return { success: false, added: 0, skipped: 0 };
+
+    const monthKey = monthKeyFromDateStr(selectedDate);
+    const durationSeconds = durationMinutes * 60;
+
+    const candidateOccurrences: number[] = [];
+    if (weeklyWithinMonth) {
+      const selectedDay = dayjs(selectedDate);
+      let cursor = selectedDay;
+      while (cursor.month() === selectedDay.month()) {
+        const d = buildDateTime(cursor.format('YYYY-MM-DD'), startTime);
+        if (d.isValid()) {
+          candidateOccurrences.push(Math.floor(d.valueOf() / 1000));
+        }
+        cursor = cursor.add(7, 'day');
+      }
+    } else {
+      candidateOccurrences.push(Math.floor(startDayjs.valueOf() / 1000));
+    }
+
+    if (candidateOccurrences.length === 0) {
+      return { success: false, added: 0, skipped: 0 };
+    }
+
+    let added = 0;
+    let skipped = 0;
+    const prev = this.draftByMonth.get(monthKey) ?? [];
+
+    if (
+      hasAnyOccurrenceOverlap(prev, null, candidateOccurrences, durationSeconds)
+    ) {
+      skipped = candidateOccurrences.length;
+      return { success: false, reason: 'OVERLAP', added: 0, skipped };
+    }
+
+    if (candidateOccurrences.length === 1) {
+      const restoreTarget = findRestorableExdatedRow(
+        prev,
+        candidateOccurrences[0],
+        durationSeconds
+      );
+      if (restoreTarget) {
+        added = 1;
+        const updated = prev.map((r) =>
+          r.id === restoreTarget.id
+            ? {
+                ...r,
+                exdate: r.exdate.filter((x) => x !== candidateOccurrences[0]),
+              }
+            : r
+        );
+        this.draftByMonth = new Map(this.draftByMonth);
+        this.draftByMonth.set(monthKey, updated);
+        this.markDirty(monthKey);
+        this.emitChange();
+        return { success: true, added, skipped };
+      }
+    }
+
+    const dtstart = candidateOccurrences[0];
+    const count = candidateOccurrences.length;
+    const rrule = count > 1 ? `FREQ=WEEKLY;COUNT=${count}` : undefined;
+
+    added = count;
+    const nextId = nextTempId(Array.from(this.draftByMonth.values()).flat());
+    this.draftByMonth = new Map(this.draftByMonth);
+    this.draftByMonth.set(monthKey, [
+      ...prev,
+      {
+        id: nextId,
+        type: 'ALLOW' as const,
+        dtstart,
+        dtend: dtstart + durationSeconds,
+        rrule,
+        exdate: [],
+      },
+    ]);
+
+    this.markDirty(monthKey);
+    this.emitChange();
+    return { success: true, added, skipped };
+  }
+
   public edit(
     id: number,
     occurrenceUnix: number,
     patch: {
       startTime?: string;
       durationMinutes?: SlotDurationMinutes;
-      weeklyWithinMonth?: boolean;
-      selectedDate?: string;
     },
     userId: string
-  ): UpdateDraftSlotResult & { added?: number; skipped?: number } {
-    // 1. Handle adding a new slot if id is 0 (special internal routing to satisfy strict interface constraint)
-    if (id === 0) {
-      const { startTime, durationMinutes, weeklyWithinMonth, selectedDate } =
-        patch;
-      if (!selectedDate || !startTime || !durationMinutes) {
-        return { success: false, added: 0, skipped: 0 };
-      }
-
-      const startDayjs = buildDateTime(selectedDate, startTime);
-      if (!startDayjs.isValid())
-        return { success: false, added: 0, skipped: 0 };
-
-      const monthKey = monthKeyFromDateStr(selectedDate);
-      const durationSeconds = durationMinutes * 60;
-
-      const candidateOccurrences: number[] = [];
-      if (weeklyWithinMonth) {
-        const selectedDay = dayjs(selectedDate);
-        let cursor = selectedDay;
-        while (cursor.month() === selectedDay.month()) {
-          const d = buildDateTime(cursor.format('YYYY-MM-DD'), startTime);
-          if (d.isValid()) {
-            candidateOccurrences.push(Math.floor(d.valueOf() / 1000));
-          }
-          cursor = cursor.add(7, 'day');
-        }
-      } else {
-        candidateOccurrences.push(Math.floor(startDayjs.valueOf() / 1000));
-      }
-
-      if (candidateOccurrences.length === 0) {
-        return { success: false, added: 0, skipped: 0 };
-      }
-
-      let added = 0;
-      let skipped = 0;
-      const prev = this.draftByMonth.get(monthKey) ?? [];
-
-      if (
-        hasAnyOccurrenceOverlap(
-          prev,
-          null,
-          candidateOccurrences,
-          durationSeconds
-        )
-      ) {
-        skipped = candidateOccurrences.length;
-        return { success: false, reason: 'OVERLAP', added: 0, skipped };
-      }
-
-      if (candidateOccurrences.length === 1) {
-        const restoreTarget = findRestorableExdatedRow(
-          prev,
-          candidateOccurrences[0],
-          durationSeconds
-        );
-        if (restoreTarget) {
-          added = 1;
-          const updated = prev.map((r) =>
-            r.id === restoreTarget.id
-              ? {
-                  ...r,
-                  exdate: r.exdate.filter((x) => x !== candidateOccurrences[0]),
-                }
-              : r
-          );
-          this.draftByMonth = new Map(this.draftByMonth);
-          this.draftByMonth.set(monthKey, updated);
-          this.markDirty(monthKey);
-          this.emitChange();
-          return { success: true, added, skipped };
-        }
-      }
-
-      const dtstart = candidateOccurrences[0];
-      const count = candidateOccurrences.length;
-      const rrule = count > 1 ? `FREQ=WEEKLY;COUNT=${count}` : undefined;
-
-      added = count;
-      const nextId = nextTempId(Array.from(this.draftByMonth.values()).flat());
-      this.draftByMonth = new Map(this.draftByMonth);
-      this.draftByMonth.set(monthKey, [
-        ...prev,
-        {
-          id: nextId,
-          type: 'ALLOW' as const,
-          dtstart,
-          dtend: dtstart + durationSeconds,
-          rrule,
-          exdate: [],
-        },
-      ]);
-
-      this.markDirty(monthKey);
-      this.emitChange();
-      return { success: true, added, skipped };
-    }
-
-    // 2. Standard Edit behavior
+  ): UpdateDraftSlotResult {
     const parentMonthKey = this.findMonthForSlotId(id);
     if (!parentMonthKey) return { success: false };
 

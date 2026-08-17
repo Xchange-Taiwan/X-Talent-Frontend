@@ -124,6 +124,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   const storeState = useSyncExternalStore(
     useCallback((listener) => store.subscribe(listener), [store]),
+    useCallback(() => store.snapshot(), [store]),
     useCallback(() => store.snapshot(), [store])
   );
 
@@ -361,23 +362,18 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     useCallback(
       ({ startTime, durationMinutes, weeklyWithinMonth }) => {
         if (!selectedDate) return { added: 0, skipped: 0 };
-        const res = store.edit(
-          0,
-          0,
-          {
-            startTime,
-            durationMinutes,
-            weeklyWithinMonth,
-            selectedDate,
-          },
-          backend.userId
-        );
+        const res = store.add({
+          startTime,
+          durationMinutes,
+          weeklyWithinMonth,
+          selectedDate,
+        });
         return {
-          added: res.added ?? 0,
-          skipped: res.skipped ?? 0,
+          added: res.added,
+          skipped: res.skipped,
         };
       },
-      [store, selectedDate, backend.userId]
+      [store, selectedDate]
     );
 
   const updateDraftSlot: UseMentorScheduleReturn['updateDraftSlot'] =
@@ -474,6 +470,13 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         store.reset(reloaded);
       } catch (err) {
         console.error('Failed to reset changes:', err);
+        // Refetch failed: fall back to the last known-saved snapshot for
+        // each dirty month so the draft still clears instead of leaving the
+        // UI stuck showing unsaved edits with no way to discard them.
+        const fallback = monthKeys.map(
+          (mk) => [mk, store.snapshot().savedByMonth.get(mk) ?? []] as const
+        );
+        store.reset(fallback);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
