@@ -257,6 +257,54 @@ describe('MonthDraftStore Unit Tests', () => {
     expect(store.snapshot().draftByMonth.get('2026-07')).toEqual(reloadedRaws);
   });
 
+  it('reset only touches the given months, leaving other loaded months and their dirty state untouched', () => {
+    const augRaws: RawMentorTimeslot[] = [
+      {
+        id: 102,
+        type: 'ALLOW',
+        dtstart: 1787664000,
+        dtend: 1787667600,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+    const store = new MonthDraftStore();
+    store.ensureMonthLoaded('2026-07', defaultMockRaws);
+    store.ensureMonthLoaded('2026-08', augRaws);
+
+    // Dirty both months independently.
+    store.edit(101, 1785070000, { startTime: '13:00' }, '123');
+    store.edit(102, 1787664000, { startTime: '15:00' }, '123');
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+    expect(store.snapshot().dirtyMonths.has('2026-08')).toBe(true);
+
+    // Discard only July's changes.
+    store.reset([['2026-07', defaultMockRaws]]);
+
+    const snap = store.snapshot();
+    expect(snap.dirtyMonths.has('2026-07')).toBe(false);
+    expect(snap.draftByMonth.get('2026-07')).toEqual(defaultMockRaws);
+    // August was never passed to reset, so its edit and dirty state survive.
+    expect(snap.dirtyMonths.has('2026-08')).toBe(true);
+    expect(snap.draftByMonth.get('2026-08')?.[0].dtstart).not.toBe(1787664000);
+  });
+
+  it('clearAll wipes every buffered month, unlike the partial reset() merge', () => {
+    const store = new MonthDraftStore();
+    store.ensureMonthLoaded('2026-07', defaultMockRaws);
+    store.ensureMonthLoaded('2026-08', defaultMockRaws);
+    store.edit(101, 1785070000, { startTime: '13:00' }, '123');
+    expect(store.snapshot().dirtyMonths.size).toBeGreaterThan(0);
+
+    store.clearAll();
+
+    const snap = store.snapshot();
+    expect(snap.savedByMonth.size).toBe(0);
+    expect(snap.draftByMonth.size).toBe(0);
+    expect(snap.pendingDeleteByMonth.size).toBe(0);
+    expect(snap.dirtyMonths.size).toBe(0);
+  });
+
   it('correctly handles partial failure during commit', () => {
     const store = new MonthDraftStore();
     store.ensureMonthLoaded('2026-07', defaultMockRaws);

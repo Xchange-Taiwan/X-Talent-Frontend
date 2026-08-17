@@ -196,7 +196,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       prevUserIdRef.current !== backend.userId
     ) {
       scheduleCache.clear();
-      store.reset([]);
+      store.clearAll();
       setLoaded(false);
     }
     prevUserIdRef.current = backend.userId;
@@ -221,7 +221,13 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       store.ensureMonthLoaded(monthKey, raws);
     };
 
-    const hasBuffer = draftByMonth.has(monthKey);
+    // Read the store directly rather than the destructured `draftByMonth`
+    // from this render: when backend.userId just changed, the account-switch
+    // effect above already ran store.clearAll() this same commit, but the
+    // closure here still holds the previous render's (pre-clear) snapshot —
+    // stale enough to misreport a same-named month as already buffered and
+    // skip fetching the new user's schedule.
+    const hasBuffer = store.snapshot().draftByMonth.has(monthKey);
     const { cached, revalidate } = loadMonthScheduleCached(ref);
 
     if (hasBuffer) {

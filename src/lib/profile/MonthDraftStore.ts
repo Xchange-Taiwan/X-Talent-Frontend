@@ -481,25 +481,36 @@ export class MonthDraftStore {
     }
   }
 
+  /**
+   * Discard drafted edits for the given months, restoring each to `raws`
+   * (either freshly refetched, or the last known-saved snapshot as a
+   * fallback). Months not listed are left untouched — this is a partial
+   * merge, not a wipe; use `clearAll()` to drop every month (e.g. on
+   * account switch).
+   */
   public reset(reloaded: (readonly [MonthKey, RawMentorTimeslot[]])[]): void {
     this.savedByMonth = new Map(this.savedByMonth);
     this.draftByMonth = new Map(this.draftByMonth);
     this.pendingDeleteByMonth = new Map(this.pendingDeleteByMonth);
     this.dirtyMonths = new Set(this.dirtyMonths);
 
-    if (reloaded.length === 0) {
-      this.savedByMonth.clear();
-      this.draftByMonth.clear();
-      this.pendingDeleteByMonth.clear();
-      this.dirtyMonths.clear();
-    } else {
-      for (const [mk, raws] of reloaded) {
-        this.savedByMonth.set(mk, raws);
-        this.draftByMonth.set(mk, raws);
-        this.pendingDeleteByMonth.delete(mk);
-      }
-      this.dirtyMonths.clear();
+    for (const [mk, raws] of reloaded) {
+      this.savedByMonth.set(mk, raws);
+      this.draftByMonth.set(mk, raws);
+      this.pendingDeleteByMonth.delete(mk);
+      this.dirtyMonths.delete(mk);
     }
+    this.emitChange();
+  }
+
+  /** Drop every buffered month. Buffers belong to a specific user, so this
+   * is for a full account switch — not for discarding a subset of edits
+   * (see `reset()`). */
+  public clearAll(): void {
+    this.savedByMonth = new Map();
+    this.draftByMonth = new Map();
+    this.pendingDeleteByMonth = new Map();
+    this.dirtyMonths = new Set();
     this.emitChange();
   }
 }

@@ -716,4 +716,57 @@ describe('useMentorSchedule', () => {
     });
     expect(result.current.parsedDraft).toHaveLength(1);
   });
+
+  it('regression: switching accounts while viewing the same calendar month reloads the new user instead of reusing the stale buffer', async () => {
+    const userARaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW' as const,
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+    const userBRaws: RawMentorTimeslot[] = [
+      {
+        id: 201,
+        type: 'ALLOW' as const,
+        dtstart: 1785080000,
+        dtend: 1785081800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    mockLoadMonthScheduleCached.mockImplementation((ref) => {
+      if (ref.userId === 'userA') {
+        return { cached: userARaws, revalidate: Promise.resolve(userARaws) };
+      }
+      if (ref.userId === 'userB') {
+        return { cached: userBRaws, revalidate: Promise.resolve(userBRaws) };
+      }
+      return { cached: [], revalidate: Promise.resolve([]) };
+    });
+
+    const { result, rerender } = renderHook(
+      (props: { backend: { userId: string; year: number; month: number } }) =>
+        useMentorSchedule(props),
+      { initialProps: { backend: { userId: 'userA', year: 2026, month: 7 } } }
+    );
+
+    await waitFor(() => {
+      expect(result.current.loaded).toBe(true);
+    });
+    expect(result.current.parsedDraft[0]?.id).toBe(101);
+
+    // Same calendar month key ('2026-07'), different user — the buffer must
+    // not be mistaken for already-loaded just because that month key was
+    // seen before under a different account.
+    rerender({ backend: { userId: 'userB', year: 2026, month: 7 } });
+
+    await waitFor(() => {
+      expect(result.current.parsedDraft[0]?.id).toBe(201);
+    });
+  });
 });
