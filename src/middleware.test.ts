@@ -1,7 +1,7 @@
 import { get } from '@vercel/global-config';
 import { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next-auth/jwt', () => ({
   getToken: vi.fn(),
@@ -204,6 +204,10 @@ describe('middleware maintenance mode', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
   });
 
   it('redirects to /maintenance when Edge Config is enabled', async () => {
