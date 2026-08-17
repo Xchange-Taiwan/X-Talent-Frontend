@@ -3,13 +3,6 @@ process.env.TZ = 'UTC';
 import dayjs from 'dayjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/services/mentor-schedule/sync', () => ({
-  loadMonthScheduleCached: vi.fn(),
-  loadMonthScheduleFresh: vi.fn(),
-  prefetchMonthSchedule: vi.fn(),
-  syncMonths: vi.fn(),
-}));
-
 import { MonthDraftStore } from './MonthDraftStore';
 import { RawMentorTimeslot } from './scheduleHelpers';
 

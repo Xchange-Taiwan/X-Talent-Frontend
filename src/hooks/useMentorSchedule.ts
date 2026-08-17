@@ -7,6 +7,7 @@ dayjs.extend(isSameOrBefore);
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -43,6 +44,14 @@ export type {
   ParsedMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
 export { expandRrule } from '@/lib/profile/scheduleHelpers';
+
+// useEffect runs after paint, so on an account switch there's a window where
+// the browser can paint one frame of the new userId alongside the previous
+// user's still-buffered draft before the cleanup effect fires. useLayoutEffect
+// runs before paint, closing that window; it's a no-op during SSR (no DOM to
+// mutate before), so fall back to useEffect there to avoid React's dev warning.
+const useIsomorphicLayoutEffect =
+  typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 type Options = {
   backend: {
@@ -190,7 +199,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   // Drop everything when the backend user changes — buffers belong to a
   // specific user.
   const prevUserIdRef = useRef<string | null>(null);
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (
       prevUserIdRef.current !== null &&
       prevUserIdRef.current !== backend.userId
