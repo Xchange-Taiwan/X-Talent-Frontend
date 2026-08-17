@@ -8,7 +8,6 @@ import { memo, useMemo } from 'react';
 import LogoImgUrl from '@/assets/logo.svg';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useIdentity } from '@/hooks/user/auth/useIdentity';
-import { useSessionHint } from '@/hooks/user/auth/useSessionHint';
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { trackEvent } from '@/lib/analytics';
 
@@ -23,16 +22,9 @@ import { UserDropdown } from './UserDropdown';
 
 function HeaderComponent(): JSX.Element {
   const { data: session } = useSession();
-  const hint = useSessionHint();
   const currentAvatar = useCurrentAvatar();
   const { authKnown, isLoggedIn, isMentor, userId, isResolvingUser } =
     useIdentity(null);
-
-  const resolvedIsMentor = authKnown
-    ? isMentor
-    : hint.status === 'authenticated'
-      ? hint.isMentor
-      : isMentor;
 
   const virtualUser = useMemo(() => {
     if (session?.user) {
@@ -43,16 +35,16 @@ function HeaderComponent(): JSX.Element {
     }
     return {
       id: userId,
-      isMentor: resolvedIsMentor,
+      isMentor,
       avatar: currentAvatar ?? undefined,
       name: '',
       email: '',
     };
-  }, [session?.user, userId, resolvedIsMentor, currentAvatar]);
+  }, [session?.user, userId, isMentor, currentAvatar]);
 
   // `userId` only ever comes from the real session, never the hint — while
   // isResolvingUser is true these hrefs are unused (the link is disabled).
-  const leftSecondNav = resolvedIsMentor
+  const leftSecondNav = isMentor
     ? { label: '我的導師頁面', href: getProfileHref(userId) }
     : { label: '成為導師', href: getBecomeMentorHref(userId) };
 
@@ -171,7 +163,7 @@ function HeaderComponent(): JSX.Element {
             <div className="group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden">
               <HamburgerMenu
                 isLoggedIn={isLoggedIn}
-                isMentor={resolvedIsMentor}
+                isMentor={isMentor}
                 userId={userId}
                 isResolvingUser={isResolvingUser}
               />
