@@ -22,7 +22,6 @@ import {
   createInitialState,
   getStorageKey,
   getStoredSeenCount,
-  getStoreKey,
   type NotificationItem,
   type NotificationStatus,
   notificationStoreManager,
@@ -145,7 +144,6 @@ export function useNotificationCenter({
   const [open, setOpen] = React.useState(false);
 
   const isUsingProps = initialNotifications !== undefined;
-  const storeKey = getStoreKey(userId);
 
   // Cache the Server Snapshot locally inside hook state for stable referential equality
   const [serverSnapshot] = React.useState(() =>
@@ -155,8 +153,8 @@ export function useNotificationCenter({
   // Retrieve current state from store and subscribe to changes using standard React 18+ useSyncExternalStore
   const storeState = React.useSyncExternalStore(
     React.useCallback(
-      (callback) => notificationStoreManager.subscribe(storeKey, callback),
-      [storeKey]
+      (callback) => notificationStoreManager.subscribe(userId, callback),
+      [userId]
     ),
     React.useCallback(
       () =>
@@ -178,13 +176,13 @@ export function useNotificationCenter({
         areNotificationsChanged(initialNotifications, state.notifications) ||
         initialStatus !== state.status
       ) {
-        notificationStoreManager.updateState(storeKey, {
+        notificationStoreManager.updateState(userId, {
           notifications: initialNotifications,
           status: initialStatus,
         });
       }
     }
-  }, [initialNotifications, initialStatus, userId, storeKey]);
+  }, [initialNotifications, initialStatus, userId]);
 
   // Mount-time sync seenUnreadCount from localStorage conditionally (avoiding redundant broadcasts)
   React.useEffect(() => {
@@ -192,11 +190,11 @@ export function useNotificationCenter({
     const currentStoredCount = getStoredSeenCount(storageKey);
     const currentState = notificationStoreManager.getOrCreateState(userId);
     if (currentState.seenUnreadCount !== currentStoredCount) {
-      notificationStoreManager.updateState(storeKey, {
+      notificationStoreManager.updateState(userId, {
         seenUnreadCount: currentStoredCount,
       });
     }
-  }, [storeKey, userId]);
+  }, [userId]);
 
   const [isMounted, setIsMounted] = React.useState(false);
 
@@ -219,9 +217,9 @@ export function useNotificationCenter({
     (val: number) => {
       const storageKey = getStorageKey(userId);
       safeSetStorage(storageKey, String(val));
-      notificationStoreManager.updateState(storeKey, { seenUnreadCount: val });
+      notificationStoreManager.updateState(userId, { seenUnreadCount: val });
     },
-    [userId, storeKey]
+    [userId]
   );
 
   // Infinite Scroll / Fetch more
@@ -234,7 +232,7 @@ export function useNotificationCenter({
       if (state.hasLoadMoreError && !isRetry) return;
       if (state.isFetching) return;
 
-      notificationStoreManager.updateState(storeKey, {
+      notificationStoreManager.updateState(userId, {
         isLoadingMore: true,
         hasLoadMoreError: false,
       });
@@ -253,7 +251,7 @@ export function useNotificationCenter({
         );
       } catch (error) {
         console.error('[useNotificationCenter] loadMore failed:', error);
-        notificationStoreManager.updateState(storeKey, {
+        notificationStoreManager.updateState(userId, {
           hasLoadMoreError: true,
         });
         toast({
@@ -262,12 +260,12 @@ export function useNotificationCenter({
           description: '無法載入更多通知，請點擊重試',
         });
       } finally {
-        notificationStoreManager.updateState(storeKey, {
+        notificationStoreManager.updateState(userId, {
           isLoadingMore: false,
         });
       }
     },
-    [userId, storeKey, isUsingProps, toast]
+    [userId, isUsingProps, toast]
   );
 
   // Load initial notifications and unread count from service
@@ -309,10 +307,10 @@ export function useNotificationCenter({
               description: '無法更新最新通知，請稍後再試',
             });
           } else {
-            notificationStoreManager.updateState(storeKey, { status: 'error' });
+            notificationStoreManager.updateState(userId, { status: 'error' });
           }
         } finally {
-          notificationStoreManager.updateState(storeKey, {
+          notificationStoreManager.updateState(userId, {
             isFetching: false,
             fetchPromise: null,
           });
@@ -320,7 +318,7 @@ export function useNotificationCenter({
       })();
 
       // Group isFetching, status and fetchPromise to single updateState
-      notificationStoreManager.updateState(storeKey, {
+      notificationStoreManager.updateState(userId, {
         isFetching: true,
         ...(showLoading ? { status: 'loading' } : {}),
         fetchPromise,
@@ -328,7 +326,7 @@ export function useNotificationCenter({
 
       await fetchPromise;
     },
-    [userId, storeKey, isUsingProps, toast]
+    [userId, isUsingProps, toast]
   );
 
   React.useEffect(() => {
@@ -376,7 +374,7 @@ export function useNotificationCenter({
       if (e.key === storageKey) {
         const val = e.newValue !== null ? Number(e.newValue) : 0;
         const parsedVal = Number.isNaN(val) ? 0 : val;
-        notificationStoreManager.updateState(storeKey, {
+        notificationStoreManager.updateState(userId, {
           seenUnreadCount: parsedVal,
         });
       }
@@ -394,7 +392,7 @@ export function useNotificationCenter({
         );
       }
     };
-  }, [userId, storeKey]);
+  }, [userId]);
 
   React.useEffect(() => {
     return () => {
@@ -448,16 +446,11 @@ export function useNotificationCenter({
 
       const action = onMarkRead || (!isUsingProps ? markOneRead : null);
       if (!action) {
-        const nextState = notificationStoreManager.getOrCreateState(userId);
-        const markingReadIdsCopy = new Set(nextState.markingReadIds);
-        markingReadIdsCopy.delete(id);
-        notificationStoreManager.updateState(storeKey, {
-          markingReadIds: markingReadIdsCopy,
-        });
+        notificationStoreManager.removeMarkingReadId(userId, id);
         return;
       }
 
-      notificationStoreManager.updateState(storeKey, { isPending: true });
+      notificationStoreManager.updateState(userId, { isPending: true });
       try {
         await action(id);
       } catch (error) {
@@ -471,16 +464,12 @@ export function useNotificationCenter({
           description: '無法將通知標示為已讀，請稍後再試',
         });
       } finally {
-        const nextState = notificationStoreManager.getOrCreateState(userId);
-        const markingReadIdsCopy = new Set(nextState.markingReadIds);
-        markingReadIdsCopy.delete(id);
-        notificationStoreManager.updateState(storeKey, {
+        notificationStoreManager.removeMarkingReadId(userId, id, {
           isPending: false,
-          markingReadIds: markingReadIdsCopy,
         });
       }
     },
-    [userId, storeKey, onMarkRead, isUsingProps, toast]
+    [userId, onMarkRead, isUsingProps, toast]
   );
 
   const markAllRead = React.useCallback(async () => {
@@ -500,7 +489,7 @@ export function useNotificationCenter({
       previousIsMarkingAll,
     } = notificationStoreManager.markAllReadOptimistic(userId, isUsingProps);
 
-    notificationStoreManager.updateState(storeKey, { isPending: true });
+    notificationStoreManager.updateState(userId, { isPending: true });
     try {
       if (onMarkAllRead) {
         await onMarkAllRead(optimUnreadIds);
@@ -515,7 +504,7 @@ export function useNotificationCenter({
               notificationStoreManager.getOrCreateState(
                 userId
               ).unreadCountState;
-            notificationStoreManager.updateState(storeKey, {
+            notificationStoreManager.updateState(userId, {
               unreadCountState: currentCount + failedIds.length,
             });
           }
@@ -535,7 +524,7 @@ export function useNotificationCenter({
       reportMarkAsReadFailure('mark_all_read', error);
 
       // Rollback completely on error
-      notificationStoreManager.updateState(storeKey, {
+      notificationStoreManager.updateState(userId, {
         notifications: previousNotifications,
         unreadCountState: isUsingProps ? state.unreadCountState : previousCount,
         isMarkingAll: previousIsMarkingAll,
@@ -546,22 +535,22 @@ export function useNotificationCenter({
         description: '無法將全部通知標示為已讀，請稍後再試',
       });
     } finally {
-      notificationStoreManager.updateState(storeKey, {
+      notificationStoreManager.updateState(userId, {
         isPending: false,
         isMarkingAll: false,
       });
     }
-  }, [userId, storeKey, onMarkRead, onMarkAllRead, isUsingProps, toast]);
+  }, [userId, onMarkRead, onMarkAllRead, isUsingProps, toast]);
 
   const handleRetry = React.useCallback(() => {
-    notificationStoreManager.updateState(storeKey, { status: 'loading' });
+    notificationStoreManager.updateState(userId, { status: 'loading' });
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
     if (isUsingProps) {
       timerRef.current = setTimeout(() => {
         const loaded = initialNotifications ?? defaultNotifications;
-        notificationStoreManager.updateState(storeKey, {
+        notificationStoreManager.updateState(userId, {
           notifications: loaded,
           status: 'success',
         });
@@ -570,7 +559,7 @@ export function useNotificationCenter({
       loadInitialData(true);
     }
   }, [
-    storeKey,
+    userId,
     initialNotifications,
     defaultNotifications,
     isUsingProps,

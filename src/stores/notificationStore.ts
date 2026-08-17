@@ -96,7 +96,11 @@ class NotificationStoreManager {
     return this.states.get(key)!;
   }
 
-  updateState(key: string, updates: Partial<SharedNotificationState>) {
+  updateState(
+    userId: string | undefined,
+    updates: Partial<SharedNotificationState>
+  ) {
+    const key = getStoreKey(userId);
     const currentState = this.states.get(key);
     if (!currentState) return;
 
@@ -108,22 +112,40 @@ class NotificationStoreManager {
     this.notify(key);
   }
 
-  subscribe(key: string, listener: () => void): () => void {
-    const storeKey = getStoreKey(key);
-    if (!this.listeners.has(storeKey)) {
-      this.listeners.set(storeKey, new Set());
+  subscribe(userId: string | undefined, listener: () => void): () => void {
+    const key = getStoreKey(userId);
+    if (!this.listeners.has(key)) {
+      this.listeners.set(key, new Set());
     }
-    this.listeners.get(storeKey)!.add(listener);
+    this.listeners.get(key)!.add(listener);
 
     return () => {
-      const set = this.listeners.get(storeKey);
+      const set = this.listeners.get(key);
       if (set) {
         set.delete(listener);
         if (set.size === 0) {
-          this.listeners.delete(storeKey);
+          this.listeners.delete(key);
         }
       }
     };
+  }
+
+  /**
+   * Domain Action: Remove a single id from markingReadIds (e.g. on completion or cleanup),
+   * optionally merging additional state updates into the same write.
+   */
+  removeMarkingReadId(
+    userId: string | undefined,
+    id: string,
+    extraUpdates?: Partial<SharedNotificationState>
+  ) {
+    const state = this.getOrCreateState(userId);
+    const markingReadIdsCopy = new Set(state.markingReadIds);
+    markingReadIdsCopy.delete(id);
+    this.updateState(userId, {
+      markingReadIds: markingReadIdsCopy,
+      ...extraUpdates,
+    });
   }
 
   private notify(key: string) {
@@ -155,7 +177,6 @@ class NotificationStoreManager {
     id: string,
     isUsingProps: boolean
   ): { previousState: SharedNotificationState } {
-    const key = getStoreKey(userId);
     const state = this.getOrCreateState(userId);
     const previousState = {
       ...state,
@@ -166,7 +187,7 @@ class NotificationStoreManager {
     const markingReadIdsCopy = new Set(state.markingReadIds);
     markingReadIdsCopy.add(id);
 
-    this.updateState(key, {
+    this.updateState(userId, {
       notifications: state.notifications.map((item) =>
         item.id === id ? { ...item, unread: false } : item
       ),
@@ -186,8 +207,7 @@ class NotificationStoreManager {
     userId: string | undefined,
     previousState: SharedNotificationState
   ) {
-    const key = getStoreKey(userId);
-    this.updateState(key, previousState);
+    this.updateState(userId, previousState);
   }
 
   /**
@@ -202,7 +222,6 @@ class NotificationStoreManager {
     unreadIds: string[];
     previousIsMarkingAll: boolean;
   } {
-    const key = getStoreKey(userId);
     const state = this.getOrCreateState(userId);
     const previousNotifications = [...state.notifications];
     const previousCount = state.unreadCountState;
@@ -213,7 +232,7 @@ class NotificationStoreManager {
       .map((item) => item.id);
 
     const unreadIdSet = new Set(unreadIds);
-    this.updateState(key, {
+    this.updateState(userId, {
       notifications: state.notifications.map((item) =>
         unreadIdSet.has(item.id) ? { ...item, unread: false } : item
       ),
@@ -237,11 +256,10 @@ class NotificationStoreManager {
     ids: string[],
     unreadCountState?: number
   ) {
-    const key = getStoreKey(userId);
     const state = this.getOrCreateState(userId);
     const idSet = new Set(ids);
 
-    this.updateState(key, {
+    this.updateState(userId, {
       notifications: state.notifications.map((item) =>
         idSet.has(item.id) ? { ...item, unread: true } : item
       ),
@@ -258,8 +276,7 @@ class NotificationStoreManager {
     items: NotificationItem[],
     nextCursor: string | null
   ) {
-    const key = getStoreKey(userId);
-    this.updateState(key, {
+    this.updateState(userId, {
       unreadCountState: unreadCount,
       notifications: items,
       nextCursor,
@@ -276,9 +293,8 @@ class NotificationStoreManager {
     items: NotificationItem[],
     nextCursor: string | null
   ) {
-    const key = getStoreKey(userId);
     const state = this.getOrCreateState(userId);
-    this.updateState(key, {
+    this.updateState(userId, {
       notifications: [...state.notifications, ...items],
       nextCursor,
     });
