@@ -19,7 +19,6 @@ import { MonthDraftStore } from '@/lib/profile/MonthDraftStore';
 import {
   BookingSlot,
   deduplicateBookingSlots,
-  deduplicateRawSlots,
   expandRrule,
   formatTimeslot,
   MonthKey,
@@ -28,12 +27,10 @@ import {
   parseMonthKey,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
-import { TimeSlotDTO, utcYearMonth } from '@/services/mentor-schedule/schedule';
 import { scheduleCache } from '@/services/mentor-schedule/scheduleCache';
 import {
   loadMonthScheduleCached,
   loadMonthScheduleFresh,
-  MonthSyncRequest,
   prefetchMonthSchedule,
   ScheduleMonthRef,
   syncMonths,
@@ -138,8 +135,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     useCallback(() => store.snapshot(), [store])
   );
 
-  const { savedByMonth, draftByMonth, pendingDeleteByMonth, dirtyMonths } =
-    storeState;
+  const { draftByMonth, dirtyMonths } = storeState;
 
   const [loaded, setLoaded] = useState(false);
   const [monthLoaded, setMonthLoaded] = useState(false);
@@ -156,38 +152,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   useEffect(() => {
     dirtyMonthsRef.current = dirtyMonths;
   }, [dirtyMonths]);
-
-  // Union of persisted ids across every loaded month. Slot ids are globally
-  // unique, so checking membership across months is safe and lets toServiceSlot
-  // emit the `id` field for any persisted slot regardless of which month
-  // confirmChanges is currently building a payload for.
-  const persistedIdSet = useMemo(() => {
-    const s = new Set<number>();
-    savedByMonth.forEach((raws) => {
-      for (const r of raws) if (r.id > 0) s.add(r.id);
-    });
-    return s;
-  }, [savedByMonth]);
-
-  const toServiceSlot = useCallback(
-    (r: RawMentorTimeslot): TimeSlotDTO => {
-      const { year, month } = utcYearMonth(r.dtstart);
-      const slot: TimeSlotDTO = {
-        user_id: 0,
-        dt_type: 'ALLOW',
-        dt_year: year,
-        dt_month: month,
-        dtstart: r.dtstart,
-        dtend: r.dtend,
-        rrule: r.rrule,
-        timezone: 'UTC',
-        exdate: r.exdate,
-      };
-      if (r.id > 0 && persistedIdSet.has(r.id)) slot.id = r.id;
-      return slot;
-    },
-    [persistedIdSet]
-  );
 
   // Drop everything when the backend user changes — buffers belong to a
   // specific user. prevUserIdRef is only ever written post-commit (inside
@@ -302,11 +266,13 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   // Flatten all per-month draft buffers so calendar derivations cover every
   // month the user has touched, not just the currently-viewed month.
-  const allDraftRaws = useMemo(() => {
-    const out: RawMentorTimeslot[] = [];
-    draftByMonth.forEach((raws) => out.push(...raws));
-    return deduplicateRawSlots(out);
-  }, [draftByMonth]);
+  // draftByMonth is a dependency purely to retrigger this memo on store
+  // change; the actual flatten+dedupe is the store's job.
+  const allDraftRaws = useMemo(
+    () => store.getAllDraftSlots(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- draftByMonth isn't read directly, but its identity change is what should retrigger this memo
+    [store, draftByMonth]
+  );
 
   const parsedDraft = useMemo(() => {
     const formatted = allDraftRaws.flatMap(formatTimeslot);
@@ -417,39 +383,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const confirmChanges = useCallback(async (): Promise<SyncResult> => {
     if (dirtyMonths.size === 0 || !backend.userId) return { ok: true };
 
-    const requests: MonthSyncRequest[] = Array.from(dirtyMonths).map(
-      (monthKey) => {
-        const { year, month } = parseMonthKey(monthKey);
-        const draftRaws = draftByMonth.get(monthKey) ?? [];
-        const pendingDeletes = pendingDeleteByMonth.get(monthKey) ?? [];
-
-        const rawUpsert = draftRaws
-          .filter((r) => !pendingDeletes.includes(r.id) && r.type === 'ALLOW')
-          .map(toServiceSlot);
-
-        // Dedupe by (dtstart, dtend) within this month; queue any persisted
-        // duplicate for deletion to avoid PUT conflicts. Mirrors the original
-        // single-month behaviour.
-        const seenKeys = new Map<string, number>();
-        const upsertPayload: TimeSlotDTO[] = [];
-        const extraDeleteIds: number[] = [];
-        for (const slot of rawUpsert) {
-          const key = `${slot.dtstart}_${slot.dtend}`;
-          if (!seenKeys.has(key)) {
-            seenKeys.set(key, upsertPayload.length);
-            upsertPayload.push(slot);
-          } else if (typeof slot.id === 'number' && slot.id > 0) {
-            extraDeleteIds.push(slot.id);
-          }
-        }
-
-        return {
-          ref: { userId: backend.userId, year, month },
-          upsertPayload,
-          deleteIds: [...pendingDeletes, ...extraDeleteIds],
-        };
-      }
-    );
+    const requests = store.getSyncRequests(backend.userId);
 
     const userIdAtStart = backend.userId;
     const results = await syncMonths(requests);
@@ -472,14 +406,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       };
     }
     return { ok: true };
-  }, [
-    dirtyMonths,
-    draftByMonth,
-    pendingDeleteByMonth,
-    toServiceSlot,
-    backend.userId,
-    store,
-  ]);
+  }, [dirtyMonths, backend.userId, store]);
 
   const resetChanges = useCallback(() => {
     if (!backend.userId || dirtyMonths.size === 0) return;
