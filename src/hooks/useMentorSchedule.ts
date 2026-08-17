@@ -14,6 +14,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 
+import { captureFlowFailure } from '@/lib/monitoring';
 import { MonthDraftStore } from '@/lib/profile/MonthDraftStore';
 import {
   BookingSlot,
@@ -484,6 +485,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     if (!backend.userId || dirtyMonths.size === 0) return;
     const monthKeys = Array.from(dirtyMonths);
     const userIdAtStart = backend.userId;
+    // Captured synchronously, before the await below, so a fast
+    // A -> B -> A account switch during the refetch can't read this back
+    // as B's (or an intervening clearAll's empty) savedByMonth — only to
+    // find prevUserIdRef back at A and wrongly treat that empty state as
+    // "A has no saved data" once the catch fallback runs.
+    const originalSaved = new Map(store.snapshot().savedByMonth);
     (async () => {
       try {
         const reloaded = await Promise.all(
@@ -503,13 +510,18 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         if (prevUserIdRef.current !== userIdAtStart) return;
         store.reset(reloaded);
       } catch (err) {
-        console.error('Failed to reset changes:', err);
+        captureFlowFailure({
+          flow: 'mentor_schedule_reset',
+          step: 'reload_month_schedule',
+          message: err instanceof Error ? err.message : String(err),
+          level: 'warning',
+        });
         if (prevUserIdRef.current !== userIdAtStart) return;
-        // Refetch failed: fall back to the last known-saved snapshot for
+        // Refetch failed: fall back to the pre-await saved snapshot for
         // each dirty month so the draft still clears instead of leaving the
         // UI stuck showing unsaved edits with no way to discard them.
         const fallback = monthKeys.map(
-          (mk) => [mk, store.snapshot().savedByMonth.get(mk) ?? []] as const
+          (mk) => [mk, originalSaved.get(mk) ?? []] as const
         );
         store.reset(fallback);
       }
