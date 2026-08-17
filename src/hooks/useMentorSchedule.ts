@@ -188,16 +188,14 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     [persistedIdSet]
   );
 
-  // Live mirror of backend.userId, updated on every render (unlike
-  // prevUserIdRef below, which only settles inside an effect). In-flight
-  // async work in confirmChanges/resetChanges reads this after its await to
-  // detect an account switch that happened mid-flight, so a stale response
-  // for the old user never overwrites the store the new user is looking at.
-  const currentUserIdRef = useRef(backend.userId);
-  currentUserIdRef.current = backend.userId;
-
   // Drop everything when the backend user changes — buffers belong to a
-  // specific user.
+  // specific user. prevUserIdRef is only ever written post-commit (inside
+  // the layout effect below), never during render — writing a ref during
+  // render is unsafe under Concurrent Mode, since a render React later
+  // discards would still have mutated it. In-flight async work in
+  // confirmChanges/resetChanges reads this ref after its await to detect an
+  // account switch that happened mid-flight, so a stale response for the
+  // old user never overwrites the store the new user is looking at.
   const prevUserIdRef = useRef<string | null>(null);
   useIsomorphicLayoutEffect(() => {
     if (
@@ -460,7 +458,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     // the commit in that case — writing the old user's results into that
     // store would corrupt it — but still report the real outcome below so a
     // genuine save failure isn't swallowed as a false success.
-    if (currentUserIdRef.current === userIdAtStart) {
+    if (prevUserIdRef.current === userIdAtStart) {
       store.commit(results);
     }
 
@@ -502,11 +500,11 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         // The user may have switched accounts while the refetch was in
         // flight (which resets the store to the new user's empty buffers).
         // Writing the old user's reloaded months now would corrupt it.
-        if (currentUserIdRef.current !== userIdAtStart) return;
+        if (prevUserIdRef.current !== userIdAtStart) return;
         store.reset(reloaded);
       } catch (err) {
         console.error('Failed to reset changes:', err);
-        if (currentUserIdRef.current !== userIdAtStart) return;
+        if (prevUserIdRef.current !== userIdAtStart) return;
         // Refetch failed: fall back to the last known-saved snapshot for
         // each dirty month so the draft still clears instead of leaving the
         // UI stuck showing unsaved edits with no way to discard them.
