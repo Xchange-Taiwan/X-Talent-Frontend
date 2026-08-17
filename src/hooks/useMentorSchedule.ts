@@ -459,18 +459,22 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     if (!backend.userId || dirtyMonths.size === 0) return;
     const monthKeys = Array.from(dirtyMonths);
     (async () => {
-      const reloaded = await Promise.all(
-        monthKeys.map(async (mk) => {
-          const { year, month } = parseMonthKey(mk);
-          const raws = await loadMonthScheduleFresh({
-            userId: backend.userId,
-            year,
-            month,
-          });
-          return [mk, raws] as const;
-        })
-      );
-      store.reset(reloaded);
+      try {
+        const reloaded = await Promise.all(
+          monthKeys.map(async (mk) => {
+            const { year, month } = parseMonthKey(mk);
+            const raws = await loadMonthScheduleFresh({
+              userId: backend.userId,
+              year,
+              month,
+            });
+            return [mk, raws] as const;
+          })
+        );
+        store.reset(reloaded);
+      } catch (err) {
+        console.error('Failed to reset changes:', err);
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backend.userId, dirtyMonths, store]);
