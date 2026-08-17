@@ -1,7 +1,7 @@
 import { get } from '@vercel/global-config';
 import { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('next-auth/jwt', () => ({
   getToken: vi.fn(),
@@ -204,6 +204,10 @@ describe('middleware maintenance mode', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
   });
 
   it('redirects to /maintenance when Edge Config is enabled', async () => {
@@ -638,6 +642,23 @@ describe('middleware maintenance mode', () => {
     // Should redirect to /maintenance
     expect(response.status).toBe(307);
     expect(response.headers.get('location')).toContain('/maintenance');
+  });
+
+  it('allows traffic to normal pages and redirects /maintenance to / when Global/Edge Config is not configured', async () => {
+    delete process.env.GLOBAL_CONFIG;
+    delete process.env.EDGE_CONFIG;
+    mockGetToken.mockResolvedValue(null);
+
+    // Access normal page should be allowed (returns 200)
+    const responseNormal = await middleware(makeRequest('/'));
+    expect(responseNormal.status).toBe(200);
+
+    // Access maintenance page should redirect to / (returns 307)
+    const responseMaintenance = await middleware(makeRequest('/maintenance'));
+    expect(responseMaintenance.status).toBe(307);
+    expect(responseMaintenance.headers.get('location')).toBe(
+      'https://example.com/'
+    );
   });
 });
 

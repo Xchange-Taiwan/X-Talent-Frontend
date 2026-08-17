@@ -116,12 +116,19 @@ async function readWithTimeoutAndReporting<T>(
   });
 }
 
+function isConfigured(): boolean {
+  return Boolean(process.env.GLOBAL_CONFIG || process.env.EDGE_CONFIG);
+}
+
 /**
  * Fetches the maintenance mode status from Global Config.
  */
 export async function getMaintenanceMode(
   timeoutMs = 500
 ): Promise<{ success: boolean; value: boolean }> {
+  if (!isConfigured()) {
+    return { success: true, value: false };
+  }
   const result = await readWithTimeoutAndReporting<unknown>(
     'isInMaintenanceMode',
     timeoutMs
@@ -139,6 +146,9 @@ export async function getMaintenanceMode(
 export async function getAnnouncement(
   timeoutMs = 500
 ): Promise<{ success: boolean; value: AnnouncementData | null }> {
+  if (!isConfigured()) {
+    return { success: true, value: null };
+  }
   return readWithTimeoutAndReporting<AnnouncementData>(
     'announcement',
     timeoutMs

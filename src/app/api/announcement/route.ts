@@ -8,11 +8,9 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   let announcement: AnnouncementData | null = null;
 
-  if (process.env.GLOBAL_CONFIG || process.env.EDGE_CONFIG) {
-    const result = await getAnnouncement(3000);
-    if (result.success) {
-      announcement = result.value;
-    }
+  const result = await getAnnouncement(3000);
+  if (result.success) {
+    announcement = result.value;
   }
 
   // Fallback to local environment variables if Edge Config is not configured/available

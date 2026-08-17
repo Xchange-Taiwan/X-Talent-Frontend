@@ -75,7 +75,7 @@ export async function middleware(req: NextRequest) {
 
   if (isEnvMaintenance) {
     isInMaintenanceMode = true;
-  } else if (process.env.GLOBAL_CONFIG || process.env.EDGE_CONFIG) {
+  } else {
     const result = await getMaintenanceMode(500);
     if (!result.success) {
       // If we timed out or encountered an error, use a safe fallback:
