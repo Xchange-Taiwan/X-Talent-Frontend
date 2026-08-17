@@ -34,6 +34,10 @@ export interface MonthDraftStoreSnapshot {
   draftByMonth: Map<MonthKey, RawMentorTimeslot[]>;
   pendingDeleteByMonth: Map<MonthKey, number[]>;
   dirtyMonths: Set<MonthKey>;
+  /** All current draft slots, flattened across every buffered month and
+   * deduplicated by id. Derived once per snapshot so consumers can depend on
+   * it directly instead of re-deriving from draftByMonth themselves. */
+  allDraftSlots: RawMentorTimeslot[];
 }
 
 export type StoreListener = (snapshot: MonthDraftStoreSnapshot) => void;
@@ -84,6 +88,7 @@ export class MonthDraftStore {
       draftByMonth: this.draftByMonth,
       pendingDeleteByMonth: this.pendingDeleteByMonth,
       dirtyMonths: this.dirtyMonths,
+      allDraftSlots: this.computeAllDraftSlots(),
     };
     const snap = this.currentSnapshot;
     this.listeners.forEach((l) => l(snap));
@@ -96,9 +101,16 @@ export class MonthDraftStore {
         draftByMonth: this.draftByMonth,
         pendingDeleteByMonth: this.pendingDeleteByMonth,
         dirtyMonths: this.dirtyMonths,
+        allDraftSlots: this.computeAllDraftSlots(),
       };
     }
     return this.currentSnapshot;
+  }
+
+  private computeAllDraftSlots(): RawMentorTimeslot[] {
+    const out: RawMentorTimeslot[] = [];
+    this.draftByMonth.forEach((raws) => out.push(...raws));
+    return deduplicateRawSlots(out);
   }
 
   /**
@@ -108,9 +120,7 @@ export class MonthDraftStore {
    * reaching into `snapshot().draftByMonth`.
    */
   public getAllDraftSlots(): RawMentorTimeslot[] {
-    const out: RawMentorTimeslot[] = [];
-    this.draftByMonth.forEach((raws) => out.push(...raws));
-    return deduplicateRawSlots(out);
+    return this.snapshot().allDraftSlots;
   }
 
   /**

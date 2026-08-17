@@ -135,7 +135,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     useCallback(() => store.snapshot(), [store])
   );
 
-  const { draftByMonth, dirtyMonths } = storeState;
+  const { dirtyMonths, allDraftSlots: allDraftRaws } = storeState;
 
   const [loaded, setLoaded] = useState(false);
   const [monthLoaded, setMonthLoaded] = useState(false);
@@ -263,16 +263,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     }, 0);
     return () => clearTimeout(handle);
   }, [loaded, backend.userId, backend.year, backend.month]);
-
-  // Flatten all per-month draft buffers so calendar derivations cover every
-  // month the user has touched, not just the currently-viewed month.
-  // draftByMonth is a dependency purely to retrigger this memo on store
-  // change; the actual flatten+dedupe is the store's job.
-  const allDraftRaws = useMemo(
-    () => store.getAllDraftSlots(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- draftByMonth isn't read directly, but its identity change is what should retrigger this memo
-    [store, draftByMonth]
-  );
 
   const parsedDraft = useMemo(() => {
     const formatted = allDraftRaws.flatMap(formatTimeslot);
