@@ -139,6 +139,14 @@ function areNotificationsChanged(
   );
 }
 
+// Pure helper functions for key generation
+export const getStoreKey = (userId?: string): string => userId || 'generic';
+
+export const getStorageKey = (userId?: string): string =>
+  userId
+    ? `notif_seen_unread_count_${userId}`
+    : 'notif_seen_unread_count_generic';
+
 // Centralized Notification Shared State Interface
 interface SharedNotificationState {
   status: NotificationStatus;
@@ -166,9 +174,7 @@ const createInitialState = (
   initialStatus: NotificationStatus = 'success'
 ): SharedNotificationState => {
   const isUsingProps = initialNotifications !== undefined;
-  const storageKey = userId
-    ? `notif_seen_unread_count_${userId}`
-    : 'notif_seen_unread_count_generic';
+  const storageKey = getStorageKey(userId);
 
   return {
     status: isUsingProps ? initialStatus : 'loading',
@@ -193,7 +199,7 @@ class NotificationStoreManager {
     initialNotifications?: NotificationItem[],
     initialStatus?: NotificationStatus
   ): SharedNotificationState {
-    const key = userId || 'generic';
+    const key = getStoreKey(userId);
 
     // Prevent SSR memory leaks & cross-request state pollution in Next.js Server Side pre-rendering
     if (typeof window === 'undefined') {
@@ -275,37 +281,23 @@ export function useNotificationCenter({
   const [open, setOpen] = React.useState(false);
 
   const isUsingProps = initialNotifications !== undefined;
-  const storeKey = userId || 'generic';
+  const storeKey = getStoreKey(userId);
 
-  // Retrieve current state from store and subscribe to changes
-  const [storeState, setStoreState] = React.useState(() =>
-    notificationStoreManager.getOrCreateState(
-      userId,
-      initialNotifications,
-      initialStatus
+  // Retrieve current state from store and subscribe to changes using standard React 18+ useSyncExternalStore
+  const storeState = React.useSyncExternalStore(
+    React.useCallback(
+      (callback) => notificationStoreManager.subscribe(storeKey, callback),
+      [storeKey]
+    ),
+    React.useCallback(
+      () => notificationStoreManager.getOrCreateState(userId),
+      [userId]
+    ),
+    React.useCallback(
+      () => createInitialState(userId, initialNotifications, initialStatus),
+      [userId, initialNotifications, initialStatus]
     )
   );
-
-  React.useEffect(() => {
-    // Sync local hook state when userId, initialNotifications, or initialStatus changes
-    const state = notificationStoreManager.getOrCreateState(
-      userId,
-      initialNotifications,
-      initialStatus
-    );
-    setStoreState(state);
-
-    const unsubscribe = notificationStoreManager.subscribe(storeKey, () => {
-      const updatedState = notificationStoreManager.getOrCreateState(
-        userId,
-        initialNotifications,
-        initialStatus
-      );
-      setStoreState(updatedState);
-    });
-
-    return unsubscribe;
-  }, [userId, initialNotifications, initialStatus, storeKey]);
 
   // Sync initialStatus/initialNotifications prop changes structurally into the shared store
   React.useEffect(() => {
@@ -323,15 +315,16 @@ export function useNotificationCenter({
     }
   }, [initialNotifications, initialStatus, userId, storeKey]);
 
-  // Mount-time sync seenUnreadCount from localStorage to handle remount correctly
+  // Mount-time sync seenUnreadCount from localStorage conditionally (avoiding redundant broadcasts)
   React.useEffect(() => {
-    const storageKey = userId
-      ? `notif_seen_unread_count_${userId}`
-      : 'notif_seen_unread_count_generic';
+    const storageKey = getStorageKey(userId);
     const currentStoredCount = getStoredSeenCount(storageKey);
-    notificationStoreManager.updateState(storeKey, {
-      seenUnreadCount: currentStoredCount,
-    });
+    const currentState = notificationStoreManager.getOrCreateState(userId);
+    if (currentState.seenUnreadCount !== currentStoredCount) {
+      notificationStoreManager.updateState(storeKey, {
+        seenUnreadCount: currentStoredCount,
+      });
+    }
   }, [storeKey, userId]);
 
   const [isMounted, setIsMounted] = React.useState(false);
@@ -355,9 +348,7 @@ export function useNotificationCenter({
   // Helper to write to localStorage and notify shared store instances
   const writeSeenCount = React.useCallback(
     (val: number) => {
-      const storageKey = userId
-        ? `notif_seen_unread_count_${userId}`
-        : 'notif_seen_unread_count_generic';
+      const storageKey = getStorageKey(userId);
       safeSetStorage(storageKey, String(val));
       notificationStoreManager.updateState(storeKey, { seenUnreadCount: val });
     },
@@ -424,12 +415,6 @@ export function useNotificationCenter({
         return;
       }
 
-      // Group into a single updateState call to avoid redundant Re-renders
-      notificationStoreManager.updateState(storeKey, {
-        isFetching: true,
-        ...(showLoading ? { status: 'loading' } : {}),
-      });
-
       const fetchPromise = (async () => {
         try {
           const [unreadRes, notificationsRes] = await Promise.all([
@@ -467,7 +452,13 @@ export function useNotificationCenter({
         }
       })();
 
-      notificationStoreManager.updateState(storeKey, { fetchPromise });
+      // Group isFetching, status and fetchPromise to single updateState
+      notificationStoreManager.updateState(storeKey, {
+        isFetching: true,
+        ...(showLoading ? { status: 'loading' } : {}),
+        fetchPromise,
+      });
+
       await fetchPromise;
     },
     [userId, storeKey, isUsingProps, toast]
@@ -512,9 +503,7 @@ export function useNotificationCenter({
 
   // Synchronize state across different browser tabs via storage event
   React.useEffect(() => {
-    const storageKey = userId
-      ? `notif_seen_unread_count_${userId}`
-      : 'notif_seen_unread_count_generic';
+    const storageKey = getStorageKey(userId);
 
     const handleStorageSync = (e: StorageEvent) => {
       if (e.key === storageKey) {

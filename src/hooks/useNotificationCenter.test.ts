@@ -204,7 +204,7 @@ describe('useNotificationCenter', () => {
     expect(onMarkReadMock).toHaveBeenCalledTimes(6);
   });
 
-  it('synchronizes seen state across different instances on the same page via shared store and across browser tabs via storage event', async () => {
+  it('synchronizes seen count and markRead/markAllRead state across different instances on the same page via shared store and across browser tabs via storage event', async () => {
     const { result: hook1 } = renderHook(() =>
       useNotificationCenter({
         userId: 'user-123',
@@ -221,27 +221,70 @@ describe('useNotificationCenter', () => {
 
     expect(hook1.current.showBadge).toBe(true);
     expect(hook2.current.showBadge).toBe(true);
+    expect(hook1.current.badgeCount).toBe(2);
+    expect(hook2.current.badgeCount).toBe(2);
 
-    // Open hook1: this should update seen count for user-123 to 2, hiding badge on both!
-    act(() => {
-      hook1.current.openCenter();
+    // 1. Test markRead synchronization:
+    // Mark first item as read on hook1 -> should update hook2's badgeCount and item unread status!
+    await act(async () => {
+      await hook1.current.markRead('n1');
     });
 
-    expect(hook1.current.showBadge).toBe(false);
-    expect(hook2.current.showBadge).toBe(false);
+    expect(hook1.current.badgeCount).toBe(1);
+    expect(hook2.current.badgeCount).toBe(1);
+    expect(hook1.current.items.find((item) => item.id === 'n1')?.unread).toBe(
+      false
+    );
+    expect(hook2.current.items.find((item) => item.id === 'n1')?.unread).toBe(
+      false
+    );
 
-    // Simulate storage event sync from another browser tab setting seen count back to 0
+    // 2. Test markAllRead synchronization:
+    // Mark all read on hook1 -> should clear hook2's badgeCount completely!
+    await act(async () => {
+      await hook1.current.markAllRead();
+    });
+
+    expect(hook1.current.badgeCount).toBe(0);
+    expect(hook2.current.badgeCount).toBe(0);
+
+    // 3. Test seen state synchronization on openCenter:
+    // Re-render hooks with unread items to test seen state
+    const { result: hook1Seen } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-seen-sync',
+        initialNotifications: mockNotifications,
+      })
+    );
+    const { result: hook2Seen } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-seen-sync',
+        initialNotifications: mockNotifications,
+      })
+    );
+
+    expect(hook1Seen.current.showBadge).toBe(true);
+    expect(hook2Seen.current.showBadge).toBe(true);
+
+    act(() => {
+      hook1Seen.current.openCenter();
+    });
+
+    expect(hook1Seen.current.showBadge).toBe(false);
+    expect(hook2Seen.current.showBadge).toBe(false);
+
+    // 4. Test storage event cross-tab synchronization:
     act(() => {
       window.dispatchEvent(
         new StorageEvent('storage', {
-          key: 'notif_seen_unread_count_user-123',
+          key: 'notif_seen_unread_count_user-seen-sync',
           newValue: '0',
         })
       );
     });
 
-    expect(hook1.current.showBadge).toBe(true);
-    expect(hook2.current.showBadge).toBe(true);
+    expect(hook1Seen.current.showBadge).toBe(true);
+    expect(hook2Seen.current.showBadge).toBe(true);
   });
 
   it('clamps seenUnreadCount to current unreadCount on render/sync unless loading', async () => {
@@ -320,5 +363,17 @@ describe('useNotificationCenter', () => {
 
     expect(userAHook.current.showBadge).toBe(false);
     expect(userBHook.current.showBadge).toBe(true);
+  });
+
+  it('creates a new clean state instance on every call without caching in SSR environments (to prevent memory leaks)', () => {
+    vi.stubGlobal('window', undefined);
+    try {
+      const stateA = notificationStoreManager.getOrCreateState('ssr-test');
+      const stateB = notificationStoreManager.getOrCreateState('ssr-test');
+
+      expect(stateA).not.toBe(stateB);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
