@@ -18,6 +18,7 @@ import {
 } from '@/lib/profile/scheduleHelpers';
 import {
   loadMonthScheduleCached,
+  loadMonthScheduleFresh,
   syncMonths,
 } from '@/services/mentor-schedule/sync';
 
@@ -680,5 +681,221 @@ describe('useMentorSchedule', () => {
         expect.objectContaining({ ref: expect.objectContaining({ month: 8 }) }),
       ])
     );
+  });
+
+  it('resetChanges falls back to the last known-saved snapshot when the refetch fails', async () => {
+    const { result } = setupSchedule();
+
+    await waitFor(() => {
+      expect(result.current.loaded).toBe(true);
+    });
+
+    act(() => {
+      const res = result.current.updateDraftSlot(101, 1785070000, {
+        startTime: '13:00',
+        durationMinutes: 45,
+      });
+      expect(res.success).toBe(true);
+    });
+
+    // Draft now diverges from the originally-loaded (saved) data.
+    expect(result.current.parsedDraft[0].occurrenceUnix).not.toBe(1785070000);
+
+    vi.mocked(loadMonthScheduleFresh).mockRejectedValue(
+      new Error('network down')
+    );
+
+    act(() => {
+      result.current.resetChanges();
+    });
+
+    // Falls back to savedByMonth (the original, pre-edit data) instead of
+    // leaving the UI stuck showing the failed-to-discard draft.
+    await waitFor(() => {
+      expect(result.current.parsedDraft[0]?.occurrenceUnix).toBe(1785070000);
+    });
+    expect(result.current.parsedDraft).toHaveLength(1);
+  });
+
+  it('regression: switching accounts while viewing the same calendar month reloads the new user instead of reusing the stale buffer', async () => {
+    const userARaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW' as const,
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+    const userBRaws: RawMentorTimeslot[] = [
+      {
+        id: 201,
+        type: 'ALLOW' as const,
+        dtstart: 1785080000,
+        dtend: 1785081800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    mockLoadMonthScheduleCached.mockImplementation((ref) => {
+      if (ref.userId === 'userA') {
+        return { cached: userARaws, revalidate: Promise.resolve(userARaws) };
+      }
+      if (ref.userId === 'userB') {
+        return { cached: userBRaws, revalidate: Promise.resolve(userBRaws) };
+      }
+      return { cached: [], revalidate: Promise.resolve([]) };
+    });
+
+    const { result, rerender } = renderHook(
+      (props: { backend: { userId: string; year: number; month: number } }) =>
+        useMentorSchedule(props),
+      { initialProps: { backend: { userId: 'userA', year: 2026, month: 7 } } }
+    );
+
+    await waitFor(() => {
+      expect(result.current.loaded).toBe(true);
+    });
+    expect(result.current.parsedDraft[0]?.id).toBe(101);
+
+    // Same calendar month key ('2026-07'), different user — the buffer must
+    // not be mistaken for already-loaded just because that month key was
+    // seen before under a different account.
+    rerender({ backend: { userId: 'userB', year: 2026, month: 7 } });
+
+    await waitFor(() => {
+      expect(result.current.parsedDraft[0]?.id).toBe(201);
+    });
+  });
+
+  it('confirmChanges still reports a real save failure even if the account switches away before syncMonths resolves', async () => {
+    mockLoadMonthScheduleCached.mockReturnValue({
+      cached: defaultMockRaws,
+      revalidate: Promise.resolve(defaultMockRaws),
+    });
+
+    const { result, rerender } = renderHook(
+      (props: { backend: { userId: string; year: number; month: number } }) =>
+        useMentorSchedule(props),
+      { initialProps: { backend: { userId: 'userA', year: 2026, month: 7 } } }
+    );
+
+    await waitFor(() => {
+      expect(result.current.loaded).toBe(true);
+    });
+
+    act(() => {
+      result.current.updateDraftSlot(101, 1785070000, {
+        startTime: '13:00',
+        durationMinutes: 45,
+      });
+    });
+
+    let resolveSync!: (r: Awaited<ReturnType<typeof syncMonths>>) => void;
+    vi.mocked(syncMonths).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSync = resolve;
+        })
+    );
+
+    let confirmPromise!: ReturnType<typeof result.current.confirmChanges>;
+    act(() => {
+      confirmPromise = result.current.confirmChanges();
+    });
+
+    // Account switches away while the save is still in flight.
+    rerender({ backend: { userId: 'userB', year: 2026, month: 7 } });
+
+    resolveSync([
+      {
+        monthKey: '2026-07',
+        outcome: { ok: false, reason: 'conflict', message: 'boom' },
+      },
+    ]);
+
+    const outcome = await confirmPromise;
+    // The real failure must surface — not silently reported as success just
+    // because the store it would have committed into has since moved on.
+    expect(outcome.ok).toBe(false);
+  });
+
+  it('resetChanges fallback uses the snapshot captured before the refetch started, immune to an intervening account switch clearing the store', async () => {
+    let sawUserA = false;
+    mockLoadMonthScheduleCached.mockImplementation((ref) => {
+      if (ref.userId === 'userA') {
+        if (sawUserA) {
+          // Viewing userA again after switching away: a cache miss whose
+          // revalidate never settles in this test, so the store isn't
+          // synchronously repopulated before resetChanges' fallback runs.
+          return {
+            cached: undefined,
+            revalidate: new Promise<RawMentorTimeslot[]>(() => {}),
+          };
+        }
+        sawUserA = true;
+        return {
+          cached: defaultMockRaws,
+          revalidate: Promise.resolve(defaultMockRaws),
+        };
+      }
+      return { cached: [], revalidate: Promise.resolve([]) };
+    });
+
+    let rejectFresh!: (err: Error) => void;
+    vi.mocked(loadMonthScheduleFresh).mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectFresh = reject;
+        })
+    );
+
+    const { result, rerender } = renderHook(
+      (props: { backend: { userId: string; year: number; month: number } }) =>
+        useMentorSchedule(props),
+      { initialProps: { backend: { userId: 'userA', year: 2026, month: 7 } } }
+    );
+
+    await waitFor(() => {
+      expect(result.current.loaded).toBe(true);
+    });
+    expect(result.current.parsedDraft).toHaveLength(1);
+
+    act(() => {
+      result.current.updateDraftSlot(101, 1785070000, {
+        startTime: '13:00',
+        durationMinutes: 45,
+      });
+    });
+
+    // Start the reset — this must capture a snapshot of userA's saved data
+    // synchronously, before the refetch (and the account switches below)
+    // have any chance to run.
+    act(() => {
+      result.current.resetChanges();
+    });
+
+    // Switch away and back to the same user while the refetch is still
+    // pending — each switch clears the store via store.clearAll().
+    rerender({ backend: { userId: 'userB', year: 2026, month: 7 } });
+    await waitFor(() => {
+      expect(result.current.loaded).toBe(true);
+    });
+    rerender({ backend: { userId: 'userA', year: 2026, month: 7 } });
+
+    // The pending refetch now fails.
+    act(() => {
+      rejectFresh(new Error('network down'));
+    });
+
+    // Must fall back to the ORIGINAL saved slot (id 101), not an empty
+    // array — even though the store's live state for userA was still
+    // empty (cache miss, stuck revalidate) at the moment the fallback ran.
+    await waitFor(() => {
+      expect(result.current.parsedDraft).toHaveLength(1);
+    });
+    expect(result.current.parsedDraft[0]?.id).toBe(101);
   });
 });
