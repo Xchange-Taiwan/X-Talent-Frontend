@@ -37,6 +37,11 @@ vi.mock('@/hooks/user/auth/useSessionHint', () => ({
   useSessionHint: () => mockUseSessionHint(),
 }));
 
+import {
+  authenticatedIdentity,
+  GUEST_IDENTITY,
+  UNKNOWN_IDENTITY,
+} from '@/test/mocks/identity';
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 
 import { Header } from './Header';
@@ -45,35 +50,7 @@ import { Header } from './Header';
 // derived from (see `useIdentity`), so these are the exact `ResolvedIdentity`
 // values `resolveIdentity` would produce for each scenario below - not a
 // separate ad-hoc shape.
-const UNKNOWN_IDENTITY = {
-  authKnown: false,
-  isLoggedIn: false,
-  isMentor: false,
-  userId: undefined,
-  hasFullUser: false,
-  isResolvingUser: false,
-  avatar: undefined,
-};
-
-const GUEST_IDENTITY = {
-  authKnown: true,
-  isLoggedIn: false,
-  isMentor: false,
-  userId: undefined,
-  hasFullUser: false,
-  isResolvingUser: false,
-  avatar: undefined,
-};
-
-const AUTHENTICATED_MATCHING_IDENTITY = {
-  authKnown: true,
-  isLoggedIn: true,
-  isMentor: false,
-  userId: 'user-123',
-  hasFullUser: true,
-  isResolvingUser: false,
-  avatar: undefined,
-};
+const AUTHENTICATED_MATCHING_IDENTITY = authenticatedIdentity('user-123');
 
 describe('Header', () => {
   beforeEach(() => {

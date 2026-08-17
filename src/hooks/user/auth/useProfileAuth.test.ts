@@ -11,6 +11,11 @@ vi.mock('./useSessionHint', () => ({
   useSessionHint: () => mockUseSessionHint(),
 }));
 
+import {
+  authenticatedIdentity,
+  GUEST_IDENTITY as GUEST,
+  UNKNOWN_IDENTITY as UNKNOWN,
+} from '@/test/mocks/identity';
 import { mockRouter } from '@/test/mocks/navigation';
 
 import { useProfileAuth } from './useProfileAuth';
@@ -19,35 +24,7 @@ const PAGE_USER_ID = 'test-user-id';
 
 // Every case below is a `ResolvedIdentity` - the single object `useSessionHint`
 // (mocked here) hands to `useIdentity`, which `useProfileAuth` reads unchanged.
-const UNKNOWN = {
-  authKnown: false,
-  isLoggedIn: false,
-  isMentor: false,
-  userId: undefined,
-  hasFullUser: false,
-  isResolvingUser: false,
-  avatar: undefined,
-};
-
-const GUEST = {
-  authKnown: true,
-  isLoggedIn: false,
-  isMentor: false,
-  userId: undefined,
-  hasFullUser: false,
-  isResolvingUser: false,
-  avatar: undefined,
-};
-
-const AUTHENTICATED_MATCHING = {
-  authKnown: true,
-  isLoggedIn: true,
-  isMentor: false,
-  userId: PAGE_USER_ID,
-  hasFullUser: true,
-  isResolvingUser: false,
-  avatar: undefined,
-};
+const AUTHENTICATED_MATCHING = authenticatedIdentity(PAGE_USER_ID);
 
 describe('useProfileAuth', () => {
   beforeEach(() => {
