@@ -1,7 +1,7 @@
 import type { ResolvedIdentity } from '@/lib/auth/sessionHint';
 
 /**
- * Builds a `ResolvedIdentity` for mocking `useSessionHint` in tests - the
+ * Builds a `ResolvedIdentity` for mocking `useResolvedIdentity` in tests - the
  * single call site every identity consumer (`useIdentity`, `Header`,
  * `useProfileAuth`, `useCurrentAvatar`, ...) now derives from. Defaults to
  * a fully-resolved guest so callers only need to override what the

@@ -4,12 +4,12 @@ import { useMemo } from 'react';
 
 import { applyAvatarOverride, ResolvedIdentity } from '@/lib/auth/sessionHint';
 
-import { useSessionHint } from './useSessionHint';
+import { useResolvedIdentity } from './useResolvedIdentity';
 
 /**
  * Custom Hook exposing the app's single resolved identity value - the
- * identity `useSessionHint` already resolved, with an optional client-only
- * avatar override layered on top.
+ * identity `useResolvedIdentity` already resolved, with an optional
+ * client-only avatar override layered on top.
  *
  * Callers that don't care about the avatar (e.g. `useAuthStatus`, `useProfileAuth`)
  * must pass `null` rather than omitting the argument, so this hook never has to
@@ -18,7 +18,7 @@ import { useSessionHint } from './useSessionHint';
 export function useIdentity(
   override: { userId: string; url: string } | null
 ): ResolvedIdentity {
-  const identity = useSessionHint();
+  const identity = useResolvedIdentity();
 
   return useMemo(
     () => applyAvatarOverride(identity, override),

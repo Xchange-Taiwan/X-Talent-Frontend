@@ -8,7 +8,7 @@ import {
   SESSION_HINT_COOKIE,
 } from '@/lib/auth/sessionHint';
 
-import { useSessionHint } from './useSessionHint';
+import { useResolvedIdentity } from './useResolvedIdentity';
 
 vi.mock('next-auth/react', () => ({
   useSession: vi.fn(),
@@ -24,7 +24,7 @@ function setCookie(value: string | undefined): void {
   document.cookie = `${SESSION_HINT_COOKIE}=${value}`;
 }
 
-describe('useSessionHint', () => {
+describe('useResolvedIdentity', () => {
   beforeEach(() => {
     mockUseSession.mockReturnValue({
       data: null,
@@ -40,7 +40,7 @@ describe('useSessionHint', () => {
   });
 
   it('resolves to guest immediately during loading when no hint cookie is present, and stays guest once unauthenticated is confirmed', async () => {
-    const { result, rerender } = renderHook(() => useSessionHint());
+    const { result, rerender } = renderHook(() => useResolvedIdentity());
 
     // No hint cookie means the last middleware pass saw no valid token, so
     // treat the visitor as a guest right away instead of waiting on
@@ -65,7 +65,7 @@ describe('useSessionHint', () => {
 
   it('resolves to authenticated mentor when cookie value is "1"', async () => {
     setCookie('1');
-    const { result } = renderHook(() => useSessionHint());
+    const { result } = renderHook(() => useResolvedIdentity());
     await waitFor(() =>
       expect(result.current).toMatchObject({
         isLoggedIn: true,
@@ -78,7 +78,7 @@ describe('useSessionHint', () => {
 
   it('resolves to authenticated non-mentor when cookie value is "0"', async () => {
     setCookie('0');
-    const { result } = renderHook(() => useSessionHint());
+    const { result } = renderHook(() => useResolvedIdentity());
     await waitFor(() =>
       expect(result.current).toMatchObject({
         isLoggedIn: true,
@@ -94,7 +94,7 @@ describe('useSessionHint', () => {
       status: 'unauthenticated',
     } as never);
 
-    const { result } = renderHook(() => useSessionHint());
+    const { result } = renderHook(() => useResolvedIdentity());
     await waitFor(() => expect(result.current.isLoggedIn).toBe(false));
   });
 
@@ -114,7 +114,7 @@ describe('useSessionHint', () => {
       'url("https://example.com/avatar.png")'
     );
 
-    const { result } = renderHook(() => useSessionHint());
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current.isLoggedIn).toBe(false);
@@ -143,7 +143,7 @@ describe('useSessionHint', () => {
 
     setCookie('1');
 
-    const { result } = renderHook(() => useSessionHint());
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
@@ -166,7 +166,7 @@ describe('useSessionHint', () => {
   it('actively syncs DOM attributes and style property when hint is resolved with avatar', async () => {
     setCookie('1||https%3A%2F%2Fexample.com%2Favatar.png');
 
-    const { result } = renderHook(() => useSessionHint());
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
@@ -191,7 +191,7 @@ describe('useSessionHint', () => {
       '1||https%3A%2F%2Fexample.com%2Favatar.png%22%3Bbackground%3Ared'
     );
 
-    const { result } = renderHook(() => useSessionHint());
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
@@ -222,7 +222,7 @@ describe('useSessionHint', () => {
     document.documentElement.setAttribute(DOM_AUTH_AVATAR_ATTR, 'url');
     document.documentElement.style.setProperty('--auth-avatar', 'url("url")');
 
-    const { result } = renderHook(() => useSessionHint());
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current.isLoggedIn).toBe(false);
@@ -251,7 +251,7 @@ describe('useSessionHint', () => {
       status: 'authenticated',
     } as never);
 
-    const { result } = renderHook(() => useSessionHint());
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
@@ -285,7 +285,7 @@ describe('useSessionHint', () => {
       status: 'authenticated',
     } as never);
 
-    const { result } = renderHook(() => useSessionHint());
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
@@ -307,10 +307,10 @@ describe('useSessionHint', () => {
     });
   });
 
-  it('gracefully handles malformed URI encoding in cookie in useSessionHint without throwing', async () => {
+  it('gracefully handles malformed URI encoding in cookie in useResolvedIdentity without throwing', async () => {
     setCookie('1||https%3A%2F%2Fexample.com%2Finvalid%%url');
 
-    const { result } = renderHook(() => useSessionHint());
+    const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
       expect(result.current).toMatchObject({

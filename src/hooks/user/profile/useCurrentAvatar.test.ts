@@ -2,7 +2,7 @@ import { renderHook } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useSessionHint } from '@/hooks/user/auth/useSessionHint';
+import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import { useAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 import {
   authenticatedIdentity,
@@ -15,8 +15,8 @@ vi.mock('next-auth/react', () => ({
   useSession: vi.fn(),
 }));
 
-vi.mock('@/hooks/user/auth/useSessionHint', () => ({
-  useSessionHint: vi.fn(),
+vi.mock('@/hooks/user/auth/useResolvedIdentity', () => ({
+  useResolvedIdentity: vi.fn(),
 }));
 
 vi.mock('@/lib/avatar/avatarOverrideStore', () => ({
@@ -25,7 +25,7 @@ vi.mock('@/lib/avatar/avatarOverrideStore', () => ({
 }));
 
 const mockUseSession = vi.mocked(useSession);
-const mockUseSessionHint = vi.mocked(useSessionHint);
+const mockUseResolvedIdentity = vi.mocked(useResolvedIdentity);
 const mockUseAvatarOverride = vi.mocked(useAvatarOverride);
 
 describe('useCurrentAvatar', () => {
@@ -38,7 +38,7 @@ describe('useCurrentAvatar', () => {
       data: { user: { id: 'user-123', avatar: 'session-avatar.png' } },
       status: 'authenticated',
     } as unknown as ReturnType<typeof useSession>);
-    mockUseSessionHint.mockReturnValue(
+    mockUseResolvedIdentity.mockReturnValue(
       authenticatedIdentity('user-123', { avatar: 'session-avatar.png' })
     );
     mockUseAvatarOverride.mockReturnValue({
@@ -56,7 +56,7 @@ describe('useCurrentAvatar', () => {
       data: { user: { id: 'user-123', avatar: 'session-avatar.png' } },
       status: 'authenticated',
     } as unknown as ReturnType<typeof useSession>);
-    mockUseSessionHint.mockReturnValue(
+    mockUseResolvedIdentity.mockReturnValue(
       authenticatedIdentity('user-123', { avatar: 'session-avatar.png' })
     );
     mockUseAvatarOverride.mockReturnValue({
@@ -74,7 +74,7 @@ describe('useCurrentAvatar', () => {
       data: undefined,
       status: 'loading',
     } as unknown as ReturnType<typeof useSession>);
-    mockUseSessionHint.mockReturnValue(
+    mockUseResolvedIdentity.mockReturnValue(
       buildResolvedIdentity({
         isLoggedIn: true,
         isMentor: true,
@@ -94,7 +94,7 @@ describe('useCurrentAvatar', () => {
       data: { user: { id: 'user-123', avatar: null } },
       status: 'authenticated',
     } as unknown as ReturnType<typeof useSession>);
-    mockUseSessionHint.mockReturnValue(authenticatedIdentity('user-123'));
+    mockUseResolvedIdentity.mockReturnValue(authenticatedIdentity('user-123'));
     mockUseAvatarOverride.mockReturnValue(null);
 
     const { result } = renderHook(() => useCurrentAvatar());
@@ -107,7 +107,7 @@ describe('useCurrentAvatar', () => {
       data: null,
       status: 'unauthenticated',
     } as unknown as ReturnType<typeof useSession>);
-    mockUseSessionHint.mockReturnValue(buildResolvedIdentity());
+    mockUseResolvedIdentity.mockReturnValue(buildResolvedIdentity());
     mockUseAvatarOverride.mockReturnValue(null);
 
     const { result } = renderHook(() => useCurrentAvatar());
@@ -120,7 +120,7 @@ describe('useCurrentAvatar', () => {
       data: undefined,
       status: 'loading',
     } as unknown as ReturnType<typeof useSession>);
-    mockUseSessionHint.mockReturnValue(buildResolvedIdentity());
+    mockUseResolvedIdentity.mockReturnValue(buildResolvedIdentity());
     mockUseAvatarOverride.mockReturnValue(null);
 
     const { result } = renderHook(() => useCurrentAvatar());

@@ -1,9 +1,9 @@
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mockUseSessionHint = vi.fn();
-vi.mock('./useSessionHint', () => ({
-  useSessionHint: () => mockUseSessionHint(),
+const mockUseResolvedIdentity = vi.fn();
+vi.mock('./useResolvedIdentity', () => ({
+  useResolvedIdentity: () => mockUseResolvedIdentity(),
 }));
 
 import {
@@ -18,12 +18,12 @@ describe('useIdentity', () => {
     vi.clearAllMocks();
   });
 
-  it('passes through the already-resolved identity from useSessionHint unchanged when there is no override', () => {
+  it('passes through the already-resolved identity from useResolvedIdentity unchanged when there is no override', () => {
     const resolved = authenticatedIdentity('user-123', {
       isMentor: true,
       avatar: 'https://example.com/session.png',
     });
-    mockUseSessionHint.mockReturnValue(resolved);
+    mockUseResolvedIdentity.mockReturnValue(resolved);
 
     const { result } = renderHook(() => useIdentity(null));
 
@@ -31,7 +31,7 @@ describe('useIdentity', () => {
   });
 
   it('layers the avatar override on top when its userId matches the resolved identity', () => {
-    mockUseSessionHint.mockReturnValue(
+    mockUseResolvedIdentity.mockReturnValue(
       authenticatedIdentity('user-123', {
         isMentor: true,
         avatar: 'https://example.com/session.png',
@@ -46,7 +46,7 @@ describe('useIdentity', () => {
   });
 
   it('ignores the override when its userId does not match the resolved identity', () => {
-    mockUseSessionHint.mockReturnValue(
+    mockUseResolvedIdentity.mockReturnValue(
       authenticatedIdentity('user-123', {
         isMentor: true,
         avatar: 'https://example.com/session.png',
@@ -64,7 +64,7 @@ describe('useIdentity', () => {
   });
 
   it('ignores the override while the userId has not resolved yet', () => {
-    mockUseSessionHint.mockReturnValue(
+    mockUseResolvedIdentity.mockReturnValue(
       buildResolvedIdentity({
         isLoggedIn: true,
         isMentor: true,

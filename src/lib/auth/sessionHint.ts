@@ -207,7 +207,7 @@ export function resolveIdentity(
  * Layers a client-only avatar override (set synchronously on a successful
  * profile submit, see `avatarOverrideStore`) on top of an identity already
  * produced by `resolveIdentity`. Kept as a separate step - rather than a
- * parameter on `resolveIdentity` - so `useSessionHint` (the one place that
+ * parameter on `resolveIdentity` - so `useResolvedIdentity` (the one place that
  * calls `resolveIdentity`) never has to know about the override, and
  * `useIdentity` never has to re-run identity resolution just to apply it.
  */

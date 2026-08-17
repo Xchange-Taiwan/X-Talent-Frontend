@@ -6,9 +6,9 @@ vi.mock('next/navigation', async () => {
   return navigationMockFactory();
 });
 
-const mockUseSessionHint = vi.fn();
-vi.mock('./useSessionHint', () => ({
-  useSessionHint: () => mockUseSessionHint(),
+const mockUseResolvedIdentity = vi.fn();
+vi.mock('./useResolvedIdentity', () => ({
+  useResolvedIdentity: () => mockUseResolvedIdentity(),
 }));
 
 import {
@@ -22,18 +22,18 @@ import { useProfileAuth } from './useProfileAuth';
 
 const PAGE_USER_ID = 'test-user-id';
 
-// Every case below is a `ResolvedIdentity` - the single object `useSessionHint`
+// Every case below is a `ResolvedIdentity` - the single object `useResolvedIdentity`
 // (mocked here) hands to `useIdentity`, which `useProfileAuth` reads unchanged.
 const AUTHENTICATED_MATCHING = authenticatedIdentity(PAGE_USER_ID);
 
 describe('useProfileAuth', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseSessionHint.mockReturnValue(AUTHENTICATED_MATCHING);
+    mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING);
   });
 
   it('status: loading and hint: unknown (no cookie) → isAuthorized is false, router.push is NOT called', async () => {
-    mockUseSessionHint.mockReturnValue(UNKNOWN);
+    mockUseResolvedIdentity.mockReturnValue(UNKNOWN);
 
     const { result } = await act(async () =>
       renderHook(() => useProfileAuth(PAGE_USER_ID))
@@ -44,7 +44,7 @@ describe('useProfileAuth', () => {
   });
 
   it('status: loading and hint: guest → triggers immediate redirect to "/"', async () => {
-    mockUseSessionHint.mockReturnValue(GUEST);
+    mockUseResolvedIdentity.mockReturnValue(GUEST);
 
     const { result } = await act(async () =>
       renderHook(() => useProfileAuth(PAGE_USER_ID))
@@ -55,7 +55,7 @@ describe('useProfileAuth', () => {
   });
 
   it('status: loading and hint: authenticated with mismatched userId → triggers immediate redirect to "/"', async () => {
-    mockUseSessionHint.mockReturnValue({
+    mockUseResolvedIdentity.mockReturnValue({
       ...GUEST,
       isLoggedIn: true,
       userId: 'different-user-id',
@@ -70,7 +70,7 @@ describe('useProfileAuth', () => {
   });
 
   it('status: loading and hint: authenticated with matching userId → authorizes immediately without redirect', async () => {
-    mockUseSessionHint.mockReturnValue({
+    mockUseResolvedIdentity.mockReturnValue({
       ...GUEST,
       isLoggedIn: true,
       userId: PAGE_USER_ID,
@@ -85,7 +85,7 @@ describe('useProfileAuth', () => {
   });
 
   it('session has no user id → router.push("/") is called, isAuthorized is false', async () => {
-    mockUseSessionHint.mockReturnValue(GUEST);
+    mockUseResolvedIdentity.mockReturnValue(GUEST);
 
     const { result } = await act(async () =>
       renderHook(() => useProfileAuth(PAGE_USER_ID))
@@ -96,7 +96,7 @@ describe('useProfileAuth', () => {
   });
 
   it('loginUserId !== pageUserId → router.push("/") is called, isAuthorized is false', async () => {
-    mockUseSessionHint.mockReturnValue({
+    mockUseResolvedIdentity.mockReturnValue({
       ...AUTHENTICATED_MATCHING,
       userId: 'different-user-id',
     });
@@ -124,16 +124,16 @@ describe('useProfileAuth', () => {
   });
 
   it('lazy-inits isAuthorized to false when session is still loading on first render and hint is unknown', () => {
-    mockUseSessionHint.mockReturnValue(UNKNOWN);
+    mockUseResolvedIdentity.mockReturnValue(UNKNOWN);
     const { result } = renderHook(() => useProfileAuth(PAGE_USER_ID));
     expect(result.current.isAuthorized).toBe(false);
   });
 
   it('lazy-inits isAuthorized to false when loading (to avoid hydration mismatch) even if hint matches pageUserId, but resolves to true after hint updates', async () => {
     // First render returns unknown (isAuthorized is false)
-    mockUseSessionHint.mockReturnValueOnce(UNKNOWN);
+    mockUseResolvedIdentity.mockReturnValueOnce(UNKNOWN);
     // Second render returns authenticated matching userId
-    mockUseSessionHint.mockReturnValue({
+    mockUseResolvedIdentity.mockReturnValue({
       ...GUEST,
       isLoggedIn: true,
       userId: PAGE_USER_ID,
@@ -149,7 +149,7 @@ describe('useProfileAuth', () => {
   });
 
   it('lazy-inits isAuthorized to false when session is authenticated but does not match pageUserId', () => {
-    mockUseSessionHint.mockReturnValue({
+    mockUseResolvedIdentity.mockReturnValue({
       ...AUTHENTICATED_MATCHING,
       userId: 'different-user-id',
     });
@@ -158,7 +158,7 @@ describe('useProfileAuth', () => {
   });
 
   it('does not trigger redirect in useProfileAuth during loading when isResolvingUser is true', async () => {
-    mockUseSessionHint.mockReturnValue({
+    mockUseResolvedIdentity.mockReturnValue({
       ...GUEST,
       isLoggedIn: true,
       isResolvingUser: true,
