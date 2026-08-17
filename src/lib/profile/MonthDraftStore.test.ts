@@ -479,4 +479,112 @@ describe('MonthDraftStore Unit Tests', () => {
     expect(snap.dirtyMonths.has('2026-07')).toBe(true);
     expect(snap.dirtyMonths.has('2026-08')).toBe(true);
   });
+
+  describe('getAllDraftSlots', () => {
+    it('flattens draft slots across every buffered month', () => {
+      const augRaws: RawMentorTimeslot[] = [
+        {
+          id: 102,
+          type: 'ALLOW',
+          dtstart: 1787664000,
+          dtend: 1787667600,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const store = new MonthDraftStore();
+      store.ensureMonthLoaded('2026-07', defaultMockRaws);
+      store.ensureMonthLoaded('2026-08', augRaws);
+
+      const all = store.getAllDraftSlots();
+      expect(all.map((r) => r.id).sort()).toEqual([101, 102]);
+    });
+
+    it('dedupes a row that appears in more than one loaded month buffer', () => {
+      // A recurring row spanning two months is stored in both buffers (see
+      // the cross-month edit tests above); getAllDraftSlots must not double
+      // count it.
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW',
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: 'FREQ=WEEKLY;COUNT=2',
+          exdate: [],
+        },
+      ];
+      const draftMap = new Map<string, RawMentorTimeslot[]>([
+        ['2026-07', mockRaws],
+        ['2026-08', mockRaws],
+      ]);
+      const store = new MonthDraftStore({ draftByMonth: draftMap });
+
+      const all = store.getAllDraftSlots();
+      expect(all.filter((r) => r.id === 101)).toHaveLength(1);
+    });
+  });
+
+  describe('getSyncRequests', () => {
+    it('returns no requests when nothing is dirty', () => {
+      const store = new MonthDraftStore();
+      store.ensureMonthLoaded('2026-07', defaultMockRaws);
+      expect(store.getSyncRequests('user-123')).toEqual([]);
+    });
+
+    it('builds one request per dirty month, carrying pending deletes and only ALLOW upserts', () => {
+      const store = new MonthDraftStore();
+      store.ensureMonthLoaded('2026-07', defaultMockRaws);
+      store.add({
+        startTime: '13:00',
+        durationMinutes: 30,
+        selectedDate: '2026-07-27',
+      });
+      store.delete(101, 1785070000);
+
+      const requests = store.getSyncRequests('user-123');
+      expect(requests).toHaveLength(1);
+      const [req] = requests;
+      expect(req.ref).toEqual({ userId: 'user-123', year: 2026, month: 7 });
+      // The deleted persisted slot must be queued for deletion, not upsert.
+      expect(req.deleteIds).toContain(101);
+      // Only the newly-added ALLOW row (negative temp id) should be upserted.
+      expect(req.upsertPayload).toHaveLength(1);
+      expect(req.upsertPayload[0].id).toBeUndefined();
+    });
+
+    it('marks a persisted slot id on the upsert payload only once it has been saved', () => {
+      const store = new MonthDraftStore();
+      store.ensureMonthLoaded('2026-07', defaultMockRaws);
+      store.edit(101, 1785070000, { startTime: '13:00' }, '123');
+
+      const [req] = store.getSyncRequests('user-123');
+      expect(req.upsertPayload).toHaveLength(1);
+      expect(req.upsertPayload[0].id).toBe(101);
+    });
+
+    it('dedupes upserts with identical (dtstart, dtend) and routes the persisted duplicate into deleteIds', () => {
+      const duplicateRow: RawMentorTimeslot = {
+        id: 103,
+        type: 'ALLOW',
+        dtstart: defaultMockRaws[0].dtstart,
+        dtend: defaultMockRaws[0].dtend,
+        rrule: undefined,
+        exdate: [],
+      };
+      const store = new MonthDraftStore({
+        savedByMonth: new Map([
+          ['2026-07', [defaultMockRaws[0], duplicateRow]],
+        ]),
+        draftByMonth: new Map([
+          ['2026-07', [defaultMockRaws[0], duplicateRow]],
+        ]),
+        dirtyMonths: new Set(['2026-07']),
+      });
+
+      const [req] = store.getSyncRequests('user-123');
+      expect(req.upsertPayload).toHaveLength(1);
+      expect(req.deleteIds).toContain(103);
+    });
+  });
 });

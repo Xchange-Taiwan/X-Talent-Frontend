@@ -6,6 +6,7 @@ import {
   activeOccurrences,
   buildDateTime,
   checkCrossMonthOverlap,
+  deduplicateRawSlots,
   findRestorableExdatedRow,
   hasAnyOccurrenceOverlap,
   MonthKey,
@@ -15,7 +16,11 @@ import {
   parseMonthKey,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
-import { MonthSyncResult } from '@/services/mentor-schedule/sync';
+import { TimeSlotDTO, utcYearMonth } from '@/services/mentor-schedule/schedule';
+import {
+  MonthSyncRequest,
+  MonthSyncResult,
+} from '@/services/mentor-schedule/sync';
 
 export type SlotDurationMinutes = 30 | 45 | 60;
 
@@ -29,6 +34,10 @@ export interface MonthDraftStoreSnapshot {
   draftByMonth: Map<MonthKey, RawMentorTimeslot[]>;
   pendingDeleteByMonth: Map<MonthKey, number[]>;
   dirtyMonths: Set<MonthKey>;
+  /** All current draft slots, flattened across every buffered month and
+   * deduplicated by id. Derived once per snapshot so consumers can depend on
+   * it directly instead of re-deriving from draftByMonth themselves. */
+  allDraftSlots: RawMentorTimeslot[];
 }
 
 export type StoreListener = (snapshot: MonthDraftStoreSnapshot) => void;
@@ -79,6 +88,7 @@ export class MonthDraftStore {
       draftByMonth: this.draftByMonth,
       pendingDeleteByMonth: this.pendingDeleteByMonth,
       dirtyMonths: this.dirtyMonths,
+      allDraftSlots: this.computeAllDraftSlots(),
     };
     const snap = this.currentSnapshot;
     this.listeners.forEach((l) => l(snap));
@@ -91,9 +101,90 @@ export class MonthDraftStore {
         draftByMonth: this.draftByMonth,
         pendingDeleteByMonth: this.pendingDeleteByMonth,
         dirtyMonths: this.dirtyMonths,
+        allDraftSlots: this.computeAllDraftSlots(),
       };
     }
     return this.currentSnapshot;
+  }
+
+  private computeAllDraftSlots(): RawMentorTimeslot[] {
+    const out: RawMentorTimeslot[] = [];
+    this.draftByMonth.forEach((raws) => out.push(...raws));
+    return deduplicateRawSlots(out);
+  }
+
+  /**
+   * All current draft slots, flattened across every buffered month and
+   * deduplicated by id. Callers that need cross-month derivations (e.g. the
+   * calendar's allowed dates / booking slots) should use this instead of
+   * reaching into `snapshot().draftByMonth`.
+   */
+  public getAllDraftSlots(): RawMentorTimeslot[] {
+    return this.snapshot().allDraftSlots;
+  }
+
+  /**
+   * The dirty months' changes, shaped as ready-to-send `MonthSyncRequest`s
+   * for `syncMonths()` — one request per dirty month, in the same order the
+   * months became dirty. Each request's `upsertPayload` carries only ALLOW
+   * rows not already queued for deletion, deduped by (dtstart, dtend) with
+   * any persisted duplicate routed into `deleteIds` instead, mirroring
+   * `syncMonthSchedule`'s PUT-before-DELETE contract per month. Returns `[]`
+   * when nothing is dirty.
+   */
+  public getSyncRequests(userId: string): MonthSyncRequest[] {
+    const persistedIdSet = new Set<number>();
+    this.savedByMonth.forEach((raws) => {
+      for (const r of raws) if (r.id > 0) persistedIdSet.add(r.id);
+    });
+
+    const toServiceSlot = (r: RawMentorTimeslot): TimeSlotDTO => {
+      const { year, month } = utcYearMonth(r.dtstart);
+      const slot: TimeSlotDTO = {
+        user_id: 0,
+        dt_type: 'ALLOW',
+        dt_year: year,
+        dt_month: month,
+        dtstart: r.dtstart,
+        dtend: r.dtend,
+        rrule: r.rrule,
+        timezone: 'UTC',
+        exdate: r.exdate,
+      };
+      if (r.id > 0 && persistedIdSet.has(r.id)) slot.id = r.id;
+      return slot;
+    };
+
+    return Array.from(this.dirtyMonths).map((monthKey) => {
+      const { year, month } = parseMonthKey(monthKey);
+      const draftRaws = this.draftByMonth.get(monthKey) ?? [];
+      const pendingDeletes = this.pendingDeleteByMonth.get(monthKey) ?? [];
+
+      const rawUpsert = draftRaws
+        .filter((r) => !pendingDeletes.includes(r.id) && r.type === 'ALLOW')
+        .map(toServiceSlot);
+
+      // Dedupe by (dtstart, dtend) within this month; queue any persisted
+      // duplicate for deletion to avoid PUT conflicts.
+      const seenKeys = new Map<string, number>();
+      const upsertPayload: TimeSlotDTO[] = [];
+      const extraDeleteIds: number[] = [];
+      for (const slot of rawUpsert) {
+        const key = `${slot.dtstart}_${slot.dtend}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.set(key, upsertPayload.length);
+          upsertPayload.push(slot);
+        } else if (typeof slot.id === 'number' && slot.id > 0) {
+          extraDeleteIds.push(slot.id);
+        }
+      }
+
+      return {
+        ref: { userId, year, month },
+        upsertPayload,
+        deleteIds: [...pendingDeletes, ...extraDeleteIds],
+      };
+    });
   }
 
   private findMonthForSlotId(id: number): MonthKey | null {
