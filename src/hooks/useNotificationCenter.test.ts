@@ -367,6 +367,90 @@ describe('useNotificationCenter', () => {
     expect(userBHook.current.showBadge).toBe(true);
   });
 
+  it('synchronizes single markRead optimistic update failures and rollbacks across both instances on the same page', async () => {
+    const onMarkReadMock = vi.fn().mockRejectedValue(new Error('API failure'));
+
+    const { result: hook1 } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-rollback-single-test',
+        initialNotifications: mockNotifications,
+        onMarkRead: onMarkReadMock,
+      })
+    );
+
+    const { result: hook2 } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-rollback-single-test',
+        initialNotifications: mockNotifications,
+        onMarkRead: onMarkReadMock,
+      })
+    );
+
+    expect(hook1.current.badgeCount).toBe(2);
+    expect(hook2.current.badgeCount).toBe(2);
+
+    // Trigger markRead on hook1 -> will fail and rollback on both!
+    await act(async () => {
+      await hook1.current.markRead('n1');
+    });
+
+    expect(hook1.current.badgeCount).toBe(2);
+    expect(hook2.current.badgeCount).toBe(2);
+    expect(hook1.current.items.find((item) => item.id === 'n1')?.unread).toBe(
+      true
+    );
+    expect(hook2.current.items.find((item) => item.id === 'n1')?.unread).toBe(
+      true
+    );
+  });
+
+  it('synchronizes markAllRead optimistic update failures and rollbacks across both instances on the same page', async () => {
+    const onMarkAllReadMock = vi
+      .fn()
+      .mockRejectedValue(new Error('API failure'));
+
+    const { result: hook1 } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-rollback-all-test',
+        initialNotifications: mockNotifications,
+        onMarkAllRead: onMarkAllReadMock,
+      })
+    );
+
+    const { result: hook2 } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-rollback-all-test',
+        initialNotifications: mockNotifications,
+        onMarkAllRead: onMarkAllReadMock,
+      })
+    );
+
+    expect(hook1.current.badgeCount).toBe(2);
+    expect(hook2.current.badgeCount).toBe(2);
+
+    // Trigger markAllRead on hook1 -> will fail and rollback on both!
+    await act(async () => {
+      await hook1.current.markAllRead();
+    });
+
+    expect(hook1.current.badgeCount).toBe(2);
+    expect(hook2.current.badgeCount).toBe(2);
+    expect(
+      hook1.current.items.every(
+        (item) =>
+          item.unread ===
+          mockNotifications.find((n) => n.id === item.id)?.unread
+      )
+    ).toBe(true);
+    expect(
+      hook2.current.items.every(
+        (item) =>
+          item.unread ===
+          mockNotifications.find((n) => n.id === item.id)?.unread
+      )
+    ).toBe(true);
+  });
+
   it('creates a new clean state instance on every call without caching in SSR environments (to prevent memory leaks)', () => {
     vi.stubGlobal('window', undefined);
     try {

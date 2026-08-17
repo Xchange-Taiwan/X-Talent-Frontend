@@ -12,6 +12,7 @@ import { safeSetStorage } from '@/lib/storage';
  * --------------------------------------------------------------------------------
  */
 import {
+  type ApiNotificationItem,
   fetchUnreadCount,
   listNotifications,
   markAllRead as mockMarkAllRead,
@@ -76,13 +77,10 @@ async function markReadInBatches(
 }
 
 export type { NotificationItem, NotificationStatus };
-export {
-  getStorageKey,
-  getStoreKey,
-  resetNotificationStore,
-} from '@/stores/notificationStore';
 
-export function mapApiNotificationToFrontend(apiItem: any): NotificationItem {
+export function mapApiNotificationToFrontend(
+  apiItem: ApiNotificationItem
+): NotificationItem {
   const isUnread = !apiItem.read_at;
   const { role, mentee_name, mentor_name } = apiItem.metadata;
 
@@ -203,8 +201,6 @@ export function useNotificationCenter({
   const [isMounted, setIsMounted] = React.useState(false);
 
   const timerRef = React.useRef<NodeJS.Timeout | null>(null);
-  const markingReadIdsRef = React.useRef(new Set<string>());
-  const isMarkingAllRef = React.useRef(false);
 
   // Derive unread count from the actual notifications state list (for fallback/props usage)
   const unreadCount = React.useMemo(() => {
@@ -438,12 +434,10 @@ export function useNotificationCenter({
     async (id: string) => {
       const state = notificationStoreManager.getOrCreateState(userId);
 
-      if (markingReadIdsRef.current.has(id)) return;
+      if (state.markingReadIds.has(id)) return;
 
       const targetItem = state.notifications.find((n) => n.id === id);
       if (!targetItem || !targetItem.unread) return;
-
-      markingReadIdsRef.current.add(id);
 
       // Perform optimistic single mark read on the store
       const { previousState } = notificationStoreManager.markReadOptimistic(
@@ -454,7 +448,12 @@ export function useNotificationCenter({
 
       const action = onMarkRead || (!isUsingProps ? markOneRead : null);
       if (!action) {
-        markingReadIdsRef.current.delete(id);
+        const nextState = notificationStoreManager.getOrCreateState(userId);
+        const markingReadIdsCopy = new Set(nextState.markingReadIds);
+        markingReadIdsCopy.delete(id);
+        notificationStoreManager.updateState(storeKey, {
+          markingReadIds: markingReadIdsCopy,
+        });
         return;
       }
 
@@ -472,30 +471,33 @@ export function useNotificationCenter({
           description: '無法將通知標示為已讀，請稍後再試',
         });
       } finally {
-        notificationStoreManager.updateState(storeKey, { isPending: false });
-        markingReadIdsRef.current.delete(id);
+        const nextState = notificationStoreManager.getOrCreateState(userId);
+        const markingReadIdsCopy = new Set(nextState.markingReadIds);
+        markingReadIdsCopy.delete(id);
+        notificationStoreManager.updateState(storeKey, {
+          isPending: false,
+          markingReadIds: markingReadIdsCopy,
+        });
       }
     },
     [userId, storeKey, onMarkRead, isUsingProps, toast]
   );
 
   const markAllRead = React.useCallback(async () => {
-    if (isMarkingAllRef.current) return;
-
     const state = notificationStoreManager.getOrCreateState(userId);
+    if (state.isMarkingAll) return;
 
     const unreadIds = state.notifications
       .filter((item) => item.unread)
       .map((item) => item.id);
     if (unreadIds.length === 0 && isUsingProps) return;
 
-    isMarkingAllRef.current = true;
-
     // Perform optimistic mark all read on the store
     const {
       previousNotifications,
       previousCount,
       unreadIds: optimUnreadIds,
+      previousIsMarkingAll,
     } = notificationStoreManager.markAllReadOptimistic(userId, isUsingProps);
 
     notificationStoreManager.updateState(storeKey, { isPending: true });
@@ -535,7 +537,8 @@ export function useNotificationCenter({
       // Rollback completely on error
       notificationStoreManager.updateState(storeKey, {
         notifications: previousNotifications,
-        ...(!isUsingProps ? { unreadCountState: previousCount } : {}),
+        unreadCountState: isUsingProps ? state.unreadCountState : previousCount,
+        isMarkingAll: previousIsMarkingAll,
       });
       toast({
         variant: 'destructive',
@@ -543,8 +546,10 @@ export function useNotificationCenter({
         description: '無法將全部通知標示為已讀，請稍後再試',
       });
     } finally {
-      notificationStoreManager.updateState(storeKey, { isPending: false });
-      isMarkingAllRef.current = false;
+      notificationStoreManager.updateState(storeKey, {
+        isPending: false,
+        isMarkingAll: false,
+      });
     }
   }, [userId, storeKey, onMarkRead, onMarkAllRead, isUsingProps, toast]);
 
