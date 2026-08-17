@@ -7,7 +7,7 @@ import { memo, useMemo } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuthStatus } from '@/hooks/user/auth/useAuthStatus';
+import { useIdentity } from '@/hooks/user/auth/useIdentity';
 import { useSessionHint } from '@/hooks/user/auth/useSessionHint';
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { trackEvent } from '@/lib/analytics';
@@ -26,7 +26,7 @@ function HeaderComponent(): JSX.Element {
   const hint = useSessionHint();
   const currentAvatar = useCurrentAvatar();
   const { authKnown, isLoggedIn, isMentor, userId, isResolvingUser } =
-    useAuthStatus();
+    useIdentity(null);
 
   const resolvedIsMentor = authKnown
     ? isMentor
