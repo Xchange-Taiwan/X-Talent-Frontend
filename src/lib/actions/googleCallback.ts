@@ -2,10 +2,7 @@
 
 import { cookies } from 'next/headers';
 
-import {
-  OAUTH_REFRESH_BRIDGE_COOKIE,
-  OAUTH_REFRESH_BRIDGE_TTL_SECONDS,
-} from '@/lib/auth/oauthRefreshBridge';
+import { setOAuthRefreshBridge } from '@/lib/auth/oauthRefreshBridge';
 import { extractRefreshToken } from '@/services/auth/refreshToken';
 import type { components } from '@/types/api';
 
@@ -27,16 +24,8 @@ export async function googleCallback(
   const data = (await res.json()) as OAuthCallbackResponse;
 
   const refreshToken = extractRefreshToken(res.headers);
-  if (refreshToken) {
-    const cookieStore = await cookies();
-    cookieStore.set(OAUTH_REFRESH_BRIDGE_COOKIE, refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: OAUTH_REFRESH_BRIDGE_TTL_SECONDS,
-    });
-  }
+  const cookieStore = await cookies();
+  setOAuthRefreshBridge(cookieStore, refreshToken);
 
   return data;
 }
