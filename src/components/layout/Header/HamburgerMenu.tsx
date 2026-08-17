@@ -24,7 +24,7 @@ export type HamburgerMenuProps = {
   userId?: string;
   /**
    * Logged in per the fast session hint, but `userId` hasn't landed yet —
-   * owned by Header's `useAuthStatus()`, passed down rather than re-derived
+   * owned by Header's `useIdentity()`, passed down rather than re-derived
    * here so the two never drift out of sync.
    */
   isResolvingUser: boolean;
