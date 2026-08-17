@@ -23,16 +23,6 @@ export interface SessionHint {
   avatar?: string;
 }
 
-export type SessionHintState =
-  | { status: 'unknown' }
-  | { status: 'guest'; hasCookie?: boolean }
-  | {
-      status: 'authenticated';
-      isMentor: boolean;
-      avatar?: string;
-      userId?: string;
-    };
-
 const MENTOR_VALUE = '1';
 const NON_MENTOR_VALUE = '0';
 
@@ -145,7 +135,6 @@ export interface ResolvedIdentity {
 }
 
 export function resolveIdentity(
-  override: { userId: string; url: string } | null | undefined,
   session:
     | {
         user?: {
@@ -195,9 +184,7 @@ export function resolveIdentity(
 
   // 3. Resolve avatar
   let avatar: string | undefined = undefined;
-  if (override && userId && override.userId === userId) {
-    avatar = override.url;
-  } else if (hasFullUser) {
+  if (hasFullUser) {
     avatar = session?.user?.avatar ?? undefined;
   } else if (!sessionSettled && isLoggedIn && hint) {
     avatar = hint.avatar ?? undefined;
@@ -214,6 +201,24 @@ export function resolveIdentity(
     isResolvingUser,
     authKnown,
   };
+}
+
+/**
+ * Layers a client-only avatar override (set synchronously on a successful
+ * profile submit, see `avatarOverrideStore`) on top of an identity already
+ * produced by `resolveIdentity`. Kept as a separate step - rather than a
+ * parameter on `resolveIdentity` - so `useResolvedIdentity` (the one place that
+ * calls `resolveIdentity`) never has to know about the override, and
+ * `useIdentity` never has to re-run identity resolution just to apply it.
+ */
+export function applyAvatarOverride(
+  identity: ResolvedIdentity,
+  override: { userId: string; url: string } | null | undefined
+): ResolvedIdentity {
+  if (override && identity.userId && override.userId === identity.userId) {
+    return { ...identity, avatar: override.url };
+  }
+  return identity;
 }
 
 export const DOM_AUTH_STATE_ATTR = 'data-auth-state';

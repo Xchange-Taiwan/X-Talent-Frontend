@@ -32,19 +32,30 @@ vi.mock('@/lib/analytics', () => ({
   trackEvent: (...args: unknown[]) => trackEvent(...args),
 }));
 
-const mockUseSessionHint = vi.fn();
-vi.mock('@/hooks/user/auth/useSessionHint', () => ({
-  useSessionHint: () => mockUseSessionHint(),
+const mockUseResolvedIdentity = vi.fn();
+vi.mock('@/hooks/user/auth/useResolvedIdentity', () => ({
+  useResolvedIdentity: () => mockUseResolvedIdentity(),
 }));
 
+import {
+  authenticatedIdentity,
+  GUEST_IDENTITY,
+  UNKNOWN_IDENTITY,
+} from '@/test/mocks/identity';
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 
 import { Header } from './Header';
 
+// `useResolvedIdentity` is the single call site everything else's identity is
+// derived from (see `useIdentity`), so these are the exact `ResolvedIdentity`
+// values `resolveIdentity` would produce for each scenario below - not a
+// separate ad-hoc shape.
+const AUTHENTICATED_MATCHING_IDENTITY = authenticatedIdentity('user-123');
+
 describe('Header', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseSessionHint.mockReturnValue({ status: 'unknown' });
+    mockUseResolvedIdentity.mockReturnValue(UNKNOWN_IDENTITY);
     global.IntersectionObserver = class IntersectionObserver {
       readonly root: Element | null = null;
       readonly rootMargin: string = '';
@@ -61,9 +72,10 @@ describe('Header', () => {
   it('disables the second nav link while resolving a logged-in user, instead of falling back to /auth/signup or /', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
     // Hint confirms mentee, but has no userId yet - isResolvingUser stays true.
-    mockUseSessionHint.mockReturnValue({
-      status: 'authenticated',
-      isMentor: false,
+    mockUseResolvedIdentity.mockReturnValue({
+      ...GUEST_IDENTITY,
+      isLoggedIn: true,
+      isResolvingUser: true,
     });
 
     render(<Header />);
@@ -82,6 +94,7 @@ describe('Header', () => {
       data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
       status: 'authenticated',
     });
+    mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
 
     render(<Header />);
 
@@ -95,6 +108,7 @@ describe('Header', () => {
 
   it('shows guest sign-in/sign-up actions once auth is known and the user is not logged in', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+    mockUseResolvedIdentity.mockReturnValue(GUEST_IDENTITY);
 
     render(<Header />);
 
@@ -160,9 +174,11 @@ describe('Header', () => {
       data: null,
       status: 'loading',
     });
-    mockUseSessionHint.mockReturnValue({
-      status: 'authenticated',
+    mockUseResolvedIdentity.mockReturnValue({
+      ...GUEST_IDENTITY,
+      isLoggedIn: true,
       isMentor: true,
+      isResolvingUser: true,
       avatar: 'hint-avatar.png',
     });
 
@@ -179,6 +195,7 @@ describe('Header', () => {
       data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
       status: 'authenticated',
     });
+    mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
     render(<Header />);
 
     const findMentorLink = screen.getByRole('link', { name: '尋找導師' });
@@ -213,6 +230,7 @@ describe('Header', () => {
   it('tracks feedback_open when the desktop Header "提供回饋" link is clicked', () => {
     trackEvent.mockClear();
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+    mockUseResolvedIdentity.mockReturnValue(GUEST_IDENTITY);
 
     render(<Header />);
 
@@ -259,6 +277,7 @@ describe('Header', () => {
 
   it('does not render NotificationBell when logged out', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+    mockUseResolvedIdentity.mockReturnValue(GUEST_IDENTITY);
 
     render(<Header />);
     expect(
@@ -271,6 +290,7 @@ describe('Header', () => {
       data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
       status: 'authenticated',
     });
+    mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
     render(<Header />);
     const desktopContainer = screen.getByTestId('desktop-header-right');
     const mobileContainer = screen.getByTestId('mobile-header-right');
@@ -294,6 +314,7 @@ describe('Header', () => {
       },
       status: 'authenticated',
     });
+    mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
     render(<Header />);
 
     const desktopContainer = screen.getByTestId('desktop-header-right');
@@ -327,6 +348,7 @@ describe('Header', () => {
       },
       status: 'authenticated',
     });
+    mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
     render(<Header />);
 
     const mobileContainer = screen.getByTestId('mobile-header-right');

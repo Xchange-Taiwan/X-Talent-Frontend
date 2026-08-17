@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  applyAvatarOverride,
   clearSessionHint,
   decodeSessionHint,
   DOM_AUTH_AVATAR_ATTR,
@@ -316,10 +317,6 @@ describe('sessionHint utilities', () => {
   });
 
   describe('resolveIdentity', () => {
-    const defaultOverride = {
-      userId: 'user-123',
-      url: 'https://example.com/override.png',
-    };
     const defaultSession = {
       user: {
         id: 'user-123',
@@ -335,7 +332,6 @@ describe('sessionHint utilities', () => {
 
     it('prefers session over hint when authenticated', () => {
       const identity = resolveIdentity(
-        null,
         defaultSession,
         'authenticated',
         defaultHint
@@ -347,57 +343,15 @@ describe('sessionHint utilities', () => {
     });
 
     it('falls back to hint when loading and session is not settled', () => {
-      const identity = resolveIdentity(null, null, 'loading', defaultHint);
+      const identity = resolveIdentity(null, 'loading', defaultHint);
       expect(identity.userId).toBe('user-123');
       expect(identity.isMentor).toBe(false);
       expect(identity.avatar).toBe('https://example.com/hint.png');
       expect(identity.isLoggedIn).toBe(true);
     });
 
-    it('applies avatar override when override userId matches resolved userId', () => {
-      // Authenticated matching override
-      const identityAuth = resolveIdentity(
-        defaultOverride,
-        defaultSession,
-        'authenticated',
-        null
-      );
-      expect(identityAuth.avatar).toBe('https://example.com/override.png');
-      expect(identityAuth.isLoggedIn).toBe(true);
-
-      // Loading matching override (from hint)
-      const identityLoading = resolveIdentity(
-        defaultOverride,
-        null,
-        'loading',
-        defaultHint
-      );
-      expect(identityLoading.avatar).toBe('https://example.com/override.png');
-      expect(identityLoading.isLoggedIn).toBe(true);
-    });
-
-    it('does not apply avatar override when override userId does not match resolved userId', () => {
-      const mismatchedOverride = {
-        userId: 'user-999',
-        url: 'https://example.com/override.png',
-      };
-      const identity = resolveIdentity(
-        mismatchedOverride,
-        defaultSession,
-        'authenticated',
-        null
-      );
-      expect(identity.avatar).toBe('https://example.com/session.png');
-      expect(identity.isLoggedIn).toBe(true);
-    });
-
     it('resolves to guest/undefined when unauthenticated', () => {
-      const identity = resolveIdentity(
-        null,
-        null,
-        'unauthenticated',
-        defaultHint
-      );
+      const identity = resolveIdentity(null, 'unauthenticated', defaultHint);
       expect(identity.userId).toBeUndefined();
       expect(identity.isMentor).toBe(false);
       expect(identity.avatar).toBeUndefined();
@@ -405,7 +359,7 @@ describe('sessionHint utilities', () => {
     });
 
     it('resolves to guest/undefined when loading and no hint is present', () => {
-      const identity = resolveIdentity(null, null, 'loading', null);
+      const identity = resolveIdentity(null, 'loading', null);
       expect(identity.userId).toBeUndefined();
       expect(identity.isMentor).toBe(false);
       expect(identity.avatar).toBeUndefined();
@@ -413,10 +367,52 @@ describe('sessionHint utilities', () => {
     });
 
     it('behaves correctly in an SSR environment', () => {
-      const identity = resolveIdentity(null, null, 'loading');
+      const identity = resolveIdentity(null, 'loading');
       expect(identity.authKnown).toBe(false);
       expect(identity.isLoggedIn).toBe(false);
       expect(identity.userId).toBeUndefined();
+    });
+  });
+
+  describe('applyAvatarOverride', () => {
+    const baseIdentity = {
+      userId: 'user-123',
+      avatar: 'https://example.com/session.png',
+      isMentor: true,
+      isLoggedIn: true,
+      hasFullUser: true,
+      isResolvingUser: false,
+      authKnown: true,
+    };
+
+    it('applies the override avatar when its userId matches the resolved identity', () => {
+      const identity = applyAvatarOverride(baseIdentity, {
+        userId: 'user-123',
+        url: 'https://example.com/override.png',
+      });
+      expect(identity.avatar).toBe('https://example.com/override.png');
+      expect(identity).not.toBe(baseIdentity);
+    });
+
+    it('does not apply the override when its userId does not match the resolved identity', () => {
+      const identity = applyAvatarOverride(baseIdentity, {
+        userId: 'user-999',
+        url: 'https://example.com/override.png',
+      });
+      expect(identity).toBe(baseIdentity);
+    });
+
+    it('does not apply the override while the identity has no resolved userId yet', () => {
+      const identity = applyAvatarOverride(
+        { ...baseIdentity, userId: undefined },
+        { userId: 'user-123', url: 'https://example.com/override.png' }
+      );
+      expect(identity.avatar).toBe(baseIdentity.avatar);
+    });
+
+    it('returns the identity unchanged when there is no override', () => {
+      expect(applyAvatarOverride(baseIdentity, null)).toBe(baseIdentity);
+      expect(applyAvatarOverride(baseIdentity, undefined)).toBe(baseIdentity);
     });
   });
 
