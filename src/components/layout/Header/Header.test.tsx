@@ -32,11 +32,6 @@ vi.mock('@/lib/analytics', () => ({
   trackEvent: (...args: unknown[]) => trackEvent(...args),
 }));
 
-const mockUseAuthStatus = vi.fn();
-vi.mock('@/hooks/user/auth/useAuthStatus', () => ({
-  useAuthStatus: () => mockUseAuthStatus(),
-}));
-
 const mockUseSessionHint = vi.fn();
 vi.mock('@/hooks/user/auth/useSessionHint', () => ({
   useSessionHint: () => mockUseSessionHint(),
@@ -65,13 +60,10 @@ describe('Header', () => {
 
   it('disables the second nav link while resolving a logged-in user, instead of falling back to /auth/signup or /', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    mockUseAuthStatus.mockReturnValue({
-      authKnown: true,
-      isLoggedIn: true,
+    // Hint confirms mentee, but has no userId yet - isResolvingUser stays true.
+    mockUseSessionHint.mockReturnValue({
+      status: 'authenticated',
       isMentor: false,
-      userId: undefined,
-      hasFullUser: false,
-      isResolvingUser: true,
     });
 
     render(<Header />);
@@ -90,14 +82,6 @@ describe('Header', () => {
       data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
       status: 'authenticated',
     });
-    mockUseAuthStatus.mockReturnValue({
-      authKnown: true,
-      isLoggedIn: true,
-      isMentor: false,
-      userId: 'user-123',
-      hasFullUser: true,
-      isResolvingUser: false,
-    });
 
     render(<Header />);
 
@@ -111,14 +95,6 @@ describe('Header', () => {
 
   it('shows guest sign-in/sign-up actions once auth is known and the user is not logged in', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
-    mockUseAuthStatus.mockReturnValue({
-      authKnown: true,
-      isLoggedIn: false,
-      isMentor: false,
-      userId: undefined,
-      hasFullUser: false,
-      isResolvingUser: false,
-    });
 
     render(<Header />);
 
@@ -131,14 +107,6 @@ describe('Header', () => {
     // otherwise, so the guest actions render immediately (CSS-gated on
     // data-auth-state=guest) instead of waiting on authKnown.
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    mockUseAuthStatus.mockReturnValue({
-      authKnown: false,
-      isLoggedIn: false,
-      isMentor: false,
-      userId: undefined,
-      hasFullUser: false,
-      isResolvingUser: false,
-    });
 
     render(<Header />);
 
@@ -155,18 +123,10 @@ describe('Header', () => {
   });
 
   it('renders both links with CSS data-auth-state visibility toggles before auth is known', () => {
-    // `useAuthStatus` defaults `isMentor` to false until it can be
+    // `useIdentity` defaults `isMentor` to false until it can be
     // determined — this must not leak into the rendered nav link before
     // `authKnown` is true, or a mentor briefly sees the wrong role's label.
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    mockUseAuthStatus.mockReturnValue({
-      authKnown: false,
-      isLoggedIn: false,
-      isMentor: false,
-      userId: undefined,
-      hasFullUser: false,
-      isResolvingUser: false,
-    });
 
     render(<Header />);
 
@@ -183,18 +143,10 @@ describe('Header', () => {
   });
 
   it('never disables the guest fast-path "成為導師" link, since isResolvingUser can only be true for a logged-in user', () => {
-    // isResolvingUser = isLoggedIn && !userId (see useAuthStatus.ts) — a
+    // isResolvingUser = isLoggedIn && !userId (see sessionHint.ts's resolveIdentity) — a
     // guest's isLoggedIn is always false, so this link must stay clickable
     // through the whole pre-hydration fast path, not just after authKnown.
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    mockUseAuthStatus.mockReturnValue({
-      authKnown: false,
-      isLoggedIn: false,
-      isMentor: false,
-      userId: undefined,
-      hasFullUser: false,
-      isResolvingUser: false,
-    });
 
     render(<Header />);
 
@@ -213,14 +165,6 @@ describe('Header', () => {
       isMentor: true,
       avatar: 'hint-avatar.png',
     });
-    mockUseAuthStatus.mockReturnValue({
-      authKnown: true,
-      isLoggedIn: true,
-      isMentor: true,
-      userId: undefined,
-      hasFullUser: false,
-      isResolvingUser: true,
-    });
 
     render(<Header />);
 
@@ -235,15 +179,6 @@ describe('Header', () => {
       data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
       status: 'authenticated',
     });
-    mockUseAuthStatus.mockReturnValue({
-      authKnown: true,
-      isLoggedIn: true,
-      isMentor: false,
-      userId: 'user-123',
-      hasFullUser: true,
-      isResolvingUser: false,
-    });
-
     render(<Header />);
 
     const findMentorLink = screen.getByRole('link', { name: '尋找導師' });
@@ -278,14 +213,6 @@ describe('Header', () => {
   it('tracks feedback_open when the desktop Header "提供回饋" link is clicked', () => {
     trackEvent.mockClear();
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
-    mockUseAuthStatus.mockReturnValue({
-      authKnown: true,
-      isLoggedIn: false,
-      isMentor: false,
-      userId: undefined,
-      hasFullUser: false,
-      isResolvingUser: false,
-    });
 
     render(<Header />);
 
@@ -299,14 +226,6 @@ describe('Header', () => {
 
   it('renders pre-hydration avatar placeholder with CSS visibility toggles before auth is known', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    mockUseAuthStatus.mockReturnValue({
-      authKnown: false,
-      isLoggedIn: false,
-      isMentor: false,
-      userId: undefined,
-      hasFullUser: false,
-      isResolvingUser: false,
-    });
 
     render(<Header />);
 
@@ -325,14 +244,6 @@ describe('Header', () => {
 
   it('renders mobile pre-hydration NotificationBell skeleton placeholder with CSS visibility toggles before auth is known', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    mockUseAuthStatus.mockReturnValue({
-      authKnown: false,
-      isLoggedIn: false,
-      isMentor: false,
-      userId: undefined,
-      hasFullUser: false,
-      isResolvingUser: false,
-    });
 
     render(<Header />);
 
@@ -348,14 +259,6 @@ describe('Header', () => {
 
   it('does not render NotificationBell when logged out', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
-    mockUseAuthStatus.mockReturnValue({
-      authKnown: true,
-      isLoggedIn: false,
-      isMentor: false,
-      userId: undefined,
-      hasFullUser: false,
-      isResolvingUser: false,
-    });
 
     render(<Header />);
     expect(
@@ -368,15 +271,6 @@ describe('Header', () => {
       data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
       status: 'authenticated',
     });
-    mockUseAuthStatus.mockReturnValue({
-      authKnown: true,
-      isLoggedIn: true,
-      isMentor: false,
-      userId: 'user-123',
-      hasFullUser: true,
-      isResolvingUser: false,
-    });
-
     render(<Header />);
     const desktopContainer = screen.getByTestId('desktop-header-right');
     const mobileContainer = screen.getByTestId('mobile-header-right');
@@ -400,15 +294,6 @@ describe('Header', () => {
       },
       status: 'authenticated',
     });
-    mockUseAuthStatus.mockReturnValue({
-      authKnown: true,
-      isLoggedIn: true,
-      isMentor: false,
-      userId: 'user-123',
-      hasFullUser: true,
-      isResolvingUser: false,
-    });
-
     render(<Header />);
 
     const desktopContainer = screen.getByTestId('desktop-header-right');
@@ -442,15 +327,6 @@ describe('Header', () => {
       },
       status: 'authenticated',
     });
-    mockUseAuthStatus.mockReturnValue({
-      authKnown: true,
-      isLoggedIn: true,
-      isMentor: false,
-      userId: 'user-123',
-      hasFullUser: true,
-      isResolvingUser: false,
-    });
-
     render(<Header />);
 
     const mobileContainer = screen.getByTestId('mobile-header-right');

@@ -13,9 +13,9 @@ vi.mock('./useSessionHint', () => ({
 
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 
-import { useAuthStatus } from './useAuthStatus';
+import { useIdentity } from './useIdentity';
 
-describe('useAuthStatus', () => {
+describe('useIdentity', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -24,7 +24,7 @@ describe('useAuthStatus', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
     mockUseSessionHint.mockReturnValue({ status: 'unknown' });
 
-    const { result } = renderHook(() => useAuthStatus());
+    const { result } = renderHook(() => useIdentity(null));
 
     expect(result.current).toMatchObject({
       authKnown: false,
@@ -39,7 +39,7 @@ describe('useAuthStatus', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
     mockUseSessionHint.mockReturnValue({ status: 'guest' });
 
-    const { result } = renderHook(() => useAuthStatus());
+    const { result } = renderHook(() => useIdentity(null));
 
     expect(result.current).toMatchObject({
       authKnown: true,
@@ -55,7 +55,7 @@ describe('useAuthStatus', () => {
       isMentor: true,
     });
 
-    const { result } = renderHook(() => useAuthStatus());
+    const { result } = renderHook(() => useIdentity(null));
 
     expect(result.current).toEqual({
       authKnown: true,
@@ -64,6 +64,7 @@ describe('useAuthStatus', () => {
       userId: undefined,
       hasFullUser: false,
       isResolvingUser: true,
+      avatar: undefined,
     });
   });
 
@@ -74,7 +75,7 @@ describe('useAuthStatus', () => {
       isMentor: true,
     });
 
-    const { result } = renderHook(() => useAuthStatus());
+    const { result } = renderHook(() => useIdentity(null));
 
     expect(result.current).toMatchObject({
       isLoggedIn: false,
@@ -88,7 +89,7 @@ describe('useAuthStatus', () => {
     mockUseSession.mockReturnValue({ data: mockSession, status: 'loading' });
     mockUseSessionHint.mockReturnValue({ status: 'unknown' });
 
-    const { result } = renderHook(() => useAuthStatus());
+    const { result } = renderHook(() => useIdentity(null));
 
     expect(result.current).toEqual({
       authKnown: true,
@@ -97,6 +98,7 @@ describe('useAuthStatus', () => {
       userId: mockSession.user.id,
       hasFullUser: true,
       isResolvingUser: false,
+      avatar: undefined,
     });
   });
 
@@ -107,7 +109,7 @@ describe('useAuthStatus', () => {
     });
     mockUseSessionHint.mockReturnValue({ status: 'unknown' });
 
-    const { result } = renderHook(() => useAuthStatus());
+    const { result } = renderHook(() => useIdentity(null));
 
     expect(result.current).toEqual({
       authKnown: true,
@@ -116,6 +118,7 @@ describe('useAuthStatus', () => {
       userId: mockSession.user.id,
       hasFullUser: true,
       isResolvingUser: false,
+      avatar: undefined,
     });
   });
 
@@ -127,7 +130,7 @@ describe('useAuthStatus', () => {
       userId: 'user-123',
     });
 
-    const { result } = renderHook(() => useAuthStatus());
+    const { result } = renderHook(() => useIdentity(null));
 
     expect(result.current).toEqual({
       authKnown: true,
@@ -136,6 +139,7 @@ describe('useAuthStatus', () => {
       userId: 'user-123',
       hasFullUser: false,
       isResolvingUser: false,
+      avatar: undefined,
     });
   });
 });

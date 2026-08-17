@@ -3,7 +3,7 @@ import { fromPartial } from '@total-typescript/shoehorn';
 import { useSession } from 'next-auth/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useAuthStatus } from '@/hooks/user/auth/useAuthStatus';
+import { useIdentity } from '@/hooks/user/auth/useIdentity';
 import { useProfileAuth } from '@/hooks/user/auth/useProfileAuth';
 import { useSessionHint } from '@/hooks/user/auth/useSessionHint';
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
@@ -56,7 +56,7 @@ describe('sharedIdentityAgreement integration test', () => {
     const { result: profileAuthResult } = renderHook(() =>
       useProfileAuth('user-123')
     );
-    const { result: authStatusResult } = renderHook(() => useAuthStatus());
+    const { result: identityResult } = renderHook(() => useIdentity(null));
 
     expect(hintResult.current).toMatchObject({
       status: 'authenticated',
@@ -67,7 +67,7 @@ describe('sharedIdentityAgreement integration test', () => {
 
     expect(avatarResult.current).toBe('/avatar.png');
     expect(profileAuthResult.current.isAuthorized).toBe(true);
-    expect(authStatusResult.current).toMatchObject({
+    expect(identityResult.current).toMatchObject({
       authKnown: true,
       isLoggedIn: true,
       isMentor: true,
@@ -91,13 +91,13 @@ describe('sharedIdentityAgreement integration test', () => {
     const { result: profileAuthResult } = renderHook(() =>
       useProfileAuth('user-123')
     );
-    const { result: authStatusResult } = renderHook(() => useAuthStatus());
+    const { result: identityResult } = renderHook(() => useIdentity(null));
 
     expect(hintResult.current).toEqual({ status: 'guest', hasCookie: false });
     expect(avatarResult.current).toBeNull();
     expect(profileAuthResult.current.isAuthorized).toBe(false);
     expect(mockPush).toHaveBeenCalledWith('/');
-    expect(authStatusResult.current).toMatchObject({
+    expect(identityResult.current).toMatchObject({
       authKnown: true,
       isLoggedIn: false,
       isMentor: false,
@@ -139,7 +139,7 @@ describe('sharedIdentityAgreement integration test', () => {
     const { result: profileAuthResult } = renderHook(() =>
       useProfileAuth('user-123')
     );
-    const { result: authStatusResult } = renderHook(() => useAuthStatus());
+    const { result: identityResult } = renderHook(() => useIdentity(null));
 
     expect(hintResult.current).toMatchObject({
       status: 'authenticated',
@@ -150,7 +150,7 @@ describe('sharedIdentityAgreement integration test', () => {
 
     expect(avatarResult.current).toBe('/avatar.png');
     expect(profileAuthResult.current.isAuthorized).toBe(true);
-    expect(authStatusResult.current).toMatchObject({
+    expect(identityResult.current).toMatchObject({
       authKnown: true,
       isLoggedIn: true,
       isMentor: true,
@@ -174,7 +174,7 @@ describe('sharedIdentityAgreement integration test', () => {
     const { result: profileAuthResult } = renderHook(() =>
       useProfileAuth('user-123')
     );
-    const { result: authStatusResult } = renderHook(() => useAuthStatus());
+    const { result: identityResult } = renderHook(() => useIdentity(null));
 
     // No cookie means the visitor's identity is genuinely unknown while the
     // session is still loading (they could still turn out to be logged in) -
@@ -183,7 +183,7 @@ describe('sharedIdentityAgreement integration test', () => {
     expect(avatarResult.current).toBeNull();
     expect(profileAuthResult.current.isAuthorized).toBe(false);
     expect(mockPush).not.toHaveBeenCalled();
-    expect(authStatusResult.current).toMatchObject({
+    expect(identityResult.current).toMatchObject({
       authKnown: false,
       isLoggedIn: false,
       isMentor: false,
