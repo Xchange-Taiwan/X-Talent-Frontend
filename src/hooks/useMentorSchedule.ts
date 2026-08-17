@@ -179,6 +179,14 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     [persistedIdSet]
   );
 
+  // Live mirror of backend.userId, updated on every render (unlike
+  // prevUserIdRef below, which only settles inside an effect). In-flight
+  // async work in confirmChanges/resetChanges reads this after its await to
+  // detect an account switch that happened mid-flight, so a stale response
+  // for the old user never overwrites the store the new user is looking at.
+  const currentUserIdRef = useRef(backend.userId);
+  currentUserIdRef.current = backend.userId;
+
   // Drop everything when the backend user changes — buffers belong to a
   // specific user.
   const prevUserIdRef = useRef<string | null>(null);
@@ -429,7 +437,15 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       }
     );
 
+    const userIdAtStart = backend.userId;
     const results = await syncMonths(requests);
+
+    // The user may have switched accounts while syncMonths was in flight
+    // (which resets the store to the new user's empty buffers). Committing
+    // the old user's results now would write stale data into that store.
+    if (currentUserIdRef.current !== userIdAtStart) {
+      return { ok: true };
+    }
 
     store.commit(results);
 
@@ -454,6 +470,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const resetChanges = useCallback(() => {
     if (!backend.userId || dirtyMonths.size === 0) return;
     const monthKeys = Array.from(dirtyMonths);
+    const userIdAtStart = backend.userId;
     (async () => {
       try {
         const reloaded = await Promise.all(
@@ -467,9 +484,14 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
             return [mk, raws] as const;
           })
         );
+        // The user may have switched accounts while the refetch was in
+        // flight (which resets the store to the new user's empty buffers).
+        // Writing the old user's reloaded months now would corrupt it.
+        if (currentUserIdRef.current !== userIdAtStart) return;
         store.reset(reloaded);
       } catch (err) {
         console.error('Failed to reset changes:', err);
+        if (currentUserIdRef.current !== userIdAtStart) return;
         // Refetch failed: fall back to the last known-saved snapshot for
         // each dirty month so the draft still clears instead of leaving the
         // UI stuck showing unsaved edits with no way to discard them.

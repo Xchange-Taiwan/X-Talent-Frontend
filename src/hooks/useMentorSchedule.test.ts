@@ -18,6 +18,7 @@ import {
 } from '@/lib/profile/scheduleHelpers';
 import {
   loadMonthScheduleCached,
+  loadMonthScheduleFresh,
   syncMonths,
 } from '@/services/mentor-schedule/sync';
 
@@ -680,5 +681,39 @@ describe('useMentorSchedule', () => {
         expect.objectContaining({ ref: expect.objectContaining({ month: 8 }) }),
       ])
     );
+  });
+
+  it('resetChanges falls back to the last known-saved snapshot when the refetch fails', async () => {
+    const { result } = setupSchedule();
+
+    await waitFor(() => {
+      expect(result.current.loaded).toBe(true);
+    });
+
+    act(() => {
+      const res = result.current.updateDraftSlot(101, 1785070000, {
+        startTime: '13:00',
+        durationMinutes: 45,
+      });
+      expect(res.success).toBe(true);
+    });
+
+    // Draft now diverges from the originally-loaded (saved) data.
+    expect(result.current.parsedDraft[0].occurrenceUnix).not.toBe(1785070000);
+
+    vi.mocked(loadMonthScheduleFresh).mockRejectedValue(
+      new Error('network down')
+    );
+
+    act(() => {
+      result.current.resetChanges();
+    });
+
+    // Falls back to savedByMonth (the original, pre-edit data) instead of
+    // leaving the UI stuck showing the failed-to-discard draft.
+    await waitFor(() => {
+      expect(result.current.parsedDraft[0]?.occurrenceUnix).toBe(1785070000);
+    });
+    expect(result.current.parsedDraft).toHaveLength(1);
   });
 });
