@@ -41,10 +41,44 @@ import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 
 import { Header } from './Header';
 
+// `useSessionHint` is the single call site everything else's identity is
+// derived from (see `useIdentity`), so these are the exact `ResolvedIdentity`
+// values `resolveIdentity` would produce for each scenario below - not a
+// separate ad-hoc shape.
+const UNKNOWN_IDENTITY = {
+  authKnown: false,
+  isLoggedIn: false,
+  isMentor: false,
+  userId: undefined,
+  hasFullUser: false,
+  isResolvingUser: false,
+  avatar: undefined,
+};
+
+const GUEST_IDENTITY = {
+  authKnown: true,
+  isLoggedIn: false,
+  isMentor: false,
+  userId: undefined,
+  hasFullUser: false,
+  isResolvingUser: false,
+  avatar: undefined,
+};
+
+const AUTHENTICATED_MATCHING_IDENTITY = {
+  authKnown: true,
+  isLoggedIn: true,
+  isMentor: false,
+  userId: 'user-123',
+  hasFullUser: true,
+  isResolvingUser: false,
+  avatar: undefined,
+};
+
 describe('Header', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseSessionHint.mockReturnValue({ status: 'unknown' });
+    mockUseSessionHint.mockReturnValue(UNKNOWN_IDENTITY);
     global.IntersectionObserver = class IntersectionObserver {
       readonly root: Element | null = null;
       readonly rootMargin: string = '';
@@ -62,8 +96,9 @@ describe('Header', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
     // Hint confirms mentee, but has no userId yet - isResolvingUser stays true.
     mockUseSessionHint.mockReturnValue({
-      status: 'authenticated',
-      isMentor: false,
+      ...GUEST_IDENTITY,
+      isLoggedIn: true,
+      isResolvingUser: true,
     });
 
     render(<Header />);
@@ -82,6 +117,7 @@ describe('Header', () => {
       data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
       status: 'authenticated',
     });
+    mockUseSessionHint.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
 
     render(<Header />);
 
@@ -95,6 +131,7 @@ describe('Header', () => {
 
   it('shows guest sign-in/sign-up actions once auth is known and the user is not logged in', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+    mockUseSessionHint.mockReturnValue(GUEST_IDENTITY);
 
     render(<Header />);
 
@@ -161,8 +198,10 @@ describe('Header', () => {
       status: 'loading',
     });
     mockUseSessionHint.mockReturnValue({
-      status: 'authenticated',
+      ...GUEST_IDENTITY,
+      isLoggedIn: true,
       isMentor: true,
+      isResolvingUser: true,
       avatar: 'hint-avatar.png',
     });
 
@@ -179,6 +218,7 @@ describe('Header', () => {
       data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
       status: 'authenticated',
     });
+    mockUseSessionHint.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
     render(<Header />);
 
     const findMentorLink = screen.getByRole('link', { name: '尋找導師' });
@@ -213,6 +253,7 @@ describe('Header', () => {
   it('tracks feedback_open when the desktop Header "提供回饋" link is clicked', () => {
     trackEvent.mockClear();
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+    mockUseSessionHint.mockReturnValue(GUEST_IDENTITY);
 
     render(<Header />);
 
@@ -259,6 +300,7 @@ describe('Header', () => {
 
   it('does not render NotificationBell when logged out', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+    mockUseSessionHint.mockReturnValue(GUEST_IDENTITY);
 
     render(<Header />);
     expect(
@@ -271,6 +313,7 @@ describe('Header', () => {
       data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
       status: 'authenticated',
     });
+    mockUseSessionHint.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
     render(<Header />);
     const desktopContainer = screen.getByTestId('desktop-header-right');
     const mobileContainer = screen.getByTestId('mobile-header-right');
@@ -294,6 +337,7 @@ describe('Header', () => {
       },
       status: 'authenticated',
     });
+    mockUseSessionHint.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
     render(<Header />);
 
     const desktopContainer = screen.getByTestId('desktop-header-right');
@@ -327,6 +371,7 @@ describe('Header', () => {
       },
       status: 'authenticated',
     });
+    mockUseSessionHint.mockReturnValue(AUTHENTICATED_MATCHING_IDENTITY);
     render(<Header />);
 
     const mobileContainer = screen.getByTestId('mobile-header-right');

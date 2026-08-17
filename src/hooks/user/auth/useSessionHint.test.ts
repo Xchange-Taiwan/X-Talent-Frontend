@@ -45,7 +45,7 @@ describe('useSessionHint', () => {
     // No hint cookie means the last middleware pass saw no valid token, so
     // treat the visitor as a guest right away instead of waiting on
     // useSession() to resolve.
-    await waitFor(() => expect(result.current.status).toBe('guest'));
+    await waitFor(() => expect(result.current.isLoggedIn).toBe(false));
     expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
       'guest'
     );
@@ -57,16 +57,21 @@ describe('useSessionHint', () => {
     } as never);
     rerender();
 
-    await waitFor(() => expect(result.current.status).toBe('guest'));
+    await waitFor(() => {
+      expect(result.current.isLoggedIn).toBe(false);
+      expect(result.current.authKnown).toBe(true);
+    });
   });
 
   it('resolves to authenticated mentor when cookie value is "1"', async () => {
     setCookie('1');
     const { result } = renderHook(() => useSessionHint());
     await waitFor(() =>
-      expect(result.current).toEqual({
-        status: 'authenticated',
+      expect(result.current).toMatchObject({
+        isLoggedIn: true,
         isMentor: true,
+        userId: undefined,
+        avatar: undefined,
       })
     );
   });
@@ -75,8 +80,8 @@ describe('useSessionHint', () => {
     setCookie('0');
     const { result } = renderHook(() => useSessionHint());
     await waitFor(() =>
-      expect(result.current).toEqual({
-        status: 'authenticated',
+      expect(result.current).toMatchObject({
+        isLoggedIn: true,
         isMentor: false,
       })
     );
@@ -90,7 +95,7 @@ describe('useSessionHint', () => {
     } as never);
 
     const { result } = renderHook(() => useSessionHint());
-    await waitFor(() => expect(result.current.status).toBe('guest'));
+    await waitFor(() => expect(result.current.isLoggedIn).toBe(false));
   });
 
   it('clears stale mentor/mentee DOM attributes and marks guest when no cookie is present', async () => {
@@ -112,7 +117,7 @@ describe('useSessionHint', () => {
     const { result } = renderHook(() => useSessionHint());
 
     await waitFor(() => {
-      expect(result.current.status).toBe('guest');
+      expect(result.current.isLoggedIn).toBe(false);
       expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
         'guest'
       );
@@ -141,9 +146,10 @@ describe('useSessionHint', () => {
     const { result } = renderHook(() => useSessionHint());
 
     await waitFor(() => {
-      expect(result.current).toEqual({
-        status: 'authenticated',
+      expect(result.current).toMatchObject({
+        isLoggedIn: true,
         isMentor: true,
+        avatar: undefined,
       });
       expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
         'mentor'
@@ -163,8 +169,8 @@ describe('useSessionHint', () => {
     const { result } = renderHook(() => useSessionHint());
 
     await waitFor(() => {
-      expect(result.current).toEqual({
-        status: 'authenticated',
+      expect(result.current).toMatchObject({
+        isLoggedIn: true,
         isMentor: true,
         avatar: 'https://example.com/avatar.png',
       });
@@ -188,8 +194,8 @@ describe('useSessionHint', () => {
     const { result } = renderHook(() => useSessionHint());
 
     await waitFor(() => {
-      expect(result.current).toEqual({
-        status: 'authenticated',
+      expect(result.current).toMatchObject({
+        isLoggedIn: true,
         isMentor: true,
         avatar: 'https://example.com/avatar.png";background:red',
       });
@@ -219,7 +225,7 @@ describe('useSessionHint', () => {
     const { result } = renderHook(() => useSessionHint());
 
     await waitFor(() => {
-      expect(result.current.status).toBe('guest');
+      expect(result.current.isLoggedIn).toBe(false);
       expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
         'guest'
       );
@@ -248,11 +254,12 @@ describe('useSessionHint', () => {
     const { result } = renderHook(() => useSessionHint());
 
     await waitFor(() => {
-      expect(result.current).toEqual({
-        status: 'authenticated',
+      expect(result.current).toMatchObject({
+        isLoggedIn: true,
         isMentor: true,
         avatar: 'https://example.com/real-avatar.png',
         userId: 'user-123',
+        hasFullUser: true,
       });
       expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
         'mentor'
@@ -281,8 +288,8 @@ describe('useSessionHint', () => {
     const { result } = renderHook(() => useSessionHint());
 
     await waitFor(() => {
-      expect(result.current).toEqual({
-        status: 'authenticated',
+      expect(result.current).toMatchObject({
+        isLoggedIn: true,
         isMentor: true,
         avatar: 'javascript:alert(1)',
         userId: 'user-123',
@@ -306,9 +313,10 @@ describe('useSessionHint', () => {
     const { result } = renderHook(() => useSessionHint());
 
     await waitFor(() => {
-      expect(result.current).toEqual({
-        status: 'authenticated',
+      expect(result.current).toMatchObject({
+        isLoggedIn: true,
         isMentor: true,
+        avatar: undefined,
       });
       expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
         'mentor'
