@@ -6,6 +6,10 @@ import {
   useNotificationCenter,
 } from '@/hooks/useNotificationCenter';
 import { captureFlowFailure } from '@/lib/monitoring';
+import {
+  notificationStoreManager,
+  resetNotificationStore,
+} from '@/stores/notificationStore';
 import { mockToast } from '@/test/mocks/useToast';
 
 vi.mock('@/components/ui/use-toast', async () => {
@@ -43,6 +47,7 @@ describe('useNotificationCenter', () => {
     mockToast.mockClear();
     vi.mocked(captureFlowFailure).mockClear();
     localStorage.clear();
+    resetNotificationStore();
   });
 
   it('initializes with default state', () => {
@@ -201,41 +206,87 @@ describe('useNotificationCenter', () => {
     expect(onMarkReadMock).toHaveBeenCalledTimes(6);
   });
 
-  it('synchronizes seen state across different browser tabs / instances', async () => {
-    const { result } = renderHook(() =>
+  it('synchronizes seen count and markRead/markAllRead state across different instances on the same page via shared store and across browser tabs via storage event', async () => {
+    const { result: hook1 } = renderHook(() =>
       useNotificationCenter({
         userId: 'user-123',
         initialNotifications: mockNotifications,
       })
     );
 
-    expect(result.current.showBadge).toBe(true);
+    const { result: hook2 } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-123',
+        initialNotifications: mockNotifications,
+      })
+    );
 
-    // Simulate custom event sync (same page / other instance)
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent('notif_seen_updated', {
-          detail: {
-            storageKey: 'notif_seen_unread_count_user-123',
-            seenCount: 2,
-          },
-        })
-      );
+    expect(hook1.current.showBadge).toBe(true);
+    expect(hook2.current.showBadge).toBe(true);
+    expect(hook1.current.badgeCount).toBe(2);
+    expect(hook2.current.badgeCount).toBe(2);
+
+    // 1. Test markRead synchronization:
+    // Mark first item as read on hook1 -> should update hook2's badgeCount and item unread status!
+    await act(async () => {
+      await hook1.current.markRead('n1');
     });
 
-    expect(result.current.showBadge).toBe(false);
+    expect(hook1.current.badgeCount).toBe(1);
+    expect(hook2.current.badgeCount).toBe(1);
+    expect(hook1.current.items.find((item) => item.id === 'n1')?.unread).toBe(
+      false
+    );
+    expect(hook2.current.items.find((item) => item.id === 'n1')?.unread).toBe(
+      false
+    );
 
-    // Simulate storage event sync (other browser tab)
+    // 2. Test markAllRead synchronization:
+    // Mark all read on hook1 -> should clear hook2's badgeCount completely!
+    await act(async () => {
+      await hook1.current.markAllRead();
+    });
+
+    expect(hook1.current.badgeCount).toBe(0);
+    expect(hook2.current.badgeCount).toBe(0);
+
+    // 3. Test seen state synchronization on openCenter:
+    // Re-render hooks with unread items to test seen state
+    const { result: hook1Seen } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-seen-sync',
+        initialNotifications: mockNotifications,
+      })
+    );
+    const { result: hook2Seen } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-seen-sync',
+        initialNotifications: mockNotifications,
+      })
+    );
+
+    expect(hook1Seen.current.showBadge).toBe(true);
+    expect(hook2Seen.current.showBadge).toBe(true);
+
+    act(() => {
+      hook1Seen.current.openCenter();
+    });
+
+    expect(hook1Seen.current.showBadge).toBe(false);
+    expect(hook2Seen.current.showBadge).toBe(false);
+
+    // 4. Test storage event cross-tab synchronization:
     act(() => {
       window.dispatchEvent(
         new StorageEvent('storage', {
-          key: 'notif_seen_unread_count_user-123',
+          key: 'notif_seen_unread_count_user-seen-sync',
           newValue: '0',
         })
       );
     });
 
-    expect(result.current.showBadge).toBe(true);
+    expect(hook1Seen.current.showBadge).toBe(true);
+    expect(hook2Seen.current.showBadge).toBe(true);
   });
 
   it('clamps seenUnreadCount to current unreadCount on render/sync unless loading', async () => {
@@ -254,5 +305,161 @@ describe('useNotificationCenter', () => {
         '2'
       );
     });
+  });
+
+  it('unsubscribes from the store manager on unmount to prevent memory leaks', () => {
+    const unsubscribeSpy = vi.fn();
+    const originalSubscribe = notificationStoreManager.subscribe.bind(
+      notificationStoreManager
+    );
+    vi.spyOn(notificationStoreManager, 'subscribe').mockImplementation(
+      (key, listener) => {
+        const unsub = originalSubscribe(key, listener);
+        return () => {
+          unsubscribeSpy();
+          unsub();
+        };
+      }
+    );
+
+    const { unmount } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-cleanup-test',
+        initialNotifications: mockNotifications,
+      })
+    );
+
+    unmount();
+    expect(unsubscribeSpy).toHaveBeenCalled();
+  });
+
+  it('isolates state and unread count between different users', () => {
+    const { result: userAHook } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-A',
+        initialNotifications: mockNotifications,
+      })
+    );
+
+    const { result: userBHook } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-B',
+        initialNotifications: [
+          {
+            id: 'n1-b',
+            type: 'reservation_new',
+            createdAt: new Date().toISOString(),
+            unread: true,
+          },
+        ],
+      })
+    );
+
+    expect(userAHook.current.badgeCount).toBe(2);
+    expect(userBHook.current.badgeCount).toBe(1);
+
+    // Open User A's bell: should update A's seen count, but NOT B's!
+    act(() => {
+      userAHook.current.openCenter();
+    });
+
+    expect(userAHook.current.showBadge).toBe(false);
+    expect(userBHook.current.showBadge).toBe(true);
+  });
+
+  it('synchronizes single markRead optimistic update failures and rollbacks across both instances on the same page', async () => {
+    const onMarkReadMock = vi.fn().mockRejectedValue(new Error('API failure'));
+
+    const { result: hook1 } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-rollback-single-test',
+        initialNotifications: mockNotifications,
+        onMarkRead: onMarkReadMock,
+      })
+    );
+
+    const { result: hook2 } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-rollback-single-test',
+        initialNotifications: mockNotifications,
+        onMarkRead: onMarkReadMock,
+      })
+    );
+
+    expect(hook1.current.badgeCount).toBe(2);
+    expect(hook2.current.badgeCount).toBe(2);
+
+    // Trigger markRead on hook1 -> will fail and rollback on both!
+    await act(async () => {
+      await hook1.current.markRead('n1');
+    });
+
+    expect(hook1.current.badgeCount).toBe(2);
+    expect(hook2.current.badgeCount).toBe(2);
+    expect(hook1.current.items.find((item) => item.id === 'n1')?.unread).toBe(
+      true
+    );
+    expect(hook2.current.items.find((item) => item.id === 'n1')?.unread).toBe(
+      true
+    );
+  });
+
+  it('synchronizes markAllRead optimistic update failures and rollbacks across both instances on the same page', async () => {
+    const onMarkAllReadMock = vi
+      .fn()
+      .mockRejectedValue(new Error('API failure'));
+
+    const { result: hook1 } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-rollback-all-test',
+        initialNotifications: mockNotifications,
+        onMarkAllRead: onMarkAllReadMock,
+      })
+    );
+
+    const { result: hook2 } = renderHook(() =>
+      useNotificationCenter({
+        userId: 'user-rollback-all-test',
+        initialNotifications: mockNotifications,
+        onMarkAllRead: onMarkAllReadMock,
+      })
+    );
+
+    expect(hook1.current.badgeCount).toBe(2);
+    expect(hook2.current.badgeCount).toBe(2);
+
+    // Trigger markAllRead on hook1 -> will fail and rollback on both!
+    await act(async () => {
+      await hook1.current.markAllRead();
+    });
+
+    expect(hook1.current.badgeCount).toBe(2);
+    expect(hook2.current.badgeCount).toBe(2);
+    expect(
+      hook1.current.items.every(
+        (item) =>
+          item.unread ===
+          mockNotifications.find((n) => n.id === item.id)?.unread
+      )
+    ).toBe(true);
+    expect(
+      hook2.current.items.every(
+        (item) =>
+          item.unread ===
+          mockNotifications.find((n) => n.id === item.id)?.unread
+      )
+    ).toBe(true);
+  });
+
+  it('creates a new clean state instance on every call without caching in SSR environments (to prevent memory leaks)', () => {
+    vi.stubGlobal('window', undefined);
+    try {
+      const stateA = notificationStoreManager.getOrCreateState('ssr-test');
+      const stateB = notificationStoreManager.getOrCreateState('ssr-test');
+
+      expect(stateA).not.toBe(stateB);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
