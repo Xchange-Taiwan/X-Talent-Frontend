@@ -1019,19 +1019,32 @@ describe('NotificationBell', () => {
       });
     });
 
-    it('cleans up all global event listeners on unmount to prevent memory leaks', () => {
-      const removeListenerSpy = vi.spyOn(window, 'removeEventListener');
+    it('keeps cross-tab storage sync working for a surviving instance after another instance unmounts', async () => {
+      const { unmount } = renderBell({
+        unreadCount: 5,
+        userId: 'user-shared-listener',
+      });
+      renderBell({ unreadCount: 5, userId: 'user-shared-listener' });
 
-      const { unmount } = renderBell({ unreadCount: 5, userId: 'user-123' });
+      expect(screen.queryAllByText('5').length).toBe(2);
 
+      // The 'storage' listener is store-owned (a single, shared listener),
+      // not registered per Hook instance, so unmounting one instance must
+      // not break sync for the instance that remains mounted.
       unmount();
 
-      expect(removeListenerSpy).toHaveBeenCalledWith(
-        'storage',
-        expect.any(Function)
-      );
+      act(() => {
+        window.dispatchEvent(
+          new StorageEvent('storage', {
+            key: 'notif_seen_unread_count_user-shared-listener',
+            newValue: '5',
+          })
+        );
+      });
 
-      removeListenerSpy.mockRestore();
+      await waitFor(() => {
+        expect(screen.queryByText('5')).not.toBeInTheDocument();
+      });
     });
 
     it('synchronizes seen states across different browser tabs via StorageEvent', async () => {

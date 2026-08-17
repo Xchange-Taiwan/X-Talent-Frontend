@@ -1,4 +1,4 @@
-import { safeGetStorage } from '@/lib/storage';
+import { safeGetStorage, safeSetStorage } from '@/lib/storage';
 
 export type NotificationItem = {
   id: string;
@@ -20,10 +20,10 @@ export type NotificationStatus = 'loading' | 'error' | 'empty' | 'success';
 // Pure helper functions for key generation
 export const getStoreKey = (userId?: string): string => userId || 'generic';
 
+const SEEN_COUNT_STORAGE_PREFIX = 'notif_seen_unread_count_';
+
 export const getStorageKey = (userId?: string): string =>
-  userId
-    ? `notif_seen_unread_count_${userId}`
-    : 'notif_seen_unread_count_generic';
+  `${SEEN_COUNT_STORAGE_PREFIX}${getStoreKey(userId)}`;
 
 export interface SharedNotificationState {
   status: NotificationStatus;
@@ -74,6 +74,41 @@ export const createInitialState = (
 class NotificationStoreManager {
   private states = new Map<string, SharedNotificationState>();
   private listeners = new Map<string, Set<() => void>>();
+
+  constructor() {
+    // Single, store-owned listener for cross-tab sync (instead of one per Hook instance).
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', this.handleStorageEvent);
+    }
+  }
+
+  private handleStorageEvent = (e: StorageEvent) => {
+    if (!e.key || !e.key.startsWith(SEEN_COUNT_STORAGE_PREFIX)) return;
+    const key = e.key.slice(SEEN_COUNT_STORAGE_PREFIX.length);
+    const val = e.newValue !== null ? Number(e.newValue) : 0;
+    const parsedVal = Number.isNaN(val) ? 0 : val;
+    this.updateState(key, { seenUnreadCount: parsedVal });
+  };
+
+  /**
+   * Domain Action: Persist the seen-unread-count to localStorage and the shared state.
+   */
+  setSeenCount(userId: string | undefined, val: number) {
+    safeSetStorage(getStorageKey(userId), String(val));
+    this.updateState(userId, { seenUnreadCount: val });
+  }
+
+  /**
+   * Domain Action: Reconcile seenUnreadCount with whatever is currently in localStorage
+   * (e.g. on Hook mount, when another tab may have written a newer value).
+   */
+  syncSeenCountFromStorage(userId: string | undefined) {
+    const storedCount = getStoredSeenCount(getStorageKey(userId));
+    const state = this.getOrCreateState(userId);
+    if (state.seenUnreadCount !== storedCount) {
+      this.updateState(userId, { seenUnreadCount: storedCount });
+    }
+  }
 
   getOrCreateState(
     userId?: string,
@@ -169,20 +204,12 @@ class NotificationStoreManager {
   /**
    * Domain Action: Optimistically mark a single notification as read
    */
-  /**
-   * Domain Action: Optimistically mark a single notification as read
-   */
   markReadOptimistic(
     userId: string | undefined,
     id: string,
     isUsingProps: boolean
-  ): { previousState: SharedNotificationState } {
+  ): void {
     const state = this.getOrCreateState(userId);
-    const previousState = {
-      ...state,
-      notifications: [...state.notifications],
-      markingReadIds: new Set(state.markingReadIds),
-    };
 
     const markingReadIdsCopy = new Set(state.markingReadIds);
     markingReadIdsCopy.add(id);
@@ -196,18 +223,6 @@ class NotificationStoreManager {
         : Math.max(0, state.unreadCountState - 1),
       markingReadIds: markingReadIdsCopy,
     });
-
-    return { previousState };
-  }
-
-  /**
-   * Domain Action: Rollback state to a previous backup state
-   */
-  rollbackState(
-    userId: string | undefined,
-    previousState: SharedNotificationState
-  ) {
-    this.updateState(userId, previousState);
   }
 
   /**

@@ -2,7 +2,6 @@ import * as React from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { captureFlowFailure } from '@/lib/monitoring';
-import { safeSetStorage } from '@/lib/storage';
 /**
  * --------------------------------------------------------------------------------
  * SEAM & isolated module boundary:
@@ -20,8 +19,6 @@ import {
 } from '@/mocks/mockNotificationService';
 import {
   createInitialState,
-  getStorageKey,
-  getStoredSeenCount,
   type NotificationItem,
   type NotificationStatus,
   notificationStoreManager,
@@ -186,14 +183,7 @@ export function useNotificationCenter({
 
   // Mount-time sync seenUnreadCount from localStorage conditionally (avoiding redundant broadcasts)
   React.useEffect(() => {
-    const storageKey = getStorageKey(userId);
-    const currentStoredCount = getStoredSeenCount(storageKey);
-    const currentState = notificationStoreManager.getOrCreateState(userId);
-    if (currentState.seenUnreadCount !== currentStoredCount) {
-      notificationStoreManager.updateState(userId, {
-        seenUnreadCount: currentStoredCount,
-      });
-    }
+    notificationStoreManager.syncSeenCountFromStorage(userId);
   }, [userId]);
 
   const [isMounted, setIsMounted] = React.useState(false);
@@ -215,9 +205,7 @@ export function useNotificationCenter({
   // Helper to write to localStorage and notify shared store instances
   const writeSeenCount = React.useCallback(
     (val: number) => {
-      const storageKey = getStorageKey(userId);
-      safeSetStorage(storageKey, String(val));
-      notificationStoreManager.updateState(userId, { seenUnreadCount: val });
+      notificationStoreManager.setSeenCount(userId, val);
     },
     [userId]
   );
@@ -366,33 +354,8 @@ export function useNotificationCenter({
     isUsingProps,
   ]);
 
-  // Synchronize state across different browser tabs via storage event
-  React.useEffect(() => {
-    const storageKey = getStorageKey(userId);
-
-    const handleStorageSync = (e: StorageEvent) => {
-      if (e.key === storageKey) {
-        const val = e.newValue !== null ? Number(e.newValue) : 0;
-        const parsedVal = Number.isNaN(val) ? 0 : val;
-        notificationStoreManager.updateState(userId, {
-          seenUnreadCount: parsedVal,
-        });
-      }
-    };
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('storage', handleStorageSync as EventListener);
-    }
-
-    return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener(
-          'storage',
-          handleStorageSync as EventListener
-        );
-      }
-    };
-  }, [userId]);
+  // Cross-tab synchronization of seenUnreadCount is handled centrally by
+  // notificationStoreManager's own single 'storage' listener.
 
   React.useEffect(() => {
     return () => {
@@ -438,11 +401,7 @@ export function useNotificationCenter({
       if (!targetItem || !targetItem.unread) return;
 
       // Perform optimistic single mark read on the store
-      const { previousState } = notificationStoreManager.markReadOptimistic(
-        userId,
-        id,
-        isUsingProps
-      );
+      notificationStoreManager.markReadOptimistic(userId, id, isUsingProps);
 
       const action = onMarkRead || (!isUsingProps ? markOneRead : null);
       if (!action) {
@@ -456,8 +415,20 @@ export function useNotificationCenter({
       } catch (error) {
         reportMarkAsReadFailure(`mark_read_click:${id}`, error);
 
-        // Rollback state dynamically via store method
-        notificationStoreManager.rollbackState(userId, previousState);
+        // Roll back only this notification (not a full-state snapshot) so
+        // concurrent state changes made while the request was in flight
+        // aren't clobbered.
+        if (isUsingProps) {
+          notificationStoreManager.rollbackNotifications(userId, [id]);
+        } else {
+          const currentCount =
+            notificationStoreManager.getOrCreateState(userId).unreadCountState;
+          notificationStoreManager.rollbackNotifications(
+            userId,
+            [id],
+            currentCount + 1
+          );
+        }
         toast({
           variant: 'destructive',
           title: '操作失敗',
