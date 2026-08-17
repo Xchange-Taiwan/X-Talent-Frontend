@@ -9,11 +9,9 @@ import { fromAny } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as useNotificationCenterModule from '@/hooks/useNotificationCenter';
-import {
-  type NotificationItem,
-  resetNotificationStore,
-} from '@/hooks/useNotificationCenter';
+import { type NotificationItem } from '@/hooks/useNotificationCenter';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { resetNotificationStore } from '@/stores/notificationStore';
 import { mockToast } from '@/test/mocks/useToast';
 
 import { getNotificationContent, NotificationBell } from './NotificationBell';

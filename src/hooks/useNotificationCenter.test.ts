@@ -3,11 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   type NotificationItem,
-  notificationStoreManager,
-  resetNotificationStore,
   useNotificationCenter,
 } from '@/hooks/useNotificationCenter';
 import { captureFlowFailure } from '@/lib/monitoring';
+import {
+  notificationStoreManager,
+  resetNotificationStore,
+} from '@/stores/notificationStore';
 import { mockToast } from '@/test/mocks/useToast';
 
 vi.mock('@/components/ui/use-toast', async () => {
