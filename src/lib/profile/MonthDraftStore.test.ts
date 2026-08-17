@@ -360,4 +360,48 @@ describe('MonthDraftStore Unit Tests', () => {
     expect(res.reason).toBe('OVERLAP');
     expect(res.skipped).toBe(4); // 4 Sundays in July 2026
   });
+
+  it('correctly handles editing and moving a slot to a different day/month', () => {
+    const mockRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW' as const,
+        dtstart: 1785070000, // July 26, 2026
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+    const draftMap = new Map<string, RawMentorTimeslot[]>([
+      ['2026-07', mockRaws],
+    ]);
+
+    const store = new MonthDraftStore({
+      draftByMonth: draftMap,
+    });
+
+    // 1. Delete from July
+    store.delete(101, 1785070000);
+
+    // 2. Add to August
+    const res = store.edit(
+      0,
+      0,
+      {
+        startTime: '12:00',
+        durationMinutes: 30,
+        selectedDate: '2026-08-02',
+      },
+      '123'
+    );
+
+    expect(res.success).toBe(true);
+
+    const snap = store.snapshot();
+    // July month should no longer have slot 101
+    expect(snap.draftByMonth.get('2026-07')).toHaveLength(0);
+    // August month should have the new slot
+    const augDraft = snap.draftByMonth.get('2026-08') ?? [];
+    expect(augDraft).toHaveLength(1);
+  });
 });

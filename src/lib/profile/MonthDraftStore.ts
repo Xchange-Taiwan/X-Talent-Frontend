@@ -502,8 +502,8 @@ export class MonthDraftStore {
         this.savedByMonth.set(mk, raws);
         this.draftByMonth.set(mk, raws);
         this.pendingDeleteByMonth.delete(mk);
-        this.dirtyMonths.delete(mk);
       }
+      this.dirtyMonths.clear();
     }
     this.emitChange();
   }
