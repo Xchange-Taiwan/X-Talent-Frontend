@@ -456,13 +456,13 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     const results = await syncMonths(requests);
 
     // The user may have switched accounts while syncMonths was in flight
-    // (which resets the store to the new user's empty buffers). Committing
-    // the old user's results now would write stale data into that store.
-    if (currentUserIdRef.current !== userIdAtStart) {
-      return { ok: true };
+    // (which resets the store to the new user's empty buffers). Skip only
+    // the commit in that case — writing the old user's results into that
+    // store would corrupt it — but still report the real outcome below so a
+    // genuine save failure isn't swallowed as a false success.
+    if (currentUserIdRef.current === userIdAtStart) {
+      store.commit(results);
     }
-
-    store.commit(results);
 
     const firstFail = results.find((r) => !r.outcome.ok);
     if (firstFail && !firstFail.outcome.ok) {
