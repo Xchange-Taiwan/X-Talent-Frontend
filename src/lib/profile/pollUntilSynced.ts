@@ -290,15 +290,34 @@ export async function pollUntilMentorPoolSynced(
  * confirmation poll entirely and never re-invokes `revalidate`, since the
  * immediate revalidate the caller already fired (its own concern, not
  * this function's) already covers a mentee save.
+ *
+ * `poll` guards against a contract violation the same way
+ * `confirmDeletionSynced` does: `pollUntilMentorPoolSynced` never throws by
+ * its own contract, but if it did, `revalidate` must still run
+ * unconditionally — otherwise the mentor-pool cache purge this whole
+ * function exists for would silently never happen.
  */
 export async function confirmProfileSynced(
   userId: number,
   fields: MentorCardFields,
   isMentorRelevant: boolean,
-  revalidate: () => Promise<void>
+  revalidate: () => Promise<void>,
+  poll: (
+    userId: number,
+    fields: MentorCardFields
+  ) => Promise<boolean> = pollUntilMentorPoolSynced
 ): Promise<void> {
   if (!isMentorRelevant) return;
-  await pollUntilMentorPoolSynced(userId, fields);
+  try {
+    await poll(userId, fields);
+  } catch (e) {
+    captureFlowFailure({
+      flow: 'profile_update',
+      step: 'poll_mentor_pool_sync_error',
+      message: e instanceof Error ? e.message : String(e),
+      level: 'warning',
+    });
+  }
   await revalidate();
 }
 

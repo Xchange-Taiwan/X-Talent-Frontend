@@ -526,6 +526,23 @@ describe('confirmProfileSynced', () => {
 
     expect(revalidate).toHaveBeenCalledTimes(1);
   });
+
+  it('mentor-relevant, poll rejecting (contract violation) is reported but revalidate still runs unconditionally', async () => {
+    const poll = vi.fn().mockRejectedValue(new Error('poll blew up'));
+    const revalidate = vi.fn().mockResolvedValue(undefined);
+
+    await confirmProfileSynced(1, makeFields(), true, revalidate, poll);
+
+    expect(revalidate).toHaveBeenCalledTimes(1);
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'profile_update',
+        step: 'poll_mentor_pool_sync_error',
+        message: 'poll blew up',
+        level: 'warning',
+      })
+    );
+  });
 });
 
 describe('confirmDeletionSynced', () => {
