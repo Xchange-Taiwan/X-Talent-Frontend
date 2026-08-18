@@ -301,3 +301,57 @@ export async function confirmProfileSynced(
   await pollUntilMentorPoolSynced(userId, fields);
   await revalidate();
 }
+
+/**
+ * Owns the "confirm the mentor-pool search index no longer lists the
+ * deleted user, then purge the profile/mentor-pool caches" sequence for
+ * account deletion. Mirrors `revalidateProfilePath`
+ * (`src/app/profile/[pageUserId]/actions.ts`) but scoped to the caller's
+ * own account rather than a `[pageUserId]` route param — see that
+ * function's own doc comment for why deletion doesn't reuse it directly.
+ *
+ * `revalidatePaths` and `poll` are injected rather than imported directly
+ * (mirrors `confirmProfileSynced`'s `revalidate` param): `revalidatePath`
+ * is a Server Components/Server Actions-only API, and this module is
+ * bundled into client code via `saveProfile.ts` — importing it at this
+ * module's top level breaks that client bundle. The caller (`src/actions/
+ * auth.ts`, already `'use server'`) owns calling `revalidatePath` itself.
+ *
+ * Each `revalidatePaths` entry is invoked independently-guarded so one
+ * throwing doesn't skip the rest — the account is already deleted
+ * server-side by the time this runs, so every cache-purge step must still
+ * attempt to run regardless of an earlier one's outcome.
+ */
+export async function confirmDeletionSynced(
+  userId: number,
+  name: string | undefined,
+  revalidatePaths: Array<() => void>,
+  poll: (
+    userId: number,
+    name?: string
+  ) => Promise<boolean> = pollUntilUserDeleted
+): Promise<void> {
+  try {
+    await poll(userId, name);
+  } catch (e) {
+    captureFlowFailure({
+      flow: 'delete_account',
+      step: 'after_poll',
+      message: e instanceof Error ? e.message : String(e),
+      level: 'warning',
+    });
+  }
+
+  for (const revalidate of revalidatePaths) {
+    try {
+      revalidate();
+    } catch (e) {
+      captureFlowFailure({
+        flow: 'delete_account',
+        step: 'after_revalidate',
+        message: e instanceof Error ? e.message : String(e),
+        level: 'warning',
+      });
+    }
+  }
+}

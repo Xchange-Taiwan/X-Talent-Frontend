@@ -20,6 +20,7 @@ import type { MentorType } from '@/types/mentor';
 import type { MentorProfileVO } from '@/types/user';
 
 import {
+  confirmDeletionSynced,
   confirmProfileSynced,
   firstSyncedFetch,
   type MentorCardFields,
@@ -524,5 +525,113 @@ describe('confirmProfileSynced', () => {
     await promise;
 
     expect(revalidate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('confirmDeletionSynced', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockFetchMentors.mockReset();
+    mockCaptureFlowFailure.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('polls (via the real pollUntilUserDeleted by default) until the user is absent, then invokes every revalidatePaths callback', async () => {
+    mockFetchMentors
+      .mockResolvedValueOnce([makeMentor(42)])
+      .mockResolvedValueOnce([]);
+    const revalidateProfile = vi.fn();
+    const revalidateMentorPool = vi.fn();
+
+    const promise = confirmDeletionSynced(42, 'Jane Doe', [
+      revalidateProfile,
+      revalidateMentorPool,
+    ]);
+    await vi.advanceTimersByTimeAsync(2000);
+    await promise;
+
+    expect(mockFetchMentors).toHaveBeenCalledTimes(2);
+    expect(revalidateProfile).toHaveBeenCalledTimes(1);
+    expect(revalidateMentorPool).toHaveBeenCalledTimes(1);
+  });
+
+  it('poll rejecting (contract violation) is reported but every revalidatePaths callback still runs unconditionally', async () => {
+    const poll = vi.fn().mockRejectedValue(new Error('poll blew up'));
+    const revalidateProfile = vi.fn();
+    const revalidateMentorPool = vi.fn();
+
+    await confirmDeletionSynced(
+      42,
+      'Jane Doe',
+      [revalidateProfile, revalidateMentorPool],
+      poll
+    );
+
+    expect(revalidateProfile).toHaveBeenCalledTimes(1);
+    expect(revalidateMentorPool).toHaveBeenCalledTimes(1);
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'delete_account',
+        step: 'after_poll',
+        message: 'poll blew up',
+        level: 'warning',
+      })
+    );
+  });
+
+  it('poll never confirming (exhausted retry budget) still runs every revalidatePaths callback', async () => {
+    const poll = vi.fn().mockResolvedValue(false);
+    const revalidateProfile = vi.fn();
+    const revalidateMentorPool = vi.fn();
+
+    await confirmDeletionSynced(
+      42,
+      'Jane Doe',
+      [revalidateProfile, revalidateMentorPool],
+      poll
+    );
+
+    expect(revalidateProfile).toHaveBeenCalledTimes(1);
+    expect(revalidateMentorPool).toHaveBeenCalledTimes(1);
+  });
+
+  it('one revalidatePaths callback throwing is reported but does not prevent the remaining callbacks from running', async () => {
+    const poll = vi.fn().mockResolvedValue(true);
+    const revalidateProfile = vi.fn(() => {
+      throw new Error('revalidate blew up');
+    });
+    const revalidateMentorPool = vi.fn();
+
+    await confirmDeletionSynced(
+      42,
+      'Jane Doe',
+      [revalidateProfile, revalidateMentorPool],
+      poll
+    );
+
+    expect(revalidateMentorPool).toHaveBeenCalledTimes(1);
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'delete_account',
+        step: 'after_revalidate',
+        message: 'revalidate blew up',
+        level: 'warning',
+      })
+    );
+  });
+
+  it('falls back to an unscoped poll when no name is given (default poll)', async () => {
+    mockFetchMentors.mockResolvedValueOnce([]);
+
+    await confirmDeletionSynced(42, undefined, [vi.fn()]);
+
+    expect(mockFetchMentors).toHaveBeenCalledWith({
+      search_pattern: '',
+      limit: 20,
+      cursor: '',
+    });
   });
 });

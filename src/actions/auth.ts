@@ -1,11 +1,12 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 
 import authOptions from '@/auth.config';
 import { hasUserProperties, isValidUserId } from '@/lib/auth/userGuard';
-import { confirmDeletionSynced } from '@/lib/profile/confirmDeletionSynced';
+import { confirmDeletionSynced } from '@/lib/profile/pollUntilSynced';
 
 /**
  * Account-deletion variant of `revalidateProfilePath`
@@ -55,6 +56,9 @@ export async function revalidateProfilePathAfterDelete(): Promise<void> {
   const numericUserId = Number(userId);
 
   after(async () => {
-    await confirmDeletionSynced(numericUserId, userId, name);
+    await confirmDeletionSynced(numericUserId, name, [
+      () => revalidatePath(`/profile/${userId}`),
+      () => revalidatePath('/mentor-pool'),
+    ]);
   });
 }

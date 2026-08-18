@@ -12,19 +12,25 @@ vi.mock('next/server', () => ({
   after: vi.fn(),
 }));
 
-vi.mock('@/lib/profile/confirmDeletionSynced', () => ({
+vi.mock('next/cache', () => ({
+  revalidatePath: vi.fn(),
+}));
+
+vi.mock('@/lib/profile/pollUntilSynced', () => ({
   confirmDeletionSynced: vi.fn(),
 }));
 
+import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 
-import { confirmDeletionSynced } from '@/lib/profile/confirmDeletionSynced';
+import { confirmDeletionSynced } from '@/lib/profile/pollUntilSynced';
 
 import { revalidateProfilePathAfterDelete } from './auth';
 
 const mockGetServerSession = vi.mocked(getServerSession);
 const mockAfter = vi.mocked(after);
+const mockRevalidatePath = vi.mocked(revalidatePath);
 const mockConfirmDeletionSynced = vi.mocked(confirmDeletionSynced);
 
 describe('revalidateProfilePathAfterDelete', () => {
@@ -79,8 +85,8 @@ describe('revalidateProfilePathAfterDelete', () => {
     const workPromise = deferredWork();
     expect(mockConfirmDeletionSynced).toHaveBeenCalledWith(
       42,
-      '42',
-      'Jane Doe'
+      'Jane Doe',
+      expect.arrayContaining([expect.any(Function), expect.any(Function)])
     );
 
     resolveConfirm();
@@ -96,6 +102,31 @@ describe('revalidateProfilePathAfterDelete', () => {
     const deferredWork = mockAfter.mock.calls[0][0] as () => Promise<void>;
     await deferredWork();
 
-    expect(mockConfirmDeletionSynced).toHaveBeenCalledWith(42, '42', undefined);
+    expect(mockConfirmDeletionSynced).toHaveBeenCalledWith(
+      42,
+      undefined,
+      expect.any(Array)
+    );
+  });
+
+  it("passes the profile-path and mentor-pool revalidate calls as separate callbacks that actually call revalidatePath with the caller's own id", async () => {
+    mockGetServerSession.mockResolvedValueOnce({
+      user: { id: '42', name: 'Jane Doe' },
+    } as never);
+
+    await revalidateProfilePathAfterDelete();
+    const deferredWork = mockAfter.mock.calls[0][0] as () => Promise<void>;
+    await deferredWork();
+
+    const revalidatePaths = mockConfirmDeletionSynced.mock.calls[0][2] as Array<
+      () => void
+    >;
+    expect(revalidatePaths).toHaveLength(2);
+
+    revalidatePaths[0]();
+    revalidatePaths[1]();
+
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42');
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');
   });
 });
