@@ -20,6 +20,7 @@ import type { MentorType } from '@/types/mentor';
 import type { MentorProfileVO } from '@/types/user';
 
 import {
+  confirmProfileSynced,
   firstSyncedFetch,
   type MentorCardFields,
   pollUntilMentorPoolSynced,
@@ -470,5 +471,58 @@ describe('pollUntilMentorPoolSynced', () => {
         step: 'poll_mentor_pool_sync',
       })
     );
+  });
+});
+
+describe('confirmProfileSynced', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockFetchMentors.mockReset();
+    mockCaptureFlowFailure.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('not mentor-relevant → skips the poll entirely and never invokes revalidate', async () => {
+    const revalidate = vi.fn().mockResolvedValue(undefined);
+
+    await confirmProfileSynced(1, makeFields(), false, revalidate);
+
+    expect(mockFetchMentors).not.toHaveBeenCalled();
+    expect(revalidate).not.toHaveBeenCalled();
+  });
+
+  it('mentor-relevant → polls the mentor-pool listing until synced, then revalidates', async () => {
+    const fields = makeFields({ name: 'New Name' });
+    mockFetchMentors
+      .mockResolvedValueOnce([makeMentor(1, { name: 'Old Name' })])
+      .mockResolvedValueOnce([makeMentor(1, { name: 'New Name' })]);
+    const revalidate = vi.fn().mockResolvedValue(undefined);
+
+    const promise = confirmProfileSynced(1, fields, true, revalidate);
+    await vi.advanceTimersByTimeAsync(2000);
+    await promise;
+
+    expect(mockFetchMentors).toHaveBeenCalledTimes(2);
+    expect(revalidate).toHaveBeenCalledTimes(1);
+  });
+
+  it('mentor-relevant, poll exhausts retry budget → still revalidates', async () => {
+    mockFetchMentors.mockResolvedValue([makeMentor(1, { name: 'Old Name' })]);
+    const revalidate = vi.fn().mockResolvedValue(undefined);
+
+    const promise = confirmProfileSynced(
+      1,
+      makeFields({ name: 'New Name' }),
+      true,
+      revalidate
+    );
+    // pollUntilMentorPoolSynced's own default retry budget (6 * 2000ms).
+    await vi.advanceTimersByTimeAsync(2000 * 6);
+    await promise;
+
+    expect(revalidate).toHaveBeenCalledTimes(1);
   });
 });

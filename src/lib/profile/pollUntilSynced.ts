@@ -281,3 +281,23 @@ export async function pollUntilMentorPoolSynced(
 
   return confirmed;
 }
+
+/**
+ * Owns the "confirm the mentor-pool search index reflects this save, then
+ * revalidate" sequence for the profile-update flow — the single place this
+ * poll-then-revalidate pairing lives, instead of being hand-sequenced at
+ * each call site. A no-op when the save isn't mentor-relevant: skips the
+ * confirmation poll entirely and never re-invokes `revalidate`, since the
+ * immediate revalidate the caller already fired (its own concern, not
+ * this function's) already covers a mentee save.
+ */
+export async function confirmProfileSynced(
+  userId: number,
+  fields: MentorCardFields,
+  isMentorRelevant: boolean,
+  revalidate: () => Promise<void>
+): Promise<void> {
+  if (!isMentorRelevant) return;
+  await pollUntilMentorPoolSynced(userId, fields);
+  await revalidate();
+}

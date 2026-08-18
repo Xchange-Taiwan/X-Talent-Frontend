@@ -8,41 +8,29 @@ vi.mock('@/auth.config', () => ({
   default: {},
 }));
 
-vi.mock('next/cache', () => ({
-  revalidatePath: vi.fn(),
-}));
-
 vi.mock('next/server', () => ({
   after: vi.fn(),
 }));
 
-vi.mock('@/lib/monitoring', () => ({
-  captureFlowFailure: vi.fn(),
+vi.mock('@/lib/profile/confirmDeletionSynced', () => ({
+  confirmDeletionSynced: vi.fn(),
 }));
 
-vi.mock('@/lib/profile/pollUntilSynced', () => ({
-  pollUntilUserDeleted: vi.fn(),
-}));
-
-import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 
-import { captureFlowFailure } from '@/lib/monitoring';
-import { pollUntilUserDeleted } from '@/lib/profile/pollUntilSynced';
+import { confirmDeletionSynced } from '@/lib/profile/confirmDeletionSynced';
 
 import { revalidateProfilePathAfterDelete } from './auth';
 
 const mockGetServerSession = vi.mocked(getServerSession);
-const mockRevalidatePath = vi.mocked(revalidatePath);
 const mockAfter = vi.mocked(after);
-const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
-const mockPollUntilUserDeleted = vi.mocked(pollUntilUserDeleted);
+const mockConfirmDeletionSynced = vi.mocked(confirmDeletionSynced);
 
 describe('revalidateProfilePathAfterDelete', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPollUntilUserDeleted.mockResolvedValue(true);
+    mockConfirmDeletionSynced.mockResolvedValue(undefined);
   });
 
   it('no-ops when there is no session (anonymous/unauthenticated caller)', async () => {
@@ -67,15 +55,15 @@ describe('revalidateProfilePathAfterDelete', () => {
     expect(mockAfter).not.toHaveBeenCalled();
   });
 
-  it("derives the id/name from the caller's own session and returns immediately, deferring the poll + revalidate to run after the response via after()", async () => {
+  it("derives the id/name from the caller's own session and returns immediately, deferring confirmDeletionSynced to run after the response via after()", async () => {
     mockGetServerSession.mockResolvedValueOnce({
       user: { id: '42', name: 'Jane Doe' },
     } as never);
 
-    let resolvePoll: (value: boolean) => void = () => {};
-    mockPollUntilUserDeleted.mockReturnValueOnce(
-      new Promise<boolean>((resolve) => {
-        resolvePoll = resolve;
+    let resolveConfirm: () => void = () => {};
+    mockConfirmDeletionSynced.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveConfirm = resolve;
       })
     );
 
@@ -84,22 +72,22 @@ describe('revalidateProfilePathAfterDelete', () => {
     // Scheduled via after(), but nothing has run yet — the caller (e.g.
     // useDeleteAccountForm, right before signOut) is never blocked on this.
     expect(mockAfter).toHaveBeenCalledTimes(1);
-    expect(mockRevalidatePath).not.toHaveBeenCalled();
+    expect(mockConfirmDeletionSynced).not.toHaveBeenCalled();
 
     // Simulate Next.js invoking the deferred callback after the response.
     const deferredWork = mockAfter.mock.calls[0][0] as () => Promise<void>;
     const workPromise = deferredWork();
-    expect(mockRevalidatePath).not.toHaveBeenCalled();
+    expect(mockConfirmDeletionSynced).toHaveBeenCalledWith(
+      42,
+      '42',
+      'Jane Doe'
+    );
 
-    resolvePoll(true);
+    resolveConfirm();
     await workPromise;
-
-    expect(mockPollUntilUserDeleted).toHaveBeenCalledWith(42, 'Jane Doe');
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42');
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');
   });
 
-  it('works without a session name (falls back to an unscoped poll)', async () => {
+  it('works without a session name (passes undefined through to confirmDeletionSynced)', async () => {
     mockGetServerSession.mockResolvedValueOnce({
       user: { id: '42' },
     } as never);
@@ -108,68 +96,6 @@ describe('revalidateProfilePathAfterDelete', () => {
     const deferredWork = mockAfter.mock.calls[0][0] as () => Promise<void>;
     await deferredWork();
 
-    expect(mockPollUntilUserDeleted).toHaveBeenCalledWith(42, undefined);
-  });
-
-  it('revalidates even if the poll exhausts its retry budget without confirming', async () => {
-    mockGetServerSession.mockResolvedValueOnce({
-      user: { id: '42', name: 'Jane Doe' },
-    } as never);
-    mockPollUntilUserDeleted.mockResolvedValueOnce(false);
-
-    await revalidateProfilePathAfterDelete();
-    const deferredWork = mockAfter.mock.calls[0][0] as () => Promise<void>;
-    await deferredWork();
-
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42');
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');
-  });
-
-  it('pollUntilUserDeleted throwing (contract violation) is reported but does not skip revalidation — the account is already deleted, so the cache purge must run unconditionally', async () => {
-    mockGetServerSession.mockResolvedValueOnce({
-      user: { id: '42', name: 'Jane Doe' },
-    } as never);
-    mockPollUntilUserDeleted.mockRejectedValueOnce(new Error('poll blew up'));
-
-    await revalidateProfilePathAfterDelete();
-    const deferredWork = mockAfter.mock.calls[0][0] as () => Promise<void>;
-
-    await expect(deferredWork()).resolves.not.toThrow();
-
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42');
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: 'delete_account',
-        step: 'after_poll',
-        message: 'poll blew up',
-        level: 'warning',
-      })
-    );
-  });
-
-  it('revalidatePath(/profile/...) throwing is reported but does not prevent the mentor-pool revalidatePath call from running', async () => {
-    mockGetServerSession.mockResolvedValueOnce({
-      user: { id: '42', name: 'Jane Doe' },
-    } as never);
-    mockRevalidatePath.mockImplementationOnce(() => {
-      throw new Error('revalidate blew up');
-    });
-
-    await revalidateProfilePathAfterDelete();
-    const deferredWork = mockAfter.mock.calls[0][0] as () => Promise<void>;
-
-    await expect(deferredWork()).resolves.not.toThrow();
-
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/profile/42');
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/mentor-pool');
-    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
-      expect.objectContaining({
-        flow: 'delete_account',
-        step: 'after_revalidate',
-        message: 'revalidate blew up',
-        level: 'warning',
-      })
-    );
+    expect(mockConfirmDeletionSynced).toHaveBeenCalledWith(42, '42', undefined);
   });
 });
