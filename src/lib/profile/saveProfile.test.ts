@@ -12,7 +12,7 @@ vi.mock('@/services/profile/updateProfile', () => ({
 vi.mock('@/lib/profile/pollUntilSynced', () => ({
   pollUntilSynced: vi.fn(),
   firstSyncedFetch: vi.fn(),
-  pollUntilMentorPoolSynced: vi.fn(),
+  confirmProfileSynced: vi.fn(),
 }));
 
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
@@ -25,8 +25,8 @@ vi.mock('@/lib/avatar/avatarOverrideStore', () => ({
 import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
+  confirmProfileSynced,
   firstSyncedFetch,
-  pollUntilMentorPoolSynced,
   pollUntilSynced,
 } from '@/lib/profile/pollUntilSynced';
 import { ExperienceType } from '@/services/profile/experienceType';
@@ -41,7 +41,7 @@ const mockUpdateAvatar = vi.mocked(updateAvatar);
 const mockUpdateProfile = vi.mocked(updateProfile);
 const mockPollUntilSynced = vi.mocked(pollUntilSynced);
 const mockFirstSyncedFetch = vi.mocked(firstSyncedFetch);
-const mockPollUntilMentorPoolSynced = vi.mocked(pollUntilMentorPoolSynced);
+const mockConfirmProfileSynced = vi.mocked(confirmProfileSynced);
 const mockSetAvatarOverride = vi.mocked(setAvatarOverride);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
@@ -78,7 +78,16 @@ describe('saveProfile (Deep Module)', () => {
     mockUpdateProfile.mockResolvedValue(undefined);
     mockPollUntilSynced.mockResolvedValue(mockUserDTO);
     mockFirstSyncedFetch.mockResolvedValue(null);
-    mockPollUntilMentorPoolSynced.mockResolvedValue(true);
+    // Mirrors confirmProfileSynced's real contract at this boundary: only
+    // invoke the injected revalidate callback when mentor-relevant. The
+    // underlying poll-then-revalidate sequencing itself is covered directly
+    // in pollUntilSynced.test.ts — this suite only needs to verify saveProfile
+    // wires the call correctly.
+    mockConfirmProfileSynced.mockImplementation(
+      async (_userId, _fields, isMentorRelevant, revalidate) => {
+        if (isMentorRelevant) await revalidate();
+      }
+    );
   });
 
   // ── Avatar upload ──────────────────────────────────────────────────────────
@@ -418,10 +427,12 @@ describe('saveProfile (Deep Module)', () => {
   // async (SQS-driven) update of the Elasticsearch index /mentor-pool reads
   // from. Confirming the (synchronous, DB-backed) profile write synced via
   // firstSyncedFetch/pollUntilSynced is NOT sufficient proof the search
-  // index caught up too — pollUntilMentorPoolSynced checks that directly
-  // before the background block revalidates a second time.
+  // index caught up too — confirmProfileSynced (pollUntilSynced.ts) owns
+  // that poll-then-revalidate sequencing; this suite only verifies saveProfile
+  // calls it with the right args, not the internal poll behavior itself
+  // (covered directly in pollUntilSynced.test.ts).
 
-  it('mentor session → background pollUntilMentorPoolSynced runs, then revalidateProfilePath fires again', async () => {
+  it('mentor session → confirmProfileSynced is called with isMentorRelevant=true, and revalidateProfilePath fires again via its callback', async () => {
     mockFirstSyncedFetch.mockResolvedValueOnce(null);
     mockPollUntilSynced.mockResolvedValueOnce(mockUserDTO);
 
@@ -430,9 +441,11 @@ describe('saveProfile (Deep Module)', () => {
     await saveProfile(baseValues, deps);
 
     await vi.waitFor(() => {
-      expect(mockPollUntilMentorPoolSynced).toHaveBeenCalledWith(
+      expect(mockConfirmProfileSynced).toHaveBeenCalledWith(
         Number(mockSession.user!.id),
-        expect.objectContaining({ name: baseValues.name })
+        expect.objectContaining({ name: baseValues.name }),
+        true,
+        expect.any(Function)
       );
       expect(revalidateProfilePath).toHaveBeenCalledTimes(2);
     });
@@ -440,7 +453,7 @@ describe('saveProfile (Deep Module)', () => {
     expect(revalidateProfilePath).toHaveBeenNthCalledWith(2, 'test-user-id');
   });
 
-  it('mentee session (not onboarding, backend never confirms mentor) → skips the mentor-pool re-sync poll entirely', async () => {
+  it('mentee session (not onboarding, backend never confirms mentor) → confirmProfileSynced is called with isMentorRelevant=false', async () => {
     const menteeSession: Session = {
       ...mockSession,
       user: { ...mockSession.user!, isMentor: false },
@@ -460,8 +473,14 @@ describe('saveProfile (Deep Module)', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(mockPollUntilMentorPoolSynced).not.toHaveBeenCalled();
-    // Only the immediate step-3 call — no background re-sync call.
+    expect(mockConfirmProfileSynced).toHaveBeenCalledWith(
+      expect.any(Number),
+      expect.any(Object),
+      false,
+      expect.any(Function)
+    );
+    // Default mock only invokes the callback when isMentorRelevant — only
+    // the immediate step-3 call happens, no background re-sync call.
     expect(revalidateProfilePath).toHaveBeenCalledTimes(1);
   });
 
@@ -494,8 +513,8 @@ describe('saveProfile (Deep Module)', () => {
     expect(updateSession).toHaveBeenCalled();
   });
 
-  it('mentor-pool re-sync failure (pollUntilMentorPoolSynced throws) → quietly caught and logged', async () => {
-    mockPollUntilMentorPoolSynced.mockRejectedValueOnce(
+  it('mentor-pool re-sync failure (confirmProfileSynced throws) → quietly caught and logged', async () => {
+    mockConfirmProfileSynced.mockRejectedValueOnce(
       new Error('Search index poll failed')
     );
     const deps = makeDeps();
