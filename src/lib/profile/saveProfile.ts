@@ -4,9 +4,9 @@ import { trackEvent } from '@/lib/analytics';
 import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
+  confirmProfileSynced as defaultConfirmProfileSynced,
   firstSyncedFetch as defaultFirstSyncedFetch,
   type MentorCardFields,
-  pollUntilMentorPoolSynced as defaultPollUntilMentorPoolSynced,
   pollUntilSynced as defaultPollUntilSynced,
 } from '@/lib/profile/pollUntilSynced';
 import {
@@ -56,10 +56,12 @@ export interface SaveProfileDeps {
     values: ProfileFormValues,
     avatar: string
   ) => Promise<MentorProfileVO | null>;
-  pollUntilMentorPoolSynced?: (
+  confirmProfileSynced?: (
     userId: number,
-    fields: MentorCardFields
-  ) => Promise<boolean>;
+    fields: MentorCardFields,
+    isMentorRelevant: boolean,
+    revalidate: () => Promise<void>
+  ) => Promise<void>;
 }
 
 export async function saveProfile(
@@ -79,7 +81,7 @@ export async function saveProfile(
     primeUserDataCache,
     firstSyncedFetch = defaultFirstSyncedFetch,
     pollUntilSynced = defaultPollUntilSynced,
-    pollUntilMentorPoolSynced = defaultPollUntilMentorPoolSynced,
+    confirmProfileSynced = defaultConfirmProfileSynced,
   } = deps;
 
   // 1) avatar — consume background upload if wired, else upload now.
@@ -233,15 +235,16 @@ export async function saveProfile(
       // which read /v1/mentors/{id}/profile) is NOT sufficient proof of
       // that — the DB and the search index are updated by two different,
       // independently-lagging paths, so re-checking against the DB again
-      // here would just repeat the same race. Poll the actual mentor-pool
-      // listing query instead, then revalidate once it's confirmed synced.
+      // here would just repeat the same race. confirmProfileSynced polls
+      // the actual mentor-pool listing query instead, then revalidates
+      // once it's confirmed synced (no-op when not mentor-relevant).
       const isMentorRelevant =
         isMentorOnboarding ||
         Boolean(sessionUser?.isMentor) ||
         Boolean(latest?.is_mentor);
-      if (isMentorRelevant) {
-        const userIdForPoll = sessionUserId ?? Number(pageUserId);
-        await pollUntilMentorPoolSynced(userIdForPoll, {
+      await confirmProfileSynced(
+        sessionUserId ?? Number(pageUserId),
+        {
           name: values.name,
           jobTitle: job_title,
           company: companyFromPrimary,
@@ -249,16 +252,18 @@ export async function saveProfile(
           yearsOfExperience: values.years_of_experience,
           haveTopic: values.have_topic,
           avatar: avatar ?? '',
-        });
-        await revalidateProfilePath(pageUserId).catch((e: unknown) => {
-          captureFlowFailure({
-            flow: 'profile_update',
-            step: 'post_sync_revalidate',
-            message: e instanceof Error ? e.message : String(e),
-            level: 'warning',
-          });
-        });
-      }
+        },
+        isMentorRelevant,
+        () =>
+          revalidateProfilePath(pageUserId).catch((e: unknown) => {
+            captureFlowFailure({
+              flow: 'profile_update',
+              step: 'post_sync_revalidate',
+              message: e instanceof Error ? e.message : String(e),
+              level: 'warning',
+            });
+          })
+      );
     } catch (e) {
       captureFlowFailure({
         flow: 'profile_update',
