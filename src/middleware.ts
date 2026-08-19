@@ -8,7 +8,10 @@ import {
   SESSION_HINT_COOKIE,
   SESSION_HINT_COOKIE_OPTIONS,
 } from '@/lib/auth/sessionHint';
-import { getMaintenanceMode } from '@/lib/globalConfig';
+import {
+  getMaintenanceBypassToken,
+  getMaintenanceMode,
+} from '@/lib/globalConfig';
 import { apiAuthPrefix, DEFAULT_LOGIN, publicRoutes } from '@/routes';
 
 // Convert Next.js dynamic route → express style (:id)
@@ -44,7 +47,18 @@ export async function middleware(req: NextRequest) {
 
   // -------- 0.05 Check Maintenance Bypass --------
   const bypassParam = nextUrl.searchParams.get('bypass');
-  const bypassToken = process.env.MAINTENANCE_BYPASS_TOKEN;
+  const bypassCookie = req.cookies.get('maintenance_bypass')?.value;
+
+  // The env var is an override for local dev and emergency use (it requires
+  // a redeploy to change). Normal operation rotates the token in Global
+  // Config instead, which - like maintenance mode itself - takes effect
+  // immediately with no redeploy. Only fetched when actually needed, so
+  // ordinary requests with no bypass param/cookie don't pay for the read.
+  let bypassToken: string | undefined = process.env.MAINTENANCE_BYPASS_TOKEN;
+  if (!bypassToken && (bypassParam || bypassCookie)) {
+    const bypassResult = await getMaintenanceBypassToken(500);
+    bypassToken = bypassResult.value ?? undefined;
+  }
 
   // If correct bypass token is in query param, set cookie and redirect to clear the URL query param
   if (bypassToken && bypassParam === bypassToken) {
@@ -62,7 +76,6 @@ export async function middleware(req: NextRequest) {
     return response;
   }
 
-  const bypassCookie = req.cookies.get('maintenance_bypass')?.value;
   const hasValidBypass = !!(bypassToken && bypassCookie === bypassToken);
 
   const isMaintenancePage = pathname === '/maintenance';

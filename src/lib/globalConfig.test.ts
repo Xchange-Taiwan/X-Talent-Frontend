@@ -1,7 +1,11 @@
 import { get } from '@vercel/global-config';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { getAnnouncement, getMaintenanceMode } from '@/lib/globalConfig';
+import {
+  getAnnouncement,
+  getMaintenanceBypassToken,
+  getMaintenanceMode,
+} from '@/lib/globalConfig';
 import { captureApiFailure } from '@/lib/monitoring';
 
 vi.mock('@vercel/global-config', () => ({
@@ -210,6 +214,43 @@ describe('globalConfig module', () => {
     });
   });
 
+  describe('getMaintenanceBypassToken', () => {
+    it('returns success and the token string when the store contains one', async () => {
+      mockGet.mockResolvedValue('rotated-token-value');
+      const result = await getMaintenanceBypassToken();
+      expect(result).toEqual({ success: true, value: 'rotated-token-value' });
+      expect(mockGet).toHaveBeenCalledWith('maintenanceBypassToken');
+      expect(mockCaptureApiFailure).not.toHaveBeenCalled();
+    });
+
+    it('returns success and null when the store has no token set', async () => {
+      mockGet.mockResolvedValue(undefined);
+      const result = await getMaintenanceBypassToken();
+      expect(result).toEqual({ success: true, value: null });
+      expect(mockCaptureApiFailure).not.toHaveBeenCalled();
+    });
+
+    it('returns success and null when the stored value is not a string', async () => {
+      mockGet.mockResolvedValue(true);
+      const result = await getMaintenanceBypassToken();
+      expect(result).toEqual({ success: true, value: null });
+    });
+
+    it('returns success: false and reports failure when the read fails', async () => {
+      mockGet.mockRejectedValue(new Error('Network error'));
+      const result = await getMaintenanceBypassToken();
+      expect(result).toEqual({ success: false, value: null });
+      expect(mockCaptureApiFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          endpoint: 'global-config:maintenanceBypassToken',
+          method: 'GET',
+          status: 0,
+          message: 'Network error',
+        })
+      );
+    });
+  });
+
   describe('when Global/Edge Config is not configured', () => {
     beforeEach(() => {
       delete process.env.GLOBAL_CONFIG;
@@ -225,6 +266,13 @@ describe('globalConfig module', () => {
 
     it('getAnnouncement returns success: true and value: null without calling get() or capturing failure', async () => {
       const result = await getAnnouncement();
+      expect(result).toEqual({ success: true, value: null });
+      expect(mockGet).not.toHaveBeenCalled();
+      expect(mockCaptureApiFailure).not.toHaveBeenCalled();
+    });
+
+    it('getMaintenanceBypassToken returns success: true and value: null without calling get() or capturing failure', async () => {
+      const result = await getMaintenanceBypassToken();
       expect(result).toEqual({ success: true, value: null });
       expect(mockGet).not.toHaveBeenCalled();
       expect(mockCaptureApiFailure).not.toHaveBeenCalled();
