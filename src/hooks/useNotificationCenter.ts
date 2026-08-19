@@ -164,6 +164,13 @@ export function useNotificationCenter({
 
   const badgeCount = isUsingProps ? unreadCount : storeState.unreadCountState;
 
+  const hasMore = storeState.nextCursor !== null;
+
+  // Notifications that exist (per the unread badge total) but haven't been
+  // scrolled into view yet. Gated on hasMore so a stale/out-of-sync badge
+  // count never implies "older" unread items once the list is fully loaded.
+  const olderUnreadCount = hasMore ? Math.max(badgeCount - unreadCount, 0) : 0;
+
   // Set isMounted on client
   React.useEffect(() => {
     setIsMounted(true);
@@ -530,8 +537,9 @@ export function useNotificationCenter({
     markAllRead: markAllReadAction,
     handleRetry,
     isLoadingMore: storeState.isLoadingMore,
-    hasMore: storeState.nextCursor !== null,
+    hasMore,
     loadMore,
     hasLoadMoreError: storeState.hasLoadMoreError,
+    olderUnreadCount,
   };
 }

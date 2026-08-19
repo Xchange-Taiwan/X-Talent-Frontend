@@ -349,6 +349,48 @@ describe('useNotificationCenter pagination and service integration', () => {
     fetchUnreadSpy.mockRestore();
   });
 
+  it('reports olderUnreadCount for unread items not yet loaded, and clears it once loadMore catches up', async () => {
+    // 25 items total, first page loads 20. 5 unread within the first page
+    // (indices 0-4), 3 more unread beyond it (indices 21-23) -- the badge
+    // total (8) should outpace the loaded-list unread count (5) by exactly
+    // the not-yet-loaded unread items.
+    const customNotifications: ApiNotificationItem[] = Array.from(
+      { length: 25 },
+      (_, i) => ({
+        id: i + 1,
+        type: 'reservation_canceled',
+        metadata: { role: 'mentor', counterparty_name: `Mentee_${i}` },
+        created_at: Math.floor((Date.now() - i * 60 * 1000) / 1000),
+        read_at:
+          i < 5 || (i >= 21 && i < 24) ? null : Math.floor(Date.now() / 1000),
+      })
+    );
+    mockService.resetMockNotificationDatabase(customNotifications);
+
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('success');
+    });
+
+    expect(result.current.items).toHaveLength(20);
+    expect(result.current.badgeCount).toBe(8);
+    expect(result.current.hasMore).toBe(true);
+    // 5 unread already loaded, 3 more unread still beyond the loaded page
+    expect(result.current.olderUnreadCount).toBe(3);
+
+    await act(async () => {
+      await result.current.loadMore();
+    });
+
+    expect(result.current.items).toHaveLength(25);
+    expect(result.current.hasMore).toBe(false);
+    // Fully loaded: no unread items remain "older" than what's on screen
+    expect(result.current.olderUnreadCount).toBe(0);
+  });
+
   it('never calls the notification service when userId is undefined (e.g. before auth resolves)', async () => {
     const listSpy = vi.spyOn(mockService, 'listNotifications');
     const fetchUnreadSpy = vi.spyOn(mockService, 'fetchUnreadCount');
