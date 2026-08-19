@@ -1,10 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getServerSession } from 'next-auth/next';
 
-import authOptions from '@/auth.config';
 import { PersonJsonLd } from '@/components/seo/PersonJsonLd';
-import { hasUserProperties } from '@/lib/auth/userGuard';
 import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
 import { buildMentorMetadata } from '@/lib/seo/buildMentorMetadata';
 import { sanitizePublicProfile } from '@/lib/seo/sanitizePublicProfile';
@@ -48,17 +45,20 @@ export default async function Page({ params }: PageProps) {
   const userIdNum = Number(pageUserId);
   if (!Number.isFinite(userIdNum)) notFound();
 
-  const [initialDto, session, catalogs] = await Promise.all([
+  const [initialDto, catalogs] = await Promise.all([
     fetchUserByIdServer(userIdNum, 'zh_TW'),
-    getServerSession(authOptions),
     fetchTagCatalogServer('zh_TW'),
   ]);
 
   if (!initialDto) notFound();
 
-  const user = session?.user;
-  const initialLoginUserId =
-    hasUserProperties(user) && user.id ? String(user.id) : '';
+  // Login state is resolved client-side only (see ProfilePageContainer's
+  // useSession()). Dropping the SSR getServerSession() call here lets this
+  // route stay ISR-cacheable (`revalidate = 60` below) instead of being
+  // forced into per-request dynamic rendering just to read the auth cookie -
+  // the cost was every navigation re-fetching from the backend with no
+  // caching. Trade-off: the edit button / own-profile UI can flash in a
+  // frame after hydration instead of being present on first paint.
   const publicProfile = sanitizePublicProfile(
     initialDto,
     buildTagLabelMap(catalogs)
@@ -72,7 +72,7 @@ export default async function Page({ params }: PageProps) {
         pageUserId={pageUserId}
         initialDto={initialDto}
         initialCatalogs={catalogs}
-        initialLoginUserId={initialLoginUserId}
+        initialLoginUserId=""
       />
     </>
   );
