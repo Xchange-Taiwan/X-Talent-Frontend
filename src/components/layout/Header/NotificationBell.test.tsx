@@ -383,6 +383,81 @@ describe('NotificationBell', () => {
       }
     });
 
+    it('shows the "older unread" hint above the load-more area when olderUnreadCount is positive', () => {
+      const spy = vi
+        .spyOn(useNotificationCenterModule, 'useNotificationCenter')
+        .mockReturnValue({
+          open: true,
+          status: 'success',
+          items: MOCK_MIXED_NOTIFICATIONS,
+          badgeCount: 8,
+          showBadge: false,
+          formattedCount: '8',
+          hasUnread: true,
+          onOpenChange: vi.fn(),
+          closeCenter: vi.fn(),
+          markRead: vi.fn(),
+          markAllRead: vi.fn(),
+          handleRetry: vi.fn(),
+          hasMore: true,
+          isLoadingMore: false,
+          hasLoadMoreError: false,
+          loadMore: vi.fn(),
+          olderUnreadCount: 3,
+        } as unknown as ReturnType<
+          typeof useNotificationCenterModule.useNotificationCenter
+        >);
+
+      renderBell({ initialStatus: 'success' });
+
+      expect(screen.getByText('還有 3 則較舊的未讀通知')).toBeInTheDocument();
+
+      spy.mockRestore();
+    });
+
+    it('caps the "older unread" hint at "99+" when olderUnreadCount exceeds 99', () => {
+      const spy = vi
+        .spyOn(useNotificationCenterModule, 'useNotificationCenter')
+        .mockReturnValue({
+          open: true,
+          status: 'success',
+          items: MOCK_MIXED_NOTIFICATIONS,
+          badgeCount: 150,
+          showBadge: false,
+          formattedCount: '99+',
+          hasUnread: true,
+          onOpenChange: vi.fn(),
+          closeCenter: vi.fn(),
+          markRead: vi.fn(),
+          markAllRead: vi.fn(),
+          handleRetry: vi.fn(),
+          hasMore: true,
+          isLoadingMore: false,
+          hasLoadMoreError: false,
+          loadMore: vi.fn(),
+          olderUnreadCount: 120,
+        } as unknown as ReturnType<
+          typeof useNotificationCenterModule.useNotificationCenter
+        >);
+
+      renderBell({ initialStatus: 'success' });
+
+      expect(screen.getByText('還有 99+ 則較舊的未讀通知')).toBeInTheDocument();
+
+      spy.mockRestore();
+    });
+
+    it('does not show the "older unread" hint when olderUnreadCount is zero', () => {
+      renderBell({
+        initialNotifications: MOCK_MIXED_NOTIFICATIONS,
+        initialStatus: 'success',
+      });
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      expect(screen.queryByText(/則較舊的未讀通知/)).not.toBeInTheDocument();
+    });
+
     it('clears active timeouts on unmount during retry loading', () => {
       vi.useFakeTimers();
       try {
