@@ -41,9 +41,20 @@ export function useLeftSwipeDismiss({
     const target = event.currentTarget as HTMLElement;
 
     if (!isSwipingLeftRef.current) {
-      if (Math.abs(x) < moveBuffer || Math.abs(x) < Math.abs(y) || x > 0) {
+      const isPastBuffer =
+        Math.abs(x) >= moveBuffer || Math.abs(y) >= moveBuffer;
+      if (!isPastBuffer) return;
+
+      const isLeftSwipe = x < 0 && Math.abs(x) >= Math.abs(y);
+      if (!isLeftSwipe) {
+        // The first movement past the buffer wasn't a left swipe (it's
+        // vertical, or rightward) — stop tracking this gesture for good
+        // instead of re-checking on every later move, which could hijack a
+        // scroll or a right-swipe the moment it happens to drift left.
+        swipeStartRef.current = null;
         return;
       }
+
       isSwipingLeftRef.current = true;
       // Keep receiving events for this pointer even if it leaves the
       // element's bounds mid-drag, so a fast swipe can't end without a
@@ -52,6 +63,10 @@ export function useLeftSwipeDismiss({
     }
 
     target.setAttribute('data-swipe', 'move');
+    // Direct DOM writes (not React state) are deliberate here: pointermove
+    // fires far too often for a re-render per event, and this mirrors
+    // Radix's own swipe-to-dismiss, which drives the same CSS variables the
+    // same way for its native right-swipe handling.
     target.style.setProperty('--radix-toast-swipe-move-x', `${x}px`);
   };
 
@@ -69,17 +84,19 @@ export function useLeftSwipeDismiss({
     const x = swipeStartRef.current
       ? event.clientX - swipeStartRef.current.x
       : 0;
-    swipeStartRef.current = null;
-    isSwipingLeftRef.current = false;
 
-    if (Math.abs(x) >= threshold) {
+    // Only a leftward release past the threshold dismisses — checking
+    // Math.abs(x) alone would also fire if the drag was pulled back past
+    // the start point and off to the right.
+    if (x <= -threshold) {
       target.style.removeProperty('--radix-toast-swipe-move-x');
       target.style.setProperty('--radix-toast-swipe-end-x', `${x}px`);
       target.setAttribute('data-swipe', 'end');
+      swipeStartRef.current = null;
+      isSwipingLeftRef.current = false;
       onDismiss();
     } else {
-      target.style.removeProperty('--radix-toast-swipe-move-x');
-      target.setAttribute('data-swipe', 'cancel');
+      resetSwipeState(target);
     }
   };
 

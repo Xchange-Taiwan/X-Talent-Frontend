@@ -138,6 +138,41 @@ describe('useLeftSwipeDismiss', () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
+  it('abandons the gesture for good once it first resolves as vertical, instead of re-evaluating later leftward drift', () => {
+    render(<Harness onDismiss={onDismiss} />);
+    const target = screen.getByTestId('target');
+
+    firePointer(target, 'pointerdown', { clientX: 200, clientY: 200 });
+    // First move past the buffer is vertical-dominant (dx: -10, dy: +60) —
+    // this should commit to "not a left swipe" and stop tracking entirely.
+    firePointer(target, 'pointermove', { clientX: 190, clientY: 260 });
+    expect(target.getAttribute('data-swipe')).toBeNull();
+
+    // A later sample in the same gesture is strongly leftward; a naive
+    // per-event re-check would wrongly hijack the scroll at this point.
+    firePointer(target, 'pointermove', { clientX: 100, clientY: 260 });
+    expect(target.getAttribute('data-swipe')).toBeNull();
+
+    firePointer(target, 'pointerup', { clientX: 100, clientY: 260 });
+    expect(onDismiss).not.toHaveBeenCalled();
+  });
+
+  it('does not dismiss when the drag is pulled back past the start point to the right', () => {
+    render(<Harness onDismiss={onDismiss} />);
+    const target = screen.getByTestId('target');
+
+    firePointer(target, 'pointerdown', { clientX: 200 });
+    firePointer(target, 'pointermove', { clientX: 100 }); // confirms left swipe
+    expect(target.getAttribute('data-swipe')).toBe('move');
+
+    // Reverses past the original start point, ending up well to the right.
+    firePointer(target, 'pointermove', { clientX: 300 });
+    firePointer(target, 'pointerup', { clientX: 300 });
+
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(target.getAttribute('data-swipe')).toBe('cancel');
+  });
+
   it('does not block a plain tap on an inner action button', () => {
     render(<Harness onDismiss={onDismiss} />);
     const button = screen.getByTestId('action');

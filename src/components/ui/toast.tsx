@@ -50,6 +50,19 @@ const toastVariants = cva(
   }
 );
 
+// Composes our left-swipe pointer handler with whatever handler of the same
+// name a caller passed to <Toast>, so passing e.g. onPointerDownCapture
+// augments the gesture instead of silently replacing it.
+function composeHandlers<E extends React.SyntheticEvent>(
+  ours: (event: E) => void,
+  theirs?: (event: E) => void
+) {
+  return (event: E) => {
+    ours(event);
+    theirs?.(event);
+  };
+}
+
 /**
  * Toast 單個吐司通知元件的主體。
  *
@@ -74,8 +87,23 @@ const Toast = React.forwardRef<
     <ToastPrimitives.Root
       ref={ref}
       className={cn(toastVariants({ variant }), className)}
-      {...leftSwipeHandlers}
       {...props}
+      onPointerDownCapture={composeHandlers(
+        leftSwipeHandlers.onPointerDownCapture,
+        props.onPointerDownCapture
+      )}
+      onPointerMoveCapture={composeHandlers(
+        leftSwipeHandlers.onPointerMoveCapture,
+        props.onPointerMoveCapture
+      )}
+      onPointerUpCapture={composeHandlers(
+        leftSwipeHandlers.onPointerUpCapture,
+        props.onPointerUpCapture
+      )}
+      onPointerCancelCapture={composeHandlers(
+        leftSwipeHandlers.onPointerCancelCapture,
+        props.onPointerCancelCapture
+      )}
     />
   );
 });
