@@ -363,6 +363,9 @@ describe('useNotificationCenter pagination and service integration', () => {
       await result.current.loadMore();
     });
     await act(async () => {
+      await result.current.markRead('some-id');
+    });
+    await act(async () => {
       await result.current.markAllRead();
     });
 

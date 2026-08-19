@@ -359,6 +359,7 @@ export function useNotificationCenter({
 
   const markRead = React.useCallback(
     async (id: string) => {
+      if (!isUsingProps && !userId) return;
       const state = notificationStoreManager.getOrCreateState(userId);
 
       if (state.markingReadIds.has(id)) return;
@@ -414,6 +415,7 @@ export function useNotificationCenter({
   );
 
   const markAllReadAction = React.useCallback(async () => {
+    if (!isUsingProps && !userId) return;
     const state = notificationStoreManager.getOrCreateState(userId);
     if (state.isMarkingAll) return;
 
