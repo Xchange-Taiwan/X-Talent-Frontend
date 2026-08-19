@@ -1,25 +1,10 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import * as React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { Toast, ToastProvider, ToastTitle, ToastViewport } from './toast';
+import { firePointer } from '@/test/pointerEvents';
 
-function firePointer(
-  el: Element,
-  type: string,
-  { pointerId = 1, clientX = 0, clientY = 0 } = {}
-) {
-  fireEvent(
-    el,
-    new PointerEvent(type, {
-      bubbles: true,
-      cancelable: true,
-      pointerId,
-      clientX,
-      clientY,
-    })
-  );
-}
+import { Toast, ToastProvider, ToastTitle, ToastViewport } from './toast';
 
 describe('Toast', () => {
   it('still dismisses on a left swipe when rendered through the full component', () => {
@@ -67,5 +52,29 @@ describe('Toast', () => {
     firePointer(toast, 'pointermove', { clientX: 100 });
     firePointer(toast, 'pointerup', { clientX: 100 });
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('lets a caller opt out of the left-swipe gesture via event.preventDefault()', () => {
+    const onOpenChange = vi.fn();
+    render(
+      <ToastProvider>
+        <Toast
+          open
+          onOpenChange={onOpenChange}
+          onPointerDownCapture={(event) => event.preventDefault()}
+          data-testid="toast-root"
+        >
+          <ToastTitle>Test</ToastTitle>
+        </Toast>
+        <ToastViewport />
+      </ToastProvider>
+    );
+
+    const toast = screen.getByTestId('toast-root');
+    firePointer(toast, 'pointerdown', { clientX: 200 });
+    firePointer(toast, 'pointermove', { clientX: 100 });
+    firePointer(toast, 'pointerup', { clientX: 100 });
+
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 });

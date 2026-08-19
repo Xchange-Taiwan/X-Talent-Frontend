@@ -103,7 +103,13 @@ export function useLeftSwipeDismiss({
   // A touch drag can be interrupted by the OS/browser (e.g. an edge-swipe
   // back gesture or an incoming call) before a pointerup ever fires. Without
   // this, the toast would be left stuck mid-drag with no way to recover.
+  //
+  // Only reset if we actually had a gesture in flight: a cancel that fires
+  // during an unrelated rightward drag (handled natively by Radix, not us)
+  // must not stomp on Radix's own in-progress data-swipe state.
   const onPointerCancelCapture = (event: React.PointerEvent) => {
+    if (!swipeStartRef.current && !isSwipingLeftRef.current) return;
+
     const target = event.currentTarget as HTMLElement;
     if (target.hasPointerCapture(event.pointerId)) {
       target.releasePointerCapture(event.pointerId);
