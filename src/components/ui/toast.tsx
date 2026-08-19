@@ -49,6 +49,12 @@ const toastVariants = cva(
   }
 );
 
+// Radix 的 swipeDirection 只能設定單一方向（此專案採用 "right"），
+// 因此左滑關閉是在這裡以原生 Pointer Event 手動實作，
+// 並沿用與 Radix 相同的 data-swipe / --radix-toast-swipe-* CSS 變數，讓退場動畫共用同一套樣式。
+const SWIPE_THRESHOLD = 50;
+const SWIPE_MOVE_BUFFER = 10;
+
 /**
  * Toast 單個吐司通知元件的主體。
  *
@@ -61,10 +67,69 @@ const Toast = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Root> &
     VariantProps<typeof toastVariants>
 >(({ className, variant, ...props }, ref) => {
+  const swipeStartRef = React.useRef<{ x: number; y: number } | null>(null);
+  const isSwipingLeftRef = React.useRef(false);
+
+  const handlePointerDownCapture = (event: React.PointerEvent) => {
+    if (event.button !== 0) return;
+    swipeStartRef.current = { x: event.clientX, y: event.clientY };
+    isSwipingLeftRef.current = false;
+  };
+
+  const handlePointerMoveCapture = (event: React.PointerEvent) => {
+    if (!swipeStartRef.current) return;
+
+    const x = event.clientX - swipeStartRef.current.x;
+    const y = event.clientY - swipeStartRef.current.y;
+    const target = event.currentTarget as HTMLElement;
+
+    if (!isSwipingLeftRef.current) {
+      if (
+        Math.abs(x) < SWIPE_MOVE_BUFFER ||
+        Math.abs(x) < Math.abs(y) ||
+        x > 0
+      ) {
+        return;
+      }
+      isSwipingLeftRef.current = true;
+    }
+
+    target.setAttribute('data-swipe', 'move');
+    target.style.setProperty('--radix-toast-swipe-move-x', `${x}px`);
+  };
+
+  const handlePointerUpCapture = (event: React.PointerEvent) => {
+    if (!isSwipingLeftRef.current) {
+      swipeStartRef.current = null;
+      return;
+    }
+
+    const x = swipeStartRef.current
+      ? event.clientX - swipeStartRef.current.x
+      : 0;
+    const target = event.currentTarget as HTMLElement;
+
+    swipeStartRef.current = null;
+    isSwipingLeftRef.current = false;
+
+    if (Math.abs(x) >= SWIPE_THRESHOLD) {
+      target.style.removeProperty('--radix-toast-swipe-move-x');
+      target.style.setProperty('--radix-toast-swipe-end-x', `${x}px`);
+      target.setAttribute('data-swipe', 'end');
+      props.onOpenChange?.(false);
+    } else {
+      target.style.removeProperty('--radix-toast-swipe-move-x');
+      target.setAttribute('data-swipe', 'cancel');
+    }
+  };
+
   return (
     <ToastPrimitives.Root
       ref={ref}
       className={cn(toastVariants({ variant }), className)}
+      onPointerDownCapture={handlePointerDownCapture}
+      onPointerMoveCapture={handlePointerMoveCapture}
+      onPointerUpCapture={handlePointerUpCapture}
       {...props}
     />
   );
