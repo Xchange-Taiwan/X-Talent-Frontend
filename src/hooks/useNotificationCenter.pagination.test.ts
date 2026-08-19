@@ -177,6 +177,13 @@ describe('useNotificationCenter pagination and service integration', () => {
     expect(
       result.current.items.find((i) => i.id === unreadItem!.id)?.unread
     ).toBe(true);
+    // Toast feedback must fire on real API failure too, not just props-driven usage
+    expect(mockToastFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: '操作失敗',
+      })
+    );
 
     markOneReadSpy.mockRestore();
   });
@@ -203,6 +210,13 @@ describe('useNotificationCenter pagination and service integration', () => {
 
     // badgeCount should be optimistically cleared to 0, then rolled back to 5!
     expect(result.current.badgeCount).toBe(5);
+    // Toast feedback must fire on real API failure too, not just props-driven usage
+    expect(mockToastFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: '操作失敗',
+      })
+    );
 
     markAllReadSpy.mockRestore();
   });
@@ -313,5 +327,33 @@ describe('useNotificationCenter pagination and service integration', () => {
 
     listSpy.mockRestore();
     fetchUnreadSpy.mockRestore();
+  });
+
+  it('never calls the notification service when userId is undefined (e.g. before auth resolves)', async () => {
+    const listSpy = vi.spyOn(mockService, 'listNotifications');
+    const fetchUnreadSpy = vi.spyOn(mockService, 'fetchUnreadCount');
+    const markOneReadSpy = vi.spyOn(mockService, 'markOneRead');
+    const markAllReadSpy = vi.spyOn(mockService, 'markAllRead');
+
+    const { result } = renderHook(() => useNotificationCenter({}));
+
+    // No userId and no initialNotifications props: nothing to fetch, so it
+    // should settle without ever touching the API.
+    await act(async () => {
+      await result.current.loadMore();
+    });
+    await act(async () => {
+      await result.current.markAllRead();
+    });
+
+    expect(listSpy).not.toHaveBeenCalled();
+    expect(fetchUnreadSpy).not.toHaveBeenCalled();
+    expect(markOneReadSpy).not.toHaveBeenCalled();
+    expect(markAllReadSpy).not.toHaveBeenCalled();
+
+    listSpy.mockRestore();
+    fetchUnreadSpy.mockRestore();
+    markOneReadSpy.mockRestore();
+    markAllReadSpy.mockRestore();
   });
 });

@@ -252,6 +252,33 @@ describe('NotificationBell', () => {
       ).toBeInTheDocument();
     });
 
+    it('renders an unknown notification type with fallback content instead of crashing', () => {
+      const notificationsWithUnknownType: NotificationItem[] = [
+        ...MOCK_MIXED_NOTIFICATIONS,
+        fromAny({
+          id: 'unknown-1',
+          type: 'unknown_type',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        }),
+      ];
+
+      expect(() =>
+        renderBell({
+          initialNotifications: notificationsWithUnknownType,
+          initialStatus: 'success',
+        })
+      ).not.toThrow();
+
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      // Falls back to the generic template content rather than crashing on undefined.
+      // '通知' also matches the popover header, so assert on the fallback body text,
+      // which is unique to the default-case content.
+      expect(screen.getByText('您有一則新通知')).toBeInTheDocument();
+    });
+
     it('renders empty state under success status with zero notifications', () => {
       renderBell({
         initialNotifications: [],
