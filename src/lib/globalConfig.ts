@@ -17,6 +17,7 @@ import type { AnnouncementData } from '@/services/announcement';
  * To avoid silent schema drift, any schema/structure changes to either:
  *   - 'isInMaintenanceMode' (boolean)
  *   - 'announcement' (AnnouncementData)
+ *   - 'maintenanceBypassToken' (string)
  * MUST be coordinated in both places. This shared module serves as the primary
  * source of truth for the runtime/application reads.
  * ============================================================================
@@ -153,4 +154,26 @@ export async function getAnnouncement(
     'announcement',
     timeoutMs
   );
+}
+
+/**
+ * Fetches the maintenance bypass token from Global Config, so it can be
+ * rotated via the toggle-maintenance workflow without a redeploy (unlike a
+ * plain env var, which is baked into the middleware bundle at build time).
+ */
+export async function getMaintenanceBypassToken(
+  timeoutMs = 500
+): Promise<{ success: boolean; value: string | null }> {
+  if (!isConfigured()) {
+    return { success: true, value: null };
+  }
+  const result = await readWithTimeoutAndReporting<unknown>(
+    'maintenanceBypassToken',
+    timeoutMs
+  );
+  if (!result.success) {
+    return { success: false, value: null };
+  }
+  const value = typeof result.value === 'string' ? result.value : null;
+  return { success: true, value };
 }

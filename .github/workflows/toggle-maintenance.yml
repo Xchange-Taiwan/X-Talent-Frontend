@@ -169,6 +169,20 @@ on:
           - '30'
           - '45'
         default: '00'
+      bypass_token_action:
+        description: 'QA bypass token(封站時讓知道 token 的人可用 ?bypass=TOKEN 跳過 /maintenance)。這個 repo 是 public,不管選哪個選項,實際的 token 內容都不會顯示在這次 run 的任何地方(log/summary),避免外流。'
+        type: choice
+        required: true
+        options:
+          - 不變更
+          - 產生新亂數並取代
+          - 手動輸入自訂 token
+          - 清空(停用 bypass)
+        default: 不變更
+      bypass_token_value:
+        description: '自訂 token 內容(只有上面選「手動輸入自訂 token」時才會用到;至少 16 個字元,只能是英數字、底線、減號,不能有引號等特殊字元。這個輸入框的內容會在第一個 step 立刻被註冊為 masked,理論上不會出現在任何 log/summary 裡,但建議先用假資料跑一次自行確認)'
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -191,11 +205,22 @@ jobs:
       ANNOUNCEMENT_TIME_DAY: ${{ inputs.announcement_time_day }}
       ANNOUNCEMENT_TIME_HOUR: ${{ inputs.announcement_time_hour }}
       ANNOUNCEMENT_TIME_MINUTE: ${{ inputs.announcement_time_minute }}
+      BYPASS_TOKEN_ACTION: ${{ inputs.bypass_token_action }}
+      BYPASS_TOKEN_VALUE: ${{ inputs.bypass_token_value }}
 
     steps:
       - name: Validate inputs
         run: |
           set -euo pipefail
+
+          # MUST be the first thing this job does. ::add-mask:: applies for
+          # the rest of the job from the point it's registered onward - any
+          # earlier step/line would print the raw value unmasked. This repo
+          # is PUBLIC, so an unmasked value here would be visible to anyone
+          # on the internet, not just collaborators.
+          if [ -n "$BYPASS_TOKEN_VALUE" ]; then
+            echo "::add-mask::${BYPASS_TOKEN_VALUE}"
+          fi
 
           if [ "$MAINTENANCE_MODE" = "開啟" ] && [ "$CONFIRM_MAINTENANCE_ON" != "true" ]; then
             echo "::error::maintenance_mode 選了「開啟」,但沒有勾選確認選項(confirm_maintenance_on)。請重新執行並勾選確認,避免手殘誤觸封站。"
@@ -205,9 +230,32 @@ jobs:
           if [ "$MAINTENANCE_MODE" = "不變更" ] && \
              [ "$ANNOUNCEMENT_ENABLED" = "不變更" ] && \
              [ -z "$ANNOUNCEMENT_MESSAGE" ] && \
-             [ "$ANNOUNCEMENT_TIME_ACTION" = "不變更" ]; then
+             [ "$ANNOUNCEMENT_TIME_ACTION" = "不變更" ] && \
+             [ "$BYPASS_TOKEN_ACTION" = "不變更" ]; then
             echo "::error::沒有任何要變更的內容,結束。"
             exit 1
+          fi
+
+          if [ "$BYPASS_TOKEN_ACTION" = "手動輸入自訂 token" ]; then
+            if [ -z "$BYPASS_TOKEN_VALUE" ]; then
+              echo "::error::選了「手動輸入自訂 token」,但 bypass_token_value 沒有填。"
+              exit 1
+            fi
+            if [ "${#BYPASS_TOKEN_VALUE}" -lt 16 ]; then
+              echo "::error::bypass_token_value 太短(至少 16 個字元),這組字串是拿來當存取憑證用的,太短容易被猜到。"
+              exit 1
+            fi
+            # ::add-mask:: matches the raw string exactly. If the value
+            # contains a character like " or \, a later step that JSON-
+            # encodes it (the "Pending changes" jq dump, or the Vercel API
+            # response echo) would render it with escape sequences that no
+            # longer byte-match what was registered - leaking it unmasked
+            # in this public repo's logs. Restrict to a safe character set
+            # so that can't happen.
+            if ! [[ "$BYPASS_TOKEN_VALUE" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+              echo "::error::bypass_token_value 只能包含英數字、底線及減號,避免特殊字元(例如引號)在 log 裡被跳脫,導致遮蔽失效。"
+              exit 1
+            fi
           fi
 
       - name: Fetch current Global Config items
@@ -304,11 +352,36 @@ jobs:
             items=$(echo "$items" | jq --argjson v "$new_announcement" '. + [{"operation":"upsert","key":"announcement","value":$v}]')
           fi
 
+          # QA bypass token. This repo is PUBLIC, so anyone on the internet
+          # (not just collaborators) can view completed Actions runs - the
+          # raw value must never appear unmasked anywhere in this workflow
+          # (log, summary, or artifact all count as "public" here).
+          #   - "產生新亂數": value never touches a workflow_dispatch input at
+          #     all, so there's nothing to leak on that front.
+          #   - "手動輸入": the typed value comes in as BYPASS_TOKEN_VALUE, and
+          #     was already registered with ::add-mask:: at the very top of
+          #     the "Validate inputs" step (the first thing this job does),
+          #     so it's masked in every step's log from here on, including
+          #     the "Pending changes" jq dump below and the API response
+          #     echoed in "Update Global Config".
+          # Either way, the operator confirms success from the Summary step,
+          # not by reading the value back out of this run.
+          if [ "$BYPASS_TOKEN_ACTION" = "產生新亂數並取代" ]; then
+            bypass_token_generated=$(openssl rand -hex 24)
+            echo "::add-mask::${bypass_token_generated}"
+            items=$(echo "$items" | jq --arg v "$bypass_token_generated" '. + [{"operation":"upsert","key":"maintenanceBypassToken","value":$v}]')
+          elif [ "$BYPASS_TOKEN_ACTION" = "手動輸入自訂 token" ]; then
+            items=$(echo "$items" | jq --arg v "$BYPASS_TOKEN_VALUE" '. + [{"operation":"upsert","key":"maintenanceBypassToken","value":$v}]')
+          elif [ "$BYPASS_TOKEN_ACTION" = "清空(停用 bypass)" ]; then
+            items=$(echo "$items" | jq '. + [{"operation":"upsert","key":"maintenanceBypassToken","value":""}]')
+          fi
+
           echo "$items" > items.json
           echo "Pending changes:"
           jq . items.json
 
       - name: Update Global Config
+        id: update_global_config
         run: |
           set -euo pipefail
 
@@ -334,6 +407,8 @@ jobs:
 
       - name: Summary
         if: always()
+        env:
+          UPDATE_OUTCOME: ${{ steps.update_global_config.outcome }}
         run: |
           {
             echo "### 維護模式 / 公告變更"
@@ -345,7 +420,39 @@ jobs:
             echo "| announcement_message | \`${ANNOUNCEMENT_MESSAGE}\` |"
             echo "| announcement_time_action | \`${ANNOUNCEMENT_TIME_ACTION}\` |"
             echo "| announcement_time(公告倒數用,不是維護模式) | \`${ANNOUNCEMENT_TIME_MONTH}/${ANNOUNCEMENT_TIME_DAY} ${ANNOUNCEMENT_TIME_HOUR}:${ANNOUNCEMENT_TIME_MINUTE}\` |"
+            echo "| bypass_token_action | \`${BYPASS_TOKEN_ACTION}\` |"
             echo "| 觸發者 | \`${GITHUB_ACTOR}\` |"
             echo ""
             echo "> ⚠️ 提醒:上面的 announcement_time 只影響公告 banner 何時自動消失,不會自動封站。要真的封站請把 maintenance_mode 設為「開啟」。"
           } >> "$GITHUB_STEP_SUMMARY"
+
+          # This repo is PUBLIC - anyone can view a completed Actions run's
+          # log, summary, and artifacts, not just repo collaborators. So the
+          # actual bypass token value is deliberately NEVER printed anywhere
+          # in this workflow. Retrieve it from the Vercel dashboard instead:
+          # Storage -> Global Config -> Items -> maintenanceBypassToken.
+          if [ "$BYPASS_TOKEN_ACTION" = "產生新亂數並取代" ]; then
+            if [ "$UPDATE_OUTCOME" = "success" ]; then
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "> ℹ️ 已產生新的 bypass token 並寫入 Global Config。因為這個 repo 是 public,基於安全考量不會在這裡顯示內容,請到 Vercel Dashboard → Storage → Global Config → \`maintenanceBypassToken\` 查看實際的值。" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "> ⚠️ Bypass token 產生後寫入 Global Config 失敗,舊 token(如果有的話)維持不變。請確認錯誤原因後重新執行這個 workflow。" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          elif [ "$BYPASS_TOKEN_ACTION" = "手動輸入自訂 token" ]; then
+            if [ "$UPDATE_OUTCOME" = "success" ]; then
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "> ℹ️ 已用你輸入的自訂值更新 bypass token(你自己知道內容,這裡不會重複顯示)。" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "> ⚠️ 自訂 bypass token 寫入 Global Config 失敗,舊 token(如果有的話)維持不變。請確認錯誤原因後重新執行這個 workflow。" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          elif [ "$BYPASS_TOKEN_ACTION" = "清空(停用 bypass)" ]; then
+            if [ "$UPDATE_OUTCOME" = "success" ]; then
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "> ℹ️ Bypass token 已清空,\`?bypass=\` 目前不會放行任何人。" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "> ⚠️ 清空 bypass token 失敗,舊 token(如果有的話)維持不變。請確認錯誤原因後重新執行這個 workflow。" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
