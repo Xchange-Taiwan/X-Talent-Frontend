@@ -496,4 +496,21 @@ describe('mapApiNotificationToFrontend', () => {
 
     expect(item.createdAt).toBe(new Date(millisecondsTimestamp).toISOString());
   });
+
+  it('does not throw when metadata is null (defensive against malformed backend payloads)', () => {
+    expect(() =>
+      mapApiNotificationToFrontend({
+        ...baseApiItem,
+        metadata: null as unknown as Record<string, unknown>,
+      })
+    ).not.toThrow();
+
+    const item = mapApiNotificationToFrontend({
+      ...baseApiItem,
+      metadata: null as unknown as Record<string, unknown>,
+    });
+    expect(item.role).toBeUndefined();
+    expect(item.menteeName).toBeUndefined();
+    expect(item.mentorName).toBeUndefined();
+  });
 });

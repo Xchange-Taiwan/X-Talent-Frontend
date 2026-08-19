@@ -76,7 +76,7 @@ export function mapApiNotificationToFrontend(
   apiItem: components['schemas']['NotificationVO']
 ): NotificationItem {
   const isUnread = !apiItem.read_at;
-  const metadata = apiItem.metadata as {
+  const metadata = (apiItem.metadata || {}) as {
     role?: 'mentor' | 'mentee';
     counterparty_name?: string;
   };

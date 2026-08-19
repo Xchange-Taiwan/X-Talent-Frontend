@@ -16,6 +16,7 @@ import { resetNotificationStore } from '@/stores/notificationStore';
 import { mockToast } from '@/test/mocks/useToast';
 
 import { getNotificationContent, NotificationBell } from './NotificationBell';
+import { getNotificationHref } from './notificationUtils';
 
 vi.mock('@/components/ui/use-toast', async () => {
   const { useToastMockFactory } = await import('@/test/mocks/useToast');
@@ -401,6 +402,17 @@ describe('NotificationBell', () => {
       );
       expect(result.title).toBe('通知');
       expect(result.body).toBe('您有一則新通知');
+    });
+
+    it('returns a safe fallback href for unknown notification types', () => {
+      const href = getNotificationHref(
+        fromAny({
+          id: '99',
+          type: 'unknown_type',
+          createdAt: new Date().toISOString(),
+        })
+      );
+      expect(href).toBe('/');
     });
   });
 
