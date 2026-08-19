@@ -2,7 +2,6 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  mapApiNotificationToFrontend,
   type NotificationItem,
   useNotificationCenter,
 } from '@/hooks/useNotificationCenter';
@@ -12,7 +11,6 @@ import {
   resetNotificationStore,
 } from '@/stores/notificationStore';
 import { mockToast } from '@/test/mocks/useToast';
-import { type components } from '@/types/api';
 
 vi.mock('@/components/ui/use-toast', async () => {
   const { useToastMockFactory } = await import('@/test/mocks/useToast');
@@ -462,77 +460,6 @@ describe('useNotificationCenter', () => {
       expect(stateA).not.toBe(stateB);
     } finally {
       vi.unstubAllGlobals();
-    }
-  });
-});
-
-describe('mapApiNotificationToFrontend', () => {
-  const baseApiItem: components['schemas']['NotificationVO'] = {
-    id: 1,
-    type: 'reservation_requested',
-    metadata: { role: 'mentor', counterparty_name: 'Alice' },
-    created_at: 0,
-    read_at: null,
-  };
-
-  it('treats a seconds-precision created_at (below the ms threshold) as seconds', () => {
-    const secondsTimestamp = 1700000000; // seconds precision, well under 9999999999
-    const item = mapApiNotificationToFrontend({
-      ...baseApiItem,
-      created_at: secondsTimestamp,
-    });
-
-    expect(item.createdAt).toBe(
-      new Date(secondsTimestamp * 1000).toISOString()
-    );
-  });
-
-  it('treats a milliseconds-precision created_at (at/above the ms threshold) as milliseconds', () => {
-    const millisecondsTimestamp = 1700000000000; // >= 9999999999, ms precision
-    const item = mapApiNotificationToFrontend({
-      ...baseApiItem,
-      created_at: millisecondsTimestamp,
-    });
-
-    expect(item.createdAt).toBe(new Date(millisecondsTimestamp).toISOString());
-  });
-
-  it('does not throw when metadata is null (defensive against malformed backend payloads)', () => {
-    expect(() =>
-      mapApiNotificationToFrontend({
-        ...baseApiItem,
-        metadata: null as unknown as Record<string, unknown>,
-      })
-    ).not.toThrow();
-
-    const item = mapApiNotificationToFrontend({
-      ...baseApiItem,
-      metadata: null as unknown as Record<string, unknown>,
-    });
-    expect(item.role).toBeUndefined();
-    expect(item.menteeName).toBeUndefined();
-    expect(item.mentorName).toBeUndefined();
-  });
-
-  it('does not throw and falls back to a valid ISO string when created_at is missing or invalid', () => {
-    for (const invalidCreatedAt of [
-      undefined,
-      null,
-      NaN,
-    ] as unknown as number[]) {
-      expect(() =>
-        mapApiNotificationToFrontend({
-          ...baseApiItem,
-          created_at: invalidCreatedAt,
-        })
-      ).not.toThrow();
-
-      const item = mapApiNotificationToFrontend({
-        ...baseApiItem,
-        created_at: invalidCreatedAt,
-      });
-      expect(() => new Date(item.createdAt).toISOString()).not.toThrow();
-      expect(Number.isNaN(new Date(item.createdAt).getTime())).toBe(false);
     }
   });
 });

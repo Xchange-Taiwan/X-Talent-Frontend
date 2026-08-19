@@ -1,5 +1,8 @@
 import { apiClient, FetchApiError } from '@/lib/apiClient';
+import type { NotificationItem } from '@/stores/notificationStore';
 import { components } from '@/types/api';
+
+import { mapNotificationVOToItem } from './notificationMapper';
 
 /**
  * Fetches total unread count from the backend API.
@@ -11,22 +14,31 @@ export async function fetchUnreadCount(userId: string | number) {
 }
 
 /**
- * Cursor-paginated notification listing from the backend API.
+ * Cursor-paginated notification listing from the backend API, pre-converted
+ * to the frontend's NotificationItem domain model so callers never need to
+ * know about the backend's NotificationVO shape.
  */
 export async function listNotifications(
   userId: string | number,
   cursor?: string | null,
   limit: number = 20
-) {
-  return apiClient.getUnwrapped<components['schemas']['NotificationListVO']>(
-    `/api/v1/users/${userId}/notifications`,
-    {
-      params: {
-        cursor: cursor || undefined,
-        batch: limit,
-      },
-    }
-  );
+): Promise<{
+  notifications: NotificationItem[];
+  next_cursor: string | null;
+}> {
+  const res = await apiClient.getUnwrapped<
+    components['schemas']['NotificationListVO']
+  >(`/api/v1/users/${userId}/notifications`, {
+    params: {
+      cursor: cursor || undefined,
+      batch: limit,
+    },
+  });
+
+  return {
+    notifications: (res?.notifications || []).map(mapNotificationVOToItem),
+    next_cursor: res?.next_cursor ?? null,
+  };
 }
 
 /**

@@ -20,14 +20,8 @@ import {
   type NotificationStatus,
   notificationStoreManager,
 } from '@/stores/notificationStore';
-import { components } from '@/types/api';
 
 const MARK_ALL_READ_BATCH_SIZE = 5;
-
-// Below this, created_at is a seconds-precision Unix timestamp; at/above it,
-// it's already in milliseconds (a seconds-precision timestamp only reaches
-// this many digits in the year 2286).
-const SECONDS_TIMESTAMP_MAX = 9999999999;
 
 function reportMarkAsReadFailure(step: string, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
@@ -76,40 +70,6 @@ async function markReadInBatches(
 }
 
 export type { NotificationItem, NotificationStatus };
-
-export function mapApiNotificationToFrontend(
-  apiItem: components['schemas']['NotificationVO']
-): NotificationItem {
-  const isUnread = !apiItem.read_at;
-  const metadata = (apiItem.metadata || {}) as {
-    role?: 'mentor' | 'mentee';
-    counterparty_name?: string;
-  };
-  const { role, counterparty_name } = metadata;
-
-  // Map role and counterparty_name to menteeName/mentorName for frontend compatibility
-  const menteeName = role === 'mentor' ? counterparty_name : undefined;
-  const mentorName = role === 'mentee' ? counterparty_name : undefined;
-
-  // Safe parsed createdAt - handle both seconds and milliseconds timestamps,
-  // falling back to now if the backend omits or sends an invalid created_at
-  // (otherwise `new Date(undefined).toISOString()` throws RangeError).
-  const rawTime = Number(apiItem.created_at) || Date.now();
-  const ms = rawTime < SECONDS_TIMESTAMP_MAX ? rawTime * 1000 : rawTime;
-  const createdAt = new Date(ms).toISOString();
-
-  const item: NotificationItem = {
-    id: String(apiItem.id),
-    type: apiItem.type as NotificationItem['type'],
-    createdAt,
-    unread: isUnread,
-    role: role,
-    menteeName,
-    mentorName,
-  };
-
-  return item;
-}
 
 export type UseNotificationCenterProps = {
   userId?: string;
@@ -235,13 +195,10 @@ export function useNotificationCenter({
 
       try {
         const res = await listNotifications(userId, state.nextCursor, 20);
-        const mapped = ((res && res.notifications) || []).map(
-          mapApiNotificationToFrontend
-        );
 
         notificationStoreManager.appendNotifications(
           userId,
-          mapped,
+          (res && res.notifications) || [],
           (res && res.next_cursor) || null
         );
       } catch (error) {
@@ -283,15 +240,11 @@ export function useNotificationCenter({
             fetchUnreadCount(userId),
             listNotifications(userId, undefined, 20),
           ]);
-          const mapped = (
-            (notificationsRes && notificationsRes.notifications) ||
-            []
-          ).map(mapApiNotificationToFrontend);
 
           notificationStoreManager.setInitialData(
             userId,
             (unreadRes && unreadRes.unread_count) || 0,
-            mapped,
+            (notificationsRes && notificationsRes.notifications) || [],
             (notificationsRes && notificationsRes.next_cursor) || null
           );
         } catch (error) {

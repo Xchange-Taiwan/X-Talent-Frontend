@@ -14,8 +14,11 @@ import { captureFlowFailure } from '@/lib/monitoring';
 import { resetNotificationStore } from '@/stores/notificationStore';
 import { mockToast } from '@/test/mocks/useToast';
 
-import { getNotificationContent, NotificationBell } from './NotificationBell';
-import { getNotificationHref } from './notificationUtils';
+import { NotificationBell } from './NotificationBell';
+import {
+  getNotificationContent,
+  getNotificationHref,
+} from './notificationUtils';
 
 vi.mock('@/components/ui/use-toast', async () => {
   const { useToastMockFactory } = await import('@/test/mocks/useToast');

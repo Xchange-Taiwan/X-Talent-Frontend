@@ -1,3 +1,5 @@
+import { mapNotificationVOToItem } from '@/services/notifications/notificationMapper';
+import type { NotificationItem } from '@/stores/notificationStore';
 import { components } from '@/types/api';
 
 export type ApiNotificationItem = components['schemas']['NotificationVO'];
@@ -318,7 +320,7 @@ export async function listNotifications(
   cursor?: string | null,
   limit: number = 20
 ): Promise<{
-  notifications: ApiNotificationItem[];
+  notifications: NotificationItem[];
   next_cursor: string | null;
 }> {
   await delay(LATENCY);
@@ -344,8 +346,10 @@ export async function listNotifications(
       ? String(lastItemInSlice.created_at)
       : null;
 
+  const rawSlice: ApiNotificationItem[] = JSON.parse(JSON.stringify(slice));
+
   return {
-    notifications: JSON.parse(JSON.stringify(slice)),
+    notifications: rawSlice.map(mapNotificationVOToItem),
     next_cursor: nextCursor,
   };
 }
