@@ -24,6 +24,11 @@ import { components } from '@/types/api';
 
 const MARK_ALL_READ_BATCH_SIZE = 5;
 
+// Below this, created_at is a seconds-precision Unix timestamp; at/above it,
+// it's already in milliseconds (a seconds-precision timestamp only reaches
+// this many digits in the year 2286).
+const SECONDS_TIMESTAMP_MAX = 9999999999;
+
 function reportMarkAsReadFailure(step: string, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`[useNotificationCenter] ${step} failed:`, message);
@@ -88,7 +93,7 @@ export function mapApiNotificationToFrontend(
 
   // Safe parsed createdAt - handle both seconds and milliseconds timestamps
   const ms =
-    apiItem.created_at < 9999999999
+    apiItem.created_at < SECONDS_TIMESTAMP_MAX
       ? apiItem.created_at * 1000
       : apiItem.created_at;
   const createdAt = new Date(ms).toISOString();

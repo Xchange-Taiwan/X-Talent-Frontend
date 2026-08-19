@@ -11,20 +11,8 @@ vi.mock('@/components/ui/use-toast', () => ({
   useToast: () => ({ toast: mockToastFn }),
 }));
 
-// Mock the real notificationService to route to mockService
-vi.mock('@/services/notifications/notificationService', () => {
-  return {
-    fetchUnreadCount: () => mockService.fetchUnreadCount(),
-    listNotifications: (
-      _userId: string | number,
-      cursor?: string | null,
-      limit?: number
-    ) => mockService.listNotifications(cursor, limit),
-    markOneRead: (_userId: string | number, notificationId: string | number) =>
-      mockService.markOneRead(notificationId),
-    markAllRead: (_userId: string | number) => mockService.markAllRead(),
-  };
-});
+// Uses src/services/notifications/__mocks__/notificationService.ts
+vi.mock('@/services/notifications/notificationService');
 
 const mockApiNotifications: ApiNotificationItem[] = Array.from(
   { length: 25 },

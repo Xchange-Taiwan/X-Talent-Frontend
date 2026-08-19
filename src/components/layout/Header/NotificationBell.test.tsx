@@ -11,7 +11,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as useNotificationCenterModule from '@/hooks/useNotificationCenter';
 import { type NotificationItem } from '@/hooks/useNotificationCenter';
 import { captureFlowFailure } from '@/lib/monitoring';
-import * as mockServiceLocal from '@/mocks/mockNotificationService';
 import { resetNotificationStore } from '@/stores/notificationStore';
 import { mockToast } from '@/test/mocks/useToast';
 
@@ -27,19 +26,8 @@ vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
 }));
 
-vi.mock('@/services/notifications/notificationService', () => {
-  return {
-    fetchUnreadCount: () => mockServiceLocal.fetchUnreadCount(),
-    listNotifications: (
-      _userId: string | number,
-      cursor?: string | null,
-      limit?: number
-    ) => mockServiceLocal.listNotifications(cursor, limit),
-    markOneRead: (_userId: string | number, notificationId: string | number) =>
-      mockServiceLocal.markOneRead(notificationId),
-    markAllRead: (_userId: string | number) => mockServiceLocal.markAllRead(),
-  };
-});
+// Uses src/services/notifications/__mocks__/notificationService.ts
+vi.mock('@/services/notifications/notificationService');
 
 const MOCK_MIXED_NOTIFICATIONS: NotificationItem[] = [
   {
