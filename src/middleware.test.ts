@@ -644,6 +644,99 @@ describe('middleware maintenance mode', () => {
     expect(response.headers.get('location')).toContain('/maintenance');
   });
 
+  describe('bypass token rotated via Global Config (no env var override)', () => {
+    const mockGetByKey = (values: Record<string, unknown>) => {
+      mockGet.mockImplementation((key: string) =>
+        Promise.resolve(values[key] ?? null)
+      );
+    };
+
+    it('redirects and sets bypass cookie when the query param matches the Global Config token', async () => {
+      delete process.env.MAINTENANCE_BYPASS_TOKEN;
+      process.env.GLOBAL_CONFIG = 'connection_string';
+      mockGetByKey({
+        isInMaintenanceMode: true,
+        maintenanceBypassToken: 'rotated-token',
+      });
+
+      const req = new NextRequest(
+        'https://example.com/some-page?bypass=rotated-token'
+      );
+      const response = await middleware(req);
+
+      expect(response.status).toBe(307);
+      expect(response.headers.get('location')).toBe(
+        'https://example.com/some-page'
+      );
+      expect(response.cookies.get('maintenance_bypass')?.value).toBe(
+        'rotated-token'
+      );
+    });
+
+    it('bypasses maintenance when the cookie matches the Global Config token', async () => {
+      delete process.env.MAINTENANCE_BYPASS_TOKEN;
+      process.env.GLOBAL_CONFIG = 'connection_string';
+      mockGetByKey({
+        isInMaintenanceMode: true,
+        maintenanceBypassToken: 'rotated-token',
+      });
+      mockGetToken.mockResolvedValue({} as never);
+
+      const req = new NextRequest('https://example.com/api/mentors', {
+        headers: { cookie: 'maintenance_bypass=rotated-token' },
+      });
+      const response = await middleware(req);
+
+      expect(response.status).toBe(200);
+    });
+
+    it('does not bypass when the cookie no longer matches after the Global Config token was rotated', async () => {
+      delete process.env.MAINTENANCE_BYPASS_TOKEN;
+      process.env.GLOBAL_CONFIG = 'connection_string';
+      mockGetByKey({
+        isInMaintenanceMode: true,
+        maintenanceBypassToken: 'new-rotated-token',
+      });
+
+      const req = new NextRequest('https://example.com/some-page', {
+        headers: { cookie: 'maintenance_bypass=old-token' },
+      });
+      const response = await middleware(req);
+
+      expect(response.status).toBe(307);
+      expect(response.headers.get('location')).toContain('/maintenance');
+    });
+
+    it('fails closed (no bypass) when the Global Config bypass token read fails', async () => {
+      delete process.env.MAINTENANCE_BYPASS_TOKEN;
+      process.env.GLOBAL_CONFIG = 'connection_string';
+      mockGet.mockImplementation((key: string) => {
+        if (key === 'isInMaintenanceMode') return Promise.resolve(true);
+        if (key === 'maintenanceBypassToken')
+          return Promise.reject(new Error('Network error'));
+        return Promise.resolve(null);
+      });
+
+      const req = new NextRequest('https://example.com/some-page', {
+        headers: { cookie: 'maintenance_bypass=rotated-token' },
+      });
+      const response = await middleware(req);
+
+      expect(response.status).toBe(307);
+      expect(response.headers.get('location')).toContain('/maintenance');
+    });
+
+    it('does not call Global Config for the bypass token when no bypass param or cookie is present', async () => {
+      delete process.env.MAINTENANCE_BYPASS_TOKEN;
+      process.env.GLOBAL_CONFIG = 'connection_string';
+      mockGetByKey({ isInMaintenanceMode: true });
+
+      await middleware(makeRequest('/some-page'));
+
+      expect(mockGet).not.toHaveBeenCalledWith('maintenanceBypassToken');
+    });
+  });
+
   it('allows traffic to normal pages and redirects /maintenance to / when Global/Edge Config is not configured', async () => {
     delete process.env.GLOBAL_CONFIG;
     delete process.env.EDGE_CONFIG;
