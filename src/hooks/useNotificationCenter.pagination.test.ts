@@ -58,6 +58,26 @@ describe('useNotificationCenter pagination and service integration', () => {
     expect(result.current.hasMore).toBe(true); // 25 total items, first batch has 20, so 5 more exist
   });
 
+  it('sets status to error (not a silent empty success) when the initial load fails with no existing notifications', async () => {
+    const listSpy = vi
+      .spyOn(mockService, 'listNotifications')
+      .mockRejectedValue(new Error('Network Error'));
+
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
+
+    expect(result.current.status).toBe('loading');
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('error');
+    });
+
+    expect(result.current.items).toHaveLength(0);
+
+    listSpy.mockRestore();
+  });
+
   it('loads the next batch and appends them when loadMore is called', async () => {
     const { result } = renderHook(() =>
       useNotificationCenter({ userId: 'user-123' })
