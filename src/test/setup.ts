@@ -15,3 +15,19 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     disconnect() {}
   };
 }
+
+// jsdom doesn't implement the Pointer Capture APIs, which Radix's own
+// swipe-to-dismiss (and our custom left-swipe handling) both rely on.
+// Guarded on HTMLElement itself first: some suites (e.g. scripts/ai-review's
+// .test.mjs files) run this same setup file under the node environment,
+// where HTMLElement doesn't exist at all.
+if (
+  typeof HTMLElement !== 'undefined' &&
+  typeof HTMLElement.prototype.setPointerCapture === 'undefined'
+) {
+  HTMLElement.prototype.setPointerCapture = function () {};
+  HTMLElement.prototype.releasePointerCapture = function () {};
+  HTMLElement.prototype.hasPointerCapture = function () {
+    return false;
+  };
+}
