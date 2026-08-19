@@ -45,10 +45,6 @@ export function ReservationCard({
 
   const [imageFailed, setImageFailed] = React.useState(false);
 
-  const { joinMeet, isPending: loadingMeetLink } = useReservationMeetLink({
-    myUserId,
-  });
-
   const avatar = (
     <Avatar className="size-10 sm:size-12">
       {item.avatar && !imageFailed ? (
@@ -166,20 +162,34 @@ export function ReservationCard({
                   <Mail className="size-3.5 shrink-0" aria-hidden />
                   <span>會議連結已寄至您的信箱</span>
                 </div>
-                <Button
-                  onClick={() => joinMeet(item.id)}
-                  disabled={loadingMeetLink}
-                  size="sm"
-                  className="h-8 rounded-lg bg-brand-500 px-4 text-xs font-medium text-text-primary hover:bg-brand-500/90 sm:text-sm"
-                >
-                  {loadingMeetLink ? '載入中...' : '加入 Google Meet'}
-                </Button>
+                <JoinMeetButton reservationId={item.id} myUserId={myUserId} />
               </div>
             ) : null}
           </div>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function JoinMeetButton({
+  reservationId,
+  myUserId,
+}: {
+  reservationId: string;
+  myUserId?: string | number;
+}) {
+  const { joinMeet, isPending } = useReservationMeetLink({ myUserId });
+
+  return (
+    <Button
+      onClick={() => joinMeet(reservationId)}
+      disabled={isPending}
+      size="sm"
+      className="h-8 rounded-lg bg-brand-500 px-4 text-xs font-medium text-text-primary hover:bg-brand-500/90 sm:text-sm"
+    >
+      {isPending ? '載入中...' : '加入 Google Meet'}
+    </Button>
   );
 }
 
