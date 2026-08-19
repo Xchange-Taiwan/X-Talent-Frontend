@@ -19,7 +19,10 @@ import { useScrollThumb } from '@/hooks/useScrollThumb';
 import { formatRelativeTime } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
-import { getNotificationHref } from './notificationUtils';
+import {
+  getNotificationContent,
+  getNotificationHref,
+} from './notificationUtils';
 
 export type NotificationBellProps = {
   /**
@@ -48,48 +51,6 @@ export type NotificationBellProps = {
    */
   onMarkAllRead?: (ids: string[]) => void | Promise<void>;
 };
-
-/**
- * Returns content templates (title, body) for notification items.
- */
-export function getNotificationContent(item: NotificationItem) {
-  switch (item.type) {
-    case 'reservation_new':
-      return {
-        title: '您有新的預約',
-        body: `${item.menteeName || 'Mentee'} 與您提出預約需求，請前往接受預約`,
-      };
-    case 'reservation_success':
-      return {
-        title: `${item.mentorName || 'Mentor'} 已接受您的預約`,
-        body: '前往查看您的預約詳情',
-      };
-    case 'reservation_failed':
-      return {
-        title: `您與 ${item.mentorName || 'Mentor'} 的預約已被拒絕`,
-        body: '您的預約已被拒絕，歡迎重新預約',
-      };
-    case 'reservation_canceled': {
-      const name = item.mentorName || item.menteeName || '導師';
-      return {
-        title: `您與 ${name} 的預約已被取消`,
-        body: '您的預約已被取消，歡迎重新預約',
-      };
-    }
-    case 'reservation_upcoming': {
-      const name = item.mentorName || item.menteeName || '導師';
-      return {
-        title: `您與 ${name} 的預約即將到來`,
-        body: `您 24 小時後有與 ${name} 的會議，請準時上線`,
-      };
-    }
-    default:
-      return {
-        title: '通知',
-        body: '您有一則新通知',
-      };
-  }
-}
 
 type NotificationListProps = {
   notifications: NotificationItem[];

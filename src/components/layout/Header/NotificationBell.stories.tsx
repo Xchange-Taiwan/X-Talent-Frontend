@@ -22,7 +22,7 @@ type Story = StoryObj<typeof NotificationBell>;
 const generateNotifications = (count: number) =>
   Array.from({ length: count }, (_, i) => ({
     id: `${i}`,
-    type: 'reservation_new' as const,
+    type: 'reservation_requested' as const,
     menteeName: `Mentee ${i}`,
     createdAt: new Date().toISOString(),
     unread: true,
@@ -66,7 +66,7 @@ export const LongText: Story = {
     initialNotifications: [
       {
         id: 'long-1',
-        type: 'reservation_new',
+        type: 'reservation_requested',
         menteeName: '超級長長長長長長長長長長長長長長長長長名字使用者',
         createdAt: new Date().toISOString(),
         unread: true,

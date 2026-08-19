@@ -5,18 +5,15 @@ import { captureFlowFailure } from '@/lib/monitoring';
 /**
  * --------------------------------------------------------------------------------
  * SEAM & isolated module boundary:
- * The imports below represent the mock notification service endpoints.
- * When the real backend APIs are shipped, replace the mockNotificationService imports
- * below with real apiClient / real services calls.
+ * The imports below represent the real notification service endpoints.
  * --------------------------------------------------------------------------------
  */
 import {
-  type ApiNotificationItem,
   fetchUnreadCount,
   listNotifications,
-  markAllRead as mockMarkAllRead,
+  markAllRead,
   markOneRead,
-} from '@/mocks/mockNotificationService';
+} from '@/services/notifications/notificationService';
 import {
   createInitialState,
   type NotificationItem,
@@ -73,36 +70,6 @@ async function markReadInBatches(
 }
 
 export type { NotificationItem, NotificationStatus };
-
-export function mapApiNotificationToFrontend(
-  apiItem: ApiNotificationItem
-): NotificationItem {
-  const isUnread = !apiItem.read_at;
-  const { role, mentee_name, mentor_name } = apiItem.metadata;
-
-  const item: NotificationItem = {
-    id: apiItem.id,
-    type: apiItem.type,
-    createdAt: apiItem.created_at,
-    unread: isUnread,
-    role: role,
-    menteeName: mentee_name,
-    mentorName: mentor_name,
-  };
-
-  if (
-    apiItem.type === 'reservation_canceled' ||
-    apiItem.type === 'reservation_upcoming'
-  ) {
-    if (role === 'mentor') {
-      item.mentorName = undefined;
-    } else if (role === 'mentee') {
-      item.menteeName = undefined;
-    }
-  }
-
-  return item;
-}
 
 export type UseNotificationCenterProps = {
   userId?: string;
@@ -214,6 +181,7 @@ export function useNotificationCenter({
   const loadMore = React.useCallback(
     async (isRetry = false) => {
       if (isUsingProps) return;
+      if (!userId) return;
       const state = notificationStoreManager.getOrCreateState(userId);
 
       if (state.isLoadingMore || !state.nextCursor) return;
@@ -226,16 +194,12 @@ export function useNotificationCenter({
       });
 
       try {
-        const { items, next_created_at } = await listNotifications(
-          state.nextCursor,
-          20
-        );
-        const mapped = items.map(mapApiNotificationToFrontend);
+        const res = await listNotifications(userId, state.nextCursor, 20);
 
         notificationStoreManager.appendNotifications(
           userId,
-          mapped,
-          next_created_at
+          (res && res.notifications) || [],
+          (res && res.next_cursor) || null
         );
       } catch (error) {
         console.error('[useNotificationCenter] loadMore failed:', error);
@@ -260,6 +224,7 @@ export function useNotificationCenter({
   const loadInitialData = React.useCallback(
     async (showLoading = true) => {
       if (isUsingProps) return;
+      if (!userId) return;
       const state = notificationStoreManager.getOrCreateState(userId);
 
       if (state.isFetching) {
@@ -272,20 +237,21 @@ export function useNotificationCenter({
       const fetchPromise = (async () => {
         try {
           const [unreadRes, notificationsRes] = await Promise.all([
-            fetchUnreadCount(),
-            listNotifications(undefined, 20),
+            fetchUnreadCount(userId),
+            listNotifications(userId, undefined, 20),
           ]);
-          const mapped = notificationsRes.items.map(
-            mapApiNotificationToFrontend
-          );
 
           notificationStoreManager.setInitialData(
             userId,
-            unreadRes.count,
-            mapped,
-            notificationsRes.next_created_at
+            (unreadRes && unreadRes.unread_count) || 0,
+            (notificationsRes && notificationsRes.notifications) || [],
+            (notificationsRes && notificationsRes.next_cursor) || null
           );
         } catch (error) {
+          console.error(
+            '[useNotificationCenter] loadInitialData failed:',
+            error
+          );
           const currentNotifications =
             notificationStoreManager.getOrCreateState(userId).notifications;
           if (!showLoading || currentNotifications.length > 0) {
@@ -393,6 +359,7 @@ export function useNotificationCenter({
 
   const markRead = React.useCallback(
     async (id: string) => {
+      if (!isUsingProps && !userId) return;
       const state = notificationStoreManager.getOrCreateState(userId);
 
       if (state.markingReadIds.has(id)) return;
@@ -403,7 +370,11 @@ export function useNotificationCenter({
       // Perform optimistic single mark read on the store
       notificationStoreManager.markReadOptimistic(userId, id, isUsingProps);
 
-      const action = onMarkRead || (!isUsingProps ? markOneRead : null);
+      const action =
+        onMarkRead ||
+        (!isUsingProps && userId
+          ? (notifId: string) => markOneRead(userId, notifId)
+          : null);
       if (!action) {
         notificationStoreManager.removeMarkingReadId(userId, id);
         return;
@@ -443,7 +414,8 @@ export function useNotificationCenter({
     [userId, onMarkRead, isUsingProps, toast]
   );
 
-  const markAllRead = React.useCallback(async () => {
+  const markAllReadAction = React.useCallback(async () => {
+    if (!isUsingProps && !userId) return;
     const state = notificationStoreManager.getOrCreateState(userId);
     if (state.isMarkingAll) return;
 
@@ -488,8 +460,8 @@ export function useNotificationCenter({
                 : '部分通知標示為已讀失敗，請稍後再試',
           });
         }
-      } else if (!isUsingProps) {
-        await mockMarkAllRead();
+      } else if (!isUsingProps && userId) {
+        await markAllRead(userId);
       }
     } catch (error) {
       reportMarkAsReadFailure('mark_all_read', error);
@@ -555,7 +527,7 @@ export function useNotificationCenter({
     closeCenter,
     onOpenChange,
     markRead,
-    markAllRead,
+    markAllRead: markAllReadAction,
     handleRetry,
     isLoadingMore: storeState.isLoadingMore,
     hasMore: storeState.nextCursor !== null,

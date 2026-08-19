@@ -11,18 +11,20 @@ vi.mock('@/components/ui/use-toast', () => ({
   useToast: () => ({ toast: mockToastFn }),
 }));
 
+// Uses src/services/notifications/__mocks__/notificationService.ts
+vi.mock('@/services/notifications/notificationService');
+
 const mockApiNotifications: ApiNotificationItem[] = Array.from(
   { length: 25 },
   (_, i) => ({
-    id: `mock-n${i + 1}`,
+    id: i + 1,
     type: i % 2 === 0 ? 'reservation_canceled' : 'reservation_upcoming',
     metadata: {
       role: i % 2 === 0 ? 'mentor' : 'mentee',
-      mentee_name: `Mentee_${i}`,
-      mentor_name: `Mentor_${i}`,
+      counterparty_name: i % 2 === 0 ? `Mentee_${i}` : `Mentor_${i}`,
     },
-    created_at: new Date(Date.now() - i * 60 * 1000).toISOString(),
-    read_at: i < 5 ? null : new Date().toISOString(), // 5 unread items
+    created_at: Math.floor((Date.now() - i * 60 * 1000) / 1000),
+    read_at: i < 5 ? null : Math.floor(Date.now() / 1000), // 5 unread items
   })
 );
 
@@ -36,7 +38,9 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('fetches initial data (unread count and first batch of 20 items) from service on mount', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     // Initially loading
     expect(result.current.status).toBe('loading');
@@ -54,8 +58,30 @@ describe('useNotificationCenter pagination and service integration', () => {
     expect(result.current.hasMore).toBe(true); // 25 total items, first batch has 20, so 5 more exist
   });
 
+  it('sets status to error (not a silent empty success) when the initial load fails with no existing notifications', async () => {
+    const listSpy = vi
+      .spyOn(mockService, 'listNotifications')
+      .mockRejectedValue(new Error('Network Error'));
+
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
+
+    expect(result.current.status).toBe('loading');
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('error');
+    });
+
+    expect(result.current.items).toHaveLength(0);
+
+    listSpy.mockRestore();
+  });
+
   it('loads the next batch and appends them when loadMore is called', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     await waitFor(() => {
       expect(result.current.status).toBe('success');
@@ -75,7 +101,9 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('correctly maps metadata mentor_name and mentee_name based on role', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     await waitFor(() => {
       expect(result.current.status).toBe('success');
@@ -95,7 +123,9 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('refreshes initial data when openCenter or onOpenChange(true) is called', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     await waitFor(() => {
       expect(result.current.status).toBe('success');
@@ -118,7 +148,9 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('prevents duplicate parallel requests when calling loadMore concurrently', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     await waitFor(() => {
       expect(result.current.status).toBe('success');
@@ -137,7 +169,9 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('optimistically decrements badgeCount on markRead and rolls back if service fails', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     await waitFor(() => {
       expect(result.current.status).toBe('success');
@@ -163,12 +197,21 @@ describe('useNotificationCenter pagination and service integration', () => {
     expect(
       result.current.items.find((i) => i.id === unreadItem!.id)?.unread
     ).toBe(true);
+    // Toast feedback must fire on real API failure too, not just props-driven usage
+    expect(mockToastFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: '操作失敗',
+      })
+    );
 
     markOneReadSpy.mockRestore();
   });
 
   it('optimistically clears badgeCount on markAllRead and rolls back if service fails', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     await waitFor(() => {
       expect(result.current.status).toBe('success');
@@ -187,12 +230,21 @@ describe('useNotificationCenter pagination and service integration', () => {
 
     // badgeCount should be optimistically cleared to 0, then rolled back to 5!
     expect(result.current.badgeCount).toBe(5);
+    // Toast feedback must fire on real API failure too, not just props-driven usage
+    expect(mockToastFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        title: '操作失敗',
+      })
+    );
 
     markAllReadSpy.mockRestore();
   });
 
   it('sets hasLoadMoreError to true and allows retry when loadMore fails', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     await waitFor(() => {
       expect(result.current.status).toBe('success');
@@ -232,7 +284,9 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('prevents duplicate parallel requests when calling markRead concurrently for the same ID', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     await waitFor(() => {
       expect(result.current.status).toBe('success');
@@ -293,5 +347,36 @@ describe('useNotificationCenter pagination and service integration', () => {
 
     listSpy.mockRestore();
     fetchUnreadSpy.mockRestore();
+  });
+
+  it('never calls the notification service when userId is undefined (e.g. before auth resolves)', async () => {
+    const listSpy = vi.spyOn(mockService, 'listNotifications');
+    const fetchUnreadSpy = vi.spyOn(mockService, 'fetchUnreadCount');
+    const markOneReadSpy = vi.spyOn(mockService, 'markOneRead');
+    const markAllReadSpy = vi.spyOn(mockService, 'markAllRead');
+
+    const { result } = renderHook(() => useNotificationCenter({}));
+
+    // No userId and no initialNotifications props: nothing to fetch, so it
+    // should settle without ever touching the API.
+    await act(async () => {
+      await result.current.loadMore();
+    });
+    await act(async () => {
+      await result.current.markRead('some-id');
+    });
+    await act(async () => {
+      await result.current.markAllRead();
+    });
+
+    expect(listSpy).not.toHaveBeenCalled();
+    expect(fetchUnreadSpy).not.toHaveBeenCalled();
+    expect(markOneReadSpy).not.toHaveBeenCalled();
+    expect(markAllReadSpy).not.toHaveBeenCalled();
+
+    listSpy.mockRestore();
+    fetchUnreadSpy.mockRestore();
+    markOneReadSpy.mockRestore();
+    markAllReadSpy.mockRestore();
   });
 });
