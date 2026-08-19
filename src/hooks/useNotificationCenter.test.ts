@@ -513,4 +513,26 @@ describe('mapApiNotificationToFrontend', () => {
     expect(item.menteeName).toBeUndefined();
     expect(item.mentorName).toBeUndefined();
   });
+
+  it('does not throw and falls back to a valid ISO string when created_at is missing or invalid', () => {
+    for (const invalidCreatedAt of [
+      undefined,
+      null,
+      NaN,
+    ] as unknown as number[]) {
+      expect(() =>
+        mapApiNotificationToFrontend({
+          ...baseApiItem,
+          created_at: invalidCreatedAt,
+        })
+      ).not.toThrow();
+
+      const item = mapApiNotificationToFrontend({
+        ...baseApiItem,
+        created_at: invalidCreatedAt,
+      });
+      expect(() => new Date(item.createdAt).toISOString()).not.toThrow();
+      expect(Number.isNaN(new Date(item.createdAt).getTime())).toBe(false);
+    }
+  });
 });
