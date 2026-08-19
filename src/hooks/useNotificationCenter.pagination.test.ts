@@ -11,18 +11,32 @@ vi.mock('@/components/ui/use-toast', () => ({
   useToast: () => ({ toast: mockToastFn }),
 }));
 
+// Mock the real notificationService to route to mockService
+vi.mock('@/services/notifications/notificationService', () => {
+  return {
+    fetchUnreadCount: () => mockService.fetchUnreadCount(),
+    listNotifications: (
+      _userId: string | number,
+      cursor?: string | null,
+      limit?: number
+    ) => mockService.listNotifications(cursor, limit),
+    markOneRead: (_userId: string | number, notificationId: string | number) =>
+      mockService.markOneRead(notificationId),
+    markAllRead: (_userId: string | number) => mockService.markAllRead(),
+  };
+});
+
 const mockApiNotifications: ApiNotificationItem[] = Array.from(
   { length: 25 },
   (_, i) => ({
-    id: `mock-n${i + 1}`,
+    id: i + 1,
     type: i % 2 === 0 ? 'reservation_canceled' : 'reservation_upcoming',
     metadata: {
       role: i % 2 === 0 ? 'mentor' : 'mentee',
-      mentee_name: `Mentee_${i}`,
-      mentor_name: `Mentor_${i}`,
+      counterparty_name: i % 2 === 0 ? `Mentee_${i}` : `Mentor_${i}`,
     },
-    created_at: new Date(Date.now() - i * 60 * 1000).toISOString(),
-    read_at: i < 5 ? null : new Date().toISOString(), // 5 unread items
+    created_at: Math.floor((Date.now() - i * 60 * 1000) / 1000),
+    read_at: i < 5 ? null : Math.floor(Date.now() / 1000), // 5 unread items
   })
 );
 
@@ -36,7 +50,9 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('fetches initial data (unread count and first batch of 20 items) from service on mount', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     // Initially loading
     expect(result.current.status).toBe('loading');
@@ -55,7 +71,9 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('loads the next batch and appends them when loadMore is called', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     await waitFor(() => {
       expect(result.current.status).toBe('success');
@@ -75,7 +93,9 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('correctly maps metadata mentor_name and mentee_name based on role', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     await waitFor(() => {
       expect(result.current.status).toBe('success');
@@ -95,7 +115,9 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('refreshes initial data when openCenter or onOpenChange(true) is called', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     await waitFor(() => {
       expect(result.current.status).toBe('success');
@@ -118,7 +140,9 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('prevents duplicate parallel requests when calling loadMore concurrently', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     await waitFor(() => {
       expect(result.current.status).toBe('success');
@@ -137,7 +161,9 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('optimistically decrements badgeCount on markRead and rolls back if service fails', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     await waitFor(() => {
       expect(result.current.status).toBe('success');
@@ -168,7 +194,9 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('optimistically clears badgeCount on markAllRead and rolls back if service fails', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     await waitFor(() => {
       expect(result.current.status).toBe('success');
@@ -192,7 +220,9 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('sets hasLoadMoreError to true and allows retry when loadMore fails', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     await waitFor(() => {
       expect(result.current.status).toBe('success');
@@ -232,7 +262,9 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('prevents duplicate parallel requests when calling markRead concurrently for the same ID', async () => {
-    const { result } = renderHook(() => useNotificationCenter());
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
 
     await waitFor(() => {
       expect(result.current.status).toBe('success');

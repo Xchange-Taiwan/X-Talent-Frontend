@@ -8,7 +8,7 @@ export function getNotificationHref(item: NotificationItem): string {
     item.role === 'mentor' || (item.role === undefined && !!item.menteeName);
 
   switch (item.type) {
-    case 'reservation_new':
+    case 'reservation_requested':
       return '/reservation/mentor?tab=pending';
     case 'reservation_success':
       return '/reservation/mentee?tab=upcoming';

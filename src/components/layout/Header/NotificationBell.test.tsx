@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as useNotificationCenterModule from '@/hooks/useNotificationCenter';
 import { type NotificationItem } from '@/hooks/useNotificationCenter';
 import { captureFlowFailure } from '@/lib/monitoring';
+import * as mockServiceLocal from '@/mocks/mockNotificationService';
 import { resetNotificationStore } from '@/stores/notificationStore';
 import { mockToast } from '@/test/mocks/useToast';
 
@@ -25,10 +26,24 @@ vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
 }));
 
+vi.mock('@/services/notifications/notificationService', () => {
+  return {
+    fetchUnreadCount: () => mockServiceLocal.fetchUnreadCount(),
+    listNotifications: (
+      _userId: string | number,
+      cursor?: string | null,
+      limit?: number
+    ) => mockServiceLocal.listNotifications(cursor, limit),
+    markOneRead: (_userId: string | number, notificationId: string | number) =>
+      mockServiceLocal.markOneRead(notificationId),
+    markAllRead: (_userId: string | number) => mockServiceLocal.markAllRead(),
+  };
+});
+
 const MOCK_MIXED_NOTIFICATIONS: NotificationItem[] = [
   {
     id: '1',
-    type: 'reservation_new',
+    type: 'reservation_requested',
     menteeName: '小明',
     createdAt: new Date().toISOString(),
     unread: true,
@@ -83,13 +98,13 @@ const MOCK_MENTOR_NOTIFICATIONS: NotificationItem[] = [
 
 function getMockNotifications(count: number): NotificationItem[] {
   const types: Array<
-    | 'reservation_new'
+    | 'reservation_requested'
     | 'reservation_success'
     | 'reservation_failed'
     | 'reservation_canceled'
     | 'reservation_upcoming'
   > = [
-    'reservation_new',
+    'reservation_requested',
     'reservation_success',
     'reservation_failed',
     'reservation_canceled',
@@ -268,7 +283,7 @@ describe('NotificationBell', () => {
           items: [
             {
               id: '1',
-              type: 'reservation_new',
+              type: 'reservation_requested',
               createdAt: new Date().toISOString(),
               unread: true,
             },
@@ -398,7 +413,7 @@ describe('NotificationBell', () => {
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      // Check reservation_new href (Mentor page)
+      // Check reservation_requested href (Mentor page)
       const newReservationLink = screen.getByText('您有新的預約').closest('a');
       expect(newReservationLink).toHaveAttribute(
         'href',
@@ -493,7 +508,7 @@ describe('NotificationBell', () => {
       const mixedNotifications: NotificationItem[] = [
         {
           id: 'unread-1',
-          type: 'reservation_new',
+          type: 'reservation_requested',
           menteeName: '小明',
           createdAt: new Date().toISOString(),
           unread: true,
@@ -559,7 +574,7 @@ describe('NotificationBell', () => {
       const mixedNotifications: NotificationItem[] = [
         {
           id: 'unread-1',
-          type: 'reservation_new',
+          type: 'reservation_requested',
           menteeName: '小明',
           createdAt: new Date().toISOString(),
           unread: true,
@@ -608,7 +623,7 @@ describe('NotificationBell', () => {
       const mixedNotifications: NotificationItem[] = [
         {
           id: 'unread-1',
-          type: 'reservation_new',
+          type: 'reservation_requested',
           menteeName: '小明',
           createdAt: new Date().toISOString(),
           unread: true,
@@ -656,7 +671,7 @@ describe('NotificationBell', () => {
       const mixedNotifications: NotificationItem[] = [
         {
           id: 'unread-1',
-          type: 'reservation_new',
+          type: 'reservation_requested',
           menteeName: '小明',
           createdAt: new Date().toISOString(),
           unread: true,
@@ -714,7 +729,7 @@ describe('NotificationBell', () => {
       const mixedNotifications: NotificationItem[] = [
         {
           id: 'unread-1',
-          type: 'reservation_new',
+          type: 'reservation_requested',
           menteeName: '小明',
           createdAt: new Date().toISOString(),
           unread: true,
@@ -782,7 +797,7 @@ describe('NotificationBell', () => {
         { length: 6 },
         (_, i) => ({
           id: `unread-${i}`,
-          type: 'reservation_new',
+          type: 'reservation_requested',
           menteeName: '小明',
           createdAt: new Date().toISOString(),
           unread: true,
@@ -816,7 +831,7 @@ describe('NotificationBell', () => {
       const readNotifications: NotificationItem[] = [
         {
           id: 'read-1',
-          type: 'reservation_new',
+          type: 'reservation_requested',
           createdAt: new Date().toISOString(),
           unread: false,
         },
@@ -1099,7 +1114,7 @@ describe('NotificationBell', () => {
         }
       } as unknown as typeof IntersectionObserver;
 
-      const { unmount } = render(<NotificationBell />);
+      const { unmount } = render(<NotificationBell userId="user-123" />);
 
       // Click to open popover so NotificationList is mounted and observer is created
       fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
@@ -1139,7 +1154,7 @@ describe('NotificationBell', () => {
       const mockService = await import('@/mocks/mockNotificationService');
       const listSpy = vi.spyOn(mockService, 'listNotifications');
 
-      render(<NotificationBell />);
+      render(<NotificationBell userId="user-123" />);
 
       // Click to open popover so NotificationList is mounted and observer is created
       fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));

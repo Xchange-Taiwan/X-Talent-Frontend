@@ -54,7 +54,7 @@ export type NotificationBellProps = {
  */
 export function getNotificationContent(item: NotificationItem) {
   switch (item.type) {
-    case 'reservation_new':
+    case 'reservation_requested':
       return {
         title: '您有新的預約',
         body: `${item.menteeName || 'Mentee'} 與您提出預約需求，請前往接受預約`,

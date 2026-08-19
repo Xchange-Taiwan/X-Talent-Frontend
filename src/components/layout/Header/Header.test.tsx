@@ -32,6 +32,22 @@ vi.mock('@/lib/analytics', () => ({
   trackEvent: (...args: unknown[]) => trackEvent(...args),
 }));
 
+import * as mockServiceLocal from '@/mocks/mockNotificationService';
+
+vi.mock('@/services/notifications/notificationService', () => {
+  return {
+    fetchUnreadCount: () => mockServiceLocal.fetchUnreadCount(),
+    listNotifications: (
+      _userId: string | number,
+      cursor?: string | null,
+      limit?: number
+    ) => mockServiceLocal.listNotifications(cursor, limit),
+    markOneRead: (_userId: string | number, notificationId: string | number) =>
+      mockServiceLocal.markOneRead(notificationId),
+    markAllRead: (_userId: string | number) => mockServiceLocal.markAllRead(),
+  };
+});
+
 const mockUseResolvedIdentity = vi.fn();
 vi.mock('@/hooks/user/auth/useResolvedIdentity', () => ({
   useResolvedIdentity: () => mockUseResolvedIdentity(),
