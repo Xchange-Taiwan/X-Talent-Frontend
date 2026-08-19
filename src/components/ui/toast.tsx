@@ -52,14 +52,19 @@ const toastVariants = cva(
 
 // Composes our left-swipe pointer handler with whatever handler of the same
 // name a caller passed to <Toast>, so passing e.g. onPointerDownCapture
-// augments the gesture instead of silently replacing it.
+// augments the gesture instead of silently replacing it. Ordering matches
+// Radix's own composeEventHandlers convention (used throughout the Radix
+// primitives this component is already built on): the caller's handler runs
+// first, and ours only runs if they didn't opt out via preventDefault().
 function composeHandlers<E extends React.SyntheticEvent>(
   ours: (event: E) => void,
   theirs?: (event: E) => void
 ) {
   return (event: E) => {
-    ours(event);
     theirs?.(event);
+    if (!event.defaultPrevented) {
+      ours(event);
+    }
   };
 }
 

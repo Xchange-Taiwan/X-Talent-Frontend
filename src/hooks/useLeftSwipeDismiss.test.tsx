@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import * as React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { firePointer } from '@/test/pointerEvents';
+
 import { useLeftSwipeDismiss } from './useLeftSwipeDismiss';
 
 function Harness({ onDismiss }: { onDismiss: () => void }) {
@@ -12,23 +14,6 @@ function Harness({ onDismiss }: { onDismiss: () => void }) {
         action
       </button>
     </div>
-  );
-}
-
-function firePointer(
-  el: Element,
-  type: string,
-  { pointerId = 1, clientX = 0, clientY = 0 } = {}
-) {
-  fireEvent(
-    el,
-    new PointerEvent(type, {
-      bubbles: true,
-      cancelable: true,
-      pointerId,
-      clientX,
-      clientY,
-    })
   );
 }
 
@@ -84,6 +69,22 @@ describe('useLeftSwipeDismiss', () => {
 
     expect(onDismiss).not.toHaveBeenCalled();
     expect(target.getAttribute('data-swipe')).toBeNull();
+  });
+
+  it('leaves an unrelated data-swipe state alone on pointercancel once a rightward drag has been abandoned', () => {
+    render(<Harness onDismiss={onDismiss} />);
+    const target = screen.getByTestId('target');
+
+    firePointer(target, 'pointerdown', { clientX: 100 });
+    firePointer(target, 'pointermove', { clientX: 200 }); // abandoned, not ours
+
+    // Stand in for Radix's own native right-swipe having set this on the
+    // same shared attribute while handling the drag we just gave up on.
+    target.setAttribute('data-swipe', 'move');
+
+    firePointer(target, 'pointercancel', { clientX: 200 });
+
+    expect(target.getAttribute('data-swipe')).toBe('move');
   });
 
   it('captures the pointer once a left drag is confirmed, and releases it on pointerup', () => {
