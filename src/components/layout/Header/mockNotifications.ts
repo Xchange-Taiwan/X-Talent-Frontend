@@ -3,7 +3,7 @@ import { type NotificationItem } from '@/hooks/useNotificationCenter';
 export const defaultMockNotifications: NotificationItem[] = [
   {
     id: '1',
-    type: 'reservation_new',
+    type: 'reservation_requested',
     menteeName: '小明',
     createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), // 1 小時前
     unread: true,

@@ -14,7 +14,11 @@ import { captureFlowFailure } from '@/lib/monitoring';
 import { resetNotificationStore } from '@/stores/notificationStore';
 import { mockToast } from '@/test/mocks/useToast';
 
-import { getNotificationContent, NotificationBell } from './NotificationBell';
+import { NotificationBell } from './NotificationBell';
+import {
+  getNotificationContent,
+  getNotificationHref,
+} from './notificationUtils';
 
 vi.mock('@/components/ui/use-toast', async () => {
   const { useToastMockFactory } = await import('@/test/mocks/useToast');
@@ -25,10 +29,13 @@ vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
 }));
 
+// Uses src/services/notifications/__mocks__/notificationService.ts
+vi.mock('@/services/notifications/notificationService');
+
 const MOCK_MIXED_NOTIFICATIONS: NotificationItem[] = [
   {
     id: '1',
-    type: 'reservation_new',
+    type: 'reservation_requested',
     menteeName: '小明',
     createdAt: new Date().toISOString(),
     unread: true,
@@ -83,13 +90,13 @@ const MOCK_MENTOR_NOTIFICATIONS: NotificationItem[] = [
 
 function getMockNotifications(count: number): NotificationItem[] {
   const types: Array<
-    | 'reservation_new'
+    | 'reservation_requested'
     | 'reservation_success'
     | 'reservation_failed'
     | 'reservation_canceled'
     | 'reservation_upcoming'
   > = [
-    'reservation_new',
+    'reservation_requested',
     'reservation_success',
     'reservation_failed',
     'reservation_canceled',
@@ -248,6 +255,33 @@ describe('NotificationBell', () => {
       ).toBeInTheDocument();
     });
 
+    it('renders an unknown notification type with fallback content instead of crashing', () => {
+      const notificationsWithUnknownType: NotificationItem[] = [
+        ...MOCK_MIXED_NOTIFICATIONS,
+        fromAny({
+          id: 'unknown-1',
+          type: 'unknown_type',
+          createdAt: new Date().toISOString(),
+          unread: true,
+        }),
+      ];
+
+      expect(() =>
+        renderBell({
+          initialNotifications: notificationsWithUnknownType,
+          initialStatus: 'success',
+        })
+      ).not.toThrow();
+
+      const button = screen.getByRole('button', { name: '開啟通知選單' });
+      fireEvent.click(button);
+
+      // Falls back to the generic template content rather than crashing on undefined.
+      // '通知' also matches the popover header, so assert on the fallback body text,
+      // which is unique to the default-case content.
+      expect(screen.getByText('您有一則新通知')).toBeInTheDocument();
+    });
+
     it('renders empty state under success status with zero notifications', () => {
       renderBell({
         initialNotifications: [],
@@ -268,7 +302,7 @@ describe('NotificationBell', () => {
           items: [
             {
               id: '1',
-              type: 'reservation_new',
+              type: 'reservation_requested',
               createdAt: new Date().toISOString(),
               unread: true,
             },
@@ -387,6 +421,17 @@ describe('NotificationBell', () => {
       expect(result.title).toBe('通知');
       expect(result.body).toBe('您有一則新通知');
     });
+
+    it('returns a safe fallback href for unknown notification types', () => {
+      const href = getNotificationHref(
+        fromAny({
+          id: '99',
+          type: 'unknown_type',
+          createdAt: new Date().toISOString(),
+        })
+      );
+      expect(href).toBe('/');
+    });
   });
 
   describe('Notification card click and navigation', () => {
@@ -398,7 +443,7 @@ describe('NotificationBell', () => {
       const button = screen.getByRole('button', { name: '開啟通知選單' });
       fireEvent.click(button);
 
-      // Check reservation_new href (Mentor page)
+      // Check reservation_requested href (Mentor page)
       const newReservationLink = screen.getByText('您有新的預約').closest('a');
       expect(newReservationLink).toHaveAttribute(
         'href',
@@ -493,7 +538,7 @@ describe('NotificationBell', () => {
       const mixedNotifications: NotificationItem[] = [
         {
           id: 'unread-1',
-          type: 'reservation_new',
+          type: 'reservation_requested',
           menteeName: '小明',
           createdAt: new Date().toISOString(),
           unread: true,
@@ -559,7 +604,7 @@ describe('NotificationBell', () => {
       const mixedNotifications: NotificationItem[] = [
         {
           id: 'unread-1',
-          type: 'reservation_new',
+          type: 'reservation_requested',
           menteeName: '小明',
           createdAt: new Date().toISOString(),
           unread: true,
@@ -608,7 +653,7 @@ describe('NotificationBell', () => {
       const mixedNotifications: NotificationItem[] = [
         {
           id: 'unread-1',
-          type: 'reservation_new',
+          type: 'reservation_requested',
           menteeName: '小明',
           createdAt: new Date().toISOString(),
           unread: true,
@@ -656,7 +701,7 @@ describe('NotificationBell', () => {
       const mixedNotifications: NotificationItem[] = [
         {
           id: 'unread-1',
-          type: 'reservation_new',
+          type: 'reservation_requested',
           menteeName: '小明',
           createdAt: new Date().toISOString(),
           unread: true,
@@ -714,7 +759,7 @@ describe('NotificationBell', () => {
       const mixedNotifications: NotificationItem[] = [
         {
           id: 'unread-1',
-          type: 'reservation_new',
+          type: 'reservation_requested',
           menteeName: '小明',
           createdAt: new Date().toISOString(),
           unread: true,
@@ -782,7 +827,7 @@ describe('NotificationBell', () => {
         { length: 6 },
         (_, i) => ({
           id: `unread-${i}`,
-          type: 'reservation_new',
+          type: 'reservation_requested',
           menteeName: '小明',
           createdAt: new Date().toISOString(),
           unread: true,
@@ -816,7 +861,7 @@ describe('NotificationBell', () => {
       const readNotifications: NotificationItem[] = [
         {
           id: 'read-1',
-          type: 'reservation_new',
+          type: 'reservation_requested',
           createdAt: new Date().toISOString(),
           unread: false,
         },
@@ -1099,7 +1144,7 @@ describe('NotificationBell', () => {
         }
       } as unknown as typeof IntersectionObserver;
 
-      const { unmount } = render(<NotificationBell />);
+      const { unmount } = render(<NotificationBell userId="user-123" />);
 
       // Click to open popover so NotificationList is mounted and observer is created
       fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));
@@ -1139,7 +1184,7 @@ describe('NotificationBell', () => {
       const mockService = await import('@/mocks/mockNotificationService');
       const listSpy = vi.spyOn(mockService, 'listNotifications');
 
-      render(<NotificationBell />);
+      render(<NotificationBell userId="user-123" />);
 
       // Click to open popover so NotificationList is mounted and observer is created
       fireEvent.click(screen.getByRole('button', { name: '開啟通知選單' }));

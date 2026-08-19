@@ -24,7 +24,7 @@ vi.mock('@/lib/monitoring', () => ({
 const mockNotifications: NotificationItem[] = [
   {
     id: 'n1',
-    type: 'reservation_new',
+    type: 'reservation_requested',
     createdAt: new Date().toISOString(),
     unread: true,
   },
@@ -186,7 +186,7 @@ describe('useNotificationCenter', () => {
     const onMarkReadMock = vi.fn().mockResolvedValue(undefined);
     const manyNotifications = Array.from({ length: 6 }, (_, i) => ({
       id: `m${i}`,
-      type: 'reservation_new' as const,
+      type: 'reservation_requested' as const,
       createdAt: new Date().toISOString(),
       unread: true,
     }));
@@ -347,7 +347,7 @@ describe('useNotificationCenter', () => {
         initialNotifications: [
           {
             id: 'n1-b',
-            type: 'reservation_new',
+            type: 'reservation_requested',
             createdAt: new Date().toISOString(),
             unread: true,
           },

@@ -3,7 +3,7 @@ import { safeGetStorage, safeSetStorage } from '@/lib/storage';
 export type NotificationItem = {
   id: string;
   type:
-    | 'reservation_new'
+    | 'reservation_requested'
     | 'reservation_success'
     | 'reservation_failed'
     | 'reservation_canceled'

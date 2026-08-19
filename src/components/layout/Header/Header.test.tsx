@@ -32,6 +32,9 @@ vi.mock('@/lib/analytics', () => ({
   trackEvent: (...args: unknown[]) => trackEvent(...args),
 }));
 
+// Uses src/services/notifications/__mocks__/notificationService.ts
+vi.mock('@/services/notifications/notificationService');
+
 const mockUseResolvedIdentity = vi.fn();
 vi.mock('@/hooks/user/auth/useResolvedIdentity', () => ({
   useResolvedIdentity: () => mockUseResolvedIdentity(),
