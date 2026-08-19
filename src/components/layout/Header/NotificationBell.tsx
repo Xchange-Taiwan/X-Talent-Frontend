@@ -63,6 +63,7 @@ type NotificationListProps = {
   hasMore?: boolean;
   onLoadMore?: (isRetry?: boolean) => void | Promise<void>;
   hasLoadMoreError?: boolean;
+  olderUnreadCount?: number;
 };
 
 /**
@@ -82,6 +83,7 @@ const NotificationList = React.memo(function NotificationList({
   hasMore,
   onLoadMore,
   hasLoadMoreError,
+  olderUnreadCount,
 }: NotificationListProps) {
   const sentinelRef = React.useRef<HTMLDivElement>(null);
 
@@ -149,6 +151,15 @@ const NotificationList = React.memo(function NotificationList({
           );
         })}
 
+        {!!olderUnreadCount && olderUnreadCount > 0 && (
+          <div className="flex items-center justify-center py-2.5 text-center">
+            <span className="text-11 leading-none text-text-tertiary">
+              還有 {olderUnreadCount > 99 ? '99+' : olderUnreadCount}{' '}
+              則較舊的未讀通知
+            </span>
+          </div>
+        )}
+
         {hasLoadMoreError ? (
           <div className="flex flex-col items-center justify-center gap-1.5 py-4 text-center">
             <span className="text-xs text-text-secondary">載入失敗</span>
@@ -200,6 +211,7 @@ export const NotificationBell = React.memo(function NotificationBell({
     hasMore,
     loadMore,
     hasLoadMoreError,
+    olderUnreadCount,
   } = useNotificationCenter({
     userId,
     initialStatus,
@@ -299,6 +311,7 @@ export const NotificationBell = React.memo(function NotificationBell({
                 hasMore={hasMore}
                 onLoadMore={loadMore}
                 hasLoadMoreError={hasLoadMoreError}
+                olderUnreadCount={olderUnreadCount}
               />
             )}
 
