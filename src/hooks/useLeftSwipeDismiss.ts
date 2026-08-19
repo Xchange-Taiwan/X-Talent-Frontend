@@ -19,21 +19,28 @@ export function useLeftSwipeDismiss({
 }: UseLeftSwipeDismissOptions) {
   const swipeStartRef = React.useRef<{ x: number; y: number } | null>(null);
   const isSwipingLeftRef = React.useRef(false);
+  // Locks the gesture to whichever finger/pointer started it, so a second
+  // pointer touching down mid-drag (multi-touch) can't overwrite the start
+  // point or otherwise corrupt the in-progress gesture.
+  const pointerIdRef = React.useRef<number | null>(null);
 
   const resetSwipeState = (target: HTMLElement) => {
     target.style.removeProperty('--radix-toast-swipe-move-x');
     target.setAttribute('data-swipe', 'cancel');
     swipeStartRef.current = null;
     isSwipingLeftRef.current = false;
+    pointerIdRef.current = null;
   };
 
   const onPointerDownCapture = (event: React.PointerEvent) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || pointerIdRef.current !== null) return;
+    pointerIdRef.current = event.pointerId;
     swipeStartRef.current = { x: event.clientX, y: event.clientY };
     isSwipingLeftRef.current = false;
   };
 
   const onPointerMoveCapture = (event: React.PointerEvent) => {
+    if (event.pointerId !== pointerIdRef.current) return;
     if (!swipeStartRef.current) return;
 
     const x = event.clientX - swipeStartRef.current.x;
@@ -50,7 +57,9 @@ export function useLeftSwipeDismiss({
         // The first movement past the buffer wasn't a left swipe (it's
         // vertical, or rightward) — stop tracking this gesture for good
         // instead of re-checking on every later move, which could hijack a
-        // scroll or a right-swipe the moment it happens to drift left.
+        // scroll or a right-swipe the moment it happens to drift left. The
+        // pointer stays locked until its own up/cancel arrives, so a second
+        // finger still can't hijack it in the meantime.
         swipeStartRef.current = null;
         return;
       }
@@ -71,6 +80,8 @@ export function useLeftSwipeDismiss({
   };
 
   const onPointerUpCapture = (event: React.PointerEvent) => {
+    if (event.pointerId !== pointerIdRef.current) return;
+
     const target = event.currentTarget as HTMLElement;
     if (target.hasPointerCapture(event.pointerId)) {
       target.releasePointerCapture(event.pointerId);
@@ -78,6 +89,7 @@ export function useLeftSwipeDismiss({
 
     if (!isSwipingLeftRef.current) {
       swipeStartRef.current = null;
+      pointerIdRef.current = null;
       return;
     }
 
@@ -94,6 +106,7 @@ export function useLeftSwipeDismiss({
       target.setAttribute('data-swipe', 'end');
       swipeStartRef.current = null;
       isSwipingLeftRef.current = false;
+      pointerIdRef.current = null;
       onDismiss();
     } else {
       resetSwipeState(target);
@@ -103,12 +116,18 @@ export function useLeftSwipeDismiss({
   // A touch drag can be interrupted by the OS/browser (e.g. an edge-swipe
   // back gesture or an incoming call) before a pointerup ever fires. Without
   // this, the toast would be left stuck mid-drag with no way to recover.
-  //
-  // Only reset if we actually had a gesture in flight: a cancel that fires
-  // during an unrelated rightward drag (handled natively by Radix, not us)
-  // must not stomp on Radix's own in-progress data-swipe state.
   const onPointerCancelCapture = (event: React.PointerEvent) => {
-    if (!swipeStartRef.current && !isSwipingLeftRef.current) return;
+    if (event.pointerId !== pointerIdRef.current) return;
+
+    // Only fully reset (and touch data-swipe) if we actually had a gesture
+    // in flight: a cancel that fires during an unrelated rightward drag
+    // (handled natively by Radix, not us) must not stomp on Radix's own
+    // in-progress data-swipe state — but the pointer lock must still be
+    // released either way, or no new gesture could ever start.
+    if (!swipeStartRef.current && !isSwipingLeftRef.current) {
+      pointerIdRef.current = null;
+      return;
+    }
 
     const target = event.currentTarget as HTMLElement;
     if (target.hasPointerCapture(event.pointerId)) {

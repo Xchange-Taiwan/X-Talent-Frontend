@@ -174,6 +174,26 @@ describe('useLeftSwipeDismiss', () => {
     expect(target.getAttribute('data-swipe')).toBe('cancel');
   });
 
+  it('ignores a second pointer touching down mid-gesture instead of letting it hijack the tracked drag', () => {
+    render(<Harness onDismiss={onDismiss} />);
+    const target = screen.getByTestId('target');
+
+    firePointer(target, 'pointerdown', { pointerId: 1, clientX: 200 });
+    // A second finger lands elsewhere while the first is being tracked.
+    firePointer(target, 'pointerdown', { pointerId: 2, clientX: 50 });
+
+    firePointer(target, 'pointermove', { pointerId: 1, clientX: 150 });
+    // Movement from the untracked second pointer must be ignored entirely.
+    firePointer(target, 'pointermove', { pointerId: 2, clientX: 999 });
+
+    firePointer(target, 'pointerup', { pointerId: 1, clientX: 100 });
+
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(target.style.getPropertyValue('--radix-toast-swipe-end-x')).toBe(
+      '-100px'
+    );
+  });
+
   it('does not block a plain tap on an inner action button', () => {
     render(<Harness onDismiss={onDismiss} />);
     const button = screen.getByTestId('action');
