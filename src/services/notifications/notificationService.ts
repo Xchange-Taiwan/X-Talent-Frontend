@@ -10,7 +10,7 @@ import { mapNotificationVOToItem } from './notificationMapper';
 export async function fetchUnreadCount(userId: string | number) {
   return apiClient.getUnwrapped<
     components['schemas']['UnreadNotificationCountVO']
-  >(`/api/v1/users/${userId}/notifications/unread-count`);
+  >(`/v1/users/${userId}/notifications/unread-count`);
 }
 
 /**
@@ -28,7 +28,7 @@ export async function listNotifications(
 }> {
   const res = await apiClient.getUnwrapped<
     components['schemas']['NotificationListVO']
-  >(`/api/v1/users/${userId}/notifications`, {
+  >(`/v1/users/${userId}/notifications`, {
     params: {
       cursor: cursor || undefined,
       batch: limit,
@@ -48,7 +48,7 @@ export async function markOneRead(
   userId: string | number,
   notificationId: string | number
 ) {
-  const path = `/api/v1/users/${userId}/notifications/${notificationId}`;
+  const path = `/v1/users/${userId}/notifications/${notificationId}`;
   const res = await apiClient.put<{
     code: string;
     msg: string;
@@ -65,7 +65,7 @@ export async function markOneRead(
  * Marks all notifications as read.
  */
 export async function markAllRead(userId: string | number) {
-  const path = `/api/v1/users/${userId}/notifications/read-all`;
+  const path = `/v1/users/${userId}/notifications/read-all`;
   const res = await apiClient.put<{
     code: string;
     msg: string;
