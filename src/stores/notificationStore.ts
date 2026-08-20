@@ -38,6 +38,7 @@ export interface SharedNotificationState {
   fetchPromise: Promise<void> | null;
   isFetchingUnreadCount: boolean;
   unreadCountFetchPromise: Promise<void> | null;
+  unreadCountVersion: number;
   markingReadIds: Set<string>;
   isMarkingAll: boolean;
 }
@@ -70,6 +71,7 @@ export const createInitialState = (
     fetchPromise: null,
     isFetchingUnreadCount: false,
     unreadCountFetchPromise: null,
+    unreadCountVersion: 0,
     markingReadIds: new Set<string>(),
     isMarkingAll: false,
   };
@@ -291,9 +293,28 @@ class NotificationStoreManager {
    * notification list/status. Used for the passive mount-time fetch - the
    * badge must be visible before the user ever opens the dropdown, but the
    * list itself is fetched lazily on open (see loadInitialData below).
+   *
+   * When `expectedVersion` is given, the write is skipped if
+   * `unreadCountVersion` has already moved on (e.g. a concurrent
+   * setInitialData landed first) - guards against this slower write
+   * clobbering fresher data with a stale unread count.
    */
-  setUnreadCount(userId: string | undefined, unreadCount: number) {
-    this.updateState(userId, { unreadCountState: unreadCount });
+  setUnreadCount(
+    userId: string | undefined,
+    unreadCount: number,
+    expectedVersion?: number
+  ) {
+    const state = this.getOrCreateState(userId);
+    if (
+      expectedVersion !== undefined &&
+      expectedVersion !== state.unreadCountVersion
+    ) {
+      return;
+    }
+    this.updateState(userId, {
+      unreadCountState: unreadCount,
+      unreadCountVersion: state.unreadCountVersion + 1,
+    });
   }
 
   /**
@@ -305,8 +326,10 @@ class NotificationStoreManager {
     items: NotificationItem[],
     nextCursor: string | null
   ) {
+    const state = this.getOrCreateState(userId);
     this.updateState(userId, {
       unreadCountState: unreadCount,
+      unreadCountVersion: state.unreadCountVersion + 1,
       notifications: items,
       nextCursor,
       status: items.length === 0 ? 'empty' : 'success',
