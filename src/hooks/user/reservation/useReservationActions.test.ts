@@ -172,7 +172,7 @@ describe('useReservationActions', () => {
       expect(result.current.isMutating).toBe(false);
     });
 
-    it('should throw error, trigger destructive toast, and reset isMutating if service fails', async () => {
+    it('should throw error and reset isMutating if service fails (toast is owned by the confirm dialog, not this hook)', async () => {
       const apiError = new Error('API Accept Failed');
       mockAcceptService.mockRejectedValue(apiError);
 
@@ -190,13 +190,7 @@ describe('useReservationActions', () => {
         })
       ).rejects.toThrow('API Accept Failed');
 
-      expect(mockToast).toHaveBeenCalledWith({
-        variant: 'destructive',
-        title: '錯誤',
-        description: '操作失敗，請稍後再試。',
-        duration: 5000,
-      });
-
+      expect(mockToast).not.toHaveBeenCalled();
       expect(mockOnMutationSuccess).not.toHaveBeenCalled();
       expect(result.current.isMutating).toBe(false);
     });
@@ -216,7 +210,7 @@ describe('useReservationActions', () => {
       ).rejects.toThrow('[reservationMutations] missing current user id');
     });
 
-    it('should call onVersionConflict once and show the conflict-specific toast on 409', async () => {
+    it('should call onVersionConflict exactly once on 409 (toast is owned by the confirm dialog, not this hook)', async () => {
       mockAcceptService.mockRejectedValue(
         new ReservationVersionConflictError()
       );
@@ -242,12 +236,7 @@ describe('useReservationActions', () => {
         'pending',
         'upcoming',
       ]);
-      expect(mockToast).toHaveBeenCalledWith({
-        variant: 'destructive',
-        title: '錯誤',
-        description: '資料已被更新，請重新確認後再試一次',
-        duration: 5000,
-      });
+      expect(mockToast).not.toHaveBeenCalled();
       expect(mockOnMutationSuccess).not.toHaveBeenCalled();
     });
   });
@@ -361,7 +350,7 @@ describe('useReservationActions', () => {
       expect(result.current.isMutating).toBe(false);
     });
 
-    it('should throw error, trigger destructive toast, and reset isMutating if rejectOrCancel fails', async () => {
+    it('should throw error and reset isMutating if rejectOrCancel fails (toast is owned by the confirm dialog, not this hook)', async () => {
       const apiError = new Error('API Reject Failed');
       mockRejectService.mockRejectedValue(apiError);
 
@@ -383,13 +372,7 @@ describe('useReservationActions', () => {
         })
       ).rejects.toThrow('API Reject Failed');
 
-      expect(mockToast).toHaveBeenCalledWith({
-        variant: 'destructive',
-        title: '錯誤',
-        description: '操作失敗，請稍後再試。',
-        duration: 5000,
-      });
-
+      expect(mockToast).not.toHaveBeenCalled();
       expect(mockOnMutationSuccess).not.toHaveBeenCalled();
       expect(result.current.isMutating).toBe(false);
     });
@@ -413,7 +396,7 @@ describe('useReservationActions', () => {
       ).rejects.toThrow('[reservationMutations] missing current user id');
     });
 
-    it('should call onVersionConflict once and show the conflict-specific toast on 409', async () => {
+    it('should call onVersionConflict exactly once on 409 (toast is owned by the confirm dialog, not this hook)', async () => {
       mockRejectService.mockRejectedValue(
         new ReservationVersionConflictError()
       );
@@ -443,12 +426,7 @@ describe('useReservationActions', () => {
         'pending',
         'history',
       ]);
-      expect(mockToast).toHaveBeenCalledWith({
-        variant: 'destructive',
-        title: '錯誤',
-        description: '資料已被更新，請重新確認後再試一次',
-        duration: 5000,
-      });
+      expect(mockToast).not.toHaveBeenCalled();
       expect(mockOnMutationSuccess).not.toHaveBeenCalled();
     });
   });

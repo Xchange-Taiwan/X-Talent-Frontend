@@ -7,7 +7,6 @@ import { trackEvent } from '@/lib/analytics';
 import {
   acceptReservation,
   rejectOrCancelReservation,
-  RESERVATION_CONFLICT_MESSAGE,
   ReservationVersionConflictError,
 } from '@/services/reservations';
 import { Reservation } from '@/types/reservation';
@@ -56,12 +55,11 @@ export function useReservationActions({
   onVersionConflict,
 }: UseReservationActionsProps): UseReservationActionsReturn {
   const { toast } = useToast();
+  // No errorMessage/errorTitle here: the caller (a reservation confirm
+  // dialog via useConfirmActionDialog) already owns the sole user-facing
+  // error toast for this action, keyed off the same rethrown error. Adding
+  // one here too would show two toasts back-to-back for every failure.
   const { run, isPending: isMutating } = useAsyncAction({
-    errorTitle: '錯誤',
-    errorMessage: (err: unknown) =>
-      err instanceof ReservationVersionConflictError
-        ? RESERVATION_CONFLICT_MESSAGE
-        : '操作失敗，請稍後再試。',
     throwError: true,
   });
 

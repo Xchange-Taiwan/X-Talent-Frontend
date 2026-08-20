@@ -21,6 +21,21 @@ export class ReservationVersionConflictError extends Error {
   }
 }
 
+/**
+ * Resolve the user-facing error message for a reservation status-update
+ * failure (accept/reject/cancel). Single place so every confirm dialog's
+ * `errorMessage` special-cases `ReservationVersionConflictError` the same
+ * way instead of repeating the same `instanceof` check per dialog.
+ */
+export function getReservationErrorMessage(
+  error: unknown,
+  fallbackMessage: string
+): string {
+  return error instanceof ReservationVersionConflictError
+    ? RESERVATION_CONFLICT_MESSAGE
+    : fallbackMessage;
+}
+
 interface PerformStatusUpdateParams {
   text: string;
   myUserId: string | undefined;

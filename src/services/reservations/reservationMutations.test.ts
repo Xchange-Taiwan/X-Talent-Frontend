@@ -37,7 +37,9 @@ import { captureFlowFailure } from '@/lib/monitoring';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import {
   acceptReservation,
+  getReservationErrorMessage,
   rejectOrCancelReservation,
+  RESERVATION_CONFLICT_MESSAGE,
   ReservationVersionConflictError,
 } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
@@ -65,6 +67,29 @@ const makeMockReservation = (
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe('getReservationErrorMessage', () => {
+  it('returns the shared conflict message for a version conflict error', () => {
+    expect(
+      getReservationErrorMessage(
+        new ReservationVersionConflictError(),
+        '接受預約失敗,請稍後再試'
+      )
+    ).toBe(RESERVATION_CONFLICT_MESSAGE);
+  });
+
+  it('returns the fallback message for any other error', () => {
+    expect(
+      getReservationErrorMessage(new Error('boom'), '接受預約失敗,請稍後再試')
+    ).toBe('接受預約失敗,請稍後再試');
+  });
+
+  it('returns the fallback message for a non-Error thrown value', () => {
+    expect(getReservationErrorMessage('boom', '取消預約失敗,請稍後再試')).toBe(
+      '取消預約失敗,請稍後再試'
+    );
+  });
 });
 
 describe('resolveCounterpartyId', () => {
