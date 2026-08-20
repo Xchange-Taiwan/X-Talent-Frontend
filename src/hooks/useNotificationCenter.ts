@@ -227,6 +227,28 @@ export function useNotificationCenter({
     [userId, isUsingProps, toast]
   );
 
+  // Load just the unread badge count - cheap, and safe to fire on every
+  // page mount (via NotificationBell in the Header) since the badge must
+  // be visible before the user ever opens the dropdown. The full
+  // notification list is fetched separately, lazily, only when the
+  // dropdown is actually opened (see openCenter/onOpenChange below) -
+  // most page visits never open it, so there's no reason to pay for it
+  // upfront.
+  const loadUnreadCount = React.useCallback(async () => {
+    if (isUsingProps) return;
+    if (!userId) return;
+
+    try {
+      const res = await fetchUnreadCount(userId);
+      notificationStoreManager.setUnreadCount(
+        userId,
+        (res && res.unread_count) || 0
+      );
+    } catch (error) {
+      console.error('[useNotificationCenter] loadUnreadCount failed:', error);
+    }
+  }, [userId, isUsingProps]);
+
   // Load initial notifications and unread count from service
   const loadInitialData = React.useCallback(
     async (showLoading = true) => {
@@ -291,8 +313,8 @@ export function useNotificationCenter({
   );
 
   React.useEffect(() => {
-    loadInitialData(!isUsingProps);
-  }, [loadInitialData, isUsingProps]);
+    loadUnreadCount();
+  }, [loadUnreadCount]);
 
   // Keep seenUnreadCount clamped to badgeCount to prevent stale values,
   // but only when we are not in a loading status and there is no active write/mutation in progress
@@ -338,14 +360,22 @@ export function useNotificationCenter({
     };
   }, []);
 
+  // Since mount only fetches the unread count (see loadUnreadCount above),
+  // the list can now genuinely be loading for the *first* time on open, not
+  // just refreshing already-cached data. Show the loading skeleton / error
+  // + retry state (showLoading: true) for that first load; once cached
+  // data exists, re-opening only refreshes silently in the background
+  // (showLoading: false), matching the original "fetch fresh details when
+  // opened" behavior.
+  const isFirstLoad = storeState.status === 'loading';
+
   const openCenter = React.useCallback(() => {
     setOpen(true);
     writeSeenCount(badgeCount);
-    // Fetch fresh details when dropdown is opened
     if (!isUsingProps) {
-      loadInitialData(false);
+      loadInitialData(isFirstLoad);
     }
-  }, [badgeCount, writeSeenCount, isUsingProps, loadInitialData]);
+  }, [badgeCount, writeSeenCount, isUsingProps, loadInitialData, isFirstLoad]);
 
   const closeCenter = React.useCallback(() => {
     setOpen(false);
@@ -357,11 +387,11 @@ export function useNotificationCenter({
       if (nextOpen) {
         writeSeenCount(badgeCount);
         if (!isUsingProps) {
-          loadInitialData(false);
+          loadInitialData(isFirstLoad);
         }
       }
     },
-    [badgeCount, writeSeenCount, isUsingProps, loadInitialData]
+    [badgeCount, writeSeenCount, isUsingProps, loadInitialData, isFirstLoad]
   );
 
   const markRead = React.useCallback(

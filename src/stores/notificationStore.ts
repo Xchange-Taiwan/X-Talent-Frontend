@@ -283,6 +283,16 @@ class NotificationStoreManager {
   }
 
   /**
+   * Domain Action: Update just the unread badge count, without touching the
+   * notification list/status. Used for the passive mount-time fetch - the
+   * badge must be visible before the user ever opens the dropdown, but the
+   * list itself is fetched lazily on open (see loadInitialData below).
+   */
+  setUnreadCount(userId: string | undefined, unreadCount: number) {
+    this.updateState(userId, { unreadCountState: unreadCount });
+  }
+
+  /**
    * Domain Action: Set initially loaded notifications and counts
    */
   setInitialData(

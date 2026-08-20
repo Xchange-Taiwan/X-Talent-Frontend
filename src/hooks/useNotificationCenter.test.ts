@@ -7,6 +7,10 @@ import {
 } from '@/hooks/useNotificationCenter';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
+  fetchUnreadCount,
+  listNotifications,
+} from '@/services/notifications/notificationService';
+import {
   notificationStoreManager,
   resetNotificationStore,
 } from '@/stores/notificationStore';
@@ -19,6 +23,13 @@ vi.mock('@/components/ui/use-toast', async () => {
 
 vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
+}));
+
+vi.mock('@/services/notifications/notificationService', () => ({
+  fetchUnreadCount: vi.fn(),
+  listNotifications: vi.fn(),
+  markAllRead: vi.fn(),
+  markOneRead: vi.fn(),
 }));
 
 const mockNotifications: NotificationItem[] = [
@@ -461,5 +472,63 @@ describe('useNotificationCenter', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  describe('lazy list loading (real fetch path, no initialNotifications)', () => {
+    beforeEach(() => {
+      vi.mocked(fetchUnreadCount).mockReset();
+      vi.mocked(listNotifications).mockReset();
+    });
+
+    it('on mount, fetches only the unread badge count - not the notification list', async () => {
+      vi.mocked(fetchUnreadCount).mockResolvedValue({ unread_count: 3 });
+      vi.mocked(listNotifications).mockResolvedValue({
+        notifications: mockNotifications,
+        next_cursor: null,
+      });
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({ userId: 'user-lazy' })
+      );
+
+      await waitFor(() => {
+        expect(result.current.badgeCount).toBe(3);
+      });
+
+      expect(fetchUnreadCount).toHaveBeenCalledWith('user-lazy');
+      expect(listNotifications).not.toHaveBeenCalled();
+      // The list itself hasn't loaded yet - only the count has.
+      expect(result.current.items).toEqual([]);
+    });
+
+    it('fetches the full notification list only once the dropdown is actually opened', async () => {
+      vi.mocked(fetchUnreadCount).mockResolvedValue({ unread_count: 2 });
+      vi.mocked(listNotifications).mockResolvedValue({
+        notifications: mockNotifications,
+        next_cursor: null,
+      });
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({ userId: 'user-lazy-open' })
+      );
+
+      await waitFor(() => {
+        expect(result.current.badgeCount).toBe(2);
+      });
+      expect(listNotifications).not.toHaveBeenCalled();
+
+      act(() => {
+        result.current.openCenter();
+      });
+
+      await waitFor(() => {
+        expect(result.current.items).toEqual(mockNotifications);
+      });
+      expect(listNotifications).toHaveBeenCalledWith(
+        'user-lazy-open',
+        undefined,
+        20
+      );
+    });
   });
 });
