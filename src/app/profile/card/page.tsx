@@ -4,7 +4,6 @@ import { getServerSession } from 'next-auth/next';
 import authOptions from '@/auth.config';
 import { hasUserProperties, isValidUserId } from '@/lib/auth/userGuard';
 import { DEFAULT_LOGIN } from '@/routes';
-import { EMPTY_TAG_CATALOGS } from '@/services/profile/tagCatalog';
 import { fetchTagCatalogServer } from '@/services/profile/tagCatalog.server';
 import { fetchUserByIdServer } from '@/services/profile/user.server';
 
@@ -22,13 +21,15 @@ export default async function Page() {
 
   const loginUserId = Number(sessionUser.id);
   // fetchUserByIdServer/fetchTagCatalogServer already catch their own network
-  // errors internally and resolve to null/EMPTY_TAG_CATALOGS - these .catch
-  // handlers are defense-in-depth against an unexpected throw so a transient
-  // SSR failure degrades to the client-side fallback fetch in the container
-  // instead of taking down the whole page render.
+  // errors internally, but these .catch handlers are defense-in-depth against
+  // an unexpected throw. Both resolve to null (not an "empty but valid" DTO/
+  // catalog sentinel) on failure so the container's null-guarded priming
+  // skips writing the cache and the client-side fallback fetch in
+  // useUserData/useTagCatalog actually gets a chance to run, instead of the
+  // cache being primed with a value that looks like a successful empty fetch.
   const [initialDto, initialCatalogs] = await Promise.all([
     fetchUserByIdServer(loginUserId, 'zh_TW').catch(() => null),
-    fetchTagCatalogServer('zh_TW').catch(() => EMPTY_TAG_CATALOGS),
+    fetchTagCatalogServer('zh_TW').catch(() => null),
   ]);
 
   return (
