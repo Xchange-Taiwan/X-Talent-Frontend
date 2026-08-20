@@ -227,7 +227,7 @@ export const ComboboxField = <T extends FieldValues>({
                   </Button>
                 </FormControl>
               </PopoverTrigger>
-              <PopoverContent className="w-max min-w-[--radix-popover-trigger-width] p-0">
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
                 <Command>
                   <CommandInput placeholder={searchPlaceholder} />
                   <CommandList>
