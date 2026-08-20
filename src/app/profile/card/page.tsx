@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth/next';
 import authOptions from '@/auth.config';
 import { hasUserProperties, isValidUserId } from '@/lib/auth/userGuard';
 import { DEFAULT_LOGIN } from '@/routes';
+import { EMPTY_TAG_CATALOGS } from '@/services/profile/tagCatalog';
 import { fetchTagCatalogServer } from '@/services/profile/tagCatalog.server';
 import { fetchUserByIdServer } from '@/services/profile/user.server';
 
@@ -20,9 +21,14 @@ export default async function Page() {
   }
 
   const loginUserId = Number(sessionUser.id);
+  // fetchUserByIdServer/fetchTagCatalogServer already catch their own network
+  // errors internally and resolve to null/EMPTY_TAG_CATALOGS - these .catch
+  // handlers are defense-in-depth against an unexpected throw so a transient
+  // SSR failure degrades to the client-side fallback fetch in the container
+  // instead of taking down the whole page render.
   const [initialDto, initialCatalogs] = await Promise.all([
-    fetchUserByIdServer(loginUserId, 'zh_TW'),
-    fetchTagCatalogServer('zh_TW'),
+    fetchUserByIdServer(loginUserId, 'zh_TW').catch(() => null),
+    fetchTagCatalogServer('zh_TW').catch(() => EMPTY_TAG_CATALOGS),
   ]);
 
   return (
