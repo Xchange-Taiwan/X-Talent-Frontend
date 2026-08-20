@@ -18,6 +18,7 @@ export function buildResolvedIdentity(
     hasFullUser: false,
     isResolvingUser: false,
     avatar: undefined,
+    sessionSettled: true,
     ...overrides,
   };
 }
@@ -25,6 +26,7 @@ export function buildResolvedIdentity(
 /** Neither the session nor the cookie hint has resolved yet. */
 export const UNKNOWN_IDENTITY: ResolvedIdentity = buildResolvedIdentity({
   authKnown: false,
+  sessionSettled: false,
 });
 
 /** Confirmed not logged in. */

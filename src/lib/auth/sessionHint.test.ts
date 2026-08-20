@@ -372,6 +372,32 @@ describe('sessionHint utilities', () => {
       expect(identity.isLoggedIn).toBe(false);
       expect(identity.userId).toBeUndefined();
     });
+
+    describe('sessionSettled', () => {
+      it('is false while loading, even with a hint that makes authKnown/isLoggedIn true', () => {
+        const identity = resolveIdentity(null, 'loading', defaultHint);
+        expect(identity.sessionSettled).toBe(false);
+        expect(identity.authKnown).toBe(true);
+        expect(identity.isLoggedIn).toBe(true);
+        expect(identity.hasFullUser).toBe(false);
+      });
+
+      it('is true once resolved to unauthenticated, even for a guest with no hint', () => {
+        const identity = resolveIdentity(null, 'unauthenticated', null);
+        expect(identity.sessionSettled).toBe(true);
+        expect(identity.hasFullUser).toBe(false);
+      });
+
+      it('is true once a real session with a full user resolves', () => {
+        const identity = resolveIdentity(
+          defaultSession,
+          'authenticated',
+          defaultHint
+        );
+        expect(identity.sessionSettled).toBe(true);
+        expect(identity.hasFullUser).toBe(true);
+      });
+    });
   });
 
   describe('applyAvatarOverride', () => {
@@ -383,6 +409,7 @@ describe('sessionHint utilities', () => {
       hasFullUser: true,
       isResolvingUser: false,
       authKnown: true,
+      sessionSettled: true,
     };
 
     it('applies the override avatar when its userId matches the resolved identity', () => {

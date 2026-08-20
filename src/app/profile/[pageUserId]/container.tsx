@@ -78,23 +78,30 @@ export default function ProfilePageContainer({
 
   // The page is now ISR-cached (no SSR session read), so identity is
   // resolved entirely client-side via useIdentity - the same single source
-  // of truth Header/useProfileAuth use. Deliberately read only
-  // `identity.hasFullUser`/`identity.userId` here, not the faster
-  // `authKnown`/`isLoggedIn`/hint-derived `userId` fields: those can go
-  // true/populated from the middleware-written session-hint cookie alone
-  // (an unsigned, client-writable, UI-only hint - see sessionHint.ts)
-  // before the real `useSession()` round trip settles. Everything on this
-  // page that reads `loginUserId` either renders role-specific UI
-  // (canShowOwnerControls, BookingForm's own-mentor-vs-mentee content) or
-  // feeds a real mutation (useBookingConfirmation sends it as the
-  // reservation's menteeId) - so unlike the header's optimistic hint-based
-  // rendering, nothing here may act on an unauthoritative value. Gating
-  // `loginUserId` itself on `hasFullUser` means every downstream consumer
-  // inherits that guarantee for free, per CLAUDE.md's "Role-based UI" rule
-  // (never render role-specific UI before the role is resolved).
+  // of truth Header/useProfileAuth use. Deliberately read `identity.
+  // sessionSettled`/`hasFullUser`/`userId` here, not the faster `authKnown`/
+  // `isLoggedIn`/hint-derived `userId` fields: those can go true/populated
+  // from the middleware-written session-hint cookie alone (an unsigned,
+  // client-writable, UI-only hint - see sessionHint.ts) before the real
+  // `useSession()` round trip settles.
+  //
+  // Two distinct gates are needed, not one:
+  // - `isIdentityResolved` (`sessionSettled`) answers "has the real session
+  //   check finished, for ANY viewer" - true for a confirmed guest just as
+  //   much as a confirmed member (unlike `hasFullUser`, which a guest can
+  //   never satisfy). This is what BookingForm's loading skeleton must gate
+  //   on, or guests would be stuck loading forever.
+  // - `loginUserId` (and everything derived from it: isOwnProfile,
+  //   canShowOwnerControls, useBookingConfirmation's menteeId) requires the
+  //   stronger `hasFullUser`, since it either renders owner-only UI or
+  //   feeds a real mutation - unlike the header's optimistic hint-based
+  //   rendering, nothing here may act on an unauthoritative value.
+  //
+  // Per CLAUDE.md's "Role-based UI" rule: never render role-specific UI
+  // before the role is resolved.
   const identity = useIdentity(null);
-  const isIdentityResolved = identity.hasFullUser;
-  const loginUserId = isIdentityResolved ? (identity.userId ?? '') : '';
+  const isIdentityResolved = identity.sessionSettled;
+  const loginUserId = identity.hasFullUser ? (identity.userId ?? '') : '';
 
   const {
     userData,
@@ -110,15 +117,15 @@ export default function ProfilePageContainer({
   // synchronously by useProfileSubmit) over `userData.avatar`, which can
   // briefly come from a stale ISR initialDto on the post-submit navigation
   // race. The override clears once session.user.avatar catches up.
+  // loginUserId is '' unless identity.hasFullUser, so isOwnProfile can only
+  // be true for a real, verified session - it already carries that
+  // guarantee, no separate resolution check needed here.
   const isOwnProfile = loginUserId === pageUserId;
   // Single source of truth for "should owner-only controls (edit button,
   // become-mentor button, schedule-management dialog) render" so ui.tsx
   // doesn't need to re-derive this comparison at each of its three call
-  // sites. isIdentityResolved is redundant here in practice (loginUserId,
-  // and therefore isOwnProfile, can only be truthy once isIdentityResolved
-  // already is - see above) but kept explicit for readability at this
-  // call site.
-  const canShowOwnerControls = isIdentityResolved && isOwnProfile;
+  // sites.
+  const canShowOwnerControls = isOwnProfile;
   const currentAvatar = useCurrentAvatar();
   // Gate on canShowOwnerControls (not just isOwnProfile): while identity is
   // still resolving, isOwnProfile is provisionally false (loginUserId is
