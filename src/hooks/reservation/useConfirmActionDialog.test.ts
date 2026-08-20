@@ -6,6 +6,10 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
+import {
+  RESERVATION_CONFLICT_MESSAGE,
+  ReservationVersionConflictError,
+} from '@/services/reservations';
 import { mockToast } from '@/test/mocks/useToast';
 
 import { useConfirmActionDialog } from './useConfirmActionDialog';
@@ -131,24 +135,18 @@ describe('useConfirmActionDialog', () => {
     });
   });
 
-  it('should resolve a function errorMessage using the caught error', async () => {
-    class SpecialError extends Error {}
-    const errorMessageFn = vi.fn((error: unknown) =>
-      error instanceof SpecialError ? 'special message' : 'generic message'
-    );
-
+  it('should show the shared conflict message when the caught error is a version conflict, regardless of the configured errorMessage', async () => {
     const { result } = renderHook(() =>
-      useConfirmActionDialog({
-        errorMessage: errorMessageFn,
-        onOpen: onOpenMock,
-      })
+      useConfirmActionDialog({ errorMessage, onOpen: onOpenMock })
     );
 
     act(() => {
       result.current.onOpenChange(true);
     });
 
-    const action = vi.fn().mockRejectedValue(new SpecialError('boom'));
+    const action = vi
+      .fn()
+      .mockRejectedValue(new ReservationVersionConflictError());
 
     await act(async () => {
       await result.current.execute(action);
@@ -156,7 +154,7 @@ describe('useConfirmActionDialog', () => {
 
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
-      description: 'special message',
+      description: RESERVATION_CONFLICT_MESSAGE,
     });
   });
 });

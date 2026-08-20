@@ -19,7 +19,6 @@ import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDial
 import { trackEvent } from '@/lib/analytics';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { cn } from '@/lib/utils';
-import { getReservationErrorMessage } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
 interface Props {
@@ -39,8 +38,7 @@ export default function AcceptReservationDialog({
   const [reply, setReply] = useState('');
 
   const { open, isSubmitting, onOpenChange, execute } = useConfirmActionDialog({
-    errorMessage: (error) =>
-      getReservationErrorMessage(error, '接受預約失敗,請稍後再試'),
+    errorMessage: '接受預約失敗,請稍後再試',
     onOpen: () => {
       setReply('');
       setReplyOpen(false);
