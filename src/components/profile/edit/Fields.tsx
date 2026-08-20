@@ -213,6 +213,7 @@ export const ComboboxField = <T extends FieldValues>({
                   <Button
                     ref={field.ref}
                     disabled={field.disabled}
+                    onBlur={field.onBlur}
                     type="button"
                     variant="outline"
                     role="combobox"
@@ -238,6 +239,7 @@ export const ComboboxField = <T extends FieldValues>({
                           value={opt.label}
                           onSelect={() => {
                             field.onChange(opt.value);
+                            field.onBlur();
                             setOpen(false);
                           }}
                         >
