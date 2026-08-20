@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { AvatarSection } from '@/components/profile/edit/AvatarSection';
 import { CategoryMultiSelectField } from '@/components/profile/edit/CategoryMultiSelectField';
@@ -105,6 +105,10 @@ export default function EditProfileContainer({
   const [educationSectionError, setEducationSectionError] = useState(false);
 
   const { locations } = useLocations('zh_TW');
+  const locationOptions = useMemo(
+    () => locations.map((loc) => ({ value: loc.value, label: loc.text })),
+    [locations]
+  );
   const tagCatalog = useTagCatalog('zh_TW', initialTagCatalog);
   const industries = tagCatalog.industry;
 
@@ -273,10 +277,7 @@ export default function EditProfileContainer({
               name="location"
               placeholder="請選擇地區"
               searchPlaceholder="搜尋地區"
-              options={locations.map((loc) => ({
-                value: loc.value,
-                label: loc.text,
-              }))}
+              options={locationOptions}
             />
           </Section>
 
