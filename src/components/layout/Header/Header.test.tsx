@@ -131,11 +131,11 @@ describe('Header', () => {
     const signinLink = screen.getByRole('link', { name: '登入' });
     expect(signupLink.parentElement).toHaveClass(
       'hidden',
-      'group-data-[auth-state=guest]:flex'
+      'group-data-[auth-state=guest]/auth-state:flex'
     );
     expect(signinLink.parentElement).toHaveClass(
       'hidden',
-      'group-data-[auth-state=guest]:flex'
+      'group-data-[auth-state=guest]/auth-state:flex'
     );
   });
 
@@ -151,11 +151,11 @@ describe('Header', () => {
     const menteeLink = screen.getByRole('link', { name: '成為導師' });
     expect(mentorLink).toHaveClass(
       'hidden',
-      'group-data-[auth-state=mentor]:block'
+      'group-data-[auth-state=mentor]/auth-state:block'
     );
     expect(menteeLink).toHaveClass(
       'hidden',
-      'group-data-[auth-state=mentee]:block'
+      'group-data-[auth-state=mentee]/auth-state:block'
     );
   });
 
@@ -211,22 +211,26 @@ describe('Header', () => {
     });
 
     expect(findMentorLink).not.toHaveClass(
-      'group-data-[auth-state=mentee]:hidden'
+      'group-data-[auth-state=mentee]/auth-state:hidden'
     );
     expect(findMentorLink).not.toHaveClass(
-      'group-data-[auth-state=mentor]:hidden'
+      'group-data-[auth-state=mentor]/auth-state:hidden'
     );
-    expect(aboutLink).not.toHaveClass('group-data-[auth-state=mentee]:hidden');
-    expect(aboutLink).not.toHaveClass('group-data-[auth-state=mentor]:hidden');
-    expect(feedbackLink).not.toHaveClass(
-      'group-data-[auth-state=mentee]:hidden'
+    expect(aboutLink).not.toHaveClass(
+      'group-data-[auth-state=mentee]/auth-state:hidden'
+    );
+    expect(aboutLink).not.toHaveClass(
+      'group-data-[auth-state=mentor]/auth-state:hidden'
     );
     expect(feedbackLink).not.toHaveClass(
-      'group-data-[auth-state=mentor]:hidden'
+      'group-data-[auth-state=mentee]/auth-state:hidden'
+    );
+    expect(feedbackLink).not.toHaveClass(
+      'group-data-[auth-state=mentor]/auth-state:hidden'
     );
     expect(hamburgerTrigger.parentElement).toHaveClass(
-      'group-data-[auth-state=mentee]:hidden',
-      'group-data-[auth-state=mentor]:hidden'
+      'group-data-[auth-state=mentee]/auth-state:hidden',
+      'group-data-[auth-state=mentor]/auth-state:hidden'
     );
   });
 
@@ -256,10 +260,10 @@ describe('Header', () => {
     );
     expect(placeholders).toHaveLength(2);
     expect(placeholders[0]).toHaveClass(
-      'hidden group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block'
+      'hidden group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block'
     );
     expect(placeholders[1]).toHaveClass(
-      'hidden group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block'
+      'hidden group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block'
     );
   });
 
@@ -273,8 +277,8 @@ describe('Header', () => {
     expect(skeleton).toBeInTheDocument();
     expect(skeleton).toHaveClass(
       'hidden',
-      'group-data-[auth-state=mentee]:block',
-      'group-data-[auth-state=mentor]:block'
+      'group-data-[auth-state=mentee]/auth-state:block',
+      'group-data-[auth-state=mentor]/auth-state:block'
     );
   });
 
