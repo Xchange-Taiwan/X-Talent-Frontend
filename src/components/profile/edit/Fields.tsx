@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, ChevronsUpDown } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import {
   Control,
@@ -218,16 +218,16 @@ export const ComboboxField = <T extends FieldValues>({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="w-full justify-between font-normal"
+                    className="w-full justify-between px-3 py-2 text-base font-normal hover:bg-background-white hover:text-text-primary disabled:cursor-not-allowed md:text-sm"
                   >
                     <span className={cn(!selected && 'text-text-tertiary')}>
                       {selected ? selected.label : placeholder}
                     </span>
-                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                    <ChevronDown className="size-4 shrink-0 opacity-50" />
                   </Button>
                 </FormControl>
               </PopoverTrigger>
-              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+              <PopoverContent className="w-max min-w-[--radix-popover-trigger-width] p-0">
                 <Command>
                   <CommandInput placeholder={searchPlaceholder} />
                   <CommandList>
