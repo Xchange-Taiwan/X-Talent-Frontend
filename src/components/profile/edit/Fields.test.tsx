@@ -16,9 +16,16 @@ const manyOptions = Array.from({ length: 249 }, (_, i) => ({
   label: `Country ${i}`,
 }));
 
-function Harness({ defaultValue = '' }: { defaultValue?: string }) {
+function Harness({
+  defaultValue = '',
+  disabled = false,
+}: {
+  defaultValue?: string;
+  disabled?: boolean;
+}) {
   const form = useForm<FormValues>({
     defaultValues: { location: defaultValue },
+    disabled,
   });
   return (
     <Form {...form}>
@@ -30,6 +37,9 @@ function Harness({ defaultValue = '' }: { defaultValue?: string }) {
           searchPlaceholder="搜尋地區"
           options={manyOptions}
         />
+        <span data-testid="touched">
+          {String(Boolean(form.formState.touchedFields.location))}
+        </span>
       </form>
     </Form>
   );
@@ -70,5 +80,31 @@ describe('ComboboxField', () => {
     await waitFor(() => {
       expect(screen.getByRole('combobox')).toHaveTextContent('Country 3');
     });
+  });
+
+  it('marks the field as touched once the popover closes, for onTouched-mode validation', async () => {
+    render(<Harness />);
+
+    expect(screen.getByTestId('touched')).toHaveTextContent('false');
+
+    fireEvent.click(screen.getByRole('combobox'));
+    await waitFor(() => {
+      expect(screen.getByText('Country 0')).toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(screen.getByPlaceholderText('搜尋地區'), {
+      key: 'Escape',
+      code: 'Escape',
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('touched')).toHaveTextContent('true');
+    });
+  });
+
+  it('disables the trigger when the field is disabled', () => {
+    render(<Harness disabled />);
+
+    expect(screen.getByRole('combobox')).toBeDisabled();
   });
 });

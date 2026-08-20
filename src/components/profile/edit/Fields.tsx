@@ -201,10 +201,18 @@ export const ComboboxField = <T extends FieldValues>({
         const selected = options.find((opt) => opt.value === field.value);
         return (
           <FormItem>
-            <Popover open={open} onOpenChange={setOpen}>
+            <Popover
+              open={open}
+              onOpenChange={(next) => {
+                setOpen(next);
+                if (!next) field.onBlur();
+              }}
+            >
               <PopoverTrigger asChild>
                 <FormControl>
                   <Button
+                    ref={field.ref}
+                    disabled={field.disabled}
                     type="button"
                     variant="outline"
                     role="combobox"
