@@ -478,14 +478,16 @@ describe('apiClient', () => {
       // singleFlight's map only coalesces calls that are truly concurrent -
       // once a lookup resolves, the next call starts a fresh one. So across
       // this whole flow there are three *distinct* lookup bursts, each
-      // shared by both requests: the initial getAuthHeader() call, the 401
-      // handler's refresh, and the retried request's own fresh
-      // getAuthHeader() call (it doesn't reuse the session the 401 handler
-      // just fetched - a further optimization, but out of scope here; the
-      // point under test is that concurrent callers within each burst still
-      // only pay for one). Keying the mock off call count - rather than
-      // swapping its implementation mid-test via vi.waitFor - avoids racing
-      // against exactly when the 401 handlers happen to fire.
+      // shared by both requests: the initial getAuthHeader() call (routine
+      // map), the 401 handler's refresh (separate refresh map, so it can't
+      // join the routine lookup above even if one were still in flight),
+      // and the retried request's own fresh getAuthHeader() call (it
+      // doesn't reuse the session the 401 handler just fetched - a further
+      // optimization, but out of scope here; the point under test is that
+      // concurrent callers within each burst still only pay for one).
+      // Keying the mock off call count - rather than swapping its
+      // implementation mid-test via vi.waitFor - avoids racing against
+      // exactly when the 401 handlers happen to fire.
       const staleSession: Session = {
         accessToken: 'stale-token',
         expires: '2099-01-01T00:00:00Z',
@@ -541,6 +543,92 @@ describe('apiClient', () => {
       // (one per request per burst), proving concurrent callers within
       // each burst share a single call.
       expect(vi.mocked(getSession)).toHaveBeenCalledTimes(3);
+    });
+
+    it('401 refresh does not join a routine lookup that was already in flight before the 401', async () => {
+      // Regression test for the race the shared-map version had: if a
+      // routine getAuthHeader() lookup for one request is still in flight
+      // when a *different* request's 401 handler fires, the refresh must
+      // not join that pending lookup - it started before the 401 was known,
+      // so it could still resolve to the same stale token that just failed,
+      // causing the retry to fail again with the same token.
+      const staleSession: Session = {
+        accessToken: 'stale-token',
+        expires: '2099-01-01T00:00:00Z',
+        user: { id: 'test-user', name: 'Test User', email: 'test@example.com' },
+      };
+      const freshSession: Session = {
+        accessToken: 'fresh-token',
+        expires: '2099-01-01T00:00:00Z',
+        user: { id: 'test-user', name: 'Test User', email: 'test@example.com' },
+      };
+
+      let resolveRoutineLookup: (val: Session | null) => void = () => {};
+      const routineLookupPromise = new Promise<Session | null>((resolve) => {
+        resolveRoutineLookup = resolve;
+      });
+      let sessionCallCount = 0;
+      vi.mocked(getSession).mockImplementation(() => {
+        sessionCallCount += 1;
+        // Call #1: reqZ's own initial auth header lookup, resolves right away.
+        // Call #2: reqY's routine lookup, kept pending to simulate it still
+        // being in flight when reqZ's 401 arrives.
+        // Call #3+: the 401 refresh - must be a fresh call, not a join of #2.
+        if (sessionCallCount === 1) return Promise.resolve(staleSession);
+        if (sessionCallCount === 2) return routineLookupPromise;
+        return Promise.resolve(freshSession);
+      });
+
+      // Base fallback for every fetch call except reqZ's first (below):
+      // reqZ's retry and reqY's own fetch both just need to succeed.
+      mockFetch.mockImplementation(
+        async () => new Response('"success"', { status: 200 })
+      );
+      let resolveZFetch: (res: Response) => void = () => {};
+      mockFetch.mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveZFetch = resolve;
+          })
+      );
+
+      const pZ = apiClient.get('/v1/reqZ');
+
+      // reqZ's initial lookup (call #1) resolved and its fetch is now
+      // pending, waiting on resolveZFetch.
+      await vi.waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+
+      // Start reqY's routine lookup so it's genuinely in flight (call #2,
+      // pending) at the moment reqZ's 401 arrives below.
+      const pY = apiClient.get('/v1/reqY');
+      await vi.waitFor(() => {
+        expect(getSession).toHaveBeenCalledTimes(2);
+      });
+
+      // Now let reqZ's request come back as 401, triggering its refresh.
+      resolveZFetch(new Response('Unauthorized', { status: 401 }));
+
+      // The refresh must issue its own, fresh getSession call rather than
+      // joining reqY's still-pending routine lookup (call #2) - this is the
+      // exact invariant under test, and it must hold while call #2 is still
+      // unresolved. Without the separate refreshMap, this would stay at 2
+      // (the refresh would join the pending call #2 instead of starting #3).
+      await vi.waitFor(() => {
+        expect(getSession).toHaveBeenCalledTimes(3);
+      });
+
+      // Now unblock reqY's routine lookup. The retry's own getAuthHeader()
+      // call (routine map) may join it if still pending - that's fine,
+      // dedup between two routine lookups is the intended behavior and
+      // orthogonal to what's under test here. Resolving it now lets both
+      // requests finish without deadlocking on each other.
+      resolveRoutineLookup(staleSession);
+
+      const [z, y] = await Promise.all([pZ, pY]);
+      expect(z).toBe('success');
+      expect(y).toBe('success');
     });
   });
 
