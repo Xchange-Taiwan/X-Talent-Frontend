@@ -132,6 +132,13 @@ export interface ResolvedIdentity {
   hasFullUser: boolean;
   isResolvingUser: boolean;
   authKnown: boolean;
+  // True once the real `useSession()` round trip has finished, whether it
+  // resolved to authenticated or guest - unlike `authKnown`, this is never
+  // satisfied by the (unsigned, client-writable) hint cookie alone. Callers
+  // that need to know "is resolution fully done" for *any* viewer,
+  // including guests who will never have `hasFullUser` true, should gate on
+  // this instead of `authKnown` or `hasFullUser`.
+  sessionSettled: boolean;
 }
 
 export function resolveIdentity(
@@ -200,6 +207,7 @@ export function resolveIdentity(
     hasFullUser,
     isResolvingUser,
     authKnown,
+    sessionSettled,
   };
 }
 
