@@ -5,8 +5,31 @@ import {
   deduplicateBookingSlots,
   deduplicateRawSlots,
   findRestorableExdatedRow,
+  isReadOnlyVirtualSlot,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
+
+describe('isReadOnlyVirtualSlot', () => {
+  it('returns true for a negative-id BOOKED row', () => {
+    expect(isReadOnlyVirtualSlot('BOOKED', -1)).toBe(true);
+  });
+
+  it('returns true for a negative-id PENDING row', () => {
+    expect(isReadOnlyVirtualSlot('PENDING', -1)).toBe(true);
+  });
+
+  it('returns false for a positive-id BOOKED row (not the negative-id contract)', () => {
+    expect(isReadOnlyVirtualSlot('BOOKED', 1)).toBe(false);
+  });
+
+  it('returns false for a negative-id ALLOW row (a local unsaved draft, not a placeholder)', () => {
+    expect(isReadOnlyVirtualSlot('ALLOW', -1)).toBe(false);
+  });
+
+  it('returns false for a negative-id FORBIDDEN row', () => {
+    expect(isReadOnlyVirtualSlot('FORBIDDEN', -1)).toBe(false);
+  });
+});
 
 describe('findRestorableExdatedRow', () => {
   const recurringRow: RawMentorTimeslot = {

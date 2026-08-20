@@ -37,7 +37,11 @@ import {
   snapDuration,
   snapMinute,
 } from '@/lib/profile/scheduleFormatters';
-import { DtType, ParsedMentorTimeslot } from '@/lib/profile/scheduleHelpers';
+import {
+  DtType,
+  isReadOnlyVirtualSlot,
+  ParsedMentorTimeslot,
+} from '@/lib/profile/scheduleHelpers';
 import { cn } from '@/lib/utils';
 
 import { ScheduleCalendar } from './ScheduleCalendar';
@@ -132,14 +136,17 @@ export default function MentorScheduleDialog({
     (s) => Math.floor(s.start.getTime() / 1000) > nowSec
   );
 
-  // Block deletion/edit when a BOOKED or PENDING reservation exists at this
-  // slot's start. With one row per slot, the start timestamp is the natural
-  // identity to match against reservation segments.
+  // Block deletion/edit when a read-only BOOKED or PENDING placeholder (a
+  // backend-synthesized virtual slot, id < 0 — not a real mentor_availability
+  // row) exists at this ALLOW slot's start. With one row per slot, the start
+  // timestamp is the natural identity to match against the placeholder.
   const bookedStarts = useMemo(
     () =>
       new Set(
         draftForSelectedDate
-          .filter((s) => s.type === 'BOOKED')
+          .filter(
+            (s) => s.type === 'BOOKED' && isReadOnlyVirtualSlot(s.type, s.id)
+          )
           .map((s) => Math.floor(s.start.getTime() / 1000))
       ),
     [draftForSelectedDate]
@@ -148,7 +155,9 @@ export default function MentorScheduleDialog({
     () =>
       new Set(
         draftForSelectedDate
-          .filter((s) => s.type === 'PENDING')
+          .filter(
+            (s) => isReadOnlyVirtualSlot(s.type, s.id) && s.type === 'PENDING'
+          )
           .map((s) => Math.floor(s.start.getTime() / 1000))
       ),
     [draftForSelectedDate]
@@ -172,7 +181,7 @@ export default function MentorScheduleDialog({
         variant: 'destructive',
         description:
           result.reason === 'conflict'
-            ? '此時段與既有預約衝突,請調整後再試'
+            ? '此時段與既有預約衝突,請新增新時段後再試'
             : '儲存失敗,請稍後再試',
       });
       return;
@@ -387,6 +396,11 @@ export default function MentorScheduleDialog({
                 variant: 'destructive',
                 description: '此時段與其他時段重疊',
               });
+            } else if (result.reason === 'READ_ONLY') {
+              toast({
+                variant: 'destructive',
+                description: '此時段已被預約引用，無法編輯，請改為新增新時段',
+              });
             } else {
               toast({
                 variant: 'destructive',
@@ -412,8 +426,8 @@ export default function MentorScheduleDialog({
             </DialogTitle>
             <DialogDescription>
               {displayPrompt === 'BOOKED'
-                ? '此時段已有 mentee 預約成功,無法編輯或移除。如需取消,請至「預約管理」頁面處理。'
-                : '請至「預約管理」頁面接受或拒絕該申請,僅在拒絕後此時段才會重新釋出。'}
+                ? '此時段已有 mentee 預約成功,無法編輯或移除。如需調整時間,請新增新時段;如需取消原預約,請至「預約管理」頁面處理。'
+                : '請至「預約管理」頁面接受或拒絕該申請,僅在拒絕後此時段才會重新釋出。若需提供其他時間,請直接新增新時段。'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="justify-center">

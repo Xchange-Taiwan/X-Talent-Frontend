@@ -7,6 +7,7 @@ import { trackEvent } from '@/lib/analytics';
 import {
   acceptReservation,
   rejectOrCancelReservation,
+  ReservationVersionConflictError,
 } from '@/services/reservations';
 import { Reservation } from '@/types/reservation';
 
@@ -31,6 +32,10 @@ interface UseReservationActionsProps {
   myUserId: string | undefined;
   variant: Variant;
   onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
+  /** Called once (no auto-retry of the action itself) when the backend
+   * rejects the status update with a 409 version conflict, so the caller can
+   * refetch the affected tabs and show the user fresh data. */
+  onVersionConflict?: (affectedTabs: ListKey[]) => void;
 }
 
 interface UseReservationActionsReturn {
@@ -47,30 +52,40 @@ export function useReservationActions({
   myUserId,
   variant,
   onMutationSuccess,
+  onVersionConflict,
 }: UseReservationActionsProps): UseReservationActionsReturn {
   const { toast } = useToast();
+  // No errorMessage/errorTitle here: the caller (a reservation confirm
+  // dialog via useConfirmActionDialog) already owns the sole user-facing
+  // error toast for this action, keyed off the same rethrown error. Adding
+  // one here too would show two toasts back-to-back for every failure.
   const { run, isPending: isMutating } = useAsyncAction({
-    errorTitle: '錯誤',
-    errorMessage: '操作失敗，請稍後再試。',
     throwError: true,
   });
 
   const accept = useCallback(
     async (reservation: Reservation, message: string) => {
-      await run(async () => {
-        await acceptReservation({
-          message,
-          reservation,
-          myUserId,
+      try {
+        await run(async () => {
+          await acceptReservation({
+            message,
+            reservation,
+            myUserId,
+          });
+          toast({
+            title: '已接受預約',
+            description: '會議連結將於數分鐘內寄至雙方信箱',
+          });
+          onMutationSuccess?.(reservation.id, ACCEPT_AFFECTED_TABS);
         });
-        toast({
-          title: '已接受預約',
-          description: '會議連結將於數分鐘內寄至雙方信箱',
-        });
-        onMutationSuccess?.(reservation.id, ACCEPT_AFFECTED_TABS);
-      });
+      } catch (err) {
+        if (err instanceof ReservationVersionConflictError) {
+          onVersionConflict?.(ACCEPT_AFFECTED_TABS);
+        }
+        throw err;
+      }
     },
-    [run, myUserId, toast, onMutationSuccess]
+    [run, myUserId, toast, onMutationSuccess, onVersionConflict]
   );
 
   const rejectOrCancel = useCallback(
@@ -79,23 +94,30 @@ export function useReservationActions({
       text: string,
       action: 'reject' | 'cancel'
     ) => {
-      await run(async () => {
-        await rejectOrCancelReservation({
-          text,
-          reservation,
-          myUserId,
+      try {
+        await run(async () => {
+          await rejectOrCancelReservation({
+            text,
+            reservation,
+            myUserId,
+          });
+          trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
+          const successMessage =
+            action === 'reject' ? '已拒絕預約' : '已取消預約';
+          toast({ description: successMessage });
+          onMutationSuccess?.(
+            reservation.id,
+            buildRejectOrCancelAffectedTabs(variant)
+          );
         });
-        trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
-        const successMessage =
-          action === 'reject' ? '已拒絕預約' : '已取消預約';
-        toast({ description: successMessage });
-        onMutationSuccess?.(
-          reservation.id,
-          buildRejectOrCancelAffectedTabs(variant)
-        );
-      });
+      } catch (err) {
+        if (err instanceof ReservationVersionConflictError) {
+          onVersionConflict?.(buildRejectOrCancelAffectedTabs(variant));
+        }
+        throw err;
+      }
     },
-    [run, myUserId, variant, toast, onMutationSuccess]
+    [run, myUserId, variant, toast, onMutationSuccess, onVersionConflict]
   );
 
   return {

@@ -26,7 +26,7 @@ export type SlotDurationMinutes = 30 | 45 | 60;
 
 export type UpdateDraftSlotResult = {
   success: boolean;
-  reason?: 'OVERLAP' | 'TARGET_MONTH_NOT_LOADED';
+  reason?: 'OVERLAP' | 'TARGET_MONTH_NOT_LOADED' | 'READ_ONLY';
 };
 
 export interface MonthDraftStoreSnapshot {
@@ -354,6 +354,10 @@ export class MonthDraftStore {
     const parentDraft = this.draftByMonth.get(parentMonthKey) ?? [];
     const target = parentDraft.find((r) => r.id === id);
     if (!target) return { success: false };
+    // Backend-synthesized BOOKED/PENDING placeholders (and any other
+    // non-ALLOW row) are read-only — the UI never wires edit actions to
+    // them, but guard here too since this is a public store method.
+    if (target.type !== 'ALLOW') return { success: false, reason: 'READ_ONLY' };
 
     const baseDate = dayjs(occurrenceUnix * 1000).format('YYYY-MM-DD');
     const fmtHM = (sec: number) => dayjs(sec * 1000).format('HH:mm');
@@ -493,6 +497,10 @@ export class MonthDraftStore {
     const parentDraft = this.draftByMonth.get(parentMonthKey) ?? [];
     const target = parentDraft.find((r) => r.id === id);
     if (!target) return;
+    // Backend-synthesized BOOKED/PENDING placeholders (and any other
+    // non-ALLOW row) are read-only — the UI never wires delete actions to
+    // them, but guard here too since this is a public store method.
+    if (target.type !== 'ALLOW') return;
 
     this.draftByMonth = new Map(this.draftByMonth);
 

@@ -37,17 +37,20 @@ function ReservationItem({
   sourceRole,
   myUserId,
   onMutationSuccess,
+  onVersionConflict,
 }: {
   reservation: Reservation;
   variant: Variant;
   sourceRole: SourceRole;
   myUserId: string | undefined;
   onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
+  onVersionConflict?: (affectedTabs: ListKey[]) => void;
 }) {
   const { accept, rejectOrCancel, isMutating } = useReservationActions({
     myUserId,
     variant,
     onMutationSuccess,
+    onVersionConflict,
   });
 
   const handleProfileClick = (): void => {
@@ -127,6 +130,7 @@ export function ReservationList({
   onLoadMore,
   isLoadingMore = false,
   onMutationSuccess,
+  onVersionConflict,
 }: {
   items: Reservation[];
   variant: Variant;
@@ -139,6 +143,9 @@ export function ReservationList({
   // optimistically remove the operated item and refetch only the affected
   // states in the background.
   onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
+  // Called once when a status update is rejected with a 409 version
+  // conflict, so the parent hook can refetch the affected tabs in place.
+  onVersionConflict?: (affectedTabs: ListKey[]) => void;
 }) {
   return (
     <div className="space-y-3 sm:space-y-4">
@@ -150,6 +157,7 @@ export function ReservationList({
           sourceRole={sourceRole}
           myUserId={myUserId}
           onMutationSuccess={onMutationSuccess}
+          onVersionConflict={onVersionConflict}
         />
       ))}
 

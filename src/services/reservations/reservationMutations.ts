@@ -1,8 +1,40 @@
+import { ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import { Reservation } from '@/types/reservation';
 
 import { updateReservationStatus } from './reservationService';
+
+export const RESERVATION_CONFLICT_MESSAGE =
+  '資料已被更新，請重新確認後再試一次';
+
+/**
+ * Thrown when the backend rejects a status update with 409 (optimistic-lock
+ * version mismatch) — the reservation was changed elsewhere since it was
+ * read. Distinguishable via `instanceof` so callers can refetch + show a
+ * specific message instead of the generic failure toast.
+ */
+export class ReservationVersionConflictError extends Error {
+  constructor() {
+    super('Reservation version conflict (409)');
+    this.name = 'ReservationVersionConflictError';
+  }
+}
+
+/**
+ * Resolve the user-facing error message for a reservation status-update
+ * failure (accept/reject/cancel). Single place so every confirm dialog's
+ * `errorMessage` special-cases `ReservationVersionConflictError` the same
+ * way instead of repeating the same `instanceof` check per dialog.
+ */
+export function getReservationErrorMessage(
+  error: unknown,
+  fallbackMessage: string
+): string {
+  return error instanceof ReservationVersionConflictError
+    ? RESERVATION_CONFLICT_MESSAGE
+    : fallbackMessage;
+}
 
 interface PerformStatusUpdateParams {
   text: string;
@@ -43,9 +75,17 @@ async function performStatusUpdate({
         dtstart: reservation.dtstart,
         dtend: reservation.dtend,
         messages,
+        version: reservation.version,
       },
     });
   } catch (err) {
+    // A 409 here means someone else changed this reservation since we read
+    // it (optimistic-lock version mismatch) — an expected concurrency
+    // outcome, not a bug, so skip the Sentry capture and let the caller
+    // refetch + reprompt instead.
+    if (err instanceof ApiError && err.status === 409) {
+      throw new ReservationVersionConflictError();
+    }
     captureFlowFailure({
       flow: flowName,
       step: 'update_status',

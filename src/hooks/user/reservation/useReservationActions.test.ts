@@ -29,6 +29,7 @@ vi.mock('@/services/reservations', async (importOriginal) => {
 import {
   acceptReservation,
   rejectOrCancelReservation,
+  ReservationVersionConflictError,
 } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
@@ -52,6 +53,7 @@ const mockReservation: Reservation = {
   dtend: 1700003600,
   senderUserId: 'user-123',
   participantUserId: 'user-456',
+  version: 0,
 };
 
 beforeEach(() => {
@@ -170,7 +172,7 @@ describe('useReservationActions', () => {
       expect(result.current.isMutating).toBe(false);
     });
 
-    it('should throw error, trigger destructive toast, and reset isMutating if service fails', async () => {
+    it('should throw error and reset isMutating if service fails (toast is owned by the confirm dialog, not this hook)', async () => {
       const apiError = new Error('API Accept Failed');
       mockAcceptService.mockRejectedValue(apiError);
 
@@ -188,13 +190,7 @@ describe('useReservationActions', () => {
         })
       ).rejects.toThrow('API Accept Failed');
 
-      expect(mockToast).toHaveBeenCalledWith({
-        variant: 'destructive',
-        title: '錯誤',
-        description: '操作失敗，請稍後再試。',
-        duration: 5000,
-      });
-
+      expect(mockToast).not.toHaveBeenCalled();
       expect(mockOnMutationSuccess).not.toHaveBeenCalled();
       expect(result.current.isMutating).toBe(false);
     });
@@ -212,6 +208,36 @@ describe('useReservationActions', () => {
           await result.current.accept(mockReservation, 'hello');
         })
       ).rejects.toThrow('[reservationMutations] missing current user id');
+    });
+
+    it('should call onVersionConflict exactly once on 409 (toast is owned by the confirm dialog, not this hook)', async () => {
+      mockAcceptService.mockRejectedValue(
+        new ReservationVersionConflictError()
+      );
+      const mockOnVersionConflict = vi.fn();
+
+      const { result } = renderHook(() =>
+        useReservationActions({
+          myUserId: 'user-123',
+          variant: 'pending-mentor',
+          onMutationSuccess: mockOnMutationSuccess,
+          onVersionConflict: mockOnVersionConflict,
+        })
+      );
+
+      await expect(
+        act(async () => {
+          await result.current.accept(mockReservation, 'hello');
+        })
+      ).rejects.toBeInstanceOf(ReservationVersionConflictError);
+
+      expect(mockOnVersionConflict).toHaveBeenCalledTimes(1);
+      expect(mockOnVersionConflict).toHaveBeenCalledWith([
+        'pending',
+        'upcoming',
+      ]);
+      expect(mockToast).not.toHaveBeenCalled();
+      expect(mockOnMutationSuccess).not.toHaveBeenCalled();
     });
   });
 
@@ -324,7 +350,7 @@ describe('useReservationActions', () => {
       expect(result.current.isMutating).toBe(false);
     });
 
-    it('should throw error, trigger destructive toast, and reset isMutating if rejectOrCancel fails', async () => {
+    it('should throw error and reset isMutating if rejectOrCancel fails (toast is owned by the confirm dialog, not this hook)', async () => {
       const apiError = new Error('API Reject Failed');
       mockRejectService.mockRejectedValue(apiError);
 
@@ -346,13 +372,7 @@ describe('useReservationActions', () => {
         })
       ).rejects.toThrow('API Reject Failed');
 
-      expect(mockToast).toHaveBeenCalledWith({
-        variant: 'destructive',
-        title: '錯誤',
-        description: '操作失敗，請稍後再試。',
-        duration: 5000,
-      });
-
+      expect(mockToast).not.toHaveBeenCalled();
       expect(mockOnMutationSuccess).not.toHaveBeenCalled();
       expect(result.current.isMutating).toBe(false);
     });
@@ -374,6 +394,40 @@ describe('useReservationActions', () => {
           );
         })
       ).rejects.toThrow('[reservationMutations] missing current user id');
+    });
+
+    it('should call onVersionConflict exactly once on 409 (toast is owned by the confirm dialog, not this hook)', async () => {
+      mockRejectService.mockRejectedValue(
+        new ReservationVersionConflictError()
+      );
+      const mockOnVersionConflict = vi.fn();
+
+      const { result } = renderHook(() =>
+        useReservationActions({
+          myUserId: 'user-123',
+          variant: 'pending-mentor',
+          onMutationSuccess: mockOnMutationSuccess,
+          onVersionConflict: mockOnVersionConflict,
+        })
+      );
+
+      await expect(
+        act(async () => {
+          await result.current.rejectOrCancel(
+            mockReservation,
+            'reason',
+            'reject'
+          );
+        })
+      ).rejects.toBeInstanceOf(ReservationVersionConflictError);
+
+      expect(mockOnVersionConflict).toHaveBeenCalledTimes(1);
+      expect(mockOnVersionConflict).toHaveBeenCalledWith([
+        'pending',
+        'history',
+      ]);
+      expect(mockToast).not.toHaveBeenCalled();
+      expect(mockOnMutationSuccess).not.toHaveBeenCalled();
     });
   });
 });
