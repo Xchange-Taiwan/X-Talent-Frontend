@@ -6,6 +6,10 @@ vi.mock('@/components/ui/use-toast', async () => {
   return useToastMockFactory();
 });
 
+import {
+  RESERVATION_CONFLICT_MESSAGE,
+  ReservationVersionConflictError,
+} from '@/services/reservations';
 import { mockToast } from '@/test/mocks/useToast';
 
 import { useConfirmActionDialog } from './useConfirmActionDialog';
@@ -128,6 +132,29 @@ describe('useConfirmActionDialog', () => {
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
       description: errorMessage,
+    });
+  });
+
+  it('should show the shared conflict message when the caught error is a version conflict, regardless of the configured errorMessage', async () => {
+    const { result } = renderHook(() =>
+      useConfirmActionDialog({ errorMessage, onOpen: onOpenMock })
+    );
+
+    act(() => {
+      result.current.onOpenChange(true);
+    });
+
+    const action = vi
+      .fn()
+      .mockRejectedValue(new ReservationVersionConflictError());
+
+    await act(async () => {
+      await result.current.execute(action);
+    });
+
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      description: RESERVATION_CONFLICT_MESSAGE,
     });
   });
 });

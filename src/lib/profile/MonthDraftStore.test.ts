@@ -158,6 +158,58 @@ describe('MonthDraftStore Unit Tests', () => {
     expect(snap.pendingDeleteByMonth.get('2026-07')).toContain(101);
   });
 
+  it('edit() refuses a read-only BOOKED/PENDING placeholder row (id < 0)', () => {
+    const virtualRaws: RawMentorTimeslot[] = [
+      {
+        id: -101,
+        type: 'BOOKED' as const,
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+    const draftMap = new Map<string, RawMentorTimeslot[]>([
+      ['2026-07', virtualRaws],
+    ]);
+    const store = new MonthDraftStore({
+      draftByMonth: draftMap,
+    });
+
+    const res = store.edit(-101, 1785070000, { startTime: '13:00' }, '123');
+
+    expect(res).toEqual({ success: false, reason: 'READ_ONLY' });
+    // Row is untouched.
+    expect(store.snapshot().draftByMonth.get('2026-07')).toEqual(virtualRaws);
+    expect(store.snapshot().dirtyMonths.size).toBe(0);
+  });
+
+  it('delete() no-ops on a read-only BOOKED/PENDING placeholder row (id < 0)', () => {
+    const virtualRaws: RawMentorTimeslot[] = [
+      {
+        id: -101,
+        type: 'PENDING' as const,
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+    const draftMap = new Map<string, RawMentorTimeslot[]>([
+      ['2026-07', virtualRaws],
+    ]);
+    const store = new MonthDraftStore({
+      draftByMonth: draftMap,
+    });
+
+    store.delete(-101, 1785070000);
+
+    const snap = store.snapshot();
+    expect(snap.draftByMonth.get('2026-07')).toEqual(virtualRaws);
+    expect(snap.pendingDeleteByMonth.get('2026-07') ?? []).not.toContain(-101);
+    expect(snap.dirtyMonths.size).toBe(0);
+  });
+
   it('correctly detaches occurrence on delete of a recurring slot', () => {
     const mockRaws: RawMentorTimeslot[] = [
       {
