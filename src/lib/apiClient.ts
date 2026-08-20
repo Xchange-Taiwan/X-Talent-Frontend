@@ -65,13 +65,23 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
 }
 
-// Deduplicate concurrent 401 refresh calls — if multiple requests fail at once,
-// they all wait on the same refresh rather than each triggering a new one.
-const refreshMap = new Map<'refresh', Promise<Session | null>>();
+// Deduplicate concurrent session lookups. `sessionGetter` (next-auth's
+// imperative `getSession()`) always issues a fresh, uncached network
+// request - unlike the `useSession()` hook, it doesn't share the
+// SessionProvider's client-side state. A page that fires several
+// authenticated requests at once (e.g. loading multiple lists in
+// parallel) would otherwise trigger one `/api/auth/session` round trip
+// per request; singleFlight collapses concurrent callers onto the same
+// in-flight lookup so only the slowest response in a burst is paid once.
+// Reused for both the routine per-request lookup (`getAuthHeader`) and
+// the reactive 401 refresh below - both just want "the current session",
+// and sharing one map means a refresh triggered by one failing request
+// can be satisfied by a lookup another request already had in flight.
+const sessionLookupMap = new Map<'session', Promise<Session | null>>();
 
-function refreshSession(): Promise<Session | null> {
+function getSharedSession(): Promise<Session | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
-  return singleFlight(refreshMap, 'refresh', () => sessionGetter());
+  return singleFlight(sessionLookupMap, 'session', () => sessionGetter());
 }
 
 function isAbsoluteUrl(path: string): boolean {
@@ -102,7 +112,7 @@ function buildUrl(
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   if (typeof window === 'undefined') return {};
-  const session = await sessionGetter();
+  const session = await getSharedSession();
   const token = session?.accessToken;
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };
@@ -169,7 +179,7 @@ async function request<T>(
   }
 
   if (response.status === 401 && auth && !isRetry) {
-    const freshSession = await refreshSession();
+    const freshSession = await getSharedSession();
     if (freshSession?.accessToken && !freshSession.error) {
       return request<T>(method, path, body, options, true);
     }
