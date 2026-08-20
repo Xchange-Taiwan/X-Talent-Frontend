@@ -31,3 +31,14 @@ if (
     return false;
   };
 }
+
+// jsdom doesn't implement scrollIntoView, but cmdk (Command) calls it when an
+// item becomes selected. Defined on Element (not HTMLElement) to match the
+// DOM spec — and so it doesn't shadow the per-test overrides some suites set
+// directly on Element.prototype.scrollIntoView to spy on scroll targets.
+if (
+  typeof Element !== 'undefined' &&
+  typeof Element.prototype.scrollIntoView === 'undefined'
+) {
+  Element.prototype.scrollIntoView = function () {};
+}
