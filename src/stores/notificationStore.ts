@@ -36,6 +36,8 @@ export interface SharedNotificationState {
   hasLoadMoreError: boolean;
   isFetching: boolean;
   fetchPromise: Promise<void> | null;
+  isFetchingUnreadCount: boolean;
+  unreadCountFetchPromise: Promise<void> | null;
   markingReadIds: Set<string>;
   isMarkingAll: boolean;
 }
@@ -66,6 +68,8 @@ export const createInitialState = (
     hasLoadMoreError: false,
     isFetching: false,
     fetchPromise: null,
+    isFetchingUnreadCount: false,
+    unreadCountFetchPromise: null,
     markingReadIds: new Set<string>(),
     isMarkingAll: false,
   };

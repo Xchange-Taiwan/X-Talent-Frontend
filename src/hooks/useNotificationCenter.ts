@@ -33,6 +33,16 @@ function reportMarkAsReadFailure(step: string, error: unknown): void {
   });
 }
 
+function reportUnreadCountFailure(step: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[useNotificationCenter] ${step} failed:`, message);
+  void captureFlowFailure({
+    flow: 'notification_load_unread_count',
+    step,
+    message,
+  });
+}
+
 /**
  * Marks IDs as read in fixed-size batches (instead of one unbounded
  * Promise.allSettled) to avoid exhausting the browser's per-origin
@@ -237,16 +247,40 @@ export function useNotificationCenter({
   const loadUnreadCount = React.useCallback(async () => {
     if (isUsingProps) return;
     if (!userId) return;
+    const state = notificationStoreManager.getOrCreateState(userId);
 
-    try {
-      const res = await fetchUnreadCount(userId);
-      notificationStoreManager.setUnreadCount(
-        userId,
-        (res && res.unread_count) || 0
-      );
-    } catch (error) {
-      console.error('[useNotificationCenter] loadUnreadCount failed:', error);
+    // Dedupe concurrent calls across sibling hook instances (e.g. Header +
+    // MobileMenu both mounting at once), same pattern as loadInitialData below.
+    if (state.isFetchingUnreadCount) {
+      if (state.unreadCountFetchPromise) {
+        await state.unreadCountFetchPromise;
+      }
+      return;
     }
+
+    const fetchPromise = (async () => {
+      try {
+        const res = await fetchUnreadCount(userId);
+        notificationStoreManager.setUnreadCount(
+          userId,
+          (res && res.unread_count) || 0
+        );
+      } catch (error) {
+        reportUnreadCountFailure('fetch_unread_count', error);
+      } finally {
+        notificationStoreManager.updateState(userId, {
+          isFetchingUnreadCount: false,
+          unreadCountFetchPromise: null,
+        });
+      }
+    })();
+
+    notificationStoreManager.updateState(userId, {
+      isFetchingUnreadCount: true,
+      unreadCountFetchPromise: fetchPromise,
+    });
+
+    await fetchPromise;
   }, [userId, isUsingProps]);
 
   // Load initial notifications and unread count from service
@@ -367,7 +401,9 @@ export function useNotificationCenter({
   // data exists, re-opening only refreshes silently in the background
   // (showLoading: false), matching the original "fetch fresh details when
   // opened" behavior.
-  const isFirstLoad = storeState.status === 'loading';
+  const isFirstLoad =
+    storeState.status === 'loading' ||
+    (storeState.status === 'error' && storeState.notifications.length === 0);
 
   const openCenter = React.useCallback(() => {
     setOpen(true);
@@ -383,15 +419,13 @@ export function useNotificationCenter({
 
   const onOpenChange = React.useCallback(
     (nextOpen: boolean) => {
-      setOpen(nextOpen);
       if (nextOpen) {
-        writeSeenCount(badgeCount);
-        if (!isUsingProps) {
-          loadInitialData(isFirstLoad);
-        }
+        openCenter();
+      } else {
+        setOpen(false);
       }
     },
-    [badgeCount, writeSeenCount, isUsingProps, loadInitialData, isFirstLoad]
+    [openCenter]
   );
 
   const markRead = React.useCallback(
