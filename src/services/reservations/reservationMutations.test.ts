@@ -32,12 +32,13 @@ vi.mock('@/lib/analytics', async (importActual) => {
   };
 });
 
-import { apiClient } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import {
   acceptReservation,
   rejectOrCancelReservation,
+  ReservationVersionConflictError,
 } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
@@ -58,6 +59,7 @@ const makeMockReservation = (
   dtend: 1704103200,
   senderUserId: 'user-sender',
   participantUserId: 'user-participant',
+  version: 0,
   ...overrides,
 });
 
@@ -116,6 +118,7 @@ describe('acceptReservation', () => {
       dtstart: 1704099600,
       dtend: 1704103200,
       messages: [{ user_id: 10, content: 'Looking forward to meeting you!' }],
+      version: 0,
     });
   });
 
@@ -176,6 +179,21 @@ describe('acceptReservation', () => {
       })
     ).rejects.toThrow('[reservationMutations] missing current user id');
   });
+
+  it('should throw ReservationVersionConflictError and skip Sentry capture on 409', async () => {
+    const reservation = makeMockReservation({ version: 3 });
+    mockPut.mockRejectedValue(new ApiError(409, 'version conflict'));
+
+    await expect(
+      acceptReservation({
+        message: 'hello',
+        reservation,
+        myUserId: '10',
+      })
+    ).rejects.toBeInstanceOf(ReservationVersionConflictError);
+
+    expect(mockCaptureFailure).not.toHaveBeenCalled();
+  });
 });
 
 describe('rejectOrCancelReservation', () => {
@@ -209,6 +227,7 @@ describe('rejectOrCancelReservation', () => {
       dtstart: 1704099600,
       dtend: 1704103200,
       messages: [{ user_id: 10, content: 'Sorry, I am busy' }],
+      version: 0,
     });
   });
 
@@ -242,5 +261,20 @@ describe('rejectOrCancelReservation', () => {
         myUserId: '',
       })
     ).rejects.toThrow('[reservationMutations] missing current user id');
+  });
+
+  it('should throw ReservationVersionConflictError and skip Sentry capture on 409', async () => {
+    const reservation = makeMockReservation({ version: 3 });
+    mockPut.mockRejectedValue(new ApiError(409, 'version conflict'));
+
+    await expect(
+      rejectOrCancelReservation({
+        text: 'reason',
+        reservation,
+        myUserId: '10',
+      })
+    ).rejects.toBeInstanceOf(ReservationVersionConflictError);
+
+    expect(mockCaptureFailure).not.toHaveBeenCalled();
   });
 });

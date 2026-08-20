@@ -46,9 +46,11 @@ const mockDraftForSelectedDate = [
     durationMinutes: 30,
     type: 'ALLOW',
   },
+  // Backend-synthesized read-only placeholder (id < 0) — not a real
+  // mentor_availability row, per X-Talent-Backend PR #44.
   {
-    id: 22,
-    occurrenceId: 'occ-22',
+    id: -22,
+    occurrenceId: 'occ--22',
     occurrenceUnix: 1785010000,
     start: new Date('2026-07-26T11:00:00'),
     end: new Date('2026-07-26T11:30:00'),
@@ -65,9 +67,11 @@ const mockDraftForSelectedDate = [
     durationMinutes: 30,
     type: 'ALLOW',
   },
+  // Backend-synthesized read-only placeholder (id < 0) — not a real
+  // mentor_availability row, per X-Talent-Backend PR #44.
   {
-    id: 33,
-    occurrenceId: 'occ-33',
+    id: -33,
+    occurrenceId: 'occ--33',
     occurrenceUnix: 1785020000,
     start: new Date('2026-07-26T12:00:00'),
     end: new Date('2026-07-26T12:30:00'),
@@ -386,5 +390,65 @@ describe('MentorScheduleDialog', () => {
       variant: 'destructive',
       description: '更新時段失敗，發生未知的錯誤，請稍後再試。',
     });
+  });
+
+  it('shows precise destruct warning toast when updateDraftSlot returns READ_ONLY reason', () => {
+    const mockUpdateDraftSlotWithError = vi.fn().mockImplementation(() => {
+      return { success: false, reason: 'READ_ONLY' };
+    });
+
+    const mockScheduleWithError = {
+      ...mockSchedule,
+      updateDraftSlot: mockUpdateDraftSlotWithError,
+    } as unknown as UseMentorScheduleReturn;
+
+    render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        schedule={mockScheduleWithError}
+      />
+    );
+
+    const firstSlot = screen
+      .getByText('10:00 – 10:30')
+      .closest('[role="button"]');
+    fireEvent.click(firstSlot!);
+    expect(screen.getByText('編輯時段')).toBeInTheDocument();
+
+    const editSubmitBtn = screen.getByRole('button', { name: '完成' });
+    fireEvent.click(editSubmitBtn);
+
+    expect(mockUpdateDraftSlotWithError).toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      description: '此時段已被預約引用，無法編輯，請改為新增新時段',
+    });
+  });
+
+  it('does not treat a positive-id BOOKED/PENDING row as a read-only blocker (only id < 0 counts)', () => {
+    const mockScheduleWithPositiveId = {
+      ...mockSchedule,
+      draftForSelectedDate: mockDraftForSelectedDate.map((s) =>
+        s.type === 'BOOKED' ? { ...s, id: Math.abs(s.id) } : s
+      ),
+    } as unknown as UseMentorScheduleReturn;
+
+    render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        schedule={mockScheduleWithPositiveId}
+      />
+    );
+
+    const bookedSlot = screen
+      .getByText('11:00 – 11:30')
+      .closest('[role="button"]');
+    fireEvent.click(bookedSlot!);
+    // A positive-id BOOKED row is no longer recognized as a placeholder, so
+    // the click falls through to the normal edit flow instead of the prompt.
+    expect(screen.queryByText('此時段已有預約')).not.toBeInTheDocument();
+    expect(screen.getByText('編輯時段')).toBeInTheDocument();
   });
 });

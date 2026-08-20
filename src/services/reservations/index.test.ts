@@ -424,6 +424,20 @@ describe('mapToReservation', () => {
   });
 
   /* ============================
+   * version (optimistic lock) — X-Talent-Backend PR #44
+   * ============================ */
+
+  it('version absent from API response → defaults to 0', () => {
+    const result = mapToReservation(makeReservation());
+    expect(result.version).toBe(0);
+  });
+
+  it('version present in API response → passed through', () => {
+    const result = mapToReservation({ ...makeReservation(), version: 5 });
+    expect(result.version).toBe(5);
+  });
+
+  /* ============================
    * myUserId matching (counterparty resolution)
    * ============================ */
 

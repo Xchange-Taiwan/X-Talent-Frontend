@@ -41,6 +41,7 @@ const makeReservation = (id: string) => ({
   dtend: 1700003600,
   senderUserId: 'sender-1',
   participantUserId: 'participant-1',
+  version: 0,
 });
 
 const stubFor = (state: ReservationState) =>
@@ -153,6 +154,29 @@ describe('useReservationData (mentee)', () => {
     });
 
     expect(result.current.data?.pending).toHaveLength(0);
+  });
+
+  it('refetchOnConflict refetches the affected states without removing the item first', async () => {
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // Initially, there's a reservation in pending
+    expect(result.current.data?.pending).toHaveLength(1);
+
+    // Refetch resolves with the same item (still present, just refreshed —
+    // unlike onMutationSuccess, refetchOnConflict never assumes it moved out).
+    mockFetch.mockClear();
+
+    await act(async () => {
+      result.current.refetchOnConflict(['pending']);
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledWith({
+      userId: mockSession.user.id,
+      state: 'MENTEE_PENDING',
+    });
+    expect(result.current.data?.pending).toHaveLength(1);
   });
 
   it('onMutationSuccess refetches history when it has been loaded', async () => {

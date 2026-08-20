@@ -29,6 +29,7 @@ vi.mock('@/services/reservations', async (importOriginal) => {
 import {
   acceptReservation,
   rejectOrCancelReservation,
+  ReservationVersionConflictError,
 } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
@@ -52,6 +53,7 @@ const mockReservation: Reservation = {
   dtend: 1700003600,
   senderUserId: 'user-123',
   participantUserId: 'user-456',
+  version: 0,
 };
 
 beforeEach(() => {
@@ -212,6 +214,41 @@ describe('useReservationActions', () => {
           await result.current.accept(mockReservation, 'hello');
         })
       ).rejects.toThrow('[reservationMutations] missing current user id');
+    });
+
+    it('should call onVersionConflict once and show the conflict-specific toast on 409', async () => {
+      mockAcceptService.mockRejectedValue(
+        new ReservationVersionConflictError()
+      );
+      const mockOnVersionConflict = vi.fn();
+
+      const { result } = renderHook(() =>
+        useReservationActions({
+          myUserId: 'user-123',
+          variant: 'pending-mentor',
+          onMutationSuccess: mockOnMutationSuccess,
+          onVersionConflict: mockOnVersionConflict,
+        })
+      );
+
+      await expect(
+        act(async () => {
+          await result.current.accept(mockReservation, 'hello');
+        })
+      ).rejects.toBeInstanceOf(ReservationVersionConflictError);
+
+      expect(mockOnVersionConflict).toHaveBeenCalledTimes(1);
+      expect(mockOnVersionConflict).toHaveBeenCalledWith([
+        'pending',
+        'upcoming',
+      ]);
+      expect(mockToast).toHaveBeenCalledWith({
+        variant: 'destructive',
+        title: '錯誤',
+        description: '資料已被更新，請重新確認後再試一次',
+        duration: 5000,
+      });
+      expect(mockOnMutationSuccess).not.toHaveBeenCalled();
     });
   });
 
@@ -374,6 +411,45 @@ describe('useReservationActions', () => {
           );
         })
       ).rejects.toThrow('[reservationMutations] missing current user id');
+    });
+
+    it('should call onVersionConflict once and show the conflict-specific toast on 409', async () => {
+      mockRejectService.mockRejectedValue(
+        new ReservationVersionConflictError()
+      );
+      const mockOnVersionConflict = vi.fn();
+
+      const { result } = renderHook(() =>
+        useReservationActions({
+          myUserId: 'user-123',
+          variant: 'pending-mentor',
+          onMutationSuccess: mockOnMutationSuccess,
+          onVersionConflict: mockOnVersionConflict,
+        })
+      );
+
+      await expect(
+        act(async () => {
+          await result.current.rejectOrCancel(
+            mockReservation,
+            'reason',
+            'reject'
+          );
+        })
+      ).rejects.toBeInstanceOf(ReservationVersionConflictError);
+
+      expect(mockOnVersionConflict).toHaveBeenCalledTimes(1);
+      expect(mockOnVersionConflict).toHaveBeenCalledWith([
+        'pending',
+        'history',
+      ]);
+      expect(mockToast).toHaveBeenCalledWith({
+        variant: 'destructive',
+        title: '錯誤',
+        description: '資料已被更新，請重新確認後再試一次',
+        duration: 5000,
+      });
+      expect(mockOnMutationSuccess).not.toHaveBeenCalled();
     });
   });
 });

@@ -21,6 +21,19 @@ export type FetchOptions = {
   debug?: boolean;
 };
 
+// `version` (optimistic-lock field, X-Talent-Backend PR #44) is not yet part
+// of the generated OpenAPI schema in src/types/api.ts — that file is
+// auto-generated and regenerates once the backend ships the field. Extend
+// the generated types locally in the meantime rather than hand-editing api.ts.
+type ReservationInfoVOWithVersion =
+  components['schemas']['ReservationInfoVO'] & {
+    version?: number;
+  };
+type UpdateReservationDTOWithVersion =
+  components['schemas']['UpdateReservationDTO'] & {
+    version?: number;
+  };
+
 /* ================================
  * Helpers
  * ================================ */
@@ -56,7 +69,7 @@ function classifyMessageRole(
 }
 
 export function mapToReservation(
-  reservation: components['schemas']['ReservationInfoVO'],
+  reservation: ReservationInfoVOWithVersion,
   myUserId?: string | number | null
 ): Reservation {
   const { name, avatar, roleLine, cancelledBy } = resolveCounterpartyProfile(
@@ -109,6 +122,7 @@ export function mapToReservation(
     senderUserId: reservation.sender?.user_id ?? 0,
     participantUserId: reservation.participant?.user_id ?? 0,
     cancelledBy,
+    version: reservation.version ?? 0,
   };
 }
 
@@ -148,7 +162,7 @@ export async function fetchReservations(
 export async function updateReservationStatus(opts: {
   userId: string | number;
   reservationId: string | number;
-  body: components['schemas']['UpdateReservationDTO'];
+  body: UpdateReservationDTOWithVersion;
   debug?: boolean;
 }): Promise<components['schemas']['ReservationVO']> {
   const { userId, reservationId, body, debug } = opts;
