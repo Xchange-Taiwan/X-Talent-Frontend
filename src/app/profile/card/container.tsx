@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
+import { useRef } from 'react';
 
 import { PageLoading } from '@/components/ui/loading-spinner';
 import { primeTagCatalogCacheIfEmpty } from '@/hooks/user/tags/useTagCatalog';
@@ -30,11 +31,18 @@ export default function ProfileCardContainer({
   // child hooks run - this is intentionally inside render (not useEffect) so
   // useUserProfileDto's lazy-init useState reads the primed entry on its
   // first render. That's what puts the avatar in the initial HTML instead of
-  // behind a client-side session + data fetch (see issue #591).
-  if (initialDto) {
-    primeUserProfileDtoCacheIfEmpty(loginUserId, 'zh_TW', initialDto);
+  // behind a client-side session + data fetch (see issue #591). Guarded by a
+  // ref (rather than relying solely on the cache's own `ifEmpty` idempotency)
+  // so this render-phase side effect runs at most once per mount, including
+  // under React Strict Mode's double-invoke.
+  const primedRef = useRef(false);
+  if (!primedRef.current) {
+    if (initialDto) {
+      primeUserProfileDtoCacheIfEmpty(loginUserId, 'zh_TW', initialDto);
+    }
+    primeTagCatalogCacheIfEmpty('zh_TW', initialCatalogs);
+    primedRef.current = true;
   }
-  primeTagCatalogCacheIfEmpty('zh_TW', initialCatalogs);
 
   const { userData, isLoading } = useUserData(loginUserId, 'zh_TW');
 
