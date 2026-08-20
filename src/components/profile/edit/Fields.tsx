@@ -1,5 +1,7 @@
 'use client';
 
+import { Check, ChevronsUpDown } from 'lucide-react';
+import { useState } from 'react';
 import {
   Control,
   FieldPath,
@@ -7,6 +9,15 @@ import {
   UseFormReturn,
 } from 'react-hook-form';
 
+import { Button } from '@/components/ui/button';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import {
   FormControl,
   FormField,
@@ -15,6 +26,11 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -22,6 +38,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 
 //--------------------------------------------------
 // 📦 Reusable Field Components
@@ -148,3 +165,94 @@ export const SelectField = <T extends FieldValues>({
     )}
   />
 );
+
+export interface ComboboxFieldProps<T extends FieldValues> {
+  form: UseFormReturn<T>;
+  name: FieldPath<T>;
+  placeholder?: string;
+  searchPlaceholder?: string;
+  emptyText?: string;
+  options: Array<{ label: string; value: string }>;
+}
+
+/**
+ * A searchable single-select combobox, for fields whose option list is too
+ * large for Select: Radix Select always mounts a hidden native <select>
+ * mirroring every SelectItem (even while closed, for native form/typeahead
+ * support), so a several-hundred-option Select forces that many DOM nodes on
+ * mount regardless of open state. Popover+Command has no such mirror — its
+ * option list only mounts once opened.
+ */
+export const ComboboxField = <T extends FieldValues>({
+  form,
+  name,
+  placeholder = '請選擇',
+  searchPlaceholder = '搜尋...',
+  emptyText = '沒有符合的選項',
+  options,
+}: ComboboxFieldProps<T>) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <FormField
+      control={form.control}
+      name={name}
+      render={({ field }) => {
+        const selected = options.find((opt) => opt.value === field.value);
+        return (
+          <FormItem>
+            <Popover open={open} onOpenChange={setOpen}>
+              <PopoverTrigger asChild>
+                <FormControl>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="w-full justify-between font-normal"
+                  >
+                    <span className={cn(!selected && 'text-text-tertiary')}>
+                      {selected ? selected.label : placeholder}
+                    </span>
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </FormControl>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                <Command>
+                  <CommandInput placeholder={searchPlaceholder} />
+                  <CommandList>
+                    <CommandEmpty>{emptyText}</CommandEmpty>
+                    <CommandGroup>
+                      {options.map((opt) => (
+                        <CommandItem
+                          key={opt.value}
+                          value={opt.label}
+                          onSelect={() => {
+                            field.onChange(opt.value);
+                            setOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              'mr-2 size-4',
+                              opt.value === field.value
+                                ? 'opacity-100'
+                                : 'opacity-0'
+                            )}
+                          />
+                          {opt.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            <FormMessage />
+          </FormItem>
+        );
+      }}
+    />
+  );
+};
