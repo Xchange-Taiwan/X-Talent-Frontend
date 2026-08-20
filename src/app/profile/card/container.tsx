@@ -2,34 +2,43 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { getSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
 
 import { PageLoading } from '@/components/ui/loading-spinner';
+import { primeTagCatalogCacheIfEmpty } from '@/hooks/user/tags/useTagCatalog';
 import useUserData from '@/hooks/user/user-data/useUserData';
+import { primeUserProfileDtoCacheIfEmpty } from '@/hooks/user/user-data/useUserProfileDto';
 import { getMentorOnboardingUrl } from '@/lib/routes';
+import type { TagCatalogsByBucket } from '@/types/tagCatalog';
+import type { MentorProfileVO } from '@/types/user';
 
 const ProfileCardUI = dynamic(() => import('./ui'));
 
-export default function ProfileCardContainer() {
+interface Props {
+  loginUserId: number;
+  initialDto: MentorProfileVO | null;
+  initialCatalogs: TagCatalogsByBucket;
+}
+
+export default function ProfileCardContainer({
+  loginUserId,
+  initialDto,
+  initialCatalogs,
+}: Props) {
   const router = useRouter();
-  const [loginUserId, setLoginUserId] = useState<number | null>(null);
 
-  useEffect(() => {
-    const loadSession = async () => {
-      const session = await getSession();
-      const idFromSession = session?.user?.id ? Number(session.user.id) : null;
-      setLoginUserId(
-        idFromSession && !Number.isNaN(idFromSession) ? idFromSession : null
-      );
-    };
+  // Synchronously seed the in-memory caches from the SSR-fetched data BEFORE
+  // child hooks run - this is intentionally inside render (not useEffect) so
+  // useUserProfileDto's lazy-init useState reads the primed entry on its
+  // first render. That's what puts the avatar in the initial HTML instead of
+  // behind a client-side session + data fetch (see issue #591).
+  if (initialDto) {
+    primeUserProfileDtoCacheIfEmpty(loginUserId, 'zh_TW', initialDto);
+  }
+  primeTagCatalogCacheIfEmpty('zh_TW', initialCatalogs);
 
-    loadSession();
-  }, []);
+  const { userData, isLoading } = useUserData(loginUserId, 'zh_TW');
 
-  const { userData, isLoading } = useUserData(loginUserId ?? 0, 'zh_TW');
-
-  if (isLoading || !loginUserId) return <PageLoading />;
+  if (isLoading) return <PageLoading />;
   if (!userData) return null;
 
   const isMentor = userData.is_mentor;
