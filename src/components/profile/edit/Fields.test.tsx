@@ -102,6 +102,23 @@ describe('ComboboxField', () => {
     });
   });
 
+  it('marks the field as touched after picking an option, not just on Escape', async () => {
+    render(<Harness />);
+
+    expect(screen.getByTestId('touched')).toHaveTextContent('false');
+
+    fireEvent.click(screen.getByRole('combobox'));
+    await waitFor(() => {
+      expect(screen.getByText('Country 0')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Country 3'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('touched')).toHaveTextContent('true');
+    });
+  });
+
   it('disables the trigger when the field is disabled', () => {
     render(<Harness disabled />);
 
