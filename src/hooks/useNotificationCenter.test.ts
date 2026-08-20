@@ -7,6 +7,10 @@ import {
 } from '@/hooks/useNotificationCenter';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
+  fetchUnreadCount,
+  listNotifications,
+} from '@/services/notifications/notificationService';
+import {
   notificationStoreManager,
   resetNotificationStore,
 } from '@/stores/notificationStore';
@@ -19,6 +23,13 @@ vi.mock('@/components/ui/use-toast', async () => {
 
 vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
+}));
+
+vi.mock('@/services/notifications/notificationService', () => ({
+  fetchUnreadCount: vi.fn(),
+  listNotifications: vi.fn(),
+  markAllRead: vi.fn(),
+  markOneRead: vi.fn(),
 }));
 
 const mockNotifications: NotificationItem[] = [
@@ -461,5 +472,145 @@ describe('useNotificationCenter', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  describe('lazy list loading (real fetch path, no initialNotifications)', () => {
+    beforeEach(() => {
+      vi.mocked(fetchUnreadCount).mockReset();
+      vi.mocked(listNotifications).mockReset();
+    });
+
+    it('on mount, fetches only the unread badge count - not the notification list', async () => {
+      vi.mocked(fetchUnreadCount).mockResolvedValue({ unread_count: 3 });
+      vi.mocked(listNotifications).mockResolvedValue({
+        notifications: mockNotifications,
+        next_cursor: null,
+      });
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({ userId: 'user-lazy' })
+      );
+
+      await waitFor(() => {
+        expect(result.current.badgeCount).toBe(3);
+      });
+
+      expect(fetchUnreadCount).toHaveBeenCalledWith('user-lazy');
+      expect(listNotifications).not.toHaveBeenCalled();
+      // The list itself hasn't loaded yet - only the count has.
+      expect(result.current.items).toEqual([]);
+    });
+
+    it('fetches the full notification list only once the dropdown is actually opened', async () => {
+      vi.mocked(fetchUnreadCount).mockResolvedValue({ unread_count: 2 });
+      vi.mocked(listNotifications).mockResolvedValue({
+        notifications: mockNotifications,
+        next_cursor: null,
+      });
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({ userId: 'user-lazy-open' })
+      );
+
+      await waitFor(() => {
+        expect(result.current.badgeCount).toBe(2);
+      });
+      expect(listNotifications).not.toHaveBeenCalled();
+
+      act(() => {
+        result.current.openCenter();
+      });
+
+      await waitFor(() => {
+        expect(result.current.items).toEqual(mockNotifications);
+      });
+      expect(listNotifications).toHaveBeenCalledWith(
+        'user-lazy-open',
+        undefined,
+        20
+      );
+    });
+
+    it('dedupes concurrent loadUnreadCount calls across sibling hook instances mounting for the same user', async () => {
+      vi.mocked(fetchUnreadCount).mockResolvedValue({ unread_count: 5 });
+
+      const { result: result1 } = renderHook(() =>
+        useNotificationCenter({ userId: 'user-lazy-dedup' })
+      );
+      const { result: result2 } = renderHook(() =>
+        useNotificationCenter({ userId: 'user-lazy-dedup' })
+      );
+
+      await waitFor(() => {
+        expect(result1.current.badgeCount).toBe(5);
+        expect(result2.current.badgeCount).toBe(5);
+      });
+
+      expect(fetchUnreadCount).toHaveBeenCalledTimes(1);
+    });
+
+    it('discards a stale mount-time unread count that resolves after a fresher openCenter load', async () => {
+      let resolveMountFetch: (value: { unread_count: number }) => void;
+      const mountFetchPromise = new Promise<{ unread_count: number }>(
+        (resolve) => {
+          resolveMountFetch = resolve;
+        }
+      );
+
+      vi.mocked(fetchUnreadCount)
+        .mockReturnValueOnce(mountFetchPromise) // mount-time loadUnreadCount
+        .mockResolvedValue({ unread_count: 9 }); // loadInitialData's own fetchUnreadCount call, once opened
+      vi.mocked(listNotifications).mockResolvedValue({
+        notifications: mockNotifications,
+        next_cursor: null,
+      });
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({ userId: 'user-lazy-race' })
+      );
+
+      await waitFor(() => {
+        expect(fetchUnreadCount).toHaveBeenCalledTimes(1);
+      });
+
+      // User opens the dropdown before the mount-time fetch resolves;
+      // loadInitialData's own fetch/list calls resolve first with fresher data.
+      act(() => {
+        result.current.openCenter();
+      });
+      await waitFor(() => {
+        expect(result.current.items).toEqual(mockNotifications);
+      });
+      expect(result.current.badgeCount).toBe(9);
+
+      // Now the slow mount-time fetch resolves with stale data - it must be
+      // discarded rather than clobbering the fresher count above.
+      await act(async () => {
+        resolveMountFetch({ unread_count: 2 });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      expect(result.current.badgeCount).toBe(9);
+    });
+
+    it('reports and gracefully degrades when loadUnreadCount fails', async () => {
+      vi.mocked(fetchUnreadCount).mockRejectedValue(new Error('network down'));
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({ userId: 'user-lazy-fail' })
+      );
+
+      await waitFor(() => {
+        expect(captureFlowFailure).toHaveBeenCalledWith(
+          expect.objectContaining({
+            flow: 'notification_load_unread_count',
+            step: 'fetch_unread_count',
+            message: 'network down',
+          })
+        );
+      });
+
+      expect(result.current.badgeCount).toBe(0);
+    });
   });
 });

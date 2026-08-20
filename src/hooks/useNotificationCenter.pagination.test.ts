@@ -28,6 +28,30 @@ const mockApiNotifications: ApiNotificationItem[] = Array.from(
   })
 );
 
+/**
+ * Renders the hook, waits for the mount-time unread-count fetch to land,
+ * then opens the dropdown to trigger (and wait out) the full list fetch.
+ * Most tests below need the list loaded before they can exercise
+ * loadMore/markRead/etc., since the list is no longer fetched on mount.
+ */
+async function renderAndOpen(userId = 'user-123') {
+  const rendered = renderHook(() => useNotificationCenter({ userId }));
+
+  await waitFor(() => {
+    expect(rendered.result.current.badgeCount).toBeGreaterThanOrEqual(0);
+  });
+
+  act(() => {
+    rendered.result.current.openCenter();
+  });
+
+  await waitFor(() => {
+    expect(rendered.result.current.status).toBe('success');
+  });
+
+  return rendered;
+}
+
 describe('useNotificationCenter pagination and service integration', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -37,28 +61,52 @@ describe('useNotificationCenter pagination and service integration', () => {
     mockService.resetMockNotificationDatabase(mockApiNotifications);
   });
 
-  it('fetches initial data (unread count and first batch of 20 items) from service on mount', async () => {
+  it('on mount, fetches only the unread count - the list stays unloaded until the dropdown opens', async () => {
+    const listSpy = vi.spyOn(mockService, 'listNotifications');
+
     const { result } = renderHook(() =>
       useNotificationCenter({ userId: 'user-123' })
     );
 
-    // Initially loading
     expect(result.current.status).toBe('loading');
     expect(result.current.items).toHaveLength(0);
 
-    // Wait for initial load
+    // unreadCountState drives badgeCount (which is 5 in total) - available
+    // without ever opening the dropdown.
+    await waitFor(() => {
+      expect(result.current.badgeCount).toBe(5);
+    });
+    expect(result.current.hasUnread).toBe(true);
+
+    // Still no list - opening is what triggers that fetch.
+    expect(result.current.status).toBe('loading');
+    expect(listSpy).not.toHaveBeenCalled();
+
+    listSpy.mockRestore();
+  });
+
+  it('fetches the first batch of 20 items once the dropdown is opened', async () => {
+    const { result } = renderHook(() =>
+      useNotificationCenter({ userId: 'user-123' })
+    );
+
+    await waitFor(() => {
+      expect(result.current.badgeCount).toBe(5);
+    });
+
+    act(() => {
+      result.current.openCenter();
+    });
+
     await waitFor(() => {
       expect(result.current.status).toBe('success');
     });
 
     expect(result.current.items).toHaveLength(20);
-    // unreadCountState drives badgeCount (which is 5 in total)
-    expect(result.current.badgeCount).toBe(5);
-    expect(result.current.hasUnread).toBe(true);
     expect(result.current.hasMore).toBe(true); // 25 total items, first batch has 20, so 5 more exist
   });
 
-  it('sets status to error (not a silent empty success) when the initial load fails with no existing notifications', async () => {
+  it('sets status to error (not a silent empty success) when the first-ever list load fails', async () => {
     const listSpy = vi
       .spyOn(mockService, 'listNotifications')
       .mockRejectedValue(new Error('Network Error'));
@@ -67,7 +115,9 @@ describe('useNotificationCenter pagination and service integration', () => {
       useNotificationCenter({ userId: 'user-123' })
     );
 
-    expect(result.current.status).toBe('loading');
+    act(() => {
+      result.current.openCenter();
+    });
 
     await waitFor(() => {
       expect(result.current.status).toBe('error');
@@ -79,13 +129,7 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('loads the next batch and appends them when loadMore is called', async () => {
-    const { result } = renderHook(() =>
-      useNotificationCenter({ userId: 'user-123' })
-    );
-
-    await waitFor(() => {
-      expect(result.current.status).toBe('success');
-    });
+    const { result } = await renderAndOpen();
 
     expect(result.current.items).toHaveLength(20);
     expect(result.current.hasMore).toBe(true);
@@ -101,13 +145,7 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('correctly maps metadata mentor_name and mentee_name based on role', async () => {
-    const { result } = renderHook(() =>
-      useNotificationCenter({ userId: 'user-123' })
-    );
-
-    await waitFor(() => {
-      expect(result.current.status).toBe('success');
-    });
+    const { result } = await renderAndOpen();
 
     // Item 0 (even index): type reservation_canceled, role mentor, mentee_name Mentee_0
     const firstItem = result.current.items[0];
@@ -122,39 +160,33 @@ describe('useNotificationCenter pagination and service integration', () => {
     expect(secondItem.menteeName).toBeUndefined();
   });
 
-  it('refreshes initial data when openCenter or onOpenChange(true) is called', async () => {
-    const { result } = renderHook(() =>
-      useNotificationCenter({ userId: 'user-123' })
-    );
-
-    await waitFor(() => {
-      expect(result.current.status).toBe('success');
-    });
+  it('silently refreshes both count and list on a subsequent openCenter/onOpenChange(true), without resetting to a loading state', async () => {
+    const { result } = await renderAndOpen();
 
     // Spy on service functions
     const listSpy = vi.spyOn(mockService, 'listNotifications');
     const countSpy = vi.spyOn(mockService, 'fetchUnreadCount');
 
-    // Open center
+    // Re-open (already has cached data from renderAndOpen's first open)
     act(() => {
       result.current.openCenter();
     });
 
     expect(listSpy).toHaveBeenCalled();
     expect(countSpy).toHaveBeenCalled();
+    // A background refresh of already-cached data must not flash a loading state.
+    expect(result.current.status).toBe('success');
+
+    await waitFor(() => {
+      expect(result.current.items).toHaveLength(20);
+    });
 
     listSpy.mockRestore();
     countSpy.mockRestore();
   });
 
   it('prevents duplicate parallel requests when calling loadMore concurrently', async () => {
-    const { result } = renderHook(() =>
-      useNotificationCenter({ userId: 'user-123' })
-    );
-
-    await waitFor(() => {
-      expect(result.current.status).toBe('success');
-    });
+    const { result } = await renderAndOpen();
 
     const listSpy = vi.spyOn(mockService, 'listNotifications');
 
@@ -169,13 +201,7 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('optimistically decrements badgeCount on markRead and rolls back if service fails', async () => {
-    const { result } = renderHook(() =>
-      useNotificationCenter({ userId: 'user-123' })
-    );
-
-    await waitFor(() => {
-      expect(result.current.status).toBe('success');
-    });
+    const { result } = await renderAndOpen();
 
     // Make markOneRead reject/fail
     const markOneReadSpy = vi
@@ -209,13 +235,7 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('optimistically clears badgeCount on markAllRead and rolls back if service fails', async () => {
-    const { result } = renderHook(() =>
-      useNotificationCenter({ userId: 'user-123' })
-    );
-
-    await waitFor(() => {
-      expect(result.current.status).toBe('success');
-    });
+    const { result } = await renderAndOpen();
 
     // Make markAllRead reject/fail
     const markAllReadSpy = vi
@@ -242,13 +262,7 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('sets hasLoadMoreError to true and allows retry when loadMore fails', async () => {
-    const { result } = renderHook(() =>
-      useNotificationCenter({ userId: 'user-123' })
-    );
-
-    await waitFor(() => {
-      expect(result.current.status).toBe('success');
-    });
+    const { result } = await renderAndOpen();
 
     // Make listNotifications reject/fail
     const listSpy = vi
@@ -284,13 +298,7 @@ describe('useNotificationCenter pagination and service integration', () => {
   });
 
   it('prevents duplicate parallel requests when calling markRead concurrently for the same ID', async () => {
-    const { result } = renderHook(() =>
-      useNotificationCenter({ userId: 'user-123' })
-    );
-
-    await waitFor(() => {
-      expect(result.current.status).toBe('success');
-    });
+    const { result } = await renderAndOpen();
 
     const markOneReadSpy = vi
       .spyOn(mockService, 'markOneRead')
@@ -313,11 +321,11 @@ describe('useNotificationCenter pagination and service integration', () => {
     markOneReadSpy.mockRestore();
   });
 
-  it('prevents duplicate initial load requests when multiple hook instances are initialized concurrently', async () => {
-    const listSpy = vi.spyOn(mockService, 'listNotifications');
-    const fetchUnreadSpy = vi.spyOn(mockService, 'fetchUnreadCount');
-
-    // Simultaneously render two separate hook instances
+  it('prevents duplicate list-load requests when both hook instances open concurrently', async () => {
+    // Simultaneously render two separate hook instances sharing the same
+    // userId (the shared store, not the mount effect, is what's under test
+    // here - mount only fetches the count, so both instances open together
+    // to exercise loadInitialData's own concurrent-call dedup).
     const { result: hook1 } = renderHook(() =>
       useNotificationCenter({ userId: 'user-concurrent-init' })
     );
@@ -325,11 +333,19 @@ describe('useNotificationCenter pagination and service integration', () => {
       useNotificationCenter({ userId: 'user-concurrent-init' })
     );
 
-    // Both should start in loading state
-    expect(hook1.current.status).toBe('loading');
-    expect(hook2.current.status).toBe('loading');
+    await waitFor(() => {
+      expect(hook1.current.badgeCount).toBe(5);
+      expect(hook2.current.badgeCount).toBe(5);
+    });
 
-    // Wait for the asynchronous initial data loading to settle on both
+    const listSpy = vi.spyOn(mockService, 'listNotifications');
+    const fetchUnreadSpy = vi.spyOn(mockService, 'fetchUnreadCount');
+
+    act(() => {
+      hook1.current.openCenter();
+      hook2.current.openCenter();
+    });
+
     await waitFor(() => {
       expect(hook1.current.status).toBe('success');
       expect(hook2.current.status).toBe('success');
@@ -367,13 +383,7 @@ describe('useNotificationCenter pagination and service integration', () => {
     );
     mockService.resetMockNotificationDatabase(customNotifications);
 
-    const { result } = renderHook(() =>
-      useNotificationCenter({ userId: 'user-123' })
-    );
-
-    await waitFor(() => {
-      expect(result.current.status).toBe('success');
-    });
+    const { result } = await renderAndOpen();
 
     expect(result.current.items).toHaveLength(20);
     expect(result.current.badgeCount).toBe(8);
@@ -400,7 +410,10 @@ describe('useNotificationCenter pagination and service integration', () => {
     const { result } = renderHook(() => useNotificationCenter({}));
 
     // No userId and no initialNotifications props: nothing to fetch, so it
-    // should settle without ever touching the API.
+    // should settle without ever touching the API - including the open path.
+    act(() => {
+      result.current.openCenter();
+    });
     await act(async () => {
       await result.current.loadMore();
     });

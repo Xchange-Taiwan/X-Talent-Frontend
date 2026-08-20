@@ -36,6 +36,9 @@ export interface SharedNotificationState {
   hasLoadMoreError: boolean;
   isFetching: boolean;
   fetchPromise: Promise<void> | null;
+  isFetchingUnreadCount: boolean;
+  unreadCountFetchPromise: Promise<void> | null;
+  unreadCountVersion: number;
   markingReadIds: Set<string>;
   isMarkingAll: boolean;
 }
@@ -66,6 +69,9 @@ export const createInitialState = (
     hasLoadMoreError: false,
     isFetching: false,
     fetchPromise: null,
+    isFetchingUnreadCount: false,
+    unreadCountFetchPromise: null,
+    unreadCountVersion: 0,
     markingReadIds: new Set<string>(),
     isMarkingAll: false,
   };
@@ -283,6 +289,80 @@ class NotificationStoreManager {
   }
 
   /**
+   * Domain Action: Update just the unread badge count, without touching the
+   * notification list/status. Used for the passive mount-time fetch - the
+   * badge must be visible before the user ever opens the dropdown, but the
+   * list itself is fetched lazily on open (see loadInitialData below).
+   *
+   * When `expectedVersion` is given, the write is skipped if
+   * `unreadCountVersion` has already moved on (e.g. a concurrent
+   * setInitialData landed first) - guards against this slower write
+   * clobbering fresher data with a stale unread count.
+   */
+  setUnreadCount(
+    userId: string | undefined,
+    unreadCount: number,
+    expectedVersion?: number
+  ) {
+    const state = this.getOrCreateState(userId);
+    if (
+      expectedVersion !== undefined &&
+      expectedVersion !== state.unreadCountVersion
+    ) {
+      return;
+    }
+    this.updateState(userId, {
+      unreadCountState: unreadCount,
+      unreadCountVersion: state.unreadCountVersion + 1,
+    });
+  }
+
+  /**
+   * Domain Action: Fetch a fresh unread count via `fetcher`, deduplicating
+   * concurrent calls across sibling hook instances (e.g. Header + MobileMenu
+   * mounting at once) and discarding the result if a fresher count already
+   * landed (via setInitialData/setUnreadCount) while `fetcher` was in
+   * flight. Callers own error handling: `fetcher` must resolve to a count,
+   * or `undefined` to skip the write (e.g. after reporting a failure).
+   */
+  async fetchUnreadCountWithDeduplication(
+    userId: string | undefined,
+    fetcher: () => Promise<number | undefined>
+  ): Promise<void> {
+    const state = this.getOrCreateState(userId);
+
+    if (state.isFetchingUnreadCount) {
+      if (state.unreadCountFetchPromise) {
+        await state.unreadCountFetchPromise;
+      }
+      return;
+    }
+
+    const versionAtStart = state.unreadCountVersion;
+
+    const fetchPromise = (async () => {
+      try {
+        const unreadCount = await fetcher();
+        if (unreadCount !== undefined) {
+          this.setUnreadCount(userId, unreadCount, versionAtStart);
+        }
+      } finally {
+        this.updateState(userId, {
+          isFetchingUnreadCount: false,
+          unreadCountFetchPromise: null,
+        });
+      }
+    })();
+
+    this.updateState(userId, {
+      isFetchingUnreadCount: true,
+      unreadCountFetchPromise: fetchPromise,
+    });
+
+    await fetchPromise;
+  }
+
+  /**
    * Domain Action: Set initially loaded notifications and counts
    */
   setInitialData(
@@ -291,8 +371,10 @@ class NotificationStoreManager {
     items: NotificationItem[],
     nextCursor: string | null
   ) {
+    const state = this.getOrCreateState(userId);
     this.updateState(userId, {
       unreadCountState: unreadCount,
+      unreadCountVersion: state.unreadCountVersion + 1,
       notifications: items,
       nextCursor,
       status: items.length === 0 ? 'empty' : 'success',
