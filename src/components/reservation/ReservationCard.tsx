@@ -88,7 +88,7 @@ export function ReservationCard({
                   href={profileHref}
                   aria-label={profileAriaLabel}
                   onClick={onProfileClick}
-                  className="group min-w-0 truncate rounded-sm focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  className="group min-w-0 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                 >
                   <div className="truncate text-sm font-medium group-hover:underline sm:text-base">
                     {item.name}
