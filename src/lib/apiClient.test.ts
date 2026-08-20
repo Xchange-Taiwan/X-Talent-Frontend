@@ -89,11 +89,9 @@ describe('apiClient', () => {
     });
 
     it('absolute http(s) URL → never attaches the session Authorization header, even with auth: true (default)', async () => {
-      vi.mocked(getSession).mockResolvedValueOnce({
-        accessToken: 'super-secret-token',
-        expires: '2099-01-01T00:00:00Z',
-      } as Awaited<ReturnType<typeof getSession>>);
-
+      // Deliberately no getSession mock queued here: the assertion below is
+      // that getAuthHeader() must never even call getSession() for an
+      // external URL, so there is nothing for it to consume.
       await apiClient.get('https://external.example.com/data');
 
       expect(getSession).not.toHaveBeenCalled();
@@ -102,11 +100,6 @@ describe('apiClient', () => {
     });
 
     it('protocol-relative URL (//host/path) → also treated as external, no Authorization header attached', async () => {
-      vi.mocked(getSession).mockResolvedValueOnce({
-        accessToken: 'super-secret-token',
-        expires: '2099-01-01T00:00:00Z',
-      } as Awaited<ReturnType<typeof getSession>>);
-
       await apiClient.get('//external.example.com/data');
 
       expect(getSession).not.toHaveBeenCalled();
@@ -432,32 +425,34 @@ describe('apiClient', () => {
       vi.mocked(getSession).mockClear();
     });
 
-    it('coalesces concurrent 401 response refresh attempts and triggers getSession exactly once', async () => {
-      // Setup mock getSession to delay so we can trigger multiple calls concurrently
+    it('coalesces concurrent getAuthHeader lookups into a single getSession call', async () => {
+      // sessionGetter (next-auth's imperative getSession()) issues a fresh
+      // network request on every call, unlike the useSession() hook - so
+      // several authenticated requests firing at once must share one
+      // in-flight lookup instead of each triggering their own.
       let resolveSession: (val: Session | null) => void = () => {};
       const sessionPromise = new Promise<Session | null>((resolve) => {
         resolveSession = resolve;
       });
       vi.mocked(getSession).mockImplementation(() => sessionPromise);
+      // A fresh Response per call - a shared instance's body can only be
+      // read once, and both concurrent requests read it here.
+      mockFetch.mockImplementation(
+        async () => new Response('"success"', { status: 200 })
+      );
 
-      // Setup mock fetch to return 401 status and clear initial auth header getSession calls
-      mockFetch.mockImplementation(async () => {
-        vi.mocked(getSession).mockClear();
-        return new Response('Unauthorized', { status: 401 });
-      });
-
-      // Fire off two concurrent requests with auth: true
+      // Fire off two concurrent authenticated requests.
       const p1 = apiClient.get('/v1/req1');
       const p2 = apiClient.get('/v1/req2');
 
-      // Dynamically wait for the coalesced refresh call to trigger getSession exactly once (prevents flaky timing)
+      // Both requests' getAuthHeader() lookups should share the same
+      // in-flight getSession() call rather than each triggering their own.
       await vi.waitFor(() => {
         expect(getSession).toHaveBeenCalledTimes(1);
       });
 
-      // Now resolve the getSession refresh with a fresh valid session so it retries
-      const freshSession: Session = {
-        accessToken: 'fresh-token',
+      const session: Session = {
+        accessToken: 'shared-token',
         expires: '2099-01-01T00:00:00Z',
         user: {
           id: 'test-user',
@@ -465,22 +460,86 @@ describe('apiClient', () => {
           email: 'test@example.com',
         },
       };
+      resolveSession(session);
 
-      // Setup mock fetch for the retries to return 200 OK
+      await Promise.all([p1, p2]);
+
+      // Both requests actually used the one resolved session's token.
+      const [, req1Init] = mockFetch.mock.calls[0];
+      const [, req2Init] = mockFetch.mock.calls[1];
+      expect(req1Init.headers.Authorization).toBe('Bearer shared-token');
+      expect(req2Init.headers.Authorization).toBe('Bearer shared-token');
+
+      // getSession was never called more than once for this burst.
+      expect(vi.mocked(getSession)).toHaveBeenCalledTimes(1);
+    });
+
+    it('coalesces concurrent 401 response refresh attempts and triggers getSession exactly once', async () => {
+      // singleFlight's map only coalesces calls that are truly concurrent -
+      // once a lookup resolves, the next call starts a fresh one. So across
+      // this whole flow there are three *distinct* lookup bursts, each
+      // shared by both requests: the initial getAuthHeader() call, the 401
+      // handler's refresh, and the retried request's own fresh
+      // getAuthHeader() call (it doesn't reuse the session the 401 handler
+      // just fetched - a further optimization, but out of scope here; the
+      // point under test is that concurrent callers within each burst still
+      // only pay for one). Keying the mock off call count - rather than
+      // swapping its implementation mid-test via vi.waitFor - avoids racing
+      // against exactly when the 401 handlers happen to fire.
+      const staleSession: Session = {
+        accessToken: 'stale-token',
+        expires: '2099-01-01T00:00:00Z',
+        user: { id: 'test-user', name: 'Test User', email: 'test@example.com' },
+      };
+      const freshSession: Session = {
+        accessToken: 'fresh-token',
+        expires: '2099-01-01T00:00:00Z',
+        user: { id: 'test-user', name: 'Test User', email: 'test@example.com' },
+      };
+      let resolveRefresh: (val: Session | null) => void = () => {};
+      const refreshPromise = new Promise<Session | null>((resolve) => {
+        resolveRefresh = resolve;
+      });
+      let sessionCallCount = 0;
+      vi.mocked(getSession).mockImplementation(() => {
+        sessionCallCount += 1;
+        return sessionCallCount === 1
+          ? Promise.resolve(staleSession)
+          : refreshPromise;
+      });
+
+      // A fresh Response per call - a shared instance's body can only be
+      // read once, and both concurrent requests (then their retries) read
+      // it here.
+      mockFetch.mockImplementation(
+        async () => new Response('Unauthorized', { status: 401 })
+      );
+
+      const p1 = apiClient.get('/v1/req1');
+      const p2 = apiClient.get('/v1/req2');
+
+      // Both requests' initial getAuthHeader() lookups share call #1; both
+      // 401 handlers' refresh attempts share call #2 (kept pending above).
+      await vi.waitFor(() => {
+        expect(getSession).toHaveBeenCalledTimes(2);
+      });
+
       mockFetch.mockImplementation(
         async () => new Response('"success"', { status: 200 })
       );
-      resolveSession(freshSession);
+      resolveRefresh(freshSession);
 
       const [r1, r2] = await Promise.all([p1, p2]);
       expect(r1).toBe('success');
       expect(r2).toBe('success');
 
-      // Ensure fetch was called for req1 first try, req2 first try, then retries with Authorization header
+      // req1 initial (401), req2 initial (401), req1 retry, req2 retry
       expect(mockFetch).toHaveBeenCalledTimes(4);
 
-      // Verify that throughout the entire lifecycle, getSession was only called exactly 3 times
-      // (1 coalesced refresh + 2 auth header retrieves during retries)
+      // Exactly 3 distinct getSession calls for the whole flow - one per
+      // burst (initial lookup, 401 refresh, retry's own lookup) - not 6
+      // (one per request per burst), proving concurrent callers within
+      // each burst share a single call.
       expect(vi.mocked(getSession)).toHaveBeenCalledTimes(3);
     });
   });
