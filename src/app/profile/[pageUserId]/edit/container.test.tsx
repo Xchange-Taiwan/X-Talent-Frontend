@@ -98,6 +98,7 @@ vi.mock('@/components/profile/edit/Fields', () => ({
   TextField: () => <div />,
   TextareaField: () => <div />,
   SelectField: () => <div />,
+  ComboboxField: () => <div />,
 }));
 vi.mock('@/components/profile/edit/CategoryMultiSelectField', () => ({
   CategoryMultiSelectField: () => <div />,

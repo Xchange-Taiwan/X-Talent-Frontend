@@ -9,6 +9,7 @@ import { AvatarSection } from '@/components/profile/edit/AvatarSection';
 import { CategoryMultiSelectField } from '@/components/profile/edit/CategoryMultiSelectField';
 import { EditPageHeader } from '@/components/profile/edit/EditPageHeader';
 import {
+  ComboboxField,
   SelectField,
   TextareaField,
   TextField,
@@ -267,10 +268,11 @@ export default function EditProfileContainer({
           )}
 
           <Section id="location" title="地區" required>
-            <SelectField
+            <ComboboxField
               form={form}
               name="location"
               placeholder="請選擇地區"
+              searchPlaceholder="搜尋地區"
               options={locations.map((loc) => ({
                 value: loc.value,
                 label: loc.text,
