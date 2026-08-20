@@ -89,7 +89,16 @@ function getSharedSession(): Promise<Session | null> {
 
 function refreshSession(): Promise<Session | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
-  return singleFlight(refreshMap, 'refresh', () => sessionGetter());
+  // Once a refresh completes, drop any routine lookup entry so the 401
+  // handler's retry (which calls getAuthHeader() -> getSharedSession())
+  // is forced to start a fresh lookup instead of possibly joining a
+  // routine lookup that was already in flight before the refresh even
+  // started, and could still resolve to the pre-refresh, stale token.
+  return singleFlight(refreshMap, 'refresh', () => sessionGetter()).finally(
+    () => {
+      sessionLookupMap.delete('session');
+    }
+  );
 }
 
 function isAbsoluteUrl(path: string): boolean {
