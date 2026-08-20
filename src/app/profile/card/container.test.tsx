@@ -13,21 +13,10 @@ vi.mock('next/dynamic', () => ({
   ),
 }));
 
-const mockPrimeUserProfileDtoCacheIfEmpty = vi.fn();
-vi.mock('@/hooks/user/user-data/useUserProfileDto', () => ({
-  primeUserProfileDtoCacheIfEmpty: (...args: [number, string, unknown]) =>
-    mockPrimeUserProfileDtoCacheIfEmpty(...args),
-}));
-
-const mockPrimeTagCatalogCacheIfEmpty = vi.fn();
-vi.mock('@/hooks/user/tags/useTagCatalog', () => ({
-  primeTagCatalogCacheIfEmpty: (...args: [string, unknown]) =>
-    mockPrimeTagCatalogCacheIfEmpty(...args),
-}));
-
 const mockUseUserData = vi.fn();
 vi.mock('@/hooks/user/user-data/useUserData', () => ({
-  default: (...args: [number, string]) => mockUseUserData(...args),
+  default: (...args: [number, string, unknown, unknown]) =>
+    mockUseUserData(...args),
 }));
 
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
@@ -42,7 +31,7 @@ describe('ProfileCardContainer', () => {
     vi.clearAllMocks();
   });
 
-  it('primes the profile-dto and tag-catalog caches with the SSR-fetched data on first render', () => {
+  it('forwards loginUserId/initialDto/initialCatalogs straight through to useUserData', () => {
     mockUseUserData.mockReturnValue({ userData: null, isLoading: true });
     const initialDto = { user_id: 42 } as MentorProfileVO;
 
@@ -54,36 +43,15 @@ describe('ProfileCardContainer', () => {
       />
     );
 
-    expect(mockPrimeUserProfileDtoCacheIfEmpty).toHaveBeenCalledWith(
+    expect(mockUseUserData).toHaveBeenCalledWith(
       42,
       'zh_TW',
-      initialDto
-    );
-    expect(mockPrimeTagCatalogCacheIfEmpty).toHaveBeenCalledWith(
-      'zh_TW',
+      initialDto,
       emptyCatalogs
     );
   });
 
-  it('does not prime the profile-dto cache when the SSR fetch failed (initialDto is null)', () => {
-    mockUseUserData.mockReturnValue({ userData: null, isLoading: true });
-
-    render(
-      <ProfileCardContainer
-        loginUserId={42}
-        initialDto={null}
-        initialCatalogs={emptyCatalogs}
-      />
-    );
-
-    expect(mockPrimeUserProfileDtoCacheIfEmpty).not.toHaveBeenCalled();
-    expect(mockPrimeTagCatalogCacheIfEmpty).toHaveBeenCalledWith(
-      'zh_TW',
-      emptyCatalogs
-    );
-  });
-
-  it('does not prime the tag-catalog cache when the SSR fetch failed (initialCatalogs is null), leaving the client-side fallback fetch to recover', () => {
+  it('passes initialCatalogs through as undefined (not null) when the SSR catalog fetch failed', () => {
     mockUseUserData.mockReturnValue({ userData: null, isLoading: true });
     const initialDto = { user_id: 42 } as MentorProfileVO;
 
@@ -95,15 +63,34 @@ describe('ProfileCardContainer', () => {
       />
     );
 
-    expect(mockPrimeUserProfileDtoCacheIfEmpty).toHaveBeenCalledWith(
+    expect(mockUseUserData).toHaveBeenCalledWith(
       42,
       'zh_TW',
-      initialDto
+      initialDto,
+      undefined
     );
-    expect(mockPrimeTagCatalogCacheIfEmpty).not.toHaveBeenCalled();
   });
 
-  it('renders the card UI immediately (no loading state) when the SSR-primed data resolves the hook synchronously', () => {
+  it('passes a null initialDto straight through when the SSR fetch failed', () => {
+    mockUseUserData.mockReturnValue({ userData: null, isLoading: true });
+
+    render(
+      <ProfileCardContainer
+        loginUserId={42}
+        initialDto={null}
+        initialCatalogs={emptyCatalogs}
+      />
+    );
+
+    expect(mockUseUserData).toHaveBeenCalledWith(
+      42,
+      'zh_TW',
+      null,
+      emptyCatalogs
+    );
+  });
+
+  it('renders the card UI immediately (no loading state) when useUserData resolves synchronously from SSR-seeded data', () => {
     mockUseUserData.mockReturnValue({
       userData: {
         is_mentor: false,

@@ -106,17 +106,22 @@ function parseUserDtoToUserType(
   };
 }
 
-function useUserData(userId: number, language: string) {
+function useUserData(
+  userId: number,
+  language: string,
+  initialDto?: MentorProfileVO | null,
+  initialCatalogs?: TagCatalogsByBucket
+) {
   const {
     userDto,
     isLoading: dtoLoading,
     error,
     refetch,
-  } = useUserProfileDto(userId, language);
+  } = useUserProfileDto(userId, language, initialDto);
   // Catalog supplies localized labels for the raw subject_group arrays
   // (want_*, have_*) and for the enriched industry. Loads in parallel with
   // the user dto and is cached app-wide via getTagCatalogCached.
-  const tagCatalog = useTagCatalog(language);
+  const tagCatalog = useTagCatalog(language, initialCatalogs);
 
   const userData: UserType | null = userDto
     ? parseUserDtoToUserType(userDto, tagCatalog)
