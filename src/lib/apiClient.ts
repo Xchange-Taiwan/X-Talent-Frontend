@@ -65,13 +65,40 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
 }
 
-// Deduplicate concurrent 401 refresh calls — if multiple requests fail at once,
-// they all wait on the same refresh rather than each triggering a new one.
+// Deduplicate concurrent session lookups. `sessionGetter` (next-auth's
+// imperative `getSession()`) always issues a fresh, uncached network
+// request - unlike the `useSession()` hook, it doesn't share the
+// SessionProvider's client-side state. A page that fires several
+// authenticated requests at once (e.g. loading multiple lists in
+// parallel) would otherwise trigger one `/api/auth/session` round trip
+// per request; singleFlight collapses concurrent callers onto the same
+// in-flight lookup so only the slowest response in a burst is paid once.
+//
+// Routine lookups and 401 refreshes use separate maps rather than sharing
+// one: a 401 refresh must always start a lookup that begins *after* the
+// 401 was observed. If it instead joined a routine lookup already in
+// flight (started before the 401 happened), it could get back the same
+// stale token that just failed, retry with it, and 401 again.
+const sessionLookupMap = new Map<'session', Promise<Session | null>>();
 const refreshMap = new Map<'refresh', Promise<Session | null>>();
+
+function getSharedSession(): Promise<Session | null> {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  return singleFlight(sessionLookupMap, 'session', () => sessionGetter());
+}
 
 function refreshSession(): Promise<Session | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
-  return singleFlight(refreshMap, 'refresh', () => sessionGetter());
+  // Once a refresh completes, drop any routine lookup entry so the 401
+  // handler's retry (which calls getAuthHeader() -> getSharedSession())
+  // is forced to start a fresh lookup instead of possibly joining a
+  // routine lookup that was already in flight before the refresh even
+  // started, and could still resolve to the pre-refresh, stale token.
+  return singleFlight(refreshMap, 'refresh', () => sessionGetter()).finally(
+    () => {
+      sessionLookupMap.delete('session');
+    }
+  );
 }
 
 function isAbsoluteUrl(path: string): boolean {
@@ -102,7 +129,7 @@ function buildUrl(
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   if (typeof window === 'undefined') return {};
-  const session = await sessionGetter();
+  const session = await getSharedSession();
   const token = session?.accessToken;
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };
