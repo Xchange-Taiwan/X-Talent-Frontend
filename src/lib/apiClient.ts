@@ -73,15 +73,23 @@ function isAbortError(error: unknown): boolean {
 // parallel) would otherwise trigger one `/api/auth/session` round trip
 // per request; singleFlight collapses concurrent callers onto the same
 // in-flight lookup so only the slowest response in a burst is paid once.
-// Reused for both the routine per-request lookup (`getAuthHeader`) and
-// the reactive 401 refresh below - both just want "the current session",
-// and sharing one map means a refresh triggered by one failing request
-// can be satisfied by a lookup another request already had in flight.
+//
+// Routine lookups and 401 refreshes use separate maps rather than sharing
+// one: a 401 refresh must always start a lookup that begins *after* the
+// 401 was observed. If it instead joined a routine lookup already in
+// flight (started before the 401 happened), it could get back the same
+// stale token that just failed, retry with it, and 401 again.
 const sessionLookupMap = new Map<'session', Promise<Session | null>>();
+const refreshMap = new Map<'refresh', Promise<Session | null>>();
 
 function getSharedSession(): Promise<Session | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
   return singleFlight(sessionLookupMap, 'session', () => sessionGetter());
+}
+
+function refreshSession(): Promise<Session | null> {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  return singleFlight(refreshMap, 'refresh', () => sessionGetter());
 }
 
 function isAbsoluteUrl(path: string): boolean {
@@ -179,7 +187,7 @@ async function request<T>(
   }
 
   if (response.status === 401 && auth && !isRetry) {
-    const freshSession = await getSharedSession();
+    const freshSession = await refreshSession();
     if (freshSession?.accessToken && !freshSession.error) {
       return request<T>(method, path, body, options, true);
     }
