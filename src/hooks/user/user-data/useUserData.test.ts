@@ -241,6 +241,21 @@ describe('useUserData caching', () => {
     second.unmount();
   });
 
+  it('forwards initialDto through to useUserProfileDto, rendering populated data immediately with no fetch', () => {
+    const userId = 4200;
+    const ssrDto = makeUserDto(userId);
+
+    const { result, unmount } = renderHook(() =>
+      useUserData(userId, 'en', ssrDto)
+    );
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.userData).not.toBeNull();
+    expect(result.current.userData?.user_id).toBe(userId);
+    expect(mockFetchUserById).not.toHaveBeenCalled();
+    unmount();
+  });
+
   it('concurrent mounts of same user dedupe to one network call', async () => {
     const userId = 4005;
     let resolveFetch: (value: MentorProfileVO) => void = () => {};

@@ -152,4 +152,51 @@ describe('useUserProfileDto', () => {
     expect(result.current.error).toBe('FETCH_FAILED');
     expect(result.current.userDto).toBeNull();
   });
+
+  describe('initialData (SSR hydration)', () => {
+    it('seeds userDto synchronously and skips the initial fetch when initialData is a real DTO', () => {
+      const ssrDto = { ...mockUserDTO, name: 'SSR Seeded' };
+
+      const { result } = renderHook(() =>
+        useUserProfileDto(5, 'zh-TW', ssrDto)
+      );
+
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.userDto).toEqual(ssrDto);
+      expect(fetchUserById).not.toHaveBeenCalled();
+    });
+
+    it('warms the shared cache from initialData after mount (client-only), so a later mount for the same key skips the fetch too', async () => {
+      const ssrDto = { ...mockUserDTO, name: 'SSR Seeded 2' };
+
+      const { result, unmount } = renderHook(() =>
+        useUserProfileDto(6, 'zh-TW', ssrDto)
+      );
+      expect(result.current.userDto).toEqual(ssrDto);
+      unmount();
+
+      const { result: second } = renderHook(() =>
+        useUserProfileDto(6, 'zh-TW')
+      );
+
+      expect(second.current.isLoading).toBe(false);
+      expect(second.current.userDto).toEqual(ssrDto);
+      expect(fetchUserById).not.toHaveBeenCalled();
+    });
+
+    it('treats initialData: null exactly like no initialData was passed (falls through to a real fetch)', async () => {
+      vi.mocked(fetchUserById).mockResolvedValueOnce(mockUserDTO);
+
+      const { result } = renderHook(() => useUserProfileDto(7, 'zh-TW', null));
+
+      expect(result.current.isLoading).toBe(true);
+
+      await vi.waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.userDto).toEqual(mockUserDTO);
+      expect(fetchUserById).toHaveBeenCalledWith(7, 'zh-TW');
+    });
+  });
 });
