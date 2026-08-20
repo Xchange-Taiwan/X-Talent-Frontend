@@ -2,12 +2,12 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import { Button } from '@/components/ui/button';
 import { BookingSlot, useMentorSchedule } from '@/hooks/useMentorSchedule';
+import { useIdentity } from '@/hooks/user/auth/useIdentity';
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfirmation';
 import { useReservationDateClamp } from '@/hooks/user/reservation/useReservationDateClamp';
@@ -28,14 +28,12 @@ interface Props {
   pageUserId: string;
   initialDto: MentorProfileVO;
   initialCatalogs: TagCatalogsByBucket;
-  initialLoginUserId: string;
 }
 
 export default function ProfilePageContainer({
   pageUserId,
   initialDto,
   initialCatalogs,
-  initialLoginUserId,
 }: Props) {
   const router = useRouter();
 
@@ -78,14 +76,25 @@ export default function ProfilePageContainer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
-  const { data: session } = useSession();
-  // Prefer the live session id once hydrated; fall back to the SSR-resolved
-  // value so own-profile UI (edit button, etc.) renders correctly on first
-  // paint without waiting for next-auth's client hydration.
-  const loginUserId = session?.user?.id
-    ? String(session.user.id)
-    : initialLoginUserId;
-  const isLogging = Boolean(loginUserId);
+  // The page is now ISR-cached (no SSR session read), so identity is
+  // resolved entirely client-side via useIdentity - the same single source
+  // of truth Header/useProfileAuth use. Deliberately read only
+  // `identity.hasFullUser`/`identity.userId` here, not the faster
+  // `authKnown`/`isLoggedIn`/hint-derived `userId` fields: those can go
+  // true/populated from the middleware-written session-hint cookie alone
+  // (an unsigned, client-writable, UI-only hint - see sessionHint.ts)
+  // before the real `useSession()` round trip settles. Everything on this
+  // page that reads `loginUserId` either renders role-specific UI
+  // (canShowOwnerControls, BookingForm's own-mentor-vs-mentee content) or
+  // feeds a real mutation (useBookingConfirmation sends it as the
+  // reservation's menteeId) - so unlike the header's optimistic hint-based
+  // rendering, nothing here may act on an unauthoritative value. Gating
+  // `loginUserId` itself on `hasFullUser` means every downstream consumer
+  // inherits that guarantee for free, per CLAUDE.md's "Role-based UI" rule
+  // (never render role-specific UI before the role is resolved).
+  const identity = useIdentity(null);
+  const isIdentityResolved = identity.hasFullUser;
+  const loginUserId = isIdentityResolved ? (identity.userId ?? '') : '';
 
   const {
     userData,
@@ -102,8 +111,22 @@ export default function ProfilePageContainer({
   // briefly come from a stale ISR initialDto on the post-submit navigation
   // race. The override clears once session.user.avatar catches up.
   const isOwnProfile = loginUserId === pageUserId;
+  // Single source of truth for "should owner-only controls (edit button,
+  // become-mentor button, schedule-management dialog) render" so ui.tsx
+  // doesn't need to re-derive this comparison at each of its three call
+  // sites. isIdentityResolved is redundant here in practice (loginUserId,
+  // and therefore isOwnProfile, can only be truthy once isIdentityResolved
+  // already is - see above) but kept explicit for readability at this
+  // call site.
+  const canShowOwnerControls = isIdentityResolved && isOwnProfile;
   const currentAvatar = useCurrentAvatar();
-  const resolvedAvatar = isOwnProfile
+  // Gate on canShowOwnerControls (not just isOwnProfile): while identity is
+  // still resolving, isOwnProfile is provisionally false (loginUserId is
+  // still ''), so applying the currentAvatar override here unguarded would
+  // reproduce the same flash this fix exists to eliminate - the avatar
+  // could briefly show userData.avatar, then jump to the just-uploaded
+  // override once the session settles.
+  const resolvedAvatar = canShowOwnerControls
     ? (currentAvatar ?? userData?.avatar)
     : userData?.avatar;
   const avatarSrc = resolvedAvatar || DefaultAvatarImgUrl;
@@ -158,7 +181,7 @@ export default function ProfilePageContainer({
     // forward to today so the dialog never opens on an un-editable past
     // date with its slot editor primed.
     clampSelectedDateToToday();
-    if (userData.is_mentor && pageUserId === loginUserId) {
+    if (userData.is_mentor && isOwnProfile) {
       setOpenReservationDialog(true);
       return;
     }
@@ -168,11 +191,11 @@ export default function ProfilePageContainer({
     <ProfilePageUI
       userData={userData}
       userLoading={userLoading}
-      pageUserId={pageUserId}
       schedule={schedule}
       scheduleLoaded={loaded}
       loginUserId={loginUserId}
-      isLogging={isLogging}
+      isIdentityResolved={isIdentityResolved}
+      canShowOwnerControls={canShowOwnerControls}
       avatarSrc={avatarSrc}
       allowedDates={allowedDates}
       openReservationDialog={openReservationDialog}

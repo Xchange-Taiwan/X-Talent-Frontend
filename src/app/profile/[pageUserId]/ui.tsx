@@ -33,11 +33,11 @@ import {
 interface Props {
   userData: UserType | null;
   userLoading: boolean;
-  pageUserId: string;
   schedule: UseMentorScheduleReturn;
   scheduleLoaded: boolean;
   loginUserId: string;
-  isLogging: boolean;
+  isIdentityResolved: boolean;
+  canShowOwnerControls: boolean;
   avatarSrc: string | StaticImageData;
   allowedDates: string[];
   openReservationDialog: boolean;
@@ -55,11 +55,11 @@ interface Props {
 export default function ProfilePageUI({
   userData,
   userLoading,
-  pageUserId,
   schedule,
   scheduleLoaded,
   loginUserId,
-  isLogging,
+  isIdentityResolved,
+  canShowOwnerControls,
   avatarSrc,
   allowedDates,
   openReservationDialog,
@@ -79,10 +79,13 @@ export default function ProfilePageUI({
   // mentors) so the calendar can appear before user data resolves; collapse
   // it once the user is confirmed as a non-mentor.
   const showScheduleRegion = userLoading || userData?.is_mentor;
+  // Derived from canShowOwnerControls (the single ownership source of
+  // truth) rather than re-comparing loginUserId against userData.user_id -
+  // keeps this in lockstep with the owner-only UI gating above instead of
+  // being a second, independently-computed ownership check that could
+  // silently diverge from it.
   const isOwnMentorProfile =
-    !!userData &&
-    userData.is_mentor &&
-    loginUserId === userData.user_id.toString();
+    !!userData && userData.is_mentor && canShowOwnerControls;
 
   return (
     <div>
@@ -141,7 +144,11 @@ export default function ProfilePageUI({
                 </p>
               )}
               <div className="mt-4 flex items-center justify-center gap-4 sm:justify-start">
-                {isLogging && pageUserId === loginUserId && (
+                {/* canShowOwnerControls gates these: until useSession() settles,
+                    we don't yet know if this is the viewer's own profile, so
+                    withhold the buttons entirely rather than flash a guest
+                    view before correcting to the owner view (or vice versa). */}
+                {canShowOwnerControls && (
                   <Button
                     variant="outline"
                     className="grow rounded-full px-6 py-3 sm:grow-0"
@@ -151,17 +158,15 @@ export default function ProfilePageUI({
                   </Button>
                 )}
 
-                {isLogging &&
-                  !userData.is_mentor &&
-                  pageUserId === loginUserId && (
-                    <Button
-                      variant="default"
-                      className="grow rounded-full px-6 py-3 sm:grow-0"
-                      onClick={onBecomeMentor}
-                    >
-                      成為導師
-                    </Button>
-                  )}
+                {canShowOwnerControls && !userData.is_mentor && (
+                  <Button
+                    variant="default"
+                    className="grow rounded-full px-6 py-3 sm:grow-0"
+                    onClick={onBecomeMentor}
+                  >
+                    成為導師
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -295,7 +300,7 @@ export default function ProfilePageUI({
                   </div>
                   <BookingForm
                     isOwnMentorProfile={isOwnMentorProfile}
-                    isUserDataLoading={userLoading}
+                    isUserDataLoading={userLoading || !isIdentityResolved}
                     isAuthenticated={!!loginUserId}
                     slots={
                       selectedDate ? generateBookingSlots(selectedDate) : []
@@ -308,7 +313,7 @@ export default function ProfilePageUI({
                     onReservation={onReservation}
                     onConfirmReservation={onConfirmReservation}
                   />
-                  {userData && loginUserId === pageUserId && (
+                  {userData && canShowOwnerControls && (
                     <MentorScheduleDialog
                       open={openReservationDialog}
                       onOpenChange={setOpenReservationDialog}

@@ -52,13 +52,14 @@ export default async function Page({ params }: PageProps) {
 
   if (!initialDto) notFound();
 
-  // Login state is resolved client-side only (see ProfilePageContainer's
-  // useSession()). Dropping the SSR getServerSession() call here lets this
+  // Login state is resolved entirely client-side (see ProfilePageContainer's
+  // useIdentity()). Dropping the SSR getServerSession() call here lets this
   // route stay ISR-cacheable (`revalidate = 60` below) instead of being
   // forced into per-request dynamic rendering just to read the auth cookie -
   // the cost was every navigation re-fetching from the backend with no
-  // caching. Trade-off: the edit button / own-profile UI can flash in a
-  // frame after hydration instead of being present on first paint.
+  // caching. useIdentity's session-hint-cookie fast path (see
+  // container.tsx) resolves identity before role-specific UI ever renders,
+  // so there is no first-paint flash to trade off here.
   const publicProfile = sanitizePublicProfile(
     initialDto,
     buildTagLabelMap(catalogs)
@@ -72,7 +73,6 @@ export default async function Page({ params }: PageProps) {
         pageUserId={pageUserId}
         initialDto={initialDto}
         initialCatalogs={catalogs}
-        initialLoginUserId=""
       />
     </>
   );
