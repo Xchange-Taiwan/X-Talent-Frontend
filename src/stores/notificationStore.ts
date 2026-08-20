@@ -318,6 +318,51 @@ class NotificationStoreManager {
   }
 
   /**
+   * Domain Action: Fetch a fresh unread count via `fetcher`, deduplicating
+   * concurrent calls across sibling hook instances (e.g. Header + MobileMenu
+   * mounting at once) and discarding the result if a fresher count already
+   * landed (via setInitialData/setUnreadCount) while `fetcher` was in
+   * flight. Callers own error handling: `fetcher` must resolve to a count,
+   * or `undefined` to skip the write (e.g. after reporting a failure).
+   */
+  async fetchUnreadCountWithDeduplication(
+    userId: string | undefined,
+    fetcher: () => Promise<number | undefined>
+  ): Promise<void> {
+    const state = this.getOrCreateState(userId);
+
+    if (state.isFetchingUnreadCount) {
+      if (state.unreadCountFetchPromise) {
+        await state.unreadCountFetchPromise;
+      }
+      return;
+    }
+
+    const versionAtStart = state.unreadCountVersion;
+
+    const fetchPromise = (async () => {
+      try {
+        const unreadCount = await fetcher();
+        if (unreadCount !== undefined) {
+          this.setUnreadCount(userId, unreadCount, versionAtStart);
+        }
+      } finally {
+        this.updateState(userId, {
+          isFetchingUnreadCount: false,
+          unreadCountFetchPromise: null,
+        });
+      }
+    })();
+
+    this.updateState(userId, {
+      isFetchingUnreadCount: true,
+      unreadCountFetchPromise: fetchPromise,
+    });
+
+    await fetchPromise;
+  }
+
+  /**
    * Domain Action: Set initially loaded notifications and counts
    */
   setInitialData(

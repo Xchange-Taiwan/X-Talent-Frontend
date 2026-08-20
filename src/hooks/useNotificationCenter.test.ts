@@ -549,6 +549,50 @@ describe('useNotificationCenter', () => {
       expect(fetchUnreadCount).toHaveBeenCalledTimes(1);
     });
 
+    it('discards a stale mount-time unread count that resolves after a fresher openCenter load', async () => {
+      let resolveMountFetch: (value: { unread_count: number }) => void;
+      const mountFetchPromise = new Promise<{ unread_count: number }>(
+        (resolve) => {
+          resolveMountFetch = resolve;
+        }
+      );
+
+      vi.mocked(fetchUnreadCount)
+        .mockReturnValueOnce(mountFetchPromise) // mount-time loadUnreadCount
+        .mockResolvedValue({ unread_count: 9 }); // loadInitialData's own fetchUnreadCount call, once opened
+      vi.mocked(listNotifications).mockResolvedValue({
+        notifications: mockNotifications,
+        next_cursor: null,
+      });
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({ userId: 'user-lazy-race' })
+      );
+
+      await waitFor(() => {
+        expect(fetchUnreadCount).toHaveBeenCalledTimes(1);
+      });
+
+      // User opens the dropdown before the mount-time fetch resolves;
+      // loadInitialData's own fetch/list calls resolve first with fresher data.
+      act(() => {
+        result.current.openCenter();
+      });
+      await waitFor(() => {
+        expect(result.current.items).toEqual(mockNotifications);
+      });
+      expect(result.current.badgeCount).toBe(9);
+
+      // Now the slow mount-time fetch resolves with stale data - it must be
+      // discarded rather than clobbering the fresher count above.
+      await act(async () => {
+        resolveMountFetch({ unread_count: 2 });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+
+      expect(result.current.badgeCount).toBe(9);
+    });
+
     it('reports and gracefully degrades when loadUnreadCount fails', async () => {
       vi.mocked(fetchUnreadCount).mockRejectedValue(new Error('network down'));
 

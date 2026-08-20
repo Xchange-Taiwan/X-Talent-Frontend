@@ -237,51 +237,26 @@ export function useNotificationCenter({
   const loadUnreadCount = React.useCallback(async () => {
     if (isUsingProps) return;
     if (!userId) return;
-    const state = notificationStoreManager.getOrCreateState(userId);
 
-    // Dedupe concurrent calls across sibling hook instances (e.g. Header +
-    // MobileMenu both mounting at once), same pattern as loadInitialData below.
-    if (state.isFetchingUnreadCount) {
-      if (state.unreadCountFetchPromise) {
-        await state.unreadCountFetchPromise;
+    // Deduplication across sibling hook instances and staleness guarding
+    // against loadInitialData both live in the store - see
+    // fetchUnreadCountWithDeduplication.
+    await notificationStoreManager.fetchUnreadCountWithDeduplication(
+      userId,
+      async () => {
+        try {
+          const res = await fetchUnreadCount(userId);
+          return (res && res.unread_count) || 0;
+        } catch (error) {
+          reportFailure(
+            'notification_load_unread_count',
+            'fetch_unread_count',
+            error
+          );
+          return undefined;
+        }
       }
-      return;
-    }
-
-    // Snapshot the version so a slower loadUnreadCount can't clobber a
-    // fresher unread count written in the meantime by loadInitialData
-    // (e.g. the user opens the dropdown before this mount-time fetch
-    // resolves).
-    const versionAtStart = state.unreadCountVersion;
-
-    const fetchPromise = (async () => {
-      try {
-        const res = await fetchUnreadCount(userId);
-        notificationStoreManager.setUnreadCount(
-          userId,
-          (res && res.unread_count) || 0,
-          versionAtStart
-        );
-      } catch (error) {
-        reportFailure(
-          'notification_load_unread_count',
-          'fetch_unread_count',
-          error
-        );
-      } finally {
-        notificationStoreManager.updateState(userId, {
-          isFetchingUnreadCount: false,
-          unreadCountFetchPromise: null,
-        });
-      }
-    })();
-
-    notificationStoreManager.updateState(userId, {
-      isFetchingUnreadCount: true,
-      unreadCountFetchPromise: fetchPromise,
-    });
-
-    await fetchPromise;
+    );
   }, [userId, isUsingProps]);
 
   // Load initial notifications and unread count from service
