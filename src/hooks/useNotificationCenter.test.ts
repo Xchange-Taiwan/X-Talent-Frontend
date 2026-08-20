@@ -530,5 +530,43 @@ describe('useNotificationCenter', () => {
         20
       );
     });
+
+    it('dedupes concurrent loadUnreadCount calls across sibling hook instances mounting for the same user', async () => {
+      vi.mocked(fetchUnreadCount).mockResolvedValue({ unread_count: 5 });
+
+      const { result: result1 } = renderHook(() =>
+        useNotificationCenter({ userId: 'user-lazy-dedup' })
+      );
+      const { result: result2 } = renderHook(() =>
+        useNotificationCenter({ userId: 'user-lazy-dedup' })
+      );
+
+      await waitFor(() => {
+        expect(result1.current.badgeCount).toBe(5);
+        expect(result2.current.badgeCount).toBe(5);
+      });
+
+      expect(fetchUnreadCount).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports and gracefully degrades when loadUnreadCount fails', async () => {
+      vi.mocked(fetchUnreadCount).mockRejectedValue(new Error('network down'));
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({ userId: 'user-lazy-fail' })
+      );
+
+      await waitFor(() => {
+        expect(captureFlowFailure).toHaveBeenCalledWith(
+          expect.objectContaining({
+            flow: 'notification_load_unread_count',
+            step: 'fetch_unread_count',
+            message: 'network down',
+          })
+        );
+      });
+
+      expect(result.current.badgeCount).toBe(0);
+    });
   });
 });

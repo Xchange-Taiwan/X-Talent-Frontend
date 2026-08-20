@@ -23,24 +23,14 @@ import {
 
 const MARK_ALL_READ_BATCH_SIZE = 5;
 
-function reportMarkAsReadFailure(step: string, error: unknown): void {
+function reportFailure(flow: string, step: string, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`[useNotificationCenter] ${step} failed:`, message);
-  void captureFlowFailure({
-    flow: 'notification_mark_all_read',
-    step,
-    message,
-  });
+  void captureFlowFailure({ flow, step, message });
 }
 
-function reportUnreadCountFailure(step: string, error: unknown): void {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`[useNotificationCenter] ${step} failed:`, message);
-  void captureFlowFailure({
-    flow: 'notification_load_unread_count',
-    step,
-    message,
-  });
+function reportMarkAsReadFailure(step: string, error: unknown): void {
+  reportFailure('notification_mark_all_read', step, error);
 }
 
 /**
@@ -258,15 +248,26 @@ export function useNotificationCenter({
       return;
     }
 
+    // Snapshot the version so a slower loadUnreadCount can't clobber a
+    // fresher unread count written in the meantime by loadInitialData
+    // (e.g. the user opens the dropdown before this mount-time fetch
+    // resolves).
+    const versionAtStart = state.unreadCountVersion;
+
     const fetchPromise = (async () => {
       try {
         const res = await fetchUnreadCount(userId);
         notificationStoreManager.setUnreadCount(
           userId,
-          (res && res.unread_count) || 0
+          (res && res.unread_count) || 0,
+          versionAtStart
         );
       } catch (error) {
-        reportUnreadCountFailure('fetch_unread_count', error);
+        reportFailure(
+          'notification_load_unread_count',
+          'fetch_unread_count',
+          error
+        );
       } finally {
         notificationStoreManager.updateState(userId, {
           isFetchingUnreadCount: false,
