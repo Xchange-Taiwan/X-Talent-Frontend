@@ -5,7 +5,7 @@ import { useForm, UseFormReturn } from 'react-hook-form';
 import { Form } from '@/components/ui/form';
 import { defaultValues, ProfileFormValues } from '@/schemas/profileSchema';
 
-import { SelectField, TextareaField, TextField } from './Fields';
+import { ComboboxField, SelectField, TextareaField, TextField } from './Fields';
 
 const meta: Meta = {
   title: '業務模組元件/個人檔案(Profile)/Edit/Fields',
@@ -183,6 +183,60 @@ export const SelectFieldEmpty: StoryObj<typeof SelectField> = {
           name="location"
           placeholder="請選擇地區"
           options={locationOptions}
+        />
+      )}
+    />
+  ),
+};
+
+// 4. ComboboxField Stories
+// A larger option set than SelectField's demo — this is the pattern used for
+// fields where SelectField would otherwise eagerly mount hundreds of hidden
+// native <option> nodes (see ComboboxField's doc comment in Fields.tsx).
+const countryOptions = [
+  { label: '台灣', value: 'TWN' },
+  { label: '日本', value: 'JPN' },
+  { label: '韓國', value: 'KOR' },
+  { label: '美國', value: 'USA' },
+  { label: '加拿大', value: 'CAN' },
+  { label: '英國', value: 'GBR' },
+  { label: '法國', value: 'FRA' },
+  { label: '德國', value: 'DEU' },
+  { label: '澳洲', value: 'AUS' },
+  { label: '新加坡', value: 'SGP' },
+];
+
+export const ComboboxFieldWithSelectedValue: StoryObj<typeof ComboboxField> = {
+  name: 'ComboboxField / 已選擇選項',
+  render: () => (
+    <GenericFieldWrapper
+      name="location"
+      defaultValue="TWN"
+      renderField={(form) => (
+        <ComboboxField
+          form={form}
+          name="location"
+          placeholder="請選擇地區"
+          searchPlaceholder="搜尋地區"
+          options={countryOptions}
+        />
+      )}
+    />
+  ),
+};
+
+export const ComboboxFieldEmpty: StoryObj<typeof ComboboxField> = {
+  name: 'ComboboxField / 空白未選擇狀態',
+  render: () => (
+    <GenericFieldWrapper
+      name="location"
+      renderField={(form) => (
+        <ComboboxField
+          form={form}
+          name="location"
+          placeholder="請選擇地區"
+          searchPlaceholder="搜尋地區"
+          options={countryOptions}
         />
       )}
     />
