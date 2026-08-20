@@ -23,14 +23,14 @@ import {
 
 const MARK_ALL_READ_BATCH_SIZE = 5;
 
-function reportMarkAsReadFailure(step: string, error: unknown): void {
+function reportFailure(flow: string, step: string, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`[useNotificationCenter] ${step} failed:`, message);
-  void captureFlowFailure({
-    flow: 'notification_mark_all_read',
-    step,
-    message,
-  });
+  void captureFlowFailure({ flow, step, message });
+}
+
+function reportMarkAsReadFailure(step: string, error: unknown): void {
+  reportFailure('notification_mark_all_read', step, error);
 }
 
 /**
@@ -227,6 +227,38 @@ export function useNotificationCenter({
     [userId, isUsingProps, toast]
   );
 
+  // Load just the unread badge count - cheap, and safe to fire on every
+  // page mount (via NotificationBell in the Header) since the badge must
+  // be visible before the user ever opens the dropdown. The full
+  // notification list is fetched separately, lazily, only when the
+  // dropdown is actually opened (see openCenter/onOpenChange below) -
+  // most page visits never open it, so there's no reason to pay for it
+  // upfront.
+  const loadUnreadCount = React.useCallback(async () => {
+    if (isUsingProps) return;
+    if (!userId) return;
+
+    // Deduplication across sibling hook instances and staleness guarding
+    // against loadInitialData both live in the store - see
+    // fetchUnreadCountWithDeduplication.
+    await notificationStoreManager.fetchUnreadCountWithDeduplication(
+      userId,
+      async () => {
+        try {
+          const res = await fetchUnreadCount(userId);
+          return (res && res.unread_count) || 0;
+        } catch (error) {
+          reportFailure(
+            'notification_load_unread_count',
+            'fetch_unread_count',
+            error
+          );
+          return undefined;
+        }
+      }
+    );
+  }, [userId, isUsingProps]);
+
   // Load initial notifications and unread count from service
   const loadInitialData = React.useCallback(
     async (showLoading = true) => {
@@ -291,8 +323,8 @@ export function useNotificationCenter({
   );
 
   React.useEffect(() => {
-    loadInitialData(!isUsingProps);
-  }, [loadInitialData, isUsingProps]);
+    loadUnreadCount();
+  }, [loadUnreadCount]);
 
   // Keep seenUnreadCount clamped to badgeCount to prevent stale values,
   // but only when we are not in a loading status and there is no active write/mutation in progress
@@ -338,14 +370,24 @@ export function useNotificationCenter({
     };
   }, []);
 
+  // Since mount only fetches the unread count (see loadUnreadCount above),
+  // the list can now genuinely be loading for the *first* time on open, not
+  // just refreshing already-cached data. Show the loading skeleton / error
+  // + retry state (showLoading: true) for that first load; once cached
+  // data exists, re-opening only refreshes silently in the background
+  // (showLoading: false), matching the original "fetch fresh details when
+  // opened" behavior.
+  const isFirstLoad =
+    storeState.status === 'loading' ||
+    (storeState.status === 'error' && storeState.notifications.length === 0);
+
   const openCenter = React.useCallback(() => {
     setOpen(true);
     writeSeenCount(badgeCount);
-    // Fetch fresh details when dropdown is opened
     if (!isUsingProps) {
-      loadInitialData(false);
+      loadInitialData(isFirstLoad);
     }
-  }, [badgeCount, writeSeenCount, isUsingProps, loadInitialData]);
+  }, [badgeCount, writeSeenCount, isUsingProps, loadInitialData, isFirstLoad]);
 
   const closeCenter = React.useCallback(() => {
     setOpen(false);
@@ -353,15 +395,13 @@ export function useNotificationCenter({
 
   const onOpenChange = React.useCallback(
     (nextOpen: boolean) => {
-      setOpen(nextOpen);
       if (nextOpen) {
-        writeSeenCount(badgeCount);
-        if (!isUsingProps) {
-          loadInitialData(false);
-        }
+        openCenter();
+      } else {
+        setOpen(false);
       }
     },
-    [badgeCount, writeSeenCount, isUsingProps, loadInitialData]
+    [openCenter]
   );
 
   const markRead = React.useCallback(
