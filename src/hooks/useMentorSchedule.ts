@@ -63,7 +63,7 @@ export type SlotDurationMinutes = 30 | 45 | 60;
 
 export type UpdateDraftSlotResult = {
   success: boolean;
-  reason?: 'OVERLAP' | 'TARGET_MONTH_NOT_LOADED';
+  reason?: 'OVERLAP' | 'TARGET_MONTH_NOT_LOADED' | 'READ_ONLY';
 };
 
 export type UseMentorScheduleReturn = {

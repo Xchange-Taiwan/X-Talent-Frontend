@@ -130,4 +130,33 @@ describe('useConfirmActionDialog', () => {
       description: errorMessage,
     });
   });
+
+  it('should resolve a function errorMessage using the caught error', async () => {
+    class SpecialError extends Error {}
+    const errorMessageFn = vi.fn((error: unknown) =>
+      error instanceof SpecialError ? 'special message' : 'generic message'
+    );
+
+    const { result } = renderHook(() =>
+      useConfirmActionDialog({
+        errorMessage: errorMessageFn,
+        onOpen: onOpenMock,
+      })
+    );
+
+    act(() => {
+      result.current.onOpenChange(true);
+    });
+
+    const action = vi.fn().mockRejectedValue(new SpecialError('boom'));
+
+    await act(async () => {
+      await result.current.execute(action);
+    });
+
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      description: 'special message',
+    });
+  });
 });

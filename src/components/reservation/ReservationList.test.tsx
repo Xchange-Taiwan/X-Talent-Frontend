@@ -179,6 +179,7 @@ const mockReservation = {
   dtend: 1700003600,
   senderUserId: 'user-123',
   participantUserId: 'user-456',
+  version: 0,
 };
 
 describe('ReservationList', () => {

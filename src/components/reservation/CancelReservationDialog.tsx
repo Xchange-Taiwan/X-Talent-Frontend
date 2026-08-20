@@ -18,6 +18,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
 import { trackEvent } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
+import {
+  RESERVATION_CONFLICT_MESSAGE,
+  ReservationVersionConflictError,
+} from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
 interface Props {
@@ -39,7 +43,10 @@ export default function CancelReservationDialog({
   const [reason, setReason] = useState('');
 
   const { open, isSubmitting, onOpenChange, execute } = useConfirmActionDialog({
-    errorMessage: '取消預約失敗,請稍後再試',
+    errorMessage: (error) =>
+      error instanceof ReservationVersionConflictError
+        ? RESERVATION_CONFLICT_MESSAGE
+        : '取消預約失敗,請稍後再試',
     onOpen: () => {
       setReason('');
       trackEvent({

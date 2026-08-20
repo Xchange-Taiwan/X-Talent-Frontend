@@ -5,7 +5,9 @@ import { useState } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 
 interface UseConfirmActionDialogOptions {
-  errorMessage: string;
+  /** Static message, or a function of the caught error (e.g. to special-case
+   * a specific error type with a more precise message). */
+  errorMessage: string | ((error: unknown) => string);
   onOpen?: () => void;
 }
 
@@ -34,7 +36,10 @@ export function useConfirmActionDialog({
     } catch (error) {
       toast({
         variant: 'destructive',
-        description: errorMessage,
+        description:
+          typeof errorMessage === 'function'
+            ? errorMessage(error)
+            : errorMessage,
       });
       setIsSubmitting(false);
     }

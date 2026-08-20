@@ -34,6 +34,7 @@ export const mockReservations: Reservation[] = [
     dtend: daysFromNow(5) + 3600,
     senderUserId: 'user-mentee-chloe',
     participantUserId: 'user-mentor-current',
+    version: 0,
   },
 
   // 2. Pending Reservation (Awaiting Mentor response, viewed as Mentee)
@@ -62,6 +63,7 @@ export const mockReservations: Reservation[] = [
     dtend: daysFromNow(7) + 3600,
     senderUserId: 'user-mentee-current',
     participantUserId: 'user-mentor-harrison',
+    version: 0,
   },
 
   // 3. Upcoming Reservation - "Far" (Starts in 3 days)
@@ -100,6 +102,7 @@ export const mockReservations: Reservation[] = [
     dtend: daysFromNow(3) + 3600,
     senderUserId: 'user-mentee-grace',
     participantUserId: 'user-mentor-current',
+    version: 0,
   },
 
   // 4. Upcoming Reservation - "Soon" (Starts in 3 hours)
@@ -138,6 +141,7 @@ export const mockReservations: Reservation[] = [
     dtend: hoursFromNow(4),
     senderUserId: 'user-mentee-james',
     participantUserId: 'user-mentor-current',
+    version: 0,
   },
 
   // 5. Upcoming Reservation - "Imminent" (Starts in 15 minutes)
@@ -176,6 +180,7 @@ export const mockReservations: Reservation[] = [
     dtend: minutesFromNow(75),
     senderUserId: 'user-mentee-sylvia',
     participantUserId: 'user-mentor-current',
+    version: 0,
   },
 
   // 6. Upcoming Reservation - "Live" (Currently active!)
@@ -214,6 +219,7 @@ export const mockReservations: Reservation[] = [
     dtend: minutesFromNow(45), // Ends in 45 mins
     senderUserId: 'user-mentee-albert',
     participantUserId: 'user-mentor-current',
+    version: 0,
   },
 
   // 7. History Reservation - Ended (Successful with messages, viewed as Mentor)
@@ -252,6 +258,7 @@ export const mockReservations: Reservation[] = [
     dtend: daysFromNow(-9) + 3600,
     senderUserId: 'user-mentee-jay',
     participantUserId: 'user-mentor-current',
+    version: 0,
   },
 
   // 8. History Reservation - Cancelled by Mentor (Viewed as Mentee)
@@ -280,6 +287,7 @@ export const mockReservations: Reservation[] = [
     dtend: daysFromNow(-14) + 3600,
     senderUserId: 'user-mentee-current',
     participantUserId: 'user-mentor-arthur',
+    version: 0,
     cancelledBy: 'MENTOR',
   },
 
@@ -309,6 +317,7 @@ export const mockReservations: Reservation[] = [
     dtend: daysFromNow(-19) + 3600,
     senderUserId: 'user-mentee-jolin',
     participantUserId: 'user-mentor-current',
+    version: 0,
     cancelledBy: 'MENTEE',
   },
 ];

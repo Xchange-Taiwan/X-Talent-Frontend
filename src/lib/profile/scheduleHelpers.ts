@@ -143,6 +143,16 @@ export function nextTempId(rows: RawMentorTimeslot[]): number {
   return negatives.length ? Math.min(...negatives) - 1 : -1;
 }
 
+/**
+ * A backend-synthesized read-only placeholder representing a booked/pending
+ * reservation block — not a real mentor_availability row. Distinguished from
+ * a locally-created, not-yet-saved ALLOW draft (which also has a negative id
+ * via nextTempId) by its `type`: only BOOKED/PENDING rows are ever virtual.
+ */
+export function isReadOnlyVirtualSlot(type: DtType, id: number): boolean {
+  return id < 0 && (type === 'BOOKED' || type === 'PENDING');
+}
+
 /** Build a dayjs from a YYYY-MM-DD date and HH:mm time. */
 export function buildDateTime(dateStr: string, timeStr: string) {
   const [h, m] = timeStr.split(':').map(Number);
