@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { useRef } from 'react';
+import { useState } from 'react';
 
 import { PageLoading } from '@/components/ui/loading-spinner';
 import { primeTagCatalogCacheIfEmpty } from '@/hooks/user/tags/useTagCatalog';
@@ -17,7 +17,7 @@ const ProfileCardUI = dynamic(() => import('./ui'));
 interface Props {
   loginUserId: number;
   initialDto: MentorProfileVO | null;
-  initialCatalogs: TagCatalogsByBucket;
+  initialCatalogs: TagCatalogsByBucket | null;
 }
 
 export default function ProfileCardContainer({
@@ -31,18 +31,23 @@ export default function ProfileCardContainer({
   // child hooks run - this is intentionally inside render (not useEffect) so
   // useUserProfileDto's lazy-init useState reads the primed entry on its
   // first render. That's what puts the avatar in the initial HTML instead of
-  // behind a client-side session + data fetch (see issue #591). Guarded by a
-  // ref (rather than relying solely on the cache's own `ifEmpty` idempotency)
-  // so this render-phase side effect runs at most once per mount, including
-  // under React Strict Mode's double-invoke.
-  const primedRef = useRef(false);
-  if (!primedRef.current) {
+  // behind a client-side session + data fetch (see issue #591). Done inside a
+  // useState lazy initializer (React's sanctioned "run once during render"
+  // escape hatch) rather than a plain ref write, since writing ref.current
+  // during render is disallowed by React and can behave inconsistently under
+  // Strict Mode / concurrent rendering. A null initialDto/initialCatalogs
+  // (the SSR fetch failed) is left un-primed so the client-side fallback
+  // fetch in useUserData/useTagCatalog actually runs instead of the cache
+  // looking like it already holds a successful (but empty) result.
+  useState(() => {
     if (initialDto) {
       primeUserProfileDtoCacheIfEmpty(loginUserId, 'zh_TW', initialDto);
     }
-    primeTagCatalogCacheIfEmpty('zh_TW', initialCatalogs);
-    primedRef.current = true;
-  }
+    if (initialCatalogs) {
+      primeTagCatalogCacheIfEmpty('zh_TW', initialCatalogs);
+    }
+    return true;
+  });
 
   const { userData, isLoading } = useUserData(loginUserId, 'zh_TW');
 

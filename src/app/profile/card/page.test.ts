@@ -81,7 +81,7 @@ describe('profile/card Page', () => {
     });
   });
 
-  it('renders the container with a null initialDto when the SSR fetch fails, leaving the client-side fallback fetch to recover', async () => {
+  it('renders the container with a null initialDto when the SSR fetch resolves to null, leaving the client-side fallback fetch to recover', async () => {
     mockGetServerSession.mockResolvedValueOnce({
       user: { id: '42' },
     } as never);
@@ -94,6 +94,40 @@ describe('profile/card Page', () => {
       loginUserId: 42,
       initialDto: null,
       initialCatalogs: emptyCatalogs,
+    });
+  });
+
+  it('renders the container with a null initialDto when fetchUserByIdServer unexpectedly throws, instead of failing the whole SSR render', async () => {
+    mockGetServerSession.mockResolvedValueOnce({
+      user: { id: '42' },
+    } as never);
+    mockFetchUserByIdServer.mockRejectedValueOnce(new Error('network error'));
+    mockFetchTagCatalogServer.mockResolvedValueOnce(emptyCatalogs);
+
+    const result = await Page();
+
+    expect(result.props).toEqual({
+      loginUserId: 42,
+      initialDto: null,
+      initialCatalogs: emptyCatalogs,
+    });
+  });
+
+  it('renders the container with a null initialCatalogs when fetchTagCatalogServer unexpectedly throws, instead of failing the whole SSR render', async () => {
+    mockGetServerSession.mockResolvedValueOnce({
+      user: { id: '42' },
+    } as never);
+    mockFetchUserByIdServer.mockResolvedValueOnce({
+      user_id: 42,
+    } as MentorProfileVO);
+    mockFetchTagCatalogServer.mockRejectedValueOnce(new Error('network error'));
+
+    const result = await Page();
+
+    expect(result.props).toEqual({
+      loginUserId: 42,
+      initialDto: { user_id: 42 },
+      initialCatalogs: null,
     });
   });
 });

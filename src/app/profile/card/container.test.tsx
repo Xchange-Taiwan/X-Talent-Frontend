@@ -83,6 +83,26 @@ describe('ProfileCardContainer', () => {
     );
   });
 
+  it('does not prime the tag-catalog cache when the SSR fetch failed (initialCatalogs is null), leaving the client-side fallback fetch to recover', () => {
+    mockUseUserData.mockReturnValue({ userData: null, isLoading: true });
+    const initialDto = { user_id: 42 } as MentorProfileVO;
+
+    render(
+      <ProfileCardContainer
+        loginUserId={42}
+        initialDto={initialDto}
+        initialCatalogs={null}
+      />
+    );
+
+    expect(mockPrimeUserProfileDtoCacheIfEmpty).toHaveBeenCalledWith(
+      42,
+      'zh_TW',
+      initialDto
+    );
+    expect(mockPrimeTagCatalogCacheIfEmpty).not.toHaveBeenCalled();
+  });
+
   it('renders the card UI immediately (no loading state) when the SSR-primed data resolves the hook synchronously', () => {
     mockUseUserData.mockReturnValue({
       userData: {
