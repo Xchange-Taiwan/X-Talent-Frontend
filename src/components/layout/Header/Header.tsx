@@ -66,18 +66,18 @@ function HeaderComponent(): JSX.Element {
 
             {!authKnown ? (
               <>
-                <Skeleton className="h-6 w-24 group-data-[auth-state=guest]:hidden group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden" />
+                <Skeleton className="h-6 w-24 group-data-[auth-state=guest]/auth-state:hidden group-data-[auth-state=mentee]/auth-state:hidden group-data-[auth-state=mentor]/auth-state:hidden" />
                 <DisabledAwareLink
                   href={getProfileHref(userId)}
                   disabled={isResolvingUser}
-                  className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentor]:block"
+                  className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentor]/auth-state:block"
                 >
                   我的導師頁面
                 </DisabledAwareLink>
                 <DisabledAwareLink
                   href={getBecomeMentorHref(userId)}
                   disabled={isResolvingUser}
-                  className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=guest]:block group-data-[auth-state=mentee]:block"
+                  className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=guest]/auth-state:block group-data-[auth-state=mentee]/auth-state:block"
                 >
                   成為導師
                 </DisabledAwareLink>
@@ -119,11 +119,11 @@ function HeaderComponent(): JSX.Element {
           >
             {!authKnown ? (
               <>
-                <div className="group-data-[auth-state=guest]:hidden group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden">
+                <div className="group-data-[auth-state=guest]/auth-state:hidden group-data-[auth-state=mentee]/auth-state:hidden group-data-[auth-state=mentor]/auth-state:hidden">
                   <Skeleton className="size-9 rounded-full" />
                 </div>
-                <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block" />
-                <div className="hidden items-center gap-3 group-data-[auth-state=guest]:flex">
+                <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block" />
+                <div className="hidden items-center gap-3 group-data-[auth-state=guest]/auth-state:flex">
                   <GuestActionButtons />
                 </div>
               </>
@@ -155,12 +155,12 @@ function HeaderComponent(): JSX.Element {
             ) : (
               !authKnown && (
                 <>
-                  <Skeleton className="hidden size-9 rounded-full group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block" />
-                  <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]:block group-data-[auth-state=mentor]:block" />
+                  <Skeleton className="hidden size-9 rounded-full group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block" />
+                  <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block" />
                 </>
               )
             )}
-            <div className="group-data-[auth-state=mentee]:hidden group-data-[auth-state=mentor]:hidden">
+            <div className="group-data-[auth-state=mentee]/auth-state:hidden group-data-[auth-state=mentor]/auth-state:hidden">
               <HamburgerMenu
                 isLoggedIn={isLoggedIn}
                 isMentor={isMentor}
