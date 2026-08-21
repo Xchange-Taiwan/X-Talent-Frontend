@@ -65,3 +65,22 @@ export const PastDisabled: Story = {
     disablePastDates: true,
   },
 };
+
+export const WithStatusDots: Story = {
+  args: {
+    selected: today.toDate(),
+    showTodayStyle: true,
+    size: 'profile',
+    allowedDates: [
+      formattedTodayStr,
+      formattedTomorrowStr,
+      formattedNextWeekStr,
+    ],
+    getDateStatus: (date: Date) => {
+      const dateKey = dayjs(date).format('YYYY-MM-DD');
+      if (dateKey === formattedTodayStr) return 'PENDING';
+      if (dateKey === formattedTomorrowStr) return 'BOOKED';
+      return null;
+    },
+  },
+};
