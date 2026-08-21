@@ -1160,4 +1160,171 @@ describe('useMentorSchedule', () => {
       expect(slots[2].status).toBe('PENDING');
     });
   });
+
+  describe('getDayBookingStatus', () => {
+    beforeEach(() => {
+      vi.spyOn(Date, 'now').mockReturnValue(
+        new Date('2026-07-01T00:00:00Z').getTime()
+      );
+    });
+
+    it('returns null when the date has no ALLOW slots', async () => {
+      const { result } = setupSchedule([]);
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+      expect(result.current.getDayBookingStatus('2026-07-26')).toBeNull();
+    });
+
+    it('returns null when slots exist but are all open (unreserved)', async () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const { result } = setupSchedule(mockRaws);
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+      expect(result.current.getDayBookingStatus('2026-07-26')).toBeNull();
+    });
+
+    it('returns BOOKED when every reserved slot on the date is BOOKED', async () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const { result } = setupSchedule(mockRaws);
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+      expect(result.current.getDayBookingStatus('2026-07-26')).toBe('BOOKED');
+    });
+
+    it('returns PENDING when the date has a mix of PENDING and BOOKED slots', async () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 103,
+          type: 'ALLOW' as const,
+          dtstart: 1785073600,
+          dtend: 1785075400,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 104,
+          type: 'PENDING' as const,
+          dtstart: 1785073600,
+          dtend: 1785075400,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const { result } = setupSchedule(mockRaws);
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+      expect(result.current.getDayBookingStatus('2026-07-26')).toBe('PENDING');
+    });
+
+    it("resolves a dtstart claimed by both a BOOKED and a PENDING row as BOOKED, matching deduplicateBookingSlots' precedence", async () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 103,
+          type: 'PENDING' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const { result } = setupSchedule(mockRaws);
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+      expect(result.current.getDayBookingStatus('2026-07-26')).toBe('BOOKED');
+    });
+
+    it('returns null for an occurrence that already started before now, even if it is BOOKED', async () => {
+      // Date.now() is mocked to 2026-07-01T00:00:00Z in this describe block's
+      // beforeEach; this dtstart is in June, i.e. already in the past.
+      const pastDtstart = Math.floor(
+        new Date('2026-06-01T10:00:00Z').getTime() / 1000
+      );
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: pastDtstart,
+          dtend: pastDtstart + 1800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: pastDtstart,
+          dtend: pastDtstart + 1800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const { result } = setupSchedule(mockRaws);
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+      expect(result.current.getDayBookingStatus('2026-06-01')).toBeNull();
+    });
+  });
 });

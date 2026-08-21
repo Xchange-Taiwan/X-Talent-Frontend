@@ -2,13 +2,60 @@
 
 import dayjs from 'dayjs';
 import { Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
+import { DayButton } from 'react-day-picker';
 import { useSwipeable } from 'react-swipeable';
 
-import { Calendar, CalendarVariant } from '@/components/ui/calendar';
+import {
+  Calendar,
+  CalendarDayButton,
+  CalendarVariant,
+} from '@/components/ui/calendar';
+import type { BookingStatus } from '@/lib/profile/scheduleHelpers';
 import { cn } from '@/lib/utils';
 
 type ScheduleCalendarSize = 'compact' | 'profile';
+
+interface CalendarContextType {
+  getDateStatus?: (date: Date) => BookingStatus | null;
+  size: ScheduleCalendarSize;
+}
+
+const CalendarContext = createContext<CalendarContextType | null>(null);
+
+const CustomDayButton = (props: React.ComponentProps<typeof DayButton>) => {
+  const ctx = useContext(CalendarContext);
+  if (!ctx) return <CalendarDayButton {...props} />;
+
+  const { getDateStatus, size } = ctx;
+  const { day } = props;
+  const bookingStatus = getDateStatus?.(day.date) ?? null;
+
+  // Only wrap in the extra positioning div when there's actually a dot to
+  // place, so viewers/dates with no status dot get the original DOM
+  // structure react-day-picker expects (no CSS/layout/focus surprises).
+  if (!bookingStatus) return <CalendarDayButton {...props} />;
+
+  return (
+    <div className="relative flex h-full w-full items-center justify-center">
+      <CalendarDayButton {...props} />
+      <span
+        data-testid={`status-dot-${dayjs(day.date).format('YYYY-MM-DD')}`}
+        className={cn(
+          'pointer-events-none absolute size-1.5 rounded-full md:size-2',
+          size === 'profile'
+            ? 'top-1 right-1 min-[700px]:top-1.5 min-[700px]:right-1.5 min-[900px]:top-2 min-[900px]:right-2 2xl:top-1.5 2xl:right-1.5'
+            : 'top-0.5 right-0.5 sm:top-1 sm:right-1',
+          bookingStatus === 'PENDING'
+            ? 'bg-status-warning-default'
+            : 'bg-status-success-default'
+        )}
+      />
+    </div>
+  );
+};
+
+const calendarComponents = { DayButton: CustomDayButton };
 
 interface ScheduleCalendarProps {
   selected: Date;
@@ -29,6 +76,8 @@ interface ScheduleCalendarProps {
   size?: ScheduleCalendarSize;
   variant?: CalendarVariant;
   className?: string;
+  /** Per-date status dot (e.g. booking state); omit to render no dots. */
+  getDateStatus?: (date: Date) => BookingStatus | null;
 }
 
 const scheduleCalendarSizeClassNames: Record<ScheduleCalendarSize, string> = {
@@ -119,6 +168,7 @@ export const ScheduleCalendar = ({
   size = 'compact',
   variant,
   className,
+  getDateStatus,
 }: ScheduleCalendarProps) => {
   const [displayMonth, setDisplayMonth] = useState<Date>(selected);
 
@@ -149,69 +199,77 @@ export const ScheduleCalendar = ({
     ? allowedDates.map((dateStr) => new Date(`${dateStr}T00:00:00`))
     : [];
 
+  const contextValue = useMemo(
+    () => ({ getDateStatus, size }),
+    [getDateStatus, size]
+  );
+
   return (
-    <div
-      {...swipeHandlers}
-      className={cn(
-        'touch-pan-y',
-        scheduleCalendarSizeClassNames[size],
-        className
-      )}
-    >
+    <CalendarContext.Provider value={contextValue}>
       <div
+        {...swipeHandlers}
         className={cn(
-          'relative transition-opacity',
-          isMonthLoading && 'opacity-60'
+          'touch-pan-y',
+          scheduleCalendarSizeClassNames[size],
+          className
         )}
-        aria-busy={isMonthLoading}
       >
-        <Calendar
-          mode="single"
-          variant={calendarVariant}
-          captionLayout="dropdown"
-          month={displayMonth}
-          selected={selected}
-          onSelect={handleSelect}
-          onMonthChange={handleMonthChange}
-          modifiers={{
-            available: availableDays,
-          }}
-          modifiersClassNames={{
-            available: 'rdp-day-available',
-          }}
-          disabled={(day) => {
-            if (disablePastDates) {
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
+        <div
+          className={cn(
+            'relative transition-opacity',
+            isMonthLoading && 'opacity-60'
+          )}
+          aria-busy={isMonthLoading}
+        >
+          <Calendar
+            mode="single"
+            variant={calendarVariant}
+            captionLayout="dropdown"
+            month={displayMonth}
+            selected={selected}
+            onSelect={handleSelect}
+            onMonthChange={handleMonthChange}
+            modifiers={{
+              available: availableDays,
+            }}
+            modifiersClassNames={{
+              available: 'rdp-day-available',
+            }}
+            disabled={(day) => {
+              if (disablePastDates) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
 
-              if (day < today) {
-                return true;
+                if (day < today) {
+                  return true;
+                }
               }
-            }
 
-            if (disableEmptyDates) {
-              const dateStr = dayjs(day).format('YYYY-MM-DD');
+              if (disableEmptyDates) {
+                const dateStr = dayjs(day).format('YYYY-MM-DD');
 
-              if (allowedDates.length === 0) {
-                return true;
+                if (allowedDates.length === 0) {
+                  return true;
+                }
+
+                return !allowedDates.includes(dateStr);
               }
 
-              return !allowedDates.includes(dateStr);
-            }
-
-            return false;
-          }}
-          showTodayStyle={showTodayStyle}
-        />
-        {isMonthLoading && (
-          <div
-            aria-live="polite"
-            className="pointer-events-none absolute inset-0 flex items-center justify-center"
-          >
-            <Loader2 className="size-6 animate-spin text-text-tertiary" />
-          </div>
-        )}
+              return false;
+            }}
+            showTodayStyle={showTodayStyle}
+            components={calendarComponents}
+          />
+          {isMonthLoading && (
+            <div
+              aria-live="polite"
+              className="pointer-events-none absolute inset-0 flex items-center justify-center"
+            >
+              <Loader2 className="size-6 animate-spin text-text-tertiary" />
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </CalendarContext.Provider>
   );
 };
