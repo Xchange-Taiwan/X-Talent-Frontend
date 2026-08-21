@@ -898,4 +898,87 @@ describe('useMentorSchedule', () => {
     });
     expect(result.current.parsedDraft[0]?.id).toBe(101);
   });
+
+  describe('generateBookingSlots', () => {
+    beforeEach(() => {
+      vi.spyOn(Date, 'now').mockReturnValue(
+        new Date('2026-07-01T00:00:00Z').getTime()
+      );
+    });
+
+    it('returns empty slots if no ALLOW slots exist', async () => {
+      const { result } = setupSchedule([]);
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+      const slots = result.current.generateBookingSlots('2026-07-26');
+      expect(slots).toEqual([]);
+    });
+
+    it('correctly maps ALLOW, BOOKED, and PENDING statuses', async () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'ALLOW' as const,
+          dtstart: 1785073600,
+          dtend: 1785075400,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 103,
+          type: 'BOOKED' as const,
+          dtstart: 1785073600,
+          dtend: 1785075400,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 104,
+          type: 'ALLOW' as const,
+          dtstart: 1785077200,
+          dtend: 1785079000,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 105,
+          type: 'PENDING' as const,
+          dtstart: 1785077200,
+          dtend: 1785079000,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+
+      const { result } = setupSchedule(mockRaws);
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      const slots = result.current.generateBookingSlots('2026-07-26');
+      expect(slots).toHaveLength(3);
+
+      // Slot 1: ALLOW (unreserved)
+      expect(slots[0].isBooked).toBe(false);
+      expect(slots[0].status).toBeNull();
+
+      // Slot 2: BOOKED
+      expect(slots[1].isBooked).toBe(true);
+      expect(slots[1].status).toBe('BOOKED');
+
+      // Slot 3: PENDING
+      expect(slots[2].isBooked).toBe(false);
+      expect(slots[2].status).toBe('PENDING');
+    });
+  });
 });
