@@ -3,6 +3,7 @@ import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import { RRule } from 'rrule';
 
 import { SegmentVO } from '@/services/mentor-schedule/schedule';
+import type { Reservation } from '@/types/reservation';
 
 dayjs.extend(isSameOrBefore);
 
@@ -294,6 +295,22 @@ export function deduplicateRawSlots(
   });
 
   return out;
+}
+
+/**
+ * Find the reservation whose [dtstart, dtend) exactly matches a given slot
+ * window (unix seconds). Shared between useMentorSchedule (booking-slot
+ * generation) and MentorScheduleDialog (prompt-dialog mentee name) so the
+ * matching rule can't drift between the two call sites.
+ */
+export function findMatchedReservation(
+  reservations: Reservation[] | undefined,
+  startUnix: number,
+  endUnix: number
+): Reservation | undefined {
+  return reservations?.find(
+    (r) => r.dtstart === startUnix && r.dtend === endUnix
+  );
 }
 
 /**
