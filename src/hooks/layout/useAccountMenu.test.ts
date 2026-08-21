@@ -17,6 +17,11 @@ vi.mock('@/hooks/user/profile/useCurrentAvatar', () => ({
   useCurrentAvatar: () => mockUseCurrentAvatar(),
 }));
 
+const mockPostBackendLogout = vi.fn();
+vi.mock('@/services/auth/backendLogout', () => ({
+  postBackendLogout: () => mockPostBackendLogout(),
+}));
+
 import {
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
@@ -249,10 +254,7 @@ describe('useAccountMenu', () => {
 
   describe('handleLogout', () => {
     it('revokes the backend session before signing the user out', async () => {
-      const fetchMock = vi
-        .fn()
-        .mockResolvedValue(new Response(null, { status: 204 }));
-      vi.stubGlobal('fetch', fetchMock);
+      mockPostBackendLogout.mockResolvedValue(undefined);
 
       // Set initial values
       document.cookie = `${SESSION_HINT_COOKIE}=1||https%3A%2F%2Fexample.com%2Favatar.png`;
@@ -275,10 +277,7 @@ describe('useAccountMenu', () => {
       });
 
       expect(closeMenu).toHaveBeenCalledOnce();
-      expect(fetchMock).toHaveBeenCalledWith('/api/auth/backend-logout', {
-        method: 'POST',
-        credentials: 'same-origin',
-      });
+      expect(mockPostBackendLogout).toHaveBeenCalledOnce();
       expect(mockSignOut).toHaveBeenCalledOnce();
 
       // Verify they are completely cleared upon logout
@@ -292,6 +291,21 @@ describe('useAccountMenu', () => {
       expect(
         document.documentElement.style.getPropertyValue('--auth-avatar')
       ).toBe('');
+    });
+
+    it('still signs the user out locally when the backend revocation fails', async () => {
+      mockPostBackendLogout.mockRejectedValue(new Error('network error'));
+
+      const { result } = renderHook(() =>
+        useAccountMenu({ user: buildUser(), closeMenu })
+      );
+
+      await act(async () => {
+        await result.current.handleLogout();
+      });
+
+      expect(mockPostBackendLogout).toHaveBeenCalledOnce();
+      expect(mockSignOut).toHaveBeenCalledOnce();
     });
   });
 
