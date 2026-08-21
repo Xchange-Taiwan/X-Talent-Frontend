@@ -25,8 +25,14 @@ vi.mock('@/components/profile/reservation/BookingForm', () => ({
 vi.mock('@/components/profile/reservation/MentorScheduleDialog', () => ({
   default: () => <div data-testid="mentor-schedule-dialog" />,
 }));
+const scheduleCalendarMock = vi.hoisted(() => ({
+  lastProps: null as { getDateStatus?: (date: Date) => unknown } | null,
+}));
 vi.mock('@/components/profile/reservation/ScheduleCalendar', () => ({
-  ScheduleCalendar: () => <div data-testid="schedule-calendar" />,
+  ScheduleCalendar: (props: { getDateStatus?: (date: Date) => unknown }) => {
+    scheduleCalendarMock.lastProps = props;
+    return <div data-testid="schedule-calendar" />;
+  },
 }));
 
 import ProfilePageUI from './ui';
@@ -42,6 +48,7 @@ function buildSchedule(): UseMentorScheduleReturn {
     draftForSelectedDate: [],
     allowedDates: [],
     generateBookingSlots: vi.fn(() => []),
+    getDayBookingStatus: vi.fn(() => null),
     addSlotForSelectedDate: vi.fn(() => ({ added: 0, skipped: 0 })),
     updateDraftSlot: vi.fn(() => ({ success: true })),
     deleteDraftSlot: vi.fn(),
@@ -209,5 +216,52 @@ describe('ProfilePageUI - identity-resolution flash prevention', () => {
     );
 
     expect(screen.getByTestId('mentor-schedule-dialog')).toBeInTheDocument();
+  });
+});
+
+describe('ProfilePageUI - calendar status-dot gating (#603)', () => {
+  it('wires getDateStatus to schedule.getDayBookingStatus when the viewer owns the mentor profile', () => {
+    const schedule = buildSchedule();
+    (schedule.getDayBookingStatus as ReturnType<typeof vi.fn>).mockReturnValue(
+      'PENDING'
+    );
+
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({ is_mentor: true }),
+          canShowOwnerControls: true,
+          schedule,
+        })}
+      />
+    );
+
+    const status = scheduleCalendarMock.lastProps?.getDateStatus?.(
+      new Date(2026, 7, 20)
+    );
+
+    expect(status).toBe('PENDING');
+    expect(schedule.getDayBookingStatus).toHaveBeenCalledWith('2026-08-20');
+  });
+
+  it('always returns null and never calls schedule.getDayBookingStatus when the viewer does not own the mentor profile', () => {
+    const schedule = buildSchedule();
+
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({ is_mentor: true }),
+          canShowOwnerControls: false,
+          schedule,
+        })}
+      />
+    );
+
+    const status = scheduleCalendarMock.lastProps?.getDateStatus?.(
+      new Date(2026, 7, 20)
+    );
+
+    expect(status).toBeNull();
+    expect(schedule.getDayBookingStatus).not.toHaveBeenCalled();
   });
 });

@@ -18,6 +18,7 @@ import { captureFlowFailure } from '@/lib/monitoring';
 import { MonthDraftStore } from '@/lib/profile/MonthDraftStore';
 import {
   BookingSlot,
+  BookingStatus,
   deduplicateBookingSlots,
   expandRrule,
   findMatchedReservation,
@@ -42,6 +43,7 @@ import type { Reservation } from '@/types/reservation';
 
 export type {
   BookingSlot,
+  BookingStatus,
   ParsedMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
 export { expandRrule } from '@/lib/profile/scheduleHelpers';
@@ -85,6 +87,9 @@ export type UseMentorScheduleReturn = {
   allowedDates: string[];
 
   generateBookingSlots: (dateKey: string) => BookingSlot[];
+
+  /** Rolls up a day's booking slots into a single dot status: PENDING takes priority over an all-BOOKED day. */
+  getDayBookingStatus: (dateKey: string) => BookingStatus | null;
 
   /**
    * Add one ALLOW entry at `startTime` for `durationMinutes`. If
@@ -343,10 +348,20 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     [parsedDraft, selectedDate]
   );
 
+  // Which dtstart values are already reserved, and how — shared by every
+  // occurrence-scan below so they don't each rebuild the same two Sets.
+  const reservedStarts = useMemo(() => {
+    const bookedStarts = new Set<number>();
+    const pendingStarts = new Set<number>();
+    for (const s of allDraftRaws) {
+      if (s.type === 'BOOKED') bookedStarts.add(s.dtstart);
+      else if (s.type === 'PENDING') pendingStarts.add(s.dtstart);
+    }
+    return { bookedStarts, pendingStarts };
+  }, [allDraftRaws]);
+
   const allowedDates = useMemo(() => {
-    const bookedStarts = new Set(
-      allDraftRaws.filter((s) => s.type === 'BOOKED').map((s) => s.dtstart)
-    );
+    const { bookedStarts } = reservedStarts;
     const nowSec = Math.floor(Date.now() / 1000);
     const dates = new Set<string>();
     for (const slot of allDraftRaws) {
@@ -360,16 +375,11 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       }
     }
     return Array.from(dates);
-  }, [allDraftRaws]);
+  }, [allDraftRaws, reservedStarts]);
 
   const generateBookingSlots = useCallback(
     (dateKey: string): BookingSlot[] => {
-      const bookedStarts = new Set(
-        allDraftRaws.filter((s) => s.type === 'BOOKED').map((s) => s.dtstart)
-      );
-      const pendingStarts = new Set(
-        allDraftRaws.filter((s) => s.type === 'PENDING').map((s) => s.dtstart)
-      );
+      const { bookedStarts, pendingStarts } = reservedStarts;
       const nowSec = Math.floor(Date.now() / 1000);
       const result: BookingSlot[] = [];
 
@@ -411,8 +421,49 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
       return deduplicateBookingSlots(result);
     },
-    [allDraftRaws, reservations]
+    [allDraftRaws, reservations, reservedStarts]
   );
+
+  // A dedicated map (rather than reusing generateBookingSlots per date) so
+  // the calendar's per-day-cell status dots don't rescan allDraftRaws and
+  // re-expand every rrule once per visible day (~35-42x a month).
+  const bookingStatusByDate = useMemo(() => {
+    const { bookedStarts, pendingStarts } = reservedStarts;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const datesWithPending = new Set<string>();
+    const datesWithBooked = new Set<string>();
+
+    for (const slot of allDraftRaws) {
+      if (slot.type !== 'ALLOW') continue;
+
+      const occurrences = expandRrule(slot.dtstart, slot.rrule);
+      for (const occ of occurrences) {
+        if (slot.exdate.includes(occ)) continue;
+        if (occ <= nowSec) continue;
+
+        // Same per-occurrence precedence as generateBookingSlots' `isBooked`
+        // check: if a dtstart were ever claimed by both a BOOKED and a
+        // PENDING row, BOOKED wins here too, so the two stay consistent.
+        if (bookedStarts.has(occ)) {
+          datesWithBooked.add(dayjs(occ * 1000).format('YYYY-MM-DD'));
+        } else if (pendingStarts.has(occ)) {
+          datesWithPending.add(dayjs(occ * 1000).format('YYYY-MM-DD'));
+        }
+      }
+    }
+
+    const map = new Map<string, BookingStatus>();
+    datesWithBooked.forEach((dateKey) => map.set(dateKey, 'BOOKED'));
+    // PENDING takes priority over BOOKED for the same date.
+    datesWithPending.forEach((dateKey) => map.set(dateKey, 'PENDING'));
+    return map;
+  }, [allDraftRaws, reservedStarts]);
+
+  const getDayBookingStatus: UseMentorScheduleReturn['getDayBookingStatus'] =
+    useCallback(
+      (dateKey: string) => bookingStatusByDate.get(dateKey) ?? null,
+      [bookingStatusByDate]
+    );
 
   const addSlotForSelectedDate: UseMentorScheduleReturn['addSlotForSelectedDate'] =
     useCallback(
@@ -534,6 +585,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     draftForSelectedDate,
     allowedDates,
     generateBookingSlots,
+    getDayBookingStatus,
     addSlotForSelectedDate,
     updateDraftSlot,
     deleteDraftSlot,

@@ -2,13 +2,7 @@
 
 import dayjs from 'dayjs';
 import { Loader2 } from 'lucide-react';
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-} from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import { DayButton } from 'react-day-picker';
 import { useSwipeable } from 'react-swipeable';
 
@@ -17,14 +11,13 @@ import {
   CalendarDayButton,
   CalendarVariant,
 } from '@/components/ui/calendar';
-import type { BookingSlot } from '@/hooks/useMentorSchedule';
+import type { BookingStatus } from '@/lib/profile/scheduleHelpers';
 import { cn } from '@/lib/utils';
 
 type ScheduleCalendarSize = 'compact' | 'profile';
 
 interface CalendarContextType {
-  isOwnMentorProfile: boolean;
-  getDayBookingStatus: (date: Date) => 'PENDING' | 'BOOKED' | null;
+  getDateStatus?: (date: Date) => BookingStatus | null;
   size: ScheduleCalendarSize;
 }
 
@@ -34,9 +27,9 @@ const CustomDayButton = (props: React.ComponentProps<typeof DayButton>) => {
   const ctx = useContext(CalendarContext);
   if (!ctx) return <CalendarDayButton {...props} />;
 
-  const { getDayBookingStatus, size } = ctx;
+  const { getDateStatus, size } = ctx;
   const { day } = props;
-  const bookingStatus = getDayBookingStatus(day.date);
+  const bookingStatus = getDateStatus?.(day.date) ?? null;
 
   return (
     <div className="relative flex h-full w-full items-center justify-center">
@@ -80,8 +73,8 @@ interface ScheduleCalendarProps {
   size?: ScheduleCalendarSize;
   variant?: CalendarVariant;
   className?: string;
-  isOwnMentorProfile?: boolean;
-  generateBookingSlots?: (dateKey: string) => BookingSlot[];
+  /** Per-date status dot (e.g. booking state); omit to render no dots. */
+  getDateStatus?: (date: Date) => BookingStatus | null;
 }
 
 const scheduleCalendarSizeClassNames: Record<ScheduleCalendarSize, string> = {
@@ -172,8 +165,7 @@ export const ScheduleCalendar = ({
   size = 'compact',
   variant,
   className,
-  isOwnMentorProfile = false,
-  generateBookingSlots,
+  getDateStatus,
 }: ScheduleCalendarProps) => {
   const [displayMonth, setDisplayMonth] = useState<Date>(selected);
 
@@ -204,38 +196,9 @@ export const ScheduleCalendar = ({
     ? allowedDates.map((dateStr) => new Date(`${dateStr}T00:00:00`))
     : [];
 
-  const getDayBookingStatus = useCallback(
-    (date: Date) => {
-      if (!isOwnMentorProfile || !generateBookingSlots) return null;
-      const dateKey = dayjs(date).format('YYYY-MM-DD');
-      const slots = generateBookingSlots(dateKey);
-      const bookings = slots.filter(
-        (slot) => slot.status === 'PENDING' || slot.status === 'BOOKED'
-      );
-      if (bookings.length === 0) return null;
-
-      const hasPending = bookings.some(
-        (booking) => booking.status === 'PENDING'
-      );
-      if (hasPending) {
-        return 'PENDING';
-      }
-
-      const allConfirmed = bookings.every(
-        (booking) => booking.status === 'BOOKED'
-      );
-      if (allConfirmed) {
-        return 'BOOKED';
-      }
-
-      return null;
-    },
-    [isOwnMentorProfile, generateBookingSlots]
-  );
-
   const contextValue = useMemo(
-    () => ({ isOwnMentorProfile, getDayBookingStatus, size }),
-    [isOwnMentorProfile, getDayBookingStatus, size]
+    () => ({ getDateStatus, size }),
+    [getDateStatus, size]
   );
 
   return (

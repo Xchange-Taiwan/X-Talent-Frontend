@@ -1,6 +1,7 @@
 'use client';
 
 import Image, { type StaticImageData } from 'next/image';
+import { useCallback } from 'react';
 
 import {
   EducationSection,
@@ -73,7 +74,12 @@ export default function ProfilePageUI({
   isSubmitting,
   onConfirmReservation,
 }: Props) {
-  const { selectedDate, setSelectedDate, generateBookingSlots } = schedule;
+  const {
+    selectedDate,
+    setSelectedDate,
+    generateBookingSlots,
+    getDayBookingStatus,
+  } = schedule;
 
   // Render the schedule region while user data loads (most profile views are
   // mentors) so the calendar can appear before user data resolves; collapse
@@ -86,6 +92,13 @@ export default function ProfilePageUI({
   // silently diverge from it.
   const isOwnMentorProfile =
     !!userData && userData.is_mentor && canShowOwnerControls;
+
+  // Only mentors viewing their own profile see booking status dots.
+  const getDateStatus = useCallback(
+    (date: Date) =>
+      isOwnMentorProfile ? getDayBookingStatus(toDateKey(date)) : null,
+    [isOwnMentorProfile, getDayBookingStatus]
+  );
 
   return (
     <div>
@@ -296,8 +309,7 @@ export default function ProfilePageUI({
                       showTodayStyle={false}
                       disableEmptyDates={true}
                       isMonthLoading={!schedule.monthLoaded}
-                      isOwnMentorProfile={isOwnMentorProfile}
-                      generateBookingSlots={generateBookingSlots}
+                      getDateStatus={getDateStatus}
                     />
                   </div>
                   <BookingForm

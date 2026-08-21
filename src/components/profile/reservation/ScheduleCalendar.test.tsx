@@ -2,8 +2,6 @@ import { render, screen } from '@testing-library/react';
 import dayjs from 'dayjs';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { BookingSlot } from '@/hooks/useMentorSchedule';
-
 import { ScheduleCalendar } from './ScheduleCalendar';
 
 describe('ScheduleCalendar', () => {
@@ -26,56 +24,22 @@ describe('ScheduleCalendar', () => {
     expect(screen.getByText(today.date().toString())).toBeInTheDocument();
   });
 
-  it('does not render status dots when isOwnMentorProfile is false', () => {
-    const generateBookingSlots = vi.fn((dateKey: string): BookingSlot[] => {
-      if (dateKey === formattedTodayStr) {
-        return [
-          {
-            start: new Date(),
-            end: new Date(),
-            scheduleId: 1,
-            isBooked: false,
-            status: 'PENDING',
-          },
-        ];
-      }
-      return [];
-    });
-
-    render(
-      <ScheduleCalendar
-        {...defaultProps}
-        isOwnMentorProfile={false}
-        generateBookingSlots={generateBookingSlots}
-      />
-    );
+  it('does not render status dots when getDateStatus is not provided', () => {
+    render(<ScheduleCalendar {...defaultProps} />);
 
     const dot = screen.queryByTestId(`status-dot-${formattedTodayStr}`);
     expect(dot).not.toBeInTheDocument();
   });
 
-  it('renders yellow status dot when isOwnMentorProfile is true and there is a PENDING booking slot', () => {
-    const generateBookingSlots = vi.fn((dateKey: string): BookingSlot[] => {
-      if (dateKey === formattedTodayStr) {
-        return [
-          {
-            start: new Date(),
-            end: new Date(),
-            scheduleId: 1,
-            isBooked: false,
-            status: 'PENDING',
-          },
-        ];
-      }
-      return [];
-    });
+  it('renders a yellow status dot when getDateStatus returns PENDING', () => {
+    const getDateStatus = vi.fn((date: Date) =>
+      dayjs(date).format('YYYY-MM-DD') === formattedTodayStr
+        ? ('PENDING' as const)
+        : null
+    );
 
     render(
-      <ScheduleCalendar
-        {...defaultProps}
-        isOwnMentorProfile={true}
-        generateBookingSlots={generateBookingSlots}
-      />
+      <ScheduleCalendar {...defaultProps} getDateStatus={getDateStatus} />
     );
 
     const dot = screen.getByTestId(`status-dot-${formattedTodayStr}`);
@@ -83,28 +47,15 @@ describe('ScheduleCalendar', () => {
     expect(dot).toHaveClass('bg-status-warning-default');
   });
 
-  it('renders green status dot when isOwnMentorProfile is true and all bookings are BOOKED', () => {
-    const generateBookingSlots = vi.fn((dateKey: string): BookingSlot[] => {
-      if (dateKey === formattedTomorrowStr) {
-        return [
-          {
-            start: new Date(),
-            end: new Date(),
-            scheduleId: 2,
-            isBooked: true,
-            status: 'BOOKED',
-          },
-        ];
-      }
-      return [];
-    });
+  it('renders a green status dot when getDateStatus returns BOOKED', () => {
+    const getDateStatus = vi.fn((date: Date) =>
+      dayjs(date).format('YYYY-MM-DD') === formattedTomorrowStr
+        ? ('BOOKED' as const)
+        : null
+    );
 
     render(
-      <ScheduleCalendar
-        {...defaultProps}
-        isOwnMentorProfile={true}
-        generateBookingSlots={generateBookingSlots}
-      />
+      <ScheduleCalendar {...defaultProps} getDateStatus={getDateStatus} />
     );
 
     const dot = screen.getByTestId(`status-dot-${formattedTomorrowStr}`);
@@ -112,64 +63,11 @@ describe('ScheduleCalendar', () => {
     expect(dot).toHaveClass('bg-status-success-default');
   });
 
-  it('renders yellow status dot if there is a mix of PENDING and BOOKED bookings', () => {
-    const generateBookingSlots = vi.fn((dateKey: string): BookingSlot[] => {
-      if (dateKey === formattedTodayStr) {
-        return [
-          {
-            start: new Date(),
-            end: new Date(),
-            scheduleId: 1,
-            isBooked: false,
-            status: 'PENDING',
-          },
-          {
-            start: new Date(),
-            end: new Date(),
-            scheduleId: 2,
-            isBooked: true,
-            status: 'BOOKED',
-          },
-        ];
-      }
-      return [];
-    });
+  it('renders no status dot when getDateStatus returns null', () => {
+    const getDateStatus = vi.fn(() => null);
 
     render(
-      <ScheduleCalendar
-        {...defaultProps}
-        isOwnMentorProfile={true}
-        generateBookingSlots={generateBookingSlots}
-      />
-    );
-
-    const dot = screen.getByTestId(`status-dot-${formattedTodayStr}`);
-    expect(dot).toBeInTheDocument();
-    expect(dot).toHaveClass('bg-status-warning-default');
-  });
-
-  it('does not render status dot if generateBookingSlots returns only open/unbooked slots', () => {
-    const generateBookingSlots = vi.fn((dateKey: string): BookingSlot[] => {
-      if (dateKey === formattedTodayStr) {
-        return [
-          {
-            start: new Date(),
-            end: new Date(),
-            scheduleId: 1,
-            isBooked: false,
-            status: null,
-          },
-        ];
-      }
-      return [];
-    });
-
-    render(
-      <ScheduleCalendar
-        {...defaultProps}
-        isOwnMentorProfile={true}
-        generateBookingSlots={generateBookingSlots}
-      />
+      <ScheduleCalendar {...defaultProps} getDateStatus={getDateStatus} />
     );
 
     const dot = screen.queryByTestId(`status-dot-${formattedTodayStr}`);
