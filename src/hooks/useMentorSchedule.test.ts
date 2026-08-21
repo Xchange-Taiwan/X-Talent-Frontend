@@ -11,6 +11,10 @@ vi.mock('@/services/mentor-schedule/sync', () => ({
   syncMonths: vi.fn(),
 }));
 
+vi.mock('@/services/reservations', () => ({
+  fetchReservations: vi.fn().mockResolvedValue({ items: [], next_dtend: 0 }),
+}));
+
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import {
   buildDateTime,

@@ -29,6 +29,9 @@ export function MentorScheduleConfig({
             }`}
           >
             {formatBookingSlotTime(slot)}
+            {slot.isBooked && slot.menteeName
+              ? ` (已預約: ${slot.menteeName})`
+              : ''}
           </div>
         )}
       />

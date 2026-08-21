@@ -57,7 +57,11 @@ type ReservationPromptType = Exclude<DtType, 'ALLOW'> | null;
 type ActiveDialog =
   | { kind: 'add' }
   | { kind: 'edit'; id: number; occurrenceUnix: number }
-  | { kind: 'prompt'; prompt: Exclude<DtType, 'ALLOW'> }
+  | {
+      kind: 'prompt';
+      prompt: Exclude<DtType, 'ALLOW'>;
+      slot?: ParsedMentorTimeslot;
+    }
   | null;
 
 export default function MentorScheduleDialog({
@@ -82,6 +86,7 @@ export default function MentorScheduleDialog({
     updateDraftSlot,
     allowedDates,
     monthLoaded,
+    reservations = [],
   } = schedule;
 
   const router = useRouter();
@@ -94,9 +99,12 @@ export default function MentorScheduleDialog({
   const displayPrompt =
     activeDialog?.kind === 'prompt' ? activeDialog.prompt : lastPrompt;
 
-  const showPrompt = (prompt: Exclude<DtType, 'ALLOW'>) => {
+  const showPrompt = (
+    prompt: Exclude<DtType, 'ALLOW'>,
+    slot?: ParsedMentorTimeslot
+  ) => {
     setLastPrompt(prompt);
-    setActiveDialog({ kind: 'prompt', prompt });
+    setActiveDialog({ kind: 'prompt', prompt, slot });
   };
 
   const handleSlotAction = (
@@ -104,7 +112,7 @@ export default function MentorScheduleDialog({
     reservationBlock: ReservationPromptType
   ) => {
     if (reservationBlock) {
-      showPrompt(reservationBlock);
+      showPrompt(reservationBlock, slot);
       return;
     }
     setActiveDialog({
@@ -188,6 +196,18 @@ export default function MentorScheduleDialog({
     }
     onOpenChange(false);
   };
+
+  const promptSlot = activeDialog?.kind === 'prompt' ? activeDialog.slot : null;
+  const matchedReservation = useMemo(() => {
+    if (!promptSlot || !reservations) return null;
+    const slotStart = Math.floor(promptSlot.start.getTime() / 1000);
+    const slotEnd = Math.floor(promptSlot.end.getTime() / 1000);
+    return reservations.find(
+      (r) =>
+        r.scheduleId === promptSlot.id ||
+        (r.dtstart === slotStart && r.dtend === slotEnd)
+    );
+  }, [promptSlot, reservations]);
 
   const editingSlot =
     activeDialog?.kind === 'edit'
@@ -421,13 +441,21 @@ export default function MentorScheduleDialog({
           <DialogHeader>
             <DialogTitle>
               {displayPrompt === 'BOOKED'
-                ? '此時段已有預約'
-                : '此時段有未處理的預約申請'}
+                ? matchedReservation?.name
+                  ? `學員 ${matchedReservation.name} 已預約此時段`
+                  : '此時段已有預約'
+                : matchedReservation?.name
+                  ? `學員 ${matchedReservation.name} 申請預約此時段`
+                  : '此時段有未處理的預約申請'}
             </DialogTitle>
             <DialogDescription>
               {displayPrompt === 'BOOKED'
-                ? '此時段已有 mentee 預約成功,無法編輯或移除。如需調整時間,請新增新時段;如需取消原預約,請至「預約管理」頁面處理。'
-                : '請至「預約管理」頁面接受或拒絕該申請,僅在拒絕後此時段才會重新釋出。若需提供其他時間,請直接新增新時段。'}
+                ? matchedReservation?.name
+                  ? `學員 ${matchedReservation.name} 已預約成功，無法編輯或移除。如需調整時間，請新增新時段；如需取消原預約，請至「預約管理」頁面處理。`
+                  : '此時段已有 mentee 預約成功，無法編輯或移除。如需調整時間，請新增新時段；如需取消原預約，請至「預約管理」頁面處理。'
+                : matchedReservation?.name
+                  ? `學員 ${matchedReservation.name} 的預約申請尚未處理。請至「預約管理」頁面接受或拒絕該申請，僅在拒絕後此時段才會重新釋出。若需提供其他時間，請直接新增新時段。`
+                  : '請至「預約管理」頁面接受或拒絕該申請，僅在拒絕後此時段才會重新釋出。若需提供其他時間，請直接新增新時段。'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="justify-center">
