@@ -54,21 +54,31 @@ export function MentorScheduleConfig({
                 onClick={onBookedSlotClick}
               >
                 <div className="flex flex-col gap-1">
-                  <span className="text-text-primary">
+                  <span className="font-medium text-text-primary">
                     {formatBookingSlotTime(slot)}
                   </span>
                   <span className="text-xs font-normal text-text-secondary">
-                    {slot.menteeName ? `學員 ${slot.menteeName}` : '學員'}
+                    {slot.status === null
+                      ? '時段已保留'
+                      : slot.menteeName
+                        ? `學員 ${slot.menteeName}`
+                        : '學員'}
                   </span>
                 </div>
                 <span
                   className={`text-xs font-semibold ${
                     slot.status === 'PENDING'
                       ? 'text-status-warning-default'
-                      : 'text-status-success-default'
+                      : slot.status === 'BOOKED'
+                        ? 'text-status-success-default'
+                        : 'text-text-secondary'
                   }`}
                 >
-                  {slot.status === 'PENDING' ? '待您回復' : '已確認'}
+                  {slot.status === 'PENDING'
+                    ? '待您回復'
+                    : slot.status === 'BOOKED'
+                      ? '已確認'
+                      : '已保留'}
                 </span>
               </button>
             ))}

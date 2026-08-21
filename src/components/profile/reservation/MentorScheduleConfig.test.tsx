@@ -30,6 +30,13 @@ describe('MentorScheduleConfig', () => {
       status: 'PENDING',
       menteeName: 'Bob',
     },
+    {
+      scheduleId: 104,
+      start: new Date('2026-07-26T13:00:00Z'),
+      end: new Date('2026-07-26T13:30:00Z'),
+      isBooked: true,
+      status: null,
+    },
   ];
 
   const defaultProps = {
@@ -54,6 +61,7 @@ describe('MentorScheduleConfig', () => {
     expect(screen.getByText('10:00 AM – 10:30 AM')).toBeInTheDocument();
     expect(screen.getByText('11:00 AM – 11:30 AM')).toBeInTheDocument();
     expect(screen.getByText('12:00 PM – 12:30 PM')).toBeInTheDocument();
+    expect(screen.getByText('01:00 PM – 01:30 PM')).toBeInTheDocument();
 
     // Renders names and status labels/text
     expect(screen.getByText('學員 Alice')).toBeInTheDocument();
@@ -61,6 +69,10 @@ describe('MentorScheduleConfig', () => {
 
     expect(screen.getByText('學員 Bob')).toBeInTheDocument();
     expect(screen.getByText('待您回復')).toBeInTheDocument();
+
+    // Renders blocked slots correctly (no mentee, status is null, but isBooked is true)
+    expect(screen.getByText('時段已保留')).toBeInTheDocument();
+    expect(screen.getByText('已保留')).toBeInTheDocument();
   });
 
   it('triggers onReservation when booking setup button is clicked', () => {
