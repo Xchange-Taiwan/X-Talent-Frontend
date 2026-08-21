@@ -27,14 +27,11 @@ export function MentorScheduleConfig({
   onReservation,
   onBookedSlotClick,
 }: MentorScheduleConfigProps) {
-  const bookedSlots = slots.filter(
-    (slot) =>
-      slot.status === 'BOOKED' || slot.status === 'PENDING' || slot.isBooked
-  );
-  const availableSlots = slots.filter(
-    (slot) =>
-      slot.status !== 'BOOKED' && slot.status !== 'PENDING' && !slot.isBooked
-  );
+  const isSlotBooked = (slot: BookingSlot) =>
+    slot.status === 'BOOKED' || slot.status === 'PENDING' || slot.isBooked;
+
+  const bookedSlots = slots.filter(isSlotBooked);
+  const availableSlots = slots.filter((slot) => !isSlotBooked(slot));
 
   return (
     <div className="flex w-full flex-col gap-6">
