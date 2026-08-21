@@ -37,7 +37,7 @@ import {
   syncMonths,
   SyncResult,
 } from '@/services/mentor-schedule/sync';
-import { fetchReservations } from '@/services/reservations';
+import { fetchAllReservationsForState } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
 export type {
@@ -53,46 +53,6 @@ export { expandRrule } from '@/lib/profile/scheduleHelpers';
 // mutate before), so fall back to useEffect there to avoid React's dev warning.
 const useIsomorphicLayoutEffect =
   typeof window !== 'undefined' ? useLayoutEffect : useEffect;
-
-async function fetchAllReservationsForState(
-  userId: string,
-  state: 'MENTOR_UPCOMING' | 'MENTOR_PENDING',
-  endOfMonthUnix: number
-): Promise<Reservation[]> {
-  let allItems: Reservation[] = [];
-  let nextDtend: number | undefined = undefined;
-  try {
-    while (true) {
-      const res = await fetchReservations({
-        userId,
-        state,
-        nextDtend,
-        batch: 20,
-      });
-      allItems = [...allItems, ...res.items];
-      if (
-        res.items.length === 0 ||
-        res.next_dtend === 0 ||
-        res.next_dtend >= endOfMonthUnix ||
-        res.next_dtend === nextDtend
-      ) {
-        break;
-      }
-      nextDtend = res.next_dtend;
-    }
-  } catch (err) {
-    captureFlowFailure({
-      flow: 'mentor_schedule_reservations_fetch',
-      step: `fetch_${state}`,
-      message: err instanceof Error ? err.message : String(err),
-    });
-    console.error(
-      `[useMentorSchedule] Failed to fetch reservations for ${state}:`,
-      err
-    );
-  }
-  return allItems;
-}
 
 type Options = {
   backend: {
