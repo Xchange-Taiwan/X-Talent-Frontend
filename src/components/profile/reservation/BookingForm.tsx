@@ -20,6 +20,8 @@ interface BookingFormProps {
   selectedDate: string | null;
   onReservation: () => void;
   onConfirmReservation: (question?: string) => Promise<boolean>;
+  myUserId?: string;
+  onMutationSuccess?: () => void | Promise<void>;
 }
 
 export function BookingForm({
@@ -34,6 +36,8 @@ export function BookingForm({
   selectedDate,
   onReservation,
   onConfirmReservation,
+  myUserId,
+  onMutationSuccess,
 }: BookingFormProps) {
   const router = useRouter();
 
@@ -68,6 +72,8 @@ export function BookingForm({
           monthLoaded={monthLoaded}
           onReservation={onReservation}
           onBookedSlotClick={() => router.push('/reservation/mentor')}
+          myUserId={myUserId}
+          onMutationSuccess={onMutationSuccess}
         />
       ) : (
         <MenteeBookingForm

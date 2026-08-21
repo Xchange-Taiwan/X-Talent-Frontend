@@ -326,6 +326,8 @@ export default function ProfilePageUI({
                     selectedDate={selectedDate}
                     onReservation={onReservation}
                     onConfirmReservation={onConfirmReservation}
+                    myUserId={loginUserId}
+                    onMutationSuccess={schedule.reload}
                   />
                   {userData && canShowOwnerControls && (
                     <MentorScheduleDialog

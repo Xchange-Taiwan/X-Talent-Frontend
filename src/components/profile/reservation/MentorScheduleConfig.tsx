@@ -1,14 +1,23 @@
 'use client';
 
+import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
 import type { BookingSlot } from '@/hooks/useMentorSchedule';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
+import type { Reservation } from '@/types/reservation';
+
+import { QuickReplyDialog } from './QuickReplyDialog';
 
 interface MentorScheduleConfigProps {
   slots: BookingSlot[];
   monthLoaded: boolean;
   onReservation: () => void;
   onBookedSlotClick: () => void;
+  myUserId?: string;
+  /** schedule.reload — re-fetches reservations/schedule in place after a
+   * quick-reply accept/reject, without a full page refresh. */
+  onMutationSuccess?: () => void | Promise<void>;
 }
 
 const LoadingIndicator = () => (
@@ -26,12 +35,31 @@ export function MentorScheduleConfig({
   monthLoaded,
   onReservation,
   onBookedSlotClick,
+  myUserId,
+  onMutationSuccess,
 }: MentorScheduleConfigProps) {
+  // Owned here (the leaf that renders the dialog) rather than lifted to the
+  // profile page root: toggling this would otherwise re-render the entire
+  // profile tree (banner, calendar, experience/education sections, ...) on
+  // every quick-reply open/close.
+  const [quickReplyReservation, setQuickReplyReservation] =
+    useState<Reservation | null>(null);
+  const [quickReplyOpen, setQuickReplyOpen] = useState(false);
+
   const isSlotBooked = (slot: BookingSlot) =>
     slot.status === 'BOOKED' || slot.status === 'PENDING' || slot.isBooked;
 
   const bookedSlots = slots.filter(isSlotBooked);
   const availableSlots = slots.filter((slot) => !isSlotBooked(slot));
+
+  const handleBookedSlotClick = (slot: BookingSlot) => {
+    if (slot.status === 'PENDING' && slot.reservation) {
+      setQuickReplyReservation(slot.reservation);
+      setQuickReplyOpen(true);
+      return;
+    }
+    onBookedSlotClick();
+  };
 
   return (
     <div className="flex w-full flex-col gap-6">
@@ -51,7 +79,7 @@ export function MentorScheduleConfig({
                 key={`${slot.scheduleId}_${slot.start.getTime()}`}
                 type="button"
                 className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-background-border px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-background-bottom/50"
-                onClick={onBookedSlotClick}
+                onClick={() => handleBookedSlotClick(slot)}
               >
                 <div className="flex flex-col gap-1">
                   <span className="font-medium text-text-primary">
@@ -118,6 +146,14 @@ export function MentorScheduleConfig({
       >
         預約設定
       </Button>
+
+      <QuickReplyDialog
+        reservation={quickReplyReservation}
+        open={quickReplyOpen}
+        onOpenChange={setQuickReplyOpen}
+        myUserId={myUserId}
+        onMutationSuccess={onMutationSuccess}
+      />
     </div>
   );
 }
