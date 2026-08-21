@@ -68,6 +68,7 @@ export type BookingSlot = {
   end: Date;
   scheduleId: number; // parent ALLOW slot id
   isBooked: boolean;
+  status: 'PENDING' | 'BOOKED' | null;
 };
 
 /** Expand an rrule string from dtstart, returning all occurrence dtstart values (unix seconds). */
@@ -305,6 +306,13 @@ export function deduplicateBookingSlots(slots: BookingSlot[]): BookingSlot[] {
     const existing = uniqueMap.get(key);
     if (existing) {
       existing.isBooked = existing.isBooked || item.isBooked;
+      if (item.status === 'BOOKED' || existing.status === 'BOOKED') {
+        existing.status = 'BOOKED';
+      } else if (item.status === 'PENDING' || existing.status === 'PENDING') {
+        existing.status = 'PENDING';
+      } else {
+        existing.status = null;
+      }
     } else {
       uniqueMap.set(key, { ...item });
     }
