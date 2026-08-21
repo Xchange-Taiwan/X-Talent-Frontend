@@ -6,6 +6,17 @@ import type { Reservation } from '@/types/reservation';
 
 import { MentorScheduleConfig } from './MentorScheduleConfig';
 
+vi.mock('./QuickReplyDialog', () => ({
+  QuickReplyDialog: vi.fn(({ reservation, open, onOpenChange }) =>
+    open ? (
+      <div data-testid="mock-quick-reply" data-reservation-id={reservation?.id}>
+        Quick Reply Dialog for {reservation?.name}
+        <button onClick={() => onOpenChange(false)}>Close</button>
+      </div>
+    ) : null
+  ),
+}));
+
 describe('MentorScheduleConfig', () => {
   const mockPendingReservation: Reservation = {
     id: 'res-103',
@@ -61,7 +72,8 @@ describe('MentorScheduleConfig', () => {
     monthLoaded: true,
     onReservation: vi.fn(),
     onBookedSlotClick: vi.fn(),
-    onPendingSlotClick: vi.fn(),
+    myUserId: 'user-mentor',
+    onMutationSuccess: vi.fn(),
   };
 
   beforeEach(() => {
@@ -120,14 +132,12 @@ describe('MentorScheduleConfig', () => {
     expect(onBookedSlotClick).toHaveBeenCalledOnce();
   });
 
-  it('calls onPendingSlotClick and does NOT trigger onBookedSlotClick when a pending slot with a matched reservation is clicked', () => {
+  it('opens QuickReplyDialog and does NOT trigger onBookedSlotClick when a pending slot with a matched reservation is clicked', () => {
     const onBookedSlotClick = vi.fn();
-    const onPendingSlotClick = vi.fn();
     render(
       <MentorScheduleConfig
         {...defaultProps}
         onBookedSlotClick={onBookedSlotClick}
-        onPendingSlotClick={onPendingSlotClick}
       />
     );
 
@@ -135,13 +145,14 @@ describe('MentorScheduleConfig', () => {
     expect(pendingRow).not.toBeNull();
     fireEvent.click(pendingRow!);
 
-    expect(onPendingSlotClick).toHaveBeenCalledWith(mockPendingReservation);
+    const mockDialog = screen.getByTestId('mock-quick-reply');
+    expect(mockDialog).toBeInTheDocument();
+    expect(mockDialog).toHaveAttribute('data-reservation-id', 'res-103');
     expect(onBookedSlotClick).not.toHaveBeenCalled();
   });
 
   it('falls back to onBookedSlotClick when a pending slot has no matched reservation', () => {
     const onBookedSlotClick = vi.fn();
-    const onPendingSlotClick = vi.fn();
     const slotsWithoutReservation = mockSlots.map((slot) =>
       slot.scheduleId === 103 ? { ...slot, reservation: undefined } : slot
     );
@@ -150,7 +161,6 @@ describe('MentorScheduleConfig', () => {
         {...defaultProps}
         slots={slotsWithoutReservation}
         onBookedSlotClick={onBookedSlotClick}
-        onPendingSlotClick={onPendingSlotClick}
       />
     );
 
@@ -158,7 +168,7 @@ describe('MentorScheduleConfig', () => {
     expect(pendingRow).not.toBeNull();
     fireEvent.click(pendingRow!);
 
-    expect(onPendingSlotClick).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
     expect(onBookedSlotClick).toHaveBeenCalledOnce();
   });
 
