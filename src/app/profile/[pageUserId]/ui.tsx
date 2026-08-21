@@ -1,7 +1,7 @@
 'use client';
 
 import Image, { type StaticImageData } from 'next/image';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 
 import {
   EducationSection,
@@ -10,6 +10,7 @@ import {
 import { ProfileBanner } from '@/components/profile/profile-banner';
 import { BookingForm } from '@/components/profile/reservation/BookingForm';
 import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
+import { QuickReplyDialog } from '@/components/profile/reservation/QuickReplyDialog';
 import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalendar';
 import { platformLabelMap } from '@/components/profile/social-links/platformLabelMap';
 import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
@@ -24,6 +25,7 @@ import {
   toDateKey,
 } from '@/lib/profile/scheduleFormatters';
 import { isSafeUrl } from '@/lib/url/isSafeUrl';
+import type { Reservation } from '@/types/reservation';
 
 import {
   ProfileContentSkeleton,
@@ -80,6 +82,14 @@ export default function ProfilePageUI({
     generateBookingSlots,
     getDayBookingStatus,
   } = schedule;
+
+  const [quickReplyReservation, setQuickReplyReservation] =
+    useState<Reservation | null>(null);
+  const [quickReplyOpen, setQuickReplyOpen] = useState(false);
+  const handlePendingSlotClick = useCallback((reservation: Reservation) => {
+    setQuickReplyReservation(reservation);
+    setQuickReplyOpen(true);
+  }, []);
 
   // Render the schedule region while user data loads (most profile views are
   // mentors) so the calendar can appear before user data resolves; collapse
@@ -326,17 +336,24 @@ export default function ProfilePageUI({
                     selectedDate={selectedDate}
                     onReservation={onReservation}
                     onConfirmReservation={onConfirmReservation}
-                    reservations={schedule.reservations}
-                    myUserId={loginUserId}
-                    onMutationSuccess={schedule.reload}
+                    onPendingSlotClick={handlePendingSlotClick}
                   />
                   {userData && canShowOwnerControls && (
-                    <MentorScheduleDialog
-                      open={openReservationDialog}
-                      onOpenChange={setOpenReservationDialog}
-                      schedule={schedule}
-                      onMonthChange={onScheduleMonthChange}
-                    />
+                    <>
+                      <MentorScheduleDialog
+                        open={openReservationDialog}
+                        onOpenChange={setOpenReservationDialog}
+                        schedule={schedule}
+                        onMonthChange={onScheduleMonthChange}
+                      />
+                      <QuickReplyDialog
+                        reservation={quickReplyReservation}
+                        open={quickReplyOpen}
+                        onOpenChange={setQuickReplyOpen}
+                        myUserId={loginUserId}
+                        onMutationSuccess={schedule.reload}
+                      />
+                    </>
                   )}
                 </div>
               )}

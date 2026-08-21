@@ -19,11 +19,17 @@ vi.mock('@/hooks/user/reservation/useReservationActions', () => ({
 }));
 
 vi.mock('@/components/reservation/AcceptReservationDialog', () => ({
+  // The real component's useConfirmActionDialog#execute swallows a failed
+  // mutation into an error toast rather than letting it reject up to the
+  // caller; mirror that here so a rejected onAccept in a test doesn't
+  // surface as an unhandled rejection.
   default: vi.fn(({ onAccept, disabled }) => (
     <button
       data-testid="mock-accept-dialog-trigger"
       disabled={disabled}
-      onClick={() => onAccept({ message: 'Accept Message' })}
+      onClick={() => {
+        onAccept({ message: 'Accept Message' })?.catch(() => {});
+      }}
     >
       Mock Accept
     </button>
@@ -35,7 +41,9 @@ vi.mock('@/components/reservation/RejectReservationDialog', () => ({
     <button
       data-testid="mock-reject-dialog-trigger"
       disabled={disabled}
-      onClick={() => onReject({ reason: 'Reject Reason' })}
+      onClick={() => {
+        onReject({ reason: 'Reject Reason' })?.catch(() => {});
+      }}
     >
       Mock Reject
     </button>
@@ -183,6 +191,62 @@ describe('QuickReplyDialog', () => {
 
     expect(onMutationSuccess).toHaveBeenCalledOnce();
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('keeps the dialog open when accept fails (onMutationSuccess is never invoked)', async () => {
+    const onMutationSuccess = vi.fn();
+    const onOpenChange = vi.fn();
+
+    vi.mocked(useReservationActions).mockReturnValue({
+      accept: vi.fn().mockRejectedValue(new Error('accept failed')),
+      rejectOrCancel: mockRejectOrCancel,
+      isMutating: false,
+    });
+
+    render(
+      <QuickReplyDialog
+        {...defaultProps}
+        onMutationSuccess={onMutationSuccess}
+        onOpenChange={onOpenChange}
+      />
+    );
+
+    const acceptBtn = screen.getByTestId('mock-accept-dialog-trigger');
+    await act(async () => {
+      fireEvent.click(acceptBtn);
+      await Promise.resolve();
+    });
+
+    expect(onMutationSuccess).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('keeps the dialog open when reject fails (onMutationSuccess is never invoked)', async () => {
+    const onMutationSuccess = vi.fn();
+    const onOpenChange = vi.fn();
+
+    vi.mocked(useReservationActions).mockReturnValue({
+      accept: mockAccept,
+      rejectOrCancel: vi.fn().mockRejectedValue(new Error('reject failed')),
+      isMutating: false,
+    });
+
+    render(
+      <QuickReplyDialog
+        {...defaultProps}
+        onMutationSuccess={onMutationSuccess}
+        onOpenChange={onOpenChange}
+      />
+    );
+
+    const rejectBtn = screen.getByTestId('mock-reject-dialog-trigger');
+    await act(async () => {
+      fireEvent.click(rejectBtn);
+      await Promise.resolve();
+    });
+
+    expect(onMutationSuccess).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 
   it('blocks Escape-key dismissal while a mutation is in progress, so the shared dialog instance is not closed out from under a subsequently reopened reservation', () => {
