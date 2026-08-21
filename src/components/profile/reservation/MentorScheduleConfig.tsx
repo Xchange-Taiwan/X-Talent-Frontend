@@ -1,7 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-
 import { Button } from '@/components/ui/button';
 import type { BookingSlot } from '@/hooks/useMentorSchedule';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
@@ -10,6 +8,7 @@ interface MentorScheduleConfigProps {
   slots: BookingSlot[];
   monthLoaded: boolean;
   onReservation: () => void;
+  onBookedSlotClick: () => void;
 }
 
 const LoadingIndicator = () => (
@@ -26,9 +25,8 @@ export function MentorScheduleConfig({
   slots,
   monthLoaded,
   onReservation,
+  onBookedSlotClick,
 }: MentorScheduleConfigProps) {
-  const router = useRouter();
-
   const bookedSlots = slots.filter(
     (slot) =>
       slot.status === 'BOOKED' || slot.status === 'PENDING' || slot.isBooked
@@ -56,7 +54,7 @@ export function MentorScheduleConfig({
                 key={`${slot.scheduleId}_${slot.start.getTime()}`}
                 type="button"
                 className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-background-border px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-background-bottom/50"
-                onClick={() => router.push('/reservation/mentor')}
+                onClick={onBookedSlotClick}
               >
                 <div className="flex flex-col gap-1">
                   <span className="text-text-primary">

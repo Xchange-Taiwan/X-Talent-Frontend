@@ -2,14 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { BookingSlot } from '@/hooks/useMentorSchedule';
-import { mockRouter } from '@/test/mocks/navigation';
 
 import { MentorScheduleConfig } from './MentorScheduleConfig';
-
-vi.mock('next/navigation', async () => {
-  const { navigationMockFactory } = await import('@/test/mocks/navigation');
-  return navigationMockFactory();
-});
 
 describe('MentorScheduleConfig', () => {
   const mockSlots: BookingSlot[] = [
@@ -42,6 +36,7 @@ describe('MentorScheduleConfig', () => {
     slots: mockSlots,
     monthLoaded: true,
     onReservation: vi.fn(),
+    onBookedSlotClick: vi.fn(),
   };
 
   beforeEach(() => {
@@ -79,21 +74,26 @@ describe('MentorScheduleConfig', () => {
     expect(onReservation).toHaveBeenCalledOnce();
   });
 
-  it('navigates to /reservation/mentor when a booked slot row is clicked', () => {
-    render(<MentorScheduleConfig {...defaultProps} />);
+  it('triggers onBookedSlotClick when a booked slot row is clicked', () => {
+    const onBookedSlotClick = vi.fn();
+    render(
+      <MentorScheduleConfig
+        {...defaultProps}
+        onBookedSlotClick={onBookedSlotClick}
+      />
+    );
 
     const confirmedRow = screen.getByText('學員 Alice').closest('button');
     expect(confirmedRow).not.toBeNull();
     fireEvent.click(confirmedRow!);
 
-    expect(mockRouter.push).toHaveBeenCalledWith('/reservation/mentor');
+    expect(onBookedSlotClick).toHaveBeenCalledOnce();
 
     const pendingRow = screen.getByText('學員 Bob').closest('button');
     expect(pendingRow).not.toBeNull();
     fireEvent.click(pendingRow!);
 
-    expect(mockRouter.push).toHaveBeenCalledWith('/reservation/mentor');
-    expect(mockRouter.push).toHaveBeenCalledTimes(2);
+    expect(onBookedSlotClick).toHaveBeenCalledTimes(2);
   });
 
   it('renders loading states for both sections when monthLoaded is false', () => {
