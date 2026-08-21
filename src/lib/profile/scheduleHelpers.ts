@@ -64,12 +64,14 @@ export type ParsedMentorTimeslot = {
   isRecurringInstance: boolean; // true if parent row has rrule
 };
 
+export type BookingStatus = 'PENDING' | 'BOOKED';
+
 export type BookingSlot = {
   start: Date;
   end: Date;
   scheduleId: number; // parent ALLOW slot id
   isBooked: boolean;
-  status: 'PENDING' | 'BOOKED' | null;
+  status: BookingStatus | null;
   menteeName?: string;
 };
 
