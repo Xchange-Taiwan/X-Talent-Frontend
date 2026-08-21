@@ -17,6 +17,11 @@ vi.mock('@/hooks/user/profile/useCurrentAvatar', () => ({
   useCurrentAvatar: () => mockUseCurrentAvatar(),
 }));
 
+const mockPostBackendLogout = vi.fn();
+vi.mock('@/services/auth/backendLogout', () => ({
+  postBackendLogout: () => mockPostBackendLogout(),
+}));
+
 import {
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
@@ -248,7 +253,9 @@ describe('useAccountMenu', () => {
   });
 
   describe('handleLogout', () => {
-    it('closes the menu, clears the session hint cookie & DOM state, and signs the user out', () => {
+    it('revokes the backend session before signing the user out', async () => {
+      mockPostBackendLogout.mockResolvedValue(undefined);
+
       // Set initial values
       document.cookie = `${SESSION_HINT_COOKIE}=1||https%3A%2F%2Fexample.com%2Favatar.png`;
       document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentor');
@@ -265,11 +272,12 @@ describe('useAccountMenu', () => {
         useAccountMenu({ user: buildUser(), closeMenu })
       );
 
-      act(() => {
-        result.current.handleLogout();
+      await act(async () => {
+        await result.current.handleLogout();
       });
 
       expect(closeMenu).toHaveBeenCalledOnce();
+      expect(mockPostBackendLogout).toHaveBeenCalledOnce();
       expect(mockSignOut).toHaveBeenCalledOnce();
 
       // Verify they are completely cleared upon logout
@@ -283,6 +291,21 @@ describe('useAccountMenu', () => {
       expect(
         document.documentElement.style.getPropertyValue('--auth-avatar')
       ).toBe('');
+    });
+
+    it('still signs the user out locally when the backend revocation fails', async () => {
+      mockPostBackendLogout.mockRejectedValue(new Error('network error'));
+
+      const { result } = renderHook(() =>
+        useAccountMenu({ user: buildUser(), closeMenu })
+      );
+
+      await act(async () => {
+        await result.current.handleLogout();
+      });
+
+      expect(mockPostBackendLogout).toHaveBeenCalledOnce();
+      expect(mockSignOut).toHaveBeenCalledOnce();
     });
   });
 
