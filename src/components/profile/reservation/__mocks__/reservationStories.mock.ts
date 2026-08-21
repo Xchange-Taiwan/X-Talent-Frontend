@@ -31,6 +31,15 @@ export const mockBookingSlots: BookingSlot[] = [
     scheduleId: 502,
     isBooked: true,
     status: 'BOOKED',
+    menteeName: 'Alice',
+  },
+  {
+    start: relativeDate(3), // 3 hours in future
+    end: relativeDate(3, 30),
+    scheduleId: 504,
+    isBooked: false,
+    status: 'PENDING',
+    menteeName: 'Bob',
   },
   {
     start: relativeDate(-2), // 2 hours in past

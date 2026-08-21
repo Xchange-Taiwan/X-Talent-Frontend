@@ -5,6 +5,11 @@ import type { BookingSlot } from '@/hooks/useMentorSchedule';
 
 import { BookingForm } from './BookingForm';
 
+vi.mock('next/navigation', async () => {
+  const { navigationMockFactory } = await import('@/test/mocks/navigation');
+  return navigationMockFactory();
+});
+
 describe('BookingForm', () => {
   const mockSlots: BookingSlot[] = [
     {
@@ -177,7 +182,7 @@ describe('BookingForm', () => {
     // Shows split headers and status
     expect(screen.getByText('已預約')).toBeInTheDocument();
     expect(screen.getByText('當日可預約時段')).toBeInTheDocument();
-    expect(screen.getByText('已預約 (暫定)')).toBeInTheDocument();
+    expect(screen.getByText('已確認')).toBeInTheDocument();
 
     // Button text is "預約設定"
     const btn = screen.getByRole('button', { name: '預約設定' });
