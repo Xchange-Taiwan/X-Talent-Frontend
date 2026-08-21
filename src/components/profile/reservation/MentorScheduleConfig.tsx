@@ -52,7 +52,9 @@ export function MentorScheduleConfig({
                   {formatBookingSlotTime(slot)}
                 </span>
                 <span className="text-xs font-normal text-text-secondary">
-                  已預約 (暫定)
+                  {slot.menteeName
+                    ? `學員 ${slot.menteeName} 已預約 (暫定)`
+                    : '已預約 (暫定)'}
                 </span>
               </button>
             ))}

@@ -52,30 +52,6 @@ export default function ProfilePageContainer({
   // codes to Chinese labels on first paint instead of flashing raw codes.
   primeTagCatalogCacheIfEmpty('zh_TW', initialCatalogs);
 
-  const [year, setYear] = useState(() => new Date().getFullYear());
-  const [month, setMonth] = useState(() => new Date().getMonth() + 1);
-
-  const schedule = useMentorSchedule({
-    backend: { userId: pageUserId, year, month },
-  });
-  const { loaded, selectedDate, setSelectedDate, parsedDraft, allowedDates } =
-    schedule;
-
-  const [openReservationDialog, setOpenReservationDialog] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
-
-  useEffect(() => {
-    setSelectedSlot(null);
-  }, [selectedDate]);
-
-  // Auto-select the first available date once schedule is loaded
-  useEffect(() => {
-    if (!loaded) return;
-    const firstSlot = parsedDraft.find((s) => s.type === 'ALLOW');
-    if (firstSlot) setSelectedDate(firstSlot.dateKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded]);
-
   // The page is now ISR-cached (no SSR session read), so identity is
   // resolved entirely client-side via useIdentity - the same single source
   // of truth Header/useProfileAuth use. Deliberately read `identity.
@@ -102,6 +78,31 @@ export default function ProfilePageContainer({
   const identity = useIdentity(null);
   const isIdentityResolved = identity.sessionSettled;
   const loginUserId = identity.hasFullUser ? (identity.userId ?? '') : '';
+
+  const [year, setYear] = useState(() => new Date().getFullYear());
+  const [month, setMonth] = useState(() => new Date().getMonth() + 1);
+
+  const schedule = useMentorSchedule({
+    backend: { userId: pageUserId, year, month },
+    loginUserId,
+  });
+  const { loaded, selectedDate, setSelectedDate, parsedDraft, allowedDates } =
+    schedule;
+
+  const [openReservationDialog, setOpenReservationDialog] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
+
+  useEffect(() => {
+    setSelectedSlot(null);
+  }, [selectedDate]);
+
+  // Auto-select the first available date once schedule is loaded
+  useEffect(() => {
+    if (!loaded) return;
+    const firstSlot = parsedDraft.find((s) => s.type === 'ALLOW');
+    if (firstSlot) setSelectedDate(firstSlot.dateKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
 
   const {
     userData,

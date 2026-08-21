@@ -12,12 +12,14 @@ describe('MentorScheduleConfig', () => {
       start: new Date('2026-07-26T10:00:00Z'),
       end: new Date('2026-07-26T10:30:00Z'),
       isBooked: false,
+      status: null,
     },
     {
       scheduleId: 102,
       start: new Date('2026-07-26T11:00:00Z'),
       end: new Date('2026-07-26T11:30:00Z'),
       isBooked: true,
+      status: 'BOOKED',
     },
   ];
 
