@@ -296,6 +296,8 @@ export default function ProfilePageUI({
                       showTodayStyle={false}
                       disableEmptyDates={true}
                       isMonthLoading={!schedule.monthLoaded}
+                      isOwnMentorProfile={isOwnMentorProfile}
+                      generateBookingSlots={generateBookingSlots}
                     />
                   </div>
                   <BookingForm

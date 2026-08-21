@@ -65,3 +65,50 @@ export const PastDisabled: Story = {
     disablePastDates: true,
   },
 };
+
+export const WithStatusDots: Story = {
+  args: {
+    selected: today.toDate(),
+    showTodayStyle: true,
+    size: 'profile',
+    isOwnMentorProfile: true,
+    allowedDates: [
+      formattedTodayStr,
+      formattedTomorrowStr,
+      formattedNextWeekStr,
+    ],
+    generateBookingSlots: (dateKey: string) => {
+      if (dateKey === formattedTodayStr) {
+        return [
+          {
+            start: new Date(),
+            end: new Date(),
+            scheduleId: 1,
+            isBooked: false,
+            status: 'PENDING',
+          },
+        ];
+      }
+      if (dateKey === formattedTomorrowStr) {
+        return [
+          {
+            start: new Date(),
+            end: new Date(),
+            scheduleId: 2,
+            isBooked: true,
+            status: 'BOOKED',
+          },
+        ];
+      }
+      return [
+        {
+          start: new Date(),
+          end: new Date(),
+          scheduleId: 3,
+          isBooked: false,
+          status: null,
+        },
+      ];
+    },
+  },
+};
