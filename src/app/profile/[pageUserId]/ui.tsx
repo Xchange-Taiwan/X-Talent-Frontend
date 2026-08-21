@@ -320,6 +320,7 @@ export default function ProfilePageUI({
                       selectedDate ? generateBookingSlots(selectedDate) : []
                     }
                     monthLoaded={schedule.monthLoaded}
+                    reservationsLoaded={schedule.reservationsLoaded}
                     selectedSlot={selectedSlot}
                     setSelectedSlot={setSelectedSlot}
                     isSubmitting={isSubmitting}

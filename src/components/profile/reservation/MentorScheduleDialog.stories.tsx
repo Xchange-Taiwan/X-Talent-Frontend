@@ -93,6 +93,7 @@ const mockDraftSlots: ParsedMentorTimeslot[] = [
 const defaultScheduleMock: UseMentorScheduleReturn = {
   loaded: true,
   monthLoaded: true,
+  reservationsLoaded: true,
   isFetching: false,
   selectedDate: todayStr,
   setSelectedDate: () => {},

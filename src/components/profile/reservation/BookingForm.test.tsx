@@ -35,6 +35,7 @@ describe('BookingForm', () => {
     isAuthenticated: true,
     slots: mockSlots,
     monthLoaded: true,
+    reservationsLoaded: true,
     selectedSlot: null,
     setSelectedSlot: vi.fn(),
     isSubmitting: false,

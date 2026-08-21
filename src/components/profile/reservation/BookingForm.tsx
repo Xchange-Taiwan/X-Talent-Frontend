@@ -14,6 +14,8 @@ interface BookingFormProps {
   isAuthenticated: boolean;
   slots: BookingSlot[];
   monthLoaded: boolean;
+  /** See useMentorSchedule's reservationsLoaded — gates clicking a booked slot. */
+  reservationsLoaded: boolean;
   selectedSlot: BookingSlot | null;
   setSelectedSlot: (slot: BookingSlot | null) => void;
   isSubmitting: boolean;
@@ -30,6 +32,7 @@ export function BookingForm({
   isAuthenticated,
   slots,
   monthLoaded,
+  reservationsLoaded,
   selectedSlot,
   setSelectedSlot,
   isSubmitting,
@@ -70,6 +73,7 @@ export function BookingForm({
         <MentorScheduleConfig
           slots={slots}
           monthLoaded={monthLoaded}
+          reservationsLoaded={reservationsLoaded}
           onReservation={onReservation}
           onBookedSlotClick={() => router.push('/reservation/mentor')}
           myUserId={myUserId}

@@ -41,6 +41,7 @@ function buildSchedule(): UseMentorScheduleReturn {
   return {
     loaded: true,
     monthLoaded: true,
+    reservationsLoaded: true,
     isFetching: false,
     selectedDate: '2026-08-20',
     setSelectedDate: vi.fn(),

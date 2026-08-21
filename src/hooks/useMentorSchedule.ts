@@ -86,6 +86,14 @@ export type UseMentorScheduleReturn = {
   loaded: boolean;
   /** Per-month: false while the *current* (year, month) is being fetched after a cache miss. */
   monthLoaded: boolean;
+  /**
+   * False while the reservations fetch (which populates each booked slot's
+   * `.reservation`) is in flight — separate from monthLoaded's schedule
+   * fetch. Gate any "click a booked slot" UI on this too: a slot can already
+   * report status PENDING/BOOKED from the schedule fetch while its
+   * `.reservation` is still unset here.
+   */
+  reservationsLoaded: boolean;
   isFetching: boolean;
   selectedDate: string | null;
   setSelectedDate: (dateStr: string | null) => void;
@@ -165,6 +173,17 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   );
 
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  // Tracks the reservations fetch specifically (separate from monthLoaded,
+  // which only reflects the schedule/draft fetch). A booked slot's `status`
+  // comes from the schedule fetch and can resolve before this one, so a
+  // dot/label can show PENDING while `slot.reservation` (matched from
+  // `reservations`) is still unset — most visibly right after this hook
+  // remounts (e.g. navigating back to the profile page), which restarts both
+  // fetches from scratch. Callers must gate any "click a booked slot" UI on
+  // this flag too, not just monthLoaded, or a fast click in that window can
+  // read a PENDING slot with no `reservation` attached yet and misfire
+  // whatever fallback that caller has for "no reservation".
+  const [reservationsLoaded, setReservationsLoaded] = useState(false);
 
   useEffect(() => {
     if (
@@ -174,10 +193,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       !backend.month
     ) {
       setReservations((prev) => (prev.length === 0 ? prev : []));
+      setReservationsLoaded(true);
       return;
     }
 
     let ignore = false;
+    setReservationsLoaded(false);
     // Native Date(year, monthIndex, day) rather than dayjs's string parser:
     // Safari's Date.parse rejects unpadded YYYY-M-DD strings (e.g. '2026-7-01')
     // as Invalid Date, which would make endOfMonthUnix NaN and defeat the
@@ -187,24 +208,28 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       .unix();
 
     const fetchAll = async () => {
-      const [upcoming, pending] = await Promise.all([
-        fetchAllReservationsForState(
-          loginUserId,
-          'MENTOR_UPCOMING',
-          endOfMonthUnix
-        ),
-        fetchAllReservationsForState(
-          loginUserId,
-          'MENTOR_PENDING',
-          endOfMonthUnix
-        ),
-      ]);
-      if (ignore) return;
-      setReservations((prev) =>
-        prev.length === 0 && upcoming.length === 0 && pending.length === 0
-          ? prev
-          : [...upcoming, ...pending]
-      );
+      try {
+        const [upcoming, pending] = await Promise.all([
+          fetchAllReservationsForState(
+            loginUserId,
+            'MENTOR_UPCOMING',
+            endOfMonthUnix
+          ),
+          fetchAllReservationsForState(
+            loginUserId,
+            'MENTOR_PENDING',
+            endOfMonthUnix
+          ),
+        ]);
+        if (ignore) return;
+        setReservations((prev) =>
+          prev.length === 0 && upcoming.length === 0 && pending.length === 0
+            ? prev
+            : [...upcoming, ...pending]
+        );
+      } finally {
+        if (!ignore) setReservationsLoaded(true);
+      }
     };
 
     fetchAll();
@@ -662,6 +687,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   return {
     loaded,
     monthLoaded,
+    reservationsLoaded,
     isFetching,
     selectedDate,
     setSelectedDate,

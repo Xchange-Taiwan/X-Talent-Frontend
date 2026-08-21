@@ -16,6 +16,7 @@ export const Loading: Story = {
   args: {
     slots: [],
     monthLoaded: false,
+    reservationsLoaded: false,
     onReservation: () => alert('設定預約被點擊'),
   },
 };
@@ -24,6 +25,7 @@ export const Empty: Story = {
   args: {
     slots: [],
     monthLoaded: true,
+    reservationsLoaded: true,
     onReservation: () => alert('設定預約被點擊'),
   },
 };
@@ -32,6 +34,7 @@ export const WithSlots: Story = {
   args: {
     slots: mockBookingSlots,
     monthLoaded: true,
+    reservationsLoaded: true,
     onReservation: () => alert('設定預約被點擊'),
   },
 };
@@ -40,6 +43,7 @@ export const WithMixedSlots: Story = {
   args: {
     slots: mockBookingSlots,
     monthLoaded: true,
+    reservationsLoaded: true,
     onReservation: () => alert('設定預約被點擊'),
   },
 };

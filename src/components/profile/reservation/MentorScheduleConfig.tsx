@@ -12,6 +12,8 @@ import { QuickReplyDialog } from './QuickReplyDialog';
 interface MentorScheduleConfigProps {
   slots: BookingSlot[];
   monthLoaded: boolean;
+  /** See useMentorSchedule's reservationsLoaded — gates clicking a booked slot. */
+  reservationsLoaded: boolean;
   onReservation: () => void;
   onBookedSlotClick: () => void;
   myUserId?: string;
@@ -33,6 +35,7 @@ const LoadingIndicator = () => (
 export function MentorScheduleConfig({
   slots,
   monthLoaded,
+  reservationsLoaded,
   onReservation,
   onBookedSlotClick,
   myUserId,
@@ -66,7 +69,15 @@ export function MentorScheduleConfig({
       {/* 1. 已預約區塊 */}
       <div className="flex w-full flex-col items-start gap-3">
         <p className="text-sm font-semibold text-text-primary">已預約</p>
-        {!monthLoaded ? (
+        {/* Also wait on reservationsLoaded: a slot's `status` (schedule
+            fetch) can resolve before its `.reservation` (reservations
+            fetch) does — most visibly right after this component remounts,
+            e.g. navigating back to the profile page. Rendering the booked
+            list before both are ready risks a PENDING slot with no
+            `.reservation` attached yet, which would misfire
+            handleBookedSlotClick's redirect fallback instead of opening the
+            quick-reply dialog. */}
+        {!monthLoaded || !reservationsLoaded ? (
           <LoadingIndicator />
         ) : bookedSlots.length === 0 ? (
           <div className="flex min-h-10 items-center text-sm text-text-disable">
