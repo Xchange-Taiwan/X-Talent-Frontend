@@ -2,7 +2,13 @@
 
 import dayjs from 'dayjs';
 import { Loader2 } from 'lucide-react';
-import { createContext, useCallback, useContext, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from 'react';
 import { DayButton } from 'react-day-picker';
 import { useSwipeable } from 'react-swipeable';
 
@@ -52,6 +58,8 @@ const CustomDayButton = (props: React.ComponentProps<typeof DayButton>) => {
     </div>
   );
 };
+
+const calendarComponents = { DayButton: CustomDayButton };
 
 interface ScheduleCalendarProps {
   selected: Date;
@@ -225,10 +233,13 @@ export const ScheduleCalendar = ({
     [isOwnMentorProfile, generateBookingSlots]
   );
 
+  const contextValue = useMemo(
+    () => ({ isOwnMentorProfile, getDayBookingStatus, size }),
+    [isOwnMentorProfile, getDayBookingStatus, size]
+  );
+
   return (
-    <CalendarContext.Provider
-      value={{ isOwnMentorProfile, getDayBookingStatus, size }}
-    >
+    <CalendarContext.Provider value={contextValue}>
       <div
         {...swipeHandlers}
         className={cn(
@@ -281,9 +292,7 @@ export const ScheduleCalendar = ({
               return false;
             }}
             showTodayStyle={showTodayStyle}
-            components={{
-              DayButton: CustomDayButton,
-            }}
+            components={calendarComponents}
           />
           {isMonthLoading && (
             <div
