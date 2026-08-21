@@ -248,7 +248,12 @@ describe('useAccountMenu', () => {
   });
 
   describe('handleLogout', () => {
-    it('closes the menu, clears the session hint cookie & DOM state, and signs the user out', () => {
+    it('revokes the backend session before signing the user out', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(new Response(null, { status: 204 }));
+      vi.stubGlobal('fetch', fetchMock);
+
       // Set initial values
       document.cookie = `${SESSION_HINT_COOKIE}=1||https%3A%2F%2Fexample.com%2Favatar.png`;
       document.documentElement.setAttribute(DOM_AUTH_STATE_ATTR, 'mentor');
@@ -265,11 +270,15 @@ describe('useAccountMenu', () => {
         useAccountMenu({ user: buildUser(), closeMenu })
       );
 
-      act(() => {
-        result.current.handleLogout();
+      await act(async () => {
+        await result.current.handleLogout();
       });
 
       expect(closeMenu).toHaveBeenCalledOnce();
+      expect(fetchMock).toHaveBeenCalledWith('/api/auth/backend-logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
       expect(mockSignOut).toHaveBeenCalledOnce();
 
       // Verify they are completely cleared upon logout
