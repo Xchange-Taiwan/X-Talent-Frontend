@@ -6,10 +6,8 @@ import * as React from 'react';
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import RejectReservationDialog from '@/components/reservation/RejectReservationDialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -134,16 +132,6 @@ export function QuickReplyDialog({
 
           {/* Footer action buttons */}
           <DialogFooter className="mt-6 flex-row justify-end gap-2 sm:gap-2">
-            <DialogClose asChild>
-              <Button
-                variant="outline"
-                className="w-full sm:w-auto"
-                disabled={isMutating}
-              >
-                返回
-              </Button>
-            </DialogClose>
-
             <div className="flex w-full gap-2 sm:w-auto">
               <RejectReservationDialog
                 reservation={reservation}

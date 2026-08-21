@@ -292,10 +292,8 @@ describe('QuickReplyDialog', () => {
 
     const acceptBtn = screen.getByTestId('mock-accept-dialog-trigger');
     const rejectBtn = screen.getByTestId('mock-reject-dialog-trigger');
-    const backBtn = screen.getByRole('button', { name: '返回' });
 
     expect(acceptBtn).toBeDisabled();
     expect(rejectBtn).toBeDisabled();
-    expect(backBtn).toBeDisabled();
   });
 });
