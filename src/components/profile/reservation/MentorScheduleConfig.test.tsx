@@ -2,8 +2,20 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { BookingSlot } from '@/hooks/useMentorSchedule';
+import type { Reservation } from '@/types/reservation';
 
 import { MentorScheduleConfig } from './MentorScheduleConfig';
+
+vi.mock('./QuickReplyDialog', () => ({
+  QuickReplyDialog: vi.fn(({ reservation, open, onOpenChange }) =>
+    open ? (
+      <div data-testid="mock-quick-reply" data-reservation-id={reservation?.id}>
+        Quick Reply Dialog for {reservation?.name}
+        <button onClick={() => onOpenChange(false)}>Close</button>
+      </div>
+    ) : null
+  ),
+}));
 
 describe('MentorScheduleConfig', () => {
   const mockSlots: BookingSlot[] = [
@@ -39,11 +51,29 @@ describe('MentorScheduleConfig', () => {
     },
   ];
 
+  const mockReservations: Reservation[] = [
+    {
+      id: 'res-103',
+      name: 'Bob',
+      roleLine: 'Mentee',
+      date: '2026-07-26',
+      time: '12:00 PM – 12:30 PM',
+      dtstart: Math.floor(new Date('2026-07-26T12:00:00Z').getTime() / 1000),
+      dtend: Math.floor(new Date('2026-07-26T12:30:00Z').getTime() / 1000),
+      messages: [],
+      scheduleId: 103,
+      version: 1,
+      senderUserId: 'user-bob',
+      participantUserId: 'user-mentor',
+    },
+  ];
+
   const defaultProps = {
     slots: mockSlots,
     monthLoaded: true,
     onReservation: vi.fn(),
     onBookedSlotClick: vi.fn(),
+    reservations: mockReservations,
   };
 
   beforeEach(() => {
@@ -86,7 +116,7 @@ describe('MentorScheduleConfig', () => {
     expect(onReservation).toHaveBeenCalledOnce();
   });
 
-  it('triggers onBookedSlotClick when a booked slot row is clicked', () => {
+  it('triggers onBookedSlotClick when a confirmed booked slot row is clicked', () => {
     const onBookedSlotClick = vi.fn();
     render(
       <MentorScheduleConfig
@@ -100,12 +130,49 @@ describe('MentorScheduleConfig', () => {
     fireEvent.click(confirmedRow!);
 
     expect(onBookedSlotClick).toHaveBeenCalledOnce();
+  });
+
+  it('opens QuickReplyDialog and does NOT trigger onBookedSlotClick when a pending slot with matched reservation is clicked', () => {
+    const onBookedSlotClick = vi.fn();
+    render(
+      <MentorScheduleConfig
+        {...defaultProps}
+        onBookedSlotClick={onBookedSlotClick}
+      />
+    );
 
     const pendingRow = screen.getByText('學員 Bob').closest('button');
     expect(pendingRow).not.toBeNull();
     fireEvent.click(pendingRow!);
 
-    expect(onBookedSlotClick).toHaveBeenCalledTimes(2);
+    // QuickReplyDialog should be open with Bob's reservation ID
+    const mockDialog = screen.getByTestId('mock-quick-reply');
+    expect(mockDialog).toBeInTheDocument();
+    expect(mockDialog).toHaveAttribute('data-reservation-id', 'res-103');
+
+    // onBookedSlotClick should not have been called
+    expect(onBookedSlotClick).not.toHaveBeenCalled();
+  });
+
+  it('falls back to onBookedSlotClick when a pending slot without matched reservation is clicked', () => {
+    const onBookedSlotClick = vi.fn();
+    render(
+      <MentorScheduleConfig
+        {...defaultProps}
+        reservations={[]} // Empty reservations
+        onBookedSlotClick={onBookedSlotClick}
+      />
+    );
+
+    const pendingRow = screen.getByText('學員 Bob').closest('button');
+    expect(pendingRow).not.toBeNull();
+    fireEvent.click(pendingRow!);
+
+    // QuickReplyDialog should NOT be open
+    expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
+
+    // onBookedSlotClick should have been called
+    expect(onBookedSlotClick).toHaveBeenCalledOnce();
   });
 
   it('renders loading states for both sections when monthLoaded is false', () => {

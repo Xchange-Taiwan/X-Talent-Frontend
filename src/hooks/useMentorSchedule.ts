@@ -124,6 +124,7 @@ export type UseMentorScheduleReturn = {
   confirmChanges: () => Promise<SyncResult>;
   resetChanges: () => void;
   reservations: Reservation[];
+  reload?: () => Promise<void>;
 };
 
 export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
@@ -524,6 +525,57 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backend.userId, dirtyMonths, store]);
 
+  const reloadReservations = useCallback(async () => {
+    if (
+      !loginUserId ||
+      loginUserId !== backend.userId ||
+      !backend.year ||
+      !backend.month
+    ) {
+      return;
+    }
+    const endOfMonthUnix = dayjs(new Date(backend.year, backend.month - 1, 1))
+      .endOf('month')
+      .unix();
+
+    try {
+      const [upcoming, pending] = await Promise.all([
+        fetchAllReservationsForState(
+          loginUserId,
+          'MENTOR_UPCOMING',
+          endOfMonthUnix
+        ),
+        fetchAllReservationsForState(
+          loginUserId,
+          'MENTOR_PENDING',
+          endOfMonthUnix
+        ),
+      ]);
+      setReservations([...upcoming, ...pending]);
+    } catch (err) {
+      console.error('Failed to reload reservations:', err);
+    }
+  }, [loginUserId, backend.userId, backend.year, backend.month]);
+
+  const reloadSchedule = useCallback(async () => {
+    if (!backend.userId || !backend.year || !backend.month) return;
+    const monthKey = currentMonthKey;
+    try {
+      const raws = await loadMonthScheduleFresh({
+        userId: backend.userId,
+        year: backend.year,
+        month: backend.month,
+      });
+      store.reset([[monthKey, raws]]);
+    } catch (err) {
+      console.error('Failed to reload schedule:', err);
+    }
+  }, [backend.userId, backend.year, backend.month, currentMonthKey, store]);
+
+  const reload = useCallback(async () => {
+    await Promise.all([reloadReservations(), reloadSchedule()]);
+  }, [reloadReservations, reloadSchedule]);
+
   return {
     loaded,
     monthLoaded,
@@ -540,5 +592,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     confirmChanges,
     resetChanges,
     reservations,
+    reload,
   };
 }
