@@ -63,7 +63,6 @@ export function BookingForm({
           slots={slots}
           monthLoaded={monthLoaded}
           onReservation={onReservation}
-          isOwnMentorProfile={isOwnMentorProfile}
         />
       ) : (
         <MenteeBookingForm

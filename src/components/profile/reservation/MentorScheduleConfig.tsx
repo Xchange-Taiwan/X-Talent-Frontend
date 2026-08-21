@@ -4,50 +4,27 @@ import { Button } from '@/components/ui/button';
 import type { BookingSlot } from '@/hooks/useMentorSchedule';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 
-import { BOOKED_SLOT_CLASSES, ScheduleSlotList } from './ScheduleSlotList';
-
 interface MentorScheduleConfigProps {
   slots: BookingSlot[];
   monthLoaded: boolean;
   onReservation: () => void;
-  isOwnMentorProfile?: boolean;
 }
+
+const LoadingIndicator = () => (
+  <div
+    aria-busy="true"
+    aria-live="polite"
+    className="flex min-h-10 items-center text-sm text-text-disable"
+  >
+    讀取中…
+  </div>
+);
 
 export function MentorScheduleConfig({
   slots,
   monthLoaded,
   onReservation,
-  isOwnMentorProfile = true,
 }: MentorScheduleConfigProps) {
-  // If isOwnMentorProfile is false (regression check / fallback), keep original behavior exactly
-  if (!isOwnMentorProfile) {
-    return (
-      <div className="flex w-full flex-col gap-4">
-        <ScheduleSlotList
-          slots={slots}
-          monthLoaded={monthLoaded}
-          renderSlot={(slot) => (
-            <div
-              className={`flex h-10 items-center justify-center rounded-lg border text-sm font-medium select-none ${
-                slot.isBooked ? BOOKED_SLOT_CLASSES : 'border-background-border'
-              }`}
-            >
-              {formatBookingSlotTime(slot)}
-            </div>
-          )}
-        />
-
-        <Button
-          variant="default"
-          className="w-full rounded-full px-6 py-3 disabled:bg-background-border disabled:text-text-disable disabled:opacity-100"
-          onClick={onReservation}
-        >
-          預約設定
-        </Button>
-      </div>
-    );
-  }
-
   const bookedSlots = slots.filter((slot) => slot.isBooked);
   const availableSlots = slots.filter((slot) => !slot.isBooked);
 
@@ -57,13 +34,7 @@ export function MentorScheduleConfig({
       <div className="flex w-full flex-col items-start gap-3">
         <p className="text-sm font-semibold text-text-primary">已預約</p>
         {!monthLoaded ? (
-          <div
-            aria-busy="true"
-            aria-live="polite"
-            className="flex min-h-10 items-center text-sm text-text-disable"
-          >
-            讀取中…
-          </div>
+          <LoadingIndicator />
         ) : bookedSlots.length === 0 ? (
           <div className="flex min-h-10 items-center text-sm text-text-disable">
             目前無已預約時段
@@ -95,13 +66,7 @@ export function MentorScheduleConfig({
           當日可預約時段
         </p>
         {!monthLoaded ? (
-          <div
-            aria-busy="true"
-            aria-live="polite"
-            className="flex min-h-10 items-center text-sm text-text-disable"
-          >
-            讀取中…
-          </div>
+          <LoadingIndicator />
         ) : availableSlots.length === 0 ? (
           <div className="flex min-h-10 items-center text-sm text-text-disable">
             無可預約的時段

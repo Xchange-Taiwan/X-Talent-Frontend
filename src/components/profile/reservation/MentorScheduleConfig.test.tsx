@@ -27,10 +27,8 @@ describe('MentorScheduleConfig', () => {
     onReservation: vi.fn(),
   };
 
-  it('renders split view with Booked and Available sections when isOwnMentorProfile is true (default)', () => {
-    render(
-      <MentorScheduleConfig {...defaultProps} isOwnMentorProfile={true} />
-    );
+  it('renders split view with Booked and Available sections', () => {
+    render(<MentorScheduleConfig {...defaultProps} />);
 
     // Renders headings
     expect(screen.getByText('已預約')).toBeInTheDocument();
@@ -64,43 +62,16 @@ describe('MentorScheduleConfig', () => {
     expect(onReservation).toHaveBeenCalledOnce();
   });
 
-  it('falls back to original non-split list view when isOwnMentorProfile is false', () => {
-    render(
-      <MentorScheduleConfig {...defaultProps} isOwnMentorProfile={false} />
-    );
-
-    // Original ScheduleSlotList heading
-    expect(screen.getByText('當日可預約時段')).toBeInTheDocument();
-    expect(screen.queryByText('已預約')).not.toBeInTheDocument();
-
-    // Renders slots in the unified list
-    expect(screen.getByText('10:00 AM – 10:30 AM')).toBeInTheDocument();
-    expect(screen.getByText('11:00 AM – 11:30 AM')).toBeInTheDocument();
-    expect(screen.queryByText('已預約 (暫定)')).not.toBeInTheDocument();
-  });
-
-  it('renders loading states for both sections when monthLoaded is false and isOwnMentorProfile is true', () => {
-    render(
-      <MentorScheduleConfig
-        {...defaultProps}
-        monthLoaded={false}
-        isOwnMentorProfile={true}
-      />
-    );
+  it('renders loading states for both sections when monthLoaded is false', () => {
+    render(<MentorScheduleConfig {...defaultProps} monthLoaded={false} />);
 
     expect(screen.getByText('已預約')).toBeInTheDocument();
     expect(screen.getByText('當日可預約時段')).toBeInTheDocument();
     expect(screen.getAllByText('讀取中…')).toHaveLength(2);
   });
 
-  it('renders empty states for both sections when slots are empty and isOwnMentorProfile is true', () => {
-    render(
-      <MentorScheduleConfig
-        {...defaultProps}
-        slots={[]}
-        isOwnMentorProfile={true}
-      />
-    );
+  it('renders empty states for both sections when slots are empty', () => {
+    render(<MentorScheduleConfig {...defaultProps} slots={[]} />);
 
     expect(screen.getByText('目前無已預約時段')).toBeInTheDocument();
     expect(screen.getByText('無可預約的時段')).toBeInTheDocument();
