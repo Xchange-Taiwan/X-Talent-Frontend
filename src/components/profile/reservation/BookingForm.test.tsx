@@ -41,7 +41,6 @@ describe('BookingForm', () => {
     selectedDate: '2026-07-26',
     onReservation: vi.fn(),
     onConfirmReservation: vi.fn().mockResolvedValue(true),
-    onPendingSlotClick: vi.fn(),
   };
 
   beforeEach(() => {

@@ -1,18 +1,23 @@
 'use client';
 
+import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
 import type { BookingSlot } from '@/hooks/useMentorSchedule';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 import type { Reservation } from '@/types/reservation';
+
+import { QuickReplyDialog } from './QuickReplyDialog';
 
 interface MentorScheduleConfigProps {
   slots: BookingSlot[];
   monthLoaded: boolean;
   onReservation: () => void;
   onBookedSlotClick: () => void;
-  /** Called for a PENDING slot that has a matched reservation, so the
-   * caller can open a quick-reply dialog for it. */
-  onPendingSlotClick: (reservation: Reservation) => void;
+  myUserId?: string;
+  /** schedule.reload — re-fetches reservations/schedule in place after a
+   * quick-reply accept/reject, without a full page refresh. */
+  onMutationSuccess?: () => void | Promise<void>;
 }
 
 const LoadingIndicator = () => (
@@ -30,8 +35,17 @@ export function MentorScheduleConfig({
   monthLoaded,
   onReservation,
   onBookedSlotClick,
-  onPendingSlotClick,
+  myUserId,
+  onMutationSuccess,
 }: MentorScheduleConfigProps) {
+  // Owned here (the leaf that renders the dialog) rather than lifted to the
+  // profile page root: toggling this would otherwise re-render the entire
+  // profile tree (banner, calendar, experience/education sections, ...) on
+  // every quick-reply open/close.
+  const [quickReplyReservation, setQuickReplyReservation] =
+    useState<Reservation | null>(null);
+  const [quickReplyOpen, setQuickReplyOpen] = useState(false);
+
   const isSlotBooked = (slot: BookingSlot) =>
     slot.status === 'BOOKED' || slot.status === 'PENDING' || slot.isBooked;
 
@@ -40,7 +54,8 @@ export function MentorScheduleConfig({
 
   const handleBookedSlotClick = (slot: BookingSlot) => {
     if (slot.status === 'PENDING' && slot.reservation) {
-      onPendingSlotClick(slot.reservation);
+      setQuickReplyReservation(slot.reservation);
+      setQuickReplyOpen(true);
       return;
     }
     onBookedSlotClick();
@@ -131,6 +146,14 @@ export function MentorScheduleConfig({
       >
         預約設定
       </Button>
+
+      <QuickReplyDialog
+        reservation={quickReplyReservation}
+        open={quickReplyOpen}
+        onOpenChange={setQuickReplyOpen}
+        myUserId={myUserId}
+        onMutationSuccess={onMutationSuccess}
+      />
     </div>
   );
 }
