@@ -40,7 +40,6 @@ export const WithMixedSlots: Story = {
   args: {
     slots: mockBookingSlots,
     monthLoaded: true,
-    isOwnMentorProfile: true,
     onReservation: () => alert('設定預約被點擊'),
   },
 };
