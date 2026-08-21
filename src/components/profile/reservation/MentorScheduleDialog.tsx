@@ -39,6 +39,7 @@ import {
 } from '@/lib/profile/scheduleFormatters';
 import {
   DtType,
+  findMatchedReservation,
   isReadOnlyVirtualSlot,
   ParsedMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
@@ -95,6 +96,13 @@ export default function MentorScheduleDialog({
   const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
   const [lastPrompt, setLastPrompt] =
     useState<Exclude<DtType, 'ALLOW'>>('BOOKED');
+  // Mirrors the slot of the most recent prompt dialog. activeDialog.slot
+  // drops to undefined the instant the dialog starts its close animation
+  // (onOpenChange fires before the fade-out finishes), so without this the
+  // mentee name would flicker back to the unmatched fallback text mid-close.
+  const [lastPromptSlot, setLastPromptSlot] = useState<
+    ParsedMentorTimeslot | undefined
+  >(undefined);
 
   const displayPrompt =
     activeDialog?.kind === 'prompt' ? activeDialog.prompt : lastPrompt;
@@ -104,6 +112,7 @@ export default function MentorScheduleDialog({
     slot?: ParsedMentorTimeslot
   ) => {
     setLastPrompt(prompt);
+    setLastPromptSlot(slot);
     setActiveDialog({ kind: 'prompt', prompt, slot });
   };
 
@@ -197,15 +206,32 @@ export default function MentorScheduleDialog({
     onOpenChange(false);
   };
 
-  const promptSlot = activeDialog?.kind === 'prompt' ? activeDialog.slot : null;
+  const promptSlot =
+    activeDialog?.kind === 'prompt' ? activeDialog.slot : lastPromptSlot;
   const matchedReservation = useMemo(() => {
-    if (!promptSlot || !reservations) return null;
+    if (!promptSlot) return undefined;
     const slotStart = Math.floor(promptSlot.start.getTime() / 1000);
     const slotEnd = Math.floor(promptSlot.end.getTime() / 1000);
-    return reservations.find(
-      (r) => r.dtstart === slotStart && r.dtend === slotEnd
-    );
+    return findMatchedReservation(reservations, slotStart, slotEnd);
   }, [promptSlot, reservations]);
+
+  const menteeName = matchedReservation?.name;
+  const dialogTitle =
+    displayPrompt === 'BOOKED'
+      ? menteeName
+        ? `學員 ${menteeName} 已預約此時段`
+        : '此時段已有預約'
+      : menteeName
+        ? `學員 ${menteeName} 申請預約此時段`
+        : '此時段有未處理的預約申請';
+  const dialogDescription =
+    displayPrompt === 'BOOKED'
+      ? menteeName
+        ? `學員 ${menteeName} 已預約成功，無法編輯或移除。如需調整時間，請新增新時段；如需取消原預約，請至「預約管理」頁面處理。`
+        : '此時段已有 mentee 預約成功，無法編輯或移除。如需調整時間，請新增新時段；如需取消原預約，請至「預約管理」頁面處理。'
+      : menteeName
+        ? `學員 ${menteeName} 的預約申請尚未處理。請至「預約管理」頁面接受或拒絕該申請，僅在拒絕後此時段才會重新釋出。若需提供其他時間，請直接新增新時段。`
+        : '請至「預約管理」頁面接受或拒絕該申請，僅在拒絕後此時段才會重新釋出。若需提供其他時間，請直接新增新時段。';
 
   const editingSlot =
     activeDialog?.kind === 'edit'
@@ -437,24 +463,8 @@ export default function MentorScheduleDialog({
       >
         <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>
-              {displayPrompt === 'BOOKED'
-                ? matchedReservation?.name
-                  ? `學員 ${matchedReservation.name} 已預約此時段`
-                  : '此時段已有預約'
-                : matchedReservation?.name
-                  ? `學員 ${matchedReservation.name} 申請預約此時段`
-                  : '此時段有未處理的預約申請'}
-            </DialogTitle>
-            <DialogDescription>
-              {displayPrompt === 'BOOKED'
-                ? matchedReservation?.name
-                  ? `學員 ${matchedReservation.name} 已預約成功，無法編輯或移除。如需調整時間，請新增新時段；如需取消原預約，請至「預約管理」頁面處理。`
-                  : '此時段已有 mentee 預約成功，無法編輯或移除。如需調整時間，請新增新時段；如需取消原預約，請至「預約管理」頁面處理。'
-                : matchedReservation?.name
-                  ? `學員 ${matchedReservation.name} 的預約申請尚未處理。請至「預約管理」頁面接受或拒絕該申請，僅在拒絕後此時段才會重新釋出。若需提供其他時間，請直接新增新時段。`
-                  : '請至「預約管理」頁面接受或拒絕該申請，僅在拒絕後此時段才會重新釋出。若需提供其他時間，請直接新增新時段。'}
-            </DialogDescription>
+            <DialogTitle>{dialogTitle}</DialogTitle>
+            <DialogDescription>{dialogDescription}</DialogDescription>
           </DialogHeader>
           <DialogFooter className="justify-center">
             <Button variant="outline" onClick={() => setActiveDialog(null)}>

@@ -20,6 +20,7 @@ import {
   BookingSlot,
   deduplicateBookingSlots,
   expandRrule,
+  findMatchedReservation,
   formatTimeslot,
   MonthKey,
   monthKeyFromYearMonth,
@@ -197,7 +198,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       !backend.year ||
       !backend.month
     ) {
-      setReservations([]);
+      setReservations((prev) => (prev.length === 0 ? prev : []));
       return;
     }
 
@@ -220,7 +221,11 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         ),
       ]);
       if (ignore) return;
-      setReservations([...upcoming, ...pending]);
+      setReservations((prev) =>
+        prev.length === 0 && upcoming.length === 0 && pending.length === 0
+          ? prev
+          : [...upcoming, ...pending]
+      );
     };
 
     fetchAll();
@@ -411,8 +416,10 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
           const slotStart = occ;
           const slotEnd = occ + slotDuration;
-          const matchedRes = reservations.find(
-            (r) => r.dtstart === slotStart && r.dtend === slotEnd
+          const matchedRes = findMatchedReservation(
+            reservations,
+            slotStart,
+            slotEnd
           );
 
           result.push({

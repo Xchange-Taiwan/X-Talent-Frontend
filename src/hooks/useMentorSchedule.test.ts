@@ -1099,6 +1099,112 @@ describe('useMentorSchedule', () => {
       expect(mockFetchReservations.mock.calls.length).toBeGreaterThanOrEqual(4);
     });
 
+    it('stops paginating when next_dtend repeats the same cursor (stuck-cursor guard)', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+
+      const upcomingCalls: unknown[] = [];
+      mockFetchReservations.mockImplementation(async (opts) => {
+        if (opts.state === 'MENTOR_UPCOMING') {
+          upcomingCalls.push(opts.nextDtend);
+          if (!opts.nextDtend) {
+            return {
+              items: [
+                {
+                  id: 'res-1',
+                  name: 'Mentee A',
+                  scheduleId: 101,
+                  dtstart: 1785070000,
+                  dtend: 1785071800,
+                  messages: [],
+                  roleLine: '',
+                  date: '',
+                  time: '',
+                  senderUserId: 'mentee-1',
+                  participantUserId: 'mentor-1',
+                  version: 0,
+                },
+              ],
+              // Backend returns the same cursor it was given: the loop must
+              // recognize this and stop instead of re-fetching forever.
+              next_dtend: 1785071800,
+            };
+          }
+          return { items: [], next_dtend: 1785071800 };
+        }
+        return { items: [], next_dtend: 0 };
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 7 },
+          loginUserId: 'mentor-1',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.reservations).toHaveLength(1);
+      });
+
+      // Two calls: the initial fetch (nextDtend undefined) plus one follow-up
+      // that received the repeated cursor and stopped — never a third call.
+      expect(upcomingCalls).toEqual([undefined, 1785071800]);
+    });
+
+    it('stops paginating when next_dtend moves past the end of the month', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+
+      const endOfMonthUnix = dayjs('2026-07-01').endOf('month').unix();
+      const beyondEndOfMonth = endOfMonthUnix + 3600;
+
+      const upcomingCalls: unknown[] = [];
+      mockFetchReservations.mockImplementation(async (opts) => {
+        if (opts.state === 'MENTOR_UPCOMING') {
+          upcomingCalls.push(opts.nextDtend);
+          return {
+            items: [
+              {
+                id: 'res-1',
+                name: 'Mentee A',
+                scheduleId: 101,
+                dtstart: 1785070000,
+                dtend: 1785071800,
+                messages: [],
+                roleLine: '',
+                date: '',
+                time: '',
+                senderUserId: 'mentee-1',
+                participantUserId: 'mentor-1',
+                version: 0,
+              },
+            ],
+            next_dtend: beyondEndOfMonth,
+          };
+        }
+        return { items: [], next_dtend: 0 };
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 7 },
+          loginUserId: 'mentor-1',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.reservations).toHaveLength(1);
+      });
+
+      // Only the initial call: a cursor past the end of month must break
+      // the loop immediately rather than fetching a now-irrelevant next page.
+      expect(upcomingCalls).toEqual([undefined]);
+    });
+
     it('correctly matches reservations to booking slots and populates menteeName', async () => {
       const mockRaws: RawMentorTimeslot[] = [
         {
