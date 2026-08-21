@@ -203,7 +203,11 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     }
 
     let ignore = false;
-    const endOfMonthUnix = dayjs(`${backend.year}-${backend.month}-01`)
+    // Native Date(year, monthIndex, day) rather than dayjs's string parser:
+    // Safari's Date.parse rejects unpadded YYYY-M-DD strings (e.g. '2026-7-01')
+    // as Invalid Date, which would make endOfMonthUnix NaN and defeat the
+    // `res.next_dtend >= endOfMonthUnix` pagination-loop guard below.
+    const endOfMonthUnix = dayjs(new Date(backend.year, backend.month - 1, 1))
       .endOf('month')
       .unix();
 
@@ -344,7 +348,10 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   // forward navigation hits cache. Past months are intentionally skipped.
   useEffect(() => {
     if (!loaded || !backend.userId) return;
-    const next = dayjs(`${backend.year}-${backend.month}-01`).add(1, 'month');
+    const next = dayjs(new Date(backend.year, backend.month - 1, 1)).add(
+      1,
+      'month'
+    );
     const handle = setTimeout(() => {
       prefetchMonthSchedule({
         userId: backend.userId,

@@ -15,7 +15,12 @@ vi.mock('@/services/reservations', () => ({
   fetchReservations: vi.fn().mockResolvedValue({ items: [], next_dtend: 0 }),
 }));
 
+vi.mock('@/lib/monitoring', () => ({
+  captureFlowFailure: vi.fn(),
+}));
+
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
+import { captureFlowFailure } from '@/lib/monitoring';
 import {
   buildDateTime,
   RawMentorTimeslot,
@@ -29,6 +34,7 @@ import { fetchReservations } from '@/services/reservations';
 
 const mockLoadMonthScheduleCached = vi.mocked(loadMonthScheduleCached);
 const mockFetchReservations = vi.mocked(fetchReservations);
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 describe('useMentorSchedule', () => {
   beforeEach(() => {
@@ -1203,6 +1209,59 @@ describe('useMentorSchedule', () => {
       // Only the initial call: a cursor past the end of month must break
       // the loop immediately rather than fetching a now-irrelevant next page.
       expect(upcomingCalls).toEqual([undefined]);
+    });
+
+    it('recovers when fetchReservations rejects, returning the other state and reporting the failure', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+
+      mockFetchReservations.mockImplementation(async (opts) => {
+        if (opts.state === 'MENTOR_UPCOMING') {
+          throw new Error('network down');
+        }
+        return {
+          items: [
+            {
+              id: 'res-pending',
+              name: 'Mentee B',
+              scheduleId: 102,
+              dtstart: 1785080000,
+              dtend: 1785081800,
+              messages: [],
+              roleLine: '',
+              date: '',
+              time: '',
+              senderUserId: 'mentee-2',
+              participantUserId: 'mentor-1',
+              version: 0,
+            },
+          ],
+          next_dtend: 0,
+        };
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 7 },
+          loginUserId: 'mentor-1',
+        })
+      );
+
+      // The rejected MENTOR_UPCOMING fetch must not throw out of the hook or
+      // block the sibling MENTOR_PENDING fetch — only its own items are lost.
+      await waitFor(() => {
+        expect(result.current.reservations).toHaveLength(1);
+      });
+      expect(result.current.reservations[0]?.id).toBe('res-pending');
+
+      expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'mentor_schedule_reservations_fetch',
+          step: 'fetch_MENTOR_UPCOMING',
+        })
+      );
     });
 
     it('correctly matches reservations to booking slots and populates menteeName', async () => {
