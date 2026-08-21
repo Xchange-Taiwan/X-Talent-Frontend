@@ -68,6 +68,7 @@ export type BookingSlot = {
   end: Date;
   scheduleId: number; // parent ALLOW slot id
   isBooked: boolean;
+  menteeName?: string;
 };
 
 /** Expand an rrule string from dtstart, returning all occurrence dtstart values (unix seconds). */
@@ -305,6 +306,9 @@ export function deduplicateBookingSlots(slots: BookingSlot[]): BookingSlot[] {
     const existing = uniqueMap.get(key);
     if (existing) {
       existing.isBooked = existing.isBooked || item.isBooked;
+      if (!existing.menteeName && item.menteeName) {
+        existing.menteeName = item.menteeName;
+      }
     } else {
       uniqueMap.set(key, { ...item });
     }

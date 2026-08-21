@@ -47,6 +47,7 @@ function buildSchedule(): UseMentorScheduleReturn {
     deleteDraftSlot: vi.fn(),
     confirmChanges: vi.fn(),
     resetChanges: vi.fn(),
+    reservations: [],
   };
 }
 
