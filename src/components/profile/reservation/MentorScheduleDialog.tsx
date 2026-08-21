@@ -203,9 +203,7 @@ export default function MentorScheduleDialog({
     const slotStart = Math.floor(promptSlot.start.getTime() / 1000);
     const slotEnd = Math.floor(promptSlot.end.getTime() / 1000);
     return reservations.find(
-      (r) =>
-        r.scheduleId === promptSlot.id ||
-        (r.dtstart === slotStart && r.dtend === slotEnd)
+      (r) => r.dtstart === slotStart && r.dtend === slotEnd
     );
   }, [promptSlot, reservations]);
 
