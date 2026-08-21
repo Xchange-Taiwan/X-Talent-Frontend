@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
@@ -137,7 +137,12 @@ describe('QuickReplyDialog', () => {
     state.successCallback = hookConfig.onMutationSuccess;
 
     const acceptBtn = screen.getByTestId('mock-accept-dialog-trigger');
-    fireEvent.click(acceptBtn);
+    await act(async () => {
+      fireEvent.click(acceptBtn);
+      // The dialog now awaits onMutationSuccess (schedule.reload) before
+      // closing, so let that microtask settle before asserting.
+      await Promise.resolve();
+    });
 
     expect(onMutationSuccess).toHaveBeenCalledOnce();
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -171,7 +176,10 @@ describe('QuickReplyDialog', () => {
     state.successCallback = hookConfig.onMutationSuccess;
 
     const rejectBtn = screen.getByTestId('mock-reject-dialog-trigger');
-    fireEvent.click(rejectBtn);
+    await act(async () => {
+      fireEvent.click(rejectBtn);
+      await Promise.resolve();
+    });
 
     expect(onMutationSuccess).toHaveBeenCalledOnce();
     expect(onOpenChange).toHaveBeenCalledWith(false);

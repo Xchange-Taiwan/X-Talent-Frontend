@@ -24,7 +24,7 @@ interface QuickReplyDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   myUserId?: string;
-  onMutationSuccess?: () => void;
+  onMutationSuccess?: () => void | Promise<void>;
 }
 
 export function QuickReplyDialog({
@@ -37,8 +37,12 @@ export function QuickReplyDialog({
   const { accept, rejectOrCancel, isMutating } = useReservationActions({
     myUserId,
     variant: 'pending-mentor',
-    onMutationSuccess: () => {
-      onMutationSuccess?.();
+    onMutationSuccess: async () => {
+      // Await the reload before closing so the underlying page's calendar
+      // and reservation list have already settled to the new state by the
+      // time this dialog disappears, instead of exposing a stale PENDING
+      // slot for one frame.
+      await onMutationSuccess?.();
       onOpenChange(false);
     },
   });

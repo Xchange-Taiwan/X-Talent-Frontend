@@ -1417,5 +1417,50 @@ describe('useMentorSchedule', () => {
       expect(slots[0].status).toBe('BOOKED');
       expect(slots[0].menteeName).toBe('Reloaded Mentee');
     });
+
+    it('swallows errors from a failed reload instead of throwing or leaving state stuck', async () => {
+      // fetchAllReservationsForState/loadMonthScheduleFresh are vi.fn()
+      // mocks from a vi.mock() factory, not vi.spyOn() spies, so the outer
+      // beforeEach's vi.restoreAllMocks() does not reset the implementation
+      // a prior test left behind. Reset explicitly so this test's initial
+      // mount fetch isn't polluted by the previous test's resolved data.
+      mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
+      mockLoadMonthScheduleFresh.mockReset();
+
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      mockLoadMonthScheduleFresh.mockRejectedValue(
+        new Error('schedule refetch failed')
+      );
+      mockFetchAllReservationsForState.mockRejectedValue(
+        new Error('reservations refetch failed')
+      );
+
+      // Neither reloadReservations nor reloadSchedule rethrow: reload() must
+      // resolve cleanly rather than reject or crash the caller.
+      await expect(
+        act(async () => {
+          await result.current.reload?.();
+        })
+      ).resolves.toBeUndefined();
+
+      // State is left as-is (pre-failure) rather than cleared or corrupted.
+      expect(result.current.reservations).toEqual([]);
+      expect(result.current.parsedDraft).toHaveLength(1);
+    });
   });
 });
