@@ -25,8 +25,10 @@ import {
   loadMonthScheduleFresh,
   syncMonths,
 } from '@/services/mentor-schedule/sync';
+import { fetchReservations } from '@/services/reservations';
 
 const mockLoadMonthScheduleCached = vi.mocked(loadMonthScheduleCached);
+const mockFetchReservations = vi.mocked(fetchReservations);
 
 describe('useMentorSchedule', () => {
   beforeEach(() => {
@@ -901,5 +903,242 @@ describe('useMentorSchedule', () => {
       expect(result.current.parsedDraft).toHaveLength(1);
     });
     expect(result.current.parsedDraft[0]?.id).toBe(101);
+  });
+
+  describe('reservations integration (#601)', () => {
+    it('does not fetch reservations when loginUserId is not provided', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+
+      renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 7 },
+        })
+      );
+
+      expect(mockFetchReservations).not.toHaveBeenCalled();
+    });
+
+    it('fetches MENTOR_UPCOMING and MENTOR_PENDING reservations when loginUserId is provided', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+
+      const upcomingRes = {
+        items: [
+          {
+            id: 'res-upcoming',
+            name: 'Mentee A',
+            scheduleId: 101,
+            dtstart: 1785070000,
+            dtend: 1785071800,
+            messages: [],
+            roleLine: '',
+            date: '',
+            time: '',
+            senderUserId: 'mentee-1',
+            participantUserId: 'mentor-1',
+            version: 0,
+          },
+        ],
+        next_dtend: 0,
+      };
+
+      const pendingRes = {
+        items: [
+          {
+            id: 'res-pending',
+            name: 'Mentee B',
+            scheduleId: 102,
+            dtstart: 1785080000,
+            dtend: 1785081800,
+            messages: [],
+            roleLine: '',
+            date: '',
+            time: '',
+            senderUserId: 'mentee-2',
+            participantUserId: 'mentor-1',
+            version: 0,
+          },
+        ],
+        next_dtend: 0,
+      };
+
+      mockFetchReservations.mockImplementation(async (opts) => {
+        if (opts.state === 'MENTOR_UPCOMING') {
+          return upcomingRes;
+        }
+        if (opts.state === 'MENTOR_PENDING') {
+          return pendingRes;
+        }
+        return { items: [], next_dtend: 0 };
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 7 },
+          loginUserId: 'mentor-1',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.reservations).toHaveLength(2);
+      });
+
+      expect(mockFetchReservations).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'mentor-1',
+          state: 'MENTOR_UPCOMING',
+        })
+      );
+      expect(mockFetchReservations).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'mentor-1',
+          state: 'MENTOR_PENDING',
+        })
+      );
+
+      const resUpcoming = result.current.reservations.find(
+        (r) => r.id === 'res-upcoming'
+      );
+      const resPending = result.current.reservations.find(
+        (r) => r.id === 'res-pending'
+      );
+      expect(resUpcoming).toBeDefined();
+      expect(resPending).toBeDefined();
+    });
+
+    it('fetches recursively (cursor pagination) until next_dtend exceeds the end of month or is 0', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+
+      mockFetchReservations.mockImplementation(async (opts) => {
+        if (opts.state === 'MENTOR_UPCOMING') {
+          if (!opts.nextDtend) {
+            return {
+              items: [
+                {
+                  id: 'res-1',
+                  name: 'Mentee A',
+                  scheduleId: 101,
+                  dtstart: 1785070000,
+                  dtend: 1785071800,
+                  messages: [],
+                  roleLine: '',
+                  date: '',
+                  time: '',
+                  senderUserId: 'mentee-1',
+                  participantUserId: 'mentor-1',
+                  version: 0,
+                },
+              ],
+              next_dtend: 1785071800,
+            };
+          } else if (opts.nextDtend === 1785071800) {
+            return {
+              items: [
+                {
+                  id: 'res-2',
+                  name: 'Mentee B',
+                  scheduleId: 102,
+                  dtstart: 1785080000,
+                  dtend: 1785081800,
+                  messages: [],
+                  roleLine: '',
+                  date: '',
+                  time: '',
+                  senderUserId: 'mentee-2',
+                  participantUserId: 'mentor-1',
+                  version: 0,
+                },
+              ],
+              next_dtend: 1785081800,
+            };
+          } else if (opts.nextDtend === 1785081800) {
+            return {
+              items: [],
+              next_dtend: 0,
+            };
+          }
+        }
+        return { items: [], next_dtend: 0 };
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 7 },
+          loginUserId: 'mentor-1',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.reservations).toHaveLength(2);
+      });
+
+      expect(mockFetchReservations.mock.calls.length).toBeGreaterThanOrEqual(4);
+    });
+
+    it('correctly matches reservations to booking slots and populates menteeName', async () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1790426800,
+          dtend: 1790428600,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: mockRaws,
+        revalidate: Promise.resolve(mockRaws),
+      });
+
+      mockFetchReservations.mockImplementation(async (opts) => {
+        if (opts.state === 'MENTOR_UPCOMING') {
+          return {
+            items: [
+              {
+                id: 'res-1',
+                name: 'Alice',
+                scheduleId: 101,
+                dtstart: 1790426800,
+                dtend: 1790428600,
+                messages: [],
+                roleLine: '',
+                date: '',
+                time: '',
+                senderUserId: 'mentee-1',
+                participantUserId: 'mentor-1',
+                version: 0,
+              },
+            ],
+            next_dtend: 0,
+          };
+        }
+        return { items: [], next_dtend: 0 };
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 9 },
+          loginUserId: 'mentor-1',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      const slots = result.current.generateBookingSlots('2026-09-26');
+      expect(slots).toHaveLength(1);
+      expect(slots[0].menteeName).toBe('Alice');
+    });
   });
 });
