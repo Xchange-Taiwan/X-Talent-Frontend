@@ -8,6 +8,7 @@ interface MentorScheduleConfigProps {
   slots: BookingSlot[];
   monthLoaded: boolean;
   onReservation: () => void;
+  onBookedSlotClick: () => void;
 }
 
 const LoadingIndicator = () => (
@@ -24,9 +25,13 @@ export function MentorScheduleConfig({
   slots,
   monthLoaded,
   onReservation,
+  onBookedSlotClick,
 }: MentorScheduleConfigProps) {
-  const bookedSlots = slots.filter((slot) => slot.isBooked);
-  const availableSlots = slots.filter((slot) => !slot.isBooked);
+  const isSlotBooked = (slot: BookingSlot) =>
+    slot.status === 'BOOKED' || slot.status === 'PENDING' || slot.isBooked;
+
+  const bookedSlots = slots.filter(isSlotBooked);
+  const availableSlots = slots.filter((slot) => !isSlotBooked(slot));
 
   return (
     <div className="flex w-full flex-col gap-6">
@@ -46,15 +51,34 @@ export function MentorScheduleConfig({
                 key={`${slot.scheduleId}_${slot.start.getTime()}`}
                 type="button"
                 className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-background-border px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-background-bottom/50"
-                onClick={onReservation}
+                onClick={onBookedSlotClick}
               >
-                <span className="text-text-primary">
-                  {formatBookingSlotTime(slot)}
-                </span>
-                <span className="text-xs font-normal text-text-secondary">
-                  {slot.menteeName
-                    ? `學員 ${slot.menteeName} 已預約 (暫定)`
-                    : '已預約 (暫定)'}
+                <div className="flex flex-col gap-1">
+                  <span className="font-medium text-text-primary">
+                    {formatBookingSlotTime(slot)}
+                  </span>
+                  <span className="text-xs font-normal text-text-secondary">
+                    {slot.status === null
+                      ? '時段已保留'
+                      : slot.menteeName
+                        ? `學員 ${slot.menteeName}`
+                        : '學員'}
+                  </span>
+                </div>
+                <span
+                  className={`text-xs font-semibold ${
+                    slot.status === 'PENDING'
+                      ? 'text-status-warning-default'
+                      : slot.status === 'BOOKED'
+                        ? 'text-status-success-default'
+                        : 'text-text-secondary'
+                  }`}
+                >
+                  {slot.status === 'PENDING'
+                    ? '待您回復'
+                    : slot.status === 'BOOKED'
+                      ? '已確認'
+                      : '已保留'}
                 </span>
               </button>
             ))}
