@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { BookingSlot } from '@/hooks/useMentorSchedule';
+import { mockRouter } from '@/test/mocks/navigation';
 
 import { BookingForm } from './BookingForm';
 
@@ -41,6 +42,10 @@ describe('BookingForm', () => {
     onReservation: vi.fn(),
     onConfirmReservation: vi.fn().mockResolvedValue(true),
   };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('renders a loading skeleton when isUserDataLoading is true to prevent view flash', () => {
     render(<BookingForm {...defaultProps} isUserDataLoading={true} />);
@@ -187,5 +192,15 @@ describe('BookingForm', () => {
     // Button text is "預約設定"
     const btn = screen.getByRole('button', { name: '預約設定' });
     expect(btn).toBeInTheDocument();
+  });
+
+  it('triggers router.push to /reservation/mentor when a booked slot row is clicked in own profile mode', () => {
+    render(<BookingForm {...defaultProps} isOwnMentorProfile={true} />);
+
+    const confirmedRow = screen.getByText('已確認').closest('button');
+    expect(confirmedRow).not.toBeNull();
+    fireEvent.click(confirmedRow!);
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/reservation/mentor');
   });
 });
