@@ -382,14 +382,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   }, [allDraftRaws]);
 
   const allowedDates = useMemo(() => {
-    const { bookedStarts } = reservedStarts;
     const dates = new Set<string>();
-    for (const { occ, dateKey } of futureAllowOccurrences) {
-      if (bookedStarts.has(occ)) continue;
+    for (const { dateKey } of futureAllowOccurrences) {
       dates.add(dateKey);
     }
     return Array.from(dates);
-  }, [futureAllowOccurrences, reservedStarts]);
+  }, [futureAllowOccurrences]);
 
   const generateBookingSlots = useCallback(
     (dateKey: string): BookingSlot[] => {
