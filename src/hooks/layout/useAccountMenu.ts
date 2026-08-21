@@ -100,10 +100,17 @@ export function useAccountMenu({
     });
   }, [closeMenu]);
 
-  const handleLogout = React.useCallback((): void => {
+  const handleLogout = React.useCallback(async (): Promise<void> => {
     closeMenu();
     clearSessionHint();
-    signOut();
+    try {
+      await fetch('/api/auth/backend-logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+    } finally {
+      await signOut();
+    }
   }, [closeMenu]);
 
   return {
