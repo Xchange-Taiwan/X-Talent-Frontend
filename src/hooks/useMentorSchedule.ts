@@ -553,7 +553,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       ]);
       setReservations([...upcoming, ...pending]);
     } catch (err) {
-      console.error('Failed to reload reservations:', err);
+      captureFlowFailure({
+        flow: 'mentor_schedule_reload_reservations',
+        step: 'reload_reservations_for_state',
+        message: err instanceof Error ? err.message : String(err),
+        level: 'warning',
+      });
     }
   }, [loginUserId, backend.userId, backend.year, backend.month]);
 
@@ -568,7 +573,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       });
       store.reset([[monthKey, raws]]);
     } catch (err) {
-      console.error('Failed to reload schedule:', err);
+      captureFlowFailure({
+        flow: 'mentor_schedule_reload_schedule',
+        step: 'reload_month_schedule_fresh',
+        message: err instanceof Error ? err.message : String(err),
+        level: 'warning',
+      });
     }
   }, [backend.userId, backend.year, backend.month, currentMonthKey, store]);
 
