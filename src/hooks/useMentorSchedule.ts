@@ -360,22 +360,35 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     return { bookedStarts, pendingStarts };
   }, [allDraftRaws]);
 
-  const allowedDates = useMemo(() => {
-    const { bookedStarts } = reservedStarts;
+  // Every future ALLOW occurrence (rrule expanded, exdate/past excluded),
+  // shared by allowedDates and bookingStatusByDate so they don't each
+  // re-expand every rrule. generateBookingSlots keeps its own loop below —
+  // it also needs slot.id/duration and per-dateKey filtering that this
+  // flattened list doesn't carry.
+  const futureAllowOccurrences = useMemo(() => {
     const nowSec = Math.floor(Date.now() / 1000);
-    const dates = new Set<string>();
+    const out: { occ: number; dateKey: string }[] = [];
     for (const slot of allDraftRaws) {
       if (slot.type !== 'ALLOW') continue;
       const occurrences = expandRrule(slot.dtstart, slot.rrule);
       for (const occ of occurrences) {
         if (slot.exdate.includes(occ)) continue;
         if (occ <= nowSec) continue;
-        if (bookedStarts.has(occ)) continue;
-        dates.add(dayjs(occ * 1000).format('YYYY-MM-DD'));
+        out.push({ occ, dateKey: dayjs(occ * 1000).format('YYYY-MM-DD') });
       }
     }
+    return out;
+  }, [allDraftRaws]);
+
+  const allowedDates = useMemo(() => {
+    const { bookedStarts } = reservedStarts;
+    const dates = new Set<string>();
+    for (const { occ, dateKey } of futureAllowOccurrences) {
+      if (bookedStarts.has(occ)) continue;
+      dates.add(dateKey);
+    }
     return Array.from(dates);
-  }, [allDraftRaws, reservedStarts]);
+  }, [futureAllowOccurrences, reservedStarts]);
 
   const generateBookingSlots = useCallback(
     (dateKey: string): BookingSlot[] => {
@@ -429,26 +442,17 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   // re-expand every rrule once per visible day (~35-42x a month).
   const bookingStatusByDate = useMemo(() => {
     const { bookedStarts, pendingStarts } = reservedStarts;
-    const nowSec = Math.floor(Date.now() / 1000);
     const datesWithPending = new Set<string>();
     const datesWithBooked = new Set<string>();
 
-    for (const slot of allDraftRaws) {
-      if (slot.type !== 'ALLOW') continue;
-
-      const occurrences = expandRrule(slot.dtstart, slot.rrule);
-      for (const occ of occurrences) {
-        if (slot.exdate.includes(occ)) continue;
-        if (occ <= nowSec) continue;
-
-        // Same per-occurrence precedence as generateBookingSlots' `isBooked`
-        // check: if a dtstart were ever claimed by both a BOOKED and a
-        // PENDING row, BOOKED wins here too, so the two stay consistent.
-        if (bookedStarts.has(occ)) {
-          datesWithBooked.add(dayjs(occ * 1000).format('YYYY-MM-DD'));
-        } else if (pendingStarts.has(occ)) {
-          datesWithPending.add(dayjs(occ * 1000).format('YYYY-MM-DD'));
-        }
+    for (const { occ, dateKey } of futureAllowOccurrences) {
+      // Same per-occurrence precedence as generateBookingSlots' `isBooked`
+      // check: if a dtstart were ever claimed by both a BOOKED and a
+      // PENDING row, BOOKED wins here too, so the two stay consistent.
+      if (bookedStarts.has(occ)) {
+        datesWithBooked.add(dateKey);
+      } else if (pendingStarts.has(occ)) {
+        datesWithPending.add(dateKey);
       }
     }
 
@@ -457,7 +461,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     // PENDING takes priority over BOOKED for the same date.
     datesWithPending.forEach((dateKey) => map.set(dateKey, 'PENDING'));
     return map;
-  }, [allDraftRaws, reservedStarts]);
+  }, [futureAllowOccurrences, reservedStarts]);
 
   const getDayBookingStatus: UseMentorScheduleReturn['getDayBookingStatus'] =
     useCallback(
