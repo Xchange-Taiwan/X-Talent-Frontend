@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import type { BookingSlot } from '@/hooks/useMentorSchedule';
+import type { Reservation } from '@/types/reservation';
 
 import { MenteeBookingForm } from './MenteeBookingForm';
 import { MentorScheduleConfig } from './MentorScheduleConfig';
@@ -20,6 +21,9 @@ interface BookingFormProps {
   selectedDate: string | null;
   onReservation: () => void;
   onConfirmReservation: (question?: string) => Promise<boolean>;
+  reservations?: Reservation[];
+  myUserId?: string;
+  onMutationSuccess?: () => void;
 }
 
 export function BookingForm({
@@ -34,6 +38,9 @@ export function BookingForm({
   selectedDate,
   onReservation,
   onConfirmReservation,
+  reservations,
+  myUserId,
+  onMutationSuccess,
 }: BookingFormProps) {
   const router = useRouter();
 
@@ -68,6 +75,9 @@ export function BookingForm({
           monthLoaded={monthLoaded}
           onReservation={onReservation}
           onBookedSlotClick={() => router.push('/reservation/mentor')}
+          reservations={reservations}
+          myUserId={myUserId}
+          onMutationSuccess={onMutationSuccess}
         />
       ) : (
         <MenteeBookingForm
