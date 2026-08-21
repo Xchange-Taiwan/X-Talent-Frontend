@@ -400,6 +400,9 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       const bookedStarts = new Set(
         allDraftRaws.filter((s) => s.type === 'BOOKED').map((s) => s.dtstart)
       );
+      const pendingStarts = new Set(
+        allDraftRaws.filter((s) => s.type === 'PENDING').map((s) => s.dtstart)
+      );
       const nowSec = Math.floor(Date.now() / 1000);
       const result: BookingSlot[] = [];
 
@@ -422,11 +425,18 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
             slotEnd
           );
 
+          const isBooked = bookedStarts.has(occ);
+          const status = isBooked
+            ? ('BOOKED' as const)
+            : pendingStarts.has(occ)
+              ? ('PENDING' as const)
+              : null;
           result.push({
             start: new Date(occ * 1000),
             end: new Date((occ + slotDuration) * 1000),
             scheduleId: slot.id,
-            isBooked: bookedStarts.has(occ),
+            isBooked,
+            status,
             menteeName: matchedRes?.name,
           });
         }

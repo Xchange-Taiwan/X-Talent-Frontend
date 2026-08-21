@@ -35,3 +35,11 @@ export const WithSlots: Story = {
     onReservation: () => alert('設定預約被點擊'),
   },
 };
+
+export const WithMixedSlots: Story = {
+  args: {
+    slots: mockBookingSlots,
+    monthLoaded: true,
+    onReservation: () => alert('設定預約被點擊'),
+  },
+};
