@@ -216,22 +216,34 @@ export default function MentorScheduleDialog({
   }, [promptSlot, reservations]);
 
   const menteeName = matchedReservation?.name;
-  const dialogTitle =
-    displayPrompt === 'BOOKED'
-      ? menteeName
-        ? `學員 ${menteeName} 已預約此時段`
-        : '此時段已有預約'
-      : menteeName
-        ? `學員 ${menteeName} 申請預約此時段`
-        : '此時段有未處理的預約申請';
-  const dialogDescription =
-    displayPrompt === 'BOOKED'
-      ? menteeName
-        ? `學員 ${menteeName} 已預約成功，無法編輯或移除。如需調整時間，請新增新時段；如需取消原預約，請至「預約管理」頁面處理。`
-        : '此時段已有 mentee 預約成功，無法編輯或移除。如需調整時間，請新增新時段；如需取消原預約，請至「預約管理」頁面處理。'
-      : menteeName
-        ? `學員 ${menteeName} 的預約申請尚未處理。請至「預約管理」頁面接受或拒絕該申請，僅在拒絕後此時段才會重新釋出。若需提供其他時間，請直接新增新時段。`
-        : '請至「預約管理」頁面接受或拒絕該申請，僅在拒絕後此時段才會重新釋出。若需提供其他時間，請直接新增新時段。';
+  // Keyed only by the two prompts getReservationBlock can actually produce
+  // (a slot is either open, BOOKED, or PENDING — FORBIDDEN never reaches the
+  // dialog even though displayPrompt's type is the wider Exclude<DtType,
+  // 'ALLOW'>), so any other value falls back to the PENDING copy below.
+  const promptCopy: Record<
+    'BOOKED' | 'PENDING',
+    { title: (name: string) => string; description: (name: string) => string }
+  > = {
+    BOOKED: {
+      title: (name) => (name ? `學員 ${name} 已預約此時段` : '此時段已有預約'),
+      description: (name) =>
+        name
+          ? `學員 ${name} 已預約成功，無法編輯或移除。如需調整時間，請新增新時段；如需取消原預約，請至「預約管理」頁面處理。`
+          : '此時段已有 mentee 預約成功，無法編輯或移除。如需調整時間，請新增新時段；如需取消原預約，請至「預約管理」頁面處理。',
+    },
+    PENDING: {
+      title: (name) =>
+        name ? `學員 ${name} 申請預約此時段` : '此時段有未處理的預約申請',
+      description: (name) =>
+        name
+          ? `學員 ${name} 的預約申請尚未處理。請至「預約管理」頁面接受或拒絕該申請，僅在拒絕後此時段才會重新釋出。若需提供其他時間，請直接新增新時段。`
+          : '請至「預約管理」頁面接受或拒絕該申請，僅在拒絕後此時段才會重新釋出。若需提供其他時間，請直接新增新時段。',
+    },
+  };
+  const activePromptCopy =
+    promptCopy[displayPrompt === 'BOOKED' ? 'BOOKED' : 'PENDING'];
+  const dialogTitle = activePromptCopy.title(menteeName ?? '');
+  const dialogDescription = activePromptCopy.description(menteeName ?? '');
 
   const editingSlot =
     activeDialog?.kind === 'edit'
