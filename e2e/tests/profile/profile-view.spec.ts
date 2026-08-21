@@ -7,7 +7,7 @@ import { setSignedSessionCookie } from '../../helpers/session';
 // Following the codebase convention (e.g. mentor-pool.spec.ts), we test against
 // the live dev database directly, avoiding cargo-cult browser-only mocks.
 const REAL_MENTOR_ID = '7468899508961767'; // Jonas Lo (Mentor)
-const REAL_MENTEE_ID = '7482008160728083'; // Visitor (Mentee)
+const REAL_MENTEE_ID = '7482008160728085'; // testing_visitor (Mentee)
 
 // Helper to construct a flat NextAuth JWT Payload matching e2e/helpers/session.ts's SessionPayload.
 // NextAuth stores the flat JWT payload inside the encrypted cookie, which is then decrypted
@@ -50,7 +50,7 @@ test('檢視他人的 mentee 個人檔案 → 預約區塊不存在', async ({ p
 
   // Assert name is visible using the correct semantic locator.
   // Scoped to <main> for the same reason as the mentor case above.
-  const nameElement = page.getByRole('main').getByText('Visitor');
+  const nameElement = page.getByRole('main').getByText('請不要把我變成Mentor');
   await expect(nameElement).toBeVisible({ timeout: 15_000 });
 
   // Assert the schedule calendar / booking section is collapsed (not visible)
