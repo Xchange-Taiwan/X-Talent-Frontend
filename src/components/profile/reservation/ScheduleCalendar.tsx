@@ -37,6 +37,12 @@ const CustomDayButton = (props: React.ComponentProps<typeof DayButton>) => {
   if (!bookingStatus) return <CalendarDayButton {...props} />;
 
   return (
+    // w-[var(--cell-size)] mirrors CalendarDayButton's own
+    // max-w-[var(--cell-size)] (src/components/ui/calendar.tsx) so the dot's
+    // absolute offsets are anchored to the day button's actual box, not the
+    // wider grid cell — --cell-size is a runtime CSS custom property set by
+    // this component's size classes above, not a static value, so it can't
+    // be expressed as a design token.
     <div className="relative mx-auto flex h-full w-[var(--cell-size)] items-center justify-center">
       <CalendarDayButton {...props} />
       <span

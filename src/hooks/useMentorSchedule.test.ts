@@ -1329,6 +1329,82 @@ describe('useMentorSchedule', () => {
     });
   });
 
+  describe('allowedDates', () => {
+    beforeEach(() => {
+      vi.spyOn(Date, 'now').mockReturnValue(
+        new Date('2026-07-01T00:00:00Z').getTime()
+      );
+    });
+
+    it('includes a date whose only occurrence is already BOOKED, so the mentor can still select it to manage the reservation', async () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const { result } = setupSchedule(mockRaws);
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+      expect(result.current.allowedDates).toContain('2026-07-26');
+    });
+
+    it('still includes a date with a mix of BOOKED and open occurrences', async () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 103,
+          type: 'ALLOW' as const,
+          dtstart: 1785073600,
+          dtend: 1785075400,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const { result } = setupSchedule(mockRaws);
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+      expect(result.current.allowedDates).toContain('2026-07-26');
+    });
+
+    it('excludes a date with no ALLOW occurrences at all', async () => {
+      const { result } = setupSchedule([]);
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+      expect(result.current.allowedDates).not.toContain('2026-07-26');
+    });
+  });
+
   describe('reload (#604)', () => {
     it('successfully reloads reservations and schedule and updates state/store', async () => {
       vi.spyOn(Date, 'now').mockReturnValue(

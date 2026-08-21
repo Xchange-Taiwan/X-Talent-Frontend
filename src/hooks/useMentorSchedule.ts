@@ -381,6 +381,13 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     return out;
   }, [allDraftRaws]);
 
+  // Deliberately does NOT exclude dates whose only occurrences are already
+  // BOOKED: a fully-booked date must stay selectable so the mentor can pick
+  // it to view/manage the existing reservation (MentorScheduleConfig's
+  // "已預約" section + QuickReplyDialog), the same way a PENDING-only date
+  // already was. ScheduleSlotList/MenteeBookingForm already render booked
+  // slots as a disabled, greyed-out state for mentees, so this doesn't
+  // surface a bookable-looking slot to anyone.
   const allowedDates = useMemo(() => {
     const dates = new Set<string>();
     for (const { dateKey } of futureAllowOccurrences) {
