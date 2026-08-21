@@ -20,6 +20,7 @@ import {
   BookingSlot,
   deduplicateBookingSlots,
   expandRrule,
+  findMatchedReservation,
   formatTimeslot,
   MonthKey,
   monthKeyFromYearMonth,
@@ -36,6 +37,8 @@ import {
   syncMonths,
   SyncResult,
 } from '@/services/mentor-schedule/sync';
+import { fetchAllReservationsForState } from '@/services/reservations';
+import type { Reservation } from '@/types/reservation';
 
 export type {
   BookingSlot,
@@ -57,6 +60,7 @@ type Options = {
     year: number;
     month: number; // 1-12
   };
+  loginUserId?: string;
 };
 
 export type SlotDurationMinutes = 30 | 45 | 60;
@@ -119,10 +123,11 @@ export type UseMentorScheduleReturn = {
 
   confirmChanges: () => Promise<SyncResult>;
   resetChanges: () => void;
+  reservations: Reservation[];
 };
 
 export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
-  const { backend } = opts;
+  const { backend, loginUserId } = opts;
 
   // External standalone MonthDraftStore for cross-month states and synchronization logic
   const [store] = useState(
@@ -143,6 +148,56 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const [selectedDate, setSelectedDate] = useState<string | null>(
     dayjs().format('YYYY-MM-DD')
   );
+
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+
+  useEffect(() => {
+    if (
+      !loginUserId ||
+      loginUserId !== backend.userId ||
+      !backend.year ||
+      !backend.month
+    ) {
+      setReservations((prev) => (prev.length === 0 ? prev : []));
+      return;
+    }
+
+    let ignore = false;
+    // Native Date(year, monthIndex, day) rather than dayjs's string parser:
+    // Safari's Date.parse rejects unpadded YYYY-M-DD strings (e.g. '2026-7-01')
+    // as Invalid Date, which would make endOfMonthUnix NaN and defeat the
+    // `res.next_dtend >= endOfMonthUnix` pagination-loop guard below.
+    const endOfMonthUnix = dayjs(new Date(backend.year, backend.month - 1, 1))
+      .endOf('month')
+      .unix();
+
+    const fetchAll = async () => {
+      const [upcoming, pending] = await Promise.all([
+        fetchAllReservationsForState(
+          loginUserId,
+          'MENTOR_UPCOMING',
+          endOfMonthUnix
+        ),
+        fetchAllReservationsForState(
+          loginUserId,
+          'MENTOR_PENDING',
+          endOfMonthUnix
+        ),
+      ]);
+      if (ignore) return;
+      setReservations((prev) =>
+        prev.length === 0 && upcoming.length === 0 && pending.length === 0
+          ? prev
+          : [...upcoming, ...pending]
+      );
+    };
+
+    fetchAll();
+
+    return () => {
+      ignore = true;
+    };
+  }, [loginUserId, backend.userId, backend.year, backend.month]);
 
   const currentMonthKey = monthKeyFromYearMonth(backend.year, backend.month);
 
@@ -253,7 +308,10 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   // forward navigation hits cache. Past months are intentionally skipped.
   useEffect(() => {
     if (!loaded || !backend.userId) return;
-    const next = dayjs(`${backend.year}-${backend.month}-01`).add(1, 'month');
+    const next = dayjs(new Date(backend.year, backend.month - 1, 1)).add(
+      1,
+      'month'
+    );
     const handle = setTimeout(() => {
       prefetchMonthSchedule({
         userId: backend.userId,
@@ -325,6 +383,15 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           if (slot.exdate.includes(occ)) continue;
           if (occ <= nowSec) continue;
           if (dayjs(occ * 1000).format('YYYY-MM-DD') !== dateKey) continue;
+
+          const slotStart = occ;
+          const slotEnd = occ + slotDuration;
+          const matchedRes = findMatchedReservation(
+            reservations,
+            slotStart,
+            slotEnd
+          );
+
           const isBooked = bookedStarts.has(occ);
           const status = isBooked
             ? ('BOOKED' as const)
@@ -337,13 +404,14 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
             scheduleId: slot.id,
             isBooked,
             status,
+            menteeName: matchedRes?.name,
           });
         }
       }
 
       return deduplicateBookingSlots(result);
     },
-    [allDraftRaws]
+    [allDraftRaws, reservations]
   );
 
   const addSlotForSelectedDate: UseMentorScheduleReturn['addSlotForSelectedDate'] =
@@ -471,5 +539,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     deleteDraftSlot,
     confirmChanges,
     resetChanges,
+    reservations,
   };
 }

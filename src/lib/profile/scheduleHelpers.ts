@@ -3,6 +3,7 @@ import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import { RRule } from 'rrule';
 
 import { SegmentVO } from '@/services/mentor-schedule/schedule';
+import type { Reservation } from '@/types/reservation';
 
 dayjs.extend(isSameOrBefore);
 
@@ -69,6 +70,7 @@ export type BookingSlot = {
   scheduleId: number; // parent ALLOW slot id
   isBooked: boolean;
   status: 'PENDING' | 'BOOKED' | null;
+  menteeName?: string;
 };
 
 /** Expand an rrule string from dtstart, returning all occurrence dtstart values (unix seconds). */
@@ -297,6 +299,22 @@ export function deduplicateRawSlots(
 }
 
 /**
+ * Find the reservation whose [dtstart, dtend) exactly matches a given slot
+ * window (unix seconds). Shared between useMentorSchedule (booking-slot
+ * generation) and MentorScheduleDialog (prompt-dialog mentee name) so the
+ * matching rule can't drift between the two call sites.
+ */
+export function findMatchedReservation(
+  reservations: Reservation[] | undefined,
+  startUnix: number,
+  endUnix: number
+): Reservation | undefined {
+  return reservations?.find(
+    (r) => r.dtstart === startUnix && r.dtend === endUnix
+  );
+}
+
+/**
  * Deduplicates slots with the same start time, merging isBooked status.
  */
 export function deduplicateBookingSlots(slots: BookingSlot[]): BookingSlot[] {
@@ -312,6 +330,9 @@ export function deduplicateBookingSlots(slots: BookingSlot[]): BookingSlot[] {
         existing.status = 'PENDING';
       } else {
         existing.status = null;
+      }
+      if (!existing.menteeName && item.menteeName) {
+        existing.menteeName = item.menteeName;
       }
     } else {
       uniqueMap.set(key, { ...item });

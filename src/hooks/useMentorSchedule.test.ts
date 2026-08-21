@@ -11,6 +11,10 @@ vi.mock('@/services/mentor-schedule/sync', () => ({
   syncMonths: vi.fn(),
 }));
 
+vi.mock('@/services/reservations', () => ({
+  fetchAllReservationsForState: vi.fn().mockResolvedValue([]),
+}));
+
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import {
   buildDateTime,
@@ -21,8 +25,12 @@ import {
   loadMonthScheduleFresh,
   syncMonths,
 } from '@/services/mentor-schedule/sync';
+import { fetchAllReservationsForState } from '@/services/reservations';
 
 const mockLoadMonthScheduleCached = vi.mocked(loadMonthScheduleCached);
+const mockFetchAllReservationsForState = vi.mocked(
+  fetchAllReservationsForState
+);
 
 describe('useMentorSchedule', () => {
   beforeEach(() => {
@@ -897,6 +905,177 @@ describe('useMentorSchedule', () => {
       expect(result.current.parsedDraft).toHaveLength(1);
     });
     expect(result.current.parsedDraft[0]?.id).toBe(101);
+  });
+
+  describe('reservations integration (#601)', () => {
+    // Cursor pagination, the stuck-cursor guard, the end-of-month guard, and
+    // fetch-failure handling live in fetchAllReservationsForState now (moved
+    // to src/services/reservations/reservationService.ts — see
+    // reservationService.test.ts). These tests only cover the hook's own
+    // responsibility: gating the fetch on loginUserId and wiring the
+    // resolved reservations into state / generateBookingSlots.
+    it('does not fetch reservations when loginUserId is not provided', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+
+      renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 7 },
+        })
+      );
+
+      expect(mockFetchAllReservationsForState).not.toHaveBeenCalled();
+    });
+
+    it('does not fetch reservations when loginUserId is provided but does not match backend.userId', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+
+      renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 7 },
+          loginUserId: 'mentee-2',
+        })
+      );
+
+      expect(mockFetchAllReservationsForState).not.toHaveBeenCalled();
+    });
+
+    it('fetches MENTOR_UPCOMING and MENTOR_PENDING reservations when loginUserId is provided', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+
+      const upcoming = [
+        {
+          id: 'res-upcoming',
+          name: 'Mentee A',
+          scheduleId: 101,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          messages: [],
+          roleLine: '',
+          date: '',
+          time: '',
+          senderUserId: 'mentee-1',
+          participantUserId: 'mentor-1',
+          version: 0,
+        },
+      ];
+
+      const pending = [
+        {
+          id: 'res-pending',
+          name: 'Mentee B',
+          scheduleId: 102,
+          dtstart: 1785080000,
+          dtend: 1785081800,
+          messages: [],
+          roleLine: '',
+          date: '',
+          time: '',
+          senderUserId: 'mentee-2',
+          participantUserId: 'mentor-1',
+          version: 0,
+        },
+      ];
+
+      mockFetchAllReservationsForState.mockImplementation(
+        async (_userId, state) =>
+          state === 'MENTOR_UPCOMING' ? upcoming : pending
+      );
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 7 },
+          loginUserId: 'mentor-1',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.reservations).toHaveLength(2);
+      });
+
+      expect(mockFetchAllReservationsForState).toHaveBeenCalledWith(
+        'mentor-1',
+        'MENTOR_UPCOMING',
+        expect.any(Number)
+      );
+      expect(mockFetchAllReservationsForState).toHaveBeenCalledWith(
+        'mentor-1',
+        'MENTOR_PENDING',
+        expect.any(Number)
+      );
+
+      const resUpcoming = result.current.reservations.find(
+        (r) => r.id === 'res-upcoming'
+      );
+      const resPending = result.current.reservations.find(
+        (r) => r.id === 'res-pending'
+      );
+      expect(resUpcoming).toBeDefined();
+      expect(resPending).toBeDefined();
+    });
+
+    it('correctly matches reservations to booking slots and populates menteeName', async () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1790426800,
+          dtend: 1790428600,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: mockRaws,
+        revalidate: Promise.resolve(mockRaws),
+      });
+
+      mockFetchAllReservationsForState.mockImplementation(
+        async (_userId, state) =>
+          state === 'MENTOR_UPCOMING'
+            ? [
+                {
+                  id: 'res-1',
+                  name: 'Alice',
+                  scheduleId: 101,
+                  dtstart: 1790426800,
+                  dtend: 1790428600,
+                  messages: [],
+                  roleLine: '',
+                  date: '',
+                  time: '',
+                  senderUserId: 'mentee-1',
+                  participantUserId: 'mentor-1',
+                  version: 0,
+                },
+              ]
+            : []
+      );
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 9 },
+          loginUserId: 'mentor-1',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      const slots = result.current.generateBookingSlots('2026-09-26');
+      expect(slots).toHaveLength(1);
+      expect(slots[0].menteeName).toBe('Alice');
+    });
   });
 
   describe('generateBookingSlots', () => {

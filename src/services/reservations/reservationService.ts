@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 
 import { apiClient, FetchApiError } from '@/lib/apiClient';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { resolveCounterpartyProfile } from '@/lib/reservation/resolveCounterparty';
 import { components } from '@/types/api';
 import { Reservation, ReservationMessage } from '@/types/reservation';
@@ -153,6 +154,69 @@ export async function fetchReservations(
     mapToReservation(reservation, userId)
   );
   return { items, next_dtend: json.data?.next_dtend ?? 0 };
+}
+
+// Hard ceiling on pages fetched per state (batch=20 → up to 1,000
+// reservations for one month, far beyond any realistic mentor's booking
+// volume). Backstops the next_dtend-based guards below in case the backend
+// ever returns a cursor that inches forward without repeating or crossing
+// endOfMonthUnix, which would otherwise page indefinitely.
+const MAX_PAGES = 50;
+
+/**
+ * Fetch every reservation for `state` up to (but not including) `endOfMonthUnix`,
+ * paging via `next_dtend` until the backend signals no more pages (`next_dtend
+ * === 0`), the returned cursor moves past the end of the target month, the
+ * cursor repeats (a stuck-cursor guard against an infinite loop), or
+ * MAX_PAGES is reached. Fetch failures are reported via captureFlowFailure
+ * and swallowed, returning whatever pages were already collected rather than
+ * throwing.
+ */
+export async function fetchAllReservationsForState(
+  userId: string,
+  state: ReservationState,
+  endOfMonthUnix: number
+): Promise<Reservation[]> {
+  let allItems: Reservation[] = [];
+  let nextDtend: number | undefined = undefined;
+  try {
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const res = await fetchReservations({
+        userId,
+        state,
+        nextDtend,
+        batch: 20,
+      });
+      allItems = [...allItems, ...res.items];
+      if (
+        res.items.length === 0 ||
+        res.next_dtend === 0 ||
+        res.next_dtend >= endOfMonthUnix ||
+        res.next_dtend === nextDtend
+      ) {
+        break;
+      }
+      nextDtend = res.next_dtend;
+      if (page === MAX_PAGES - 1) {
+        captureFlowFailure({
+          flow: 'mentor_schedule_reservations_fetch',
+          step: `fetch_${state}_max_pages_exceeded`,
+          message: `Aborted after ${MAX_PAGES} pages; cursor still advancing (next_dtend=${nextDtend}).`,
+        });
+      }
+    }
+  } catch (err) {
+    captureFlowFailure({
+      flow: 'mentor_schedule_reservations_fetch',
+      step: `fetch_${state}`,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    console.error(
+      `[reservationService] Failed to fetch reservations for ${state}:`,
+      err
+    );
+  }
+  return allItems;
 }
 
 /* ================================

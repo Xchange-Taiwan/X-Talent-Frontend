@@ -105,6 +105,7 @@ const defaultScheduleMock: UseMentorScheduleReturn = {
   deleteDraftSlot: () => {},
   confirmChanges: async () => ({ ok: true }),
   resetChanges: () => {},
+  reservations: [],
 };
 
 interface DialogWrapperProps {
