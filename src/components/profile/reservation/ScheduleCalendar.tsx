@@ -37,14 +37,20 @@ const CustomDayButton = (props: React.ComponentProps<typeof DayButton>) => {
   if (!bookingStatus) return <CalendarDayButton {...props} />;
 
   return (
-    <div className="relative flex h-full w-full items-center justify-center">
+    // w-[var(--cell-size)] mirrors CalendarDayButton's own
+    // max-w-[var(--cell-size)] (src/components/ui/calendar.tsx) so the dot's
+    // absolute offsets are anchored to the day button's actual box, not the
+    // wider grid cell — --cell-size is a runtime CSS custom property set by
+    // this component's size classes above, not a static value, so it can't
+    // be expressed as a design token.
+    <div className="relative mx-auto flex h-full w-[var(--cell-size)] items-center justify-center">
       <CalendarDayButton {...props} />
       <span
         data-testid={`status-dot-${dayjs(day.date).format('YYYY-MM-DD')}`}
         className={cn(
-          'pointer-events-none absolute size-1.5 rounded-full md:size-2',
+          'pointer-events-none absolute size-1 rounded-full md:size-1.5',
           size === 'profile'
-            ? 'top-1 right-1 min-[700px]:top-1.5 min-[700px]:right-1.5 min-[900px]:top-2 min-[900px]:right-2 2xl:top-1.5 2xl:right-1.5'
+            ? '-top-0.5 -right-0.5'
             : 'top-0.5 right-0.5 sm:top-1 sm:right-1',
           bookingStatus === 'PENDING'
             ? 'bg-status-warning-default'

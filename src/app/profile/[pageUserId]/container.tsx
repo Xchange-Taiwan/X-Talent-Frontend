@@ -82,9 +82,20 @@ export default function ProfilePageContainer({
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth() + 1);
 
+  // loginUserId is '' unless identity.hasFullUser, so isOwnProfile can only
+  // be true for a real, verified session - it already carries that
+  // guarantee, no separate resolution check needed here. Computed before
+  // useMentorSchedule so it can gate includeBookedDates below; the whole
+  // schedule region only renders once userData.is_mentor is confirmed true
+  // (see ui.tsx's showScheduleRegion), so ownership alone is enough here to
+  // distinguish "the mentor managing their own calendar" from "a mentee/
+  // visitor browsing it" - no need to also wait on userData.is_mentor.
+  const isOwnProfile = loginUserId === pageUserId;
+
   const schedule = useMentorSchedule({
     backend: { userId: pageUserId, year, month },
     loginUserId,
+    includeBookedDates: isOwnProfile,
   });
   const { loaded, selectedDate, setSelectedDate, parsedDraft, allowedDates } =
     schedule;
@@ -118,10 +129,6 @@ export default function ProfilePageContainer({
   // synchronously by useProfileSubmit) over `userData.avatar`, which can
   // briefly come from a stale ISR initialDto on the post-submit navigation
   // race. The override clears once session.user.avatar catches up.
-  // loginUserId is '' unless identity.hasFullUser, so isOwnProfile can only
-  // be true for a real, verified session - it already carries that
-  // guarantee, no separate resolution check needed here.
-  const isOwnProfile = loginUserId === pageUserId;
   // Single source of truth for "should owner-only controls (edit button,
   // become-mentor button, schedule-management dialog) render" so ui.tsx
   // doesn't need to re-derive this comparison at each of its three call

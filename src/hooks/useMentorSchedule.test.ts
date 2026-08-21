@@ -53,7 +53,10 @@ describe('useMentorSchedule', () => {
     },
   ];
 
-  function setupSchedule(mockRaws: RawMentorTimeslot[] = defaultMockRaws) {
+  function setupSchedule(
+    mockRaws: RawMentorTimeslot[] = defaultMockRaws,
+    { includeBookedDates }: { includeBookedDates?: boolean } = {}
+  ) {
     mockLoadMonthScheduleCached.mockReturnValue({
       cached: mockRaws,
       revalidate: Promise.resolve(mockRaws),
@@ -62,6 +65,7 @@ describe('useMentorSchedule', () => {
     return renderHook(() =>
       useMentorSchedule({
         backend: { userId: '123', year: 2026, month: 7 },
+        includeBookedDates,
       })
     );
   }
@@ -1326,6 +1330,108 @@ describe('useMentorSchedule', () => {
         expect(result.current.loaded).toBe(true);
       });
       expect(result.current.getDayBookingStatus('2026-06-01')).toBeNull();
+    });
+  });
+
+  describe('allowedDates', () => {
+    beforeEach(() => {
+      vi.spyOn(Date, 'now').mockReturnValue(
+        new Date('2026-07-01T00:00:00Z').getTime()
+      );
+    });
+
+    it('excludes a date whose only occurrence is already BOOKED by default (mentee/visitor-safe)', async () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const { result } = setupSchedule(mockRaws);
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+      expect(result.current.allowedDates).not.toContain('2026-07-26');
+    });
+
+    it('includes a date whose only occurrence is already BOOKED when includeBookedDates is true, so the mentor can still select it to manage the reservation', async () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const { result } = setupSchedule(mockRaws, { includeBookedDates: true });
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+      expect(result.current.allowedDates).toContain('2026-07-26');
+    });
+
+    it('still includes a date with a mix of BOOKED and open occurrences by default', async () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 103,
+          type: 'ALLOW' as const,
+          dtstart: 1785073600,
+          dtend: 1785075400,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const { result } = setupSchedule(mockRaws);
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+      expect(result.current.allowedDates).toContain('2026-07-26');
+    });
+
+    it('excludes a date with no ALLOW occurrences at all', async () => {
+      const { result } = setupSchedule([]);
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+      expect(result.current.allowedDates).not.toContain('2026-07-26');
     });
   });
 
