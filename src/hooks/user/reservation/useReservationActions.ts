@@ -31,7 +31,10 @@ export const buildRejectOrCancelAffectedTabs = (
 interface UseReservationActionsProps {
   myUserId: string | undefined;
   variant: Variant;
-  onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
+  onMutationSuccess?: (
+    id: string,
+    affectedTabs: ListKey[]
+  ) => void | Promise<void>;
   /** Called once (no auto-retry of the action itself) when the backend
    * rejects the status update with a 409 version conflict, so the caller can
    * refetch the affected tabs and show the user fresh data. */
@@ -76,7 +79,7 @@ export function useReservationActions({
             title: '已接受預約',
             description: '會議連結將於數分鐘內寄至雙方信箱',
           });
-          onMutationSuccess?.(reservation.id, ACCEPT_AFFECTED_TABS);
+          await onMutationSuccess?.(reservation.id, ACCEPT_AFFECTED_TABS);
         });
       } catch (err) {
         if (err instanceof ReservationVersionConflictError) {
@@ -105,7 +108,7 @@ export function useReservationActions({
           const successMessage =
             action === 'reject' ? '已拒絕預約' : '已取消預約';
           toast({ description: successMessage });
-          onMutationSuccess?.(
+          await onMutationSuccess?.(
             reservation.id,
             buildRejectOrCancelAffectedTabs(variant)
           );

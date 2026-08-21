@@ -23,7 +23,7 @@ interface BookingFormProps {
   onConfirmReservation: (question?: string) => Promise<boolean>;
   reservations?: Reservation[];
   myUserId?: string;
-  onMutationSuccess?: () => void;
+  onMutationSuccess?: () => void | Promise<void>;
 }
 
 export function BookingForm({

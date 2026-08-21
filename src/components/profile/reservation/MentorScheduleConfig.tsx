@@ -17,7 +17,7 @@ interface MentorScheduleConfigProps {
   onBookedSlotClick: () => void;
   reservations?: Reservation[];
   myUserId?: string;
-  onMutationSuccess?: () => void;
+  onMutationSuccess?: () => void | Promise<void>;
 }
 
 const LoadingIndicator = () => (
