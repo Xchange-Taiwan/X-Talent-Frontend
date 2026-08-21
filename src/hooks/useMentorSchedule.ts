@@ -69,7 +69,12 @@ async function fetchAllReservationsForState(
         batch: 20,
       });
       allItems = [...allItems, ...res.items];
-      if (res.next_dtend === 0 || res.next_dtend >= endOfMonthUnix) {
+      if (
+        res.items.length === 0 ||
+        res.next_dtend === 0 ||
+        res.next_dtend >= endOfMonthUnix ||
+        res.next_dtend === nextDtend
+      ) {
         break;
       }
       nextDtend = res.next_dtend;
@@ -186,7 +191,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const [reservations, setReservations] = useState<Reservation[]>([]);
 
   useEffect(() => {
-    if (!loginUserId || !backend.year || !backend.month) {
+    if (
+      !loginUserId ||
+      loginUserId !== backend.userId ||
+      !backend.year ||
+      !backend.month
+    ) {
       setReservations([]);
       return;
     }
@@ -218,7 +228,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     return () => {
       ignore = true;
     };
-  }, [loginUserId, backend.year, backend.month]);
+  }, [loginUserId, backend.userId, backend.year, backend.month]);
 
   const currentMonthKey = monthKeyFromYearMonth(backend.year, backend.month);
 
@@ -402,9 +412,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           const slotStart = occ;
           const slotEnd = occ + slotDuration;
           const matchedRes = reservations.find(
-            (r) =>
-              r.scheduleId === slot.id ||
-              (r.dtstart === slotStart && r.dtend === slotEnd)
+            (r) => r.dtstart === slotStart && r.dtend === slotEnd
           );
 
           result.push({

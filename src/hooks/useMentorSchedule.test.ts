@@ -921,6 +921,22 @@ describe('useMentorSchedule', () => {
       expect(mockFetchReservations).not.toHaveBeenCalled();
     });
 
+    it('does not fetch reservations when loginUserId is provided but does not match backend.userId', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+
+      renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 7 },
+          loginUserId: 'mentee-2',
+        })
+      );
+
+      expect(mockFetchReservations).not.toHaveBeenCalled();
+    });
+
     it('fetches MENTOR_UPCOMING and MENTOR_PENDING reservations when loginUserId is provided', async () => {
       mockLoadMonthScheduleCached.mockReturnValue({
         cached: [],
