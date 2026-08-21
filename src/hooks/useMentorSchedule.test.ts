@@ -31,6 +31,7 @@ const mockLoadMonthScheduleCached = vi.mocked(loadMonthScheduleCached);
 const mockFetchAllReservationsForState = vi.mocked(
   fetchAllReservationsForState
 );
+const mockLoadMonthScheduleFresh = vi.mocked(loadMonthScheduleFresh);
 
 describe('useMentorSchedule', () => {
   beforeEach(() => {
@@ -1325,6 +1326,141 @@ describe('useMentorSchedule', () => {
         expect(result.current.loaded).toBe(true);
       });
       expect(result.current.getDayBookingStatus('2026-06-01')).toBeNull();
+    });
+  });
+
+  describe('reload (#604)', () => {
+    it('successfully reloads reservations and schedule and updates state/store', async () => {
+      vi.spyOn(Date, 'now').mockReturnValue(
+        new Date('2026-07-01T00:00:00Z').getTime()
+      );
+
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      // Set up fresh mock values for reload
+      const reloadedRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+
+      const reloadedReservations = [
+        {
+          id: 'res-reload',
+          name: 'Reloaded Mentee',
+          scheduleId: 102,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          messages: [],
+          roleLine: '',
+          date: '',
+          time: '',
+          senderUserId: 'mentee-reload',
+          participantUserId: '123',
+          version: 1,
+        },
+      ];
+
+      mockLoadMonthScheduleFresh.mockResolvedValue(reloadedRaws);
+      mockFetchAllReservationsForState.mockImplementation(
+        async (_userId, state) =>
+          state === 'MENTOR_UPCOMING' ? reloadedReservations : []
+      );
+
+      // Trigger reload
+      await act(async () => {
+        await result.current.reload?.();
+      });
+
+      // Verify reservations are refreshed
+      expect(result.current.reservations).toHaveLength(1);
+      expect(result.current.reservations[0].id).toBe('res-reload');
+
+      // Verify loadMonthScheduleFresh was called
+      expect(mockLoadMonthScheduleFresh).toHaveBeenCalledWith({
+        userId: '123',
+        year: 2026,
+        month: 7,
+      });
+
+      // Verify calendar slots are updated with new mentee name
+      const slots = result.current.generateBookingSlots('2026-07-26');
+      expect(slots).toHaveLength(1);
+      expect(slots[0].isBooked).toBe(true);
+      expect(slots[0].status).toBe('BOOKED');
+      expect(slots[0].menteeName).toBe('Reloaded Mentee');
+    });
+
+    it('swallows errors from a failed reload instead of throwing or leaving state stuck', async () => {
+      // fetchAllReservationsForState/loadMonthScheduleFresh are vi.fn()
+      // mocks from a vi.mock() factory, not vi.spyOn() spies, so the outer
+      // beforeEach's vi.restoreAllMocks() does not reset the implementation
+      // a prior test left behind. Reset explicitly so this test's initial
+      // mount fetch isn't polluted by the previous test's resolved data.
+      mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
+      mockLoadMonthScheduleFresh.mockReset();
+
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      mockLoadMonthScheduleFresh.mockRejectedValue(
+        new Error('schedule refetch failed')
+      );
+      mockFetchAllReservationsForState.mockRejectedValue(
+        new Error('reservations refetch failed')
+      );
+
+      // Neither reloadReservations nor reloadSchedule rethrow: reload() must
+      // resolve cleanly rather than reject or crash the caller.
+      await expect(
+        act(async () => {
+          await result.current.reload?.();
+        })
+      ).resolves.toBeUndefined();
+
+      // State is left as-is (pre-failure) rather than cleared or corrupted.
+      expect(result.current.reservations).toEqual([]);
+      expect(result.current.parsedDraft).toHaveLength(1);
     });
   });
 });
