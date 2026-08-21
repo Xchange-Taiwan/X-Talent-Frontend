@@ -63,6 +63,15 @@ type Options = {
     month: number; // 1-12
   };
   loginUserId?: string;
+  /**
+   * Include dates whose only occurrences are already BOOKED in
+   * `allowedDates`, so the mentor viewing their own profile can still select
+   * a fully-booked date to view/manage the reservation. Mentee/visitor
+   * callers must leave this false: they share the same `allowedDates` to
+   * disable calendar dates, and a fully-booked date has no bookable slot for
+   * them to select.
+   */
+  includeBookedDates?: boolean;
 };
 
 export type SlotDurationMinutes = 30 | 45 | 60;
@@ -133,7 +142,7 @@ export type UseMentorScheduleReturn = {
 };
 
 export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
-  const { backend, loginUserId } = opts;
+  const { backend, loginUserId, includeBookedDates = false } = opts;
 
   // External standalone MonthDraftStore for cross-month states and synchronization logic
   const [store] = useState(
@@ -381,20 +390,23 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     return out;
   }, [allDraftRaws]);
 
-  // Deliberately does NOT exclude dates whose only occurrences are already
-  // BOOKED: a fully-booked date must stay selectable so the mentor can pick
-  // it to view/manage the existing reservation (MentorScheduleConfig's
-  // "已預約" section + QuickReplyDialog), the same way a PENDING-only date
-  // already was. ScheduleSlotList/MenteeBookingForm already render booked
-  // slots as a disabled, greyed-out state for mentees, so this doesn't
-  // surface a bookable-looking slot to anyone.
+  // `includeBookedDates` (mentor viewing their own profile only) skips
+  // excluding a date whose only occurrences are already BOOKED, so it stays
+  // selectable and the mentor can pick it to view/manage the existing
+  // reservation (MentorScheduleConfig's "已預約" section + QuickReplyDialog),
+  // the same way a PENDING-only date already was. Every other caller
+  // (mentee/visitor) keeps excluding it: they share this same list to
+  // disable calendar dates, and a fully-booked date has no slot for them to
+  // book, so surfacing it as selectable would just be a dead end.
   const allowedDates = useMemo(() => {
+    const { bookedStarts } = reservedStarts;
     const dates = new Set<string>();
-    for (const { dateKey } of futureAllowOccurrences) {
+    for (const { occ, dateKey } of futureAllowOccurrences) {
+      if (!includeBookedDates && bookedStarts.has(occ)) continue;
       dates.add(dateKey);
     }
     return Array.from(dates);
-  }, [futureAllowOccurrences]);
+  }, [futureAllowOccurrences, reservedStarts, includeBookedDates]);
 
   const generateBookingSlots = useCallback(
     (dateKey: string): BookingSlot[] => {
