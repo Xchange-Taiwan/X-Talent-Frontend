@@ -185,6 +185,38 @@ describe('QuickReplyDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it('blocks Escape-key dismissal while a mutation is in progress, so the shared dialog instance is not closed out from under a subsequently reopened reservation', () => {
+    vi.mocked(useReservationActions).mockReturnValue({
+      accept: mockAccept,
+      rejectOrCancel: mockRejectOrCancel,
+      isMutating: true,
+    });
+    const onOpenChange = vi.fn();
+
+    render(<QuickReplyDialog {...defaultProps} onOpenChange={onOpenChange} />);
+
+    const dialog = screen.getByRole('dialog');
+    fireEvent.keyDown(dialog, { key: 'Escape', code: 'Escape' });
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('allows Escape-key dismissal once the mutation has finished (isMutating is false)', () => {
+    vi.mocked(useReservationActions).mockReturnValue({
+      accept: mockAccept,
+      rejectOrCancel: mockRejectOrCancel,
+      isMutating: false,
+    });
+    const onOpenChange = vi.fn();
+
+    render(<QuickReplyDialog {...defaultProps} onOpenChange={onOpenChange} />);
+
+    const dialog = screen.getByRole('dialog');
+    fireEvent.keyDown(dialog, { key: 'Escape', code: 'Escape' });
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   it('disables dialog buttons when mutation is in progress (isMutating is true)', () => {
     vi.mocked(useReservationActions).mockReturnValue({
       accept: mockAccept,

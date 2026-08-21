@@ -58,8 +58,18 @@ export function QuickReplyDialog({
 
   const menteeMessage = reservation.menteeMessage?.content;
 
+  // Block outside-click/Esc dismissal while a mutation is in flight: this
+  // dialog is a single shared instance re-used across reservations, so an
+  // early close followed by reopening a different slot would let the
+  // in-flight request's completion handler close that unrelated dialog out
+  // from under the user once it resolves.
+  const handleOpenChange = (next: boolean) => {
+    if (isMutating) return;
+    onOpenChange(next);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="w-[90vw] max-w-[420px] p-0 sm:max-w-lg">
         <div className="p-6">
           <DialogHeader className="mb-4">
