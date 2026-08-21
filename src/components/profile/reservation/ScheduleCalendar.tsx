@@ -31,23 +31,26 @@ const CustomDayButton = (props: React.ComponentProps<typeof DayButton>) => {
   const { day } = props;
   const bookingStatus = getDateStatus?.(day.date) ?? null;
 
+  // Only wrap in the extra positioning div when there's actually a dot to
+  // place, so viewers/dates with no status dot get the original DOM
+  // structure react-day-picker expects (no CSS/layout/focus surprises).
+  if (!bookingStatus) return <CalendarDayButton {...props} />;
+
   return (
     <div className="relative flex h-full w-full items-center justify-center">
       <CalendarDayButton {...props} />
-      {bookingStatus && (
-        <span
-          data-testid={`status-dot-${dayjs(day.date).format('YYYY-MM-DD')}`}
-          className={cn(
-            'pointer-events-none absolute size-1.5 rounded-full md:size-2',
-            size === 'profile'
-              ? 'top-1 right-1 min-[700px]:top-1.5 min-[700px]:right-1.5 min-[900px]:top-2 min-[900px]:right-2 2xl:top-1.5 2xl:right-1.5'
-              : 'top-0.5 right-0.5 sm:top-1 sm:right-1',
-            bookingStatus === 'PENDING'
-              ? 'bg-status-warning-default'
-              : 'bg-status-success-default'
-          )}
-        />
-      )}
+      <span
+        data-testid={`status-dot-${dayjs(day.date).format('YYYY-MM-DD')}`}
+        className={cn(
+          'pointer-events-none absolute size-1.5 rounded-full md:size-2',
+          size === 'profile'
+            ? 'top-1 right-1 min-[700px]:top-1.5 min-[700px]:right-1.5 min-[900px]:top-2 min-[900px]:right-2 2xl:top-1.5 2xl:right-1.5'
+            : 'top-0.5 right-0.5 sm:top-1 sm:right-1',
+          bookingStatus === 'PENDING'
+            ? 'bg-status-warning-default'
+            : 'bg-status-success-default'
+        )}
+      />
     </div>
   );
 };
