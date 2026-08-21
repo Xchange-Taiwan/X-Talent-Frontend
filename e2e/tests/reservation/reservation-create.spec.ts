@@ -8,7 +8,7 @@ test.use({ timezoneId: 'Asia/Taipei' });
 
 // Static, valid user IDs from the dev/staging BFF database
 const REAL_MENTOR_ID = '7468899508961767'; // Jonas Lo (Mentor)
-const REAL_MENTEE_ID = '7482008160728083'; // Visitor (Mentee)
+const REAL_MENTEE_ID = '7482008160728085'; // testing_visitor (Mentee)
 
 const timeFormat: Intl.DateTimeFormatOptions = {
   hour: '2-digit',

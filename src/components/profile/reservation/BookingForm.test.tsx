@@ -12,12 +12,14 @@ describe('BookingForm', () => {
       start: new Date('2026-07-26T10:00:00Z'),
       end: new Date('2026-07-26T10:30:00Z'),
       isBooked: false,
+      status: null,
     },
     {
       scheduleId: 102,
       start: new Date('2026-07-26T11:00:00Z'),
       end: new Date('2026-07-26T11:30:00Z'),
       isBooked: true,
+      status: 'BOOKED',
     },
   ];
 
@@ -171,6 +173,11 @@ describe('BookingForm', () => {
       screen.queryByRole('button', { name: /10:00/i })
     ).not.toBeInTheDocument();
     expect(screen.getByText(/10:00/i)).toBeInTheDocument();
+
+    // Shows split headers and status
+    expect(screen.getByText('已預約')).toBeInTheDocument();
+    expect(screen.getByText('當日可預約時段')).toBeInTheDocument();
+    expect(screen.getByText('已預約 (暫定)')).toBeInTheDocument();
 
     // Button text is "預約設定"
     const btn = screen.getByRole('button', { name: '預約設定' });

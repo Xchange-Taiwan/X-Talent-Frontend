@@ -50,6 +50,7 @@ describe('useBookingConfirmation', () => {
     start: new Date('2026-07-26T14:00:00Z'),
     end: new Date('2026-07-26T15:00:00Z'),
     isBooked: false,
+    status: null,
   };
 
   beforeEach(() => {
