@@ -429,6 +429,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
             isBooked,
             status,
             menteeName: matchedRes?.name,
+            reservation: matchedRes,
           });
         }
       }

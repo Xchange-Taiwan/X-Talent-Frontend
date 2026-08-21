@@ -73,6 +73,10 @@ export type BookingSlot = {
   isBooked: boolean;
   status: BookingStatus | null;
   menteeName?: string;
+  /** The reservation matched to this occurrence, if any — lets consumers
+   * (e.g. a PENDING-slot click handler) act on it directly instead of
+   * re-running findMatchedReservation themselves. */
+  reservation?: Reservation;
 };
 
 /** Expand an rrule string from dtstart, returning all occurrence dtstart values (unix seconds). */
@@ -335,6 +339,9 @@ export function deduplicateBookingSlots(slots: BookingSlot[]): BookingSlot[] {
       }
       if (!existing.menteeName && item.menteeName) {
         existing.menteeName = item.menteeName;
+      }
+      if (!existing.reservation && item.reservation) {
+        existing.reservation = item.reservation;
       }
     } else {
       uniqueMap.set(key, { ...item });

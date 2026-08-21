@@ -1,23 +1,18 @@
 'use client';
 
-import { useState } from 'react';
-
 import { Button } from '@/components/ui/button';
 import type { BookingSlot } from '@/hooks/useMentorSchedule';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
-import { findMatchedReservation } from '@/lib/profile/scheduleHelpers';
 import type { Reservation } from '@/types/reservation';
-
-import { QuickReplyDialog } from './QuickReplyDialog';
 
 interface MentorScheduleConfigProps {
   slots: BookingSlot[];
   monthLoaded: boolean;
   onReservation: () => void;
   onBookedSlotClick: () => void;
-  reservations?: Reservation[];
-  myUserId?: string;
-  onMutationSuccess?: () => void | Promise<void>;
+  /** Called for a PENDING slot that has a matched reservation, so the
+   * caller can open a quick-reply dialog for it. */
+  onPendingSlotClick: (reservation: Reservation) => void;
 }
 
 const LoadingIndicator = () => (
@@ -35,14 +30,8 @@ export function MentorScheduleConfig({
   monthLoaded,
   onReservation,
   onBookedSlotClick,
-  reservations,
-  myUserId,
-  onMutationSuccess,
+  onPendingSlotClick,
 }: MentorScheduleConfigProps) {
-  const [quickReplyReservation, setQuickReplyReservation] =
-    useState<Reservation | null>(null);
-  const [quickReplyOpen, setQuickReplyOpen] = useState(false);
-
   const isSlotBooked = (slot: BookingSlot) =>
     slot.status === 'BOOKED' || slot.status === 'PENDING' || slot.isBooked;
 
@@ -50,15 +39,9 @@ export function MentorScheduleConfig({
   const availableSlots = slots.filter((slot) => !isSlotBooked(slot));
 
   const handleBookedSlotClick = (slot: BookingSlot) => {
-    if (slot.status === 'PENDING' && reservations) {
-      const slotStart = Math.floor(slot.start.getTime() / 1000);
-      const slotEnd = Math.floor(slot.end.getTime() / 1000);
-      const matched = findMatchedReservation(reservations, slotStart, slotEnd);
-      if (matched) {
-        setQuickReplyReservation(matched);
-        setQuickReplyOpen(true);
-        return;
-      }
+    if (slot.status === 'PENDING' && slot.reservation) {
+      onPendingSlotClick(slot.reservation);
+      return;
     }
     onBookedSlotClick();
   };
@@ -148,14 +131,6 @@ export function MentorScheduleConfig({
       >
         預約設定
       </Button>
-
-      <QuickReplyDialog
-        reservation={quickReplyReservation}
-        open={quickReplyOpen}
-        onOpenChange={setQuickReplyOpen}
-        myUserId={myUserId}
-        onMutationSuccess={onMutationSuccess}
-      />
     </div>
   );
 }
