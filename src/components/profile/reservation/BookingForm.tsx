@@ -1,5 +1,7 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 import { Skeleton } from '@/components/ui/skeleton';
 import type { BookingSlot } from '@/hooks/useMentorSchedule';
 
@@ -33,6 +35,8 @@ export function BookingForm({
   onReservation,
   onConfirmReservation,
 }: BookingFormProps) {
+  const router = useRouter();
+
   // Prevent view flash: if userData is loading/unresolved, render a loading skeleton
   if (isUserDataLoading) {
     return (
@@ -63,6 +67,7 @@ export function BookingForm({
           slots={slots}
           monthLoaded={monthLoaded}
           onReservation={onReservation}
+          onBookedSlotClick={() => router.push('/reservation/mentor')}
         />
       ) : (
         <MenteeBookingForm
