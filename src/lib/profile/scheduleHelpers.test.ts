@@ -268,4 +268,25 @@ describe('deduplicateBookingSlots', () => {
     expect(result[0].status).toBe('BOOKED');
     expect(result[0].scheduleId).toBe(101); // keeps the first encountered scheduleId
   });
+
+  it('correctly merges PENDING status with null status', () => {
+    const slot1 = {
+      start: new Date(1785070000 * 1000),
+      end: new Date(1785071800 * 1000),
+      scheduleId: 101,
+      isBooked: false,
+      status: null,
+    };
+    const slot2 = {
+      start: new Date(1785070000 * 1000),
+      end: new Date(1785071800 * 1000),
+      scheduleId: 102,
+      isBooked: false,
+      status: 'PENDING' as const,
+    };
+
+    const result = deduplicateBookingSlots([slot1, slot2]);
+    expect(result).toHaveLength(1);
+    expect(result[0].status).toBe('PENDING');
+  });
 });
