@@ -8,6 +8,7 @@ import * as React from 'react';
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { clearSessionHint } from '@/lib/auth/sessionHint';
 import { getMentorOnboardingUrl } from '@/lib/routes';
+import { postBackendLogout } from '@/services/auth/backendLogout';
 import type { PersonalLink } from '@/types/types';
 
 export interface UseAccountMenuOptions {
@@ -104,10 +105,9 @@ export function useAccountMenu({
     closeMenu();
     clearSessionHint();
     try {
-      await fetch('/api/auth/backend-logout', {
-        method: 'POST',
-        credentials: 'same-origin',
-      });
+      await postBackendLogout();
+    } catch {
+      // Backend session revocation is best-effort; local sign-out must still complete.
     } finally {
       await signOut();
     }
