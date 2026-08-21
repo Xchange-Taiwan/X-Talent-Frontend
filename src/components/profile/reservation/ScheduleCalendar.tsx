@@ -37,20 +37,43 @@ const CustomDayButton = (props: React.ComponentProps<typeof DayButton>) => {
   if (!bookingStatus) return <CalendarDayButton {...props} />;
 
   return (
-    // w-[var(--cell-size)] mirrors CalendarDayButton's own
-    // max-w-[var(--cell-size)] (src/components/ui/calendar.tsx) so the dot's
-    // absolute offsets are anchored to the day button's actual box, not the
-    // wider grid cell — --cell-size is a runtime CSS custom property set by
-    // this component's size classes above, not a static value, so it can't
-    // be expressed as a design token.
-    <div className="relative mx-auto flex h-full w-[var(--cell-size)] items-center justify-center">
+    // w-full max-w-[var(--cell-size)] aspect-square mirrors CalendarDayButton's
+    // own sizing (!w-full max-w-[var(--cell-size)] aspect-square, in
+    // src/components/ui/calendar.tsx) exactly, rather than just capping width.
+    // Below the breakpoints where the grid cell is wider than --cell-size, the
+    // button shrinks to fit the cell and stays a square via aspect-square; a
+    // fixed w-[var(--cell-size)] wrapper wouldn't shrink with it, so the dot
+    // would float off the edge of the (now smaller) circle instead of hugging
+    // it. --cell-size is a runtime CSS custom property set by this
+    // component's size classes above, not a static value, so it can't be
+    // expressed as a design token.
+    <div className="relative mx-auto flex aspect-square w-full max-w-[var(--cell-size)] items-center justify-center">
       <CalendarDayButton {...props} />
       <span
         data-testid={`status-dot-${dayjs(day.date).format('YYYY-MM-DD')}`}
         className={cn(
-          'pointer-events-none absolute size-1 rounded-full md:size-1.5',
+          // z-20 beats the day button's own focused-state z-10 (see
+          // CalendarDayButton's group-data-[focused=true]/day:z-10 in
+          // src/components/ui/calendar.tsx). Without it, selecting or
+          // keyboard-focusing a dotted date lifts the button into its own
+          // stacking context above this dot, hiding the dot behind the
+          // circle entirely.
+          'pointer-events-none absolute z-20 size-1 rounded-full md:size-1.5',
           size === 'profile'
-            ? '-top-0.5 -right-0.5'
+            ? // Place the dot so it's externally tangent to the day circle
+              // along the top-right diagonal — touching the rim, not
+              // overlapping it. The diagonal crosses the circle's edge at
+              // (1 - 1/sqrt(2)) / 2 ≈ 14.6447% of the wrapper's side in from
+              // each edge; pushing the dot's *center* out from there by its
+              // own radius (rather than sitting the center directly on the
+              // rim) is what keeps the two circles touching instead of
+              // straddling one another. That radius is a fixed px value (it
+              // only changes at the `md` breakpoint via size-1/size-1.5), so
+              // it's subtracted with calc() rather than folded into the
+              // percentage. Positioning by percentage of the wrapper, plus a
+              // self-relative translate (of the dot's own box), keeps this
+              // correct at any --cell-size.
+              'top-[calc(14.6447%-1.4142px)] right-[calc(14.6447%-1.4142px)] translate-x-1/2 -translate-y-1/2 md:top-[calc(14.6447%-2.1213px)] md:right-[calc(14.6447%-2.1213px)]'
             : 'top-0.5 right-0.5 sm:top-1 sm:right-1',
           bookingStatus === 'PENDING'
             ? 'bg-status-warning-default'
