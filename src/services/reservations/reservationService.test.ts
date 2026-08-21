@@ -315,5 +315,44 @@ describe('reservationService API Error Handling', () => {
         })
       );
     });
+
+    it('stops after MAX_PAGES when the cursor keeps advancing without repeating or crossing the month boundary, and reports it', async () => {
+      // Cursor inches forward by 1 every page, never repeats, and never
+      // reaches endOfMonthUnix — only the page-count ceiling can end this.
+      mockGet.mockImplementation(async (_path, options) => {
+        const nextDtend =
+          (options as { params: { next_dtend?: number } }).params.next_dtend ??
+          0;
+        return {
+          code: '0',
+          msg: 'ok',
+          data: {
+            reservations: [
+              makeApiReservation({
+                id: nextDtend + 1,
+                dtstart: 100,
+                dtend: 200,
+              }),
+            ],
+            next_dtend: nextDtend + 1,
+          },
+        };
+      });
+
+      const result = await fetchAllReservationsForState(
+        '123',
+        'MENTOR_UPCOMING',
+        Number.MAX_SAFE_INTEGER
+      );
+
+      expect(result).toHaveLength(50);
+      expect(mockGet).toHaveBeenCalledTimes(50);
+      expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'mentor_schedule_reservations_fetch',
+          step: 'fetch_MENTOR_UPCOMING_max_pages_exceeded',
+        })
+      );
+    });
   });
 });
