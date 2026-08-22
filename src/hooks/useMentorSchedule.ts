@@ -15,13 +15,11 @@ import {
 } from 'react';
 
 import { captureFlowFailure } from '@/lib/monitoring';
+import { computeBookingAvailability } from '@/lib/profile/bookingAvailability';
 import { MonthDraftStore } from '@/lib/profile/MonthDraftStore';
 import {
   BookingSlot,
   BookingStatus,
-  deduplicateBookingSlots,
-  expandRrule,
-  findMatchedReservation,
   formatTimeslot,
   MonthKey,
   monthKeyFromYearMonth,
@@ -421,102 +419,27 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     [parsedDraft, selectedDate]
   );
 
-  // Which dtstart values are already reserved, and how — shared by every
-  // occurrence-scan below so they don't each rebuild the same two Sets.
-  const reservedStarts = useMemo(() => {
-    const bookedStarts = new Set<number>();
-    const pendingStarts = new Set<number>();
-    for (const s of allDraftRaws) {
-      if (s.type === 'BOOKED') bookedStarts.add(s.dtstart);
-      else if (s.type === 'PENDING') pendingStarts.add(s.dtstart);
-    }
-    return { bookedStarts, pendingStarts };
-  }, [allDraftRaws]);
-
-  // Every future ALLOW occurrence (rrule expanded, exdate/past excluded),
-  // shared by allowedDates and bookingStatusByDate so they don't each
-  // re-expand every rrule. generateBookingSlots keeps its own loop below —
-  // it also needs slot.id/duration and per-dateKey filtering that this
-  // flattened list doesn't carry.
-  const futureAllowOccurrences = useMemo(() => {
+  // Compute booking availability read model using our extracted pure non-React module
+  const availabilityModel = useMemo(() => {
     const nowSec = Math.floor(Date.now() / 1000);
-    const out: { occ: number; dateKey: string }[] = [];
-    for (const slot of allDraftRaws) {
-      if (slot.type !== 'ALLOW') continue;
-      const occurrences = expandRrule(slot.dtstart, slot.rrule);
-      for (const occ of occurrences) {
-        if (slot.exdate.includes(occ)) continue;
-        if (occ <= nowSec) continue;
-        out.push({ occ, dateKey: dayjs(occ * 1000).format('YYYY-MM-DD') });
-      }
-    }
-    return out;
-  }, [allDraftRaws]);
+    return computeBookingAvailability({
+      draftRows: allDraftRaws,
+      nowSec,
+      includeBookedDates,
+    });
+  }, [allDraftRaws, includeBookedDates]);
 
-  // `includeBookedDates` (mentor viewing their own profile only) skips
-  // excluding a date whose only occurrences are already BOOKED, so it stays
-  // selectable and the mentor can pick it to view/manage the existing
-  // reservation (MentorScheduleConfig's "已預約" section + QuickReplyDialog),
-  // the same way a PENDING-only date already was. Every other caller
-  // (mentee/visitor) keeps excluding it: they share this same list to
-  // disable calendar dates, and a fully-booked date has no slot for them to
-  // book, so surfacing it as selectable would just be a dead end.
-  const allowedDates = useMemo(() => {
-    const { bookedStarts } = reservedStarts;
-    const dates = new Set<string>();
-    for (const { occ, dateKey } of futureAllowOccurrences) {
-      if (!includeBookedDates && bookedStarts.has(occ)) continue;
-      dates.add(dateKey);
-    }
-    return Array.from(dates);
-  }, [futureAllowOccurrences, reservedStarts, includeBookedDates]);
+  const { allowedDates, bookingStatusByDate } = availabilityModel;
 
   const generateBookingSlots = useCallback(
     (dateKey: string): BookingSlot[] => {
-      const { bookedStarts, pendingStarts } = reservedStarts;
-      const nowSec = Math.floor(Date.now() / 1000);
-      const result: BookingSlot[] = [];
-
-      for (const slot of allDraftRaws) {
-        if (slot.type !== 'ALLOW') continue;
-
-        const occurrences = expandRrule(slot.dtstart, slot.rrule);
-        const slotDuration = slot.dtend - slot.dtstart;
-
-        for (const occ of occurrences) {
-          if (slot.exdate.includes(occ)) continue;
-          if (occ <= nowSec) continue;
-          if (dayjs(occ * 1000).format('YYYY-MM-DD') !== dateKey) continue;
-
-          const slotStart = occ;
-          const slotEnd = occ + slotDuration;
-          const matchedRes = findMatchedReservation(
-            reservations,
-            slotStart,
-            slotEnd
-          );
-
-          const isBooked = bookedStarts.has(occ);
-          const status = isBooked
-            ? ('BOOKED' as const)
-            : pendingStarts.has(occ)
-              ? ('PENDING' as const)
-              : null;
-          result.push({
-            start: new Date(occ * 1000),
-            end: new Date((occ + slotDuration) * 1000),
-            scheduleId: slot.id,
-            isBooked,
-            status,
-            menteeName: matchedRes?.name,
-            reservation: matchedRes,
-          });
-        }
-      }
-
-      return deduplicateBookingSlots(result);
+      return availabilityModel.generateBookingSlots(
+        dateKey,
+        reservations,
+        Math.floor(Date.now() / 1000)
+      );
     },
-    [allDraftRaws, reservations, reservedStarts]
+    [availabilityModel, reservations]
   );
 
   // Bundles the selected date's slots with the two flags that gate whether
@@ -531,32 +454,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     }),
     [selectedDate, generateBookingSlots, monthLoaded, reservationsLoaded]
   );
-
-  // A dedicated map (rather than reusing generateBookingSlots per date) so
-  // the calendar's per-day-cell status dots don't rescan allDraftRaws and
-  // re-expand every rrule once per visible day (~35-42x a month).
-  const bookingStatusByDate = useMemo(() => {
-    const { bookedStarts, pendingStarts } = reservedStarts;
-    const datesWithPending = new Set<string>();
-    const datesWithBooked = new Set<string>();
-
-    for (const { occ, dateKey } of futureAllowOccurrences) {
-      // Same per-occurrence precedence as generateBookingSlots' `isBooked`
-      // check: if a dtstart were ever claimed by both a BOOKED and a
-      // PENDING row, BOOKED wins here too, so the two stay consistent.
-      if (bookedStarts.has(occ)) {
-        datesWithBooked.add(dateKey);
-      } else if (pendingStarts.has(occ)) {
-        datesWithPending.add(dateKey);
-      }
-    }
-
-    const map = new Map<string, BookingStatus>();
-    datesWithBooked.forEach((dateKey) => map.set(dateKey, 'BOOKED'));
-    // PENDING takes priority over BOOKED for the same date.
-    datesWithPending.forEach((dateKey) => map.set(dateKey, 'PENDING'));
-    return map;
-  }, [futureAllowOccurrences, reservedStarts]);
 
   const getDayBookingStatus: UseMentorScheduleReturn['getDayBookingStatus'] =
     useCallback(
