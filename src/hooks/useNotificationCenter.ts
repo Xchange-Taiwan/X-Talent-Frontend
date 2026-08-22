@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
+import { useIsomorphicLayoutEffect } from '@/hooks/useIsomorphicLayoutEffect';
 import { captureFlowFailure } from '@/lib/monitoring';
 /**
  * --------------------------------------------------------------------------------
@@ -108,7 +109,7 @@ export function useNotificationCenter({
   const [open, setOpen] = React.useState(false);
 
   const sourceRef = React.useRef(notificationSource);
-  React.useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     sourceRef.current = notificationSource;
   }, [notificationSource]);
 
