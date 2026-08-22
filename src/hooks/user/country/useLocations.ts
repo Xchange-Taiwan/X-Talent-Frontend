@@ -1,6 +1,7 @@
 'use client';
 
-import { AsyncReadManager, useAsyncRead } from '@/hooks/useAsyncRead';
+import { useAsyncRead } from '@/hooks/useAsyncRead';
+import { AsyncReadManager } from '@/lib/asyncReadManager';
 import { createKeyedCache } from '@/lib/createKeyedCache';
 import { getCountries } from '@/services/profile/countries';
 import type { LocationType } from '@/types/location';

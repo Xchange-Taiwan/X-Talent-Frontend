@@ -1,13 +1,10 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { AsyncReadManager, AsyncReadResult } from '@/lib/asyncReadManager';
 import { createKeyedCache } from '@/lib/createKeyedCache';
 
-import {
-  AsyncReadManager,
-  AsyncReadResult,
-  useAsyncRead,
-} from './useAsyncRead';
+import { useAsyncRead } from './useAsyncRead';
 
 describe('AsyncReadManager unit tests', () => {
   it('handles loading state, success state, and provides correct result shape', async () => {
