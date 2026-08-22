@@ -28,6 +28,24 @@ vi.mock('@/lib/monitoring', () => ({
 // Uses src/services/notifications/__mocks__/notificationService.ts
 vi.mock('@/services/notifications/notificationService');
 
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason: Error) => void;
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: Error) => void;
+
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+
+  return { promise, resolve, reject };
+}
+
 const mockNotifications: NotificationItem[] = [
   {
     id: 'n1',
@@ -822,15 +840,10 @@ describe('useNotificationCenter', () => {
     });
 
     it('discards a stale mount-time unread count that resolves after a fresher openCenter load', async () => {
-      let resolveMountFetch: (value: { unread_count: number }) => void;
-      const mountFetchPromise = new Promise<{ unread_count: number }>(
-        (resolve) => {
-          resolveMountFetch = resolve;
-        }
-      );
+      const deferredMountFetch = createDeferred<{ unread_count: number }>();
 
       vi.mocked(fetchUnreadCount)
-        .mockReturnValueOnce(mountFetchPromise) // mount-time loadUnreadCount
+        .mockReturnValueOnce(deferredMountFetch.promise) // mount-time loadUnreadCount
         .mockResolvedValue({ unread_count: 9 }); // loadInitialData's own fetchUnreadCount call, once opened
       vi.mocked(listNotifications).mockResolvedValue({
         notifications: mockNotifications,
@@ -858,7 +871,7 @@ describe('useNotificationCenter', () => {
       // Now the slow mount-time fetch resolves with stale data - it must be
       // discarded rather than clobbering the fresher count above.
       await act(async () => {
-        resolveMountFetch({ unread_count: 2 });
+        deferredMountFetch.resolve({ unread_count: 2 });
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
 
@@ -1040,7 +1053,7 @@ describe('useNotificationCenter', () => {
     });
 
     it('ignores a retry that resolves after the hook unmounted', async () => {
-      let resolveRetry: ((items: NotificationItem[]) => void) | undefined;
+      const deferredRetry = createDeferred<NotificationItem[]>();
       const mockSource = {
         getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 0 }),
         listNotifications: vi
@@ -1048,12 +1061,7 @@ describe('useNotificationCenter', () => {
           .mockResolvedValue({ notifications: [], next_cursor: null }),
         markOneRead: vi.fn().mockResolvedValue(undefined),
         markAllRead: vi.fn().mockResolvedValue(undefined),
-        retry: vi.fn(
-          () =>
-            new Promise<NotificationItem[]>((resolve) => {
-              resolveRetry = resolve;
-            })
-        ),
+        retry: vi.fn(() => deferredRetry.promise),
       };
 
       const { result, unmount } = renderHook(() =>
@@ -1073,7 +1081,7 @@ describe('useNotificationCenter', () => {
       unmount();
 
       await act(async () => {
-        resolveRetry?.(mockNotifications);
+        deferredRetry.resolve(mockNotifications);
       });
 
       // The late resolution must not write into the shared store
@@ -1116,6 +1124,298 @@ describe('useNotificationCenter', () => {
       expect(preloadedSource.listNotifications).not.toHaveBeenCalled();
       expect(result.current.items).toEqual([]);
       expect(result.current.hasMore).toBe(false);
+    });
+  });
+
+  describe('NotificationStoreManager Refactoring Specific Tests', () => {
+    beforeEach(() => {
+      resetNotificationStore();
+    });
+
+    it('should deduplicate concurrent fetchInitialDataWithDeduplication calls and clean up promise on completion', async () => {
+      const userId = 'dedup-test-user';
+      const deferred = createDeferred<{
+        unreadCount: number;
+        notifications: NotificationItem[];
+        nextCursor: string | null;
+      }>();
+
+      const mockFetcher = vi.fn().mockImplementation(() => {
+        return deferred.promise;
+      });
+
+      // Issue concurrent calls
+      const p1 = notificationStoreManager.fetchInitialDataWithDeduplication(
+        userId,
+        true,
+        mockFetcher
+      );
+      const p2 = notificationStoreManager.fetchInitialDataWithDeduplication(
+        userId,
+        true,
+        mockFetcher
+      );
+
+      // Verify that fetcher was called only once
+      expect(mockFetcher).toHaveBeenCalledTimes(1);
+
+      // Resolve the fetcher
+      deferred.resolve({
+        unreadCount: 5,
+        notifications: [],
+        nextCursor: null,
+      });
+
+      await Promise.all([p1, p2]);
+
+      // Call it again after completion
+      const p3 = notificationStoreManager.fetchInitialDataWithDeduplication(
+        userId,
+        true,
+        mockFetcher
+      );
+      expect(mockFetcher).toHaveBeenCalledTimes(2);
+      await p3;
+    });
+
+    it('should clean up promise on fetchInitialDataWithDeduplication failure', async () => {
+      const userId = 'fail-cleanup-user';
+      const deferred = createDeferred<{
+        unreadCount: number;
+        notifications: NotificationItem[];
+        nextCursor: string | null;
+      }>();
+
+      const mockFetcher = vi.fn().mockImplementation(() => {
+        return deferred.promise;
+      });
+
+      const p1 = notificationStoreManager.fetchInitialDataWithDeduplication(
+        userId,
+        true,
+        mockFetcher
+      );
+
+      deferred.reject(new Error('Fetch failed'));
+
+      await expect(p1).resolves.toBeUndefined(); // Errors are handled/caught internally, resolving the promise cleanly
+
+      // Call it again - since the previous one failed and was cleaned up, this should trigger a new fetch
+      const p2 = notificationStoreManager.fetchInitialDataWithDeduplication(
+        userId,
+        true,
+        mockFetcher
+      );
+      expect(mockFetcher).toHaveBeenCalledTimes(2);
+      await p2;
+    });
+
+    it('should restore previous state upon calling rollback closure from startMarkAllRead', () => {
+      const userId = 'rollback-user';
+      const initialNotifications: NotificationItem[] = [
+        {
+          id: '1',
+          type: 'reservation_requested',
+          createdAt: 'date',
+          unread: true,
+        },
+      ];
+
+      // Initialize store
+      notificationStoreManager.syncInitialNotifications(
+        userId,
+        initialNotifications,
+        'success'
+      );
+
+      // Start mark all read
+      const { rollback } = notificationStoreManager.startMarkAllRead(userId);
+
+      const stateAfterStart = notificationStoreManager.getOrCreateState(userId);
+      expect(stateAfterStart.unreadCountState).toBe(0);
+      expect(stateAfterStart.notifications[0].unread).toBe(false);
+      expect(stateAfterStart.isMarkingAll).toBe(true);
+
+      // Perform rollback
+      rollback();
+
+      const stateAfterRollback =
+        notificationStoreManager.getOrCreateState(userId);
+      expect(stateAfterRollback.unreadCountState).toBe(1);
+      expect(stateAfterRollback.notifications[0].unread).toBe(true);
+      expect(stateAfterRollback.isMarkingAll).toBe(false);
+    });
+
+    it('should deduplicate concurrent fetchUnreadCountWithDeduplication calls and clean up promise on completion/failure', async () => {
+      const userId = 'unread-dedup-user';
+      const deferred = createDeferred<number>();
+
+      const mockFetcher = vi.fn().mockImplementation(() => {
+        return deferred.promise;
+      });
+
+      // Issue concurrent calls
+      const p1 = notificationStoreManager.fetchUnreadCountWithDeduplication(
+        userId,
+        mockFetcher
+      );
+      const p2 = notificationStoreManager.fetchUnreadCountWithDeduplication(
+        userId,
+        mockFetcher
+      );
+
+      // Verify that fetcher was called only once
+      expect(mockFetcher).toHaveBeenCalledTimes(1);
+
+      // Resolve the fetcher
+      deferred.resolve(8);
+
+      await Promise.all([p1, p2]);
+
+      // Call it again after completion
+      const p3 = notificationStoreManager.fetchUnreadCountWithDeduplication(
+        userId,
+        mockFetcher
+      );
+      expect(mockFetcher).toHaveBeenCalledTimes(2);
+      await p3;
+    });
+
+    it('should clean up promise on fetchUnreadCountWithDeduplication failure', async () => {
+      const userId = 'unread-fail-user';
+      const mockFetcher = vi.fn().mockRejectedValue(new Error('Fetch failed'));
+
+      const p1 = notificationStoreManager.fetchUnreadCountWithDeduplication(
+        userId,
+        mockFetcher
+      );
+
+      // Catch the rejection on p1 to prevent it from leaking to Vitest
+      await p1.catch(() => {});
+
+      // Call it again - since the previous one failed and was cleaned up, this should trigger a new fetch
+      const p2 = notificationStoreManager.fetchUnreadCountWithDeduplication(
+        userId,
+        mockFetcher
+      );
+      expect(mockFetcher).toHaveBeenCalledTimes(2);
+      await p2.catch(() => {});
+    });
+
+    it('should ignore stale fetch results when unreadCountVersion has advanced (stale count protection)', async () => {
+      const userId = 'stale-count-user';
+      const deferred = createDeferred<number>();
+
+      const mockFetcher = vi.fn().mockImplementation(() => {
+        return deferred.promise;
+      });
+
+      // 1. Start fetching unread count
+      const p1 = notificationStoreManager.fetchUnreadCountWithDeduplication(
+        userId,
+        mockFetcher
+      );
+
+      // 2. Before fetcher resolves, update state with newer initial data (which advances the version)
+      notificationStoreManager.setInitialData(userId, 10, [], null);
+
+      const stateAfterInitial =
+        notificationStoreManager.getOrCreateState(userId);
+      expect(stateAfterInitial.unreadCountState).toBe(10);
+
+      // 3. Resolve the slow fetch with a stale unread count (e.g., 3)
+      deferred.resolve(3);
+      await p1;
+
+      // 4. Verify that the stale unread count was discarded and did not overwrite the newer count of 10
+      const stateAfterResolve =
+        notificationStoreManager.getOrCreateState(userId);
+      expect(stateAfterResolve.unreadCountState).toBe(10);
+    });
+
+    it('should restore previous state and clamp count upon failMarkRead', () => {
+      const userId = 'fail-mark-user';
+      const initialNotifications: NotificationItem[] = [
+        {
+          id: 'n1',
+          type: 'reservation_requested',
+          createdAt: 'date',
+          unread: true,
+        },
+      ];
+
+      // Initialize store
+      notificationStoreManager.syncInitialNotifications(
+        userId,
+        initialNotifications,
+        'success'
+      );
+
+      // Start mark read
+      notificationStoreManager.startMarkRead(userId, 'n1');
+
+      const stateAfterStart = notificationStoreManager.getOrCreateState(userId);
+      expect(stateAfterStart.unreadCountState).toBe(0);
+      expect(stateAfterStart.notifications[0].unread).toBe(false);
+
+      // Perform failure rollback
+      notificationStoreManager.failMarkRead(userId, 'n1');
+
+      const stateAfterRollback =
+        notificationStoreManager.getOrCreateState(userId);
+      expect(stateAfterRollback.unreadCountState).toBe(1);
+      expect(stateAfterRollback.notifications[0].unread).toBe(true);
+
+      // Run failMarkRead again - since unread is already true, countDiff should be 0 and badge count shouldn't increase
+      notificationStoreManager.failMarkRead(userId, 'n1');
+      expect(stateAfterRollback.unreadCountState).toBe(1);
+    });
+
+    it('should correctly restore state and count upon startMarkAllRead rollback even when concurrent polling/sync updates the version', () => {
+      const userId = 'concurrent-rollback-user';
+      const initialNotifications: NotificationItem[] = [
+        {
+          id: 'n1',
+          type: 'reservation_requested',
+          createdAt: 'date',
+          unread: true,
+        },
+      ];
+
+      // Initialize store
+      notificationStoreManager.syncInitialNotifications(
+        userId,
+        initialNotifications,
+        'success'
+      );
+
+      // Start mark all read
+      const { rollback } = notificationStoreManager.startMarkAllRead(userId);
+
+      const stateAfterStart = notificationStoreManager.getOrCreateState(userId);
+      expect(stateAfterStart.unreadCountState).toBe(0);
+      expect(stateAfterStart.notifications[0].unread).toBe(false);
+
+      // Simulate concurrent polling/sync updating unreadCountState and version
+      notificationStoreManager.setInitialData(
+        userId,
+        8,
+        initialNotifications,
+        null
+      );
+
+      const stateAfterConcurrent =
+        notificationStoreManager.getOrCreateState(userId);
+      expect(stateAfterConcurrent.unreadCountState).toBe(8);
+
+      // Perform rollback -> Since version has advanced, it must retain the concurrent unread count of 8 rather than overwriting with 1!
+      rollback();
+
+      const stateAfterRollback =
+        notificationStoreManager.getOrCreateState(userId);
+      expect(stateAfterRollback.unreadCountState).toBe(8);
+      // But the notifications in the original list should still be rolled back to unread: true
+      expect(stateAfterRollback.notifications[0].unread).toBe(true);
     });
   });
 });

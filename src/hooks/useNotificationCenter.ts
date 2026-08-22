@@ -81,22 +81,6 @@ export type UseNotificationCenterProps = {
   notificationSource?: NotificationSource;
 };
 
-// Safe structural comparison helper for the render-phase sync
-function areNotificationsChanged(
-  a: NotificationItem[] | undefined,
-  b: NotificationItem[] | undefined
-): boolean {
-  if (a === b) return false;
-  if (!a || !b) return true;
-  if (a.length !== b.length) return true;
-  return a.some(
-    (item, index) =>
-      item.id !== b[index].id ||
-      item.unread !== b[index].unread ||
-      item.type !== b[index].type
-  );
-}
-
 export function useNotificationCenter({
   userId,
   initialStatus = 'success',
@@ -161,17 +145,11 @@ export function useNotificationCenter({
   // Sync initialStatus/initialNotifications prop changes structurally into the shared store
   React.useEffect(() => {
     if (initialNotifications) {
-      const state = notificationStoreManager.getOrCreateState(userId);
-      if (
-        areNotificationsChanged(initialNotifications, state.notifications) ||
-        initialStatus !== state.status
-      ) {
-        notificationStoreManager.updateState(userId, {
-          notifications: initialNotifications,
-          status: initialStatus,
-          unreadCountState: initialNotifications.filter((n) => n.unread).length,
-        });
-      }
+      notificationStoreManager.syncInitialNotifications(
+        userId,
+        initialNotifications,
+        initialStatus
+      );
     }
   }, [initialNotifications, initialStatus, userId]);
 
@@ -224,10 +202,7 @@ export function useNotificationCenter({
       if (state.hasLoadMoreError && !isRetry) return;
       if (state.isFetching) return;
 
-      notificationStoreManager.updateState(userId, {
-        isLoadingMore: true,
-        hasLoadMoreError: false,
-      });
+      notificationStoreManager.startLoadMore(userId);
 
       try {
         const res = await sourceRef.current.listNotifications(
@@ -243,18 +218,14 @@ export function useNotificationCenter({
         );
       } catch (error) {
         console.error('[useNotificationCenter] loadMore failed:', error);
-        notificationStoreManager.updateState(userId, {
-          hasLoadMoreError: true,
-        });
+        notificationStoreManager.failLoadMore(userId);
         toast({
           variant: 'destructive',
           title: '載入失敗',
           description: '無法載入更多通知，請點擊重試',
         });
       } finally {
-        notificationStoreManager.updateState(userId, {
-          isLoadingMore: false,
-        });
+        notificationStoreManager.completeLoadMore(userId);
       }
     },
     [userId, effectiveUserId, shouldSkipFetch, toast]
@@ -295,60 +266,37 @@ export function useNotificationCenter({
   const loadInitialData = React.useCallback(
     async (showLoading = true) => {
       if (shouldSkipFetch) return;
-      const state = notificationStoreManager.getOrCreateState(userId);
 
-      if (state.isFetching) {
-        if (state.fetchPromise) {
-          await state.fetchPromise;
-        }
-        return;
-      }
-
-      const fetchPromise = (async () => {
-        try {
+      await notificationStoreManager.fetchInitialDataWithDeduplication(
+        userId,
+        showLoading,
+        async () => {
           const [unreadRes, notificationsRes] = await Promise.all([
             sourceRef.current.getUnreadCount(effectiveUserId),
             sourceRef.current.listNotifications(effectiveUserId, undefined, 20),
           ]);
-
-          notificationStoreManager.setInitialData(
-            userId,
-            unreadRes.unread_count,
-            (notificationsRes && notificationsRes.notifications) || [],
-            (notificationsRes && notificationsRes.next_cursor) || null
-          );
-        } catch (error) {
+          return {
+            unreadCount: unreadRes.unread_count,
+            notifications:
+              (notificationsRes && notificationsRes.notifications) || [],
+            nextCursor:
+              (notificationsRes && notificationsRes.next_cursor) || null,
+          };
+        },
+        (error, hasExistingNotifications) => {
           console.error(
             '[useNotificationCenter] loadInitialData failed:',
             error
           );
-          const currentNotifications =
-            notificationStoreManager.getOrCreateState(userId).notifications;
-          if (!showLoading || currentNotifications.length > 0) {
+          if (!showLoading || hasExistingNotifications) {
             toast({
               variant: 'destructive',
               title: '更新失敗',
               description: '無法更新最新通知，請稍後再試',
             });
-          } else {
-            notificationStoreManager.updateState(userId, { status: 'error' });
           }
-        } finally {
-          notificationStoreManager.updateState(userId, {
-            isFetching: false,
-            fetchPromise: null,
-          });
         }
-      })();
-
-      // Group isFetching, status and fetchPromise to single updateState
-      notificationStoreManager.updateState(userId, {
-        isFetching: true,
-        ...(showLoading ? { status: 'loading' } : {}),
-        fetchPromise,
-      });
-
-      await fetchPromise;
+      );
     },
     [userId, effectiveUserId, shouldSkipFetch, toast]
   );
@@ -442,7 +390,7 @@ export function useNotificationCenter({
       if (!targetItem || !targetItem.unread) return;
 
       // Perform optimistic single mark read on the store
-      notificationStoreManager.markReadOptimistic(userId, id);
+      notificationStoreManager.startMarkRead(userId, id);
 
       const action =
         onMarkRead ||
@@ -451,26 +399,22 @@ export function useNotificationCenter({
               sourceRef.current.markOneRead(effectiveUserId, notifId)
           : null);
       if (!action) {
-        notificationStoreManager.removeMarkingReadId(userId, id);
+        notificationStoreManager.completeMarkRead(userId, id);
         return;
       }
 
-      notificationStoreManager.updateState(userId, { isPending: true });
       try {
         await action(id);
+        notificationStoreManager.completeMarkRead(userId, id);
       } catch (error) {
         reportMarkAsReadFailure(`mark_read_click:${id}`, error);
 
-        // Roll back only this notification
-        notificationStoreManager.rollbackNotifications(userId, [id]);
+        // Roll back and reset pending
+        notificationStoreManager.failMarkRead(userId, id);
         toast({
           variant: 'destructive',
           title: '操作失敗',
           description: '無法將通知標示為已讀，請稍後再試',
-        });
-      } finally {
-        notificationStoreManager.removeMarkingReadId(userId, id, {
-          isPending: false,
         });
       }
     },
@@ -488,14 +432,9 @@ export function useNotificationCenter({
     if (unreadIds.length === 0 && state.unreadCountState === 0) return;
 
     // Perform optimistic mark all read on the store
-    const {
-      previousNotifications,
-      previousCount,
-      unreadIds: optimUnreadIds,
-      previousIsMarkingAll,
-    } = notificationStoreManager.markAllReadOptimistic(userId);
+    const { unreadIds: optimUnreadIds, rollback } =
+      notificationStoreManager.startMarkAllRead(userId);
 
-    notificationStoreManager.updateState(userId, { isPending: true });
     try {
       if (onMarkAllRead) {
         await onMarkAllRead(optimUnreadIds);
@@ -521,26 +460,19 @@ export function useNotificationCenter({
       reportMarkAsReadFailure('mark_all_read', error);
 
       // Rollback completely on error
-      notificationStoreManager.updateState(userId, {
-        notifications: previousNotifications,
-        unreadCountState: previousCount,
-        isMarkingAll: previousIsMarkingAll,
-      });
+      rollback();
       toast({
         variant: 'destructive',
         title: '操作失敗',
         description: '無法將全部通知標示為已讀，請稍後再試',
       });
     } finally {
-      notificationStoreManager.updateState(userId, {
-        isPending: false,
-        isMarkingAll: false,
-      });
+      notificationStoreManager.completeMarkAllRead(userId);
     }
   }, [userId, effectiveUserId, canMutate, onMarkRead, onMarkAllRead, toast]);
 
   const handleRetry = React.useCallback(() => {
-    notificationStoreManager.updateState(userId, { status: 'loading' });
+    notificationStoreManager.startRetry(userId);
 
     const source = sourceRef.current;
     if (!source.retry) {
@@ -567,7 +499,7 @@ export function useNotificationCenter({
       .catch((error) => {
         if (retryTokenRef.current !== token) return;
         reportFailure('notification_retry', 'source_retry', error);
-        notificationStoreManager.updateState(userId, { status: 'error' });
+        notificationStoreManager.failRetry(userId);
       });
   }, [userId, effectiveUserId, loadInitialData]);
 
