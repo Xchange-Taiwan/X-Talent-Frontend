@@ -233,34 +233,44 @@ class NotificationStoreManager {
 
   /**
    * Domain Action: Roll back a single mark read operation on failure.
-   * Restores the unread state of the notification, increments the unread count,
-   * removes the ID from markingReadIds, and sets isPending to false.
+   * Only restores the unread state of the notification and increments the unread count
+   * if the notification is currently marked as read (unread === false).
+   * Also removes the ID from markingReadIds and sets isPending to false.
    */
   failMarkRead(userId: string | undefined, id: string): void {
     const state = this.getOrCreateState(userId);
     const markingReadIdsCopy = new Set(state.markingReadIds);
     markingReadIdsCopy.delete(id);
 
+    let countDiff = 0;
+    const notifications = state.notifications.map((item) => {
+      if (item.id === id && !item.unread) {
+        countDiff += 1;
+        return { ...item, unread: true };
+      }
+      return item;
+    });
+
     this.updateState(userId, {
       isPending: false,
       markingReadIds: markingReadIdsCopy,
-      notifications: state.notifications.map((item) =>
-        item.id === id ? { ...item, unread: true } : item
-      ),
-      unreadCountState: state.unreadCountState + 1,
+      ...(countDiff > 0
+        ? {
+            notifications,
+            unreadCountState: state.unreadCountState + countDiff,
+          }
+        : {}),
     });
   }
 
   /**
    * Domain Action: Start marking all notifications as read optimistically.
    * Sets isPending and isMarkingAll to true, and marks all notifications as read.
-   * Returns original values for rollback purposes.
+   * Returns unread IDs and a self-contained rollback function, fully encapsulating rollback details.
    */
   startMarkAllRead(userId: string | undefined): {
-    previousNotifications: NotificationItem[];
-    previousCount: number;
     unreadIds: string[];
-    previousIsMarkingAll: boolean;
+    rollback: () => void;
   } {
     const state = this.getOrCreateState(userId);
     const previousNotifications = [...state.notifications];
@@ -281,11 +291,17 @@ class NotificationStoreManager {
       isMarkingAll: true,
     });
 
+    const rollback = () => {
+      this.updateState(userId, {
+        notifications: previousNotifications,
+        unreadCountState: previousCount,
+        isMarkingAll: previousIsMarkingAll,
+      });
+    };
+
     return {
-      previousNotifications,
-      previousCount,
       unreadIds,
-      previousIsMarkingAll,
+      rollback,
     };
   }
 
@@ -555,22 +571,6 @@ class NotificationStoreManager {
         unreadCountState: initialNotifications.filter((n) => n.unread).length,
       });
     }
-  }
-
-  /**
-   * Domain Action: Rollback mark all read completely on error
-   */
-  rollbackMarkAllRead(
-    userId: string | undefined,
-    previousNotifications: NotificationItem[],
-    previousCount: number,
-    previousIsMarkingAll: boolean
-  ) {
-    this.updateState(userId, {
-      notifications: previousNotifications,
-      unreadCountState: previousCount,
-      isMarkingAll: previousIsMarkingAll,
-    });
   }
 }
 

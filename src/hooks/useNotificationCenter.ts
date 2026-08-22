@@ -432,12 +432,8 @@ export function useNotificationCenter({
     if (unreadIds.length === 0 && state.unreadCountState === 0) return;
 
     // Perform optimistic mark all read on the store
-    const {
-      previousNotifications,
-      previousCount,
-      unreadIds: optimUnreadIds,
-      previousIsMarkingAll,
-    } = notificationStoreManager.startMarkAllRead(userId);
+    const { unreadIds: optimUnreadIds, rollback } =
+      notificationStoreManager.startMarkAllRead(userId);
 
     try {
       if (onMarkAllRead) {
@@ -464,12 +460,7 @@ export function useNotificationCenter({
       reportMarkAsReadFailure('mark_all_read', error);
 
       // Rollback completely on error
-      notificationStoreManager.rollbackMarkAllRead(
-        userId,
-        previousNotifications,
-        previousCount,
-        previousIsMarkingAll
-      );
+      rollback();
       toast({
         variant: 'destructive',
         title: '操作失敗',
