@@ -316,11 +316,13 @@ export default function ProfilePageUI({
                     isOwnMentorProfile={isOwnMentorProfile}
                     isUserDataLoading={userLoading || !isIdentityResolved}
                     isAuthenticated={!!loginUserId}
-                    slots={
-                      selectedDate ? generateBookingSlots(selectedDate) : []
-                    }
-                    monthLoaded={schedule.monthLoaded}
-                    reservationsLoaded={schedule.reservationsLoaded}
+                    slotsSnapshot={{
+                      slots: selectedDate
+                        ? generateBookingSlots(selectedDate)
+                        : [],
+                      monthLoaded: schedule.monthLoaded,
+                      reservationsLoaded: schedule.reservationsLoaded,
+                    }}
                     selectedSlot={selectedSlot}
                     setSelectedSlot={setSelectedSlot}
                     isSubmitting={isSubmitting}

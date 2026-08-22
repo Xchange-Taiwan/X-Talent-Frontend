@@ -3,17 +3,14 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import type { BookingSlot } from '@/hooks/useMentorSchedule';
+import type { BookingSlot, SlotsSnapshot } from '@/hooks/useMentorSchedule';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 import type { Reservation } from '@/types/reservation';
 
 import { QuickReplyDialog } from './QuickReplyDialog';
 
 interface MentorScheduleConfigProps {
-  slots: BookingSlot[];
-  monthLoaded: boolean;
-  /** See useMentorSchedule's reservationsLoaded — gates clicking a booked slot. */
-  reservationsLoaded: boolean;
+  slotsSnapshot: SlotsSnapshot;
   onReservation: () => void;
   onBookedSlotClick: () => void;
   myUserId?: string;
@@ -33,14 +30,13 @@ const LoadingIndicator = () => (
 );
 
 export function MentorScheduleConfig({
-  slots,
-  monthLoaded,
-  reservationsLoaded,
+  slotsSnapshot,
   onReservation,
   onBookedSlotClick,
   myUserId,
   onMutationSuccess,
 }: MentorScheduleConfigProps) {
+  const { slots, monthLoaded, reservationsLoaded } = slotsSnapshot;
   // Owned here (the leaf that renders the dialog) rather than lifted to the
   // profile page root: toggling this would otherwise re-render the entire
   // profile tree (banner, calendar, experience/education sections, ...) on

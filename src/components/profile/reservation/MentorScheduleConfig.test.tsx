@@ -68,9 +68,11 @@ describe('MentorScheduleConfig', () => {
   ];
 
   const defaultProps = {
-    slots: mockSlots,
-    monthLoaded: true,
-    reservationsLoaded: true,
+    slotsSnapshot: {
+      slots: mockSlots,
+      monthLoaded: true,
+      reservationsLoaded: true,
+    },
     onReservation: vi.fn(),
     onBookedSlotClick: vi.fn(),
     myUserId: 'user-mentor',
@@ -160,7 +162,10 @@ describe('MentorScheduleConfig', () => {
     render(
       <MentorScheduleConfig
         {...defaultProps}
-        slots={slotsWithoutReservation}
+        slotsSnapshot={{
+          ...defaultProps.slotsSnapshot,
+          slots: slotsWithoutReservation,
+        }}
         onBookedSlotClick={onBookedSlotClick}
       />
     );
@@ -174,7 +179,12 @@ describe('MentorScheduleConfig', () => {
   });
 
   it('renders loading states for both sections when monthLoaded is false', () => {
-    render(<MentorScheduleConfig {...defaultProps} monthLoaded={false} />);
+    render(
+      <MentorScheduleConfig
+        {...defaultProps}
+        slotsSnapshot={{ ...defaultProps.slotsSnapshot, monthLoaded: false }}
+      />
+    );
 
     expect(screen.getByText('已預約')).toBeInTheDocument();
     expect(screen.getByText('當日可預約時段')).toBeInTheDocument();
@@ -189,7 +199,13 @@ describe('MentorScheduleConfig', () => {
     // arrived yet, which would misfire the redirect fallback instead of
     // opening the quick-reply dialog.
     render(
-      <MentorScheduleConfig {...defaultProps} reservationsLoaded={false} />
+      <MentorScheduleConfig
+        {...defaultProps}
+        slotsSnapshot={{
+          ...defaultProps.slotsSnapshot,
+          reservationsLoaded: false,
+        }}
+      />
     );
 
     expect(screen.getByText('已預約')).toBeInTheDocument();
@@ -200,7 +216,12 @@ describe('MentorScheduleConfig', () => {
   });
 
   it('renders empty states for both sections when slots are empty', () => {
-    render(<MentorScheduleConfig {...defaultProps} slots={[]} />);
+    render(
+      <MentorScheduleConfig
+        {...defaultProps}
+        slotsSnapshot={{ ...defaultProps.slotsSnapshot, slots: [] }}
+      />
+    );
 
     expect(screen.getByText('目前無已預約時段')).toBeInTheDocument();
     expect(screen.getByText('無可預約的時段')).toBeInTheDocument();

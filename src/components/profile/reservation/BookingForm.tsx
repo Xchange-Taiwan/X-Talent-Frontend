@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 
 import { Skeleton } from '@/components/ui/skeleton';
-import type { BookingSlot } from '@/hooks/useMentorSchedule';
+import type { BookingSlot, SlotsSnapshot } from '@/hooks/useMentorSchedule';
 
 import { MenteeBookingForm } from './MenteeBookingForm';
 import { MentorScheduleConfig } from './MentorScheduleConfig';
@@ -12,10 +12,7 @@ interface BookingFormProps {
   isOwnMentorProfile: boolean;
   isUserDataLoading: boolean;
   isAuthenticated: boolean;
-  slots: BookingSlot[];
-  monthLoaded: boolean;
-  /** See useMentorSchedule's reservationsLoaded — gates clicking a booked slot. */
-  reservationsLoaded: boolean;
+  slotsSnapshot: SlotsSnapshot;
   selectedSlot: BookingSlot | null;
   setSelectedSlot: (slot: BookingSlot | null) => void;
   isSubmitting: boolean;
@@ -30,9 +27,7 @@ export function BookingForm({
   isOwnMentorProfile,
   isUserDataLoading,
   isAuthenticated,
-  slots,
-  monthLoaded,
-  reservationsLoaded,
+  slotsSnapshot,
   selectedSlot,
   setSelectedSlot,
   isSubmitting,
@@ -43,6 +38,7 @@ export function BookingForm({
   onMutationSuccess,
 }: BookingFormProps) {
   const router = useRouter();
+  const { slots, monthLoaded } = slotsSnapshot;
 
   // Prevent view flash: if userData is loading/unresolved, render a loading skeleton
   if (isUserDataLoading) {
@@ -71,9 +67,7 @@ export function BookingForm({
     <div className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] 2xl:max-w-[414px]">
       {isOwnMentorProfile ? (
         <MentorScheduleConfig
-          slots={slots}
-          monthLoaded={monthLoaded}
-          reservationsLoaded={reservationsLoaded}
+          slotsSnapshot={slotsSnapshot}
           onReservation={onReservation}
           onBookedSlotClick={() => router.push('/reservation/mentor')}
           myUserId={myUserId}
