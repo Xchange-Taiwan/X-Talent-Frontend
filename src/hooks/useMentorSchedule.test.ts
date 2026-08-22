@@ -1351,17 +1351,19 @@ describe('useMentorSchedule', () => {
       });
       mockLoadMonthScheduleFresh.mockReturnValue(schedulePromise);
 
-      const reloadPromise = act(async () => {
-        await result.current.reload?.();
-      });
+      const reloadPromise = result.current.reload?.();
 
       // Change user mid-flight (account switch)
-      rerender({ userId: '456' });
+      act(() => {
+        rerender({ userId: '456' });
+      });
 
       // Resolve the fetch for the OLD user ('123')
       resolveScheduleFetch(reloadedRaws);
 
-      await reloadPromise;
+      await act(async () => {
+        await reloadPromise;
+      });
 
       // Ensure the old user's reloaded data is NOT applied
       expect(result.current.reservations).toEqual([]);
@@ -1419,6 +1421,108 @@ describe('useMentorSchedule', () => {
 
       // Verify the dirty draft is preserved and not discarded or overwritten
       expect(result.current.parsedDraft).toEqual(draftBeforeReload);
+    });
+
+    it('does not apply state update or trigger errors if the component unmounts mid-flight of reload', async () => {
+      mockFetchAllReservationsForState.mockReset();
+      mockLoadMonthScheduleFresh.mockReset();
+
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+
+      // We need a slow promise for reservations and schedule reload
+      let resolveReservations: (
+        val: Awaited<ReturnType<typeof fetchAllReservationsForState>>
+      ) => void = () => {};
+      const resPromise = new Promise<
+        Awaited<ReturnType<typeof fetchAllReservationsForState>>
+      >((resolve) => {
+        resolveReservations = resolve;
+      });
+      mockFetchAllReservationsForState.mockReturnValue(resPromise);
+
+      let resolveSchedule: (val: RawMentorTimeslot[]) => void = () => {};
+      const schedulePromise = new Promise<RawMentorTimeslot[]>((resolve) => {
+        resolveSchedule = resolve;
+      });
+      mockLoadMonthScheduleFresh.mockReturnValue(schedulePromise);
+
+      const { result, unmount } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      const reloadPromise = act(async () => {
+        await result.current.reload?.();
+      });
+
+      // Unmount the component while reload is in-flight
+      unmount();
+
+      // Resolve the fetches
+      resolveReservations([]);
+      resolveSchedule([]);
+
+      await reloadPromise;
+
+      // Ensure no state update warning occurred and state is stable
+      expect(result.current.reservations).toEqual([]);
+    });
+
+    it('does not capture flow failure if reload schedule fails after account has already switched or component unmounted', async () => {
+      mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
+      mockLoadMonthScheduleFresh.mockReset();
+      mockCaptureFlowFailure.mockReset();
+
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+
+      const { result, rerender } = renderHook(
+        ({ userId }) =>
+          useMentorSchedule({
+            backend: { userId, year: 2026, month: 7 },
+            loginUserId: userId,
+          }),
+        { initialProps: { userId: '123' } }
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      // Slow rejected promise
+      let rejectSchedule: (err: Error) => void = () => {};
+      const schedulePromise = new Promise<RawMentorTimeslot[]>((_, reject) => {
+        rejectSchedule = reject;
+      });
+      mockLoadMonthScheduleFresh.mockReturnValue(schedulePromise);
+
+      const reloadPromise = result.current.reload?.();
+
+      // Switch user mid-flight
+      act(() => {
+        rerender({ userId: '456' });
+      });
+
+      // Reject the schedule fetch for the OLD user
+      rejectSchedule(new Error('old user fetch failed'));
+
+      await act(async () => {
+        await reloadPromise;
+      });
+
+      // Verify that captureFlowFailure was NOT called because the user has switched
+      expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
     });
   });
 });
