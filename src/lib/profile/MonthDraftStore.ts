@@ -294,7 +294,12 @@ export class MonthDraftStore {
         .filter((r) => !deletedSlotIds.has(r.id))
         .map((r) => {
           if (r.id > 0 && editedSlotsMap.has(r.id)) {
-            return editedSlotsMap.get(r.id)!;
+            const draftSlot = editedSlotsMap.get(r.id)!;
+            // If the slot's type changed on the backend (e.g. booked/pending), preserve the new backend status and discard local draft edits
+            if (r.type !== draftSlot.type) {
+              return r;
+            }
+            return draftSlot;
           }
           return r;
         });
