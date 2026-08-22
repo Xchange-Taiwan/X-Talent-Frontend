@@ -28,6 +28,24 @@ vi.mock('@/lib/monitoring', () => ({
 // Uses src/services/notifications/__mocks__/notificationService.ts
 vi.mock('@/services/notifications/notificationService');
 
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason: Error) => void;
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: Error) => void;
+
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+
+  return { promise, resolve, reject };
+}
+
 const mockNotifications: NotificationItem[] = [
   {
     id: 'n1',
@@ -822,15 +840,10 @@ describe('useNotificationCenter', () => {
     });
 
     it('discards a stale mount-time unread count that resolves after a fresher openCenter load', async () => {
-      let resolveMountFetch: (value: { unread_count: number }) => void;
-      const mountFetchPromise = new Promise<{ unread_count: number }>(
-        (resolve) => {
-          resolveMountFetch = resolve;
-        }
-      );
+      const deferredMountFetch = createDeferred<{ unread_count: number }>();
 
       vi.mocked(fetchUnreadCount)
-        .mockReturnValueOnce(mountFetchPromise) // mount-time loadUnreadCount
+        .mockReturnValueOnce(deferredMountFetch.promise) // mount-time loadUnreadCount
         .mockResolvedValue({ unread_count: 9 }); // loadInitialData's own fetchUnreadCount call, once opened
       vi.mocked(listNotifications).mockResolvedValue({
         notifications: mockNotifications,
@@ -858,7 +871,7 @@ describe('useNotificationCenter', () => {
       // Now the slow mount-time fetch resolves with stale data - it must be
       // discarded rather than clobbering the fresher count above.
       await act(async () => {
-        resolveMountFetch({ unread_count: 2 });
+        deferredMountFetch.resolve({ unread_count: 2 });
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
 
@@ -1040,7 +1053,7 @@ describe('useNotificationCenter', () => {
     });
 
     it('ignores a retry that resolves after the hook unmounted', async () => {
-      let resolveRetry: ((items: NotificationItem[]) => void) | undefined;
+      const deferredRetry = createDeferred<NotificationItem[]>();
       const mockSource = {
         getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 0 }),
         listNotifications: vi
@@ -1048,12 +1061,7 @@ describe('useNotificationCenter', () => {
           .mockResolvedValue({ notifications: [], next_cursor: null }),
         markOneRead: vi.fn().mockResolvedValue(undefined),
         markAllRead: vi.fn().mockResolvedValue(undefined),
-        retry: vi.fn(
-          () =>
-            new Promise<NotificationItem[]>((resolve) => {
-              resolveRetry = resolve;
-            })
-        ),
+        retry: vi.fn(() => deferredRetry.promise),
       };
 
       const { result, unmount } = renderHook(() =>
@@ -1073,7 +1081,7 @@ describe('useNotificationCenter', () => {
       unmount();
 
       await act(async () => {
-        resolveRetry?.(mockNotifications);
+        deferredRetry.resolve(mockNotifications);
       });
 
       // The late resolution must not write into the shared store
@@ -1126,22 +1134,14 @@ describe('useNotificationCenter', () => {
 
     it('should deduplicate concurrent fetchInitialDataWithDeduplication calls and clean up promise on completion', async () => {
       const userId = 'dedup-test-user';
-      let resolveFetch: (value: {
+      const deferred = createDeferred<{
         unreadCount: number;
         notifications: NotificationItem[];
         nextCursor: string | null;
-      }) => void = () => {};
-
-      const fetcherPromise = new Promise<{
-        unreadCount: number;
-        notifications: NotificationItem[];
-        nextCursor: string | null;
-      }>((resolve) => {
-        resolveFetch = resolve;
-      });
+      }>();
 
       const mockFetcher = vi.fn().mockImplementation(() => {
-        return fetcherPromise;
+        return deferred.promise;
       });
 
       // Issue concurrent calls
@@ -1160,7 +1160,7 @@ describe('useNotificationCenter', () => {
       expect(mockFetcher).toHaveBeenCalledTimes(1);
 
       // Resolve the fetcher
-      resolveFetch({
+      deferred.resolve({
         unreadCount: 5,
         notifications: [],
         nextCursor: null,
@@ -1180,18 +1180,14 @@ describe('useNotificationCenter', () => {
 
     it('should clean up promise on fetchInitialDataWithDeduplication failure', async () => {
       const userId = 'fail-cleanup-user';
-      let rejectFetch: (reason: Error) => void = () => {};
-
-      const fetcherPromise = new Promise<{
+      const deferred = createDeferred<{
         unreadCount: number;
         notifications: NotificationItem[];
         nextCursor: string | null;
-      }>((_, reject) => {
-        rejectFetch = reject;
-      });
+      }>();
 
       const mockFetcher = vi.fn().mockImplementation(() => {
-        return fetcherPromise;
+        return deferred.promise;
       });
 
       const p1 = notificationStoreManager.fetchInitialDataWithDeduplication(
@@ -1200,7 +1196,7 @@ describe('useNotificationCenter', () => {
         mockFetcher
       );
 
-      rejectFetch(new Error('Fetch failed'));
+      deferred.reject(new Error('Fetch failed'));
 
       await expect(p1).resolves.toBeUndefined(); // Errors are handled/caught internally, resolving the promise cleanly
 
@@ -1252,14 +1248,10 @@ describe('useNotificationCenter', () => {
 
     it('should deduplicate concurrent fetchUnreadCountWithDeduplication calls and clean up promise on completion/failure', async () => {
       const userId = 'unread-dedup-user';
-      let resolveFetch: (value: number) => void = () => {};
-
-      const fetcherPromise = new Promise<number>((resolve) => {
-        resolveFetch = resolve;
-      });
+      const deferred = createDeferred<number>();
 
       const mockFetcher = vi.fn().mockImplementation(() => {
-        return fetcherPromise;
+        return deferred.promise;
       });
 
       // Issue concurrent calls
@@ -1276,7 +1268,7 @@ describe('useNotificationCenter', () => {
       expect(mockFetcher).toHaveBeenCalledTimes(1);
 
       // Resolve the fetcher
-      resolveFetch(8);
+      deferred.resolve(8);
 
       await Promise.all([p1, p2]);
 
@@ -1312,14 +1304,10 @@ describe('useNotificationCenter', () => {
 
     it('should ignore stale fetch results when unreadCountVersion has advanced (stale count protection)', async () => {
       const userId = 'stale-count-user';
-      let resolveFetch: (value: number) => void = () => {};
-
-      const fetcherPromise = new Promise<number>((resolve) => {
-        resolveFetch = resolve;
-      });
+      const deferred = createDeferred<number>();
 
       const mockFetcher = vi.fn().mockImplementation(() => {
-        return fetcherPromise;
+        return deferred.promise;
       });
 
       // 1. Start fetching unread count
@@ -1336,7 +1324,7 @@ describe('useNotificationCenter', () => {
       expect(stateAfterInitial.unreadCountState).toBe(10);
 
       // 3. Resolve the slow fetch with a stale unread count (e.g., 3)
-      resolveFetch(3);
+      deferred.resolve(3);
       await p1;
 
       // 4. Verify that the stale unread count was discarded and did not overwrite the newer count of 10
