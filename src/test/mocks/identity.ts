@@ -41,7 +41,9 @@ export function buildResolvedIdentity(
 
   let state: 'unknown' | 'hint-only' | 'confirmed-guest' | 'confirmed-member' =
     'confirmed-guest';
-  if (!base.authKnown) {
+  if (base.state) {
+    state = base.state;
+  } else if (!base.authKnown) {
     state = 'unknown';
   } else if (base.hasFullUser) {
     state = 'confirmed-member';
@@ -88,8 +90,8 @@ export function buildResolvedIdentity(
   }
 
   return {
-    state,
     ...base,
+    state,
   } as ResolvedIdentity;
 }
 
