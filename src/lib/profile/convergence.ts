@@ -181,6 +181,12 @@ export const CONVERGENCE_BUDGET = {
   intervalMs: 5000,
 };
 
+// Fast convergence budget for UI-blocking/Server Action scenarios
+export const FAST_CONVERGENCE_BUDGET = {
+  maxRetries: 6,
+  intervalMs: 2000,
+};
+
 /**
  * One place to decide what happens when the budget is exhausted.
  */

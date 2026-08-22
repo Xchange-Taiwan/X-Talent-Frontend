@@ -4,6 +4,7 @@ import type { MentorProfileVO } from '@/types/user';
 
 import {
   CONVERGENCE_BUDGET,
+  FAST_CONVERGENCE_BUDGET,
   type MentorCardFields,
   ProfileRecordAdapter,
   runConvergence,
@@ -86,8 +87,8 @@ export async function pollUntilSynced(
 export async function pollUntilUserDeleted(
   userId: number,
   name?: string,
-  maxRetries = CONVERGENCE_BUDGET.maxRetries,
-  intervalMs = CONVERGENCE_BUDGET.intervalMs
+  maxRetries = FAST_CONVERGENCE_BUDGET.maxRetries,
+  intervalMs = FAST_CONVERGENCE_BUDGET.intervalMs
 ): Promise<boolean> {
   if (!userId || Number.isNaN(userId)) return true;
 
@@ -107,8 +108,8 @@ export async function pollUntilUserDeleted(
 export async function pollUntilMentorPoolSynced(
   userId: number,
   fields: MentorCardFields,
-  maxRetries = CONVERGENCE_BUDGET.maxRetries,
-  intervalMs = CONVERGENCE_BUDGET.intervalMs
+  maxRetries = FAST_CONVERGENCE_BUDGET.maxRetries,
+  intervalMs = FAST_CONVERGENCE_BUDGET.intervalMs
 ): Promise<boolean> {
   if (!userId || Number.isNaN(userId)) return true;
 

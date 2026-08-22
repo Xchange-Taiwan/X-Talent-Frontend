@@ -503,7 +503,7 @@ describe('confirmProfileSynced', () => {
     const revalidate = vi.fn().mockResolvedValue(undefined);
 
     const promise = confirmProfileSynced(1, fields, true, revalidate);
-    await vi.advanceTimersByTimeAsync(5000);
+    await vi.advanceTimersByTimeAsync(2000);
     await promise;
 
     expect(mockFetchMentors).toHaveBeenCalledTimes(2);
@@ -520,8 +520,8 @@ describe('confirmProfileSynced', () => {
       true,
       revalidate
     );
-    // pollUntilMentorPoolSynced's own default retry budget (12 * 5000ms).
-    await vi.advanceTimersByTimeAsync(5000 * 12);
+    // pollUntilMentorPoolSynced's own default retry budget (6 * 2000ms).
+    await vi.advanceTimersByTimeAsync(2000 * 6);
     await promise;
 
     expect(revalidate).toHaveBeenCalledTimes(1);
@@ -567,7 +567,7 @@ describe('confirmDeletionSynced', () => {
       revalidateProfile,
       revalidateMentorPool,
     ]);
-    await vi.advanceTimersByTimeAsync(5000);
+    await vi.advanceTimersByTimeAsync(2000);
     await promise;
 
     expect(mockFetchMentors).toHaveBeenCalledTimes(2);
