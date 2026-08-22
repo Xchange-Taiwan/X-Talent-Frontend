@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import React, { useState } from 'react';
 
 import type {
+  MentorScheduleEditor,
   ParsedMentorTimeslot,
   UseMentorScheduleReturn,
 } from '@/hooks/useMentorSchedule';
@@ -112,7 +113,7 @@ const defaultScheduleMock: UseMentorScheduleReturn = {
 };
 
 interface DialogWrapperProps {
-  schedule: UseMentorScheduleReturn;
+  schedule: MentorScheduleEditor;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   onMonthChange?: (date: Date) => void;

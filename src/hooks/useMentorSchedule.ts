@@ -95,37 +95,10 @@ export type UpdateDraftSlotResult = {
   reason?: 'OVERLAP' | 'TARGET_MONTH_NOT_LOADED' | 'READ_ONLY';
 };
 
-export type UseMentorScheduleReturn = {
-  /** Sticky: true once any month has resolved. Use this for first-paint skeletons. */
-  loaded: boolean;
-  /** Per-month: false while the *current* (year, month) is being fetched after a cache miss. */
-  monthLoaded: boolean;
-  /**
-   * False while the reservations fetch (which populates each booked slot's
-   * `.reservation`) is in flight — separate from monthLoaded's schedule
-   * fetch. Gate any "click a booked slot" UI on this too: a slot can already
-   * report status PENDING/BOOKED from the schedule fetch while its
-   * `.reservation` is still unset here.
-   */
-  reservationsLoaded: boolean;
-  isFetching: boolean;
+export type MentorScheduleEditor = {
   selectedDate: string | null;
   setSelectedDate: (dateStr: string | null) => void;
-
-  parsedDraft: ParsedMentorTimeslot[];
   draftForSelectedDate: ParsedMentorTimeslot[];
-  /** All local dates (YYYY-MM-DD) that have at least one ALLOW occurrence after expanding rrules. */
-  allowedDates: string[];
-
-  generateBookingSlots: (dateKey: string) => BookingSlot[];
-  /** generateBookingSlots(selectedDate), bundled with monthLoaded and
-   * reservationsLoaded — see SlotsSnapshot. Pass straight through to a
-   * caller like BookingForm instead of re-assembling it at each layer. */
-  slotsSnapshot: SlotsSnapshot;
-
-  /** Rolls up a day's booking slots into a single dot status: PENDING takes priority over an all-BOOKED day. */
-  getDayBookingStatus: (dateKey: string) => BookingStatus | null;
-
   /**
    * Add one ALLOW entry at `startTime` for `durationMinutes`. If
    * `weeklyWithinMonth` is true, the entry is a single row with a weekly
@@ -138,7 +111,6 @@ export type UseMentorScheduleReturn = {
     durationMinutes: SlotDurationMinutes;
     weeklyWithinMonth?: boolean;
   }) => { added: number; skipped: number };
-
   /**
    * Edit a single occurrence. For non-recurring rows this updates the row
    * directly. For recurring rows the targeted occurrence is detached: it is
@@ -153,17 +125,45 @@ export type UseMentorScheduleReturn = {
       durationMinutes?: SlotDurationMinutes;
     }
   ) => UpdateDraftSlotResult;
-
   /**
    * Delete a single occurrence. Non-recurring rows are removed entirely; on
    * recurring rows the occurrence is added to exdate, and the row is removed
    * only when no active occurrences remain.
    */
   deleteDraftSlot: (id: number, occurrenceUnix: number) => void;
-
   confirmChanges: () => Promise<SyncResult>;
   resetChanges: () => void;
+  /** All local dates (YYYY-MM-DD) that have at least one ALLOW occurrence after expanding rrules. */
+  allowedDates: string[];
+  /** Per-month: false while the *current* (year, month) is being fetched after a cache miss. */
+  monthLoaded: boolean;
   reservations: Reservation[];
+};
+
+export type UseMentorScheduleReturn = MentorScheduleEditor & {
+  /** Sticky: true once any month has resolved. Use this for first-paint skeletons. */
+  loaded: boolean;
+  /**
+   * False while the reservations fetch (which populates each booked slot's
+   * `.reservation`) is in flight — separate from monthLoaded's schedule
+   * fetch. Gate any "click a booked slot" UI on this too: a slot can already
+   * report status PENDING/BOOKED from the schedule fetch while its
+   * `.reservation` is still unset here.
+   */
+  reservationsLoaded: boolean;
+  isFetching: boolean;
+
+  parsedDraft: ParsedMentorTimeslot[];
+
+  generateBookingSlots: (dateKey: string) => BookingSlot[];
+  /** generateBookingSlots(selectedDate), bundled with monthLoaded and
+   * reservationsLoaded — see SlotsSnapshot. Pass straight through to a
+   * caller like BookingForm instead of re-assembling it at each layer. */
+  slotsSnapshot: SlotsSnapshot;
+
+  /** Rolls up a day's booking slots into a single dot status: PENDING takes priority over an all-BOOKED day. */
+  getDayBookingStatus: (dateKey: string) => BookingStatus | null;
+
   reload?: () => Promise<void>;
 };
 
