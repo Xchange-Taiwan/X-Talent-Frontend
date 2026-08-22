@@ -88,15 +88,12 @@ function baseProps(
     userData: buildUserData(),
     userLoading: false,
     schedule: sched,
-    scheduleEditor: sched,
     scheduleLoaded: true,
     loginUserId: '',
     isIdentityResolved: false,
     canShowOwnerControls: false,
     avatarSrc: 'https://example.com/avatar.png',
     allowedDates: [],
-    openReservationDialog: false,
-    setOpenReservationDialog: noop,
     onScheduleMonthChange: noop,
     onReservation: noop,
     onEditProfile: noop,
@@ -191,14 +188,14 @@ describe('ProfilePageUI - identity-resolution flash prevention', () => {
     );
   });
 
-  it('never mounts MentorScheduleDialog while canShowOwnerControls is false, regardless of openReservationDialog', () => {
+  it('never mounts MentorScheduleDialog while canShowOwnerControls is false, regardless of editorDialog presence', () => {
     render(
       <ProfilePageUI
         {...baseProps({
           userData: buildUserData({ is_mentor: true }),
           isIdentityResolved: false,
           canShowOwnerControls: false,
-          openReservationDialog: true,
+          editorDialog: undefined,
         })}
       />
     );
@@ -208,13 +205,14 @@ describe('ProfilePageUI - identity-resolution flash prevention', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('mounts MentorScheduleDialog once canShowOwnerControls is true', () => {
+  it('mounts MentorScheduleDialog once canShowOwnerControls is true and editorDialog is provided', () => {
     render(
       <ProfilePageUI
         {...baseProps({
           userData: buildUserData({ is_mentor: true }),
           isIdentityResolved: true,
           canShowOwnerControls: true,
+          editorDialog: <div data-testid="mentor-schedule-dialog" />,
         })}
       />
     );

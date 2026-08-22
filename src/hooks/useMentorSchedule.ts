@@ -145,6 +145,7 @@ export interface BookingCalendarReader {
   slotsSnapshot: SlotsSnapshot;
   getDayBookingStatus: (dateKey: string) => BookingStatus | null;
   monthLoaded: boolean;
+  isFetching: boolean;
   reload?: () => Promise<void>;
 }
 
