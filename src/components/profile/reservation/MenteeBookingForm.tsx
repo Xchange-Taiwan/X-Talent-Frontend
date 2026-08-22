@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import type { BookingSlot } from '@/hooks/useMentorSchedule';
 import { useBookingForm } from '@/hooks/user/reservation/useBookingForm';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
+import { isSlotTaken } from '@/lib/profile/scheduleHelpers';
 import type { BookingFormValues } from '@/schemas/bookingSchema';
 
 import { BOOKED_SLOT_CLASSES, ScheduleSlotList } from './ScheduleSlotList';
@@ -51,6 +52,7 @@ export function MenteeBookingForm({
     !isAuthenticated ||
     !selectedDate ||
     !selectedSlot ||
+    isSlotTaken(selectedSlot) ||
     Object.keys(errors).length > 0;
 
   return (
@@ -64,15 +66,16 @@ export function MenteeBookingForm({
         renderSlot={(slot) => {
           const isSelected =
             selectedSlot?.start.getTime() === slot.start.getTime();
+          const taken = isSlotTaken(slot);
           return (
             <Button
               key={`${slot.scheduleId}_${slot.start.getTime()}`}
               type="button"
               variant={isSelected ? 'default' : 'outline'}
-              disabled={slot.isBooked}
+              disabled={taken}
               onClick={() => setSelectedSlot(slot)}
               className={`h-10 w-full text-sm ${
-                slot.isBooked ? BOOKED_SLOT_CLASSES : ''
+                taken ? BOOKED_SLOT_CLASSES : ''
               }`}
             >
               {formatBookingSlotTime(slot)}
