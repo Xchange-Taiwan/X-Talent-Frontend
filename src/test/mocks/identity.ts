@@ -34,6 +34,11 @@ export function buildResolvedIdentity(
     ...overrides,
   };
 
+  // If isResolvingUser is true, then sessionSettled must be false in our state machine invariants
+  if (base.isResolvingUser) {
+    base.sessionSettled = false;
+  }
+
   let state: 'unknown' | 'hint-only' | 'confirmed-guest' | 'confirmed-member' =
     'confirmed-guest';
   if (!base.authKnown) {
