@@ -79,6 +79,13 @@ export type BookingSlot = {
   reservation?: Reservation;
 };
 
+/**
+ * Shared predicate to check if a booking slot is taken (booked or pending).
+ */
+export function isSlotTaken(slot: BookingSlot): boolean {
+  return slot.isBooked || slot.status === 'BOOKED' || slot.status === 'PENDING';
+}
+
 /** Expand an rrule string from dtstart, returning all occurrence dtstart values (unix seconds). */
 export function expandRrule(
   dtstart: number,
