@@ -274,10 +274,11 @@ class NotificationStoreManager {
     unreadIds: string[];
     rollback: () => void;
   } {
+    const key = getStoreKey(userId);
     const state = this.getOrCreateState(userId);
-    const previousNotifications = [...state.notifications];
     const previousCount = state.unreadCountState;
     const previousIsMarkingAll = state.isMarkingAll;
+    const prevVersion = this.unreadCountVersions.get(key) ?? 0;
 
     const unreadIds = state.notifications
       .filter((item) => item.unread)
@@ -295,6 +296,7 @@ class NotificationStoreManager {
 
     const rollback = () => {
       const currentState = this.getOrCreateState(userId);
+      const currentVersion = this.unreadCountVersions.get(key) ?? 0;
 
       const notifications = currentState.notifications.map((item) => {
         if (unreadIdSet.has(item.id) && !item.unread) {
@@ -303,16 +305,13 @@ class NotificationStoreManager {
         return item;
       });
 
-      // Calculate how many new unread notifications were added concurrently during the API call
-      const previousIdSet = new Set(previousNotifications.map((n) => n.id));
-      const newUnreadCount = currentState.notifications.filter(
-        (n) => !previousIdSet.has(n.id) && n.unread
-      ).length;
-
       this.updateState(userId, {
         notifications,
         isMarkingAll: previousIsMarkingAll,
-        unreadCountState: previousCount + newUnreadCount,
+        unreadCountState:
+          currentVersion === prevVersion
+            ? previousCount
+            : currentState.unreadCountState,
       });
     };
 
@@ -511,7 +510,8 @@ class NotificationStoreManager {
   }
 
   /**
-   * Domain Action: Fetch initial notifications and unread count structurally with deduplication
+   * Domain Action: Fetch initial notifications and unread count structurally with deduplication.
+   * Correctly resets the status to 'success' or 'error' on error, avoiding the loading spinner hanging forever.
    */
   async fetchInitialDataWithDeduplication(
     userId: string | undefined,
@@ -549,9 +549,9 @@ class NotificationStoreManager {
         if (onFailure) {
           onFailure(error, hasExisting);
         }
-        if (showLoading && !hasExisting) {
-          this.updateState(userId, { status: 'error' });
-        }
+        this.updateState(userId, {
+          status: hasExisting ? 'success' : 'error',
+        });
       } finally {
         this.fetchPromises.delete(key);
         this.updateState(userId, {

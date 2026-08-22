@@ -1370,5 +1370,52 @@ describe('useNotificationCenter', () => {
       notificationStoreManager.failMarkRead(userId, 'n1');
       expect(stateAfterRollback.unreadCountState).toBe(1);
     });
+
+    it('should correctly restore state and count upon startMarkAllRead rollback even when concurrent polling/sync updates the version', () => {
+      const userId = 'concurrent-rollback-user';
+      const initialNotifications: NotificationItem[] = [
+        {
+          id: 'n1',
+          type: 'reservation_requested',
+          createdAt: 'date',
+          unread: true,
+        },
+      ];
+
+      // Initialize store
+      notificationStoreManager.syncInitialNotifications(
+        userId,
+        initialNotifications,
+        'success'
+      );
+
+      // Start mark all read
+      const { rollback } = notificationStoreManager.startMarkAllRead(userId);
+
+      const stateAfterStart = notificationStoreManager.getOrCreateState(userId);
+      expect(stateAfterStart.unreadCountState).toBe(0);
+      expect(stateAfterStart.notifications[0].unread).toBe(false);
+
+      // Simulate concurrent polling/sync updating unreadCountState and version
+      notificationStoreManager.setInitialData(
+        userId,
+        8,
+        initialNotifications,
+        null
+      );
+
+      const stateAfterConcurrent =
+        notificationStoreManager.getOrCreateState(userId);
+      expect(stateAfterConcurrent.unreadCountState).toBe(8);
+
+      // Perform rollback -> Since version has advanced, it must retain the concurrent unread count of 8 rather than overwriting with 1!
+      rollback();
+
+      const stateAfterRollback =
+        notificationStoreManager.getOrCreateState(userId);
+      expect(stateAfterRollback.unreadCountState).toBe(8);
+      // But the notifications in the original list should still be rolled back to unread: true
+      expect(stateAfterRollback.notifications[0].unread).toBe(true);
+    });
   });
 });
