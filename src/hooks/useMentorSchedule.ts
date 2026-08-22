@@ -145,6 +145,17 @@ export interface BookingCalendarReader {
   slotsSnapshot: SlotsSnapshot;
   getDayBookingStatus: (dateKey: string) => BookingStatus | null;
   monthLoaded: boolean;
+  /**
+   * False while the reservations fetch (which populates each booked slot's
+   * `.reservation`) is in flight — separate from monthLoaded's schedule
+   * fetch. Gate any "click a booked slot" UI on this too: a slot can already
+   * report status PENDING/BOOKED from the schedule fetch while its
+   * `.reservation` is still unset here. Mirrors monthLoaded: exposed at the
+   * top level (in addition to slotsSnapshot.reservationsLoaded) so a
+   * read-only consumer that needs it directly doesn't have to reach into
+   * slotsSnapshot for one flag but not the other.
+   */
+  reservationsLoaded: boolean;
   isFetching: boolean;
   reload?: () => Promise<void>;
 }
@@ -153,14 +164,6 @@ export type UseMentorScheduleReturn = MentorScheduleEditor &
   BookingCalendarReader & {
     /** Sticky: true once any month has resolved. Use this for first-paint skeletons. */
     loaded: boolean;
-    /**
-     * False while the reservations fetch (which populates each booked slot's
-     * `.reservation`) is in flight — separate from monthLoaded's schedule
-     * fetch. Gate any "click a booked slot" UI on this too: a slot can already
-     * report status PENDING/BOOKED from the schedule fetch while its
-     * `.reservation` is still unset here.
-     */
-    reservationsLoaded: boolean;
     isFetching: boolean;
 
     parsedDraft: ParsedMentorTimeslot[];
