@@ -12,7 +12,6 @@ import type { Reservation } from '@/types/reservation';
 
 export interface BookingAvailabilityParams {
   draftRows: RawMentorTimeslot[];
-  reservations: Reservation[] | undefined;
   nowSec: number;
   includeBookedDates?: boolean;
 }
@@ -20,17 +19,20 @@ export interface BookingAvailabilityParams {
 export interface BookingAvailabilityModel {
   allowedDates: string[];
   bookingStatusByDate: Map<string, BookingStatus>;
-  generateBookingSlots: (dateKey: string) => BookingSlot[];
+  generateBookingSlots: (
+    dateKey: string,
+    currentReservations?: Reservation[],
+    queryNowSec?: number
+  ) => BookingSlot[];
 }
 
 /**
  * Computes the complete booking availability calendar view (read model).
- * Takes active timeslot rows, current reservations, current time, and a view intent,
+ * Takes active timeslot rows, current time, and a view intent,
  * and derives allowedDates, booking statuses per date, and a generator for selected date slots.
  */
 export function computeBookingAvailability({
   draftRows,
-  reservations,
   nowSec,
   includeBookedDates = false,
 }: BookingAvailabilityParams): BookingAvailabilityModel {
@@ -87,8 +89,13 @@ export function computeBookingAvailability({
   );
 
   // 5. Generate slots for a specific selected date
-  const generateBookingSlots = (dateKey: string): BookingSlot[] => {
+  const generateBookingSlots = (
+    dateKey: string,
+    currentReservations?: Reservation[],
+    queryNowSec?: number
+  ): BookingSlot[] => {
     const result: BookingSlot[] = [];
+    const activeNowSec = queryNowSec ?? nowSec;
 
     for (const slot of draftRows) {
       if (slot.type !== 'ALLOW') continue;
@@ -98,13 +105,13 @@ export function computeBookingAvailability({
 
       for (const occ of occurrences) {
         if (slot.exdate.includes(occ)) continue;
-        if (occ <= nowSec) continue;
+        if (occ <= activeNowSec) continue;
         if (dayjs(occ * 1000).format('YYYY-MM-DD') !== dateKey) continue;
 
         const slotStart = occ;
         const slotEnd = occ + slotDuration;
         const matchedRes = findMatchedReservation(
-          reservations,
+          currentReservations,
           slotStart,
           slotEnd
         );
