@@ -423,6 +423,76 @@ describe('MonthDraftStore Unit Tests', () => {
     expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
   });
 
+  it('reloadMonth correctly filters out deleted slots during draft rebase if the month is dirty', () => {
+    const store = new MonthDraftStore();
+
+    const mockRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW',
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+      {
+        id: 102,
+        type: 'ALLOW',
+        dtstart: 1785080000,
+        dtend: 1785081800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+    store.ensureMonthLoaded('2026-07', mockRaws);
+
+    // Trigger dirty by editing slot 101 and deleting slot 102
+    store.edit(101, 1785070000, { startTime: '13:00' }, '123');
+    store.delete(102, 1785080000);
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+
+    const reloadedRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW',
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+      {
+        id: 102,
+        type: 'ALLOW',
+        dtstart: 1785080000,
+        dtend: 1785081800,
+        rrule: undefined,
+        exdate: [],
+      },
+      {
+        id: 103,
+        type: 'BOOKED',
+        dtstart: 1785090000,
+        dtend: 1785091800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    store.reloadMonth('2026-07', reloadedRaws);
+
+    const finalDraft = store.snapshot().draftByMonth.get('2026-07') ?? [];
+
+    // The final draft should contain:
+    // - Slot 101 (clean ALLOW slot)
+    // - Slot 103 (new BOOKED slot from backend)
+    // - But must NOT contain slot 102 (since it was deleted locally!)
+    expect(finalDraft).toHaveLength(2);
+    expect(finalDraft.find((r) => r.id === 101)).toBeDefined();
+    expect(finalDraft.find((r) => r.id === 103)).toBeDefined();
+    expect(finalDraft.find((r) => r.id === 102)).toBeUndefined();
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+  });
+
   it('correctly handles partial failure during commit', () => {
     const store = new MonthDraftStore();
     store.ensureMonthLoaded('2026-07', defaultMockRaws);
