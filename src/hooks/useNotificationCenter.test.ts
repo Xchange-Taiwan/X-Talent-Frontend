@@ -912,6 +912,32 @@ describe('useNotificationCenter', () => {
       }
     });
 
+    it('recomputes the badge count from the fixture source after a retry', async () => {
+      vi.useFakeTimers();
+      try {
+        const { result } = renderHook(() =>
+          useNotificationCenter({
+            userId: 'retry-badge-user',
+            initialNotifications: mockNotifications,
+            initialStatus: 'error',
+          })
+        );
+
+        act(() => {
+          result.current.handleRetry();
+        });
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1000);
+        });
+
+        const expectedUnread = mockNotifications.filter((n) => n.unread).length;
+        expect(result.current.badgeCount).toBe(expectedUnread);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('falls back to a normal reload for a source with no retry handling', async () => {
       vi.mocked(fetchUnreadCount).mockResolvedValue({ unread_count: 1 });
       vi.mocked(listNotifications).mockResolvedValue({
@@ -970,6 +996,11 @@ describe('useNotificationCenter', () => {
         expect(result.current.items).toEqual(mockNotifications);
       });
       expect(mockSource.listNotifications).not.toHaveBeenCalled();
+
+      // Regression: the badge count must be recomputed from what retry
+      // resolved with, not left stale at its pre-retry value.
+      const expectedUnread = mockNotifications.filter((n) => n.unread).length;
+      expect(result.current.badgeCount).toBe(expectedUnread);
     });
 
     it('surfaces the error state when a source retry rejects', async () => {

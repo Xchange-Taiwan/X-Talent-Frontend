@@ -251,13 +251,12 @@ class NotificationStoreManager {
   }
 
   /**
-   * Domain Action: Rollback only specific notifications (e.g. on batch failure)
+   * Domain Action: Rollback specific notifications to unread (e.g. on
+   * mark-read/mark-all-read failure), restoring the unread badge count for
+   * each one rolled back. Callers just name which ids failed - the count
+   * math lives here instead of being re-derived at each call site.
    */
-  rollbackNotifications(
-    userId: string | undefined,
-    ids: string[],
-    unreadCountState?: number
-  ) {
+  rollbackNotifications(userId: string | undefined, ids: string[]) {
     const state = this.getOrCreateState(userId);
     const idSet = new Set(ids);
 
@@ -265,7 +264,7 @@ class NotificationStoreManager {
       notifications: state.notifications.map((item) =>
         idSet.has(item.id) ? { ...item, unread: true } : item
       ),
-      ...(unreadCountState !== undefined ? { unreadCountState } : {}),
+      unreadCountState: state.unreadCountState + ids.length,
     });
   }
 
