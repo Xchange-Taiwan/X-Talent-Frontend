@@ -4,6 +4,11 @@ import type {
   NotificationStatus,
 } from '@/services/notifications/types';
 
+export type {
+  NotificationItem,
+  NotificationStatus,
+} from '@/services/notifications/types';
+
 // Pure helper functions for key generation
 export const getStoreKey = (userId?: string): string => userId || 'generic';
 
