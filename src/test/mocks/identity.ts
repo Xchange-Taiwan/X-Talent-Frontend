@@ -44,6 +44,44 @@ export function buildResolvedIdentity(
     state = 'hint-only';
   }
 
+  // Force align fields to be strictly compliant with the state's discriminated union definition
+  switch (state) {
+    case 'unknown':
+      base.userId = undefined;
+      base.avatar = undefined;
+      base.isMentor = false;
+      base.isLoggedIn = false;
+      base.hasFullUser = false;
+      base.isResolvingUser = false;
+      base.authKnown = false;
+      base.sessionSettled = false;
+      break;
+    case 'hint-only':
+      base.userId = undefined;
+      base.hasFullUser = false;
+      base.isResolvingUser = true;
+      base.isLoggedIn = true;
+      base.authKnown = true;
+      base.sessionSettled = false;
+      break;
+    case 'confirmed-guest':
+      base.userId = undefined;
+      base.avatar = undefined;
+      base.isMentor = false;
+      base.isLoggedIn = false;
+      base.hasFullUser = false;
+      base.isResolvingUser = false;
+      base.authKnown = true;
+      break;
+    case 'confirmed-member':
+      base.isLoggedIn = true;
+      base.hasFullUser = true;
+      base.isResolvingUser = false;
+      base.authKnown = true;
+      base.sessionSettled = true;
+      break;
+  }
+
   return {
     state,
     ...base,
