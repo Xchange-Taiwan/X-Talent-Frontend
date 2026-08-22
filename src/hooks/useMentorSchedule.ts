@@ -432,11 +432,7 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
 
   const generateBookingSlots = useCallback(
     (dateKey: string): BookingSlot[] => {
-      return availabilityModel.generateBookingSlots(
-        dateKey,
-        reservations,
-        Math.floor(Date.now() / 1000)
-      );
+      return availabilityModel.generateBookingSlots(dateKey, reservations);
     },
     [availabilityModel, reservations]
   );
