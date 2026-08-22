@@ -12,5 +12,3 @@ export type NotificationItem = {
   unread?: boolean;
   role?: 'mentor' | 'mentee';
 };
-
-export type NotificationStatus = 'loading' | 'error' | 'empty' | 'success';

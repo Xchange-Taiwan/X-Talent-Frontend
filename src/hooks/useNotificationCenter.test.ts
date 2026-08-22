@@ -530,6 +530,74 @@ describe('useNotificationCenter', () => {
         expect(mockSource.markAllRead).toHaveBeenCalledWith('di-user');
       });
     });
+
+    it('should dynamically update to use the latest notificationSource reference when prop updates on rerender', async () => {
+      const mockSource1 = {
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 5 }),
+        listNotifications: vi
+          .fn()
+          .mockResolvedValue({ notifications: [], next_cursor: null }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const mockSource2 = {
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 10 }),
+        listNotifications: vi.fn().mockResolvedValue({
+          notifications: mockNotifications,
+          next_cursor: null,
+        }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const { result, rerender } = renderHook(
+        ({ source }) =>
+          useNotificationCenter({
+            userId: 'di-dynamic-user',
+            notificationSource: source,
+          }),
+        { initialProps: { source: mockSource1 } }
+      );
+
+      // Initially should use source1
+      await waitFor(() => {
+        expect(mockSource1.getUnreadCount).toHaveBeenCalledWith(
+          'di-dynamic-user'
+        );
+        expect(result.current.badgeCount).toBe(5);
+      });
+
+      // Rerender with source2
+      rerender({ source: mockSource2 });
+
+      // Now open the center, which should trigger listNotifications on source2
+      act(() => {
+        result.current.openCenter();
+      });
+
+      await waitFor(() => {
+        expect(mockSource2.listNotifications).toHaveBeenCalledWith(
+          'di-dynamic-user',
+          undefined,
+          20
+        );
+        expect(mockSource1.listNotifications).not.toHaveBeenCalled();
+      });
+
+      // Mark single read should trigger on source2
+      act(() => {
+        result.current.markRead('n1');
+      });
+
+      await waitFor(() => {
+        expect(mockSource2.markOneRead).toHaveBeenCalledWith(
+          'di-dynamic-user',
+          'n1'
+        );
+        expect(mockSource1.markOneRead).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe('lazy list loading (real fetch path, no initialNotifications)', () => {
