@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { components } from '@/types/api';
+
 import {
   fetchUnreadCount,
   listNotifications,
@@ -58,5 +60,41 @@ describe('httpNotificationSource', () => {
     await httpNotificationSource.markAllRead('user-123');
 
     expect(markAllRead).toHaveBeenCalledWith('user-123');
+  });
+
+  it('should return unread_count as 0 if fetchUnreadCount returns nullish values', async () => {
+    vi.mocked(fetchUnreadCount).mockResolvedValue(undefined);
+    let res = await httpNotificationSource.getUnreadCount('user-123');
+    expect(res).toStrictEqual({ unread_count: 0 });
+
+    vi.mocked(fetchUnreadCount).mockResolvedValue(
+      {} as unknown as components['schemas']['UnreadNotificationCountVO']
+    );
+    res = await httpNotificationSource.getUnreadCount('user-123');
+    expect(res).toStrictEqual({ unread_count: 0 });
+
+    vi.mocked(fetchUnreadCount).mockResolvedValue(
+      null as unknown as components['schemas']['UnreadNotificationCountVO']
+    );
+    res = await httpNotificationSource.getUnreadCount('user-123');
+    expect(res).toStrictEqual({ unread_count: 0 });
+  });
+
+  it('should propagate errors from listNotifications', async () => {
+    const error = new Error('Network error');
+    vi.mocked(listNotifications).mockRejectedValue(error);
+
+    await expect(
+      httpNotificationSource.listNotifications('user-123', null, 20)
+    ).rejects.toThrow('Network error');
+  });
+
+  it('should propagate errors from markOneRead', async () => {
+    const error = new Error('Auth error');
+    vi.mocked(markOneRead).mockRejectedValue(error);
+
+    await expect(
+      httpNotificationSource.markOneRead('user-123', 'notif-111')
+    ).rejects.toThrow('Auth error');
   });
 });

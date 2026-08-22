@@ -1,11 +1,10 @@
-import type { NotificationItem } from '@/stores/notificationStore';
-
 import {
   fetchUnreadCount,
   listNotifications,
   markAllRead,
   markOneRead,
 } from './notificationService';
+import type { NotificationItem } from './types';
 
 export interface NotificationSource {
   getUnreadCount(userId: string): Promise<{ unread_count: number }>;
