@@ -1,0 +1,38 @@
+import type { NotificationItem } from '@/stores/notificationStore';
+
+import {
+  fetchUnreadCount,
+  listNotifications,
+  markAllRead,
+  markOneRead,
+} from './notificationService';
+
+export interface NotificationSource {
+  getUnreadCount(userId: string): Promise<{ unread_count: number }>;
+  listNotifications(
+    userId: string,
+    cursor?: string | null,
+    limit?: number
+  ): Promise<{
+    notifications: NotificationItem[];
+    next_cursor: string | null;
+  }>;
+  markOneRead(userId: string, notificationId: string): Promise<unknown>;
+  markAllRead(userId: string): Promise<unknown>;
+}
+
+export const httpNotificationSource: NotificationSource = {
+  async getUnreadCount(userId: string) {
+    const res = await fetchUnreadCount(userId);
+    return { unread_count: (res && res.unread_count) ?? 0 };
+  },
+  listNotifications(userId: string, cursor?: string | null, limit?: number) {
+    return listNotifications(userId, cursor, limit);
+  },
+  markOneRead(userId: string, notificationId: string) {
+    return markOneRead(userId, notificationId);
+  },
+  markAllRead(userId: string) {
+    return markAllRead(userId);
+  },
+};
