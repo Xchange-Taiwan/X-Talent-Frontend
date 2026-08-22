@@ -2,72 +2,79 @@
 
 import { useEffect, useState } from 'react';
 
+import { AsyncReadManager, useAsyncRead } from '@/hooks/useAsyncRead';
+import { createKeyedCache } from '@/lib/createKeyedCache';
 import { AnnouncementData, fetchAnnouncement } from '@/services/announcement';
 
 const DISMISSED_STORAGE_KEY = 'announcement-dismissed';
 
+export const announcementCache = createKeyedCache<
+  string,
+  AnnouncementData | null
+>();
+export const announcementReadManager = new AsyncReadManager<
+  string,
+  AnnouncementData | null
+>(announcementCache);
+
 export function useAnnouncement() {
-  const [data, setData] = useState<AnnouncementData | null>(null);
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem(DISMISSED_STORAGE_KEY) === 'true';
+  });
+
+  const { data, isLoading, error } = useAsyncRead(
+    announcementReadManager,
+    dismissed ? null : 'global',
+    (signal) => fetchAnnouncement(signal)
+  );
+
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    // 1. Check session storage synchronously
-    const dismissed = sessionStorage.getItem(DISMISSED_STORAGE_KEY) === 'true';
-    if (dismissed) {
+    if (dismissed || !data || !data.enabled || !data.message) {
+      setVisible(false);
       return;
     }
 
-    // 2. Fetch using our service
+    const now = Date.now();
+    let isExpired = false;
+    let timeRemaining = 0;
+
+    if (data.maintenanceTime) {
+      const maintenanceDate = new Date(data.maintenanceTime);
+      if (!isNaN(maintenanceDate.getTime())) {
+        timeRemaining = maintenanceDate.getTime() - now;
+        isExpired = timeRemaining <= 0;
+      }
+    }
+
+    // If maintenance time has already passed, don't show
+    if (isExpired) {
+      setVisible(false);
+      return;
+    }
+
+    setVisible(true);
+
+    // Set a timeout to automatically hide when maintenance time starts
     let timer: ReturnType<typeof setTimeout> | undefined;
-
-    fetchAnnouncement()
-      .then((announcement) => {
-        if (!announcement || !announcement.enabled || !announcement.message) {
-          return;
-        }
-
-        const now = Date.now();
-        let isExpired = false;
-        let timeRemaining = 0;
-
-        if (announcement.maintenanceTime) {
-          const maintenanceDate = new Date(announcement.maintenanceTime);
-          if (!isNaN(maintenanceDate.getTime())) {
-            timeRemaining = maintenanceDate.getTime() - now;
-            isExpired = timeRemaining <= 0;
-          }
-        }
-
-        // If maintenance time has already passed, don't show
-        if (isExpired) {
-          return;
-        }
-
-        setData(announcement);
-        setVisible(true);
-
-        // 3. Set a timeout to automatically hide when maintenance time starts.
-        // setTimeout's delay is a 32-bit signed int (max ~24.8 days) — beyond
-        // that it wraps and fires immediately, so skip scheduling in that case.
-        if (timeRemaining > 0 && timeRemaining <= 2147483647) {
-          timer = setTimeout(() => {
-            setVisible(false);
-          }, timeRemaining);
-        }
-      })
-      .catch((err) => {
-        console.error('Error in useAnnouncement:', err);
-      });
+    if (timeRemaining > 0 && timeRemaining <= 2147483647) {
+      timer = setTimeout(() => {
+        setVisible(false);
+      }, timeRemaining);
+    }
 
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, []);
+  }, [data, dismissed]);
 
   const handleDismiss = () => {
     sessionStorage.setItem(DISMISSED_STORAGE_KEY, 'true');
+    setDismissed(true);
     setVisible(false);
   };
 
-  return { visible, data, handleDismiss };
+  return { visible, data, handleDismiss, isLoading, error };
 }

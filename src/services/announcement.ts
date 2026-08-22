@@ -6,10 +6,13 @@ export interface AnnouncementData {
   maintenanceTime: string;
 }
 
-export async function fetchAnnouncement(): Promise<AnnouncementData | null> {
+export async function fetchAnnouncement(
+  signal?: AbortSignal
+): Promise<AnnouncementData | null> {
   const res = await apiClient.get<AnnouncementData>('/api/announcement', {
     auth: false,
     isLocal: true,
+    signal,
   });
   return res || null;
 }
