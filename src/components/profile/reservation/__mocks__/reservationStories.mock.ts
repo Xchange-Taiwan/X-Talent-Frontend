@@ -1,4 +1,4 @@
-import type { BookingSlot } from '@/hooks/useMentorSchedule';
+import type { BookingSlot } from '@/lib/profile/bookingAvailability';
 
 const now = new Date();
 

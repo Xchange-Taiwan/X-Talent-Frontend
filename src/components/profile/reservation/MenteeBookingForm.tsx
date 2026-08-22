@@ -4,8 +4,8 @@ import { Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import type { BookingSlot } from '@/hooks/useMentorSchedule';
 import { useBookingForm } from '@/hooks/user/reservation/useBookingForm';
+import type { BookingSlot } from '@/lib/profile/bookingAvailability';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 import { isSlotTaken } from '@/lib/profile/scheduleHelpers';
 import type { BookingFormValues } from '@/schemas/bookingSchema';

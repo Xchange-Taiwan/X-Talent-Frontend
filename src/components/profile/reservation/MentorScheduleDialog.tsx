@@ -24,11 +24,13 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
-import {
-  MentorScheduleEditor,
-  SlotDurationMinutes,
-} from '@/hooks/useMentorSchedule';
 import { trackEvent } from '@/lib/analytics';
+import {
+  DtType,
+  MentorScheduleEditor,
+  ParsedMentorTimeslot,
+  SlotDurationMinutes,
+} from '@/lib/profile/bookingAvailability';
 import {
   defaultFormForDate,
   DURATION_OPTIONS,
@@ -38,10 +40,8 @@ import {
   snapMinute,
 } from '@/lib/profile/scheduleFormatters';
 import {
-  DtType,
   findMatchedReservation,
   isReadOnlyVirtualSlot,
-  ParsedMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
 import { cn } from '@/lib/utils';
 

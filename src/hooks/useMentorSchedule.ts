@@ -15,15 +15,19 @@ import {
 } from 'react';
 
 import { captureFlowFailure } from '@/lib/monitoring';
-import { computeBookingAvailability } from '@/lib/profile/bookingAvailability';
+import {
+  BookingCalendarReader,
+  BookingSlot,
+  computeBookingAvailability,
+  MentorScheduleEditor,
+  ParsedMentorTimeslot,
+  SlotsSnapshot,
+} from '@/lib/profile/bookingAvailability';
 import { MonthDraftStore } from '@/lib/profile/MonthDraftStore';
 import {
-  BookingSlot,
-  BookingStatus,
   formatTimeslot,
   MonthKey,
   monthKeyFromYearMonth,
-  ParsedMentorTimeslot,
   parseMonthKey,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
@@ -38,27 +42,6 @@ import {
 } from '@/services/mentor-schedule/sync';
 import { fetchAllReservationsForState } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
-
-export type {
-  BookingSlot,
-  BookingStatus,
-  ParsedMentorTimeslot,
-} from '@/lib/profile/scheduleHelpers';
-export { expandRrule } from '@/lib/profile/scheduleHelpers';
-
-/**
- * The selected date's booking slots, bundled with the two loading flags
- * that gate whether it's safe to render/interact with them (`monthLoaded`
- * for `slots` itself, `reservationsLoaded` for each slot's `.reservation`).
- * These three always travel together from useMentorSchedule down through
- * BookingForm to MentorScheduleConfig, so they're grouped into one prop
- * instead of three separately-threaded ones.
- */
-export interface SlotsSnapshot {
-  slots: BookingSlot[];
-  monthLoaded: boolean;
-  reservationsLoaded: boolean;
-}
 
 // useEffect runs after paint, so on an account switch there's a window where
 // the browser can paint one frame of the new userId alongside the previous
@@ -85,80 +68,6 @@ type Options = {
    */
   includeBookedDates?: boolean;
 };
-
-export type SlotDurationMinutes = 30 | 45 | 60;
-
-export type UpdateDraftSlotResult = {
-  success: boolean;
-  reason?: 'OVERLAP' | 'TARGET_MONTH_NOT_LOADED' | 'READ_ONLY';
-};
-
-export type MentorScheduleEditor = {
-  selectedDate: string | null;
-  setSelectedDate: (dateStr: string | null) => void;
-  draftForSelectedDate: ParsedMentorTimeslot[];
-  /**
-   * Add one ALLOW entry at `startTime` for `durationMinutes`. If
-   * `weeklyWithinMonth` is true, the entry is a single row with a weekly
-   * `FREQ=WEEKLY;COUNT=N` rrule covering every same-weekday date remaining in
-   * the selected date's month; otherwise it's a non-recurring row. Returns
-   * counts of created occurrences so callers can show "added N, skipped M".
-   */
-  addSlotForSelectedDate: (opts: {
-    startTime: string; // HH:mm
-    durationMinutes: SlotDurationMinutes;
-    weeklyWithinMonth?: boolean;
-  }) => { added: number; skipped: number };
-  /**
-   * Edit a single occurrence. For non-recurring rows this updates the row
-   * directly. For recurring rows the targeted occurrence is detached: it is
-   * added to the parent's exdate and a new non-recurring row is created with
-   * the patch applied — leaving sibling occurrences untouched.
-   */
-  updateDraftSlot: (
-    id: number,
-    occurrenceUnix: number,
-    patch: {
-      startTime?: string; // HH:mm
-      durationMinutes?: SlotDurationMinutes;
-    }
-  ) => UpdateDraftSlotResult;
-  /**
-   * Delete a single occurrence. Non-recurring rows are removed entirely; on
-   * recurring rows the occurrence is added to exdate, and the row is removed
-   * only when no active occurrences remain.
-   */
-  deleteDraftSlot: (id: number, occurrenceUnix: number) => void;
-  confirmChanges: () => Promise<SyncResult>;
-  resetChanges: () => void;
-  /** All local dates (YYYY-MM-DD) that have at least one ALLOW occurrence after expanding rrules. */
-  allowedDates: string[];
-  /** Per-month: false while the *current* (year, month) is being fetched after a cache miss. */
-  monthLoaded: boolean;
-  reservations: Reservation[];
-};
-
-export interface BookingCalendarReader {
-  selectedDate: string | null;
-  setSelectedDate: (dateKey: string | null) => void;
-  allowedDates: string[];
-  slotsSnapshot: SlotsSnapshot;
-  getDayBookingStatus: (dateKey: string) => BookingStatus | null;
-  monthLoaded: boolean;
-  /**
-   * False while the reservations fetch (which populates each booked slot's
-   * `.reservation`) is in flight — separate from monthLoaded's schedule
-   * fetch. Gate any "click a booked slot" UI on this too: a slot can already
-   * report status PENDING/BOOKED from the schedule fetch while its
-   * `.reservation` is still unset here. Mirrors monthLoaded: exposed at the
-   * top level (in addition to slotsSnapshot.reservationsLoaded) so a
-   * read-only consumer that needs it directly doesn't have to reach into
-   * slotsSnapshot for one flag but not the other.
-   */
-  reservationsLoaded: boolean;
-  isFetching: boolean;
-  reload?: () => Promise<void>;
-}
 
 export function useMentorSchedule(opts: Options): MentorScheduleEditor &
   BookingCalendarReader & {

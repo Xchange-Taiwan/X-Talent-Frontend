@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   MentorScheduleEditor,
   ParsedMentorTimeslot,
-} from '@/hooks/useMentorSchedule';
+} from '@/lib/profile/bookingAvailability';
 import { mockToast } from '@/test/mocks/useToast';
 
 import MentorScheduleDialog from './MentorScheduleDialog';
