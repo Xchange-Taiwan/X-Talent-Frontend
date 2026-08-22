@@ -488,6 +488,25 @@ describe('apiClient', () => {
       expect(result).toEqual({ type: 'maintenance' });
     });
 
+    it('returns failure outcome mapping network errors to FETCH_ERROR', async () => {
+      mockFetch.mockRejectedValue(new Error('Network Failed'));
+
+      const result = await apiClient.requestUnwrapped<unknown>(
+        'GET',
+        '/v1/test',
+        undefined,
+        {
+          auth: false,
+        }
+      );
+
+      expect(result).toEqual({
+        type: 'failure',
+        code: 'FETCH_ERROR',
+        message: 'Network Failed',
+      });
+    });
+
     it('supports all HTTP verbs successfully', async () => {
       mockFetch.mockResolvedValue(
         new Response(
@@ -619,6 +638,24 @@ describe('apiClient', () => {
 
       const result = await fetchServerJson<string>('/v1/test');
       expect(result).toBe('ssr-data');
+    });
+
+    it('throws ApiError when 503 maintenance mode response is received on server-side and throwOnMaintenance is false (backward compatibility)', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            msg: 'Service Under Maintenance',
+          }),
+          {
+            status: 503,
+            headers: new Headers({ 'X-Maintenance-Mode': '1' }),
+          }
+        )
+      );
+
+      await expect(apiClient.get('/v1/test', { auth: false })).rejects.toThrow(
+        ApiError
+      );
     });
   });
 
