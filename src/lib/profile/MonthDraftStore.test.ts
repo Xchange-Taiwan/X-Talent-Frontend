@@ -350,6 +350,51 @@ describe('MonthDraftStore Unit Tests', () => {
     expect(snap.dirtyMonths.size).toBe(0);
   });
 
+  it('reloadMonth updates savedByMonth, and updates draftByMonth if not dirty, but preserves draftByMonth if dirty', () => {
+    const store = new MonthDraftStore();
+    store.ensureMonthLoaded('2026-07', defaultMockRaws);
+
+    const reloadedRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW',
+        dtstart: 1785075000,
+        dtend: 1785076800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    // Case 1: Clean month
+    store.reloadMonth('2026-07', reloadedRaws);
+    expect(store.snapshot().savedByMonth.get('2026-07')).toEqual(reloadedRaws);
+    expect(store.snapshot().draftByMonth.get('2026-07')).toEqual(reloadedRaws);
+
+    // Case 2: Dirty month
+    // Trigger dirty
+    store.edit(101, 1785075000, { startTime: '13:00' }, '123');
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+
+    const updatedRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW',
+        dtstart: 1785079000,
+        dtend: 1785081000,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    const draftBeforeReload = store.snapshot().draftByMonth.get('2026-07');
+    store.reloadMonth('2026-07', updatedRaws);
+    expect(store.snapshot().savedByMonth.get('2026-07')).toEqual(updatedRaws);
+    expect(store.snapshot().draftByMonth.get('2026-07')).toEqual(
+      draftBeforeReload
+    );
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+  });
+
   it('correctly handles partial failure during commit', () => {
     const store = new MonthDraftStore();
     store.ensureMonthLoaded('2026-07', defaultMockRaws);
