@@ -1,8 +1,8 @@
 import { apiClient, FetchApiError } from '@/lib/apiClient';
-import type { NotificationItem } from '@/stores/notificationStore';
 import { components } from '@/types/api';
 
 import { mapNotificationVOToItem } from './notificationMapper';
+import type { NotificationItem } from './types';
 
 /**
  * Fetches total unread count from the backend API.
