@@ -41,7 +41,7 @@ describe('useLocations', () => {
 
     expect(result.current.locations).toEqual(mockData);
     expect(getCountries).toHaveBeenCalledTimes(1);
-    expect(getCountries).toHaveBeenCalledWith('zh_TW');
+    expect(getCountries).toHaveBeenCalledWith('zh_TW', expect.any(AbortSignal));
   });
 
   it('uses cached data synchronously on subsequent renders', async () => {
@@ -220,7 +220,10 @@ describe('useLocations', () => {
     });
     expect(result.current.locations).toEqual(zhData);
     expect(getCountries).toHaveBeenCalledTimes(1);
-    expect(getCountries).toHaveBeenLastCalledWith('zh_TW');
+    expect(getCountries).toHaveBeenLastCalledWith(
+      'zh_TW',
+      expect.any(AbortSignal)
+    );
 
     // Change language dynamically to en_US
     rerender('en_US');
@@ -236,7 +239,10 @@ describe('useLocations', () => {
     });
     expect(result.current.locations).toEqual(enData);
     expect(getCountries).toHaveBeenCalledTimes(2);
-    expect(getCountries).toHaveBeenLastCalledWith('en_US');
+    expect(getCountries).toHaveBeenLastCalledWith(
+      'en_US',
+      expect.any(AbortSignal)
+    );
   });
 
   it('clears the previous error state immediately when shifting to a cached language', async () => {
