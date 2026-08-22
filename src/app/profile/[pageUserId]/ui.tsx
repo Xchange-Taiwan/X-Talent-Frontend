@@ -9,16 +9,11 @@ import {
 } from '@/components/profile/experience-section/ExperienceSection';
 import { ProfileBanner } from '@/components/profile/profile-banner';
 import { BookingForm } from '@/components/profile/reservation/BookingForm';
-import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
 import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalendar';
 import { platformLabelMap } from '@/components/profile/social-links/platformLabelMap';
 import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
 import { Button } from '@/components/ui/button';
-import {
-  BookingCalendarReader,
-  BookingSlot,
-  UseMentorScheduleReturn,
-} from '@/hooks/useMentorSchedule';
+import { BookingCalendarReader, BookingSlot } from '@/hooks/useMentorSchedule';
 import { UserType } from '@/hooks/user/user-data/useUserData';
 import {
   formatSelectedDate,
@@ -36,15 +31,12 @@ interface Props {
   userData: UserType | null;
   userLoading: boolean;
   schedule: BookingCalendarReader;
-  scheduleEditor?: UseMentorScheduleReturn;
   scheduleLoaded: boolean;
   loginUserId: string;
   isIdentityResolved: boolean;
   canShowOwnerControls: boolean;
   avatarSrc: string | StaticImageData;
   allowedDates: string[];
-  openReservationDialog: boolean;
-  setOpenReservationDialog: (open: boolean) => void;
   onScheduleMonthChange: (date: Date) => void;
   onReservation: () => void;
   onEditProfile: () => void;
@@ -53,21 +45,19 @@ interface Props {
   setSelectedSlot: (slot: BookingSlot | null) => void;
   isSubmitting: boolean;
   onConfirmReservation: (question?: string) => Promise<boolean>;
+  editorDialog?: React.ReactNode;
 }
 
 export default function ProfilePageUI({
   userData,
   userLoading,
   schedule,
-  scheduleEditor,
   scheduleLoaded,
   loginUserId,
   isIdentityResolved,
   canShowOwnerControls,
   avatarSrc,
   allowedDates,
-  openReservationDialog,
-  setOpenReservationDialog,
   onScheduleMonthChange,
   onReservation,
   onEditProfile,
@@ -76,6 +66,7 @@ export default function ProfilePageUI({
   setSelectedSlot,
   isSubmitting,
   onConfirmReservation,
+  editorDialog,
 }: Props) {
   const { selectedDate, setSelectedDate, getDayBookingStatus } = schedule;
 
@@ -324,14 +315,7 @@ export default function ProfilePageUI({
                     myUserId={loginUserId}
                     onMutationSuccess={schedule.reload}
                   />
-                  {userData && canShowOwnerControls && scheduleEditor && (
-                    <MentorScheduleDialog
-                      open={openReservationDialog}
-                      onOpenChange={setOpenReservationDialog}
-                      schedule={scheduleEditor}
-                      onMonthChange={onScheduleMonthChange}
-                    />
-                  )}
+                  {editorDialog}
                 </div>
               )}
             </div>
