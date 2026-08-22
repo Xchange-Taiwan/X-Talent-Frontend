@@ -25,8 +25,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
 import {
+  MentorScheduleEditor,
   SlotDurationMinutes,
-  UseMentorScheduleReturn,
 } from '@/hooks/useMentorSchedule';
 import { trackEvent } from '@/lib/analytics';
 import {
@@ -73,7 +73,7 @@ export default function MentorScheduleDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  schedule: UseMentorScheduleReturn;
+  schedule: MentorScheduleEditor;
   onMonthChange?: (date: Date) => void;
 }) {
   const {

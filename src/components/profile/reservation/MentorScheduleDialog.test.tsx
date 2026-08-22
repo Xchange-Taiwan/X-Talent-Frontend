@@ -1,7 +1,11 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { UseMentorScheduleReturn } from '@/hooks/useMentorSchedule';
+import {
+  MentorScheduleEditor,
+  ParsedMentorTimeslot,
+} from '@/hooks/useMentorSchedule';
 import { mockToast } from '@/test/mocks/useToast';
 
 import MentorScheduleDialog from './MentorScheduleDialog';
@@ -25,9 +29,9 @@ vi.mock('@/lib/analytics', () => ({
   trackEvent: vi.fn(),
 }));
 
-const mockDraftForSelectedDate = [
+const mockDraftForSelectedDate: ParsedMentorTimeslot[] = [
   // 1. Regular ALLOW slot (can edit/delete)
-  {
+  fromPartial({
     id: 1,
     occurrenceId: 'occ-1',
     occurrenceUnix: 1785000000,
@@ -35,9 +39,9 @@ const mockDraftForSelectedDate = [
     end: new Date('2026-07-26T10:30:00'),
     durationMinutes: 30,
     type: 'ALLOW',
-  },
+  }),
   // 2. ALLOW slot with BOOKED reservation (triggers BOOKED prompt)
-  {
+  fromPartial({
     id: 2,
     occurrenceId: 'occ-2',
     occurrenceUnix: 1785010000,
@@ -45,10 +49,10 @@ const mockDraftForSelectedDate = [
     end: new Date('2026-07-26T11:30:00'),
     durationMinutes: 30,
     type: 'ALLOW',
-  },
+  }),
   // Backend-synthesized read-only placeholder (id < 0) — not a real
   // mentor_availability row, per X-Talent-Backend PR #44.
-  {
+  fromPartial({
     id: -22,
     occurrenceId: 'occ--22',
     occurrenceUnix: 1785010000,
@@ -56,9 +60,9 @@ const mockDraftForSelectedDate = [
     end: new Date('2026-07-26T11:30:00'),
     durationMinutes: 30,
     type: 'BOOKED',
-  },
+  }),
   // 3. ALLOW slot with PENDING reservation (triggers PENDING prompt)
-  {
+  fromPartial({
     id: 3,
     occurrenceId: 'occ-3',
     occurrenceUnix: 1785020000,
@@ -66,10 +70,10 @@ const mockDraftForSelectedDate = [
     end: new Date('2026-07-26T12:30:00'),
     durationMinutes: 30,
     type: 'ALLOW',
-  },
+  }),
   // Backend-synthesized read-only placeholder (id < 0) — not a real
   // mentor_availability row, per X-Talent-Backend PR #44.
-  {
+  fromPartial({
     id: -33,
     occurrenceId: 'occ--33',
     occurrenceUnix: 1785020000,
@@ -77,25 +81,22 @@ const mockDraftForSelectedDate = [
     end: new Date('2026-07-26T12:30:00'),
     durationMinutes: 30,
     type: 'PENDING',
-  },
+  }),
 ];
 
-const mockSchedule = {
-  loaded: true,
+const mockSchedule: MentorScheduleEditor = {
   monthLoaded: true,
-  isFetching: false,
   selectedDate: '2026-07-26',
   setSelectedDate: vi.fn(),
-  parsedDraft: [],
   draftForSelectedDate: mockDraftForSelectedDate,
   allowedDates: ['2026-07-26'],
-  generateBookingSlots: vi.fn(),
   addSlotForSelectedDate: vi.fn().mockReturnValue({ added: 1, skipped: 0 }),
   updateDraftSlot: vi.fn().mockReturnValue({ success: true }),
   deleteDraftSlot: vi.fn(),
   confirmChanges: vi.fn().mockResolvedValue({ ok: true }),
   resetChanges: vi.fn(),
-} as unknown as UseMentorScheduleReturn;
+  reservations: [],
+};
 
 describe('MentorScheduleDialog', () => {
   beforeEach(() => {
@@ -329,10 +330,10 @@ describe('MentorScheduleDialog', () => {
       return { success: false, reason: 'TARGET_MONTH_NOT_LOADED' };
     });
 
-    const mockScheduleWithError = {
+    const mockScheduleWithError: MentorScheduleEditor = {
       ...mockSchedule,
       updateDraftSlot: mockUpdateDraftSlotWithError,
-    } as unknown as UseMentorScheduleReturn;
+    };
 
     render(
       <MentorScheduleDialog
@@ -363,10 +364,10 @@ describe('MentorScheduleDialog', () => {
       return { success: false }; // returns success: false without reason
     });
 
-    const mockScheduleWithError = {
+    const mockScheduleWithError: MentorScheduleEditor = {
       ...mockSchedule,
       updateDraftSlot: mockUpdateDraftSlotWithError,
-    } as unknown as UseMentorScheduleReturn;
+    };
 
     render(
       <MentorScheduleDialog
@@ -397,10 +398,10 @@ describe('MentorScheduleDialog', () => {
       return { success: false, reason: 'READ_ONLY' };
     });
 
-    const mockScheduleWithError = {
+    const mockScheduleWithError: MentorScheduleEditor = {
       ...mockSchedule,
       updateDraftSlot: mockUpdateDraftSlotWithError,
-    } as unknown as UseMentorScheduleReturn;
+    };
 
     render(
       <MentorScheduleDialog
@@ -428,7 +429,7 @@ describe('MentorScheduleDialog', () => {
 
   it('populates the matched mentee name and does not leak it into an unrelated prompt after closing', () => {
     const bookedSlot = mockDraftForSelectedDate[1]!; // id: 2, ALLOW slot at 11:00-11:30 backing the BOOKED placeholder
-    const mockScheduleWithReservation = {
+    const mockScheduleWithReservation: MentorScheduleEditor = {
       ...mockSchedule,
       reservations: [
         {
@@ -446,7 +447,7 @@ describe('MentorScheduleDialog', () => {
           version: 0,
         },
       ],
-    } as unknown as UseMentorScheduleReturn;
+    };
 
     render(
       <MentorScheduleDialog
@@ -488,12 +489,12 @@ describe('MentorScheduleDialog', () => {
   });
 
   it('does not treat a positive-id BOOKED/PENDING row as a read-only blocker (only id < 0 counts)', () => {
-    const mockScheduleWithPositiveId = {
+    const mockScheduleWithPositiveId: MentorScheduleEditor = {
       ...mockSchedule,
       draftForSelectedDate: mockDraftForSelectedDate.map((s) =>
         s.type === 'BOOKED' ? { ...s, id: Math.abs(s.id) } : s
       ),
-    } as unknown as UseMentorScheduleReturn;
+    };
 
     render(
       <MentorScheduleDialog
