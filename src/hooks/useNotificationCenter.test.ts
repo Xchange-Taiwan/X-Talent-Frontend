@@ -638,6 +638,9 @@ describe('useNotificationCenter', () => {
       });
 
       expect(result.current.items[0].unread).toBe(true); // Rolled back to unread: true
+      // Regression: the optimistic decrement must be restored on rollback,
+      // not just the item's unread flag.
+      expect(result.current.badgeCount).toBe(5);
       expect(mockSource.markOneRead).toHaveBeenCalledWith(
         'di-error-user',
         'n1'
