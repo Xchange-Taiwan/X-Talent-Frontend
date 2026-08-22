@@ -1289,6 +1289,62 @@ describe('useNotificationCenter', () => {
       await p3;
     });
 
+    it('should clean up promise on fetchUnreadCountWithDeduplication failure', async () => {
+      const userId = 'unread-fail-user';
+      const mockFetcher = vi.fn().mockRejectedValue(new Error('Fetch failed'));
+
+      const p1 = notificationStoreManager.fetchUnreadCountWithDeduplication(
+        userId,
+        mockFetcher
+      );
+
+      // Catch the rejection on p1 to prevent it from leaking to Vitest
+      await p1.catch(() => {});
+
+      // Call it again - since the previous one failed and was cleaned up, this should trigger a new fetch
+      const p2 = notificationStoreManager.fetchUnreadCountWithDeduplication(
+        userId,
+        mockFetcher
+      );
+      expect(mockFetcher).toHaveBeenCalledTimes(2);
+      await p2.catch(() => {});
+    });
+
+    it('should ignore stale fetch results when unreadCountVersion has advanced (stale count protection)', async () => {
+      const userId = 'stale-count-user';
+      let resolveFetch: (value: number) => void = () => {};
+
+      const fetcherPromise = new Promise<number>((resolve) => {
+        resolveFetch = resolve;
+      });
+
+      const mockFetcher = vi.fn().mockImplementation(() => {
+        return fetcherPromise;
+      });
+
+      // 1. Start fetching unread count
+      const p1 = notificationStoreManager.fetchUnreadCountWithDeduplication(
+        userId,
+        mockFetcher
+      );
+
+      // 2. Before fetcher resolves, update state with newer initial data (which advances the version)
+      notificationStoreManager.setInitialData(userId, 10, [], null);
+
+      const stateAfterInitial =
+        notificationStoreManager.getOrCreateState(userId);
+      expect(stateAfterInitial.unreadCountState).toBe(10);
+
+      // 3. Resolve the slow fetch with a stale unread count (e.g., 3)
+      resolveFetch(3);
+      await p1;
+
+      // 4. Verify that the stale unread count was discarded and did not overwrite the newer count of 10
+      const stateAfterResolve =
+        notificationStoreManager.getOrCreateState(userId);
+      expect(stateAfterResolve.unreadCountState).toBe(10);
+    });
+
     it('should restore previous state and clamp count upon failMarkRead', () => {
       const userId = 'fail-mark-user';
       const initialNotifications: NotificationItem[] = [
