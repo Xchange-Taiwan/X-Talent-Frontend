@@ -108,7 +108,9 @@ export function useNotificationCenter({
   const [open, setOpen] = React.useState(false);
 
   const sourceRef = React.useRef(notificationSource);
-  sourceRef.current = notificationSource;
+  React.useEffect(() => {
+    sourceRef.current = notificationSource;
+  }, [notificationSource]);
 
   const isUsingProps = initialNotifications !== undefined;
 
