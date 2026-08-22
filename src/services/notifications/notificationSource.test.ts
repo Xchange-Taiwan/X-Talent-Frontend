@@ -148,6 +148,68 @@ describe('createFixtureNotificationSource', () => {
     expect(listRes.notifications[0].unread).toBe(false);
   });
 
+  it('should declare itself preloaded and auth-free, unlike the HTTP source', () => {
+    const source = createFixtureNotificationSource([]);
+
+    expect(source.isPreloaded).toBe(true);
+    expect(source.requiresAuth).toBe(false);
+    expect(httpNotificationSource.isPreloaded).toBe(false);
+    expect(httpNotificationSource.requiresAuth).toBe(true);
+  });
+
+  it('should expose a retry that resolves with the current list after a simulated delay', async () => {
+    vi.useFakeTimers();
+    try {
+      const notifications = [
+        {
+          id: 'r1',
+          type: 'reservation_requested' as const,
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+      ];
+      const source = createFixtureNotificationSource(notifications);
+
+      const pending = source.retry?.('user-123');
+      expect(pending).toBeDefined();
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      await expect(pending).resolves.toEqual(notifications);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should reflect prior mutations in what retry resolves with', async () => {
+    vi.useFakeTimers();
+    try {
+      const source = createFixtureNotificationSource([
+        {
+          id: 'r1',
+          type: 'reservation_requested' as const,
+          createdAt: new Date().toISOString(),
+          unread: true,
+        },
+      ]);
+
+      await source.markAllRead('user-123');
+
+      const pending = source.retry?.('user-123');
+      await vi.advanceTimersByTimeAsync(1000);
+
+      await expect(pending).resolves.toEqual([
+        expect.objectContaining({ id: 'r1', unread: false }),
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should leave the HTTP source without source-specific retry handling', () => {
+    expect(httpNotificationSource.retry).toBeUndefined();
+  });
+
   it('should mark all notifications as read', async () => {
     const mockNotifications = [
       {

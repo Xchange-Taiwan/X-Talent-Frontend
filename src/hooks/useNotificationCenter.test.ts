@@ -882,4 +882,206 @@ describe('useNotificationCenter', () => {
       expect(result.current.badgeCount).toBe(0);
     });
   });
+  describe('retry (delegated to the installed notification source)', () => {
+    it('restores the list from a preloaded source after its simulated delay', async () => {
+      vi.useFakeTimers();
+      try {
+        const { result } = renderHook(() =>
+          useNotificationCenter({
+            userId: 'retry-fixture-user',
+            initialNotifications: mockNotifications,
+            initialStatus: 'error',
+          })
+        );
+
+        expect(result.current.status).toBe('error');
+
+        act(() => {
+          result.current.handleRetry();
+        });
+        expect(result.current.status).toBe('loading');
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1000);
+        });
+
+        expect(result.current.status).toBe('success');
+        expect(result.current.items).toEqual(mockNotifications);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('falls back to a normal reload for a source with no retry handling', async () => {
+      vi.mocked(fetchUnreadCount).mockResolvedValue({ unread_count: 1 });
+      vi.mocked(listNotifications).mockResolvedValue({
+        notifications: mockNotifications,
+        next_cursor: null,
+      });
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({ userId: 'retry-http-user' })
+      );
+
+      await waitFor(() => {
+        expect(result.current.badgeCount).toBe(1);
+      });
+      vi.mocked(listNotifications).mockClear();
+
+      act(() => {
+        result.current.handleRetry();
+      });
+
+      await waitFor(() => {
+        expect(listNotifications).toHaveBeenCalledWith(
+          'retry-http-user',
+          undefined,
+          20
+        );
+        expect(result.current.status).toBe('success');
+      });
+    });
+
+    it('routes retry through a custom source that provides one', async () => {
+      const mockSource = {
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 0 }),
+        listNotifications: vi
+          .fn()
+          .mockResolvedValue({ notifications: [], next_cursor: null }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+        retry: vi.fn().mockResolvedValue(mockNotifications),
+      };
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({
+          userId: 'retry-di-user',
+          notificationSource: mockSource,
+        })
+      );
+
+      act(() => {
+        result.current.handleRetry();
+      });
+
+      await waitFor(() => {
+        expect(mockSource.retry).toHaveBeenCalledWith('retry-di-user');
+        expect(result.current.status).toBe('success');
+        expect(result.current.items).toEqual(mockNotifications);
+      });
+      expect(mockSource.listNotifications).not.toHaveBeenCalled();
+    });
+
+    it('surfaces the error state when a source retry rejects', async () => {
+      const mockSource = {
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 0 }),
+        listNotifications: vi
+          .fn()
+          .mockResolvedValue({ notifications: [], next_cursor: null }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+        retry: vi.fn().mockRejectedValue(new Error('Mock retry failure')),
+      };
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({
+          userId: 'retry-di-error-user',
+          notificationSource: mockSource,
+        })
+      );
+
+      act(() => {
+        result.current.handleRetry();
+      });
+
+      await waitFor(() => {
+        expect(result.current.status).toBe('error');
+      });
+      expect(captureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'notification_retry',
+          step: 'source_retry',
+        })
+      );
+    });
+
+    it('ignores a retry that resolves after the hook unmounted', async () => {
+      let resolveRetry: ((items: NotificationItem[]) => void) | undefined;
+      const mockSource = {
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 0 }),
+        listNotifications: vi
+          .fn()
+          .mockResolvedValue({ notifications: [], next_cursor: null }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+        retry: vi.fn(
+          () =>
+            new Promise<NotificationItem[]>((resolve) => {
+              resolveRetry = resolve;
+            })
+        ),
+      };
+
+      const { result, unmount } = renderHook(() =>
+        useNotificationCenter({
+          userId: 'retry-unmount-user',
+          notificationSource: mockSource,
+        })
+      );
+
+      act(() => {
+        result.current.handleRetry();
+      });
+      await waitFor(() => {
+        expect(mockSource.retry).toHaveBeenCalled();
+      });
+
+      unmount();
+
+      await act(async () => {
+        resolveRetry?.(mockNotifications);
+      });
+
+      // The late resolution must not write into the shared store
+      const state =
+        notificationStoreManager.getOrCreateState('retry-unmount-user');
+      expect(state.status).toBe('loading');
+      expect(state.notifications).toEqual([]);
+    });
+  });
+
+  describe('preloaded sources (fixture data injected via a custom source)', () => {
+    it('never drives fetches into a source that declares itself preloaded', async () => {
+      const preloadedSource = {
+        isPreloaded: true,
+        requiresAuth: false,
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 3 }),
+        listNotifications: vi.fn().mockResolvedValue({
+          notifications: mockNotifications,
+          next_cursor: '20',
+        }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({
+          userId: 'preloaded-user',
+          notificationSource: preloadedSource,
+        })
+      );
+
+      act(() => {
+        result.current.openCenter();
+      });
+      await act(async () => {
+        await result.current.loadMore();
+      });
+
+      expect(preloadedSource.getUnreadCount).not.toHaveBeenCalled();
+      expect(preloadedSource.listNotifications).not.toHaveBeenCalled();
+      expect(result.current.items).toEqual([]);
+      expect(result.current.hasMore).toBe(false);
+    });
+  });
 });
