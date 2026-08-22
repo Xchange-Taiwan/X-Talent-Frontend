@@ -1,13 +1,9 @@
 import { safeGetStorage, safeSetStorage } from '@/lib/storage';
-import type {
-  NotificationItem,
-  NotificationStatus,
-} from '@/services/notifications/types';
+import type { NotificationItem } from '@/services/notifications/types';
 
-export type {
-  NotificationItem,
-  NotificationStatus,
-} from '@/services/notifications/types';
+export type { NotificationItem } from '@/services/notifications/types';
+
+export type NotificationStatus = 'loading' | 'error' | 'empty' | 'success';
 
 // Pure helper functions for key generation
 export const getStoreKey = (userId?: string): string => userId || 'generic';

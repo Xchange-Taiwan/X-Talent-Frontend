@@ -12,12 +12,10 @@ import {
   httpNotificationSource,
   type NotificationSource,
 } from '@/services/notifications/notificationSource';
-import type {
-  NotificationItem,
-  NotificationStatus,
-} from '@/services/notifications/types';
+import type { NotificationItem } from '@/services/notifications/types';
 import {
   createInitialState,
+  type NotificationStatus,
   notificationStoreManager,
 } from '@/stores/notificationStore';
 
@@ -110,9 +108,7 @@ export function useNotificationCenter({
   const [open, setOpen] = React.useState(false);
 
   const sourceRef = React.useRef(notificationSource);
-  React.useEffect(() => {
-    sourceRef.current = notificationSource;
-  }, [notificationSource]);
+  sourceRef.current = notificationSource;
 
   const isUsingProps = initialNotifications !== undefined;
 
@@ -257,7 +253,7 @@ export function useNotificationCenter({
       async () => {
         try {
           const res = await sourceRef.current.getUnreadCount(userId);
-          return (res && res.unread_count) || 0;
+          return res.unread_count;
         } catch (error) {
           reportFailure(
             'notification_load_unread_count',
@@ -293,7 +289,7 @@ export function useNotificationCenter({
 
           notificationStoreManager.setInitialData(
             userId,
-            (unreadRes && unreadRes.unread_count) || 0,
+            unreadRes.unread_count,
             (notificationsRes && notificationsRes.notifications) || [],
             (notificationsRes && notificationsRes.next_cursor) || null
           );
