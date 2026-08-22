@@ -288,4 +288,344 @@ describe('computeBookingAvailability', () => {
     const slots = model.generateBookingSlots('2026-05-01', []);
     expect(slots).toHaveLength(1);
   });
+
+  describe('generateBookingSlots (relocated)', () => {
+    it('returns empty slots if no ALLOW slots exist', () => {
+      const model = computeBookingAvailability({
+        draftRows: [],
+        nowSec: 1782864000, // 2026-07-01T00:00:00Z
+      });
+      const slots = model.generateBookingSlots('2026-07-26');
+      expect(slots).toEqual([]);
+    });
+
+    it('correctly maps ALLOW, BOOKED, and PENDING statuses', () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'ALLOW' as const,
+          dtstart: 1785073600,
+          dtend: 1785075400,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 103,
+          type: 'BOOKED' as const,
+          dtstart: 1785073600,
+          dtend: 1785075400,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 104,
+          type: 'ALLOW' as const,
+          dtstart: 1785077200,
+          dtend: 1785079000,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 105,
+          type: 'PENDING' as const,
+          dtstart: 1785077200,
+          dtend: 1785079000,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+
+      const model = computeBookingAvailability({
+        draftRows: mockRaws,
+        nowSec: 1782864000, // 2026-07-01T00:00:00Z
+      });
+
+      const slots = model.generateBookingSlots('2026-07-26');
+      expect(slots).toHaveLength(3);
+
+      // Slot 1: ALLOW (unreserved)
+      expect(slots[0].isBooked).toBe(false);
+      expect(slots[0].status).toBeNull();
+
+      // Slot 2: BOOKED
+      expect(slots[1].isBooked).toBe(true);
+      expect(slots[1].status).toBe('BOOKED');
+
+      // Slot 3: PENDING
+      expect(slots[2].isBooked).toBe(false);
+      expect(slots[2].status).toBe('PENDING');
+    });
+  });
+
+  describe('getDayBookingStatus (relocated)', () => {
+    it('returns null when the date has no ALLOW slots', () => {
+      const model = computeBookingAvailability({
+        draftRows: [],
+        nowSec: 1782864000, // 2026-07-01T00:00:00Z
+      });
+      expect(model.bookingStatusByDate.get('2026-07-26') ?? null).toBeNull();
+    });
+
+    it('returns null when slots exist but are all open (unreserved)', () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const model = computeBookingAvailability({
+        draftRows: mockRaws,
+        nowSec: 1782864000,
+      });
+      expect(model.bookingStatusByDate.get('2026-07-26') ?? null).toBeNull();
+    });
+
+    it('returns BOOKED when every reserved slot on the date is BOOKED', () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const model = computeBookingAvailability({
+        draftRows: mockRaws,
+        nowSec: 1782864000,
+      });
+      expect(model.bookingStatusByDate.get('2026-07-26') ?? null).toBe(
+        'BOOKED'
+      );
+    });
+
+    it('returns PENDING when the date has a mix of PENDING and BOOKED slots', () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 103,
+          type: 'ALLOW' as const,
+          dtstart: 1785073600,
+          dtend: 1785075400,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 104,
+          type: 'PENDING' as const,
+          dtstart: 1785073600,
+          dtend: 1785075400,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const model = computeBookingAvailability({
+        draftRows: mockRaws,
+        nowSec: 1782864000,
+      });
+      expect(model.bookingStatusByDate.get('2026-07-26') ?? null).toBe(
+        'PENDING'
+      );
+    });
+
+    it("resolves a dtstart claimed by both a BOOKED and a PENDING row as BOOKED, matching deduplicateBookingSlots' precedence", () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 103,
+          type: 'PENDING' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const model = computeBookingAvailability({
+        draftRows: mockRaws,
+        nowSec: 1782864000,
+      });
+      expect(model.bookingStatusByDate.get('2026-07-26') ?? null).toBe(
+        'BOOKED'
+      );
+    });
+
+    it('returns null for an occurrence that already started before now, even if it is BOOKED', () => {
+      const pastDtstart = Math.floor(
+        new Date('2026-06-01T10:00:00Z').getTime() / 1000
+      );
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: pastDtstart,
+          dtend: pastDtstart + 1800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: pastDtstart,
+          dtend: pastDtstart + 1800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const model = computeBookingAvailability({
+        draftRows: mockRaws,
+        nowSec: 1782864000, // 2026-07-01T00:00:00Z
+      });
+      expect(model.bookingStatusByDate.get('2026-06-01') ?? null).toBeNull();
+    });
+  });
+
+  describe('allowedDates (relocated)', () => {
+    it('excludes a date whose only occurrence is already BOOKED by default (mentee/visitor-safe)', () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const model = computeBookingAvailability({
+        draftRows: mockRaws,
+        nowSec: 1782864000, // 2026-07-01T00:00:00Z
+        includeBookedDates: false,
+      });
+      expect(model.allowedDates).not.toContain('2026-07-26');
+    });
+
+    it('includes a date whose only occurrence is already BOOKED when includeBookedDates is true, so the mentor can still select it to manage the reservation', () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const model = computeBookingAvailability({
+        draftRows: mockRaws,
+        nowSec: 1782864000, // 2026-07-01T00:00:00Z
+        includeBookedDates: true,
+      });
+      expect(model.allowedDates).toContain('2026-07-26');
+    });
+
+    it('still includes a date with a mix of BOOKED and open occurrences by default', () => {
+      const mockRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 102,
+          type: 'BOOKED' as const,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          rrule: undefined,
+          exdate: [],
+        },
+        {
+          id: 103,
+          type: 'ALLOW' as const,
+          dtstart: 1785073600,
+          dtend: 1785075400,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      const model = computeBookingAvailability({
+        draftRows: mockRaws,
+        nowSec: 1782864000, // 2026-07-01T00:00:00Z
+        includeBookedDates: false,
+      });
+      expect(model.allowedDates).toContain('2026-07-26');
+    });
+
+    it('excludes a date with no ALLOW occurrences at all', () => {
+      const model = computeBookingAvailability({
+        draftRows: [],
+        nowSec: 1782864000, // 2026-07-01T00:00:00Z
+      });
+      expect(model.allowedDates).not.toContain('2026-07-26');
+    });
+  });
 });
