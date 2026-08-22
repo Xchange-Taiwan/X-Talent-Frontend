@@ -168,7 +168,9 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
   const { backend, loginUserId, includeBookedDates = false } = opts;
 
   const backendRef = useRef(backend);
-  backendRef.current = backend;
+  useIsomorphicLayoutEffect(() => {
+    backendRef.current = backend;
+  }, [backend]);
 
   // External standalone MonthDraftStore for cross-month states and synchronization logic
   const [store] = useState(

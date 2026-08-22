@@ -291,7 +291,17 @@ export class MonthDraftStore {
 
       // 4. Rebase: Apply deletions and edits to the new reloaded raws, then append additions
       const rebasedDraft = raws
-        .filter((r) => !deletedSlotIds.has(r.id))
+        .filter((r) => {
+          if (deletedSlotIds.has(r.id)) {
+            const savedSlot = oldSavedMap.get(r.id);
+            // If the slot's type changed on the backend (e.g. booked/pending), preserve the new backend status and discard local draft deletion
+            if (savedSlot && savedSlot.type !== r.type) {
+              return true;
+            }
+            return false;
+          }
+          return true;
+        })
         .map((r) => {
           if (r.id > 0 && editedSlotsMap.has(r.id)) {
             const draftSlot = editedSlotsMap.get(r.id)!;
