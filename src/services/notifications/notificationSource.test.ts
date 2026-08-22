@@ -1,6 +1,76 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createFixtureNotificationSource } from './notificationSource';
+import {
+  fetchUnreadCount,
+  listNotifications,
+  markAllRead,
+  markOneRead,
+} from './notificationService';
+import {
+  createFixtureNotificationSource,
+  httpNotificationSource,
+} from './notificationSource';
+
+// Mock the underlying services
+vi.mock('./notificationService', () => ({
+  fetchUnreadCount: vi.fn(),
+  listNotifications: vi.fn(),
+  markOneRead: vi.fn(),
+  markAllRead: vi.fn(),
+}));
+
+describe('httpNotificationSource', () => {
+  beforeEach(() => {
+    vi.mocked(fetchUnreadCount).mockReset();
+    vi.mocked(listNotifications).mockReset();
+    vi.mocked(markOneRead).mockReset();
+    vi.mocked(markAllRead).mockReset();
+  });
+
+  it('should correctly delegate getUnreadCount and listNotifications to the service endpoints', async () => {
+    vi.mocked(fetchUnreadCount).mockResolvedValue({ unread_count: 5 });
+    vi.mocked(listNotifications).mockResolvedValue({
+      notifications: [],
+      next_cursor: 'next-123',
+    });
+
+    const unreadRes = await httpNotificationSource.getUnreadCount('user-123');
+    expect(fetchUnreadCount).toHaveBeenCalledWith('user-123');
+    expect(unreadRes.unread_count).toBe(5);
+
+    const listRes = await httpNotificationSource.listNotifications(
+      'user-123',
+      'cursor-123',
+      20
+    );
+    expect(listNotifications).toHaveBeenCalledWith(
+      'user-123',
+      'cursor-123',
+      20
+    );
+    expect(listRes.notifications).toEqual([]);
+    expect(listRes.next_cursor).toBe('next-123');
+  });
+
+  it('should correctly delegate write/mutation requests to the service endpoints', async () => {
+    vi.mocked(markOneRead).mockResolvedValue(undefined);
+    vi.mocked(markAllRead).mockResolvedValue(undefined);
+
+    await httpNotificationSource.markOneRead('user-123', 'notif-111');
+    expect(markOneRead).toHaveBeenCalledWith('user-123', 'notif-111');
+
+    await httpNotificationSource.markAllRead('user-123');
+    expect(markAllRead).toHaveBeenCalledWith('user-123');
+  });
+
+  it('should propagate service errors outwards', async () => {
+    vi.mocked(fetchUnreadCount).mockRejectedValue(new Error('Network Failure'));
+
+    await expect(
+      httpNotificationSource.getUnreadCount('user-123')
+    ).rejects.toThrow('Network Failure');
+  });
+});
 
 describe('createFixtureNotificationSource', () => {
   it('should initialize with provided notifications and correctly return unread count', async () => {

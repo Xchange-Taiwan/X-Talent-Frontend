@@ -649,6 +649,54 @@ describe('useNotificationCenter', () => {
         })
       );
     });
+
+    it('should correctly propagate errors and trigger rollback when a custom notificationSource markAllRead operation fails', async () => {
+      const mockSource = {
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 5 }),
+        listNotifications: vi.fn().mockResolvedValue({
+          notifications: mockNotifications,
+          next_cursor: null,
+        }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi
+          .fn()
+          .mockRejectedValue(new Error('Mock DI markAllRead Failure')),
+      };
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({
+          userId: 'di-all-error-user',
+          notificationSource: mockSource,
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.badgeCount).toBe(5);
+      });
+
+      act(() => {
+        result.current.openCenter();
+      });
+
+      await waitFor(() => {
+        expect(result.current.items).toEqual(mockNotifications);
+      });
+
+      // Mark all read -> should fail and roll back to unread: true and restore badge count to 5
+      await act(async () => {
+        await result.current.markAllRead();
+      });
+
+      expect(result.current.badgeCount).toBe(5);
+      expect(result.current.items[0].unread).toBe(true);
+      expect(mockSource.markAllRead).toHaveBeenCalledWith('di-all-error-user');
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          description: '無法將全部通知標示為已讀，請稍後再試',
+        })
+      );
+    });
   });
 
   describe('anonymous / unauthenticated mode (missing userId)', () => {
