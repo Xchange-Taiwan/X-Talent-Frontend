@@ -160,18 +160,11 @@ export interface BookingCalendarReader {
   reload?: () => Promise<void>;
 }
 
-export type UseMentorScheduleReturn = MentorScheduleEditor &
+export function useMentorSchedule(opts: Options): MentorScheduleEditor &
   BookingCalendarReader & {
-    /** Sticky: true once any month has resolved. Use this for first-paint skeletons. */
     loaded: boolean;
-    isFetching: boolean;
-
     parsedDraft: ParsedMentorTimeslot[];
-
-    generateBookingSlots: (dateKey: string) => BookingSlot[];
-  };
-
-export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
+  } {
   const { backend, loginUserId, includeBookedDates = false } = opts;
 
   // External standalone MonthDraftStore for cross-month states and synchronization logic
@@ -461,13 +454,13 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     [selectedDate, generateBookingSlots, monthLoaded, reservationsLoaded]
   );
 
-  const getDayBookingStatus: UseMentorScheduleReturn['getDayBookingStatus'] =
+  const getDayBookingStatus: BookingCalendarReader['getDayBookingStatus'] =
     useCallback(
       (dateKey: string) => bookingStatusByDate.get(dateKey) ?? null,
       [bookingStatusByDate]
     );
 
-  const addSlotForSelectedDate: UseMentorScheduleReturn['addSlotForSelectedDate'] =
+  const addSlotForSelectedDate: MentorScheduleEditor['addSlotForSelectedDate'] =
     useCallback(
       ({ startTime, durationMinutes, weeklyWithinMonth }) => {
         if (!selectedDate) return { added: 0, skipped: 0 };
@@ -485,21 +478,19 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       [store, selectedDate]
     );
 
-  const updateDraftSlot: UseMentorScheduleReturn['updateDraftSlot'] =
-    useCallback(
-      (id, occurrenceUnix, patch) => {
-        return store.edit(id, occurrenceUnix, patch, backend.userId);
-      },
-      [store, backend.userId]
-    );
+  const updateDraftSlot: MentorScheduleEditor['updateDraftSlot'] = useCallback(
+    (id, occurrenceUnix, patch) => {
+      return store.edit(id, occurrenceUnix, patch, backend.userId);
+    },
+    [store, backend.userId]
+  );
 
-  const deleteDraftSlot: UseMentorScheduleReturn['deleteDraftSlot'] =
-    useCallback(
-      (id, occurrenceUnix) => {
-        store.delete(id, occurrenceUnix);
-      },
-      [store]
-    );
+  const deleteDraftSlot: MentorScheduleEditor['deleteDraftSlot'] = useCallback(
+    (id, occurrenceUnix) => {
+      store.delete(id, occurrenceUnix);
+    },
+    [store]
+  );
 
   const confirmChanges = useCallback(async (): Promise<SyncResult> => {
     if (dirtyMonths.size === 0 || !backend.userId) return { ok: true };
@@ -648,7 +639,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     parsedDraft,
     draftForSelectedDate,
     allowedDates,
-    generateBookingSlots,
     slotsSnapshot,
     getDayBookingStatus,
     addSlotForSelectedDate,

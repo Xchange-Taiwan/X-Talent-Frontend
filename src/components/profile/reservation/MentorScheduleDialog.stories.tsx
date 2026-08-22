@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import type {
   MentorScheduleEditor,
   ParsedMentorTimeslot,
-  UseMentorScheduleReturn,
 } from '@/hooks/useMentorSchedule';
 
 import MentorScheduleDialog from './MentorScheduleDialog';
@@ -91,19 +90,12 @@ const mockDraftSlots: ParsedMentorTimeslot[] = [
   }),
 ];
 
-const defaultScheduleMock: UseMentorScheduleReturn = {
-  loaded: true,
-  monthLoaded: true,
-  reservationsLoaded: true,
-  isFetching: false,
+const defaultScheduleMock: MentorScheduleEditor = {
   selectedDate: todayStr,
   setSelectedDate: () => {},
-  parsedDraft: mockDraftSlots,
   draftForSelectedDate: mockDraftSlots,
   allowedDates: [todayStr, '2026-08-04'],
-  generateBookingSlots: () => [],
-  slotsSnapshot: { slots: [], monthLoaded: true, reservationsLoaded: true },
-  getDayBookingStatus: () => null,
+  monthLoaded: true,
   addSlotForSelectedDate: () => ({ added: 1, skipped: 0 }),
   updateDraftSlot: () => ({ success: true }),
   deleteDraftSlot: () => {},
