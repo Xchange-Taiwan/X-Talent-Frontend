@@ -474,6 +474,187 @@ describe('useNotificationCenter', () => {
     }
   });
 
+  describe('dependency injection (custom notificationSource)', () => {
+    it('should route operations through custom notificationSource if provided', async () => {
+      const mockSource = {
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 7 }),
+        listNotifications: vi.fn().mockResolvedValue({
+          notifications: mockNotifications,
+          next_cursor: null,
+        }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({
+          userId: 'di-user',
+          notificationSource: mockSource,
+        })
+      );
+
+      // On mount, should load unread count from mock source
+      await waitFor(() => {
+        expect(mockSource.getUnreadCount).toHaveBeenCalledWith('di-user');
+        expect(result.current.badgeCount).toBe(7);
+      });
+
+      // Opening center should call listNotifications on mock source
+      act(() => {
+        result.current.openCenter();
+      });
+
+      await waitFor(() => {
+        expect(mockSource.listNotifications).toHaveBeenCalledWith(
+          'di-user',
+          undefined,
+          20
+        );
+      });
+
+      // Mark single read should call mock source
+      act(() => {
+        result.current.markRead('n1');
+      });
+
+      await waitFor(() => {
+        expect(mockSource.markOneRead).toHaveBeenCalledWith('di-user', 'n1');
+      });
+
+      // Mark all read should call mock source
+      act(() => {
+        result.current.markAllRead();
+      });
+
+      await waitFor(() => {
+        expect(mockSource.markAllRead).toHaveBeenCalledWith('di-user');
+      });
+    });
+
+    it('should dynamically update to use the latest notificationSource reference when prop updates on rerender', async () => {
+      const mockSource1 = {
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 5 }),
+        listNotifications: vi
+          .fn()
+          .mockResolvedValue({ notifications: [], next_cursor: null }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const mockSource2 = {
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 10 }),
+        listNotifications: vi.fn().mockResolvedValue({
+          notifications: mockNotifications,
+          next_cursor: null,
+        }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const { result, rerender } = renderHook(
+        ({ source }) =>
+          useNotificationCenter({
+            userId: 'di-dynamic-user',
+            notificationSource: source,
+          }),
+        { initialProps: { source: mockSource1 } }
+      );
+
+      // Initially should use source1
+      await waitFor(() => {
+        expect(mockSource1.getUnreadCount).toHaveBeenCalledWith(
+          'di-dynamic-user'
+        );
+        expect(result.current.badgeCount).toBe(5);
+      });
+
+      // Rerender with source2
+      rerender({ source: mockSource2 });
+
+      // Now open the center, which should trigger listNotifications on source2
+      act(() => {
+        result.current.openCenter();
+      });
+
+      await waitFor(() => {
+        expect(mockSource2.listNotifications).toHaveBeenCalledWith(
+          'di-dynamic-user',
+          undefined,
+          20
+        );
+        expect(mockSource1.listNotifications).not.toHaveBeenCalled();
+      });
+
+      // Mark single read should trigger on source2
+      act(() => {
+        result.current.markRead('n1');
+      });
+
+      await waitFor(() => {
+        expect(mockSource2.markOneRead).toHaveBeenCalledWith(
+          'di-dynamic-user',
+          'n1'
+        );
+        expect(mockSource1.markOneRead).not.toHaveBeenCalled();
+      });
+    });
+
+    it('should correctly propagate errors and trigger rollback when a custom notificationSource operation fails', async () => {
+      const mockSource = {
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 5 }),
+        listNotifications: vi.fn().mockResolvedValue({
+          notifications: mockNotifications,
+          next_cursor: null,
+        }),
+        markOneRead: vi
+          .fn()
+          .mockRejectedValue(new Error('Mock DI API Failure')),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({
+          userId: 'di-error-user',
+          notificationSource: mockSource,
+        })
+      );
+
+      // 1. Initial Load
+      await waitFor(() => {
+        expect(result.current.badgeCount).toBe(5);
+      });
+
+      // 2. Open center to load items into store
+      act(() => {
+        result.current.openCenter();
+      });
+
+      await waitFor(() => {
+        expect(result.current.items).toEqual(mockNotifications);
+      });
+
+      // Confirm item is unread initially
+      expect(result.current.items[0].unread).toBe(true);
+
+      // 3. Mark single read -> should call custom source and roll back on error
+      await act(async () => {
+        await result.current.markRead('n1');
+      });
+
+      expect(result.current.items[0].unread).toBe(true); // Rolled back to unread: true
+      expect(mockSource.markOneRead).toHaveBeenCalledWith(
+        'di-error-user',
+        'n1'
+      );
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          description: '無法將通知標示為已讀，請稍後再試',
+        })
+      );
+    });
+  });
+
   describe('lazy list loading (real fetch path, no initialNotifications)', () => {
     beforeEach(() => {
       vi.mocked(fetchUnreadCount).mockReset();

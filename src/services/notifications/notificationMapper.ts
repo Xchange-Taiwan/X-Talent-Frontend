@@ -1,5 +1,6 @@
-import type { NotificationItem } from '@/stores/notificationStore';
 import { components } from '@/types/api';
+
+import type { NotificationItem } from './types';
 
 // Below this, created_at is a seconds-precision Unix timestamp; at/above it,
 // it's already in milliseconds (a seconds-precision timestamp only reaches

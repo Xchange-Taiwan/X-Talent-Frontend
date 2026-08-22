@@ -1,19 +1,7 @@
 import { safeGetStorage, safeSetStorage } from '@/lib/storage';
+import type { NotificationItem } from '@/services/notifications/types';
 
-export type NotificationItem = {
-  id: string;
-  type:
-    | 'reservation_requested'
-    | 'reservation_success'
-    | 'reservation_failed'
-    | 'reservation_canceled'
-    | 'reservation_upcoming';
-  menteeName?: string;
-  mentorName?: string;
-  createdAt: string; // ISO string
-  unread?: boolean;
-  role?: 'mentor' | 'mentee';
-};
+export type { NotificationItem } from '@/services/notifications/types';
 
 export type NotificationStatus = 'loading' | 'error' | 'empty' | 'success';
 

@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
+import { useIsomorphicLayoutEffect } from '@/hooks/useIsomorphicLayoutEffect';
 import { captureFlowFailure } from '@/lib/monitoring';
 /**
  * --------------------------------------------------------------------------------
@@ -9,14 +10,12 @@ import { captureFlowFailure } from '@/lib/monitoring';
  * --------------------------------------------------------------------------------
  */
 import {
-  fetchUnreadCount,
-  listNotifications,
-  markAllRead,
-  markOneRead,
-} from '@/services/notifications/notificationService';
+  httpNotificationSource,
+  type NotificationSource,
+} from '@/services/notifications/notificationSource';
+import type { NotificationItem } from '@/services/notifications/types';
 import {
   createInitialState,
-  type NotificationItem,
   type NotificationStatus,
   notificationStoreManager,
 } from '@/stores/notificationStore';
@@ -78,6 +77,7 @@ export type UseNotificationCenterProps = {
   defaultNotifications?: NotificationItem[];
   onMarkRead?: (id: string) => void | Promise<void>;
   onMarkAllRead?: (ids: string[]) => void | Promise<void>;
+  notificationSource?: NotificationSource;
 };
 
 // Safe structural comparison helper for the render-phase sync
@@ -103,9 +103,15 @@ export function useNotificationCenter({
   defaultNotifications = [],
   onMarkRead,
   onMarkAllRead,
+  notificationSource = httpNotificationSource,
 }: UseNotificationCenterProps = {}) {
   const { toast } = useToast();
   const [open, setOpen] = React.useState(false);
+
+  const sourceRef = React.useRef(notificationSource);
+  useIsomorphicLayoutEffect(() => {
+    sourceRef.current = notificationSource;
+  }, [notificationSource]);
 
   const isUsingProps = initialNotifications !== undefined;
 
@@ -201,7 +207,11 @@ export function useNotificationCenter({
       });
 
       try {
-        const res = await listNotifications(userId, state.nextCursor, 20);
+        const res = await sourceRef.current.listNotifications(
+          userId,
+          state.nextCursor,
+          20
+        );
 
         notificationStoreManager.appendNotifications(
           userId,
@@ -245,8 +255,8 @@ export function useNotificationCenter({
       userId,
       async () => {
         try {
-          const res = await fetchUnreadCount(userId);
-          return (res && res.unread_count) || 0;
+          const res = await sourceRef.current.getUnreadCount(userId);
+          return res.unread_count;
         } catch (error) {
           reportFailure(
             'notification_load_unread_count',
@@ -276,13 +286,13 @@ export function useNotificationCenter({
       const fetchPromise = (async () => {
         try {
           const [unreadRes, notificationsRes] = await Promise.all([
-            fetchUnreadCount(userId),
-            listNotifications(userId, undefined, 20),
+            sourceRef.current.getUnreadCount(userId),
+            sourceRef.current.listNotifications(userId, undefined, 20),
           ]);
 
           notificationStoreManager.setInitialData(
             userId,
-            (unreadRes && unreadRes.unread_count) || 0,
+            unreadRes.unread_count,
             (notificationsRes && notificationsRes.notifications) || [],
             (notificationsRes && notificationsRes.next_cursor) || null
           );
@@ -420,7 +430,7 @@ export function useNotificationCenter({
       const action =
         onMarkRead ||
         (!isUsingProps && userId
-          ? (notifId: string) => markOneRead(userId, notifId)
+          ? (notifId: string) => sourceRef.current.markOneRead(userId, notifId)
           : null);
       if (!action) {
         notificationStoreManager.removeMarkingReadId(userId, id);
@@ -508,7 +518,7 @@ export function useNotificationCenter({
           });
         }
       } else if (!isUsingProps && userId) {
-        await markAllRead(userId);
+        await sourceRef.current.markAllRead(userId);
       }
     } catch (error) {
       reportMarkAsReadFailure('mark_all_read', error);
