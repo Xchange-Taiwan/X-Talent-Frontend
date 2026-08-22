@@ -41,3 +41,13 @@ Key types exported from this module (`src/lib/profile/bookingAvailability/`):
 - **`SlotDurationMinutes`**: Valid slot durations (`30 | 45 | 60`).
 - **`BookingCalendarReader`**: A narrow read-only interface used by mentees and visitors to view a mentor's booking schedule.
 - **`MentorScheduleEditor`**: A narrow stateful interface used by the mentor to manage and sync their available slots.
+
+## Elapsed Time Behavior (Page Open)
+
+To ensure consistency and prevent race conditions, the **`BookingAvailabilityReadModel`** explicitly treats the reference current timestamp (`nowSec`) as a **frozen instant contract**.
+
+- **No Clock Tick (Frozen Instant)**: Both `allowedDates` (selectable dates on the calendar) and `generateBookingSlots` (the slot generator) are derived against the exact same timestamp frozen when the read model was computed. As time passes with the page open, the view remains stable and self-consistent.
+- **Why this design**:
+  1. **Aesthetic Consistency**: A slot that expires after the page has loaded will not disappear from the slot list while its calendar date remains selectable. Both answers are always derived from the same instant.
+  2. **Performance (Stable Calculations)**: This design avoids running heavy recurrence rule expansions on every clock tick (preventing performance degradation on rendering-heavy calendar grids).
+  3. **Predictable Interface**: User interactions are completely deterministic.
