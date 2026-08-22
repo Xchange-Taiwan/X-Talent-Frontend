@@ -1524,5 +1524,80 @@ describe('useMentorSchedule', () => {
       // Verify that captureFlowFailure was NOT called because the user has switched
       expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
     });
+
+    it('does not apply reloaded reservations if the calendar month changes mid-flight', async () => {
+      mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
+      mockLoadMonthScheduleFresh.mockReset().mockResolvedValue([]);
+
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+
+      const { result, rerender } = renderHook(
+        ({ month }) =>
+          useMentorSchedule({
+            backend: { userId: '123', year: 2026, month },
+            loginUserId: '123',
+          }),
+        { initialProps: { month: 7 } }
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      // Prepare reload reservations that are slow
+      let resolveReservations: (
+        val: Awaited<ReturnType<typeof fetchAllReservationsForState>>
+      ) => void = () => {};
+      const resPromise = new Promise<
+        Awaited<ReturnType<typeof fetchAllReservationsForState>>
+      >((resolve) => {
+        resolveReservations = resolve;
+      });
+
+      mockFetchAllReservationsForState.mockImplementation(
+        async (userId, state, endOfMonthUnix) => {
+          // Return slow promise for month 7, resolve immediately to [] for month 8
+          if (endOfMonthUnix < 1786000000) {
+            return resPromise;
+          }
+          return [];
+        }
+      );
+
+      const reloadPromise = result.current.reload?.();
+
+      // Switch month mid-flight (from 7 to 8)
+      act(() => {
+        rerender({ month: 8 });
+      });
+
+      // Resolve reservations for month 7
+      resolveReservations([
+        {
+          id: 'res-stale-month',
+          name: 'Stale Month Mentee',
+          scheduleId: 101,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          messages: [],
+          roleLine: '',
+          date: '',
+          time: '',
+          senderUserId: 'mentee-stale',
+          participantUserId: '123',
+          version: 1,
+        },
+      ]);
+
+      await act(async () => {
+        await reloadPromise;
+      });
+
+      // Verify that the stale month's reservations were NOT applied
+      expect(result.current.reservations).toEqual([]);
+    });
   });
 });

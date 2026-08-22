@@ -167,6 +167,11 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
   } {
   const { backend, loginUserId, includeBookedDates = false } = opts;
 
+  const backendRef = useRef(backend);
+  useEffect(() => {
+    backendRef.current = backend;
+  }, [backend]);
+
   // External standalone MonthDraftStore for cross-month states and synchronization logic
   const [store] = useState(
     () => new MonthDraftStore(undefined, { loadMonthScheduleCached })
@@ -311,6 +316,18 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
     }
     prevUserIdRef.current = backend.userId;
   }, [backend.userId, store]);
+
+  const isStale = useCallback(
+    (startUserId: string, startYear: number, startMonth: number) => {
+      return (
+        prevUserIdRef.current !== startUserId ||
+        backendRef.current.year !== startYear ||
+        backendRef.current.month !== startMonth ||
+        !isMountedRef.current
+      );
+    },
+    []
+  );
 
   // Load the currently-viewed month into the buffer lazily. Months that are
   // already buffered (clean OR dirty) are not re-applied: the per-month dirty
@@ -586,6 +603,8 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
       return;
     }
     const userIdAtStart = backend.userId;
+    const yearAtStart = backend.year;
+    const monthAtStart = backend.month;
     const endOfMonthUnix = dayjs(new Date(backend.year, backend.month - 1, 1))
       .endOf('month')
       .unix();
@@ -603,12 +622,10 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
           endOfMonthUnix
         ),
       ]);
-      if (prevUserIdRef.current !== userIdAtStart || !isMountedRef.current)
-        return;
+      if (isStale(userIdAtStart, yearAtStart, monthAtStart)) return;
       setReservations([...upcoming, ...pending]);
     } catch (err) {
-      if (prevUserIdRef.current !== userIdAtStart || !isMountedRef.current)
-        return;
+      if (isStale(userIdAtStart, yearAtStart, monthAtStart)) return;
       captureFlowFailure({
         flow: 'mentor_schedule_reload_reservations',
         step: 'reload_reservations_for_state',
@@ -616,11 +633,13 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
         level: 'warning',
       });
     }
-  }, [loginUserId, backend.userId, backend.year, backend.month]);
+  }, [loginUserId, backend.userId, backend.year, backend.month, isStale]);
 
   const reloadSchedule = useCallback(async () => {
     if (!backend.userId || !backend.year || !backend.month) return;
     const userIdAtStart = backend.userId;
+    const yearAtStart = backend.year;
+    const monthAtStart = backend.month;
     const monthKey = currentMonthKey;
     try {
       const raws = await loadMonthScheduleFresh({
@@ -628,12 +647,10 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
         year: backend.year,
         month: backend.month,
       });
-      if (prevUserIdRef.current !== userIdAtStart || !isMountedRef.current)
-        return;
+      if (isStale(userIdAtStart, yearAtStart, monthAtStart)) return;
       store.reloadMonth(monthKey, raws);
     } catch (err) {
-      if (prevUserIdRef.current !== userIdAtStart || !isMountedRef.current)
-        return;
+      if (isStale(userIdAtStart, yearAtStart, monthAtStart)) return;
       captureFlowFailure({
         flow: 'mentor_schedule_reload_schedule',
         step: 'reload_month_schedule_fresh',
@@ -641,7 +658,14 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
         level: 'warning',
       });
     }
-  }, [backend.userId, backend.year, backend.month, currentMonthKey, store]);
+  }, [
+    backend.userId,
+    backend.year,
+    backend.month,
+    currentMonthKey,
+    store,
+    isStale,
+  ]);
 
   const reload = useCallback(async () => {
     await Promise.all([reloadReservations(), reloadSchedule()]);
