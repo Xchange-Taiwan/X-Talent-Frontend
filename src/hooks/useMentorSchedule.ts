@@ -180,6 +180,14 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
 
   const { dirtyMonths, allDraftSlots: allDraftRaws } = storeState;
 
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const [loaded, setLoaded] = useState(false);
   const [monthLoaded, setMonthLoaded] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
@@ -577,6 +585,7 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
     ) {
       return;
     }
+    const userIdAtStart = backend.userId;
     const endOfMonthUnix = dayjs(new Date(backend.year, backend.month - 1, 1))
       .endOf('month')
       .unix();
@@ -594,8 +603,12 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
           endOfMonthUnix
         ),
       ]);
+      if (prevUserIdRef.current !== userIdAtStart || !isMountedRef.current)
+        return;
       setReservations([...upcoming, ...pending]);
     } catch (err) {
+      if (prevUserIdRef.current !== userIdAtStart || !isMountedRef.current)
+        return;
       captureFlowFailure({
         flow: 'mentor_schedule_reload_reservations',
         step: 'reload_reservations_for_state',
@@ -607,6 +620,7 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
 
   const reloadSchedule = useCallback(async () => {
     if (!backend.userId || !backend.year || !backend.month) return;
+    const userIdAtStart = backend.userId;
     const monthKey = currentMonthKey;
     try {
       const raws = await loadMonthScheduleFresh({
@@ -614,8 +628,12 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
         year: backend.year,
         month: backend.month,
       });
-      store.reset([[monthKey, raws]]);
+      if (prevUserIdRef.current !== userIdAtStart || !isMountedRef.current)
+        return;
+      store.reloadMonth(monthKey, raws);
     } catch (err) {
+      if (prevUserIdRef.current !== userIdAtStart || !isMountedRef.current)
+        return;
       captureFlowFailure({
         flow: 'mentor_schedule_reload_schedule',
         step: 'reload_month_schedule_fresh',

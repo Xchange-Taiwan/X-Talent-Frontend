@@ -1309,5 +1309,116 @@ describe('useMentorSchedule', () => {
       expect(result.current.reservations).toEqual([]);
       expect(result.current.parsedDraft).toHaveLength(1);
     });
+
+    it('does not apply reloaded schedule or reservations if the active user changes mid-flight', async () => {
+      mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
+      mockLoadMonthScheduleFresh.mockReset();
+
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+
+      const { result, rerender } = renderHook(
+        ({ userId }) =>
+          useMentorSchedule({
+            backend: { userId, year: 2026, month: 7 },
+            loginUserId: userId,
+          }),
+        { initialProps: { userId: '123' } }
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      // Prepare fresh reload values
+      const reloadedRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW',
+          dtstart: 1785075000,
+          dtend: 1785076800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+
+      // Delay the fresh schedule refetch slightly so we can trigger an account switch
+      let resolveScheduleFetch: (raws: RawMentorTimeslot[]) => void = () => {};
+      const schedulePromise = new Promise<RawMentorTimeslot[]>((resolve) => {
+        resolveScheduleFetch = resolve;
+      });
+      mockLoadMonthScheduleFresh.mockReturnValue(schedulePromise);
+
+      const reloadPromise = act(async () => {
+        await result.current.reload?.();
+      });
+
+      // Change user mid-flight (account switch)
+      rerender({ userId: '456' });
+
+      // Resolve the fetch for the OLD user ('123')
+      resolveScheduleFetch(reloadedRaws);
+
+      await reloadPromise;
+
+      // Ensure the old user's reloaded data is NOT applied
+      expect(result.current.reservations).toEqual([]);
+      // Should not contain 1785075000 (old user's reloaded schedule)
+      const hasOldReloaded = result.current.parsedDraft.some(
+        (d) => d.start.getTime() === 1785075000 * 1000
+      );
+      expect(hasOldReloaded).toBe(false);
+    });
+
+    it('does not discard unsaved draft edits when reloading schedule', async () => {
+      mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
+      mockLoadMonthScheduleFresh.mockReset();
+
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      // Trigger an edit to make the month dirty
+      act(() => {
+        result.current.updateDraftSlot(101, 1785070000, { startTime: '13:00' });
+      });
+
+      const draftBeforeReload = result.current.parsedDraft;
+
+      // Mock the loaded raws
+      const reloadedRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW',
+          dtstart: 1785075000,
+          dtend: 1785076800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      mockLoadMonthScheduleFresh.mockResolvedValue(reloadedRaws);
+
+      // Trigger reload
+      await act(async () => {
+        await result.current.reload?.();
+      });
+
+      // Verify the dirty draft is preserved and not discarded or overwritten
+      expect(result.current.parsedDraft).toEqual(draftBeforeReload);
+    });
   });
 });

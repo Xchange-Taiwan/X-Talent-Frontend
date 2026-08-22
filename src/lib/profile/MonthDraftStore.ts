@@ -243,6 +243,16 @@ export class MonthDraftStore {
     this.emitChange();
   }
 
+  public reloadMonth(monthKey: MonthKey, raws: RawMentorTimeslot[]): void {
+    this.savedByMonth = new Map(this.savedByMonth);
+    this.savedByMonth.set(monthKey, raws);
+    if (!this.dirtyMonths.has(monthKey)) {
+      this.draftByMonth = new Map(this.draftByMonth);
+      this.draftByMonth.set(monthKey, raws);
+    }
+    this.emitChange();
+  }
+
   public add(patch: {
     startTime: string;
     durationMinutes: SlotDurationMinutes;
