@@ -15,7 +15,10 @@ vi.mock('@/services/reservations', () => ({
   fetchAllReservationsForState: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
+
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
+import { captureFlowFailure } from '@/lib/monitoring';
 import {
   buildDateTime,
   RawMentorTimeslot,
@@ -32,6 +35,7 @@ const mockFetchAllReservationsForState = vi.mocked(
   fetchAllReservationsForState
 );
 const mockLoadMonthScheduleFresh = vi.mocked(loadMonthScheduleFresh);
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 describe('useMentorSchedule', () => {
   beforeEach(() => {
@@ -1129,6 +1133,40 @@ describe('useMentorSchedule', () => {
       await waitFor(() => {
         expect(result.current.reservationsLoaded).toBe(true);
       });
+    });
+
+    it('reports the failure and leaves reservationsLoaded false when the reservations fetch throws unexpectedly', async () => {
+      // fetchAllReservationsForState itself never rejects in production (it
+      // swallows its own errors, see reservationService.ts), but this
+      // exercises the hook's own defense-in-depth catch for anything else
+      // that could throw. reservationsLoaded must stay false here — it's
+      // only ever set true on the success path, deliberately not in a
+      // `finally` (which would run on this failure too and mark the flag
+      // loaded despite `reservations` never actually being written).
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+      mockFetchAllReservationsForState.mockRejectedValue(new Error('boom'));
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      await waitFor(() => {
+        expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+          expect.objectContaining({
+            flow: 'mentor_schedule_fetch_reservations',
+            step: 'fetch_all_reservations',
+            message: 'boom',
+          })
+        );
+      });
+
+      expect(result.current.reservationsLoaded).toBe(false);
     });
   });
 
