@@ -1081,7 +1081,10 @@ describe('useMentorSchedule', () => {
         expect(result.current.loaded).toBe(true);
       });
 
-      const slots = result.current.generateBookingSlots('2026-09-26');
+      act(() => {
+        result.current.setSelectedDate('2026-09-26');
+      });
+      const slots = result.current.slotsSnapshot.slots;
       expect(slots).toHaveLength(1);
       expect(slots[0].menteeName).toBe('Alice');
     });
@@ -1252,7 +1255,10 @@ describe('useMentorSchedule', () => {
       });
 
       // Verify calendar slots are updated with new mentee name
-      const slots = result.current.generateBookingSlots('2026-07-26');
+      act(() => {
+        result.current.setSelectedDate('2026-07-26');
+      });
+      const slots = result.current.slotsSnapshot.slots;
       expect(slots).toHaveLength(1);
       expect(slots[0].isBooked).toBe(true);
       expect(slots[0].status).toBe('BOOKED');
