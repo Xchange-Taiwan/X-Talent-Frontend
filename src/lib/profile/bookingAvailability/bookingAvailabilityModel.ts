@@ -62,7 +62,11 @@ export function computeBookingAvailability({
   // 3. Determine allowedDates: dates with at least one future selectable/viewable occurrence
   const allowedDatesSet = new Set<string>();
   for (const { occ, dateKey } of futureAllowOccurrences) {
-    if (!includeBookedDates && bookedStarts.has(occ)) continue;
+    if (
+      !includeBookedDates &&
+      (bookedStarts.has(occ) || pendingStarts.has(occ))
+    )
+      continue;
     allowedDatesSet.add(dateKey);
   }
   const allowedDates = Array.from(allowedDatesSet);

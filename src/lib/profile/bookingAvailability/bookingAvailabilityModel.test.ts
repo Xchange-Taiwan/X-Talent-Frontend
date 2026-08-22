@@ -1,7 +1,10 @@
 import { fromPartial } from '@total-typescript/shoehorn';
 import { describe, expect, it } from 'vitest';
 
-import type { RawMentorTimeslot } from '@/lib/profile/scheduleHelpers';
+import {
+  isSlotTaken,
+  type RawMentorTimeslot,
+} from '@/lib/profile/scheduleHelpers';
 import type { Reservation } from '@/types/reservation';
 
 import { computeBookingAvailability } from './bookingAvailabilityModel';
@@ -168,20 +171,36 @@ describe('computeBookingAvailability', () => {
       },
     ];
 
-    const model = computeBookingAvailability({
+    // Case 1: includeBookedDates is false (visitor/mentee view)
+    const modelVisitor = computeBookingAvailability({
       draftRows,
       nowSec,
       includeBookedDates: false,
     });
 
-    // PENDING slots do not disable dates for visitors
-    expect(model.allowedDates).toEqual(['2026-05-01']);
-    expect(model.bookingStatusByDate.get('2026-05-01')).toBe('PENDING');
+    // PENDING slots disable dates for visitors if no other open slots exist
+    expect(modelVisitor.allowedDates).toEqual([]);
+    expect(modelVisitor.bookingStatusByDate.get('2026-05-01')).toBe('PENDING');
 
-    const slots = model.generateBookingSlots('2026-05-01', []);
-    expect(slots).toHaveLength(1);
-    expect(slots[0].isBooked).toBe(false);
-    expect(slots[0].status).toBe('PENDING');
+    const slotsVisitor = modelVisitor.generateBookingSlots('2026-05-01', []);
+    expect(slotsVisitor).toHaveLength(1);
+    expect(isSlotTaken(slotsVisitor[0])).toBe(true);
+    expect(slotsVisitor[0].status).toBe('PENDING');
+
+    // Case 2: includeBookedDates is true (mentor view)
+    const modelMentor = computeBookingAvailability({
+      draftRows,
+      nowSec,
+      includeBookedDates: true,
+    });
+
+    expect(modelMentor.allowedDates).toEqual(['2026-05-01']);
+    expect(modelMentor.bookingStatusByDate.get('2026-05-01')).toBe('PENDING');
+
+    const slotsMentor = modelMentor.generateBookingSlots('2026-05-01', []);
+    expect(slotsMentor).toHaveLength(1);
+    expect(isSlotTaken(slotsMentor[0])).toBe(true);
+    expect(slotsMentor[0].status).toBe('PENDING');
   });
 
   it('gives priority to PENDING status when a date has both BOOKED and PENDING occurrences', () => {
