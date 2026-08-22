@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-import type { BookingSlot } from '@/hooks/useMentorSchedule';
+import type { BookingSlot } from '@/lib/profile/bookingAvailability';
 
 interface ScheduleSlotListProps {
   slots: BookingSlot[];
