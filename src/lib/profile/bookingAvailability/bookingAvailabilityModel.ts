@@ -21,8 +21,7 @@ export interface BookingAvailabilityModel {
   bookingStatusByDate: Map<string, BookingStatus>;
   generateBookingSlots: (
     dateKey: string,
-    currentReservations?: Reservation[],
-    queryNowSec?: number
+    currentReservations?: Reservation[]
   ) => BookingSlot[];
 }
 
@@ -91,11 +90,9 @@ export function computeBookingAvailability({
   // 5. Generate slots for a specific selected date
   const generateBookingSlots = (
     dateKey: string,
-    currentReservations?: Reservation[],
-    queryNowSec?: number
+    currentReservations?: Reservation[]
   ): BookingSlot[] => {
     const result: BookingSlot[] = [];
-    const activeNowSec = queryNowSec ?? nowSec;
 
     for (const slot of draftRows) {
       if (slot.type !== 'ALLOW') continue;
@@ -105,7 +102,7 @@ export function computeBookingAvailability({
 
       for (const occ of occurrences) {
         if (slot.exdate.includes(occ)) continue;
-        if (occ <= activeNowSec) continue;
+        if (occ <= nowSec) continue;
         if (dayjs(occ * 1000).format('YYYY-MM-DD') !== dateKey) continue;
 
         const slotStart = occ;
