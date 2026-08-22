@@ -1,5 +1,17 @@
 import type { ResolvedIdentity } from '@/lib/auth/sessionHint';
 
+export interface FlatIdentity {
+  state?: 'unknown' | 'hint-only' | 'confirmed-guest' | 'confirmed-member';
+  userId?: string;
+  avatar?: string;
+  isMentor?: boolean;
+  isLoggedIn?: boolean;
+  hasFullUser?: boolean;
+  isResolvingUser?: boolean;
+  authKnown?: boolean;
+  sessionSettled?: boolean;
+}
+
 /**
  * Builds a `ResolvedIdentity` for mocking `useResolvedIdentity` in tests - the
  * single call site every identity consumer (`useIdentity`, `Header`,
@@ -8,9 +20,9 @@ import type { ResolvedIdentity } from '@/lib/auth/sessionHint';
  * scenario actually cares about.
  */
 export function buildResolvedIdentity(
-  overrides: Partial<ResolvedIdentity> = {}
+  overrides: FlatIdentity = {}
 ): ResolvedIdentity {
-  return {
+  const base = {
     authKnown: true,
     isLoggedIn: false,
     isMentor: false,
@@ -21,6 +33,21 @@ export function buildResolvedIdentity(
     sessionSettled: true,
     ...overrides,
   };
+
+  let state: 'unknown' | 'hint-only' | 'confirmed-guest' | 'confirmed-member' =
+    'confirmed-guest';
+  if (!base.authKnown) {
+    state = 'unknown';
+  } else if (base.hasFullUser) {
+    state = 'confirmed-member';
+  } else if (!base.sessionSettled && base.isLoggedIn) {
+    state = 'hint-only';
+  }
+
+  return {
+    state,
+    ...base,
+  } as ResolvedIdentity;
 }
 
 /** Neither the session nor the cookie hint has resolved yet. */
@@ -35,7 +62,7 @@ export const GUEST_IDENTITY: ResolvedIdentity = buildResolvedIdentity();
 /** A fully-resolved, logged-in identity for the given userId. */
 export function authenticatedIdentity(
   userId: string,
-  overrides: Partial<ResolvedIdentity> = {}
+  overrides: FlatIdentity = {}
 ): ResolvedIdentity {
   return buildResolvedIdentity({
     isLoggedIn: true,
