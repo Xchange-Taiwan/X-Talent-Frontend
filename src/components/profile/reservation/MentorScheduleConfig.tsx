@@ -8,6 +8,7 @@ import type {
   SlotsSnapshot,
 } from '@/lib/profile/bookingAvailability';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
+import { isSlotTaken } from '@/lib/profile/scheduleHelpers';
 import type { Reservation } from '@/types/reservation';
 
 import { QuickReplyDialog } from './QuickReplyDialog';
@@ -48,8 +49,7 @@ export function MentorScheduleConfig({
     useState<Reservation | null>(null);
   const [quickReplyOpen, setQuickReplyOpen] = useState(false);
 
-  const isSlotBooked = (slot: BookingSlot) =>
-    slot.status === 'BOOKED' || slot.status === 'PENDING' || slot.isBooked;
+  const isSlotBooked = isSlotTaken;
 
   const bookedSlots = slots.filter(isSlotBooked);
   const availableSlots = slots.filter((slot) => !isSlotBooked(slot));

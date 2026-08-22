@@ -76,6 +76,11 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
   } {
   const { backend, loginUserId, includeBookedDates = false } = opts;
 
+  const backendRef = useRef(backend);
+  useIsomorphicLayoutEffect(() => {
+    backendRef.current = backend;
+  }, [backend]);
+
   // External standalone MonthDraftStore for cross-month states and synchronization logic
   const [store] = useState(
     () => new MonthDraftStore(undefined, { loadMonthScheduleCached })
@@ -88,6 +93,14 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
   );
 
   const { dirtyMonths, allDraftSlots: allDraftRaws } = storeState;
+
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const [loaded, setLoaded] = useState(false);
   const [monthLoaded, setMonthLoaded] = useState(false);
@@ -212,6 +225,18 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
     }
     prevUserIdRef.current = backend.userId;
   }, [backend.userId, store]);
+
+  const isStale = useCallback(
+    (start: { userId: string; year: number; month: number }) => {
+      return (
+        backendRef.current.userId !== start.userId ||
+        backendRef.current.year !== start.year ||
+        backendRef.current.month !== start.month ||
+        !isMountedRef.current
+      );
+    },
+    []
+  );
 
   // Load the currently-viewed month into the buffer lazily. Months that are
   // already buffered (clean OR dirty) are not re-applied: the per-month dirty
@@ -341,11 +366,7 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
 
   const generateBookingSlots = useCallback(
     (dateKey: string): BookingSlot[] => {
-      return availabilityModel.generateBookingSlots(
-        dateKey,
-        reservations,
-        Math.floor(Date.now() / 1000)
-      );
+      return availabilityModel.generateBookingSlots(dateKey, reservations);
     },
     [availabilityModel, reservations]
   );
@@ -486,6 +507,11 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
     ) {
       return;
     }
+    const startSnapshot = {
+      userId: backend.userId,
+      year: backend.year,
+      month: backend.month,
+    };
     const endOfMonthUnix = dayjs(new Date(backend.year, backend.month - 1, 1))
       .endOf('month')
       .unix();
@@ -503,8 +529,10 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
           endOfMonthUnix
         ),
       ]);
+      if (isStale(startSnapshot)) return;
       setReservations([...upcoming, ...pending]);
     } catch (err) {
+      if (isStale(startSnapshot)) return;
       captureFlowFailure({
         flow: 'mentor_schedule_reload_reservations',
         step: 'reload_reservations_for_state',
@@ -512,10 +540,15 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
         level: 'warning',
       });
     }
-  }, [loginUserId, backend.userId, backend.year, backend.month]);
+  }, [loginUserId, backend.userId, backend.year, backend.month, isStale]);
 
   const reloadSchedule = useCallback(async () => {
     if (!backend.userId || !backend.year || !backend.month) return;
+    const startSnapshot = {
+      userId: backend.userId,
+      year: backend.year,
+      month: backend.month,
+    };
     const monthKey = currentMonthKey;
     try {
       const raws = await loadMonthScheduleFresh({
@@ -523,8 +556,10 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
         year: backend.year,
         month: backend.month,
       });
-      store.reset([[monthKey, raws]]);
+      if (isStale(startSnapshot)) return;
+      store.reloadMonth(monthKey, raws);
     } catch (err) {
+      if (isStale(startSnapshot)) return;
       captureFlowFailure({
         flow: 'mentor_schedule_reload_schedule',
         step: 'reload_month_schedule_fresh',
@@ -532,7 +567,14 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
         level: 'warning',
       });
     }
-  }, [backend.userId, backend.year, backend.month, currentMonthKey, store]);
+  }, [
+    backend.userId,
+    backend.year,
+    backend.month,
+    currentMonthKey,
+    store,
+    isStale,
+  ]);
 
   const reload = useCallback(async () => {
     await Promise.all([reloadReservations(), reloadSchedule()]);
