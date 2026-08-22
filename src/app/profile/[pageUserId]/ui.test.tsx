@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { UseMentorScheduleReturn } from '@/hooks/useMentorSchedule';
+import type { BookingCalendarReader } from '@/hooks/useMentorSchedule';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
 
 // next/image requires width/height derived from a static-import object shape
@@ -34,26 +34,17 @@ vi.mock('@/components/profile/reservation/ScheduleCalendar', () => ({
 
 import ProfilePageUI from './ui';
 
-function buildSchedule(): UseMentorScheduleReturn {
+function buildSchedule(): BookingCalendarReader {
   return {
-    loaded: true,
+    selectedDate: '2026-08-20',
+    setSelectedDate: vi.fn(),
+    allowedDates: [],
+    slotsSnapshot: { slots: [], monthLoaded: true, reservationsLoaded: true },
+    getDayBookingStatus: vi.fn(() => null),
     monthLoaded: true,
     reservationsLoaded: true,
     isFetching: false,
-    selectedDate: '2026-08-20',
-    setSelectedDate: vi.fn(),
-    parsedDraft: [],
-    draftForSelectedDate: [],
-    allowedDates: [],
-    generateBookingSlots: vi.fn(() => []),
-    slotsSnapshot: { slots: [], monthLoaded: true, reservationsLoaded: true },
-    getDayBookingStatus: vi.fn(() => null),
-    addSlotForSelectedDate: vi.fn(() => ({ added: 0, skipped: 0 })),
-    updateDraftSlot: vi.fn(() => ({ success: true })),
-    deleteDraftSlot: vi.fn(),
-    confirmChanges: vi.fn(),
-    resetChanges: vi.fn(),
-    reservations: [],
+    reload: vi.fn(),
   };
 }
 
