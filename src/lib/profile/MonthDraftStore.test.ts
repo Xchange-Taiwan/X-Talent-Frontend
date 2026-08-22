@@ -493,6 +493,40 @@ describe('MonthDraftStore Unit Tests', () => {
     expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
   });
 
+  it('reloadMonth discards local draft edits if the backend timeslot type changes (e.g., ALLOW -> BOOKED)', () => {
+    const store = new MonthDraftStore();
+    store.ensureMonthLoaded('2026-07', defaultMockRaws);
+
+    // Trigger dirty by editing slot 101 to 13:00 local
+    store.edit(101, 1785070000, { startTime: '13:00' }, '123');
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+
+    // Now reload with a new raw list from backend where slot 101 is now BOOKED (e.g. some student booked it)
+    const newRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'BOOKED',
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    store.reloadMonth('2026-07', newRaws);
+
+    const snapshot = store.snapshot();
+    const finalDraft = snapshot.draftByMonth.get('2026-07') ?? [];
+
+    // The rebased draft should contain:
+    // - Slot 101 with type BOOKED from the backend (discarding the local edits to ALLOW slot!)
+    expect(finalDraft).toHaveLength(1);
+    const slot101 = finalDraft.find((r) => r.id === 101);
+    expect(slot101?.type).toBe('BOOKED');
+    expect(slot101?.dtstart).toBe(1785070000); // discarded user's edit (which would have changed start time to 13:00)
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+  });
+
   it('correctly handles partial failure during commit', () => {
     const store = new MonthDraftStore();
     store.ensureMonthLoaded('2026-07', defaultMockRaws);
