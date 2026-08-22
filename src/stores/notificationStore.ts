@@ -43,15 +43,17 @@ export const createInitialState = (
   initialNotifications?: NotificationItem[],
   initialStatus: NotificationStatus = 'success'
 ): SharedNotificationState => {
-  const isUsingProps = initialNotifications !== undefined;
+  const hasInitial = initialNotifications !== undefined;
   const storageKey = getStorageKey(userId);
 
   return {
-    status: isUsingProps ? initialStatus : 'loading',
+    status: hasInitial ? initialStatus : 'loading',
     notifications: initialNotifications ?? [],
     seenUnreadCount: getStoredSeenCount(storageKey),
     nextCursor: null,
-    unreadCountState: 0,
+    unreadCountState: initialNotifications
+      ? initialNotifications.filter((n) => n.unread).length
+      : 0,
     isLoadingMore: false,
     isPending: false,
     hasLoadMoreError: false,
@@ -198,11 +200,7 @@ class NotificationStoreManager {
   /**
    * Domain Action: Optimistically mark a single notification as read
    */
-  markReadOptimistic(
-    userId: string | undefined,
-    id: string,
-    isUsingProps: boolean
-  ): void {
+  markReadOptimistic(userId: string | undefined, id: string): void {
     const state = this.getOrCreateState(userId);
 
     const markingReadIdsCopy = new Set(state.markingReadIds);
@@ -212,9 +210,7 @@ class NotificationStoreManager {
       notifications: state.notifications.map((item) =>
         item.id === id ? { ...item, unread: false } : item
       ),
-      unreadCountState: isUsingProps
-        ? state.unreadCountState
-        : Math.max(0, state.unreadCountState - 1),
+      unreadCountState: Math.max(0, state.unreadCountState - 1),
       markingReadIds: markingReadIdsCopy,
     });
   }
@@ -222,10 +218,7 @@ class NotificationStoreManager {
   /**
    * Domain Action: Optimistically mark all notifications as read
    */
-  markAllReadOptimistic(
-    userId: string | undefined,
-    isUsingProps: boolean
-  ): {
+  markAllReadOptimistic(userId: string | undefined): {
     previousNotifications: NotificationItem[];
     previousCount: number;
     unreadIds: string[];
@@ -245,7 +238,7 @@ class NotificationStoreManager {
       notifications: state.notifications.map((item) =>
         unreadIdSet.has(item.id) ? { ...item, unread: false } : item
       ),
-      ...(!isUsingProps ? { unreadCountState: 0 } : {}),
+      unreadCountState: 0,
       isMarkingAll: true,
     });
 

@@ -25,12 +25,8 @@ vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
 }));
 
-vi.mock('@/services/notifications/notificationService', () => ({
-  fetchUnreadCount: vi.fn(),
-  listNotifications: vi.fn(),
-  markAllRead: vi.fn(),
-  markOneRead: vi.fn(),
-}));
+// Uses src/services/notifications/__mocks__/notificationService.ts
+vi.mock('@/services/notifications/notificationService');
 
 const mockNotifications: NotificationItem[] = [
   {
