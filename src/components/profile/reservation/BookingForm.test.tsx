@@ -33,8 +33,11 @@ describe('BookingForm', () => {
     isOwnMentorProfile: false,
     isUserDataLoading: false,
     isAuthenticated: true,
-    slots: mockSlots,
-    monthLoaded: true,
+    slotsSnapshot: {
+      slots: mockSlots,
+      monthLoaded: true,
+      reservationsLoaded: true,
+    },
     selectedSlot: null,
     setSelectedSlot: vi.fn(),
     isSubmitting: false,
@@ -90,12 +93,22 @@ describe('BookingForm', () => {
   });
 
   it('renders Loading state when monthLoaded is false', () => {
-    render(<BookingForm {...defaultProps} monthLoaded={false} />);
+    render(
+      <BookingForm
+        {...defaultProps}
+        slotsSnapshot={{ ...defaultProps.slotsSnapshot, monthLoaded: false }}
+      />
+    );
     expect(screen.getByText('讀取中…')).toBeInTheDocument();
   });
 
   it('renders No Slots state when slots are empty', () => {
-    render(<BookingForm {...defaultProps} slots={[]} />);
+    render(
+      <BookingForm
+        {...defaultProps}
+        slotsSnapshot={{ ...defaultProps.slotsSnapshot, slots: [] }}
+      />
+    );
     expect(screen.getByText('無可預約的時段')).toBeInTheDocument();
   });
 

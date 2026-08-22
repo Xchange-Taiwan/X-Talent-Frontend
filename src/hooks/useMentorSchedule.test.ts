@@ -15,7 +15,10 @@ vi.mock('@/services/reservations', () => ({
   fetchAllReservationsForState: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
+
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
+import { captureFlowFailure } from '@/lib/monitoring';
 import {
   buildDateTime,
   RawMentorTimeslot,
@@ -32,6 +35,7 @@ const mockFetchAllReservationsForState = vi.mocked(
   fetchAllReservationsForState
 );
 const mockLoadMonthScheduleFresh = vi.mocked(loadMonthScheduleFresh);
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 describe('useMentorSchedule', () => {
   beforeEach(() => {
@@ -1080,6 +1084,89 @@ describe('useMentorSchedule', () => {
       const slots = result.current.generateBookingSlots('2026-09-26');
       expect(slots).toHaveLength(1);
       expect(slots[0].menteeName).toBe('Alice');
+    });
+
+    it('reports reservationsLoaded=false while the reservations fetch is in flight, independent of the schedule fetch', async () => {
+      // Regression test for the profile-page bug where clicking a PENDING
+      // booked slot right after this hook remounts (e.g. navigating back to
+      // the profile page) could redirect instead of opening the quick-reply
+      // dialog: the schedule fetch (which drives slot.status) can resolve
+      // before this reservations fetch (which drives slot.reservation)
+      // does, so a caller must gate on reservationsLoaded specifically
+      // rather than assuming monthLoaded covers both.
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+
+      const resolveFetchers: Array<(value: []) => void> = [];
+      mockFetchAllReservationsForState.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveFetchers.push(resolve);
+          })
+      );
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      // Schedule fetch is cached and resolves synchronously, but the
+      // reservations fetch is still pending.
+      await waitFor(() => {
+        expect(result.current.monthLoaded).toBe(true);
+      });
+      expect(result.current.reservationsLoaded).toBe(false);
+
+      await waitFor(() => {
+        expect(resolveFetchers).toHaveLength(2);
+      });
+
+      await act(async () => {
+        resolveFetchers.forEach((resolve) => resolve([]));
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(result.current.reservationsLoaded).toBe(true);
+      });
+    });
+
+    it('reports the failure and leaves reservationsLoaded false when the reservations fetch throws unexpectedly', async () => {
+      // fetchAllReservationsForState itself never rejects in production (it
+      // swallows its own errors, see reservationService.ts), but this
+      // exercises the hook's own defense-in-depth catch for anything else
+      // that could throw. reservationsLoaded must stay false here — it's
+      // only ever set true on the success path, deliberately not in a
+      // `finally` (which would run on this failure too and mark the flag
+      // loaded despite `reservations` never actually being written).
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+      mockFetchAllReservationsForState.mockRejectedValue(new Error('boom'));
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      await waitFor(() => {
+        expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+          expect.objectContaining({
+            flow: 'mentor_schedule_fetch_reservations',
+            step: 'fetch_all_reservations',
+            message: 'boom',
+          })
+        );
+      });
+
+      expect(result.current.reservationsLoaded).toBe(false);
     });
   });
 

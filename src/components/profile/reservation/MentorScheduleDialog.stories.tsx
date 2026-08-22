@@ -93,6 +93,7 @@ const mockDraftSlots: ParsedMentorTimeslot[] = [
 const defaultScheduleMock: UseMentorScheduleReturn = {
   loaded: true,
   monthLoaded: true,
+  reservationsLoaded: true,
   isFetching: false,
   selectedDate: todayStr,
   setSelectedDate: () => {},
@@ -100,6 +101,7 @@ const defaultScheduleMock: UseMentorScheduleReturn = {
   draftForSelectedDate: mockDraftSlots,
   allowedDates: [todayStr, '2026-08-04'],
   generateBookingSlots: () => [],
+  slotsSnapshot: { slots: [], monthLoaded: true, reservationsLoaded: true },
   getDayBookingStatus: () => null,
   addSlotForSelectedDate: () => ({ added: 1, skipped: 0 }),
   updateDraftSlot: () => ({ success: true }),
