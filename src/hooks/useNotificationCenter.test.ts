@@ -25,12 +25,8 @@ vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
 }));
 
-vi.mock('@/services/notifications/notificationService', () => ({
-  fetchUnreadCount: vi.fn(),
-  listNotifications: vi.fn(),
-  markAllRead: vi.fn(),
-  markOneRead: vi.fn(),
-}));
+// Uses src/services/notifications/__mocks__/notificationService.ts
+vi.mock('@/services/notifications/notificationService');
 
 const mockNotifications: NotificationItem[] = [
   {
@@ -642,6 +638,9 @@ describe('useNotificationCenter', () => {
       });
 
       expect(result.current.items[0].unread).toBe(true); // Rolled back to unread: true
+      // Regression: the optimistic decrement must be restored on rollback,
+      // not just the item's unread flag.
+      expect(result.current.badgeCount).toBe(5);
       expect(mockSource.markOneRead).toHaveBeenCalledWith(
         'di-error-user',
         'n1'
@@ -652,6 +651,98 @@ describe('useNotificationCenter', () => {
           description: '無法將通知標示為已讀，請稍後再試',
         })
       );
+    });
+
+    it('should correctly propagate errors and trigger rollback when a custom notificationSource markAllRead operation fails', async () => {
+      const mockSource = {
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 5 }),
+        listNotifications: vi.fn().mockResolvedValue({
+          notifications: mockNotifications,
+          next_cursor: null,
+        }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi
+          .fn()
+          .mockRejectedValue(new Error('Mock DI markAllRead Failure')),
+      };
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({
+          userId: 'di-all-error-user',
+          notificationSource: mockSource,
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.badgeCount).toBe(5);
+      });
+
+      act(() => {
+        result.current.openCenter();
+      });
+
+      await waitFor(() => {
+        expect(result.current.items).toEqual(mockNotifications);
+      });
+
+      // Mark all read -> should fail and roll back to unread: true and restore badge count to 5
+      await act(async () => {
+        await result.current.markAllRead();
+      });
+
+      expect(result.current.badgeCount).toBe(5);
+      expect(result.current.items[0].unread).toBe(true);
+      expect(mockSource.markAllRead).toHaveBeenCalledWith('di-all-error-user');
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: 'destructive',
+          description: '無法將全部通知標示為已讀，請稍後再試',
+        })
+      );
+    });
+  });
+
+  describe('anonymous / unauthenticated mode (missing userId)', () => {
+    it('should not call HTTP source operations and return early if userId is missing', async () => {
+      const { result } = renderHook(() =>
+        useNotificationCenter({
+          userId: undefined,
+        })
+      );
+
+      // On mount, should not trigger any fetches because userId is missing and source is httpNotificationSource
+      expect(fetchUnreadCount).not.toHaveBeenCalled();
+      expect(result.current.badgeCount).toBe(0);
+
+      // Opening center should also not trigger listNotifications
+      act(() => {
+        result.current.openCenter();
+      });
+      expect(listNotifications).not.toHaveBeenCalled();
+    });
+
+    it('should work correctly with initialNotifications even when userId is missing', async () => {
+      const { result } = renderHook(() =>
+        useNotificationCenter({
+          userId: undefined,
+          initialNotifications: mockNotifications,
+        })
+      );
+
+      expect(result.current.badgeCount).toBe(2);
+      expect(result.current.items).toEqual(mockNotifications);
+
+      // Opening center should work
+      act(() => {
+        result.current.openCenter();
+      });
+      expect(result.current.open).toBe(true);
+
+      // markRead should work fine
+      await act(async () => {
+        await result.current.markRead('n1');
+      });
+      expect(result.current.badgeCount).toBe(1);
     });
   });
 
@@ -792,6 +883,239 @@ describe('useNotificationCenter', () => {
       });
 
       expect(result.current.badgeCount).toBe(0);
+    });
+  });
+  describe('retry (delegated to the installed notification source)', () => {
+    it('restores the list from a preloaded source after its simulated delay', async () => {
+      vi.useFakeTimers();
+      try {
+        const { result } = renderHook(() =>
+          useNotificationCenter({
+            userId: 'retry-fixture-user',
+            initialNotifications: mockNotifications,
+            initialStatus: 'error',
+          })
+        );
+
+        expect(result.current.status).toBe('error');
+
+        act(() => {
+          result.current.handleRetry();
+        });
+        expect(result.current.status).toBe('loading');
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1000);
+        });
+
+        expect(result.current.status).toBe('success');
+        expect(result.current.items).toEqual(mockNotifications);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('recomputes the badge count from the fixture source after a retry', async () => {
+      vi.useFakeTimers();
+      try {
+        const { result } = renderHook(() =>
+          useNotificationCenter({
+            userId: 'retry-badge-user',
+            initialNotifications: mockNotifications,
+            initialStatus: 'error',
+          })
+        );
+
+        act(() => {
+          result.current.handleRetry();
+        });
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1000);
+        });
+
+        const expectedUnread = mockNotifications.filter((n) => n.unread).length;
+        expect(result.current.badgeCount).toBe(expectedUnread);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('falls back to a normal reload for a source with no retry handling', async () => {
+      vi.mocked(fetchUnreadCount).mockResolvedValue({ unread_count: 1 });
+      vi.mocked(listNotifications).mockResolvedValue({
+        notifications: mockNotifications,
+        next_cursor: null,
+      });
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({ userId: 'retry-http-user' })
+      );
+
+      await waitFor(() => {
+        expect(result.current.badgeCount).toBe(1);
+      });
+      vi.mocked(listNotifications).mockClear();
+
+      act(() => {
+        result.current.handleRetry();
+      });
+
+      await waitFor(() => {
+        expect(listNotifications).toHaveBeenCalledWith(
+          'retry-http-user',
+          undefined,
+          20
+        );
+        expect(result.current.status).toBe('success');
+      });
+    });
+
+    it('routes retry through a custom source that provides one', async () => {
+      const mockSource = {
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 0 }),
+        listNotifications: vi
+          .fn()
+          .mockResolvedValue({ notifications: [], next_cursor: null }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+        retry: vi.fn().mockResolvedValue(mockNotifications),
+      };
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({
+          userId: 'retry-di-user',
+          notificationSource: mockSource,
+        })
+      );
+
+      act(() => {
+        result.current.handleRetry();
+      });
+
+      await waitFor(() => {
+        expect(mockSource.retry).toHaveBeenCalledWith('retry-di-user');
+        expect(result.current.status).toBe('success');
+        expect(result.current.items).toEqual(mockNotifications);
+      });
+      expect(mockSource.listNotifications).not.toHaveBeenCalled();
+
+      // Regression: the badge count must be recomputed from what retry
+      // resolved with, not left stale at its pre-retry value.
+      const expectedUnread = mockNotifications.filter((n) => n.unread).length;
+      expect(result.current.badgeCount).toBe(expectedUnread);
+    });
+
+    it('surfaces the error state when a source retry rejects', async () => {
+      const mockSource = {
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 0 }),
+        listNotifications: vi
+          .fn()
+          .mockResolvedValue({ notifications: [], next_cursor: null }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+        retry: vi.fn().mockRejectedValue(new Error('Mock retry failure')),
+      };
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({
+          userId: 'retry-di-error-user',
+          notificationSource: mockSource,
+        })
+      );
+
+      act(() => {
+        result.current.handleRetry();
+      });
+
+      await waitFor(() => {
+        expect(result.current.status).toBe('error');
+      });
+      expect(captureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'notification_retry',
+          step: 'source_retry',
+        })
+      );
+    });
+
+    it('ignores a retry that resolves after the hook unmounted', async () => {
+      let resolveRetry: ((items: NotificationItem[]) => void) | undefined;
+      const mockSource = {
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 0 }),
+        listNotifications: vi
+          .fn()
+          .mockResolvedValue({ notifications: [], next_cursor: null }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+        retry: vi.fn(
+          () =>
+            new Promise<NotificationItem[]>((resolve) => {
+              resolveRetry = resolve;
+            })
+        ),
+      };
+
+      const { result, unmount } = renderHook(() =>
+        useNotificationCenter({
+          userId: 'retry-unmount-user',
+          notificationSource: mockSource,
+        })
+      );
+
+      act(() => {
+        result.current.handleRetry();
+      });
+      await waitFor(() => {
+        expect(mockSource.retry).toHaveBeenCalled();
+      });
+
+      unmount();
+
+      await act(async () => {
+        resolveRetry?.(mockNotifications);
+      });
+
+      // The late resolution must not write into the shared store
+      const state =
+        notificationStoreManager.getOrCreateState('retry-unmount-user');
+      expect(state.status).toBe('loading');
+      expect(state.notifications).toEqual([]);
+    });
+  });
+
+  describe('preloaded sources (fixture data injected via a custom source)', () => {
+    it('never drives fetches into a source that declares itself preloaded', async () => {
+      const preloadedSource = {
+        isPreloaded: true,
+        requiresAuth: false,
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 3 }),
+        listNotifications: vi.fn().mockResolvedValue({
+          notifications: mockNotifications,
+          next_cursor: '20',
+        }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const { result } = renderHook(() =>
+        useNotificationCenter({
+          userId: 'preloaded-user',
+          notificationSource: preloadedSource,
+        })
+      );
+
+      act(() => {
+        result.current.openCenter();
+      });
+      await act(async () => {
+        await result.current.loadMore();
+      });
+
+      expect(preloadedSource.getUnreadCount).not.toHaveBeenCalled();
+      expect(preloadedSource.listNotifications).not.toHaveBeenCalled();
+      expect(result.current.items).toEqual([]);
+      expect(result.current.hasMore).toBe(false);
     });
   });
 });
