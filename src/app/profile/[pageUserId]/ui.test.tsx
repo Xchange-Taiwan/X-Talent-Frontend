@@ -49,6 +49,7 @@ function buildSchedule(): UseMentorScheduleReturn {
     draftForSelectedDate: [],
     allowedDates: [],
     generateBookingSlots: vi.fn(() => []),
+    slotsSnapshot: { slots: [], monthLoaded: true, reservationsLoaded: true },
     getDayBookingStatus: vi.fn(() => null),
     addSlotForSelectedDate: vi.fn(() => ({ added: 0, skipped: 0 })),
     updateDraftSlot: vi.fn(() => ({ success: true })),

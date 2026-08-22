@@ -74,12 +74,7 @@ export default function ProfilePageUI({
   isSubmitting,
   onConfirmReservation,
 }: Props) {
-  const {
-    selectedDate,
-    setSelectedDate,
-    generateBookingSlots,
-    getDayBookingStatus,
-  } = schedule;
+  const { selectedDate, setSelectedDate, getDayBookingStatus } = schedule;
 
   // Render the schedule region while user data loads (most profile views are
   // mentors) so the calendar can appear before user data resolves; collapse
@@ -316,13 +311,7 @@ export default function ProfilePageUI({
                     isOwnMentorProfile={isOwnMentorProfile}
                     isUserDataLoading={userLoading || !isIdentityResolved}
                     isAuthenticated={!!loginUserId}
-                    slotsSnapshot={{
-                      slots: selectedDate
-                        ? generateBookingSlots(selectedDate)
-                        : [],
-                      monthLoaded: schedule.monthLoaded,
-                      reservationsLoaded: schedule.reservationsLoaded,
-                    }}
+                    slotsSnapshot={schedule.slotsSnapshot}
                     selectedSlot={selectedSlot}
                     setSelectedSlot={setSelectedSlot}
                     isSubmitting={isSubmitting}

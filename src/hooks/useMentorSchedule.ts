@@ -118,6 +118,10 @@ export type UseMentorScheduleReturn = {
   allowedDates: string[];
 
   generateBookingSlots: (dateKey: string) => BookingSlot[];
+  /** generateBookingSlots(selectedDate), bundled with monthLoaded and
+   * reservationsLoaded — see SlotsSnapshot. Pass straight through to a
+   * caller like BookingForm instead of re-assembling it at each layer. */
+  slotsSnapshot: SlotsSnapshot;
 
   /** Rolls up a day's booking slots into a single dot status: PENDING takes priority over an all-BOOKED day. */
   getDayBookingStatus: (dateKey: string) => BookingStatus | null;
@@ -241,15 +245,21 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
             ? prev
             : [...upcoming, ...pending]
         );
+        // Deliberately set only on this success path, not in a `finally`
+        // (finally always runs, catch or no catch, so putting it there
+        // would mark reservationsLoaded true even after the catch below —
+        // exactly the "loaded but incomplete" state this flag exists to
+        // prevent callers from acting on). If this effect never resolves
+        // successfully, reservationsLoaded correctly stays false, keeping
+        // the "已預約" section on its loading state rather than rendering
+        // slots whose `.reservation` was never actually fetched.
+        setReservationsLoaded(true);
       } catch (err) {
         // fetchAllReservationsForState already swallows its own fetch
         // errors internally (returning whatever it collected before
-        // failing, never rejecting) — this catch is defense-in-depth for
-        // anything else that could throw here, matching reloadReservations'
-        // handling below. Without it, an unexpected throw would skip
-        // straight to `finally` and still mark reservationsLoaded true,
-        // which is exactly the "loaded but incomplete" state this flag
-        // exists to prevent callers from acting on.
+        // failing, never rejecting), so this only fires for something
+        // unexpected elsewhere in the try block — defense-in-depth,
+        // matching reloadReservations' handling below.
         if (ignore) return;
         captureFlowFailure({
           flow: 'mentor_schedule_fetch_reservations',
@@ -257,8 +267,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           message: err instanceof Error ? err.message : String(err),
           level: 'warning',
         });
-      } finally {
-        if (!ignore) setReservationsLoaded(true);
       }
     };
 
@@ -511,6 +519,19 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     [allDraftRaws, reservations, reservedStarts]
   );
 
+  // Bundles the selected date's slots with the two flags that gate whether
+  // it's safe to render/interact with them, so callers (e.g. the profile
+  // page UI) don't need to know how to call generateBookingSlots
+  // themselves or which flags travel with its result — see SlotsSnapshot.
+  const slotsSnapshot = useMemo<SlotsSnapshot>(
+    () => ({
+      slots: selectedDate ? generateBookingSlots(selectedDate) : [],
+      monthLoaded,
+      reservationsLoaded,
+    }),
+    [selectedDate, generateBookingSlots, monthLoaded, reservationsLoaded]
+  );
+
   // A dedicated map (rather than reusing generateBookingSlots per date) so
   // the calendar's per-day-cell status dots don't rescan allDraftRaws and
   // re-expand every rrule once per visible day (~35-42x a month).
@@ -725,6 +746,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     draftForSelectedDate,
     allowedDates,
     generateBookingSlots,
+    slotsSnapshot,
     getDayBookingStatus,
     addSlotForSelectedDate,
     updateDraftSlot,
