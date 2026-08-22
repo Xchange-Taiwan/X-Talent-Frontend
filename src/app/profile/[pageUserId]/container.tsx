@@ -207,6 +207,7 @@ export default function ProfilePageContainer({
       userData={userData}
       userLoading={userLoading}
       schedule={schedule}
+      scheduleEditor={schedule}
       scheduleLoaded={loaded}
       loginUserId={loginUserId}
       isIdentityResolved={isIdentityResolved}

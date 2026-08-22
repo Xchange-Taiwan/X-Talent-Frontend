@@ -15,6 +15,7 @@ import { platformLabelMap } from '@/components/profile/social-links/platformLabe
 import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
 import { Button } from '@/components/ui/button';
 import {
+  BookingCalendarReader,
   BookingSlot,
   UseMentorScheduleReturn,
 } from '@/hooks/useMentorSchedule';
@@ -34,7 +35,8 @@ import {
 interface Props {
   userData: UserType | null;
   userLoading: boolean;
-  schedule: UseMentorScheduleReturn;
+  schedule: BookingCalendarReader;
+  scheduleEditor?: UseMentorScheduleReturn;
   scheduleLoaded: boolean;
   loginUserId: string;
   isIdentityResolved: boolean;
@@ -57,6 +59,7 @@ export default function ProfilePageUI({
   userData,
   userLoading,
   schedule,
+  scheduleEditor,
   scheduleLoaded,
   loginUserId,
   isIdentityResolved,
@@ -321,11 +324,11 @@ export default function ProfilePageUI({
                     myUserId={loginUserId}
                     onMutationSuccess={schedule.reload}
                   />
-                  {userData && canShowOwnerControls && (
+                  {userData && canShowOwnerControls && scheduleEditor && (
                     <MentorScheduleDialog
                       open={openReservationDialog}
                       onOpenChange={setOpenReservationDialog}
-                      schedule={schedule}
+                      schedule={scheduleEditor}
                       onMonthChange={onScheduleMonthChange}
                     />
                   )}

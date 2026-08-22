@@ -83,10 +83,12 @@ const asyncNoop = async () => true;
 function baseProps(
   overrides: Partial<React.ComponentProps<typeof ProfilePageUI>> = {}
 ) {
+  const sched = buildSchedule();
   return {
     userData: buildUserData(),
     userLoading: false,
-    schedule: buildSchedule(),
+    schedule: sched,
+    scheduleEditor: sched,
     scheduleLoaded: true,
     loginUserId: '',
     isIdentityResolved: false,
