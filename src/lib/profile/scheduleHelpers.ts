@@ -2,13 +2,14 @@ import dayjs from 'dayjs';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import { RRule } from 'rrule';
 
-import {
+import { SegmentVO } from '@/services/mentor-schedule/schedule';
+import type { Reservation } from '@/types/reservation';
+
+import type {
   BookingSlot,
   DtType,
   ParsedMentorTimeslot,
-} from '@/lib/profile/bookingAvailability';
-import { SegmentVO } from '@/services/mentor-schedule/schedule';
-import type { Reservation } from '@/types/reservation';
+} from './bookingAvailability/types';
 
 dayjs.extend(isSameOrBefore);
 
