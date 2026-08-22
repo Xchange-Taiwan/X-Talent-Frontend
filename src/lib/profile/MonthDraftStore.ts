@@ -243,6 +243,85 @@ export class MonthDraftStore {
     this.emitChange();
   }
 
+  public reloadMonth(monthKey: MonthKey, raws: RawMentorTimeslot[]): void {
+    const oldSaved = this.savedByMonth.get(monthKey) ?? [];
+    this.savedByMonth = new Map(this.savedByMonth);
+    this.savedByMonth.set(monthKey, raws);
+
+    if (!this.dirtyMonths.has(monthKey)) {
+      this.draftByMonth = new Map(this.draftByMonth);
+      this.draftByMonth.set(monthKey, raws);
+    } else {
+      // Month is dirty: rebase local draft edits on top of the new reloaded raws
+      const oldDraft = this.draftByMonth.get(monthKey) ?? [];
+
+      // 1. Identify added slots (temporary IDs)
+      const addedSlots = oldDraft.filter((r) => r.id < 0);
+
+      // 2. Identify deleted slot IDs (persisted IDs present in oldSaved but missing in oldDraft)
+      const oldDraftIds = new Set(oldDraft.map((r) => r.id));
+      const deletedSlotIds = new Set(
+        oldSaved
+          .filter((r) => r.id > 0 && !oldDraftIds.has(r.id))
+          .map((r) => r.id)
+      );
+
+      // 3. Identify edited slots (persisted IDs in oldDraft whose values differ from oldSaved)
+      const oldSavedMap = new Map(oldSaved.map((r) => [r.id, r]));
+      const editedSlotsMap = new Map<number, RawMentorTimeslot>();
+
+      for (const draftSlot of oldDraft) {
+        if (draftSlot.id > 0) {
+          const savedSlot = oldSavedMap.get(draftSlot.id);
+          if (savedSlot) {
+            // Check if any property has changed
+            const isDifferent =
+              draftSlot.dtstart !== savedSlot.dtstart ||
+              draftSlot.dtend !== savedSlot.dtend ||
+              draftSlot.rrule !== savedSlot.rrule ||
+              JSON.stringify(draftSlot.exdate) !==
+                JSON.stringify(savedSlot.exdate);
+
+            if (isDifferent) {
+              editedSlotsMap.set(draftSlot.id, draftSlot);
+            }
+          }
+        }
+      }
+
+      // 4. Rebase: Apply deletions and edits to the new reloaded raws, then append additions
+      const rebasedDraft = raws
+        .filter((r) => {
+          if (deletedSlotIds.has(r.id)) {
+            const savedSlot = oldSavedMap.get(r.id);
+            // If the slot's type changed on the backend (e.g. booked/pending), preserve the new backend status and discard local draft deletion
+            if (savedSlot && savedSlot.type !== r.type) {
+              return true;
+            }
+            return false;
+          }
+          return true;
+        })
+        .map((r) => {
+          if (r.id > 0 && editedSlotsMap.has(r.id)) {
+            const draftSlot = editedSlotsMap.get(r.id)!;
+            // If the slot's type changed on the backend (e.g. booked/pending), preserve the new backend status and discard local draft edits
+            if (r.type !== draftSlot.type) {
+              return r;
+            }
+            return draftSlot;
+          }
+          return r;
+        });
+
+      rebasedDraft.push(...addedSlots);
+
+      this.draftByMonth = new Map(this.draftByMonth);
+      this.draftByMonth.set(monthKey, rebasedDraft);
+    }
+    this.emitChange();
+  }
+
   public add(patch: {
     startTime: string;
     durationMinutes: SlotDurationMinutes;
