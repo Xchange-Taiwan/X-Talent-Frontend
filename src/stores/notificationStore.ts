@@ -267,6 +267,8 @@ class NotificationStoreManager {
    * Domain Action: Start marking all notifications as read optimistically.
    * Sets isPending and isMarkingAll to true, and marks all notifications as read.
    * Returns unread IDs and a self-contained rollback function, fully encapsulating rollback details.
+   * The rollback closure dynamically updates the current notifications list rather than overwriting with an old snapshot,
+   * protecting against loss of concurrent notifications added during the API request.
    */
   startMarkAllRead(userId: string | undefined): {
     unreadIds: string[];
@@ -292,10 +294,25 @@ class NotificationStoreManager {
     });
 
     const rollback = () => {
+      const currentState = this.getOrCreateState(userId);
+
+      const notifications = currentState.notifications.map((item) => {
+        if (unreadIdSet.has(item.id) && !item.unread) {
+          return { ...item, unread: true };
+        }
+        return item;
+      });
+
+      // Calculate how many new unread notifications were added concurrently during the API call
+      const previousIdSet = new Set(previousNotifications.map((n) => n.id));
+      const newUnreadCount = currentState.notifications.filter(
+        (n) => !previousIdSet.has(n.id) && n.unread
+      ).length;
+
       this.updateState(userId, {
-        notifications: previousNotifications,
-        unreadCountState: previousCount,
+        notifications,
         isMarkingAll: previousIsMarkingAll,
+        unreadCountState: previousCount + newUnreadCount,
       });
     };
 
@@ -553,7 +570,8 @@ class NotificationStoreManager {
   }
 
   /**
-   * Domain Action: Sync initial notifications and status prop changes structurally into the shared store
+   * Domain Action: Sync initial notifications and status prop changes structurally into the shared store.
+   * Correctly advances the unreadCountVersions version number on changes to guard against slow background fetch races.
    */
   syncInitialNotifications(
     userId: string | undefined,
@@ -565,6 +583,10 @@ class NotificationStoreManager {
       areNotificationsChanged(initialNotifications, state.notifications) ||
       initialStatus !== state.status
     ) {
+      const key = getStoreKey(userId);
+      const currentVersion = this.unreadCountVersions.get(key) ?? 0;
+      this.unreadCountVersions.set(key, currentVersion + 1);
+
       this.updateState(userId, {
         notifications: initialNotifications,
         status: initialStatus,
