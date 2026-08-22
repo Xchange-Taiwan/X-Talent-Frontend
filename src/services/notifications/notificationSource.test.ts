@@ -43,7 +43,7 @@ describe('httpNotificationSource', () => {
       'cursor-111',
       20
     );
-    expect(res).toBe(mockRes);
+    expect(res).toStrictEqual(mockRes);
   });
 
   it('should delegate markOneRead to markOneRead service', async () => {

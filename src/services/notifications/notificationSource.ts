@@ -25,8 +25,16 @@ export const httpNotificationSource: NotificationSource = {
     const res = await fetchUnreadCount(userId);
     return { unread_count: (res && res.unread_count) ?? 0 };
   },
-  listNotifications(userId: string, cursor?: string | null, limit?: number) {
-    return listNotifications(userId, cursor, limit);
+  async listNotifications(
+    userId: string,
+    cursor?: string | null,
+    limit?: number
+  ) {
+    const res = await listNotifications(userId, cursor, limit);
+    return {
+      notifications: res?.notifications ?? [],
+      next_cursor: res?.next_cursor ?? null,
+    };
   },
   markOneRead(userId: string, notificationId: string) {
     return markOneRead(userId, notificationId);
