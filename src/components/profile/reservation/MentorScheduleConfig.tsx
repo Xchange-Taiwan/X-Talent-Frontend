@@ -3,7 +3,10 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import type { BookingSlot, SlotsSnapshot } from '@/hooks/useMentorSchedule';
+import type {
+  BookingSlot,
+  SlotsSnapshot,
+} from '@/lib/profile/bookingAvailability';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 import { isSlotTaken } from '@/lib/profile/scheduleHelpers';
 import type { Reservation } from '@/types/reservation';

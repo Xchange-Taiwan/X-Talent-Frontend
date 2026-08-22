@@ -13,8 +13,11 @@ import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalen
 import { platformLabelMap } from '@/components/profile/social-links/platformLabelMap';
 import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
 import { Button } from '@/components/ui/button';
-import { BookingCalendarReader, BookingSlot } from '@/hooks/useMentorSchedule';
 import { UserType } from '@/hooks/user/user-data/useUserData';
+import {
+  BookingCalendarReader,
+  BookingSlot,
+} from '@/lib/profile/bookingAvailability';
 import {
   formatSelectedDate,
   toDateKey,

@@ -1,14 +1,14 @@
 import dayjs from 'dayjs';
 
 import {
-  BookingSlot,
-  BookingStatus,
   deduplicateBookingSlots,
   expandRrule,
   findMatchedReservation,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
 import type { Reservation } from '@/types/reservation';
+
+import { BookingSlot, BookingStatus } from './types';
 
 export interface BookingAvailabilityParams {
   draftRows: RawMentorTimeslot[];
