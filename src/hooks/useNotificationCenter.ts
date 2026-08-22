@@ -462,13 +462,7 @@ export function useNotificationCenter({
         reportMarkAsReadFailure(`mark_read_click:${id}`, error);
 
         // Roll back only this notification
-        const currentCount =
-          notificationStoreManager.getOrCreateState(userId).unreadCountState;
-        notificationStoreManager.rollbackNotifications(
-          userId,
-          [id],
-          currentCount + 1
-        );
+        notificationStoreManager.rollbackNotifications(userId, [id]);
         toast({
           variant: 'destructive',
           title: '操作失敗',
@@ -511,11 +505,6 @@ export function useNotificationCenter({
 
         if (failedIds.length > 0) {
           notificationStoreManager.rollbackNotifications(userId, failedIds);
-          const currentCount =
-            notificationStoreManager.getOrCreateState(userId).unreadCountState;
-          notificationStoreManager.updateState(userId, {
-            unreadCountState: currentCount + failedIds.length,
-          });
           toast({
             variant: 'destructive',
             title: '操作失敗',
@@ -565,10 +554,15 @@ export function useNotificationCenter({
       .retry(effectiveUserId)
       .then((notifications) => {
         if (retryTokenRef.current !== token) return;
-        notificationStoreManager.updateState(userId, {
+        // Reuse the same domain action the normal load path writes
+        // through, so a concurrent unread-count fetch can't clobber this
+        // with a stale value - see its unreadCountVersion guard.
+        notificationStoreManager.setInitialData(
+          userId,
+          notifications.filter((n) => n.unread).length,
           notifications,
-          status: 'success',
-        });
+          null
+        );
       })
       .catch((error) => {
         if (retryTokenRef.current !== token) return;
