@@ -128,9 +128,8 @@ export function useNotificationCenter({
   const effectiveUserId = userId || 'generic';
   const shouldSkipFetch =
     initialNotifications !== undefined ||
-    (!userId && actualSource === httpNotificationSource);
-  const canMutate =
-    userId !== undefined || actualSource !== httpNotificationSource;
+    (!userId && actualSource.requiresAuth);
+  const canMutate = userId !== undefined || !actualSource.requiresAuth;
 
   // Cache the Server Snapshot locally inside hook state for stable referential equality
   const [serverSnapshot] = React.useState(() =>

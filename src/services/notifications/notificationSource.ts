@@ -7,6 +7,7 @@ import {
 import type { NotificationItem } from './types';
 
 export interface NotificationSource {
+  requiresAuth?: boolean;
   getUnreadCount(userId: string): Promise<{ unread_count: number }>;
   listNotifications(
     userId: string,
@@ -21,6 +22,7 @@ export interface NotificationSource {
 }
 
 export const httpNotificationSource: NotificationSource = {
+  requiresAuth: true,
   async getUnreadCount(userId: string) {
     const res = await fetchUnreadCount(userId);
     return { unread_count: (res && res.unread_count) ?? 0 };
@@ -50,6 +52,7 @@ export function createFixtureNotificationSource(
   let list = [...initialNotifications];
 
   return {
+    requiresAuth: false,
     async getUnreadCount(_userId: string) {
       const count = list.filter((n) => n.unread).length;
       return { unread_count: count };
