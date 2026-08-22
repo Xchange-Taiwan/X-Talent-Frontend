@@ -124,6 +124,14 @@ export function useNotificationCenter({
     sourceRef.current = actualSource;
   }, [actualSource]);
 
+  // Semantic variables to avoid duplication and clarify intents
+  const effectiveUserId = userId || 'generic';
+  const shouldSkipFetch =
+    initialNotifications !== undefined ||
+    (!userId && actualSource === httpNotificationSource);
+  const canMutate =
+    userId !== undefined || actualSource !== httpNotificationSource;
+
   // Cache the Server Snapshot locally inside hook state for stable referential equality
   const [serverSnapshot] = React.useState(() =>
     createInitialState(userId, initialNotifications, initialStatus)
@@ -203,8 +211,7 @@ export function useNotificationCenter({
   // Infinite Scroll / Fetch more
   const loadMore = React.useCallback(
     async (isRetry = false) => {
-      if (initialNotifications !== undefined) return;
-      if (!userId && actualSource === httpNotificationSource) return;
+      if (shouldSkipFetch) return;
       const state = notificationStoreManager.getOrCreateState(userId);
 
       if (state.isLoadingMore || !state.nextCursor) return;
@@ -218,7 +225,7 @@ export function useNotificationCenter({
 
       try {
         const res = await sourceRef.current.listNotifications(
-          userId || 'generic',
+          effectiveUserId,
           state.nextCursor,
           20
         );
@@ -244,7 +251,7 @@ export function useNotificationCenter({
         });
       }
     },
-    [userId, actualSource, initialNotifications, toast]
+    [userId, effectiveUserId, shouldSkipFetch, toast]
   );
 
   // Load just the unread badge count - cheap, and safe to fire on every
@@ -255,8 +262,7 @@ export function useNotificationCenter({
   // most page visits never open it, so there's no reason to pay for it
   // upfront.
   const loadUnreadCount = React.useCallback(async () => {
-    if (initialNotifications !== undefined) return;
-    if (!userId && actualSource === httpNotificationSource) return;
+    if (shouldSkipFetch) return;
 
     // Deduplication across sibling hook instances and staleness guarding
     // against loadInitialData both live in the store - see
@@ -265,9 +271,7 @@ export function useNotificationCenter({
       userId,
       async () => {
         try {
-          const res = await sourceRef.current.getUnreadCount(
-            userId || 'generic'
-          );
+          const res = await sourceRef.current.getUnreadCount(effectiveUserId);
           return res.unread_count;
         } catch (error) {
           reportFailure(
@@ -279,13 +283,12 @@ export function useNotificationCenter({
         }
       }
     );
-  }, [userId, actualSource, initialNotifications]);
+  }, [userId, effectiveUserId, shouldSkipFetch]);
 
   // Load initial notifications and unread count from service
   const loadInitialData = React.useCallback(
     async (showLoading = true) => {
-      if (initialNotifications !== undefined) return;
-      if (!userId && actualSource === httpNotificationSource) return;
+      if (shouldSkipFetch) return;
       const state = notificationStoreManager.getOrCreateState(userId);
 
       if (state.isFetching) {
@@ -298,12 +301,8 @@ export function useNotificationCenter({
       const fetchPromise = (async () => {
         try {
           const [unreadRes, notificationsRes] = await Promise.all([
-            sourceRef.current.getUnreadCount(userId || 'generic'),
-            sourceRef.current.listNotifications(
-              userId || 'generic',
-              undefined,
-              20
-            ),
+            sourceRef.current.getUnreadCount(effectiveUserId),
+            sourceRef.current.listNotifications(effectiveUserId, undefined, 20),
           ]);
 
           notificationStoreManager.setInitialData(
@@ -345,7 +344,7 @@ export function useNotificationCenter({
 
       await fetchPromise;
     },
-    [userId, actualSource, initialNotifications, toast]
+    [userId, effectiveUserId, shouldSkipFetch, toast]
   );
 
   React.useEffect(() => {
@@ -434,12 +433,7 @@ export function useNotificationCenter({
 
   const markRead = React.useCallback(
     async (id: string) => {
-      if (
-        !userId &&
-        initialNotifications === undefined &&
-        actualSource === httpNotificationSource
-      )
-        return;
+      if (!canMutate) return;
       const state = notificationStoreManager.getOrCreateState(userId);
 
       if (state.markingReadIds.has(id)) return;
@@ -452,9 +446,9 @@ export function useNotificationCenter({
 
       const action =
         onMarkRead ||
-        (userId || actualSource !== httpNotificationSource
+        (canMutate
           ? (notifId: string) =>
-              sourceRef.current.markOneRead(userId || 'generic', notifId)
+              sourceRef.current.markOneRead(effectiveUserId, notifId)
           : null);
       if (!action) {
         notificationStoreManager.removeMarkingReadId(userId, id);
@@ -486,23 +480,18 @@ export function useNotificationCenter({
         });
       }
     },
-    [userId, actualSource, onMarkRead, initialNotifications, toast]
+    [userId, effectiveUserId, canMutate, onMarkRead, toast]
   );
 
   const markAllReadAction = React.useCallback(async () => {
-    if (
-      !userId &&
-      initialNotifications === undefined &&
-      actualSource === httpNotificationSource
-    )
-      return;
+    if (!canMutate) return;
     const state = notificationStoreManager.getOrCreateState(userId);
     if (state.isMarkingAll) return;
 
     const unreadIds = state.notifications
       .filter((item) => item.unread)
       .map((item) => item.id);
-    if (unreadIds.length === 0) return;
+    if (unreadIds.length === 0 && state.unreadCountState === 0) return;
 
     // Perform optimistic mark all read on the store
     const {
@@ -536,8 +525,8 @@ export function useNotificationCenter({
                 : '部分通知標示為已讀失敗，請稍後再試',
           });
         }
-      } else if (userId || actualSource !== httpNotificationSource) {
-        await sourceRef.current.markAllRead(userId || 'generic');
+      } else if (canMutate) {
+        await sourceRef.current.markAllRead(effectiveUserId);
       }
     } catch (error) {
       reportMarkAsReadFailure('mark_all_read', error);
@@ -559,14 +548,7 @@ export function useNotificationCenter({
         isMarkingAll: false,
       });
     }
-  }, [
-    userId,
-    actualSource,
-    onMarkRead,
-    onMarkAllRead,
-    initialNotifications,
-    toast,
-  ]);
+  }, [userId, effectiveUserId, canMutate, onMarkRead, onMarkAllRead, toast]);
 
   const handleRetry = React.useCallback(() => {
     notificationStoreManager.updateState(userId, { status: 'loading' });

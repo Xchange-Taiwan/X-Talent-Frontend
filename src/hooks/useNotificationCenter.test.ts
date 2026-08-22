@@ -651,6 +651,50 @@ describe('useNotificationCenter', () => {
     });
   });
 
+  describe('anonymous / unauthenticated mode (missing userId)', () => {
+    it('should not call HTTP source operations and return early if userId is missing', async () => {
+      const { result } = renderHook(() =>
+        useNotificationCenter({
+          userId: undefined,
+        })
+      );
+
+      // On mount, should not trigger any fetches because userId is missing and source is httpNotificationSource
+      expect(fetchUnreadCount).not.toHaveBeenCalled();
+      expect(result.current.badgeCount).toBe(0);
+
+      // Opening center should also not trigger listNotifications
+      act(() => {
+        result.current.openCenter();
+      });
+      expect(listNotifications).not.toHaveBeenCalled();
+    });
+
+    it('should work correctly with initialNotifications even when userId is missing', async () => {
+      const { result } = renderHook(() =>
+        useNotificationCenter({
+          userId: undefined,
+          initialNotifications: mockNotifications,
+        })
+      );
+
+      expect(result.current.badgeCount).toBe(2);
+      expect(result.current.items).toEqual(mockNotifications);
+
+      // Opening center should work
+      act(() => {
+        result.current.openCenter();
+      });
+      expect(result.current.open).toBe(true);
+
+      // markRead should work fine
+      await act(async () => {
+        await result.current.markRead('n1');
+      });
+      expect(result.current.badgeCount).toBe(1);
+    });
+  });
+
   describe('lazy list loading (real fetch path, no initialNotifications)', () => {
     beforeEach(() => {
       vi.mocked(fetchUnreadCount).mockReset();
