@@ -390,7 +390,7 @@ export function useNotificationCenter({
       if (!targetItem || !targetItem.unread) return;
 
       // Perform optimistic single mark read on the store
-      notificationStoreManager.markReadOptimistic(userId, id);
+      notificationStoreManager.startMarkRead(userId, id);
 
       const action =
         onMarkRead ||
@@ -399,25 +399,23 @@ export function useNotificationCenter({
               sourceRef.current.markOneRead(effectiveUserId, notifId)
           : null);
       if (!action) {
-        notificationStoreManager.removeMarkingReadId(userId, id);
+        notificationStoreManager.completeMarkRead(userId, id);
         return;
       }
 
-      notificationStoreManager.setPending(userId, true);
       try {
         await action(id);
+        notificationStoreManager.completeMarkRead(userId, id);
       } catch (error) {
         reportMarkAsReadFailure(`mark_read_click:${id}`, error);
 
-        // Roll back only this notification
-        notificationStoreManager.rollbackNotifications(userId, [id]);
+        // Roll back and reset pending
+        notificationStoreManager.failMarkRead(userId, id);
         toast({
           variant: 'destructive',
           title: '操作失敗',
           description: '無法將通知標示為已讀，請稍後再試',
         });
-      } finally {
-        notificationStoreManager.removeMarkingReadId(userId, id, false);
       }
     },
     [userId, effectiveUserId, canMutate, onMarkRead, toast]
@@ -439,9 +437,8 @@ export function useNotificationCenter({
       previousCount,
       unreadIds: optimUnreadIds,
       previousIsMarkingAll,
-    } = notificationStoreManager.markAllReadOptimistic(userId);
+    } = notificationStoreManager.startMarkAllRead(userId);
 
-    notificationStoreManager.setPending(userId, true);
     try {
       if (onMarkAllRead) {
         await onMarkAllRead(optimUnreadIds);
@@ -484,7 +481,7 @@ export function useNotificationCenter({
   }, [userId, effectiveUserId, canMutate, onMarkRead, onMarkAllRead, toast]);
 
   const handleRetry = React.useCallback(() => {
-    notificationStoreManager.setStatus(userId, 'loading');
+    notificationStoreManager.startRetry(userId);
 
     const source = sourceRef.current;
     if (!source.retry) {
@@ -511,7 +508,7 @@ export function useNotificationCenter({
       .catch((error) => {
         if (retryTokenRef.current !== token) return;
         reportFailure('notification_retry', 'source_retry', error);
-        notificationStoreManager.setStatus(userId, 'error');
+        notificationStoreManager.failRetry(userId);
       });
   }, [userId, effectiveUserId, loadInitialData]);
 

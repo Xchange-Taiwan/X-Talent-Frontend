@@ -175,23 +175,6 @@ class NotificationStoreManager {
     };
   }
 
-  /**
-   * Domain Action: Remove a single id from markingReadIds (e.g. on completion or cleanup).
-   */
-  removeMarkingReadId(
-    userId: string | undefined,
-    id: string,
-    isPending?: boolean
-  ) {
-    const state = this.getOrCreateState(userId);
-    const markingReadIdsCopy = new Set(state.markingReadIds);
-    markingReadIdsCopy.delete(id);
-    this.updateState(userId, {
-      markingReadIds: markingReadIdsCopy,
-      ...(isPending !== undefined ? { isPending } : {}),
-    });
-  }
-
   private notify(key: string) {
     const set = this.listeners.get(key);
     if (set) {
@@ -214,27 +197,66 @@ class NotificationStoreManager {
   }
 
   /**
-   * Domain Action: Optimistically mark a single notification as read
+   * Domain Action: Start marking a single notification as read optimistically.
+   * Sets isPending to true, adds the ID to markingReadIds, and marks the notification as read.
    */
-  markReadOptimistic(userId: string | undefined, id: string): void {
+  startMarkRead(userId: string | undefined, id: string): void {
     const state = this.getOrCreateState(userId);
 
     const markingReadIdsCopy = new Set(state.markingReadIds);
     markingReadIdsCopy.add(id);
 
     this.updateState(userId, {
+      isPending: true,
+      markingReadIds: markingReadIdsCopy,
       notifications: state.notifications.map((item) =>
         item.id === id ? { ...item, unread: false } : item
       ),
       unreadCountState: Math.max(0, state.unreadCountState - 1),
+    });
+  }
+
+  /**
+   * Domain Action: Successfully complete a single mark read operation.
+   * Removes the ID from markingReadIds and sets isPending to false.
+   */
+  completeMarkRead(userId: string | undefined, id: string): void {
+    const state = this.getOrCreateState(userId);
+    const markingReadIdsCopy = new Set(state.markingReadIds);
+    markingReadIdsCopy.delete(id);
+
+    this.updateState(userId, {
+      isPending: false,
       markingReadIds: markingReadIdsCopy,
     });
   }
 
   /**
-   * Domain Action: Optimistically mark all notifications as read
+   * Domain Action: Roll back a single mark read operation on failure.
+   * Restores the unread state of the notification, increments the unread count,
+   * removes the ID from markingReadIds, and sets isPending to false.
    */
-  markAllReadOptimistic(userId: string | undefined): {
+  failMarkRead(userId: string | undefined, id: string): void {
+    const state = this.getOrCreateState(userId);
+    const markingReadIdsCopy = new Set(state.markingReadIds);
+    markingReadIdsCopy.delete(id);
+
+    this.updateState(userId, {
+      isPending: false,
+      markingReadIds: markingReadIdsCopy,
+      notifications: state.notifications.map((item) =>
+        item.id === id ? { ...item, unread: true } : item
+      ),
+      unreadCountState: state.unreadCountState + 1,
+    });
+  }
+
+  /**
+   * Domain Action: Start marking all notifications as read optimistically.
+   * Sets isPending and isMarkingAll to true, and marks all notifications as read.
+   * Returns original values for rollback purposes.
+   */
+  startMarkAllRead(userId: string | undefined): {
     previousNotifications: NotificationItem[];
     previousCount: number;
     unreadIds: string[];
@@ -251,6 +273,7 @@ class NotificationStoreManager {
 
     const unreadIdSet = new Set(unreadIds);
     this.updateState(userId, {
+      isPending: true,
       notifications: state.notifications.map((item) =>
         unreadIdSet.has(item.id) ? { ...item, unread: false } : item
       ),
@@ -264,6 +287,37 @@ class NotificationStoreManager {
       unreadIds,
       previousIsMarkingAll,
     };
+  }
+
+  /**
+   * Domain Action: Complete mark all read operation.
+   * Clears isPending and isMarkingAll.
+   */
+  completeMarkAllRead(userId: string | undefined) {
+    this.updateState(userId, {
+      isPending: false,
+      isMarkingAll: false,
+    });
+  }
+
+  /**
+   * Domain Action: Start connection retry.
+   * Sets status to 'loading'.
+   */
+  startRetry(userId: string | undefined) {
+    this.updateState(userId, {
+      status: 'loading',
+    });
+  }
+
+  /**
+   * Domain Action: Fail connection retry.
+   * Sets status to 'error'.
+   */
+  failRetry(userId: string | undefined) {
+    this.updateState(userId, {
+      status: 'error',
+    });
   }
 
   /**
@@ -504,20 +558,6 @@ class NotificationStoreManager {
   }
 
   /**
-   * Domain Action: Set pending state
-   */
-  setPending(userId: string | undefined, isPending: boolean) {
-    this.updateState(userId, { isPending });
-  }
-
-  /**
-   * Domain Action: Set status state
-   */
-  setStatus(userId: string | undefined, status: NotificationStatus) {
-    this.updateState(userId, { status });
-  }
-
-  /**
    * Domain Action: Rollback mark all read completely on error
    */
   rollbackMarkAllRead(
@@ -530,16 +570,6 @@ class NotificationStoreManager {
       notifications: previousNotifications,
       unreadCountState: previousCount,
       isMarkingAll: previousIsMarkingAll,
-    });
-  }
-
-  /**
-   * Domain Action: Complete mark all read operations
-   */
-  completeMarkAllRead(userId: string | undefined) {
-    this.updateState(userId, {
-      isPending: false,
-      isMarkingAll: false,
     });
   }
 }

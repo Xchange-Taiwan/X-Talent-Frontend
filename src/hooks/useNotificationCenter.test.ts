@@ -1118,4 +1118,142 @@ describe('useNotificationCenter', () => {
       expect(result.current.hasMore).toBe(false);
     });
   });
+
+  describe('NotificationStoreManager Refactoring Specific Tests', () => {
+    beforeEach(() => {
+      resetNotificationStore();
+    });
+
+    it('should deduplicate concurrent fetchInitialDataWithDeduplication calls and clean up promise on completion', async () => {
+      const userId = 'dedup-test-user';
+      let resolveFetch: (value: {
+        unreadCount: number;
+        notifications: NotificationItem[];
+        nextCursor: string | null;
+      }) => void = () => {};
+
+      const fetcherPromise = new Promise<{
+        unreadCount: number;
+        notifications: NotificationItem[];
+        nextCursor: string | null;
+      }>((resolve) => {
+        resolveFetch = resolve;
+      });
+
+      const mockFetcher = vi.fn().mockImplementation(() => {
+        return fetcherPromise;
+      });
+
+      // Issue concurrent calls
+      const p1 = notificationStoreManager.fetchInitialDataWithDeduplication(
+        userId,
+        true,
+        mockFetcher
+      );
+      const p2 = notificationStoreManager.fetchInitialDataWithDeduplication(
+        userId,
+        true,
+        mockFetcher
+      );
+
+      // Verify that fetcher was called only once
+      expect(mockFetcher).toHaveBeenCalledTimes(1);
+
+      // Resolve the fetcher
+      resolveFetch({
+        unreadCount: 5,
+        notifications: [],
+        nextCursor: null,
+      });
+
+      await Promise.all([p1, p2]);
+
+      // Call it again after completion
+      const p3 = notificationStoreManager.fetchInitialDataWithDeduplication(
+        userId,
+        true,
+        mockFetcher
+      );
+      expect(mockFetcher).toHaveBeenCalledTimes(2);
+      await p3;
+    });
+
+    it('should clean up promise on fetchInitialDataWithDeduplication failure', async () => {
+      const userId = 'fail-cleanup-user';
+      let rejectFetch: (reason: Error) => void = () => {};
+
+      const fetcherPromise = new Promise<{
+        unreadCount: number;
+        notifications: NotificationItem[];
+        nextCursor: string | null;
+      }>((_, reject) => {
+        rejectFetch = reject;
+      });
+
+      const mockFetcher = vi.fn().mockImplementation(() => {
+        return fetcherPromise;
+      });
+
+      const p1 = notificationStoreManager.fetchInitialDataWithDeduplication(
+        userId,
+        true,
+        mockFetcher
+      );
+
+      rejectFetch(new Error('Fetch failed'));
+
+      await expect(p1).resolves.toBeUndefined(); // Errors are handled/caught internally, resolving the promise cleanly
+
+      // Call it again - since the previous one failed and was cleaned up, this should trigger a new fetch
+      const p2 = notificationStoreManager.fetchInitialDataWithDeduplication(
+        userId,
+        true,
+        mockFetcher
+      );
+      expect(mockFetcher).toHaveBeenCalledTimes(2);
+      await p2;
+    });
+
+    it('should restore previous state upon rollbackMarkAllRead', () => {
+      const userId = 'rollback-user';
+      const initialNotifications: NotificationItem[] = [
+        {
+          id: '1',
+          type: 'reservation_requested',
+          createdAt: 'date',
+          unread: true,
+        },
+      ];
+
+      // Initialize store
+      notificationStoreManager.syncInitialNotifications(
+        userId,
+        initialNotifications,
+        'success'
+      );
+
+      // Start mark all read
+      const { previousNotifications, previousCount, previousIsMarkingAll } =
+        notificationStoreManager.startMarkAllRead(userId);
+
+      const stateAfterStart = notificationStoreManager.getOrCreateState(userId);
+      expect(stateAfterStart.unreadCountState).toBe(0);
+      expect(stateAfterStart.notifications[0].unread).toBe(false);
+      expect(stateAfterStart.isMarkingAll).toBe(true);
+
+      // Perform rollback
+      notificationStoreManager.rollbackMarkAllRead(
+        userId,
+        previousNotifications,
+        previousCount,
+        previousIsMarkingAll
+      );
+
+      const stateAfterRollback =
+        notificationStoreManager.getOrCreateState(userId);
+      expect(stateAfterRollback.unreadCountState).toBe(1);
+      expect(stateAfterRollback.notifications[0].unread).toBe(true);
+      expect(stateAfterRollback.isMarkingAll).toBe(false);
+    });
+  });
 });
