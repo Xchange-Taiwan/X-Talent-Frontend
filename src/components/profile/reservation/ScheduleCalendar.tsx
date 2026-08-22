@@ -68,11 +68,18 @@ const CustomDayButton = (props: React.ComponentProps<typeof DayButton>) => {
               // own radius (rather than sitting the center directly on the
               // rim) is what keeps the two circles touching instead of
               // straddling one another. That radius is a fixed px value (it
-              // only changes at the `md` breakpoint via size-1/size-1.5), so
-              // it's subtracted with calc() rather than folded into the
-              // percentage. Positioning by percentage of the wrapper, plus a
-              // self-relative translate (of the dot's own box), keeps this
-              // correct at any --cell-size.
+              // only changes at the `md` breakpoint via size-1/size-1.5:
+              // 4px/2 = 2px below md, 6px/2 = 3px at md+), so it's
+              // subtracted with calc() rather than folded into the
+              // percentage — subtracted px = radius / sqrt(2), i.e.
+              // 2/√2 ≈ 1.4142 below md, 3/√2 ≈ 2.1213 at md+. Positioning by
+              // percentage of the wrapper, plus a self-relative translate
+              // (of the dot's own box), keeps this correct at any
+              // --cell-size. Tailwind's static class-name scanner requires
+              // literal arbitrary-value strings, so these can't be
+              // interpolated from computed constants — the math above is
+              // the source of truth to re-derive from if the dot size or
+              // offset ever changes.
               'top-[calc(14.6447%-1.4142px)] right-[calc(14.6447%-1.4142px)] translate-x-1/2 -translate-y-1/2 md:top-[calc(14.6447%-2.1213px)] md:right-[calc(14.6447%-2.1213px)]'
             : 'top-0.5 right-0.5 sm:top-1 sm:right-1',
           bookingStatus === 'PENDING'

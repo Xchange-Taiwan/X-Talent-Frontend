@@ -48,6 +48,20 @@ export type {
 } from '@/lib/profile/scheduleHelpers';
 export { expandRrule } from '@/lib/profile/scheduleHelpers';
 
+/**
+ * The selected date's booking slots, bundled with the two loading flags
+ * that gate whether it's safe to render/interact with them (`monthLoaded`
+ * for `slots` itself, `reservationsLoaded` for each slot's `.reservation`).
+ * These three always travel together from useMentorSchedule down through
+ * BookingForm to MentorScheduleConfig, so they're grouped into one prop
+ * instead of three separately-threaded ones.
+ */
+export interface SlotsSnapshot {
+  slots: BookingSlot[];
+  monthLoaded: boolean;
+  reservationsLoaded: boolean;
+}
+
 // useEffect runs after paint, so on an account switch there's a window where
 // the browser can paint one frame of the new userId alongside the previous
 // user's still-buffered draft before the cleanup effect fires. useLayoutEffect
@@ -227,6 +241,22 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
             ? prev
             : [...upcoming, ...pending]
         );
+      } catch (err) {
+        // fetchAllReservationsForState already swallows its own fetch
+        // errors internally (returning whatever it collected before
+        // failing, never rejecting) — this catch is defense-in-depth for
+        // anything else that could throw here, matching reloadReservations'
+        // handling below. Without it, an unexpected throw would skip
+        // straight to `finally` and still mark reservationsLoaded true,
+        // which is exactly the "loaded but incomplete" state this flag
+        // exists to prevent callers from acting on.
+        if (ignore) return;
+        captureFlowFailure({
+          flow: 'mentor_schedule_fetch_reservations',
+          step: 'fetch_all_reservations',
+          message: err instanceof Error ? err.message : String(err),
+          level: 'warning',
+        });
       } finally {
         if (!ignore) setReservationsLoaded(true);
       }
