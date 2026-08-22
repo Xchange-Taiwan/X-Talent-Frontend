@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 
-import { AsyncReadManager, useAsyncRead } from '@/hooks/useAsyncRead';
+import { useAsyncRead } from '@/hooks/useAsyncRead';
+import { AsyncReadManager } from '@/lib/asyncReadManager';
 import { createKeyedCache } from '@/lib/createKeyedCache';
 import { AnnouncementData, fetchAnnouncement } from '@/services/announcement';
 

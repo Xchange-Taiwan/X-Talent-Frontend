@@ -2,14 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import {
+import type {
   AsyncReadManager,
   AsyncReadOptions,
   AsyncReadResult,
 } from '@/lib/asyncReadManager';
-
-export { AsyncReadManager };
-export type { AsyncReadOptions, AsyncReadResult };
 
 export function useAsyncRead<K, V>(
   manager: AsyncReadManager<K, V>,
