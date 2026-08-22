@@ -68,8 +68,11 @@ describe('MentorScheduleConfig', () => {
   ];
 
   const defaultProps = {
-    slots: mockSlots,
-    monthLoaded: true,
+    slotsSnapshot: {
+      slots: mockSlots,
+      monthLoaded: true,
+      reservationsLoaded: true,
+    },
     onReservation: vi.fn(),
     onBookedSlotClick: vi.fn(),
     myUserId: 'user-mentor',
@@ -159,7 +162,10 @@ describe('MentorScheduleConfig', () => {
     render(
       <MentorScheduleConfig
         {...defaultProps}
-        slots={slotsWithoutReservation}
+        slotsSnapshot={{
+          ...defaultProps.slotsSnapshot,
+          slots: slotsWithoutReservation,
+        }}
         onBookedSlotClick={onBookedSlotClick}
       />
     );
@@ -173,15 +179,49 @@ describe('MentorScheduleConfig', () => {
   });
 
   it('renders loading states for both sections when monthLoaded is false', () => {
-    render(<MentorScheduleConfig {...defaultProps} monthLoaded={false} />);
+    render(
+      <MentorScheduleConfig
+        {...defaultProps}
+        slotsSnapshot={{ ...defaultProps.slotsSnapshot, monthLoaded: false }}
+      />
+    );
 
     expect(screen.getByText('已預約')).toBeInTheDocument();
     expect(screen.getByText('當日可預約時段')).toBeInTheDocument();
     expect(screen.getAllByText('讀取中…')).toHaveLength(2);
   });
 
+  it('renders the Booked section as loading (and unclickable) when reservationsLoaded is false, even once monthLoaded is true', () => {
+    // Regression test: schedule status (monthLoaded) can resolve before the
+    // reservations fetch does, most visibly right after this tree remounts
+    // (e.g. navigating back to the profile page). Rendering booked slots
+    // during that gap risks a PENDING slot whose `.reservation` hasn't
+    // arrived yet, which would misfire the redirect fallback instead of
+    // opening the quick-reply dialog.
+    render(
+      <MentorScheduleConfig
+        {...defaultProps}
+        slotsSnapshot={{
+          ...defaultProps.slotsSnapshot,
+          reservationsLoaded: false,
+        }}
+      />
+    );
+
+    expect(screen.getByText('已預約')).toBeInTheDocument();
+    expect(screen.getByText('讀取中…')).toBeInTheDocument();
+    expect(screen.queryByText('學員 Bob')).not.toBeInTheDocument();
+    // Available section doesn't depend on reservations, so it still renders.
+    expect(screen.getByText('當日可預約時段')).toBeInTheDocument();
+  });
+
   it('renders empty states for both sections when slots are empty', () => {
-    render(<MentorScheduleConfig {...defaultProps} slots={[]} />);
+    render(
+      <MentorScheduleConfig
+        {...defaultProps}
+        slotsSnapshot={{ ...defaultProps.slotsSnapshot, slots: [] }}
+      />
+    );
 
     expect(screen.getByText('目前無已預約時段')).toBeInTheDocument();
     expect(screen.getByText('無可預約的時段')).toBeInTheDocument();

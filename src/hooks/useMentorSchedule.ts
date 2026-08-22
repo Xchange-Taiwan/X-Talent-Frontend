@@ -48,6 +48,20 @@ export type {
 } from '@/lib/profile/scheduleHelpers';
 export { expandRrule } from '@/lib/profile/scheduleHelpers';
 
+/**
+ * The selected date's booking slots, bundled with the two loading flags
+ * that gate whether it's safe to render/interact with them (`monthLoaded`
+ * for `slots` itself, `reservationsLoaded` for each slot's `.reservation`).
+ * These three always travel together from useMentorSchedule down through
+ * BookingForm to MentorScheduleConfig, so they're grouped into one prop
+ * instead of three separately-threaded ones.
+ */
+export interface SlotsSnapshot {
+  slots: BookingSlot[];
+  monthLoaded: boolean;
+  reservationsLoaded: boolean;
+}
+
 // useEffect runs after paint, so on an account switch there's a window where
 // the browser can paint one frame of the new userId alongside the previous
 // user's still-buffered draft before the cleanup effect fires. useLayoutEffect
@@ -86,6 +100,14 @@ export type UseMentorScheduleReturn = {
   loaded: boolean;
   /** Per-month: false while the *current* (year, month) is being fetched after a cache miss. */
   monthLoaded: boolean;
+  /**
+   * False while the reservations fetch (which populates each booked slot's
+   * `.reservation`) is in flight — separate from monthLoaded's schedule
+   * fetch. Gate any "click a booked slot" UI on this too: a slot can already
+   * report status PENDING/BOOKED from the schedule fetch while its
+   * `.reservation` is still unset here.
+   */
+  reservationsLoaded: boolean;
   isFetching: boolean;
   selectedDate: string | null;
   setSelectedDate: (dateStr: string | null) => void;
@@ -96,6 +118,10 @@ export type UseMentorScheduleReturn = {
   allowedDates: string[];
 
   generateBookingSlots: (dateKey: string) => BookingSlot[];
+  /** generateBookingSlots(selectedDate), bundled with monthLoaded and
+   * reservationsLoaded — see SlotsSnapshot. Pass straight through to a
+   * caller like BookingForm instead of re-assembling it at each layer. */
+  slotsSnapshot: SlotsSnapshot;
 
   /** Rolls up a day's booking slots into a single dot status: PENDING takes priority over an all-BOOKED day. */
   getDayBookingStatus: (dateKey: string) => BookingStatus | null;
@@ -165,6 +191,17 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   );
 
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  // Tracks the reservations fetch specifically (separate from monthLoaded,
+  // which only reflects the schedule/draft fetch). A booked slot's `status`
+  // comes from the schedule fetch and can resolve before this one, so a
+  // dot/label can show PENDING while `slot.reservation` (matched from
+  // `reservations`) is still unset — most visibly right after this hook
+  // remounts (e.g. navigating back to the profile page), which restarts both
+  // fetches from scratch. Callers must gate any "click a booked slot" UI on
+  // this flag too, not just monthLoaded, or a fast click in that window can
+  // read a PENDING slot with no `reservation` attached yet and misfire
+  // whatever fallback that caller has for "no reservation".
+  const [reservationsLoaded, setReservationsLoaded] = useState(false);
 
   useEffect(() => {
     if (
@@ -174,10 +211,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       !backend.month
     ) {
       setReservations((prev) => (prev.length === 0 ? prev : []));
+      setReservationsLoaded(true);
       return;
     }
 
     let ignore = false;
+    setReservationsLoaded(false);
     // Native Date(year, monthIndex, day) rather than dayjs's string parser:
     // Safari's Date.parse rejects unpadded YYYY-M-DD strings (e.g. '2026-7-01')
     // as Invalid Date, which would make endOfMonthUnix NaN and defeat the
@@ -187,24 +226,48 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       .unix();
 
     const fetchAll = async () => {
-      const [upcoming, pending] = await Promise.all([
-        fetchAllReservationsForState(
-          loginUserId,
-          'MENTOR_UPCOMING',
-          endOfMonthUnix
-        ),
-        fetchAllReservationsForState(
-          loginUserId,
-          'MENTOR_PENDING',
-          endOfMonthUnix
-        ),
-      ]);
-      if (ignore) return;
-      setReservations((prev) =>
-        prev.length === 0 && upcoming.length === 0 && pending.length === 0
-          ? prev
-          : [...upcoming, ...pending]
-      );
+      try {
+        const [upcoming, pending] = await Promise.all([
+          fetchAllReservationsForState(
+            loginUserId,
+            'MENTOR_UPCOMING',
+            endOfMonthUnix
+          ),
+          fetchAllReservationsForState(
+            loginUserId,
+            'MENTOR_PENDING',
+            endOfMonthUnix
+          ),
+        ]);
+        if (ignore) return;
+        setReservations((prev) =>
+          prev.length === 0 && upcoming.length === 0 && pending.length === 0
+            ? prev
+            : [...upcoming, ...pending]
+        );
+        // Deliberately set only on this success path, not in a `finally`
+        // (finally always runs, catch or no catch, so putting it there
+        // would mark reservationsLoaded true even after the catch below —
+        // exactly the "loaded but incomplete" state this flag exists to
+        // prevent callers from acting on). If this effect never resolves
+        // successfully, reservationsLoaded correctly stays false, keeping
+        // the "已預約" section on its loading state rather than rendering
+        // slots whose `.reservation` was never actually fetched.
+        setReservationsLoaded(true);
+      } catch (err) {
+        // fetchAllReservationsForState already swallows its own fetch
+        // errors internally (returning whatever it collected before
+        // failing, never rejecting), so this only fires for something
+        // unexpected elsewhere in the try block — defense-in-depth,
+        // matching reloadReservations' handling below.
+        if (ignore) return;
+        captureFlowFailure({
+          flow: 'mentor_schedule_fetch_reservations',
+          step: 'fetch_all_reservations',
+          message: err instanceof Error ? err.message : String(err),
+          level: 'warning',
+        });
+      }
     };
 
     fetchAll();
@@ -456,6 +519,19 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     [allDraftRaws, reservations, reservedStarts]
   );
 
+  // Bundles the selected date's slots with the two flags that gate whether
+  // it's safe to render/interact with them, so callers (e.g. the profile
+  // page UI) don't need to know how to call generateBookingSlots
+  // themselves or which flags travel with its result — see SlotsSnapshot.
+  const slotsSnapshot = useMemo<SlotsSnapshot>(
+    () => ({
+      slots: selectedDate ? generateBookingSlots(selectedDate) : [],
+      monthLoaded,
+      reservationsLoaded,
+    }),
+    [selectedDate, generateBookingSlots, monthLoaded, reservationsLoaded]
+  );
+
   // A dedicated map (rather than reusing generateBookingSlots per date) so
   // the calendar's per-day-cell status dots don't rescan allDraftRaws and
   // re-expand every rrule once per visible day (~35-42x a month).
@@ -662,6 +738,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   return {
     loaded,
     monthLoaded,
+    reservationsLoaded,
     isFetching,
     selectedDate,
     setSelectedDate,
@@ -669,6 +746,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     draftForSelectedDate,
     allowedDates,
     generateBookingSlots,
+    slotsSnapshot,
     getDayBookingStatus,
     addSlotForSelectedDate,
     updateDraftSlot,
