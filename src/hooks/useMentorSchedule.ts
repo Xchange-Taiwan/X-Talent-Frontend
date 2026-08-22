@@ -424,14 +424,23 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     const nowSec = Math.floor(Date.now() / 1000);
     return computeBookingAvailability({
       draftRows: allDraftRaws,
-      reservations,
       nowSec,
       includeBookedDates,
     });
-  }, [allDraftRaws, reservations, includeBookedDates]);
+  }, [allDraftRaws, includeBookedDates]);
 
-  const { allowedDates, bookingStatusByDate, generateBookingSlots } =
-    availabilityModel;
+  const { allowedDates, bookingStatusByDate } = availabilityModel;
+
+  const generateBookingSlots = useCallback(
+    (dateKey: string): BookingSlot[] => {
+      return availabilityModel.generateBookingSlots(
+        dateKey,
+        reservations,
+        Math.floor(Date.now() / 1000)
+      );
+    },
+    [availabilityModel, reservations]
+  );
 
   // Bundles the selected date's slots with the two flags that gate whether
   // it's safe to render/interact with them, so callers (e.g. the profile

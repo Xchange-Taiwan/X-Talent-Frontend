@@ -29,14 +29,13 @@ describe('computeBookingAvailability', () => {
 
     const model = computeBookingAvailability({
       draftRows,
-      reservations: [],
       nowSec,
     });
 
     expect(model.allowedDates).toEqual(['2026-05-01']);
     expect(model.bookingStatusByDate.get('2026-05-01')).toBeUndefined();
 
-    const slots = model.generateBookingSlots('2026-05-01');
+    const slots = model.generateBookingSlots('2026-05-01', []);
     expect(slots).toHaveLength(1);
     expect(slots[0]).toEqual({
       start: new Date(futureTime1 * 1000),
@@ -63,12 +62,11 @@ describe('computeBookingAvailability', () => {
 
     const model = computeBookingAvailability({
       draftRows,
-      reservations: [],
       nowSec,
     });
 
     expect(model.allowedDates).toEqual([]);
-    expect(model.generateBookingSlots('2026-05-01')).toEqual([]);
+    expect(model.generateBookingSlots('2026-05-01', [])).toEqual([]);
   });
 
   it('expands RRule and respects exdate exclusion', () => {
@@ -85,21 +83,20 @@ describe('computeBookingAvailability', () => {
 
     const model = computeBookingAvailability({
       draftRows,
-      reservations: [],
       nowSec,
     });
 
     // 2026-05-08 should be excluded, leaving 05-01 and 05-15
     expect(model.allowedDates.sort()).toEqual(['2026-05-01', '2026-05-15']);
 
-    const slotsWeek1 = model.generateBookingSlots('2026-05-01');
+    const slotsWeek1 = model.generateBookingSlots('2026-05-01', []);
     expect(slotsWeek1).toHaveLength(1);
     expect(slotsWeek1[0].scheduleId).toBe(1);
 
-    const slotsWeek2 = model.generateBookingSlots('2026-05-08');
+    const slotsWeek2 = model.generateBookingSlots('2026-05-08', []);
     expect(slotsWeek2).toHaveLength(0);
 
-    const slotsWeek3 = model.generateBookingSlots('2026-05-15');
+    const slotsWeek3 = model.generateBookingSlots('2026-05-15', []);
     expect(slotsWeek3).toHaveLength(1);
   });
 
@@ -126,7 +123,6 @@ describe('computeBookingAvailability', () => {
     // Case 1: includeBookedDates is false (visitor/mentee view)
     const modelVisitor = computeBookingAvailability({
       draftRows,
-      reservations: [],
       nowSec,
       includeBookedDates: false,
     });
@@ -135,7 +131,7 @@ describe('computeBookingAvailability', () => {
     expect(modelVisitor.allowedDates).toEqual([]);
     expect(modelVisitor.bookingStatusByDate.get('2026-05-01')).toBe('BOOKED');
 
-    const slotsVisitor = modelVisitor.generateBookingSlots('2026-05-01');
+    const slotsVisitor = modelVisitor.generateBookingSlots('2026-05-01', []);
     expect(slotsVisitor).toHaveLength(1);
     expect(slotsVisitor[0].isBooked).toBe(true);
     expect(slotsVisitor[0].status).toBe('BOOKED');
@@ -143,7 +139,6 @@ describe('computeBookingAvailability', () => {
     // Case 2: includeBookedDates is true (mentor view)
     const modelMentor = computeBookingAvailability({
       draftRows,
-      reservations: [],
       nowSec,
       includeBookedDates: true,
     });
@@ -175,7 +170,6 @@ describe('computeBookingAvailability', () => {
 
     const model = computeBookingAvailability({
       draftRows,
-      reservations: [],
       nowSec,
       includeBookedDates: false,
     });
@@ -184,7 +178,7 @@ describe('computeBookingAvailability', () => {
     expect(model.allowedDates).toEqual(['2026-05-01']);
     expect(model.bookingStatusByDate.get('2026-05-01')).toBe('PENDING');
 
-    const slots = model.generateBookingSlots('2026-05-01');
+    const slots = model.generateBookingSlots('2026-05-01', []);
     expect(slots).toHaveLength(1);
     expect(slots[0].isBooked).toBe(false);
     expect(slots[0].status).toBe('PENDING');
@@ -228,7 +222,6 @@ describe('computeBookingAvailability', () => {
 
     const model = computeBookingAvailability({
       draftRows,
-      reservations: [],
       nowSec,
       includeBookedDates: false,
     });
@@ -258,11 +251,10 @@ describe('computeBookingAvailability', () => {
 
     const model = computeBookingAvailability({
       draftRows,
-      reservations: [mockReservation],
       nowSec,
     });
 
-    const slots = model.generateBookingSlots('2026-05-01');
+    const slots = model.generateBookingSlots('2026-05-01', [mockReservation]);
     expect(slots).toHaveLength(1);
     expect(slots[0].menteeName).toBe('John Doe');
     expect(slots[0].reservation).toEqual(mockReservation);
@@ -290,11 +282,10 @@ describe('computeBookingAvailability', () => {
 
     const model = computeBookingAvailability({
       draftRows,
-      reservations: [],
       nowSec,
     });
 
-    const slots = model.generateBookingSlots('2026-05-01');
+    const slots = model.generateBookingSlots('2026-05-01', []);
     expect(slots).toHaveLength(1);
   });
 });
