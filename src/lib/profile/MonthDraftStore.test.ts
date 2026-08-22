@@ -527,6 +527,67 @@ describe('MonthDraftStore Unit Tests', () => {
     expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
   });
 
+  it('reloadMonth discards local draft deletion if the backend timeslot type changes (e.g., ALLOW -> BOOKED)', () => {
+    const store = new MonthDraftStore();
+    const mockRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW',
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+      {
+        id: 102,
+        type: 'ALLOW',
+        dtstart: 1785080000,
+        dtend: 1785081800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+    store.ensureMonthLoaded('2026-07', mockRaws);
+
+    // Trigger dirty by editing slot 101 and deleting slot 102
+    store.edit(101, 1785070000, { startTime: '13:00' }, '123');
+    store.delete(102, 1785080000);
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+
+    // Now reload with a new raw list from backend where slot 102 is now BOOKED (e.g. some student booked it)
+    const newRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW',
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+      {
+        id: 102,
+        type: 'BOOKED',
+        dtstart: 1785080000,
+        dtend: 1785081800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    store.reloadMonth('2026-07', newRaws);
+
+    const snapshot = store.snapshot();
+    const finalDraft = snapshot.draftByMonth.get('2026-07') ?? [];
+
+    // The rebased draft should contain:
+    // - Slot 101 with edited values (at 13:00)
+    // - Slot 102 with type BOOKED from the backend (discarding the local deletion of ALLOW slot!)
+    expect(finalDraft).toHaveLength(2);
+    const slot102 = finalDraft.find((r) => r.id === 102);
+    expect(slot102?.type).toBe('BOOKED');
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+  });
+
   it('correctly handles partial failure during commit', () => {
     const store = new MonthDraftStore();
     store.ensureMonthLoaded('2026-07', defaultMockRaws);
