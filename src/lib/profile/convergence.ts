@@ -71,20 +71,25 @@ export class ProfileRecordAdapter implements ConvergenceAdapter<MentorProfileVO>
 }
 
 /**
- * Adapter for the search-index mentor pool listing (queries fetchMentors to check update).
+ * Shared base class for search-index adapters to eliminate code duplication.
  */
-export class SearchIndexSyncAdapter implements ConvergenceAdapter<
+export abstract class BaseSearchIndexAdapter implements ConvergenceAdapter<
   MentorType[]
 > {
-  constructor(
-    private userId: number,
-    private fields: MentorCardFields
-  ) {}
+  constructor(protected userId: number) {}
+
+  abstract getSearchPattern(): string;
+  abstract isCaughtUp(mentors: MentorType[]): boolean;
+  abstract getExhaustionMetadata(): {
+    flow: string;
+    step: string;
+    message: string;
+  };
 
   async fetch(): Promise<MentorType[] | null> {
     try {
       const result = await fetchMentors({
-        search_pattern: this.fields.name,
+        search_pattern: this.getSearchPattern(),
         limit: MENTOR_POOL_POLL_LIMIT,
         cursor: '',
       });
@@ -92,6 +97,22 @@ export class SearchIndexSyncAdapter implements ConvergenceAdapter<
     } catch {
       return null;
     }
+  }
+}
+
+/**
+ * Adapter for the search-index mentor pool listing (queries fetchMentors to check update).
+ */
+export class SearchIndexSyncAdapter extends BaseSearchIndexAdapter {
+  constructor(
+    userId: number,
+    private fields: MentorCardFields
+  ) {
+    super(userId);
+  }
+
+  getSearchPattern(): string {
+    return this.fields.name;
   }
 
   isCaughtUp(mentors: MentorType[]): boolean {
@@ -129,25 +150,16 @@ export class SearchIndexSyncAdapter implements ConvergenceAdapter<
 /**
  * Adapter for the search-index mentor pool listing (queries fetchMentors to check deletion).
  */
-export class SearchIndexDeleteAdapter implements ConvergenceAdapter<
-  MentorType[]
-> {
+export class SearchIndexDeleteAdapter extends BaseSearchIndexAdapter {
   constructor(
-    private userId: number,
+    userId: number,
     private name?: string
-  ) {}
+  ) {
+    super(userId);
+  }
 
-  async fetch(): Promise<MentorType[] | null> {
-    try {
-      const result = await fetchMentors({
-        search_pattern: this.name ?? '',
-        limit: MENTOR_POOL_POLL_LIMIT,
-        cursor: '',
-      });
-      return result;
-    } catch {
-      return null;
-    }
+  getSearchPattern(): string {
+    return this.name ?? '';
   }
 
   isCaughtUp(mentors: MentorType[]): boolean {
