@@ -124,11 +124,15 @@ export function useNotificationCenter({
     sourceRef.current = actualSource;
   }, [actualSource]);
 
-  // Semantic variables to avoid duplication and clarify intents
+  // Semantic variables to avoid duplication and clarify intents.
+  // Environment-specific behavior is asked of the installed source rather
+  // than re-derived from `initialNotifications` at each call site - the
+  // choice of source is made once, in the `actualSource` memo above.
   const effectiveUserId = userId || 'generic';
-  const shouldSkipFetch =
-    initialNotifications !== undefined ||
-    (!userId && actualSource.requiresAuth);
+  const isPreloadedSource = Boolean(actualSource.isPreloaded);
+  const shouldSkipFetch = Boolean(
+    isPreloadedSource || (!userId && actualSource.requiresAuth)
+  );
   const canMutate = userId !== undefined || !actualSource.requiresAuth;
 
   // Cache the Server Snapshot locally inside hook state for stable referential equality
@@ -178,7 +182,10 @@ export function useNotificationCenter({
 
   const [isMounted, setIsMounted] = React.useState(false);
 
-  const timerRef = React.useRef<NodeJS.Timeout | null>(null);
+  // Bumped whenever an in-flight source retry must be abandoned (a newer
+  // retry superseded it, or the hook unmounted), so a late resolution can't
+  // write a stale list into the shared store.
+  const retryTokenRef = React.useRef(0);
 
   // Derive unread count from the actual notifications state list (for fallback/props usage)
   const unreadCount = React.useMemo(() => {
@@ -372,11 +379,7 @@ export function useNotificationCenter({
   // Synchronize seenUnreadCount when the dropdown is open and badgeCount increases (e.g. from loadInitialData)
   // to prevent unread badge from reappearing incorrectly upon close.
   React.useEffect(() => {
-    if (
-      initialNotifications === undefined &&
-      open &&
-      badgeCount > storeState.seenUnreadCount
-    ) {
+    if (!isPreloadedSource && open && badgeCount > storeState.seenUnreadCount) {
       writeSeenCount(badgeCount);
     }
   }, [
@@ -384,7 +387,7 @@ export function useNotificationCenter({
     badgeCount,
     storeState.seenUnreadCount,
     writeSeenCount,
-    initialNotifications,
+    isPreloadedSource,
   ]);
 
   // Cross-tab synchronization of seenUnreadCount is handled centrally by
@@ -392,9 +395,7 @@ export function useNotificationCenter({
 
   React.useEffect(() => {
     return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
+      retryTokenRef.current += 1;
     };
   }, []);
 
@@ -551,20 +552,30 @@ export function useNotificationCenter({
 
   const handleRetry = React.useCallback(() => {
     notificationStoreManager.updateState(userId, { status: 'loading' });
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
+
+    const source = sourceRef.current;
+    if (!source.retry) {
+      loadInitialData(true);
+      return;
     }
-    if (initialNotifications !== undefined) {
-      timerRef.current = setTimeout(() => {
+
+    retryTokenRef.current += 1;
+    const token = retryTokenRef.current;
+    void source
+      .retry(effectiveUserId)
+      .then((notifications) => {
+        if (retryTokenRef.current !== token) return;
         notificationStoreManager.updateState(userId, {
-          notifications: initialNotifications,
+          notifications,
           status: 'success',
         });
-      }, 1000);
-    } else {
-      loadInitialData(true);
-    }
-  }, [userId, initialNotifications, loadInitialData]);
+      })
+      .catch((error) => {
+        if (retryTokenRef.current !== token) return;
+        reportFailure('notification_retry', 'source_retry', error);
+        notificationStoreManager.updateState(userId, { status: 'error' });
+      });
+  }, [userId, effectiveUserId, loadInitialData]);
 
   const showBadge = isMounted && badgeCount > storeState.seenUnreadCount;
   const formattedCount = badgeCount > 99 ? '99+' : String(badgeCount);

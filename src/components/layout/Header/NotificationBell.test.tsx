@@ -361,7 +361,7 @@ describe('NotificationBell', () => {
       ).toBeInTheDocument();
     });
 
-    it('transitions to loading and then success when clicking retry button', () => {
+    it('transitions to loading and then success when clicking retry button', async () => {
       vi.useFakeTimers();
       try {
         renderBell({ unreadCount: 5, initialStatus: 'error' });
@@ -373,8 +373,10 @@ describe('NotificationBell', () => {
 
         expect(screen.queryByText('載入失敗，請重試')).not.toBeInTheDocument();
 
-        act(() => {
-          vi.advanceTimersByTime(1000);
+        // The fixture source resolves its retry asynchronously, so the timer
+        // has to be advanced with the microtask queue drained alongside it.
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1000);
         });
 
         expect(screen.getByText('您有新的預約')).toBeInTheDocument();
