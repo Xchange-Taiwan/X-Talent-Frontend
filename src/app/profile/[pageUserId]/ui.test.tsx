@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { BookingCalendarReader } from '@/hooks/useMentorSchedule';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
+import type { BookingCalendarReader } from '@/lib/profile/bookingAvailability';
 
 // next/image requires width/height derived from a static-import object shape
 // that Vitest's asset transform doesn't produce; irrelevant to the

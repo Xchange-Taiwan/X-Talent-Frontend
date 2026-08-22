@@ -1,5 +1,8 @@
-import { BookingSlot, SlotDurationMinutes } from '@/hooks/useMentorSchedule';
-import { ParsedMentorTimeslot } from '@/lib/profile/scheduleHelpers';
+import {
+  BookingSlot,
+  ParsedMentorTimeslot,
+  SlotDurationMinutes,
+} from '@/lib/profile/bookingAvailability';
 
 export const DURATION_OPTIONS: SlotDurationMinutes[] = [30, 45, 60];
 
