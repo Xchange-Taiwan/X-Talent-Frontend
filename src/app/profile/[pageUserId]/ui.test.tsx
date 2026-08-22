@@ -22,9 +22,6 @@ vi.mock('@/components/profile/reservation/BookingForm', () => ({
     <div data-testid="booking-form" data-loading={String(isUserDataLoading)} />
   ),
 }));
-vi.mock('@/components/profile/reservation/MentorScheduleDialog', () => ({
-  default: () => <div data-testid="mentor-schedule-dialog" />,
-}));
 const scheduleCalendarMock = vi.hoisted(() => ({
   lastProps: null as { getDateStatus?: (date: Date) => unknown } | null,
 }));
@@ -83,18 +80,17 @@ const asyncNoop = async () => true;
 function baseProps(
   overrides: Partial<React.ComponentProps<typeof ProfilePageUI>> = {}
 ) {
+  const sched = buildSchedule();
   return {
     userData: buildUserData(),
     userLoading: false,
-    schedule: buildSchedule(),
+    schedule: sched,
     scheduleLoaded: true,
     loginUserId: '',
     isIdentityResolved: false,
     canShowOwnerControls: false,
     avatarSrc: 'https://example.com/avatar.png',
     allowedDates: [],
-    openReservationDialog: false,
-    setOpenReservationDialog: noop,
     onScheduleMonthChange: noop,
     onReservation: noop,
     onEditProfile: noop,
@@ -189,14 +185,19 @@ describe('ProfilePageUI - identity-resolution flash prevention', () => {
     );
   });
 
-  it('never mounts MentorScheduleDialog while canShowOwnerControls is false, regardless of openReservationDialog', () => {
+  // Owner gating for the schedule editor now lives in container.tsx, which
+  // decides whether to build the dialog at all (see container.test.tsx).
+  // The UI's only contract is that it renders whatever editorDialog it is
+  // handed, and renders nothing when handed none - asserting a role check
+  // here would test a branch this component no longer owns.
+  it('renders no schedule editor when the container withholds editorDialog', () => {
     render(
       <ProfilePageUI
         {...baseProps({
           userData: buildUserData({ is_mentor: true }),
-          isIdentityResolved: false,
-          canShowOwnerControls: false,
-          openReservationDialog: true,
+          isIdentityResolved: true,
+          canShowOwnerControls: true,
+          editorDialog: undefined,
         })}
       />
     );
@@ -206,13 +207,14 @@ describe('ProfilePageUI - identity-resolution flash prevention', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('mounts MentorScheduleDialog once canShowOwnerControls is true', () => {
+  it('renders the editorDialog the container injected', () => {
     render(
       <ProfilePageUI
         {...baseProps({
           userData: buildUserData({ is_mentor: true }),
           isIdentityResolved: true,
           canShowOwnerControls: true,
+          editorDialog: <div data-testid="mentor-schedule-dialog" />,
         })}
       />
     );

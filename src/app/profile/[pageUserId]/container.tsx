@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
+import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
 import { Button } from '@/components/ui/button';
 import { BookingSlot, useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { useIdentity } from '@/hooks/user/auth/useIdentity';
@@ -213,8 +214,6 @@ export default function ProfilePageContainer({
       canShowOwnerControls={canShowOwnerControls}
       avatarSrc={avatarSrc}
       allowedDates={allowedDates}
-      openReservationDialog={openReservationDialog}
-      setOpenReservationDialog={setOpenReservationDialog}
       onReservation={reservationHandler}
       onScheduleMonthChange={handleScheduleMonthChange}
       selectedSlot={selectedSlot}
@@ -223,6 +222,16 @@ export default function ProfilePageContainer({
       onConfirmReservation={handleConfirmReservation}
       onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}
       onBecomeMentor={() => router.push(getMentorOnboardingUrl(pageUserId))}
+      editorDialog={
+        userData && canShowOwnerControls ? (
+          <MentorScheduleDialog
+            open={openReservationDialog}
+            onOpenChange={setOpenReservationDialog}
+            schedule={schedule}
+            onMonthChange={handleScheduleMonthChange}
+          />
+        ) : undefined
+      }
     />
   );
 }

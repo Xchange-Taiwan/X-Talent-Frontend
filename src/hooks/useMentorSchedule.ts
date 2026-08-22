@@ -138,32 +138,38 @@ export type MentorScheduleEditor = {
   reservations: Reservation[];
 };
 
-export type UseMentorScheduleReturn = MentorScheduleEditor & {
-  /** Sticky: true once any month has resolved. Use this for first-paint skeletons. */
-  loaded: boolean;
+export interface BookingCalendarReader {
+  selectedDate: string | null;
+  setSelectedDate: (dateKey: string | null) => void;
+  allowedDates: string[];
+  slotsSnapshot: SlotsSnapshot;
+  getDayBookingStatus: (dateKey: string) => BookingStatus | null;
+  monthLoaded: boolean;
   /**
    * False while the reservations fetch (which populates each booked slot's
    * `.reservation`) is in flight — separate from monthLoaded's schedule
    * fetch. Gate any "click a booked slot" UI on this too: a slot can already
    * report status PENDING/BOOKED from the schedule fetch while its
-   * `.reservation` is still unset here.
+   * `.reservation` is still unset here. Mirrors monthLoaded: exposed at the
+   * top level (in addition to slotsSnapshot.reservationsLoaded) so a
+   * read-only consumer that needs it directly doesn't have to reach into
+   * slotsSnapshot for one flag but not the other.
    */
   reservationsLoaded: boolean;
   isFetching: boolean;
-
-  parsedDraft: ParsedMentorTimeslot[];
-
-  generateBookingSlots: (dateKey: string) => BookingSlot[];
-  /** generateBookingSlots(selectedDate), bundled with monthLoaded and
-   * reservationsLoaded — see SlotsSnapshot. Pass straight through to a
-   * caller like BookingForm instead of re-assembling it at each layer. */
-  slotsSnapshot: SlotsSnapshot;
-
-  /** Rolls up a day's booking slots into a single dot status: PENDING takes priority over an all-BOOKED day. */
-  getDayBookingStatus: (dateKey: string) => BookingStatus | null;
-
   reload?: () => Promise<void>;
-};
+}
+
+export type UseMentorScheduleReturn = MentorScheduleEditor &
+  BookingCalendarReader & {
+    /** Sticky: true once any month has resolved. Use this for first-paint skeletons. */
+    loaded: boolean;
+    isFetching: boolean;
+
+    parsedDraft: ParsedMentorTimeslot[];
+
+    generateBookingSlots: (dateKey: string) => BookingSlot[];
+  };
 
 export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const { backend, loginUserId, includeBookedDates = false } = opts;
