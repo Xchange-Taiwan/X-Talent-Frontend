@@ -5,7 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getCountries } from '@/services/profile/countries';
 import type { LocationType } from '@/types/location';
 
-import useLocations, { locationsCache } from './useLocations';
+import useLocations, {
+  locationsCache,
+  locationsReadManager,
+} from './useLocations';
 
 vi.mock('@/services/profile/countries', async () => {
   const actual = await vi.importActual<
@@ -21,6 +24,7 @@ describe('useLocations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     locationsCache.clear();
+    locationsReadManager.clear();
   });
 
   it('fetches location data on mount and updates state', async () => {

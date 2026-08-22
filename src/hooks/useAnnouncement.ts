@@ -18,14 +18,23 @@ export const announcementReadManager = new AsyncReadManager<
 >(announcementCache);
 
 export function useAnnouncement() {
-  const [dismissed, setDismissed] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return sessionStorage.getItem(DISMISSED_STORAGE_KEY) === 'true';
-  });
+  const [hasMounted, setHasMounted] = useState<boolean>(false);
+  const [dismissed, setDismissed] = useState<boolean>(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+    if (typeof window !== 'undefined') {
+      const isDismissed =
+        sessionStorage.getItem(DISMISSED_STORAGE_KEY) === 'true';
+      if (isDismissed) {
+        setDismissed(true);
+      }
+    }
+  }, []);
 
   const { data, isLoading, error } = useAsyncRead(
     announcementReadManager,
-    dismissed ? null : 'global',
+    hasMounted && !dismissed ? 'global' : null,
     (signal) => fetchAnnouncement(signal)
   );
 

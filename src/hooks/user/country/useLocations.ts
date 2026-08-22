@@ -16,6 +16,8 @@ export const locationsReadManager = new AsyncReadManager<
   LocationType[]
 >(locationsCache);
 
+const EMPTY_LOCATIONS: LocationType[] = [];
+
 interface UseLocationsResult {
   locations: LocationType[];
   isLoading: boolean;
@@ -31,7 +33,7 @@ export default function useLocations(language: string): UseLocationsResult {
   );
 
   return {
-    locations: data ?? [],
+    locations: data ?? EMPTY_LOCATIONS,
     isLoading,
     error: error ? 'Failed to load location options' : null,
   };

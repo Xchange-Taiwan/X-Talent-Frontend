@@ -91,7 +91,9 @@ export class AsyncReadManager<K, V> {
             if (this.cache) {
               this.cache.set(key, value, options?.ttlMs);
             }
-            this.inflight.delete(key);
+            if (this.inflight.get(key)?.controller === controller) {
+              this.inflight.delete(key);
+            }
 
             const activeListeners = this.listeners.get(key);
             if (activeListeners) {
@@ -106,7 +108,9 @@ export class AsyncReadManager<K, V> {
             return value;
           },
           (err) => {
-            this.inflight.delete(key);
+            if (this.inflight.get(key)?.controller === controller) {
+              this.inflight.delete(key);
+            }
             if (
               controller.signal.aborted ||
               (err instanceof Error && err.name === 'AbortError')
