@@ -69,8 +69,8 @@ export async function saveProfile(
   const sessionUser = session?.user;
 
   // Step 1: Upload Avatar
-  async function step1UploadAvatar(): Promise<string> {
-    let avatarUrl = values.avatar ?? '';
+  async function step1UploadAvatar(): Promise<string | undefined> {
+    let avatarUrl = values.avatar;
     if (values.avatarFile) {
       try {
         const uploader = consumeAvatarUpload
@@ -95,14 +95,18 @@ export async function saveProfile(
   }
 
   // Step 2: Write Profile & Experiences
-  async function step2WriteProfile(avatarUrl: string) {
+  async function step2WriteProfile(avatarUrl: string | undefined) {
     const { experiencesDirty, profileDirty } = computeDirtyStates(
       values,
       dirtyFields,
       isMentorOnboarding
     );
 
-    const payload = mapFormValuesToPayload(values, avatarUrl, experiencesDirty);
+    const payload = mapFormValuesToPayload(
+      values,
+      avatarUrl ?? '',
+      experiencesDirty
+    );
 
     try {
       if (profileDirty) {
@@ -134,7 +138,7 @@ export async function saveProfile(
   }
 
   // Step 4: Optimistic Avatar Override
-  function step4OptimisticAvatarOverride(avatarUrl: string) {
+  function step4OptimisticAvatarOverride(avatarUrl: string | undefined) {
     if (values.avatarFile && avatarUrl && sessionUser?.id) {
       setAvatarOverride(String(sessionUser.id), avatarUrl);
     }
@@ -142,9 +146,9 @@ export async function saveProfile(
 
   // Step 5: Optimistic Session Update
   async function step5OptimisticSessionUpdate(
-    avatarUrl: string,
-    jobTitle: string = '',
-    company: string = ''
+    avatarUrl: string | undefined,
+    jobTitle?: string,
+    company?: string
   ) {
     const personalLinks = extractValidLinks(values).map((link) => ({
       platform: link.platform,
@@ -193,9 +197,9 @@ export async function saveProfile(
 
   // Step 7: Background Prime & Reconcile
   function step7BackgroundReconcile(
-    avatarUrl: string,
-    jobTitle: string = '',
-    company: string = '',
+    avatarUrl: string | undefined,
+    jobTitle?: string,
+    company?: string,
     optimisticIsMentor = false,
     optimisticOnBoarding = false
   ) {
@@ -247,8 +251,8 @@ export async function saveProfile(
           sessionUserId ?? Number(pageUserId),
           {
             name: values.name,
-            jobTitle: jobTitle,
-            company: company,
+            jobTitle: jobTitle ?? '',
+            company: company ?? '',
             about: values.about ?? '',
             yearsOfExperience: values.years_of_experience,
             haveTopic: values.have_topic,
