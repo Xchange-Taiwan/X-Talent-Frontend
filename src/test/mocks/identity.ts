@@ -81,6 +81,7 @@ export function buildResolvedIdentity(
       base.authKnown = true;
       break;
     case 'confirmed-member':
+      base.userId = base.userId ?? 'mock-user-id';
       base.isLoggedIn = true;
       base.hasFullUser = true;
       base.isResolvingUser = false;

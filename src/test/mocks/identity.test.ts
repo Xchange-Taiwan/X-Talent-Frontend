@@ -54,6 +54,13 @@ describe('buildResolvedIdentity', () => {
     expect(identity.isResolvingUser).toBe(false);
     expect(identity.authKnown).toBe(true);
     expect(identity.sessionSettled).toBe(true);
+
+    // Verify fallback userId when state is confirmed-member and no userId is provided
+    const identityFallback = buildResolvedIdentity({
+      state: 'confirmed-member',
+    });
+    expect(identityFallback.state).toBe('confirmed-member');
+    expect(identityFallback.userId).toBe('mock-user-id');
   });
 
   it('should respect custom boolean properties and infer correct state when state is not explicitly overridden', () => {
