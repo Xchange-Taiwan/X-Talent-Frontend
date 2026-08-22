@@ -111,7 +111,7 @@ export class AsyncReadManager<K, V> {
               controller.signal.aborted ||
               (err instanceof Error && err.name === 'AbortError')
             ) {
-              return;
+              throw err;
             }
             const activeListeners = this.listeners.get(key);
             if (activeListeners) {
@@ -123,11 +123,15 @@ export class AsyncReadManager<K, V> {
                 });
               });
             }
+            throw err;
           }
         );
 
-        inflightEntry = { promise, controller };
-        this.inflight.set(key, inflightEntry);
+        promise.catch(() => {});
+
+        const entry: InflightEntry<V> = { promise, controller };
+        inflightEntry = entry;
+        this.inflight.set(key, entry);
       }
     }
 
