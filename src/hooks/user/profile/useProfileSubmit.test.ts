@@ -36,6 +36,7 @@ import { captureFlowFailure } from '@/lib/monitoring';
 import { LoggedError, saveProfile } from '@/lib/profile/saveProfile';
 import { baseValues, mockSession } from '@/test/fixtures/profile';
 import { mockToast } from '@/test/mocks/useToast';
+import type { MentorProfileVO } from '@/types/user';
 
 import { useProfileSubmit } from './useProfileSubmit';
 
@@ -59,7 +60,9 @@ describe('useProfileSubmit (Hook Layer)', () => {
   });
 
   it('saveProfile resolves successfully → isSaving remains true (simulating in-flight navigation)', async () => {
-    mockSaveProfile.mockResolvedValueOnce(undefined as any);
+    mockSaveProfile.mockResolvedValueOnce(
+      undefined as unknown as MentorProfileVO
+    );
     const { result } = renderHook(() => useProfileSubmit(makeOptions()));
 
     await act(async () => {

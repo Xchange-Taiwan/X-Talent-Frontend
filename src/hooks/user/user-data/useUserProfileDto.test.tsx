@@ -198,5 +198,45 @@ describe('useUserProfileDto', () => {
       expect(result.current.userDto).toEqual(mockUserDTO);
       expect(fetchUserById).toHaveBeenCalledWith(7, 'zh-TW');
     });
+
+    it('prioritizes client-side primed cache over initialData and keeps isLoading false', () => {
+      const primedDto = { ...mockUserDTO, name: 'Cache Primed' };
+      primeUserProfileDtoCache(10, 'zh-TW', primedDto);
+
+      const ssrDto = { ...mockUserDTO, name: 'Stale SSR' };
+
+      const { result } = renderHook(() =>
+        useUserProfileDto(10, 'zh-TW', ssrDto)
+      );
+
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.userDto).toEqual(primedDto);
+      expect(fetchUserById).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('options.enabled === false', () => {
+    it('does not trigger API fetch and renders null when cache is empty', () => {
+      const { result } = renderHook(() =>
+        useUserProfileDto(8, 'zh-TW', undefined, { enabled: false })
+      );
+
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.userDto).toBeNull();
+      expect(fetchUserById).not.toHaveBeenCalled();
+    });
+
+    it('renders from cache synchronously and does not fetch when cache is primed', () => {
+      const primedDto = { ...mockUserDTO, name: 'Cache Primed' };
+      primeUserProfileDtoCache(9, 'zh-TW', primedDto);
+
+      const { result } = renderHook(() =>
+        useUserProfileDto(9, 'zh-TW', undefined, { enabled: false })
+      );
+
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.userDto).toEqual(primedDto);
+      expect(fetchUserById).not.toHaveBeenCalled();
+    });
   });
 });

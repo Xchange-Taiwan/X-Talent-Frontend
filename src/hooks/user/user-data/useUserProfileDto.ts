@@ -32,6 +32,12 @@ export function clearUserProfileDtoCache(
   userProfileDtoCache.delete(key);
 }
 
+let lastPrimedTime = 0;
+
+export function getLastPrimedTime(): number {
+  return lastPrimedTime;
+}
+
 /**
  * Writes a known-fresh dto into the in-memory cache so the next consumer of
  * useUserProfileDto for this user renders from cache without an API call.
@@ -46,6 +52,7 @@ export function primeUserProfileDtoCache(
 ): void {
   const key = `${userId}-${language}`;
   userProfileDtoCache.prime(key, data);
+  lastPrimedTime = Date.now();
 }
 
 /**
@@ -105,7 +112,8 @@ export interface UseUserProfileDtoResult {
 export function useUserProfileDto(
   userId: number,
   language: string,
-  initialData?: MentorProfileVO | null
+  initialData?: MentorProfileVO | null,
+  options?: { enabled?: boolean }
 ): UseUserProfileDtoResult {
   const [retryTrigger, setRetryTrigger] = useState(0);
   const initialDataRef = useRef<MentorProfileVO | undefined>(
@@ -138,6 +146,7 @@ export function useUserProfileDto(
     }
     if (initialDataRef.current !== undefined) return false;
     if (!isUserIdValid || !language) return false;
+    if (options?.enabled === false) return false;
     return true;
   });
   const [error, setError] = useState<ProfileFetchError>(null);
@@ -156,6 +165,19 @@ export function useUserProfileDto(
 
     if (!isUserIdValid || !isLanguageValid) {
       setUserDto(null);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+
+    if (options?.enabled === false) {
+      const key = `${userId}-${language}`;
+      const cachedEntry = readFromDataCache(key);
+      if (cachedEntry) {
+        setUserDto(cachedEntry.data);
+      } else {
+        setUserDto(null);
+      }
       setError(null);
       setIsLoading(false);
       return;
@@ -229,7 +251,7 @@ export function useUserProfileDto(
     return () => {
       cancelled = true;
     };
-  }, [userId, language, retryTrigger]);
+  }, [userId, language, retryTrigger, options?.enabled]);
 
   return { userDto, isLoading, error, refetch };
 }
