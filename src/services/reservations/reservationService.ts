@@ -298,20 +298,16 @@ export async function fetchReservationMeetLink(opts: {
   }
 
   const path = `/v1/users/${encodeURIComponent(userId)}/reservations/${encodeURIComponent(reservationId)}/google-meet`;
-  const json =
-    await apiClient.get<components['schemas']['ApiResponse_MeetLinkVO_']>(path);
+  const data =
+    await apiClient.getUnwrapped<components['schemas']['MeetLinkVO']>(path);
 
   if (debug) {
-    console.debug('[reservations] GET Meet Link parsed', json);
+    console.debug('[reservations] GET Meet Link parsed', data);
   }
 
-  if (json.code !== '0') {
-    throw new FetchApiError(json.code, json.msg, path);
-  }
-
-  if (!json.data) {
+  if (!data) {
     throw new Error('API error: missing data in response');
   }
 
-  return json.data;
+  return data;
 }
