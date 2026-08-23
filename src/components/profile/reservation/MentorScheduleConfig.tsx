@@ -11,6 +11,7 @@ import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 import { isSlotTaken } from '@/lib/profile/scheduleHelpers';
 import type { Reservation } from '@/types/reservation';
 
+import { ConfirmedReservationDialog } from './ConfirmedReservationDialog';
 import { QuickReplyDialog } from './QuickReplyDialog';
 
 interface MentorScheduleConfigProps {
@@ -48,6 +49,9 @@ export function MentorScheduleConfig({
   const [quickReplyReservation, setQuickReplyReservation] =
     useState<Reservation | null>(null);
   const [quickReplyOpen, setQuickReplyOpen] = useState(false);
+  const [confirmedReservation, setConfirmedReservation] =
+    useState<Reservation | null>(null);
+  const [confirmedOpen, setConfirmedOpen] = useState(false);
 
   const isSlotBooked = isSlotTaken;
 
@@ -58,6 +62,11 @@ export function MentorScheduleConfig({
     if (slot.status === 'PENDING' && slot.reservation) {
       setQuickReplyReservation(slot.reservation);
       setQuickReplyOpen(true);
+      return;
+    }
+    if (slot.status === 'BOOKED' && slot.reservation) {
+      setConfirmedReservation(slot.reservation);
+      setConfirmedOpen(true);
       return;
     }
     onBookedSlotClick();
@@ -161,6 +170,14 @@ export function MentorScheduleConfig({
         reservation={quickReplyReservation}
         open={quickReplyOpen}
         onOpenChange={setQuickReplyOpen}
+        myUserId={myUserId}
+        onMutationSuccess={onMutationSuccess}
+      />
+
+      <ConfirmedReservationDialog
+        reservation={confirmedReservation}
+        open={confirmedOpen}
+        onOpenChange={setConfirmedOpen}
         myUserId={myUserId}
         onMutationSuccess={onMutationSuccess}
       />
