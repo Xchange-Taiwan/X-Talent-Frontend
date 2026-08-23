@@ -69,8 +69,14 @@ export function getUserProfileDtoFromCache(
 
 let lastPrimedTime = 0;
 
+export const OPTIMISTIC_TRANSITION_WINDOW_MS = 10000;
+
 export function getLastPrimedTime(): number {
   return lastPrimedTime;
+}
+
+export function isOptimisticTransitionActive(): boolean {
+  return Date.now() - lastPrimedTime < OPTIMISTIC_TRANSITION_WINDOW_MS;
 }
 
 /**
