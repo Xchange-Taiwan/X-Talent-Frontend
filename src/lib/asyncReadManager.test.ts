@@ -365,4 +365,34 @@ describe('AsyncReadManager unit tests', () => {
 
     unsubscribe();
   });
+
+  it('respects shouldCache option and does not write to cache when shouldCache returns false', async () => {
+    const cache = createKeyedCache<string, string>();
+    const manager = new AsyncReadManager<string, string>(cache);
+    const fetcher = vi.fn().mockResolvedValue('do-not-cache');
+    const updates: AsyncReadResult<string>[] = [];
+
+    const unsubscribe = manager.subscribe(
+      'key',
+      fetcher,
+      (res) => updates.push(res),
+      { shouldCache: (val) => val !== 'do-not-cache' }
+    );
+
+    await vi.waitFor(() => {
+      expect(updates.length).toBe(2);
+    });
+
+    // Check updates
+    expect(updates[1]).toEqual({
+      data: 'do-not-cache',
+      isLoading: false,
+      error: null,
+    });
+
+    // Verify it is NOT written to the cache
+    expect(cache.get('key')).toBeUndefined();
+
+    unsubscribe();
+  });
 });

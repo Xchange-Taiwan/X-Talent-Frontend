@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { AsyncReadManager } from '@/lib/asyncReadManager';
 import { createKeyedCache } from '@/lib/createKeyedCache';
@@ -58,9 +60,15 @@ export default function useTagCatalog(
     }
   );
 
-  return {
-    ...(data ?? EMPTY_TAG_CATALOGS),
-    isLoading,
-    error: error ? 'Failed to load tag catalog' : null,
-  };
+  const resolvedData = data ?? EMPTY_TAG_CATALOGS;
+  const resolvedError = error ? 'Failed to load tag catalog' : null;
+
+  return useMemo(
+    () => ({
+      ...resolvedData,
+      isLoading,
+      error: resolvedError,
+    }),
+    [resolvedData, isLoading, resolvedError]
+  );
 }
