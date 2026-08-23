@@ -898,4 +898,83 @@ describe('useMentorSchedule', () => {
     });
     expect(result.current.parsedDraft[0]?.id).toBe(101);
   });
+
+  describe('failed fetch vs empty schedule distinction (issue 620)', () => {
+    it('sets hasError to false when fetch succeeds with empty array (genuinely no availability)', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: undefined,
+        revalidate: Promise.resolve([]),
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.monthLoaded).toBe(true);
+      });
+
+      expect(result.current.hasError).toBe(false);
+      expect(result.current.parsedDraft).toHaveLength(0);
+    });
+
+    it('sets hasError to true when fetch fails and there is no cache/buffer', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: undefined,
+        revalidate: Promise.reject(new Error('Network error')),
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.monthLoaded).toBe(true);
+      });
+
+      expect(result.current.hasError).toBe(true);
+      expect(result.current.parsedDraft).toHaveLength(0);
+    });
+
+    it('clears error and retries successfully when reload is called', async () => {
+      // First attempt fails
+      mockLoadMonthScheduleCached.mockReturnValueOnce({
+        cached: undefined,
+        revalidate: Promise.reject(new Error('Network error')),
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.monthLoaded).toBe(true);
+      });
+
+      expect(result.current.hasError).toBe(true);
+
+      // Setup next fetch to succeed with empty array
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: undefined,
+        revalidate: Promise.resolve([]),
+      });
+
+      // Call reload
+      act(() => {
+        result.current.reload();
+      });
+
+      await waitFor(() => {
+        expect(result.current.monthLoaded).toBe(true);
+      });
+
+      expect(result.current.hasError).toBe(false);
+    });
+  });
 });

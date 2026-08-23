@@ -27,7 +27,10 @@ import {
   parseMonthKey,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
-import { scheduleCache } from '@/services/mentor-schedule/scheduleCache';
+import {
+  cacheKey,
+  scheduleCache,
+} from '@/services/mentor-schedule/scheduleCache';
 import {
   loadMonthScheduleCached,
   loadMonthScheduleFresh,
@@ -119,6 +122,9 @@ export type UseMentorScheduleReturn = {
 
   confirmChanges: () => Promise<SyncResult>;
   resetChanges: () => void;
+
+  hasError: boolean;
+  reload: () => void;
 };
 
 export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
@@ -143,6 +149,8 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const [selectedDate, setSelectedDate] = useState<string | null>(
     dayjs().format('YYYY-MM-DD')
   );
+  const [hasError, setHasError] = useState(false);
+  const [retryTrigger, setRetryTrigger] = useState(0);
 
   const currentMonthKey = monthKeyFromYearMonth(backend.year, backend.month);
 
@@ -206,16 +214,19 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       // Already buffered earlier in this session — no fetch needed.
       setLoaded(true);
       setMonthLoaded(true);
+      setHasError(false);
     } else if (cached) {
       apply(cached);
       setLoaded(true);
       setMonthLoaded(true);
+      setHasError(false);
     } else {
       // Cache miss + no buffer: skeleton until revalidate lands. monthLoaded
       // -> false so consumers can distinguish "fetching" from "settled empty";
       // sticky `loaded` is left untouched.
       setMonthLoaded(false);
       setIsFetching(true);
+      setHasError(false);
     }
 
     revalidate
@@ -225,16 +236,19 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         if (cached && JSON.stringify(cached) === JSON.stringify(raws)) {
           setLoaded(true);
           setMonthLoaded(true);
+          setHasError(false);
           return;
         }
         apply(raws);
         setLoaded(true);
         setMonthLoaded(true);
+        setHasError(false);
       })
       .catch(() => {
         // Treat fetch failure as "settled" so the UI doesn't hang on a
         // skeleton; the user will see the empty state instead.
         if (!ignore && !cached && !hasBuffer) {
+          setHasError(true);
           setLoaded(true);
           setMonthLoaded(true);
         }
@@ -247,7 +261,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       ignore = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backend.userId, backend.year, backend.month, store]);
+  }, [backend.userId, backend.year, backend.month, store, retryTrigger]);
 
   // Prefetch the next month after the current month finishes loading, so
   // forward navigation hits cache. Past months are intentionally skipped.
@@ -446,6 +460,17 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backend.userId, dirtyMonths, store]);
 
+  const reload = useCallback(() => {
+    if (!backend.userId || !backend.year || !backend.month) return;
+    const key = cacheKey({
+      userId: backend.userId,
+      year: backend.year,
+      month: backend.month,
+    });
+    scheduleCache.delete(key);
+    setRetryTrigger((prev) => prev + 1);
+  }, [backend.userId, backend.year, backend.month]);
+
   return {
     loaded,
     monthLoaded,
@@ -461,5 +486,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     deleteDraftSlot,
     confirmChanges,
     resetChanges,
+    hasError,
+    reload,
   };
 }
