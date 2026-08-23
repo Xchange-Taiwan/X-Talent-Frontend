@@ -36,12 +36,12 @@ const ColorIconsGallery: React.FC<ColorIconsGalleryProps> = ({
       {iconsList.map(({ name, Icon }) => (
         <div
           key={name}
-          className="flex flex-col items-center justify-center rounded-lg border border-muted bg-card p-6 text-card-foreground shadow-sm transition-shadow hover:shadow-md"
+          className="border-muted bg-card text-card-foreground flex flex-col items-center justify-center rounded-lg border p-6 shadow-sm transition-shadow hover:shadow-md"
         >
           <div className="mb-4 flex size-16 items-center justify-center">
             <Icon width={size} height={size} className={className} />
           </div>
-          <span className="font-mono text-xs text-muted-foreground select-all">
+          <span className="text-muted-foreground font-mono text-xs select-all">
             {name}
           </span>
         </div>
@@ -95,9 +95,9 @@ const SingleIconShowcase: React.FC<SingleIconShowcaseProps> = ({
   args,
 }) => {
   return (
-    <div className="flex max-w-sm flex-col items-center justify-center rounded-lg border border-muted bg-card p-8 text-card-foreground shadow-sm">
+    <div className="border-muted bg-card text-card-foreground flex max-w-sm flex-col items-center justify-center rounded-lg border p-8 shadow-sm">
       <Icon {...args} />
-      <span className="mt-4 font-mono text-sm text-muted-foreground">
+      <span className="text-muted-foreground mt-4 font-mono text-sm">
         {name}
       </span>
     </div>

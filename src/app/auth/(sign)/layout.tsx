@@ -24,7 +24,7 @@ export default async function AuthOperationLayout({
         className="box-border hidden flex-1 basis-1/2 flex-col items-center justify-center bg-cover bg-center bg-no-repeat px-8 py-16 text-center lg:sticky lg:top-0 lg:flex lg:h-screen lg:self-start xl:px-20 xl:py-32"
         style={{ backgroundImage: `url(${CoverImgUrl.src})` }}
       >
-        <div className="flex max-w-md flex-col gap-6 text-text-white xl:gap-8">
+        <div className="text-text-white flex max-w-md flex-col gap-6 xl:gap-8">
           <p className="text-2xl font-bold lg:text-3xl xl:text-4xl">
             現在就加入，更加豐富你的職涯！
           </p>

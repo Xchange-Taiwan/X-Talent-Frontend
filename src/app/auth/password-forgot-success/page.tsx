@@ -16,7 +16,7 @@ export default function Page() {
         title="郵件已送出"
         contentClassName="px-10 pt-20 pb-20 text-center"
       >
-        <div className="flex w-full flex-col items-center gap-1 text-center text-text-secondary">
+        <div className="text-text-secondary flex w-full flex-col items-center gap-1 text-center">
           系統將自動寄送郵件給您，請查看您的信箱並點擊連結以重設密碼。
         </div>
 

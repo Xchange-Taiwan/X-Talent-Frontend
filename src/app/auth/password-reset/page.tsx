@@ -22,7 +22,7 @@ function PasswordResetForm() {
         <div className="space-y-2">
           <Label
             htmlFor="password"
-            className="text-base font-normal text-text-primary"
+            className="text-text-primary text-base font-normal"
           >
             新密碼
           </Label>
@@ -30,11 +30,11 @@ function PasswordResetForm() {
             id="password"
             type="password"
             placeholder="請輸入新密碼"
-            className="h-[36px] rounded-[8px] border border-background-border px-3 text-sm placeholder:text-text-disable"
+            className="border-background-border placeholder:text-text-disable h-[36px] rounded-[8px] border px-3 text-sm"
             {...register('password')}
           />
           {errors.password && (
-            <p className="text-sm text-status-error-default">
+            <p className="text-status-error-default text-sm">
               {errors.password.message}
             </p>
           )}
@@ -43,7 +43,7 @@ function PasswordResetForm() {
         <div className="space-y-2">
           <Label
             htmlFor="confirm_password"
-            className="text-base font-normal text-text-primary"
+            className="text-text-primary text-base font-normal"
           >
             確認新密碼
           </Label>
@@ -51,11 +51,11 @@ function PasswordResetForm() {
             id="confirm_password"
             type="password"
             placeholder="請再次輸入新密碼"
-            className="h-[36px] rounded-[8px] border border-background-border px-3 text-sm placeholder:text-text-disable"
+            className="border-background-border placeholder:text-text-disable h-[36px] rounded-[8px] border px-3 text-sm"
             {...register('confirm_password')}
           />
           {errors.confirm_password && (
-            <p className="text-sm text-status-error-default">
+            <p className="text-status-error-default text-sm">
               {errors.confirm_password.message}
             </p>
           )}
@@ -81,9 +81,9 @@ export default function Page() {
   return (
     <div className="bg-background-white">
       <main className="px-6 py-16">
-        <div className="mx-auto w-full max-w-[556px] rounded-2xl border border-background-border bg-background-white px-9 py-14 shadow-card">
+        <div className="border-background-border bg-background-white shadow-card mx-auto w-full max-w-[556px] rounded-2xl border px-9 py-14">
           <div className="mx-auto w-full max-w-[484px]">
-            <h1 className="mb-8 text-center text-32 leading-[1.2] font-bold text-text-primary">
+            <h1 className="text-32 text-text-primary mb-8 text-center leading-[1.2] font-bold">
               重設密碼
             </h1>
 
@@ -94,7 +94,7 @@ export default function Page() {
             <div className="mt-6 text-center">
               <Link
                 href="/auth/signin"
-                className="text-sm text-text-primary underline underline-offset-2"
+                className="text-text-primary text-sm underline underline-offset-2"
               >
                 返回登入頁
               </Link>

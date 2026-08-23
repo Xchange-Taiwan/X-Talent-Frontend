@@ -60,7 +60,7 @@ const AvatarUpload = <T extends FieldValues>({
   return (
     <div className="mb-10 flex flex-col items-center lg:items-start">
       <div
-        className={`group relative flex size-36 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 bg-avatar-background lg:h-[150px] lg:w-[150px] ${
+        className={`group bg-avatar-background relative flex size-36 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 lg:h-[150px] lg:w-[150px] ${
           errorMessage ? 'border-status-error-default' : 'border-avatar-border'
         }`}
         onClick={() => fileInputRef.current?.click()}
@@ -83,7 +83,7 @@ const AvatarUpload = <T extends FieldValues>({
         />
 
         {/* Hover show upload icon */}
-        <div className="absolute inset-0 flex items-center justify-center bg-avatar-overlay opacity-0 transition-opacity duration-200 group-hover:opacity-75">
+        <div className="bg-avatar-overlay absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-75">
           <Camera size={50} className="text-avatar-border" />
         </div>
 
@@ -103,7 +103,7 @@ const AvatarUpload = <T extends FieldValues>({
         )}
       </div>
       {errorMessage && (
-        <p className="mt-2 text-center text-sm font-medium text-status-error-default lg:text-left">
+        <p className="text-status-error-default mt-2 text-center text-sm font-medium lg:text-left">
           {errorMessage}
         </p>
       )}

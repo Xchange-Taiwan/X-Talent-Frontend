@@ -15,7 +15,7 @@ export class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
-    public readonly body?: unknown
+    public readonly code?: string
   ) {
     super(message);
     this.name = 'ApiError';
@@ -222,7 +222,11 @@ async function request<T>(
       message,
       duration: Date.now() - startTime,
     });
-    throw new ApiError(response.status, message, errorBody);
+    throw new ApiError(
+      response.status,
+      message,
+      errorBody?.code ? String(errorBody.code) : undefined
+    );
   }
 
   // Handle 204 No Content and other empty responses
@@ -253,9 +257,14 @@ async function executeRequestUnwrapped<T>(
   }
 
   if (result.code !== '0') {
-    const status = Number(result.code);
-    const validStatus = !isNaN(status) && status !== 200 ? status : 400;
-    throw new ApiError(validStatus, result.msg, result);
+    const rawCode = result.code;
+    const numericStatus = Number(rawCode);
+    const validStatus =
+      !isNaN(numericStatus) && numericStatus >= 400 && numericStatus < 600
+        ? numericStatus
+        : 400;
+
+    throw new ApiError(validStatus, result.msg, rawCode);
   }
 
   return result.data;
@@ -333,12 +342,3 @@ export const apiClient = {
     return response.blob();
   },
 };
-
-// ─── Shared Server Helper ────────────────────────────────────────────────────
-export async function fetchServerJson<T>(
-  path: string,
-  options?: RequestOptions
-): Promise<T | null | undefined> {
-  const { auth = false, ...rest } = options ?? {};
-  return await apiClient.getUnwrapped<T>(path, { auth, ...rest });
-}

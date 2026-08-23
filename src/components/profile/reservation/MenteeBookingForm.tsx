@@ -91,12 +91,12 @@ export function MenteeBookingForm({
         <Textarea
           id="booking-question"
           placeholder="請在此輸入你的問題..."
-          className="h-[156px] w-full rounded-lg border-background-border focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
+          className="border-background-border focus-visible:ring-primary h-[156px] w-full rounded-lg focus-visible:ring-1 focus-visible:ring-offset-0"
           disabled={isSubmitting}
           {...register('bookingQuestion')}
         />
         {errors.bookingQuestion && (
-          <p className="mt-1 text-sm text-status-error-default">
+          <p className="text-status-error-default mt-1 text-sm">
             {errors.bookingQuestion.message}
           </p>
         )}
@@ -105,7 +105,7 @@ export function MenteeBookingForm({
       <Button
         type="submit"
         variant="default"
-        className="w-full rounded-full px-6 py-3 disabled:bg-background-border disabled:text-text-disable disabled:opacity-100"
+        className="disabled:bg-background-border disabled:text-text-disable w-full rounded-full px-6 py-3 disabled:opacity-100"
         disabled={isButtonDisabled}
       >
         {isSubmitting ? (

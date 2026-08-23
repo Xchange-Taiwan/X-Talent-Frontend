@@ -54,7 +54,7 @@ const CategoryMultiSelectDemo = (
         value={selected}
         onChange={setSelected}
       />
-      <div className="mt-4 text-sm text-text-tertiary">
+      <div className="text-text-tertiary mt-4 text-sm">
         已選取: {selected.join(', ') || '無'}
       </div>
     </div>

@@ -42,7 +42,7 @@ const FOOTER_LINKS: FooterLinksConfig = {
 
 export const Footer: FC = () => {
   return (
-    <footer className="flex w-full bg-dark pb-[50px] md:min-h-[290px]">
+    <footer className="bg-dark flex w-full pb-[50px] md:min-h-[290px]">
       <div className="flex w-full flex-col items-center px-5 pt-[50px] md:flex-row md:items-start md:justify-between md:px-[70px]">
         <div className="flex flex-col items-center md:items-start">
           <Image
@@ -53,7 +53,7 @@ export const Footer: FC = () => {
           />
         </div>
 
-        <div className="mt-8 flex flex-col gap-8 text-text-white md:mt-0 md:flex-row md:gap-x-16">
+        <div className="text-text-white mt-8 flex flex-col gap-8 md:mt-0 md:flex-row md:gap-x-16">
           <div className="flex flex-col items-center md:items-start">
             <p className="mb-5 text-xl font-bold tracking-[0.085em]">關於</p>
 

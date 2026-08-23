@@ -349,7 +349,7 @@ function CalendarDayButton({
           'bg-brand-500/20 hover:bg-brand-500/30',
 
         !modifiers.disabled &&
-          'group-data-[variant=profile]/calendar:font-medium group-data-[variant=profile]/calendar:text-text-primary'
+          'group-data-[variant=profile]/calendar:text-text-primary group-data-[variant=profile]/calendar:font-medium'
       )}
       {...props}
     />

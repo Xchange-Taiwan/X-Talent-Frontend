@@ -39,18 +39,18 @@ export const Default: Story = {
       <CardContent>
         <div className="grid w-full items-center gap-4">
           <div className="flex flex-col space-y-1.5">
-            <span className="text-sm font-medium text-text-secondary">
+            <span className="text-text-secondary text-sm font-medium">
               諮詢項目
             </span>
-            <div className="rounded border bg-background-bottom p-2 text-sm text-text-tertiary">
+            <div className="bg-background-bottom text-text-tertiary rounded border p-2 text-sm">
               前端架構與 React 效能優化
             </div>
           </div>
           <div className="flex flex-col space-y-1.5">
-            <span className="text-sm font-medium text-text-secondary">
+            <span className="text-text-secondary text-sm font-medium">
               諮詢時間
             </span>
-            <div className="rounded border bg-background-bottom p-2 text-sm text-text-tertiary">
+            <div className="bg-background-bottom text-text-tertiary rounded border p-2 text-sm">
               2026-08-15 14:00 - 15:00 (GMT+8)
             </div>
           </div>
@@ -69,7 +69,7 @@ export const ContentOnly: Story = {
   render: (args) => (
     <Card {...args} className="w-[350px]">
       <CardContent className="pt-6">
-        <p className="text-sm text-text-tertiary">
+        <p className="text-text-tertiary text-sm">
           這是一個極簡卡片，只包含內容區塊，適合用在格狀版面 (Grid)
           中展示簡單的統計數據或資訊卡片。
         </p>
@@ -84,22 +84,22 @@ export const StatusCard: Story = {
     <div className="flex flex-wrap gap-4">
       <Card
         {...args}
-        className="w-[250px] border-l-4 border-l-status-success-default"
+        className="border-l-status-success-default w-[250px] border-l-4"
       >
         <CardHeader className="pb-2">
           <CardDescription>已同步導師</CardDescription>
-          <CardTitle className="text-3xl font-bold text-status-success-default">
+          <CardTitle className="text-status-success-default text-3xl font-bold">
             128 位
           </CardTitle>
         </CardHeader>
       </Card>
       <Card
         {...args}
-        className="w-[250px] border-l-4 border-l-status-warning-default"
+        className="border-l-status-warning-default w-[250px] border-l-4"
       >
         <CardHeader className="pb-2">
           <CardDescription>待審核預約</CardDescription>
-          <CardTitle className="text-3xl font-bold text-status-warning-default">
+          <CardTitle className="text-status-warning-default text-3xl font-bold">
             12 筆
           </CardTitle>
         </CardHeader>

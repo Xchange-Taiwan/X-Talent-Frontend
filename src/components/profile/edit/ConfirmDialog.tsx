@@ -29,10 +29,10 @@ export function ConfirmDialog({
       <DialogPortal>
         <DialogOverlay className="bg-background-white/50 backdrop-blur-sm" />
         <DialogContentFrame className="w-[90vw] max-w-md gap-0 rounded-2xl border-none sm:rounded-2xl">
-          <DialogTitle className="text-center text-xl font-bold text-text-primary">
+          <DialogTitle className="text-text-primary text-center text-xl font-bold">
             {title}
           </DialogTitle>
-          <DialogDescription className="mt-2 text-center text-text-secondary">
+          <DialogDescription className="text-text-secondary mt-2 text-center">
             {description}
           </DialogDescription>
           <div className="mt-6 flex justify-center gap-4">

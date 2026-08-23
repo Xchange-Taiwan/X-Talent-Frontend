@@ -13,7 +13,7 @@ vi.mock('@/lib/apiClient', () => ({
     constructor(
       public status: number,
       message: string,
-      public body?: unknown
+      public code?: string
     ) {
       super(message);
     }
@@ -82,9 +82,7 @@ describe('fetchUserById service', () => {
   });
 
   it('does not retry and returns null on ApiError with USER_NOT_FOUND body code', async () => {
-    const apiError = new ApiError(400, 'User Not Found', {
-      code: 'USER_NOT_FOUND',
-    });
+    const apiError = new ApiError(400, 'User Not Found', 'USER_NOT_FOUND');
     vi.mocked(apiClient.getUnwrapped).mockRejectedValueOnce(apiError);
 
     const result = await fetchUserById(1, 'zh_TW');

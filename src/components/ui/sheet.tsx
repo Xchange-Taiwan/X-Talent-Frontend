@@ -47,7 +47,7 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
     className={cn(
-      'fixed inset-0 z-50 bg-background-white/80 backdrop-blur-sm data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0',
+      'bg-background-white/80 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 fixed inset-0 z-50 backdrop-blur-sm',
       className
     )}
     {...props}
@@ -117,7 +117,7 @@ const SheetContent = React.forwardRef<
       >
         {children}
         {showPrimitiveClose && (
-          <SheetPrimitive.Close className="absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background-white transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none data-[state=open]:bg-background-bottom">
+          <SheetPrimitive.Close className="ring-offset-background-white focus-visible:ring-ring data-[state=open]:bg-background-bottom absolute top-4 right-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none">
             <X className="size-4" aria-hidden="true" />
             <span className="sr-only">關閉</span>
           </SheetPrimitive.Close>
@@ -177,7 +177,7 @@ const SheetTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Title
     ref={ref}
-    className={cn('text-lg font-semibold text-text-primary', className)}
+    className={cn('text-text-primary text-lg font-semibold', className)}
     {...props}
   />
 ));
@@ -194,7 +194,7 @@ const SheetDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Description
     ref={ref}
-    className={cn('text-sm text-text-tertiary', className)}
+    className={cn('text-text-tertiary text-sm', className)}
     {...props}
   />
 ));

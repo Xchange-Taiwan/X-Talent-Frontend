@@ -26,7 +26,7 @@ export const Default: Story = {
             <h4 className="leading-none font-medium">
               林小明 (資深前端工程師)
             </h4>
-            <p className="font-mono text-xs text-text-tertiary">
+            <p className="text-text-tertiary font-mono text-xs">
               xiaoming.lin@xchange.tw
             </p>
           </div>

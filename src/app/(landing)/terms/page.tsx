@@ -16,14 +16,14 @@ export const metadata: Metadata = {
 export default function TermsOfServicePage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16 md:px-8 md:py-20">
-      <h1 className="text-3xl font-bold text-navy md:text-4xl">
+      <h1 className="text-navy text-3xl font-bold md:text-4xl">
         Terms of Service
       </h1>
-      <p className="mt-3 text-sm text-text-tertiary">
+      <p className="text-text-tertiary mt-3 text-sm">
         Last updated: May 25, 2026
       </p>
 
-      <div className="mt-8 space-y-4 text-base leading-relaxed text-text-secondary">
+      <div className="text-text-secondary mt-8 space-y-4 text-base leading-relaxed">
         <p>
           Welcome to X-Talent. X-Talent is a mentorship platform operated by
           XChange that connects mentors and mentees and helps users schedule
@@ -34,7 +34,7 @@ export default function TermsOfServicePage() {
           If you do not agree to these Terms, please do not use the platform.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           1. Use of the Platform
         </h2>
         <p>
@@ -47,7 +47,7 @@ export default function TermsOfServicePage() {
           with these Terms.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           2. Account Registration and Responsibility
         </h2>
         <p>
@@ -71,7 +71,7 @@ export default function TermsOfServicePage() {
           </li>
         </ul>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           3. Google Sign-In and Google Calendar Integration
         </h2>
         <p>
@@ -93,7 +93,7 @@ export default function TermsOfServicePage() {
           .
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           4. Mentorship Sessions and Scheduling
         </h2>
         <p>
@@ -115,7 +115,7 @@ export default function TermsOfServicePage() {
           other session-related matters.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           5. User Content and Conduct
         </h2>
         <p>
@@ -140,7 +140,7 @@ export default function TermsOfServicePage() {
           reasonably believe a user has violated these Terms or applicable law.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           6. Fees and Payments
         </h2>
         <p>
@@ -156,7 +156,7 @@ export default function TermsOfServicePage() {
           charges associated with their use of paid services.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           7. Cancellations and Changes
         </h2>
         <p>
@@ -170,7 +170,7 @@ export default function TermsOfServicePage() {
           scheduling information, except where required by applicable law.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           8. Intellectual Property
         </h2>
         <p>
@@ -189,7 +189,7 @@ export default function TermsOfServicePage() {
           to operate, provide, improve, and maintain the platform.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           9. Third-Party Services
         </h2>
         <p>
@@ -203,7 +203,7 @@ export default function TermsOfServicePage() {
           may be subject to their own terms and policies.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           10. Service Availability and Changes
         </h2>
         <p>
@@ -217,7 +217,7 @@ export default function TermsOfServicePage() {
           error-free, or available at all times.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           11. Disclaimer
         </h2>
         <p>
@@ -236,7 +236,7 @@ export default function TermsOfServicePage() {
           opportunity, or interaction arranged through the platform.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           12. Limitation of Liability
         </h2>
         <p>
@@ -251,7 +251,7 @@ export default function TermsOfServicePage() {
           exclusion or limitation is not permitted by applicable law.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           13. Suspension and Termination
         </h2>
         <p>
@@ -265,7 +265,7 @@ export default function TermsOfServicePage() {
           deletion according to the process described in our Privacy Policy.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           14. Privacy
         </h2>
         <p>
@@ -280,7 +280,7 @@ export default function TermsOfServicePage() {
           </a>
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           15. Changes to These Terms
         </h2>
         <p>
@@ -293,7 +293,7 @@ export default function TermsOfServicePage() {
           effective means you agree to the updated Terms.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           16. Contact
         </h2>
         <p>If you have questions about these Terms, please contact us at:</p>

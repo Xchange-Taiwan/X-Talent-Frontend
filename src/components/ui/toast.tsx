@@ -126,7 +126,7 @@ const ToastAction = React.forwardRef<
   <ToastPrimitives.Action
     ref={ref}
     className={cn(
-      'inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium ring-offset-background-white transition-colors group-[.destructive]:border-background-bottom/40 hover:bg-background-bottom group-[.destructive]:hover:border-status-error-default/30 group-[.destructive]:hover:bg-status-error-default group-[.destructive]:hover:text-text-white focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-none group-[.destructive]:focus:ring-status-error-default disabled:pointer-events-none disabled:opacity-50',
+      'ring-offset-background-white group-[.destructive]:border-background-bottom/40 hover:bg-background-bottom group-[.destructive]:hover:border-status-error-default/30 group-[.destructive]:hover:bg-status-error-default group-[.destructive]:hover:text-text-white focus:ring-ring group-[.destructive]:focus:ring-status-error-default inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium transition-colors focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:pointer-events-none disabled:opacity-50',
       className
     )}
     {...props}
@@ -144,7 +144,7 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      'absolute top-2 right-2 rounded-md p-1 text-text-primary/50 opacity-0 transition-opacity group-hover:opacity-100 group-[.destructive]:text-status-error-active hover:text-text-primary group-[.destructive]:hover:text-text-white focus:opacity-100 focus-visible:ring-2 focus-visible:outline-none group-[.destructive]:focus-visible:ring-status-error-active group-[.destructive]:focus-visible:ring-offset-status-error-default',
+      'text-text-primary/50 group-[.destructive]:text-status-error-active hover:text-text-primary group-[.destructive]:hover:text-text-white group-[.destructive]:focus-visible:ring-status-error-active group-[.destructive]:focus-visible:ring-offset-status-error-default absolute top-2 right-2 rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 focus-visible:ring-2 focus-visible:outline-none',
       className
     )}
     toast-close=""

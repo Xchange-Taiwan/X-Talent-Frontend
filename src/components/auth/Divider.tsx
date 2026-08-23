@@ -8,13 +8,13 @@ interface DividerProps {
 export default function Divider({ children, className = '' }: DividerProps) {
   return (
     <div className={`flex items-center ${className}`} role="separator">
-      <div className="h-px flex-1 bg-background-border" />
+      <div className="bg-background-border h-px flex-1" />
       {children && (
-        <span className="px-2 text-sm whitespace-nowrap text-text-secondary">
+        <span className="text-text-secondary px-2 text-sm whitespace-nowrap">
           {children}
         </span>
       )}
-      <div className="h-px flex-1 bg-background-border" />
+      <div className="bg-background-border h-px flex-1" />
     </div>
   );
 }

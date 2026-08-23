@@ -217,14 +217,14 @@ const CopyButton: React.FC<CopyButtonProps> = ({
   return (
     <button
       onClick={() => handleCopy(value, type)}
-      className={`flex items-center gap-1 text-text-primary transition-colors hover:text-brand-500 ${className}`}
+      className={`text-text-primary hover:text-brand-500 flex items-center gap-1 transition-colors ${className}`}
       title={title}
     >
       {children}
       {isCopied ? (
-        <Check className="size-3 text-status-success-default" />
+        <Check className="text-status-success-default size-3" />
       ) : isFailed ? (
-        <AlertCircle className="size-3 text-status-error-default" />
+        <AlertCircle className="text-status-error-default size-3" />
       ) : (
         <Copy className="size-3 opacity-0 transition-opacity group-hover/line:opacity-100 group-hover/row:opacity-100" />
       )}
@@ -248,28 +248,28 @@ const ColorGridView: React.FC<ColorViewProps> = ({
       {tokens.map((token) => (
         <div
           key={token.key}
-          className="group flex flex-col overflow-hidden rounded-lg border border-background-border bg-background-white transition-all hover:shadow-md"
+          className="group border-background-border bg-background-white flex flex-col overflow-hidden rounded-lg border transition-all hover:shadow-md"
         >
           {/* Interactive Preview Color Block */}
           {/* Note: This inline style is an explicit exception for dynamic preview in Storybook docs */}
           {/* eslint-disable-next-line react/forbid-dom-props */}
           <button
             type="button"
-            className="relative h-28 w-full cursor-pointer border-0 border-b border-background-border p-0 outline-none"
+            className="border-background-border relative h-28 w-full cursor-pointer border-0 border-b p-0 outline-none"
             style={{ backgroundColor: `hsl(${token.hsl})` }}
             onClick={() => handleCopy(token.hex, 'hex')}
             title="點擊複製 HEX 值"
           >
-            <div className="absolute inset-0 flex items-center justify-center bg-dark/10 opacity-0 transition-opacity group-hover:opacity-100">
-              <span className="flex items-center gap-1 rounded bg-dark/75 px-2 py-1 text-xs font-medium text-text-white">
+            <div className="bg-dark/10 absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
+              <span className="bg-dark/75 text-text-white flex items-center gap-1 rounded px-2 py-1 text-xs font-medium">
                 {isCopied(token.hex, 'hex') ? (
                   <>
-                    <CheckCircle2 className="size-3 text-brand-500" />
+                    <CheckCircle2 className="text-brand-500 size-3" />
                     已複製 HEX
                   </>
                 ) : copiedValue === `failed:hex:${token.hex}` ? (
                   <>
-                    <AlertCircle className="size-3 text-status-error-default" />
+                    <AlertCircle className="text-status-error-default size-3" />
                     複製失敗
                   </>
                 ) : (
@@ -285,15 +285,15 @@ const ColorGridView: React.FC<ColorViewProps> = ({
           {/* Code and Meta Details */}
           <div className="flex flex-1 flex-col justify-between space-y-2.5 p-3.5">
             <div>
-              <h4 className="text-sm font-bold text-text-primary">
+              <h4 className="text-text-primary text-sm font-bold">
                 {token.name}
               </h4>
-              <span className="font-mono text-xs text-text-tertiary">
+              <span className="text-text-tertiary font-mono text-xs">
                 {token.key}
               </span>
             </div>
 
-            <div className="space-y-1 border-t border-background-border pt-1 font-mono text-xs">
+            <div className="border-background-border space-y-1 border-t pt-1 font-mono text-xs">
               {/* Copy HEX */}
               <div className="flex items-center justify-between">
                 <span className="text-text-tertiary">HEX:</span>
@@ -355,7 +355,7 @@ const ColorListView: React.FC<ColorViewProps> = ({
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-left">
         <thead>
-          <tr className="border-b border-background-border text-xs font-semibold text-text-tertiary uppercase">
+          <tr className="border-background-border text-text-tertiary border-b text-xs font-semibold uppercase">
             <th className="w-12 px-4 py-3">預覽</th>
             <th className="px-4 py-3">名稱 & KEY</th>
             <th className="px-4 py-3">HEX</th>
@@ -369,19 +369,19 @@ const ColorListView: React.FC<ColorViewProps> = ({
           {tokens.map((token) => (
             <tr
               key={token.key}
-              className="group/row border-b border-background-bottom hover:bg-background-bottom-secondary"
+              className="group/row border-background-bottom hover:bg-background-bottom-secondary border-b"
             >
               <td className="px-4 py-3.5">
                 {/* Note: This inline style is an explicit exception for dynamic preview in Storybook docs */}
                 {/* eslint-disable-next-line react/forbid-dom-props */}
                 <div
-                  className="size-8 rounded-md border border-background-border shadow-inner"
+                  className="border-background-border size-8 rounded-md border shadow-inner"
                   style={{ backgroundColor: `hsl(${token.hsl})` }}
                 />
               </td>
-              <td className="px-4 py-3.5 font-medium text-text-primary">
+              <td className="text-text-primary px-4 py-3.5 font-medium">
                 <div className="font-bold">{token.name}</div>
-                <div className="font-mono text-xs text-text-tertiary">
+                <div className="text-text-tertiary font-mono text-xs">
                   {token.key}
                 </div>
               </td>
@@ -425,7 +425,7 @@ const ColorListView: React.FC<ColorViewProps> = ({
                   <span>{token.tailwindText}</span>
                 </CopyButton>
               </td>
-              <td className="px-4 py-3.5 text-right font-mono text-xs text-text-tertiary">
+              <td className="text-text-tertiary px-4 py-3.5 text-right font-mono text-xs">
                 {token.hsl}
               </td>
             </tr>
@@ -485,15 +485,15 @@ export const ColorPalette: React.FC = () => {
   }, [query]);
 
   return (
-    <div className="font-sans text-text-primary">
+    <div className="text-text-primary font-sans">
       {/* Search & Tool Bar */}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1">
-          <Search className="absolute top-1/2 left-3 size-5 -translate-y-1/2 text-text-tertiary" />
+          <Search className="text-text-tertiary absolute top-1/2 left-3 size-5 -translate-y-1/2" />
           <input
             type="text"
             placeholder="搜尋顏色、變數、HEX、或 Tailwind 類別..."
-            className="w-full rounded-lg border border-background-border bg-background-bottom-secondary py-2.5 pr-4 pl-11 text-sm text-text-primary transition-colors outline-none focus:bg-background-white"
+            className="border-background-border bg-background-bottom-secondary text-text-primary focus:bg-background-white w-full rounded-lg border py-2.5 pr-4 pl-11 text-sm transition-colors outline-none"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -524,7 +524,7 @@ export const ColorPalette: React.FC = () => {
 
       {/* Main Color Sections */}
       {filteredGroups.length === 0 ? (
-        <div className="py-12 text-center text-text-tertiary">
+        <div className="text-text-tertiary py-12 text-center">
           沒有找到符合 &quot;{searchQuery}&quot; 的設計 Token。
         </div>
       ) : (
@@ -532,13 +532,13 @@ export const ColorPalette: React.FC = () => {
           {filteredGroups.map((group) => (
             <section
               key={group.title}
-              className="rounded-xl border border-background-border bg-background-white p-6 shadow-sm"
+              className="border-background-border bg-background-white rounded-xl border p-6 shadow-sm"
             >
               <div className="mb-4">
-                <h3 className="text-lg font-bold text-text-primary">
+                <h3 className="text-text-primary text-lg font-bold">
                   {group.title}
                 </h3>
-                <p className="text-sm text-text-secondary">
+                <p className="text-text-secondary text-sm">
                   {group.description}
                 </p>
               </div>

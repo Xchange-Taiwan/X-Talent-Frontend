@@ -29,12 +29,12 @@ export const ProfileStoryWrapper = <T extends z.ZodTypeAny>({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit((data) => console.log('Submit:', data))}
-        className="max-w-3xl space-y-6 rounded-xl border border-background-border bg-background-white p-6 shadow-sm"
+        className="border-background-border bg-background-white max-w-3xl space-y-6 rounded-xl border p-6 shadow-sm"
       >
         {children(form)}
         <button
           type="submit"
-          className="rounded-md bg-brand-500 px-4 py-2 text-text-white transition-colors hover:bg-brand-600"
+          className="bg-brand-500 text-text-white hover:bg-brand-600 rounded-md px-4 py-2 transition-colors"
         >
           提交表單
         </button>

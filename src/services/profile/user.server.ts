@@ -1,4 +1,4 @@
-import { BASE_URL, fetchServerJson } from '@/lib/apiClient';
+import { apiClient, BASE_URL } from '@/lib/apiClient';
 import type { components } from '@/types/api';
 import type { MentorProfileVO } from '@/types/user';
 
@@ -21,7 +21,7 @@ export async function fetchUserByIdServer(
 ): Promise<MentorProfileVO | null> {
   if (!BASE_URL) return null;
   try {
-    const data = await fetchServerJson<
+    const data = await apiClient.getUnwrapped<
       components['schemas']['MentorProfileVO']
     >(`/v1/mentors/${userId}/${language}/profile`, {
       next: { revalidate: REVALIDATE_SECONDS },

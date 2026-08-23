@@ -104,7 +104,7 @@ export default function MultiSelectDropdown({
           >
             <div
               className={cn(
-                'mr-2 flex size-4 items-center justify-center rounded-sm border border-brand-500',
+                'border-brand-500 mr-2 flex size-4 items-center justify-center rounded-sm border',
                 selectedValues.length === options.length
                   ? 'bg-brand-500 text-text-primary'
                   : 'opacity-50 [&_svg]:invisible'
@@ -124,7 +124,7 @@ export default function MultiSelectDropdown({
               >
                 <div
                   className={cn(
-                    'mr-2 flex size-4 items-center justify-center rounded-sm border border-brand-500',
+                    'border-brand-500 mr-2 flex size-4 items-center justify-center rounded-sm border',
                     isSelected
                       ? 'bg-brand-500 text-text-primary'
                       : 'opacity-50 [&_svg]:invisible'
@@ -133,7 +133,7 @@ export default function MultiSelectDropdown({
                   <CheckIcon className="size-4" />
                 </div>
                 {option.icon && (
-                  <option.icon className="mr-2 size-4 text-text-tertiary" />
+                  <option.icon className="text-text-tertiary mr-2 size-4" />
                 )}
                 <span>{option.label}</span>
               </CommandItem>
