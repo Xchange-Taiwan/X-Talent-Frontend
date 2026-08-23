@@ -124,22 +124,51 @@ export function readCookie(name: string): string | undefined {
   return safeDecodeURIComponent(raw);
 }
 
-export interface ResolvedIdentity {
-  userId: string | undefined;
-  avatar: string | undefined;
-  isMentor: boolean;
-  isLoggedIn: boolean;
-  hasFullUser: boolean;
-  isResolvingUser: boolean;
-  authKnown: boolean;
-  // True once the real `useSession()` round trip has finished, whether it
-  // resolved to authenticated or guest - unlike `authKnown`, this is never
-  // satisfied by the (unsigned, client-writable) hint cookie alone. Callers
-  // that need to know "is resolution fully done" for *any* viewer,
-  // including guests who will never have `hasFullUser` true, should gate on
-  // this instead of `authKnown` or `hasFullUser`.
-  sessionSettled: boolean;
-}
+export type ResolvedIdentity =
+  | {
+      state: 'unknown';
+      userId: undefined;
+      avatar: undefined;
+      isMentor: false;
+      isLoggedIn: false;
+      hasFullUser: false;
+      isResolvingUser: false;
+      authKnown: false;
+      sessionSettled: false;
+    }
+  | {
+      state: 'hint-only';
+      userId: undefined;
+      avatar: string | undefined;
+      isMentor: boolean;
+      isLoggedIn: true;
+      hasFullUser: false;
+      isResolvingUser: true;
+      authKnown: true;
+      sessionSettled: false;
+    }
+  | {
+      state: 'confirmed-guest';
+      userId: undefined;
+      avatar: undefined;
+      isMentor: false;
+      isLoggedIn: false;
+      hasFullUser: false;
+      isResolvingUser: false;
+      authKnown: true;
+      sessionSettled: boolean;
+    }
+  | {
+      state: 'confirmed-member';
+      userId: string;
+      avatar: string | undefined;
+      isMentor: boolean;
+      isLoggedIn: true;
+      hasFullUser: true;
+      isResolvingUser: false;
+      authKnown: true;
+      sessionSettled: true;
+    };
 
 export function resolveIdentity(
   session:
@@ -175,39 +204,63 @@ export function resolveIdentity(
     hasFullUser ||
     (!sessionSettled && !isHintUnknown && !isHintGuest && Boolean(hint));
 
-  // 1. Resolve userId
-  const userId = hasFullUser
-    ? String(session!.user!.id)
-    : sessionSettled
-      ? undefined
-      : (hint?.userId ?? undefined);
-
-  // 2. Resolve isMentor
-  const isMentor = hasFullUser
-    ? Boolean(session?.user?.isMentor)
-    : sessionSettled
-      ? false
-      : isLoggedIn && Boolean(hint?.isMentor);
-
-  // 3. Resolve avatar
-  let avatar: string | undefined = undefined;
-  if (hasFullUser) {
-    avatar = session?.user?.avatar ?? undefined;
-  } else if (!sessionSettled && isLoggedIn && hint) {
-    avatar = hint.avatar ?? undefined;
+  if (!authKnown) {
+    return {
+      state: 'unknown',
+      userId: undefined,
+      avatar: undefined,
+      isMentor: false,
+      isLoggedIn: false,
+      hasFullUser: false,
+      isResolvingUser: false,
+      authKnown: false,
+      sessionSettled: false,
+    };
   }
 
-  const isResolvingUser = isLoggedIn && !userId;
+  if (hasFullUser) {
+    const userId = String(session!.user!.id);
+    const isMentor = Boolean(session?.user?.isMentor);
+    const avatar = session?.user?.avatar ?? undefined;
+    return {
+      state: 'confirmed-member',
+      userId,
+      avatar,
+      isMentor,
+      isLoggedIn: true,
+      hasFullUser: true,
+      isResolvingUser: false,
+      authKnown: true,
+      sessionSettled: true,
+    };
+  }
 
+  if (sessionSettled || isHintGuest) {
+    return {
+      state: 'confirmed-guest',
+      userId: undefined,
+      avatar: undefined,
+      isMentor: false,
+      isLoggedIn: false,
+      hasFullUser: false,
+      isResolvingUser: false,
+      authKnown: true,
+      sessionSettled,
+    };
+  }
+
+  const isMentor = isLoggedIn && Boolean(hint?.isMentor);
+  const avatar = hint?.avatar ?? undefined;
   return {
-    userId,
+    state: 'hint-only',
+    userId: undefined,
     avatar,
     isMentor,
-    isLoggedIn,
-    hasFullUser,
-    isResolvingUser,
-    authKnown,
-    sessionSettled,
+    isLoggedIn: true,
+    hasFullUser: false,
+    isResolvingUser: true,
+    authKnown: true,
+    sessionSettled: false,
   };
 }
 
@@ -223,7 +276,11 @@ export function applyAvatarOverride(
   identity: ResolvedIdentity,
   override: { userId: string; url: string } | null | undefined
 ): ResolvedIdentity {
-  if (override && identity.userId && override.userId === identity.userId) {
+  if (
+    override &&
+    identity.state === 'confirmed-member' &&
+    override.userId === identity.userId
+  ) {
     return { ...identity, avatar: override.url };
   }
   return identity;
