@@ -3,10 +3,15 @@ import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import { RRule } from 'rrule';
 
 import { SegmentVO } from '@/services/mentor-schedule/schedule';
+import type { Reservation } from '@/types/reservation';
+
+import type {
+  BookingSlot,
+  DtType,
+  ParsedMentorTimeslot,
+} from './bookingAvailability/types';
 
 dayjs.extend(isSameOrBefore);
-
-export type DtType = 'ALLOW' | 'FORBIDDEN' | 'BOOKED' | 'PENDING';
 
 /** 'YYYY-MM' — used to bucket per-month draft state in useMentorSchedule. */
 export type MonthKey = string;
@@ -41,35 +46,11 @@ export type RawMentorTimeslot = Pick<
 };
 
 /**
- * Represents a SINGLE occurrence of an ALLOW/BOOKED/PENDING entry. A non-rrule
- * row produces exactly one entry; a weekly-rrule row produces one entry per
- * non-exdated occurrence. The pair (id, occurrenceUnix) uniquely identifies
- * each card the user sees in the editor and is what mutator callbacks use to
- * scope edits/deletes back to the right occurrence of the underlying row.
+ * Shared predicate to check if a booking slot is taken (booked or pending).
  */
-export type ParsedMentorTimeslot = {
-  occurrenceId: string; // unique composite key for the occurrence, e.g. `${id}_${occurrenceUnix}`
-  id: number; // = parent row id; shared by all occurrences of an rrule row
-  occurrenceUnix: number; // dtstart of THIS occurrence (= row.dtstart for non-recurring)
-  type: DtType;
-  start: Date; // = new Date(occurrenceUnix * 1000)
-  end: Date; // = start + slotDurationSeconds
-  durationMinutes: number;
-  formatted: string;
-  dateKey: string; // YYYY-MM-DD (local) of this occurrence
-  rrule?: string; // copied from parent row
-  exdate: number[]; // copied from parent row
-  slotDurationSeconds: number;
-  isRecurringInstance: boolean; // true if parent row has rrule
-};
-
-export type BookingSlot = {
-  start: Date;
-  end: Date;
-  scheduleId: number; // parent ALLOW slot id
-  isBooked: boolean;
-};
-
+export function isSlotTaken(slot: BookingSlot): boolean {
+  return slot.isBooked || slot.status === 'BOOKED' || slot.status === 'PENDING';
+}
 /** Expand an rrule string from dtstart, returning all occurrence dtstart values (unix seconds). */
 export function expandRrule(
   dtstart: number,
@@ -296,6 +277,22 @@ export function deduplicateRawSlots(
 }
 
 /**
+ * Find the reservation whose [dtstart, dtend) exactly matches a given slot
+ * window (unix seconds). Shared between useMentorSchedule (booking-slot
+ * generation) and MentorScheduleDialog (prompt-dialog mentee name) so the
+ * matching rule can't drift between the two call sites.
+ */
+export function findMatchedReservation(
+  reservations: Reservation[] | undefined,
+  startUnix: number,
+  endUnix: number
+): Reservation | undefined {
+  return reservations?.find(
+    (r) => r.dtstart === startUnix && r.dtend === endUnix
+  );
+}
+
+/**
  * Deduplicates slots with the same start time, merging isBooked status.
  */
 export function deduplicateBookingSlots(slots: BookingSlot[]): BookingSlot[] {
@@ -305,6 +302,19 @@ export function deduplicateBookingSlots(slots: BookingSlot[]): BookingSlot[] {
     const existing = uniqueMap.get(key);
     if (existing) {
       existing.isBooked = existing.isBooked || item.isBooked;
+      if (item.status === 'BOOKED' || existing.status === 'BOOKED') {
+        existing.status = 'BOOKED';
+      } else if (item.status === 'PENDING' || existing.status === 'PENDING') {
+        existing.status = 'PENDING';
+      } else {
+        existing.status = null;
+      }
+      if (!existing.menteeName && item.menteeName) {
+        existing.menteeName = item.menteeName;
+      }
+      if (!existing.reservation && item.reservation) {
+        existing.reservation = item.reservation;
+      }
     } else {
       uniqueMap.set(key, { ...item });
     }

@@ -1,6 +1,11 @@
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
+import { ResolvedIdentity } from '@/lib/auth/sessionHint';
+
+export type GuestActionButtonsProps = {
+  identity: ResolvedIdentity;
+};
 
 /**
  * The desktop header's guest sign-up/sign-in buttons. Rendered twice in
@@ -8,8 +13,14 @@ import { Button } from '@/components/ui/button';
  * fast path, and once unwrapped for the fully resolved `!isLoggedIn` state.
  * Layout/wrapping is the caller's responsibility, not this component's.
  */
-export function GuestActionButtons(): JSX.Element {
-  return (
+export function GuestActionButtons({
+  identity,
+}: GuestActionButtonsProps): JSX.Element | null {
+  if (identity.state === 'hint-only' || identity.state === 'confirmed-member') {
+    return null;
+  }
+
+  const buttons = (
     <>
       <Button
         asChild
@@ -23,4 +34,14 @@ export function GuestActionButtons(): JSX.Element {
       </Button>
     </>
   );
+
+  if (identity.state === 'unknown') {
+    return (
+      <div className="hidden items-center gap-3 group-data-[auth-state=guest]/auth-state:flex">
+        {buttons}
+      </div>
+    );
+  }
+
+  return <>{buttons}</>;
 }

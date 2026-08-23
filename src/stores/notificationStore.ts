@@ -1,19 +1,7 @@
 import { safeGetStorage, safeSetStorage } from '@/lib/storage';
+import type { NotificationItem } from '@/services/notifications/types';
 
-export type NotificationItem = {
-  id: string;
-  type:
-    | 'reservation_requested'
-    | 'reservation_success'
-    | 'reservation_failed'
-    | 'reservation_canceled'
-    | 'reservation_upcoming';
-  menteeName?: string;
-  mentorName?: string;
-  createdAt: string; // ISO string
-  unread?: boolean;
-  role?: 'mentor' | 'mentee';
-};
+export type { NotificationItem } from '@/services/notifications/types';
 
 export type NotificationStatus = 'loading' | 'error' | 'empty' | 'success';
 
@@ -35,10 +23,7 @@ export interface SharedNotificationState {
   isPending: boolean;
   hasLoadMoreError: boolean;
   isFetching: boolean;
-  fetchPromise: Promise<void> | null;
   isFetchingUnreadCount: boolean;
-  unreadCountFetchPromise: Promise<void> | null;
-  unreadCountVersion: number;
   markingReadIds: Set<string>;
   isMarkingAll: boolean;
 }
@@ -55,31 +40,49 @@ export const createInitialState = (
   initialNotifications?: NotificationItem[],
   initialStatus: NotificationStatus = 'success'
 ): SharedNotificationState => {
-  const isUsingProps = initialNotifications !== undefined;
+  const hasInitial = initialNotifications !== undefined;
   const storageKey = getStorageKey(userId);
 
   return {
-    status: isUsingProps ? initialStatus : 'loading',
+    status: hasInitial ? initialStatus : 'loading',
     notifications: initialNotifications ?? [],
     seenUnreadCount: getStoredSeenCount(storageKey),
     nextCursor: null,
-    unreadCountState: 0,
+    unreadCountState: initialNotifications
+      ? initialNotifications.filter((n) => n.unread).length
+      : 0,
     isLoadingMore: false,
     isPending: false,
     hasLoadMoreError: false,
     isFetching: false,
-    fetchPromise: null,
     isFetchingUnreadCount: false,
-    unreadCountFetchPromise: null,
-    unreadCountVersion: 0,
     markingReadIds: new Set<string>(),
     isMarkingAll: false,
   };
 };
 
+// Safe structural comparison helper for the render-phase sync
+function areNotificationsChanged(
+  a: NotificationItem[] | undefined,
+  b: NotificationItem[] | undefined
+): boolean {
+  if (a === b) return false;
+  if (!a || !b) return true;
+  if (a.length !== b.length) return true;
+  return a.some(
+    (item, index) =>
+      item.id !== b[index].id ||
+      item.unread !== b[index].unread ||
+      item.type !== b[index].type
+  );
+}
+
 class NotificationStoreManager {
   private states = new Map<string, SharedNotificationState>();
   private listeners = new Map<string, Set<() => void>>();
+  private fetchPromises = new Map<string, Promise<void> | null>();
+  private unreadCountFetchPromises = new Map<string, Promise<void> | null>();
+  private unreadCountVersions = new Map<string, number>();
 
   constructor() {
     // Single, store-owned listener for cross-tab sync (instead of one per Hook instance).
@@ -133,11 +136,12 @@ class NotificationStoreManager {
         key,
         createInitialState(userId, initialNotifications, initialStatus)
       );
+      this.unreadCountVersions.set(key, 0);
     }
     return this.states.get(key)!;
   }
 
-  updateState(
+  private updateState(
     userId: string | undefined,
     updates: Partial<SharedNotificationState>
   ) {
@@ -171,24 +175,6 @@ class NotificationStoreManager {
     };
   }
 
-  /**
-   * Domain Action: Remove a single id from markingReadIds (e.g. on completion or cleanup),
-   * optionally merging additional state updates into the same write.
-   */
-  removeMarkingReadId(
-    userId: string | undefined,
-    id: string,
-    extraUpdates?: Partial<SharedNotificationState>
-  ) {
-    const state = this.getOrCreateState(userId);
-    const markingReadIdsCopy = new Set(state.markingReadIds);
-    markingReadIdsCopy.delete(id);
-    this.updateState(userId, {
-      markingReadIds: markingReadIdsCopy,
-      ...extraUpdates,
-    });
-  }
-
   private notify(key: string) {
     const set = this.listeners.get(key);
     if (set) {
@@ -205,48 +191,94 @@ class NotificationStoreManager {
   reset() {
     this.states.clear();
     this.listeners.clear();
+    this.fetchPromises.clear();
+    this.unreadCountFetchPromises.clear();
+    this.unreadCountVersions.clear();
   }
 
   /**
-   * Domain Action: Optimistically mark a single notification as read
+   * Domain Action: Start marking a single notification as read optimistically.
+   * Sets isPending to true, adds the ID to markingReadIds, and marks the notification as read.
    */
-  markReadOptimistic(
-    userId: string | undefined,
-    id: string,
-    isUsingProps: boolean
-  ): void {
+  startMarkRead(userId: string | undefined, id: string): void {
     const state = this.getOrCreateState(userId);
 
     const markingReadIdsCopy = new Set(state.markingReadIds);
     markingReadIdsCopy.add(id);
 
     this.updateState(userId, {
+      isPending: true,
+      markingReadIds: markingReadIdsCopy,
       notifications: state.notifications.map((item) =>
         item.id === id ? { ...item, unread: false } : item
       ),
-      unreadCountState: isUsingProps
-        ? state.unreadCountState
-        : Math.max(0, state.unreadCountState - 1),
+      unreadCountState: Math.max(0, state.unreadCountState - 1),
+    });
+  }
+
+  /**
+   * Domain Action: Successfully complete a single mark read operation.
+   * Removes the ID from markingReadIds and sets isPending to false.
+   */
+  completeMarkRead(userId: string | undefined, id: string): void {
+    const state = this.getOrCreateState(userId);
+    const markingReadIdsCopy = new Set(state.markingReadIds);
+    markingReadIdsCopy.delete(id);
+
+    this.updateState(userId, {
+      isPending: false,
       markingReadIds: markingReadIdsCopy,
     });
   }
 
   /**
-   * Domain Action: Optimistically mark all notifications as read
+   * Domain Action: Roll back a single mark read operation on failure.
+   * Only restores the unread state of the notification and increments the unread count
+   * if the notification is currently marked as read (unread === false).
+   * Also removes the ID from markingReadIds and sets isPending to false.
    */
-  markAllReadOptimistic(
-    userId: string | undefined,
-    isUsingProps: boolean
-  ): {
-    previousNotifications: NotificationItem[];
-    previousCount: number;
-    unreadIds: string[];
-    previousIsMarkingAll: boolean;
-  } {
+  failMarkRead(userId: string | undefined, id: string): void {
     const state = this.getOrCreateState(userId);
-    const previousNotifications = [...state.notifications];
+    const markingReadIdsCopy = new Set(state.markingReadIds);
+    markingReadIdsCopy.delete(id);
+
+    let countDiff = 0;
+    const notifications = state.notifications.map((item) => {
+      if (item.id === id && !item.unread) {
+        countDiff += 1;
+        return { ...item, unread: true };
+      }
+      return item;
+    });
+
+    this.updateState(userId, {
+      isPending: false,
+      markingReadIds: markingReadIdsCopy,
+      ...(countDiff > 0
+        ? {
+            notifications,
+            unreadCountState: state.unreadCountState + countDiff,
+          }
+        : {}),
+    });
+  }
+
+  /**
+   * Domain Action: Start marking all notifications as read optimistically.
+   * Sets isPending and isMarkingAll to true, and marks all notifications as read.
+   * Returns unread IDs and a self-contained rollback function, fully encapsulating rollback details.
+   * The rollback closure dynamically updates the current notifications list rather than overwriting with an old snapshot,
+   * protecting against loss of concurrent notifications added during the API request.
+   */
+  startMarkAllRead(userId: string | undefined): {
+    unreadIds: string[];
+    rollback: () => void;
+  } {
+    const key = getStoreKey(userId);
+    const state = this.getOrCreateState(userId);
     const previousCount = state.unreadCountState;
     const previousIsMarkingAll = state.isMarkingAll;
+    const prevVersion = this.unreadCountVersions.get(key) ?? 0;
 
     const unreadIds = state.notifications
       .filter((item) => item.unread)
@@ -254,29 +286,79 @@ class NotificationStoreManager {
 
     const unreadIdSet = new Set(unreadIds);
     this.updateState(userId, {
+      isPending: true,
       notifications: state.notifications.map((item) =>
         unreadIdSet.has(item.id) ? { ...item, unread: false } : item
       ),
-      ...(!isUsingProps ? { unreadCountState: 0 } : {}),
+      unreadCountState: 0,
       isMarkingAll: true,
     });
 
+    const rollback = () => {
+      const currentState = this.getOrCreateState(userId);
+      const currentVersion = this.unreadCountVersions.get(key) ?? 0;
+
+      const notifications = currentState.notifications.map((item) => {
+        if (unreadIdSet.has(item.id) && !item.unread) {
+          return { ...item, unread: true };
+        }
+        return item;
+      });
+
+      this.updateState(userId, {
+        notifications,
+        isMarkingAll: previousIsMarkingAll,
+        unreadCountState:
+          currentVersion === prevVersion
+            ? previousCount
+            : currentState.unreadCountState,
+      });
+    };
+
     return {
-      previousNotifications,
-      previousCount,
       unreadIds,
-      previousIsMarkingAll,
+      rollback,
     };
   }
 
   /**
-   * Domain Action: Rollback only specific notifications (e.g. on batch failure)
+   * Domain Action: Complete mark all read operation.
+   * Clears isPending and isMarkingAll.
    */
-  rollbackNotifications(
-    userId: string | undefined,
-    ids: string[],
-    unreadCountState?: number
-  ) {
+  completeMarkAllRead(userId: string | undefined) {
+    this.updateState(userId, {
+      isPending: false,
+      isMarkingAll: false,
+    });
+  }
+
+  /**
+   * Domain Action: Start connection retry.
+   * Sets status to 'loading'.
+   */
+  startRetry(userId: string | undefined) {
+    this.updateState(userId, {
+      status: 'loading',
+    });
+  }
+
+  /**
+   * Domain Action: Fail connection retry.
+   * Sets status to 'error'.
+   */
+  failRetry(userId: string | undefined) {
+    this.updateState(userId, {
+      status: 'error',
+    });
+  }
+
+  /**
+   * Domain Action: Rollback specific notifications to unread (e.g. on
+   * mark-read/mark-all-read failure), restoring the unread badge count for
+   * each one rolled back. Callers just name which ids failed - the count
+   * math lives here instead of being re-derived at each call site.
+   */
+  rollbackNotifications(userId: string | undefined, ids: string[]) {
     const state = this.getOrCreateState(userId);
     const idSet = new Set(ids);
 
@@ -284,7 +366,7 @@ class NotificationStoreManager {
       notifications: state.notifications.map((item) =>
         idSet.has(item.id) ? { ...item, unread: true } : item
       ),
-      ...(unreadCountState !== undefined ? { unreadCountState } : {}),
+      unreadCountState: state.unreadCountState + ids.length,
     });
   }
 
@@ -304,16 +386,14 @@ class NotificationStoreManager {
     unreadCount: number,
     expectedVersion?: number
   ) {
-    const state = this.getOrCreateState(userId);
-    if (
-      expectedVersion !== undefined &&
-      expectedVersion !== state.unreadCountVersion
-    ) {
+    const key = getStoreKey(userId);
+    const currentVersion = this.unreadCountVersions.get(key) ?? 0;
+    if (expectedVersion !== undefined && expectedVersion !== currentVersion) {
       return;
     }
+    this.unreadCountVersions.set(key, currentVersion + 1);
     this.updateState(userId, {
       unreadCountState: unreadCount,
-      unreadCountVersion: state.unreadCountVersion + 1,
     });
   }
 
@@ -329,16 +409,18 @@ class NotificationStoreManager {
     userId: string | undefined,
     fetcher: () => Promise<number | undefined>
   ): Promise<void> {
+    const key = getStoreKey(userId);
     const state = this.getOrCreateState(userId);
 
     if (state.isFetchingUnreadCount) {
-      if (state.unreadCountFetchPromise) {
-        await state.unreadCountFetchPromise;
+      const existingPromise = this.unreadCountFetchPromises.get(key);
+      if (existingPromise) {
+        await existingPromise;
       }
       return;
     }
 
-    const versionAtStart = state.unreadCountVersion;
+    const versionAtStart = this.unreadCountVersions.get(key) ?? 0;
 
     const fetchPromise = (async () => {
       try {
@@ -347,16 +429,16 @@ class NotificationStoreManager {
           this.setUnreadCount(userId, unreadCount, versionAtStart);
         }
       } finally {
+        this.unreadCountFetchPromises.delete(key);
         this.updateState(userId, {
           isFetchingUnreadCount: false,
-          unreadCountFetchPromise: null,
         });
       }
     })();
 
+    this.unreadCountFetchPromises.set(key, fetchPromise);
     this.updateState(userId, {
       isFetchingUnreadCount: true,
-      unreadCountFetchPromise: fetchPromise,
     });
 
     await fetchPromise;
@@ -371,10 +453,12 @@ class NotificationStoreManager {
     items: NotificationItem[],
     nextCursor: string | null
   ) {
-    const state = this.getOrCreateState(userId);
+    const key = getStoreKey(userId);
+    const currentVersion = this.unreadCountVersions.get(key) ?? 0;
+    this.unreadCountVersions.set(key, currentVersion + 1);
+
     this.updateState(userId, {
       unreadCountState: unreadCount,
-      unreadCountVersion: state.unreadCountVersion + 1,
       notifications: items,
       nextCursor,
       status: items.length === 0 ? 'empty' : 'success',
@@ -395,6 +479,120 @@ class NotificationStoreManager {
       notifications: [...state.notifications, ...items],
       nextCursor,
     });
+  }
+
+  /**
+   * Domain Action: Prepare state for loading more notifications
+   */
+  startLoadMore(userId: string | undefined) {
+    this.updateState(userId, {
+      isLoadingMore: true,
+      hasLoadMoreError: false,
+    });
+  }
+
+  /**
+   * Domain Action: Record an error during loading more notifications
+   */
+  failLoadMore(userId: string | undefined) {
+    this.updateState(userId, {
+      hasLoadMoreError: true,
+    });
+  }
+
+  /**
+   * Domain Action: Complete the load more operation (clear loading flag)
+   */
+  completeLoadMore(userId: string | undefined) {
+    this.updateState(userId, {
+      isLoadingMore: false,
+    });
+  }
+
+  /**
+   * Domain Action: Fetch initial notifications and unread count structurally with deduplication.
+   * Correctly resets the status to 'success' or 'error' on error, avoiding the loading spinner hanging forever.
+   */
+  async fetchInitialDataWithDeduplication(
+    userId: string | undefined,
+    showLoading: boolean,
+    fetcher: () => Promise<{
+      unreadCount: number;
+      notifications: NotificationItem[];
+      nextCursor: string | null;
+    }>,
+    onFailure?: (error: unknown, hasExistingNotifications: boolean) => void
+  ): Promise<void> {
+    const key = getStoreKey(userId);
+    const state = this.getOrCreateState(userId);
+
+    if (state.isFetching) {
+      const existingPromise = this.fetchPromises.get(key);
+      if (existingPromise) {
+        await existingPromise;
+      }
+      return;
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const res = await fetcher();
+        this.setInitialData(
+          userId,
+          res.unreadCount,
+          res.notifications,
+          res.nextCursor
+        );
+      } catch (error) {
+        const currentState = this.getOrCreateState(userId);
+        const hasExisting = currentState.notifications.length > 0;
+        if (onFailure) {
+          onFailure(error, hasExisting);
+        }
+        this.updateState(userId, {
+          status: hasExisting ? 'success' : 'error',
+        });
+      } finally {
+        this.fetchPromises.delete(key);
+        this.updateState(userId, {
+          isFetching: false,
+        });
+      }
+    })();
+
+    this.fetchPromises.set(key, fetchPromise);
+    this.updateState(userId, {
+      isFetching: true,
+      ...(showLoading ? { status: 'loading' } : {}),
+    });
+
+    await fetchPromise;
+  }
+
+  /**
+   * Domain Action: Sync initial notifications and status prop changes structurally into the shared store.
+   * Correctly advances the unreadCountVersions version number on changes to guard against slow background fetch races.
+   */
+  syncInitialNotifications(
+    userId: string | undefined,
+    initialNotifications: NotificationItem[],
+    initialStatus: NotificationStatus
+  ) {
+    const state = this.getOrCreateState(userId);
+    if (
+      areNotificationsChanged(initialNotifications, state.notifications) ||
+      initialStatus !== state.status
+    ) {
+      const key = getStoreKey(userId);
+      const currentVersion = this.unreadCountVersions.get(key) ?? 0;
+      this.unreadCountVersions.set(key, currentVersion + 1);
+
+      this.updateState(userId, {
+        notifications: initialNotifications,
+        status: initialStatus,
+        unreadCountState: initialNotifications.filter((n) => n.unread).length,
+      });
+    }
   }
 }
 

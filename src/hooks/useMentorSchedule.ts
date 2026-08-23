@@ -15,15 +15,19 @@ import {
 } from 'react';
 
 import { captureFlowFailure } from '@/lib/monitoring';
+import {
+  BookingCalendarReader,
+  BookingSlot,
+  computeBookingAvailability,
+  MentorScheduleEditor,
+  ParsedMentorTimeslot,
+  SlotsSnapshot,
+} from '@/lib/profile/bookingAvailability';
 import { MonthDraftStore } from '@/lib/profile/MonthDraftStore';
 import {
-  BookingSlot,
-  deduplicateBookingSlots,
-  expandRrule,
   formatTimeslot,
   MonthKey,
   monthKeyFromYearMonth,
-  ParsedMentorTimeslot,
   parseMonthKey,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
@@ -39,12 +43,8 @@ import {
   syncMonths,
   SyncResult,
 } from '@/services/mentor-schedule/sync';
-
-export type {
-  BookingSlot,
-  ParsedMentorTimeslot,
-} from '@/lib/profile/scheduleHelpers';
-export { expandRrule } from '@/lib/profile/scheduleHelpers';
+import { fetchAllReservationsForState } from '@/services/reservations';
+import type { Reservation } from '@/types/reservation';
 
 // useEffect runs after paint, so on an account switch there's a window where
 // the browser can paint one frame of the new userId alongside the previous
@@ -60,9 +60,17 @@ type Options = {
     year: number;
     month: number; // 1-12
   };
+  loginUserId?: string;
+  /**
+   * Include dates whose only occurrences are already BOOKED in
+   * `allowedDates`, so the mentor viewing their own profile can still select
+   * a fully-booked date to view/manage the reservation. Mentee/visitor
+   * callers must leave this false: they share the same `allowedDates` to
+   * disable calendar dates, and a fully-booked date has no bookable slot for
+   * them to select.
+   */
+  includeBookedDates?: boolean;
 };
-
-export type SlotDurationMinutes = 30 | 45 | 60;
 
 export type UpdateDraftSlotResult = {
   success: boolean;
@@ -74,6 +82,7 @@ export type UseMentorScheduleReturn = {
   loaded: boolean;
   /** Per-month: false while the *current* (year, month) is being fetched after a cache miss. */
   monthLoaded: boolean;
+  reservationsLoaded: boolean;
   isFetching: boolean;
   selectedDate: string | null;
   setSelectedDate: (dateStr: string | null) => void;
@@ -82,6 +91,10 @@ export type UseMentorScheduleReturn = {
   draftForSelectedDate: ParsedMentorTimeslot[];
   /** All local dates (YYYY-MM-DD) that have at least one ALLOW occurrence after expanding rrules. */
   allowedDates: string[];
+
+  slotsSnapshot: SlotsSnapshot;
+  getDayBookingStatus: (dateKey: string) => BookingStatus | null;
+  reservations: Reservation[];
 
   generateBookingSlots: (dateKey: string) => BookingSlot[];
 
@@ -124,11 +137,15 @@ export type UseMentorScheduleReturn = {
   resetChanges: () => void;
 
   hasError: boolean;
-  reload: () => void;
+  reload: () => void | Promise<void>;
 };
 
 export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
-  const { backend } = opts;
+  const { backend, loginUserId, includeBookedDates = false } = opts;
+  const backendRef = useRef(backend);
+  useIsomorphicLayoutEffect(() => {
+    backendRef.current = backend;
+  }, [backend]);
 
   // External standalone MonthDraftStore for cross-month states and synchronization logic
   const [store] = useState(
@@ -143,6 +160,14 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   const { dirtyMonths, allDraftSlots: allDraftRaws } = storeState;
 
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const [loaded, setLoaded] = useState(false);
   const [monthLoaded, setMonthLoaded] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
@@ -151,6 +176,93 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   );
   const [hasError, setHasError] = useState(false);
   const [retryTrigger, setRetryTrigger] = useState(0);
+
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  // Tracks the reservations fetch specifically (separate from monthLoaded,
+  // which only reflects the schedule/draft fetch). A booked slot's `status`
+  // comes from the schedule fetch and can resolve before this one, so a
+  // dot/label can show PENDING while `slot.reservation` (matched from
+  // `reservations`) is still unset — most visibly right after this hook
+  // remounts (e.g. navigating back to the profile page), which restarts both
+  // fetches from scratch. Callers must gate any "click a booked slot" UI on
+  // this flag too, not just monthLoaded, or a fast click in that window can
+  // read a PENDING slot with no `reservation` attached yet and misfire
+  // whatever fallback that caller has for "no reservation".
+  const [reservationsLoaded, setReservationsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (
+      !loginUserId ||
+      loginUserId !== backend.userId ||
+      !backend.year ||
+      !backend.month
+    ) {
+      setReservations((prev) => (prev.length === 0 ? prev : []));
+      setReservationsLoaded(true);
+      return;
+    }
+
+    let ignore = false;
+    setReservationsLoaded(false);
+    // Native Date(year, monthIndex, day) rather than dayjs's string parser:
+    // Safari's Date.parse rejects unpadded YYYY-M-DD strings (e.g. '2026-7-01')
+    // as Invalid Date, which would make endOfMonthUnix NaN and defeat the
+    // `res.next_dtend >= endOfMonthUnix` pagination-loop guard below.
+    const endOfMonthUnix = dayjs(new Date(backend.year, backend.month - 1, 1))
+      .endOf('month')
+      .unix();
+
+    const fetchAll = async () => {
+      try {
+        const [upcoming, pending] = await Promise.all([
+          fetchAllReservationsForState(
+            loginUserId,
+            'MENTOR_UPCOMING',
+            endOfMonthUnix
+          ),
+          fetchAllReservationsForState(
+            loginUserId,
+            'MENTOR_PENDING',
+            endOfMonthUnix
+          ),
+        ]);
+        if (ignore) return;
+        setReservations((prev) =>
+          prev.length === 0 && upcoming.length === 0 && pending.length === 0
+            ? prev
+            : [...upcoming, ...pending]
+        );
+        // Deliberately set only on this success path, not in a `finally`
+        // (finally always runs, catch or no catch, so putting it there
+        // would mark reservationsLoaded true even after the catch below —
+        // exactly the "loaded but incomplete" state this flag exists to
+        // prevent callers from acting on). If this effect never resolves
+        // successfully, reservationsLoaded correctly stays false, keeping
+        // the "已預約" section on its loading state rather than rendering
+        // slots whose `.reservation` was never actually fetched.
+        setReservationsLoaded(true);
+      } catch (err) {
+        // fetchAllReservationsForState already swallows its own fetch
+        // errors internally (returning whatever it collected before
+        // failing, never rejecting), so this only fires for something
+        // unexpected elsewhere in the try block — defense-in-depth,
+        // matching reloadReservations' handling below.
+        if (ignore) return;
+        captureFlowFailure({
+          flow: 'mentor_schedule_fetch_reservations',
+          step: 'fetch_all_reservations',
+          message: err instanceof Error ? err.message : String(err),
+          level: 'warning',
+        });
+      }
+    };
+
+    fetchAll();
+
+    return () => {
+      ignore = true;
+    };
+  }, [loginUserId, backend.userId, backend.year, backend.month]);
 
   const currentMonthKey = monthKeyFromYearMonth(backend.year, backend.month);
 
@@ -181,6 +293,18 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     }
     prevUserIdRef.current = backend.userId;
   }, [backend.userId, store]);
+
+  const isStale = useCallback(
+    (start: { userId: string; year: number; month: number }) => {
+      return (
+        backendRef.current.userId !== start.userId ||
+        backendRef.current.year !== start.year ||
+        backendRef.current.month !== start.month ||
+        !isMountedRef.current
+      );
+    },
+    []
+  );
 
   // Load the currently-viewed month into the buffer lazily. Months that are
   // already buffered (clean OR dirty) are not re-applied: the per-month dirty
@@ -267,7 +391,10 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   // forward navigation hits cache. Past months are intentionally skipped.
   useEffect(() => {
     if (!loaded || !backend.userId) return;
-    const next = dayjs(`${backend.year}-${backend.month}-01`).add(1, 'month');
+    const next = dayjs(new Date(backend.year, backend.month - 1, 1)).add(
+      1,
+      'month'
+    );
     const handle = setTimeout(() => {
       prefetchMonthSchedule({
         userId: backend.userId,
@@ -299,58 +426,45 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     [parsedDraft, selectedDate]
   );
 
-  const allowedDates = useMemo(() => {
-    const bookedStarts = new Set(
-      allDraftRaws.filter((s) => s.type === 'BOOKED').map((s) => s.dtstart)
-    );
+  // Compute booking availability read model using our extracted pure non-React module
+  const availabilityModel = useMemo(() => {
     const nowSec = Math.floor(Date.now() / 1000);
-    const dates = new Set<string>();
-    for (const slot of allDraftRaws) {
-      if (slot.type !== 'ALLOW') continue;
-      const occurrences = expandRrule(slot.dtstart, slot.rrule);
-      for (const occ of occurrences) {
-        if (slot.exdate.includes(occ)) continue;
-        if (occ <= nowSec) continue;
-        if (bookedStarts.has(occ)) continue;
-        dates.add(dayjs(occ * 1000).format('YYYY-MM-DD'));
-      }
-    }
-    return Array.from(dates);
-  }, [allDraftRaws]);
+    return computeBookingAvailability({
+      draftRows: allDraftRaws,
+      nowSec,
+      includeBookedDates,
+    });
+  }, [allDraftRaws, includeBookedDates]);
+
+  const { allowedDates, bookingStatusByDate } = availabilityModel;
 
   const generateBookingSlots = useCallback(
     (dateKey: string): BookingSlot[] => {
-      const bookedStarts = new Set(
-        allDraftRaws.filter((s) => s.type === 'BOOKED').map((s) => s.dtstart)
-      );
-      const nowSec = Math.floor(Date.now() / 1000);
-      const result: BookingSlot[] = [];
-
-      for (const slot of allDraftRaws) {
-        if (slot.type !== 'ALLOW') continue;
-
-        const occurrences = expandRrule(slot.dtstart, slot.rrule);
-        const slotDuration = slot.dtend - slot.dtstart;
-
-        for (const occ of occurrences) {
-          if (slot.exdate.includes(occ)) continue;
-          if (occ <= nowSec) continue;
-          if (dayjs(occ * 1000).format('YYYY-MM-DD') !== dateKey) continue;
-          result.push({
-            start: new Date(occ * 1000),
-            end: new Date((occ + slotDuration) * 1000),
-            scheduleId: slot.id,
-            isBooked: bookedStarts.has(occ),
-          });
-        }
-      }
-
-      return deduplicateBookingSlots(result);
+      return availabilityModel.generateBookingSlots(dateKey, reservations);
     },
-    [allDraftRaws]
+    [availabilityModel, reservations]
   );
 
-  const addSlotForSelectedDate: UseMentorScheduleReturn['addSlotForSelectedDate'] =
+  // Bundles the selected date's slots with the two flags that gate whether
+  // it's safe to render/interact with them, so callers (e.g. the profile
+  // page UI) don't need to know how to call generateBookingSlots
+  // themselves or which flags travel with its result — see SlotsSnapshot.
+  const slotsSnapshot = useMemo<SlotsSnapshot>(
+    () => ({
+      slots: selectedDate ? generateBookingSlots(selectedDate) : [],
+      monthLoaded,
+      reservationsLoaded,
+    }),
+    [selectedDate, generateBookingSlots, monthLoaded, reservationsLoaded]
+  );
+
+  const getDayBookingStatus: BookingCalendarReader['getDayBookingStatus'] =
+    useCallback(
+      (dateKey: string) => bookingStatusByDate.get(dateKey) ?? null,
+      [bookingStatusByDate]
+    );
+
+  const addSlotForSelectedDate: MentorScheduleEditor['addSlotForSelectedDate'] =
     useCallback(
       ({ startTime, durationMinutes, weeklyWithinMonth }) => {
         if (!selectedDate) return { added: 0, skipped: 0 };
@@ -368,21 +482,19 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       [store, selectedDate]
     );
 
-  const updateDraftSlot: UseMentorScheduleReturn['updateDraftSlot'] =
-    useCallback(
-      (id, occurrenceUnix, patch) => {
-        return store.edit(id, occurrenceUnix, patch, backend.userId);
-      },
-      [store, backend.userId]
-    );
+  const updateDraftSlot: MentorScheduleEditor['updateDraftSlot'] = useCallback(
+    (id, occurrenceUnix, patch) => {
+      return store.edit(id, occurrenceUnix, patch, backend.userId);
+    },
+    [store, backend.userId]
+  );
 
-  const deleteDraftSlot: UseMentorScheduleReturn['deleteDraftSlot'] =
-    useCallback(
-      (id, occurrenceUnix) => {
-        store.delete(id, occurrenceUnix);
-      },
-      [store]
-    );
+  const deleteDraftSlot: MentorScheduleEditor['deleteDraftSlot'] = useCallback(
+    (id, occurrenceUnix) => {
+      store.delete(id, occurrenceUnix);
+    },
+    [store]
+  );
 
   const confirmChanges = useCallback(async (): Promise<SyncResult> => {
     if (dirtyMonths.size === 0 || !backend.userId) return { ok: true };
@@ -460,7 +572,85 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backend.userId, dirtyMonths, store]);
 
-  const reload = useCallback(() => {
+  const reloadReservations = useCallback(async () => {
+    if (
+      !loginUserId ||
+      loginUserId !== backend.userId ||
+      !backend.year ||
+      !backend.month
+    ) {
+      return;
+    }
+    const startSnapshot = {
+      userId: backend.userId,
+      year: backend.year,
+      month: backend.month,
+    };
+    const endOfMonthUnix = dayjs(new Date(backend.year, backend.month - 1, 1))
+      .endOf('month')
+      .unix();
+
+    try {
+      const [upcoming, pending] = await Promise.all([
+        fetchAllReservationsForState(
+          loginUserId,
+          'MENTOR_UPCOMING',
+          endOfMonthUnix
+        ),
+        fetchAllReservationsForState(
+          loginUserId,
+          'MENTOR_PENDING',
+          endOfMonthUnix
+        ),
+      ]);
+      if (isStale(startSnapshot)) return;
+      setReservations([...upcoming, ...pending]);
+    } catch (err) {
+      if (isStale(startSnapshot)) return;
+      captureFlowFailure({
+        flow: 'mentor_schedule_reload_reservations',
+        step: 'reload_reservations_for_state',
+        message: err instanceof Error ? err.message : String(err),
+        level: 'warning',
+      });
+    }
+  }, [loginUserId, backend.userId, backend.year, backend.month, isStale]);
+
+  const reloadSchedule = useCallback(async () => {
+    if (!backend.userId || !backend.year || !backend.month) return;
+    const startSnapshot = {
+      userId: backend.userId,
+      year: backend.year,
+      month: backend.month,
+    };
+    const monthKey = currentMonthKey;
+    try {
+      const raws = await loadMonthScheduleFresh({
+        userId: backend.userId,
+        year: backend.year,
+        month: backend.month,
+      });
+      if (isStale(startSnapshot)) return;
+      store.reloadMonth(monthKey, raws);
+    } catch (err) {
+      if (isStale(startSnapshot)) return;
+      captureFlowFailure({
+        flow: 'mentor_schedule_reload_schedule',
+        step: 'reload_month_schedule_fresh',
+        message: err instanceof Error ? err.message : String(err),
+        level: 'warning',
+      });
+    }
+  }, [
+    backend.userId,
+    backend.year,
+    backend.month,
+    currentMonthKey,
+    store,
+    isStale,
+  ]);
+
+  const reload = useCallback(async () => {
     if (!backend.userId || !backend.year || !backend.month) return;
     const key = cacheKey({
       userId: backend.userId,
@@ -469,24 +659,28 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     });
     scheduleCache.delete(key);
     setRetryTrigger((prev) => prev + 1);
-  }, [backend.userId, backend.year, backend.month]);
+    await Promise.all([reloadReservations(), reloadSchedule()]);
+  }, [backend.userId, backend.year, backend.month, reloadReservations, reloadSchedule]);
 
   return {
     loaded,
     monthLoaded,
+    reservationsLoaded,
     isFetching,
     selectedDate,
     setSelectedDate,
     parsedDraft,
     draftForSelectedDate,
     allowedDates,
-    generateBookingSlots,
+    slotsSnapshot,
+    getDayBookingStatus,
     addSlotForSelectedDate,
     updateDraftSlot,
     deleteDraftSlot,
     confirmChanges,
     resetChanges,
     hasError,
+    reservations,
     reload,
   };
 }

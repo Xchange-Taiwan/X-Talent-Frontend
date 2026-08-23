@@ -45,7 +45,7 @@ describe('useResolvedIdentity', () => {
     // No hint cookie means the last middleware pass saw no valid token, so
     // treat the visitor as a guest right away instead of waiting on
     // useSession() to resolve.
-    await waitFor(() => expect(result.current.isLoggedIn).toBe(false));
+    await waitFor(() => expect(result.current.state).toBe('unknown'));
     expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
       'guest'
     );
@@ -58,8 +58,7 @@ describe('useResolvedIdentity', () => {
     rerender();
 
     await waitFor(() => {
-      expect(result.current.isLoggedIn).toBe(false);
-      expect(result.current.authKnown).toBe(true);
+      expect(result.current.state).toBe('confirmed-guest');
     });
   });
 
@@ -68,7 +67,7 @@ describe('useResolvedIdentity', () => {
     const { result } = renderHook(() => useResolvedIdentity());
     await waitFor(() =>
       expect(result.current).toMatchObject({
-        isLoggedIn: true,
+        state: 'hint-only',
         isMentor: true,
         userId: undefined,
         avatar: undefined,
@@ -81,7 +80,7 @@ describe('useResolvedIdentity', () => {
     const { result } = renderHook(() => useResolvedIdentity());
     await waitFor(() =>
       expect(result.current).toMatchObject({
-        isLoggedIn: true,
+        state: 'hint-only',
         isMentor: false,
       })
     );
@@ -95,7 +94,7 @@ describe('useResolvedIdentity', () => {
     } as never);
 
     const { result } = renderHook(() => useResolvedIdentity());
-    await waitFor(() => expect(result.current.isLoggedIn).toBe(false));
+    await waitFor(() => expect(result.current.state).toBe('confirmed-guest'));
   });
 
   it('clears stale mentor/mentee DOM attributes and marks guest when no cookie is present', async () => {
@@ -117,7 +116,7 @@ describe('useResolvedIdentity', () => {
     const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
-      expect(result.current.isLoggedIn).toBe(false);
+      expect(result.current.state).toBe('confirmed-guest');
       expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
         'guest'
       );
@@ -147,7 +146,7 @@ describe('useResolvedIdentity', () => {
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
-        isLoggedIn: true,
+        state: 'hint-only',
         isMentor: true,
         avatar: undefined,
       });
@@ -170,7 +169,7 @@ describe('useResolvedIdentity', () => {
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
-        isLoggedIn: true,
+        state: 'hint-only',
         isMentor: true,
         avatar: 'https://example.com/avatar.png',
       });
@@ -195,7 +194,7 @@ describe('useResolvedIdentity', () => {
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
-        isLoggedIn: true,
+        state: 'hint-only',
         isMentor: true,
         avatar: 'https://example.com/avatar.png";background:red',
       });
@@ -225,7 +224,7 @@ describe('useResolvedIdentity', () => {
     const { result } = renderHook(() => useResolvedIdentity());
 
     await waitFor(() => {
-      expect(result.current.isLoggedIn).toBe(false);
+      expect(result.current.state).toBe('confirmed-guest');
       expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
         'guest'
       );
@@ -255,11 +254,10 @@ describe('useResolvedIdentity', () => {
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
-        isLoggedIn: true,
+        state: 'confirmed-member',
         isMentor: true,
         avatar: 'https://example.com/real-avatar.png',
         userId: 'user-123',
-        hasFullUser: true,
       });
       expect(document.documentElement.getAttribute(DOM_AUTH_STATE_ATTR)).toBe(
         'mentor'
@@ -289,7 +287,7 @@ describe('useResolvedIdentity', () => {
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
-        isLoggedIn: true,
+        state: 'confirmed-member',
         isMentor: true,
         avatar: 'javascript:alert(1)',
         userId: 'user-123',
@@ -314,7 +312,7 @@ describe('useResolvedIdentity', () => {
 
     await waitFor(() => {
       expect(result.current).toMatchObject({
-        isLoggedIn: true,
+        state: 'hint-only',
         isMentor: true,
         avatar: undefined,
       });

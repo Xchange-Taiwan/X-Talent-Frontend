@@ -4,10 +4,9 @@ import { trackEvent } from '@/lib/analytics';
 import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
-  confirmProfileSynced as defaultConfirmProfileSynced,
-  firstSyncedFetch as defaultFirstSyncedFetch,
-  type MentorCardFields,
-  pollUntilSynced as defaultPollUntilSynced,
+  confirmProfileSynced,
+  firstSyncedFetch,
+  pollUntilSynced,
 } from '@/lib/profile/pollUntilSynced';
 import {
   computeDirtyStates,
@@ -30,12 +29,14 @@ export class LoggedError extends Error {
   }
 }
 
-export interface SaveProfileDeps {
+export interface SaveProfileContext {
   pageUserId: string;
   isMentorOnboarding: boolean;
-  session: Session | null;
   dirtyFields?: ProfileDirtyFields;
-  consumeAvatarUpload?: (file: File | undefined) => Promise<string | undefined>;
+}
+
+export interface SaveProfileAdapters {
+  session: Session | null;
   updateSession: (data: unknown) => Promise<Session | null>;
   navigate: (path: string) => void;
   revalidateProfilePath: (id: string) => Promise<void>;
@@ -45,231 +46,256 @@ export interface SaveProfileDeps {
     language: string,
     data: MentorProfileVO
   ) => void;
-  // Optional dependency injections to ease testing
-  firstSyncedFetch?: (
-    userId: number,
-    values: ProfileFormValues,
-    avatar: string
-  ) => Promise<MentorProfileVO | null>;
-  pollUntilSynced?: (
-    userId: number,
-    values: ProfileFormValues,
-    avatar: string
-  ) => Promise<MentorProfileVO | null>;
-  confirmProfileSynced?: (
-    userId: number,
-    fields: MentorCardFields,
-    isMentorRelevant: boolean,
-    revalidate: () => Promise<void>
-  ) => Promise<void>;
+  consumeAvatarUpload?: (file: File | undefined) => Promise<string | undefined>;
 }
 
 export async function saveProfile(
   values: ProfileFormValues,
-  deps: SaveProfileDeps
+  context: SaveProfileContext,
+  adapters: SaveProfileAdapters
 ): Promise<void> {
+  const { pageUserId, isMentorOnboarding, dirtyFields } = context;
   const {
-    pageUserId,
-    isMentorOnboarding,
     session,
-    dirtyFields,
-    consumeAvatarUpload,
     updateSession,
     navigate,
     revalidateProfilePath,
     clearUserDataCache,
     primeUserDataCache,
-    firstSyncedFetch = defaultFirstSyncedFetch,
-    pollUntilSynced = defaultPollUntilSynced,
-    confirmProfileSynced = defaultConfirmProfileSynced,
-  } = deps;
+    consumeAvatarUpload,
+  } = adapters;
 
-  // 1) avatar — consume background upload if wired, else upload now.
-  let avatar = values.avatar;
-  if (values.avatarFile) {
+  const sessionUserId = session?.user?.id ? Number(session.user.id) : null;
+  const sessionUser = session?.user;
+
+  // Step 1: Upload Avatar
+  async function step1UploadAvatar(): Promise<string | undefined> {
+    let avatarUrl = values.avatar;
+    if (values.avatarFile) {
+      try {
+        const uploader = consumeAvatarUpload
+          ? consumeAvatarUpload(values.avatarFile)
+          : updateAvatar(values.avatarFile);
+        const newUrl = await uploader;
+        avatarUrl = newUrl ?? avatarUrl;
+      } catch (err) {
+        captureFlowFailure({
+          flow: 'profile_update',
+          step: 'avatar_upload',
+          message: err instanceof Error ? err.message : 'Avatar upload failed',
+          level: 'warning',
+        });
+        throw new LoggedError(
+          err instanceof Error ? err.message : 'Avatar upload failed',
+          { cause: err }
+        );
+      }
+    }
+    return avatarUrl;
+  }
+
+  // Step 2: Write Profile & Experiences
+  async function step2WriteProfile(avatarUrl: string | undefined) {
+    const { experiencesDirty, profileDirty } = computeDirtyStates(
+      values,
+      dirtyFields,
+      isMentorOnboarding
+    );
+
+    const payload = mapFormValuesToPayload(
+      values,
+      avatarUrl ?? '',
+      experiencesDirty
+    );
+
     try {
-      const uploader = consumeAvatarUpload
-        ? consumeAvatarUpload(values.avatarFile)
-        : updateAvatar(values.avatarFile);
-      const newUrl = await uploader;
-      avatar = newUrl ?? avatar;
+      if (profileDirty) {
+        await updateProfile(pageUserId, payload);
+      }
     } catch (err) {
       captureFlowFailure({
         flow: 'profile_update',
-        step: 'avatar_upload',
-        message: err instanceof Error ? err.message : 'Avatar upload failed',
-        level: 'warning',
+        step: 'profile_write',
+        message: err instanceof Error ? err.message : 'Profile write failed',
       });
       throw new LoggedError(
-        err instanceof Error ? err.message : 'Avatar upload failed',
+        err instanceof Error ? err.message : 'Profile write failed',
         { cause: err }
       );
     }
+    return { payload };
   }
 
-  // 2) profile + experience writes
-  const { experiencesDirty, profileDirty } = computeDirtyStates(
-    values,
-    dirtyFields,
-    isMentorOnboarding
-  );
-
-  const payload = mapFormValuesToPayload(values, avatar, experiencesDirty);
-  const { job_title, company: companyFromPrimary } = payload;
-
-  try {
-    if (profileDirty) {
-      await updateProfile(pageUserId, payload);
+  // Step 3: Optimistic Cache Revalidation
+  async function step3OptimisticCacheRevalidation() {
+    if (sessionUserId) {
+      clearUserDataCache(sessionUserId, 'zh_TW');
     }
-  } catch (err) {
-    captureFlowFailure({
-      flow: 'profile_update',
-      step: 'profile_write',
-      message: err instanceof Error ? err.message : 'Profile write failed',
+
+    await revalidateProfilePath(pageUserId).catch((e) => {
+      console.error('revalidateProfilePath failed:', e);
     });
-    throw new LoggedError(
-      err instanceof Error ? err.message : 'Profile write failed',
-      { cause: err }
-    );
   }
 
-  // 3) optimistic cache + navigation
-  const sessionUserId = session?.user?.id ? Number(session.user.id) : null;
-  const sessionUser = session?.user;
-  const personalLinks = extractValidLinks(values).map((link) => ({
-    platform: link.platform,
-    url: link.url,
-  }));
-
-  if (sessionUserId) {
-    clearUserDataCache(sessionUserId, 'zh_TW');
-  }
-
-  await revalidateProfilePath(pageUserId).catch((e) => {
-    console.error('revalidateProfilePath failed:', e);
-  });
-
-  // 4) optimistic avatar override
-  if (values.avatarFile && avatar && sessionUser?.id) {
-    setAvatarOverride(String(sessionUser.id), avatar);
-  }
-
-  // 5) optimistic session update
-  const optimisticIsMentor = isMentorOnboarding
-    ? true
-    : (sessionUser?.isMentor ?? false);
-  const optimisticOnBoarding = isMentorOnboarding
-    ? true
-    : (sessionUser?.onBoarding ?? false);
-
-  try {
-    await updateSession({
-      user: {
-        id: sessionUser?.id,
-        name: values.name ?? sessionUser?.name,
-        avatar: avatar ?? sessionUser?.avatar,
-        avatarUpdatedAt: values.avatarFile
-          ? Date.now()
-          : sessionUser?.avatarUpdatedAt,
-        isMentor: optimisticIsMentor,
-        onBoarding: optimisticOnBoarding,
-        msg: sessionUser?.msg,
-        personalLinks,
-        jobTitle: job_title || sessionUser?.jobTitle,
-        company: companyFromPrimary || sessionUser?.company,
-      },
-    });
-  } catch (e) {
-    console.error('updateSession failed:', e);
-  }
-
-  // 6) navigate immediately — user no longer waits for backend sync.
-  trackEvent({ name: 'profile_update_submitted', feature: 'profile' });
-  if (isMentorOnboarding) {
-    navigate('/profile/card');
-  } else {
-    navigate(`/profile/${pageUserId}`);
-  }
-
-  // 7) background prime + reconcile
-  const reconcileSession = (latest: MentorProfileVO | null) => {
-    if (!latest) return;
-    const latestIsMentor = Boolean(latest.is_mentor);
-    const latestOnBoarding = Boolean(latest.onboarding);
-    if (
-      optimisticIsMentor === latestIsMentor &&
-      optimisticOnBoarding === latestOnBoarding
-    ) {
-      return;
+  // Step 4: Optimistic Avatar Override
+  function step4OptimisticAvatarOverride(avatarUrl: string | undefined) {
+    if (values.avatarFile && avatarUrl && sessionUser?.id) {
+      setAvatarOverride(String(sessionUser.id), avatarUrl);
     }
-    void updateSession({
-      user: {
-        isMentor: latestIsMentor,
-        onBoarding: latestOnBoarding,
-      },
-    });
-  };
+  }
 
-  void (async () => {
+  // Step 5: Optimistic Session Update
+  async function step5OptimisticSessionUpdate(
+    avatarUrl: string | undefined,
+    jobTitle?: string,
+    company?: string
+  ) {
+    const personalLinks = extractValidLinks(values).map((link) => ({
+      platform: link.platform,
+      url: link.url,
+    }));
+
+    const optimisticIsMentor = isMentorOnboarding
+      ? true
+      : (sessionUser?.isMentor ?? false);
+    const optimisticOnBoarding = isMentorOnboarding
+      ? true
+      : (sessionUser?.onBoarding ?? false);
+
     try {
-      let latest: MentorProfileVO | null = null;
-      if (sessionUserId) {
-        latest = await firstSyncedFetch(sessionUserId, values, avatar ?? '');
-        if (latest) {
-          primeUserDataCache(sessionUserId, 'zh_TW', latest);
-        }
-      }
-      if (!latest) {
-        latest = await pollUntilSynced(
-          sessionUserId ?? Number(pageUserId),
-          values,
-          avatar ?? ''
-        );
-      }
-      reconcileSession(latest);
-
-      // The immediate revalidateProfilePath call above (step 3) can race the
-      // backend's own async (SQS-driven) update of the Elasticsearch index
-      // /mentor-pool actually reads from, re-caching a stale card. `latest`
-      // confirming the DB write synced (firstSyncedFetch/pollUntilSynced,
-      // which read /v1/mentors/{id}/profile) is NOT sufficient proof of
-      // that — the DB and the search index are updated by two different,
-      // independently-lagging paths, so re-checking against the DB again
-      // here would just repeat the same race. confirmProfileSynced polls
-      // the actual mentor-pool listing query instead, then revalidates
-      // once it's confirmed synced (no-op when not mentor-relevant).
-      const isMentorRelevant =
-        isMentorOnboarding ||
-        Boolean(sessionUser?.isMentor) ||
-        Boolean(latest?.is_mentor);
-      await confirmProfileSynced(
-        sessionUserId ?? Number(pageUserId),
-        {
-          name: values.name,
-          jobTitle: job_title,
-          company: companyFromPrimary,
-          about: values.about ?? '',
-          yearsOfExperience: values.years_of_experience,
-          haveTopic: values.have_topic,
-          avatar: avatar ?? '',
+      await updateSession({
+        user: {
+          id: sessionUser?.id,
+          name: values.name ?? sessionUser?.name,
+          avatar: avatarUrl ?? sessionUser?.avatar,
+          avatarUpdatedAt: values.avatarFile
+            ? Date.now()
+            : sessionUser?.avatarUpdatedAt,
+          isMentor: optimisticIsMentor,
+          onBoarding: optimisticOnBoarding,
+          msg: sessionUser?.msg,
+          personalLinks,
+          jobTitle: jobTitle || sessionUser?.jobTitle,
+          company: company || sessionUser?.company,
         },
-        isMentorRelevant,
-        () =>
-          revalidateProfilePath(pageUserId).catch((e: unknown) => {
-            captureFlowFailure({
-              flow: 'profile_update',
-              step: 'post_sync_revalidate',
-              message: e instanceof Error ? e.message : String(e),
-              level: 'warning',
-            });
-          })
-      );
-    } catch (e) {
-      captureFlowFailure({
-        flow: 'profile_update',
-        step: 'background_reconcile',
-        message: String(e),
       });
+    } catch (e) {
+      console.error('updateSession failed:', e);
     }
-  })();
+    return { optimisticIsMentor, optimisticOnBoarding };
+  }
+
+  // Step 6: Immediate Navigation
+  function step6ImmediateNavigation() {
+    trackEvent({ name: 'profile_update_submitted', feature: 'profile' });
+    if (isMentorOnboarding) {
+      navigate('/profile/card');
+    } else {
+      navigate(`/profile/${pageUserId}`);
+    }
+  }
+
+  // Step 7: Background Prime & Reconcile
+  function step7BackgroundReconcile(
+    avatarUrl: string | undefined,
+    jobTitle?: string,
+    company?: string,
+    optimisticIsMentor = false,
+    optimisticOnBoarding = false
+  ) {
+    const reconcileSession = (latest: MentorProfileVO | null) => {
+      if (!latest) return;
+      const latestIsMentor = Boolean(latest.is_mentor);
+      const latestOnBoarding = Boolean(latest.onboarding);
+      if (
+        optimisticIsMentor === latestIsMentor &&
+        optimisticOnBoarding === latestOnBoarding
+      ) {
+        return;
+      }
+      void updateSession({
+        user: {
+          isMentor: latestIsMentor,
+          onBoarding: latestOnBoarding,
+        },
+      });
+    };
+
+    void (async () => {
+      try {
+        let latest: MentorProfileVO | null = null;
+        if (sessionUserId) {
+          latest = await firstSyncedFetch(
+            sessionUserId,
+            values,
+            avatarUrl ?? ''
+          );
+          if (latest) {
+            primeUserDataCache(sessionUserId, 'zh_TW', latest);
+          }
+        }
+        if (!latest) {
+          latest = await pollUntilSynced(
+            sessionUserId ?? Number(pageUserId),
+            values,
+            avatarUrl ?? ''
+          );
+        }
+        reconcileSession(latest);
+
+        const isMentorRelevant =
+          isMentorOnboarding ||
+          Boolean(sessionUser?.isMentor) ||
+          Boolean(latest?.is_mentor);
+        await confirmProfileSynced(
+          sessionUserId ?? Number(pageUserId),
+          {
+            name: values.name,
+            jobTitle: jobTitle ?? '',
+            company: company ?? '',
+            about: values.about ?? '',
+            yearsOfExperience: values.years_of_experience,
+            haveTopic: values.have_topic,
+            avatar: avatarUrl ?? '',
+          },
+          isMentorRelevant,
+          () =>
+            revalidateProfilePath(pageUserId).catch((e: unknown) => {
+              captureFlowFailure({
+                flow: 'profile_update',
+                step: 'post_sync_revalidate',
+                message: e instanceof Error ? e.message : String(e),
+                level: 'warning',
+              });
+            })
+        );
+      } catch (e) {
+        captureFlowFailure({
+          flow: 'profile_update',
+          step: 'background_reconcile',
+          message: String(e),
+        });
+      }
+    })();
+  }
+
+  // Enforce the execution order of the seven steps structurally
+  const avatarUrl = await step1UploadAvatar();
+  const { payload } = await step2WriteProfile(avatarUrl);
+  await step3OptimisticCacheRevalidation();
+  step4OptimisticAvatarOverride(avatarUrl);
+  const { optimisticIsMentor, optimisticOnBoarding } =
+    await step5OptimisticSessionUpdate(
+      avatarUrl,
+      payload.job_title,
+      payload.company
+    );
+  step6ImmediateNavigation();
+  step7BackgroundReconcile(
+    avatarUrl,
+    payload.job_title,
+    payload.company,
+    optimisticIsMentor,
+    optimisticOnBoarding
+  );
 }

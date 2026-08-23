@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { UseMentorScheduleReturn } from '@/hooks/useMentorSchedule';
 import type { UserType } from '@/hooks/user/user-data/useUserData';
+import type { BookingCalendarReader } from '@/lib/profile/bookingAvailability';
 
 // next/image requires width/height derived from a static-import object shape
 // that Vitest's asset transform doesn't produce; irrelevant to the
@@ -22,24 +22,22 @@ vi.mock('@/components/profile/reservation/BookingForm', () => ({
     <div data-testid="booking-form" data-loading={String(isUserDataLoading)} />
   ),
 }));
-vi.mock('@/components/profile/reservation/MentorScheduleDialog', () => ({
-  default: () => <div data-testid="mentor-schedule-dialog" />,
+const scheduleCalendarMock = vi.hoisted(() => ({
+  lastProps: null as { getDateStatus?: (date: Date) => unknown } | null,
 }));
 vi.mock('@/components/profile/reservation/ScheduleCalendar', () => ({
-  ScheduleCalendar: () => <div data-testid="schedule-calendar" />,
+  ScheduleCalendar: (props: { getDateStatus?: (date: Date) => unknown }) => {
+    scheduleCalendarMock.lastProps = props;
+    return <div data-testid="schedule-calendar" />;
+  },
 }));
 
 import ProfilePageUI from './ui';
 
-function buildSchedule(): UseMentorScheduleReturn {
+function buildSchedule(): BookingCalendarReader {
   return {
-    loaded: true,
-    monthLoaded: true,
-    isFetching: false,
     selectedDate: '2026-08-20',
     setSelectedDate: vi.fn(),
-    parsedDraft: [],
-    draftForSelectedDate: [],
     allowedDates: [],
     generateBookingSlots: vi.fn(() => []),
     addSlotForSelectedDate: vi.fn(() => ({ added: 0, skipped: 0 })),
@@ -48,6 +46,11 @@ function buildSchedule(): UseMentorScheduleReturn {
     confirmChanges: vi.fn(),
     resetChanges: vi.fn(),
     hasError: false,
+    slotsSnapshot: { slots: [], monthLoaded: true, reservationsLoaded: true },
+    getDayBookingStatus: vi.fn(() => null),
+    monthLoaded: true,
+    reservationsLoaded: true,
+    isFetching: false,
     reload: vi.fn(),
   };
 }
@@ -75,18 +78,17 @@ const asyncNoop = async () => true;
 function baseProps(
   overrides: Partial<React.ComponentProps<typeof ProfilePageUI>> = {}
 ) {
+  const sched = buildSchedule();
   return {
     userData: buildUserData(),
     userLoading: false,
-    schedule: buildSchedule(),
+    schedule: sched,
     scheduleLoaded: true,
     loginUserId: '',
     isIdentityResolved: false,
     canShowOwnerControls: false,
     avatarSrc: 'https://example.com/avatar.png',
     allowedDates: [],
-    openReservationDialog: false,
-    setOpenReservationDialog: noop,
     onScheduleMonthChange: noop,
     onReservation: noop,
     onEditProfile: noop,
@@ -181,14 +183,19 @@ describe('ProfilePageUI - identity-resolution flash prevention', () => {
     );
   });
 
-  it('never mounts MentorScheduleDialog while canShowOwnerControls is false, regardless of openReservationDialog', () => {
+  // Owner gating for the schedule editor now lives in container.tsx, which
+  // decides whether to build the dialog at all (see container.test.tsx).
+  // The UI's only contract is that it renders whatever editorDialog it is
+  // handed, and renders nothing when handed none - asserting a role check
+  // here would test a branch this component no longer owns.
+  it('renders no schedule editor when the container withholds editorDialog', () => {
     render(
       <ProfilePageUI
         {...baseProps({
           userData: buildUserData({ is_mentor: true }),
-          isIdentityResolved: false,
-          canShowOwnerControls: false,
-          openReservationDialog: true,
+          isIdentityResolved: true,
+          canShowOwnerControls: true,
+          editorDialog: undefined,
         })}
       />
     );
@@ -198,17 +205,105 @@ describe('ProfilePageUI - identity-resolution flash prevention', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('mounts MentorScheduleDialog once canShowOwnerControls is true', () => {
+  it('renders the editorDialog the container injected', () => {
     render(
       <ProfilePageUI
         {...baseProps({
           userData: buildUserData({ is_mentor: true }),
           isIdentityResolved: true,
           canShowOwnerControls: true,
+          editorDialog: <div data-testid="mentor-schedule-dialog" />,
         })}
       />
     );
 
     expect(screen.getByTestId('mentor-schedule-dialog')).toBeInTheDocument();
+  });
+});
+
+describe('ProfilePageUI - calendar status-dot gating (#603)', () => {
+  it('wires getDateStatus to schedule.getDayBookingStatus when the viewer owns the mentor profile', () => {
+    const schedule = buildSchedule();
+    (schedule.getDayBookingStatus as ReturnType<typeof vi.fn>).mockReturnValue(
+      'PENDING'
+    );
+
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({ is_mentor: true }),
+          canShowOwnerControls: true,
+          schedule,
+        })}
+      />
+    );
+
+    const status = scheduleCalendarMock.lastProps?.getDateStatus?.(
+      new Date(2026, 7, 20)
+    );
+
+    expect(status).toBe('PENDING');
+    expect(schedule.getDayBookingStatus).toHaveBeenCalledWith('2026-08-20');
+  });
+
+  it('always returns null and never calls schedule.getDayBookingStatus when the viewer does not own the mentor profile', () => {
+    const schedule = buildSchedule();
+
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({ is_mentor: true }),
+          canShowOwnerControls: false,
+          schedule,
+        })}
+      />
+    );
+
+    const status = scheduleCalendarMock.lastProps?.getDateStatus?.(
+      new Date(2026, 7, 20)
+    );
+
+    expect(status).toBeNull();
+    expect(schedule.getDayBookingStatus).not.toHaveBeenCalled();
+  });
+});
+
+describe('ProfilePageUI - mentee-specific sections gating for mentor profiles (#598)', () => {
+  it('displays the mentee sections on a mentee profile', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: false,
+            want_position: [{ subject_group: 'role', subject: 'PM' }],
+            want_skill: [{ subject_group: 'skill', subject: 'Figma' }],
+            want_topic: [{ subject_group: 'topic', subject: 'Career' }],
+          }),
+        })}
+      />
+    );
+
+    expect(screen.getByText('有興趣多了解的職位')).toBeInTheDocument();
+    expect(screen.getByText('想多了解、加強的技能')).toBeInTheDocument();
+    expect(screen.getByText('想多了解的主題')).toBeInTheDocument();
+  });
+
+  it('hides the mentee sections on a mentor profile', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            want_position: [{ subject_group: 'role', subject: 'PM' }],
+            want_skill: [{ subject_group: 'skill', subject: 'Figma' }],
+            want_topic: [{ subject_group: 'topic', subject: 'Career' }],
+          }),
+        })}
+      />
+    );
+
+    expect(screen.queryByText('有興趣多了解的職位')).not.toBeInTheDocument();
+    expect(screen.queryByText('想多了解、加強的技能')).not.toBeInTheDocument();
+    expect(screen.queryByText('想多了解的主題')).not.toBeInTheDocument();
   });
 });

@@ -35,12 +35,31 @@ export class FetchHttpError extends Error {
 export class FetchApiError extends Error {
   constructor(
     public readonly code: string,
-    message: string,
+    public readonly msg: string,
     public readonly path: string
   ) {
-    super(`fetch ${path} API error (${code}): ${message}`);
+    super(`fetch ${path} API error (${code}): ${msg}`);
     this.name = 'FetchApiError';
   }
+}
+
+export class MaintenanceError extends Error {
+  constructor() {
+    super('Maintenance mode');
+    this.name = 'MaintenanceError';
+  }
+}
+
+export type UnwrappedResult<T> =
+  | { type: 'success'; data: T }
+  | { type: 'empty' }
+  | { type: 'failure'; code: string; message: string }
+  | { type: 'maintenance' };
+
+export interface ApiResponseEnvelope<T> {
+  code: string;
+  msg: string;
+  data: T | null | undefined;
 }
 
 // SSR_API_URL is preferred when set, so server-side fetches inside a
@@ -59,6 +78,8 @@ export type RequestOptions = Omit<RequestInit, 'body' | 'headers'> & {
   headers?: Record<string, string>;
   /** Treat `path` as a local Next.js API route — skip prefixing BASE_URL. Default: false */
   isLocal?: boolean;
+  /** Internal/External option to throw on maintenance mode instead of returning an unsettled promise */
+  throwOnMaintenance?: boolean;
 };
 
 function isAbortError(error: unknown): boolean {
@@ -205,11 +226,15 @@ async function request<T>(
   if (!response.ok) {
     if (
       response.status === 503 &&
-      response.headers.get('X-Maintenance-Mode') === '1' &&
-      typeof window !== 'undefined'
+      response.headers.get('X-Maintenance-Mode') === '1'
     ) {
-      window.location.href = '/maintenance';
-      return new Promise(() => {}); // Pause further execution during redirect
+      if (options?.throwOnMaintenance) {
+        throw new MaintenanceError();
+      }
+      if (typeof window !== 'undefined') {
+        window.location.href = '/maintenance';
+        return new Promise(() => {}); // Pause further execution during redirect
+      }
     }
 
     const errorBody = await response.json().catch(() => ({}));
@@ -236,6 +261,27 @@ async function request<T>(
   return parsed;
 }
 
+// Helper to perform unwrapped requests and handle code checks centrally
+async function executeRequestUnwrapped<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  options?: RequestOptions
+): Promise<T | null | undefined> {
+  const result = await request<ApiResponseEnvelope<T>>(
+    method,
+    path,
+    body,
+    options
+  );
+
+  if (result.code !== '0') {
+    throw new FetchApiError(result.code, result.msg, path);
+  }
+
+  return result.data;
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 export const apiClient = {
   get: <T>(path: string, options?: RequestOptions) =>
@@ -245,30 +291,110 @@ export const apiClient = {
     path: string,
     options?: RequestOptions
   ): Promise<T | null | undefined> => {
-    const result = await request<{
-      code: string;
-      msg: string;
-      data: T | null | undefined;
-    }>('GET', path, undefined, options);
+    return executeRequestUnwrapped<T>('GET', path, undefined, options);
+  },
 
-    if (result.code !== '0') {
-      throw new FetchApiError(result.code, result.msg, path);
+  requestUnwrapped: async <T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<UnwrappedResult<T>> => {
+    try {
+      const result = await request<ApiResponseEnvelope<T>>(method, path, body, {
+        ...options,
+        throwOnMaintenance: true,
+      });
+
+      if (result === undefined || result === null) {
+        return { type: 'empty' };
+      }
+
+      if (result.code !== '0') {
+        return {
+          type: 'failure',
+          code: result.code,
+          message: result.msg || 'API error',
+        };
+      }
+
+      if (result.data !== undefined && result.data !== null) {
+        return { type: 'success', data: result.data };
+      }
+
+      return { type: 'empty' };
+    } catch (error) {
+      if (error instanceof MaintenanceError) {
+        return { type: 'maintenance' };
+      }
+
+      if (error instanceof ApiError) {
+        return {
+          type: 'failure',
+          code: String(error.status),
+          message: error.message,
+        };
+      }
+
+      if (error instanceof Error) {
+        return {
+          type: 'failure',
+          code: 'FETCH_ERROR',
+          message: error.message,
+        };
+      }
+
+      return {
+        type: 'failure',
+        code: 'UNKNOWN_ERROR',
+        message: String(error),
+      };
     }
-
-    return result.data;
   },
 
   post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('POST', path, body, options),
 
+  postUnwrapped: async <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    return executeRequestUnwrapped<T>('POST', path, body, options);
+  },
+
   put: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('PUT', path, body, options),
+
+  putUnwrapped: async <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    return executeRequestUnwrapped<T>('PUT', path, body, options);
+  },
 
   patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('PATCH', path, body, options),
 
+  patchUnwrapped: async <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    return executeRequestUnwrapped<T>('PATCH', path, body, options);
+  },
+
   delete: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('DELETE', path, body, options),
+
+  deleteUnwrapped: async <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    return executeRequestUnwrapped<T>('DELETE', path, body, options);
+  },
 
   getExternalBlob: async (
     url: string,

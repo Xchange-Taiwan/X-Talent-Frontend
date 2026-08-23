@@ -314,6 +314,309 @@ describe('apiClient', () => {
   });
 
   /* ================================
+   * postUnwrapped / putUnwrapped / patchUnwrapped / deleteUnwrapped
+   * ================================ */
+
+  describe('other unwrapped methods (post, put, patch, delete)', () => {
+    it('postUnwrapped unwraps data successfully', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({ code: '0', msg: 'success', data: { ok: true } }),
+          { status: 200 }
+        )
+      );
+      const res = await apiClient.postUnwrapped<{ ok: boolean }>(
+        '/v1/test',
+        { foo: 'bar' },
+        { auth: false }
+      );
+      expect(res).toEqual({ ok: true });
+    });
+
+    it('putUnwrapped unwraps data successfully', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({ code: '0', msg: 'success', data: { ok: true } }),
+          { status: 200 }
+        )
+      );
+      const res = await apiClient.putUnwrapped<{ ok: boolean }>(
+        '/v1/test',
+        { foo: 'bar' },
+        { auth: false }
+      );
+      expect(res).toEqual({ ok: true });
+    });
+
+    it('patchUnwrapped unwraps data successfully', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({ code: '0', msg: 'success', data: { ok: true } }),
+          { status: 200 }
+        )
+      );
+      const res = await apiClient.patchUnwrapped<{ ok: boolean }>(
+        '/v1/test',
+        { foo: 'bar' },
+        { auth: false }
+      );
+      expect(res).toEqual({ ok: true });
+    });
+
+    it('deleteUnwrapped unwraps data successfully', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({ code: '0', msg: 'success', data: { ok: true } }),
+          { status: 200 }
+        )
+      );
+      const res = await apiClient.deleteUnwrapped<{ ok: boolean }>(
+        '/v1/test',
+        { foo: 'bar' },
+        { auth: false }
+      );
+      expect(res).toEqual({ ok: true });
+    });
+
+    it('postUnwrapped throws FetchApiError when code is not "0"', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({ code: 'ERR_123', msg: 'error', data: null }),
+          { status: 200 }
+        )
+      );
+      await expect(
+        apiClient.postUnwrapped('/v1/test', {}, { auth: false })
+      ).rejects.toThrow(FetchApiError);
+    });
+  });
+
+  /* ================================
+   * requestUnwrapped
+   * ================================ */
+
+  describe('requestUnwrapped', () => {
+    it('returns success with payload when code is "0" and data is present', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: '0',
+            msg: 'success',
+            data: { key: 'value' },
+          }),
+          { status: 200 }
+        )
+      );
+
+      const result = await apiClient.requestUnwrapped<{ key: string }>(
+        'GET',
+        '/v1/test',
+        undefined,
+        {
+          auth: false,
+        }
+      );
+
+      expect(result).toEqual({ type: 'success', data: { key: 'value' } });
+    });
+
+    it('returns success with payload even if data is a falsy payload value like false, 0, or empty string', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: '0',
+            msg: 'success',
+            data: false,
+          }),
+          { status: 200 }
+        )
+      );
+
+      const result = await apiClient.requestUnwrapped<boolean>(
+        'POST',
+        '/v1/test',
+        undefined,
+        {
+          auth: false,
+        }
+      );
+
+      expect(result).toEqual({ type: 'success', data: false });
+    });
+
+    it('returns empty when code is "0" and data is null, undefined, or missing', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: '0',
+            msg: 'success',
+            data: null,
+          }),
+          { status: 200 }
+        )
+      );
+
+      const result = await apiClient.requestUnwrapped<unknown>(
+        'GET',
+        '/v1/test',
+        undefined,
+        {
+          auth: false,
+        }
+      );
+
+      expect(result).toEqual({ type: 'empty' });
+    });
+
+    it('returns empty on an empty/204 No Content response', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 204,
+        text: vi.fn().mockResolvedValue(''),
+      });
+
+      const result = await apiClient.requestUnwrapped<unknown>(
+        'GET',
+        '/v1/test',
+        undefined,
+        {
+          auth: false,
+        }
+      );
+
+      expect(result).toEqual({ type: 'empty' });
+    });
+
+    it('returns failure carrying backend code and message when code is not "0"', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: 'ERR_AUTH_FAILED',
+            msg: 'Invalid password',
+            data: null,
+          }),
+          { status: 200 }
+        )
+      );
+
+      const result = await apiClient.requestUnwrapped<unknown>(
+        'POST',
+        '/v1/login',
+        { password: '123' },
+        {
+          auth: false,
+        }
+      );
+
+      expect(result).toEqual({
+        type: 'failure',
+        code: 'ERR_AUTH_FAILED',
+        message: 'Invalid password',
+      });
+    });
+
+    it('returns failure carrying status code and message when HTTP status is not ok', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            msg: 'Internal Server Error',
+          }),
+          { status: 500 }
+        )
+      );
+
+      const result = await apiClient.requestUnwrapped<unknown>(
+        'PUT',
+        '/v1/update',
+        undefined,
+        {
+          auth: false,
+        }
+      );
+
+      expect(result).toEqual({
+        type: 'failure',
+        code: '500',
+        message: 'Internal Server Error',
+      });
+    });
+
+    it('returns maintenance outcome when maintenance mode is active', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            msg: 'Service Under Maintenance',
+          }),
+          {
+            status: 503,
+            headers: new Headers({ 'X-Maintenance-Mode': '1' }),
+          }
+        )
+      );
+
+      const result = await apiClient.requestUnwrapped<unknown>(
+        'GET',
+        '/v1/test',
+        undefined,
+        {
+          auth: false,
+        }
+      );
+
+      expect(result).toEqual({ type: 'maintenance' });
+    });
+
+    it('returns failure outcome mapping network errors to FETCH_ERROR', async () => {
+      mockFetch.mockRejectedValue(new Error('Network Failed'));
+
+      const result = await apiClient.requestUnwrapped<unknown>(
+        'GET',
+        '/v1/test',
+        undefined,
+        {
+          auth: false,
+        }
+      );
+
+      expect(result).toEqual({
+        type: 'failure',
+        code: 'FETCH_ERROR',
+        message: 'Network Failed',
+      });
+    });
+
+    it('supports all HTTP verbs successfully', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: '0',
+            msg: 'success',
+            data: { deletedId: 42 },
+          }),
+          { status: 200 }
+        )
+      );
+
+      const result = await apiClient.requestUnwrapped<{ deletedId: number }>(
+        'DELETE',
+        '/v1/test/42',
+        undefined,
+        {
+          auth: false,
+        }
+      );
+
+      expect(result).toEqual({ type: 'success', data: { deletedId: 42 } });
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/v1/test/42'),
+        expect.objectContaining({
+          method: 'DELETE',
+        })
+      );
+    });
+  });
+
+  /* ================================
    * fetchServerJson
    * ================================ */
 
@@ -413,6 +716,24 @@ describe('apiClient', () => {
 
       const result = await fetchServerJson<string>('/v1/test');
       expect(result).toBe('ssr-data');
+    });
+
+    it('throws ApiError when 503 maintenance mode response is received on server-side and throwOnMaintenance is false (backward compatibility)', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            msg: 'Service Under Maintenance',
+          }),
+          {
+            status: 503,
+            headers: new Headers({ 'X-Maintenance-Mode': '1' }),
+          }
+        )
+      );
+
+      await expect(apiClient.get('/v1/test', { auth: false })).rejects.toThrow(
+        ApiError
+      );
     });
   });
 

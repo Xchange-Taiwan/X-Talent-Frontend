@@ -1,5 +1,5 @@
 import { mapNotificationVOToItem } from '@/services/notifications/notificationMapper';
-import type { NotificationItem } from '@/stores/notificationStore';
+import type { NotificationItem } from '@/services/notifications/types';
 import { components } from '@/types/api';
 
 export type ApiNotificationItem = components['schemas']['NotificationVO'];

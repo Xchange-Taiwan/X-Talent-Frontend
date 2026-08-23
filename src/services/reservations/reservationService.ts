@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 
-import { apiClient, FetchApiError } from '@/lib/apiClient';
+import { apiClient } from '@/lib/apiClient';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { resolveCounterpartyProfile } from '@/lib/reservation/resolveCounterparty';
 import { components } from '@/types/api';
 import { Reservation, ReservationMessage } from '@/types/reservation';
@@ -139,20 +140,81 @@ export async function fetchReservations(
     console.debug('[reservations] GET', { userId, state, batch, nextDtend });
 
   const path = `/v1/users/${userId}/reservations`;
-  const json = await apiClient.get<
-    components['schemas']['ApiResponse_ReservationInfoListVO_']
+  const data = await apiClient.getUnwrapped<
+    components['schemas']['ReservationInfoListVO']
   >(path, {
     params: { state, batch, next_dtend: nextDtend },
   });
 
-  if (debug) console.debug('[reservations] GET parsed', json);
+  if (debug) console.debug('[reservations] GET parsed', data);
 
-  if (json.code !== '0') throw new FetchApiError(json.code, json.msg, path);
-
-  const items = (json.data?.reservations ?? []).map((reservation) =>
+  const items = (data?.reservations ?? []).map((reservation) =>
     mapToReservation(reservation, userId)
   );
-  return { items, next_dtend: json.data?.next_dtend ?? 0 };
+  return { items, next_dtend: data?.next_dtend ?? 0 };
+}
+
+// Hard ceiling on pages fetched per state (batch=20 → up to 1,000
+// reservations for one month, far beyond any realistic mentor's booking
+// volume). Backstops the next_dtend-based guards below in case the backend
+// ever returns a cursor that inches forward without repeating or crossing
+// endOfMonthUnix, which would otherwise page indefinitely.
+const MAX_PAGES = 50;
+
+/**
+ * Fetch every reservation for `state` up to (but not including) `endOfMonthUnix`,
+ * paging via `next_dtend` until the backend signals no more pages (`next_dtend
+ * === 0`), the returned cursor moves past the end of the target month, the
+ * cursor repeats (a stuck-cursor guard against an infinite loop), or
+ * MAX_PAGES is reached. Fetch failures are reported via captureFlowFailure
+ * and swallowed, returning whatever pages were already collected rather than
+ * throwing.
+ */
+export async function fetchAllReservationsForState(
+  userId: string,
+  state: ReservationState,
+  endOfMonthUnix: number
+): Promise<Reservation[]> {
+  let allItems: Reservation[] = [];
+  let nextDtend: number | undefined = undefined;
+  try {
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const res = await fetchReservations({
+        userId,
+        state,
+        nextDtend,
+        batch: 20,
+      });
+      allItems = [...allItems, ...res.items];
+      if (
+        res.items.length === 0 ||
+        res.next_dtend === 0 ||
+        res.next_dtend >= endOfMonthUnix ||
+        res.next_dtend === nextDtend
+      ) {
+        break;
+      }
+      nextDtend = res.next_dtend;
+      if (page === MAX_PAGES - 1) {
+        captureFlowFailure({
+          flow: 'mentor_schedule_reservations_fetch',
+          step: `fetch_${state}_max_pages_exceeded`,
+          message: `Aborted after ${MAX_PAGES} pages; cursor still advancing (next_dtend=${nextDtend}).`,
+        });
+      }
+    }
+  } catch (err) {
+    captureFlowFailure({
+      flow: 'mentor_schedule_reservations_fetch',
+      step: `fetch_${state}`,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    console.error(
+      `[reservationService] Failed to fetch reservations for ${state}:`,
+      err
+    );
+  }
+  return allItems;
 }
 
 /* ================================
@@ -175,17 +237,15 @@ export async function updateReservationStatus(opts: {
     });
 
   const path = `/v1/users/${userId}/reservations/${reservationId}`;
-  const json = await apiClient.put<
-    components['schemas']['ApiResponse_ReservationVO_']
+  const data = await apiClient.putUnwrapped<
+    components['schemas']['ReservationVO']
   >(path, body);
 
-  if (debug) console.debug('[reservations] PUT parsed', json);
+  if (debug) console.debug('[reservations] PUT parsed', data);
 
-  if (json.code !== '0') throw new FetchApiError(json.code, json.msg, path);
+  if (!data) throw new Error('API error: missing data in response');
 
-  if (!json.data) throw new Error('API error: missing data in response');
-
-  return json.data;
+  return data;
 }
 
 /* ================================
@@ -208,15 +268,46 @@ export async function createReservation(opts: {
   if (debug) console.debug('[reservations] POST request', { userId, body });
 
   const path = `/v1/users/${userId}/reservations`;
-  const json = await apiClient.post<
-    components['schemas']['ApiResponse_ReservationVO_']
+  const data = await apiClient.postUnwrapped<
+    components['schemas']['ReservationVO']
   >(path, body);
 
-  if (debug) console.debug('[reservations] POST parsed', json);
+  if (debug) console.debug('[reservations] POST parsed', data);
 
-  if (json.code !== '0') throw new FetchApiError(json.code, json.msg, path);
+  if (!data) throw new Error('API error: missing data in response');
 
-  if (!json.data) throw new Error('API error: missing data in response');
+  return data;
+}
 
-  return json.data;
+/* ================================
+ * GET: Get Google Meet link
+ * ================================ */
+
+export async function fetchReservationMeetLink(opts: {
+  userId: string | number;
+  reservationId: string | number;
+  debug?: boolean;
+}): Promise<components['schemas']['MeetLinkVO']> {
+  const { userId, reservationId, debug } = opts;
+
+  if (debug) {
+    console.debug('[reservations] GET Meet Link request', {
+      userId,
+      reservationId,
+    });
+  }
+
+  const path = `/v1/users/${encodeURIComponent(userId)}/reservations/${encodeURIComponent(reservationId)}/google-meet`;
+  const data =
+    await apiClient.getUnwrapped<components['schemas']['MeetLinkVO']>(path);
+
+  if (debug) {
+    console.debug('[reservations] GET Meet Link parsed', data);
+  }
+
+  if (!data) {
+    throw new Error('API error: missing data in response');
+  }
+
+  return data;
 }
