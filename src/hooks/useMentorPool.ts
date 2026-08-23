@@ -128,6 +128,7 @@ export function useMentorPool({
   const [retryCount, setRetryCount] = useState<number>(0);
   const hasClientFetched = useRef(false);
   const prevFilterKeyRef = useRef<string | null>(null);
+  const prevErrorRef = useRef<string | null>(null);
 
   // Derive filterKey for useAsyncRead
   const filterKey =
@@ -135,6 +136,9 @@ export function useMentorPool({
     (initialError && (retryCount > 0 || hasClientFetched.current))
       ? `filter_${params.toString()}_retry_${retryCount}`
       : null;
+
+  const latestFilterKeyRef = useRef(filterKey);
+  latestFilterKeyRef.current = filterKey;
 
   // Let useAsyncRead handle the main data fetch, loading, error, and cancellation
   const {
@@ -162,6 +166,10 @@ export function useMentorPool({
 
   // Synchronize useAsyncRead state back to local pageState
   useEffect(() => {
+    if (!filterError) {
+      prevErrorRef.current = null;
+    }
+
     if (filterKey === null) {
       if (prevFilterKeyRef.current !== null) {
         setPageState(getInitialUnfilteredState());
@@ -193,12 +201,15 @@ export function useMentorPool({
     }
 
     if (filterError) {
-      toast({
-        variant: 'destructive',
-        title: '載入失敗',
-        description: '無法獲取導師，請稍後再試。',
-        duration: 5000,
-      });
+      if (filterError !== prevErrorRef.current) {
+        prevErrorRef.current = filterError;
+        toast({
+          variant: 'destructive',
+          title: '載入失敗',
+          description: '無法獲取導師，請稍後再試。',
+          duration: 5000,
+        });
+      }
       setPageState((prev) => {
         if (
           prev.mentors.length === 0 &&
@@ -249,7 +260,7 @@ export function useMentorPool({
       preventConcurrent: true,
       throwError: false,
       onError: () => {
-        if (filterKey === currentKey) {
+        if (latestFilterKeyRef.current === currentKey) {
           toast({
             variant: 'destructive',
             title: '載入失敗',
@@ -265,7 +276,7 @@ export function useMentorPool({
     });
 
     if (!rtnList) return;
-    if (filterKey === currentKey) {
+    if (latestFilterKeyRef.current === currentKey) {
       setPageState((prev) =>
         applyMentorPage(prev, { type: 'append', page: rtnList })
       );
