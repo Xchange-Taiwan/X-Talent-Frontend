@@ -66,7 +66,7 @@ export function HamburgerMenu({
             <DisabledAwareLink
               href={becomeMentorPath}
               onClick={close}
-              disabled={identity.isResolvingUser}
+              disabled={false}
               className="text-text-primary"
             >
               成為導師
@@ -91,7 +91,8 @@ export function HamburgerMenu({
             </a>
           </div>
 
-          {!identity.isLoggedIn && (
+          {(identity.state === 'unknown' ||
+            identity.state === 'confirmed-guest') && (
             <div className="mt-auto flex flex-col items-center gap-6 pb-6">
               <Button asChild className="w-40 bg-brand-500 hover:bg-brand-500">
                 <Link href="/auth/signin" onClick={close}>
