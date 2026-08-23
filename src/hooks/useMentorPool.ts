@@ -197,6 +197,18 @@ export function useMentorPool({
     prevFilterKeyRef.current = filterKey;
     hasClientFetched.current = true;
 
+    if (fetchedData) {
+      if (fetchedData !== lastAppliedDataRef.current) {
+        lastAppliedDataRef.current = fetchedData;
+        setPageState((prev) => {
+          if (prev.mentors === fetchedData) {
+            return prev; // Bailout!
+          }
+          return applyMentorPage(prev, { type: 'replace', page: fetchedData });
+        });
+      }
+    }
+
     if (isFilterLoading) {
       setPageState((prev) => {
         if (
@@ -236,18 +248,6 @@ export function useMentorPool({
         };
       });
       return;
-    }
-
-    if (fetchedData) {
-      if (fetchedData !== lastAppliedDataRef.current) {
-        lastAppliedDataRef.current = fetchedData;
-        setPageState((prev) => {
-          if (prev.mentors === fetchedData) {
-            return prev; // Bailout!
-          }
-          return applyMentorPage(prev, { type: 'replace', page: fetchedData });
-        });
-      }
     }
   }, [
     filterKey,
