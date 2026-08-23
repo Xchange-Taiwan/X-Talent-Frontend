@@ -283,20 +283,37 @@ export default function ProfilePageUI({
                       </h2>
                     </div>
 
-                    <ScheduleCalendar
-                      size="profile"
-                      selected={
-                        selectedDate
-                          ? new Date(selectedDate + 'T00:00:00')
-                          : new Date()
-                      }
-                      onSelect={(d) => setSelectedDate(d ? toDateKey(d) : null)}
-                      onMonthChange={onScheduleMonthChange}
-                      allowedDates={allowedDates}
-                      showTodayStyle={false}
-                      disableEmptyDates={true}
-                      isMonthLoading={!schedule.monthLoaded}
-                    />
+                    {schedule.hasError ? (
+                      <div className="flex flex-col items-center justify-center py-6 text-center">
+                        <p className="mb-4 text-sm text-text-secondary">
+                          無法載入導師時段，請檢查網路連線
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => schedule.reload()}
+                        >
+                          重新嘗試
+                        </Button>
+                      </div>
+                    ) : (
+                      <ScheduleCalendar
+                        size="profile"
+                        selected={
+                          selectedDate
+                            ? new Date(selectedDate + 'T00:00:00')
+                            : new Date()
+                        }
+                        onSelect={(d) =>
+                          setSelectedDate(d ? toDateKey(d) : null)
+                        }
+                        onMonthChange={onScheduleMonthChange}
+                        allowedDates={allowedDates}
+                        showTodayStyle={false}
+                        disableEmptyDates={true}
+                        isMonthLoading={!schedule.monthLoaded}
+                      />
+                    )}
                   </div>
                   <BookingForm
                     isOwnMentorProfile={isOwnMentorProfile}

@@ -47,6 +47,8 @@ function buildSchedule(): UseMentorScheduleReturn {
     deleteDraftSlot: vi.fn(),
     confirmChanges: vi.fn(),
     resetChanges: vi.fn(),
+    hasError: false,
+    reload: vi.fn(),
   };
 }
 
