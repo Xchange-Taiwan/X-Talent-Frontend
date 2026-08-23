@@ -29,6 +29,8 @@ export function HamburgerMenu({
   const [open, setOpen] = React.useState(false);
   const close = (): void => setOpen(false);
 
+  const isHintOnly = identity.state === 'hint-only';
+
   if (identity.state === 'hint-only' || identity.state === 'confirmed-member') {
     return null;
   }
@@ -66,7 +68,7 @@ export function HamburgerMenu({
             <DisabledAwareLink
               href={becomeMentorPath}
               onClick={close}
-              disabled={false}
+              disabled={isHintOnly}
               className="text-text-primary"
             >
               成為導師
