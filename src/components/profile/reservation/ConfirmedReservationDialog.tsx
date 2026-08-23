@@ -103,23 +103,15 @@ export function ConfirmedReservationDialog({
           </div>
 
           {/* Meeting Info Block */}
-          <div className="bg-background-bottom/40 mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4">
-            <div className="text-text-tertiary flex items-center gap-1.5 text-xs sm:text-sm">
-              <Mail className="size-4 shrink-0" aria-hidden />
-              <span>會議連結已寄至您的信箱</span>
-            </div>
-            <Button
-              onClick={() => joinMeet(reservation.id)}
-              disabled={isJoiningMeet || isMutating}
-              size="sm"
-              className="bg-brand-500 text-text-primary hover:bg-brand-500/90 h-8 rounded-lg px-4 text-xs font-medium sm:text-sm"
-            >
-              {isJoiningMeet ? '載入中...' : '加入 Google Meet'}
-            </Button>
+          <div className="mt-6 flex items-center gap-2 rounded-2xl border bg-background-bottom/40 p-4">
+            <Mail className="size-4 shrink-0 text-text-tertiary" aria-hidden />
+            <span className="text-xs text-text-secondary sm:text-sm">
+              會議連結已寄至您的信箱
+            </span>
           </div>
 
           {/* Footer action buttons */}
-          <DialogFooter className="mt-6 flex flex-row justify-end gap-2 sm:gap-2">
+          <DialogFooter className="mt-6">
             <CancelReservationDialog
               reservation={reservation}
               disabled={isMutating || isJoiningMeet}
@@ -128,6 +120,13 @@ export function ConfirmedReservationDialog({
                 rejectOrCancel(reservation, reason, 'cancel')
               }
             />
+            <Button
+              onClick={() => joinMeet(reservation.id)}
+              disabled={isJoiningMeet || isMutating}
+              className="w-full bg-brand-500 font-semibold text-text-primary hover:bg-brand-500/90 sm:w-auto"
+            >
+              {isJoiningMeet ? '載入中...' : '加入 Google Meet'}
+            </Button>
           </DialogFooter>
         </div>
       </DialogContent>
