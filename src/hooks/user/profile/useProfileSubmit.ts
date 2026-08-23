@@ -46,18 +46,23 @@ export function useProfileSubmit({
   const onSubmit = useCallback(
     async (values: ProfileFormValues, dirtyFields?: ProfileDirtyFields) => {
       await run(() =>
-        saveProfile(values, {
-          pageUserId,
-          isMentorOnboarding,
-          session,
-          dirtyFields,
-          consumeAvatarUpload,
-          updateSession,
-          navigate: router.push,
-          revalidateProfilePath,
-          clearUserDataCache,
-          primeUserDataCache,
-        })
+        saveProfile(
+          values,
+          {
+            pageUserId,
+            isMentorOnboarding,
+            dirtyFields,
+          },
+          {
+            session,
+            updateSession,
+            navigate: router.push,
+            revalidateProfilePath,
+            clearUserDataCache,
+            primeUserDataCache,
+            consumeAvatarUpload,
+          }
+        )
       );
     },
     [

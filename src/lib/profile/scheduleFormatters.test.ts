@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ParsedMentorTimeslot } from '@/lib/profile/scheduleHelpers';
+import { ParsedMentorTimeslot } from '@/lib/profile/bookingAvailability';
 
 import {
   defaultFormForDate,

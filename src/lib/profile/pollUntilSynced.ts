@@ -1,9 +1,18 @@
 import { captureFlowFailure } from '@/lib/monitoring';
-import { isProfileSynced } from '@/lib/profile/profileSaveAdapter';
 import { ProfileFormValues } from '@/schemas/profileSchema';
-import { fetchUserById } from '@/services/profile/user';
-import { fetchMentors } from '@/services/search-mentor/mentors';
 import type { MentorProfileVO } from '@/types/user';
+
+import {
+  CONVERGENCE_BUDGET,
+  FAST_CONVERGENCE_BUDGET,
+  type MentorCardFields,
+  ProfileRecordAdapter,
+  runConvergence,
+  SearchIndexDeleteAdapter,
+  SearchIndexSyncAdapter,
+} from './convergence';
+
+export type { MentorCardFields };
 
 /**
  * Single, fast attempt to read the latest profile and confirm it matches the
@@ -32,9 +41,12 @@ export async function firstSyncedFetch(
     timer = setTimeout(() => resolve(null), timeoutMs);
   });
 
-  const fetchPromise = fetchUserById(userId, 'zh_TW', undefined, true)
+  const adapter = new ProfileRecordAdapter(userId, values, avatar);
+
+  const fetchPromise = adapter
+    .fetch()
     .then((latest) => {
-      if (latest && isProfileSynced(values, latest, avatar)) return latest;
+      if (latest && adapter.isCaughtUp(latest)) return latest;
       return null;
     })
     .catch(() => null);
@@ -56,69 +68,14 @@ export async function pollUntilSynced(
   userId: number,
   values: ProfileFormValues,
   avatar: string,
-  maxRetries = 12,
-  intervalMs = 5000
+  maxRetries = CONVERGENCE_BUDGET.maxRetries,
+  intervalMs = CONVERGENCE_BUDGET.intervalMs
 ): Promise<MentorProfileVO | null> {
   if (!userId || Number.isNaN(userId)) return null;
 
-  let latest: MentorProfileVO | null = null;
-  let synced = false;
-
-  for (let i = 0; i < maxRetries; i++) {
-    if (i > 0) {
-      await new Promise((resolve) => setTimeout(resolve, intervalMs));
-    }
-    try {
-      latest = await fetchUserById(userId, 'zh_TW', undefined, true);
-    } catch {
-      latest = null;
-    }
-    if (latest && isProfileSynced(values, latest, avatar)) {
-      synced = true;
-      break;
-    }
-  }
-
-  if (!synced) {
-    captureFlowFailure({
-      flow: 'profile_update',
-      step: 'background_sync',
-      message: 'pollUntilSynced exhausted retries without sync',
-      level: 'warning',
-    });
-  }
-
+  const adapter = new ProfileRecordAdapter(userId, values, avatar);
+  const { latest } = await runConvergence(adapter, maxRetries, intervalMs);
   return latest;
-}
-
-// Deliberately not `@/app/mentor-pool/constants`'s PAGE_LIMIT — this is a
-// `lib` module and must not depend on an `app` route's constants. It's
-// also a different concern: that constant sizes the UI's unfiltered first
-// page, while this bounds a *search_pattern-scoped* query, which only
-// ever needs to be large enough to hold same-name collisions.
-const MENTOR_POOL_POLL_LIMIT = 20;
-
-/**
- * Repeatedly calls `check` (bounded by `maxRetries`/`intervalMs`) until it
- * returns true, or the budget is exhausted. Treats a thrown error from
- * `check` as inconclusive and keeps retrying. Never throws.
- */
-async function pollUntil(
-  check: () => Promise<boolean>,
-  maxRetries: number,
-  intervalMs: number
-): Promise<boolean> {
-  for (let i = 0; i < maxRetries; i++) {
-    if (i > 0) {
-      await new Promise((resolve) => setTimeout(resolve, intervalMs));
-    }
-    try {
-      if (await check()) return true;
-    } catch {
-      // Inconclusive — keep retrying within budget.
-    }
-  }
-  return false;
 }
 
 /**
@@ -126,89 +83,18 @@ async function pollUntil(
  * it. Called before `revalidatePath('/mentor-pool')` on account deletion
  * so the fresh SSR fetch that revalidation triggers doesn't re-cache a
  * stale result.
- *
- * Deliberately does NOT use `fetchUserById` (`/v1/mentors/{id}/profile`) as
- * a proxy: that endpoint reads the primary DB, which the delete call updates
- * synchronously, while `/v1/mentors` (the list mentor-pool actually renders
- * from) is backed by Elasticsearch, updated asynchronously off an SQS queue.
- * The DB can already 404 while the search index still returns the deleted
- * mentor — polling the DB-backed endpoint would falsely report "caught up".
- *
- * `name`, when available, scopes the query via `search_pattern` so the
- * check isn't limited to whatever happens to sort onto the unfiltered
- * listing's first page. Without it, falls back to an unfiltered query,
- * which can only prove absence from that page, not the full listing.
- *
- * Known false-positive window (accepted, not fixed here): "no match"
- * isn't proof of deletion — it's also what a missing/stale `name` looks
- * like (a session whose JWT predates a since-changed display name, or a
- * caller with no name at all falling back to the unfiltered query, which
- * can miss a real match sitting past `MENTOR_POOL_POLL_LIMIT`). Either
- * can make this return `true` before the index has actually caught up.
- * A fully airtight check needs a backend endpoint that confirms deletion
- * by id directly against the search index, which doesn't exist yet — the
- * caller's `revalidatePath('/mentor-pool')` re-caching a stale card in
- * that window is bounded by the same 24h ISR TTL (`mentors.server.ts`)
- * that already backstops every other gap in this poll, not a new,
- * unbounded exposure.
- *
- * Never throws. Returns false (without blocking further than the retry
- * budget) if the search index hasn't caught up in time — callers should
- * proceed with revalidation regardless so the user isn't stuck waiting
- * indefinitely.
  */
 export async function pollUntilUserDeleted(
   userId: number,
   name?: string,
-  maxRetries = 6,
-  intervalMs = 2000
+  maxRetries = FAST_CONVERGENCE_BUDGET.maxRetries,
+  intervalMs = FAST_CONVERGENCE_BUDGET.intervalMs
 ): Promise<boolean> {
   if (!userId || Number.isNaN(userId)) return true;
 
-  const confirmed = await pollUntil(
-    async () => {
-      const mentors = await fetchMentors({
-        search_pattern: name ?? '',
-        limit: MENTOR_POOL_POLL_LIMIT,
-        cursor: '',
-      });
-      return !mentors.some((mentor) => mentor.user_id === userId);
-    },
-    maxRetries,
-    intervalMs
-  );
-
-  if (!confirmed) {
-    captureFlowFailure({
-      flow: 'delete_account',
-      step: 'poll_deletion_sync',
-      message: 'pollUntilUserDeleted exhausted retries without confirmation',
-      level: 'warning',
-    });
-  }
-
+  const adapter = new SearchIndexDeleteAdapter(userId, name);
+  const { confirmed } = await runConvergence(adapter, maxRetries, intervalMs);
   return confirmed;
-}
-
-// Every field the mentor card (`MentorCardProps` /
-// `mentor-card-list/index.tsx`) actually renders. Checking only a subset
-// (e.g. name + avatar) would report "synced" the instant a save that left
-// those two untouched hits the search index, even though other rendered
-// fields (job title, company, about, topics) are still stale on it.
-export interface MentorCardFields {
-  name: string;
-  jobTitle: string;
-  company: string;
-  about: string;
-  yearsOfExperience: string;
-  haveTopic: string[];
-  avatar: string;
-}
-
-function sameTopics(a: readonly string[], b: readonly string[]): boolean {
-  if (a.length !== b.length) return false;
-  const sortedB = [...b].sort();
-  return [...a].sort().every((topic, i) => topic === sortedB[i]);
 }
 
 /**
@@ -218,67 +104,17 @@ function sameTopics(a: readonly string[], b: readonly string[]): boolean {
  * field (or, for a user newly becoming a mentor, until the card appears
  * at all). Only meaningful for mentors — callers should skip this for
  * mentee saves, since those never appear in the listing.
- *
- * Same rationale as `pollUntilUserDeleted`: `/v1/mentors` is Elasticsearch-
- * backed and updated asynchronously off an SQS queue, so an immediate
- * `revalidatePath('/mentor-pool')` after the (synchronous, DB-backed)
- * profile write can re-cache a still-stale card. Intended for background
- * (non-blocking) use after the initial save completes, so it doesn't delay
- * navigation the way blocking on this before the first `revalidateProfilePath`
- * call would.
- *
- * Never throws. Returns false if the search index hasn't caught up within
- * the retry budget — callers should proceed with revalidation regardless.
  */
 export async function pollUntilMentorPoolSynced(
   userId: number,
   fields: MentorCardFields,
-  maxRetries = 6,
-  intervalMs = 2000
+  maxRetries = FAST_CONVERGENCE_BUDGET.maxRetries,
+  intervalMs = FAST_CONVERGENCE_BUDGET.intervalMs
 ): Promise<boolean> {
   if (!userId || Number.isNaN(userId)) return true;
 
-  const confirmed = await pollUntil(
-    async () => {
-      const mentors = await fetchMentors({
-        search_pattern: fields.name,
-        limit: MENTOR_POOL_POLL_LIMIT,
-        cursor: '',
-      });
-      const card = mentors.find((mentor) => mentor.user_id === userId);
-      if (!card) return false;
-
-      // mapMentor appends `?cb=<updated_at>` to the avatar URL, so compare
-      // by prefix rather than exact equality.
-      const avatarSynced =
-        !fields.avatar ||
-        (typeof card.avatar === 'string' &&
-          card.avatar.startsWith(fields.avatar));
-
-      return (
-        card.name === fields.name &&
-        card.job_title === fields.jobTitle &&
-        card.company === fields.company &&
-        card.about === fields.about &&
-        card.years_of_experience === fields.yearsOfExperience &&
-        sameTopics(card.have_topic, fields.haveTopic) &&
-        avatarSynced
-      );
-    },
-    maxRetries,
-    intervalMs
-  );
-
-  if (!confirmed) {
-    captureFlowFailure({
-      flow: 'profile_update',
-      step: 'poll_mentor_pool_sync',
-      message:
-        'pollUntilMentorPoolSynced exhausted retries without confirmation',
-      level: 'warning',
-    });
-  }
-
+  const adapter = new SearchIndexSyncAdapter(userId, fields);
+  const { confirmed } = await runConvergence(adapter, maxRetries, intervalMs);
   return confirmed;
 }
 
@@ -290,12 +126,6 @@ export async function pollUntilMentorPoolSynced(
  * confirmation poll entirely and never re-invokes `revalidate`, since the
  * immediate revalidate the caller already fired (its own concern, not
  * this function's) already covers a mentee save.
- *
- * `poll` guards against a contract violation the same way
- * `confirmDeletionSynced` does: `pollUntilMentorPoolSynced` never throws by
- * its own contract, but if it did, `revalidate` must still run
- * unconditionally — otherwise the mentor-pool cache purge this whole
- * function exists for would silently never happen.
  */
 export async function confirmProfileSynced(
   userId: number,
@@ -328,18 +158,6 @@ export async function confirmProfileSynced(
  * (`src/app/profile/[pageUserId]/actions.ts`) but scoped to the caller's
  * own account rather than a `[pageUserId]` route param — see that
  * function's own doc comment for why deletion doesn't reuse it directly.
- *
- * `revalidatePaths` and `poll` are injected rather than imported directly
- * (mirrors `confirmProfileSynced`'s `revalidate` param): `revalidatePath`
- * is a Server Components/Server Actions-only API, and this module is
- * bundled into client code via `saveProfile.ts` — importing it at this
- * module's top level breaks that client bundle. The caller (`src/actions/
- * auth.ts`, already `'use server'`) owns calling `revalidatePath` itself.
- *
- * Each `revalidatePaths` entry is invoked independently-guarded so one
- * throwing doesn't skip the rest — the account is already deleted
- * server-side by the time this runs, so every cache-purge step must still
- * attempt to run regardless of an earlier one's outcome.
  */
 export async function confirmDeletionSynced(
   userId: number,

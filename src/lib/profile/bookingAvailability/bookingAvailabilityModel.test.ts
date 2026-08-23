@@ -1,7 +1,10 @@
 import { fromPartial } from '@total-typescript/shoehorn';
 import { describe, expect, it } from 'vitest';
 
-import type { RawMentorTimeslot } from '@/lib/profile/scheduleHelpers';
+import {
+  isSlotTaken,
+  type RawMentorTimeslot,
+} from '@/lib/profile/scheduleHelpers';
 import type { Reservation } from '@/types/reservation';
 
 import { computeBookingAvailability } from './bookingAvailabilityModel';
@@ -168,20 +171,36 @@ describe('computeBookingAvailability', () => {
       },
     ];
 
-    const model = computeBookingAvailability({
+    // Case 1: includeBookedDates is false (visitor/mentee view)
+    const modelVisitor = computeBookingAvailability({
       draftRows,
       nowSec,
       includeBookedDates: false,
     });
 
-    // PENDING slots do not disable dates for visitors
-    expect(model.allowedDates).toEqual(['2026-05-01']);
-    expect(model.bookingStatusByDate.get('2026-05-01')).toBe('PENDING');
+    // PENDING slots disable dates for visitors if no other open slots exist
+    expect(modelVisitor.allowedDates).toEqual([]);
+    expect(modelVisitor.bookingStatusByDate.get('2026-05-01')).toBe('PENDING');
 
-    const slots = model.generateBookingSlots('2026-05-01', []);
-    expect(slots).toHaveLength(1);
-    expect(slots[0].isBooked).toBe(false);
-    expect(slots[0].status).toBe('PENDING');
+    const slotsVisitor = modelVisitor.generateBookingSlots('2026-05-01', []);
+    expect(slotsVisitor).toHaveLength(1);
+    expect(isSlotTaken(slotsVisitor[0])).toBe(true);
+    expect(slotsVisitor[0].status).toBe('PENDING');
+
+    // Case 2: includeBookedDates is true (mentor view)
+    const modelMentor = computeBookingAvailability({
+      draftRows,
+      nowSec,
+      includeBookedDates: true,
+    });
+
+    expect(modelMentor.allowedDates).toEqual(['2026-05-01']);
+    expect(modelMentor.bookingStatusByDate.get('2026-05-01')).toBe('PENDING');
+
+    const slotsMentor = modelMentor.generateBookingSlots('2026-05-01', []);
+    expect(slotsMentor).toHaveLength(1);
+    expect(isSlotTaken(slotsMentor[0])).toBe(true);
+    expect(slotsMentor[0].status).toBe('PENDING');
   });
 
   it('gives priority to PENDING status when a date has both BOOKED and PENDING occurrences', () => {
@@ -626,6 +645,59 @@ describe('computeBookingAvailability', () => {
         nowSec: 1782864000, // 2026-07-01T00:00:00Z
       });
       expect(model.allowedDates).not.toContain('2026-07-26');
+    });
+  });
+
+  describe('Ticket #616: Single-Clock / Elapsed Time Behavior', () => {
+    it('asserts that both selectable dates and slot lists are derived from the same frozen instant, and both change together when model is recomputed after expiry', () => {
+      // 1. Arrange: Define a timeslot that starts shortly in the future (e.g., at T = 100)
+      const slotStartTime = 1782864100; // 2026-07-01T00:01:40Z
+      const dateKey = '2026-07-01';
+
+      const draftRows: RawMentorTimeslot[] = [
+        {
+          id: 42,
+          type: 'ALLOW',
+          dtstart: slotStartTime,
+          dtend: slotStartTime + 1800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+
+      // 2. Act (Initial State): Compute at T = 0 (before slot expiry)
+      const nowSecInitial = 1782864000; // 2026-07-01T00:00:00Z
+      const modelInitial = computeBookingAvailability({
+        draftRows,
+        nowSec: nowSecInitial,
+      });
+
+      // Assert (Initial State): Both selectable dates and slot generator agree that the slot is active
+      expect(modelInitial.allowedDates).toContain(dateKey);
+      const slotsInitial = modelInitial.generateBookingSlots(dateKey);
+      expect(slotsInitial).toHaveLength(1);
+      expect(slotsInitial[0].scheduleId).toBe(42);
+
+      // 3. Act (Elapsed Time / Page Open): Time passes beyond slot start (T = 150),
+      // but we do NOT recompute the model (relying on the frozen instant contract).
+      // Assert (Elapsed Time): Both answers must still align to the frozen instant (the slot remains selectable and visible).
+      const slotsElapsed = modelInitial.generateBookingSlots(dateKey);
+      expect(modelInitial.allowedDates).toContain(dateKey); // Selectable date is stable
+      expect(slotsElapsed).toHaveLength(1); // Slot generator is stable (no empty list returned!)
+      expect(slotsElapsed[0].scheduleId).toBe(42);
+
+      // 4. Act (Recomputation / New Reference Instant):
+      // Time passes beyond slot start (T = 150), and we explicitly recompute the read model with the new reference instant.
+      const nowSecExpired = 1782864150; // 2026-07-01T00:02:30Z
+      const modelExpired = computeBookingAvailability({
+        draftRows,
+        nowSec: nowSecExpired,
+      });
+
+      // Assert (Expired State): Both answers change together (both selectable dates and slot lists are now empty)
+      expect(modelExpired.allowedDates).not.toContain(dateKey);
+      const slotsExpired = modelExpired.generateBookingSlots(dateKey);
+      expect(slotsExpired).toHaveLength(0);
     });
   });
 });
