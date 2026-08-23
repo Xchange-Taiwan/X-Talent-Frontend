@@ -16,16 +16,21 @@ import {
 } from '@/components/ui/sheet';
 import { useAccountMenu } from '@/hooks/layout/useAccountMenu';
 import { trackEvent } from '@/lib/analytics';
+import { ResolvedIdentity } from '@/lib/auth/sessionHint';
 
 import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
 import { ShareProfileDialog } from './ShareProfileDialog';
 import { UserAvatar } from './UserAvatar';
 
 export type MobileUserMenuProps = {
-  user: Session['user'];
+  identity: ResolvedIdentity;
+  user?: Session['user'];
 };
 
-export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
+export function MobileUserMenu({
+  identity,
+  user,
+}: MobileUserMenuProps): JSX.Element {
   const [open, setOpen] = React.useState(false);
 
   const closeMenu = React.useCallback(() => setOpen(false), []);
@@ -48,7 +53,7 @@ export function MobileUserMenu({ user }: MobileUserMenuProps): JSX.Element {
     handleMyReservation,
     handleDeleteAccount,
     handleLogout,
-  } = useAccountMenu({ user, closeMenu });
+  } = useAccountMenu({ identity, user, closeMenu });
 
   return (
     <>
