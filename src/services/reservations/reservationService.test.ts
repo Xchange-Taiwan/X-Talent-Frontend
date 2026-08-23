@@ -17,7 +17,7 @@ vi.mock('@/lib/monitoring', () => ({
   captureApiFailure: vi.fn(),
 }));
 
-import { apiClient, FetchApiError } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { components } from '@/types/api';
 
@@ -72,21 +72,15 @@ describe('reservationService API Error Handling', () => {
   });
 
   describe('createReservation', () => {
-    it('should throw FetchApiError with correct code, message and path if API returns non-0 code', async () => {
-      mockPost.mockRejectedValue(
-        new FetchApiError(
-          '409',
-          'Conflict booking',
-          '/v1/users/123/reservations'
-        )
-      );
+    it('should throw ApiError with correct status and message if API returns non-0 code', async () => {
+      mockPost.mockRejectedValue(new ApiError(409, 'Conflict booking'));
 
       await expect(
         createReservation({
           userId: 123,
           body: {} as unknown as components['schemas']['ReservationDTO'],
         })
-      ).rejects.toThrow(FetchApiError);
+      ).rejects.toThrow(ApiError);
 
       try {
         await createReservation({
@@ -94,11 +88,10 @@ describe('reservationService API Error Handling', () => {
           body: {} as unknown as components['schemas']['ReservationDTO'],
         });
       } catch (err) {
-        expect(err).toBeInstanceOf(FetchApiError);
-        const apiError = err as FetchApiError;
-        expect(apiError.code).toBe('409');
+        expect(err).toBeInstanceOf(ApiError);
+        const apiError = err as ApiError;
+        expect(apiError.status).toBe(409);
         expect(apiError.message).toContain('Conflict booking');
-        expect(apiError.path).toBe('/v1/users/123/reservations');
       }
     });
 
@@ -118,14 +111,8 @@ describe('reservationService API Error Handling', () => {
   });
 
   describe('updateReservationStatus', () => {
-    it('should throw FetchApiError with correct code, message and path if API returns non-0 code', async () => {
-      mockPut.mockRejectedValue(
-        new FetchApiError(
-          '500',
-          'Internal Server Error',
-          '/v1/users/123/reservations/456'
-        )
-      );
+    it('should throw ApiError with correct status and message if API returns non-0 code', async () => {
+      mockPut.mockRejectedValue(new ApiError(500, 'Internal Server Error'));
 
       await expect(
         updateReservationStatus({
@@ -133,7 +120,7 @@ describe('reservationService API Error Handling', () => {
           reservationId: 456,
           body: {} as unknown as components['schemas']['UpdateReservationDTO'],
         })
-      ).rejects.toThrow(FetchApiError);
+      ).rejects.toThrow(ApiError);
 
       try {
         await updateReservationStatus({
@@ -142,27 +129,24 @@ describe('reservationService API Error Handling', () => {
           body: {} as unknown as components['schemas']['UpdateReservationDTO'],
         });
       } catch (err) {
-        expect(err).toBeInstanceOf(FetchApiError);
-        const apiError = err as FetchApiError;
-        expect(apiError.code).toBe('500');
+        expect(err).toBeInstanceOf(ApiError);
+        const apiError = err as ApiError;
+        expect(apiError.status).toBe(500);
         expect(apiError.message).toContain('Internal Server Error');
-        expect(apiError.path).toBe('/v1/users/123/reservations/456');
       }
     });
   });
 
   describe('fetchReservations', () => {
-    it('should throw FetchApiError with correct code, message and path if API returns non-0 code', async () => {
-      mockGet.mockRejectedValue(
-        new FetchApiError('400', 'Bad Request', '/v1/users/123/reservations')
-      );
+    it('should throw ApiError with correct status and message if API returns non-0 code', async () => {
+      mockGet.mockRejectedValue(new ApiError(400, 'Bad Request'));
 
       await expect(
         fetchReservations({
           userId: 123,
           state: 'MENTEE_PENDING',
         })
-      ).rejects.toThrow(FetchApiError);
+      ).rejects.toThrow(ApiError);
 
       try {
         await fetchReservations({
@@ -170,31 +154,24 @@ describe('reservationService API Error Handling', () => {
           state: 'MENTEE_PENDING',
         });
       } catch (err) {
-        expect(err).toBeInstanceOf(FetchApiError);
-        const apiError = err as FetchApiError;
-        expect(apiError.code).toBe('400');
+        expect(err).toBeInstanceOf(ApiError);
+        const apiError = err as ApiError;
+        expect(apiError.status).toBe(400);
         expect(apiError.message).toContain('Bad Request');
-        expect(apiError.path).toBe('/v1/users/123/reservations');
       }
     });
   });
 
   describe('fetchReservationMeetLink', () => {
-    it('should throw FetchApiError with correct code, message and path if API returns non-0 code', async () => {
-      mockGet.mockRejectedValue(
-        new FetchApiError(
-          '404',
-          'meet link not found',
-          '/v1/users/123/reservations/456/google-meet'
-        )
-      );
+    it('should throw ApiError with correct status and message if API returns non-0 code', async () => {
+      mockGet.mockRejectedValue(new ApiError(404, 'meet link not found'));
 
       await expect(
         fetchReservationMeetLink({
           userId: 123,
           reservationId: 456,
         })
-      ).rejects.toThrow(FetchApiError);
+      ).rejects.toThrow(ApiError);
 
       try {
         await fetchReservationMeetLink({
@@ -202,13 +179,10 @@ describe('reservationService API Error Handling', () => {
           reservationId: 456,
         });
       } catch (err) {
-        expect(err).toBeInstanceOf(FetchApiError);
-        const apiError = err as FetchApiError;
-        expect(apiError.code).toBe('404');
+        expect(err).toBeInstanceOf(ApiError);
+        const apiError = err as ApiError;
+        expect(apiError.status).toBe(404);
         expect(apiError.message).toContain('meet link not found');
-        expect(apiError.path).toBe(
-          '/v1/users/123/reservations/456/google-meet'
-        );
       }
     });
 

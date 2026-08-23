@@ -7,7 +7,6 @@ import * as z from 'zod';
 import { useToast } from '@/components/ui/use-toast';
 import { PasswordForgotSchema } from '@/schemas/auth';
 import { resetPassword } from '@/services/auth/resetPasswordByEmail';
-import { AuthResponse } from '@/services/types';
 
 type PasswordForgotValues = z.infer<typeof PasswordForgotSchema>;
 
@@ -27,21 +26,16 @@ export default function usePasswordForgotForm() {
     setIsSubmitting(true);
 
     try {
-      const response = await resetPassword(values.email);
-      if (response.code === 200) {
-        sessionStorage.setItem('pending_reset_email', values.email);
-        router.push('/auth/password-forgot-success');
-      } else {
-        // Non-200 response — manually reset the submitting state
-        setIsSubmitting(false);
-      }
+      await resetPassword(values.email);
+      sessionStorage.setItem('pending_reset_email', values.email);
+      router.push('/auth/password-forgot-success');
     } catch (error) {
       setIsSubmitting(false);
-      const err = error as AuthResponse;
       toast({
         variant: 'destructive',
         title: '信件寄送失敗',
-        description: err.message || '發生錯誤，請稍後再試。',
+        description:
+          error instanceof Error ? error.message : '發生錯誤，請稍後再試。',
       });
     }
   };

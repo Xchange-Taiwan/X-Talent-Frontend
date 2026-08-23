@@ -25,7 +25,7 @@ vi.mock('@/services/reservations', () => ({
 
 import { UserType } from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
-import { FetchApiError } from '@/lib/apiClient';
+import { ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { BookingSlot } from '@/lib/profile/bookingAvailability';
 import { createReservation } from '@/services/reservations';
@@ -237,11 +237,7 @@ describe('useBookingConfirmation', () => {
 
   it('should handle 409 Conflict duplicate error structurally and show conflict toast', async () => {
     const setSelectedSlot = vi.fn();
-    const conflictError = new FetchApiError(
-      '409',
-      'Conflict booking',
-      '/v1/users/999/reservations'
-    );
+    const conflictError = new ApiError(409, 'Conflict booking');
     mockCreateReservation.mockRejectedValue(conflictError);
 
     const { result } = renderHook(() =>

@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { FetchApiError, FetchHttpError } from '@/lib/apiClient';
+import { ApiError } from '@/lib/apiClient';
 import { fetchReservationMeetLink } from '@/services/reservations';
 import { mockToast } from '@/test/mocks/useToast';
 
@@ -76,7 +76,7 @@ describe('useReservationMeetLink', () => {
     const mockOpenedWindow = { location: { href: '' }, close: mockClose };
     mockWindowOpen.mockReturnValue(mockOpenedWindow);
 
-    const mockError = new FetchApiError('404', 'not found', '/google-meet');
+    const mockError = new ApiError(404, 'not found');
     vi.mocked(fetchReservationMeetLink).mockRejectedValue(mockError);
 
     const { result } = renderHook(() =>
@@ -102,7 +102,7 @@ describe('useReservationMeetLink', () => {
     const mockOpenedWindow = { location: { href: '' }, close: mockClose };
     mockWindowOpen.mockReturnValue(mockOpenedWindow);
 
-    const mockError = new FetchApiError('403', 'forbidden', '/google-meet');
+    const mockError = new ApiError(403, 'forbidden');
     vi.mocked(fetchReservationMeetLink).mockRejectedValue(mockError);
 
     const { result } = renderHook(() =>
@@ -202,7 +202,7 @@ describe('useReservationMeetLink', () => {
     const mockOpenedWindow = { location: { href: '' }, close: mockClose };
     mockWindowOpen.mockReturnValue(mockOpenedWindow);
 
-    const mockError = new FetchHttpError(404, '/google-meet');
+    const mockError = new ApiError(404, 'not found');
     vi.mocked(fetchReservationMeetLink).mockRejectedValue(mockError);
 
     const { result } = renderHook(() =>

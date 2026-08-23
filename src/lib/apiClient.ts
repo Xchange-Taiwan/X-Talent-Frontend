@@ -22,39 +22,12 @@ export class ApiError extends Error {
   }
 }
 
-export class FetchHttpError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly path: string
-  ) {
-    super(`fetch ${path} failed: ${status}`);
-    this.name = 'FetchHttpError';
-  }
-}
-
-export class FetchApiError extends Error {
-  constructor(
-    public readonly code: string,
-    public readonly msg: string,
-    public readonly path: string
-  ) {
-    super(`fetch ${path} API error (${code}): ${msg}`);
-    this.name = 'FetchApiError';
-  }
-}
-
 export class MaintenanceError extends Error {
   constructor() {
     super('Maintenance mode');
     this.name = 'MaintenanceError';
   }
 }
-
-export type UnwrappedResult<T> =
-  | { type: 'success'; data: T }
-  | { type: 'empty' }
-  | { type: 'failure'; code: string; message: string }
-  | { type: 'maintenance' };
 
 export interface ApiResponseEnvelope<T> {
   code: string;
@@ -276,7 +249,9 @@ async function executeRequestUnwrapped<T>(
   );
 
   if (result.code !== '0') {
-    throw new FetchApiError(result.code, result.msg, path);
+    const status = Number(result.code);
+    const validStatus = !isNaN(status) && status !== 200 ? status : 400;
+    throw new ApiError(validStatus, result.msg, result);
   }
 
   return result.data;
@@ -292,64 +267,6 @@ export const apiClient = {
     options?: RequestOptions
   ): Promise<T | null | undefined> => {
     return executeRequestUnwrapped<T>('GET', path, undefined, options);
-  },
-
-  requestUnwrapped: async <T>(
-    method: string,
-    path: string,
-    body?: unknown,
-    options?: RequestOptions
-  ): Promise<UnwrappedResult<T>> => {
-    try {
-      const result = await request<ApiResponseEnvelope<T>>(method, path, body, {
-        ...options,
-        throwOnMaintenance: true,
-      });
-
-      if (result === undefined || result === null) {
-        return { type: 'empty' };
-      }
-
-      if (result.code !== '0') {
-        return {
-          type: 'failure',
-          code: result.code,
-          message: result.msg || 'API error',
-        };
-      }
-
-      if (result.data !== undefined && result.data !== null) {
-        return { type: 'success', data: result.data };
-      }
-
-      return { type: 'empty' };
-    } catch (error) {
-      if (error instanceof MaintenanceError) {
-        return { type: 'maintenance' };
-      }
-
-      if (error instanceof ApiError) {
-        return {
-          type: 'failure',
-          code: String(error.status),
-          message: error.message,
-        };
-      }
-
-      if (error instanceof Error) {
-        return {
-          type: 'failure',
-          code: 'FETCH_ERROR',
-          message: error.message,
-        };
-      }
-
-      return {
-        type: 'failure',
-        code: 'UNKNOWN_ERROR',
-        message: String(error),
-      };
-    }
   },
 
   post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
@@ -419,12 +336,5 @@ export async function fetchServerJson<T>(
   options?: RequestOptions
 ): Promise<T | null | undefined> {
   const { auth = false, ...rest } = options ?? {};
-  try {
-    return await apiClient.getUnwrapped<T>(path, { auth, ...rest });
-  } catch (error) {
-    if (error instanceof ApiError) {
-      throw new FetchHttpError(error.status, path);
-    }
-    throw error;
-  }
+  return await apiClient.getUnwrapped<T>(path, { auth, ...rest });
 }
