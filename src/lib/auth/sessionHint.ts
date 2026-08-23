@@ -130,44 +130,24 @@ export type ResolvedIdentity =
       userId: undefined;
       avatar: undefined;
       isMentor: false;
-      isLoggedIn: false;
-      hasFullUser: false;
-      isResolvingUser: false;
-      authKnown: false;
-      sessionSettled: false;
     }
   | {
       state: 'hint-only';
       userId: undefined;
       avatar: string | undefined;
       isMentor: boolean;
-      isLoggedIn: true;
-      hasFullUser: false;
-      isResolvingUser: true;
-      authKnown: true;
-      sessionSettled: false;
     }
   | {
       state: 'confirmed-guest';
       userId: undefined;
       avatar: undefined;
       isMentor: false;
-      isLoggedIn: false;
-      hasFullUser: false;
-      isResolvingUser: false;
-      authKnown: true;
-      sessionSettled: boolean;
     }
   | {
       state: 'confirmed-member';
       userId: string;
       avatar: string | undefined;
       isMentor: boolean;
-      isLoggedIn: true;
-      hasFullUser: true;
-      isResolvingUser: false;
-      authKnown: true;
-      sessionSettled: true;
     };
 
 export function resolveIdentity(
@@ -210,11 +190,6 @@ export function resolveIdentity(
       userId: undefined,
       avatar: undefined,
       isMentor: false,
-      isLoggedIn: false,
-      hasFullUser: false,
-      isResolvingUser: false,
-      authKnown: false,
-      sessionSettled: false,
     };
   }
 
@@ -227,11 +202,6 @@ export function resolveIdentity(
       userId,
       avatar,
       isMentor,
-      isLoggedIn: true,
-      hasFullUser: true,
-      isResolvingUser: false,
-      authKnown: true,
-      sessionSettled: true,
     };
   }
 
@@ -241,11 +211,6 @@ export function resolveIdentity(
       userId: undefined,
       avatar: undefined,
       isMentor: false,
-      isLoggedIn: false,
-      hasFullUser: false,
-      isResolvingUser: false,
-      authKnown: true,
-      sessionSettled,
     };
   }
 
@@ -256,12 +221,29 @@ export function resolveIdentity(
     userId: undefined,
     avatar,
     isMentor,
-    isLoggedIn: true,
-    hasFullUser: false,
-    isResolvingUser: true,
-    authKnown: true,
-    sessionSettled: false,
   };
+}
+
+/**
+ * Layers a client-only avatar override (set synchronously on a successful
+ * profile submit, see `avatarOverrideStore`) on top of an identity already
+ * produced by `resolveIdentity`. Kept as a separate step - rather than a
+ * parameter on `resolveIdentity` - so `useResolvedIdentity` (the one place that
+ * calls `resolveIdentity`) never has to know about the override, and
+ * `useIdentity` never has to re-run identity resolution just to apply it.
+ */
+export function applyAvatarOverride(
+  identity: ResolvedIdentity,
+  override: { userId: string; url: string } | null | undefined
+): ResolvedIdentity {
+  if (
+    override &&
+    identity.state === 'confirmed-member' &&
+    override.userId === identity.userId
+  ) {
+    return { ...identity, avatar: override.url };
+  }
+  return identity;
 }
 
 export const DOM_AUTH_STATE_ATTR = 'data-auth-state';

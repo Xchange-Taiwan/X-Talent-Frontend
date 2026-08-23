@@ -1,15 +1,32 @@
+import { AsyncReadManager } from '@/lib/asyncReadManager';
 import { createKeyedCache } from '@/lib/createKeyedCache';
 import { fetchUserById } from '@/services/profile/user';
 import type { MentorProfileVO } from '@/types/user';
 
 export const USER_PROFILE_DTO_CACHE_TTL_MS = 60_000;
 
-export const userProfileDtoCache = createKeyedCache<
-  string,
-  MentorProfileVO | null
->({
+const baseCache = createKeyedCache<string, MentorProfileVO | null>({
   ttlMs: USER_PROFILE_DTO_CACHE_TTL_MS,
 });
+
+// Wrap the cache to preserve expired/stale entries for Stale-While-Revalidate support.
+export const userProfileDtoCache: typeof baseCache = {
+  ...baseCache,
+  get(key) {
+    return baseCache.getWithStatus(key)?.value;
+  },
+  getWithStatus(key) {
+    return baseCache.getWithStatus(key);
+  },
+  has(key) {
+    return baseCache.getWithStatus(key) !== undefined;
+  },
+};
+
+export const userProfileDtoReadManager = new AsyncReadManager<
+  string,
+  MentorProfileVO | null
+>(userProfileDtoCache);
 
 export function readFromDataCache(
   key: string
