@@ -192,6 +192,80 @@ describe('MentorScheduleConfig', () => {
     expect(onBookedSlotClick).not.toHaveBeenCalled();
   });
 
+  it('updates ConfirmedReservationDialog correctly when clicking different confirmed booked slots sequentially', () => {
+    const onBookedSlotClick = vi.fn();
+    const mockConfirmedReservation1: Reservation = {
+      id: 'res-102',
+      name: 'Alice',
+      roleLine: 'Mentee',
+      date: '2026-07-26',
+      time: '11:00 AM – 11:30 AM',
+      dtstart: Math.floor(new Date('2026-07-26T11:00:00Z').getTime() / 1000),
+      dtend: Math.floor(new Date('2026-07-26T11:30:00Z').getTime() / 1000),
+      messages: [],
+      scheduleId: 102,
+      version: 1,
+      senderUserId: 'user-alice',
+      participantUserId: 'user-mentor',
+    };
+    const mockConfirmedReservation2: Reservation = {
+      id: 'res-104',
+      name: 'Charlie',
+      roleLine: 'Mentee',
+      date: '2026-07-26',
+      time: '01:00 PM – 01:30 PM',
+      dtstart: Math.floor(new Date('2026-07-26T13:00:00Z').getTime() / 1000),
+      dtend: Math.floor(new Date('2026-07-26T13:30:00Z').getTime() / 1000),
+      messages: [],
+      scheduleId: 104,
+      version: 1,
+      senderUserId: 'user-charlie',
+      participantUserId: 'user-mentor',
+    };
+    const slotsWithTwoConfirmedReservations = mockSlots.map((slot) => {
+      if (slot.scheduleId === 102) {
+        return { ...slot, reservation: mockConfirmedReservation1 };
+      }
+      if (slot.scheduleId === 104) {
+        return {
+          ...slot,
+          status: 'BOOKED' as const,
+          menteeName: 'Charlie',
+          reservation: mockConfirmedReservation2,
+        };
+      }
+      return slot;
+    });
+
+    render(
+      <MentorScheduleConfig
+        {...defaultProps}
+        slotsSnapshot={{
+          ...defaultProps.slotsSnapshot,
+          slots: slotsWithTwoConfirmedReservations,
+        }}
+        onBookedSlotClick={onBookedSlotClick}
+      />
+    );
+
+    const aliceRow = screen.getByText('學員 Alice').closest('button');
+    expect(aliceRow).not.toBeNull();
+    fireEvent.click(aliceRow!);
+
+    let mockDialog = screen.getByTestId('mock-confirmed-dialog');
+    expect(mockDialog).toBeInTheDocument();
+    expect(mockDialog).toHaveAttribute('data-reservation-id', 'res-102');
+
+    const charlieRow = screen.getByText('學員 Charlie').closest('button');
+    expect(charlieRow).not.toBeNull();
+    fireEvent.click(charlieRow!);
+
+    mockDialog = screen.getByTestId('mock-confirmed-dialog');
+    expect(mockDialog).toBeInTheDocument();
+    expect(mockDialog).toHaveAttribute('data-reservation-id', 'res-104');
+    expect(onBookedSlotClick).not.toHaveBeenCalled();
+  });
+
   it('opens QuickReplyDialog and does NOT trigger onBookedSlotClick when a pending slot with a matched reservation is clicked', () => {
     const onBookedSlotClick = vi.fn();
     render(
