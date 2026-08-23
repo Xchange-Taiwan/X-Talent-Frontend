@@ -270,4 +270,70 @@ describe('useUserProfileDto', () => {
     expect(result.current.error).toBe('USER_NOT_FOUND');
     unmount();
   });
+
+  it('clears cache and sets error to FETCH_FAILED if API throws error during manual refetch', async () => {
+    vi.mocked(fetchUserById).mockResolvedValueOnce(mockUserDTO);
+
+    // Initial fetch to populate cache
+    const { result, unmount } = renderHook(() =>
+      useUserProfileDto(21, 'zh-TW')
+    );
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    expect(result.current.userDto).toEqual(mockUserDTO);
+
+    // Manual refetch throws error
+    vi.mocked(fetchUserById).mockRejectedValueOnce(new Error('Network error'));
+
+    act(() => {
+      result.current.refetch?.();
+    });
+
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.userDto).toBeNull();
+    expect(result.current.error).toBe('FETCH_FAILED');
+    unmount();
+  });
+
+  it('retains stale cache data silently if background revalidation throws error', async () => {
+    vi.mocked(fetchUserById).mockResolvedValueOnce(mockUserDTO);
+
+    // Initial fetch to populate cache
+    const { result, unmount } = renderHook(() =>
+      useUserProfileDto(22, 'zh-TW')
+    );
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    expect(result.current.userDto).toEqual(mockUserDTO);
+
+    // Fast-forward past TTL (60,000 ms)
+    vi.advanceTimersByTime(60001);
+
+    // Trigger background update by mounting/rendering again on same key
+    vi.mocked(fetchUserById).mockRejectedValueOnce(new Error('Network error')); // Throws in background
+
+    const { result: staleResult, unmount: unmountStale } = renderHook(() =>
+      useUserProfileDto(22, 'zh-TW')
+    );
+
+    // Should return stale data immediately
+    expect(staleResult.current.userDto).toEqual(mockUserDTO);
+
+    // Let the background promise resolve/fail
+    await vi.waitFor(() => {
+      expect(fetchUserById).toHaveBeenCalledTimes(2);
+    });
+
+    // Stale data should still be retained and error remains null (graceful SWR error fallback)
+    expect(staleResult.current.userDto).toEqual(mockUserDTO);
+    expect(staleResult.current.error).toBeNull();
+
+    unmount();
+    unmountStale();
+  });
 });
