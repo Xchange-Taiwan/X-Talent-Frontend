@@ -115,7 +115,8 @@ export function useAsyncRead<K, V>(
     return () => {
       unsubscribe();
     };
-  }, [manager, key, retryTrigger, activeInitialData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manager, key, retryTrigger]);
 
   const refetch = useCallback(() => {
     setRetryTrigger((prev) => prev + 1);
