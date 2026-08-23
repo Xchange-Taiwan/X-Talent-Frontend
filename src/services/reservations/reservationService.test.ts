@@ -18,11 +18,17 @@ vi.mock('@/lib/apiClient', () => ({
   },
 }));
 
+vi.mock('@/lib/monitoring', () => ({
+  captureFlowFailure: vi.fn(),
+}));
+
 import { apiClient, FetchApiError } from '@/lib/apiClient';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { components } from '@/types/api';
 
 import {
   createReservation,
+  fetchAllReservationsForState,
   fetchReservationMeetLink,
   fetchReservations,
   updateReservationStatus,
@@ -31,6 +37,39 @@ import {
 const mockGet = vi.mocked(apiClient.get);
 const mockPut = vi.mocked(apiClient.put);
 const mockPost = vi.mocked(apiClient.post);
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
+
+function makeApiReservation(
+  overrides: Partial<components['schemas']['ReservationInfoVO']> = {}
+): components['schemas']['ReservationInfoVO'] {
+  return {
+    id: 1,
+    sender: {
+      user_id: 1,
+      role: 'MENTEE',
+      status: 'ACCEPT',
+      name: 'Mentee',
+      avatar: '',
+      job_title: '',
+      years_of_experience: '',
+    },
+    participant: {
+      user_id: 2,
+      role: 'MENTOR',
+      status: 'ACCEPT',
+      name: 'Mentor',
+      avatar: '',
+      job_title: '',
+      years_of_experience: '',
+    },
+    schedule_id: 1,
+    dtstart: 100,
+    dtend: 200,
+    previous_reserve: null,
+    messages: [],
+    ...overrides,
+  };
+}
 
 describe('reservationService API Error Handling', () => {
   beforeEach(() => {
@@ -190,6 +229,179 @@ describe('reservationService API Error Handling', () => {
       });
 
       expect(res).toEqual(mockResult);
+    });
+  });
+
+  describe('fetchAllReservationsForState', () => {
+    it('returns the single page when next_dtend is 0', async () => {
+      mockGet.mockResolvedValue({
+        code: '0',
+        msg: 'ok',
+        data: {
+          reservations: [
+            makeApiReservation({ id: 1, dtstart: 100, dtend: 200 }),
+          ],
+          next_dtend: 0,
+        },
+      });
+
+      const result = await fetchAllReservationsForState(
+        '123',
+        'MENTOR_UPCOMING',
+        1000
+      );
+
+      expect(result).toHaveLength(1);
+      expect(mockGet).toHaveBeenCalledTimes(1);
+    });
+
+    it('pages via next_dtend until the backend signals no more pages', async () => {
+      mockGet
+        .mockResolvedValueOnce({
+          code: '0',
+          msg: 'ok',
+          data: {
+            reservations: [
+              makeApiReservation({ id: 1, dtstart: 100, dtend: 200 }),
+            ],
+            next_dtend: 300,
+          },
+        })
+        .mockResolvedValueOnce({
+          code: '0',
+          msg: 'ok',
+          data: {
+            reservations: [
+              makeApiReservation({ id: 2, dtstart: 300, dtend: 400 }),
+            ],
+            next_dtend: 0,
+          },
+        });
+
+      const result = await fetchAllReservationsForState(
+        '123',
+        'MENTOR_UPCOMING',
+        100000
+      );
+
+      expect(result).toHaveLength(2);
+      expect(mockGet).toHaveBeenCalledTimes(2);
+      expect(mockGet).toHaveBeenNthCalledWith(
+        2,
+        expect.any(String),
+        expect.objectContaining({
+          params: expect.objectContaining({ next_dtend: 300 }),
+        })
+      );
+    });
+
+    it('stops when next_dtend repeats the same cursor (stuck-cursor guard)', async () => {
+      mockGet
+        .mockResolvedValueOnce({
+          code: '0',
+          msg: 'ok',
+          data: {
+            reservations: [
+              makeApiReservation({ id: 1, dtstart: 100, dtend: 200 }),
+            ],
+            next_dtend: 300,
+          },
+        })
+        .mockResolvedValue({
+          code: '0',
+          msg: 'ok',
+          data: { reservations: [], next_dtend: 300 },
+        });
+
+      const result = await fetchAllReservationsForState(
+        '123',
+        'MENTOR_UPCOMING',
+        100000
+      );
+
+      expect(result).toHaveLength(1);
+      // Initial call plus one follow-up that received the repeated cursor
+      // and stopped — never a third call.
+      expect(mockGet).toHaveBeenCalledTimes(2);
+    });
+
+    it('stops when next_dtend moves past the end of the target month', async () => {
+      mockGet.mockResolvedValue({
+        code: '0',
+        msg: 'ok',
+        data: {
+          reservations: [
+            makeApiReservation({ id: 1, dtstart: 100, dtend: 200 }),
+          ],
+          next_dtend: 99999,
+        },
+      });
+
+      const result = await fetchAllReservationsForState(
+        '123',
+        'MENTOR_UPCOMING',
+        1000
+      );
+
+      expect(result).toHaveLength(1);
+      expect(mockGet).toHaveBeenCalledTimes(1);
+    });
+
+    it('swallows a fetch failure, returns items already collected, and reports via captureFlowFailure', async () => {
+      mockGet.mockRejectedValue(new Error('network down'));
+
+      const result = await fetchAllReservationsForState(
+        '123',
+        'MENTOR_UPCOMING',
+        1000
+      );
+
+      expect(result).toEqual([]);
+      expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'mentor_schedule_reservations_fetch',
+          step: 'fetch_MENTOR_UPCOMING',
+        })
+      );
+    });
+
+    it('stops after MAX_PAGES when the cursor keeps advancing without repeating or crossing the month boundary, and reports it', async () => {
+      // Cursor inches forward by 1 every page, never repeats, and never
+      // reaches endOfMonthUnix — only the page-count ceiling can end this.
+      mockGet.mockImplementation(async (_path, options) => {
+        const nextDtend =
+          (options as { params: { next_dtend?: number } }).params.next_dtend ??
+          0;
+        return {
+          code: '0',
+          msg: 'ok',
+          data: {
+            reservations: [
+              makeApiReservation({
+                id: nextDtend + 1,
+                dtstart: 100,
+                dtend: 200,
+              }),
+            ],
+            next_dtend: nextDtend + 1,
+          },
+        };
+      });
+
+      const result = await fetchAllReservationsForState(
+        '123',
+        'MENTOR_UPCOMING',
+        Number.MAX_SAFE_INTEGER
+      );
+
+      expect(result).toHaveLength(50);
+      expect(mockGet).toHaveBeenCalledTimes(50);
+      expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'mentor_schedule_reservations_fetch',
+          step: 'fetch_MENTOR_UPCOMING_max_pages_exceeded',
+        })
+      );
     });
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { createKeyedCache } from '@/lib/createKeyedCache';
 import { fetchUserById } from '@/services/profile/user';
@@ -91,23 +91,40 @@ export interface UseUserProfileDtoResult {
  * Shared cache layer for the mentor profile DTO. Both the read-only profile
  * view (useUserData) and the edit form (useEditProfileData) consume this hook
  * so navigating between them within the cache TTL avoids duplicate API calls.
+ *
+ * `initialData` (optional) lets a caller that already SSR-fetched the DTO
+ * seed state directly - a real object skips the fetch entirely, `null` (SSR
+ * fetch failed) falls through to the normal cache-check/fetch path exactly
+ * as if `initialData` had never been passed. Deliberately does NOT write
+ * into the shared, process-wide `userProfileDtoCache` during this initial
+ * render: that would run during a server component's SSR render pass too
+ * (mutating module state shared across concurrent Node requests). The cache
+ * write is deferred to the mount effect below instead, which never runs
+ * during SSR.
  */
 export function useUserProfileDto(
   userId: number,
-  language: string
+  language: string,
+  initialData?: MentorProfileVO | null
 ): UseUserProfileDtoResult {
   const [retryTrigger, setRetryTrigger] = useState(0);
+  const initialDataRef = useRef<MentorProfileVO | undefined>(
+    initialData ?? undefined
+  );
 
-  // Lazy-init from cache so SSR-primed data lands in state on the first
-  // render — avoids a one-frame loading flash before useEffect's cache read
-  // catches up. When the cache is empty the hook still defaults to
-  // loading=true so consumers' "user not found" guard does not flash.
+  // Lazy-init from initialData, then cache, so SSR-primed data lands in
+  // state on the first render — avoids a one-frame loading flash before
+  // useEffect's cache read/initialData-consume catches up. When neither is
+  // available the hook still defaults to loading=true so consumers' "user
+  // not found" guard does not flash.
   const [userDto, setUserDto] = useState<MentorProfileVO | null>(() => {
+    if (initialDataRef.current !== undefined) return initialDataRef.current;
     const isUserIdValid = Boolean(userId) && !Number.isNaN(userId);
     if (!isUserIdValid || !language) return null;
     return readFromDataCache(`${userId}-${language}`)?.data ?? null;
   });
   const [isLoading, setIsLoading] = useState(() => {
+    if (initialDataRef.current !== undefined) return false;
     const isUserIdValid = Boolean(userId) && !Number.isNaN(userId);
     if (!isUserIdValid || !language) return false;
     return !readFromDataCache(`${userId}-${language}`);
@@ -130,6 +147,17 @@ export function useUserProfileDto(
       setUserDto(null);
       setError(null);
       setIsLoading(false);
+      return;
+    }
+
+    // Client-only: warm the shared cache from the SSR-supplied initialData
+    // so a later mount/navigation for the same key hits the cache instead
+    // of re-fetching. See the doc comment above for why this can't happen
+    // during the lazy useState initializers above.
+    if (initialDataRef.current !== undefined) {
+      const seeded = initialDataRef.current;
+      initialDataRef.current = undefined;
+      userProfileDtoCache.set(`${userId}-${language}`, seeded);
       return;
     }
 

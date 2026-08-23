@@ -1,8 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getServerSession } from 'next-auth/next';
 
-import authOptions from '@/auth.config';
 import { PersonJsonLd } from '@/components/seo/PersonJsonLd';
 import { buildTagLabelMap } from '@/lib/profile/tagLabelMap';
 import { buildMentorMetadata } from '@/lib/seo/buildMentorMetadata';
@@ -18,7 +16,7 @@ import ProfilePageContainer from './container';
 export const revalidate = 60;
 
 interface PageProps {
-  params: { pageUserId: string };
+  params: Promise<{ pageUserId: string }>;
 }
 
 const FALLBACK_METADATA: Metadata = {
@@ -29,7 +27,8 @@ const FALLBACK_METADATA: Metadata = {
 export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
-  const userIdNum = Number(params.pageUserId);
+  const { pageUserId } = await params;
+  const userIdNum = Number(pageUserId);
   if (!Number.isFinite(userIdNum)) return FALLBACK_METADATA;
   const [dto, catalogs] = await Promise.all([
     fetchUserByIdServer(userIdNum, 'zh_TW'),
@@ -41,19 +40,26 @@ export async function generateMetadata({
   );
 }
 
-export default async function Page({ params: { pageUserId } }: PageProps) {
+export default async function Page({ params }: PageProps) {
+  const { pageUserId } = await params;
   const userIdNum = Number(pageUserId);
   if (!Number.isFinite(userIdNum)) notFound();
 
-  const [initialDto, session, catalogs] = await Promise.all([
+  const [initialDto, catalogs] = await Promise.all([
     fetchUserByIdServer(userIdNum, 'zh_TW'),
-    getServerSession(authOptions),
     fetchTagCatalogServer('zh_TW'),
   ]);
 
   if (!initialDto) notFound();
 
-  const initialLoginUserId = session?.user?.id ? String(session.user.id) : '';
+  // Login state is resolved entirely client-side (see ProfilePageContainer's
+  // useIdentity()). Dropping the SSR getServerSession() call here lets this
+  // route stay ISR-cacheable (`revalidate = 60` below) instead of being
+  // forced into per-request dynamic rendering just to read the auth cookie -
+  // the cost was every navigation re-fetching from the backend with no
+  // caching. useIdentity's session-hint-cookie fast path (see
+  // container.tsx) resolves identity before role-specific UI ever renders,
+  // so there is no first-paint flash to trade off here.
   const publicProfile = sanitizePublicProfile(
     initialDto,
     buildTagLabelMap(catalogs)
@@ -67,7 +73,6 @@ export default async function Page({ params: { pageUserId } }: PageProps) {
         pageUserId={pageUserId}
         initialDto={initialDto}
         initialCatalogs={catalogs}
-        initialLoginUserId={initialLoginUserId}
       />
     </>
   );

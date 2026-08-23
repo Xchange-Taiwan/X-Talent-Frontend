@@ -1,4 +1,4 @@
-import type { BookingSlot } from '@/hooks/useMentorSchedule';
+import type { BookingSlot } from '@/lib/profile/bookingAvailability';
 
 const now = new Date();
 
@@ -23,17 +23,29 @@ export const mockBookingSlots: BookingSlot[] = [
     end: relativeDate(1, 30),
     scheduleId: 501,
     isBooked: false,
+    status: null,
   },
   {
     start: relativeDate(2), // 2 hours in future
     end: relativeDate(2, 30),
     scheduleId: 502,
     isBooked: true,
+    status: 'BOOKED',
+    menteeName: 'Alice',
+  },
+  {
+    start: relativeDate(3), // 3 hours in future
+    end: relativeDate(3, 30),
+    scheduleId: 504,
+    isBooked: false,
+    status: 'PENDING',
+    menteeName: 'Bob',
   },
   {
     start: relativeDate(-2), // 2 hours in past
     end: relativeDate(-1, 30),
     scheduleId: 503,
     isBooked: false,
+    status: null,
   },
 ];

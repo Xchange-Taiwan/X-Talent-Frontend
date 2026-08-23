@@ -16,19 +16,321 @@ export const SESSION_HINT_COOKIE_OPTIONS = {
 
 export interface SessionHint {
   isMentor: boolean;
+  // Not secret - already public via the `/profile/{userId}` URL. Included so
+  // nav links can resolve their real href before `useSession()` lands,
+  // instead of sitting disabled the whole time. Never used for authorization.
+  userId?: string;
+  avatar?: string;
 }
 
 const MENTOR_VALUE = '1';
 const NON_MENTOR_VALUE = '0';
 
 export function encodeSessionHint(hint: SessionHint): string {
-  return hint.isMentor ? MENTOR_VALUE : NON_MENTOR_VALUE;
+  const isMentorVal = hint.isMentor ? MENTOR_VALUE : NON_MENTOR_VALUE;
+  const userIdPart = hint.userId ? encodeURIComponent(hint.userId) : '';
+  const base = userIdPart ? `${isMentorVal}|${userIdPart}` : isMentorVal;
+
+  if (!hint.avatar) {
+    return base;
+  }
+  try {
+    const encodedAvatar = encodeURIComponent(hint.avatar);
+    // Completely omit avatar URL if its encoded form exceeds 1000 characters
+    // to avoid massive cookie header overhead (HTTP 431) and broken truncated URLs.
+    if (encodedAvatar.length <= 1000) {
+      return `${isMentorVal}|${userIdPart}|${encodedAvatar}`;
+    }
+  } catch {
+    // Lone surrogate or otherwise invalid UTF-16 in the avatar URL - fall
+    // back to mentor status (and userId) only rather than crashing the caller.
+  }
+  return base;
+}
+
+export function isValidAvatarProtocol(url: string): boolean {
+  return (
+    url.startsWith('https://') ||
+    url.startsWith('http://') ||
+    url.startsWith('/')
+  );
+}
+
+export function safeDecodeURIComponent(val: string): string {
+  try {
+    return decodeURIComponent(val);
+  } catch {
+    return val;
+  }
 }
 
 export function decodeSessionHint(
-  value: string | undefined | null
+  cookieValue: string | undefined | null
 ): SessionHint | null {
-  if (value === MENTOR_VALUE) return { isMentor: true };
-  if (value === NON_MENTOR_VALUE) return { isMentor: false };
-  return null;
+  if (!cookieValue) {
+    return null;
+  }
+
+  const parts = cookieValue.split('|');
+  const isMentorPart = parts[0];
+  const userIdPart = parts[1];
+  const avatarPart = parts[2];
+
+  let isMentor: boolean;
+  if (isMentorPart === MENTOR_VALUE) {
+    isMentor = true;
+  } else if (isMentorPart === NON_MENTOR_VALUE) {
+    isMentor = false;
+  } else {
+    return null;
+  }
+
+  const hint: SessionHint = { isMentor };
+
+  if (userIdPart) {
+    try {
+      const userId = decodeURIComponent(userIdPart);
+      if (userId && !isValidAvatarProtocol(userId)) {
+        hint.userId = userId;
+      }
+    } catch {
+      // Malformed userId segment - ignore, don't let it break isMentor/avatar.
+    }
+  }
+
+  if (avatarPart) {
+    let avatar: string | undefined;
+    try {
+      avatar = decodeURIComponent(avatarPart);
+    } catch {
+      // Decode failed - discard raw value to avoid broken UI links
+      avatar = undefined;
+    }
+
+    if (avatar && isValidAvatarProtocol(avatar)) {
+      hint.avatar = avatar;
+    }
+  }
+  return hint;
 }
+
+export function readCookie(name: string): string | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const raw = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith(`${name}=`))
+    ?.slice(name.length + 1);
+  if (raw === undefined) return undefined;
+  return safeDecodeURIComponent(raw);
+}
+
+export type ResolvedIdentity =
+  | {
+      state: 'unknown';
+      userId: undefined;
+      avatar: undefined;
+      isMentor: false;
+      isLoggedIn: false;
+      hasFullUser: false;
+      isResolvingUser: false;
+      authKnown: false;
+      sessionSettled: false;
+    }
+  | {
+      state: 'hint-only';
+      userId: undefined;
+      avatar: string | undefined;
+      isMentor: boolean;
+      isLoggedIn: true;
+      hasFullUser: false;
+      isResolvingUser: true;
+      authKnown: true;
+      sessionSettled: false;
+    }
+  | {
+      state: 'confirmed-guest';
+      userId: undefined;
+      avatar: undefined;
+      isMentor: false;
+      isLoggedIn: false;
+      hasFullUser: false;
+      isResolvingUser: false;
+      authKnown: true;
+      sessionSettled: boolean;
+    }
+  | {
+      state: 'confirmed-member';
+      userId: string;
+      avatar: string | undefined;
+      isMentor: boolean;
+      isLoggedIn: true;
+      hasFullUser: true;
+      isResolvingUser: false;
+      authKnown: true;
+      sessionSettled: true;
+    };
+
+export function resolveIdentity(
+  session:
+    | {
+        user?: {
+          id?: string | number;
+          avatar?: string | null;
+          isMentor?: boolean;
+        };
+      }
+    | null
+    | undefined,
+  status: 'loading' | 'authenticated' | 'unauthenticated',
+  hintInput?: SessionHint | null
+): ResolvedIdentity {
+  const hasFullUser = Boolean(session?.user?.id);
+  const sessionSettled = hasFullUser || status !== 'loading';
+
+  let hint: SessionHint | null = null;
+  let isHintUnknown = false;
+  let isHintGuest = false;
+
+  if (hintInput && typeof hintInput === 'object') {
+    hint = hintInput;
+  } else if (hintInput === null) {
+    isHintGuest = true;
+  } else if (hintInput === undefined) {
+    isHintUnknown = true;
+  }
+
+  const authKnown = sessionSettled || !isHintUnknown;
+  const isLoggedIn =
+    hasFullUser ||
+    (!sessionSettled && !isHintUnknown && !isHintGuest && Boolean(hint));
+
+  if (!authKnown) {
+    return {
+      state: 'unknown',
+      userId: undefined,
+      avatar: undefined,
+      isMentor: false,
+      isLoggedIn: false,
+      hasFullUser: false,
+      isResolvingUser: false,
+      authKnown: false,
+      sessionSettled: false,
+    };
+  }
+
+  if (hasFullUser) {
+    const userId = String(session!.user!.id);
+    const isMentor = Boolean(session?.user?.isMentor);
+    const avatar = session?.user?.avatar ?? undefined;
+    return {
+      state: 'confirmed-member',
+      userId,
+      avatar,
+      isMentor,
+      isLoggedIn: true,
+      hasFullUser: true,
+      isResolvingUser: false,
+      authKnown: true,
+      sessionSettled: true,
+    };
+  }
+
+  if (sessionSettled || isHintGuest) {
+    return {
+      state: 'confirmed-guest',
+      userId: undefined,
+      avatar: undefined,
+      isMentor: false,
+      isLoggedIn: false,
+      hasFullUser: false,
+      isResolvingUser: false,
+      authKnown: true,
+      sessionSettled,
+    };
+  }
+
+  const isMentor = isLoggedIn && Boolean(hint?.isMentor);
+  const avatar = hint?.avatar ?? undefined;
+  return {
+    state: 'hint-only',
+    userId: undefined,
+    avatar,
+    isMentor,
+    isLoggedIn: true,
+    hasFullUser: false,
+    isResolvingUser: true,
+    authKnown: true,
+    sessionSettled: false,
+  };
+}
+
+/**
+ * Layers a client-only avatar override (set synchronously on a successful
+ * profile submit, see `avatarOverrideStore`) on top of an identity already
+ * produced by `resolveIdentity`. Kept as a separate step - rather than a
+ * parameter on `resolveIdentity` - so `useResolvedIdentity` (the one place that
+ * calls `resolveIdentity`) never has to know about the override, and
+ * `useIdentity` never has to re-run identity resolution just to apply it.
+ */
+export function applyAvatarOverride(
+  identity: ResolvedIdentity,
+  override: { userId: string; url: string } | null | undefined
+): ResolvedIdentity {
+  if (
+    override &&
+    identity.state === 'confirmed-member' &&
+    override.userId === identity.userId
+  ) {
+    return { ...identity, avatar: override.url };
+  }
+  return identity;
+}
+
+export const DOM_AUTH_STATE_ATTR = 'data-auth-state';
+export const DOM_AUTH_AVATAR_ATTR = 'data-auth-avatar';
+
+export function clearSessionHint(): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${SESSION_HINT_COOKIE}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0;`;
+  document.documentElement.removeAttribute(DOM_AUTH_STATE_ATTR);
+  document.documentElement.removeAttribute(DOM_AUTH_AVATAR_ATTR);
+  document.documentElement.style.removeProperty('--auth-avatar');
+}
+
+export const SESSION_HINT_INLINE_SCRIPT = `
+  (function () {
+    try {
+      var cookie = document.cookie.split('; ').find(function(row) {
+        return row.startsWith('${SESSION_HINT_COOKIE}=');
+      });
+      var parts = null;
+      if (cookie) {
+        var rawValue = cookie.substring('${SESSION_HINT_COOKIE}='.length);
+        try {
+          rawValue = decodeURIComponent(rawValue);
+        } catch (_) {}
+        parts = rawValue.split('|');
+      }
+      if (parts && (parts[0] === '1' || parts[0] === '0')) {
+        var isMentor = parts[0] === '1';
+        var avatar = '';
+        if (parts[2]) {
+          try {
+            avatar = decodeURIComponent(parts[2]);
+          } catch (_) {
+            avatar = '';
+          }
+        }
+
+        if (avatar && (avatar.startsWith('https://') || avatar.startsWith('http://') || avatar.startsWith('/'))) {
+          document.documentElement.setAttribute('${DOM_AUTH_AVATAR_ATTR}', avatar);
+          var escapedAvatar = avatar.replace(/"/g, '%22');
+          document.documentElement.style.setProperty('--auth-avatar', 'url("' + escapedAvatar + '")');
+        }
+        document.documentElement.setAttribute('${DOM_AUTH_STATE_ATTR}', isMentor ? 'mentor' : 'mentee');
+      } else {
+        document.documentElement.setAttribute('${DOM_AUTH_STATE_ATTR}', 'guest');
+      }
+    } catch (_) {}
+  })();
+`;

@@ -1,0 +1,458 @@
+# ==============================================================================
+# REQUIRED SETUP (one-time, in GitHub repo Settings):
+#
+# 1. Secrets (Settings > Secrets and variables > Actions):
+#    - VERCEL_API_TOKEN        A Vercel personal/team API token with write
+#                              access. Create at https://vercel.com/account/tokens.
+#                              NOTE: this token is account/team-scoped, not
+#                              limited to this one Global Config store - keep
+#                              it out of logs and rotate it periodically.
+#    - VERCEL_GLOBAL_CONFIG_ID The target store's ID (starts with `ecfg_`).
+#                              Find it on the Global Config's detail page in
+#                              the Vercel dashboard.
+#    - VERCEL_ORG_ID           Reuses the same secret deploy-prod.yml/
+#                              deploy-dev.yml already use. For a team-owned
+#                              project this is the same value as the Team ID
+#                              (Team Settings > General) - no separate secret
+#                              needed.
+#
+# 2. (Recommended) Settings > Environments > create an environment named
+#    "maintenance-mode" and add required reviewers, so flipping maintenance
+#    mode on production needs a second person's approval before it runs.
+#    Without this, anyone with write access to the repo can trigger it
+#    unattended.
+#
+# TWO SEPARATE THINGS THIS WORKFLOW CONTROLS - DO NOT CONFUSE THEM:
+#   - maintenance_mode (isInMaintenanceMode in the store): the real switch.
+#     "開啟" hard-redirects all traffic to /maintenance - the site goes down.
+#   - announcement_time_action + month/day/hour/minute (maintenanceTime in
+#     the store): ONLY controls when the announcement BANNER text auto-hides
+#     itself on the client. It does NOT schedule maintenance_mode to turn on
+#     by itself - nothing here flips isInMaintenanceMode automatically at
+#     that time. To actually take the site down at that time, you still have
+#     to come back and run this workflow again with maintenance_mode=開啟.
+# ==============================================================================
+
+name: Toggle Maintenance Mode
+
+on:
+  workflow_dispatch:
+    inputs:
+      maintenance_mode:
+        description: '維護模式(真正封站,所有流量導向 /maintenance;跟下面的「公告顯示時間」是兩件事,不會互相觸發)'
+        type: choice
+        required: true
+        options:
+          - 不變更
+          - 開啟
+          - 關閉
+        default: 不變更
+      confirm_maintenance_on:
+        description: '我了解這會讓整個網站無法使用(選「開啟」維護模式前必須勾選)'
+        type: boolean
+        required: false
+        default: false
+      announcement_enabled:
+        description: '公告 banner(只是提醒用的橫幅,不會封站)'
+        type: choice
+        required: true
+        options:
+          - 不變更
+          - 開啟
+          - 關閉
+        default: 不變更
+      announcement_message:
+        description: '公告文字(留空 = 保留目前的訊息)'
+        type: string
+        required: false
+      announcement_time_action:
+        description: '公告顯示時間 - 不是維護模式!只控制上面公告 banner 幾點自動消失,時間到了不會自動封站(選「設定時間」下面的月/日/時/分才會生效)'
+        type: choice
+        required: true
+        options:
+          - 不變更
+          - 設定時間
+          - 清空
+        default: 不變更
+      announcement_time_month:
+        description: '月(僅在上面選「設定時間」時生效;以台灣時間為準)'
+        type: choice
+        required: true
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - '7'
+          - '8'
+          - '9'
+          - '10'
+          - '11'
+          - '12'
+        default: '1'
+      announcement_time_day:
+        description: '日(僅在上面選「設定時間」時生效;以台灣時間為準)'
+        type: choice
+        required: true
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - '7'
+          - '8'
+          - '9'
+          - '10'
+          - '11'
+          - '12'
+          - '13'
+          - '14'
+          - '15'
+          - '16'
+          - '17'
+          - '18'
+          - '19'
+          - '20'
+          - '21'
+          - '22'
+          - '23'
+          - '24'
+          - '25'
+          - '26'
+          - '27'
+          - '28'
+          - '29'
+          - '30'
+          - '31'
+        default: '1'
+      announcement_time_hour:
+        description: '時,24 小時制(僅在上面選「設定時間」時生效;以台灣時間為準)'
+        type: choice
+        required: true
+        options:
+          - '0'
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - '7'
+          - '8'
+          - '9'
+          - '10'
+          - '11'
+          - '12'
+          - '13'
+          - '14'
+          - '15'
+          - '16'
+          - '17'
+          - '18'
+          - '19'
+          - '20'
+          - '21'
+          - '22'
+          - '23'
+        default: '0'
+      announcement_time_minute:
+        description: '分(僅在上面選「設定時間」時生效;以台灣時間為準)'
+        type: choice
+        required: true
+        options:
+          - '00'
+          - '15'
+          - '30'
+          - '45'
+        default: '00'
+      bypass_token_action:
+        description: 'QA bypass token(封站時讓知道 token 的人可用 ?bypass=TOKEN 跳過 /maintenance)。這個 repo 是 public,不管選哪個選項,實際的 token 內容都不會顯示在這次 run 的任何地方(log/summary),避免外流。'
+        type: choice
+        required: true
+        options:
+          - 不變更
+          - 產生新亂數並取代
+          - 手動輸入自訂 token
+          - 清空(停用 bypass)
+        default: 不變更
+      bypass_token_value:
+        description: '自訂 token 內容(只有上面選「手動輸入自訂 token」時才會用到;至少 16 個字元,只能是英數字、底線、減號,不能有引號等特殊字元。這個輸入框的內容會在第一個 step 立刻被註冊為 masked,理論上不會出現在任何 log/summary 裡,但建議先用假資料跑一次自行確認)'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  update-global-config:
+    runs-on: ubuntu-latest
+    name: Update Global Config
+    environment: maintenance-mode
+    env:
+      VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
+      GLOBAL_CONFIG_ID: ${{ secrets.VERCEL_GLOBAL_CONFIG_ID }}
+      VERCEL_TEAM_ID: ${{ secrets.VERCEL_ORG_ID }}
+      MAINTENANCE_MODE: ${{ inputs.maintenance_mode }}
+      CONFIRM_MAINTENANCE_ON: ${{ inputs.confirm_maintenance_on }}
+      ANNOUNCEMENT_ENABLED: ${{ inputs.announcement_enabled }}
+      ANNOUNCEMENT_MESSAGE: ${{ inputs.announcement_message }}
+      ANNOUNCEMENT_TIME_ACTION: ${{ inputs.announcement_time_action }}
+      ANNOUNCEMENT_TIME_MONTH: ${{ inputs.announcement_time_month }}
+      ANNOUNCEMENT_TIME_DAY: ${{ inputs.announcement_time_day }}
+      ANNOUNCEMENT_TIME_HOUR: ${{ inputs.announcement_time_hour }}
+      ANNOUNCEMENT_TIME_MINUTE: ${{ inputs.announcement_time_minute }}
+      BYPASS_TOKEN_ACTION: ${{ inputs.bypass_token_action }}
+      BYPASS_TOKEN_VALUE: ${{ inputs.bypass_token_value }}
+
+    steps:
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+
+          # MUST be the first thing this job does. ::add-mask:: applies for
+          # the rest of the job from the point it's registered onward - any
+          # earlier step/line would print the raw value unmasked. This repo
+          # is PUBLIC, so an unmasked value here would be visible to anyone
+          # on the internet, not just collaborators.
+          if [ -n "$BYPASS_TOKEN_VALUE" ]; then
+            echo "::add-mask::${BYPASS_TOKEN_VALUE}"
+          fi
+
+          if [ "$MAINTENANCE_MODE" = "開啟" ] && [ "$CONFIRM_MAINTENANCE_ON" != "true" ]; then
+            echo "::error::maintenance_mode 選了「開啟」,但沒有勾選確認選項(confirm_maintenance_on)。請重新執行並勾選確認,避免手殘誤觸封站。"
+            exit 1
+          fi
+
+          if [ "$MAINTENANCE_MODE" = "不變更" ] && \
+             [ "$ANNOUNCEMENT_ENABLED" = "不變更" ] && \
+             [ -z "$ANNOUNCEMENT_MESSAGE" ] && \
+             [ "$ANNOUNCEMENT_TIME_ACTION" = "不變更" ] && \
+             [ "$BYPASS_TOKEN_ACTION" = "不變更" ]; then
+            echo "::error::沒有任何要變更的內容,結束。"
+            exit 1
+          fi
+
+          if [ "$BYPASS_TOKEN_ACTION" = "手動輸入自訂 token" ]; then
+            if [ -z "$BYPASS_TOKEN_VALUE" ]; then
+              echo "::error::選了「手動輸入自訂 token」,但 bypass_token_value 沒有填。"
+              exit 1
+            fi
+            if [ "${#BYPASS_TOKEN_VALUE}" -lt 16 ]; then
+              echo "::error::bypass_token_value 太短(至少 16 個字元),這組字串是拿來當存取憑證用的,太短容易被猜到。"
+              exit 1
+            fi
+            # ::add-mask:: matches the raw string exactly. If the value
+            # contains a character like " or \, a later step that JSON-
+            # encodes it (the "Pending changes" jq dump, or the Vercel API
+            # response echo) would render it with escape sequences that no
+            # longer byte-match what was registered - leaking it unmasked
+            # in this public repo's logs. Restrict to a safe character set
+            # so that can't happen.
+            if ! [[ "$BYPASS_TOKEN_VALUE" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+              echo "::error::bypass_token_value 只能包含英數字、底線及減號,避免特殊字元(例如引號)在 log 裡被跳脫,導致遮蔽失效。"
+              exit 1
+            fi
+          fi
+
+      - name: Fetch current Global Config items
+        run: |
+          set -euo pipefail
+
+          # /v1/global-config is correct here, not /v1/edge-config - Vercel's
+          # rename docs (vercel.com/docs/global-config/migration-guide) say
+          # new integrations should use /v1/global-config; /v1/edge-config
+          # only still works for backward compatibility. Store IDs keep the
+          # `ecfg_` prefix regardless of which path you call.
+          team_query=""
+          [ -n "$VERCEL_TEAM_ID" ] && team_query="?teamId=${VERCEL_TEAM_ID}"
+
+          response=$(curl -sS -w '\n%{http_code}' \
+            "https://api.vercel.com/v1/global-config/${GLOBAL_CONFIG_ID}/items${team_query}" \
+            -H "Authorization: Bearer ${VERCEL_API_TOKEN}")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          if [ "$http_code" -ge 300 ]; then
+            echo "::error::Failed to read current Global Config items (HTTP $http_code)"
+            echo "$body"
+            exit 1
+          fi
+
+          # This endpoint returns a JSON array of {key, value, ...} records,
+          # not the flat key-value map the global-config.vercel.com read
+          # endpoint returns - flatten it here so the rest of the workflow
+          # can treat current.json as a plain object.
+          echo "$body" | jq -c 'map({(.key): .value}) | add // {}' > current.json
+
+      - name: Build items payload
+        run: |
+          set -euo pipefail
+
+          current_announcement=$(jq -c '.announcement // {"enabled": false, "message": "", "maintenanceTime": ""}' current.json)
+
+          new_enabled=$(echo "$current_announcement" | jq -r '.enabled // false')
+          [ "$ANNOUNCEMENT_ENABLED" = "開啟" ] && new_enabled=true
+          [ "$ANNOUNCEMENT_ENABLED" = "關閉" ] && new_enabled=false
+
+          new_message=$(echo "$current_announcement" | jq -r '.message // ""')
+          [ -n "$ANNOUNCEMENT_MESSAGE" ] && new_message="$ANNOUNCEMENT_MESSAGE"
+
+          # workflow_dispatch has no native date picker, so month/day/hour/
+          # minute are separate dropdowns (all Asia/Taipei) instead of a
+          # hand-typed ISO 8601 string. The year is inferred: if the chosen
+          # month/day already happened this year, roll forward to next year.
+          new_time=$(echo "$current_announcement" | jq -r '.maintenanceTime // ""')
+          case "$ANNOUNCEMENT_TIME_ACTION" in
+            不變更) : ;;
+            清空) new_time="" ;;
+            設定時間)
+              today="$(TZ='Asia/Taipei' date +%Y-%m-%d)"
+              this_year="$(TZ='Asia/Taipei' date +%Y)"
+              target_this_year=$(printf '%04d-%02d-%02d' "$this_year" "$ANNOUNCEMENT_TIME_MONTH" "$ANNOUNCEMENT_TIME_DAY")
+
+              target_year="$this_year"
+              if [[ "$target_this_year" < "$today" ]]; then
+                target_year=$((this_year + 1))
+              fi
+
+              new_time=$(printf '%04d-%02d-%02dT%02d:%02d:00+08:00' \
+                "$target_year" "$ANNOUNCEMENT_TIME_MONTH" "$ANNOUNCEMENT_TIME_DAY" \
+                "$ANNOUNCEMENT_TIME_HOUR" "$ANNOUNCEMENT_TIME_MINUTE")
+
+              if ! TZ='Asia/Taipei' date -d "$new_time" >/dev/null 2>&1; then
+                echo "::error::選到不存在的日期(例如 2 月 30 號),請重新選擇月/日"
+                exit 1
+              fi
+              ;;
+          esac
+
+          new_announcement=$(jq -n \
+            --argjson enabled "$new_enabled" \
+            --arg message "$new_message" \
+            --arg time "$new_time" \
+            '{enabled: $enabled, message: $message, maintenanceTime: $time}')
+
+          items='[]'
+
+          if [ "$MAINTENANCE_MODE" != "不變更" ]; then
+            mode_bool=false
+            [ "$MAINTENANCE_MODE" = "開啟" ] && mode_bool=true
+            items=$(echo "$items" | jq --argjson v "$mode_bool" '. + [{"operation":"upsert","key":"isInMaintenanceMode","value":$v}]')
+          fi
+
+          announcement_changed=false
+          if [ "$ANNOUNCEMENT_ENABLED" != "不變更" ] || [ -n "$ANNOUNCEMENT_MESSAGE" ] || [ "$ANNOUNCEMENT_TIME_ACTION" != "不變更" ]; then
+            announcement_changed=true
+          fi
+          if [ "$announcement_changed" = "true" ]; then
+            items=$(echo "$items" | jq --argjson v "$new_announcement" '. + [{"operation":"upsert","key":"announcement","value":$v}]')
+          fi
+
+          # QA bypass token. This repo is PUBLIC, so anyone on the internet
+          # (not just collaborators) can view completed Actions runs - the
+          # raw value must never appear unmasked anywhere in this workflow
+          # (log, summary, or artifact all count as "public" here).
+          #   - "產生新亂數": value never touches a workflow_dispatch input at
+          #     all, so there's nothing to leak on that front.
+          #   - "手動輸入": the typed value comes in as BYPASS_TOKEN_VALUE, and
+          #     was already registered with ::add-mask:: at the very top of
+          #     the "Validate inputs" step (the first thing this job does),
+          #     so it's masked in every step's log from here on, including
+          #     the "Pending changes" jq dump below and the API response
+          #     echoed in "Update Global Config".
+          # Either way, the operator confirms success from the Summary step,
+          # not by reading the value back out of this run.
+          if [ "$BYPASS_TOKEN_ACTION" = "產生新亂數並取代" ]; then
+            bypass_token_generated=$(openssl rand -hex 24)
+            echo "::add-mask::${bypass_token_generated}"
+            items=$(echo "$items" | jq --arg v "$bypass_token_generated" '. + [{"operation":"upsert","key":"maintenanceBypassToken","value":$v}]')
+          elif [ "$BYPASS_TOKEN_ACTION" = "手動輸入自訂 token" ]; then
+            items=$(echo "$items" | jq --arg v "$BYPASS_TOKEN_VALUE" '. + [{"operation":"upsert","key":"maintenanceBypassToken","value":$v}]')
+          elif [ "$BYPASS_TOKEN_ACTION" = "清空(停用 bypass)" ]; then
+            items=$(echo "$items" | jq '. + [{"operation":"upsert","key":"maintenanceBypassToken","value":""}]')
+          fi
+
+          echo "$items" > items.json
+          echo "Pending changes:"
+          jq . items.json
+
+      - name: Update Global Config
+        id: update_global_config
+        run: |
+          set -euo pipefail
+
+          payload=$(jq -n --argjson items "$(cat items.json)" '{items: $items}')
+
+          team_query=""
+          [ -n "$VERCEL_TEAM_ID" ] && team_query="?teamId=${VERCEL_TEAM_ID}"
+
+          response=$(curl -sS -w '\n%{http_code}' -X PATCH \
+            "https://api.vercel.com/v1/global-config/${GLOBAL_CONFIG_ID}/items${team_query}" \
+            -H "Authorization: Bearer ${VERCEL_API_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -d "$payload")
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "$body"
+
+          if [ "$http_code" -ge 300 ]; then
+            echo "::error::Update failed (HTTP $http_code)"
+            exit 1
+          fi
+
+      - name: Summary
+        if: always()
+        env:
+          UPDATE_OUTCOME: ${{ steps.update_global_config.outcome }}
+        run: |
+          {
+            echo "### 維護模式 / 公告變更"
+            echo ""
+            echo "| 欄位 | 值 |"
+            echo "|---|---|"
+            echo "| maintenance_mode | \`${MAINTENANCE_MODE}\` |"
+            echo "| announcement_enabled | \`${ANNOUNCEMENT_ENABLED}\` |"
+            echo "| announcement_message | \`${ANNOUNCEMENT_MESSAGE}\` |"
+            echo "| announcement_time_action | \`${ANNOUNCEMENT_TIME_ACTION}\` |"
+            echo "| announcement_time(公告倒數用,不是維護模式) | \`${ANNOUNCEMENT_TIME_MONTH}/${ANNOUNCEMENT_TIME_DAY} ${ANNOUNCEMENT_TIME_HOUR}:${ANNOUNCEMENT_TIME_MINUTE}\` |"
+            echo "| bypass_token_action | \`${BYPASS_TOKEN_ACTION}\` |"
+            echo "| 觸發者 | \`${GITHUB_ACTOR}\` |"
+            echo ""
+            echo "> ⚠️ 提醒:上面的 announcement_time 只影響公告 banner 何時自動消失,不會自動封站。要真的封站請把 maintenance_mode 設為「開啟」。"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # This repo is PUBLIC - anyone can view a completed Actions run's
+          # log, summary, and artifacts, not just repo collaborators. So the
+          # actual bypass token value is deliberately NEVER printed anywhere
+          # in this workflow. Retrieve it from the Vercel dashboard instead:
+          # Storage -> Global Config -> Items -> maintenanceBypassToken.
+          if [ "$BYPASS_TOKEN_ACTION" = "產生新亂數並取代" ]; then
+            if [ "$UPDATE_OUTCOME" = "success" ]; then
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "> ℹ️ 已產生新的 bypass token 並寫入 Global Config。因為這個 repo 是 public,基於安全考量不會在這裡顯示內容,請到 Vercel Dashboard → Storage → Global Config → \`maintenanceBypassToken\` 查看實際的值。" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "> ⚠️ Bypass token 產生後寫入 Global Config 失敗,舊 token(如果有的話)維持不變。請確認錯誤原因後重新執行這個 workflow。" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          elif [ "$BYPASS_TOKEN_ACTION" = "手動輸入自訂 token" ]; then
+            if [ "$UPDATE_OUTCOME" = "success" ]; then
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "> ℹ️ 已用你輸入的自訂值更新 bypass token(你自己知道內容,這裡不會重複顯示)。" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "> ⚠️ 自訂 bypass token 寫入 Global Config 失敗,舊 token(如果有的話)維持不變。請確認錯誤原因後重新執行這個 workflow。" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          elif [ "$BYPASS_TOKEN_ACTION" = "清空(停用 bypass)" ]; then
+            if [ "$UPDATE_OUTCOME" = "success" ]; then
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "> ℹ️ Bypass token 已清空,\`?bypass=\` 目前不會放行任何人。" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "> ⚠️ 清空 bypass token 失敗,舊 token(如果有的話)維持不變。請確認錯誤原因後重新執行這個 workflow。" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi

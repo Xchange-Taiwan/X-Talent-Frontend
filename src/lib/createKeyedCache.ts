@@ -1,3 +1,5 @@
+import { singleFlight } from './singleFlight';
+
 export interface KeyedCacheOptions {
   ttlMs?: number;
 }
@@ -123,16 +125,6 @@ export function createKeyedCache<K, V>(
     return inflightCache.get(key);
   }
 
-  function setInflight(key: K, promise: Promise<V>): Promise<V> {
-    const finalPromise = promise.finally(() => {
-      if (inflightCache.get(key) === finalPromise) {
-        inflightCache.delete(key);
-      }
-    });
-    inflightCache.set(key, finalPromise);
-    return finalPromise;
-  }
-
   function fetch(
     key: K,
     fetcher: () => Promise<V>,
@@ -149,25 +141,24 @@ export function createKeyedCache<K, V>(
       }
     }
 
-    const inflight = getInflight(key);
-    if (inflight) {
-      return inflight;
-    }
-
     // eslint-disable-next-line prefer-const
-    let finalPromise: Promise<V>;
-
-    const promise = fetcher().then((value) => {
-      // Race Condition fix: Only write to cache if this is still the current inflight promise
-      if (getInflight(key) === finalPromise) {
-        if (!options?.shouldCache || options.shouldCache(value)) {
-          set(key, value, options?.ttlMs);
+    let innerPromise: Promise<V>;
+    const finalPromise = singleFlight(inflightCache, key, () => {
+      innerPromise = fetcher().then((value) => {
+        const currentInflight = getInflight(key);
+        if (
+          currentInflight &&
+          (currentInflight === finalPromise || currentInflight === innerPromise)
+        ) {
+          if (!options?.shouldCache || options.shouldCache(value)) {
+            set(key, value, options?.ttlMs);
+          }
         }
-      }
-      return value;
+        return value;
+      });
+      return innerPromise;
     });
 
-    finalPromise = setInflight(key, promise);
     return finalPromise;
   }
 

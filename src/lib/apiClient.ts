@@ -1,7 +1,14 @@
 import type { Session } from 'next-auth';
-import { getSession } from 'next-auth/react';
 
 import { captureApiFailure } from '@/lib/monitoring';
+
+import { singleFlight } from './singleFlight';
+
+let sessionGetter: () => Promise<Session | null> = () => Promise.resolve(null);
+
+export function setSessionGetter(getter: () => Promise<Session | null>) {
+  sessionGetter = getter;
+}
 
 // ─── Custom Errors ───────────────────────────────────────────────────────────
 export class ApiError extends Error {
@@ -36,6 +43,25 @@ export class FetchApiError extends Error {
   }
 }
 
+export class MaintenanceError extends Error {
+  constructor() {
+    super('Maintenance mode');
+    this.name = 'MaintenanceError';
+  }
+}
+
+export type UnwrappedResult<T> =
+  | { type: 'success'; data: T }
+  | { type: 'empty' }
+  | { type: 'failure'; code: string; message: string }
+  | { type: 'maintenance' };
+
+export interface ApiResponseEnvelope<T> {
+  code: string;
+  msg: string;
+  data: T | null | undefined;
+}
+
 // SSR_API_URL is preferred when set, so server-side fetches inside a
 // Docker container can reach the BFF via the docker network DNS name
 // (e.g. http://bff:8000/api), while the browser bundle still uses
@@ -52,24 +78,48 @@ export type RequestOptions = Omit<RequestInit, 'body' | 'headers'> & {
   headers?: Record<string, string>;
   /** Treat `path` as a local Next.js API route — skip prefixing BASE_URL. Default: false */
   isLocal?: boolean;
+  /** Internal/External option to throw on maintenance mode instead of returning an unsettled promise */
+  throwOnMaintenance?: boolean;
 };
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
 }
 
-// Deduplicate concurrent 401 refresh calls — if multiple requests fail at once,
-// they all wait on the same refresh rather than each triggering a new one.
-let pendingRefresh: Promise<Session | null> | null = null;
+// Deduplicate concurrent session lookups. `sessionGetter` (next-auth's
+// imperative `getSession()`) always issues a fresh, uncached network
+// request - unlike the `useSession()` hook, it doesn't share the
+// SessionProvider's client-side state. A page that fires several
+// authenticated requests at once (e.g. loading multiple lists in
+// parallel) would otherwise trigger one `/api/auth/session` round trip
+// per request; singleFlight collapses concurrent callers onto the same
+// in-flight lookup so only the slowest response in a burst is paid once.
+//
+// Routine lookups and 401 refreshes use separate maps rather than sharing
+// one: a 401 refresh must always start a lookup that begins *after* the
+// 401 was observed. If it instead joined a routine lookup already in
+// flight (started before the 401 happened), it could get back the same
+// stale token that just failed, retry with it, and 401 again.
+const sessionLookupMap = new Map<'session', Promise<Session | null>>();
+const refreshMap = new Map<'refresh', Promise<Session | null>>();
+
+function getSharedSession(): Promise<Session | null> {
+  if (typeof window === 'undefined') return Promise.resolve(null);
+  return singleFlight(sessionLookupMap, 'session', () => sessionGetter());
+}
 
 function refreshSession(): Promise<Session | null> {
   if (typeof window === 'undefined') return Promise.resolve(null);
-  if (!pendingRefresh) {
-    pendingRefresh = getSession().finally(() => {
-      pendingRefresh = null;
-    });
-  }
-  return pendingRefresh;
+  // Once a refresh completes, drop any routine lookup entry so the 401
+  // handler's retry (which calls getAuthHeader() -> getSharedSession())
+  // is forced to start a fresh lookup instead of possibly joining a
+  // routine lookup that was already in flight before the refresh even
+  // started, and could still resolve to the pre-refresh, stale token.
+  return singleFlight(refreshMap, 'refresh', () => sessionGetter()).finally(
+    () => {
+      sessionLookupMap.delete('session');
+    }
+  );
 }
 
 function isAbsoluteUrl(path: string): boolean {
@@ -100,7 +150,7 @@ function buildUrl(
 
 async function getAuthHeader(): Promise<Record<string, string>> {
   if (typeof window === 'undefined') return {};
-  const session = await getSession();
+  const session = await getSharedSession();
   const token = session?.accessToken;
   if (!token) return {};
   return { Authorization: `Bearer ${token}` };
@@ -174,6 +224,19 @@ async function request<T>(
   }
 
   if (!response.ok) {
+    if (
+      response.status === 503 &&
+      response.headers.get('X-Maintenance-Mode') === '1'
+    ) {
+      if (options?.throwOnMaintenance) {
+        throw new MaintenanceError();
+      }
+      if (typeof window !== 'undefined') {
+        window.location.href = '/maintenance';
+        return new Promise(() => {}); // Pause further execution during redirect
+      }
+    }
+
     const errorBody = await response.json().catch(() => ({}));
     const message =
       (errorBody as Record<string, string>).msg ||
@@ -207,17 +270,76 @@ export const apiClient = {
     path: string,
     options?: RequestOptions
   ): Promise<T | null | undefined> => {
-    const result = await request<{
-      code: string;
-      msg: string;
-      data: T | null | undefined;
-    }>('GET', path, undefined, options);
+    const result = await request<ApiResponseEnvelope<T>>(
+      'GET',
+      path,
+      undefined,
+      options
+    );
 
     if (result.code !== '0') {
       throw new FetchApiError(result.code, result.msg, path);
     }
 
     return result.data;
+  },
+
+  requestUnwrapped: async <T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<UnwrappedResult<T>> => {
+    try {
+      const result = await request<ApiResponseEnvelope<T>>(method, path, body, {
+        ...options,
+        throwOnMaintenance: true,
+      });
+
+      if (result === undefined || result === null) {
+        return { type: 'empty' };
+      }
+
+      if (result.code !== '0') {
+        return {
+          type: 'failure',
+          code: result.code,
+          message: result.msg || 'API error',
+        };
+      }
+
+      if (result.data !== undefined && result.data !== null) {
+        return { type: 'success', data: result.data };
+      }
+
+      return { type: 'empty' };
+    } catch (error) {
+      if (error instanceof MaintenanceError) {
+        return { type: 'maintenance' };
+      }
+
+      if (error instanceof ApiError) {
+        return {
+          type: 'failure',
+          code: String(error.status),
+          message: error.message,
+        };
+      }
+
+      if (error instanceof Error) {
+        return {
+          type: 'failure',
+          code: 'FETCH_ERROR',
+          message: error.message,
+        };
+      }
+
+      return {
+        type: 'failure',
+        code: 'UNKNOWN_ERROR',
+        message: String(error),
+      };
+    }
   },
 
   post: <T>(path: string, body?: unknown, options?: RequestOptions) =>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { apiClient } from '@/lib/apiClient';
+import { getAnnouncement } from '@/lib/globalConfig';
 import type { AnnouncementData } from '@/services/announcement';
 
 export const dynamic = 'force-dynamic';
@@ -8,18 +8,9 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   let announcement: AnnouncementData | null = null;
 
-  if (process.env.EDGE_CONFIG) {
-    try {
-      const data = await apiClient.get<{ announcement?: AnnouncementData }>(
-        process.env.EDGE_CONFIG,
-        { auth: false, next: { revalidate: 0 } } // avoid caching in Next.js
-      );
-      announcement = data.announcement ?? null;
-    } catch {
-      // Fetch/response failures are already reported by apiClient's internal
-      // error handling (sanitized — the Edge Config URL's token is masked).
-      // Fall through to the local fallback below.
-    }
+  const result = await getAnnouncement(3000);
+  if (result.success) {
+    announcement = result.value;
   }
 
   // Fallback to local environment variables if Edge Config is not configured/available

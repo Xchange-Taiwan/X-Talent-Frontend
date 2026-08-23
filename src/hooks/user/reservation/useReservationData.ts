@@ -85,6 +85,13 @@ export interface UseReservationDataReturn {
   loadMore: (tab: ListKey) => Promise<void>;
   loadHistory: () => Promise<void>;
   onMutationSuccess: (id: string, affectedTabs: ListKey[]) => void;
+  /**
+   * Refetch the affected tabs without removing the item first — for a failed
+   * mutation (e.g. a 409 version conflict) where the item is still present
+   * but its data (including `version`) is now stale, unlike
+   * `onMutationSuccess` which assumes the item moved out of the tab.
+   */
+  refetchOnConflict: (affectedTabs: ListKey[]) => void;
 }
 
 export function useReservationData({
@@ -134,6 +141,9 @@ export function useReservationData({
       setInitialPending('idle');
       return;
     }
+
+    setInitialUpcoming('loading');
+    setInitialPending('loading');
 
     let cancelled = false;
 
@@ -266,6 +276,14 @@ export function useReservationData({
     [removeItem, refetchStates, states]
   );
 
+  const refetchOnConflict = useCallback(
+    (affectedTabs: ListKey[]) => {
+      const affectedStates = affectedTabs.map((tab) => states[tab]);
+      void refetchStates(affectedStates);
+    },
+    [refetchStates, states]
+  );
+
   const loadHistory = useCallback(async () => {
     if (!myUserId || isHistoryLoaded || isLoadingHistory) return;
     setIsLoadingHistory(true);
@@ -379,5 +397,6 @@ export function useReservationData({
     loadMore,
     loadHistory,
     onMutationSuccess,
+    refetchOnConflict,
   };
 }

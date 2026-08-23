@@ -1,0 +1,2897 @@
+<title>X-Talent 首頁還原 — RWD + Header + Testimonial Carousel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Open+Sans:wght@400;500;600;700&display=swap"
+  rel="stylesheet"
+/>
+
+<style>
+  :root {
+    --color-text-primary: #1e2026;
+    --color-text-secondary: #474d57;
+    --color-text-tertiary: #76808f;
+    --color-text-disable: #aeb4bc;
+    --color-text-white: #ffffff;
+    --color-background-bottom: #f5f5f5;
+    --color-background-bottom-secondary: #fafafa;
+    --color-background-white: #ffffff;
+    --color-background-border: #e6e8ea;
+    --color-brand-500: #2ccbcb;
+    --color-brand-900: #092929;
+    --color-status-error-default: #ee3911;
+    --color-status-warning-default: #eebe11;
+    --color-light: #ffffff;
+    --color-dark: #282828;
+    --color-navy: #172e59;
+    --color-logo-blue: #003c5a;
+    --color-jade-default: #4befbd;
+    --color-bd-blue: #7cb8ff;
+    --color-marketing-orange: #ffbf82;
+    --color-lime-default: #ffde4e;
+    --color-pink-default: #ff6397;
+    --color-blue-default: #5de5ff;
+    --color-purple-active: #d095fd;
+    --radius: 8px;
+    --page-bg: #eef1f3;
+    --page-ink: #1e2026;
+    --page-muted: #6b7280;
+    --page-card: #ffffff;
+    --page-border: #e2e5e9;
+    --accent: #2ccbcb;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: var(--page-bg);
+    color: var(--page-ink);
+    font-family: 'Noto Sans TC', 'Open Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ---------- intro ---------- */
+  .intro h1 {
+    font-size: 26px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  .intro p {
+    margin: 0;
+    color: var(--page-muted);
+    font-size: 14.5px;
+    line-height: 1.7;
+    max-width: 860px;
+  }
+  .intro .source-note {
+    margin-top: 14px;
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 12.5px;
+    color: #2c7a7a;
+    background: #e9fbfb;
+    border: 1px solid #c9f1f1;
+    padding: 7px 12px;
+    border-radius: 999px;
+  }
+  .intro .source-note b {
+    font-weight: 700;
+  }
+  .intro .flag-note {
+    margin-top: 10px;
+    display: block;
+    font-size: 12.5px;
+    color: #a35b1f;
+    background: #fff5ea;
+    border: 1px solid #ffdfb8;
+    padding: 8px 12px;
+    border-radius: 10px;
+    max-width: 860px;
+  }
+  code.inline {
+    background: #f1f3f5;
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-family: ui-monospace, 'SFMono-Regular', monospace;
+    font-size: 12px;
+  }
+
+  /* ---------- control panel ---------- */
+  .panel {
+    margin-top: 28px;
+    background: var(--page-card);
+    border: 1px solid var(--page-border);
+    border-radius: 16px;
+    padding: 18px 22px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px 32px;
+    align-items: flex-start;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  }
+  .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .control-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #9aa1ac;
+  }
+  .segmented {
+    display: inline-flex;
+    background: #f1f3f5;
+    border-radius: 10px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .segmented button {
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 7px 14px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--page-muted);
+    border-radius: 8px;
+    cursor: pointer;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease,
+      box-shadow 0.15s ease;
+    white-space: nowrap;
+  }
+  .segmented button[aria-pressed='true'] {
+    background: #fff;
+    color: var(--page-ink);
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.12);
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--page-ink);
+    cursor: pointer;
+    user-select: none;
+    padding-top: 2px;
+  }
+  .toggle-row input {
+    accent-color: var(--accent);
+    width: 15px;
+    height: 15px;
+  }
+
+  .width-controls {
+    flex: 1 1 360px;
+    min-width: 300px;
+  }
+  .preset-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .preset-row button {
+    appearance: none;
+    border: 1px solid var(--page-border);
+    background: #fff;
+    padding: 6px 11px;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--page-ink);
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition:
+      border-color 0.15s ease,
+      color 0.15s ease;
+  }
+  .preset-row button:hover {
+    border-color: var(--accent);
+    color: #1a7a7a;
+  }
+  .preset-row button[aria-pressed='true'] {
+    border-color: var(--accent);
+    background: #eafafa;
+    color: #1a7a7a;
+  }
+
+  .slider-track {
+    position: relative;
+    padding-top: 14px;
+  }
+  .slider-track input[type='range'] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 5px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #dfe3e7, #dfe3e7);
+    outline: none;
+    margin: 0;
+  }
+  .slider-track input[type='range']::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 1px var(--accent);
+    cursor: grab;
+    margin-top: -6.5px;
+  }
+  .slider-track input[type='range']::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 1px var(--accent);
+    cursor: grab;
+  }
+  .bp-flag {
+    position: absolute;
+    top: -4px;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+  }
+  .bp-flag .line {
+    width: 1.5px;
+    height: 18px;
+    background: #ff7a45;
+    opacity: 0.8;
+  }
+  .bp-flag .tag {
+    position: absolute;
+    top: -18px;
+    font-size: 9.5px;
+    font-weight: 700;
+    color: #b14e1f;
+    background: #fff1e8;
+    border: 1px solid #ffd9be;
+    padding: 1px 5px;
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+  .width-readout {
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--page-muted);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .width-readout .num {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--page-ink);
+  }
+  .bp-pill {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #e9fbfb;
+    color: #1a7a7a;
+  }
+
+  /* ---------- device frame ---------- */
+  .frame-shell {
+    margin-top: 26px;
+    display: flex;
+    justify-content: center;
+  }
+  .frame-chrome {
+    background: #1c2027;
+    border-radius: 16px;
+    padding: 10px 10px 0;
+    box-shadow: 0 20px 45px -18px rgba(16, 24, 40, 0.35);
+    max-width: 100%;
+  }
+  .frame-chrome-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 6px 10px;
+  }
+  .frame-chrome-bar .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #3a4150;
+  }
+  .frame-chrome-bar .url {
+    margin-left: 10px;
+    background: #2a303b;
+    color: #8b93a1;
+    font-size: 11.5px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+  }
+
+  .frame {
+    position: relative;
+    width: 1440px;
+    max-width: 100%;
+    height: 720px;
+    background: var(--color-background-bottom);
+    overflow: hidden;
+    border-radius: 8px 8px 0 0;
+    container-type: inline-size;
+    container-name: home-demo;
+  }
+
+  .page-body {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    background: var(--color-background-white);
+  }
+
+  /* ---------- announcement banner ---------- */
+  .xt-banner {
+    position: absolute;
+    inset: 0 0 auto 0;
+    z-index: 60;
+    width: 100%;
+    background: var(--color-light);
+    border-bottom: 1px solid rgba(238, 190, 17, 0.2);
+    display: none;
+  }
+  .xt-banner.is-visible {
+    display: block;
+  }
+  .xt-banner-inner {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: rgba(238, 190, 17, 0.1);
+    padding: 12px 20px;
+    font-size: 14px;
+    color: var(--color-text-primary);
+  }
+  .xt-banner-msg {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .xt-banner-msg svg {
+    flex-shrink: 0;
+    color: var(--color-status-warning-default);
+  }
+  .xt-banner-msg span {
+    font-family: 'Open Sans', sans-serif;
+    font-weight: 500;
+    line-height: 1.6;
+  }
+  .xt-banner-close {
+    flex-shrink: 0;
+    appearance: none;
+    border: none;
+    background: none;
+    border-radius: 999px;
+    padding: 4px;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    display: inline-flex;
+  }
+  .xt-banner-close:hover {
+    background: rgba(238, 190, 17, 0.2);
+  }
+
+  /* ---------- header replica (Header.tsx / HamburgerMenu.tsx / UserDropdown.tsx) ---------- */
+  .xt-header {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 70px;
+    background: var(--color-light);
+    z-index: 50;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    transition: top 0.15s ease;
+  }
+  .xt-header-inner {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .xt-left {
+    display: flex;
+    align-items: center;
+    gap: 40px;
+    min-width: 0;
+  }
+  .xt-logo {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .xt-logo svg {
+    display: block;
+    height: 26px;
+    width: auto;
+  }
+
+  .xt-nav {
+    display: none;
+    align-items: center;
+    gap: 28px;
+  }
+  .xt-nav a {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 16px;
+    color: var(--color-text-primary);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .xt-nav a:hover {
+    color: #14807f;
+  }
+
+  .xt-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .xt-right-desktop {
+    display: none;
+    align-items: center;
+    gap: 12px;
+  }
+  .xt-right-mobile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  @container home-demo (min-width: 1024px) {
+    .xt-nav {
+      display: flex;
+    }
+    .xt-right-desktop {
+      display: flex;
+    }
+    .xt-right-mobile {
+      display: none;
+    }
+    .xt-right {
+      margin-right: 80px;
+    }
+  }
+
+  .btn {
+    appearance: none;
+    border: none;
+    font: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 500;
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+  .btn-primary {
+    background: var(--color-brand-500);
+    color: var(--color-text-primary);
+  }
+  .btn-primary:hover {
+    background: #24b6b6;
+  }
+  .btn-outline {
+    background: var(--color-background-white);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-background-border);
+  }
+  .btn-outline:hover {
+    background: var(--color-background-bottom);
+  }
+  .btn-outline-brand {
+    background: var(--color-background-white);
+    color: var(--color-brand-500);
+    border: 1px solid var(--color-brand-500);
+  }
+  .btn-outline-brand:hover {
+    background: #eafafa;
+  }
+
+  .icon-btn {
+    appearance: none;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    color: var(--color-text-primary);
+  }
+  .icon-btn:hover {
+    background: var(--color-background-bottom);
+  }
+
+  .avatar {
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: #06403f;
+    background: linear-gradient(135deg, #9bf1ef, #4fdad6);
+    flex-shrink: 0;
+  }
+  .avatar-32 {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+  .avatar-56 {
+    width: 56px;
+    height: 56px;
+    font-size: 20px;
+  }
+  .avatar-64 {
+    width: 64px;
+    height: 64px;
+    font-size: 22px;
+  }
+
+  .dropdown-trigger {
+    appearance: none;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px;
+  }
+  .dropdown-trigger .chev {
+    font-size: 19px;
+    line-height: 1;
+    color: var(--color-text-primary);
+    transition: transform 0.15s ease;
+  }
+  .dropdown-trigger[aria-expanded='true'] .chev {
+    transform: rotate(180deg);
+  }
+
+  .dropdown-anchor {
+    position: relative;
+  }
+  .dropdown-panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    width: 360px;
+    max-height: 440px;
+    overflow-y: auto;
+    background: var(--color-background-white);
+    border: 1px solid var(--color-background-border);
+    border-radius: 16px;
+    box-shadow: 0 12px 32px -8px rgba(16, 24, 40, 0.22);
+    z-index: 60;
+    transform-origin: top right;
+    opacity: 0;
+    transform: scale(0.96);
+    pointer-events: none;
+    transition:
+      opacity 0.12s ease,
+      transform 0.12s ease;
+  }
+  .dropdown-panel.is-open {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+  }
+
+  .dd-profile {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 24px 24px 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+  }
+  .dd-profile .name {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dd-share {
+    padding: 0 24px 20px;
+  }
+  .dd-share .btn {
+    width: 100%;
+    height: 56px;
+    border-radius: 16px;
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .dd-divider {
+    height: 1px;
+    background: var(--color-background-bottom);
+  }
+  .dd-items {
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+  }
+  .dd-item {
+    appearance: none;
+    border: none;
+    background: none;
+    text-align: left;
+    font: inherit;
+    font-size: 17px;
+    color: var(--color-text-primary);
+    padding: 12px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .dd-item:hover {
+    background: var(--color-background-bottom);
+  }
+  .dd-item.is-danger {
+    color: var(--color-status-error-default);
+  }
+
+  .sheet-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(2px);
+    z-index: 70;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .sheet-overlay.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .sheet-panel {
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: 100%;
+    background: var(--color-background-white);
+    z-index: 71;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+    box-shadow: -8px 0 24px -12px rgba(16, 24, 40, 0.2);
+  }
+  .sheet-panel.is-open {
+    transform: translateX(0);
+  }
+
+  .sheet-close {
+    margin-left: auto;
+    appearance: none;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--color-brand-900);
+    padding: 4px;
+    display: inline-flex;
+  }
+
+  .sheet-nav-links {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    font-size: 22px;
+  }
+  .sheet-nav-links a {
+    color: var(--color-text-primary);
+    text-decoration: none;
+  }
+  .sheet-nav-bottom {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding-bottom: 8px;
+  }
+  .sheet-nav-bottom .btn {
+    width: 160px;
+  }
+
+  .sheet-user-profile {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 0 24px;
+    text-align: left;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+  }
+  .sheet-user-profile .name {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+  .sheet-user-profile .subtitle {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--color-text-tertiary);
+  }
+  .sheet-user-share {
+    margin-bottom: 24px;
+  }
+  .sheet-user-share .btn {
+    width: 100%;
+    height: 48px;
+    border-radius: 16px;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .sheet-user-nav {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+  }
+  .sheet-user-nav button {
+    appearance: none;
+    border: none;
+    background: none;
+    text-align: left;
+    font: inherit;
+    padding: 14px 0;
+    font-size: 17px;
+    color: var(--color-text-primary);
+    cursor: pointer;
+  }
+  .sheet-user-bottom {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 16px;
+  }
+  .sheet-user-bottom button {
+    appearance: none;
+    border: none;
+    background: none;
+    text-align: left;
+    font: inherit;
+    padding: 14px 0;
+    font-size: 17px;
+    color: var(--color-text-primary);
+    cursor: pointer;
+  }
+  .sheet-user-bottom button.is-danger {
+    color: var(--color-status-error-default);
+  }
+
+  .share-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(40, 40, 40, 0.7);
+    z-index: 90;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .share-overlay.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .share-dialog {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: calc(100% - 32px);
+    max-width: 440px;
+    z-index: 91;
+    border-radius: 24px;
+    border: 1px solid var(--color-background-border);
+    background: var(--color-light);
+    box-shadow: 0 25px 60px -15px rgba(16, 24, 40, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -48%) scale(0.97);
+    transition:
+      opacity 0.16s ease,
+      transform 0.16s ease;
+  }
+  .share-dialog.is-open {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  .share-dialog-inner {
+    padding: 24px 24px 32px;
+  }
+  .share-dialog-head {
+    position: relative;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .share-dialog-title {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    line-height: 1;
+    text-align: center;
+  }
+  .share-dialog-close {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 26px;
+    line-height: 1;
+    color: var(--color-text-primary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+  }
+
+  .share-profile-card {
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-radius: 20px;
+    border: 1px solid var(--color-background-border);
+    background: var(--color-light);
+    padding: 18px 20px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  }
+  .share-profile-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+  .share-profile-subtitle {
+    margin-top: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+  }
+
+  .share-link-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+  }
+  .share-link-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 14px;
+    border: 1px solid var(--color-background-border);
+    background: var(--color-light);
+    padding: 10px 14px;
+  }
+  .share-link-row input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    font: inherit;
+    font-size: 13px;
+    color: var(--color-text-primary);
+    outline: none;
+  }
+  .share-copy-btn {
+    height: 38px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+
+  /* ============================================================
+     HOME PAGE CONTENT — src/app/(landing)/page.tsx
+     ============================================================ */
+  .xt-main {
+    padding-top: 70px;
+    transition: padding-top 0.15s ease;
+  }
+
+  img.px-img {
+    display: block;
+    max-width: 100%;
+  }
+
+  /* ---- hero ---- */
+  .hero {
+    position: relative;
+    display: flex;
+    height: 532px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-image: url('home-page-assets/home-page-hero-sm.svg');
+    background-size: cover;
+    background-repeat: no-repeat;
+    padding: 0 16px;
+    text-align: center;
+    overflow: hidden;
+  }
+  .hero h1 {
+    margin: 0 0 32px;
+    font-size: 30px;
+    line-height: 1.5;
+    font-weight: 700;
+    color: var(--color-navy);
+  }
+  .hero h1 br.hide-md {
+    display: inline;
+  }
+  .hero p {
+    margin: 0;
+    max-width: 516px;
+    font-size: 18px;
+    color: var(--color-text-primary);
+  }
+  .hero .hero-photo {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: -10;
+    width: 1800px;
+    max-width: none;
+    height: 100%;
+    object-fit: cover;
+    object-position: top;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  @container home-demo (min-width: 640px) {
+    .hero {
+      background-image: url('home-page-assets/home-page-hero-md.svg');
+      padding: 0;
+    }
+    .hero h1 {
+      font-size: 36px;
+    }
+    .hero p {
+      font-size: 20px;
+    }
+  }
+  @container home-demo (min-width: 768px) {
+    .hero h1 {
+      font-size: 48px;
+    }
+    .hero h1 br.hide-md {
+      display: none;
+    }
+    .hero p {
+      font-size: 24px;
+    }
+  }
+  @container home-demo (min-width: 1024px) {
+    .hero {
+      height: 640px;
+      background-image: none;
+    }
+    .hero p {
+      max-width: 630px;
+    }
+    .hero .hero-photo {
+      display: block;
+    }
+  }
+
+  /* ---- feature strip ---- */
+  .features-section {
+    display: flex;
+    padding: 40px 0;
+  }
+  .features-outer {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .features-outer h2 {
+    margin: 0 0 30px;
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--color-navy);
+  }
+  .features-outer h2 br {
+    display: inline;
+  }
+  .features-list {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: wrap;
+    justify-content: center;
+    font-weight: 700;
+    color: var(--color-text-primary);
+  }
+  .feature-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+  .feature-item img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+  }
+  .feature-item p {
+    margin: 0;
+    margin-left: 20px;
+    font-size: 16px;
+    letter-spacing: 0.085em;
+  }
+  @container home-demo (min-width: 640px) {
+    .features-section {
+      padding: 80px 0;
+    }
+  }
+  @container home-demo (min-width: 768px) {
+    .features-outer h2 {
+      margin-bottom: 70px;
+      font-size: 24px;
+    }
+    .features-outer h2 br {
+      display: none;
+    }
+    .features-list {
+      flex-direction: row;
+    }
+    .feature-item {
+      margin-bottom: 50px;
+      width: 50%;
+      flex-direction: column;
+    }
+    .feature-item img {
+      width: 70px;
+      height: 70px;
+    }
+    .feature-item p {
+      margin-left: 0;
+      margin-top: 32px;
+      font-size: 20px;
+    }
+  }
+  @container home-demo (min-width: 1280px) {
+    .feature-item {
+      width: auto;
+      margin-left: 60px;
+      margin-right: 60px;
+    }
+  }
+
+  /* ---- two-column intro rows ---- */
+  .intro-rows {
+    position: relative;
+  }
+  .intro-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 32px;
+    margin-bottom: 50px;
+    padding: 0 16px;
+  }
+  .intro-row.reverse {
+    flex-direction: column-reverse;
+    margin-top: 28px;
+  }
+  .intro-row img {
+    width: 420px;
+    max-width: 100%;
+    flex-shrink: 0;
+  }
+  .intro-row .intro-copy {
+    margin: auto;
+    display: flex;
+    flex-direction: column;
+    padding: 30px 0;
+  }
+  .intro-row .intro-copy h2 {
+    margin: 0 0 20px;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-navy);
+  }
+  .intro-row .intro-copy p {
+    margin: 0;
+    font-size: 16px;
+    color: var(--color-text-primary);
+  }
+  @container home-demo (min-width: 550px) {
+    .intro-row {
+      padding: 0 56px;
+    }
+  }
+  @container home-demo (min-width: 768px) {
+    .intro-row {
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 32px;
+      padding: 0 32px;
+      margin-bottom: 130px;
+    }
+    .intro-row.reverse {
+      flex-direction: row;
+    }
+    .intro-row img {
+      width: 40%;
+    }
+    .intro-row .intro-copy {
+      margin: 0;
+      flex: 1;
+      padding: 0;
+    }
+  }
+  @container home-demo (min-width: 1280px) {
+    .intro-rows {
+      margin: 28px auto 0;
+      width: 930px;
+    }
+    .intro-row {
+      padding: 0;
+      gap: 0;
+    }
+    .intro-row:first-child .intro-copy {
+      padding-left: 62px;
+    }
+    .intro-row.reverse .intro-copy {
+      padding-right: 62px;
+    }
+  }
+
+  /* ---- 9000+ XChangers navy section ---- */
+  .chips-section {
+    display: flex;
+    width: 100%;
+    height: auto;
+    background: var(--color-navy);
+    padding: 48px 0;
+  }
+  .chips-inner {
+    position: relative;
+    margin: auto;
+    display: flex;
+    height: auto;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 24px;
+  }
+  .chips-heading {
+    margin: 15px 0;
+    width: auto;
+    text-align: center;
+    font-size: 24px;
+    line-height: 1.25;
+    font-weight: 700;
+    color: var(--color-light);
+  }
+  .chips-heading p {
+    margin: 0;
+  }
+  .chip {
+    display: flex;
+    height: 53px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 8px 0;
+    border-radius: 124px;
+  }
+  .chip p {
+    margin: 0;
+    font-weight: 700;
+    color: var(--color-text-primary);
+  }
+  .chip-1 {
+    width: 162px;
+    background: var(--color-jade-default);
+  }
+  .chip-2 {
+    width: 256px;
+    background: var(--color-bd-blue);
+  }
+  .chip-3 {
+    width: 132px;
+    background: var(--color-marketing-orange);
+  }
+  .chip-4 {
+    width: 223px;
+    background: var(--color-lime-default);
+  }
+  .chip-5 {
+    width: 157px;
+    background: var(--color-pink-default);
+  }
+  .chip-6 {
+    width: 256px;
+    background: var(--color-blue-default);
+  }
+  .chip-7 {
+    width: 203px;
+    background: var(--color-purple-active);
+  }
+  @container home-demo (min-width: 768px) {
+    .chips-section {
+      height: 425px;
+      padding: 0;
+    }
+    .chips-inner {
+      height: 100%;
+      width: 767px;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    .chips-heading {
+      margin: 40px 0 15px;
+      text-align: left;
+      font-size: 36px;
+      line-height: 58px;
+    }
+    .chips-heading br.hide-md {
+      display: none;
+    }
+    .chip-1 {
+      margin: 15px 0 15px 50px;
+      margin-top: 40px;
+    }
+    .chip-2 {
+      margin: 15px 0;
+    }
+    .chip-3 {
+      margin: 15px 30px;
+    }
+    .chip-4 {
+      margin: 15px 0;
+    }
+    .chip-5 {
+      margin: 15px 0 50px;
+    }
+    .chip-6 {
+      margin: 15px 30px 50px;
+    }
+    .chip-7 {
+      margin: 15px 0 50px;
+    }
+  }
+  @container home-demo (min-width: 1280px) {
+    .chips-section {
+      height: 557px;
+    }
+    .chips-inner {
+      width: 1280px;
+    }
+    .chips-heading {
+      position: absolute;
+      top: 176px;
+      left: 60px;
+      margin: 0;
+    }
+    .chip {
+      position: absolute;
+      margin: 0 !important;
+    }
+    .chip-1 {
+      right: 176px;
+      top: 83px;
+      height: 100px;
+      width: 227px;
+    }
+    .chip-2 {
+      right: 475px;
+      top: 236px;
+      height: 100px;
+      width: 300px;
+    }
+    .chip-3 {
+      right: 107px;
+      top: 386px;
+      height: 99px;
+      width: 214px;
+    }
+    .chip-4 {
+      left: 521px;
+      top: 86px;
+      height: 100px;
+      width: 292px;
+    }
+    .chip-5 {
+      left: 250px;
+      top: 386px;
+      height: 100px;
+      width: 224px;
+    }
+    .chip-6 {
+      right: 404px;
+      top: 386px;
+      height: 100px;
+      width: 313px;
+    }
+    .chip-7 {
+      right: 144px;
+      top: 236px;
+      height: 99px;
+      width: 270px;
+    }
+  }
+
+  /* ---- become mentor / mentee ---- */
+  .role-section {
+    display: flex;
+    height: auto;
+    width: 100%;
+    padding: 40px 0;
+  }
+  .role-inner {
+    margin: auto;
+    display: flex;
+    height: auto;
+    width: 100%;
+    max-width: 1280px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 16px;
+  }
+  .role-block {
+    display: flex;
+  }
+  .role-block + .role-block {
+    margin-top: 40px;
+  }
+  .role-photo {
+    display: none;
+    width: 363px;
+    flex-shrink: 0;
+  }
+  .role-copy h2 {
+    margin: 4px 0 0;
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-navy);
+  }
+  .role-points {
+    display: flex;
+    margin-top: 32px;
+    flex-direction: column;
+  }
+  .role-point {
+    display: flex;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+  .role-point img {
+    margin-left: 16px;
+    flex-shrink: 0;
+  }
+  .role-point .role-point-text {
+    display: flex;
+    flex-direction: column;
+    margin-left: 30px;
+  }
+  .role-point .role-point-text p {
+    margin: 0;
+    font-weight: 500;
+    color: var(--color-text-primary);
+  }
+  @container home-demo (min-width: 768px) {
+    .role-section {
+      height: 780px;
+      padding: 0;
+    }
+    .role-inner {
+      height: 100%;
+      padding: 0 32px;
+    }
+    .role-block + .role-block {
+      margin-top: 116px;
+    }
+    .role-points {
+      flex-direction: row;
+      align-items: center;
+      margin-top: 65px;
+    }
+    .role-point {
+      margin-bottom: 0;
+      flex-direction: column;
+    }
+    .role-point + .role-point {
+      margin-left: 80px;
+    }
+    .role-point img {
+      margin-left: 0;
+    }
+    .role-point .role-point-text {
+      margin-left: 0;
+      align-items: center;
+      margin-top: 34px;
+    }
+  }
+  @container home-demo (min-width: 1280px) {
+    .role-section {
+      height: 820px;
+    }
+    .role-inner {
+      padding: 0;
+    }
+    .role-photo {
+      display: block;
+    }
+    .role-copy {
+      margin-left: 78px;
+    }
+    .role-copy h2 {
+      text-align: left;
+    }
+    .role-point {
+      width: 180px;
+    }
+  }
+
+  /* ---- testimonial carousel ---- */
+  .testimonial-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-background-bottom-secondary);
+  }
+  .testimonial-inner {
+    width: 100%;
+    max-width: 600px;
+    padding: 40px 0;
+  }
+  @container home-demo (min-width: 1024px) {
+    .testimonial-inner {
+      max-width: 1152px;
+    }
+  }
+  .carousel {
+    position: relative;
+    overflow: hidden;
+  }
+  .carousel-track {
+    display: flex;
+    transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .carousel-slide {
+    flex-shrink: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  @container home-demo (min-width: 1024px) {
+    .carousel-slide {
+      width: 50%;
+    }
+  }
+  .testimonial-card {
+    display: flex;
+    margin-bottom: 16px;
+    flex-direction: column;
+    gap: 40px;
+    padding: 32px 24px;
+  }
+  .testimonial-avatar-block {
+    display: flex;
+    flex-shrink: 0;
+    flex-basis: 160px;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .testimonial-avatar {
+    position: relative;
+    width: 112px;
+    height: 112px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--color-background-bottom);
+  }
+  .testimonial-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .testimonial-name {
+    margin: 0;
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-logo-blue);
+  }
+  .testimonial-text {
+    margin: 0;
+    min-width: 0;
+    flex: 1;
+    font-size: 15px;
+    line-height: 1.8;
+    color: var(--color-text-primary);
+  }
+  @container home-demo (min-width: 640px) {
+    .testimonial-card {
+      flex-direction: row;
+    }
+  }
+  .carousel-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .carousel-pagination button {
+    appearance: none;
+    border: none;
+    padding: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-background-border);
+    cursor: pointer;
+  }
+  .carousel-pagination button.is-active {
+    background: var(--color-brand-500);
+    width: 22px;
+    border-radius: 4px;
+  }
+
+  /* ---- footer ---- */
+  .xt-footer {
+    display: flex;
+    width: 100%;
+    background: var(--color-dark);
+    padding-bottom: 50px;
+  }
+  .xt-footer-inner {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+    padding: 50px 20px 0;
+  }
+  .xt-footer-logo img {
+    height: 39px;
+    width: 146px;
+    object-fit: contain;
+  }
+  .xt-footer-cols {
+    margin-top: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+  .xt-footer-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .xt-footer-col p.col-title {
+    margin: 0 0 20px;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.085em;
+    color: var(--color-text-white);
+  }
+  .xt-footer-links {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .xt-footer-links a {
+    color: var(--color-text-white);
+    text-decoration: none;
+    font-weight: 400;
+  }
+  .xt-footer-links a:hover {
+    text-decoration: underline;
+  }
+  @container home-demo (min-width: 768px) {
+    .xt-footer-inner {
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 50px 70px 0;
+    }
+    .xt-footer-cols {
+      margin-top: 0;
+      flex-direction: row;
+      gap: 0 64px;
+    }
+    .xt-footer-col,
+    .xt-footer-col p.col-title,
+    .xt-footer-links,
+    .xt-footer-logo {
+      align-items: flex-start;
+    }
+  }
+
+  /* ---------- source map ---------- */
+  .source-map {
+    margin-top: 26px;
+    background: var(--page-card);
+    border: 1px solid var(--page-border);
+    border-radius: 16px;
+    padding: 20px 22px;
+  }
+  .source-map h2 {
+    font-size: 14px;
+    margin: 0 0 12px;
+    font-weight: 700;
+  }
+  .source-map table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .source-map td {
+    padding: 7px 10px;
+    border-top: 1px solid var(--page-border);
+    vertical-align: top;
+  }
+  .source-map tr:first-child td {
+    border-top: none;
+  }
+  .source-map code {
+    font-family: ui-monospace, 'SFMono-Regular', monospace;
+    font-size: 12px;
+    background: #f1f3f5;
+    padding: 2px 6px;
+    border-radius: 5px;
+    color: #14807f;
+    white-space: nowrap;
+  }
+  .source-map .desc {
+    color: var(--page-muted);
+  }
+
+  @media (max-width: 640px) {
+    .panel {
+      flex-direction: column;
+    }
+    .width-controls {
+      width: 100%;
+    }
+  }
+</style>
+
+<div class="wrap">
+  <div class="intro">
+    <h1>首頁還原預覽 — Header ／ Banner ／ 內容區塊 ／ 見證輪播 ／ Footer</h1>
+    <p>
+      依專案現有原始碼精確還原
+      <code class="inline">src/app/(landing)/page.tsx</code>
+      目前上線的首頁：AnnouncementBanner、Header（沿用既有
+      <code class="inline">.lavish/header_rwd.html</code>
+      還原成果）、主視覺、特色列、雙欄圖文介紹、9000+ XChangers 職能色塊、成為
+      Mentor／Mentee 區塊、學員見證輪播、Footer，並套用
+      <code class="inline">src/styles/tokens.css</code> 的實際顏色 token。
+      下方裝置外框以 CSS container query 模擬
+      <code class="inline">sm/md/lg/xl</code>
+      （640 / 768 / 1024 /
+      1280px）斷點，可拖曳寬度滑桿即時觀察版型切換，也可切換公告列與登入狀態測試互動。
+    </p>
+    <div class="source-note">
+      🎨 <b>設計來源：</b>本專案（X-Talent-Frontend）既有的 Tailwind 設計 token
+      與首頁 / Header / Footer 元件原始碼，確保與正式環境視覺一致。
+    </div>
+    <span class="flag-note">
+      ⚠️ <b>發現一處可能的既有問題：</b>Hero 主視覺圖片（<code class="inline"
+        >HomePageHeroImgUrl</code
+      >）使用 Next.js <code class="inline">fill</code>，但其父層
+      <code class="inline">&lt;section&gt;</code> 並未加上
+      <code class="inline">relative</code
+      >，理論上該圖片會以最近的「已定位」祖先元素為基準定位，而非這個 532/640px
+      高的 hero
+      區塊本身。此還原為求可用性已在圖片外層補上定位錨點，但建議回頭確認正式站上這張圖是否真的如預期被裁切在
+      hero 區塊內。
+    </span>
+  </div>
+
+  <div class="panel">
+    <div class="control-group">
+      <div class="control-label">公告列</div>
+      <label class="toggle-row">
+        <input type="checkbox" id="banner-toggle" checked />
+        顯示 AnnouncementBanner
+      </label>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">登入狀態</div>
+      <div class="segmented" id="auth-toggle">
+        <button data-auth="guest" aria-pressed="true">未登入</button>
+        <button data-auth="mentee" aria-pressed="false">學員已登入</button>
+        <button data-auth="mentor" aria-pressed="false">導師已登入</button>
+      </div>
+    </div>
+
+    <div class="width-controls">
+      <div class="control-label">裝置寬度（模擬 RWD 斷點）</div>
+      <div class="preset-row" id="preset-row">
+        <button data-w="1440" aria-pressed="true">🖥️ Desktop 1440</button>
+        <button data-w="1024">💻 Laptop 1024</button>
+        <button data-w="834">📱 Tablet 834</button>
+        <button data-w="390">📱 Mobile 390</button>
+      </div>
+      <div class="slider-track">
+        <div class="bp-flag" style="left: 21%">
+          <span class="tag">sm 640</span><span class="line"></span>
+        </div>
+        <div class="bp-flag" style="left: 35%">
+          <span class="tag">md 768</span><span class="line"></span>
+        </div>
+        <div class="bp-flag" style="left: 55%">
+          <span class="tag">lg 1024</span><span class="line"></span>
+        </div>
+        <div class="bp-flag" style="left: 75%">
+          <span class="tag">xl 1280</span><span class="line"></span>
+        </div>
+        <input
+          type="range"
+          id="width-slider"
+          min="320"
+          max="1600"
+          value="1440"
+          step="1"
+        />
+      </div>
+      <div class="width-readout">
+        容器寬度 <span class="num" id="width-num">1440px</span>
+        <span class="bp-pill" id="bp-pill">xl 版型</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-shell">
+    <div class="frame-chrome">
+      <div class="frame-chrome-bar">
+        <span class="dot" style="background: #ff6159"></span>
+        <span class="dot" style="background: #ffbd2e"></span>
+        <span class="dot" style="background: #28ca41"></span>
+        <span class="url">x-talent.example.com/</span>
+      </div>
+      <div class="frame" id="frame">
+        <!-- AnnouncementBanner.tsx -->
+        <div class="xt-banner is-visible" id="xt-banner">
+          <div class="xt-banner-inner">
+            <div class="xt-banner-msg">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M12 9v4"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                />
+                <path
+                  d="M12 17h.01"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                />
+              </svg>
+              <span
+                >系統將於本週六 02:00–04:00
+                進行例行性維護，期間服務可能短暫中斷，造成不便敬請見諒。</span
+              >
+            </div>
+            <button
+              type="button"
+              class="xt-banner-close"
+              id="banner-close"
+              aria-label="關閉公告"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M6 6l12 12M18 6 6 18"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Header.tsx -->
+        <header class="xt-header" id="xt-header">
+          <div class="xt-header-inner">
+            <div class="xt-left">
+              <a
+                href="#"
+                class="xt-logo"
+                aria-label="Go to homepage"
+                onclick="return false;"
+              >
+                <svg
+                  width="151"
+                  height="30"
+                  viewBox="0 0 151 30"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <g clip-path="url(#clip0_home_18)">
+                    <path
+                      d="M74.6777 23.754C74.3889 23.7619 74.1041 23.6915 73.8603 23.552C73.6165 23.4126 73.4249 23.2105 73.3104 22.972L69.8298 16.5585L66.4985 22.9272C66.3727 23.1849 66.1625 23.402 65.8961 23.5497C65.6296 23.6974 65.3194 23.7687 65.0067 23.754C64.7237 23.7426 64.4491 23.6635 64.2115 23.5248C63.9738 23.386 63.7818 23.1928 63.655 22.9649C63.5283 22.7371 63.4716 22.483 63.4907 22.2289C63.5098 21.9748 63.604 21.7298 63.7637 21.5194L67.7664 14.3686L64.3107 7.66469C64.1759 7.43812 64.1071 7.18454 64.111 6.92764C64.1149 6.67073 64.1912 6.4189 64.3327 6.19569C64.4743 5.97248 64.6766 5.78518 64.9205 5.65128C65.1645 5.51739 65.4422 5.44126 65.7278 5.43006C66.0489 5.40701 66.3692 5.483 66.6358 5.64549C66.9025 5.80797 67.0995 6.04724 67.1945 6.3239L70.0038 12.268L73.0121 6.39094C73.1192 6.10269 73.3271 5.85333 73.6049 5.68013C73.8828 5.50694 74.2156 5.41923 74.5535 5.43006C75.8214 5.43006 76.418 6.54738 75.7716 7.66469L72.1419 14.3686L76.0451 21.5418C76.1667 21.765 76.2265 22.0114 76.2194 22.2599C76.2123 22.5084 76.1384 22.7516 76.0041 22.9688C75.8698 23.1861 75.6791 23.371 75.4481 23.5077C75.2172 23.6444 74.9529 23.729 74.6777 23.754V23.754Z"
+                      fill="#003C5A"
+                    />
+                    <path
+                      d="M78.4068 16.4022C78.4034 16.2663 78.4307 16.1313 78.4869 16.0052C78.5432 15.8791 78.6274 15.7646 78.7343 15.6685C78.8412 15.5724 78.9685 15.4968 79.1088 15.4463C79.2491 15.3957 79.3994 15.3711 79.5505 15.3742H83.4784C83.6445 15.3522 83.8138 15.3627 83.9749 15.4049C84.1361 15.447 84.2852 15.5198 84.4122 15.6184C84.5392 15.717 84.6412 15.8391 84.711 15.9763C84.7809 16.1134 84.8169 16.2625 84.8169 16.4133C84.8169 16.5642 84.7809 16.7132 84.711 16.8504C84.6412 16.9876 84.5392 17.1096 84.4122 17.2082C84.2852 17.3068 84.1361 17.3796 83.9749 17.4217C83.8138 17.4639 83.6445 17.4744 83.4784 17.4524H79.5007C79.2018 17.4408 78.9198 17.3243 78.7153 17.128C78.5108 16.9316 78.4 16.671 78.4068 16.4022V16.4022Z"
+                      fill="#003C5A"
+                    />
+                    <path
+                      d="M92.4038 22.3241C92.3546 22.6812 92.162 23.0098 91.8621 23.248C91.5621 23.4863 91.1756 23.6178 90.7753 23.6178C90.375 23.6178 89.9886 23.4863 89.6887 23.248C89.3888 23.0098 89.1961 22.6812 89.147 22.3241V7.93306H85.7908C85.6103 7.9361 85.4309 7.9064 85.2635 7.84571C85.0961 7.78501 84.944 7.69455 84.8163 7.57981C84.6887 7.46507 84.5881 7.32842 84.5206 7.17793C84.453 7.02745 84.4199 6.86628 84.4233 6.70404C84.4198 6.54281 84.4529 6.3826 84.5207 6.23329C84.5885 6.08398 84.6897 5.94869 84.8177 5.83571C84.9457 5.72272 85.098 5.63441 85.2653 5.57622C85.4326 5.51803 85.6115 5.4912 85.7908 5.49732H95.7352C95.9124 5.49428 96.0884 5.5234 96.2528 5.58297C96.4172 5.64254 96.5666 5.73129 96.6919 5.84396C96.8173 5.95662 96.9161 6.0909 96.9824 6.23867C97.0486 6.38645 97.081 6.54474 97.0777 6.70404C97.0845 6.86519 97.0545 7.02589 96.9898 7.1763C96.9251 7.3267 96.8269 7.46358 96.7012 7.57865C96.5755 7.69373 96.425 7.78456 96.2589 7.8455C96.0928 7.90644 95.9146 7.93622 95.7352 7.93306H92.4038V22.3241Z"
+                      fill="#003C5A"
+                    />
+                    <path
+                      d="M106.276 14.4583V22.4136C106.283 22.5894 106.25 22.7646 106.179 22.9286C106.108 23.0925 106 23.2418 105.863 23.3672C105.726 23.4926 105.562 23.5917 105.38 23.6583C105.199 23.7248 105.005 23.7575 104.809 23.7543C104.611 23.7606 104.414 23.7302 104.23 23.665C104.046 23.5998 103.879 23.5014 103.739 23.3756C103.599 23.2498 103.489 23.0994 103.417 22.934C103.344 22.7685 103.311 22.5914 103.318 22.4136C102.948 22.8971 102.449 23.2894 101.867 23.5549C101.285 23.8203 100.638 23.9504 99.9861 23.9332C97.5 23.9332 96.1576 22.4583 96.1576 19.8885C96.1576 17.3186 97.9475 15.6203 101.403 15.6203H103.168V14.1678C103.222 13.8809 103.202 13.5868 103.111 13.3077C103.02 13.0285 102.859 12.7717 102.641 12.5565C102.423 12.3414 102.154 12.1735 101.853 12.0655C101.553 11.9575 101.229 11.9122 100.906 11.9332C99.9906 12.0269 99.0847 12.1837 98.1962 12.4024C98.0451 12.4085 97.8942 12.3869 97.7527 12.3391C97.6111 12.2912 97.4819 12.2182 97.3727 12.1242C97.2635 12.0302 97.1766 11.9173 97.1173 11.7923C97.058 11.6673 97.0275 11.5327 97.0276 11.3968C97.0235 11.1541 97.1092 10.9171 97.2712 10.723C97.4332 10.5288 97.6623 10.3886 97.9226 10.3242C99.0755 9.96882 100.284 9.78025 101.503 9.76557C102.181 9.72452 102.86 9.82125 103.491 10.0486C104.122 10.276 104.688 10.6283 105.146 11.0791C105.605 11.5299 105.944 12.0678 106.14 12.6528C106.336 13.2378 106.382 13.855 106.276 14.4583ZM103.168 21.1622V17.3857H102C99.9613 17.3857 99.0912 18.0784 99.0912 19.7991C99.0912 21.5197 99.6879 22.0337 101.006 22.0337C101.424 22.0363 101.838 21.9508 102.214 21.7839C102.589 21.6171 102.916 21.3736 103.168 21.0728V21.1622Z"
+                      fill="#003C5A"
+                    />
+                    <path
+                      d="M111.323 4.00025C111.528 3.99417 111.733 4.02568 111.924 4.09286C112.116 4.16005 112.29 4.26151 112.437 4.39108C112.583 4.52066 112.699 4.67565 112.777 4.84663C112.854 5.01761 112.893 5.20101 112.889 5.38572V22.369C112.889 22.7423 112.724 23.1005 112.43 23.3645C112.137 23.6285 111.738 23.7768 111.323 23.7768C110.907 23.7768 110.509 23.6285 110.215 23.3645C109.922 23.1005 109.757 22.7423 109.757 22.369V5.38572C109.753 5.20101 109.792 5.01761 109.869 4.84663C109.947 4.67565 110.063 4.52066 110.209 4.39108C110.356 4.26151 110.53 4.16005 110.721 4.09286C110.913 4.02568 111.117 3.99417 111.323 4.00025Z"
+                      fill="#003C5A"
+                    />
+                    <path
+                      d="M126.041 22.2573C126.037 22.4629 125.969 22.6634 125.847 22.8369C125.724 23.0104 125.55 23.1501 125.345 23.2405C124.268 23.7815 123.047 24.0444 121.814 24.0003C118.085 24.0003 115.848 21.3857 115.848 16.8718C115.848 12.3578 118.011 9.81031 121.342 9.81031C124.673 9.81031 126.19 12.0449 126.19 16.0226C126.19 17.0058 125.668 17.5421 124.624 17.5421H118.93C118.93 20.4025 120.149 21.8997 122.212 21.8997C123.182 21.7847 124.133 21.5671 125.046 21.2516C125.188 21.2506 125.328 21.2769 125.458 21.3286C125.588 21.3804 125.703 21.4564 125.797 21.5516C125.892 21.6469 125.962 21.7591 126.004 21.8808C126.046 22.0025 126.058 22.1308 126.041 22.2573V22.2573ZM118.93 15.8662H123.555C123.555 13.0282 122.834 11.8885 121.441 11.8885C120.049 11.8885 118.98 13.2293 118.93 15.8662Z"
+                      fill="#003C5A"
+                    />
+                    <path
+                      d="M139.739 14.1007V22.3688C139.743 22.5516 139.705 22.7331 139.629 22.9026C139.553 23.072 139.439 23.226 139.295 23.3553C139.151 23.4845 138.98 23.5864 138.792 23.655C138.603 23.7235 138.401 23.7573 138.198 23.7543C137.99 23.7602 137.783 23.729 137.589 23.6623C137.395 23.5956 137.217 23.4948 137.067 23.3659C136.917 23.2369 136.796 23.0823 136.713 22.9112C136.63 22.74 136.585 22.5556 136.582 22.3688V14.4582C136.582 12.827 135.911 11.9554 134.593 11.9554C134.109 11.9721 133.635 12.085 133.205 12.2859C132.775 12.4868 132.4 12.7708 132.107 13.1174V22.3688C132.107 22.7422 131.942 23.1003 131.648 23.3643C131.354 23.6283 130.956 23.7766 130.541 23.7766C130.125 23.7766 129.727 23.6283 129.433 23.3643C129.139 23.1003 128.975 22.7422 128.975 22.3688V11.1956C128.975 10.84 129.132 10.499 129.411 10.2476C129.691 9.99612 130.071 9.85482 130.466 9.85482C130.862 9.85482 131.241 9.99612 131.521 10.2476C131.801 10.499 131.958 10.84 131.958 11.1956V11.5532C132.442 11.0063 133.054 10.5609 133.749 10.2483C134.445 9.93568 135.208 9.76329 135.985 9.74312C138.272 9.81016 139.739 11.4191 139.739 14.1007Z"
+                      fill="#003C5A"
+                    />
+                    <path
+                      d="M150.28 22.3686C150.274 22.6053 150.196 22.836 150.056 23.0365C149.916 23.237 149.719 23.4 149.485 23.5083C148.79 23.8227 148.025 23.9909 147.247 23.9999C146.756 24.0203 146.265 23.9434 145.811 23.7745C145.356 23.6057 144.948 23.3491 144.616 23.0229C144.284 22.6967 144.036 22.3089 143.889 21.8869C143.742 21.4649 143.7 21.0191 143.767 20.5809V12.0222H142.722C142.583 12.0194 142.446 11.9915 142.319 11.9403C142.192 11.889 142.077 11.8154 141.982 11.7238C141.887 11.6322 141.814 11.5244 141.766 11.4068C141.718 11.2892 141.697 11.1641 141.703 11.039C141.693 10.9132 141.712 10.7868 141.758 10.6678C141.805 10.5488 141.878 10.4397 141.974 10.3474C142.07 10.2551 142.186 10.1815 142.314 10.1314C142.443 10.0812 142.582 10.0555 142.722 10.0558H143.767V7.55295C143.767 7.17957 143.932 6.82151 144.225 6.55749C144.519 6.29348 144.917 6.14518 145.333 6.14518C145.748 6.14518 146.147 6.29348 146.44 6.55749C146.734 6.82151 146.899 7.17957 146.899 7.55295V10.1675H149.236C149.526 10.1675 149.804 10.2711 150.01 10.4555C150.215 10.6399 150.33 10.89 150.33 11.1507C150.33 11.4115 150.215 11.6616 150.01 11.846C149.804 12.0304 149.526 12.134 149.236 12.134H146.899V20.6926C146.899 21.5641 147.198 21.8993 147.894 21.8993C148.59 21.8993 148.888 21.5642 149.336 21.5642C149.578 21.5639 149.811 21.6471 149.987 21.7968C150.162 21.9466 150.267 22.1512 150.28 22.3686Z"
+                      fill="#003C5A"
+                    />
+                  </g>
+                  <path
+                    d="M41.8876 16.4878C44.5017 16.4878 46.6209 14.4925 46.6209 12.0313C46.6209 9.56997 44.5017 7.57471 41.8876 7.57471C39.2735 7.57471 37.1543 9.56997 37.1543 12.0313C37.1543 14.4925 39.2735 16.4878 41.8876 16.4878Z"
+                    fill="#003C5A"
+                  />
+                  <path
+                    d="M41.9651 0C38.4686 0 35.2971 1.32445 32.9895 3.46929L32.7532 3.69177C31.7379 4.65122 31.7379 6.2051 32.7569 7.16454C33.7759 8.12399 35.43 8.12399 36.449 7.16107L36.6669 6.9525C38.1954 5.53766 40.2556 4.80765 42.4118 4.92584C46.2 5.13094 49.2792 8.02318 49.5081 11.5898C49.7739 15.7161 46.2849 19.1506 41.9614 19.1506C39.9676 19.1506 38.0883 18.4241 36.6632 17.1101L22.035 3.46929C19.7274 1.32445 16.5595 0 13.0594 0C5.81911 0 -0.0181448 5.66976 0.291994 12.5527C0.565212 18.6709 5.77481 23.6698 12.2656 24.0417C12.8563 24.0765 13.4397 24.0695 14.0083 24.0313C15.5626 23.9235 16.7035 22.6165 16.4414 21.1703C16.2125 19.9119 15.0125 19.0255 13.6944 19.1298C13.484 19.1472 13.2735 19.1541 13.0594 19.1541C8.7359 19.1541 5.24683 15.7161 5.51267 11.5933C5.74158 8.02666 8.82082 5.13789 12.6089 4.92932C14.7688 4.81113 16.8254 5.54114 18.3539 6.95597L32.9895 20.6002C35.3968 22.8389 38.7418 24.1808 42.4229 24.0626C49.1832 23.8401 54.6439 18.591 54.7435 12.2225C54.8506 5.48552 49.0872 0 41.9651 0Z"
+                    fill="#003C5A"
+                  />
+                  <path
+                    d="M27.514 21.0904C26.8826 21.0904 26.2845 21.2085 25.7344 21.4171L17.512 13.6755C17.7262 13.168 17.8443 12.6118 17.8443 12.0313C17.8443 9.57007 15.725 7.57471 13.111 7.57471C10.497 7.57471 8.37769 9.57007 8.37769 12.0313C8.37769 14.4924 10.497 16.4878 13.111 16.4878C13.7276 16.4878 14.3146 16.3766 14.8537 16.1749L23.0982 23.9374C22.8915 24.4345 22.7807 24.9768 22.7807 25.5434C22.7807 28.0046 24.9 30 27.514 30C30.128 30 32.2473 28.0046 32.2473 25.5434C32.2473 23.0857 30.128 21.0904 27.514 21.0904ZM28.9576 25.5469C28.9576 25.5504 28.9576 25.5504 28.9576 25.5539C28.9539 26.3012 28.3078 26.9061 27.514 26.9061C27.5103 26.9061 27.5103 26.9061 27.5066 26.9061C26.7128 26.9026 26.0704 26.2943 26.0704 25.5469C26.0704 25.4635 26.0815 25.3835 26.0962 25.307C26.0999 25.2862 26.1036 25.2653 26.111 25.2445C26.1295 25.1715 26.1516 25.0985 26.1811 25.0324C26.1885 25.015 26.1996 24.9977 26.207 24.9803C26.2218 24.949 26.2365 24.9177 26.255 24.8864C26.2587 24.8829 26.2624 24.8795 26.2661 24.8795C26.3879 24.6778 26.5651 24.5075 26.7756 24.3893C26.7756 24.3858 26.7793 24.3858 26.783 24.3824C26.8236 24.3615 26.8642 24.3406 26.9048 24.3233C26.9343 24.3094 26.9676 24.2989 26.9971 24.285C27.0562 24.2642 27.1189 24.2468 27.1817 24.2294C27.2076 24.2224 27.2297 24.219 27.2556 24.2155C27.3368 24.2016 27.4217 24.1912 27.5103 24.1912C28.3115 24.1877 28.9576 24.796 28.9576 25.5469Z"
+                    fill="#003C5A"
+                  />
+                  <defs>
+                    <clipPath id="clip0_home_18">
+                      <rect
+                        width="86.7403"
+                        height="20"
+                        fill="white"
+                        transform="translate(63.5399 4)"
+                      />
+                    </clipPath>
+                  </defs>
+                </svg>
+              </a>
+
+              <nav class="xt-nav">
+                <a href="#" onclick="return false;">尋找導師</a>
+                <a href="#" class="role-label" onclick="return false;"
+                  >成為導師</a
+                >
+                <a href="#" onclick="return false;">關於 X-Talent</a>
+                <a href="#" onclick="return false;">提供回饋</a>
+              </nav>
+            </div>
+
+            <div class="xt-right">
+              <div class="xt-right-desktop">
+                <div class="auth-guest-only" style="display: contents">
+                  <a href="#" onclick="return false;"
+                    ><button class="btn btn-outline-brand">註冊</button></a
+                  >
+                  <a href="#" onclick="return false;"
+                    ><button class="btn btn-primary">登入</button></a
+                  >
+                </div>
+                <div
+                  class="auth-loggedin-only dropdown-anchor"
+                  style="display: none"
+                  id="desktop-dropdown-anchor"
+                >
+                  <button
+                    type="button"
+                    class="dropdown-trigger"
+                    id="dropdown-trigger"
+                    aria-label="開啟用戶選單"
+                    aria-expanded="false"
+                  >
+                    <span class="avatar avatar-32" id="dd-avatar-32">王</span>
+                    <span class="chev" aria-hidden="true">▾</span>
+                  </button>
+
+                  <div class="dropdown-panel" id="dropdown-panel" role="menu">
+                    <button type="button" class="dd-profile">
+                      <span class="avatar avatar-56" id="dd-avatar-56">王</span>
+                      <span class="name" id="dd-name">王小明</span>
+                    </button>
+                    <div class="dd-share">
+                      <button
+                        type="button"
+                        class="btn btn-outline"
+                        id="dd-share-btn"
+                      >
+                        分享個人頁面
+                      </button>
+                    </div>
+                    <div class="dd-divider"></div>
+                    <div class="dd-items">
+                      <button
+                        type="button"
+                        class="dd-item role-label"
+                        role="menuitem"
+                      >
+                        成為導師
+                      </button>
+                      <button type="button" class="dd-item" role="menuitem">
+                        我的預約
+                      </button>
+                      <button type="button" class="dd-item" role="menuitem">
+                        登出
+                      </button>
+                      <button
+                        type="button"
+                        class="dd-item is-danger delete-account-item"
+                        role="menuitem"
+                        hidden
+                      >
+                        刪除帳號
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="xt-right-mobile">
+                <button
+                  type="button"
+                  class="icon-btn auth-loggedin-only"
+                  style="display: none"
+                  id="mobile-avatar-trigger"
+                  aria-label="開啟用戶選單"
+                >
+                  <span class="avatar avatar-32" id="mobile-avatar-32">王</span>
+                </button>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  id="hamburger-trigger"
+                  aria-label="開啟導航選單"
+                >
+                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                    <path
+                      d="M3 6H19M3 11H19M3 16H19"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <!-- Sheets are portalled as siblings of the header, not nested inside it —
+             matching Radix's real DOM behavior. -->
+        <div class="sheet-overlay" id="nav-sheet-overlay"></div>
+        <div
+          class="sheet-panel"
+          id="nav-sheet-panel"
+          role="dialog"
+          aria-label="導航選單"
+        >
+          <button
+            type="button"
+            class="sheet-close"
+            id="nav-sheet-close"
+            aria-label="關閉導航選單"
+          >
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+              <path
+                d="M6 6L20 20M20 6L6 20"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+          <div class="sheet-nav-links">
+            <a href="#" onclick="return false;">尋找導師</a>
+            <a href="#" class="role-label" onclick="return false;">成為導師</a>
+            <a href="#" onclick="return false;">關於 X-Talent</a>
+            <a href="#" onclick="return false;">提供回饋</a>
+          </div>
+          <div
+            class="sheet-nav-bottom auth-guest-only"
+            data-display-when-guest="flex"
+          >
+            <a href="#" onclick="return false;"
+              ><button class="btn btn-primary">登入</button></a
+            >
+            <a href="#" onclick="return false;"
+              ><button class="btn btn-outline-brand">註冊</button></a
+            >
+          </div>
+        </div>
+
+        <div class="sheet-overlay" id="user-sheet-overlay"></div>
+        <div
+          class="sheet-panel"
+          id="user-sheet-panel"
+          role="dialog"
+          aria-label="用戶選單"
+        >
+          <button
+            type="button"
+            class="sheet-close"
+            id="user-sheet-close"
+            aria-label="關閉用戶選單"
+          >
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+              <path
+                d="M6 6L20 20M20 6L6 20"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+          <button type="button" class="sheet-user-profile">
+            <span class="avatar avatar-56" id="sheet-avatar-56">王</span>
+            <span>
+              <span class="name" id="sheet-user-name" style="display: block"
+                >王小明</span
+              >
+              <span class="subtitle" id="sheet-user-subtitle"
+                >產品經理 at ABC 科技</span
+              >
+            </span>
+          </button>
+          <div class="sheet-user-share">
+            <button type="button" class="btn btn-outline" id="sheet-share-btn">
+              分享個人頁面
+            </button>
+          </div>
+          <div class="dd-divider"></div>
+          <nav class="sheet-user-nav">
+            <button type="button" class="role-label">成為導師</button>
+            <button type="button">我的預約</button>
+          </nav>
+          <div class="sheet-user-bottom">
+            <button type="button">登出</button>
+            <button type="button" class="is-danger delete-account-item" hidden>
+              刪除帳號
+            </button>
+          </div>
+        </div>
+
+        <!-- ShareProfileDialog.tsx -->
+        <div class="share-overlay" id="share-overlay"></div>
+        <div
+          class="share-dialog"
+          id="share-dialog"
+          role="dialog"
+          aria-label="分享個人頁面"
+        >
+          <div class="share-dialog-inner">
+            <div class="share-dialog-head">
+              <div class="share-dialog-title">分享個人頁面</div>
+              <button
+                type="button"
+                class="share-dialog-close"
+                id="share-dialog-close"
+                aria-label="關閉"
+              >
+                ×
+              </button>
+            </div>
+            <div class="share-profile-card">
+              <span class="avatar avatar-64" id="share-avatar">王</span>
+              <div style="min-width: 0">
+                <div class="share-profile-name" id="share-name">王小明</div>
+                <div class="share-profile-subtitle" id="share-subtitle">
+                  產品經理 at ABC 科技
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="share-link-label" for="share-link-input"
+                >個人頁面連結</label
+              >
+              <div class="share-link-row">
+                <input type="text" id="share-link-input" readonly value="" />
+                <button
+                  type="button"
+                  class="btn btn-outline share-copy-btn"
+                  id="share-copy-btn"
+                >
+                  複製
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= page content (page.tsx) ================= -->
+        <div class="page-body" id="page-body">
+          <main class="xt-main" id="xt-main">
+            <!-- hero -->
+            <section class="hero">
+              <h1>交流讓<br class="hide-md" />改變發生</h1>
+              <p>
+                Find your Mentor/Mentee to build up connections, break up
+                limits.
+              </p>
+              <img
+                class="hero-photo"
+                src="home-page-assets/home-page-hero.webp"
+                alt="X-Talent 平台主視覺：專業工作者交流情境"
+              />
+            </section>
+
+            <!-- feature strip -->
+            <section class="features-section">
+              <div class="features-outer">
+                <h2>透過 X-Talent 創造你<br />的職涯可能性</h2>
+                <div class="features-list">
+                  <div class="feature-item">
+                    <img src="home-page-assets/landingPage_icon_7.svg" alt="" />
+                    <p>產業洞見線上分享</p>
+                  </div>
+                  <div class="feature-item">
+                    <img src="home-page-assets/landingPage_icon_8.svg" alt="" />
+                    <p>職涯心法座談會</p>
+                  </div>
+                  <div class="feature-item">
+                    <img src="home-page-assets/landingPage_icon_9.png" alt="" />
+                    <p>填寫問卷尋找導師</p>
+                  </div>
+                  <div class="feature-item">
+                    <img
+                      src="home-page-assets/landingPage_icon_10.svg"
+                      alt=""
+                    />
+                    <p>一對一深度交流</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- two-column intros -->
+            <section class="intro-rows">
+              <div class="intro-row">
+                <img
+                  class="px-img"
+                  src="home-page-assets/landingPage_4.webp"
+                  alt="Mentor 與 Mentee 線上交流情境"
+                />
+                <div class="intro-copy">
+                  <h2>和 X-Talent 一起拓展職涯的選擇性</h2>
+                  <p>
+                    聚集多種專業職能的資深前輩，分享產業洞見、職涯心法，協助建構更多元的角度與觀點。不論你是剛開始、還未開始，一起陪你把職涯走得更遠更寬闊。
+                  </p>
+                </div>
+              </div>
+              <div class="intro-row reverse">
+                <div class="intro-copy">
+                  <h2>透過 X-Talent 展開深度交流</h2>
+                  <p>
+                    透過 X-Talent 立即安排與 Mentor
+                    一對一的深度交流，讓你在尋求職涯建議、建立人脈上得到最直接的回饋。
+                  </p>
+                </div>
+                <img
+                  class="px-img"
+                  src="home-page-assets/landingPage_5.webp"
+                  alt="Mentor 一對一指導 Mentee 情境"
+                />
+              </div>
+            </section>
+
+            <!-- 9000+ XChangers -->
+            <section class="chips-section">
+              <div class="chips-inner">
+                <div class="chips-heading">
+                  <p>9000+ XChangers</p>
+                  <p>for you to <br class="hide-md" />connect with</p>
+                </div>
+                <div class="chip chip-1"><p>UI/UX Design</p></div>
+                <div class="chip chip-2"><p>Business Development</p></div>
+                <div class="chip chip-3"><p>Marketing</p></div>
+                <div class="chip chip-4"><p>Product Management</p></div>
+                <div class="chip chip-5"><p>Data Science</p></div>
+                <div class="chip chip-6"><p>Software Development</p></div>
+                <div class="chip chip-7"><p>MarTech</p></div>
+              </div>
+            </section>
+
+            <!-- become mentor / mentee -->
+            <section class="role-section">
+              <div class="role-inner">
+                <div class="role-block">
+                  <img
+                    class="role-photo"
+                    src="home-page-assets/landingPage_6.webp"
+                    alt="成為 Mentor 主視覺"
+                  />
+                  <div class="role-copy">
+                    <h2>成為 Mentor，你將可以‧‧‧</h2>
+                    <div class="role-points">
+                      <div class="role-point">
+                        <img
+                          src="home-page-assets/landingPage_icon_1.svg"
+                          alt=""
+                        />
+                        <div class="role-point-text">
+                          <p>分享經驗</p>
+                          <p>讓知識傳承延續</p>
+                        </div>
+                      </div>
+                      <div class="role-point">
+                        <img
+                          src="home-page-assets/landingPage_icon_2.svg"
+                          alt=""
+                        />
+                        <div class="role-point-text">
+                          <p>建立專屬人脈網絡</p>
+                        </div>
+                      </div>
+                      <div class="role-point">
+                        <img
+                          src="home-page-assets/landingPage_icon_3.svg"
+                          alt=""
+                        />
+                        <div class="role-point-text">
+                          <p>增加社會影響力</p>
+                          <p>與他人共創美好價值</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="role-block">
+                  <img
+                    class="role-photo"
+                    src="home-page-assets/landingPage_7.webp"
+                    alt="成為 Mentee 主視覺"
+                  />
+                  <div class="role-copy">
+                    <h2>成為 Mentee，你將可以‧‧‧</h2>
+                    <div class="role-points">
+                      <div class="role-point">
+                        <img
+                          src="home-page-assets/landingPage_icon_4.svg"
+                          alt=""
+                        />
+                        <div class="role-point-text">
+                          <p>探索產業與</p>
+                          <p>職涯發展方向</p>
+                        </div>
+                      </div>
+                      <div class="role-point">
+                        <img
+                          src="home-page-assets/landingPage_icon_5.svg"
+                          alt=""
+                        />
+                        <div class="role-point-text">
+                          <p>與經驗豐富的 Mentor</p>
+                          <p>互動獲取第一手職涯秘笈</p>
+                        </div>
+                      </div>
+                      <div class="role-point">
+                        <img
+                          src="home-page-assets/landingPage_icon_6.svg"
+                          alt=""
+                        />
+                        <div class="role-point-text">
+                          <p>學習更多學校沒教的事</p>
+                          <p>讓你快速成長</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- testimonial carousel (HomePageSlider.tsx, Swiper reproduction) -->
+            <section class="testimonial-section">
+              <div class="testimonial-inner">
+                <div class="carousel" id="carousel">
+                  <div class="carousel-track" id="carousel-track">
+                    <!-- slides injected by JS from sliderList data -->
+                  </div>
+                </div>
+                <div class="carousel-pagination" id="carousel-pagination"></div>
+              </div>
+            </section>
+          </main>
+
+          <!-- Footer.tsx -->
+          <footer class="xt-footer">
+            <div class="xt-footer-inner">
+              <div class="xt-footer-logo">
+                <img src="home-page-assets/logo.png" alt="logo" />
+              </div>
+              <div class="xt-footer-cols">
+                <div class="xt-footer-col">
+                  <p class="col-title">關於</p>
+                  <div class="xt-footer-links">
+                    <a href="#" onclick="return false;">隱私權政策</a>
+                    <a href="#" onclick="return false;">服務條款</a>
+                  </div>
+                </div>
+                <div class="xt-footer-col">
+                  <p class="col-title">相關連結</p>
+                  <div class="xt-footer-links">
+                    <a href="#" onclick="return false;">XChange Website</a>
+                    <a href="#" onclick="return false;">X-IMPACT Podcast</a>
+                    <a href="#" onclick="return false;">XChange Medium</a>
+                  </div>
+                </div>
+                <div class="xt-footer-col">
+                  <p class="col-title">XChange 社群連結</p>
+                  <div class="xt-footer-links">
+                    <a href="#" onclick="return false;">Facebook 粉絲專頁</a>
+                    <a href="#" onclick="return false;">Instagram 商業檔案</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </footer>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="source-map">
+    <h2>元件對應（可回原始碼比對）</h2>
+    <table>
+      <tr>
+        <td><code>src/app/(landing)/page.tsx</code></td>
+        <td class="desc">
+          Hero、特色列（featureData）、雙欄圖文介紹、9000+ XChangers
+          職能色塊（ROLE_CHIPS）、成為 Mentor／Mentee
+          區塊、見證輪播容器的結構與文案來源。
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/app/(landing)/data.ts</code></td>
+        <td class="desc">featureData：特色列 4 個項目的圖示與文字。</td>
+      </tr>
+      <tr>
+        <td>
+          <code>HomePageSlider.tsx</code> /
+          <code>HomePageSliderClient.tsx</code>
+        </td>
+        <td class="desc">
+          真實實作用 Swiper（<code>loop</code>、<code>autoplay 5000ms</code
+          >、<code>pagination</code>，<code>width &gt; lg(1024)</code> 時
+          <code>slidesPerView=2</code> 否則 1）。此還原以純 JS
+          手刻相同行為，因此以下輪播為忠實的行為重現而非原生 Swiper 元件。
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/components/landing/data.ts</code></td>
+        <td class="desc">sliderList：6 則學員見證（頭像／姓名／內容）。</td>
+      </tr>
+      <tr>
+        <td>
+          <code>Header.tsx</code> / <code>HamburgerMenu.tsx</code> /
+          <code>UserDropdown.tsx</code>
+        </td>
+        <td class="desc">
+          沿用既有 <code>.lavish/header_rwd.html</code> 還原成果：70px
+          固定列、桌機導覽列 /
+          漢堡選單切換（&gt;=1024px）、已登入下拉選單／行動版
+          Sheet、分享個人頁面 Dialog。
+        </td>
+      </tr>
+      <tr>
+        <td><code>AnnouncementBanner.tsx</code></td>
+        <td class="desc">
+          可關閉的頂部公告列，關閉後透過 <code>--banner-height</code> 變數把
+          Header 與內容區塊往上收（此還原以 JS 直接調整 <code>top</code> /
+          <code>padding-top</code> 模擬相同機制）。
+        </td>
+      </tr>
+      <tr>
+        <td><code>Footer.tsx</code></td>
+        <td class="desc">
+          Logo ＋「關於」「相關連結」「XChange 社群連結」三欄連結，&lt;768px
+          置中堆疊，&gt;=768px 水平排列。
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/styles/tokens.css</code></td>
+        <td class="desc">
+          navy <code>#172E59</code>、logoBlue
+          <code>#003C5A</code
+          >、jade/bdBlue/marketingOrange/lime/pink/blue/purple-active
+          等職能色塊顏色、brand-500 <code>#2CCBCB</code> 等實際 token 來源。
+        </td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<script>
+  /* ================= header state (Header.tsx / HamburgerMenu.tsx / UserDropdown.tsx) ================= */
+  const state = {
+    auth: 'guest',
+    sheet: null,
+    dropdownOpen: false,
+    bannerVisible: true,
+  };
+
+  const USERS = {
+    mentee: {
+      name: '王小明',
+      subtitle: '產品經理 at ABC 科技',
+      isMentor: false,
+      initial: '王',
+      id: 'u_8841',
+    },
+    mentor: {
+      name: '陳雅婷',
+      subtitle: '資深後端工程師 at XYZ 新創',
+      isMentor: true,
+      initial: '陳',
+      id: 'u_2290',
+    },
+  };
+
+  const frame = document.getElementById('frame');
+  const dropdownAnchor = document.getElementById('desktop-dropdown-anchor');
+  const dropdownTrigger = document.getElementById('dropdown-trigger');
+  const dropdownPanel = document.getElementById('dropdown-panel');
+  const mobileAvatarTrigger = document.getElementById('mobile-avatar-trigger');
+  const hamburgerTrigger = document.getElementById('hamburger-trigger');
+
+  const navOverlay = document.getElementById('nav-sheet-overlay');
+  const navPanel = document.getElementById('nav-sheet-panel');
+  const userOverlay = document.getElementById('user-sheet-overlay');
+  const userPanel = document.getElementById('user-sheet-panel');
+
+  function updateAuthUI() {
+    const loggedIn = state.auth !== 'guest';
+    const user = loggedIn ? USERS[state.auth] : null;
+
+    document.querySelectorAll('.auth-guest-only').forEach((el) => {
+      el.style.display = loggedIn
+        ? 'none'
+        : el.dataset.displayWhenGuest || 'contents';
+    });
+    document.querySelectorAll('.auth-loggedin-only').forEach((el) => {
+      const isDropdownAnchor = el === dropdownAnchor;
+      el.style.display = loggedIn
+        ? isDropdownAnchor
+          ? 'block'
+          : 'inline-flex'
+        : 'none';
+    });
+
+    if (user) {
+      document.querySelectorAll('.role-label').forEach((el) => {
+        el.textContent = user.isMentor ? '我的導師頁面' : '成為導師';
+      });
+      document
+        .querySelectorAll(
+          '#dd-avatar-32, #dd-avatar-56, #mobile-avatar-32, #sheet-avatar-56'
+        )
+        .forEach((el) => {
+          el.textContent = user.initial;
+        });
+      const ddName = document.getElementById('dd-name');
+      if (ddName) ddName.textContent = user.name;
+      const sheetName = document.getElementById('sheet-user-name');
+      if (sheetName) sheetName.textContent = user.name;
+      const sheetSubtitle = document.getElementById('sheet-user-subtitle');
+      if (sheetSubtitle) sheetSubtitle.textContent = user.subtitle;
+    }
+
+    document.querySelectorAll('.delete-account-item').forEach((el) => {
+      el.hidden = true;
+    });
+
+    if (!loggedIn) {
+      closeDropdown();
+      closeSheet('user');
+      closeShareDialog();
+    }
+  }
+
+  document.getElementById('auth-toggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-auth]');
+    if (!btn) return;
+    state.auth = btn.dataset.auth;
+    document
+      .querySelectorAll('#auth-toggle button')
+      .forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+    updateAuthUI();
+  });
+
+  /* ---------- desktop dropdown ---------- */
+  function openDropdown() {
+    state.dropdownOpen = true;
+    dropdownPanel.classList.add('is-open');
+    dropdownTrigger.setAttribute('aria-expanded', 'true');
+  }
+  function closeDropdown() {
+    state.dropdownOpen = false;
+    dropdownPanel.classList.remove('is-open');
+    dropdownTrigger.setAttribute('aria-expanded', 'false');
+  }
+  dropdownTrigger.addEventListener('click', () => {
+    state.dropdownOpen ? closeDropdown() : openDropdown();
+  });
+  dropdownPanel.addEventListener('click', (e) => {
+    if (e.target.closest('.dd-item, .dd-profile')) closeDropdown();
+  });
+  document.addEventListener('click', (e) => {
+    if (state.dropdownOpen && !dropdownAnchor.contains(e.target))
+      closeDropdown();
+  });
+
+  /* ---------- mobile sheets ---------- */
+  function openSheet(which) {
+    closeDropdown();
+    state.sheet = which;
+    const overlay = which === 'nav' ? navOverlay : userOverlay;
+    const panel = which === 'nav' ? navPanel : userPanel;
+    overlay.classList.add('is-open');
+    panel.classList.add('is-open');
+  }
+  function closeSheet(which) {
+    if (which && state.sheet !== which) return;
+    const overlay = (which || state.sheet) === 'nav' ? navOverlay : userOverlay;
+    const panel = (which || state.sheet) === 'nav' ? navPanel : userPanel;
+    overlay.classList.remove('is-open');
+    panel.classList.remove('is-open');
+    state.sheet = null;
+  }
+  function closeAnySheet() {
+    closeSheet('nav');
+    closeSheet('user');
+  }
+
+  hamburgerTrigger.addEventListener('click', () => openSheet('nav'));
+  mobileAvatarTrigger.addEventListener('click', () => openSheet('user'));
+  document
+    .getElementById('nav-sheet-close')
+    .addEventListener('click', () => closeSheet('nav'));
+  document
+    .getElementById('user-sheet-close')
+    .addEventListener('click', () => closeSheet('user'));
+  navOverlay.addEventListener('click', () => closeSheet('nav'));
+  userOverlay.addEventListener('click', () => closeSheet('user'));
+  navPanel
+    .querySelectorAll('a, button')
+    .forEach((el) => el.addEventListener('click', () => closeSheet('nav')));
+  userPanel.querySelectorAll('button').forEach((el) => {
+    if (el.closest('.sheet-user-share')) return;
+    el.addEventListener('click', () => closeSheet('user'));
+  });
+
+  /* ---------- share profile dialog ---------- */
+  const shareOverlay = document.getElementById('share-overlay');
+  const shareDialog = document.getElementById('share-dialog');
+  const shareAvatar = document.getElementById('share-avatar');
+  const shareName = document.getElementById('share-name');
+  const shareSubtitle = document.getElementById('share-subtitle');
+  const shareLinkInput = document.getElementById('share-link-input');
+  const shareCopyBtn = document.getElementById('share-copy-btn');
+  let shareSource = null;
+  let shareCopyResetTimer = null;
+
+  function openShareDialog(source) {
+    if (state.auth === 'guest') return;
+    const user = USERS[state.auth];
+    shareAvatar.textContent = user.initial;
+    shareName.textContent = user.name;
+    shareSubtitle.textContent = user.subtitle;
+    shareLinkInput.value = `https://x-talent.example.com/profile/${user.id}`;
+    shareCopyBtn.textContent = '複製';
+    shareSource = source;
+    shareOverlay.classList.add('is-open');
+    shareDialog.classList.add('is-open');
+  }
+  function closeShareDialog() {
+    shareOverlay.classList.remove('is-open');
+    shareDialog.classList.remove('is-open');
+    if (shareSource === 'mobile') closeSheet('user');
+    shareSource = null;
+  }
+
+  document.getElementById('dd-share-btn').addEventListener('click', () => {
+    closeDropdown();
+    setTimeout(() => openShareDialog('desktop'), 60);
+  });
+  document.getElementById('sheet-share-btn').addEventListener('click', () => {
+    openShareDialog('mobile');
+  });
+  shareCopyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(shareLinkInput.value);
+    } catch {
+      shareLinkInput.select();
+    }
+    shareCopyBtn.textContent = '已複製';
+    clearTimeout(shareCopyResetTimer);
+    shareCopyResetTimer = setTimeout(() => {
+      shareCopyBtn.textContent = '複製';
+    }, 1500);
+  });
+  document
+    .getElementById('share-dialog-close')
+    .addEventListener('click', closeShareDialog);
+  shareOverlay.addEventListener('click', closeShareDialog);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (shareDialog.classList.contains('is-open')) closeShareDialog();
+    else if (state.sheet) closeAnySheet();
+    else if (state.dropdownOpen) closeDropdown();
+  });
+
+  /* ================= AnnouncementBanner.tsx ================= */
+  const banner = document.getElementById('xt-banner');
+  const bannerToggle = document.getElementById('banner-toggle');
+  const bannerClose = document.getElementById('banner-close');
+  const xtHeader = document.getElementById('xt-header');
+  const xtMain = document.getElementById('xt-main');
+  const BANNER_HEIGHT = 49;
+
+  function updateBanner() {
+    banner.classList.toggle('is-visible', state.bannerVisible);
+    const h = state.bannerVisible ? BANNER_HEIGHT : 0;
+    xtHeader.style.top = h + 'px';
+    xtMain.style.paddingTop = 70 + h + 'px';
+    bannerToggle.checked = state.bannerVisible;
+  }
+  bannerToggle.addEventListener('change', (e) => {
+    state.bannerVisible = e.target.checked;
+    updateBanner();
+  });
+  bannerClose.addEventListener('click', () => {
+    state.bannerVisible = false;
+    updateBanner();
+  });
+
+  /* ================= testimonial carousel (HomePageSlider.tsx reproduction) ================= */
+  const sliderList = [
+    {
+      name: 'Carolina',
+      avatar: 'home-page-assets/slider_carolina.webp',
+      text: '剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過 XChange 與兩位厲害的前輩進行 coffee chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange 帶來的互聯網連結！',
+    },
+    {
+      name: 'Pin-Hua Chen',
+      avatar: 'home-page-assets/slider_pin_hua.webp',
+      text: '剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過 XChange 與兩位厲害的前輩進行 coffee chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange 帶來的互聯網連結！',
+    },
+    {
+      name: 'Carolina',
+      avatar: 'home-page-assets/slider_carolina.webp',
+      text: '剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過 XChange 與兩位厲害的前輩進行 coffee chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange 帶來的互聯網連結！',
+    },
+    {
+      name: 'Pin-Hua Chen',
+      avatar: 'home-page-assets/slider_pin_hua.webp',
+      text: '剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過 XChange 與兩位厲害的前輩進行 coffee chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange 帶來的互聯網連結！',
+    },
+    {
+      name: 'Carolina',
+      avatar: 'home-page-assets/slider_carolina.webp',
+      text: '剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過 XChange 與兩位厲害的前輩進行 coffee chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange 帶來的互聯網連結！',
+    },
+    {
+      name: 'Pin-Hua Chen',
+      avatar: 'home-page-assets/slider_pin_hua.webp',
+      text: '剛畢業時，曾有一段碰壁期，不只履歷被無聲卡，連冷郵件也毫無回音，後來透過 XChange 與兩位厲害的前輩進行 coffee chat，不僅打開我對於職涯的想像，也重拾求職的動力，最後更獲得履歷內推的機會！謝謝XChange 帶來的互聯網連結！',
+    },
+  ];
+
+  const track = document.getElementById('carousel-track');
+  const pagination = document.getElementById('carousel-pagination');
+  const carousel = document.getElementById('carousel');
+
+  track.innerHTML = sliderList
+    .map(
+      (s, i) => `
+    <div class="carousel-slide" data-index="${i}">
+      <div class="testimonial-card">
+        <div class="testimonial-avatar-block">
+          <div class="testimonial-avatar">
+            <img src="${s.avatar}" alt="avatar_${s.name}" />
+          </div>
+          <p class="testimonial-name">${s.name}</p>
+        </div>
+        <p class="testimonial-text">${s.text}</p>
+      </div>
+    </div>`
+    )
+    .join('');
+
+  pagination.innerHTML = sliderList
+    .map(
+      (_, i) =>
+        `<button type="button" data-dot="${i}" aria-label="第 ${i + 1} 則見證"></button>`
+    )
+    .join('');
+
+  let slideIndex = 0;
+  let slidesPerView = 1;
+  let autoplayTimer = null;
+
+  function slidesPerViewFor(width) {
+    return width > 1024 ? 2 : 1;
+  }
+
+  function renderCarousel() {
+    const pct = (100 / slidesPerView) * slideIndex;
+    track.style.transform = `translateX(-${pct}%)`;
+    pagination.querySelectorAll('button').forEach((b, i) => {
+      b.classList.toggle('is-active', i === slideIndex % sliderList.length);
+    });
+  }
+
+  function goTo(i) {
+    const max = sliderList.length - slidesPerView;
+    slideIndex =
+      ((i % sliderList.length) + sliderList.length) % sliderList.length;
+    if (slideIndex > max) slideIndex = 0;
+    renderCarousel();
+  }
+
+  function nextSlide() {
+    goTo(slideIndex + 1);
+  }
+
+  function restartAutoplay() {
+    clearInterval(autoplayTimer);
+    autoplayTimer = setInterval(nextSlide, 5000);
+  }
+
+  pagination.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-dot]');
+    if (!btn) return;
+    goTo(Number(btn.dataset.dot));
+  });
+
+  function setSlidesPerView(width) {
+    const next = slidesPerViewFor(width);
+    if (next === slidesPerView) return;
+    slidesPerView = next;
+    slideIndex = 0;
+    renderCarousel();
+  }
+
+  restartAutoplay();
+
+  /* ---------- width control ---------- */
+  const slider = document.getElementById('width-slider');
+  const widthNum = document.getElementById('width-num');
+  const bpPill = document.getElementById('bp-pill');
+  const presetRow = document.getElementById('preset-row');
+  const MIN_W = 320,
+    MAX_W = 1600;
+
+  function bpLabel(px) {
+    if (px >= 1280) return 'xl 版型（1280px+）';
+    if (px >= 1024) return 'lg 版型（1024–1279px）';
+    if (px >= 768) return 'md 版型（768–1023px）';
+    if (px >= 640) return 'sm 版型（640–767px）';
+    return '預設（&lt;640px）手機版型';
+  }
+
+  function setWidth(px, syncPresets) {
+    px = Math.max(MIN_W, Math.min(MAX_W, px));
+    frame.style.width = px + 'px';
+    slider.value = px;
+    widthNum.textContent = px + 'px';
+    bpPill.innerHTML = bpLabel(px);
+    if (syncPresets !== false) {
+      presetRow
+        .querySelectorAll('button')
+        .forEach((b) =>
+          b.setAttribute('aria-pressed', String(Number(b.dataset.w) === px))
+        );
+    }
+    if (px >= 1024) closeAnySheet();
+    else closeDropdown();
+    closeShareDialog();
+    setSlidesPerView(px);
+  }
+
+  slider.addEventListener('input', () => setWidth(Number(slider.value)));
+  presetRow.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-w]');
+    if (!btn) return;
+    setWidth(Number(btn.dataset.w));
+  });
+
+  setWidth(1440);
+  updateAuthUI();
+  updateBanner();
+  renderCarousel();
+</script>

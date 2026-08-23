@@ -2,9 +2,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getSession, signOut } from 'next-auth/react';
 import { useEffect, useRef, useState } from 'react';
 
-import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { useToast } from '@/components/ui/use-toast';
 import { trackEvent } from '@/lib/analytics';
+import { dispatchDeleteAccountRevalidate } from '@/lib/auth/dispatchDeleteAccountRevalidate';
 import {
   clearPendingDeleteAccountEmail,
   getPendingDeleteAccountEmail,
@@ -111,9 +111,10 @@ export function useGoogleOAuthCallback() {
 
       if (result.status === 'success') {
         trackEvent({ name: 'delete_account_succeeded', feature: 'auth' });
-        if (user?.user_id) {
-          await revalidateProfilePath(String(user.user_id));
-        }
+        // dispatchDeleteAccountRevalidate never throws, so this can't fall
+        // through to the outer catch below (which would show a misleading
+        // "Login failed" toast instead of just continuing to sign out).
+        await dispatchDeleteAccountRevalidate();
         await signOut({ callbackUrl: '/' });
         return;
       }

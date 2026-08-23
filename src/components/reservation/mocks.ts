@@ -24,4 +24,5 @@ export const mockReservation: Reservation = {
   dtend: Math.floor(Date.now() / 1000) + 3 * 24 * 3600 + 3600,
   senderUserId: 'user-mentee-111',
   participantUserId: 'user-mentor-222',
+  version: 0,
 };

@@ -3,10 +3,6 @@ name: E2E
 on:
   schedule:
     - cron: '0 0 * * 0' # Run once a week (Sunday at midnight UTC)
-  workflow_run:
-    workflows: ['Deploy to Vercel (Develop)']
-    types:
-      - completed
   workflow_dispatch:
     inputs:
       base_url:
@@ -18,7 +14,6 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     name: Playwright E2E
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     # Run scheduled or triggered runs against dev environment.
     # Let the run fail loudly so the result is unambiguous in the Actions UI.
     env:
@@ -33,8 +28,6 @@ jobs:
 
       - name: Set up PNPM
         uses: pnpm/action-setup@v6
-        with:
-          version: 9
 
       - name: Set up Node.js
         uses: actions/setup-node@v7

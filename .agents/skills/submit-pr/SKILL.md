@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 Submit changes for PR review, updating issue tracking status and highlighting modifications.
 
-> **⚠️ Execution note**: Shell state (exported variables, sourced functions) does **not** persist across separate command executions — only the working directory does. Any step below that reads `$ORG`, `$TRACKER_REPO`, `$ISSUE_NUMBER`, `$PROJECT_ID`, `$FIELD_ID`, or `$PR_REVIEW_OPTION_ID` MUST re-derive them (re-source `load-config.sh`/`load-config.ps1` and re-parse the branch name) inside that **same** command execution rather than relying on a prior step's `source`. Step 5 below is written as a single self-contained block for exactly this reason — do not split it across multiple command executions.
+> **⚠️ Execution note**: Shell state (exported variables, sourced functions) does **not** persist across separate command executions — only the working directory does. Any step below that reads `$ORG`, `$TRACKER_REPO`, `$ISSUE_NUMBER`, `$PROJECT_ID`, `$FIELD_ID`, or `$PR_REVIEW_OPTION_ID` MUST re-derive them (re-source `load-config.sh`/`load-config.ps1` and re-parse the branch name) inside that **same** command execution rather than relying on a prior step's `source`. Step 6 below is written as a single self-contained block for exactly this reason — do not split it across multiple command executions.
 
 ## Steps
 
@@ -41,7 +41,33 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
        . .agents/scripts/load-config.ps1
        ```
 
-3. **Commit with High-lighted Changes & Push**
+3. **Publish Screenshot Evidence (UI-facing changes only)**
+   - **Mandatory Screenshot Policy**: For any UI-facing change (any visual change on pages, components, layout, navigation, onboarding, profile, header, or footer), screenshot evidence **MUST** be present.
+   - **Automatic Local Screenshot Generation**: If `.agents/tmp/evidence/` is empty or missing, this means `/implement` Step 2 was skipped or failed — you **MUST NOT** skip this step or degrade straight to `N/A`. Instead, automatically:
+     1. Start the local dev server (`pnpm dev`) in the background.
+     2. Wait for it to become ready (listen on port 3000).
+     3. For each role that's reachable on the changed surface (visitor, mentee, mentor) and each viewport in scope (desktop, mobile), run:
+        ```bash
+        node scripts/capture-ui-evidence.mjs --routes <route1,route2,...> --role visitor|mentee|mentor --viewport desktop|mobile
+        ```
+        This is the same script `/implement` Step 2 uses — it drives a real Playwright browser, signs in for real using the `DESIGN_AUDIT_MENTEE_*`/`DESIGN_AUDIT_MENTOR_*` credentials from `.env.development.local` when the role isn't `visitor`, and saves PNGs straight into `.agents/tmp/evidence/`. There is no separate authenticate/capture/save choreography to improvise here.
+     4. Shut down/kill the background dev server process.
+     - **If the script itself errors** (e.g. a selector changed, a route 404s): fix the underlying cause (check the route exists, check `.env.development.local` has the credentials) and retry. Do not silently give up and write `N/A` — an empty evidence folder for a UI change should be rare enough that hitting it here means something upstream is actually broken and worth surfacing, not routing around.
+   - Publish the captured screenshot files to the shared evidence branch to get stable, embeddable links:
+     - **On macOS/Linux (Bash/Zsh)**:
+       ```bash
+       bash .agents/scripts/publish-evidence.sh .agents/tmp/evidence/*.png
+       ```
+     - **On Windows (PowerShell)**:
+       ```powershell
+       Get-ChildItem -Path .agents\tmp\evidence\*.png | ForEach-Object { & .agents/scripts/publish-evidence.ps1 $_.FullName }
+       ```
+   - Each stdout line is one `https://raw.githubusercontent.com/...` URL, in the same order as the input files — one per screenshot. Keep these for Step 4's commit message.
+   - The script pushes straight to a dedicated `pr-evidence` branch via git plumbing (`hash-object`/`read-tree`/`commit-tree`); it never touches your current branch, working tree, staged changes, or index, so it is safe to run at any point in this flow.
+   - **Failure is non-blocking**: if the script errors (e.g. no push permission), do not halt the PR — skip embedding screenshots and leave the `## Screenshot` section as `N/A`.
+   - If there is no UI-facing change at all (e.g. pure config, backend tests, server scripts), skip this step entirely.
+
+4. **Commit with High-lighted Changes & Push**
    - Write a mature, professional conventional commit message.
    - **Commit Message Structure**:
 
@@ -49,6 +75,10 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
      <type>(<scope>): <subject> (X-Tracker #<issue-number>)
 
      <body>
+
+     ## Screenshot
+
+     <screenshot-section>
 
      <footer>
      ```
@@ -58,6 +88,7 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
      - **`<subject>`**: Imperative mood, present tense, first letter lowercase, no trailing dot (e.g., `add config loading verification`).
      - **`(X-Tracker #<issue-number>)`**: Must append to the subject line. **Fallback**: If no `$ISSUE_NUMBER` is resolved, omit the entire ` (X-Tracker #<issue-number>)` tag (e.g., use `<type>(<scope>): <subject>`).
      - **`<body>`**: High-signal explanation explaining the motivation, design decisions, and what changed. Do not just repeat the subject line.
+     - **`<screenshot-section>`**: For each URL from Step 3, embed it as a markdown image with a short label: `![<label>](<url>)`. If Step 3 was skipped or produced no links, write `N/A`.
      - **`<footer>`**: Explicitly link to the tracker issue. Format: `Ref: https://github.com/<ORG>/<TRACKER_REPO>/issues/<issue-number>` (using variables: `Ref: https://github.com/$ORG/$TRACKER_REPO/issues/$ISSUE_NUMBER`). **Fallback**: If no `$ISSUE_NUMBER` is resolved, omit the footer / `Ref` line completely.
 
    - **X-Tracker Ticket Link Requirement**: The commit message and PR description MUST link explicitly to the **X-Talent-Tracker** issue, **NOT** the X-Talent-Frontend issue (unless no `$ISSUE_NUMBER` is resolved).
@@ -72,11 +103,11 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
        git push -u origin $BRANCH_NAME
        ```
 
-4. **Create PR**
+5. **Create PR**
    - **Create the PR**: Run `gh pr create --fill --base develop`
    - **PR Already Exists Fallback**: If the command fails because a pull request already exists for the branch, treat this as a successful update and proceed gracefully. Do not halt or abort.
 
-5. **Move Ticket on Board to "PR Review"**
+6. **Move Ticket on Board to "PR Review"**
    - **This entire step MUST run as a single command execution**, from config loading through the mutation. Do not rely on `$ISSUE_NUMBER` or config variables set in Step 2 — re-derive everything below in the same shell invocation, since shell state does not carry over between separate command executions (see the execution note above). This is the step that was silently no-op-ing before this fix: by the time this ran as its own command, the config/vars sourced back in Step 2 had already gone out of scope, so the item lookup silently returned empty and the `if` guard skipped the mutation without printing an error.
    - **On macOS/Linux (Bash/Zsh)** — run as one block:
 
@@ -188,5 +219,5 @@ Submit changes for PR review, updating issue tracking status and highlighting mo
      }
      ```
 
-6. **Output Summary**
+7. **Output Summary**
    - Show the PR link and **high-light** all changes in Traditional Chinese (繁體中文).

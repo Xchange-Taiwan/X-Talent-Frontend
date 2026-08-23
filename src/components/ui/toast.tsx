@@ -3,6 +3,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { X } from 'lucide-react';
 import * as React from 'react';
 
+import { useLeftSwipeDismiss } from '@/hooks/useLeftSwipeDismiss';
 import { cn } from '@/lib/utils';
 
 /**
@@ -49,10 +50,32 @@ const toastVariants = cva(
   }
 );
 
+// Composes our left-swipe pointer handler with whatever handler of the same
+// name a caller passed to <Toast>, so passing e.g. onPointerDownCapture
+// augments the gesture instead of silently replacing it. Ordering matches
+// Radix's own composeEventHandlers convention (used throughout the Radix
+// primitives this component is already built on): the caller's handler runs
+// first, and ours only runs if they didn't opt out via preventDefault().
+function composeHandlers<E extends React.SyntheticEvent>(
+  ours: (event: E) => void,
+  theirs?: (event: E) => void
+) {
+  return (event: E) => {
+    theirs?.(event);
+    if (!event.defaultPrevented) {
+      ours(event);
+    }
+  };
+}
+
 /**
  * Toast 單個吐司通知元件的主體。
  *
  * 支援預設 (default) 與破壞性/錯誤 (destructive) 等多種視覺變體 (variant)。
+ *
+ * Radix 的 swipeDirection 只能設定單一方向（此專案採用 "right"），因此左滑關閉
+ * 是透過 `useLeftSwipeDismiss` 以原生 Pointer Event 補上，並沿用 Radix 相同的
+ * data-swipe / --radix-toast-swipe-* CSS 變數，讓退場動畫共用同一套樣式。
  *
  * @param variant - 吐司通知樣式變體：'default' | 'destructive'。
  */
@@ -61,11 +84,31 @@ const Toast = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Root> &
     VariantProps<typeof toastVariants>
 >(({ className, variant, ...props }, ref) => {
+  const leftSwipeHandlers = useLeftSwipeDismiss({
+    onDismiss: () => props.onOpenChange?.(false),
+  });
+
   return (
     <ToastPrimitives.Root
       ref={ref}
       className={cn(toastVariants({ variant }), className)}
       {...props}
+      onPointerDownCapture={composeHandlers(
+        leftSwipeHandlers.onPointerDownCapture,
+        props.onPointerDownCapture
+      )}
+      onPointerMoveCapture={composeHandlers(
+        leftSwipeHandlers.onPointerMoveCapture,
+        props.onPointerMoveCapture
+      )}
+      onPointerUpCapture={composeHandlers(
+        leftSwipeHandlers.onPointerUpCapture,
+        props.onPointerUpCapture
+      )}
+      onPointerCancelCapture={composeHandlers(
+        leftSwipeHandlers.onPointerCancelCapture,
+        props.onPointerCancelCapture
+      )}
     />
   );
 });

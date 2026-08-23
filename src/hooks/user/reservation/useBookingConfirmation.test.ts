@@ -23,11 +23,11 @@ vi.mock('@/services/reservations', () => ({
   createReservation: vi.fn(),
 }));
 
-import { BookingSlot } from '@/hooks/useMentorSchedule';
 import { UserType } from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
 import { FetchApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { BookingSlot } from '@/lib/profile/bookingAvailability';
 import { createReservation } from '@/services/reservations';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
@@ -50,6 +50,7 @@ describe('useBookingConfirmation', () => {
     start: new Date('2026-07-26T14:00:00Z'),
     end: new Date('2026-07-26T15:00:00Z'),
     isBooked: false,
+    status: null,
   };
 
   beforeEach(() => {

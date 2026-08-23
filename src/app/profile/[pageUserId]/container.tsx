@@ -2,18 +2,20 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
+import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
 import { Button } from '@/components/ui/button';
-import { BookingSlot, useMentorSchedule } from '@/hooks/useMentorSchedule';
+import { useMentorSchedule } from '@/hooks/useMentorSchedule';
+import { useIdentity } from '@/hooks/user/auth/useIdentity';
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfirmation';
 import { useReservationDateClamp } from '@/hooks/user/reservation/useReservationDateClamp';
 import { primeTagCatalogCacheIfEmpty } from '@/hooks/user/tags/useTagCatalog';
 import useUserData from '@/hooks/user/user-data/useUserData';
 import { primeUserProfileDtoCacheIfEmpty } from '@/hooks/user/user-data/useUserProfileDto';
+import { BookingSlot } from '@/lib/profile/bookingAvailability';
 import { getMentorOnboardingUrl } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';
@@ -28,14 +30,12 @@ interface Props {
   pageUserId: string;
   initialDto: MentorProfileVO;
   initialCatalogs: TagCatalogsByBucket;
-  initialLoginUserId: string;
 }
 
 export default function ProfilePageContainer({
   pageUserId,
   initialDto,
   initialCatalogs,
-  initialLoginUserId,
 }: Props) {
   const router = useRouter();
 
@@ -54,11 +54,50 @@ export default function ProfilePageContainer({
   // codes to Chinese labels on first paint instead of flashing raw codes.
   primeTagCatalogCacheIfEmpty('zh_TW', initialCatalogs);
 
+  // The page is now ISR-cached (no SSR session read), so identity is
+  // resolved entirely client-side via useIdentity - the same single source
+  // of truth Header/useProfileAuth use. Deliberately read `identity.
+  // sessionSettled`/`hasFullUser`/`userId` here, not the faster `authKnown`/
+  // `isLoggedIn`/hint-derived `userId` fields: those can go true/populated
+  // from the middleware-written session-hint cookie alone (an unsigned,
+  // client-writable, UI-only hint - see sessionHint.ts) before the real
+  // `useSession()` round trip settles.
+  //
+  // Two distinct gates are needed, not one:
+  // - `isIdentityResolved` (`sessionSettled`) answers "has the real session
+  //   check finished, for ANY viewer" - true for a confirmed guest just as
+  //   much as a confirmed member (unlike `hasFullUser`, which a guest can
+  //   never satisfy). This is what BookingForm's loading skeleton must gate
+  //   on, or guests would be stuck loading forever.
+  // - `loginUserId` (and everything derived from it: isOwnProfile,
+  //   canShowOwnerControls, useBookingConfirmation's menteeId) requires the
+  //   stronger `hasFullUser`, since it either renders owner-only UI or
+  //   feeds a real mutation - unlike the header's optimistic hint-based
+  //   rendering, nothing here may act on an unauthoritative value.
+  //
+  // Per CLAUDE.md's "Role-based UI" rule: never render role-specific UI
+  // before the role is resolved.
+  const identity = useIdentity(null);
+  const isIdentityResolved = identity.sessionSettled;
+  const loginUserId = identity.hasFullUser ? (identity.userId ?? '') : '';
+
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth() + 1);
 
+  // loginUserId is '' unless identity.hasFullUser, so isOwnProfile can only
+  // be true for a real, verified session - it already carries that
+  // guarantee, no separate resolution check needed here. Computed before
+  // useMentorSchedule so it can gate includeBookedDates below; the whole
+  // schedule region only renders once userData.is_mentor is confirmed true
+  // (see ui.tsx's showScheduleRegion), so ownership alone is enough here to
+  // distinguish "the mentor managing their own calendar" from "a mentee/
+  // visitor browsing it" - no need to also wait on userData.is_mentor.
+  const isOwnProfile = loginUserId === pageUserId;
+
   const schedule = useMentorSchedule({
     backend: { userId: pageUserId, year, month },
+    loginUserId,
+    includeBookedDates: isOwnProfile,
   });
   const { loaded, selectedDate, setSelectedDate, parsedDraft, allowedDates } =
     schedule;
@@ -78,15 +117,6 @@ export default function ProfilePageContainer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
-  const { data: session } = useSession();
-  // Prefer the live session id once hydrated; fall back to the SSR-resolved
-  // value so own-profile UI (edit button, etc.) renders correctly on first
-  // paint without waiting for next-auth's client hydration.
-  const loginUserId = session?.user?.id
-    ? String(session.user.id)
-    : initialLoginUserId;
-  const isLogging = Boolean(loginUserId);
-
   const {
     userData,
     isLoading: userLoading,
@@ -101,9 +131,19 @@ export default function ProfilePageContainer({
   // synchronously by useProfileSubmit) over `userData.avatar`, which can
   // briefly come from a stale ISR initialDto on the post-submit navigation
   // race. The override clears once session.user.avatar catches up.
-  const isOwnProfile = loginUserId === pageUserId;
+  // Single source of truth for "should owner-only controls (edit button,
+  // become-mentor button, schedule-management dialog) render" so ui.tsx
+  // doesn't need to re-derive this comparison at each of its three call
+  // sites.
+  const canShowOwnerControls = isOwnProfile;
   const currentAvatar = useCurrentAvatar();
-  const resolvedAvatar = isOwnProfile
+  // Gate on canShowOwnerControls (not just isOwnProfile): while identity is
+  // still resolving, isOwnProfile is provisionally false (loginUserId is
+  // still ''), so applying the currentAvatar override here unguarded would
+  // reproduce the same flash this fix exists to eliminate - the avatar
+  // could briefly show userData.avatar, then jump to the just-uploaded
+  // override once the session settles.
+  const resolvedAvatar = canShowOwnerControls
     ? (currentAvatar ?? userData?.avatar)
     : userData?.avatar;
   const avatarSrc = resolvedAvatar || DefaultAvatarImgUrl;
@@ -158,7 +198,7 @@ export default function ProfilePageContainer({
     // forward to today so the dialog never opens on an un-editable past
     // date with its slot editor primed.
     clampSelectedDateToToday();
-    if (userData.is_mentor && pageUserId === loginUserId) {
+    if (userData.is_mentor && isOwnProfile) {
       setOpenReservationDialog(true);
       return;
     }
@@ -168,15 +208,13 @@ export default function ProfilePageContainer({
     <ProfilePageUI
       userData={userData}
       userLoading={userLoading}
-      pageUserId={pageUserId}
       schedule={schedule}
       scheduleLoaded={loaded}
       loginUserId={loginUserId}
-      isLogging={isLogging}
+      isIdentityResolved={isIdentityResolved}
+      canShowOwnerControls={canShowOwnerControls}
       avatarSrc={avatarSrc}
       allowedDates={allowedDates}
-      openReservationDialog={openReservationDialog}
-      setOpenReservationDialog={setOpenReservationDialog}
       onReservation={reservationHandler}
       onScheduleMonthChange={handleScheduleMonthChange}
       selectedSlot={selectedSlot}
@@ -185,6 +223,16 @@ export default function ProfilePageContainer({
       onConfirmReservation={handleConfirmReservation}
       onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}
       onBecomeMentor={() => router.push(getMentorOnboardingUrl(pageUserId))}
+      editorDialog={
+        userData && canShowOwnerControls ? (
+          <MentorScheduleDialog
+            open={openReservationDialog}
+            onOpenChange={setOpenReservationDialog}
+            schedule={schedule}
+            onMonthChange={handleScheduleMonthChange}
+          />
+        ) : undefined
+      }
     />
   );
 }

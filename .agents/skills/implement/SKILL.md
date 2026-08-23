@@ -16,6 +16,14 @@ If the workspace is an `X-Frontend` project (e.g., `X-Talent-Frontend` or simila
 2. **Implement Feature:**
    - Implement the requirements step-by-step. Use TDD where possible.
    - Run typechecking and tests regularly.
+   - **Capture screenshot evidence for UI-facing changes (hard requirement, not best-effort):** CLAUDE.md requires visually verifying UI work before reporting it done, and `/submit-pr` Step 3 requires evidence to already exist for any UI-facing change. Do this **before** calling `/ai-review` in Step 3, not after — do not defer it to `/submit-pr`. With `pnpm dev` running locally, run:
+     ```bash
+     node scripts/capture-ui-evidence.mjs --routes <route1,route2,...> --role visitor|mentee|mentor [--viewport desktop|mobile]
+     ```
+     This drives a real Playwright browser against `http://localhost:3000`, logs in for real when `--role` isn't `visitor`, and saves numbered PNGs into `.agents/tmp/evidence/` (one call per role/viewport combination in scope — see below). Keep the printed file paths; `/submit-pr` Step 3 publishes them and embeds the resulting links in the PR body. Skip this entirely for changes with no visible UI surface (pure logic, config, tests) — do not run it "just in case."
+     - **Do not proceed to Step 3 (`/ai-review`) if a UI-facing change was made but `.agents/tmp/evidence/` is still empty afterward.** Re-run the script (or fix whatever route/selector broke) before continuing.
+     - **Role-specific surfaces** (header, navigation, profile, onboarding, or anything else CLAUDE.md's role-based UI rule applies to): call the script once per role actually reachable on the changed surface — visitor, mentee, mentor — instead of just one shot. The script signs in through the real sign-in UI using `DESIGN_AUDIT_MENTOR_EMAIL`/`DESIGN_AUDIT_MENTOR_PASSWORD` for mentor and `DESIGN_AUDIT_MENTEE_EMAIL`/`DESIGN_AUDIT_MENTEE_PASSWORD` for mentee (`.env.development.local`); these are separate from `E2E_EMAIL`/`E2E_PASSWORD` (the e2e suite's forged-session credentials, see `e2e/helpers/session.ts`) — never mix the two. Each invocation opens a fresh browser context, so there's no session to reset between roles. This always targets your own local `pnpm dev` server, never the deployed dev site (that's `/penpot-sync`'s job).
+     - **Multi-viewport (RWD) coverage** is out of scope here — this step is single-viewport, quick PR evidence, not a design audit. When a change genuinely needs a full role × viewport sweep, run `/rwd-test` separately for that; don't fold its heavier output (composite images, HackMD upload, temporary code hacks) into this flow.
 
 3. **Run AI Review Locally:**
    - Once implementation is complete, call the `/ai-review` skill to launch parallel sub-agents (Security, Correctness, Business Logic, Performance, Testing, Architecture, and Review Guide).
@@ -48,4 +56,4 @@ Once done, use /code-review to review the work.
 
 Commit your work to the current branch.
 
-Please use GitHub CLI (gh cli) / 請使用 gh cli for all GitHub-related operations (such as creating/submitting PRs).
+Use the standard `gh` GitHub CLI for all GitHub operations / 請使用標準 `gh` CLI 進行所有 GitHub 相關操作（如建立/提交 PR）。

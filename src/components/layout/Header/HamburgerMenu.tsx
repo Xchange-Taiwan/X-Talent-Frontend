@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/sheet';
 import { trackEvent } from '@/lib/analytics';
 
-import { FEEDBACK_FORM_URL } from './constants';
+import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
 import { DisabledAwareLink } from './DisabledAwareLink';
 import { getBecomeMentorHref, getProfileHref } from './navHrefs';
 
@@ -24,7 +24,7 @@ export type HamburgerMenuProps = {
   userId?: string;
   /**
    * Logged in per the fast session hint, but `userId` hasn't landed yet —
-   * owned by Header's `useAuthStatus()`, passed down rather than re-derived
+   * owned by Header's `useIdentity()`, passed down rather than re-derived
    * here so the two never drift out of sync.
    */
   isResolvingUser: boolean;
@@ -64,7 +64,7 @@ export function HamburgerMenu({
 
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-8 text-2xl">
             <Link
-              href="/mentor-pool"
+              href={FIND_MENTOR_HREF}
               onClick={close}
               className="text-text-primary"
             >
@@ -112,19 +112,20 @@ export function HamburgerMenu({
 
           {!isLoggedIn && (
             <div className="mt-auto flex flex-col items-center gap-6 pb-6">
-              <Link href="/auth/signin" onClick={close}>
-                <Button className="w-40 bg-brand-500 hover:bg-brand-500">
+              <Button asChild className="w-40 bg-brand-500 hover:bg-brand-500">
+                <Link href="/auth/signin" onClick={close}>
                   登入
-                </Button>
-              </Link>
-              <Link href="/auth/signup" onClick={close}>
-                <Button
-                  variant="outline"
-                  className="w-40 border-brand-500 text-brand-500 hover:text-brand-500"
-                >
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                className="w-40 border-brand-500 text-brand-500 hover:text-brand-500"
+              >
+                <Link href="/auth/signup" onClick={close}>
                   註冊
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
           )}
         </div>

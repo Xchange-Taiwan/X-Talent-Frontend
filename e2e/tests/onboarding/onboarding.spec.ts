@@ -171,11 +171,15 @@ test('submit Step 1 with empty name → inline validation error shown, does NOT 
 }) => {
   await gotoOnboarding(page);
 
-  // Clear the name field so validation fires on submit, regardless of
-  // whether the session-driven useEffect already pre-filled it from the
-  // mocked client session.
+  // useOnboardingForm's session-driven useEffect calls step1Form.reset({name:
+  // session.user.name, ...}) once useSession() resolves — asynchronously,
+  // after mount. Clearing the field immediately races that effect: if it
+  // fires after our fill(''), it silently repopulates "Test User" and the
+  // form submits successfully instead of showing the validation error. Wait
+  // for the effect to have already run (field shows the session name) before
+  // clearing it, so there's no pending reset left to race against.
   const nameInput = page.locator('input[name="name"]');
-  await expect(nameInput).toBeVisible();
+  await expect(nameInput).toHaveValue('Test User');
   await nameInput.fill('');
   await page.getByRole('button', { name: '下一步' }).click();
 

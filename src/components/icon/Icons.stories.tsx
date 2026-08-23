@@ -1,4 +1,3 @@
-import { IconGallery, IconItem } from '@storybook/blocks';
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
@@ -29,7 +28,7 @@ import * as Icons from './index';
  *    ```
  */
 const meta: Meta = {
-  title: '系統設計/圖示庫 (Icon Gallery)',
+  title: 'System/Icon Gallery',
   tags: ['autodocs'],
   parameters: {
     docs: {
@@ -47,8 +46,10 @@ export default meta;
 export const AllIcons: StoryObj = {
   name: '所有圖示',
   render: () => {
-    // 將圖示區分為 Color 與 Outline 兩組
-    const allEntries = Object.entries(Icons);
+    // 排除 __esModule 等非組件屬性，並將圖示區分為 Color 與 Outline 兩組
+    const allEntries = Object.entries(Icons).filter(
+      ([name, value]) => name !== '__esModule' && typeof value === 'function'
+    );
     const colorIcons = allEntries.filter(([name]) => name.endsWith('Color'));
     const outlineIcons = allEntries.filter(([name]) => !name.endsWith('Color'));
 
@@ -60,15 +61,23 @@ export const AllIcons: StoryObj = {
             彩色圖示 (Color Icons)
           </h3>
           <p className="mb-6 text-sm text-text-tertiary">
-            彩色圖示內置了品牌色或特定顏色，適合社群分享或特定品牌按鈕。
+            彩色圖示內置了 brand 色或特定顏色，適合社群分享或特定品牌按鈕。
           </p>
-          <IconGallery>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
             {colorIcons.map(([name, IconComponent]) => (
-              <IconItem name={name} key={name}>
-                <IconComponent className="size-8" />
-              </IconItem>
+              <div
+                key={name}
+                className="flex flex-col items-center justify-center gap-3 rounded-xl border border-background-border bg-background-white p-5 text-center transition-all hover:border-text-primary hover:shadow-md"
+              >
+                <div className="flex h-12 items-center justify-center text-text-primary">
+                  <IconComponent className="size-8" />
+                </div>
+                <span className="px-1 font-mono text-xs break-all text-text-secondary select-all">
+                  {name}
+                </span>
+              </div>
             ))}
-          </IconGallery>
+          </div>
         </div>
 
         {/* 外框圖示 */}
@@ -81,13 +90,21 @@ export const AllIcons: StoryObj = {
             (`currentColor`)。未來新增的外框圖示將自動呈現在此。
           </p>
           {outlineIcons.length > 0 ? (
-            <IconGallery>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
               {outlineIcons.map(([name, IconComponent]) => (
-                <IconItem name={name} key={name}>
-                  <IconComponent className="size-8" />
-                </IconItem>
+                <div
+                  key={name}
+                  className="flex flex-col items-center justify-center gap-3 rounded-xl border border-background-border bg-background-white p-5 text-center transition-all hover:border-text-primary hover:shadow-md"
+                >
+                  <div className="flex h-12 items-center justify-center text-text-primary">
+                    <IconComponent className="size-8" />
+                  </div>
+                  <span className="px-1 font-mono text-xs break-all text-text-secondary select-all">
+                    {name}
+                  </span>
+                </div>
               ))}
-            </IconGallery>
+            </div>
           ) : (
             <div className="rounded-lg border border-dashed border-background-border p-6 text-center text-sm text-text-tertiary">
               目前暫無自訂外框圖示 (Outline Icons)

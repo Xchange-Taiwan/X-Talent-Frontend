@@ -64,6 +64,28 @@ const DialogOverlay = React.forwardRef<
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 /**
+ * DialogContentFrame 對話框的內容樣式容器。
+ *
+ * 不含 Portal、Overlay 與 Close 按鈕，提供標準的動畫、邊框、半徑、背景與內邊距，適合組合模式下自訂彈窗結構。
+ */
+const DialogContentFrame = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+>(({ className, children, ...props }, ref) => (
+  <DialogPrimitive.Content
+    ref={ref}
+    className={cn(
+      'fixed top-[50%] left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background-white p-6 shadow-lg duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:rounded-lg',
+      className
+    )}
+    {...props}
+  >
+    {children}
+  </DialogPrimitive.Content>
+));
+DialogContentFrame.displayName = 'DialogContentFrame';
+
+/**
  * DialogContent 對話框的主體內容容器。
  *
  * 包含對話框的實際內容（如標題、描述、表單、按鈕等），內置預設的置中樣式、響應式設計與關閉按鈕。
@@ -77,20 +99,13 @@ const DialogContent = React.forwardRef<
 >(({ className, children, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        'fixed top-[50%] left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background-white p-6 shadow-lg duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] data-[state=open]:zoom-in-95 sm:rounded-lg',
-        className
-      )}
-      {...props}
-    >
+    <DialogContentFrame ref={ref} className={className} {...props}>
       {children}
       <DialogPrimitive.Close className="absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background-white transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none data-[state=open]:bg-background-bottom data-[state=open]:text-text-tertiary">
         <X className="size-4" aria-hidden="true" />
         <span className="sr-only">關閉</span>
       </DialogPrimitive.Close>
-    </DialogPrimitive.Content>
+    </DialogContentFrame>
   </DialogPortal>
 ));
 DialogContent.displayName = DialogPrimitive.Content.displayName;
@@ -174,6 +189,7 @@ export {
   Dialog,
   DialogClose,
   DialogContent,
+  DialogContentFrame,
   DialogDescription,
   DialogFooter,
   DialogHeader,

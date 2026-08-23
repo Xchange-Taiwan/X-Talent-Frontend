@@ -22,6 +22,11 @@ vi.mock('next/navigation', async () => {
   return navigationMockFactory();
 });
 
+const trackEvent = vi.fn();
+vi.mock('@/lib/analytics', () => ({
+  trackEvent: (...args: unknown[]) => trackEvent(...args),
+}));
+
 import { mockSession } from '@/test/mocks/nextAuth';
 
 import { UserDropdown } from './UserDropdown';
@@ -101,5 +106,21 @@ describe('UserDropdown share flow', () => {
     openMenu();
     const shareButton = screen.getByRole('button', { name: '分享個人頁面' });
     expect(shareButton).toBeDisabled();
+  });
+
+  it('does not render the merged header navigation links (尋找導師, 關於 X-Talent, 提供回饋) inside the desktop dropdown menu', () => {
+    render(<UserDropdown user={buildUser()} />);
+
+    openMenu();
+
+    expect(
+      screen.queryByRole('menuitem', { name: '尋找導師' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: '關於 X-Talent' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: '提供回饋' })
+    ).not.toBeInTheDocument();
   });
 });

@@ -60,7 +60,7 @@ Iterate until the user approves the breakdown.
 Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock-skills` configured — the tickets are the same either way, only the shape of the blocking edges changes:
 
 - **Local files** → write one file per ticket under `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` in dependency order (blockers first). Each file's "Blocked by" lists the numbers/titles it depends on. Use the per-ticket file template below — one ticket per file, never a single combined file.
-- **A real issue tracker (GitHub, Linear, …)** → publish one issue per ticket in dependency order (blockers first) so each ticket's blocking edges can reference real identifiers. Use the platform's native blocking / sub-issue relationship where it has one; otherwise set each ticket's "Blocked by" to the blocking issues. Apply the `ready-for-agent` triage label unless instructed otherwise — the tickets are agent-grabbable by construction.
+- **A real issue tracker (GitHub, Linear, …)** → publish one issue per ticket in dependency order (blockers first) so each ticket's blocking edges can reference real identifiers. Use the platform's native blocking / sub-issue relationship where it has one; otherwise set each ticket's "Blocked by" to the blocking issues. Apply the `ai review` triage label unless instructed otherwise — the tickets are agent-grabbable by construction.
 
   **Automated Project Board Addition & Backlog Assignment Flow**:
   For GitHub issue tracking, after creating each issue, dynamically add it to the project board and move its status to "Backlog" using the parsed configuration:
@@ -81,7 +81,7 @@ Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock
 
        ```bash
        # 1. Create the issue and retrieve its node ID
-       ISSUE_NODE_ID=$(gh issue create --title "$TICKET_TITLE" --body "$TICKET_BODY" --repo "$ORG/$TRACKER_REPO" --label "ai-review" --json id --jq '.id')
+       ISSUE_NODE_ID=$(gh issue create --title "$TICKET_TITLE" --body "$TICKET_BODY" --repo "$ORG/$TRACKER_REPO" --label "ai review" --json id --jq '.id')
 
        if [ -n "$ISSUE_NODE_ID" ]; then
          # 2. Add issue to Project Board
@@ -123,7 +123,7 @@ Publish the approved tickets. **How** depends on the tracker `/setup-matt-pocock
 
        ```powershell
        # 1. Create the issue and retrieve its node ID
-       $ISSUE_NODE_ID = (gh issue create --title "$TICKET_TITLE" --body "$TICKET_BODY" --repo "$ORG/$TRACKER_REPO" --label "ai-review" --json id --jq '.id')
+       $ISSUE_NODE_ID = (gh issue create --title "$TICKET_TITLE" --body "$TICKET_BODY" --repo "$ORG/$TRACKER_REPO" --label "ai review" --json id --jq '.id')
 
        if ($ISSUE_NODE_ID) {
          # 2. Add issue to Project Board

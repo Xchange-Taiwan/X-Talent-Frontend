@@ -3,10 +3,15 @@ import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import { RRule } from 'rrule';
 
 import { SegmentVO } from '@/services/mentor-schedule/schedule';
+import type { Reservation } from '@/types/reservation';
+
+import type {
+  BookingSlot,
+  DtType,
+  ParsedMentorTimeslot,
+} from './bookingAvailability/types';
 
 dayjs.extend(isSameOrBefore);
-
-export type DtType = 'ALLOW' | 'FORBIDDEN' | 'BOOKED' | 'PENDING';
 
 /** 'YYYY-MM' — used to bucket per-month draft state in useMentorSchedule. */
 export type MonthKey = string;
@@ -41,35 +46,11 @@ export type RawMentorTimeslot = Pick<
 };
 
 /**
- * Represents a SINGLE occurrence of an ALLOW/BOOKED/PENDING entry. A non-rrule
- * row produces exactly one entry; a weekly-rrule row produces one entry per
- * non-exdated occurrence. The pair (id, occurrenceUnix) uniquely identifies
- * each card the user sees in the editor and is what mutator callbacks use to
- * scope edits/deletes back to the right occurrence of the underlying row.
+ * Shared predicate to check if a booking slot is taken (booked or pending).
  */
-export type ParsedMentorTimeslot = {
-  occurrenceId: string; // unique composite key for the occurrence, e.g. `${id}_${occurrenceUnix}`
-  id: number; // = parent row id; shared by all occurrences of an rrule row
-  occurrenceUnix: number; // dtstart of THIS occurrence (= row.dtstart for non-recurring)
-  type: DtType;
-  start: Date; // = new Date(occurrenceUnix * 1000)
-  end: Date; // = start + slotDurationSeconds
-  durationMinutes: number;
-  formatted: string;
-  dateKey: string; // YYYY-MM-DD (local) of this occurrence
-  rrule?: string; // copied from parent row
-  exdate: number[]; // copied from parent row
-  slotDurationSeconds: number;
-  isRecurringInstance: boolean; // true if parent row has rrule
-};
-
-export type BookingSlot = {
-  start: Date;
-  end: Date;
-  scheduleId: number; // parent ALLOW slot id
-  isBooked: boolean;
-};
-
+export function isSlotTaken(slot: BookingSlot): boolean {
+  return slot.isBooked || slot.status === 'BOOKED' || slot.status === 'PENDING';
+}
 /** Expand an rrule string from dtstart, returning all occurrence dtstart values (unix seconds). */
 export function expandRrule(
   dtstart: number,
@@ -143,6 +124,16 @@ export function nextTempId(rows: RawMentorTimeslot[]): number {
   return negatives.length ? Math.min(...negatives) - 1 : -1;
 }
 
+/**
+ * A backend-synthesized read-only placeholder representing a booked/pending
+ * reservation block — not a real mentor_availability row. Distinguished from
+ * a locally-created, not-yet-saved ALLOW draft (which also has a negative id
+ * via nextTempId) by its `type`: only BOOKED/PENDING rows are ever virtual.
+ */
+export function isReadOnlyVirtualSlot(type: DtType, id: number): boolean {
+  return id < 0 && (type === 'BOOKED' || type === 'PENDING');
+}
+
 /** Build a dayjs from a YYYY-MM-DD date and HH:mm time. */
 export function buildDateTime(dateStr: string, timeStr: string) {
   const [h, m] = timeStr.split(':').map(Number);
@@ -204,4 +195,132 @@ export function hasAnyOccurrenceOverlap(
       });
     });
   });
+}
+
+const appendExdate = (exdates: number[], unix: number): number[] =>
+  exdates.includes(unix) ? exdates : [...exdates, unix];
+
+export function checkCrossMonthOverlap({
+  id,
+  occurrenceUnix,
+  newDtstart,
+  durationSeconds,
+  isRecurring,
+  currentDraftsMap,
+  targetDraft,
+}: {
+  id: number;
+  occurrenceUnix: number;
+  newDtstart: number;
+  durationSeconds: number;
+  isRecurring: boolean;
+  currentDraftsMap: Map<MonthKey, RawMentorTimeslot[]>;
+  targetDraft: RawMentorTimeslot[];
+}): boolean {
+  const draftsToCheck = Array.from(currentDraftsMap.values()).flat();
+  const isTargetLoaded = currentDraftsMap.has(monthKeyFromUnix(newDtstart));
+  if (!isTargetLoaded) {
+    draftsToCheck.push(...targetDraft);
+  }
+
+  let intermediateDraftsToCheck = draftsToCheck;
+  if (isRecurring) {
+    // If recurring, we simulate exdating the parent row
+    intermediateDraftsToCheck = draftsToCheck.map((r: RawMentorTimeslot) =>
+      r.id === id
+        ? {
+            ...r,
+            exdate: appendExdate(r.exdate, occurrenceUnix),
+          }
+        : r
+    );
+  }
+
+  // Run unified overlap check
+  return hasAnyOccurrenceOverlap(
+    intermediateDraftsToCheck,
+    isRecurring ? null : id, // ignore current row ID only if it is non-recurring
+    [newDtstart],
+    durationSeconds
+  );
+}
+
+/**
+ * Deduplicates raw timeslots by id (for id > 0) to fix duplicate representations at their source,
+ * merging the exdate arrays of any duplicates.
+ */
+export function deduplicateRawSlots(
+  slots: RawMentorTimeslot[]
+): RawMentorTimeslot[] {
+  const map = new Map<number, RawMentorTimeslot>();
+  const out: RawMentorTimeslot[] = [];
+  for (const slot of slots) {
+    if (slot.id <= 0) {
+      out.push(slot);
+      continue;
+    }
+    const existing = map.get(slot.id);
+    if (existing) {
+      existing.exdate.push(...slot.exdate);
+    } else {
+      const copy = { ...slot, exdate: [...slot.exdate] };
+      map.set(slot.id, copy);
+      out.push(copy);
+    }
+  }
+
+  map.forEach((slot) => {
+    slot.exdate = Array.from(new Set(slot.exdate));
+  });
+
+  return out;
+}
+
+/**
+ * Find the reservation whose [dtstart, dtend) exactly matches a given slot
+ * window (unix seconds). Shared between useMentorSchedule (booking-slot
+ * generation) and MentorScheduleDialog (prompt-dialog mentee name) so the
+ * matching rule can't drift between the two call sites.
+ */
+export function findMatchedReservation(
+  reservations: Reservation[] | undefined,
+  startUnix: number,
+  endUnix: number
+): Reservation | undefined {
+  return reservations?.find(
+    (r) => r.dtstart === startUnix && r.dtend === endUnix
+  );
+}
+
+/**
+ * Deduplicates slots with the same start time, merging isBooked status.
+ */
+export function deduplicateBookingSlots(slots: BookingSlot[]): BookingSlot[] {
+  const uniqueMap = new Map<number, BookingSlot>();
+  for (const item of slots) {
+    const key = item.start.getTime();
+    const existing = uniqueMap.get(key);
+    if (existing) {
+      existing.isBooked = existing.isBooked || item.isBooked;
+      if (item.status === 'BOOKED' || existing.status === 'BOOKED') {
+        existing.status = 'BOOKED';
+      } else if (item.status === 'PENDING' || existing.status === 'PENDING') {
+        existing.status = 'PENDING';
+      } else {
+        existing.status = null;
+      }
+      if (!existing.menteeName && item.menteeName) {
+        existing.menteeName = item.menteeName;
+      }
+      if (!existing.reservation && item.reservation) {
+        existing.reservation = item.reservation;
+      }
+    } else {
+      uniqueMap.set(key, { ...item });
+    }
+  }
+
+  const uniqueResult = Array.from(uniqueMap.values());
+  uniqueResult.sort((a, b) => a.start.getTime() - b.start.getTime());
+  return uniqueResult;
 }
