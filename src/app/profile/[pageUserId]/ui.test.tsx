@@ -260,3 +260,43 @@ describe('ProfilePageUI - calendar status-dot gating (#603)', () => {
     expect(schedule.getDayBookingStatus).not.toHaveBeenCalled();
   });
 });
+
+describe('ProfilePageUI - mentee-specific sections gating for mentor profiles (#598)', () => {
+  it('displays the mentee sections on a mentee profile', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: false,
+            want_position: [{ subject_group: 'role', subject: 'PM' }],
+            want_skill: [{ subject_group: 'skill', subject: 'Figma' }],
+            want_topic: [{ subject_group: 'topic', subject: 'Career' }],
+          }),
+        })}
+      />
+    );
+
+    expect(screen.getByText('有興趣多了解的職位')).toBeInTheDocument();
+    expect(screen.getByText('想多了解、加強的技能')).toBeInTheDocument();
+    expect(screen.getByText('想多了解的主題')).toBeInTheDocument();
+  });
+
+  it('hides the mentee sections on a mentor profile', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            want_position: [{ subject_group: 'role', subject: 'PM' }],
+            want_skill: [{ subject_group: 'skill', subject: 'Figma' }],
+            want_topic: [{ subject_group: 'topic', subject: 'Career' }],
+          }),
+        })}
+      />
+    );
+
+    expect(screen.queryByText('有興趣多了解的職位')).not.toBeInTheDocument();
+    expect(screen.queryByText('想多了解、加強的技能')).not.toBeInTheDocument();
+    expect(screen.queryByText('想多了解的主題')).not.toBeInTheDocument();
+  });
+});
