@@ -11,169 +11,142 @@ vi.mock('./useResolvedIdentity', () => ({
   useResolvedIdentity: () => mockUseResolvedIdentity(),
 }));
 
-import {
-  authenticatedIdentity,
-  buildResolvedIdentity,
-  GUEST_IDENTITY as GUEST,
-  UNKNOWN_IDENTITY as UNKNOWN,
-} from '@/test/mocks/identity';
+import { buildResolvedIdentity } from '@/test/mocks/identity';
 import { mockRouter } from '@/test/mocks/navigation';
 
 import { useProfileAuth } from './useProfileAuth';
 
 const PAGE_USER_ID = 'test-user-id';
 
-// Every case below is a `ResolvedIdentity` - the single object `useResolvedIdentity`
-// (mocked here) hands to `useIdentity`, which `useProfileAuth` reads unchanged.
-const AUTHENTICATED_MATCHING = authenticatedIdentity(PAGE_USER_ID);
-
 describe('useProfileAuth', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseResolvedIdentity.mockReturnValue(AUTHENTICATED_MATCHING);
   });
 
-  it('status: loading and hint: unknown (no cookie) → isAuthorized is false, router.push is NOT called', async () => {
-    mockUseResolvedIdentity.mockReturnValue(UNKNOWN);
+  describe('explicit state-machine testing', () => {
+    it('state: "unknown" → isAuthorized is false, isResolving is true, router.push is NOT called', async () => {
+      mockUseResolvedIdentity.mockReturnValue(
+        buildResolvedIdentity({ state: 'unknown' })
+      );
 
-    const { result } = await act(async () =>
-      renderHook(() => useProfileAuth(PAGE_USER_ID))
-    );
+      const { result } = await act(async () =>
+        renderHook(() => useProfileAuth(PAGE_USER_ID))
+      );
 
-    expect(result.current.isAuthorized).toBe(false);
-    expect(mockRouter.push).not.toHaveBeenCalled();
-  });
-
-  it('status: loading and hint: guest → triggers immediate redirect to "/"', async () => {
-    mockUseResolvedIdentity.mockReturnValue(GUEST);
-
-    const { result } = await act(async () =>
-      renderHook(() => useProfileAuth(PAGE_USER_ID))
-    );
-
-    expect(mockRouter.push).toHaveBeenCalledWith('/');
-    expect(result.current.isAuthorized).toBe(false);
-  });
-
-  it('status: loading and hint: authenticated with mismatched userId → triggers immediate redirect to "/"', async () => {
-    mockUseResolvedIdentity.mockReturnValue(
-      buildResolvedIdentity({
-        isLoggedIn: true,
-        userId: 'different-user-id',
-      })
-    );
-
-    const { result } = await act(async () =>
-      renderHook(() => useProfileAuth(PAGE_USER_ID))
-    );
-
-    expect(mockRouter.push).toHaveBeenCalledWith('/');
-    expect(result.current.isAuthorized).toBe(false);
-  });
-
-  it('status: loading and hint: authenticated with matching userId → authorizes immediately without redirect', async () => {
-    mockUseResolvedIdentity.mockReturnValue(
-      buildResolvedIdentity({
-        isLoggedIn: true,
-        userId: PAGE_USER_ID,
-      })
-    );
-
-    const { result } = await act(async () =>
-      renderHook(() => useProfileAuth(PAGE_USER_ID))
-    );
-
-    expect(result.current.isAuthorized).toBe(true);
-    expect(mockRouter.push).not.toHaveBeenCalled();
-  });
-
-  it('session has no user id → router.push("/") is called, isAuthorized is false', async () => {
-    mockUseResolvedIdentity.mockReturnValue(GUEST);
-
-    const { result } = await act(async () =>
-      renderHook(() => useProfileAuth(PAGE_USER_ID))
-    );
-
-    expect(mockRouter.push).toHaveBeenCalledWith('/');
-    expect(result.current.isAuthorized).toBe(false);
-  });
-
-  it('loginUserId !== pageUserId → router.push("/") is called, isAuthorized is false', async () => {
-    mockUseResolvedIdentity.mockReturnValue({
-      ...AUTHENTICATED_MATCHING,
-      userId: 'different-user-id',
+      expect(result.current.isAuthorized).toBe(false);
+      expect(result.current.isResolving).toBe(true);
+      expect(mockRouter.push).not.toHaveBeenCalled();
     });
 
-    const { result } = await act(async () =>
-      renderHook(() => useProfileAuth(PAGE_USER_ID))
-    );
+    it('state: "hint-only" → isAuthorized is false, isResolving is true, router.push is NOT called', async () => {
+      mockUseResolvedIdentity.mockReturnValue(
+        buildResolvedIdentity({ state: 'hint-only' })
+      );
 
-    expect(mockRouter.push).toHaveBeenCalledWith('/');
-    expect(result.current.isAuthorized).toBe(false);
-  });
+      const { result } = await act(async () =>
+        renderHook(() => useProfileAuth(PAGE_USER_ID))
+      );
 
-  it('loginUserId === pageUserId → isAuthorized is true, router.push is NOT called', async () => {
-    const { result } = await act(async () =>
-      renderHook(() => useProfileAuth(PAGE_USER_ID))
-    );
-
-    expect(result.current.isAuthorized).toBe(true);
-    expect(mockRouter.push).not.toHaveBeenCalled();
-  });
-
-  it('lazy-inits isAuthorized to true on the initial render when session already matches pageUserId', () => {
-    const { result } = renderHook(() => useProfileAuth(PAGE_USER_ID));
-    expect(result.current.isAuthorized).toBe(true);
-  });
-
-  it('lazy-inits isAuthorized to false when session is still loading on first render and hint is unknown', () => {
-    mockUseResolvedIdentity.mockReturnValue(UNKNOWN);
-    const { result } = renderHook(() => useProfileAuth(PAGE_USER_ID));
-    expect(result.current.isAuthorized).toBe(false);
-  });
-
-  it('lazy-inits isAuthorized to false when loading (to avoid hydration mismatch) even if hint matches pageUserId, but resolves to true after hint updates', async () => {
-    // First render returns unknown (isAuthorized is false)
-    mockUseResolvedIdentity.mockReturnValueOnce(UNKNOWN);
-    // Second render returns authenticated matching userId
-    mockUseResolvedIdentity.mockReturnValue(
-      buildResolvedIdentity({
-        isLoggedIn: true,
-        userId: PAGE_USER_ID,
-      })
-    );
-
-    const { result, rerender } = renderHook(() => useProfileAuth(PAGE_USER_ID));
-    // Verify it was false on initial render
-    expect(result.current.isAuthorized).toBe(false);
-
-    // Re-render to let the hook resolve
-    rerender();
-    expect(result.current.isAuthorized).toBe(true);
-  });
-
-  it('lazy-inits isAuthorized to false when session is authenticated but does not match pageUserId', () => {
-    mockUseResolvedIdentity.mockReturnValue({
-      ...AUTHENTICATED_MATCHING,
-      userId: 'different-user-id',
+      expect(result.current.isAuthorized).toBe(false);
+      expect(result.current.isResolving).toBe(true);
+      expect(mockRouter.push).not.toHaveBeenCalled();
     });
-    const { result } = renderHook(() => useProfileAuth(PAGE_USER_ID));
-    expect(result.current.isAuthorized).toBe(false);
+
+    it('state: "confirmed-guest" → isAuthorized is false, isResolving is false, triggers immediate redirect to "/"', async () => {
+      mockUseResolvedIdentity.mockReturnValue(
+        buildResolvedIdentity({ state: 'confirmed-guest' })
+      );
+
+      const { result } = await act(async () =>
+        renderHook(() => useProfileAuth(PAGE_USER_ID))
+      );
+
+      expect(result.current.isAuthorized).toBe(false);
+      expect(result.current.isResolving).toBe(false);
+      expect(mockRouter.push).toHaveBeenCalledWith('/');
+    });
+
+    it('state: "confirmed-member" with mismatched userId → isAuthorized is false, isResolving is false, triggers immediate redirect to "/"', async () => {
+      mockUseResolvedIdentity.mockReturnValue(
+        buildResolvedIdentity({
+          state: 'confirmed-member',
+          userId: 'different-user-id',
+        })
+      );
+
+      const { result } = await act(async () =>
+        renderHook(() => useProfileAuth(PAGE_USER_ID))
+      );
+
+      expect(result.current.isAuthorized).toBe(false);
+      expect(result.current.isResolving).toBe(false);
+      expect(mockRouter.push).toHaveBeenCalledWith('/');
+    });
+
+    it('state: "confirmed-member" with matching userId → isAuthorized is true, isResolving is false, authorizes immediately without redirect', async () => {
+      mockUseResolvedIdentity.mockReturnValue(
+        buildResolvedIdentity({
+          state: 'confirmed-member',
+          userId: PAGE_USER_ID,
+        })
+      );
+
+      const { result } = await act(async () =>
+        renderHook(() => useProfileAuth(PAGE_USER_ID))
+      );
+
+      expect(result.current.isAuthorized).toBe(true);
+      expect(result.current.isResolving).toBe(false);
+      expect(mockRouter.push).not.toHaveBeenCalled();
+    });
   });
 
-  it('does not trigger redirect in useProfileAuth during loading when isResolvingUser is true', async () => {
-    mockUseResolvedIdentity.mockReturnValue(
-      buildResolvedIdentity({
-        isLoggedIn: true,
-        isResolvingUser: true,
-      })
-    );
+  describe('legacy support and hydration/rendering details', () => {
+    it('lazy-inits isAuthorized to true on the initial render when session already matches pageUserId', () => {
+      mockUseResolvedIdentity.mockReturnValue(
+        buildResolvedIdentity({
+          state: 'confirmed-member',
+          userId: PAGE_USER_ID,
+        })
+      );
+      const { result } = renderHook(() => useProfileAuth(PAGE_USER_ID));
+      expect(result.current.isAuthorized).toBe(true);
+      expect(result.current.isResolving).toBe(false);
+    });
 
-    const { result } = await act(async () =>
-      renderHook(() => useProfileAuth(PAGE_USER_ID))
-    );
+    it('lazy-inits isAuthorized to false and isResolving to true when session is still loading on first render and hint is unknown', () => {
+      mockUseResolvedIdentity.mockReturnValue(
+        buildResolvedIdentity({ state: 'unknown' })
+      );
+      const { result } = renderHook(() => useProfileAuth(PAGE_USER_ID));
+      expect(result.current.isAuthorized).toBe(false);
+      expect(result.current.isResolving).toBe(true);
+    });
 
-    expect(result.current.isAuthorized).toBe(false);
-    expect(mockRouter.push).not.toHaveBeenCalled();
+    it('lazy-inits isAuthorized to false when loading (to avoid hydration mismatch) even if hint matches pageUserId, but resolves to true after hint updates', async () => {
+      // First render returns unknown
+      mockUseResolvedIdentity.mockReturnValueOnce(
+        buildResolvedIdentity({ state: 'unknown' })
+      );
+      // Second render returns authenticated matching userId
+      mockUseResolvedIdentity.mockReturnValue(
+        buildResolvedIdentity({
+          state: 'confirmed-member',
+          userId: PAGE_USER_ID,
+        })
+      );
+
+      const { result, rerender } = renderHook(() =>
+        useProfileAuth(PAGE_USER_ID)
+      );
+      // Verify it was false on initial render
+      expect(result.current.isAuthorized).toBe(false);
+      expect(result.current.isResolving).toBe(true);
+
+      // Re-render to let the hook resolve
+      rerender();
+      expect(result.current.isAuthorized).toBe(true);
+      expect(result.current.isResolving).toBe(false);
+    });
   });
 });
