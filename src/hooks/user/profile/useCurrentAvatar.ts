@@ -3,10 +3,8 @@
 import { useSession } from 'next-auth/react';
 
 import { useIdentity } from '@/hooks/user/auth/useIdentity';
-import {
-  getLastPrimedTime,
-  useUserProfileDto,
-} from '@/hooks/user/user-data/useUserProfileDto';
+import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
+import { getOptimisticAvatar } from '@/lib/profile/optimisticAvatar';
 
 /**
  * Returns the avatar URL to render for the currently signed-in user.
@@ -30,12 +28,15 @@ export function useCurrentAvatar(): string | null {
   );
 
   const identity = useIdentity();
+  const userId =
+    pageUserIdNumber && !Number.isNaN(pageUserIdNumber) ? pageUserIdNumber : 0;
+  const optimisticAvatar = getOptimisticAvatar(userId);
 
-  const lastPrimed = getLastPrimedTime();
-  const isTransitionActive = Date.now() - lastPrimed < 10000; // 10s transition window
-
-  if (isTransitionActive) {
-    return userDto?.avatar ?? identity.avatar ?? null;
+  // During the active transition period after an optimistic update, prioritize the optimistic avatar.
+  // Otherwise, prioritize the session's identity avatar (authoritative), and fall back to the DTO cache.
+  if (optimisticAvatar) {
+    return optimisticAvatar;
   }
+
   return identity.avatar ?? userDto?.avatar ?? null;
 }
