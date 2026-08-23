@@ -18,6 +18,7 @@ vi.mock('@/services/search-mentor/mentors', () => ({
 
 import { PAGE_LIMIT } from '@/app/mentor-pool/constants';
 import avatarImage from '@/assets/default-avatar.png';
+import { mentorPoolReadManager } from '@/lib/cache/mentorPoolCache';
 import { fetchMentors } from '@/services/search-mentor/mentors';
 import { mockSearchParams } from '@/test/mocks/navigation';
 import { mockToast } from '@/test/mocks/useToast';
@@ -26,7 +27,6 @@ import type { MentorType } from '@/types/mentor';
 import {
   applyMentorPage,
   type MentorPoolPageState,
-  mentorPoolReadManager,
   useMentorPool,
 } from './useMentorPool';
 

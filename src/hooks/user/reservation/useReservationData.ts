@@ -5,8 +5,7 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { trackEvent } from '@/lib/analytics';
-import { AsyncReadManager } from '@/lib/asyncReadManager';
-import { createKeyedCache } from '@/lib/createKeyedCache';
+import { reservationReadManager } from '@/lib/cache/reservationCache';
 import { isAbortError } from '@/lib/errorUtils';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { fetchReservations, ReservationState } from '@/services/reservations';
@@ -63,20 +62,6 @@ const EMPTY_LOADING_MORE: LoadingMoreStates = {
 // client-side by dtstart ascending so the closest reservation sits at the top.
 const sortByDtstartAsc = (items: Reservation[]): Reservation[] =>
   [...items].sort((a, b) => a.dtstart - b.dtstart);
-
-export interface FetchReservationsResult {
-  items: Reservation[];
-  next_dtend: number;
-}
-
-export const reservationCache = createKeyedCache<
-  string,
-  FetchReservationsResult
->();
-export const reservationReadManager = new AsyncReadManager<
-  string,
-  FetchReservationsResult
->(reservationCache);
 
 export interface UseReservationDataReturn {
   data: ReservationData | null;
@@ -259,6 +244,17 @@ export function useReservationData({
         if (state === states.history && !historyActive) return false;
         return true;
       });
+
+      // Clear cache for skipped target states to prevent stale cache under cross-mount cycles
+      targets.forEach((state) => {
+        if (ownStates.has(state) && !filtered.includes(state)) {
+          const key = getReservationCacheKey(myUserId, state);
+          if (key) {
+            reservationReadManager.delete(key);
+          }
+        }
+      });
+
       if (filtered.length === 0) return;
 
       try {

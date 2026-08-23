@@ -53,6 +53,22 @@ export class AsyncReadManager<K, V> {
     }
   }
 
+  public delete(key: K): void {
+    if (this.cache) {
+      this.cache.delete(key);
+    }
+    const activeListeners = this.listeners.get(key);
+    if (activeListeners) {
+      activeListeners.forEach((listener) => {
+        listener.onUpdate({
+          data: null,
+          isLoading: false,
+          error: null,
+        });
+      });
+    }
+  }
+
   public has(key: K): boolean {
     return this.cache?.has(key) ?? false;
   }

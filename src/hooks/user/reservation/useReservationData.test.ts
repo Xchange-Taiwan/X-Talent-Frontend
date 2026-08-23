@@ -19,6 +19,7 @@ vi.mock('@/services/reservations', async () => {
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 
+import { reservationReadManager } from '@/lib/cache/reservationCache';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   fetchReservations,
@@ -26,10 +27,7 @@ import {
 } from '@/services/reservations';
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 
-import {
-  reservationReadManager,
-  useReservationData,
-} from './useReservationData';
+import { useReservationData } from './useReservationData';
 
 const mockFetch = vi.mocked(fetchReservations);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
