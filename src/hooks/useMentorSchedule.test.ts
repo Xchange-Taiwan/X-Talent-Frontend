@@ -17,12 +17,23 @@ vi.mock('@/services/reservations', () => ({
 
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 
+vi.mock('@/services/mentor-schedule/scheduleCache', () => ({
+  clearScheduleCache: vi.fn(),
+  scheduleCache: {
+    get: vi.fn(),
+    set: vi.fn(),
+    delete: vi.fn(),
+    clear: vi.fn(),
+  },
+}));
+
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   buildDateTime,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
+import { clearScheduleCache } from '@/services/mentor-schedule/scheduleCache';
 import {
   loadMonthScheduleCached,
   loadMonthScheduleFresh,
@@ -30,6 +41,7 @@ import {
 } from '@/services/mentor-schedule/sync';
 import { fetchAllReservationsForState } from '@/services/reservations';
 
+const mockClearScheduleCache = vi.mocked(clearScheduleCache);
 const mockLoadMonthScheduleCached = vi.mocked(loadMonthScheduleCached);
 const mockFetchAllReservationsForState = vi.mocked(
   fetchAllReservationsForState
@@ -986,6 +998,10 @@ describe('useMentorSchedule', () => {
       act(() => {
         result.current.reload();
       });
+
+      expect(mockClearScheduleCache).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: '123', year: 2026, month: 7 })
+      );
 
       await waitFor(() => {
         expect(result.current.monthLoaded).toBe(true);
