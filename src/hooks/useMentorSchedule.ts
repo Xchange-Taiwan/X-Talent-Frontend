@@ -660,7 +660,13 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     scheduleCache.delete(key);
     setRetryTrigger((prev) => prev + 1);
     await Promise.all([reloadReservations(), reloadSchedule()]);
-  }, [backend.userId, backend.year, backend.month, reloadReservations, reloadSchedule]);
+  }, [
+    backend.userId,
+    backend.year,
+    backend.month,
+    reloadReservations,
+    reloadSchedule,
+  ]);
 
   return {
     loaded,

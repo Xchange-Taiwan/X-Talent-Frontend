@@ -916,7 +916,6 @@ describe('useMentorSchedule', () => {
     expect(result.current.parsedDraft[0]?.id).toBe(101);
   });
 
-
   describe('failed fetch vs empty schedule distinction (issue 620)', () => {
     it('sets hasError to false when fetch succeeds with empty array (genuinely no availability)', async () => {
       mockLoadMonthScheduleCached.mockReturnValue({
@@ -1678,7 +1677,6 @@ describe('useMentorSchedule', () => {
 
       // Verify that the stale month's reservations were NOT applied
       expect(result.current.reservations).toEqual([]);
-
     });
   });
 });
