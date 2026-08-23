@@ -66,6 +66,7 @@ describe('ReservationCard', () => {
     const flexContainer = container.querySelector('.min-w-0.flex-1 > div');
     expect(flexContainer).toBeInTheDocument();
     expect(flexContainer).toHaveClass('flex');
+    expect(flexContainer).toHaveClass('min-w-0');
     expect(flexContainer).toHaveClass('items-center');
     expect(flexContainer).toHaveClass('justify-between');
     expect(flexContainer).toHaveClass('gap-2');
