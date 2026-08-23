@@ -10,6 +10,7 @@ export interface AsyncReadOptions<K, V> {
   cache?: KeyedCache<K, V>;
   ttlMs?: number;
   force?: boolean;
+  initialData?: V;
 }
 
 interface Subscription<V> {

@@ -17,6 +17,7 @@ describe('useAsyncRead hook tests', () => {
       data: null,
       isLoading: true,
       error: null,
+      refetch: expect.any(Function),
     });
 
     await waitFor(() => {
@@ -27,6 +28,7 @@ describe('useAsyncRead hook tests', () => {
       data: 'hook-data',
       isLoading: false,
       error: null,
+      refetch: expect.any(Function),
     });
     expect(fetcher).toHaveBeenCalledOnce();
   });
@@ -47,6 +49,7 @@ describe('useAsyncRead hook tests', () => {
       data: 'cached-1',
       isLoading: false,
       error: null,
+      refetch: expect.any(Function),
     });
 
     // Synchronously change key during render (Derived State)
@@ -57,6 +60,7 @@ describe('useAsyncRead hook tests', () => {
       data: 'cached-2',
       isLoading: false,
       error: null,
+      refetch: expect.any(Function),
     });
   });
 
@@ -88,6 +92,7 @@ describe('useAsyncRead hook tests', () => {
       data: null,
       isLoading: false,
       error: null,
+      refetch: expect.any(Function),
     });
     expect(fetcher).not.toHaveBeenCalled();
   });

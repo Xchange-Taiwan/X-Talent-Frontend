@@ -51,11 +51,12 @@ export function splitCatalogsByBucket(
 }
 
 export async function fetchTagCatalog(
-  language: string
+  language: string,
+  signal?: AbortSignal
 ): Promise<TagCatalogsByBucket> {
   const data = await apiClient.getUnwrapped<TagCatalogsVO>(
     `/v1/users/${language}/tags/catalog`,
-    { auth: false }
+    { auth: false, signal }
   );
   return splitCatalogsByBucket(data);
 }

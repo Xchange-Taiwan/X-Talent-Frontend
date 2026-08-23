@@ -296,4 +296,39 @@ describe('AsyncReadManager unit tests', () => {
     expect(manager.getInflightCount()).toBe(0); // Last subscriber unsubscribed, maps are fully cleared!
     expect(manager.getListenerCount('key')).toBe(0);
   });
+
+  it('does not set isLoading to true when subscribing to a stale cache entry (SWR background revalidation)', async () => {
+    const cache = createKeyedCache<string, string>({ ttlMs: 10 });
+    cache.set('key', 'stale-data');
+    const manager = new AsyncReadManager<string, string>(cache);
+    const fetcher = vi.fn().mockResolvedValue('fresh-data');
+    const updates: AsyncReadResult<string>[] = [];
+
+    // Wait for the cache entry to expire/become stale
+    await new Promise((resolve) => setTimeout(resolve, 15));
+
+    const unsubscribe = manager.subscribe('key', fetcher, (res) =>
+      updates.push(res)
+    );
+
+    // It should immediately return the stale-data with isLoading: false
+    expect(updates[0]).toEqual({
+      data: 'stale-data',
+      isLoading: false,
+      error: null,
+    });
+
+    // Then background fetch resolves to fresh-data with isLoading: false
+    await vi.waitFor(() => {
+      expect(updates.length).toBe(2);
+    });
+
+    expect(updates[1]).toEqual({
+      data: 'fresh-data',
+      isLoading: false,
+      error: null,
+    });
+
+    unsubscribe();
+  });
 });
