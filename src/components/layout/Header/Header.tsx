@@ -25,6 +25,8 @@ function HeaderComponent(): JSX.Element {
   const currentAvatar = useCurrentAvatar();
   const identity = useResolvedIdentity();
 
+  const isHintOnly = identity.state === 'hint-only';
+
   const virtualUser = useMemo(() => {
     if (session?.user) {
       return {
@@ -42,7 +44,7 @@ function HeaderComponent(): JSX.Element {
   }, [session?.user, identity.userId, identity.isMentor, currentAvatar]);
 
   // `userId` only ever comes from the real session, never the hint — while
-  // isResolvingUser is true these hrefs are unused (the link is disabled).
+  // the state is hint-only these hrefs are unused (the link is disabled).
   const leftSecondNav = identity.isMentor
     ? { label: '我的導師頁面', href: getProfileHref(identity.userId) }
     : { label: '成為導師', href: getBecomeMentorHref(identity.userId) };
@@ -68,14 +70,14 @@ function HeaderComponent(): JSX.Element {
                 <Skeleton className="h-6 w-24 group-data-[auth-state=guest]/auth-state:hidden group-data-[auth-state=mentee]/auth-state:hidden group-data-[auth-state=mentor]/auth-state:hidden" />
                 <DisabledAwareLink
                   href={getProfileHref(identity.userId)}
-                  disabled={identity.isResolvingUser}
+                  disabled={isHintOnly}
                   className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentor]/auth-state:block"
                 >
                   我的導師頁面
                 </DisabledAwareLink>
                 <DisabledAwareLink
                   href={getBecomeMentorHref(identity.userId)}
-                  disabled={identity.isResolvingUser}
+                  disabled={isHintOnly}
                   className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=guest]/auth-state:block group-data-[auth-state=mentee]/auth-state:block"
                 >
                   成為導師
@@ -84,7 +86,7 @@ function HeaderComponent(): JSX.Element {
             ) : (
               <DisabledAwareLink
                 href={leftSecondNav.href}
-                disabled={identity.isResolvingUser}
+                disabled={isHintOnly}
                 className="font-['Open_Sans'] text-base text-text-primary"
               >
                 {leftSecondNav.label}

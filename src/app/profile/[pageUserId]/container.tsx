@@ -44,8 +44,11 @@ export default function ProfilePageContainer({
   primeTagCatalogCacheIfEmpty('zh_TW', initialCatalogs);
 
   const identity = useResolvedIdentity();
-  const isIdentityResolved = identity.sessionSettled;
-  const loginUserId = identity.hasFullUser ? (identity.userId ?? '') : '';
+  const isIdentityResolved =
+    identity.state === 'confirmed-guest' ||
+    identity.state === 'confirmed-member';
+  const loginUserId =
+    identity.state === 'confirmed-member' ? identity.userId : '';
 
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth() + 1);

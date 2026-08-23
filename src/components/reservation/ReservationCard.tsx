@@ -5,7 +5,9 @@ import * as React from 'react';
 
 import { ReservationStatusBadge } from '@/components/reservation/ReservationStatusBadge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import type { Reservation } from '@/types/reservation';
 
@@ -18,6 +20,7 @@ export function ReservationCard({
   profileHref,
   onProfileClick,
   variant,
+  myUserId,
 }: {
   item: Reservation;
   actions?: React.ReactNode;
@@ -28,6 +31,7 @@ export function ReservationCard({
   onProfileClick?: () => void;
   // Drives upcoming-only affordances (status badge and email hint).
   variant?: ReservationCardVariant;
+  myUserId?: string | number;
 }) {
   const isUpcoming = variant === 'upcoming';
   const { menteeMessage, mentorMessage } = item;
@@ -153,15 +157,39 @@ export function ReservationCard({
             {footer ? <div className="mt-3">{footer}</div> : null}
 
             {isUpcoming ? (
-              <div className="mt-3 flex items-center gap-1.5 text-11 text-text-tertiary sm:text-xs">
-                <Mail className="size-3.5 shrink-0" aria-hidden />
-                <span>會議連結已寄至您的信箱</span>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-1.5 text-11 text-text-tertiary sm:text-xs">
+                  <Mail className="size-3.5 shrink-0" aria-hidden />
+                  <span>會議連結已寄至您的信箱</span>
+                </div>
+                <JoinMeetButton reservationId={item.id} myUserId={myUserId} />
               </div>
             ) : null}
           </div>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function JoinMeetButton({
+  reservationId,
+  myUserId,
+}: {
+  reservationId: string;
+  myUserId?: string | number;
+}) {
+  const { joinMeet, isPending } = useReservationMeetLink({ myUserId });
+
+  return (
+    <Button
+      onClick={() => joinMeet(reservationId)}
+      disabled={isPending}
+      size="sm"
+      className="h-8 rounded-lg bg-brand-500 px-4 text-xs font-medium text-text-primary hover:bg-brand-500/90 sm:text-sm"
+    >
+      {isPending ? '載入中...' : '加入 Google Meet'}
+    </Button>
   );
 }
 
