@@ -86,7 +86,7 @@ export function ReservationCard({
 
           {/* Main content */}
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center justify-between gap-2">
               {profileHref ? (
                 <Link
                   href={profileHref}
