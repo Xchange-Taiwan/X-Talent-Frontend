@@ -105,7 +105,8 @@ export interface UseUserProfileDtoResult {
 export function useUserProfileDto(
   userId: number,
   language: string,
-  initialData?: MentorProfileVO | null
+  initialData?: MentorProfileVO | null,
+  options?: { enabled?: boolean }
 ): UseUserProfileDtoResult {
   const [retryTrigger, setRetryTrigger] = useState(0);
   const initialDataRef = useRef<MentorProfileVO | undefined>(
@@ -129,6 +130,7 @@ export function useUserProfileDto(
     return null;
   });
   const [isLoading, setIsLoading] = useState(() => {
+    if (options?.enabled === false) return false;
     const isUserIdValid = Boolean(userId) && !Number.isNaN(userId);
     if (isUserIdValid && language) {
       const cached = readFromDataCache(`${userId}-${language}`);
@@ -153,6 +155,22 @@ export function useUserProfileDto(
   useEffect(() => {
     const isUserIdValid = Boolean(userId) && !Number.isNaN(userId);
     const isLanguageValid = Boolean(language);
+
+    if (options?.enabled === false) {
+      if (isUserIdValid && isLanguageValid) {
+        const cachedEntry = readFromDataCache(`${userId}-${language}`);
+        if (cachedEntry) {
+          setUserDto(cachedEntry.data);
+        } else {
+          setUserDto(null);
+        }
+      } else {
+        setUserDto(null);
+      }
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
 
     if (!isUserIdValid || !isLanguageValid) {
       setUserDto(null);
@@ -229,7 +247,7 @@ export function useUserProfileDto(
     return () => {
       cancelled = true;
     };
-  }, [userId, language, retryTrigger]);
+  }, [userId, language, retryTrigger, options?.enabled]);
 
   return { userDto, isLoading, error, refetch };
 }

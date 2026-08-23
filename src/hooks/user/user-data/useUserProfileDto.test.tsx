@@ -198,5 +198,48 @@ describe('useUserProfileDto', () => {
       expect(result.current.userDto).toEqual(mockUserDTO);
       expect(fetchUserById).toHaveBeenCalledWith(7, 'zh-TW');
     });
+
+    it('prioritizes client-side cache over SSR initialData to prevent regression/flash to old SSR data during transition', () => {
+      const cachedDto = { ...mockUserDTO, name: 'Cache Authoritative' };
+      const oldSsrDto = { ...mockUserDTO, name: 'Old SSR' };
+
+      // Prime the client-side cache (e.g. from a successful saveProfile)
+      primeUserProfileDtoCache(8, 'zh-TW', cachedDto);
+
+      // Now a component mounts receiving a stale oldSsrDto from SSR (e.g. during navigation hydration)
+      const { result } = renderHook(() =>
+        useUserProfileDto(8, 'zh-TW', oldSsrDto)
+      );
+
+      // The hook must prioritize the client-side cached data (which is newer) over the old initialData
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.userDto).toEqual(cachedDto);
+      expect(fetchUserById).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('options.enabled', () => {
+    it('does not fetch or set loading to true when enabled: false, reading only from cache if present', async () => {
+      const cachedDto = { ...mockUserDTO, name: 'Cached DTO' };
+      primeUserProfileDtoCache(9, 'zh-TW', cachedDto);
+
+      // Mount with enabled: false and a valid cache entry
+      const { result } = renderHook(() =>
+        useUserProfileDto(9, 'zh-TW', undefined, { enabled: false })
+      );
+
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.userDto).toEqual(cachedDto);
+      expect(fetchUserById).not.toHaveBeenCalled();
+
+      // Mount with enabled: false but NO cache entry
+      const { result: emptyResult } = renderHook(() =>
+        useUserProfileDto(10, 'zh-TW', undefined, { enabled: false })
+      );
+
+      expect(emptyResult.current.isLoading).toBe(false);
+      expect(emptyResult.current.userDto).toBeNull();
+      expect(fetchUserById).not.toHaveBeenCalled();
+    });
   });
 });
