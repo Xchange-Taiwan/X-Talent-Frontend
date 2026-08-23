@@ -57,7 +57,7 @@ export class AsyncReadManager<K, V> {
 
   public subscribe(
     key: K,
-    fetcher: (signal: AbortSignal) => Promise<V>,
+    fetcher: (signal: AbortSignal, context?: { force?: boolean }) => Promise<V>,
     onUpdate: (result: AsyncReadResult<V>) => void,
     options?: AsyncReadOptions<K, V>
   ): () => void {
@@ -105,7 +105,8 @@ export class AsyncReadManager<K, V> {
 
       if (!inflightEntry) {
         const controller = new AbortController();
-        const promise = Promise.resolve(fetcher(controller.signal))
+        const force = !!options?.force;
+        const promise = Promise.resolve(fetcher(controller.signal, { force }))
           .then(
             (value) => {
               if (controller.signal.aborted) {

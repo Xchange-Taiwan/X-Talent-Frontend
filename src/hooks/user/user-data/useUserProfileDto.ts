@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { AsyncReadManager } from '@/lib/asyncReadManager';
@@ -128,44 +128,43 @@ export function useUserProfileDto(
     }
   }, [key, activeInitialData]);
 
-  const isManualRefetchRef = useRef(false);
-
   const {
     data: userDto,
     isLoading,
     error,
-    refetch: originalRefetch,
+    refetch,
   } = useAsyncRead(
     userProfileDtoReadManager,
     key,
-    async (signal) => {
-      const isManualRefetch = isManualRefetchRef.current;
-      isManualRefetchRef.current = false;
-      const res = await fetchUserById(userId, language, signal);
+    async (signal, context) => {
+      const isManualRefetch = !!context?.force;
+      try {
+        const res = await fetchUserById(userId, language, signal);
 
-      if (res === null && key) {
-        if (isManualRefetch) {
+        if (res === null && key) {
+          if (isManualRefetch) {
+            userProfileDtoCache.delete(key);
+            return null;
+          }
+          // If it's a background revalidation (meaning we already have stale data),
+          // we keep the stale data as per "background revalidation returning null keeps stale data"
+          const existing = userProfileDtoCache.get(key);
+          if (existing) {
+            return existing;
+          }
+        }
+        return res;
+      } catch (err) {
+        if (isManualRefetch && key) {
           userProfileDtoCache.delete(key);
-          return null;
         }
-        // If it's a background revalidation (meaning we already have stale data),
-        // we keep the stale data as per "background revalidation returning null keeps stale data"
-        const existing = userProfileDtoCache.get(key);
-        if (existing) {
-          return existing;
-        }
+        throw err;
       }
-      return res;
     },
     {
       initialData: activeInitialData,
     }
   );
-
-  const refetch = useCallback(() => {
-    isManualRefetchRef.current = true;
-    originalRefetch();
-  }, [originalRefetch]);
 
   // Map errors and handle "USER_NOT_FOUND" distinction
   let resolvedError: ProfileFetchError = null;

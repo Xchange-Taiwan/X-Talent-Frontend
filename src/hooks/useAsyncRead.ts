@@ -41,7 +41,7 @@ function getInitialResultState<K, V>(
 export function useAsyncRead<K, V>(
   manager: AsyncReadManager<K, V>,
   key: K | null | undefined,
-  fetcher: (signal: AbortSignal) => Promise<V>,
+  fetcher: (signal: AbortSignal, context?: { force?: boolean }) => Promise<V>,
   options?: AsyncReadOptions<K, V>
 ): AsyncReadResult<V> & { refetch: () => void } {
   const [retryTrigger, setRetryTrigger] = useState(0);
@@ -86,7 +86,7 @@ export function useAsyncRead<K, V>(
     // to prevent redundant and unnecessary re-renders of the component.
     const unsubscribe = manager.subscribe(
       key,
-      (signal) => fetcherRef.current(signal),
+      (signal, context) => fetcherRef.current(signal, context),
       (newResult) => {
         setResult((prev) =>
           prev.data === newResult.data &&
