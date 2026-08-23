@@ -331,4 +331,38 @@ describe('AsyncReadManager unit tests', () => {
 
     unsubscribe();
   });
+
+  it('respects initialData and returns it synchronously with isLoading: false on cache miss', async () => {
+    const manager = new AsyncReadManager<string, string>();
+    const fetcher = vi.fn().mockResolvedValue('fresh-data');
+    const updates: AsyncReadResult<string>[] = [];
+
+    const unsubscribe = manager.subscribe(
+      'key',
+      fetcher,
+      (res) => updates.push(res),
+      { initialData: 'initial-data' }
+    );
+
+    // Initial state: data: 'initial-data', isLoading: false
+    expect(updates[0]).toEqual({
+      data: 'initial-data',
+      isLoading: false,
+      error: null,
+    });
+
+    // Wait for resolution
+    await vi.waitFor(() => {
+      expect(updates.length).toBe(2);
+    });
+
+    expect(updates[1]).toEqual({
+      data: 'fresh-data',
+      isLoading: false,
+      error: null,
+    });
+    expect(fetcher).toHaveBeenCalledOnce();
+
+    unsubscribe();
+  });
 });

@@ -66,6 +66,14 @@ export class AsyncReadManager<K, V> {
     const isStale = cachedStatus?.isStale ?? false;
     const hasCache = cached !== undefined;
 
+    const hasInitialData = options?.initialData !== undefined;
+    const effectiveData =
+      cached !== undefined
+        ? cached
+        : hasInitialData
+          ? options!.initialData!
+          : null;
+
     const sub: Subscription<V> = { onUpdate, options };
     let set = this.listeners.get(key);
     if (!set) {
@@ -78,10 +86,11 @@ export class AsyncReadManager<K, V> {
       // Synchronous update for cache hit
       onUpdate({ data: cached, isLoading: false, error: null });
     } else {
-      // Inform of loading state (only blocking if no cache, or if we force a refresh)
-      const shouldShowLoading = !hasCache || !!options?.force;
+      // Inform of loading state (only blocking if no cache and no initialData, or if we force a refresh)
+      const shouldShowLoading =
+        (!hasCache && !hasInitialData) || !!options?.force;
       onUpdate({
-        data: cached ?? null,
+        data: effectiveData,
         isLoading: shouldShowLoading,
         error: null,
       });
