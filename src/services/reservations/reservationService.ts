@@ -303,7 +303,7 @@ export async function fetchReservationMeetLink(opts: {
     });
   }
 
-  const path = `/v1/users/${userId}/reservations/${reservationId}/google-meet`;
+  const path = `/v1/users/${encodeURIComponent(userId)}/reservations/${encodeURIComponent(reservationId)}/google-meet`;
   const json =
     await apiClient.get<components['schemas']['ApiResponse_MeetLinkVO_']>(path);
 
