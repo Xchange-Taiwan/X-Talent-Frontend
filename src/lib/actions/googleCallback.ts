@@ -18,7 +18,7 @@ export async function googleCallback(
   const res = await fetch(`${BFF_URL}/v2/oauth/google/callback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code, state, language: 'zh_TW' }),
+    body: JSON.stringify({ code, state }),
   });
 
   const data = (await res.json()) as OAuthCallbackResponse;
