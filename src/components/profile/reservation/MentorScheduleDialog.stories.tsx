@@ -101,6 +101,8 @@ const defaultScheduleMock: MentorScheduleEditor = {
   deleteDraftSlot: () => {},
   confirmChanges: async () => ({ ok: true }),
   resetChanges: () => {},
+  hasError: false,
+  reload: () => {},
   reservations: [],
 };
 

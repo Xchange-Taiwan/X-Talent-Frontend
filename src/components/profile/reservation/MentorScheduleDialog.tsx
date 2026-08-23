@@ -267,6 +267,7 @@ export default function MentorScheduleDialog({
           <DialogHeader>
             <DialogTitle>設定可預約時段</DialogTitle>
           </DialogHeader>
+
           <div className="flex flex-col gap-4 py-4">
             <ScheduleCalendar
               selected={
@@ -286,100 +287,104 @@ export default function MentorScheduleDialog({
               disablePastDates={true}
               highlightAvailableDates={true}
               isMonthLoading={!monthLoaded}
+              hasError={schedule.hasError}
+              onRetry={schedule.reload}
             />
 
-            <div>
-              <p className="font-semibold lg:text-lg">可預約時段</p>
+            {!schedule.hasError && (
+              <div>
+                <p className="font-semibold lg:text-lg">可預約時段</p>
 
-              {!monthLoaded ? (
-                <div
-                  className="mt-3 flex flex-col gap-3"
-                  aria-busy="true"
-                  aria-live="polite"
-                >
-                  <Skeleton className="h-12 w-full lg:h-14" />
-                  <Skeleton className="h-12 w-full lg:h-14" />
-                </div>
-              ) : (
-                <div className="mt-3 flex flex-col gap-3">
-                  {visibleSlots.map((slot) => {
-                    const startLabel = fmtTime(
-                      Math.floor(slot.start.getTime() / 1000)
-                    );
-                    const endLabel = fmtTime(
-                      Math.floor(slot.end.getTime() / 1000)
-                    );
-                    const reservationBlock = getReservationBlock(slot);
-                    const isPast =
-                      Math.floor(slot.start.getTime() / 1000) <= nowSec;
-                    return (
-                      <div
-                        key={slot.occurrenceId}
-                        {...(isPast
-                          ? { 'aria-disabled': true }
-                          : {
-                              role: 'button',
-                              tabIndex: 0,
-                              onClick: () =>
-                                handleSlotAction(slot, reservationBlock),
-                              onKeyDown: (e: KeyboardEvent) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  handleSlotAction(slot, reservationBlock);
-                                }
-                              },
-                            })}
-                        className={cn(
-                          'flex flex-col gap-2 rounded-lg border bg-background-white p-3 transition-colors lg:p-4',
-                          isPast
-                            ? 'cursor-not-allowed opacity-50'
-                            : 'cursor-pointer hover:bg-background-bottom/50 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none'
-                        )}
-                      >
-                        <div className="flex flex-row flex-nowrap items-center justify-between gap-2 lg:gap-3">
-                          <div className="flex items-center gap-2">
-                            <Clock className="size-4 text-text-tertiary" />
-                            <span className="text-base font-medium tabular-nums">
-                              {startLabel} – {endLabel}
-                            </span>
-                            <span className="text-sm text-text-tertiary">
-                              ({slot.durationMinutes} 分)
-                              {isPast ? ' · 已過' : ''}
-                            </span>
-                          </div>
-                          {!isPast && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 lg:size-10"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (reservationBlock) {
-                                  showPrompt(reservationBlock);
-                                  return;
-                                }
-                                deleteDraftSlot(slot.id, slot.occurrenceUnix);
-                              }}
-                            >
-                              <X className="size-4 lg:size-5" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  <Button
-                    variant="ghost"
-                    onClick={() => setActiveDialog({ kind: 'add' })}
-                    className="h-10 w-full lg:h-11 lg:text-base"
-                    disabled={!selectedDate}
+                {!monthLoaded ? (
+                  <div
+                    className="mt-3 flex flex-col gap-3"
+                    aria-busy="true"
+                    aria-live="polite"
                   >
-                    <Plus className="size-4 lg:size-5" />
-                  </Button>
-                </div>
-              )}
-            </div>
+                    <Skeleton className="h-12 w-full lg:h-14" />
+                    <Skeleton className="h-12 w-full lg:h-14" />
+                  </div>
+                ) : (
+                  <div className="mt-3 flex flex-col gap-3">
+                    {visibleSlots.map((slot) => {
+                      const startLabel = fmtTime(
+                        Math.floor(slot.start.getTime() / 1000)
+                      );
+                      const endLabel = fmtTime(
+                        Math.floor(slot.end.getTime() / 1000)
+                      );
+                      const reservationBlock = getReservationBlock(slot);
+                      const isPast =
+                        Math.floor(slot.start.getTime() / 1000) <= nowSec;
+                      return (
+                        <div
+                          key={slot.occurrenceId}
+                          {...(isPast
+                            ? { 'aria-disabled': true }
+                            : {
+                                role: 'button',
+                                tabIndex: 0,
+                                onClick: () =>
+                                  handleSlotAction(slot, reservationBlock),
+                                onKeyDown: (e: KeyboardEvent) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    handleSlotAction(slot, reservationBlock);
+                                  }
+                                },
+                              })}
+                          className={cn(
+                            'flex flex-col gap-2 rounded-lg border bg-background-white p-3 transition-colors lg:p-4',
+                            isPast
+                              ? 'cursor-not-allowed opacity-50'
+                              : 'cursor-pointer hover:bg-background-bottom/50 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none'
+                          )}
+                        >
+                          <div className="flex flex-row flex-nowrap items-center justify-between gap-2 lg:gap-3">
+                            <div className="flex items-center gap-2">
+                              <Clock className="size-4 text-text-tertiary" />
+                              <span className="text-base font-medium tabular-nums">
+                                {startLabel} – {endLabel}
+                              </span>
+                              <span className="text-sm text-text-tertiary">
+                                ({slot.durationMinutes} 分)
+                                {isPast ? ' · 已過' : ''}
+                              </span>
+                            </div>
+                            {!isPast && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 lg:size-10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (reservationBlock) {
+                                    showPrompt(reservationBlock);
+                                    return;
+                                  }
+                                  deleteDraftSlot(slot.id, slot.occurrenceUnix);
+                                }}
+                              >
+                                <X className="size-4 lg:size-5" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    <Button
+                      variant="ghost"
+                      onClick={() => setActiveDialog({ kind: 'add' })}
+                      className="h-10 w-full lg:h-11 lg:text-base"
+                      disabled={!selectedDate}
+                    >
+                      <Plus className="size-4 lg:size-5" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <DialogFooter className="justify-center gap-3 sm:gap-4 sm:space-x-0">
@@ -390,11 +395,13 @@ export default function MentorScheduleDialog({
                 onOpenChange(false);
               }}
             >
-              取消
+              {!schedule.hasError ? '取消' : '關閉'}
             </Button>
-            <Button onClick={handleSave} disabled={isSaving || !monthLoaded}>
-              {isSaving ? '儲存中...' : '儲存'}
-            </Button>
+            {!schedule.hasError && (
+              <Button onClick={handleSave} disabled={isSaving || !monthLoaded}>
+                {isSaving ? '儲存中...' : '儲存'}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

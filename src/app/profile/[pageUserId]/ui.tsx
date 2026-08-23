@@ -303,22 +303,26 @@ export default function ProfilePageUI({
                       disableEmptyDates={true}
                       isMonthLoading={!schedule.monthLoaded}
                       getDateStatus={getDateStatus}
+                      hasError={schedule.hasError}
+                      onRetry={schedule.reload}
                     />
                   </div>
-                  <BookingForm
-                    isOwnMentorProfile={isOwnMentorProfile}
-                    isUserDataLoading={userLoading || !isIdentityResolved}
-                    isAuthenticated={!!loginUserId}
-                    slotsSnapshot={schedule.slotsSnapshot}
-                    selectedSlot={selectedSlot}
-                    setSelectedSlot={setSelectedSlot}
-                    isSubmitting={isSubmitting}
-                    selectedDate={selectedDate}
-                    onReservation={onReservation}
-                    onConfirmReservation={onConfirmReservation}
-                    myUserId={loginUserId}
-                    onMutationSuccess={schedule.reload}
-                  />
+                  {!schedule.hasError && (
+                    <BookingForm
+                      isOwnMentorProfile={isOwnMentorProfile}
+                      isUserDataLoading={userLoading || !isIdentityResolved}
+                      isAuthenticated={!!loginUserId}
+                      slotsSnapshot={schedule.slotsSnapshot}
+                      selectedSlot={selectedSlot}
+                      setSelectedSlot={setSelectedSlot}
+                      isSubmitting={isSubmitting}
+                      selectedDate={selectedDate}
+                      onReservation={onReservation}
+                      onConfirmReservation={onConfirmReservation}
+                      myUserId={loginUserId}
+                      onMutationSuccess={schedule.reload}
+                    />
+                  )}
                   {editorDialog}
                 </div>
               )}
