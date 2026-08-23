@@ -132,12 +132,11 @@ describe('tagCatalog services', () => {
       expect(result.want_skill).toEqual([]);
     });
 
-    it('returns EMPTY_TAG_CATALOGS on network/API failure', async () => {
+    it('propagates network/API failures as errors', async () => {
       vi.mocked(apiClient.getUnwrapped).mockRejectedValue(
         new Error('Network error')
       );
-      const result = await fetchTagCatalog('zh-TW');
-      expect(result).toEqual(EMPTY_TAG_CATALOGS);
+      await expect(fetchTagCatalog('zh-TW')).rejects.toThrow('Network error');
     });
   });
 });

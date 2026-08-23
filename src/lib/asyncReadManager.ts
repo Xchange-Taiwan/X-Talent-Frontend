@@ -60,7 +60,9 @@ export class AsyncReadManager<K, V> {
     onUpdate: (result: AsyncReadResult<V>) => void,
     options?: AsyncReadOptions<K, V>
   ): () => void {
-    const cached = this.cache?.get(key);
+    const cachedStatus = this.cache?.getWithStatus(key);
+    const cached = cachedStatus?.value;
+    const isStale = cachedStatus?.isStale ?? false;
     const hasCache = cached !== undefined;
 
     const sub: Subscription<V> = { onUpdate, options };
@@ -71,12 +73,17 @@ export class AsyncReadManager<K, V> {
     }
     set.add(sub);
 
-    if (hasCache && !options?.force) {
+    if (hasCache && !options?.force && !isStale) {
       // Synchronous update for cache hit
       onUpdate({ data: cached, isLoading: false, error: null });
     } else {
-      // Inform of loading state
-      onUpdate({ data: cached ?? null, isLoading: true, error: null });
+      // Inform of loading state (only blocking if no cache, or if we force a refresh)
+      const shouldShowLoading = !hasCache || !!options?.force;
+      onUpdate({
+        data: cached ?? null,
+        isLoading: shouldShowLoading,
+        error: null,
+      });
 
       let inflightEntry = this.inflight.get(key);
       if (options?.force && inflightEntry) {
