@@ -1096,8 +1096,6 @@ export interface components {
       code: string;
       /** State */
       state: string;
-      /** @default zh_TW */
-      language: components['schemas']['Language'];
     };
     /** Body_refresh_token_api_v1_auth_token_post */
     Body_refresh_token_api_v1_auth_token_post: {
@@ -2915,7 +2913,6 @@ export interface operations {
             )
           | null;
         next_dtend?: number | null;
-        language?: components['schemas']['Language'];
       };
       header?: never;
       path: {
@@ -3301,7 +3298,6 @@ export interface operations {
     parameters: {
       query: {
         user_id: number;
-        language?: components['schemas']['Language'];
       };
       header?: never;
       path?: never;
@@ -3511,7 +3507,6 @@ export interface operations {
       query: {
         code: string;
         state: string;
-        language?: components['schemas']['Language'];
       };
       header?: never;
       path?: never;

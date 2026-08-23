@@ -90,22 +90,25 @@ export function HamburgerMenu({
             </a>
           </div>
 
-          <div className="mt-auto flex flex-col items-center gap-6 pb-6">
-            <Button asChild className="w-40 bg-brand-500 hover:bg-brand-500">
-              <Link href="/auth/signin" onClick={close}>
-                登入
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="w-40 border-brand-500 text-brand-500 hover:text-brand-500"
-            >
-              <Link href="/auth/signup" onClick={close}>
-                註冊
-              </Link>
-            </Button>
-          </div>
+          {(identity.state === 'unknown' ||
+            identity.state === 'confirmed-guest') && (
+            <div className="mt-auto flex flex-col items-center gap-6 pb-6">
+              <Button asChild className="w-40 bg-brand-500 hover:bg-brand-500">
+                <Link href="/auth/signin" onClick={close}>
+                  登入
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                className="w-40 border-brand-500 text-brand-500 hover:text-brand-500"
+              >
+                <Link href="/auth/signup" onClick={close}>
+                  註冊
+                </Link>
+              </Button>
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>
