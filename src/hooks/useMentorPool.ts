@@ -128,7 +128,6 @@ export function useMentorPool({
   const [retryCount, setRetryCount] = useState<number>(0);
   const hasClientFetched = useRef(false);
   const prevFilterKeyRef = useRef<string | null>(null);
-  const prevErrorRef = useRef<string | null>(null);
 
   // Derive filterKey for useAsyncRead
   const filterKey =
@@ -153,7 +152,20 @@ export function useMentorPool({
       return fetchMentors(
         { ...conditions, limit: PAGE_LIMIT, cursor: '' },
         signal
-      );
+      ).catch((err) => {
+        const isAbort =
+          (err instanceof DOMException && err.name === 'AbortError') ||
+          (err instanceof Error && err.name === 'AbortError');
+        if (!isAbort) {
+          toast({
+            variant: 'destructive',
+            title: '載入失敗',
+            description: '無法獲取導師，請稍後再試。',
+            duration: 5000,
+          });
+        }
+        throw err;
+      });
     },
     { force: true } // Always force refresh to query fresh results on filter change
   );
@@ -166,10 +178,6 @@ export function useMentorPool({
 
   // Synchronize useAsyncRead state back to local pageState
   useEffect(() => {
-    if (!filterError) {
-      prevErrorRef.current = null;
-    }
-
     if (filterKey === null) {
       if (prevFilterKeyRef.current !== null) {
         setPageState(getInitialUnfilteredState());
@@ -201,15 +209,6 @@ export function useMentorPool({
     }
 
     if (filterError) {
-      if (filterError !== prevErrorRef.current) {
-        prevErrorRef.current = filterError;
-        toast({
-          variant: 'destructive',
-          title: '載入失敗',
-          description: '無法獲取導師，請稍後再試。',
-          duration: 5000,
-        });
-      }
       setPageState((prev) => {
         if (
           prev.mentors.length === 0 &&
@@ -244,7 +243,6 @@ export function useMentorPool({
     isFilterLoading,
     filterError,
     getInitialUnfilteredState,
-    toast,
   ]);
 
   const fetchMoreMentors = useCallback(async () => {
