@@ -5,7 +5,12 @@ import { useEffect, useState } from 'react';
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { AsyncReadManager } from '@/lib/asyncReadManager';
 import { createKeyedCache } from '@/lib/createKeyedCache';
-import { AnnouncementData, fetchAnnouncement } from '@/services/announcement';
+import {
+  AnnouncementData,
+  fetchAnnouncement,
+  getMaintenanceTimeRemaining,
+  isMaintenanceExpired,
+} from '@/services/announcement';
 
 const DISMISSED_STORAGE_KEY = 'announcement-dismissed';
 
@@ -48,16 +53,8 @@ export function useAnnouncement() {
     }
 
     const now = Date.now();
-    let isExpired = false;
-    let timeRemaining = 0;
-
-    if (data.maintenanceTime) {
-      const maintenanceDate = new Date(data.maintenanceTime);
-      if (!isNaN(maintenanceDate.getTime())) {
-        timeRemaining = maintenanceDate.getTime() - now;
-        isExpired = timeRemaining <= 0;
-      }
-    }
+    const isExpired = isMaintenanceExpired(data, now);
+    const timeRemaining = getMaintenanceTimeRemaining(data, now);
 
     // If maintenance time has already passed, don't show
     if (isExpired) {

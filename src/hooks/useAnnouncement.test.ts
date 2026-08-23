@@ -5,9 +5,14 @@ import { fetchAnnouncement } from '@/services/announcement';
 
 import { announcementReadManager, useAnnouncement } from './useAnnouncement';
 
-vi.mock('@/services/announcement', () => ({
-  fetchAnnouncement: vi.fn(),
-}));
+vi.mock('@/services/announcement', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/services/announcement')>();
+  return {
+    ...actual,
+    fetchAnnouncement: vi.fn(),
+  };
+});
 
 describe('useAnnouncement hook tests', () => {
   beforeEach(() => {
