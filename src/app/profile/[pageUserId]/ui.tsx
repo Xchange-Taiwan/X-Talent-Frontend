@@ -221,33 +221,34 @@ export default function ProfilePageUI({
                 />
 
                 {userData.is_mentor && (
-                  <ProfileBadgeSection
-                    title="專業能力"
-                    items={userData.have_skill}
-                  />
+                  <>
+                    <ProfileBadgeSection
+                      title="專業能力"
+                      items={userData.have_skill}
+                    />
+                    <ProfileBadgeSection
+                      title="我能提供的服務"
+                      items={userData.have_topic}
+                    />
+                  </>
                 )}
 
-                {userData.is_mentor && (
-                  <ProfileBadgeSection
-                    title="我能提供的服務"
-                    items={userData.have_topic}
-                  />
+                {userData.is_mentor === false && (
+                  <>
+                    <ProfileBadgeSection
+                      title="有興趣多了解的職位"
+                      items={userData.want_position}
+                    />
+                    <ProfileBadgeSection
+                      title="想多了解、加強的技能"
+                      items={userData.want_skill}
+                    />
+                    <ProfileBadgeSection
+                      title="想多了解的主題"
+                      items={userData.want_topic}
+                    />
+                  </>
                 )}
-
-                <ProfileBadgeSection
-                  title="有興趣多了解的職位"
-                  items={userData.want_position}
-                />
-
-                <ProfileBadgeSection
-                  title="想多了解、加強的技能"
-                  items={userData.want_skill}
-                />
-
-                <ProfileBadgeSection
-                  title="想多了解的主題"
-                  items={userData.want_topic}
-                />
 
                 {!!userData.workExperiences?.length && (
                   <div className="mt-10">
