@@ -24,7 +24,7 @@ function HeaderComponent(): JSX.Element {
   const { data: session } = useSession();
   const currentAvatar = useCurrentAvatar();
   const { authKnown, isLoggedIn, isMentor, userId, isResolvingUser } =
-    useIdentity(null);
+    useIdentity();
 
   const virtualUser = useMemo(() => {
     if (session?.user) {

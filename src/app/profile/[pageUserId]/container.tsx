@@ -9,12 +9,10 @@ import MentorScheduleDialog from '@/components/profile/reservation/MentorSchedul
 import { Button } from '@/components/ui/button';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { useIdentity } from '@/hooks/user/auth/useIdentity';
-import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfirmation';
 import { useReservationDateClamp } from '@/hooks/user/reservation/useReservationDateClamp';
 import { primeTagCatalogCacheIfEmpty } from '@/hooks/user/tags/useTagCatalog';
 import useUserData from '@/hooks/user/user-data/useUserData';
-import { primeUserProfileDtoCacheIfEmpty } from '@/hooks/user/user-data/useUserProfileDto';
 import { BookingSlot } from '@/lib/profile/bookingAvailability';
 import { getMentorOnboardingUrl } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
@@ -34,21 +32,12 @@ interface Props {
 
 export default function ProfilePageContainer({
   pageUserId,
-  initialDto,
+  initialDto: _initialDto,
   initialCatalogs,
 }: Props) {
   const router = useRouter();
-
-  // Synchronously seed the in-memory dto cache from the SSR-fetched initialDto
-  // BEFORE child hooks run. This is intentionally inside render (not useEffect)
-  // so the first render of useUserProfileDto's lazy-init `useState` reads the
-  // primed entry — first paint shows content with no skeleton flash.
-  // `IfEmpty` preserves a more authoritative client-side prime that
-  // `useProfileSubmit` may have just written via `firstSyncedFetch`.
   const pageUserIdNumber = Number(pageUserId);
-  if (Number.isFinite(pageUserIdNumber)) {
-    primeUserProfileDtoCacheIfEmpty(pageUserIdNumber, 'zh_TW', initialDto);
-  }
+
   // Same idea for the tag catalog: SSR already fetched the localized labels,
   // so seed the client cache here so useTagCatalog resolves subject_group
   // codes to Chinese labels on first paint instead of flashing raw codes.
@@ -77,7 +66,7 @@ export default function ProfilePageContainer({
   //
   // Per CLAUDE.md's "Role-based UI" rule: never render role-specific UI
   // before the role is resolved.
-  const identity = useIdentity(null);
+  const identity = useIdentity();
   const isIdentityResolved = identity.sessionSettled;
   const loginUserId = identity.hasFullUser ? (identity.userId ?? '') : '';
 
@@ -124,29 +113,12 @@ export default function ProfilePageContainer({
     refetch,
   } = useUserData(pageUserIdNumber, 'zh_TW');
 
-  // The S3 avatar URL is a stable key (re-uploads overwrite in place), so a
-  // `?v=` query is the only way to bust the Image Optimizer / browser cache.
-  // updateAvatar bakes the cache buster into the URL it returns at upload
-  // time. On own-profile, prefer the just-submitted override (set
-  // synchronously by useProfileSubmit) over `userData.avatar`, which can
-  // briefly come from a stale ISR initialDto on the post-submit navigation
-  // race. The override clears once session.user.avatar catches up.
   // Single source of truth for "should owner-only controls (edit button,
   // become-mentor button, schedule-management dialog) render" so ui.tsx
   // doesn't need to re-derive this comparison at each of its three call
   // sites.
   const canShowOwnerControls = isOwnProfile;
-  const currentAvatar = useCurrentAvatar();
-  // Gate on canShowOwnerControls (not just isOwnProfile): while identity is
-  // still resolving, isOwnProfile is provisionally false (loginUserId is
-  // still ''), so applying the currentAvatar override here unguarded would
-  // reproduce the same flash this fix exists to eliminate - the avatar
-  // could briefly show userData.avatar, then jump to the just-uploaded
-  // override once the session settles.
-  const resolvedAvatar = canShowOwnerControls
-    ? (currentAvatar ?? userData?.avatar)
-    : userData?.avatar;
-  const avatarSrc = resolvedAvatar || DefaultAvatarImgUrl;
+  const avatarSrc = userData?.avatar || DefaultAvatarImgUrl;
 
   const { handleScheduleMonthChange, clampSelectedDateToToday } =
     useReservationDateClamp({

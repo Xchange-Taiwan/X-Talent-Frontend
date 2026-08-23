@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  applyAvatarOverride,
   clearSessionHint,
   decodeSessionHint,
   DOM_AUTH_AVATAR_ATTR,
   DOM_AUTH_STATE_ATTR,
   encodeSessionHint,
   readCookie,
-  type ResolvedIdentity,
   resolveIdentity,
   safeDecodeURIComponent,
   SESSION_HINT_COOKIE,
@@ -464,57 +462,6 @@ describe('sessionHint utilities', () => {
         expect(identity.sessionSettled).toBe(true);
         expect(identity.hasFullUser).toBe(true);
       });
-    });
-  });
-
-  describe('applyAvatarOverride', () => {
-    const baseIdentity: ResolvedIdentity = {
-      state: 'confirmed-member',
-      userId: 'user-123',
-      avatar: 'https://example.com/session.png',
-      isMentor: true,
-      isLoggedIn: true,
-      hasFullUser: true,
-      isResolvingUser: false,
-      authKnown: true,
-      sessionSettled: true,
-    };
-
-    it('applies the override avatar when its userId matches the resolved identity', () => {
-      const identity = applyAvatarOverride(baseIdentity, {
-        userId: 'user-123',
-        url: 'https://example.com/override.png',
-      });
-      expect(identity.avatar).toBe('https://example.com/override.png');
-      expect(identity).not.toBe(baseIdentity);
-    });
-
-    it('does not apply the override when its userId does not match the resolved identity', () => {
-      const identity = applyAvatarOverride(baseIdentity, {
-        userId: 'user-999',
-        url: 'https://example.com/override.png',
-      });
-      expect(identity).toBe(baseIdentity);
-    });
-
-    it('does not apply the override while the identity has no resolved userId yet', () => {
-      const identity = applyAvatarOverride(
-        {
-          ...baseIdentity,
-          state: 'hint-only',
-          userId: undefined,
-          hasFullUser: false,
-          isResolvingUser: true,
-          sessionSettled: false,
-        },
-        { userId: 'user-123', url: 'https://example.com/override.png' }
-      );
-      expect(identity.avatar).toBe(baseIdentity.avatar);
-    });
-
-    it('returns the identity unchanged when there is no override', () => {
-      expect(applyAvatarOverride(baseIdentity, null)).toBe(baseIdentity);
-      expect(applyAvatarOverride(baseIdentity, undefined)).toBe(baseIdentity);
     });
   });
 

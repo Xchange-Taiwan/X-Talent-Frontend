@@ -59,7 +59,7 @@ describe('useProfileSubmit (Hook Layer)', () => {
   });
 
   it('saveProfile resolves successfully → isSaving remains true (simulating in-flight navigation)', async () => {
-    mockSaveProfile.mockResolvedValueOnce(undefined);
+    mockSaveProfile.mockResolvedValueOnce(undefined as any);
     const { result } = renderHook(() => useProfileSubmit(makeOptions()));
 
     await act(async () => {

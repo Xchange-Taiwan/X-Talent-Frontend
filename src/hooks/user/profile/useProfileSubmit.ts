@@ -12,6 +12,7 @@ import {
 import { type ProfileDirtyFields } from '@/lib/profile/profileSaveAdapter';
 import { LoggedError, saveProfile } from '@/lib/profile/saveProfile';
 import { ProfileFormValues } from '@/schemas/profileSchema';
+import type { MentorProfileVO } from '@/types/user';
 
 export type { ProfileDirtyFields };
 
@@ -21,6 +22,7 @@ interface Options {
   session: Session | null;
   updateSession: (data: unknown) => Promise<Session | null>;
   consumeAvatarUpload?: (file: File | undefined) => Promise<string | undefined>;
+  currentDto?: MentorProfileVO | null;
 }
 
 export function useProfileSubmit({
@@ -29,6 +31,7 @@ export function useProfileSubmit({
   session,
   updateSession,
   consumeAvatarUpload,
+  currentDto,
 }: Options) {
   const router = useRouter();
 
@@ -44,25 +47,24 @@ export function useProfileSubmit({
   });
 
   const onSubmit = useCallback(
-    async (values: ProfileFormValues, dirtyFields?: ProfileDirtyFields) => {
-      await run(() =>
-        saveProfile(
-          values,
-          {
-            pageUserId,
-            isMentorOnboarding,
-            dirtyFields,
-          },
-          {
-            session,
-            updateSession,
-            navigate: router.push,
-            revalidateProfilePath,
-            clearUserDataCache,
-            primeUserDataCache,
-            consumeAvatarUpload,
-          }
-        )
+    async (
+      values: ProfileFormValues,
+      dirtyFields?: ProfileDirtyFields
+    ): Promise<MentorProfileVO | undefined> => {
+      return await run(() =>
+        saveProfile(values, {
+          pageUserId,
+          isMentorOnboarding,
+          session,
+          dirtyFields,
+          consumeAvatarUpload,
+          updateSession,
+          navigate: router.push,
+          revalidateProfilePath,
+          clearUserDataCache,
+          primeUserDataCache,
+          currentDto,
+        })
       );
     },
     [
@@ -73,6 +75,7 @@ export function useProfileSubmit({
       consumeAvatarUpload,
       updateSession,
       router.push,
+      currentDto,
     ]
   );
 

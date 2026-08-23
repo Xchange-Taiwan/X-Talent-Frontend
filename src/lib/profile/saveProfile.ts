@@ -1,12 +1,12 @@
 import { Session } from 'next-auth';
 
 import { trackEvent } from '@/lib/analytics';
-import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
-  confirmProfileSynced,
-  firstSyncedFetch,
-  pollUntilSynced,
+  confirmProfileSynced as defaultConfirmProfileSynced,
+  firstSyncedFetch as defaultFirstSyncedFetch,
+  MentorCardFields,
+  pollUntilSynced as defaultPollUntilSynced,
 } from '@/lib/profile/pollUntilSynced';
 import {
   computeDirtyStates,
@@ -47,15 +47,58 @@ export interface SaveProfileAdapters {
     data: MentorProfileVO
   ) => void;
   consumeAvatarUpload?: (file: File | undefined) => Promise<string | undefined>;
+  firstSyncedFetch?: (
+    userId: number,
+    values: ProfileFormValues,
+    avatar: string
+  ) => Promise<MentorProfileVO | null>;
+  pollUntilSynced?: (
+    userId: number,
+    values: ProfileFormValues,
+    avatar: string
+  ) => Promise<MentorProfileVO | null>;
+  confirmProfileSynced?: (
+    userId: number,
+    fields: MentorCardFields,
+    isMentorRelevant: boolean,
+    revalidate: () => Promise<void>
+  ) => Promise<void>;
+  currentDto?: MentorProfileVO | null;
 }
+
+export interface SaveProfileDeps
+  extends SaveProfileContext, SaveProfileAdapters {}
 
 export async function saveProfile(
   values: ProfileFormValues,
   context: SaveProfileContext,
   adapters: SaveProfileAdapters
-): Promise<void> {
-  const { pageUserId, isMentorOnboarding, dirtyFields } = context;
+): Promise<MentorProfileVO>;
+
+export async function saveProfile(
+  values: ProfileFormValues,
+  deps: SaveProfileDeps
+): Promise<MentorProfileVO>;
+
+export async function saveProfile(
+  values: ProfileFormValues,
+  contextOrDeps: SaveProfileContext | SaveProfileDeps,
+  adapters?: SaveProfileAdapters
+): Promise<MentorProfileVO> {
+  let deps: SaveProfileDeps;
+  if (adapters) {
+    deps = {
+      ...(contextOrDeps as SaveProfileContext),
+      ...adapters,
+    };
+  } else {
+    deps = contextOrDeps as SaveProfileDeps;
+  }
+
   const {
+    pageUserId,
+    isMentorOnboarding,
+    dirtyFields,
     session,
     updateSession,
     navigate,
@@ -63,7 +106,11 @@ export async function saveProfile(
     clearUserDataCache,
     primeUserDataCache,
     consumeAvatarUpload,
-  } = adapters;
+    firstSyncedFetch = defaultFirstSyncedFetch,
+    pollUntilSynced = defaultPollUntilSynced,
+    confirmProfileSynced = defaultConfirmProfileSynced,
+    currentDto,
+  } = deps;
 
   const sessionUserId = session?.user?.id ? Number(session.user.id) : null;
   const sessionUser = session?.user;
@@ -137,11 +184,59 @@ export async function saveProfile(
     });
   }
 
-  // Step 4: Optimistic Avatar Override
-  function step4OptimisticAvatarOverride(avatarUrl: string | undefined) {
-    if (values.avatarFile && avatarUrl && sessionUser?.id) {
-      setAvatarOverride(String(sessionUser.id), avatarUrl);
-    }
+  // Step 4: Optimistic Cache Priming (Ticket 631)
+  function step4OptimisticCachePriming(
+    avatarUrl: string | undefined,
+    jobTitle?: string,
+    company?: string,
+    experiencesPayload?: unknown
+  ) {
+    const optimisticIsMentor = isMentorOnboarding
+      ? true
+      : (sessionUser?.isMentor ?? false);
+    const optimisticOnBoarding = isMentorOnboarding
+      ? true
+      : (sessionUser?.onBoarding ?? false);
+
+    const experiences = experiencesPayload ?? currentDto?.experiences ?? null;
+
+    const optimisticDto: MentorProfileVO = {
+      ...currentDto,
+      user_id: sessionUserId ?? Number(pageUserId),
+      name: values.name,
+      avatar: avatarUrl ?? currentDto?.avatar ?? values.avatar ?? null,
+      job_title: jobTitle || currentDto?.job_title || null,
+      company: company || currentDto?.company || null,
+      years_of_experience:
+        values.years_of_experience || currentDto?.years_of_experience || null,
+      location: values.location || currentDto?.location || null,
+      personal_statement:
+        values.statement || currentDto?.personal_statement || null,
+      about: values.about || currentDto?.about || null,
+      onboarding: optimisticOnBoarding,
+      is_mentor: optimisticIsMentor,
+      language: 'zh_TW',
+      industry: values.industry
+        ? {
+            subject_group: values.industry,
+            subject:
+              currentDto?.industry && 'subject' in currentDto.industry
+                ? ((currentDto.industry as Record<string, unknown>)
+                    .subject as string)
+                : '',
+          }
+        : (currentDto?.industry ?? null),
+      want_position: values.want_position,
+      want_skill: values.want_skill,
+      want_topic: values.want_topic,
+      have_skill: values.have_skill,
+      have_topic: values.have_topic,
+      experiences: experiences as MentorProfileVO['experiences'],
+    } as unknown as MentorProfileVO;
+
+    const resolvedUserId = sessionUserId ?? Number(pageUserId);
+    primeUserDataCache(resolvedUserId, 'zh_TW', optimisticDto);
+    return optimisticDto;
   }
 
   // Step 5: Optimistic Session Update
@@ -254,8 +349,8 @@ export async function saveProfile(
             jobTitle: jobTitle ?? '',
             company: company ?? '',
             about: values.about ?? '',
-            yearsOfExperience: values.years_of_experience,
-            haveTopic: values.have_topic,
+            yearsOfExperience: String(values.years_of_experience ?? ''),
+            haveTopic: values.have_topic ?? [],
             avatar: avatarUrl ?? '',
           },
           isMentorRelevant,
@@ -283,7 +378,12 @@ export async function saveProfile(
   const avatarUrl = await step1UploadAvatar();
   const { payload } = await step2WriteProfile(avatarUrl);
   await step3OptimisticCacheRevalidation();
-  step4OptimisticAvatarOverride(avatarUrl);
+  const optimisticDto = step4OptimisticCachePriming(
+    avatarUrl,
+    payload.job_title,
+    payload.company,
+    payload.experiences
+  );
   const { optimisticIsMentor, optimisticOnBoarding } =
     await step5OptimisticSessionUpdate(
       avatarUrl,
@@ -298,4 +398,6 @@ export async function saveProfile(
     optimisticIsMentor,
     optimisticOnBoarding
   );
+
+  return optimisticDto;
 }
