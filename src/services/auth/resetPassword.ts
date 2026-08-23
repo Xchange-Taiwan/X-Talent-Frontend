@@ -1,9 +1,6 @@
-import { apiClient } from '@/lib/apiClient';
-import type { components } from '@/types/api';
+import { apiClient, FetchApiError } from '@/lib/apiClient';
 
 import { AuthResponse, createGeneralErrorResponse } from '../types';
-
-type ResetPasswordApiResponse = components['schemas']['ApiResponse_NoneType_'];
 
 export async function resetPassword(
   verifyToken: string,
@@ -11,15 +8,17 @@ export async function resetPassword(
   confirmPassword: string
 ): Promise<AuthResponse> {
   try {
-    const result = await apiClient.put<ResetPasswordApiResponse>(
+    await apiClient.putUnwrapped<null>(
       '/v1/auth/password/reset',
       { password, confirm_password: confirmPassword },
       { auth: false, params: { verify_token: verifyToken } }
     );
 
-    if (result.code === '0') return { status: 'success', code: 200 };
-    throw createGeneralErrorResponse(200, result.msg || '密碼重設失敗');
+    return { status: 'success', code: 200 };
   } catch (error) {
+    if (error instanceof FetchApiError) {
+      throw createGeneralErrorResponse(200, error.msg);
+    }
     if ((error as AuthResponse)?.status === 'error') throw error;
     throw createGeneralErrorResponse(
       500,

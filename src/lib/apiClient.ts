@@ -35,10 +35,10 @@ export class FetchHttpError extends Error {
 export class FetchApiError extends Error {
   constructor(
     public readonly code: string,
-    message: string,
+    public readonly msg: string,
     public readonly path: string
   ) {
-    super(`fetch ${path} API error (${code}): ${message}`);
+    super(`fetch ${path} API error (${code}): ${msg}`);
     this.name = 'FetchApiError';
   }
 }
@@ -261,14 +261,86 @@ export const apiClient = {
   post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('POST', path, body, options),
 
+  postUnwrapped: async <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    const result = await request<{
+      code: string;
+      msg: string;
+      data: T | null | undefined;
+    }>('POST', path, body, options);
+
+    if (result.code !== '0') {
+      throw new FetchApiError(result.code, result.msg, path);
+    }
+
+    return result.data;
+  },
+
   put: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('PUT', path, body, options),
+
+  putUnwrapped: async <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    const result = await request<{
+      code: string;
+      msg: string;
+      data: T | null | undefined;
+    }>('PUT', path, body, options);
+
+    if (result.code !== '0') {
+      throw new FetchApiError(result.code, result.msg, path);
+    }
+
+    return result.data;
+  },
 
   patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('PATCH', path, body, options),
 
+  patchUnwrapped: async <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    const result = await request<{
+      code: string;
+      msg: string;
+      data: T | null | undefined;
+    }>('PATCH', path, body, options);
+
+    if (result.code !== '0') {
+      throw new FetchApiError(result.code, result.msg, path);
+    }
+
+    return result.data;
+  },
+
   delete: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('DELETE', path, body, options),
+
+  deleteUnwrapped: async <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    const result = await request<{
+      code: string;
+      msg: string;
+      data: T | null | undefined;
+    }>('DELETE', path, body, options);
+
+    if (result.code !== '0') {
+      throw new FetchApiError(result.code, result.msg, path);
+    }
+
+    return result.data;
+  },
 
   getExternalBlob: async (
     url: string,

@@ -6,15 +6,17 @@ import { saveMentorSchedule, utcYearMonth } from './schedule';
 
 vi.mock('@/lib/apiClient', () => ({
   apiClient: {
-    put: vi.fn(),
+    putUnwrapped: vi.fn(),
+    getUnwrapped: vi.fn(),
   },
   ApiError: class ApiError extends Error {},
+  FetchApiError: class FetchApiError extends Error {},
 }));
 
 describe('saveMentorSchedule', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiClient.put).mockResolvedValue({ code: '0', msg: 'ok' });
+    vi.mocked(apiClient.putUnwrapped).mockResolvedValue(null);
   });
 
   it('derives the API-required UTC year and month from dtstart', async () => {
@@ -34,20 +36,23 @@ describe('saveMentorSchedule', () => {
       ],
     });
 
-    expect(apiClient.put).toHaveBeenCalledWith('/v1/mentors/42/schedule', {
-      timeslots: [
-        {
-          user_id: 42,
-          dt_type: 'ALLOW',
-          dt_year: 2026,
-          dt_month: 1,
-          dtstart: 1767226200,
-          dtend: 1767229800,
-          timezone: 'UTC',
-          exdate: [],
-        },
-      ],
-    });
+    expect(apiClient.putUnwrapped).toHaveBeenCalledWith(
+      '/v1/mentors/42/schedule',
+      {
+        timeslots: [
+          {
+            user_id: 42,
+            dt_type: 'ALLOW',
+            dt_year: 2026,
+            dt_month: 1,
+            dtstart: 1767226200,
+            dtend: 1767229800,
+            timezone: 'UTC',
+            exdate: [],
+          },
+        ],
+      }
+    );
   });
 });
 
