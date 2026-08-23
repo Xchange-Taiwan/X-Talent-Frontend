@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 
+import { useAsyncRead } from '@/hooks/useAsyncRead';
+import { AsyncReadManager } from '@/lib/asyncReadManager';
 import { createKeyedCache } from '@/lib/createKeyedCache';
 import {
   EMPTY_TAG_CATALOGS,
@@ -7,12 +9,17 @@ import {
 } from '@/services/profile/tagCatalog';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
-const tagCatalogCache = createKeyedCache<string, TagCatalogsByBucket>();
+export const tagCatalogCache = createKeyedCache<string, TagCatalogsByBucket>();
+
+export const tagCatalogReadManager = new AsyncReadManager<
+  string,
+  TagCatalogsByBucket
+>(tagCatalogCache);
 
 export function getTagCatalogCachedSync(
   language: string
 ): TagCatalogsByBucket | undefined {
-  return tagCatalogCache.get(language);
+  return tagCatalogReadManager.get(language);
 }
 
 /**
@@ -46,66 +53,20 @@ export default function useTagCatalog(
 ): UseTagCatalogResult {
   const initialDataRef = useRef(initialData);
 
-  // Lazy-init from initialData, then the sync cache (e.g. seeded by
-  // primeTagCatalogCacheIfEmpty during SSR-to-client handoff), and only fall
-  // back to EMPTY_TAG_CATALOGS when neither is available. Without this fall-
-  // through, callers that don't pass initialData would render raw
-  // subject_group codes for one frame before useEffect's fetch resolves.
-  const [data, setData] = useState<TagCatalogsByBucket>(
-    () => initialData ?? getTagCatalogCachedSync(language) ?? EMPTY_TAG_CATALOGS
+  if (initialDataRef.current !== undefined && language) {
+    tagCatalogCache.set(language, initialDataRef.current);
+    initialDataRef.current = undefined;
+  }
+
+  const { data, isLoading, error } = useAsyncRead(
+    tagCatalogReadManager,
+    language || null,
+    () => fetchTagCatalog(language)
   );
-  const [isLoading, setIsLoading] = useState<boolean>(
-    () =>
-      initialData === undefined &&
-      getTagCatalogCachedSync(language) === undefined
-  );
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (initialDataRef.current !== undefined) {
-      tagCatalogCache.set(language, initialDataRef.current);
-      initialDataRef.current = undefined;
-      return;
-    }
-
-    let cancelled = false;
-
-    const run = async () => {
-      if (!language) {
-        setIsLoading(false);
-        return;
-      }
-      // Sync-cache hit: state was already lazy-init'd from cache, so skip
-      // the network round trip and stay in non-loading state.
-      const cached = getTagCatalogCachedSync(language);
-      if (cached) {
-        setData(cached);
-        setIsLoading(false);
-        return;
-      }
-      setIsLoading(true);
-      setError(null);
-      try {
-        const result = await getTagCatalogCached(language);
-        if (cancelled) return;
-        setData(result);
-      } catch {
-        if (cancelled) return;
-        setError('Failed to load tag catalog');
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    };
-
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [language]);
 
   return {
-    ...data,
+    ...(data ?? EMPTY_TAG_CATALOGS),
     isLoading,
-    error,
+    error: error ? 'Failed to load tag catalog' : null,
   };
 }
