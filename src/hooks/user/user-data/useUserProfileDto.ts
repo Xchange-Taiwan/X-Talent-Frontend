@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { AsyncReadManager } from '@/lib/asyncReadManager';
 import { createKeyedCache } from '@/lib/createKeyedCache';
@@ -142,5 +144,8 @@ export function useUserProfileDto(
     resolvedError = 'USER_NOT_FOUND';
   }
 
-  return { userDto, isLoading, error: resolvedError, refetch };
+  return useMemo(
+    () => ({ userDto, isLoading, error: resolvedError, refetch }),
+    [userDto, isLoading, resolvedError, refetch]
+  );
 }
