@@ -38,16 +38,10 @@ export async function fetchPresignedUrlByUserId(
   userId: number
 ): Promise<PresignedUrlData | null> {
   try {
-    const result = await apiClient.get<PresignedUrlResponse>(
+    const data = await apiClient.getUnwrapped<PresignedUrlData>(
       `/v1/storage/presigned-url/${userId}`
     );
-
-    if (result.code !== '0') {
-      console.error(`API Error: ${result.msg}`);
-      return null;
-    }
-
-    return result.data ?? null;
+    return data ?? null;
   } catch (error) {
     console.error('Fetch Presigned Url Error:', error);
     return null;

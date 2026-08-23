@@ -1,4 +1,4 @@
-import { apiClient, ApiError } from '@/lib/apiClient';
+import { apiClient, ApiError, FetchApiError } from '@/lib/apiClient';
 import { components } from '@/types/api';
 
 export interface ScheduleRequest {
@@ -11,30 +11,18 @@ export type TimeSlotDTO = components['schemas']['TimeSlotDTO'];
 export type SegmentVO = TimeSlotDTO;
 export type ScheduleData = components['schemas']['MentorScheduleQueryVO'];
 
-interface ScheduleApiResponse {
-  code: string;
-  msg: string;
-  data: ScheduleData;
-}
-
 export async function fetchMentorSchedule(
   param: ScheduleRequest
 ): Promise<ScheduleData> {
   try {
-    const result = await apiClient.get<ScheduleApiResponse>(
+    const data = await apiClient.getUnwrapped<ScheduleData>(
       `/v1/mentors/${param.userId}/schedule/y/${param.year}/m/${param.month}`,
       { auth: false }
     );
-    if (result.code !== '0') return {} as ScheduleData;
-    return result.data;
+    return data ?? ({} as ScheduleData);
   } catch {
     return {} as ScheduleData;
   }
-}
-
-interface SaveScheduleResponse {
-  code: string;
-  msg: string;
 }
 
 type CleanObject = Record<string, unknown>;
@@ -88,12 +76,16 @@ export async function saveMentorSchedule(params: {
     }),
   });
 
-  const result = await apiClient.put<SaveScheduleResponse>(
-    `/v1/mentors/${params.userId}/schedule`,
-    body
-  );
-  if (result.code !== '0') {
-    throw new ApiError(200, result.msg || 'Save failed', result);
+  try {
+    await apiClient.putUnwrapped<null>(
+      `/v1/mentors/${params.userId}/schedule`,
+      body
+    );
+  } catch (error) {
+    if (error instanceof FetchApiError) {
+      throw new ApiError(200, error.message);
+    }
+    throw error;
   }
 }
 
