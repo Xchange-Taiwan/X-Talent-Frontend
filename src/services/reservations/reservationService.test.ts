@@ -5,7 +5,6 @@ vi.mock('@/lib/apiClient', async (importActual) => {
   return {
     ...actual,
     apiClient: {
-      ...actual.apiClient,
       getUnwrapped: vi.fn(),
       putUnwrapped: vi.fn(),
       postUnwrapped: vi.fn(),
@@ -182,11 +181,13 @@ describe('reservationService API Error Handling', () => {
 
   describe('fetchReservationMeetLink', () => {
     it('should throw FetchApiError with correct code, message and path if API returns non-0 code', async () => {
-      mockGet.mockResolvedValue({
-        code: '404',
-        msg: 'meet link not found',
-        data: null,
-      });
+      mockGet.mockRejectedValue(
+        new FetchApiError(
+          '404',
+          'meet link not found',
+          '/v1/users/123/reservations/456/google-meet'
+        )
+      );
 
       await expect(
         fetchReservationMeetLink({
@@ -213,11 +214,7 @@ describe('reservationService API Error Handling', () => {
 
     it('should return meet_url successfully if code is 0', async () => {
       const mockResult = { meet_url: 'https://meet.google.com/xxx-yyyy-zzz' };
-      mockGet.mockResolvedValue({
-        code: '0',
-        msg: 'success',
-        data: mockResult,
-      });
+      mockGet.mockResolvedValue(mockResult);
 
       const res = await fetchReservationMeetLink({
         userId: 123,
