@@ -147,7 +147,6 @@ export function useUserProfileDto(
     }
     if (initialDataRef.current !== undefined) return false;
     if (!isUserIdValid || !language) return false;
-    if (options?.enabled === false) return false;
     return true;
   });
   const [error, setError] = useState<ProfileFetchError>(null);
@@ -182,19 +181,6 @@ export function useUserProfileDto(
 
     if (!isUserIdValid || !isLanguageValid) {
       setUserDto(null);
-      setError(null);
-      setIsLoading(false);
-      return;
-    }
-
-    if (options?.enabled === false) {
-      const key = `${userId}-${language}`;
-      const cachedEntry = readFromDataCache(key);
-      if (cachedEntry) {
-        setUserDto(cachedEntry.data);
-      } else {
-        setUserDto(null);
-      }
       setError(null);
       setIsLoading(false);
       return;
