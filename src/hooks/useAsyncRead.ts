@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type {
   AsyncReadManager,
@@ -107,5 +107,8 @@ export function useAsyncRead<K, V>(
     setRetryTrigger((prev) => prev + 1);
   }, []);
 
-  return { ...currentResult, refetch };
+  return useMemo(
+    () => ({ ...currentResult, refetch }),
+    [currentResult, refetch]
+  );
 }
