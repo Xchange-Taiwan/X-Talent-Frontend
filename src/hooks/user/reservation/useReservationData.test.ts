@@ -132,6 +132,44 @@ describe('useReservationData (mentee)', () => {
     expect(result.current.data?.history).toHaveLength(1);
   });
 
+  it('resets historyActive on fetch failure, allowing subsequent loadHistory retries', async () => {
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    mockFetch.mockClear();
+
+    // Mock fetch failure for history
+    mockFetch.mockRejectedValueOnce(new Error('Fetch failed'));
+
+    await act(async () => {
+      await result.current.loadHistory();
+    });
+
+    // Wait for failure
+    await waitFor(() => {
+      expect(result.current.isLoadingHistory).toBe(false);
+      expect(result.current.isHistoryLoaded).toBe(false);
+      expect(result.current.initialState.history).toBe('idle'); // Should revert to idle!
+    });
+
+    // Now Mock fetch success for history retry
+    const mockRetriedReservations = {
+      items: [makeReservation('MENTEE_HISTORY')],
+      next_dtend: 0,
+    };
+    mockFetch.mockResolvedValueOnce(mockRetriedReservations);
+
+    // Call loadHistory again to retry
+    await act(async () => {
+      await result.current.loadHistory();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isHistoryLoaded).toBe(true);
+      expect(result.current.initialState.history).toBe('ready');
+      expect(result.current.data?.history).toHaveLength(1);
+    });
+  });
+
   it('onMutationSuccess refetches only the affected states (history skipped when not loaded)', async () => {
     const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));

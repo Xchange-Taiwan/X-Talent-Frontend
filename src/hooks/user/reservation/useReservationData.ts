@@ -191,10 +191,13 @@ export function useReservationData({
               ? err.message
               : 'Failed to fetch history reservations',
         });
+        setHistoryActive(false); // Reset historyActive on error to allow retrying
         throw err;
       }
     }
   );
+
+  const isHistoryLoaded = historyResult !== null && !isHistoryLoading;
 
   const upcomingSorted = useMemo(() => {
     return upcomingResult ? sortByDtstartAsc(upcomingResult.items) : [];
@@ -304,13 +307,14 @@ export function useReservationData({
   );
 
   const loadHistory = useCallback(async () => {
-    if (!myUserId || historyActive || isHistoryLoading) return;
+    if (!myUserId || (historyActive && isHistoryLoaded) || isHistoryLoading)
+      return;
     setHistoryActive(true);
     trackEvent({
       name: 'reservation_history_loaded',
       feature: 'reservation',
     });
-  }, [myUserId, historyActive, isHistoryLoading]);
+  }, [myUserId, historyActive, isHistoryLoading, isHistoryLoaded]);
 
   const loadMore = useCallback(
     async (tab: ListKey): Promise<void> => {
@@ -369,7 +373,9 @@ export function useReservationData({
     ? 'idle'
     : isHistoryLoading && !historyResult
       ? 'loading'
-      : 'ready';
+      : isHistoryLoaded
+        ? 'ready'
+        : 'idle';
 
   const initialState: InitialListState = {
     upcoming: initialUpcoming,
@@ -379,8 +385,6 @@ export function useReservationData({
 
   const isLoading =
     initialUpcoming === 'loading' || initialPending === 'loading';
-
-  const isHistoryLoaded = historyResult !== null && !isHistoryLoading;
 
   return {
     data,
