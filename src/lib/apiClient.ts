@@ -248,6 +248,10 @@ async function executeRequestUnwrapped<T>(
     options
   );
 
+  if (!result) {
+    return undefined;
+  }
+
   if (result.code !== '0') {
     const status = Number(result.code);
     const validStatus = !isNaN(status) && status !== 200 ? status : 400;
