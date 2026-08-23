@@ -1,7 +1,12 @@
-import { useSession } from 'next-auth/react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+'use client';
 
+import { useSession } from 'next-auth/react';
+import { useCallback, useMemo, useState } from 'react';
+
+import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { trackEvent } from '@/lib/analytics';
+import { reservationReadManager } from '@/lib/cache/reservationCache';
+import { isAbortError } from '@/lib/errorUtils';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { fetchReservations, ReservationState } from '@/services/reservations';
 import { Reservation } from '@/types/reservation';
@@ -39,15 +44,6 @@ const ROLE_STATES: Record<
   },
 };
 
-const STATE_TO_LIST_KEY: Record<ReservationState, ListKey> = {
-  MENTEE_UPCOMING: 'upcoming',
-  MENTEE_PENDING: 'pending',
-  MENTEE_HISTORY: 'history',
-  MENTOR_UPCOMING: 'upcoming',
-  MENTOR_PENDING: 'pending',
-  MENTOR_HISTORY: 'history',
-};
-
 export type ListLoadState = 'idle' | 'loading' | 'ready';
 
 export type InitialListState = Record<ListKey, ListLoadState>;
@@ -58,13 +54,6 @@ const EMPTY_LOADING_MORE: LoadingMoreStates = {
   upcoming: false,
   pending: false,
   history: false,
-};
-
-const EMPTY_DATA: ReservationData = {
-  upcoming: [],
-  pending: [],
-  history: [],
-  nextTokens: { upcoming: 0, pending: 0, history: 0 },
 };
 
 // Backend orders every list by dtend desc, which is correct for HISTORY
@@ -94,6 +83,13 @@ export interface UseReservationDataReturn {
   refetchOnConflict: (affectedTabs: ListKey[]) => void;
 }
 
+function getReservationCacheKey(
+  userId: string | number | null | undefined,
+  state: string
+): string | null {
+  return userId ? `${userId}_${state}` : null;
+}
+
 export function useReservationData({
   role,
 }: {
@@ -103,107 +99,147 @@ export function useReservationData({
   const myUserId = session?.user?.id ? String(session.user.id) : '';
   const states = ROLE_STATES[role];
 
-  const [data, setData] = useState<ReservationData | null>(null);
-  // Mirror of `data` so loadMore can read the latest cursor synchronously
-  // without listing `data` in its deps. Listing `data` rebuilt loadMore (and
-  // therefore onMutationSuccess) on every reservation change, swapping the
-  // prop identity into ReservationTabs and re-rendering the whole subtree.
-  const dataRef = useRef<ReservationData | null>(null);
-  const [initialUpcoming, setInitialUpcoming] =
-    useState<ListLoadState>('loading');
-  const [initialPending, setInitialPending] =
-    useState<ListLoadState>('loading');
   const [loadingMoreStates, setLoadingMoreStates] =
     useState<LoadingMoreStates>(EMPTY_LOADING_MORE);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
-
-  // Wrapper that keeps dataRef and React state in lock-step. Every write to
-  // `data` must go through here so the next loadMore reads a fresh cursor.
-  const updateData = useCallback(
-    (updater: (prev: ReservationData | null) => ReservationData | null) => {
-      setData((prev) => {
-        const next = updater(prev);
-        dataRef.current = next;
-        return next;
-      });
-    },
-    []
+  const [historyActive, setHistoryActive] = useState(false);
+  const [removedIds, setRemovedIds] = useState<Record<ListKey, Set<string>>>(
+    () => ({
+      upcoming: new Set(),
+      pending: new Set(),
+      history: new Set(),
+    })
   );
 
-  // Initial fetch covers only the role's UPCOMING + PENDING states. HISTORY is
-  // lazy and only fetched when the user opens the history tab via loadHistory.
-  // Fetches run independently so the active tab (default upcoming) can paint as
-  // soon as its own response lands instead of waiting for the slowest sibling.
-  useEffect(() => {
-    if (!myUserId) {
-      setInitialUpcoming('idle');
-      setInitialPending('idle');
-      return;
-    }
+  const upcomingKey = getReservationCacheKey(myUserId, states.upcoming);
+  const pendingKey = getReservationCacheKey(myUserId, states.pending);
+  const historyKey = historyActive
+    ? getReservationCacheKey(myUserId, states.history)
+    : null;
 
-    setInitialUpcoming('loading');
-    setInitialPending('loading');
-
-    let cancelled = false;
-
-    const fetchOne = async (
-      key: 'upcoming' | 'pending',
+  const createReservationFetcher = useCallback(
+    (
       state: ReservationState,
-      setStatus: (s: ListLoadState) => void
+      flow: string,
+      step: string,
+      onError?: () => void
     ) => {
-      try {
-        const res = await fetchReservations({ userId: myUserId, state });
-        if (cancelled) return;
-        updateData((prev) => {
-          const base = prev ?? EMPTY_DATA;
-          return {
-            ...base,
-            [key]: sortByDtstartAsc(res.items),
-            nextTokens: { ...base.nextTokens, [key]: res.next_dtend },
-          };
-        });
-      } catch (err) {
-        captureFlowFailure({
-          flow: 'reservation_fetch',
-          step: `fetch_${key}`,
-          message:
-            err instanceof Error
-              ? err.message
-              : `Failed to fetch reservation ${key}`,
-        });
-        console.error(`[useReservationData] fetch ${key} error:`, err);
-      } finally {
-        if (!cancelled) setStatus('ready');
-      }
-    };
-
-    void fetchOne('upcoming', states.upcoming, setInitialUpcoming);
-    void fetchOne('pending', states.pending, setInitialPending);
-
-    return () => {
-      cancelled = true;
-    };
-  }, [myUserId, states.upcoming, states.pending, updateData]);
-
-  const removeItem = useCallback(
-    (id: string) => {
-      updateData((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          upcoming: prev.upcoming.filter((it) => it.id !== id),
-          pending: prev.pending.filter((it) => it.id !== id),
-          history: prev.history.filter((it) => it.id !== id),
-        };
-      });
+      return async (signal: AbortSignal) => {
+        try {
+          return await fetchReservations({
+            userId: myUserId,
+            state,
+            signal,
+          });
+        } catch (err) {
+          if (isAbortError(err, signal)) {
+            throw err;
+          }
+          captureFlowFailure({
+            flow,
+            step,
+            message:
+              err instanceof Error
+                ? err.message
+                : `Failed to fetch ${step} reservations`,
+          });
+          onError?.();
+          throw err;
+        }
+      };
     },
-    [updateData]
+    [myUserId]
   );
 
-  // Refetch only the affected states. States belonging to the other role are
-  // dropped (mentee page never refetches mentor data) and HISTORY is skipped
-  // when not yet loaded — loadHistory will fetch it fresh on tab open instead.
+  const fetchUpcoming = useMemo(
+    () =>
+      createReservationFetcher(
+        states.upcoming,
+        'reservation_initial_fetch',
+        'upcoming'
+      ),
+    [createReservationFetcher, states.upcoming]
+  );
+
+  const fetchPending = useMemo(
+    () =>
+      createReservationFetcher(
+        states.pending,
+        'reservation_initial_fetch',
+        'pending'
+      ),
+    [createReservationFetcher, states.pending]
+  );
+
+  const fetchHistory = useMemo(
+    () =>
+      createReservationFetcher(
+        states.history,
+        'reservation_history_fetch',
+        'history',
+        () => setHistoryActive(false)
+      ),
+    [createReservationFetcher, states.history]
+  );
+
+  const { data: upcomingResult, isLoading: isUpcomingLoading } = useAsyncRead(
+    reservationReadManager,
+    upcomingKey,
+    fetchUpcoming
+  );
+
+  const { data: pendingResult, isLoading: isPendingLoading } = useAsyncRead(
+    reservationReadManager,
+    pendingKey,
+    fetchPending
+  );
+
+  const { data: historyResult, isLoading: isHistoryLoading } = useAsyncRead(
+    reservationReadManager,
+    historyKey,
+    fetchHistory
+  );
+
+  const isHistoryLoaded = historyResult !== null && !isHistoryLoading;
+
+  const upcomingSorted = useMemo(() => {
+    const sorted = upcomingResult ? sortByDtstartAsc(upcomingResult.items) : [];
+    return sorted.filter((it) => !removedIds.upcoming.has(it.id));
+  }, [upcomingResult, removedIds.upcoming]);
+
+  const pendingSorted = useMemo(() => {
+    const sorted = pendingResult ? sortByDtstartAsc(pendingResult.items) : [];
+    return sorted.filter((it) => !removedIds.pending.has(it.id));
+  }, [pendingResult, removedIds.pending]);
+
+  const historyItems = useMemo(() => {
+    const items = historyResult ? historyResult.items : [];
+    return items.filter((it) => !removedIds.history.has(it.id));
+  }, [historyResult, removedIds.history]);
+
+  const data = useMemo<ReservationData | null>(() => {
+    if (!myUserId) return null;
+    if (!upcomingResult && !pendingResult) return null;
+
+    return {
+      upcoming: upcomingSorted,
+      pending: pendingSorted,
+      history: historyItems,
+      nextTokens: {
+        upcoming: upcomingResult ? upcomingResult.next_dtend : 0,
+        pending: pendingResult ? pendingResult.next_dtend : 0,
+        history: historyResult ? historyResult.next_dtend : 0,
+      },
+    };
+  }, [
+    myUserId,
+    upcomingResult,
+    pendingResult,
+    historyResult,
+    upcomingSorted,
+    pendingSorted,
+    historyItems,
+  ]);
+
   const refetchStates = useCallback(
     async (targets: ReservationState[]) => {
       if (!myUserId) return;
@@ -215,9 +251,20 @@ export function useReservationData({
       ]);
       const filtered = targets.filter((state) => {
         if (!ownStates.has(state)) return false;
-        if (state === states.history && !isHistoryLoaded) return false;
+        if (state === states.history && !historyActive) return false;
         return true;
       });
+
+      // Clear cache for skipped target states to prevent stale cache under cross-mount cycles
+      targets.forEach((state) => {
+        if (ownStates.has(state) && !filtered.includes(state)) {
+          const key = getReservationCacheKey(myUserId, state);
+          if (key) {
+            reservationReadManager.delete(key);
+          }
+        }
+      });
+
       if (filtered.length === 0) return;
 
       try {
@@ -227,23 +274,9 @@ export function useReservationData({
           )
         );
 
-        updateData((prev) => {
-          if (!prev) return prev;
-          const next: ReservationData = {
-            upcoming: prev.upcoming,
-            pending: prev.pending,
-            history: prev.history,
-            nextTokens: { ...prev.nextTokens },
-          };
-          filtered.forEach((state, idx) => {
-            const key = STATE_TO_LIST_KEY[state];
-            next[key] =
-              key === 'history'
-                ? results[idx].items
-                : sortByDtstartAsc(results[idx].items);
-            next.nextTokens[key] = results[idx].next_dtend;
-          });
-          return next;
+        filtered.forEach((state, idx) => {
+          const key = getReservationCacheKey(myUserId, state)!;
+          reservationReadManager.set(key, results[idx]);
         });
       } catch (err) {
         captureFlowFailure({
@@ -257,23 +290,38 @@ export function useReservationData({
         console.error('[useReservationData] refetch error:', err);
       }
     },
-    [
-      myUserId,
-      states.upcoming,
-      states.pending,
-      states.history,
-      isHistoryLoaded,
-      updateData,
-    ]
+    [myUserId, states, historyActive]
   );
 
   const onMutationSuccess = useCallback(
     (id: string, affectedTabs: ListKey[]) => {
-      removeItem(id);
+      setRemovedIds((prev) => {
+        const next = { ...prev };
+        affectedTabs.forEach((tab) => {
+          const s = new Set(next[tab]);
+          s.add(id);
+          next[tab] = s;
+        });
+        return next;
+      });
+
+      affectedTabs.forEach((tab) => {
+        const key = getReservationCacheKey(myUserId, states[tab]);
+        if (!key) return;
+        const cached = reservationReadManager.get(key);
+        if (cached) {
+          const updated = {
+            ...cached,
+            items: cached.items.filter((it) => it.id !== id),
+          };
+          reservationReadManager.set(key, updated);
+        }
+      });
+
       const affectedStates = affectedTabs.map((tab) => states[tab]);
       void refetchStates(affectedStates);
     },
-    [removeItem, refetchStates, states]
+    [myUserId, states, refetchStates]
   );
 
   const refetchOnConflict = useCallback(
@@ -281,73 +329,40 @@ export function useReservationData({
       const affectedStates = affectedTabs.map((tab) => states[tab]);
       void refetchStates(affectedStates);
     },
-    [refetchStates, states]
+    [states, refetchStates]
   );
 
   const loadHistory = useCallback(async () => {
-    if (!myUserId || isHistoryLoaded || isLoadingHistory) return;
-    setIsLoadingHistory(true);
-    try {
-      const res = await fetchReservations({
-        userId: myUserId,
-        state: states.history,
-      });
-      updateData((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          history: res.items,
-          nextTokens: { ...prev.nextTokens, history: res.next_dtend },
-        };
-      });
-      setIsHistoryLoaded(true);
-      trackEvent({
-        name: 'reservation_history_loaded',
-        feature: 'reservation',
-      });
-    } catch (err) {
-      captureFlowFailure({
-        flow: 'reservation_load_history',
-        step: 'fetch_history',
-        message:
-          err instanceof Error
-            ? err.message
-            : 'Failed to load reservation history',
-      });
-      console.error('[useReservationData] loadHistory error:', err);
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  }, [myUserId, states.history, isHistoryLoaded, isLoadingHistory, updateData]);
+    if (!myUserId || (historyActive && isHistoryLoaded) || isHistoryLoading)
+      return;
+    setHistoryActive(true);
+    trackEvent({
+      name: 'reservation_history_loaded',
+      feature: 'reservation',
+    });
+  }, [myUserId, historyActive, isHistoryLoading, isHistoryLoaded]);
 
   const loadMore = useCallback(
     async (tab: ListKey): Promise<void> => {
       if (!myUserId) return;
-      const currentData = dataRef.current;
+      const key = getReservationCacheKey(myUserId, states[tab])!;
+      const currentData = reservationReadManager.get(key);
       if (!currentData) return;
-      const state = states[tab];
-      const cursor = currentData.nextTokens[tab];
+      const cursor = currentData.next_dtend;
       if (cursor === 0) return;
 
       setLoadingMoreStates((prev) => ({ ...prev, [tab]: true }));
       try {
         const result = await fetchReservations({
           userId: myUserId,
-          state,
+          state: states[tab],
           nextDtend: cursor,
         });
 
-        updateData((prev) => {
-          if (!prev) return prev;
-          const merged = [...prev[tab], ...result.items];
-          return {
-            ...prev,
-            [tab]: tab === 'history' ? merged : sortByDtstartAsc(merged),
-            nextTokens: {
-              ...prev.nextTokens,
-              [tab]: result.next_dtend,
-            },
-          };
+        const merged = [...currentData.items, ...result.items];
+        reservationReadManager.set(key, {
+          items: merged,
+          next_dtend: result.next_dtend,
         });
 
         trackEvent({ name: 'reservation_load_more', feature: 'reservation' });
@@ -365,24 +380,35 @@ export function useReservationData({
         setLoadingMoreStates((prev) => ({ ...prev, [tab]: false }));
       }
     },
-    [myUserId, states, updateData]
+    [myUserId, states]
   );
 
-  const historyState: ListLoadState = isHistoryLoaded
-    ? 'ready'
-    : isLoadingHistory
+  const initialUpcoming: ListLoadState =
+    upcomingKey === null
+      ? 'idle'
+      : isUpcomingLoading && !upcomingResult
+        ? 'loading'
+        : 'ready';
+  const initialPending: ListLoadState =
+    pendingKey === null
+      ? 'idle'
+      : isPendingLoading && !pendingResult
+        ? 'loading'
+        : 'ready';
+  const historyLoadState: ListLoadState = !historyActive
+    ? 'idle'
+    : isHistoryLoading && !historyResult
       ? 'loading'
-      : 'idle';
+      : isHistoryLoaded
+        ? 'ready'
+        : 'idle';
 
   const initialState: InitialListState = {
     upcoming: initialUpcoming,
     pending: initialPending,
-    history: historyState,
+    history: historyLoadState,
   };
 
-  // Derived for backward compatibility — true while either initial list is
-  // still in flight. UI no longer uses this to gate full-page rendering;
-  // per-list `initialState` is the source of truth for skeletons.
   const isLoading =
     initialUpcoming === 'loading' || initialPending === 'loading';
 
@@ -391,7 +417,7 @@ export function useReservationData({
     initialState,
     isLoading,
     loadingMoreStates,
-    isLoadingHistory,
+    isLoadingHistory: isHistoryLoading,
     isHistoryLoaded,
     myUserId,
     loadMore,
