@@ -350,6 +350,244 @@ describe('MonthDraftStore Unit Tests', () => {
     expect(snap.dirtyMonths.size).toBe(0);
   });
 
+  it('reloadMonth updates savedByMonth, and updates draftByMonth if not dirty, but preserves and rebases draftByMonth if dirty', () => {
+    const store = new MonthDraftStore();
+    store.ensureMonthLoaded('2026-07', defaultMockRaws);
+
+    const reloadedRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW',
+        dtstart: 1785075000,
+        dtend: 1785076800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    // Case 1: Clean month
+    store.reloadMonth('2026-07', reloadedRaws);
+    expect(store.snapshot().savedByMonth.get('2026-07')).toEqual(reloadedRaws);
+    expect(store.snapshot().draftByMonth.get('2026-07')).toEqual(reloadedRaws);
+
+    // Case 2: Dirty month
+    // Trigger dirty by editing slot 101
+    store.edit(101, 1785075000, { startTime: '13:00' }, '123');
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+
+    // Trigger an addition (add a new slot)
+    store.add({
+      startTime: '15:00',
+      durationMinutes: 30,
+      selectedDate: '2026-07-26',
+    });
+
+    const updatedRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW',
+        dtstart: 1785079000,
+        dtend: 1785081000,
+        rrule: undefined,
+        exdate: [],
+      },
+      {
+        id: 104,
+        type: 'BOOKED',
+        dtstart: 1785080000,
+        dtend: 1785081800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    store.reloadMonth('2026-07', updatedRaws);
+
+    expect(store.snapshot().savedByMonth.get('2026-07')).toEqual(updatedRaws);
+    const finalDraft = store.snapshot().draftByMonth.get('2026-07') ?? [];
+
+    // The rebased draft should contain:
+    // - The user's edited version of slot 101 (at 13:00 local, NOT 12:46:40 or the reloaded 1785079000)
+    // - The new BOOKED slot 104 from backend (reloaded raws)
+    // - The user's added slot (id < 0)
+    expect(finalDraft).toHaveLength(3);
+
+    const slot101 = finalDraft.find((r) => r.id === 101);
+    expect(slot101?.dtstart).not.toBe(1785079000); // kept user's edited dtstart (13:00)
+
+    const slot104 = finalDraft.find((r) => r.id === 104);
+    expect(slot104).toBeDefined(); // successfully merged reloaded BOOKED slot!
+
+    const addedSlot = finalDraft.find((r) => r.id < 0);
+    expect(addedSlot).toBeDefined(); // successfully preserved added slot!
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+  });
+
+  it('reloadMonth correctly filters out deleted slots during draft rebase if the month is dirty', () => {
+    const store = new MonthDraftStore();
+
+    const mockRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW',
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+      {
+        id: 102,
+        type: 'ALLOW',
+        dtstart: 1785080000,
+        dtend: 1785081800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+    store.ensureMonthLoaded('2026-07', mockRaws);
+
+    // Trigger dirty by editing slot 101 and deleting slot 102
+    store.edit(101, 1785070000, { startTime: '13:00' }, '123');
+    store.delete(102, 1785080000);
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+
+    const reloadedRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW',
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+      {
+        id: 102,
+        type: 'ALLOW',
+        dtstart: 1785080000,
+        dtend: 1785081800,
+        rrule: undefined,
+        exdate: [],
+      },
+      {
+        id: 103,
+        type: 'BOOKED',
+        dtstart: 1785090000,
+        dtend: 1785091800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    store.reloadMonth('2026-07', reloadedRaws);
+
+    const finalDraft = store.snapshot().draftByMonth.get('2026-07') ?? [];
+
+    // The final draft should contain:
+    // - Slot 101 (clean ALLOW slot)
+    // - Slot 103 (new BOOKED slot from backend)
+    // - But must NOT contain slot 102 (since it was deleted locally!)
+    expect(finalDraft).toHaveLength(2);
+    expect(finalDraft.find((r) => r.id === 101)).toBeDefined();
+    expect(finalDraft.find((r) => r.id === 103)).toBeDefined();
+    expect(finalDraft.find((r) => r.id === 102)).toBeUndefined();
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+  });
+
+  it('reloadMonth discards local draft edits if the backend timeslot type changes (e.g., ALLOW -> BOOKED)', () => {
+    const store = new MonthDraftStore();
+    store.ensureMonthLoaded('2026-07', defaultMockRaws);
+
+    // Trigger dirty by editing slot 101 to 13:00 local
+    store.edit(101, 1785070000, { startTime: '13:00' }, '123');
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+
+    // Now reload with a new raw list from backend where slot 101 is now BOOKED (e.g. some student booked it)
+    const newRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'BOOKED',
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    store.reloadMonth('2026-07', newRaws);
+
+    const snapshot = store.snapshot();
+    const finalDraft = snapshot.draftByMonth.get('2026-07') ?? [];
+
+    // The rebased draft should contain:
+    // - Slot 101 with type BOOKED from the backend (discarding the local edits to ALLOW slot!)
+    expect(finalDraft).toHaveLength(1);
+    const slot101 = finalDraft.find((r) => r.id === 101);
+    expect(slot101?.type).toBe('BOOKED');
+    expect(slot101?.dtstart).toBe(1785070000); // discarded user's edit (which would have changed start time to 13:00)
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+  });
+
+  it('reloadMonth discards local draft deletion if the backend timeslot type changes (e.g., ALLOW -> BOOKED)', () => {
+    const store = new MonthDraftStore();
+    const mockRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW',
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+      {
+        id: 102,
+        type: 'ALLOW',
+        dtstart: 1785080000,
+        dtend: 1785081800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+    store.ensureMonthLoaded('2026-07', mockRaws);
+
+    // Trigger dirty by editing slot 101 and deleting slot 102
+    store.edit(101, 1785070000, { startTime: '13:00' }, '123');
+    store.delete(102, 1785080000);
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+
+    // Now reload with a new raw list from backend where slot 102 is now BOOKED (e.g. some student booked it)
+    const newRaws: RawMentorTimeslot[] = [
+      {
+        id: 101,
+        type: 'ALLOW',
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        rrule: undefined,
+        exdate: [],
+      },
+      {
+        id: 102,
+        type: 'BOOKED',
+        dtstart: 1785080000,
+        dtend: 1785081800,
+        rrule: undefined,
+        exdate: [],
+      },
+    ];
+
+    store.reloadMonth('2026-07', newRaws);
+
+    const snapshot = store.snapshot();
+    const finalDraft = snapshot.draftByMonth.get('2026-07') ?? [];
+
+    // The rebased draft should contain:
+    // - Slot 101 with edited values (at 13:00)
+    // - Slot 102 with type BOOKED from the backend (discarding the local deletion of ALLOW slot!)
+    expect(finalDraft).toHaveLength(2);
+    const slot102 = finalDraft.find((r) => r.id === 102);
+    expect(slot102?.type).toBe('BOOKED');
+    expect(store.snapshot().dirtyMonths.has('2026-07')).toBe(true);
+  });
+
   it('correctly handles partial failure during commit', () => {
     const store = new MonthDraftStore();
     store.ensureMonthLoaded('2026-07', defaultMockRaws);

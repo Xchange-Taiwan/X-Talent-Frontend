@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { BookingSlot } from '@/hooks/useMentorSchedule';
+import type { BookingSlot } from '@/lib/profile/bookingAvailability';
 import { mockRouter } from '@/test/mocks/navigation';
 
 import { BookingForm } from './BookingForm';
@@ -26,6 +26,13 @@ describe('BookingForm', () => {
       end: new Date('2026-07-26T11:30:00Z'),
       isBooked: true,
       status: 'BOOKED',
+    },
+    {
+      scheduleId: 103,
+      start: new Date('2026-07-26T12:00:00Z'),
+      end: new Date('2026-07-26T12:30:00Z'),
+      isBooked: false,
+      status: 'PENDING',
     },
   ];
 
@@ -215,5 +222,18 @@ describe('BookingForm', () => {
     fireEvent.click(confirmedRow!);
 
     expect(mockRouter.push).toHaveBeenCalledWith('/reservation/mentor');
+  });
+
+  it('renders a PENDING slot as disabled/unavailable to a mentee and disables submit button if selected', () => {
+    const { rerender } = render(<BookingForm {...defaultProps} />);
+
+    // PENDING slot button is disabled
+    const pendingSlotBtn = screen.getByRole('button', { name: /12:00/i });
+    expect(pendingSlotBtn).toBeDisabled();
+
+    // If selectedSlot is a PENDING slot, submit button is disabled
+    rerender(<BookingForm {...defaultProps} selectedSlot={mockSlots[2]} />);
+    const submitBtn = screen.getByRole('button', { name: '預約時間' });
+    expect(submitBtn).toBeDisabled();
   });
 });

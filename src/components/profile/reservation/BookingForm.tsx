@@ -3,7 +3,10 @@
 import { useRouter } from 'next/navigation';
 
 import { Skeleton } from '@/components/ui/skeleton';
-import type { BookingSlot, SlotsSnapshot } from '@/hooks/useMentorSchedule';
+import type {
+  BookingSlot,
+  SlotsSnapshot,
+} from '@/lib/profile/bookingAvailability';
 
 import { MenteeBookingForm } from './MenteeBookingForm';
 import { MentorScheduleConfig } from './MentorScheduleConfig';

@@ -6,13 +6,14 @@ import { signOut } from 'next-auth/react';
 import * as React from 'react';
 
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
-import { clearSessionHint } from '@/lib/auth/sessionHint';
+import { clearSessionHint, ResolvedIdentity } from '@/lib/auth/sessionHint';
 import { getMentorOnboardingUrl } from '@/lib/routes';
 import { postBackendLogout } from '@/services/auth/backendLogout';
 import type { PersonalLink } from '@/types/types';
 
 export interface UseAccountMenuOptions {
-  user: Session['user'];
+  identity: ResolvedIdentity;
+  user?: Session['user'];
   /**
    * Closes whatever outer container (dropdown/sheet) the caller is
    * rendered inside. Every handler except `handleShareProfile` calls this
@@ -45,6 +46,7 @@ export interface UseAccountMenuResult {
 }
 
 export function useAccountMenu({
+  identity,
   user,
   closeMenu,
 }: UseAccountMenuOptions): UseAccountMenuResult {
@@ -52,15 +54,15 @@ export function useAccountMenu({
   const [shareDialogOpen, setShareDialogOpen] = React.useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
 
-  const userId = user.id;
-  const isMentor = Boolean(user.isMentor);
+  const userId = identity.userId;
+  const isMentor = Boolean(identity.isMentor);
   const canDeleteAccount =
     process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT === 'true';
-  const name = user.name ?? '';
-  const avatarSrc = useCurrentAvatar() ?? '';
-  const jobTitle = user.jobTitle ?? '';
-  const company = user.company ?? '';
-  const personalLinks = user.personalLinks ?? [];
+  const name = user?.name ?? '';
+  const avatarSrc = useCurrentAvatar() ?? identity.avatar ?? '';
+  const jobTitle = user?.jobTitle ?? '';
+  const company = user?.company ?? '';
+  const personalLinks = user?.personalLinks ?? [];
 
   const profilePath = userId ? `/profile/${userId}` : '/';
 

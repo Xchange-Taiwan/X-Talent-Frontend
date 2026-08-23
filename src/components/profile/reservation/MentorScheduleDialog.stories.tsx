@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import type {
   MentorScheduleEditor,
   ParsedMentorTimeslot,
-} from '@/hooks/useMentorSchedule';
+} from '@/lib/profile/bookingAvailability';
 
 import MentorScheduleDialog from './MentorScheduleDialog';
 
