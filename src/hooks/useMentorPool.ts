@@ -185,7 +185,7 @@ export function useMentorPool({
     filterKey: string | null;
     fetchedData: MentorType[] | null;
     isFilterLoading: boolean;
-    filterError: any;
+    filterError: string | null;
   }>({
     filterKey: null,
     fetchedData: null,
