@@ -4,6 +4,29 @@ let lastOptimisticAvatar: {
   timestamp: number;
 } | null = null;
 
+const listeners = new Set<() => void>();
+
+/**
+ * Subscribes a listener function to optimistic avatar updates.
+ * Returns an unsubscribe cleanup function.
+ */
+export function subscribeToOptimisticAvatar(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function notifyListeners(): void {
+  listeners.forEach((listener) => {
+    try {
+      listener();
+    } catch (e) {
+      console.error('Error notifying optimistic avatar listener:', e);
+    }
+  });
+}
+
 /**
  * Registers an optimistic avatar URL update for a specific user.
  * This is used to bridge the short-lived NextAuth v4 session update transition.
@@ -17,6 +40,7 @@ export function registerOptimisticAvatar(
   } else {
     lastOptimisticAvatar = { avatar, userId, timestamp: Date.now() };
   }
+  notifyListeners();
 }
 
 /**

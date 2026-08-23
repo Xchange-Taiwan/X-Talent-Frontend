@@ -6,6 +6,7 @@ import { mockUserDTO } from '@/test/fixtures/profile';
 
 import {
   clearUserProfileDtoCache,
+  getLastPrimedTime,
   primeUserProfileDtoCache,
   useUserProfileDto,
 } from './useUserProfileDto';
@@ -240,6 +241,18 @@ describe('useUserProfileDto', () => {
       expect(emptyResult.current.isLoading).toBe(false);
       expect(emptyResult.current.userDto).toBeNull();
       expect(fetchUserById).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getLastPrimedTime', () => {
+    it('returns the timestamp of the last primed cache operation', () => {
+      // Setup system time
+      const mockTime = 1234567890000;
+      vi.setSystemTime(mockTime);
+
+      primeUserProfileDtoCache(99, 'zh-TW', mockUserDTO);
+
+      expect(getLastPrimedTime()).toBe(mockTime);
     });
   });
 });
