@@ -300,3 +300,20 @@ describe('ProfilePageUI - mentee-specific sections gating for mentor profiles (#
     expect(screen.queryByText('想多了解的主題')).not.toBeInTheDocument();
   });
 });
+
+describe('ProfilePageUI - BookingForm visibility', () => {
+  it('hides BookingForm when schedule has an error', () => {
+    const schedule = buildSchedule();
+    schedule.hasError = true;
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({ is_mentor: true }),
+          isIdentityResolved: true,
+          schedule,
+        })}
+      />
+    );
+    expect(screen.queryByTestId('booking-form')).not.toBeInTheDocument();
+  });
+});
