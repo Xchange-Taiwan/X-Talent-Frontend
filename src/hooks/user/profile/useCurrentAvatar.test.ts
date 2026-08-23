@@ -170,4 +170,41 @@ describe('useCurrentAvatar', () => {
 
     expect(result.current).toBeNull();
   });
+
+  it('automatically triggers a re-render to fall back to session avatar when the transition period expires', () => {
+    vi.useFakeTimers();
+    const systemTime = new Date('2026-08-23T00:00:00Z');
+    vi.setSystemTime(systemTime);
+
+    mockUseResolvedIdentity.mockReturnValue({
+      state: 'confirmed-member',
+      userId: '123',
+      avatar: 'session-avatar.png',
+      isMentor: false,
+      isLoggedIn: true,
+      hasFullUser: true,
+      isResolvingUser: false,
+      authKnown: true,
+      sessionSettled: true,
+    });
+
+    primeUserProfileDtoCache(123, 'zh_TW', {
+      user_id: 123,
+      avatar: 'optimistic-avatar.png',
+    } as unknown as MentorProfileVO);
+
+    const { result } = renderHook(() => useCurrentAvatar());
+
+    expect(result.current).toBe('optimistic-avatar.png');
+
+    // Advance timers by 10.1 seconds (which runs the setTimeout callback)
+    act(() => {
+      vi.advanceTimersByTime(10100);
+    });
+
+    // It should automatically re-render and fall back to the session avatar without calling manual rerender()
+    expect(result.current).toBe('session-avatar.png');
+
+    vi.useRealTimers();
+  });
 });
