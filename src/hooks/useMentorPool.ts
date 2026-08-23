@@ -10,8 +10,16 @@ import {
 } from '@/app/mentor-pool/searchParams';
 import { useToast } from '@/components/ui/use-toast';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { useAsyncRead } from '@/hooks/useAsyncRead';
+import { AsyncReadManager } from '@/lib/asyncReadManager';
+import { createKeyedCache } from '@/lib/createKeyedCache';
 import { fetchMentors } from '@/services/search-mentor/mentors';
 import type { MentorType } from '@/types/mentor';
+
+export const mentorPoolCache = createKeyedCache<string, MentorType[]>();
+export const mentorPoolReadManager = new AsyncReadManager<string, MentorType[]>(
+  mentorPoolCache
+);
 
 export interface MentorPoolPageState {
   mentors: MentorType[];
@@ -116,23 +124,76 @@ export function useMentorPool({
     return getInitialUnfilteredState();
   });
 
-  const { run: runFilter } = useAsyncAction();
   const { run: runLoadMore, isPending: isLoadMorePending } = useAsyncAction();
-
-  const [isFilterLoading, setIsFilterLoading] = useState(hasInitialFilters);
   const [retryCount, setRetryCount] = useState<number>(0);
-  const requestIdRef = useRef(0);
   const hasClientFetched = useRef(false);
+  const prevFilterKeyRef = useRef<string | null>(null);
+
+  // Derive filterKey for useAsyncRead
+  const filterKey =
+    hasAnyCondition(params) ||
+    (initialError && (retryCount > 0 || hasClientFetched.current))
+      ? `filter_${params.toString()}_retry_${retryCount}`
+      : null;
+
+  // Let useAsyncRead handle the main data fetch, loading, error, and cancellation
+  const {
+    data: fetchedData,
+    isLoading: isFilterLoading,
+    error: filterError,
+  } = useAsyncRead(
+    mentorPoolReadManager,
+    filterKey,
+    (signal) => {
+      const conditions = paramsToFetchConditions(params);
+      return fetchMentors(
+        { ...conditions, limit: PAGE_LIMIT, cursor: '' },
+        signal
+      );
+    },
+    { force: true } // Always force refresh to query fresh results on filter change
+  );
 
   // Derived loading state combining local filter loading (Latest Wins) and pagination loading
-  const isLoading = hasInitialFilters
-    ? !hasClientFetched.current || isFilterLoading || isLoadMorePending
-    : isFilterLoading || isLoadMorePending;
+  const isLoading =
+    filterKey !== null
+      ? !hasClientFetched.current || isFilterLoading || isLoadMorePending
+      : isFilterLoading || isLoadMorePending;
 
-  // Centralized, DRY error handling helper to manage state transitions and error toast feedback
-  const handleError = useCallback(
-    (myRequestId: number, isLoadMore = false) => {
-      if (myRequestId !== requestIdRef.current) return;
+  // Synchronize useAsyncRead state back to local pageState
+  useEffect(() => {
+    if (filterKey === null) {
+      if (prevFilterKeyRef.current !== null) {
+        setPageState(getInitialUnfilteredState());
+        prevFilterKeyRef.current = null;
+      }
+      return;
+    }
+    prevFilterKeyRef.current = filterKey;
+
+    if (isFilterLoading) {
+      setPageState((prev) => {
+        if (
+          prev.mentors.length === 0 &&
+          !prev.isNoResults &&
+          !prev.hasMore &&
+          !prev.hasError
+        ) {
+          return prev; // Bailout to avoid redundant state updates
+        }
+        return {
+          ...prev,
+          mentors: [],
+          isNoResults: false,
+          hasMore: false,
+          hasError: false,
+        };
+      });
+      hasClientFetched.current = true;
+      return;
+    }
+
+    if (filterError) {
       toast({
         variant: 'destructive',
         title: '載入失敗',
@@ -140,74 +201,44 @@ export function useMentorPool({
         duration: 5000,
       });
       setPageState((prev) => {
-        if (!isLoadMore) {
-          return {
-            ...prev,
-            mentors: [],
-            mentorCount: 0,
-            hasError: true,
-            isNoResults: false,
-          };
+        if (
+          prev.mentors.length === 0 &&
+          prev.mentorCount === 0 &&
+          prev.hasError &&
+          !prev.isNoResults
+        ) {
+          return prev; // Bailout to avoid loop
         }
         return {
           ...prev,
-          hasError: prev.mentors.length === 0,
+          mentors: [],
+          mentorCount: 0,
+          hasError: true,
+          isNoResults: false,
         };
       });
-    },
-    [toast]
-  );
-
-  // Refetches on every params change, including initial mount, since
-  // MentorPoolWithData no longer refetches per request. Clearing filters
-  // reuses `initial*` (already the unfiltered snapshot) instead of a fetch.
-  useEffect(() => {
-    const myRequestId = ++requestIdRef.current;
-
-    if (
-      !hasAnyCondition(params) &&
-      !(initialError && (retryCount > 0 || hasClientFetched.current))
-    ) {
-      setPageState(getInitialUnfilteredState());
-      setIsFilterLoading(false);
       return;
     }
 
-    const conditions = paramsToFetchConditions(params);
-    setPageState((prev) => ({
-      ...prev,
-      isNoResults: false,
-      hasMore: false,
-      hasError: false,
-    }));
-    hasClientFetched.current = true;
-    setIsFilterLoading(true);
-
-    runFilter(
-      () => fetchMentors({ ...conditions, limit: PAGE_LIMIT, cursor: '' }),
-      {
-        preventConcurrent: false, // For params change, do not block subsequent valid filtering requests
-        throwError: false,
-        onError: () => {
-          if (myRequestId === requestIdRef.current) {
-            setIsFilterLoading(false);
-            handleError(myRequestId, false);
-          }
-        },
-      }
-    ).then((list) => {
-      if (!list) return;
-      if (myRequestId !== requestIdRef.current) return;
-      setIsFilterLoading(false);
-      setPageState((prev) =>
-        applyMentorPage(prev, { type: 'replace', page: list })
-      );
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.toString(), retryCount]);
+    if (fetchedData) {
+      setPageState((prev) => {
+        if (prev.mentors === fetchedData) {
+          return prev; // Bailout!
+        }
+        return applyMentorPage(prev, { type: 'replace', page: fetchedData });
+      });
+    }
+  }, [
+    filterKey,
+    fetchedData,
+    isFilterLoading,
+    filterError,
+    getInitialUnfilteredState,
+    toast,
+  ]);
 
   const fetchMoreMentors = useCallback(async () => {
-    let myRequestId: number | undefined;
+    const currentKey = filterKey;
     const conditions = paramsToFetchConditions(params);
     const param = {
       ...conditions,
@@ -215,29 +246,32 @@ export function useMentorPool({
       cursor: pageState.cursor,
     };
 
-    const rtnList = await runLoadMore(
-      () => {
-        myRequestId = ++requestIdRef.current;
-        return fetchMentors(param);
+    const rtnList = await runLoadMore(() => fetchMentors(param), {
+      preventConcurrent: true,
+      throwError: false,
+      onError: () => {
+        if (filterKey === currentKey) {
+          toast({
+            variant: 'destructive',
+            title: '載入失敗',
+            description: '無法獲取導師，請稍後再試。',
+            duration: 5000,
+          });
+          setPageState((prev) => ({
+            ...prev,
+            hasError: prev.mentors.length === 0,
+          }));
+        }
       },
-      {
-        preventConcurrent: true,
-        throwError: false,
-        onError: () => {
-          if (myRequestId !== undefined) {
-            handleError(myRequestId, true);
-          }
-        },
-      }
-    );
+    });
 
     if (!rtnList) return;
-    if (myRequestId === requestIdRef.current) {
+    if (filterKey === currentKey) {
       setPageState((prev) =>
         applyMentorPage(prev, { type: 'append', page: rtnList })
       );
     }
-  }, [params, pageState.cursor, runLoadMore, handleError]);
+  }, [params, pageState.cursor, runLoadMore, filterKey, toast]);
 
   const handleScrollToBottom = useCallback(async () => {
     if (!pageState.hasMore || isLoading) return;

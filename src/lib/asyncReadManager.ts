@@ -35,6 +35,22 @@ export class AsyncReadManager<K, V> {
     return this.cache?.get(key);
   }
 
+  public set(key: K, value: V): void {
+    if (this.cache) {
+      this.cache.set(key, value);
+    }
+    const activeListeners = this.listeners.get(key);
+    if (activeListeners) {
+      activeListeners.forEach((listener) => {
+        listener.onUpdate({
+          data: value,
+          isLoading: false,
+          error: null,
+        });
+      });
+    }
+  }
+
   public has(key: K): boolean {
     return this.cache?.has(key) ?? false;
   }

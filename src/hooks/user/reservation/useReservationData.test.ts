@@ -25,7 +25,10 @@ import {
 } from '@/services/reservations';
 import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 
-import { useReservationData } from './useReservationData';
+import {
+  reservationReadManager,
+  useReservationData,
+} from './useReservationData';
 
 const mockFetch = vi.mocked(fetchReservations);
 
@@ -52,6 +55,7 @@ const stubFor = (state: ReservationState) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  reservationReadManager.clear();
   mockUseSession.mockReturnValue({
     data: mockSession,
     status: 'authenticated',
@@ -78,14 +82,18 @@ describe('useReservationData (mentee)', () => {
     );
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_UPCOMING',
-    });
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_PENDING',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_UPCOMING',
+      })
+    );
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_PENDING',
+      })
+    );
     expect(mockFetch).not.toHaveBeenCalledWith(
       expect.objectContaining({ state: 'MENTEE_HISTORY' })
     );
@@ -114,10 +122,12 @@ describe('useReservationData (mentee)', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_HISTORY',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_HISTORY',
+      })
+    );
     expect(result.current.isHistoryLoaded).toBe(true);
     expect(result.current.data?.history).toHaveLength(1);
   });
@@ -132,10 +142,12 @@ describe('useReservationData (mentee)', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_PENDING',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_PENDING',
+      })
+    );
   });
 
   it('onMutationSuccess filters out (removes) the operated item from active lists in local state', async () => {
@@ -172,10 +184,12 @@ describe('useReservationData (mentee)', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_PENDING',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_PENDING',
+      })
+    );
     expect(result.current.data?.pending).toHaveLength(1);
   });
 
@@ -192,14 +206,18 @@ describe('useReservationData (mentee)', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_PENDING',
-    });
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_HISTORY',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_PENDING',
+      })
+    );
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_HISTORY',
+      })
+    );
   });
 
   it('initial fetch failure → data stays null, isLoading becomes false', async () => {
@@ -312,14 +330,18 @@ describe('useReservationData (mentor)', () => {
     );
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTOR_UPCOMING',
-    });
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTOR_PENDING',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTOR_UPCOMING',
+      })
+    );
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTOR_PENDING',
+      })
+    );
     expect(mockFetch).not.toHaveBeenCalledWith(
       expect.objectContaining({ state: 'MENTOR_HISTORY' })
     );
@@ -340,14 +362,18 @@ describe('useReservationData (mentor)', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTOR_PENDING',
-    });
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTOR_UPCOMING',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTOR_PENDING',
+      })
+    );
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTOR_UPCOMING',
+      })
+    );
   });
 
   it('refetch never sends batch param so backend uses default page size', async () => {
@@ -359,10 +385,12 @@ describe('useReservationData (mentor)', () => {
       result.current.onMutationSuccess('any-id', ['pending']);
     });
 
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTOR_PENDING',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTOR_PENDING',
+      })
+    );
     const lastCall = mockFetch.mock.calls.at(-1)?.[0];
     expect(lastCall).not.toHaveProperty('batch');
   });

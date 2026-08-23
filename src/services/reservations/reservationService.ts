@@ -20,6 +20,7 @@ export type FetchOptions = {
   batch?: number;
   nextDtend?: number;
   debug?: boolean;
+  signal?: AbortSignal;
 };
 
 // `version` (optimistic-lock field, X-Talent-Backend PR #44) is not yet part
@@ -134,7 +135,7 @@ export function mapToReservation(
 export async function fetchReservations(
   opts: FetchOptions
 ): Promise<{ items: Reservation[]; next_dtend: number }> {
-  const { userId, state, batch = 10, nextDtend, debug } = opts;
+  const { userId, state, batch = 10, nextDtend, debug, signal } = opts;
 
   if (debug)
     console.debug('[reservations] GET', { userId, state, batch, nextDtend });
@@ -144,6 +145,7 @@ export async function fetchReservations(
     components['schemas']['ApiResponse_ReservationInfoListVO_']
   >(path, {
     params: { state, batch, next_dtend: nextDtend },
+    signal,
   });
 
   if (debug) console.debug('[reservations] GET parsed', json);
