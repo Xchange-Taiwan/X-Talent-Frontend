@@ -13,15 +13,18 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAccountMenu } from '@/hooks/layout/useAccountMenu';
+import { ResolvedIdentity } from '@/lib/auth/sessionHint';
 
 import { ShareProfileDialog } from './ShareProfileDialog';
 import { UserAvatar } from './UserAvatar';
 
 export type UserDropdownProps = {
-  user: Session['user'];
+  identity: ResolvedIdentity;
+  user?: Session['user'];
 };
 
 export const UserDropdown = React.memo(function UserDropdown({
+  identity,
   user,
 }: UserDropdownProps): JSX.Element {
   const pathname = usePathname();
@@ -47,7 +50,7 @@ export const UserDropdown = React.memo(function UserDropdown({
     handleMyReservation,
     handleDeleteAccount,
     handleLogout,
-  } = useAccountMenu({ user, closeMenu });
+  } = useAccountMenu({ identity, user, closeMenu });
 
   const isOnProfile = Boolean(userId) && pathname === profilePath;
   const isOnMentorReservation =
