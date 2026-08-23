@@ -13,6 +13,7 @@ import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { AsyncReadManager } from '@/lib/asyncReadManager';
 import { createKeyedCache } from '@/lib/createKeyedCache';
+import { isAbortError } from '@/lib/errorUtils';
 import { fetchMentors } from '@/services/search-mentor/mentors';
 import type { MentorType } from '@/types/mentor';
 
@@ -136,19 +137,19 @@ export function useMentorPool({
 
   const { run: runLoadMore, isPending: isLoadMorePending } = useAsyncAction();
   const [retryCount, setRetryCount] = useState<number>(0);
-  const hasClientFetched = useRef(false);
-  const prevFilterKeyRef = useRef<string | null>(null);
-  const lastAppliedDataRef = useRef<MentorType[] | null>(null);
+  const [hasClientFetched, setHasClientFetched] = useState(false);
 
   // Derive filterKey for useAsyncRead
   const filterKey =
     hasAnyCondition(params) ||
-    (initialError && (retryCount > 0 || hasClientFetched.current))
+    (initialError && (retryCount > 0 || hasClientFetched))
       ? `filter_${params.toString()}_retry_${retryCount}`
       : null;
 
   const latestFilterKeyRef = useRef(filterKey);
-  latestFilterKeyRef.current = filterKey;
+  useEffect(() => {
+    latestFilterKeyRef.current = filterKey;
+  }, [filterKey]);
 
   // Let useAsyncRead handle the main data fetch, loading, error, and cancellation
   const {
@@ -164,11 +165,7 @@ export function useMentorPool({
         { ...conditions, limit: PAGE_LIMIT, cursor: '' },
         signal
       ).catch((err) => {
-        const isAbort =
-          signal.aborted ||
-          (err instanceof DOMException && err.name === 'AbortError') ||
-          (err instanceof Error && err.name === 'AbortError');
-        if (!isAbort) {
+        if (!isAbortError(err, signal)) {
           showErrorToast();
         }
         throw err;
@@ -180,77 +177,88 @@ export function useMentorPool({
   // Derived loading state combining local filter loading (Latest Wins) and pagination loading
   const isLoading =
     filterKey !== null
-      ? !hasClientFetched.current || isFilterLoading || isLoadMorePending
+      ? !hasClientFetched || isFilterLoading || isLoadMorePending
       : isFilterLoading || isLoadMorePending;
 
-  // Synchronize useAsyncRead state back to local pageState
-  useEffect(() => {
-    if (filterKey === null) {
-      if (prevFilterKeyRef.current !== null) {
-        setPageState(getInitialUnfilteredState());
-        prevFilterKeyRef.current = null;
-        hasClientFetched.current = false;
-        lastAppliedDataRef.current = null;
-      }
-      return;
-    }
-    prevFilterKeyRef.current = filterKey;
-    hasClientFetched.current = true;
+  // Synchronize useAsyncRead state back to local pageState during render phase (React 18 Concurrent-safe)
+  const [prevSyncInputs, setPrevSyncInputs] = useState<{
+    filterKey: string | null;
+    fetchedData: MentorType[] | null;
+    isFilterLoading: boolean;
+    filterError: any;
+  }>({
+    filterKey: null,
+    fetchedData: null,
+    isFilterLoading: false,
+    filterError: null,
+  });
 
-    if (fetchedData) {
-      if (fetchedData !== lastAppliedDataRef.current) {
-        lastAppliedDataRef.current = fetchedData;
+  if (
+    filterKey !== prevSyncInputs.filterKey ||
+    fetchedData !== prevSyncInputs.fetchedData ||
+    isFilterLoading !== prevSyncInputs.isFilterLoading ||
+    filterError !== prevSyncInputs.filterError
+  ) {
+    setPrevSyncInputs({
+      filterKey,
+      fetchedData: fetchedData ?? null,
+      isFilterLoading,
+      filterError,
+    });
+
+    if (filterKey === null) {
+      if (prevSyncInputs.filterKey !== null) {
+        setPageState(getInitialUnfilteredState());
+        setHasClientFetched(false);
+      }
+    } else {
+      setHasClientFetched(true);
+
+      if (fetchedData) {
+        if (fetchedData !== prevSyncInputs.fetchedData) {
+          setPageState((prev) => {
+            if (prev.mentors === fetchedData) {
+              return prev; // Bailout!
+            }
+            return applyMentorPage(prev, {
+              type: 'replace',
+              page: fetchedData,
+            });
+          });
+        }
+      } else if (isFilterLoading) {
         setPageState((prev) => {
-          if (prev.mentors === fetchedData) {
-            return prev; // Bailout!
+          if (!prev.isNoResults && !prev.hasMore && !prev.hasError) {
+            return prev; // Bailout to avoid redundant state updates
           }
-          return applyMentorPage(prev, { type: 'replace', page: fetchedData });
+          return {
+            ...prev,
+            isNoResults: false,
+            hasMore: false,
+            hasError: false,
+          };
+        });
+      } else if (filterError) {
+        setPageState((prev) => {
+          if (
+            prev.mentors.length === 0 &&
+            prev.mentorCount === 0 &&
+            prev.hasError &&
+            !prev.isNoResults
+          ) {
+            return prev; // Bailout to avoid loop
+          }
+          return {
+            ...prev,
+            mentors: [],
+            mentorCount: 0,
+            hasError: true,
+            isNoResults: false,
+          };
         });
       }
     }
-
-    if (isFilterLoading) {
-      setPageState((prev) => {
-        if (!prev.isNoResults && !prev.hasMore && !prev.hasError) {
-          return prev; // Bailout to avoid redundant state updates
-        }
-        return {
-          ...prev,
-          isNoResults: false,
-          hasMore: false,
-          hasError: false,
-        };
-      });
-      return;
-    }
-
-    if (filterError) {
-      setPageState((prev) => {
-        if (
-          prev.mentors.length === 0 &&
-          prev.mentorCount === 0 &&
-          prev.hasError &&
-          !prev.isNoResults
-        ) {
-          return prev; // Bailout to avoid loop
-        }
-        return {
-          ...prev,
-          mentors: [],
-          mentorCount: 0,
-          hasError: true,
-          isNoResults: false,
-        };
-      });
-      return;
-    }
-  }, [
-    filterKey,
-    fetchedData,
-    isFilterLoading,
-    filterError,
-    getInitialUnfilteredState,
-  ]);
+  }
 
   const fetchMoreMentors = useCallback(async () => {
     const currentKey = filterKey;
