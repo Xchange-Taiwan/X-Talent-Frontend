@@ -35,10 +35,10 @@ export class FetchHttpError extends Error {
 export class FetchApiError extends Error {
   constructor(
     public readonly code: string,
-    message: string,
+    public readonly msg: string,
     public readonly path: string
   ) {
-    super(`fetch ${path} API error (${code}): ${message}`);
+    super(`fetch ${path} API error (${code}): ${msg}`);
     this.name = 'FetchApiError';
   }
 }
@@ -261,6 +261,27 @@ async function request<T>(
   return parsed;
 }
 
+// Helper to perform unwrapped requests and handle code checks centrally
+async function executeRequestUnwrapped<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  options?: RequestOptions
+): Promise<T | null | undefined> {
+  const result = await request<ApiResponseEnvelope<T>>(
+    method,
+    path,
+    body,
+    options
+  );
+
+  if (result.code !== '0') {
+    throw new FetchApiError(result.code, result.msg, path);
+  }
+
+  return result.data;
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 export const apiClient = {
   get: <T>(path: string, options?: RequestOptions) =>
@@ -270,18 +291,7 @@ export const apiClient = {
     path: string,
     options?: RequestOptions
   ): Promise<T | null | undefined> => {
-    const result = await request<ApiResponseEnvelope<T>>(
-      'GET',
-      path,
-      undefined,
-      options
-    );
-
-    if (result.code !== '0') {
-      throw new FetchApiError(result.code, result.msg, path);
-    }
-
-    return result.data;
+    return executeRequestUnwrapped<T>('GET', path, undefined, options);
   },
 
   requestUnwrapped: async <T>(
@@ -345,14 +355,46 @@ export const apiClient = {
   post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('POST', path, body, options),
 
+  postUnwrapped: async <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    return executeRequestUnwrapped<T>('POST', path, body, options);
+  },
+
   put: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('PUT', path, body, options),
+
+  putUnwrapped: async <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    return executeRequestUnwrapped<T>('PUT', path, body, options);
+  },
 
   patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('PATCH', path, body, options),
 
+  patchUnwrapped: async <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    return executeRequestUnwrapped<T>('PATCH', path, body, options);
+  },
+
   delete: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('DELETE', path, body, options),
+
+  deleteUnwrapped: async <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions
+  ): Promise<T | null | undefined> => {
+    return executeRequestUnwrapped<T>('DELETE', path, body, options);
+  },
 
   getExternalBlob: async (
     url: string,

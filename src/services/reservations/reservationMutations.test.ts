@@ -10,7 +10,7 @@ vi.mock('@/lib/apiClient', async (importActual) => {
   return {
     ...actual,
     apiClient: {
-      put: vi.fn(),
+      putUnwrapped: vi.fn(),
     },
   };
 });
@@ -44,7 +44,7 @@ import {
 } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
-const mockPut = vi.mocked(apiClient.put);
+const mockPut = vi.mocked(apiClient.putUnwrapped);
 const mockCaptureFailure = vi.mocked(captureFlowFailure);
 
 const makeMockReservation = (
