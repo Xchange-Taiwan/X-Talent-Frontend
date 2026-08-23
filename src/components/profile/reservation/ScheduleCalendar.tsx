@@ -255,52 +255,53 @@ export const ScheduleCalendar = ({
           className
         )}
       >
-        <div
-          className={cn(
-            'relative transition-opacity',
-            (isMonthLoading || hasError) && 'opacity-60'
-          )}
-          aria-busy={isMonthLoading}
-        >
-          <Calendar
-            mode="single"
-            variant={calendarVariant}
-            captionLayout="dropdown"
-            month={displayMonth}
-            selected={selected}
-            onSelect={handleSelect}
-            onMonthChange={handleMonthChange}
-            modifiers={{
-              available: availableDays,
-            }}
-            modifiersClassNames={{
-              available: 'rdp-day-available',
-            }}
-            disabled={(day) => {
-              if (disablePastDates) {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
+        <div className="relative" aria-busy={isMonthLoading}>
+          <div
+            className={cn(
+              'transition-opacity',
+              (isMonthLoading || hasError) && 'opacity-60'
+            )}
+          >
+            <Calendar
+              mode="single"
+              variant={calendarVariant}
+              captionLayout="dropdown"
+              month={displayMonth}
+              selected={selected}
+              onSelect={handleSelect}
+              onMonthChange={handleMonthChange}
+              modifiers={{
+                available: availableDays,
+              }}
+              modifiersClassNames={{
+                available: 'rdp-day-available',
+              }}
+              disabled={(day) => {
+                if (disablePastDates) {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
 
-                if (day < today) {
-                  return true;
-                }
-              }
-
-              if (disableEmptyDates) {
-                const dateStr = dayjs(day).format('YYYY-MM-DD');
-
-                if (allowedDates.length === 0) {
-                  return true;
+                  if (day < today) {
+                    return true;
+                  }
                 }
 
-                return !allowedDates.includes(dateStr);
-              }
+                if (disableEmptyDates) {
+                  const dateStr = dayjs(day).format('YYYY-MM-DD');
 
-              return false;
-            }}
-            showTodayStyle={showTodayStyle}
-            components={calendarComponents}
-          />
+                  if (allowedDates.length === 0) {
+                    return true;
+                  }
+
+                  return !allowedDates.includes(dateStr);
+                }
+
+                return false;
+              }}
+              showTodayStyle={showTodayStyle}
+              components={calendarComponents}
+            />
+          </div>
           {isMonthLoading && (
             <div
               aria-live="polite"
