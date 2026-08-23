@@ -13,36 +13,28 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { trackEvent } from '@/lib/analytics';
+import { ResolvedIdentity } from '@/lib/auth/sessionHint';
 
 import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
 import { DisabledAwareLink } from './DisabledAwareLink';
-import { getBecomeMentorHref, getProfileHref } from './navHrefs';
+import { getBecomeMentorHref } from './navHrefs';
 
 export type HamburgerMenuProps = {
-  isLoggedIn: boolean;
-  isMentor: boolean;
-  userId?: string;
-  /**
-   * Logged in per the fast session hint, but `userId` hasn't landed yet —
-   * owned by Header's `useIdentity()`, passed down rather than re-derived
-   * here so the two never drift out of sync.
-   */
-  isResolvingUser: boolean;
+  identity: ResolvedIdentity;
 };
 
 export function HamburgerMenu({
-  isLoggedIn,
-  isMentor,
-  userId,
-  isResolvingUser,
-}: HamburgerMenuProps): JSX.Element {
+  identity,
+}: HamburgerMenuProps): JSX.Element | null {
   const [open, setOpen] = React.useState(false);
   const close = (): void => setOpen(false);
 
-  const profilePath = getProfileHref(userId);
-  const becomeMentorPath = getBecomeMentorHref(userId);
+  if (identity.state === 'hint-only' || identity.state === 'confirmed-member') {
+    return null;
+  }
 
-  return (
+  const becomeMentorPath = getBecomeMentorHref(identity.userId);
+  const content = (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <Button variant="ghost" aria-label="開啟導航選單">
@@ -71,25 +63,14 @@ export function HamburgerMenu({
               尋找導師
             </Link>
 
-            {isMentor ? (
-              <DisabledAwareLink
-                href={profilePath}
-                onClick={close}
-                disabled={isResolvingUser}
-                className="text-text-primary"
-              >
-                我的導師頁面
-              </DisabledAwareLink>
-            ) : (
-              <DisabledAwareLink
-                href={becomeMentorPath}
-                onClick={close}
-                disabled={isResolvingUser}
-                className="text-text-primary"
-              >
-                成為導師
-              </DisabledAwareLink>
-            )}
+            <DisabledAwareLink
+              href={becomeMentorPath}
+              onClick={close}
+              disabled={identity.isResolvingUser}
+              className="text-text-primary"
+            >
+              成為導師
+            </DisabledAwareLink>
 
             <Link href="/about" onClick={close} className="text-text-primary">
               關於 X-Talent
@@ -110,7 +91,7 @@ export function HamburgerMenu({
             </a>
           </div>
 
-          {!isLoggedIn && (
+          {!identity.isLoggedIn && (
             <div className="mt-auto flex flex-col items-center gap-6 pb-6">
               <Button asChild className="w-40 bg-brand-500 hover:bg-brand-500">
                 <Link href="/auth/signin" onClick={close}>
@@ -132,4 +113,14 @@ export function HamburgerMenu({
       </SheetContent>
     </Sheet>
   );
+
+  if (identity.state === 'unknown') {
+    return (
+      <div className="group-data-[auth-state=mentee]/auth-state:hidden group-data-[auth-state=mentor]/auth-state:hidden">
+        {content}
+      </div>
+    );
+  }
+
+  return content;
 }

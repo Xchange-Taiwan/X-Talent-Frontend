@@ -25,6 +25,7 @@ vi.mock('@/lib/analytics', () => ({
   trackEvent: (...args: unknown[]) => trackEvent(...args),
 }));
 
+import { authenticatedIdentity } from '@/test/mocks/identity';
 import { mockSession } from '@/test/mocks/nextAuth';
 
 import { MobileUserMenu } from './MobileUserMenu';
@@ -40,7 +41,12 @@ function buildUser(overrides: Partial<Session['user']> = {}): Session['user'] {
 
 describe('MobileUserMenu', () => {
   it('renders correctly with default mock user showing proper alt text', () => {
-    render(<MobileUserMenu user={buildUser({ name: 'Ada Lovelace' })} />);
+    render(
+      <MobileUserMenu
+        identity={authenticatedIdentity('user-1', { isMentor: false })}
+        user={buildUser({ name: 'Ada Lovelace' })}
+      />
+    );
     const avatarImg = screen.getByRole('img', { name: 'Ada Lovelace 的頭像' });
     expect(avatarImg).toBeInTheDocument();
   });
@@ -48,6 +54,7 @@ describe('MobileUserMenu', () => {
   it('renders correctly with mentor user showing proper alt text', () => {
     render(
       <MobileUserMenu
+        identity={authenticatedIdentity('user-1', { isMentor: true })}
         user={buildUser({ name: '陳導師 (Mentor)', isMentor: true })}
       />
     );
@@ -60,6 +67,7 @@ describe('MobileUserMenu', () => {
   it('renders with anonymous user safely with fallback alt text', () => {
     render(
       <MobileUserMenu
+        identity={authenticatedIdentity('user-1', { isMentor: false })}
         user={buildUser({
           name: null,
           avatar: null,
@@ -71,7 +79,12 @@ describe('MobileUserMenu', () => {
   });
 
   it('renders the merged header navigation links (尋找導師, 關於 X-Talent, 提供回饋) inside the mobile user menu after opening it', () => {
-    render(<MobileUserMenu user={buildUser()} />);
+    render(
+      <MobileUserMenu
+        identity={authenticatedIdentity('user-1', { isMentor: false })}
+        user={buildUser()}
+      />
+    );
 
     const trigger = screen.getByRole('button', { name: '開啟用戶選單' });
     fireEvent.click(trigger);
@@ -95,7 +108,12 @@ describe('MobileUserMenu', () => {
 
   it('tracks feedback_open and closes the sheet when 提供回饋 is clicked', () => {
     trackEvent.mockClear();
-    render(<MobileUserMenu user={buildUser()} />);
+    render(
+      <MobileUserMenu
+        identity={authenticatedIdentity('user-1', { isMentor: false })}
+        user={buildUser()}
+      />
+    );
 
     fireEvent.click(screen.getByRole('button', { name: '開啟用戶選單' }));
     const feedbackLink = screen.getByRole('link', { name: '提供回饋' });

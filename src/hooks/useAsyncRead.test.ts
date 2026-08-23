@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AsyncReadManager } from '@/lib/asyncReadManager';
@@ -95,5 +95,68 @@ describe('useAsyncRead hook tests', () => {
       refetch: expect.any(Function),
     });
     expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('respects initialData and returns it synchronously on initial render', async () => {
+    const manager = new AsyncReadManager<string, string>();
+    const fetcher = vi.fn().mockResolvedValue('hook-data');
+
+    const renderedValues: Array<{
+      data: string | null;
+      isLoading: boolean;
+      error: string | null;
+      refetch: () => void;
+    }> = [];
+    const { result } = renderHook(() => {
+      const res = useAsyncRead(manager, 'key', fetcher, {
+        initialData: 'initial-data',
+      });
+      renderedValues.push(res);
+      return res;
+    });
+
+    // The very first rendered value (during the synchronous render phase, before useEffect)
+    // should have data: 'initial-data' and isLoading: false.
+    expect(renderedValues[0]).toEqual({
+      data: 'initial-data',
+      isLoading: false,
+      error: null,
+      refetch: expect.any(Function),
+    });
+
+    // It should still eventually trigger fetcher and update data
+    await waitFor(() => {
+      expect(result.current.data).toBe('hook-data');
+    });
+
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  it('triggers a fresh fetch with force: true options when refetch is called', async () => {
+    const cache = createKeyedCache<string, string>();
+    const manager = new AsyncReadManager<string, string>(cache);
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce('data-1')
+      .mockResolvedValueOnce('data-2');
+
+    const { result } = renderHook(() => useAsyncRead(manager, 'key', fetcher));
+
+    await waitFor(() => {
+      expect(result.current.data).toBe('data-1');
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // Trigger refetch
+    act(() => {
+      result.current.refetch();
+    });
+
+    await waitFor(() => {
+      expect(result.current.data).toBe('data-2');
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 });
