@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
+import { authenticatedIdentity } from '@/test/mocks/identity';
+
 import { MobileUserMenu } from './MobileUserMenu';
 
 const meta: Meta<typeof MobileUserMenu> = {
@@ -56,6 +58,7 @@ const mockMenteeUser = {
 // 1. Mentor Session
 export const MentorSession: Story = {
   args: {
+    identity: authenticatedIdentity('mentor-123', { isMentor: true }),
     user: mockMentorUser,
   },
 };
@@ -63,6 +66,7 @@ export const MentorSession: Story = {
 // 2. Mentee Session
 export const MenteeSession: Story = {
   args: {
+    identity: authenticatedIdentity('mentee-456', { isMentor: false }),
     user: mockMenteeUser,
   },
 };
@@ -70,6 +74,7 @@ export const MenteeSession: Story = {
 // 3. User with No Name Fallback
 export const AnonymousSession: Story = {
   args: {
+    identity: authenticatedIdentity('anon-789', { isMentor: false }),
     user: {
       id: 'anon-789',
       email: 'anon@xchange.tw',
