@@ -4,7 +4,6 @@ import { useSession } from 'next-auth/react';
 import { useCallback, useSyncExternalStore } from 'react';
 
 import { useIdentity } from '@/hooks/user/auth/useIdentity';
-import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
 import {
   getOptimisticAvatar,
   subscribeToOptimisticAvatar,
@@ -26,10 +25,6 @@ export function useCurrentAvatar(): string | null {
   const validUserId =
     pageUserIdNumber && !Number.isNaN(pageUserIdNumber) ? pageUserIdNumber : 0;
 
-  const { userDto } = useUserProfileDto(validUserId, 'zh_TW', undefined, {
-    enabled: false,
-  });
-
   const identity = useIdentity();
 
   const getSnapshot = useCallback(() => {
@@ -43,10 +38,10 @@ export function useCurrentAvatar(): string | null {
   );
 
   // During the active transition period after an optimistic update, prioritize the optimistic avatar.
-  // Otherwise, prioritize the session's identity avatar (authoritative), and fall back to the DTO cache.
+  // Otherwise, prioritize the session's identity avatar (authoritative).
   if (optimisticAvatar) {
     return optimisticAvatar;
   }
 
-  return identity.avatar ?? userDto?.avatar ?? null;
+  return identity.avatar ?? null;
 }
