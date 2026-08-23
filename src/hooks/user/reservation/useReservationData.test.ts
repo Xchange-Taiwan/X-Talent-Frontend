@@ -19,6 +19,7 @@ vi.mock('@/services/reservations', async () => {
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 
+import { captureFlowFailure } from '@/lib/monitoring';
 import {
   fetchReservations,
   type ReservationState,
@@ -31,6 +32,7 @@ import {
 } from './useReservationData';
 
 const mockFetch = vi.mocked(fetchReservations);
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 const makeReservation = (id: string) => ({
   id,
@@ -358,6 +360,38 @@ describe('useReservationData (mentee)', () => {
     });
 
     expect(result.current.data).toBeNull();
+  });
+
+  it('does not capture flow failure when fetchReservations throws AbortError (request cancellation)', async () => {
+    const abortError = new Error('The operation was aborted.');
+    abortError.name = 'AbortError';
+    mockFetch.mockRejectedValue(abortError);
+
+    renderHook(() => useReservationData({ role: 'mentee' }));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
+  });
+
+  it('captures flow failure when fetchReservations throws a regular Error', async () => {
+    const regularError = new Error('Network failure');
+    mockFetch.mockRejectedValue(regularError);
+
+    renderHook(() => useReservationData({ role: 'mentee' }));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'reservation_initial_fetch',
+        message: 'Network failure',
+      })
+    );
   });
 });
 
