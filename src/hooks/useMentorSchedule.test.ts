@@ -1309,5 +1309,295 @@ describe('useMentorSchedule', () => {
       expect(result.current.reservations).toEqual([]);
       expect(result.current.parsedDraft).toHaveLength(1);
     });
+
+    it('does not apply reloaded schedule or reservations if the active user changes mid-flight', async () => {
+      mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
+      mockLoadMonthScheduleFresh.mockReset();
+
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+
+      const { result, rerender } = renderHook(
+        ({ userId }) =>
+          useMentorSchedule({
+            backend: { userId, year: 2026, month: 7 },
+            loginUserId: userId,
+          }),
+        { initialProps: { userId: '123' } }
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      // Prepare fresh reload values
+      const reloadedRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW',
+          dtstart: 1785075000,
+          dtend: 1785076800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+
+      // Delay the fresh schedule refetch slightly so we can trigger an account switch
+      let resolveScheduleFetch: (raws: RawMentorTimeslot[]) => void = () => {};
+      const schedulePromise = new Promise<RawMentorTimeslot[]>((resolve) => {
+        resolveScheduleFetch = resolve;
+      });
+      mockLoadMonthScheduleFresh.mockReturnValue(schedulePromise);
+
+      const reloadPromise = result.current.reload?.();
+
+      // Change user mid-flight (account switch)
+      act(() => {
+        rerender({ userId: '456' });
+      });
+
+      // Resolve the fetch for the OLD user ('123')
+      resolveScheduleFetch(reloadedRaws);
+
+      await act(async () => {
+        await reloadPromise;
+      });
+
+      // Ensure the old user's reloaded data is NOT applied
+      expect(result.current.reservations).toEqual([]);
+      // Should not contain 1785075000 (old user's reloaded schedule)
+      const hasOldReloaded = result.current.parsedDraft.some(
+        (d) => d.start.getTime() === 1785075000 * 1000
+      );
+      expect(hasOldReloaded).toBe(false);
+    });
+
+    it('does not discard unsaved draft edits when reloading schedule', async () => {
+      mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
+      mockLoadMonthScheduleFresh.mockReset();
+
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      // Trigger an edit to make the month dirty
+      act(() => {
+        result.current.updateDraftSlot(101, 1785070000, { startTime: '13:00' });
+      });
+
+      const draftBeforeReload = result.current.parsedDraft;
+
+      // Mock the loaded raws
+      const reloadedRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW',
+          dtstart: 1785075000,
+          dtend: 1785076800,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      mockLoadMonthScheduleFresh.mockResolvedValue(reloadedRaws);
+
+      // Trigger reload
+      await act(async () => {
+        await result.current.reload?.();
+      });
+
+      // Verify the dirty draft is preserved and not discarded or overwritten
+      expect(result.current.parsedDraft).toEqual(draftBeforeReload);
+    });
+
+    it('does not apply state update or trigger errors if the component unmounts mid-flight of reload', async () => {
+      mockFetchAllReservationsForState.mockReset();
+      mockLoadMonthScheduleFresh.mockReset();
+
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+
+      // We need a slow promise for reservations and schedule reload
+      let resolveReservations: (
+        val: Awaited<ReturnType<typeof fetchAllReservationsForState>>
+      ) => void = () => {};
+      const resPromise = new Promise<
+        Awaited<ReturnType<typeof fetchAllReservationsForState>>
+      >((resolve) => {
+        resolveReservations = resolve;
+      });
+      mockFetchAllReservationsForState.mockReturnValue(resPromise);
+
+      let resolveSchedule: (val: RawMentorTimeslot[]) => void = () => {};
+      const schedulePromise = new Promise<RawMentorTimeslot[]>((resolve) => {
+        resolveSchedule = resolve;
+      });
+      mockLoadMonthScheduleFresh.mockReturnValue(schedulePromise);
+
+      const { result, unmount } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      const reloadPromise = act(async () => {
+        await result.current.reload?.();
+      });
+
+      // Unmount the component while reload is in-flight
+      unmount();
+
+      // Resolve the fetches
+      resolveReservations([]);
+      resolveSchedule([]);
+
+      await reloadPromise;
+
+      // Ensure no state update warning occurred and state is stable
+      expect(result.current.reservations).toEqual([]);
+    });
+
+    it('does not capture flow failure if reload schedule fails after account has already switched or component unmounted', async () => {
+      mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
+      mockLoadMonthScheduleFresh.mockReset();
+      mockCaptureFlowFailure.mockReset();
+
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+
+      const { result, rerender } = renderHook(
+        ({ userId }) =>
+          useMentorSchedule({
+            backend: { userId, year: 2026, month: 7 },
+            loginUserId: userId,
+          }),
+        { initialProps: { userId: '123' } }
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      // Slow rejected promise
+      let rejectSchedule: (err: Error) => void = () => {};
+      const schedulePromise = new Promise<RawMentorTimeslot[]>((_, reject) => {
+        rejectSchedule = reject;
+      });
+      mockLoadMonthScheduleFresh.mockReturnValue(schedulePromise);
+
+      const reloadPromise = result.current.reload?.();
+
+      // Switch user mid-flight
+      act(() => {
+        rerender({ userId: '456' });
+      });
+
+      // Reject the schedule fetch for the OLD user
+      rejectSchedule(new Error('old user fetch failed'));
+
+      await act(async () => {
+        await reloadPromise;
+      });
+
+      // Verify that captureFlowFailure was NOT called because the user has switched
+      expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
+    });
+
+    it('does not apply reloaded reservations if the calendar month changes mid-flight', async () => {
+      mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
+      mockLoadMonthScheduleFresh.mockReset().mockResolvedValue([]);
+
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+
+      const { result, rerender } = renderHook(
+        ({ month }) =>
+          useMentorSchedule({
+            backend: { userId: '123', year: 2026, month },
+            loginUserId: '123',
+          }),
+        { initialProps: { month: 7 } }
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      // Prepare reload reservations that are slow
+      let resolveReservations: (
+        val: Awaited<ReturnType<typeof fetchAllReservationsForState>>
+      ) => void = () => {};
+      const resPromise = new Promise<
+        Awaited<ReturnType<typeof fetchAllReservationsForState>>
+      >((resolve) => {
+        resolveReservations = resolve;
+      });
+
+      mockFetchAllReservationsForState.mockImplementation(
+        async (userId, state, endOfMonthUnix) => {
+          // Return slow promise for month 7, resolve immediately to [] for month 8
+          if (endOfMonthUnix < 1786000000) {
+            return resPromise;
+          }
+          return [];
+        }
+      );
+
+      const reloadPromise = result.current.reload?.();
+
+      // Switch month mid-flight (from 7 to 8)
+      act(() => {
+        rerender({ month: 8 });
+      });
+
+      // Resolve reservations for month 7
+      resolveReservations([
+        {
+          id: 'res-stale-month',
+          name: 'Stale Month Mentee',
+          scheduleId: 101,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          messages: [],
+          roleLine: '',
+          date: '',
+          time: '',
+          senderUserId: 'mentee-stale',
+          participantUserId: '123',
+          version: 1,
+        },
+      ]);
+
+      await act(async () => {
+        await reloadPromise;
+      });
+
+      // Verify that the stale month's reservations were NOT applied
+      expect(result.current.reservations).toEqual([]);
+    });
   });
 });

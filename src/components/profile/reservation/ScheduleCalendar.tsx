@@ -11,7 +11,7 @@ import {
   CalendarDayButton,
   CalendarVariant,
 } from '@/components/ui/calendar';
-import type { BookingStatus } from '@/lib/profile/scheduleHelpers';
+import type { BookingStatus } from '@/lib/profile/bookingAvailability';
 import { cn } from '@/lib/utils';
 
 type ScheduleCalendarSize = 'compact' | 'profile';

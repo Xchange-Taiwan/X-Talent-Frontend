@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
 import { Button } from '@/components/ui/button';
-import { BookingSlot, useMentorSchedule } from '@/hooks/useMentorSchedule';
+import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { useIdentity } from '@/hooks/user/auth/useIdentity';
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfirmation';
@@ -15,6 +15,7 @@ import { useReservationDateClamp } from '@/hooks/user/reservation/useReservation
 import { primeTagCatalogCacheIfEmpty } from '@/hooks/user/tags/useTagCatalog';
 import useUserData from '@/hooks/user/user-data/useUserData';
 import { primeUserProfileDtoCacheIfEmpty } from '@/hooks/user/user-data/useUserProfileDto';
+import { BookingSlot } from '@/lib/profile/bookingAvailability';
 import { getMentorOnboardingUrl } from '@/lib/routes';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 import type { MentorProfileVO } from '@/types/user';

@@ -27,3 +27,27 @@ To ensure this pure logic can be developed, optimized, and thoroughly unit-teste
   - **Outputs**: Selected calendar view payload including `allowedDates` (selectable dates), `bookingStatusByDate` (performance-optimized per-date status dots lookup map), and a generator function `generateBookingSlots` for any given date.
 
 By formalizing the **`BookingAvailabilityReadModel`**, downstream features (such as dialogs, detail cards, and calendar status widgets) can reuse this precise logic with a unified, predictable vocabulary.
+
+## Domain Vocabulary & Types
+
+The booking availability module serves as the single source of truth for all mentor-scheduling domain vocabulary. By homing these types here rather than in a React hook, we prevent layer-violation issues (e.g. non-React utilities or Storybook stories importing React state context hooks).
+
+Key types exported from this module (`src/lib/profile/bookingAvailability/`):
+
+- **`BookingSlot`**: Represents a single bookable timeslot occurrence (start, end, schedule ID, booking/status, mentee, reservation info).
+- **`BookingStatus`**: An enum defining the booking status (`'PENDING' | 'BOOKED'`).
+- **`ParsedMentorTimeslot`**: An expanded, formatted representation of a raw timeslot occurrence used directly in the schedule editor.
+- **`SlotsSnapshot`**: A snapshot structure grouping the selected date's booking slots with their loading flags (`monthLoaded`, `reservationsLoaded`).
+- **`SlotDurationMinutes`**: Valid slot durations (`30 | 45 | 60`).
+- **`BookingCalendarReader`**: A narrow read-only interface used by mentees and visitors to view a mentor's booking schedule.
+- **`MentorScheduleEditor`**: A narrow stateful interface used by the mentor to manage and sync their available slots.
+
+## Elapsed Time Behavior (Page Open)
+
+To ensure consistency and prevent race conditions, the **`BookingAvailabilityReadModel`** explicitly treats the reference current timestamp (`nowSec`) as a **frozen instant contract**.
+
+- **No Clock Tick (Frozen Instant)**: Both `allowedDates` (selectable dates on the calendar) and `generateBookingSlots` (the slot generator) are derived against the exact same timestamp frozen when the read model was computed. As time passes with the page open, the view remains stable and self-consistent.
+- **Why this design**:
+  1. **Aesthetic Consistency**: A slot that expires after the page has loaded will not disappear from the slot list while its calendar date remains selectable. Both answers are always derived from the same instant.
+  2. **Performance (Stable Calculations)**: This design avoids running heavy recurrence rule expansions on every clock tick (preventing performance degradation on rendering-heavy calendar grids).
+  3. **Predictable Interface**: User interactions are completely deterministic.
