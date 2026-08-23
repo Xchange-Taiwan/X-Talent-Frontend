@@ -7,6 +7,7 @@ import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { trackEvent } from '@/lib/analytics';
 import { AsyncReadManager } from '@/lib/asyncReadManager';
 import { createKeyedCache } from '@/lib/createKeyedCache';
+import { isAbortError } from '@/lib/errorUtils';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { fetchReservations, ReservationState } from '@/services/reservations';
 import { Reservation } from '@/types/reservation';
@@ -138,11 +139,7 @@ export function useReservationData({
             signal,
           });
         } catch (err) {
-          const isAbort =
-            signal.aborted ||
-            (err instanceof DOMException && err.name === 'AbortError') ||
-            (err instanceof Error && err.name === 'AbortError');
-          if (isAbort) {
+          if (isAbortError(err, signal)) {
             throw err;
           }
           captureFlowFailure({

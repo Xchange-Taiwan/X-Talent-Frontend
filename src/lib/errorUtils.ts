@@ -26,3 +26,16 @@ export function getErrorMessage(error: unknown): string {
   const msg = getSafeErrorMessage(error);
   return msg !== UNKNOWN_ERROR ? msg : '發生錯誤，請稍後再試。';
 }
+
+/**
+ * Checks if an error is an AbortError (either from DOMException or standard Error, or if the AbortSignal was aborted).
+ */
+export function isAbortError(error: unknown, signal?: AbortSignal): boolean {
+  if (signal?.aborted) {
+    return true;
+  }
+  return (
+    (error instanceof DOMException && error.name === 'AbortError') ||
+    (error instanceof Error && error.name === 'AbortError')
+  );
+}
