@@ -58,6 +58,20 @@ describe('ReservationCard', () => {
     expect(screen.getByText('10:00 am – 11:00 am')).toBeInTheDocument();
   });
 
+  it('uses flex-nowrap to avoid deforming when long names are rendered', () => {
+    const { container } = render(
+      <ReservationCard item={mockReservation} variant="upcoming" />
+    );
+    // Find the name container flex element
+    const flexContainer = container.querySelector('.min-w-0.flex-1 > div');
+    expect(flexContainer).toBeInTheDocument();
+    expect(flexContainer).toHaveClass('flex');
+    expect(flexContainer).toHaveClass('items-center');
+    expect(flexContainer).toHaveClass('justify-between');
+    expect(flexContainer).toHaveClass('gap-2');
+    expect(flexContainer).not.toHaveClass('flex-wrap');
+  });
+
   it('renders "Join Google Meet" button only when variant is upcoming', () => {
     const { rerender } = render(
       <ReservationCard item={mockReservation} variant="upcoming" />
