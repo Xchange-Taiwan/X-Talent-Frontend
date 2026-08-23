@@ -50,7 +50,7 @@ function HeaderComponent(): JSX.Element {
     : { label: '成為導師', href: getBecomeMentorHref(identity.userId) };
 
   return (
-    <header className="fixed inset-x-0 top-[var(--banner-height,0px)] z-50 bg-light px-5">
+    <header className="bg-light fixed inset-x-0 top-[var(--banner-height,0px)] z-50 px-5">
       <div className="flex h-[70px] items-center justify-between">
         <div className="flex items-center gap-10">
           <Link href="/" aria-label="Go to homepage">
@@ -60,7 +60,7 @@ function HeaderComponent(): JSX.Element {
           <nav className="hidden items-center gap-7 lg:flex">
             <Link
               href={FIND_MENTOR_HREF}
-              className="font-['Open_Sans'] text-base text-text-primary"
+              className="text-text-primary font-['Open_Sans'] text-base"
             >
               尋找導師
             </Link>
@@ -71,14 +71,14 @@ function HeaderComponent(): JSX.Element {
                 <DisabledAwareLink
                   href={getProfileHref(identity.userId)}
                   disabled={isHintOnly}
-                  className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentor]/auth-state:block"
+                  className="text-text-primary hidden font-['Open_Sans'] text-base group-data-[auth-state=mentor]/auth-state:block"
                 >
                   我的導師頁面
                 </DisabledAwareLink>
                 <DisabledAwareLink
                   href={getBecomeMentorHref(identity.userId)}
                   disabled={isHintOnly}
-                  className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=guest]/auth-state:block group-data-[auth-state=mentee]/auth-state:block"
+                  className="text-text-primary hidden font-['Open_Sans'] text-base group-data-[auth-state=guest]/auth-state:block group-data-[auth-state=mentee]/auth-state:block"
                 >
                   成為導師
                 </DisabledAwareLink>
@@ -87,7 +87,7 @@ function HeaderComponent(): JSX.Element {
               <DisabledAwareLink
                 href={leftSecondNav.href}
                 disabled={isHintOnly}
-                className="font-['Open_Sans'] text-base text-text-primary"
+                className="text-text-primary font-['Open_Sans'] text-base"
               >
                 {leftSecondNav.label}
               </DisabledAwareLink>
@@ -95,7 +95,7 @@ function HeaderComponent(): JSX.Element {
 
             <Link
               href="/about"
-              className="font-['Open_Sans'] text-base text-text-primary"
+              className="text-text-primary font-['Open_Sans'] text-base"
             >
               關於 X-Talent
             </Link>
@@ -106,7 +106,7 @@ function HeaderComponent(): JSX.Element {
               rel="noopener noreferrer"
               aria-label="提供回饋（另開新分頁）"
               onClick={() => trackEvent({ name: 'feedback_open' })}
-              className="font-['Open_Sans'] text-base text-text-primary"
+              className="text-text-primary font-['Open_Sans'] text-base"
             >
               提供回饋
             </a>

@@ -23,23 +23,23 @@ export const Default: Story = {
       <TabsContent value="profile">
         <div className="rounded-lg border p-4">
           <h3 className="text-lg font-medium">導師公開資料</h3>
-          <p className="mb-4 text-sm text-text-tertiary">
+          <p className="text-text-tertiary mb-4 text-sm">
             管理您在平台上對學員公開的簡介與主要領域。
           </p>
           <div className="space-y-4">
             <div className="space-y-1">
-              <span className="text-xs font-semibold text-text-secondary">
+              <span className="text-text-secondary text-xs font-semibold">
                 導師姓名
               </span>
-              <div className="rounded border bg-background-bottom p-2 text-sm text-text-primary">
+              <div className="bg-background-bottom text-text-primary rounded border p-2 text-sm">
                 林小明
               </div>
             </div>
             <div className="space-y-1">
-              <span className="text-xs font-semibold text-text-secondary">
+              <span className="text-text-secondary text-xs font-semibold">
                 目前職位
               </span>
-              <div className="rounded border bg-background-bottom p-2 text-sm text-text-primary">
+              <div className="bg-background-bottom text-text-primary rounded border p-2 text-sm">
                 資深前端工程師 @ Google
               </div>
             </div>
@@ -49,15 +49,15 @@ export const Default: Story = {
       <TabsContent value="experience">
         <div className="rounded-lg border p-4">
           <h3 className="text-lg font-medium">工作經歷</h3>
-          <p className="mb-4 text-sm text-text-tertiary">
+          <p className="text-text-tertiary mb-4 text-sm">
             填寫您的過往職涯履歷，讓學員更了解您的背景與專長。
           </p>
           <div className="space-y-4">
             <div className="space-y-1">
-              <span className="text-xs font-semibold text-text-secondary">
+              <span className="text-text-secondary text-xs font-semibold">
                 核心專長
               </span>
-              <div className="rounded border bg-background-bottom p-2 text-sm text-text-primary">
+              <div className="bg-background-bottom text-text-primary rounded border p-2 text-sm">
                 React, TypeScript, Next.js, Web Performance Optimization
               </div>
             </div>

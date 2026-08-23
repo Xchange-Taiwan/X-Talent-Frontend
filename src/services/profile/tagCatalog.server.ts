@@ -1,4 +1,4 @@
-import { BASE_URL, fetchServerJson } from '@/lib/apiClient';
+import { apiClient, BASE_URL } from '@/lib/apiClient';
 import type { components } from '@/types/api';
 import type { TagCatalogsByBucket } from '@/types/tagCatalog';
 
@@ -11,10 +11,11 @@ export async function fetchTagCatalogServer(
 ): Promise<TagCatalogsByBucket> {
   if (!BASE_URL) return EMPTY_TAG_CATALOGS;
   try {
-    const data = await fetchServerJson<components['schemas']['TagCatalogsVO']>(
-      `/v1/users/${language}/tags/catalog`,
-      { next: { revalidate: REVALIDATE_SECONDS } }
-    );
+    const data = await apiClient.getUnwrapped<
+      components['schemas']['TagCatalogsVO']
+    >(`/v1/users/${language}/tags/catalog`, {
+      next: { revalidate: REVALIDATE_SECONDS },
+    });
     return splitCatalogsByBucket(data);
   } catch (error) {
     console.error('SSR fetchTagCatalog error:', error);

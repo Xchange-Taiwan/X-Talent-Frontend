@@ -46,7 +46,7 @@ export function LoadingSpinner({
       <Loader2
         aria-hidden="true"
         className={cn(
-          'animate-spin text-text-tertiary',
+          'text-text-tertiary animate-spin',
           sizeClasses[size],
           className
         )}

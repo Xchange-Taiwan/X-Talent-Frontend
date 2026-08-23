@@ -57,7 +57,7 @@ const DropdownMenuSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Separator
     ref={ref}
-    className={cn('-mx-1 my-1 h-px bg-background-bottom', className)}
+    className={cn('bg-background-bottom -mx-1 my-1 h-px', className)}
     {...props}
   />
 ));
@@ -79,7 +79,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      'flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-none select-none hover:bg-background-bottom hover:text-text-primary',
+      'hover:bg-background-bottom hover:text-text-primary flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-none select-none',
       inset && 'pl-8',
       className
     )}
@@ -104,7 +104,7 @@ const DropdownMenuSubContent = React.forwardRef<
   <DropdownMenuPrimitive.SubContent
     ref={ref}
     className={cn(
-      'z-50 min-w-32 overflow-hidden rounded-md border bg-background-white p-1 text-text-primary shadow-md animate-in slide-in-from-left-1',
+      'bg-background-white text-text-primary animate-in slide-in-from-left-1 z-50 min-w-32 overflow-hidden rounded-md border p-1 shadow-md',
       className
     )}
     {...props}
@@ -130,7 +130,7 @@ const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-50 min-w-32 overflow-hidden rounded-md border bg-background-white p-1 text-text-primary shadow-md animate-in fade-in-0 zoom-in-95',
+        'bg-background-white text-text-primary animate-in fade-in-0 zoom-in-95 z-50 min-w-32 overflow-hidden rounded-md border p-1 shadow-md',
         className
       )}
       {...props}
@@ -155,7 +155,7 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm transition-colors outline-none select-none focus:bg-background-bottom focus:text-text-primary',
+      'focus:bg-background-bottom focus:text-text-primary relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm transition-colors outline-none select-none',
       inset && 'pl-8',
       className
     )}

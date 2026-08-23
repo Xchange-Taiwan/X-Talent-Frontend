@@ -95,22 +95,22 @@ export function ShareProfileDialog({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[100] bg-dark/70 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+        <Dialog.Overlay className="bg-dark/70 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 fixed inset-0 z-[100]" />
 
-        <Dialog.Content className="fixed top-1/2 left-1/2 z-[101] w-[calc(100%-32px)] max-w-screen-sm -translate-x-1/2 -translate-y-1/2 rounded-[24px] border border-background-border bg-light shadow-2xl focus:outline-none">
+        <Dialog.Content className="border-background-border bg-light fixed top-1/2 left-1/2 z-[101] w-[calc(100%-32px)] max-w-screen-sm -translate-x-1/2 -translate-y-1/2 rounded-[24px] border shadow-2xl focus:outline-none">
           <Dialog.Description className="sr-only">
             複製個人頁面連結以分享給他人
           </Dialog.Description>
-          <div className="rounded-[24px] bg-light px-6 pt-6 pb-8 sm:px-8">
+          <div className="bg-light rounded-[24px] px-6 pt-6 pb-8 sm:px-8">
             <div className="relative mb-8 flex items-center justify-center">
-              <Dialog.Title className="text-center text-36 leading-none font-semibold text-text-primary">
+              <Dialog.Title className="text-36 text-text-primary text-center leading-none font-semibold">
                 分享個人頁面
               </Dialog.Title>
 
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="absolute top-1/2 right-0 -translate-y-1/2 text-28 leading-none text-text-primary"
+                  className="text-28 text-text-primary absolute top-1/2 right-0 -translate-y-1/2 leading-none"
                   aria-label="Close share profile dialog"
                 >
                   ×
@@ -118,9 +118,9 @@ export function ShareProfileDialog({
               </Dialog.Close>
             </div>
 
-            <div className="mb-5 rounded-[20px] border border-background-border bg-light px-6 py-5 shadow-sm">
+            <div className="border-background-border bg-light mb-5 rounded-[20px] border px-6 py-5 shadow-sm">
               <div className="flex items-center gap-4">
-                <div className="relative size-16 shrink-0 overflow-hidden rounded-full bg-background-bottom">
+                <div className="bg-background-bottom relative size-16 shrink-0 overflow-hidden rounded-full">
                   <Image
                     src={avatarSrc || DefaultAvatarImgUrl}
                     alt={`Avatar of ${name}`}
@@ -132,7 +132,7 @@ export function ShareProfileDialog({
 
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="truncate text-18 font-semibold text-text-primary">
+                    <p className="text-18 text-text-primary truncate font-semibold">
                       {name}
                     </p>
 
@@ -153,7 +153,7 @@ export function ShareProfileDialog({
                   </div>
 
                   {subtitle ? (
-                    <p className="mt-1 text-14 font-medium text-text-primary">
+                    <p className="text-14 text-text-primary mt-1 font-medium">
                       {subtitle}
                     </p>
                   ) : null}
@@ -164,24 +164,24 @@ export function ShareProfileDialog({
             <div>
               <label
                 htmlFor="share-profile-link"
-                className="mb-2 block text-14 font-medium text-text-primary"
+                className="text-14 text-text-primary mb-2 block font-medium"
               >
                 個人頁面連結
               </label>
 
-              <div className="flex items-center gap-3 rounded-[14px] border border-background-border bg-light px-4 py-3">
+              <div className="border-background-border bg-light flex items-center gap-3 rounded-[14px] border px-4 py-3">
                 <input
                   id="share-profile-link"
                   value={profileUrl}
                   readOnly
-                  className="w-full min-w-0 flex-1 rounded-sm border-0 bg-transparent text-base text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-14"
+                  className="text-text-primary focus-visible:ring-ring md:text-14 w-full min-w-0 flex-1 rounded-sm border-0 bg-transparent text-base outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
                 />
 
                 <Button
                   type="button"
                   variant="outline"
                   onClick={handleCopy}
-                  className="h-10 shrink-0 rounded-[10px] border border-background-border bg-light px-4 text-14 font-medium text-text-primary hover:bg-background-bottom-secondary"
+                  className="border-background-border bg-light text-14 text-text-primary hover:bg-background-bottom-secondary h-10 shrink-0 rounded-[10px] border px-4 font-medium"
                 >
                   {copied ? '已複製' : '複製'}
                 </Button>

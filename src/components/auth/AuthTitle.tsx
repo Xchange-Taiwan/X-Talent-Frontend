@@ -6,7 +6,7 @@ interface AuthTitleProps {
 
 export default function AuthTitle({ children }: AuthTitleProps) {
   return (
-    <h1 className="text-center text-2xl leading-tight font-bold md:text-32">
+    <h1 className="md:text-32 text-center text-2xl leading-tight font-bold">
       {children}
     </h1>
   );

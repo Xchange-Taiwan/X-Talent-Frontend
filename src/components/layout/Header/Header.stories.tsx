@@ -14,7 +14,7 @@ const meta: Meta<typeof Header> = {
   },
   decorators: [
     (Story) => (
-      <div className="min-h-[120px] bg-background-bottom">
+      <div className="bg-background-bottom min-h-[120px]">
         <Story />
       </div>
     ),

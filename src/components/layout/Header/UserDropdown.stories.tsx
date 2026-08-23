@@ -16,7 +16,7 @@ const meta: Meta<typeof UserDropdown> = {
   },
   decorators: [
     (Story) => (
-      <div className="flex min-h-[300px] justify-end bg-background-bottom p-8">
+      <div className="bg-background-bottom flex min-h-[300px] justify-end p-8">
         <Story />
       </div>
     ),

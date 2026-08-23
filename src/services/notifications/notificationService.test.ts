@@ -12,7 +12,7 @@ vi.mock('@/lib/apiClient', async (importActual) => {
   };
 });
 
-import { apiClient, FetchApiError } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
 
 import {
   fetchUnreadCount,
@@ -37,16 +37,12 @@ describe('notificationService', () => {
       );
     });
 
-    it('throws FetchApiError when API fails', async () => {
+    it('throws ApiError when API fails', async () => {
       vi.mocked(apiClient.getUnwrapped).mockRejectedValue(
-        new FetchApiError(
-          'ERR',
-          'Failed count',
-          '/v1/users/123/notifications/unread-count'
-        )
+        new ApiError(400, 'Failed count')
       );
 
-      await expect(fetchUnreadCount('123')).rejects.toThrow(FetchApiError);
+      await expect(fetchUnreadCount('123')).rejects.toThrow(ApiError);
     });
   });
 
@@ -77,12 +73,12 @@ describe('notificationService', () => {
       expect(result).toEqual({ notifications: [], next_cursor: null });
     });
 
-    it('throws FetchApiError when listing fails', async () => {
+    it('throws ApiError when listing fails', async () => {
       vi.mocked(apiClient.getUnwrapped).mockRejectedValue(
-        new FetchApiError('ERR', 'Failed list', '/v1/users/123/notifications')
+        new ApiError(400, 'Failed list')
       );
 
-      await expect(listNotifications('123')).rejects.toThrow(FetchApiError);
+      await expect(listNotifications('123')).rejects.toThrow(ApiError);
     });
   });
 
@@ -100,16 +96,12 @@ describe('notificationService', () => {
       );
     });
 
-    it('throws FetchApiError when marking fails', async () => {
+    it('throws ApiError when marking fails', async () => {
       vi.mocked(apiClient.putUnwrapped).mockRejectedValue(
-        new FetchApiError(
-          'ERR',
-          'Failed read',
-          '/v1/users/123/notifications/99'
-        )
+        new ApiError(400, 'Failed read')
       );
 
-      await expect(markOneRead('123', '99')).rejects.toThrow(FetchApiError);
+      await expect(markOneRead('123', '99')).rejects.toThrow(ApiError);
     });
   });
 
@@ -124,16 +116,12 @@ describe('notificationService', () => {
       );
     });
 
-    it('throws FetchApiError when marking all fails', async () => {
+    it('throws ApiError when marking all fails', async () => {
       vi.mocked(apiClient.putUnwrapped).mockRejectedValue(
-        new FetchApiError(
-          'ERR',
-          'Failed read all',
-          '/v1/users/123/notifications/read-all'
-        )
+        new ApiError(400, 'Failed read all')
       );
 
-      await expect(markAllRead('123')).rejects.toThrow(FetchApiError);
+      await expect(markAllRead('123')).rejects.toThrow(ApiError);
     });
   });
 });

@@ -93,7 +93,7 @@ export default function MentorPoolUI({
                     onRemoveFilter(key);
                   }}
                   aria-label={`移除「${filter.name}：${label}」篩選`}
-                  className="inline-flex items-center rounded-sm bg-transparent p-0 hover:opacity-70 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="focus-visible:ring-ring inline-flex items-center rounded-sm bg-transparent p-0 hover:opacity-70 focus:outline-none focus-visible:ring-2"
                 >
                   <XIcon className="size-4" aria-hidden />
                 </button>
@@ -111,7 +111,7 @@ export default function MentorPoolUI({
               <div
                 aria-busy="true"
                 aria-live="polite"
-                className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background-white/60"
+                className="bg-background-white/60 pointer-events-none absolute inset-0 flex items-center justify-center"
               >
                 <LoadingSpinner size="lg" />
               </div>
@@ -135,7 +135,7 @@ export default function MentorPoolUI({
             className="mt-6 flex w-full flex-col items-center justify-center gap-4 py-12 text-center"
           >
             <SearchXIcon
-              className="size-12 text-text-tertiary md:size-16"
+              className="text-text-tertiary size-12 md:size-16"
               aria-hidden
             />
             <p className="text-xl md:text-3xl">找不到符合的導師</p>
@@ -156,7 +156,7 @@ export default function MentorPoolUI({
             className="mt-6 flex w-full flex-col items-center justify-center gap-4 py-12 text-center"
           >
             <AlertCircle
-              className="size-12 text-text-tertiary md:size-16"
+              className="text-text-tertiary size-12 md:size-16"
               aria-hidden
             />
             <p className="text-xl md:text-3xl">載入失敗，請重試</p>

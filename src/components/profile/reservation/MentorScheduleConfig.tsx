@@ -28,7 +28,7 @@ const LoadingIndicator = () => (
   <div
     aria-busy="true"
     aria-live="polite"
-    className="flex min-h-10 items-center text-sm text-text-disable"
+    className="text-text-disable flex min-h-10 items-center text-sm"
   >
     讀取中…
   </div>
@@ -75,7 +75,7 @@ export function MentorScheduleConfig({
     <div className="flex w-full flex-col gap-6">
       {/* 1. 已預約區塊 */}
       <div className="flex w-full flex-col items-start gap-3">
-        <p className="text-sm font-semibold text-text-primary">已預約</p>
+        <p className="text-text-primary text-sm font-semibold">已預約</p>
         {/* Also wait on reservationsLoaded: a slot's `status` (schedule
             fetch) can resolve before its `.reservation` (reservations
             fetch) does — most visibly right after this component remounts,
@@ -87,7 +87,7 @@ export function MentorScheduleConfig({
         {!monthLoaded || !reservationsLoaded ? (
           <LoadingIndicator />
         ) : bookedSlots.length === 0 ? (
-          <div className="flex min-h-10 items-center text-sm text-text-disable">
+          <div className="text-text-disable flex min-h-10 items-center text-sm">
             目前無已預約時段
           </div>
         ) : (
@@ -96,14 +96,14 @@ export function MentorScheduleConfig({
               <button
                 key={`${slot.scheduleId}_${slot.start.getTime()}`}
                 type="button"
-                className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-background-border px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-background-bottom/50"
+                className="border-background-border hover:bg-background-bottom/50 flex w-full cursor-pointer items-center justify-between rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors"
                 onClick={() => handleBookedSlotClick(slot)}
               >
                 <div className="flex flex-col gap-1">
-                  <span className="font-medium text-text-primary">
+                  <span className="text-text-primary font-medium">
                     {formatBookingSlotTime(slot)}
                   </span>
-                  <span className="text-xs font-normal text-text-secondary">
+                  <span className="text-text-secondary text-xs font-normal">
                     {slot.status === null
                       ? '時段已保留'
                       : slot.menteeName
@@ -134,13 +134,13 @@ export function MentorScheduleConfig({
 
       {/* 2. 可預約時段區塊 */}
       <div className="flex w-full flex-col items-start gap-3">
-        <p className="text-sm font-semibold text-text-primary">
+        <p className="text-text-primary text-sm font-semibold">
           當日可預約時段
         </p>
         {!monthLoaded ? (
           <LoadingIndicator />
         ) : availableSlots.length === 0 ? (
-          <div className="flex min-h-10 items-center text-sm text-text-disable">
+          <div className="text-text-disable flex min-h-10 items-center text-sm">
             無可預約的時段
           </div>
         ) : (
@@ -148,7 +148,7 @@ export function MentorScheduleConfig({
             {availableSlots.map((slot) => (
               <div
                 key={`${slot.scheduleId}_${slot.start.getTime()}`}
-                className="flex h-10 items-center justify-center rounded-lg border border-background-border text-sm font-medium select-none"
+                className="border-background-border flex h-10 items-center justify-center rounded-lg border text-sm font-medium select-none"
               >
                 {formatBookingSlotTime(slot)}
               </div>
@@ -159,7 +159,7 @@ export function MentorScheduleConfig({
 
       <Button
         variant="default"
-        className="w-full rounded-full px-6 py-3 disabled:bg-background-border disabled:text-text-disable disabled:opacity-100"
+        className="disabled:bg-background-border disabled:text-text-disable w-full rounded-full px-6 py-3 disabled:opacity-100"
         onClick={onReservation}
       >
         預約設定

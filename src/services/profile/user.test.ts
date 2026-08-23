@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { apiClient, ApiError, FetchApiError } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 
 import { fetchUserById } from './user';
@@ -12,15 +12,8 @@ vi.mock('@/lib/apiClient', () => ({
   ApiError: class ApiError extends Error {
     constructor(
       public status: number,
-      message: string
-    ) {
-      super(message);
-    }
-  },
-  FetchApiError: class FetchApiError extends Error {
-    constructor(
-      public code: string,
-      message: string
+      message: string,
+      public code?: string
     ) {
       super(message);
     }
@@ -88,13 +81,9 @@ describe('fetchUserById service', () => {
     expect(apiClient.getUnwrapped).toHaveBeenCalledTimes(1); // No retry for 404
   });
 
-  it('does not retry and returns null on FetchApiError USER_NOT_FOUND', async () => {
-    const fetchApiError = new FetchApiError(
-      'USER_NOT_FOUND',
-      'User Not Found',
-      '/v1/mentors/1/zh_TW/profile'
-    );
-    vi.mocked(apiClient.getUnwrapped).mockRejectedValueOnce(fetchApiError);
+  it('does not retry and returns null on ApiError with USER_NOT_FOUND body code', async () => {
+    const apiError = new ApiError(400, 'User Not Found', 'USER_NOT_FOUND');
+    vi.mocked(apiClient.getUnwrapped).mockRejectedValueOnce(apiError);
 
     const result = await fetchUserById(1, 'zh_TW');
 

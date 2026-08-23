@@ -16,14 +16,14 @@ export const metadata: Metadata = {
 export default function PrivacyPolicyPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16 md:px-8 md:py-20">
-      <h1 className="text-3xl font-bold text-navy md:text-4xl">
+      <h1 className="text-navy text-3xl font-bold md:text-4xl">
         Privacy Policy
       </h1>
-      <p className="mt-3 text-sm text-text-tertiary">
+      <p className="text-text-tertiary mt-3 text-sm">
         Last updated: May 25, 2026
       </p>
 
-      <div className="mt-8 space-y-4 text-base leading-relaxed text-text-secondary">
+      <div className="text-text-secondary mt-8 space-y-4 text-base leading-relaxed">
         <p>
           X-Talent is a mentorship platform operated by XChange. X-Talent
           connects mentors and mentees and helps users schedule mentorship
@@ -35,7 +35,7 @@ export default function PrivacyPolicyPage() {
           through Google OAuth and Google Calendar integration.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           1. Information We Collect
         </h2>
         <p>We may collect the following information when you use X-Talent:</p>
@@ -55,7 +55,7 @@ export default function PrivacyPolicyPage() {
           </li>
         </ul>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           2. Google User Data We Access
         </h2>
         <p>
@@ -90,7 +90,7 @@ export default function PrivacyPolicyPage() {
           events for unrelated purposes.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           3. How We Use Google User Data
         </h2>
         <p>X-Talent uses Google user data only for the following purposes:</p>
@@ -121,7 +121,7 @@ export default function PrivacyPolicyPage() {
           generalized AI or machine learning models.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           4. How We Share Google User Data
         </h2>
         <p>X-Talent does not sell, rent, or trade Google user data.</p>
@@ -155,7 +155,7 @@ export default function PrivacyPolicyPage() {
           measures.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           5. Data Storage and Protection
         </h2>
         <p>
@@ -181,7 +181,7 @@ export default function PrivacyPolicyPage() {
           the user&rsquo;s explicit consent.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           6. Data Retention and Deletion
         </h2>
         <p>
@@ -228,7 +228,7 @@ export default function PrivacyPolicyPage() {
           for legal, security, audit, or dispute-resolution purposes.
         </p>
 
-        <h2 className="pt-4 text-xl font-bold text-text-primary">
+        <h2 className="text-text-primary pt-4 text-xl font-bold">
           7. Contact Us
         </h2>
         <p>

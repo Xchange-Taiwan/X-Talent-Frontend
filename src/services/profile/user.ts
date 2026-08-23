@@ -1,4 +1,4 @@
-import { apiClient, ApiError, FetchApiError } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 import type { MentorProfileVO } from '@/types/user';
 
@@ -13,19 +13,17 @@ function shouldRetry(error: unknown): boolean {
       return false;
     }
   }
-  if (error instanceof FetchApiError) {
-    // Structured API errors (like "User not found") shouldn't be retried
-    return false;
-  }
   return true;
 }
 
 function isUserNotFoundError(error: unknown): boolean {
-  if (error instanceof ApiError && error.status === 404) {
-    return true;
-  }
-  if (error instanceof FetchApiError && error.code === 'USER_NOT_FOUND') {
-    return true;
+  if (error instanceof ApiError) {
+    if (error.status === 404) {
+      return true;
+    }
+    if (error.code === 'USER_NOT_FOUND') {
+      return true;
+    }
   }
   return false;
 }

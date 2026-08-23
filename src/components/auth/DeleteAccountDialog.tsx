@@ -75,7 +75,7 @@ export function DeleteAccountDialogView({
         </DialogHeader>
 
         {blockedByReservations && (
-          <div className="rounded-md bg-status-error-default/10 p-3 text-sm text-status-error-default">
+          <div className="bg-status-error-default/10 text-status-error-default rounded-md p-3 text-sm">
             您目前有未完成或未來的預約，請先處理後再刪除帳號。
             <button
               type="button"
@@ -92,7 +92,7 @@ export function DeleteAccountDialogView({
 
         {mode === 'google' ? (
           <div className="space-y-4">
-            <p className="text-sm text-text-tertiary">
+            <p className="text-text-tertiary text-sm">
               系統將引導您前往 Google
               完成身分驗證，確認後帳號將被永久刪除且無法復原。
             </p>

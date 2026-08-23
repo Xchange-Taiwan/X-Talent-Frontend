@@ -106,11 +106,11 @@ export const UserDropdown = React.memo(function UserDropdown({
             />
 
             <div className="min-w-0">
-              <div className="truncate text-3xl font-semibold text-text-primary">
+              <div className="text-text-primary truncate text-3xl font-semibold">
                 {name || '我的個人頁面'}
               </div>
               {subtitle ? (
-                <div className="mt-1 truncate text-sm text-text-tertiary">
+                <div className="text-text-tertiary mt-1 truncate text-sm">
                   {subtitle}
                 </div>
               ) : null}
@@ -128,7 +128,7 @@ export const UserDropdown = React.memo(function UserDropdown({
             </Button>
           </div>
 
-          <div className="h-px w-full bg-background-bottom" />
+          <div className="bg-background-bottom h-px w-full" />
 
           <div className="px-2 py-3">
             <DropdownMenuItem
@@ -159,7 +159,7 @@ export const UserDropdown = React.memo(function UserDropdown({
 
             {canDeleteAccount && (
               <DropdownMenuItem
-                className="px-4 py-3 text-2xl text-status-error-default focus:text-status-error-default"
+                className="text-status-error-default focus:text-status-error-default px-4 py-3 text-2xl"
                 onClick={handleDeleteAccount}
               >
                 刪除帳號

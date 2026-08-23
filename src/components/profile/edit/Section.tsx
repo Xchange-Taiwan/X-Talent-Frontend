@@ -21,7 +21,7 @@ export const Section = ({
 }: SectionProps) => (
   <div
     id={id}
-    className="flex flex-col border-t-2 border-solid border-background-border pt-10 lg:flex-row"
+    className="border-background-border flex flex-col border-t-2 border-solid pt-10 lg:flex-row"
   >
     <div className="max-w-80 grow">
       <p className="mb-4 text-xl font-bold">

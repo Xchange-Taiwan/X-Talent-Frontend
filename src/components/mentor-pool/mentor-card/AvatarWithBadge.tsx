@@ -30,7 +30,7 @@ export const AvatarWithBadge = ({
         priority={priority}
         loading={priority ? 'eager' : 'lazy'}
       />
-      <figcaption className="absolute right-[30px] bottom-[30px] rounded-lg bg-dark/30 px-2.5 py-1 text-text-white">
+      <figcaption className="bg-dark/30 text-text-white absolute right-[30px] bottom-[30px] rounded-lg px-2.5 py-1">
         {displayYears}工作經驗
       </figcaption>
     </figure>

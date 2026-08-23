@@ -334,19 +334,19 @@ export default function MentorScheduleDialog({
                                 },
                               })}
                           className={cn(
-                            'flex flex-col gap-2 rounded-lg border bg-background-white p-3 transition-colors lg:p-4',
+                            'bg-background-white flex flex-col gap-2 rounded-lg border p-3 transition-colors lg:p-4',
                             isPast
                               ? 'cursor-not-allowed opacity-50'
-                              : 'cursor-pointer hover:bg-background-bottom/50 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none'
+                              : 'hover:bg-background-bottom/50 focus-visible:ring-brand-500 cursor-pointer focus-visible:ring-2 focus-visible:outline-none'
                           )}
                         >
                           <div className="flex flex-row flex-nowrap items-center justify-between gap-2 lg:gap-3">
                             <div className="flex items-center gap-2">
-                              <Clock className="size-4 text-text-tertiary" />
+                              <Clock className="text-text-tertiary size-4" />
                               <span className="text-base font-medium tabular-nums">
                                 {startLabel} – {endLabel}
                               </span>
-                              <span className="text-sm text-text-tertiary">
+                              <span className="text-text-tertiary text-sm">
                                 ({slot.durationMinutes} 分)
                                 {isPast ? ' · 已過' : ''}
                               </span>
@@ -530,7 +530,7 @@ function TimeSelectPair({
           ))}
         </SelectContent>
       </Select>
-      <span className="text-base text-text-tertiary">:</span>
+      <span className="text-text-tertiary text-base">:</span>
       <Select value={minuteValue} onValueChange={onMinuteChange}>
         <SelectTrigger className="h-12 w-24 text-base lg:w-28">
           <SelectValue />
@@ -659,7 +659,7 @@ function AddSlotModal({
           </label>
 
           {weekly && previewDates.length > 0 && (
-            <p className="text-sm text-text-tertiary">
+            <p className="text-text-tertiary text-sm">
               將建立 {previewDates.length} 個時段:{previewDates.join('、')}
             </p>
           )}

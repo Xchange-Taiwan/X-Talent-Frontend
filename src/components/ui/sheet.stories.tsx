@@ -76,65 +76,65 @@ export const LeftSide: Story = {
         <div className="grid gap-6 py-4">
           <div className="space-y-4">
             <div className="space-y-2">
-              <h4 className="text-sm font-semibold text-text-primary">
+              <h4 className="text-text-primary text-sm font-semibold">
                 專業領域 (Positions)
               </h4>
               <div className="space-y-2">
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+                <label className="text-text-secondary flex cursor-pointer items-center gap-2 text-sm">
                   <input
                     type="checkbox"
                     defaultChecked
-                    className="rounded border bg-background-bottom"
+                    className="bg-background-bottom rounded border"
                   />
                   <span>技術開發 (Tech)</span>
                 </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+                <label className="text-text-secondary flex cursor-pointer items-center gap-2 text-sm">
                   <input
                     type="checkbox"
-                    className="rounded border bg-background-bottom"
+                    className="bg-background-bottom rounded border"
                   />
                   <span>產品管理 (Product)</span>
                 </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+                <label className="text-text-secondary flex cursor-pointer items-center gap-2 text-sm">
                   <input
                     type="checkbox"
-                    className="rounded border bg-background-bottom"
+                    className="bg-background-bottom rounded border"
                   />
                   <span>設計行銷 (Design/Marketing)</span>
                 </label>
               </div>
             </div>
             <div className="space-y-2">
-              <h4 className="text-sm font-semibold text-text-primary">
+              <h4 className="text-text-primary text-sm font-semibold">
                 導師年資 (Seniority)
               </h4>
               <div className="space-y-2">
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+                <label className="text-text-secondary flex cursor-pointer items-center gap-2 text-sm">
                   <input
                     type="checkbox"
-                    className="rounded border bg-background-bottom"
+                    className="bg-background-bottom rounded border"
                   />
                   <span>1~3 年</span>
                 </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+                <label className="text-text-secondary flex cursor-pointer items-center gap-2 text-sm">
                   <input
                     type="checkbox"
-                    className="rounded border bg-background-bottom"
+                    className="bg-background-bottom rounded border"
                   />
                   <span>3~5 年</span>
                 </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+                <label className="text-text-secondary flex cursor-pointer items-center gap-2 text-sm">
                   <input
                     type="checkbox"
                     defaultChecked
-                    className="rounded border bg-background-bottom"
+                    className="bg-background-bottom rounded border"
                   />
                   <span>5~10 年</span>
                 </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+                <label className="text-text-secondary flex cursor-pointer items-center gap-2 text-sm">
                   <input
                     type="checkbox"
-                    className="rounded border bg-background-bottom"
+                    className="bg-background-bottom rounded border"
                   />
                   <span>10 年以上</span>
                 </label>

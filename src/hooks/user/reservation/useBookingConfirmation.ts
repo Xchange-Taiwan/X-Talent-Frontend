@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { UserType } from '@/hooks/user/user-data/useUserData';
 import { trackEvent } from '@/lib/analytics';
-import { FetchApiError } from '@/lib/apiClient';
+import { ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { BookingSlot } from '@/lib/profile/bookingAvailability';
 import { createReservation } from '@/services/reservations';
@@ -71,8 +71,7 @@ export function useBookingConfirmation({
       } catch (error) {
         console.error('Failed to create reservation:', error);
 
-        const isDuplicate =
-          error instanceof FetchApiError && error.code === '409';
+        const isDuplicate = error instanceof ApiError && error.status === 409;
         const msg = error instanceof Error ? error.message : 'Unknown error';
 
         captureFlowFailure({

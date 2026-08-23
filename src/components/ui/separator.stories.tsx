@@ -22,18 +22,18 @@ type Story = StoryObj<typeof Separator>;
 // 1. Horizontal Demo
 export const Horizontal: Story = {
   render: (args) => (
-    <div className="max-w-md rounded border bg-background-white p-4">
+    <div className="bg-background-white max-w-md rounded border p-4">
       <div className="space-y-1">
         <h4 className="text-sm leading-none font-medium">
           林小明 (資深前端工程師)
         </h4>
-        <p className="text-xs text-text-tertiary">
+        <p className="text-text-tertiary text-xs">
           擅長 React、TypeScript 以及大規模前端架構，擁有 8
           年以上開發與團隊帶領經驗。
         </p>
       </div>
       <Separator className="my-4" {...args} orientation="horizontal" />
-      <div className="flex h-5 items-center space-x-4 text-xs text-text-secondary">
+      <div className="text-text-secondary flex h-5 items-center space-x-4 text-xs">
         <div>諮詢次數：32 次</div>
         <Separator orientation="vertical" />
         <div>綜合評價：4.9 ★</div>

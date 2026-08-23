@@ -21,8 +21,8 @@ type Story = StoryObj<typeof Section>;
 export const Default: Story = {
   render: (args) => (
     <Section {...args}>
-      <div className="space-y-4 rounded-lg border border-background-border p-4">
-        <p className="text-sm text-text-secondary">
+      <div className="border-background-border space-y-4 rounded-lg border p-4">
+        <p className="text-text-secondary text-sm">
           這是 Section 元件的內容區域。你可以在這裡放置各種表單欄位或區塊元件。
         </p>
       </div>
@@ -37,8 +37,8 @@ export const Required: Story = {
   },
   render: (args) => (
     <Section {...args}>
-      <div className="space-y-4 rounded-lg border border-background-border p-4">
-        <p className="text-sm text-text-secondary">
+      <div className="border-background-border space-y-4 rounded-lg border p-4">
+        <p className="text-text-secondary text-sm">
           當 <code>required=true</code> 時，標題左側會自動顯示由{' '}
           <code>RequiredIndicator</code> 渲染的紅色星號 <code>*</code>。
         </p>
@@ -50,7 +50,7 @@ export const Required: Story = {
 export const RequiredIndicatorDemo: Story = {
   name: 'RequiredIndicator 獨立展示',
   render: () => (
-    <div className="space-y-6 rounded-lg border border-background-border bg-background-white p-6">
+    <div className="border-background-border bg-background-white space-y-6 rounded-lg border p-6">
       <h3 className="border-b pb-2 text-lg font-bold">
         RequiredIndicator 元件功能示範
       </h3>

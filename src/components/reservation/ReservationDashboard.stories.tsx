@@ -10,7 +10,7 @@ const meta: Meta<typeof ReservationDashboardView> = {
   tags: ['autodocs'],
   decorators: [
     (Story) => (
-      <div className="min-h-screen bg-background-white p-4 md:p-8">
+      <div className="bg-background-white min-h-screen p-4 md:p-8">
         <Story />
       </div>
     ),

@@ -57,22 +57,22 @@ export const AllIcons: StoryObj = {
       <div className="flex flex-col gap-10">
         {/* 彩色圖示 */}
         <div>
-          <h3 className="mb-4 text-lg font-semibold text-text-primary">
+          <h3 className="text-text-primary mb-4 text-lg font-semibold">
             彩色圖示 (Color Icons)
           </h3>
-          <p className="mb-6 text-sm text-text-tertiary">
+          <p className="text-text-tertiary mb-6 text-sm">
             彩色圖示內置了 brand 色或特定顏色，適合社群分享或特定品牌按鈕。
           </p>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
             {colorIcons.map(([name, IconComponent]) => (
               <div
                 key={name}
-                className="flex flex-col items-center justify-center gap-3 rounded-xl border border-background-border bg-background-white p-5 text-center transition-all hover:border-text-primary hover:shadow-md"
+                className="border-background-border bg-background-white hover:border-text-primary flex flex-col items-center justify-center gap-3 rounded-xl border p-5 text-center transition-all hover:shadow-md"
               >
-                <div className="flex h-12 items-center justify-center text-text-primary">
+                <div className="text-text-primary flex h-12 items-center justify-center">
                   <IconComponent className="size-8" />
                 </div>
-                <span className="px-1 font-mono text-xs break-all text-text-secondary select-all">
+                <span className="text-text-secondary px-1 font-mono text-xs break-all select-all">
                   {name}
                 </span>
               </div>
@@ -82,10 +82,10 @@ export const AllIcons: StoryObj = {
 
         {/* 外框圖示 */}
         <div>
-          <h3 className="mb-4 text-lg font-semibold text-text-primary">
+          <h3 className="text-text-primary mb-4 text-lg font-semibold">
             外框圖示 (Outline Icons)
           </h3>
-          <p className="mb-6 text-sm text-text-tertiary">
+          <p className="text-text-tertiary mb-6 text-sm">
             外框圖示通常為單色，會繼承父層的文字顏色
             (`currentColor`)。未來新增的外框圖示將自動呈現在此。
           </p>
@@ -94,19 +94,19 @@ export const AllIcons: StoryObj = {
               {outlineIcons.map(([name, IconComponent]) => (
                 <div
                   key={name}
-                  className="flex flex-col items-center justify-center gap-3 rounded-xl border border-background-border bg-background-white p-5 text-center transition-all hover:border-text-primary hover:shadow-md"
+                  className="border-background-border bg-background-white hover:border-text-primary flex flex-col items-center justify-center gap-3 rounded-xl border p-5 text-center transition-all hover:shadow-md"
                 >
-                  <div className="flex h-12 items-center justify-center text-text-primary">
+                  <div className="text-text-primary flex h-12 items-center justify-center">
                     <IconComponent className="size-8" />
                   </div>
-                  <span className="px-1 font-mono text-xs break-all text-text-secondary select-all">
+                  <span className="text-text-secondary px-1 font-mono text-xs break-all select-all">
                     {name}
                   </span>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-background-border p-6 text-center text-sm text-text-tertiary">
+            <div className="border-background-border text-text-tertiary rounded-lg border border-dashed p-6 text-center text-sm">
               目前暫無自訂外框圖示 (Outline Icons)
             </div>
           )}

@@ -56,7 +56,7 @@ export function HamburgerMenu({
           <SheetClose asChild>
             <button type="button" aria-label="關閉導航選單" className="ml-auto">
               <Cross2Icon
-                className="size-8 text-brand-900"
+                className="text-brand-900 size-8"
                 aria-hidden="true"
               />
             </button>
@@ -101,7 +101,7 @@ export function HamburgerMenu({
 
           {isGuestOrUnknownState(identity.state) && (
             <div className="mt-auto flex flex-col items-center gap-6 pb-6">
-              <Button asChild className="w-40 bg-brand-500 hover:bg-brand-500">
+              <Button asChild className="bg-brand-500 hover:bg-brand-500 w-40">
                 <Link href="/auth/signin" onClick={close}>
                   登入
                 </Link>
@@ -109,7 +109,7 @@ export function HamburgerMenu({
               <Button
                 asChild
                 variant="outline"
-                className="w-40 border-brand-500 text-brand-500 hover:text-brand-500"
+                className="border-brand-500 text-brand-500 hover:text-brand-500 w-40"
               >
                 <Link href="/auth/signup" onClick={close}>
                   註冊

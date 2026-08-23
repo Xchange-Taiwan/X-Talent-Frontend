@@ -94,13 +94,13 @@ export function QuickReplyDialog({
                 <div className="truncate font-medium sm:text-base">
                   {reservation.name}
                 </div>
-                <div className="truncate text-xs text-text-tertiary sm:text-sm">
+                <div className="text-text-tertiary truncate text-xs sm:text-sm">
                   {reservation.roleLine}
                 </div>
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-text-tertiary sm:grid-cols-2 sm:text-sm">
+            <div className="text-text-tertiary mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 sm:text-sm">
               <div className="flex items-center gap-2">
                 <CalendarDays className="size-4 shrink-0" aria-hidden />
                 <span className="truncate">{reservation.date}</span>
@@ -115,15 +115,15 @@ export function QuickReplyDialog({
           {/* Mentee Message block */}
           {menteeMessage ? (
             <div className="mt-6">
-              <div className="mb-2 text-sm font-medium text-text-primary">
+              <div className="text-text-primary mb-2 text-sm font-medium">
                 學員留言
               </div>
-              <div className="flex items-start gap-2 rounded-2xl border bg-background-bottom/40 p-4 text-xs sm:text-sm">
+              <div className="bg-background-bottom/40 flex items-start gap-2 rounded-2xl border p-4 text-xs sm:text-sm">
                 <MessageSquare
-                  className="mt-0.5 size-4 shrink-0 text-text-tertiary"
+                  className="text-text-tertiary mt-0.5 size-4 shrink-0"
                   aria-hidden
                 />
-                <p className="break-words whitespace-pre-wrap text-text-primary">
+                <p className="text-text-primary break-words whitespace-pre-wrap">
                   {menteeMessage}
                 </p>
               </div>
