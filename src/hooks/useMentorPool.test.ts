@@ -26,6 +26,7 @@ import type { MentorType } from '@/types/mentor';
 import {
   applyMentorPage,
   type MentorPoolPageState,
+  mentorPoolReadManager,
   useMentorPool,
 } from './useMentorPool';
 
@@ -61,6 +62,7 @@ const testLabelMap = new Map<string, string>([
 describe('useMentorPool', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mentorPoolReadManager.clear();
     mockSearchParams.toString.mockReturnValue('');
     mockSearchParams.get.mockReturnValue(null);
   });
