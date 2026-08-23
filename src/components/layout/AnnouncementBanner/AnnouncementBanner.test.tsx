@@ -7,6 +7,8 @@ import {
 } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { announcementReadManager } from '@/hooks/useAnnouncement';
+
 import { AnnouncementBanner } from './AnnouncementBanner';
 
 // Mock ResizeObserver and provide entries parameter to mock observer callback synchronously
@@ -48,6 +50,7 @@ describe('AnnouncementBanner Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sessionStorage.clear();
+    announcementReadManager.clear();
     // Reset global fetch mock
     global.fetch = vi.fn();
     // Clear styles set on documentElement
