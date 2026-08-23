@@ -37,12 +37,40 @@ export class AsyncReadManager<K, V> {
     return this.cache?.get(key);
   }
 
-  public has(key: K): boolean {
-    return this.cache?.has(key) ?? false;
+  public set(key: K, value: V, ttlMs?: number): void {
+    if (this.cache) {
+      this.cache.set(key, value, ttlMs);
+    }
+    const activeListeners = this.listeners.get(key);
+    if (activeListeners) {
+      activeListeners.forEach((listener) => {
+        listener.onUpdate({
+          data: value,
+          isLoading: false,
+          error: null,
+        });
+      });
+    }
   }
 
-  public set(key: K, value: V, ttlMs?: number): void {
-    this.cache?.set(key, value, ttlMs);
+  public delete(key: K): void {
+    if (this.cache) {
+      this.cache.delete(key);
+    }
+    const activeListeners = this.listeners.get(key);
+    if (activeListeners) {
+      activeListeners.forEach((listener) => {
+        listener.onUpdate({
+          data: null,
+          isLoading: false,
+          error: null,
+        });
+      });
+    }
+  }
+
+  public has(key: K): boolean {
+    return this.cache?.has(key) ?? false;
   }
 
   public getInflightCount(): number {

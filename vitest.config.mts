@@ -20,6 +20,12 @@ export default defineConfig({
       NEXT_PUBLIC_API_URL: '',
     },
     setupFiles: ['./src/test/setup.ts'],
+    maxWorkers: process.env.CI ? 1 : undefined,
+    poolOptions: {
+      forks: {
+        singleFork: process.env.CI ? false : undefined,
+      },
+    },
     server: {
       deps: {
         inline: [/@storybook\/nextjs/],

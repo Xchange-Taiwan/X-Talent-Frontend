@@ -19,6 +19,8 @@ vi.mock('@/services/reservations', async () => {
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 
+import { reservationReadManager } from '@/lib/cache/reservationCache';
+import { captureFlowFailure } from '@/lib/monitoring';
 import {
   fetchReservations,
   type ReservationState,
@@ -28,6 +30,7 @@ import { mockSession, mockUseSession } from '@/test/mocks/nextAuth';
 import { useReservationData } from './useReservationData';
 
 const mockFetch = vi.mocked(fetchReservations);
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 const makeReservation = (id: string) => ({
   id,
@@ -52,6 +55,7 @@ const stubFor = (state: ReservationState) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  reservationReadManager.clear();
   mockUseSession.mockReturnValue({
     data: mockSession,
     status: 'authenticated',
@@ -78,14 +82,18 @@ describe('useReservationData (mentee)', () => {
     );
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_UPCOMING',
-    });
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_PENDING',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_UPCOMING',
+      })
+    );
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_PENDING',
+      })
+    );
     expect(mockFetch).not.toHaveBeenCalledWith(
       expect.objectContaining({ state: 'MENTEE_HISTORY' })
     );
@@ -114,12 +122,52 @@ describe('useReservationData (mentee)', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_HISTORY',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_HISTORY',
+      })
+    );
     expect(result.current.isHistoryLoaded).toBe(true);
     expect(result.current.data?.history).toHaveLength(1);
+  });
+
+  it('resets historyActive on fetch failure, allowing subsequent loadHistory retries', async () => {
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    mockFetch.mockClear();
+
+    // Mock fetch failure for history
+    mockFetch.mockRejectedValueOnce(new Error('Fetch failed'));
+
+    await act(async () => {
+      await result.current.loadHistory();
+    });
+
+    // Wait for failure
+    await waitFor(() => {
+      expect(result.current.isLoadingHistory).toBe(false);
+      expect(result.current.isHistoryLoaded).toBe(false);
+      expect(result.current.initialState.history).toBe('idle'); // Should revert to idle!
+    });
+
+    // Now Mock fetch success for history retry
+    const mockRetriedReservations = {
+      items: [makeReservation('MENTEE_HISTORY')],
+      next_dtend: 0,
+    };
+    mockFetch.mockResolvedValueOnce(mockRetriedReservations);
+
+    // Call loadHistory again to retry
+    await act(async () => {
+      await result.current.loadHistory();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isHistoryLoaded).toBe(true);
+      expect(result.current.initialState.history).toBe('ready');
+      expect(result.current.data?.history).toHaveLength(1);
+    });
   });
 
   it('onMutationSuccess refetches only the affected states (history skipped when not loaded)', async () => {
@@ -132,10 +180,12 @@ describe('useReservationData (mentee)', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_PENDING',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_PENDING',
+      })
+    );
   });
 
   it('onMutationSuccess filters out (removes) the operated item from active lists in local state', async () => {
@@ -172,10 +222,12 @@ describe('useReservationData (mentee)', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_PENDING',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_PENDING',
+      })
+    );
     expect(result.current.data?.pending).toHaveLength(1);
   });
 
@@ -192,14 +244,18 @@ describe('useReservationData (mentee)', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_PENDING',
-    });
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTEE_HISTORY',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_PENDING',
+      })
+    );
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_HISTORY',
+      })
+    );
   });
 
   it('initial fetch failure → data stays null, isLoading becomes false', async () => {
@@ -303,6 +359,93 @@ describe('useReservationData (mentee)', () => {
 
     expect(result.current.data).toBeNull();
   });
+
+  it('does not capture flow failure when fetchReservations throws AbortError (request cancellation)', async () => {
+    const abortError = new Error('The operation was aborted.');
+    abortError.name = 'AbortError';
+    mockFetch.mockRejectedValue(abortError);
+
+    renderHook(() => useReservationData({ role: 'mentee' }));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    expect(mockCaptureFlowFailure).not.toHaveBeenCalled();
+  });
+
+  it('captures flow failure when fetchReservations throws a regular Error', async () => {
+    const regularError = new Error('Network failure');
+    mockFetch.mockRejectedValue(regularError);
+
+    renderHook(() => useReservationData({ role: 'mentee' }));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flow: 'reservation_initial_fetch',
+        message: 'Network failure',
+      })
+    );
+  });
+
+  it('loadMore uses the updated next_dtend token from the cache, avoiding stale closure bugs', async () => {
+    mockFetch.mockReset();
+    // First fetch for upcoming returns next_dtend: 12345
+    mockFetch.mockImplementation(({ state }) => {
+      if (state === 'MENTEE_UPCOMING') {
+        return Promise.resolve({
+          items: [makeReservation('upcoming-1')],
+          next_dtend: 12345,
+        });
+      }
+      return Promise.resolve({ items: [], next_dtend: 0 });
+    });
+
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // Mock next fetch to return next_dtend: 67890
+    mockFetch.mockResolvedValueOnce({
+      items: [makeReservation('upcoming-2')],
+      next_dtend: 67890,
+    });
+
+    await act(async () => {
+      await result.current.loadMore('upcoming');
+    });
+
+    // Verify first loadMore called with cursor 12345
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_UPCOMING',
+        nextDtend: 12345,
+      })
+    );
+
+    // Mock next fetch for second loadMore
+    mockFetch.mockResolvedValueOnce({
+      items: [makeReservation('upcoming-3')],
+      next_dtend: 0,
+    });
+
+    await act(async () => {
+      await result.current.loadMore('upcoming');
+    });
+
+    // Verify second loadMore called with the updated cursor 67890 (no stale closure!)
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_UPCOMING',
+        nextDtend: 67890,
+      })
+    );
+  });
 });
 
 describe('useReservationData (mentor)', () => {
@@ -312,14 +455,18 @@ describe('useReservationData (mentor)', () => {
     );
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTOR_UPCOMING',
-    });
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTOR_PENDING',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTOR_UPCOMING',
+      })
+    );
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTOR_PENDING',
+      })
+    );
     expect(mockFetch).not.toHaveBeenCalledWith(
       expect.objectContaining({ state: 'MENTOR_HISTORY' })
     );
@@ -340,14 +487,18 @@ describe('useReservationData (mentor)', () => {
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTOR_PENDING',
-    });
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTOR_UPCOMING',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTOR_PENDING',
+      })
+    );
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTOR_UPCOMING',
+      })
+    );
   });
 
   it('refetch never sends batch param so backend uses default page size', async () => {
@@ -359,10 +510,12 @@ describe('useReservationData (mentor)', () => {
       result.current.onMutationSuccess('any-id', ['pending']);
     });
 
-    expect(mockFetch).toHaveBeenCalledWith({
-      userId: mockSession.user.id,
-      state: 'MENTOR_PENDING',
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTOR_PENDING',
+      })
+    );
     const lastCall = mockFetch.mock.calls.at(-1)?.[0];
     expect(lastCall).not.toHaveProperty('batch');
   });

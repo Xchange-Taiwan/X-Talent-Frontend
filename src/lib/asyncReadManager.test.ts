@@ -297,6 +297,37 @@ describe('AsyncReadManager unit tests', () => {
     expect(manager.getListenerCount('key')).toBe(0);
   });
 
+  it('correctly updates cache and notifies active subscribers when set() is called manually', () => {
+    const cache = createKeyedCache<string, string>();
+    const manager = new AsyncReadManager<string, string>(cache);
+    const updates: AsyncReadResult<string>[] = [];
+
+    const unsubscribe = manager.subscribe(
+      'key',
+      vi.fn().mockResolvedValue('fetched'),
+      (res) => updates.push(res)
+    );
+
+    // Initial state: loading (since not cached)
+    expect(updates[0]).toEqual({ data: null, isLoading: true, error: null });
+
+    // Manually set a new value
+    manager.set('key', 'manually-set-value');
+
+    // Should update cache
+    expect(cache.get('key')).toBe('manually-set-value');
+    expect(manager.get('key')).toBe('manually-set-value');
+
+    // Subscription should be updated with manually set value and isLoading: false, error: null
+    expect(updates[1]).toEqual({
+      data: 'manually-set-value',
+      isLoading: false,
+      error: null,
+    });
+
+    unsubscribe();
+  });
+
   it('does not set isLoading to true when subscribing to a stale cache entry (SWR background revalidation)', async () => {
     const cache = createKeyedCache<string, string>({ ttlMs: 10 });
     cache.set('key', 'stale-data');
