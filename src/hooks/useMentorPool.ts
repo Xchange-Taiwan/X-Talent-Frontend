@@ -211,12 +211,7 @@ export function useMentorPool({
 
     if (isFilterLoading) {
       setPageState((prev) => {
-        if (
-          prev.mentors.length === 0 &&
-          !prev.isNoResults &&
-          !prev.hasMore &&
-          !prev.hasError
-        ) {
+        if (!prev.isNoResults && !prev.hasMore && !prev.hasError) {
           return prev; // Bailout to avoid redundant state updates
         }
         return {
