@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { AsyncReadManager } from '@/lib/asyncReadManager';
@@ -12,34 +12,27 @@ const baseCache = createKeyedCache<string, MentorProfileVO | null>({
   ttlMs: USER_PROFILE_DTO_CACHE_TTL_MS,
 });
 
-function stripTrigger(key: string): string {
-  return key.split('?')[0];
-}
-
-// Wrap the cache to strip the cache-busting query parameter and preserve expired/stale entries for Stale-While-Revalidate support
+// Wrap the cache to preserve expired/stale entries for Stale-While-Revalidate support
+// and prevent caching null values on normal fetches.
 export const userProfileDtoCache: typeof baseCache = {
   ...baseCache,
   get(key) {
-    return baseCache.getWithStatus(stripTrigger(key))?.value;
+    return baseCache.getWithStatus(key)?.value;
   },
   getWithStatus(key) {
-    return baseCache.getWithStatus(stripTrigger(key));
-  },
-  set(key, value, ttlMs) {
-    // If value is null, do NOT cache it! (matches `shouldCache: (data) => data !== null` constraint)
-    if (value !== null) {
-      baseCache.set(stripTrigger(key), value, ttlMs);
-    }
+    return baseCache.getWithStatus(key);
   },
   has(key) {
-    return baseCache.getWithStatus(stripTrigger(key)) !== undefined;
+    return baseCache.getWithStatus(key) !== undefined;
   },
-  delete(key) {
-    baseCache.delete(stripTrigger(key));
+  set(key, value, ttlMs) {
+    if (value !== null) {
+      baseCache.set(key, value, ttlMs);
+    }
   },
   prime(key, value, options) {
     if (value !== null) {
-      baseCache.prime(stripTrigger(key), value, options);
+      baseCache.prime(key, value, options);
     }
   },
 };
@@ -115,45 +108,45 @@ export function useUserProfileDto(
   language: string,
   initialData?: MentorProfileVO | null
 ): UseUserProfileDtoResult {
-  const [retryTrigger, setRetryTrigger] = useState(0);
-  const initialDataRef = useRef<MentorProfileVO | undefined>(
-    initialData ?? undefined
+  const initialDataRef = useRef<MentorProfileVO | null | undefined>(
+    initialData
   );
 
-  const cleanKey = userId && language ? `${userId}-${language}` : null;
-  const key =
-    userId && language ? `${userId}-${language}?t=${retryTrigger}` : null;
+  const key = userId && language ? `${userId}-${language}` : null;
 
-  // Seed the cache immediately during render if initialData is provided.
-  // This ensures synchronous first paint without flash or skeleton.
-  if (initialDataRef.current !== undefined && cleanKey) {
-    userProfileDtoCache.set(cleanKey, initialDataRef.current);
-    initialDataRef.current = undefined;
-  }
-
-  const refetch = useCallback(() => {
-    if (cleanKey) {
-      userProfileDtoCache.delete(cleanKey);
+  // Sync cache with initialData on mount or key changes in useEffect to avoid SSR pollution
+  useEffect(() => {
+    if (initialDataRef.current !== undefined && key) {
+      // Use raw baseCache to allow null initialData (user not found) to be seeded!
+      baseCache.set(key, initialDataRef.current);
+      initialDataRef.current = undefined;
     }
-    setRetryTrigger((prev) => prev + 1);
-  }, [cleanKey]);
+  }, [key]);
 
   const {
     data: userDto,
     isLoading,
     error,
-  } = useAsyncRead(userProfileDtoReadManager, key, async (signal) => {
-    const res = await fetchUserById(userId, language, signal);
-    if (res === null && key) {
-      // If it's a background revalidation (meaning we already have stale data),
-      // we keep the stale data as per "background revalidation returning null keeps stale data"
-      const existing = userProfileDtoCache.get(key);
-      if (existing) {
-        return existing;
+    refetch,
+  } = useAsyncRead(
+    userProfileDtoReadManager,
+    key,
+    async (signal) => {
+      const res = await fetchUserById(userId, language, signal);
+      if (res === null && key) {
+        // If it's a background revalidation (meaning we already have stale data),
+        // we keep the stale data as per "background revalidation returning null keeps stale data"
+        const existing = userProfileDtoCache.get(key);
+        if (existing) {
+          return existing;
+        }
       }
+      return res;
+    },
+    {
+      initialData: initialDataRef.current ?? undefined,
     }
-    return res;
-  });
+  );
 
   // Map errors and handle "USER_NOT_FOUND" distinction
   let resolvedError: ProfileFetchError = null;

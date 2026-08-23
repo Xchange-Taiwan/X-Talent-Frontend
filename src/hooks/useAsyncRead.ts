@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type {
   AsyncReadManager,
@@ -10,15 +10,30 @@ import type {
 
 function getInitialResultState<K, V>(
   key: K | null | undefined,
-  manager: AsyncReadManager<K, V>
+  manager: AsyncReadManager<K, V>,
+  initialData?: V
 ): AsyncReadResult<V> {
   if (key === null || key === undefined) {
     return { data: null, isLoading: false, error: null };
   }
   const cached = manager.get(key);
+  if (cached !== undefined) {
+    return {
+      data: cached,
+      isLoading: false,
+      error: null,
+    };
+  }
+  if (initialData !== undefined) {
+    return {
+      data: initialData,
+      isLoading: false,
+      error: null,
+    };
+  }
   return {
-    data: cached ?? null,
-    isLoading: cached === undefined,
+    data: null,
+    isLoading: true,
     error: null,
   };
 }
@@ -28,9 +43,10 @@ export function useAsyncRead<K, V>(
   key: K | null | undefined,
   fetcher: (signal: AbortSignal) => Promise<V>,
   options?: AsyncReadOptions<K, V>
-): AsyncReadResult<V> {
+): AsyncReadResult<V> & { refetch: () => void } {
+  const [retryTrigger, setRetryTrigger] = useState(0);
   const [result, setResult] = useState<AsyncReadResult<V>>(() =>
-    getInitialResultState(key, manager)
+    getInitialResultState(key, manager, options?.initialData)
   );
 
   const [prevKey, setPrevKey] = useState<K | null | undefined>(key);
@@ -42,7 +58,7 @@ export function useAsyncRead<K, V>(
   // that the correct reference is returned immediately during the active render cycle.
   if (prevKey !== key) {
     setPrevKey(key);
-    currentResult = getInitialResultState(key, manager);
+    currentResult = getInitialResultState(key, manager, options?.initialData);
     setResult(currentResult);
   }
 
@@ -56,6 +72,11 @@ export function useAsyncRead<K, V>(
     if (key === null || key === undefined) {
       return;
     }
+
+    const isForced = retryTrigger > 0;
+    const currentOptions = isForced
+      ? { ...optionsRef.current, force: true }
+      : optionsRef.current;
 
     // Wrap state update with shallow-equality check (bailout on referential changes)
     // to prevent redundant and unnecessary re-renders of the component.
@@ -71,12 +92,16 @@ export function useAsyncRead<K, V>(
             : newResult
         );
       },
-      optionsRef.current
+      currentOptions
     );
     return () => {
       unsubscribe();
     };
-  }, [manager, key]);
+  }, [manager, key, retryTrigger]);
 
-  return currentResult;
+  const refetch = useCallback(() => {
+    setRetryTrigger((prev) => prev + 1);
+  }, []);
+
+  return { ...currentResult, refetch };
 }

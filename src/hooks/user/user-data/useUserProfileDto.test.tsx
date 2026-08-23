@@ -157,6 +157,51 @@ describe('useUserProfileDto', () => {
     expect(result.current.userDto).toBeNull();
   });
 
+  it('retains stale cache data if background revalidation returns null', async () => {
+    vi.mocked(fetchUserById).mockResolvedValueOnce(mockUserDTO);
+
+    // Initial fetch to populate cache
+    const { result } = renderHook(() => useUserProfileDto(10, 'zh-TW'));
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    expect(result.current.userDto).toEqual(mockUserDTO);
+
+    // Fast-forward past TTL (60,000 ms)
+    vi.advanceTimersByTime(60001);
+
+    // Trigger background update by mounting/rendering again on same key
+    vi.mocked(fetchUserById).mockResolvedValueOnce(null); // Resolves null in background
+
+    const { result: staleResult } = renderHook(() =>
+      useUserProfileDto(10, 'zh-TW')
+    );
+
+    // Should return stale data immediately
+    expect(staleResult.current.userDto).toEqual(mockUserDTO);
+
+    // Let the background promise resolve
+    await vi.waitFor(() => {
+      expect(fetchUserById).toHaveBeenCalledTimes(2);
+    });
+
+    // Stale data should still be retained
+    expect(staleResult.current.userDto).toEqual(mockUserDTO);
+  });
+
+  it('correctly maps error to USER_NOT_FOUND when fetchUserById resolves null (user does not exist)', async () => {
+    vi.mocked(fetchUserById).mockResolvedValueOnce(null);
+
+    const { result } = renderHook(() => useUserProfileDto(11, 'zh-TW'));
+
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.error).toBe('USER_NOT_FOUND');
+    expect(result.current.userDto).toBeNull();
+  });
+
   describe('initialData (SSR hydration)', () => {
     it('seeds userDto synchronously and skips the initial fetch when initialData is a real DTO', () => {
       const ssrDto = { ...mockUserDTO, name: 'SSR Seeded' };
@@ -188,23 +233,13 @@ describe('useUserProfileDto', () => {
       expect(fetchUserById).not.toHaveBeenCalled();
     });
 
-    it('treats initialData: null exactly like no initialData was passed (falls through to a real fetch)', async () => {
-      vi.mocked(fetchUserById).mockResolvedValueOnce(mockUserDTO);
-
+    it('seeds userDto as null synchronously and skips the initial fetch when initialData is null (USER_NOT_FOUND)', () => {
       const { result } = renderHook(() => useUserProfileDto(7, 'zh-TW', null));
 
-      expect(result.current.isLoading).toBe(true);
-
-      await vi.waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      expect(result.current.userDto).toEqual(mockUserDTO);
-      expect(fetchUserById).toHaveBeenCalledWith(
-        7,
-        'zh-TW',
-        expect.any(AbortSignal)
-      );
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.userDto).toBeNull();
+      expect(result.current.error).toBe('USER_NOT_FOUND');
+      expect(fetchUserById).not.toHaveBeenCalled();
     });
   });
 });
