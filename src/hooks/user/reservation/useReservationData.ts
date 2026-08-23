@@ -118,39 +118,119 @@ export function useReservationData({
   const { data: upcomingResult, isLoading: isUpcomingLoading } = useAsyncRead(
     reservationReadManager,
     upcomingKey,
-    (signal) =>
-      fetchReservations({ userId: myUserId, state: states.upcoming, signal })
+    async (signal) => {
+      try {
+        return await fetchReservations({
+          userId: myUserId,
+          state: states.upcoming,
+          signal,
+        });
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          throw err;
+        }
+        captureFlowFailure({
+          flow: 'reservation_initial_fetch',
+          step: 'upcoming',
+          message:
+            err instanceof Error
+              ? err.message
+              : 'Failed to fetch upcoming reservations',
+        });
+        throw err;
+      }
+    }
   );
 
   const { data: pendingResult, isLoading: isPendingLoading } = useAsyncRead(
     reservationReadManager,
     pendingKey,
-    (signal) =>
-      fetchReservations({ userId: myUserId, state: states.pending, signal })
+    async (signal) => {
+      try {
+        return await fetchReservations({
+          userId: myUserId,
+          state: states.pending,
+          signal,
+        });
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          throw err;
+        }
+        captureFlowFailure({
+          flow: 'reservation_initial_fetch',
+          step: 'pending',
+          message:
+            err instanceof Error
+              ? err.message
+              : 'Failed to fetch pending reservations',
+        });
+        throw err;
+      }
+    }
   );
 
   const { data: historyResult, isLoading: isHistoryLoading } = useAsyncRead(
     reservationReadManager,
     historyKey,
-    (signal) =>
-      fetchReservations({ userId: myUserId, state: states.history, signal })
+    async (signal) => {
+      try {
+        return await fetchReservations({
+          userId: myUserId,
+          state: states.history,
+          signal,
+        });
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          throw err;
+        }
+        captureFlowFailure({
+          flow: 'reservation_history_fetch',
+          step: 'history',
+          message:
+            err instanceof Error
+              ? err.message
+              : 'Failed to fetch history reservations',
+        });
+        throw err;
+      }
+    }
   );
+
+  const upcomingSorted = useMemo(() => {
+    return upcomingResult ? sortByDtstartAsc(upcomingResult.items) : [];
+  }, [upcomingResult]);
+
+  const pendingSorted = useMemo(() => {
+    return pendingResult ? sortByDtstartAsc(pendingResult.items) : [];
+  }, [pendingResult]);
+
+  const historyItems = useMemo(() => {
+    return historyResult ? historyResult.items : [];
+  }, [historyResult]);
 
   const data = useMemo<ReservationData | null>(() => {
     if (!myUserId) return null;
     if (!upcomingResult && !pendingResult) return null;
 
     return {
-      upcoming: upcomingResult ? sortByDtstartAsc(upcomingResult.items) : [],
-      pending: pendingResult ? sortByDtstartAsc(pendingResult.items) : [],
-      history: historyResult ? historyResult.items : [],
+      upcoming: upcomingSorted,
+      pending: pendingSorted,
+      history: historyItems,
       nextTokens: {
         upcoming: upcomingResult ? upcomingResult.next_dtend : 0,
         pending: pendingResult ? pendingResult.next_dtend : 0,
         history: historyResult ? historyResult.next_dtend : 0,
       },
     };
-  }, [myUserId, upcomingResult, pendingResult, historyResult]);
+  }, [
+    myUserId,
+    upcomingResult,
+    pendingResult,
+    historyResult,
+    upcomingSorted,
+    pendingSorted,
+    historyItems,
+  ]);
 
   const refetchStates = useCallback(
     async (targets: ReservationState[]) => {
