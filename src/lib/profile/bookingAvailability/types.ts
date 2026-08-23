@@ -105,6 +105,8 @@ export type MentorScheduleEditor = {
   /** Per-month: false while the *current* (year, month) is being fetched after a cache miss. */
   monthLoaded: boolean;
   reservations: Reservation[];
+  hasError?: boolean;
+  reload?: () => Promise<void> | void;
 };
 
 export interface BookingCalendarReader {
@@ -127,4 +129,5 @@ export interface BookingCalendarReader {
   reservationsLoaded: boolean;
   isFetching: boolean;
   reload?: () => Promise<void>;
+  hasError?: boolean;
 }

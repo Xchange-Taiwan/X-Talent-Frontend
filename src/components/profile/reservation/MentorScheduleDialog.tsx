@@ -277,7 +277,7 @@ export default function MentorScheduleDialog({
                 <Button variant="outline" onClick={() => onOpenChange(false)}>
                   關閉
                 </Button>
-                <Button onClick={() => schedule.reload()}>重新嘗試</Button>
+                <Button onClick={() => schedule.reload?.()}>重新嘗試</Button>
               </div>
             </div>
           ) : (

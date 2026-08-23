@@ -18,9 +18,11 @@ import { captureFlowFailure } from '@/lib/monitoring';
 import {
   BookingCalendarReader,
   BookingSlot,
+  BookingStatus,
   computeBookingAvailability,
   MentorScheduleEditor,
   ParsedMentorTimeslot,
+  SlotDurationMinutes,
   SlotsSnapshot,
 } from '@/lib/profile/bookingAvailability';
 import { MonthDraftStore } from '@/lib/profile/MonthDraftStore';
@@ -96,8 +98,6 @@ export type UseMentorScheduleReturn = {
   getDayBookingStatus: (dateKey: string) => BookingStatus | null;
   reservations: Reservation[];
 
-  generateBookingSlots: (dateKey: string) => BookingSlot[];
-
   /**
    * Add one ALLOW entry at `startTime` for `durationMinutes`. If
    * `weeklyWithinMonth` is true, the entry is a single row with a weekly
@@ -137,7 +137,7 @@ export type UseMentorScheduleReturn = {
   resetChanges: () => void;
 
   hasError: boolean;
-  reload: () => void | Promise<void>;
+  reload: () => Promise<void>;
 };
 
 export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
