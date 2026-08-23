@@ -17,6 +17,20 @@ vi.mock('./QuickReplyDialog', () => ({
   ),
 }));
 
+vi.mock('./ConfirmedReservationDialog', () => ({
+  ConfirmedReservationDialog: vi.fn(({ reservation, open, onOpenChange }) =>
+    open ? (
+      <div
+        data-testid="mock-confirmed-dialog"
+        data-reservation-id={reservation?.id}
+      >
+        Confirmed Reservation Dialog for {reservation?.name}
+        <button onClick={() => onOpenChange(false)}>Close</button>
+      </div>
+    ) : null
+  ),
+}));
+
 describe('MentorScheduleConfig', () => {
   const mockPendingReservation: Reservation = {
     id: 'res-103',
@@ -133,6 +147,49 @@ describe('MentorScheduleConfig', () => {
     fireEvent.click(confirmedRow!);
 
     expect(onBookedSlotClick).toHaveBeenCalledOnce();
+  });
+
+  it('opens ConfirmedReservationDialog and does NOT trigger onBookedSlotClick when a confirmed booked slot with a matched reservation is clicked', () => {
+    const onBookedSlotClick = vi.fn();
+    const mockConfirmedReservation: Reservation = {
+      id: 'res-102',
+      name: 'Alice',
+      roleLine: 'Mentee',
+      date: '2026-07-26',
+      time: '11:00 AM – 11:30 AM',
+      dtstart: Math.floor(new Date('2026-07-26T11:00:00Z').getTime() / 1000),
+      dtend: Math.floor(new Date('2026-07-26T11:30:00Z').getTime() / 1000),
+      messages: [],
+      scheduleId: 102,
+      version: 1,
+      senderUserId: 'user-alice',
+      participantUserId: 'user-mentor',
+    };
+    const slotsWithConfirmedReservation = mockSlots.map((slot) =>
+      slot.scheduleId === 102
+        ? { ...slot, reservation: mockConfirmedReservation }
+        : slot
+    );
+
+    render(
+      <MentorScheduleConfig
+        {...defaultProps}
+        slotsSnapshot={{
+          ...defaultProps.slotsSnapshot,
+          slots: slotsWithConfirmedReservation,
+        }}
+        onBookedSlotClick={onBookedSlotClick}
+      />
+    );
+
+    const confirmedRow = screen.getByText('學員 Alice').closest('button');
+    expect(confirmedRow).not.toBeNull();
+    fireEvent.click(confirmedRow!);
+
+    const mockDialog = screen.getByTestId('mock-confirmed-dialog');
+    expect(mockDialog).toBeInTheDocument();
+    expect(mockDialog).toHaveAttribute('data-reservation-id', 'res-102');
+    expect(onBookedSlotClick).not.toHaveBeenCalled();
   });
 
   it('opens QuickReplyDialog and does NOT trigger onBookedSlotClick when a pending slot with a matched reservation is clicked', () => {
