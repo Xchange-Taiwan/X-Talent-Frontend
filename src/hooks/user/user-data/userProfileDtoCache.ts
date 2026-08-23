@@ -48,6 +48,12 @@ export function clearUserProfileDtoCache(
 ): void {
   const key = `${userId}-${language}`;
   userProfileDtoCache.delete(key);
+  lastPrimedTime = 0;
+  if (transitionTimer) {
+    clearTimeout(transitionTimer);
+    transitionTimer = null;
+  }
+  notifyTransitionListeners();
 }
 
 export function subscribeUserProfileDtoCache(
@@ -68,8 +74,27 @@ export function getUserProfileDtoFromCache(
 }
 
 let lastPrimedTime = 0;
+let transitionTimer: NodeJS.Timeout | null = null;
+const transitionListeners = new Set<() => void>();
 
 export const OPTIMISTIC_TRANSITION_WINDOW_MS = 10000;
+
+export function subscribeTransition(listener: () => void): () => void {
+  transitionListeners.add(listener);
+  return () => {
+    transitionListeners.delete(listener);
+  };
+}
+
+function notifyTransitionListeners(): void {
+  transitionListeners.forEach((listener) => {
+    try {
+      listener();
+    } catch (e) {
+      console.error('Error in transition listener:', e);
+    }
+  });
+}
 
 export function getLastPrimedTime(): number {
   return lastPrimedTime;
@@ -94,6 +119,16 @@ export function primeUserProfileDtoCache(
   const key = `${userId}-${language}`;
   userProfileDtoCache.prime(key, data);
   lastPrimedTime = Date.now();
+
+  if (transitionTimer) {
+    clearTimeout(transitionTimer);
+  }
+  transitionTimer = setTimeout(() => {
+    transitionTimer = null;
+    notifyTransitionListeners();
+  }, OPTIMISTIC_TRANSITION_WINDOW_MS);
+
+  notifyTransitionListeners();
 }
 
 /**

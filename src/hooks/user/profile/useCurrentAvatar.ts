@@ -1,13 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import {
-  getLastPrimedTime,
   getUserProfileDtoFromCache,
   isOptimisticTransitionActive,
-  OPTIMISTIC_TRANSITION_WINDOW_MS,
+  subscribeTransition,
   subscribeUserProfileDtoCache,
 } from '@/hooks/user/user-data/useUserProfileDto';
 
@@ -24,8 +23,6 @@ export function useCurrentAvatar(): string | null {
   const identity = useResolvedIdentity();
   const userIdStr = identity.userId;
   const validUserId = Number(userIdStr) || 0;
-
-  const [, forceUpdate] = useState(0);
 
   const getSnapshot = useCallback(() => {
     if (!validUserId) return undefined;
@@ -46,22 +43,11 @@ export function useCurrentAvatar(): string | null {
     () => null
   );
 
-  const lastPrimed = getLastPrimedTime();
-  const isTransitioning = isOptimisticTransitionActive();
-
-  useEffect(() => {
-    if (!isTransitioning || lastPrimed === 0) return;
-
-    const remainingTime =
-      OPTIMISTIC_TRANSITION_WINDOW_MS - (Date.now() - lastPrimed);
-    if (remainingTime <= 0) return;
-
-    const timer = setTimeout(() => {
-      forceUpdate((prev) => prev + 1);
-    }, remainingTime);
-
-    return () => clearTimeout(timer);
-  }, [lastPrimed, isTransitioning]);
+  const isTransitioning = useSyncExternalStore(
+    subscribeTransition,
+    isOptimisticTransitionActive,
+    () => false
+  );
 
   // During the active transition period after an optimistic update, prioritize the optimistic avatar.
   // Otherwise, prioritize the session's identity avatar (authoritative).
