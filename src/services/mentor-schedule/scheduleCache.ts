@@ -8,3 +8,8 @@ export const scheduleCache = createKeyedCache<string, RawMentorTimeslot[]>();
 export function cacheKey(ref: ScheduleMonthRef): string {
   return `${ref.userId}:${ref.year}-${ref.month}`;
 }
+
+export function clearScheduleCache(ref: ScheduleMonthRef): void {
+  const key = cacheKey(ref);
+  scheduleCache.delete(key);
+}

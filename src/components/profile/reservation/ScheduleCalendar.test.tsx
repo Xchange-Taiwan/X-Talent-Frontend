@@ -138,4 +138,60 @@ describe('ScheduleCalendar', () => {
     expect(dot).toHaveClass('sm:top-1');
     expect(dot).toHaveClass('sm:right-1');
   });
+
+  it('renders error overlay when hasError is true and calls onRetry on button click', () => {
+    const onRetry = vi.fn();
+    render(
+      <ScheduleCalendar {...defaultProps} hasError={true} onRetry={onRetry} />
+    );
+
+    expect(
+      screen.getByText('無法載入導師時段，請檢查網路連線')
+    ).toBeInTheDocument();
+
+    const retryBtn = screen.getByRole('button', { name: '重新嘗試' });
+    expect(retryBtn).toBeInTheDocument();
+
+    retryBtn.click();
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the error overlay when isMonthLoading is true to avoid overlap', () => {
+    const onRetry = vi.fn();
+    render(
+      <ScheduleCalendar
+        {...defaultProps}
+        hasError={true}
+        onRetry={onRetry}
+        isMonthLoading={true}
+      />
+    );
+
+    // The error overlay should NOT be in the document
+    expect(
+      screen.queryByText('無法載入導師時段，請檢查網路連線')
+    ).not.toBeInTheDocument();
+
+    const retryBtn = screen.queryByRole('button', { name: '重新嘗試' });
+    expect(retryBtn).not.toBeInTheDocument();
+  });
+
+  it('disables all calendar dates when hasError is true', () => {
+    render(<ScheduleCalendar {...defaultProps} hasError={true} />);
+
+    const todayBtn = screen.getByTestId('day-' + formattedTodayStr);
+    expect(todayBtn).toBeDisabled();
+  });
+
+  it('does not trigger onSelect when hasError is true and day is clicked', () => {
+    const onSelect = vi.fn();
+    render(
+      <ScheduleCalendar {...defaultProps} hasError={true} onSelect={onSelect} />
+    );
+
+    const todayBtn = screen.getByTestId('day-' + formattedTodayStr);
+    todayBtn.click();
+
+    expect(onSelect).not.toHaveBeenCalled();
+  });
 });

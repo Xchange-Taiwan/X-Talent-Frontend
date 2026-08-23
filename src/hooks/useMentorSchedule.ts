@@ -18,9 +18,11 @@ import { captureFlowFailure } from '@/lib/monitoring';
 import {
   BookingCalendarReader,
   BookingSlot,
+  BookingStatus,
   computeBookingAvailability,
   MentorScheduleEditor,
   ParsedMentorTimeslot,
+  SlotDurationMinutes,
   SlotsSnapshot,
 } from '@/lib/profile/bookingAvailability';
 import { MonthDraftStore } from '@/lib/profile/MonthDraftStore';
@@ -31,7 +33,10 @@ import {
   parseMonthKey,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
-import { scheduleCache } from '@/services/mentor-schedule/scheduleCache';
+import {
+  clearScheduleCache,
+  scheduleCache,
+} from '@/services/mentor-schedule/scheduleCache';
 import {
   loadMonthScheduleCached,
   loadMonthScheduleFresh,
@@ -69,13 +74,74 @@ type Options = {
   includeBookedDates?: boolean;
 };
 
-export function useMentorSchedule(opts: Options): MentorScheduleEditor &
-  BookingCalendarReader & {
-    loaded: boolean;
-    parsedDraft: ParsedMentorTimeslot[];
-  } {
-  const { backend, loginUserId, includeBookedDates = false } = opts;
+export type UpdateDraftSlotResult = {
+  success: boolean;
+  reason?: 'OVERLAP' | 'TARGET_MONTH_NOT_LOADED' | 'READ_ONLY';
+};
 
+export type UseMentorScheduleReturn = {
+  /** Sticky: true once any month has resolved. Use this for first-paint skeletons. */
+  loaded: boolean;
+  /** Per-month: false while the *current* (year, month) is being fetched after a cache miss. */
+  monthLoaded: boolean;
+  reservationsLoaded: boolean;
+  isFetching: boolean;
+  selectedDate: string | null;
+  setSelectedDate: (dateStr: string | null) => void;
+
+  parsedDraft: ParsedMentorTimeslot[];
+  draftForSelectedDate: ParsedMentorTimeslot[];
+  /** All local dates (YYYY-MM-DD) that have at least one ALLOW occurrence after expanding rrules. */
+  allowedDates: string[];
+
+  slotsSnapshot: SlotsSnapshot;
+  getDayBookingStatus: (dateKey: string) => BookingStatus | null;
+  reservations: Reservation[];
+
+  /**
+   * Add one ALLOW entry at `startTime` for `durationMinutes`. If
+   * `weeklyWithinMonth` is true, the entry is a single row with a weekly
+   * `FREQ=WEEKLY;COUNT=N` rrule covering every same-weekday date remaining in
+   * the selected date's month; otherwise it's a non-recurring row. Returns
+   * counts of created occurrences so callers can show "added N, skipped M".
+   */
+  addSlotForSelectedDate: (opts: {
+    startTime: string; // HH:mm
+    durationMinutes: SlotDurationMinutes;
+    weeklyWithinMonth?: boolean;
+  }) => { added: number; skipped: number };
+
+  /**
+   * Edit a single occurrence. For non-recurring rows this updates the row
+   * directly. For recurring rows the targeted occurrence is detached: it is
+   * added to the parent's exdate and a new non-recurring row is created with
+   * the patch applied — leaving sibling occurrences untouched.
+   */
+  updateDraftSlot: (
+    id: number,
+    occurrenceUnix: number,
+    patch: {
+      startTime?: string; // HH:mm
+      durationMinutes?: SlotDurationMinutes;
+    }
+  ) => UpdateDraftSlotResult;
+
+  /**
+   * Delete a single occurrence. Non-recurring rows are removed entirely; on
+   * recurring rows the occurrence is added to exdate, and the row is removed
+   * only when no active occurrences remain.
+   */
+  deleteDraftSlot: (id: number, occurrenceUnix: number) => void;
+
+  confirmChanges: () => Promise<SyncResult>;
+  resetChanges: () => void;
+
+  hasError: boolean;
+  reload: () => Promise<void>;
+};
+
+export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
+  const { backend, loginUserId, includeBookedDates = false } = opts;
   const backendRef = useRef(backend);
   useIsomorphicLayoutEffect(() => {
     backendRef.current = backend;
@@ -108,6 +174,7 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
   const [selectedDate, setSelectedDate] = useState<string | null>(
     dayjs().format('YYYY-MM-DD')
   );
+  const [hasError, setHasError] = useState(false);
 
   const [reservations, setReservations] = useState<Reservation[]>([]);
   // Tracks the reservations fetch specifically (separate from monthLoaded,
@@ -238,80 +305,109 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
     []
   );
 
+  const fetchMonthSchedule = useCallback(
+    async (isForced = false) => {
+      if (!backend.userId || !backend.year || !backend.month) return;
+      const startSnapshot = {
+        userId: backend.userId,
+        year: backend.year,
+        month: backend.month,
+      };
+      const monthKey = currentMonthKey;
+      const ref: ScheduleMonthRef = {
+        userId: backend.userId,
+        year: backend.year,
+        month: backend.month,
+      };
+
+      const apply = (raws: RawMentorTimeslot[]) => {
+        if (isForced) {
+          store.reloadMonth(monthKey, raws);
+        } else {
+          store.ensureMonthLoaded(monthKey, raws);
+        }
+      };
+
+      const hasBuffer = store.snapshot().draftByMonth.has(monthKey);
+      const { cached, revalidate } = loadMonthScheduleCached(ref);
+
+      if (hasBuffer && !isForced) {
+        setLoaded(true);
+        setMonthLoaded(true);
+        setHasError(false);
+        return;
+      }
+
+      if (cached && !isForced) {
+        apply(cached);
+        setLoaded(true);
+        setMonthLoaded(true);
+        setHasError(false);
+      } else {
+        setMonthLoaded(false);
+        setIsFetching(true);
+        setHasError(false);
+      }
+
+      try {
+        const raws = await revalidate;
+
+        if (isStale(startSnapshot)) return;
+        if (dirtyMonthsRef.current.has(monthKey) && !isForced) return;
+
+        if (
+          cached &&
+          !isForced &&
+          JSON.stringify(cached) === JSON.stringify(raws)
+        ) {
+          setLoaded(true);
+          setMonthLoaded(true);
+          setHasError(false);
+          return;
+        }
+
+        apply(raws ?? []);
+        setLoaded(true);
+        setMonthLoaded(true);
+        setHasError(false);
+      } catch (err) {
+        if (isStale(startSnapshot)) return;
+        if (!cached || isForced) {
+          setHasError(true);
+          setLoaded(true);
+          setMonthLoaded(true);
+        }
+        if (isForced) {
+          captureFlowFailure({
+            flow: 'mentor_schedule_reload_schedule',
+            step: 'reload_month_schedule_fresh',
+            message: err instanceof Error ? err.message : String(err),
+            level: 'warning',
+          });
+        }
+      } finally {
+        if (!isStale(startSnapshot)) {
+          setIsFetching(false);
+        }
+      }
+    },
+    [
+      backend.userId,
+      backend.year,
+      backend.month,
+      currentMonthKey,
+      store,
+      isStale,
+    ]
+  );
+
   // Load the currently-viewed month into the buffer lazily. Months that are
   // already buffered (clean OR dirty) are not re-applied: the per-month dirty
   // guard inside `apply` protects unsaved edits even if a stale revalidate
   // resolves later. Background revalidate still updates clean months silently.
   useEffect(() => {
-    if (!backend.userId || !backend.year || !backend.month) return;
-    let ignore = false;
-
-    const monthKey = currentMonthKey;
-    const ref: ScheduleMonthRef = {
-      userId: backend.userId,
-      year: backend.year,
-      month: backend.month,
-    };
-
-    const apply = (raws: RawMentorTimeslot[]) => {
-      store.ensureMonthLoaded(monthKey, raws);
-    };
-
-    // Read the store directly rather than the destructured `draftByMonth`
-    // from this render: when backend.userId just changed, the account-switch
-    // effect above already ran store.clearAll() this same commit, but the
-    // closure here still holds the previous render's (pre-clear) snapshot —
-    // stale enough to misreport a same-named month as already buffered and
-    // skip fetching the new user's schedule.
-    const hasBuffer = store.snapshot().draftByMonth.has(monthKey);
-    const { cached, revalidate } = loadMonthScheduleCached(ref);
-
-    if (hasBuffer) {
-      // Already buffered earlier in this session — no fetch needed.
-      setLoaded(true);
-      setMonthLoaded(true);
-    } else if (cached) {
-      apply(cached);
-      setLoaded(true);
-      setMonthLoaded(true);
-    } else {
-      // Cache miss + no buffer: skeleton until revalidate lands. monthLoaded
-      // -> false so consumers can distinguish "fetching" from "settled empty";
-      // sticky `loaded` is left untouched.
-      setMonthLoaded(false);
-      setIsFetching(true);
-    }
-
-    revalidate
-      .then((raws) => {
-        if (ignore) return;
-        if (dirtyMonthsRef.current.has(monthKey)) return;
-        if (cached && JSON.stringify(cached) === JSON.stringify(raws)) {
-          setLoaded(true);
-          setMonthLoaded(true);
-          return;
-        }
-        apply(raws);
-        setLoaded(true);
-        setMonthLoaded(true);
-      })
-      .catch(() => {
-        // Treat fetch failure as "settled" so the UI doesn't hang on a
-        // skeleton; the user will see the empty state instead.
-        if (!ignore && !cached && !hasBuffer) {
-          setLoaded(true);
-          setMonthLoaded(true);
-        }
-      })
-      .finally(() => {
-        if (!ignore) setIsFetching(false);
-      });
-
-    return () => {
-      ignore = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [backend.userId, backend.year, backend.month, store]);
+    fetchMonthSchedule();
+  }, [fetchMonthSchedule]);
 
   // Prefetch the next month after the current month finishes loading, so
   // forward navigation hits cache. Past months are intentionally skipped.
@@ -543,42 +639,24 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
   }, [loginUserId, backend.userId, backend.year, backend.month, isStale]);
 
   const reloadSchedule = useCallback(async () => {
+    await fetchMonthSchedule(true);
+  }, [fetchMonthSchedule]);
+
+  const reload = useCallback(async () => {
     if (!backend.userId || !backend.year || !backend.month) return;
-    const startSnapshot = {
+    clearScheduleCache({
       userId: backend.userId,
       year: backend.year,
       month: backend.month,
-    };
-    const monthKey = currentMonthKey;
-    try {
-      const raws = await loadMonthScheduleFresh({
-        userId: backend.userId,
-        year: backend.year,
-        month: backend.month,
-      });
-      if (isStale(startSnapshot)) return;
-      store.reloadMonth(monthKey, raws);
-    } catch (err) {
-      if (isStale(startSnapshot)) return;
-      captureFlowFailure({
-        flow: 'mentor_schedule_reload_schedule',
-        step: 'reload_month_schedule_fresh',
-        message: err instanceof Error ? err.message : String(err),
-        level: 'warning',
-      });
-    }
+    });
+    await Promise.all([reloadReservations(), reloadSchedule()]);
   }, [
     backend.userId,
     backend.year,
     backend.month,
-    currentMonthKey,
-    store,
-    isStale,
+    reloadReservations,
+    reloadSchedule,
   ]);
-
-  const reload = useCallback(async () => {
-    await Promise.all([reloadReservations(), reloadSchedule()]);
-  }, [reloadReservations, reloadSchedule]);
 
   return {
     loaded,
@@ -597,6 +675,7 @@ export function useMentorSchedule(opts: Options): MentorScheduleEditor &
     deleteDraftSlot,
     confirmChanges,
     resetChanges,
+    hasError,
     reservations,
     reload,
   };
