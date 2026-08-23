@@ -341,7 +341,6 @@ describe('sessionHint utilities', () => {
       expect(identity.userId).toBe('user-123');
       expect(identity.isMentor).toBe(true);
       expect(identity.avatar).toBe('https://example.com/session.png');
-      expect(identity.isLoggedIn).toBe(true);
     });
 
     it('falls back to hint when loading and session is not settled', () => {
@@ -350,7 +349,6 @@ describe('sessionHint utilities', () => {
       expect(identity.userId).toBeUndefined();
       expect(identity.isMentor).toBe(false);
       expect(identity.avatar).toBe('https://example.com/hint.png');
-      expect(identity.isLoggedIn).toBe(true);
     });
 
     it('resolves to guest/undefined when unauthenticated', () => {
@@ -359,7 +357,6 @@ describe('sessionHint utilities', () => {
       expect(identity.userId).toBeUndefined();
       expect(identity.isMentor).toBe(false);
       expect(identity.avatar).toBeUndefined();
-      expect(identity.isLoggedIn).toBe(false);
     });
 
     it('resolves to guest/undefined when loading and no hint is present', () => {
@@ -368,14 +365,11 @@ describe('sessionHint utilities', () => {
       expect(identity.userId).toBeUndefined();
       expect(identity.isMentor).toBe(false);
       expect(identity.avatar).toBeUndefined();
-      expect(identity.isLoggedIn).toBe(false);
     });
 
     it('behaves correctly in an SSR environment', () => {
       const identity = resolveIdentity(null, 'loading');
       expect(identity.state).toBe('unknown');
-      expect(identity.authKnown).toBe(false);
-      expect(identity.isLoggedIn).toBe(false);
       expect(identity.userId).toBeUndefined();
     });
 
@@ -384,26 +378,18 @@ describe('sessionHint utilities', () => {
         const identity = resolveIdentity(null, 'loading', undefined);
         expect(identity.state).toBe('unknown');
         expect(identity.userId).toBeUndefined();
-        expect(identity.isLoggedIn).toBe(false);
-        expect(identity.sessionSettled).toBe(false);
-        expect(identity.authKnown).toBe(false);
       });
 
       it('returns state "hint-only" when loading with a non-guest hint', () => {
         const identity = resolveIdentity(null, 'loading', defaultHint);
         expect(identity.state).toBe('hint-only');
         expect(identity.userId).toBeUndefined(); // Reachable ONLY from confirmed-member!
-        expect(identity.isLoggedIn).toBe(true);
-        expect(identity.sessionSettled).toBe(false);
-        expect(identity.isResolvingUser).toBe(true);
       });
 
       it('returns state "confirmed-guest" when session has settled to unauthenticated', () => {
         const identity = resolveIdentity(null, 'unauthenticated', defaultHint);
         expect(identity.state).toBe('confirmed-guest');
         expect(identity.userId).toBeUndefined();
-        expect(identity.isLoggedIn).toBe(false);
-        expect(identity.sessionSettled).toBe(true);
       });
 
       it('returns state "confirmed-member" when session resolves with a full user', () => {
@@ -414,17 +400,12 @@ describe('sessionHint utilities', () => {
         );
         expect(identity.state).toBe('confirmed-member');
         expect(identity.userId).toBe('user-123'); // Reachable only from confirmed-member!
-        expect(identity.isLoggedIn).toBe(true);
-        expect(identity.sessionSettled).toBe(true);
-        expect(identity.hasFullUser).toBe(true);
       });
 
       it('correctly transitions a hinted member whose session settles to guest', () => {
         // 1. Initial load state with hint cookie present
         const initialLoad = resolveIdentity(null, 'loading', defaultHint);
         expect(initialLoad.state).toBe('hint-only');
-        expect(initialLoad.isLoggedIn).toBe(true);
-        expect(initialLoad.sessionSettled).toBe(false);
         expect(initialLoad.userId).toBeUndefined();
 
         // 2. Real useSession resolves to unauthenticated (guest)
@@ -434,35 +415,7 @@ describe('sessionHint utilities', () => {
           defaultHint
         );
         expect(finalSettle.state).toBe('confirmed-guest');
-        expect(finalSettle.isLoggedIn).toBe(false);
-        expect(finalSettle.sessionSettled).toBe(true);
         expect(finalSettle.userId).toBeUndefined();
-      });
-    });
-
-    describe('sessionSettled', () => {
-      it('is false while loading, even with a hint that makes authKnown/isLoggedIn true', () => {
-        const identity = resolveIdentity(null, 'loading', defaultHint);
-        expect(identity.sessionSettled).toBe(false);
-        expect(identity.authKnown).toBe(true);
-        expect(identity.isLoggedIn).toBe(true);
-        expect(identity.hasFullUser).toBe(false);
-      });
-
-      it('is true once resolved to unauthenticated, even for a guest with no hint', () => {
-        const identity = resolveIdentity(null, 'unauthenticated', null);
-        expect(identity.sessionSettled).toBe(true);
-        expect(identity.hasFullUser).toBe(false);
-      });
-
-      it('is true once a real session with a full user resolves', () => {
-        const identity = resolveIdentity(
-          defaultSession,
-          'authenticated',
-          defaultHint
-        );
-        expect(identity.sessionSettled).toBe(true);
-        expect(identity.hasFullUser).toBe(true);
       });
     });
   });
@@ -473,11 +426,6 @@ describe('sessionHint utilities', () => {
       userId: 'user-123',
       avatar: 'https://example.com/session.png',
       isMentor: true,
-      isLoggedIn: true,
-      hasFullUser: true,
-      isResolvingUser: false,
-      authKnown: true,
-      sessionSettled: true,
     };
 
     it('applies the override avatar when its userId matches the resolved identity', () => {
@@ -500,12 +448,10 @@ describe('sessionHint utilities', () => {
     it('does not apply the override while the identity has no resolved userId yet', () => {
       const identity = applyAvatarOverride(
         {
-          ...baseIdentity,
           state: 'hint-only',
           userId: undefined,
-          hasFullUser: false,
-          isResolvingUser: true,
-          sessionSettled: false,
+          avatar: baseIdentity.avatar,
+          isMentor: true,
         },
         { userId: 'user-123', url: 'https://example.com/override.png' }
       );

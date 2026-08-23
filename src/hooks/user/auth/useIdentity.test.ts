@@ -66,9 +66,8 @@ describe('useIdentity', () => {
   it('ignores the override while the userId has not resolved yet', () => {
     mockUseResolvedIdentity.mockReturnValue(
       buildResolvedIdentity({
-        isLoggedIn: true,
+        state: 'hint-only',
         isMentor: true,
-        isResolvingUser: true,
       })
     );
 
