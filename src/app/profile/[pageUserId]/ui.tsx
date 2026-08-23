@@ -289,53 +289,40 @@ export default function ProfilePageUI({
                       </h2>
                     </div>
 
-                    {schedule.hasError ? (
-                      <div className="flex flex-col items-center justify-center py-6 text-center">
-                        <p className="mb-4 text-sm text-text-secondary">
-                          無法載入導師時段，請檢查網路連線
-                        </p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => schedule.reload?.()}
-                        >
-                          重新嘗試
-                        </Button>
-                      </div>
-                    ) : (
-                      <ScheduleCalendar
-                        size="profile"
-                        selected={
-                          selectedDate
-                            ? new Date(selectedDate + 'T00:00:00')
-                            : new Date()
-                        }
-                        onSelect={(d) =>
-                          setSelectedDate(d ? toDateKey(d) : null)
-                        }
-                        onMonthChange={onScheduleMonthChange}
-                        allowedDates={allowedDates}
-                        showTodayStyle={false}
-                        disableEmptyDates={true}
-                        isMonthLoading={!schedule.monthLoaded}
-                        getDateStatus={getDateStatus}
-                      />
-                    )}
+                    <ScheduleCalendar
+                      size="profile"
+                      selected={
+                        selectedDate
+                          ? new Date(selectedDate + 'T00:00:00')
+                          : new Date()
+                      }
+                      onSelect={(d) => setSelectedDate(d ? toDateKey(d) : null)}
+                      onMonthChange={onScheduleMonthChange}
+                      allowedDates={allowedDates}
+                      showTodayStyle={false}
+                      disableEmptyDates={true}
+                      isMonthLoading={!schedule.monthLoaded}
+                      getDateStatus={getDateStatus}
+                      hasError={schedule.hasError}
+                      onRetry={schedule.reload}
+                    />
                   </div>
-                  <BookingForm
-                    isOwnMentorProfile={isOwnMentorProfile}
-                    isUserDataLoading={userLoading || !isIdentityResolved}
-                    isAuthenticated={!!loginUserId}
-                    slotsSnapshot={schedule.slotsSnapshot}
-                    selectedSlot={selectedSlot}
-                    setSelectedSlot={setSelectedSlot}
-                    isSubmitting={isSubmitting}
-                    selectedDate={selectedDate}
-                    onReservation={onReservation}
-                    onConfirmReservation={onConfirmReservation}
-                    myUserId={loginUserId}
-                    onMutationSuccess={schedule.reload}
-                  />
+                  {!schedule.hasError && (
+                    <BookingForm
+                      isOwnMentorProfile={isOwnMentorProfile}
+                      isUserDataLoading={userLoading || !isIdentityResolved}
+                      isAuthenticated={!!loginUserId}
+                      slotsSnapshot={schedule.slotsSnapshot}
+                      selectedSlot={selectedSlot}
+                      setSelectedSlot={setSelectedSlot}
+                      isSubmitting={isSubmitting}
+                      selectedDate={selectedDate}
+                      onReservation={onReservation}
+                      onConfirmReservation={onConfirmReservation}
+                      myUserId={loginUserId}
+                      onMutationSuccess={schedule.reload}
+                    />
+                  )}
                   {editorDialog}
                 </div>
               )}
