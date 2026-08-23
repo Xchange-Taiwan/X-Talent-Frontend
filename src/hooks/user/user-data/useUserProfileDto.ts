@@ -193,8 +193,9 @@ export function useUserProfileDto(
     if (initialDataRef.current !== undefined) {
       const seeded = initialDataRef.current;
       initialDataRef.current = undefined;
-      userProfileDtoCache.set(`${userId}-${language}`, seeded);
-      return;
+      userProfileDtoCache.prime(`${userId}-${language}`, seeded, {
+        ifEmpty: true,
+      });
     }
 
     let cancelled = false;
