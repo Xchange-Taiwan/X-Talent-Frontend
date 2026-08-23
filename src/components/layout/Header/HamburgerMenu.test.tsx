@@ -67,4 +67,18 @@ describe('HamburgerMenu', () => {
     );
     expect(container).toBeEmptyDOMElement();
   });
+
+  it('returns null and does not render when state is confirmed-member', () => {
+    const { container } = render(
+      <HamburgerMenu
+        identity={{
+          state: 'confirmed-member',
+          userId: 'user-123',
+          avatar: undefined,
+          isMentor: false,
+        }}
+      />
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
 });

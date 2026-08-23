@@ -29,6 +29,10 @@ export function HamburgerMenu({
   const [open, setOpen] = React.useState(false);
   const close = (): void => setOpen(false);
 
+  const isHintOnly = identity.state === 'hint-only';
+  const isGuestOrUnknown =
+    identity.state === 'unknown' || identity.state === 'confirmed-guest';
+
   if (identity.state === 'hint-only' || identity.state === 'confirmed-member') {
     return null;
   }
@@ -66,7 +70,7 @@ export function HamburgerMenu({
             <DisabledAwareLink
               href={becomeMentorPath}
               onClick={close}
-              disabled={false}
+              disabled={isHintOnly}
               className="text-text-primary"
             >
               成為導師
@@ -91,22 +95,24 @@ export function HamburgerMenu({
             </a>
           </div>
 
-          <div className="mt-auto flex flex-col items-center gap-6 pb-6">
-            <Button asChild className="w-40 bg-brand-500 hover:bg-brand-500">
-              <Link href="/auth/signin" onClick={close}>
-                登入
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="w-40 border-brand-500 text-brand-500 hover:text-brand-500"
-            >
-              <Link href="/auth/signup" onClick={close}>
-                註冊
-              </Link>
-            </Button>
-          </div>
+          {isGuestOrUnknown && (
+            <div className="mt-auto flex flex-col items-center gap-6 pb-6">
+              <Button asChild className="w-40 bg-brand-500 hover:bg-brand-500">
+                <Link href="/auth/signin" onClick={close}>
+                  登入
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                className="w-40 border-brand-500 text-brand-500 hover:text-brand-500"
+              >
+                <Link href="/auth/signup" onClick={close}>
+                  註冊
+                </Link>
+              </Button>
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>
