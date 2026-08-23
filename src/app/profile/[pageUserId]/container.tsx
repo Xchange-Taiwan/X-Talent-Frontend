@@ -8,7 +8,7 @@ import DefaultAvatarImgUrl from '@/assets/default-avatar.png';
 import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
 import { Button } from '@/components/ui/button';
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
-import { useIdentity } from '@/hooks/user/auth/useIdentity';
+import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import { useBookingConfirmation } from '@/hooks/user/reservation/useBookingConfirmation';
 import { useReservationDateClamp } from '@/hooks/user/reservation/useReservationDateClamp';
 import { primeTagCatalogCacheIfEmpty } from '@/hooks/user/tags/useTagCatalog';
@@ -43,7 +43,7 @@ export default function ProfilePageContainer({
   // codes to Chinese labels on first paint instead of flashing raw codes.
   primeTagCatalogCacheIfEmpty('zh_TW', initialCatalogs);
 
-  const identity = useIdentity();
+  const identity = useResolvedIdentity();
   const isIdentityResolved = identity.sessionSettled;
   const loginUserId = identity.hasFullUser ? (identity.userId ?? '') : '';
 

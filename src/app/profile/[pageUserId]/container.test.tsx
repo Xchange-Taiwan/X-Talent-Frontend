@@ -19,9 +19,9 @@ vi.mock('@/components/profile/reservation/MentorScheduleDialog', () => ({
   default: () => <div data-testid="mentor-schedule-dialog" />,
 }));
 
-const mockUseIdentity = vi.fn();
-vi.mock('@/hooks/user/auth/useIdentity', () => ({
-  useIdentity: (...args: unknown[]) => mockUseIdentity(...args),
+const mockUseResolvedIdentity = vi.fn();
+vi.mock('@/hooks/user/auth/useResolvedIdentity', () => ({
+  useResolvedIdentity: (...args: unknown[]) => mockUseResolvedIdentity(...args),
 }));
 
 const mockUseUserData = vi.fn();
@@ -130,7 +130,7 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
     // The hint cookie can name the right user before useSession() confirms
     // it; injecting the editor here is exactly the role flash the container
     // gate exists to prevent.
-    mockUseIdentity.mockReturnValue(
+    mockUseResolvedIdentity.mockReturnValue(
       identity({
         sessionSettled: false,
         hasFullUser: false,
@@ -146,7 +146,7 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
   });
 
   it('withholds MentorScheduleDialog from a settled visitor viewing someone else profile', () => {
-    mockUseIdentity.mockReturnValue(
+    mockUseResolvedIdentity.mockReturnValue(
       identity({ sessionSettled: true, hasFullUser: true, userId: '999' })
     );
 
@@ -158,7 +158,7 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
   });
 
   it('withholds MentorScheduleDialog from a settled guest with no session user', () => {
-    mockUseIdentity.mockReturnValue(
+    mockUseResolvedIdentity.mockReturnValue(
       identity({ sessionSettled: true, hasFullUser: false, userId: null })
     );
 
@@ -176,7 +176,7 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
       error: null,
       refetch: vi.fn(),
     });
-    mockUseIdentity.mockReturnValue(
+    mockUseResolvedIdentity.mockReturnValue(
       identity({
         sessionSettled: true,
         hasFullUser: true,
@@ -192,7 +192,7 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
   });
 
   it('injects MentorScheduleDialog once the session has settled on the owner and userData has loaded', () => {
-    mockUseIdentity.mockReturnValue(
+    mockUseResolvedIdentity.mockReturnValue(
       identity({
         sessionSettled: true,
         hasFullUser: true,
@@ -207,7 +207,7 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
 
   it('covers a hinted member who settles to guest and asserts no owner control was ever rendered', () => {
     // 1st render: Hint-only (hinted member)
-    mockUseIdentity.mockReturnValueOnce(
+    mockUseResolvedIdentity.mockReturnValueOnce(
       identity({
         sessionSettled: false,
         hasFullUser: false,
@@ -216,7 +216,7 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
     );
 
     // 2nd render: Settles to guest
-    mockUseIdentity.mockReturnValue(
+    mockUseResolvedIdentity.mockReturnValue(
       identity({
         sessionSettled: true,
         hasFullUser: false,
