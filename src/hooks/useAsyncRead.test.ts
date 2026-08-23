@@ -159,4 +159,42 @@ describe('useAsyncRead hook tests', () => {
 
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
+
+  it('does not carry force: true to subsequent keys after a refetch has occurred', async () => {
+    const manager = new AsyncReadManager<string, string>();
+    const fetcher = vi.fn().mockResolvedValue('data');
+    const subscribeSpy = vi.spyOn(manager, 'subscribe');
+
+    const { result, rerender } = renderHook(
+      ({ key }) => useAsyncRead(manager, key, fetcher),
+      { initialProps: { key: 'key1' } }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data).toBe('data');
+    });
+
+    // Check first subscribe options
+    expect(subscribeSpy).toHaveBeenCalledTimes(1);
+    expect(subscribeSpy.mock.calls[0][3]?.force).toBeUndefined();
+
+    // Trigger refetch
+    act(() => {
+      result.current.refetch();
+    });
+
+    await waitFor(() => {
+      expect(subscribeSpy).toHaveBeenCalledTimes(2);
+    });
+    expect(subscribeSpy.mock.calls[1][3]?.force).toBe(true);
+
+    // Rerender with a new key
+    rerender({ key: 'key2' });
+
+    await waitFor(() => {
+      expect(subscribeSpy).toHaveBeenCalledTimes(3);
+    });
+    // The force flag should NOT be passed for the new key!
+    expect(subscribeSpy.mock.calls[2][3]?.force).not.toBe(true);
+  });
 });
