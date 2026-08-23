@@ -161,35 +161,53 @@ export function useReservationData({
     [myUserId]
   );
 
+  const fetchUpcoming = useMemo(
+    () =>
+      createReservationFetcher(
+        states.upcoming,
+        'reservation_initial_fetch',
+        'upcoming'
+      ),
+    [createReservationFetcher, states.upcoming]
+  );
+
+  const fetchPending = useMemo(
+    () =>
+      createReservationFetcher(
+        states.pending,
+        'reservation_initial_fetch',
+        'pending'
+      ),
+    [createReservationFetcher, states.pending]
+  );
+
+  const fetchHistory = useMemo(
+    () =>
+      createReservationFetcher(
+        states.history,
+        'reservation_history_fetch',
+        'history',
+        () => setHistoryActive(false)
+      ),
+    [createReservationFetcher, states.history]
+  );
+
   const { data: upcomingResult, isLoading: isUpcomingLoading } = useAsyncRead(
     reservationReadManager,
     upcomingKey,
-    createReservationFetcher(
-      states.upcoming,
-      'reservation_initial_fetch',
-      'upcoming'
-    )
+    fetchUpcoming
   );
 
   const { data: pendingResult, isLoading: isPendingLoading } = useAsyncRead(
     reservationReadManager,
     pendingKey,
-    createReservationFetcher(
-      states.pending,
-      'reservation_initial_fetch',
-      'pending'
-    )
+    fetchPending
   );
 
   const { data: historyResult, isLoading: isHistoryLoading } = useAsyncRead(
     reservationReadManager,
     historyKey,
-    createReservationFetcher(
-      states.history,
-      'reservation_history_fetch',
-      'history',
-      () => setHistoryActive(false)
-    )
+    fetchHistory
   );
 
   const isHistoryLoaded = historyResult !== null && !isHistoryLoading;
