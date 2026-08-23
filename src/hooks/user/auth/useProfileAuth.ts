@@ -11,9 +11,11 @@ export function useProfileAuth(pageUserId: string) {
   const identity = useIdentity(null);
   const isAuthorized =
     identity.state === 'confirmed-member' && identity.userId === pageUserId;
+  const isResolving =
+    identity.state === 'unknown' || identity.state === 'hint-only';
 
   useEffect(() => {
-    if (identity.state === 'unknown' || identity.state === 'hint-only') {
+    if (isResolving) {
       return;
     }
 
@@ -21,7 +23,7 @@ export function useProfileAuth(pageUserId: string) {
     if (!isAuthorized) {
       router.push('/');
     }
-  }, [isAuthorized, identity.state, router]);
+  }, [isAuthorized, isResolving, router]);
 
-  return { isAuthorized };
+  return { isAuthorized, isResolving };
 }
