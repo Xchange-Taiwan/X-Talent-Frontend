@@ -111,17 +111,22 @@ export function useUserProfileDto(
   const initialDataRef = useRef<MentorProfileVO | null | undefined>(
     initialData
   );
+  const initialKeyRef = useRef(
+    userId && language ? `${userId}-${language}` : null
+  );
 
   const key = userId && language ? `${userId}-${language}` : null;
+  const activeInitialData =
+    key === initialKeyRef.current ? initialDataRef.current : undefined;
 
   // Sync cache with initialData on mount or key changes in useEffect to avoid SSR pollution
   useEffect(() => {
-    if (initialDataRef.current !== undefined && key) {
+    if (activeInitialData !== undefined && key) {
       // Use raw baseCache to allow null initialData (user not found) to be seeded!
-      baseCache.set(key, initialDataRef.current);
+      baseCache.set(key, activeInitialData);
       initialDataRef.current = undefined;
     }
-  }, [key]);
+  }, [key, activeInitialData]);
 
   const isManualRefetchRef = useRef(false);
 
@@ -153,7 +158,7 @@ export function useUserProfileDto(
       return res;
     },
     {
-      initialData: initialDataRef.current,
+      initialData: activeInitialData,
     }
   );
 

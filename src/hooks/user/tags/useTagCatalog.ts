@@ -52,20 +52,23 @@ export default function useTagCatalog(
   initialData?: TagCatalogsByBucket
 ): UseTagCatalogResult {
   const initialDataRef = useRef(initialData);
+  const initialKeyRef = useRef(language);
+  const activeInitialData =
+    language === initialKeyRef.current ? initialDataRef.current : undefined;
 
   useEffect(() => {
-    if (initialDataRef.current !== undefined && language) {
-      tagCatalogCache.set(language, initialDataRef.current);
+    if (activeInitialData !== undefined && language) {
+      tagCatalogCache.set(language, activeInitialData);
       initialDataRef.current = undefined;
     }
-  }, [language]);
+  }, [language, activeInitialData]);
 
   const { data, isLoading, error } = useAsyncRead(
     tagCatalogReadManager,
     language || null,
     (signal) => fetchTagCatalog(language, signal),
     {
-      initialData: initialDataRef.current,
+      initialData: activeInitialData,
     }
   );
 
