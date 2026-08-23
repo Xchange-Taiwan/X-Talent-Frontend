@@ -393,6 +393,61 @@ describe('useReservationData (mentee)', () => {
       })
     );
   });
+
+  it('loadMore uses the updated next_dtend token from the cache, avoiding stale closure bugs', async () => {
+    mockFetch.mockReset();
+    // First fetch for upcoming returns next_dtend: 12345
+    mockFetch.mockImplementation(({ state }) => {
+      if (state === 'MENTEE_UPCOMING') {
+        return Promise.resolve({
+          items: [makeReservation('upcoming-1')],
+          next_dtend: 12345,
+        });
+      }
+      return Promise.resolve({ items: [], next_dtend: 0 });
+    });
+
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // Mock next fetch to return next_dtend: 67890
+    mockFetch.mockResolvedValueOnce({
+      items: [makeReservation('upcoming-2')],
+      next_dtend: 67890,
+    });
+
+    await act(async () => {
+      await result.current.loadMore('upcoming');
+    });
+
+    // Verify first loadMore called with cursor 12345
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_UPCOMING',
+        nextDtend: 12345,
+      })
+    );
+
+    // Mock next fetch for second loadMore
+    mockFetch.mockResolvedValueOnce({
+      items: [makeReservation('upcoming-3')],
+      next_dtend: 0,
+    });
+
+    await act(async () => {
+      await result.current.loadMore('upcoming');
+    });
+
+    // Verify second loadMore called with the updated cursor 67890 (no stale closure!)
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        userId: mockSession.user.id,
+        state: 'MENTEE_UPCOMING',
+        nextDtend: 67890,
+      })
+    );
+  });
 });
 
 describe('useReservationData (mentor)', () => {

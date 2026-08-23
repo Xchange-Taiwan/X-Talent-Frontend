@@ -79,6 +79,19 @@ describe('useTagCatalog', () => {
     expect(fetchTagCatalog).not.toHaveBeenCalled();
   });
 
+  it('respects initialData option for SSR behavior', () => {
+    const initialData = {
+      ...EMPTY_TAG_CATALOGS,
+      industry: [{ subject_group: 'IND_5', subject: 'Industry 5' }],
+    };
+
+    const { result } = renderHook(() => useTagCatalog('de', initialData));
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.industry).toEqual(initialData.industry);
+    expect(fetchTagCatalog).not.toHaveBeenCalled();
+  });
+
   it('handles fetch failures and allows subsequent retries', async () => {
     vi.mocked(fetchTagCatalog).mockRejectedValueOnce(new Error('Fetch failed'));
 

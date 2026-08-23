@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AsyncReadManager } from '@/lib/asyncReadManager';
@@ -17,6 +17,7 @@ describe('useAsyncRead hook tests', () => {
       data: null,
       isLoading: true,
       error: null,
+      refetch: expect.any(Function),
     });
 
     await waitFor(() => {
@@ -27,6 +28,7 @@ describe('useAsyncRead hook tests', () => {
       data: 'hook-data',
       isLoading: false,
       error: null,
+      refetch: expect.any(Function),
     });
     expect(fetcher).toHaveBeenCalledOnce();
   });
@@ -47,6 +49,7 @@ describe('useAsyncRead hook tests', () => {
       data: 'cached-1',
       isLoading: false,
       error: null,
+      refetch: expect.any(Function),
     });
 
     // Synchronously change key during render (Derived State)
@@ -57,6 +60,7 @@ describe('useAsyncRead hook tests', () => {
       data: 'cached-2',
       isLoading: false,
       error: null,
+      refetch: expect.any(Function),
     });
   });
 
@@ -88,7 +92,109 @@ describe('useAsyncRead hook tests', () => {
       data: null,
       isLoading: false,
       error: null,
+      refetch: expect.any(Function),
     });
     expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('respects initialData and returns it synchronously on initial render', async () => {
+    const manager = new AsyncReadManager<string, string>();
+    const fetcher = vi.fn().mockResolvedValue('hook-data');
+
+    const renderedValues: Array<{
+      data: string | null;
+      isLoading: boolean;
+      error: string | null;
+      refetch: () => void;
+    }> = [];
+    const { result } = renderHook(() => {
+      const res = useAsyncRead(manager, 'key', fetcher, {
+        initialData: 'initial-data',
+      });
+      renderedValues.push(res);
+      return res;
+    });
+
+    // The very first rendered value (during the synchronous render phase, before useEffect)
+    // should have data: 'initial-data' and isLoading: false.
+    expect(renderedValues[0]).toEqual({
+      data: 'initial-data',
+      isLoading: false,
+      error: null,
+      refetch: expect.any(Function),
+    });
+
+    // It should still eventually trigger fetcher and update data
+    await waitFor(() => {
+      expect(result.current.data).toBe('hook-data');
+    });
+
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  it('triggers a fresh fetch with force: true options when refetch is called', async () => {
+    const cache = createKeyedCache<string, string>();
+    const manager = new AsyncReadManager<string, string>(cache);
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce('data-1')
+      .mockResolvedValueOnce('data-2');
+
+    const { result } = renderHook(() => useAsyncRead(manager, 'key', fetcher));
+
+    await waitFor(() => {
+      expect(result.current.data).toBe('data-1');
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // Trigger refetch
+    act(() => {
+      result.current.refetch();
+    });
+
+    await waitFor(() => {
+      expect(result.current.data).toBe('data-2');
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not carry force: true to subsequent keys after a refetch has occurred', async () => {
+    const manager = new AsyncReadManager<string, string>();
+    const fetcher = vi.fn().mockResolvedValue('data');
+    const subscribeSpy = vi.spyOn(manager, 'subscribe');
+
+    const { result, rerender } = renderHook(
+      ({ key }) => useAsyncRead(manager, key, fetcher),
+      { initialProps: { key: 'key1' } }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data).toBe('data');
+    });
+
+    // Check first subscribe options
+    expect(subscribeSpy).toHaveBeenCalledTimes(1);
+    expect(subscribeSpy.mock.calls[0][3]?.force).toBeUndefined();
+
+    // Trigger refetch
+    act(() => {
+      result.current.refetch();
+    });
+
+    await waitFor(() => {
+      expect(subscribeSpy).toHaveBeenCalledTimes(2);
+    });
+    expect(subscribeSpy.mock.calls[1][3]?.force).toBe(true);
+
+    // Rerender with a new key
+    rerender({ key: 'key2' });
+
+    await waitFor(() => {
+      expect(subscribeSpy).toHaveBeenCalledTimes(3);
+    });
+    // The force flag should NOT be passed for the new key!
+    expect(subscribeSpy.mock.calls[2][3]?.force).not.toBe(true);
   });
 });

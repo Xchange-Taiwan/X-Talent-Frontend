@@ -286,3 +286,40 @@ export async function createReservation(opts: {
 
   return json.data;
 }
+
+/* ================================
+ * GET: Get Google Meet link
+ * ================================ */
+
+export async function fetchReservationMeetLink(opts: {
+  userId: string | number;
+  reservationId: string | number;
+  debug?: boolean;
+}): Promise<components['schemas']['MeetLinkVO']> {
+  const { userId, reservationId, debug } = opts;
+
+  if (debug) {
+    console.debug('[reservations] GET Meet Link request', {
+      userId,
+      reservationId,
+    });
+  }
+
+  const path = `/v1/users/${encodeURIComponent(userId)}/reservations/${encodeURIComponent(reservationId)}/google-meet`;
+  const json =
+    await apiClient.get<components['schemas']['ApiResponse_MeetLinkVO_']>(path);
+
+  if (debug) {
+    console.debug('[reservations] GET Meet Link parsed', json);
+  }
+
+  if (json.code !== '0') {
+    throw new FetchApiError(json.code, json.msg, path);
+  }
+
+  if (!json.data) {
+    throw new Error('API error: missing data in response');
+  }
+
+  return json.data;
+}
