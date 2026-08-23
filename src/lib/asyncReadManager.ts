@@ -147,9 +147,17 @@ export class AsyncReadManager<K, V> {
               }
               const activeListeners = this.listeners.get(key);
               if (activeListeners) {
+                const currentCacheStatus = this.cache?.getWithStatus(key);
+                const fallbackData =
+                  currentCacheStatus !== undefined
+                    ? currentCacheStatus.value
+                    : options?.initialData !== undefined
+                      ? options.initialData
+                      : null;
+
                 activeListeners.forEach((listener) => {
                   listener.onUpdate({
-                    data: this.cache?.get(key) ?? null,
+                    data: fallbackData,
                     isLoading: false,
                     error: err instanceof Error ? err.message : String(err),
                   });
