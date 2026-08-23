@@ -315,7 +315,12 @@ export const ScheduleCalendar = ({
               <p className="mb-3 text-sm text-text-secondary">
                 無法載入導師時段，請檢查網路連線
               </p>
-              <Button variant="outline" size="sm" onClick={onRetry}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRetry}
+                disabled={isMonthLoading}
+              >
                 重新嘗試
               </Button>
             </div>

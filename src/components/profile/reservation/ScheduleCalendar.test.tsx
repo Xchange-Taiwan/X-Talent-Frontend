@@ -155,4 +155,22 @@ describe('ScheduleCalendar', () => {
     retryBtn.click();
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
+
+  it('disables the retry button when isMonthLoading is true', () => {
+    const onRetry = vi.fn();
+    render(
+      <ScheduleCalendar
+        {...defaultProps}
+        hasError={true}
+        onRetry={onRetry}
+        isMonthLoading={true}
+      />
+    );
+
+    const retryBtn = screen.getByRole('button', { name: '重新嘗試' });
+    expect(retryBtn).toBeDisabled();
+
+    retryBtn.click();
+    expect(onRetry).not.toHaveBeenCalled();
+  });
 });
