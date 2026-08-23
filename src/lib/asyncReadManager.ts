@@ -11,6 +11,7 @@ export interface AsyncReadOptions<K, V> {
   ttlMs?: number;
   force?: boolean;
   initialData?: V;
+  shouldCache?: (value: V) => boolean;
 }
 
 interface Subscription<V> {
@@ -117,7 +118,9 @@ export class AsyncReadManager<K, V> {
                 return value;
               }
               if (this.cache) {
-                this.cache.set(key, value, options?.ttlMs);
+                if (!options?.shouldCache || options.shouldCache(value)) {
+                  this.cache.set(key, value, options?.ttlMs);
+                }
               }
               if (this.inflight.get(key)?.controller === controller) {
                 this.inflight.delete(key);
