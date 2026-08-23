@@ -15,6 +15,7 @@ vi.mock('@/lib/apiClient', async (importActual) => {
 
 vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
+  captureApiFailure: vi.fn(),
 }));
 
 import { apiClient, FetchApiError } from '@/lib/apiClient';
