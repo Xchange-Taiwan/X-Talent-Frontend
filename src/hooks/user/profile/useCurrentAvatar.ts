@@ -9,6 +9,8 @@ import {
   subscribeUserProfileDtoCache,
 } from '@/hooks/user/user-data/useUserProfileDto';
 
+const OPTIMISTIC_TRANSITION_WINDOW_MS = 10000;
+
 /**
  * Returns the avatar URL to render for the currently signed-in user.
  *
@@ -21,14 +23,13 @@ import {
 export function useCurrentAvatar(): string | null {
   const identity = useResolvedIdentity();
   const userIdStr = identity.userId;
-  const pageUserIdNumber = userIdStr ? Number(userIdStr) : null;
-  const validUserId =
-    pageUserIdNumber && !Number.isNaN(pageUserIdNumber) ? pageUserIdNumber : 0;
+  const validUserId = Number(userIdStr) || 0;
 
   const getSnapshot = useCallback(() => {
-    if (!validUserId) return null;
+    if (!validUserId) return undefined;
     const cachedDto = getUserProfileDtoFromCache(validUserId, 'zh_TW');
-    return cachedDto?.avatar ?? null;
+    if (!cachedDto) return undefined;
+    return cachedDto.avatar ?? null;
   }, [validUserId]);
 
   const optimisticAvatar = useSyncExternalStore(
@@ -45,8 +46,9 @@ export function useCurrentAvatar(): string | null {
 
   // During the active transition period after an optimistic update, prioritize the optimistic avatar.
   // Otherwise, prioritize the session's identity avatar (authoritative).
-  const isTransitioning = Date.now() - getLastPrimedTime() < 10000;
-  if (optimisticAvatar && isTransitioning) {
+  const isTransitioning =
+    Date.now() - getLastPrimedTime() < OPTIMISTIC_TRANSITION_WINDOW_MS;
+  if (optimisticAvatar !== undefined && isTransitioning) {
     return optimisticAvatar;
   }
 
