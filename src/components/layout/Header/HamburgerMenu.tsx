@@ -19,6 +19,14 @@ import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
 import { DisabledAwareLink } from './DisabledAwareLink';
 import { getBecomeMentorHref } from './navHrefs';
 
+function isHintOnlyState(state: ResolvedIdentity['state']): boolean {
+  return state === 'hint-only';
+}
+
+function isGuestOrUnknownState(state: ResolvedIdentity['state']): boolean {
+  return state === 'unknown' || state === 'confirmed-guest';
+}
+
 export type HamburgerMenuProps = {
   identity: ResolvedIdentity;
 };
@@ -66,6 +74,7 @@ export function HamburgerMenu({
             <DisabledAwareLink
               href={becomeMentorPath}
               onClick={close}
+              disabled={isHintOnlyState(identity.state)}
               className="text-text-primary"
             >
               成為導師
@@ -90,22 +99,24 @@ export function HamburgerMenu({
             </a>
           </div>
 
-          <div className="mt-auto flex flex-col items-center gap-6 pb-6">
-            <Button asChild className="w-40 bg-brand-500 hover:bg-brand-500">
-              <Link href="/auth/signin" onClick={close}>
-                登入
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="w-40 border-brand-500 text-brand-500 hover:text-brand-500"
-            >
-              <Link href="/auth/signup" onClick={close}>
-                註冊
-              </Link>
-            </Button>
-          </div>
+          {isGuestOrUnknownState(identity.state) && (
+            <div className="mt-auto flex flex-col items-center gap-6 pb-6">
+              <Button asChild className="w-40 bg-brand-500 hover:bg-brand-500">
+                <Link href="/auth/signin" onClick={close}>
+                  登入
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                className="w-40 border-brand-500 text-brand-500 hover:text-brand-500"
+              >
+                <Link href="/auth/signup" onClick={close}>
+                  註冊
+                </Link>
+              </Button>
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>
