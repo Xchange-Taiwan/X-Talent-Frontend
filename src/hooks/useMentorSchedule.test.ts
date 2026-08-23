@@ -970,6 +970,7 @@ describe('useMentorSchedule', () => {
     });
 
     it('clears error and retries successfully when reload is called', async () => {
+      mockLoadMonthScheduleFresh.mockReset();
       // First attempt fails
       mockLoadMonthScheduleCached.mockReturnValueOnce({
         cached: undefined,
