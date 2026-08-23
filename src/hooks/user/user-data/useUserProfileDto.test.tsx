@@ -38,7 +38,11 @@ describe('useUserProfileDto', () => {
     });
 
     expect(result.current.userDto).toEqual(mockUserDTO);
-    expect(fetchUserById).toHaveBeenCalledWith(1, 'zh-TW');
+    expect(fetchUserById).toHaveBeenCalledWith(
+      1,
+      'zh-TW',
+      expect.any(AbortSignal)
+    );
     expect(fetchUserById).toHaveBeenCalledTimes(1);
   });
 
@@ -196,7 +200,11 @@ describe('useUserProfileDto', () => {
       });
 
       expect(result.current.userDto).toEqual(mockUserDTO);
-      expect(fetchUserById).toHaveBeenCalledWith(7, 'zh-TW');
+      expect(fetchUserById).toHaveBeenCalledWith(
+        7,
+        'zh-TW',
+        expect.any(AbortSignal)
+      );
     });
   });
 });
