@@ -449,6 +449,73 @@ describe('useMentorPool', () => {
     spyConsoleError.mockRestore();
   });
 
+  it('ignores obsolete out-of-order API success and does not overwrite current state with stale results', async () => {
+    mockSearchParams.toString.mockReturnValue('q=react');
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'q') return 'react';
+      return null;
+    });
+
+    let resolveFetch1!: (value: MentorType[]) => void;
+    const fetchPromise1 = new Promise<MentorType[]>((resolve) => {
+      resolveFetch1 = resolve;
+    });
+
+    let resolveFetch2!: (value: MentorType[]) => void;
+    const fetchPromise2 = new Promise<MentorType[]>((resolve) => {
+      resolveFetch2 = resolve;
+    });
+
+    // Mock first (slow) and second (fast) fetches
+    mockFetchMentors
+      .mockReturnValueOnce(fetchPromise1)
+      .mockReturnValueOnce(fetchPromise2);
+
+    const { result, rerender } = renderHook(() =>
+      useMentorPool({
+        initialMentors: mockInitialMentors,
+        initialMentorCount: 1,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+      })
+    );
+
+    // Trigger second request immediately
+    mockSearchParams.toString.mockReturnValue('q=nextjs');
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'q') return 'nextjs';
+      return null;
+    });
+    rerender();
+
+    // Resolve second (latest) fetch first
+    const latestMentors = [
+      { ...mockInitialMentors[0], user_id: 100, name: 'Latest Mentor' },
+    ];
+    await act(async () => {
+      resolveFetch2(latestMentors);
+      await fetchPromise2;
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.mentors[0].user_id).toBe(100);
+    expect(result.current.mentors[0].name).toBe('Latest Mentor');
+
+    // Resolve first (stale) fetch last
+    const staleMentors = [
+      { ...mockInitialMentors[0], user_id: 50, name: 'Stale Mentor' },
+    ];
+    await act(async () => {
+      resolveFetch1(staleMentors);
+      await fetchPromise1;
+    });
+
+    // It should NOT overwrite the latest results
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.mentors[0].user_id).toBe(100);
+    expect(result.current.mentors[0].name).toBe('Latest Mentor');
+  });
+
   it('initializes with hasError=true when initialError is true', () => {
     const { result } = renderHook(() =>
       useMentorPool({
