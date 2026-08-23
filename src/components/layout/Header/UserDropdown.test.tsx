@@ -27,6 +27,7 @@ vi.mock('@/lib/analytics', () => ({
   trackEvent: (...args: unknown[]) => trackEvent(...args),
 }));
 
+import { authenticatedIdentity, GUEST_IDENTITY } from '@/test/mocks/identity';
 import { mockSession } from '@/test/mocks/nextAuth';
 
 import { UserDropdown } from './UserDropdown';
@@ -80,7 +81,12 @@ describe('UserDropdown share flow', () => {
   }
 
   it('closes the dropdown immediately but defers opening the share dialog to the next frame', () => {
-    render(<UserDropdown user={buildUser()} />);
+    render(
+      <UserDropdown
+        identity={authenticatedIdentity('user-1', { isMentor: false })}
+        user={buildUser()}
+      />
+    );
 
     openMenu();
     const shareButton = screen.getByRole('button', { name: '分享個人頁面' });
@@ -101,7 +107,12 @@ describe('UserDropdown share flow', () => {
   });
 
   it('does not queue a frame or open the dialog when there is no userId', () => {
-    render(<UserDropdown user={buildUser({ id: undefined })} />);
+    render(
+      <UserDropdown
+        identity={GUEST_IDENTITY}
+        user={buildUser({ id: undefined })}
+      />
+    );
 
     openMenu();
     const shareButton = screen.getByRole('button', { name: '分享個人頁面' });
@@ -109,7 +120,12 @@ describe('UserDropdown share flow', () => {
   });
 
   it('does not render the merged header navigation links (尋找導師, 關於 X-Talent, 提供回饋) inside the desktop dropdown menu', () => {
-    render(<UserDropdown user={buildUser()} />);
+    render(
+      <UserDropdown
+        identity={authenticatedIdentity('user-1', { isMentor: false })}
+        user={buildUser()}
+      />
+    );
 
     openMenu();
 
