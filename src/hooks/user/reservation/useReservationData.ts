@@ -138,7 +138,11 @@ export function useReservationData({
             signal,
           });
         } catch (err) {
-          if (err instanceof Error && err.name === 'AbortError') {
+          const isAbort =
+            signal.aborted ||
+            (err instanceof DOMException && err.name === 'AbortError') ||
+            (err instanceof Error && err.name === 'AbortError');
+          if (isAbort) {
             throw err;
           }
           captureFlowFailure({

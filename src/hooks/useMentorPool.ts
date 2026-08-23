@@ -96,6 +96,16 @@ export function useMentorPool({
   initialError,
 }: UseMentorPoolProps) {
   const { toast } = useToast();
+
+  const showErrorToast = useCallback(() => {
+    toast({
+      variant: 'destructive',
+      title: '載入失敗',
+      description: '無法獲取導師，請稍後再試。',
+      duration: 5000,
+    });
+  }, [toast]);
+
   const hasInitialFilters = hasAnyCondition(params);
 
   const getInitialUnfilteredState = useCallback(
@@ -128,6 +138,7 @@ export function useMentorPool({
   const [retryCount, setRetryCount] = useState<number>(0);
   const hasClientFetched = useRef(false);
   const prevFilterKeyRef = useRef<string | null>(null);
+  const lastAppliedDataRef = useRef<MentorType[] | null>(null);
 
   // Derive filterKey for useAsyncRead
   const filterKey =
@@ -154,15 +165,11 @@ export function useMentorPool({
         signal
       ).catch((err) => {
         const isAbort =
+          signal.aborted ||
           (err instanceof DOMException && err.name === 'AbortError') ||
           (err instanceof Error && err.name === 'AbortError');
         if (!isAbort) {
-          toast({
-            variant: 'destructive',
-            title: '載入失敗',
-            description: '無法獲取導師，請稍後再試。',
-            duration: 5000,
-          });
+          showErrorToast();
         }
         throw err;
       });
@@ -182,10 +189,13 @@ export function useMentorPool({
       if (prevFilterKeyRef.current !== null) {
         setPageState(getInitialUnfilteredState());
         prevFilterKeyRef.current = null;
+        hasClientFetched.current = false;
+        lastAppliedDataRef.current = null;
       }
       return;
     }
     prevFilterKeyRef.current = filterKey;
+    hasClientFetched.current = true;
 
     if (isFilterLoading) {
       setPageState((prev) => {
@@ -204,7 +214,6 @@ export function useMentorPool({
           hasError: false,
         };
       });
-      hasClientFetched.current = true;
       return;
     }
 
@@ -230,12 +239,15 @@ export function useMentorPool({
     }
 
     if (fetchedData) {
-      setPageState((prev) => {
-        if (prev.mentors === fetchedData) {
-          return prev; // Bailout!
-        }
-        return applyMentorPage(prev, { type: 'replace', page: fetchedData });
-      });
+      if (fetchedData !== lastAppliedDataRef.current) {
+        lastAppliedDataRef.current = fetchedData;
+        setPageState((prev) => {
+          if (prev.mentors === fetchedData) {
+            return prev; // Bailout!
+          }
+          return applyMentorPage(prev, { type: 'replace', page: fetchedData });
+        });
+      }
     }
   }, [
     filterKey,
@@ -259,12 +271,7 @@ export function useMentorPool({
       throwError: false,
       onError: () => {
         if (latestFilterKeyRef.current === currentKey) {
-          toast({
-            variant: 'destructive',
-            title: '載入失敗',
-            description: '無法獲取導師，請稍後再試。',
-            duration: 5000,
-          });
+          showErrorToast();
           setPageState((prev) => ({
             ...prev,
             hasError: prev.mentors.length === 0,
@@ -279,7 +286,7 @@ export function useMentorPool({
         applyMentorPage(prev, { type: 'append', page: rtnList })
       );
     }
-  }, [params, pageState.cursor, runLoadMore, filterKey, toast]);
+  }, [params, pageState.cursor, runLoadMore, filterKey, showErrorToast]);
 
   const handleScrollToBottom = useCallback(async () => {
     if (!pageState.hasMore || isLoading) return;
