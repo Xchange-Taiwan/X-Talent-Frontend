@@ -75,21 +75,17 @@ export function useReservationMeetLink({
         }
 
         let errMsg = '取得會議連結失敗，請稍後再試。';
+        const codeOrStatus =
+          err instanceof FetchApiError
+            ? err.code
+            : err instanceof FetchHttpError
+              ? String(err.status)
+              : undefined;
 
-        if (err instanceof FetchApiError) {
-          const code = err.code;
-          if (code === '404') {
-            errMsg = '連結尚未就緒或不存在（會議狀態需為已排程）。';
-          } else if (code === '403') {
-            errMsg = '您並非此預約的導師或學員，無法加入。';
-          }
-        } else if (err instanceof FetchHttpError) {
-          const status = String(err.status);
-          if (status === '404') {
-            errMsg = '連結尚未就緒或不存在（會議狀態需為已排程）。';
-          } else if (status === '403') {
-            errMsg = '您並非此預約的導師或學員，無法加入。';
-          }
+        if (codeOrStatus === '404') {
+          errMsg = '連結尚未就緒或不存在（會議狀態需為已排程）。';
+        } else if (codeOrStatus === '403') {
+          errMsg = '您並非此預約的導師或學員，無法加入。';
         }
 
         toast({
