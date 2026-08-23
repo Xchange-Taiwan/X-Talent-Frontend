@@ -38,15 +38,15 @@ export const AllSizes: Story = {
     <div className="flex items-center gap-6">
       <div className="flex flex-col items-center gap-1.5">
         <LoadingSpinner {...args} size="sm" />
-        <span className="text-xs text-text-tertiary">小 (sm)</span>
+        <span className="text-text-tertiary text-xs">小 (sm)</span>
       </div>
       <div className="flex flex-col items-center gap-1.5">
         <LoadingSpinner {...args} size="md" />
-        <span className="text-xs text-text-tertiary">中 (md)</span>
+        <span className="text-text-tertiary text-xs">中 (md)</span>
       </div>
       <div className="flex flex-col items-center gap-1.5">
         <LoadingSpinner {...args} size="lg" />
-        <span className="text-xs text-text-tertiary">大 (lg)</span>
+        <span className="text-text-tertiary text-xs">大 (lg)</span>
       </div>
     </div>
   ),

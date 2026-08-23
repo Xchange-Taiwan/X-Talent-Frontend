@@ -25,12 +25,12 @@ export function ScheduleSlotList({
         <div
           aria-busy="true"
           aria-live="polite"
-          className="flex min-h-10 items-center text-text-disable"
+          className="text-text-disable flex min-h-10 items-center"
         >
           讀取中…
         </div>
       ) : slots.length === 0 ? (
-        <div className="flex min-h-10 items-center text-text-disable">
+        <div className="text-text-disable flex min-h-10 items-center">
           無可預約的時段
         </div>
       ) : (

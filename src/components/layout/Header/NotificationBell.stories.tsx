@@ -9,7 +9,7 @@ const meta: Meta<typeof NotificationBell> = {
   tags: ['autodocs'],
   decorators: [
     (Story) => (
-      <div className="flex h-[450px] items-start justify-center bg-background-bottom p-10">
+      <div className="bg-background-bottom flex h-[450px] items-start justify-center p-10">
         <Story />
       </div>
     ),

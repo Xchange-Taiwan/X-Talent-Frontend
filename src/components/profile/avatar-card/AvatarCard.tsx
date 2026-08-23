@@ -31,7 +31,7 @@ export const AvatarCard: FC<Props> = ({
     <div
       className={cn('flex flex-col items-center gap-6 sm:flex-row', className)}
     >
-      <div className="relative h-[120px] w-[120px] flex-shrink-0 overflow-hidden rounded-full bg-background-white">
+      <div className="bg-background-white relative h-[120px] w-[120px] flex-shrink-0 overflow-hidden rounded-full">
         <Image
           src={avatarImgUrl || DefaultAvatarImgUrl}
           alt={'Avatar of ' + name}

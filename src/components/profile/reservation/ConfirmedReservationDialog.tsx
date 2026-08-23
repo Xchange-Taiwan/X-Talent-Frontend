@@ -84,13 +84,13 @@ export function ConfirmedReservationDialog({
                 <div className="truncate font-medium sm:text-base">
                   {reservation.name}
                 </div>
-                <div className="truncate text-xs text-text-tertiary sm:text-sm">
+                <div className="text-text-tertiary truncate text-xs sm:text-sm">
                   {reservation.roleLine}
                 </div>
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-text-tertiary sm:grid-cols-2 sm:text-sm">
+            <div className="text-text-tertiary mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 sm:text-sm">
               <div className="flex items-center gap-2">
                 <CalendarDays className="size-4 shrink-0" aria-hidden />
                 <span className="truncate">{reservation.date}</span>
@@ -103,8 +103,8 @@ export function ConfirmedReservationDialog({
           </div>
 
           {/* Meeting Info Block */}
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-background-bottom/40 p-4">
-            <div className="flex items-center gap-1.5 text-xs text-text-tertiary sm:text-sm">
+          <div className="bg-background-bottom/40 mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4">
+            <div className="text-text-tertiary flex items-center gap-1.5 text-xs sm:text-sm">
               <Mail className="size-4 shrink-0" aria-hidden />
               <span>會議連結已寄至您的信箱</span>
             </div>
@@ -112,7 +112,7 @@ export function ConfirmedReservationDialog({
               onClick={() => joinMeet(reservation.id)}
               disabled={isJoiningMeet || isMutating}
               size="sm"
-              className="h-8 rounded-lg bg-brand-500 px-4 text-xs font-medium text-text-primary hover:bg-brand-500/90 sm:text-sm"
+              className="bg-brand-500 text-text-primary hover:bg-brand-500/90 h-8 rounded-lg px-4 text-xs font-medium sm:text-sm"
             >
               {isJoiningMeet ? '載入中...' : '加入 Google Meet'}
             </Button>

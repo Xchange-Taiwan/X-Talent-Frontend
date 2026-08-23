@@ -2,12 +2,7 @@ import type { Session } from 'next-auth';
 import { getSession } from 'next-auth/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  apiClient,
-  ApiError,
-  fetchServerJson,
-  setSessionGetter,
-} from '@/lib/apiClient';
+import { apiClient, ApiError, setSessionGetter } from '@/lib/apiClient';
 import { captureApiFailure } from '@/lib/monitoring';
 
 vi.mock('next-auth/react', () => ({
@@ -310,6 +305,57 @@ describe('apiClient', () => {
       ).rejects.toThrow(ApiError);
     });
 
+    it('sets status to 400 when code is non-numeric like "ERR_123"', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: 'ERR_123',
+            msg: 'error msg',
+            data: null,
+          }),
+          { status: 200 }
+        )
+      );
+
+      await expect(
+        apiClient.getUnwrapped('/v1/test', { auth: false })
+      ).rejects.toMatchObject({ status: 400, code: 'ERR_123' });
+    });
+
+    it('sets status to 400 when code is numeric but outside HTTP range like "1001"', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: '1001',
+            msg: 'invalid scope',
+            data: null,
+          }),
+          { status: 200 }
+        )
+      );
+
+      await expect(
+        apiClient.getUnwrapped('/v1/test', { auth: false })
+      ).rejects.toMatchObject({ status: 400, code: '1001' });
+    });
+
+    it('sets status to matching HTTP code when code is a valid HTTP status like "422"', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: '422',
+            msg: 'validation failed',
+            data: null,
+          }),
+          { status: 200 }
+        )
+      );
+
+      await expect(
+        apiClient.getUnwrapped('/v1/test', { auth: false })
+      ).rejects.toMatchObject({ status: 422, code: '422' });
+    });
+
     it('returns undefined on empty 204 No Content response without throwing TypeError', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
@@ -402,73 +448,6 @@ describe('apiClient', () => {
   });
 
   /* ================================
-   * fetchServerJson
-   * ================================ */
-
-  describe('fetchServerJson', () => {
-    it('unwraps data successfully when status is ok and code is "0"', async () => {
-      mockFetch.mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            code: '0',
-            msg: 'success',
-            data: { items: [1, 2] },
-          }),
-          { status: 200 }
-        )
-      );
-
-      const result = await fetchServerJson<{ items: number[] }>('/v1/test');
-
-      expect(result).toEqual({ items: [1, 2] });
-    });
-
-    it('throws ApiError when status is not ok', async () => {
-      mockFetch.mockResolvedValue(new Response('', { status: 500 }));
-
-      await expect(fetchServerJson('/v1/test')).rejects.toThrow(ApiError);
-    });
-
-    it('throws ApiError when status is ok but code is not "0"', async () => {
-      mockFetch.mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            code: '999',
-            msg: 'invalid request',
-            data: null,
-          }),
-          { status: 200 }
-        )
-      );
-
-      await expect(fetchServerJson('/v1/test')).rejects.toThrow(ApiError);
-    });
-
-    it('forwards custom caching and ISR options (cache, next) to raw fetch', async () => {
-      mockFetch.mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            code: '0',
-            msg: 'success',
-            data: 'test',
-          }),
-          { status: 200 }
-        )
-      );
-
-      await fetchServerJson('/v1/test', {
-        cache: 'no-store',
-        next: { revalidate: 60 },
-      });
-
-      expect(mockFetch.mock.calls[0][1]).toMatchObject({
-        cache: 'no-store',
-        next: { revalidate: 60 },
-      });
-    });
-  });
-
-  /* ================================
    * Server-side Environment (window is undefined)
    * ================================ */
 
@@ -487,7 +466,7 @@ describe('apiClient', () => {
       );
     });
 
-    it('allows fetchServerJson (auth: false) to succeed on the server side', async () => {
+    it('allows getUnwrapped (auth: false) to succeed on the server side', async () => {
       mockFetch.mockResolvedValue(
         new Response(
           JSON.stringify({
@@ -499,7 +478,9 @@ describe('apiClient', () => {
         )
       );
 
-      const result = await fetchServerJson<string>('/v1/test');
+      const result = await apiClient.getUnwrapped<string>('/v1/test', {
+        auth: false,
+      });
       expect(result).toBe('ssr-data');
     });
 

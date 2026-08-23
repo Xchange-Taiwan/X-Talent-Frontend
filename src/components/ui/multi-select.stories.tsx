@@ -44,7 +44,7 @@ const MultiSelectDemo = (args: React.ComponentProps<typeof MultiSelect>) => {
         onValueChange={setSelected}
         placeholder="請選擇您的專業領域或諮詢主題..."
       />
-      <div className="mt-4 text-sm text-text-tertiary">
+      <div className="text-text-tertiary mt-4 text-sm">
         目前選取值: {selected.join(', ') || '無'}
       </div>
     </div>

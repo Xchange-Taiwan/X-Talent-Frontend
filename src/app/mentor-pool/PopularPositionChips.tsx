@@ -81,7 +81,7 @@ export default function PopularPositionChips() {
             }}
             type="button"
             onClick={() => handleClick(position)}
-            className={`shrink-0 rounded-full border border-background-border bg-background-white px-4 py-1.5 text-sm font-medium text-text-primary transition-colors hover:bg-landingPurpleLight focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+            className={`border-background-border bg-background-white text-text-primary hover:bg-landingPurpleLight focus-visible:ring-ring shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none ${
               i >= visibleCount ? 'xl:hidden' : ''
             }`}
           >
@@ -92,17 +92,17 @@ export default function PopularPositionChips() {
       {canScrollLeft && (
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center justify-start bg-gradient-to-r from-background-white to-transparent xl:hidden"
+          className="from-background-white pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center justify-start bg-gradient-to-r to-transparent xl:hidden"
         >
-          <ChevronLeft className="size-4 text-text-primary/60" />
+          <ChevronLeft className="text-text-primary/60 size-4" />
         </div>
       )}
       {canScrollRight && (
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-end bg-gradient-to-l from-background-white to-transparent xl:hidden"
+          className="from-background-white pointer-events-none absolute inset-y-0 right-0 flex w-10 items-center justify-end bg-gradient-to-l to-transparent xl:hidden"
         >
-          <ChevronRight className="size-4 text-text-primary/60" />
+          <ChevronRight className="text-text-primary/60 size-4" />
         </div>
       )}
     </div>

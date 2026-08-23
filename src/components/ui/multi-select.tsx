@@ -245,7 +245,7 @@ export const MultiSelect = React.forwardRef<
                   {selectedValues.length > maxCount && (
                     <Badge
                       className={cn(
-                        'border-transparent bg-transparent text-text-primary hover:bg-transparent',
+                        'text-text-primary border-transparent bg-transparent hover:bg-transparent',
                         multiSelectVariants({ variant })
                       )}
                       style={{ animationDuration: `${animation}s` }}
@@ -263,7 +263,7 @@ export const MultiSelect = React.forwardRef<
                 </div>
                 <div className="flex items-center justify-between">
                   <XIcon
-                    className="mx-2 h-4 cursor-pointer text-text-tertiary"
+                    className="text-text-tertiary mx-2 h-4 cursor-pointer"
                     onClick={(event) => {
                       event.stopPropagation();
                       handleClear();
@@ -273,15 +273,15 @@ export const MultiSelect = React.forwardRef<
                     orientation="vertical"
                     className="flex h-full min-h-6"
                   />
-                  <ChevronDown className="mx-2 h-4 cursor-pointer text-text-tertiary" />
+                  <ChevronDown className="text-text-tertiary mx-2 h-4 cursor-pointer" />
                 </div>
               </div>
             ) : (
               <div className="mx-auto flex w-full items-center justify-between">
-                <span className="mx-3 text-sm text-text-tertiary">
+                <span className="text-text-tertiary mx-3 text-sm">
                   {placeholder}
                 </span>
-                <ChevronDown className="mx-2 h-4 cursor-pointer text-text-tertiary" />
+                <ChevronDown className="text-text-tertiary mx-2 h-4 cursor-pointer" />
               </div>
             )}
           </Button>

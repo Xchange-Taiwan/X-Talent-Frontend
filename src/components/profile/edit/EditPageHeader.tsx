@@ -14,7 +14,7 @@ export function EditPageHeader({
   isMentorOnboarding,
 }: Props) {
   return (
-    <div className="sticky top-[70px] z-40 mb-6 flex justify-between border-b border-background-border bg-light/95 py-4 backdrop-blur supports-[backdrop-filter]:bg-light/80">
+    <div className="border-background-border bg-light/95 supports-[backdrop-filter]:bg-light/80 sticky top-[70px] z-40 mb-6 flex justify-between border-b py-4 backdrop-blur">
       <div className="flex items-center gap-3">
         <ChevronLeft
           className={`sm:hidden ${isSaving ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}

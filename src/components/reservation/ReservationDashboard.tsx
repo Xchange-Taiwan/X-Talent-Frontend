@@ -185,7 +185,7 @@ export function ReservationDashboardView({
   return (
     <div className="flex min-h-[calc(100vh-70px)] justify-center pb-12">
       <div className="w-full max-w-[90%] rounded-2xl md:max-w-[800px]">
-        <div className="mx-auto mb-6 text-center font-sans text-2xl leading-tight font-semibold tracking-normal text-text-primary md:text-36 md:leading-tight">
+        <div className="text-text-primary md:text-36 mx-auto mb-6 text-center font-sans text-2xl leading-tight font-semibold tracking-normal md:leading-tight">
           {title}
         </div>
 
@@ -195,7 +195,7 @@ export function ReservationDashboardView({
             className="w-full"
             onValueChange={handleValueChange}
           >
-            <div className="sticky top-0 z-10 bg-background-white pb-2">
+            <div className="bg-background-white sticky top-0 z-10 pb-2">
               <div className="-mx-3 sm:mx-0">
                 <div
                   className="mb-3 [touch-action:pan-x] snap-none [scrollbar-width:none] overflow-x-auto px-0 py-1 whitespace-nowrap [-ms-overflow-style:none] [-webkit-overflow-scrolling:touch] sm:snap-x sm:snap-proximity [&::-webkit-scrollbar]:hidden"

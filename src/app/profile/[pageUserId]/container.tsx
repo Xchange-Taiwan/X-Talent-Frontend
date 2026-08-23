@@ -113,7 +113,7 @@ export default function ProfilePageContainer({
   if (error === 'FETCH_FAILED') {
     return (
       <div className="flex h-[50vh] flex-col items-center justify-center gap-4 text-center">
-        <p className="font-medium text-text-tertiary">
+        <p className="text-text-tertiary font-medium">
           載入個人檔案資料時發生連線錯誤
         </p>
         <Button onClick={refetch} variant="default" size="default">
@@ -125,7 +125,7 @@ export default function ProfilePageContainer({
 
   if (error === 'USER_NOT_FOUND' || (!userLoading && !userData)) {
     return (
-      <div className="flex h-[50vh] items-center justify-center text-text-tertiary">
+      <div className="text-text-tertiary flex h-[50vh] items-center justify-center">
         沒有該位使用者
       </div>
     );

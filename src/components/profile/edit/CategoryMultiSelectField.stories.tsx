@@ -52,7 +52,7 @@ export const TreeStructure: Story = {
     <ProfileStoryWrapper defaultValues={{ selected_skills: [] }}>
       {(form) => (
         <div className="space-y-4">
-          <p className="text-sm text-text-secondary">
+          <p className="text-text-secondary text-sm">
             展示完整的類別樹狀結構，使用者可以展開/收合各個大類，並選取其中的子項目。
           </p>
           <CategoryMultiSelectField
@@ -73,7 +73,7 @@ export const FlatList: Story = {
     <ProfileStoryWrapper defaultValues={{ selected_skills: [] }}>
       {(form) => (
         <div className="space-y-4">
-          <p className="text-sm text-text-secondary">
+          <p className="text-text-secondary text-sm">
             當 <code>flat=true</code>{' '}
             時，所有的子選項會被拉平直接顯示為標籤列表，適用於選項總量較少或不需分組的場景。
           </p>
@@ -96,7 +96,7 @@ export const LimitSelection: Story = {
     <ProfileStoryWrapper defaultValues={{ selected_skills: ['frontend'] }}>
       {(form) => (
         <div className="space-y-4">
-          <p className="text-sm text-text-secondary">
+          <p className="text-text-secondary text-sm">
             當設定 <code>maxSelected=2</code> 時，若使用者企圖選取第 3
             個選項，系統將限制其選取，並在畫面上顯示限制提示。
           </p>
@@ -121,7 +121,7 @@ export const SearchAndFilterShowcase: Story = {
     >
       {(form) => (
         <div className="space-y-4">
-          <p className="text-sm text-text-secondary">
+          <p className="text-text-secondary text-sm">
             使用者可以點擊輸入框進行即時輸入搜尋。系統會自動篩選符合輸入字串的選項，並高亮或保留符合條件的群組結構。
           </p>
           <CategoryMultiSelectField

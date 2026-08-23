@@ -80,7 +80,7 @@ export const Information = ({
           </div>
         )}
       </div>
-      <p className="line-clamp-2 text-sm font-normal tracking-wide text-text-tertiary">
+      <p className="text-text-tertiary line-clamp-2 text-sm font-normal tracking-wide">
         {about}
       </p>
       <div className="relative">

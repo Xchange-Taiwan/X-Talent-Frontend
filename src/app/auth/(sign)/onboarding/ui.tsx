@@ -80,7 +80,7 @@ function StepHeader({
 }) {
   return (
     <div>
-      <p className="mb-6 text-base font-semibold text-text-tertiary">
+      <p className="text-text-tertiary mb-6 text-base font-semibold">
         步驟 {currentStep} / {stepsTotal}
       </p>
       <div className="flex items-center gap-3">

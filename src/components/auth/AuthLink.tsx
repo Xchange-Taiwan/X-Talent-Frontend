@@ -16,7 +16,7 @@ export default function AuthLink({
   className = '',
 }: AuthLinkProps) {
   return (
-    <p className="text-center text-text-secondary">
+    <p className="text-text-secondary text-center">
       {prefixText}{' '}
       <Link href={href} className={`${linkStyle} ${className}`}>
         {text}

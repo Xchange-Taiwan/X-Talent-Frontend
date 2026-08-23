@@ -21,12 +21,7 @@ function isUserNotFoundError(error: unknown): boolean {
     if (error.status === 404) {
       return true;
     }
-    if (
-      error.body &&
-      typeof error.body === 'object' &&
-      'code' in error.body &&
-      (error.body as Record<string, unknown>).code === 'USER_NOT_FOUND'
-    ) {
+    if (error.code === 'USER_NOT_FOUND') {
       return true;
     }
   }

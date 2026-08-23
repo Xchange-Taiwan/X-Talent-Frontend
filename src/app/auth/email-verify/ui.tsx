@@ -26,11 +26,11 @@ export default function EmailVerificationPage({
         回首頁
       </Button>
 
-      <p className="text-xs text-text-tertiary">
+      <p className="text-text-tertiary text-xs">
         沒有收到信嗎？{' '}
         <button
           type="button"
-          className="inline cursor-pointer border-0 bg-transparent p-0 text-xs text-text-tertiary underline decoration-1 hover:text-text-secondary"
+          className="text-text-tertiary hover:text-text-secondary inline cursor-pointer border-0 bg-transparent p-0 text-xs underline decoration-1"
           onClick={onResendEmail}
         >
           點此重新寄送

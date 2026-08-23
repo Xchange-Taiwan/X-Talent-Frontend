@@ -18,7 +18,7 @@ export const Default: Story = {
     iconAlt: 'X-Talent Logo',
     title: '歡迎加入 X-Talent',
     children: (
-      <div className="text-center text-text-secondary">
+      <div className="text-text-secondary text-center">
         <p className="mb-4">我們已向您的電子信箱發送了一封驗證信。</p>
         <p>請點擊信中的連結啟用您的帳號，開啟您的專業諮詢之旅！</p>
       </div>
