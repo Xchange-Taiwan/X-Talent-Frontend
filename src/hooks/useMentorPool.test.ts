@@ -192,6 +192,43 @@ describe('useMentorPool', () => {
     spyConsoleError.mockRestore();
   });
 
+  it('gracefully handles AbortError and does not show toast', async () => {
+    mockSearchParams.toString.mockReturnValue('q=react');
+    mockSearchParams.get.mockImplementation((key) => {
+      if (key === 'q') return 'react';
+      return null;
+    });
+
+    let rejectFetch!: (reason: Error) => void;
+    const fetchPromise = new Promise<MentorType[]>((_, reject) => {
+      rejectFetch = reject;
+    });
+
+    mockFetchMentors.mockReturnValueOnce(fetchPromise);
+
+    const { result } = renderHook(() =>
+      useMentorPool({
+        initialMentors: mockInitialMentors,
+        initialMentorCount: 1,
+        params: mockSearchParams as unknown as ReadonlyURLSearchParams,
+        labelMap: testLabelMap,
+      })
+    );
+
+    expect(result.current.isLoading).toBe(true);
+
+    await act(async () => {
+      rejectFetch(new DOMException('Aborted', 'AbortError'));
+      try {
+        await fetchPromise;
+      } catch {
+        // ignore reject
+      }
+    });
+
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
   it('correctly ignores obsolete out-of-order fetch responses to prevent race conditions', async () => {
     mockSearchParams.toString.mockReturnValue('q=react');
     mockSearchParams.get.mockImplementation((key) => {
