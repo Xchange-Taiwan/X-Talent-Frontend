@@ -111,22 +111,17 @@ export function useUserProfileDto(
         const res = await fetchUserById(userId, language, signal);
 
         if (res === null && key) {
-          if (isManualRefetch) {
-            userProfileDtoCache.delete(key);
-            return null;
-          }
-          // If it's a background revalidation (meaning we already have stale data),
-          // we keep the stale data as per "background revalidation returning null keeps stale data"
           const existing = userProfileDtoCache.get(key);
-          if (existing) {
+          if (!isManualRefetch && existing) {
             return existing;
           }
-          // If it's a first-time fetch that returned null (USER_NOT_FOUND),
-          // we schedule a delete to ensure that a failed fetch is NOT cached
-          // for future mounts, while letting the current mount render the null state.
+          // Schedule deleting from cache to ensure that null/failed fetch is NOT cached
+          // for subsequent mounts, while allowing the current mount to receive null.
+          // This covers both manual refetch and first-time failed fetches.
           setTimeout(() => {
             userProfileDtoCache.delete(key);
           }, 0);
+          return null;
         }
         return res;
       } catch (err) {

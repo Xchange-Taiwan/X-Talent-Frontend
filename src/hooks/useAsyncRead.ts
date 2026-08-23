@@ -93,8 +93,8 @@ export function useAsyncRead<K, V>(
     lastRetryRef.current = retryTrigger;
 
     const currentOptions = isForced
-      ? { ...optionsRef.current, force: true }
-      : optionsRef.current;
+      ? { ...optionsRef.current, force: true, initialData: activeInitialData }
+      : { ...optionsRef.current, initialData: activeInitialData };
 
     // Wrap state update with shallow-equality check (bailout on referential changes)
     // to prevent redundant and unnecessary re-renders of the component.
@@ -115,7 +115,7 @@ export function useAsyncRead<K, V>(
     return () => {
       unsubscribe();
     };
-  }, [manager, key, retryTrigger]);
+  }, [manager, key, retryTrigger, activeInitialData]);
 
   const refetch = useCallback(() => {
     setRetryTrigger((prev) => prev + 1);
