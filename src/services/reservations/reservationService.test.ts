@@ -25,6 +25,7 @@ import { components } from '@/types/api';
 import {
   createReservation,
   fetchAllReservationsForState,
+  fetchReservationMeetLink,
   fetchReservations,
   updateReservationStatus,
 } from './reservationService';
@@ -176,6 +177,54 @@ describe('reservationService API Error Handling', () => {
         expect(apiError.message).toContain('Bad Request');
         expect(apiError.path).toBe('/v1/users/123/reservations');
       }
+    });
+  });
+
+  describe('fetchReservationMeetLink', () => {
+    it('should throw FetchApiError with correct code, message and path if API returns non-0 code', async () => {
+      mockGet.mockResolvedValue({
+        code: '404',
+        msg: 'meet link not found',
+        data: null,
+      });
+
+      await expect(
+        fetchReservationMeetLink({
+          userId: 123,
+          reservationId: 456,
+        })
+      ).rejects.toThrow(FetchApiError);
+
+      try {
+        await fetchReservationMeetLink({
+          userId: 123,
+          reservationId: 456,
+        });
+      } catch (err) {
+        expect(err).toBeInstanceOf(FetchApiError);
+        const apiError = err as FetchApiError;
+        expect(apiError.code).toBe('404');
+        expect(apiError.message).toContain('meet link not found');
+        expect(apiError.path).toBe(
+          '/v1/users/123/reservations/456/google-meet'
+        );
+      }
+    });
+
+    it('should return meet_url successfully if code is 0', async () => {
+      const mockResult = { meet_url: 'https://meet.google.com/xxx-yyyy-zzz' };
+      mockGet.mockResolvedValue({
+        code: '0',
+        msg: 'success',
+        data: mockResult,
+      });
+
+      const res = await fetchReservationMeetLink({
+        userId: 123,
+        reservationId: 456,
+      });
+
+      expect(res).toEqual(mockResult);
     });
   });
 
