@@ -10,6 +10,8 @@ export interface AsyncReadOptions<K, V> {
   cache?: KeyedCache<K, V>;
   ttlMs?: number;
   force?: boolean;
+  initialData?: V;
+  shouldCache?: (value: V) => boolean;
 }
 
 interface Subscription<V> {
@@ -39,6 +41,10 @@ export class AsyncReadManager<K, V> {
     return this.cache?.has(key) ?? false;
   }
 
+  public set(key: K, value: V, ttlMs?: number): void {
+    this.cache?.set(key, value, ttlMs);
+  }
+
   public getInflightCount(): number {
     return this.inflight.size;
   }
@@ -56,12 +62,22 @@ export class AsyncReadManager<K, V> {
 
   public subscribe(
     key: K,
-    fetcher: (signal: AbortSignal) => Promise<V>,
+    fetcher: (signal: AbortSignal, context?: { force?: boolean }) => Promise<V>,
     onUpdate: (result: AsyncReadResult<V>) => void,
     options?: AsyncReadOptions<K, V>
   ): () => void {
-    const cached = this.cache?.get(key);
+    const cachedStatus = this.cache?.getWithStatus(key);
+    const cached = cachedStatus?.value;
+    const isStale = cachedStatus?.isStale ?? false;
     const hasCache = cached !== undefined;
+
+    const hasInitialData = options?.initialData !== undefined;
+    const effectiveData =
+      cached !== undefined
+        ? cached
+        : hasInitialData
+          ? options!.initialData!
+          : null;
 
     const sub: Subscription<V> = { onUpdate, options };
     let set = this.listeners.get(key);
@@ -71,12 +87,18 @@ export class AsyncReadManager<K, V> {
     }
     set.add(sub);
 
-    if (hasCache && !options?.force) {
+    if (hasCache && !options?.force && !isStale) {
       // Synchronous update for cache hit
       onUpdate({ data: cached, isLoading: false, error: null });
     } else {
-      // Inform of loading state
-      onUpdate({ data: cached ?? null, isLoading: true, error: null });
+      // Inform of loading state (only blocking if no cache and no initialData, or if we force a refresh)
+      const shouldShowLoading =
+        (!hasCache && !hasInitialData) || !!options?.force;
+      onUpdate({
+        data: effectiveData,
+        isLoading: shouldShowLoading,
+        error: null,
+      });
 
       let inflightEntry = this.inflight.get(key);
       if (options?.force && inflightEntry) {
@@ -88,14 +110,17 @@ export class AsyncReadManager<K, V> {
 
       if (!inflightEntry) {
         const controller = new AbortController();
-        const promise = Promise.resolve(fetcher(controller.signal))
+        const force = !!options?.force;
+        const promise = Promise.resolve(fetcher(controller.signal, { force }))
           .then(
             (value) => {
               if (controller.signal.aborted) {
                 return value;
               }
               if (this.cache) {
-                this.cache.set(key, value, options?.ttlMs);
+                if (!options?.shouldCache || options.shouldCache(value)) {
+                  this.cache.set(key, value, options?.ttlMs);
+                }
               }
               if (this.inflight.get(key)?.controller === controller) {
                 this.inflight.delete(key);
@@ -125,9 +150,17 @@ export class AsyncReadManager<K, V> {
               }
               const activeListeners = this.listeners.get(key);
               if (activeListeners) {
+                const currentCacheStatus = this.cache?.getWithStatus(key);
+                const fallbackData =
+                  currentCacheStatus !== undefined
+                    ? currentCacheStatus.value
+                    : options?.initialData !== undefined
+                      ? options.initialData
+                      : null;
+
                 activeListeners.forEach((listener) => {
                   listener.onUpdate({
-                    data: this.cache?.get(key) ?? null,
+                    data: fallbackData,
                     isLoading: false,
                     error: err instanceof Error ? err.message : String(err),
                   });

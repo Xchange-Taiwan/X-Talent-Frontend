@@ -42,6 +42,7 @@ vi.mock('@/hooks/user/auth/useResolvedIdentity', () => ({
 
 import {
   authenticatedIdentity,
+  buildResolvedIdentity,
   GUEST_IDENTITY,
   UNKNOWN_IDENTITY,
 } from '@/test/mocks/identity';
@@ -74,12 +75,12 @@ describe('Header', () => {
 
   it('disables the second nav link while resolving a logged-in user, instead of falling back to /auth/signup or /', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    // Hint confirms mentee, but has no userId yet - isResolvingUser stays true.
-    mockUseResolvedIdentity.mockReturnValue({
-      ...GUEST_IDENTITY,
-      isLoggedIn: true,
-      isResolvingUser: true,
-    });
+    // Hint confirms mentee, but has no userId yet - state is hint-only.
+    mockUseResolvedIdentity.mockReturnValue(
+      buildResolvedIdentity({
+        state: 'hint-only',
+      })
+    );
 
     render(<Header />);
 
@@ -177,14 +178,13 @@ describe('Header', () => {
       data: null,
       status: 'loading',
     });
-    mockUseResolvedIdentity.mockReturnValue({
-      ...GUEST_IDENTITY,
-      state: 'hint-only',
-      isLoggedIn: true,
-      isMentor: true,
-      isResolvingUser: true,
-      avatar: 'hint-avatar.png',
-    });
+    mockUseResolvedIdentity.mockReturnValue(
+      buildResolvedIdentity({
+        state: 'hint-only',
+        isMentor: true,
+        avatar: 'hint-avatar.png',
+      })
+    );
 
     render(<Header />);
 
