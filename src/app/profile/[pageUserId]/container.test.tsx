@@ -94,7 +94,29 @@ function identity({
   hasFullUser: boolean;
   userId: string | null;
 }) {
-  return { sessionSettled, hasFullUser, userId };
+  let state: 'unknown' | 'hint-only' | 'confirmed-guest' | 'confirmed-member' =
+    'confirmed-guest';
+  if (!sessionSettled && !hasFullUser && userId) {
+    state = 'hint-only';
+  } else if (!sessionSettled && !hasFullUser && !userId) {
+    state = 'unknown';
+  } else if (sessionSettled && hasFullUser && userId) {
+    state = 'confirmed-member';
+  } else if (sessionSettled && !hasFullUser && !userId) {
+    state = 'confirmed-guest';
+  }
+
+  return {
+    state,
+    sessionSettled,
+    hasFullUser,
+    userId: userId || undefined,
+    avatar: undefined,
+    isMentor: false,
+    isLoggedIn: !!userId,
+    isResolvingUser: !sessionSettled && !!userId,
+    authKnown: sessionSettled || !userId,
+  };
 }
 
 describe('ProfilePageContainer - owner-editor injection gating', () => {
@@ -185,5 +207,46 @@ describe('ProfilePageContainer - owner-editor injection gating', () => {
     renderContainer();
 
     expect(screen.getByTestId('mentor-schedule-dialog')).toBeInTheDocument();
+  });
+
+  it('covers a hinted member who settles to guest and asserts no owner control was ever rendered', () => {
+    // 1st render: Hint-only (hinted member)
+    mockUseIdentity.mockReturnValueOnce(
+      identity({
+        sessionSettled: false,
+        hasFullUser: false,
+        userId: PAGE_USER_ID,
+      })
+    );
+
+    // 2nd render: Settles to guest
+    mockUseIdentity.mockReturnValue(
+      identity({
+        sessionSettled: true,
+        hasFullUser: false,
+        userId: null,
+      })
+    );
+
+    const { rerender } = renderContainer();
+
+    // Verify no editor dialog is rendered initially
+    expect(
+      screen.queryByTestId('mentor-schedule-dialog')
+    ).not.toBeInTheDocument();
+
+    // Re-render to simulate settling to guest
+    rerender(
+      <ProfilePageContainer
+        pageUserId={PAGE_USER_ID}
+        initialDto={initialDto}
+        initialCatalogs={emptyCatalogs}
+      />
+    );
+
+    // Verify no editor dialog is rendered after settling to guest either
+    expect(
+      screen.queryByTestId('mentor-schedule-dialog')
+    ).not.toBeInTheDocument();
   });
 });
