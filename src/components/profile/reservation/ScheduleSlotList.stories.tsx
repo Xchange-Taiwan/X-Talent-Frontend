@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import React from 'react';
 
 import { Button } from '@/components/ui/button';
-import type { BookingSlot } from '@/hooks/useMentorSchedule';
+import type { BookingSlot } from '@/lib/profile/bookingAvailability';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 
 import { mockBookingSlots } from './__mocks__/reservationStories.mock';

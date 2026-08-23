@@ -41,11 +41,20 @@ export function buildResolvedIdentity(
 
   let state: 'unknown' | 'hint-only' | 'confirmed-guest' | 'confirmed-member' =
     'confirmed-guest';
-  if (!base.authKnown) {
+  if (base.state) {
+    state = base.state;
+  } else if (!base.authKnown) {
     state = 'unknown';
-  } else if (base.hasFullUser) {
+  } else if (
+    base.hasFullUser ||
+    (base.isLoggedIn && base.sessionSettled) ||
+    base.userId !== undefined
+  ) {
     state = 'confirmed-member';
-  } else if (!base.sessionSettled && base.isLoggedIn) {
+  } else if (
+    base.isResolvingUser ||
+    (base.isLoggedIn && !base.sessionSettled)
+  ) {
     state = 'hint-only';
   }
 
@@ -79,6 +88,7 @@ export function buildResolvedIdentity(
       base.authKnown = true;
       break;
     case 'confirmed-member':
+      base.userId = base.userId ?? 'mock-user-id';
       base.isLoggedIn = true;
       base.hasFullUser = true;
       base.isResolvingUser = false;
@@ -88,8 +98,8 @@ export function buildResolvedIdentity(
   }
 
   return {
-    state,
     ...base,
+    state,
   } as ResolvedIdentity;
 }
 
