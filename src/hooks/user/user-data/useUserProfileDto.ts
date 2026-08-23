@@ -144,7 +144,7 @@ export function useUserProfileDto(
       return res;
     },
     {
-      initialData: initialDataRef.current ?? undefined,
+      initialData: initialDataRef.current,
     }
   );
 
