@@ -18,7 +18,7 @@ interface Subscription<V> {
 }
 
 interface InflightEntry<V> {
-  promise: Promise<V>;
+  promise: Promise<V | void>;
   controller: AbortController;
 }
 
@@ -88,55 +88,57 @@ export class AsyncReadManager<K, V> {
 
       if (!inflightEntry) {
         const controller = new AbortController();
-        const promise = Promise.resolve(fetcher(controller.signal)).then(
-          (value) => {
-            if (controller.signal.aborted) {
-              return value;
-            }
-            if (this.cache) {
-              this.cache.set(key, value, options?.ttlMs);
-            }
-            if (this.inflight.get(key)?.controller === controller) {
-              this.inflight.delete(key);
-            }
+        const promise = Promise.resolve(fetcher(controller.signal))
+          .then(
+            (value) => {
+              if (controller.signal.aborted) {
+                return value;
+              }
+              if (this.cache) {
+                this.cache.set(key, value, options?.ttlMs);
+              }
+              if (this.inflight.get(key)?.controller === controller) {
+                this.inflight.delete(key);
+              }
 
-            const activeListeners = this.listeners.get(key);
-            if (activeListeners) {
-              activeListeners.forEach((listener) => {
-                listener.onUpdate({
-                  data: value,
-                  isLoading: false,
-                  error: null,
+              const activeListeners = this.listeners.get(key);
+              if (activeListeners) {
+                activeListeners.forEach((listener) => {
+                  listener.onUpdate({
+                    data: value,
+                    isLoading: false,
+                    error: null,
+                  });
                 });
-              });
-            }
-            return value;
-          },
-          (err) => {
-            if (this.inflight.get(key)?.controller === controller) {
-              this.inflight.delete(key);
-            }
-            if (
-              controller.signal.aborted ||
-              (err instanceof Error && err.name === 'AbortError')
-            ) {
+              }
+              return value;
+            },
+            (err) => {
+              if (this.inflight.get(key)?.controller === controller) {
+                this.inflight.delete(key);
+              }
+              if (
+                controller.signal.aborted ||
+                (err instanceof Error && err.name === 'AbortError')
+              ) {
+                throw err;
+              }
+              const activeListeners = this.listeners.get(key);
+              if (activeListeners) {
+                activeListeners.forEach((listener) => {
+                  listener.onUpdate({
+                    data: this.cache?.get(key) ?? null,
+                    isLoading: false,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                });
+              }
               throw err;
             }
-            const activeListeners = this.listeners.get(key);
-            if (activeListeners) {
-              activeListeners.forEach((listener) => {
-                listener.onUpdate({
-                  data: this.cache?.get(key) ?? null,
-                  isLoading: false,
-                  error: err instanceof Error ? err.message : String(err),
-                });
-              });
-            }
-            throw err;
-          }
-        );
-
-        promise.catch(() => {});
+          )
+          .catch(() => {
+            // Swallow handled rejection locally to prevent Unhandled Promise Rejection warnings
+          });
 
         const entry: InflightEntry<V> = { promise, controller };
         inflightEntry = entry;

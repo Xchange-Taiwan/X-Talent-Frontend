@@ -8,23 +8,30 @@ import type {
   AsyncReadResult,
 } from '@/lib/asyncReadManager';
 
+function getInitialResultState<K, V>(
+  key: K | null | undefined,
+  manager: AsyncReadManager<K, V>
+): AsyncReadResult<V> {
+  if (key === null || key === undefined) {
+    return { data: null, isLoading: false, error: null };
+  }
+  const cached = manager.get(key);
+  return {
+    data: cached ?? null,
+    isLoading: cached === undefined,
+    error: null,
+  };
+}
+
 export function useAsyncRead<K, V>(
   manager: AsyncReadManager<K, V>,
   key: K | null | undefined,
   fetcher: (signal: AbortSignal) => Promise<V>,
   options?: AsyncReadOptions<K, V>
 ): AsyncReadResult<V> {
-  const [result, setResult] = useState<AsyncReadResult<V>>(() => {
-    if (key === null || key === undefined) {
-      return { data: null, isLoading: false, error: null };
-    }
-    const cached = manager.get(key);
-    return {
-      data: cached ?? null,
-      isLoading: cached === undefined,
-      error: null,
-    };
-  });
+  const [result, setResult] = useState<AsyncReadResult<V>>(() =>
+    getInitialResultState(key, manager)
+  );
 
   const [prevKey, setPrevKey] = useState<K | null | undefined>(key);
 
@@ -35,16 +42,7 @@ export function useAsyncRead<K, V>(
   // that the correct reference is returned immediately during the active render cycle.
   if (prevKey !== key) {
     setPrevKey(key);
-    if (key === null || key === undefined) {
-      currentResult = { data: null, isLoading: false, error: null };
-    } else {
-      const cached = manager.get(key);
-      currentResult = {
-        data: cached ?? null,
-        isLoading: cached === undefined,
-        error: null,
-      };
-    }
+    currentResult = getInitialResultState(key, manager);
     setResult(currentResult);
   }
 
@@ -59,10 +57,20 @@ export function useAsyncRead<K, V>(
       return;
     }
 
+    // Wrap state update with shallow-equality check (bailout on referential changes)
+    // to prevent redundant and unnecessary re-renders of the component.
     const unsubscribe = manager.subscribe(
       key,
       (signal) => fetcherRef.current(signal),
-      setResult,
+      (newResult) => {
+        setResult((prev) =>
+          prev.data === newResult.data &&
+          prev.isLoading === newResult.isLoading &&
+          prev.error === newResult.error
+            ? prev
+            : newResult
+        );
+      },
       optionsRef.current
     );
     return () => {
