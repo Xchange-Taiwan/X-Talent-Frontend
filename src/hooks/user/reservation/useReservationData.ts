@@ -97,6 +97,13 @@ export interface UseReservationDataReturn {
   refetchOnConflict: (affectedTabs: ListKey[]) => void;
 }
 
+function getReservationCacheKey(
+  userId: string | number | null | undefined,
+  state: string
+): string | null {
+  return userId ? `${userId}_${state}` : null;
+}
+
 export function useReservationData({
   role,
 }: {
@@ -110,10 +117,11 @@ export function useReservationData({
     useState<LoadingMoreStates>(EMPTY_LOADING_MORE);
   const [historyActive, setHistoryActive] = useState(false);
 
-  const upcomingKey = myUserId ? `${myUserId}_${states.upcoming}` : null;
-  const pendingKey = myUserId ? `${myUserId}_${states.pending}` : null;
-  const historyKey =
-    myUserId && historyActive ? `${myUserId}_${states.history}` : null;
+  const upcomingKey = getReservationCacheKey(myUserId, states.upcoming);
+  const pendingKey = getReservationCacheKey(myUserId, states.pending);
+  const historyKey = historyActive
+    ? getReservationCacheKey(myUserId, states.history)
+    : null;
 
   const createReservationFetcher = useCallback(
     (
@@ -242,7 +250,7 @@ export function useReservationData({
         );
 
         filtered.forEach((state, idx) => {
-          const key = `${myUserId}_${state}`;
+          const key = getReservationCacheKey(myUserId, state)!;
           reservationReadManager.set(key, results[idx]);
         });
       } catch (err) {
@@ -263,7 +271,7 @@ export function useReservationData({
   const onMutationSuccess = useCallback(
     (id: string, affectedTabs: ListKey[]) => {
       affectedTabs.forEach((tab) => {
-        const key = myUserId ? `${myUserId}_${states[tab]}` : null;
+        const key = getReservationCacheKey(myUserId, states[tab]);
         if (!key) return;
         const cached = reservationReadManager.get(key);
         if (cached) {
@@ -302,7 +310,7 @@ export function useReservationData({
   const loadMore = useCallback(
     async (tab: ListKey): Promise<void> => {
       if (!myUserId) return;
-      const key = `${myUserId}_${states[tab]}`;
+      const key = getReservationCacheKey(myUserId, states[tab])!;
       const currentData = reservationReadManager.get(key);
       if (!currentData) return;
       const cursor = currentData.next_dtend;
