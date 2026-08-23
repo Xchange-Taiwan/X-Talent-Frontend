@@ -99,7 +99,7 @@ export default function EditProfileContainer({
 
   const { data: session, update: updateSession } = useSession();
 
-  const { isAuthorized } = useProfileAuth(pageUserId);
+  const { isAuthorized, isResolving } = useProfileAuth(pageUserId);
 
   const [jobSectionError, setJobSectionError] = useState(false);
   const [educationSectionError, setEducationSectionError] = useState(false);
@@ -181,6 +181,8 @@ export default function EditProfileContainer({
   // router.push isn't blocked by us. isSaving stays true through the
   // navigation (only reset on failure), so the page unmounts cleanly.
   const unsaved = useUnsavedChangesPrompt(form.formState.isDirty && !isSaving);
+
+  if (isResolving) return <PageLoading />;
 
   if (!isAuthorized) return null;
 

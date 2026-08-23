@@ -27,6 +27,7 @@ import {
   DOM_AUTH_STATE_ATTR,
   SESSION_HINT_COOKIE,
 } from '@/lib/auth/sessionHint';
+import { authenticatedIdentity, GUEST_IDENTITY } from '@/test/mocks/identity';
 import { mockRouter } from '@/test/mocks/navigation';
 import { mockSignOut } from '@/test/mocks/nextAuth';
 
@@ -65,7 +66,11 @@ describe('useAccountMenu', () => {
   describe('derived state', () => {
     it('exposes mentee session state', () => {
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser({ isMentor: false }), closeMenu })
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          user: buildUser({ isMentor: false }),
+          closeMenu,
+        })
       );
 
       expect(result.current.userId).toBe('user-1');
@@ -75,7 +80,11 @@ describe('useAccountMenu', () => {
 
     it('exposes mentor session state', () => {
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser({ isMentor: true }), closeMenu })
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: true }),
+          user: buildUser({ isMentor: true }),
+          closeMenu,
+        })
       );
 
       expect(result.current.isMentor).toBe(true);
@@ -83,7 +92,11 @@ describe('useAccountMenu', () => {
 
     it('falls back profilePath to "/" when there is no userId', () => {
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser({ id: undefined }), closeMenu })
+        useAccountMenu({
+          identity: GUEST_IDENTITY,
+          user: buildUser({ id: undefined }),
+          closeMenu,
+        })
       );
 
       expect(result.current.profilePath).toBe('/');
@@ -92,13 +105,21 @@ describe('useAccountMenu', () => {
     it('reads canDeleteAccount from the feature flag env var', () => {
       process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = 'true';
       const { result: enabled } = renderHook(() =>
-        useAccountMenu({ user: buildUser(), closeMenu })
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          user: buildUser(),
+          closeMenu,
+        })
       );
       expect(enabled.current.canDeleteAccount).toBe(true);
 
       process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = 'false';
       const { result: disabled } = renderHook(() =>
-        useAccountMenu({ user: buildUser(), closeMenu })
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          user: buildUser(),
+          closeMenu,
+        })
       );
       expect(disabled.current.canDeleteAccount).toBe(false);
     });
@@ -106,15 +127,41 @@ describe('useAccountMenu', () => {
     it('reads the avatar through useCurrentAvatar, falling back to an empty string', () => {
       mockUseCurrentAvatar.mockReturnValue('https://example.com/avatar.png');
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser(), closeMenu })
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          user: buildUser(),
+          closeMenu,
+        })
       );
 
       expect(result.current.avatarSrc).toBe('https://example.com/avatar.png');
     });
 
+    it('falls back to identity.avatar when useCurrentAvatar returns null', () => {
+      mockUseCurrentAvatar.mockReturnValue(null);
+      const { result } = renderHook(() =>
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', {
+            isMentor: false,
+            avatar: 'https://example.com/hint-avatar.png',
+          }),
+          user: buildUser(),
+          closeMenu,
+        })
+      );
+
+      expect(result.current.avatarSrc).toBe(
+        'https://example.com/hint-avatar.png'
+      );
+    });
+
     it('defaults personalLinks to an empty array', () => {
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser(), closeMenu })
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          user: buildUser(),
+          closeMenu,
+        })
       );
 
       expect(result.current.personalLinks).toEqual([]);
@@ -129,7 +176,11 @@ describe('useAccountMenu', () => {
       'builds subtitle from jobTitle=%s company=%s -> %s',
       (jobTitle, company, expected) => {
         const { result } = renderHook(() =>
-          useAccountMenu({ user: buildUser({ jobTitle, company }), closeMenu })
+          useAccountMenu({
+            identity: authenticatedIdentity('user-1', { isMentor: false }),
+            user: buildUser({ jobTitle, company }),
+            closeMenu,
+          })
         );
 
         expect(result.current.subtitle).toBe(expected);
@@ -140,7 +191,11 @@ describe('useAccountMenu', () => {
   describe('handleGoProfile', () => {
     it('closes the menu and navigates to the profile path', () => {
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser(), closeMenu })
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          user: buildUser(),
+          closeMenu,
+        })
       );
 
       act(() => {
@@ -155,7 +210,11 @@ describe('useAccountMenu', () => {
   describe('handleShareProfile', () => {
     it('does nothing without a userId', () => {
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser({ id: undefined }), closeMenu })
+        useAccountMenu({
+          identity: GUEST_IDENTITY,
+          user: buildUser({ id: undefined }),
+          closeMenu,
+        })
       );
 
       act(() => {
@@ -168,7 +227,11 @@ describe('useAccountMenu', () => {
 
     it('opens the share dialog without closing the outer menu', () => {
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser(), closeMenu })
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          user: buildUser(),
+          closeMenu,
+        })
       );
 
       act(() => {
@@ -183,7 +246,11 @@ describe('useAccountMenu', () => {
   describe('handleAsMentor', () => {
     it('does nothing without a userId', () => {
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser({ id: undefined }), closeMenu })
+        useAccountMenu({
+          identity: GUEST_IDENTITY,
+          user: buildUser({ id: undefined }),
+          closeMenu,
+        })
       );
 
       act(() => {
@@ -196,7 +263,11 @@ describe('useAccountMenu', () => {
 
     it('routes existing mentors to the mentor reservation management page', () => {
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser({ isMentor: true }), closeMenu })
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: true }),
+          user: buildUser({ isMentor: true }),
+          closeMenu,
+        })
       );
 
       act(() => {
@@ -209,7 +280,11 @@ describe('useAccountMenu', () => {
 
     it('routes mentees into mentor onboarding', () => {
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser({ isMentor: false }), closeMenu })
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          user: buildUser({ isMentor: false }),
+          closeMenu,
+        })
       );
 
       act(() => {
@@ -225,7 +300,11 @@ describe('useAccountMenu', () => {
   describe('handleMyReservation', () => {
     it('closes the menu and navigates to the mentee reservation page', () => {
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser(), closeMenu })
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          user: buildUser(),
+          closeMenu,
+        })
       );
 
       act(() => {
@@ -240,7 +319,11 @@ describe('useAccountMenu', () => {
   describe('handleDeleteAccount', () => {
     it('closes the menu and opens the delete dialog on the next animation frame', () => {
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser(), closeMenu })
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          user: buildUser(),
+          closeMenu,
+        })
       );
 
       act(() => {
@@ -269,7 +352,11 @@ describe('useAccountMenu', () => {
       );
 
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser(), closeMenu })
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          user: buildUser(),
+          closeMenu,
+        })
       );
 
       await act(async () => {
@@ -297,7 +384,11 @@ describe('useAccountMenu', () => {
       mockPostBackendLogout.mockRejectedValue(new Error('network error'));
 
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser(), closeMenu })
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          user: buildUser(),
+          closeMenu,
+        })
       );
 
       await act(async () => {
@@ -312,7 +403,11 @@ describe('useAccountMenu', () => {
   describe('dialog state setters', () => {
     it('allows the shell to directly set shareDialogOpen', () => {
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser(), closeMenu })
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          user: buildUser(),
+          closeMenu,
+        })
       );
 
       act(() => {
@@ -328,7 +423,11 @@ describe('useAccountMenu', () => {
 
     it('allows the shell to directly set deleteDialogOpen', () => {
       const { result } = renderHook(() =>
-        useAccountMenu({ user: buildUser(), closeMenu })
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          user: buildUser(),
+          closeMenu,
+        })
       );
 
       act(() => {
