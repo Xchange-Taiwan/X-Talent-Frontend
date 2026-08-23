@@ -3,11 +3,12 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useIdentity } from '@/hooks/user/auth/useIdentity';
+import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { trackEvent } from '@/lib/analytics';
 
 import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
@@ -21,7 +22,24 @@ import { UserDropdown } from './UserDropdown';
 
 function HeaderComponent(): JSX.Element {
   const { data: session } = useSession();
+  const currentAvatar = useCurrentAvatar();
   const identity = useIdentity(null);
+
+  const virtualUser = useMemo(() => {
+    if (session?.user) {
+      return {
+        ...session.user,
+        avatar: currentAvatar ?? undefined,
+      };
+    }
+    return {
+      id: identity.userId,
+      isMentor: identity.isMentor,
+      avatar: currentAvatar ?? undefined,
+      name: '',
+      email: '',
+    };
+  }, [session?.user, identity.userId, identity.isMentor, currentAvatar]);
 
   // `userId` only ever comes from the real session, never the hint — while
   // isResolvingUser is true these hrefs are unused (the link is disabled).
@@ -115,7 +133,7 @@ function HeaderComponent(): JSX.Element {
                   userId={identity.userId}
                   key={identity.userId ?? 'guest'}
                 />
-                <UserDropdown identity={identity} user={session?.user} />
+                <UserDropdown identity={identity} user={virtualUser} />
               </>
             )}
           </div>
@@ -135,7 +153,7 @@ function HeaderComponent(): JSX.Element {
                   userId={identity.userId}
                   key={identity.userId ?? 'guest'}
                 />
-                <MobileUserMenu identity={identity} user={session?.user} />
+                <MobileUserMenu identity={identity} user={virtualUser} />
               </>
             )}
             <HamburgerMenu identity={identity} />
