@@ -123,6 +123,8 @@ export function useUserProfileDto(
     }
   }, [key]);
 
+  const isManualRefetchRef = useRef(false);
+
   const {
     data: userDto,
     isLoading,
@@ -133,7 +135,14 @@ export function useUserProfileDto(
     key,
     async (signal) => {
       const res = await fetchUserById(userId, language, signal);
+      const isManualRefetch = isManualRefetchRef.current;
+      isManualRefetchRef.current = false;
+
       if (res === null && key) {
+        if (isManualRefetch) {
+          userProfileDtoCache.delete(key);
+          return null;
+        }
         // If it's a background revalidation (meaning we already have stale data),
         // we keep the stale data as per "background revalidation returning null keeps stale data"
         const existing = userProfileDtoCache.get(key);
@@ -149,11 +158,9 @@ export function useUserProfileDto(
   );
 
   const refetch = useCallback(() => {
-    if (key) {
-      userProfileDtoCache.delete(key);
-    }
+    isManualRefetchRef.current = true;
     originalRefetch();
-  }, [key, originalRefetch]);
+  }, [originalRefetch]);
 
   // Map errors and handle "USER_NOT_FOUND" distinction
   let resolvedError: ProfileFetchError = null;
