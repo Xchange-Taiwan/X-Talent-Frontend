@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   authenticatedIdentity,
+  buildResolvedIdentity,
   GUEST_IDENTITY,
   UNKNOWN_IDENTITY,
 } from '@/test/mocks/identity';
@@ -13,17 +14,9 @@ describe('GuestActionButtons', () => {
   it('returns null and does not render when state is hint-only or confirmed-member', () => {
     const { container: container1 } = render(
       <GuestActionButtons
-        identity={{
+        identity={buildResolvedIdentity({
           state: 'hint-only',
-          userId: undefined,
-          avatar: undefined,
-          isMentor: false,
-          isLoggedIn: true,
-          hasFullUser: false,
-          isResolvingUser: true,
-          authKnown: true,
-          sessionSettled: false,
-        }}
+        })}
       />
     );
     expect(container1).toBeEmptyDOMElement();

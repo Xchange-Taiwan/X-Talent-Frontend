@@ -108,14 +108,9 @@ function identity({
 
   return {
     state,
-    sessionSettled,
-    hasFullUser,
     userId: userId || undefined,
     avatar: undefined,
     isMentor: false,
-    isLoggedIn: !!userId,
-    isResolvingUser: !sessionSettled && !!userId,
-    authKnown: sessionSettled || !userId,
   };
 }
 

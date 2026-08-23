@@ -51,16 +51,12 @@ export function splitCatalogsByBucket(
 }
 
 export async function fetchTagCatalog(
-  language: string
+  language: string,
+  signal?: AbortSignal
 ): Promise<TagCatalogsByBucket> {
-  try {
-    const data = await apiClient.getUnwrapped<TagCatalogsVO>(
-      `/v1/users/${language}/tags/catalog`,
-      { auth: false }
-    );
-    return splitCatalogsByBucket(data);
-  } catch (error) {
-    console.error('獲取 tag catalog 失敗:', error);
-    return EMPTY_TAG_CATALOGS;
-  }
+  const data = await apiClient.getUnwrapped<TagCatalogsVO>(
+    `/v1/users/${language}/tags/catalog`,
+    { auth: false, signal }
+  );
+  return splitCatalogsByBucket(data);
 }

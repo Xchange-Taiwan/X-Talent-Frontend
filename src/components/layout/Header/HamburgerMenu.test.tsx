@@ -53,4 +53,56 @@ describe('HamburgerMenu', () => {
     );
     expect(container).toBeEmptyDOMElement();
   });
+
+  it('does not render login/signup buttons when state is hint-only', () => {
+    render(
+      <HamburgerMenu
+        identity={{
+          state: 'hint-only',
+          userId: undefined,
+          avatar: undefined,
+          isMentor: false,
+        }}
+      />
+    );
+    expect(
+      screen.queryByRole('link', { name: '登入' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: '註冊' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not render the menu at all (returns null) when state is hint-only', () => {
+    const { container } = render(
+      <HamburgerMenu
+        identity={{
+          state: 'hint-only',
+          userId: undefined,
+          avatar: undefined,
+          isMentor: false,
+        }}
+      />
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('does not render login/signup buttons when state is confirmed-member', () => {
+    render(
+      <HamburgerMenu
+        identity={{
+          state: 'confirmed-member',
+          userId: 'user-123',
+          avatar: undefined,
+          isMentor: false,
+        }}
+      />
+    );
+    expect(
+      screen.queryByRole('link', { name: '登入' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: '註冊' })
+    ).not.toBeInTheDocument();
+  });
 });

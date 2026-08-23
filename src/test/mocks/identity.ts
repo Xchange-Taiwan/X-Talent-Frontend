@@ -5,11 +5,6 @@ export interface FlatIdentity {
   userId?: string;
   avatar?: string;
   isMentor?: boolean;
-  isLoggedIn?: boolean;
-  hasFullUser?: boolean;
-  isResolvingUser?: boolean;
-  authKnown?: boolean;
-  sessionSettled?: boolean;
 }
 
 /**
@@ -22,91 +17,45 @@ export interface FlatIdentity {
 export function buildResolvedIdentity(
   overrides: FlatIdentity = {}
 ): ResolvedIdentity {
-  const base = {
-    authKnown: true,
-    isLoggedIn: false,
-    isMentor: false,
-    userId: undefined,
-    hasFullUser: false,
-    isResolvingUser: false,
-    avatar: undefined,
-    sessionSettled: true,
-    ...overrides,
-  };
+  const state =
+    overrides.state ??
+    (overrides.userId !== undefined ? 'confirmed-member' : 'confirmed-guest');
 
-  // If isResolvingUser is true, then sessionSettled must be false in our state machine invariants
-  if (base.isResolvingUser) {
-    base.sessionSettled = false;
-  }
-
-  let state: 'unknown' | 'hint-only' | 'confirmed-guest' | 'confirmed-member' =
-    'confirmed-guest';
-  if (base.state) {
-    state = base.state;
-  } else if (!base.authKnown) {
-    state = 'unknown';
-  } else if (
-    base.hasFullUser ||
-    (base.isLoggedIn && base.sessionSettled) ||
-    base.userId !== undefined
-  ) {
-    state = 'confirmed-member';
-  } else if (
-    base.isResolvingUser ||
-    (base.isLoggedIn && !base.sessionSettled)
-  ) {
-    state = 'hint-only';
-  }
-
-  // Force align fields to be strictly compliant with the state's discriminated union definition
   switch (state) {
     case 'unknown':
-      base.userId = undefined;
-      base.avatar = undefined;
-      base.isMentor = false;
-      base.isLoggedIn = false;
-      base.hasFullUser = false;
-      base.isResolvingUser = false;
-      base.authKnown = false;
-      base.sessionSettled = false;
-      break;
+      return {
+        state: 'unknown',
+        userId: undefined,
+        avatar: undefined,
+        isMentor: false,
+      };
     case 'hint-only':
-      base.userId = undefined;
-      base.hasFullUser = false;
-      base.isResolvingUser = true;
-      base.isLoggedIn = true;
-      base.authKnown = true;
-      base.sessionSettled = false;
-      break;
+      return {
+        state: 'hint-only',
+        userId: undefined,
+        avatar: overrides.avatar ?? undefined,
+        isMentor: overrides.isMentor ?? false,
+      };
     case 'confirmed-guest':
-      base.userId = undefined;
-      base.avatar = undefined;
-      base.isMentor = false;
-      base.isLoggedIn = false;
-      base.hasFullUser = false;
-      base.isResolvingUser = false;
-      base.authKnown = true;
-      break;
+      return {
+        state: 'confirmed-guest',
+        userId: undefined,
+        avatar: undefined,
+        isMentor: false,
+      };
     case 'confirmed-member':
-      base.userId = base.userId ?? 'mock-user-id';
-      base.isLoggedIn = true;
-      base.hasFullUser = true;
-      base.isResolvingUser = false;
-      base.authKnown = true;
-      base.sessionSettled = true;
-      break;
+      return {
+        state: 'confirmed-member',
+        userId: overrides.userId ?? 'mock-user-id',
+        avatar: overrides.avatar ?? undefined,
+        isMentor: overrides.isMentor ?? false,
+      };
   }
-
-  return {
-    ...base,
-    state,
-  } as ResolvedIdentity;
 }
 
 /** Neither the session nor the cookie hint has resolved yet. */
 export const UNKNOWN_IDENTITY: ResolvedIdentity = buildResolvedIdentity({
-  authKnown: false,
-  sessionSettled: false,
+  state: 'unknown',
 });
 
 /** Confirmed not logged in. */
@@ -118,8 +67,7 @@ export function authenticatedIdentity(
   overrides: FlatIdentity = {}
 ): ResolvedIdentity {
   return buildResolvedIdentity({
-    isLoggedIn: true,
-    hasFullUser: true,
+    state: 'confirmed-member',
     userId,
     ...overrides,
   });
