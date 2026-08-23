@@ -12,7 +12,7 @@ export async function resetPassword(email: string): Promise<AuthResponse> {
     return { status: 'success', code: 200 };
   } catch (error) {
     if (error instanceof FetchApiError) {
-      throw createGeneralErrorResponse(200, error.msg);
+      throw createGeneralErrorResponse(200, error.msg || '信件寄送失敗');
     }
     if ((error as AuthResponse)?.status === 'error') throw error;
     throw createGeneralErrorResponse(

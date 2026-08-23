@@ -2,20 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resetPassword } from '@/services/auth/resetPasswordByEmail';
 
-vi.mock('@/lib/apiClient', () => ({
-  apiClient: {
-    getUnwrapped: vi.fn(),
-  },
-  FetchApiError: class FetchApiError extends Error {
-    constructor(
-      public readonly code: string,
-      public readonly msg: string,
-      public readonly path: string
-    ) {
-      super(msg);
-    }
-  },
-}));
+vi.mock('@/lib/apiClient', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/apiClient')>();
+  return {
+    ...actual,
+    apiClient: {
+      ...actual.apiClient,
+      getUnwrapped: vi.fn(),
+    },
+  };
+});
 
 import { apiClient, FetchApiError } from '@/lib/apiClient';
 

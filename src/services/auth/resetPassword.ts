@@ -17,7 +17,7 @@ export async function resetPassword(
     return { status: 'success', code: 200 };
   } catch (error) {
     if (error instanceof FetchApiError) {
-      throw createGeneralErrorResponse(200, error.msg);
+      throw createGeneralErrorResponse(200, error.msg || '密碼重設失敗');
     }
     if ((error as AuthResponse)?.status === 'error') throw error;
     throw createGeneralErrorResponse(

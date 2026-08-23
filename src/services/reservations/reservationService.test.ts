@@ -1,22 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/apiClient', () => ({
-  apiClient: {
-    getUnwrapped: vi.fn(),
-    putUnwrapped: vi.fn(),
-    postUnwrapped: vi.fn(),
-  },
-  FetchApiError: class FetchApiError extends Error {
-    constructor(
-      public readonly code: string,
-      message: string,
-      public readonly path: string
-    ) {
-      super(`fetch ${path} API error (${code}): ${message}`);
-      this.name = 'FetchApiError';
-    }
-  },
-}));
+vi.mock('@/lib/apiClient', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/apiClient')>();
+  return {
+    ...actual,
+    apiClient: {
+      ...actual.apiClient,
+      getUnwrapped: vi.fn(),
+      putUnwrapped: vi.fn(),
+      postUnwrapped: vi.fn(),
+    },
+  };
+});
 
 vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),

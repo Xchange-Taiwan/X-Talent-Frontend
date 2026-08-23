@@ -35,7 +35,7 @@ export async function signUp(
     }
 
     if (error instanceof FetchApiError) {
-      throw createGeneralErrorResponse(200, error.msg);
+      throw createGeneralErrorResponse(200, error.msg || '註冊失敗');
     }
 
     if (error instanceof Error || (error as AuthResponse)?.status === 'error') {
