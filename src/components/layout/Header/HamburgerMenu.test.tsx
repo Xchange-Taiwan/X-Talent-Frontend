@@ -53,4 +53,18 @@ describe('HamburgerMenu', () => {
     );
     expect(container).toBeEmptyDOMElement();
   });
+
+  it('returns null and does not render when state is hint-only', () => {
+    const { container } = render(
+      <HamburgerMenu
+        identity={{
+          state: 'hint-only',
+          userId: undefined,
+          avatar: undefined,
+          isMentor: false,
+        }}
+      />
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
 });
