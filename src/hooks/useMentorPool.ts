@@ -196,15 +196,15 @@ export function useMentorPool({
 
   if (
     filterKey !== prevSyncInputs.filterKey ||
-    fetchedData !== prevSyncInputs.fetchedData ||
+    (fetchedData ?? null) !== prevSyncInputs.fetchedData ||
     isFilterLoading !== prevSyncInputs.isFilterLoading ||
-    filterError !== prevSyncInputs.filterError
+    (filterError ?? null) !== prevSyncInputs.filterError
   ) {
     setPrevSyncInputs({
       filterKey,
       fetchedData: fetchedData ?? null,
       isFilterLoading,
-      filterError,
+      filterError: filterError ?? null,
     });
 
     if (filterKey === null) {
