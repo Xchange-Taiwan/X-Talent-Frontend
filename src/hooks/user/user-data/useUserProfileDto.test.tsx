@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fetchUserById } from '@/services/profile/user';
@@ -241,5 +241,33 @@ describe('useUserProfileDto', () => {
       expect(result.current.error).toBe('USER_NOT_FOUND');
       expect(fetchUserById).not.toHaveBeenCalled();
     });
+  });
+
+  it('clears cache and sets error to USER_NOT_FOUND if API returns null during manual refetch', async () => {
+    vi.mocked(fetchUserById).mockResolvedValueOnce(mockUserDTO);
+
+    // Initial fetch to populate cache
+    const { result, unmount } = renderHook(() =>
+      useUserProfileDto(20, 'zh-TW')
+    );
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    expect(result.current.userDto).toEqual(mockUserDTO);
+
+    // Manual refetch returns null (user deleted)
+    vi.mocked(fetchUserById).mockResolvedValueOnce(null);
+
+    act(() => {
+      result.current.refetch?.();
+    });
+
+    await vi.waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.userDto).toBeNull();
+    expect(result.current.error).toBe('USER_NOT_FOUND');
+    unmount();
   });
 });

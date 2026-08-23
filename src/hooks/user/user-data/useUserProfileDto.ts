@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { AsyncReadManager } from '@/lib/asyncReadManager';
@@ -127,7 +127,7 @@ export function useUserProfileDto(
     data: userDto,
     isLoading,
     error,
-    refetch,
+    refetch: originalRefetch,
   } = useAsyncRead(
     userProfileDtoReadManager,
     key,
@@ -147,6 +147,13 @@ export function useUserProfileDto(
       initialData: initialDataRef.current,
     }
   );
+
+  const refetch = useCallback(() => {
+    if (key) {
+      userProfileDtoCache.delete(key);
+    }
+    originalRefetch();
+  }, [key, originalRefetch]);
 
   // Map errors and handle "USER_NOT_FOUND" distinction
   let resolvedError: ProfileFetchError = null;
