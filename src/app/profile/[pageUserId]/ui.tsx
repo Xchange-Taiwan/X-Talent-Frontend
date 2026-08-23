@@ -233,7 +233,7 @@ export default function ProfilePageUI({
                   </>
                 )}
 
-                {!userData.is_mentor && (
+                {userData.is_mentor === false && (
                   <>
                     <ProfileBadgeSection
                       title="有興趣多了解的職位"
