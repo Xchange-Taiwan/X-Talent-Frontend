@@ -53,7 +53,7 @@ describe('usePasswordResetForm', () => {
 
   it('URL has token + resetPassword resolves → router.push to success page', async () => {
     mockSearchParams.get.mockReturnValue('valid-token');
-    mockResetPassword.mockResolvedValueOnce({ status: 'success', code: 200 });
+    mockResetPassword.mockResolvedValueOnce(undefined);
 
     const { result } = renderHook(() => usePasswordResetForm());
 
@@ -77,11 +77,7 @@ describe('usePasswordResetForm', () => {
 
   it('URL has token + resetPassword throws → toast shows 密碼重設失敗 with error message', async () => {
     mockSearchParams.get.mockReturnValue('valid-token');
-    mockResetPassword.mockRejectedValueOnce({
-      status: 'error',
-      code: 400,
-      message: '密碼格式錯誤',
-    });
+    mockResetPassword.mockRejectedValueOnce(new Error('密碼格式錯誤'));
 
     const { result } = renderHook(() => usePasswordResetForm());
 

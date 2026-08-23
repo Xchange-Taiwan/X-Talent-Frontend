@@ -11,7 +11,7 @@ export const ProfileBanner: FC<ProfileBannerProps> = ({
 }) => {
   return (
     <div
-      className={`relative h-[111px] bg-gradient-to-br from-blue-active to-pink-active sm:h-[100px] ${className || ''}`}
+      className={`from-blue-active to-pink-active relative h-[111px] bg-gradient-to-br sm:h-[100px] ${className || ''}`}
     >
       {children}
     </div>

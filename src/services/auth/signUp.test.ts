@@ -13,7 +13,7 @@ vi.mock('@/lib/apiClient', async (importActual) => {
   };
 });
 
-import { apiClient, FetchApiError } from '@/lib/apiClient';
+import { apiClient } from '@/lib/apiClient';
 
 const validValues = {
   email: 'test@example.com',
@@ -27,68 +27,16 @@ describe('signUp', () => {
     vi.clearAllMocks();
   });
 
-  it('apiClient.postUnwrapped resolves successfully → returns createSignUpSuccessResponse()', async () => {
+  it('apiClient.postUnwrapped resolves successfully → returns successfully', async () => {
     vi.mocked(apiClient.postUnwrapped).mockResolvedValue(null);
 
-    const result = await signUp(validValues);
-
-    expect(result).toEqual({ status: 'success', code: 0, httpStatus: 201 });
+    await expect(signUp(validValues)).resolves.toBeUndefined();
   });
 
-  it('apiClient.postUnwrapped throws FetchApiError → throws createGeneralErrorResponse(200, message)', async () => {
-    vi.mocked(apiClient.postUnwrapped).mockRejectedValue(
-      new FetchApiError('ERR', '註冊失敗', '')
-    );
+  it('apiClient.postUnwrapped throws ApiError → propagates the error', async () => {
+    const apiError = new ApiError(400, 'Bad Request');
+    vi.mocked(apiClient.postUnwrapped).mockRejectedValue(apiError);
 
-    await expect(signUp(validValues)).rejects.toMatchObject({
-      status: 'error',
-      code: 200,
-      message: '註冊失敗',
-    });
-  });
-
-  it('apiClient.postUnwrapped throws ApiError with status 422 → throws createValidationErrorResponse()', async () => {
-    vi.mocked(apiClient.postUnwrapped).mockRejectedValue(
-      new ApiError(422, 'Unprocessable Entity')
-    );
-
-    await expect(signUp(validValues)).rejects.toMatchObject({
-      status: 'error',
-      code: 422,
-    });
-  });
-
-  it('apiClient.postUnwrapped throws ApiError with status 406 → throws createEmailAlreadyRegisteredResponse()', async () => {
-    vi.mocked(apiClient.postUnwrapped).mockRejectedValue(
-      new ApiError(406, 'Not Acceptable')
-    );
-
-    await expect(signUp(validValues)).rejects.toMatchObject({
-      status: 'error',
-      code: 406,
-    });
-  });
-
-  it('apiClient.postUnwrapped throws ApiError with status 429 → throws createRateLimitResponse()', async () => {
-    vi.mocked(apiClient.postUnwrapped).mockRejectedValue(
-      new ApiError(429, 'Too Many Requests')
-    );
-
-    await expect(signUp(validValues)).rejects.toMatchObject({
-      status: 'error',
-      code: 429,
-    });
-  });
-
-  it('apiClient.postUnwrapped throws ApiError with other status → throws createGeneralErrorResponse(status, message)', async () => {
-    vi.mocked(apiClient.postUnwrapped).mockRejectedValue(
-      new ApiError(500, 'Internal Server Error')
-    );
-
-    await expect(signUp(validValues)).rejects.toMatchObject({
-      status: 'error',
-      code: 500,
-      message: 'Internal Server Error',
-    });
+    await expect(signUp(validValues)).rejects.toThrow(apiError);
   });
 });

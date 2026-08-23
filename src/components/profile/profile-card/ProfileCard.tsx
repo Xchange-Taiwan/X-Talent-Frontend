@@ -15,7 +15,7 @@ const Tag: FC<{ displayText: string }> = ({ displayText }) => {
   if (!displayText) return null;
 
   return (
-    <div className="rounded-xl border border-background-border px-4 py-2">
+    <div className="border-background-border rounded-xl border px-4 py-2">
       {displayText}
     </div>
   );
@@ -84,7 +84,7 @@ export const ProfileCard: FC<Props> = ({
         />
       </ProfileBanner>
 
-      <div className="flex flex-col gap-10 bg-background-white px-4 pt-[165px] pb-10 sm:px-10 sm:pt-[132px]">
+      <div className="bg-background-white flex flex-col gap-10 px-4 pt-[165px] pb-10 sm:px-10 sm:pt-[132px]">
         {renderTagList('有興趣多了解的職位', interestedRole, 'interestedRole')}
         {renderTagList('想多了解、加強的技能', skillEnhancementTarget, 'skill')}
         {renderTagList('想多了解的主題', talkTopic, 'topic')}

@@ -76,7 +76,7 @@ export function ReservationCard({
               href={profileHref}
               aria-label={profileAriaLabel}
               onClick={onProfileClick}
-              className="shrink-0 rounded-full focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+              className="focus-visible:ring-brand-500 shrink-0 rounded-full focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
             >
               {avatar}
             </Link>
@@ -92,12 +92,12 @@ export function ReservationCard({
                   href={profileHref}
                   aria-label={profileAriaLabel}
                   onClick={onProfileClick}
-                  className="group min-w-0 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  className="group focus-visible:ring-brand-500 min-w-0 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
                 >
                   <div className="truncate text-sm font-medium group-hover:underline sm:text-base">
                     {item.name}
                   </div>
-                  <div className="truncate text-xs text-text-tertiary sm:text-sm">
+                  <div className="text-text-tertiary truncate text-xs sm:text-sm">
                     {item.roleLine}
                   </div>
                 </Link>
@@ -106,7 +106,7 @@ export function ReservationCard({
                   <div className="truncate text-sm font-medium sm:text-base">
                     {item.name}
                   </div>
-                  <div className="truncate text-xs text-text-tertiary sm:text-sm">
+                  <div className="text-text-tertiary truncate text-xs sm:text-sm">
                     {item.roleLine}
                   </div>
                 </div>
@@ -115,10 +115,10 @@ export function ReservationCard({
             </div>
 
             {/* Divider only on >=sm to match Figma feel */}
-            <div className="my-3 hidden h-px bg-background-border sm:block" />
+            <div className="bg-background-border my-3 hidden h-px sm:block" />
 
             {/* Date & time row */}
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-text-tertiary sm:mt-0 sm:text-sm">
+            <div className="text-text-tertiary mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs sm:mt-0 sm:text-sm">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <div className="flex items-center gap-1.5">
                   <CalendarDays className="size-4" aria-hidden />
@@ -158,7 +158,7 @@ export function ReservationCard({
 
             {isUpcoming ? (
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-1.5 text-11 text-text-tertiary sm:text-xs">
+                <div className="text-11 text-text-tertiary flex items-center gap-1.5 sm:text-xs">
                   <Mail className="size-3.5 shrink-0" aria-hidden />
                   <span>會議連結已寄至您的信箱</span>
                 </div>
@@ -186,7 +186,7 @@ function JoinMeetButton({
       onClick={() => joinMeet(reservationId)}
       disabled={isPending}
       size="sm"
-      className="h-8 rounded-lg bg-brand-500 px-4 text-xs font-medium text-text-primary hover:bg-brand-500/90 sm:text-sm"
+      className="bg-brand-500 text-text-primary hover:bg-brand-500/90 h-8 rounded-lg px-4 text-xs font-medium sm:text-sm"
     >
       {isPending ? '載入中...' : '加入 Google Meet'}
     </Button>
@@ -195,16 +195,16 @@ function JoinMeetButton({
 
 function MessageBlock({ label, content }: { label: string; content: string }) {
   return (
-    <div className="flex items-start gap-2 rounded-lg bg-background-bottom/40 p-2.5 text-xs sm:text-sm">
+    <div className="bg-background-bottom/40 flex items-start gap-2 rounded-lg p-2.5 text-xs sm:text-sm">
       <MessageSquare
-        className="mt-0.5 size-3.5 shrink-0 text-text-tertiary sm:size-4"
+        className="text-text-tertiary mt-0.5 size-3.5 shrink-0 sm:size-4"
         aria-hidden
       />
       <div className="min-w-0 flex-1">
-        <div className="text-11 font-medium text-text-tertiary sm:text-xs">
+        <div className="text-11 text-text-tertiary font-medium sm:text-xs">
           {label}
         </div>
-        <p className="mt-0.5 line-clamp-2 break-words whitespace-pre-wrap text-text-primary">
+        <p className="text-text-primary mt-0.5 line-clamp-2 break-words whitespace-pre-wrap">
           {content}
         </p>
       </div>

@@ -24,16 +24,16 @@ const FilterSelectDemo = ({
 }) => {
   const [value, setValue] = useState(initialValue);
   return (
-    <div className="w-[300px] rounded-lg border border-background-border bg-background-white p-4">
+    <div className="border-background-border bg-background-white w-[300px] rounded-lg border p-4">
       <FilterSelect
         name={name}
         value={value}
         options={options}
         onChange={setValue}
       />
-      <div className="mt-4 text-xs text-text-tertiary">
+      <div className="text-text-tertiary mt-4 text-xs">
         當前選取值:{' '}
-        <span className="rounded bg-background-bottom-secondary px-1 py-0.5 font-mono">
+        <span className="bg-background-bottom-secondary rounded px-1 py-0.5 font-mono">
           {value || '無'}
         </span>
       </div>

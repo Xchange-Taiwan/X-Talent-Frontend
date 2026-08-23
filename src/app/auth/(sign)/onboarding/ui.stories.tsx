@@ -140,18 +140,18 @@ function OnboardingUIWizardDemo() {
   if (completed) {
     return (
       <div className="mx-auto max-w-[600px] px-5 py-20 text-center">
-        <h2 className="mb-4 text-3xl font-bold text-status-success-default">
+        <h2 className="text-status-success-default mb-4 text-3xl font-bold">
           🎉 註冊導引完成！
         </h2>
-        <p className="mb-6 text-text-secondary">
+        <p className="text-text-secondary mb-6">
           您已成功填寫所有步驟的註冊導引資訊。
         </p>
-        <div className="mb-6 max-h-[300px] overflow-auto rounded-lg border border-border bg-background-bottom-secondary p-4 text-left font-mono text-sm">
+        <div className="border-border bg-background-bottom-secondary mb-6 max-h-[300px] overflow-auto rounded-lg border p-4 text-left font-mono text-sm">
           <pre>{JSON.stringify(submittedData, null, 2)}</pre>
         </div>
         <button
           onClick={resetAll}
-          className="rounded-lg bg-brand-500 px-6 py-2.5 font-semibold text-text-white hover:bg-brand-600 focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:outline-none"
+          className="bg-brand-500 text-text-white hover:bg-brand-600 focus:ring-brand-500 rounded-lg px-6 py-2.5 font-semibold focus:ring-2 focus:ring-offset-2 focus:outline-none"
         >
           重新開始
         </button>

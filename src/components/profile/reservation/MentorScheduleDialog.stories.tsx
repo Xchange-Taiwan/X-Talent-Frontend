@@ -120,7 +120,7 @@ const DialogWrapper = ({ schedule }: DialogWrapperProps) => {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="rounded bg-brand-500 px-4 py-2 font-medium text-text-white transition-colors hover:bg-brand-600"
+        className="bg-brand-500 text-text-white hover:bg-brand-600 rounded px-4 py-2 font-medium transition-colors"
       >
         開啟預約設定 (Open Dialog)
       </button>

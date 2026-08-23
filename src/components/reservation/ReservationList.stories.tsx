@@ -12,7 +12,7 @@ const meta: Meta<typeof ReservationList> = {
   tags: ['autodocs'],
   decorators: [
     (Story) => (
-      <div className="mx-auto max-w-[800px] bg-background-white p-4">
+      <div className="bg-background-white mx-auto max-w-[800px] p-4">
         <Story />
       </div>
     ),

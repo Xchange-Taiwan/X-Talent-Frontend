@@ -43,7 +43,7 @@ const renderSharedItem = (
       disabled={disabled}
       onCheckedChange={onToggle}
     />
-    <span className="text-base text-text-primary">{opt.label}</span>
+    <span className="text-text-primary text-base">{opt.label}</span>
   </label>
 );
 
@@ -70,7 +70,7 @@ const GroupedSelectionsInteractive = ({
         layoutClass="grid grid-cols-1 gap-4 sm:grid-cols-2"
         renderItem={renderSharedItem}
       />
-      <div className="mt-4 border-t pt-4 text-sm text-text-tertiary">
+      <div className="text-text-tertiary mt-4 border-t pt-4 text-sm">
         <strong>當前狀態：</strong>已選取 {value.length} 個項目 (
         {value
           .map(

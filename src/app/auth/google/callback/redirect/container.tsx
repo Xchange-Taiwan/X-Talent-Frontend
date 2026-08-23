@@ -9,7 +9,7 @@ export default function GoogleOAuthRedirectPage() {
   return (
     <div className="flex h-[50vh] w-full flex-col items-center justify-center gap-3">
       <LoadingSpinner size="lg" />
-      <p className="text-sm text-text-tertiary">
+      <p className="text-text-tertiary text-sm">
         {loading ? 'Signing you in with Google...' : 'Redirecting...'}
       </p>
     </div>

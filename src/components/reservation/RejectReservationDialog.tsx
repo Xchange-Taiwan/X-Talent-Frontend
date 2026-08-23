@@ -103,7 +103,7 @@ export default function RejectReservationDialog({
 
             <Button
               type="button"
-              className="w-full bg-status-error-default text-text-white hover:bg-status-error-active sm:w-auto"
+              className="bg-status-error-default text-text-white hover:bg-status-error-active w-full sm:w-auto"
               disabled={!canSubmit || disabled}
               onClick={handleReject}
             >

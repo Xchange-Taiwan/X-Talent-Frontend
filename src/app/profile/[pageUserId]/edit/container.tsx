@@ -50,7 +50,7 @@ const JobExperienceSection = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-40 w-full animate-pulse rounded bg-muted" />
+      <div className="bg-muted h-40 w-full animate-pulse rounded" />
     ),
   }
 );
@@ -64,7 +64,7 @@ const EducationSection = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-40 w-full animate-pulse rounded bg-muted" />
+      <div className="bg-muted h-40 w-full animate-pulse rounded" />
     ),
   }
 );
@@ -77,7 +77,7 @@ const LinksSection = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-32 w-full animate-pulse rounded bg-muted" />
+      <div className="bg-muted h-32 w-full animate-pulse rounded" />
     ),
   }
 );
@@ -189,7 +189,7 @@ export default function EditProfileContainer({
   if (isError) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center space-y-4">
-        <p className="text-lg font-medium text-status-error-default">
+        <p className="text-status-error-default text-lg font-medium">
           載入失敗，請稍後再試。
         </p>
         <Button onClick={() => window.location.reload()} variant="outline">

@@ -15,10 +15,10 @@ const Slider = React.forwardRef<
     )}
     {...props}
   >
-    <SliderPrimitive.Track className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-background-border">
-      <SliderPrimitive.Range className="absolute h-full bg-brand-500" />
+    <SliderPrimitive.Track className="bg-background-border relative h-1.5 w-full grow overflow-hidden rounded-full">
+      <SliderPrimitive.Range className="bg-brand-500 absolute h-full" />
     </SliderPrimitive.Track>
-    <SliderPrimitive.Thumb className="block size-5 cursor-pointer rounded-full border-2 border-brand-500 bg-background-white ring-offset-background-white transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50" />
+    <SliderPrimitive.Thumb className="border-brand-500 bg-background-white ring-offset-background-white focus-visible:ring-brand-500 block size-5 cursor-pointer rounded-full border-2 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50" />
   </SliderPrimitive.Root>
 ));
 Slider.displayName = SliderPrimitive.Root.displayName;

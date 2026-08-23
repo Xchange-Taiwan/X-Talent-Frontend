@@ -107,7 +107,7 @@ const NotificationList = React.memo(function NotificationList({
       onMouseLeave={onMouseLeave}
       className="flex max-h-[360px] [scrollbar-width:none] flex-col overflow-y-auto [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
     >
-      <div className="flex flex-col divide-y divide-background-border">
+      <div className="divide-background-border flex flex-col divide-y">
         {notifications.map((item) => {
           const { title, body } = getNotificationContent(item);
           const href = getNotificationHref(item);
@@ -119,12 +119,12 @@ const NotificationList = React.memo(function NotificationList({
                 onItemClick(item.id);
                 onNavigate();
               }}
-              className="flex items-start gap-2.5 px-5 py-3 transition-colors hover:no-underline [@media(hover:hover)]:hover:bg-background-hover"
+              className="[@media(hover:hover)]:hover:bg-background-hover flex items-start gap-2.5 px-5 py-3 transition-colors hover:no-underline"
             >
               <span className="mt-1.5 flex size-4 shrink-0 items-center justify-center">
                 {item.unread && (
                   <span
-                    className="size-2 rounded-full bg-brand-500"
+                    className="bg-brand-500 size-2 rounded-full"
                     aria-hidden="true"
                   />
                 )}
@@ -134,16 +134,16 @@ const NotificationList = React.memo(function NotificationList({
                   className={cn(
                     'mb-1 text-sm leading-tight break-words',
                     item.unread
-                      ? 'font-bold text-text-primary'
-                      : 'font-normal text-text-secondary'
+                      ? 'text-text-primary font-bold'
+                      : 'text-text-secondary font-normal'
                   )}
                 >
                   {title}
                 </p>
-                <p className="mb-1.5 text-xs leading-normal break-words text-text-secondary">
+                <p className="text-text-secondary mb-1.5 text-xs leading-normal break-words">
                   {body}
                 </p>
-                <span className="text-11 leading-none text-text-tertiary">
+                <span className="text-11 text-text-tertiary leading-none">
                   {formatRelativeTime(item.createdAt)}
                 </span>
               </div>
@@ -153,7 +153,7 @@ const NotificationList = React.memo(function NotificationList({
 
         {!!olderUnreadCount && olderUnreadCount > 0 && (
           <div className="flex items-center justify-center py-2.5 text-center">
-            <span className="text-11 leading-none text-text-tertiary">
+            <span className="text-11 text-text-tertiary leading-none">
               還有 {olderUnreadCount > 99 ? '99+' : olderUnreadCount}{' '}
               則較舊的未讀通知
             </span>
@@ -162,11 +162,11 @@ const NotificationList = React.memo(function NotificationList({
 
         {hasLoadMoreError ? (
           <div className="flex flex-col items-center justify-center gap-1.5 py-4 text-center">
-            <span className="text-xs text-text-secondary">載入失敗</span>
+            <span className="text-text-secondary text-xs">載入失敗</span>
             <button
               type="button"
               onClick={() => onLoadMore && onLoadMore(true)}
-              className="text-xs font-semibold text-brand-500 transition-colors outline-none hover:text-brand-600 hover:underline"
+              className="text-brand-500 hover:text-brand-600 text-xs font-semibold transition-colors outline-none hover:underline"
             >
               點擊重試
             </button>
@@ -174,7 +174,7 @@ const NotificationList = React.memo(function NotificationList({
         ) : (
           isLoadingMore && (
             <div className="flex items-center justify-center py-4">
-              <span className="size-4 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+              <span className="border-brand-500 size-4 animate-spin rounded-full border-2 border-t-transparent" />
             </div>
           )
         )}
@@ -229,16 +229,16 @@ export const NotificationBell = React.memo(function NotificationBell({
           type="button"
           title="通知"
           className={cn(
-            'group/bell relative flex size-[30px] items-center justify-center rounded-full border border-background-border bg-transparent text-text-primary transition-all duration-200 outline-none data-[state=open]:border-dark data-[state=open]:bg-dark data-[state=open]:text-text-white [@media(hover:hover)]:hover:border-dark [@media(hover:hover)]:hover:bg-dark [@media(hover:hover)]:hover:text-text-white',
+            'group/bell border-background-border text-text-primary data-[state=open]:border-dark data-[state=open]:bg-dark data-[state=open]:text-text-white [@media(hover:hover)]:hover:border-dark [@media(hover:hover)]:hover:bg-dark [@media(hover:hover)]:hover:text-text-white relative flex size-[30px] items-center justify-center rounded-full border bg-transparent transition-all duration-200 outline-none',
             className
           )}
           aria-label="開啟通知選單"
         >
-          <Bell className="size-5 text-text-primary transition-all group-data-[state=open]/bell:fill-current group-data-[state=open]/bell:text-text-white [@media(hover:hover)]:group-hover/bell:fill-current [@media(hover:hover)]:group-hover/bell:text-text-white" />
+          <Bell className="text-text-primary group-data-[state=open]/bell:text-text-white [@media(hover:hover)]:group-hover/bell:text-text-white size-5 transition-all group-data-[state=open]/bell:fill-current [@media(hover:hover)]:group-hover/bell:fill-current" />
 
           {showBadge && (
             <span
-              className="absolute -right-0.5 -bottom-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border border-background-white bg-status-error-default px-1 text-11 leading-none font-bold text-text-white select-none"
+              className="border-background-white bg-status-error-default text-11 text-text-white absolute -right-0.5 -bottom-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full border px-1 leading-none font-bold select-none"
               aria-label={`有 ${badgeCount} 則未讀通知`}
             >
               {formattedCount}
@@ -250,16 +250,16 @@ export const NotificationBell = React.memo(function NotificationBell({
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-[360px] max-w-[min(300px,calc(100vw-32px))] rounded-2xl border border-background-border bg-background-white p-0 shadow-xl outline-none lg:max-w-[calc(100vw-32px)]"
+        className="border-background-border bg-background-white w-[360px] max-w-[min(300px,calc(100vw-32px))] rounded-2xl border p-0 shadow-xl outline-none lg:max-w-[calc(100vw-32px)]"
       >
         <div className="overflow-hidden rounded-2xl py-5">
           <div ref={scrollThumbHandlers.trackRefCallback} className="relative">
             <div className="flex items-center justify-between px-5 pb-3">
-              <span className="text-lg font-bold text-text-primary">通知</span>
+              <span className="text-text-primary text-lg font-bold">通知</span>
             </div>
 
             {status === 'loading' && (
-              <div className="flex flex-col divide-y divide-background-border px-5">
+              <div className="divide-background-border flex flex-col divide-y px-5">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} className="flex items-start gap-2.5 py-3">
                     <div className="mt-1.5 size-4 shrink-0" />
@@ -275,14 +275,14 @@ export const NotificationBell = React.memo(function NotificationBell({
 
             {status === 'error' && (
               <div className="flex flex-col items-center justify-center px-5 py-6 text-center">
-                <AlertCircle className="mb-2 size-8 text-status-error-default" />
-                <p className="mb-3 text-sm font-medium text-text-secondary">
+                <AlertCircle className="text-status-error-default mb-2 size-8" />
+                <p className="text-text-secondary mb-3 text-sm font-medium">
                   載入失敗，請重試
                 </p>
                 <button
                   type="button"
                   onClick={handleRetry}
-                  className="inline-flex h-8 items-center justify-center rounded-lg border border-background-border px-3 text-xs font-medium text-text-primary transition-all hover:bg-background-hover"
+                  className="border-background-border text-text-primary hover:bg-background-hover inline-flex h-8 items-center justify-center rounded-lg border px-3 text-xs font-medium transition-all"
                 >
                   重新嘗試
                 </button>
@@ -292,8 +292,8 @@ export const NotificationBell = React.memo(function NotificationBell({
             {(status === 'empty' ||
               (status === 'success' && notifications.length === 0)) && (
               <div className="flex flex-col items-center justify-center px-5 py-8 text-center">
-                <Bell className="mb-3 size-10 text-text-tertiary" />
-                <p className="text-sm font-medium text-text-secondary">
+                <Bell className="text-text-tertiary mb-3 size-10" />
+                <p className="text-text-secondary text-sm font-medium">
                   尚無新通知
                 </p>
               </div>
@@ -319,7 +319,7 @@ export const NotificationBell = React.memo(function NotificationBell({
               <div
                 aria-hidden="true"
                 className={cn(
-                  'pointer-events-none absolute right-0.5 w-1.5 rounded-full bg-background-border transition-opacity duration-200',
+                  'bg-background-border pointer-events-none absolute right-0.5 w-1.5 rounded-full transition-opacity duration-200',
                   scrollThumb.active ? 'opacity-100' : 'opacity-0'
                 )}
                 style={{ top: scrollThumb.top, height: scrollThumb.height }}
@@ -328,12 +328,12 @@ export const NotificationBell = React.memo(function NotificationBell({
           </div>
 
           {status === 'success' && notifications.length > 0 && (
-            <div className="mt-3 flex items-center justify-start border-t border-background-border px-5 pt-3">
+            <div className="border-background-border mt-3 flex items-center justify-start border-t px-5 pt-3">
               <button
                 type="button"
                 onClick={handleMarkAllAsRead}
                 disabled={!hasUnread}
-                className="text-xs font-semibold text-brand-500 transition-colors hover:text-brand-600 hover:underline focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:no-underline"
+                className="text-brand-500 hover:text-brand-600 text-xs font-semibold transition-colors hover:underline focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:no-underline"
               >
                 Mark all as read
               </button>

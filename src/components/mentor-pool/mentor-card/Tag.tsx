@@ -4,7 +4,7 @@ interface TagProps {
 
 export const Tag = ({ label }: TagProps) => {
   return (
-    <div className="rounded-md border border-background-border px-3 py-1.5 text-sm font-medium tracking-wide">
+    <div className="border-background-border rounded-md border px-3 py-1.5 text-sm font-medium tracking-wide">
       {label}
     </div>
   );

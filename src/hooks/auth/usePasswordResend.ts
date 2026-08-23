@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { resetPassword } from '@/services/auth/resetPasswordByEmail';
-import { AuthResponse } from '@/services/types';
 
 export default function usePasswordResend() {
   const [isResending, setIsResending] = useState(false);
@@ -31,19 +30,17 @@ export default function usePasswordResend() {
     setIsResending(true);
 
     try {
-      const response = await resetPassword(email);
-      if (response.code === 200) {
-        toast({
-          title: '已成功重新發送',
-          description: '請至您的電子郵箱查看。',
-        });
-      }
+      await resetPassword(email);
+      toast({
+        title: '已成功重新發送',
+        description: '請至您的電子郵箱查看。',
+      });
     } catch (error) {
-      const err = error as AuthResponse;
       toast({
         variant: 'destructive',
         title: '信件寄送失敗',
-        description: err.message || '發生錯誤，請稍後再試。',
+        description:
+          error instanceof Error ? error.message : '發生錯誤，請稍後再試。',
       });
     } finally {
       setIsResending(false);

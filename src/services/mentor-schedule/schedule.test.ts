@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { apiClient, ApiError, FetchApiError } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
 
 import {
   fetchMentorSchedule,
@@ -26,20 +26,16 @@ describe('saveMentorSchedule', () => {
     vi.mocked(apiClient.putUnwrapped).mockResolvedValue(null);
   });
 
-  it('converts a FetchApiError to ApiError', async () => {
-    const fetchApiError = new FetchApiError(
-      'ERR_CODE',
-      'Custom error message',
-      '/v1/mentors/42/schedule'
-    );
-    vi.mocked(apiClient.putUnwrapped).mockRejectedValueOnce(fetchApiError);
+  it('bubbles up ApiError unmodified', async () => {
+    const apiError = new ApiError(400, 'Custom error message');
+    vi.mocked(apiClient.putUnwrapped).mockRejectedValueOnce(apiError);
 
     await expect(
       saveMentorSchedule({
         userId: '42',
         timeslots: [],
       })
-    ).rejects.toThrowError(new ApiError(200, 'Custom error message'));
+    ).rejects.toThrowError(apiError);
   });
 
   it('bubbles up other errors unmodified', async () => {
@@ -126,13 +122,9 @@ describe('fetchMentorSchedule', () => {
     );
   });
 
-  it('swallows FetchApiError and returns empty object safely', async () => {
-    const fetchApiError = new FetchApiError(
-      'ERR_CODE',
-      'Custom error message',
-      '/v1/mentors/42/schedule'
-    );
-    vi.mocked(apiClient.getUnwrapped).mockRejectedValueOnce(fetchApiError);
+  it('swallows ApiError and returns empty object safely', async () => {
+    const apiError = new ApiError(400, 'Custom error message');
+    vi.mocked(apiClient.getUnwrapped).mockRejectedValueOnce(apiError);
 
     const result = await fetchMentorSchedule({
       userId: '42',

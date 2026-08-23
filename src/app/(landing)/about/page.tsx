@@ -29,7 +29,7 @@ export default function Page() {
   return (
     <Fragment>
       <section className="relative flex h-[532px] w-full items-center justify-center overflow-hidden bg-[url('/landing/about-page-hero-sm.svg')] bg-cover bg-center sm:bg-[url('/landing/about-page-hero.svg')]">
-        <h1 className="text-center text-3xl leading-normal font-bold tracking-widest text-navy md:text-5xl">
+        <h1 className="text-navy text-center text-3xl leading-normal font-bold tracking-widest md:text-5xl">
           關於 <br className="md:hidden" />
           X-Talent
         </h1>
@@ -55,7 +55,7 @@ export default function Page() {
         </div>
       </section>
 
-      <section className="bg-navy py-20 text-center text-light">
+      <section className="bg-navy text-light py-20 text-center">
         <SectionTitle>X-Talent 的核心價值</SectionTitle>
 
         <div className="mx-auto mb-20 flex max-w-xl justify-between px-12 sm:px-0">
@@ -106,7 +106,7 @@ export default function Page() {
           的職涯可能性
         </SectionTitle>
         <div className="flex w-full flex-col items-center justify-center">
-          <div className="flex flex-col flex-wrap justify-center font-bold text-text-primary md:flex-row">
+          <div className="text-text-primary flex flex-col flex-wrap justify-center font-bold md:flex-row">
             {featureData.map((item) => (
               <FeatureItem
                 key={item.text}

@@ -59,7 +59,7 @@ export function TagMultiSelect<TFieldValues extends FieldValues>({
                     disabled={disabled}
                     onCheckedChange={onToggle}
                   />
-                  <span className="text-base text-text-primary">
+                  <span className="text-text-primary text-base">
                     {opt.label}
                   </span>
                 </label>

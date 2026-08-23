@@ -311,12 +311,12 @@ export const ScheduleCalendar = ({
               aria-live="polite"
               className="pointer-events-none absolute inset-0 flex items-center justify-center"
             >
-              <Loader2 className="size-6 animate-spin text-text-tertiary" />
+              <Loader2 className="text-text-tertiary size-6 animate-spin" />
             </div>
           )}
           {!isMonthLoading && hasError && (
-            <div className="absolute inset-x-0 top-[60px] bottom-0 z-10 flex flex-col items-center justify-center bg-background-white/95 p-4 text-center">
-              <p className="mb-3 text-sm text-text-secondary">
+            <div className="bg-background-white/95 absolute inset-x-0 top-[60px] bottom-0 z-10 flex flex-col items-center justify-center p-4 text-center">
+              <p className="text-text-secondary mb-3 text-sm">
                 無法載入導師時段，請檢查網路連線
               </p>
               <Button

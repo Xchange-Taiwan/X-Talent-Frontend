@@ -101,7 +101,7 @@ export default function ProfilePageUI({
           <ProfileHeaderSkeleton />
         ) : userData ? (
           <div className="flex h-auto -translate-y-10 flex-col sm:flex-row sm:items-start">
-            <div className="relative mx-auto h-[160px] w-[160px] flex-shrink-0 overflow-hidden rounded-full bg-background-white sm:mx-0">
+            <div className="bg-background-white relative mx-auto h-[160px] w-[160px] flex-shrink-0 overflow-hidden rounded-full sm:mx-0">
               <Image
                 src={avatarSrc}
                 alt={'Avatar of ' + userData.name}
@@ -186,7 +186,7 @@ export default function ProfilePageUI({
                 {userData.about && (
                   <div>
                     <p className="mb-4 text-xl font-bold">關於我</p>
-                    <p className="text-sm break-words text-text-tertiary">
+                    <p className="text-text-tertiary text-sm break-words">
                       {userData.about}
                     </p>
                   </div>
@@ -275,12 +275,12 @@ export default function ProfilePageUI({
                 <ScheduleSkeleton />
               ) : (
                 <div className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] 2xl:max-w-[414px]">
-                  <div className="w-full rounded-2xl border border-background-border bg-background-white p-5 shadow-sm">
-                    <div className="mb-3 border-b border-background-border pb-3">
-                      <p className="mb-1 text-xs font-medium text-text-tertiary">
+                  <div className="border-background-border bg-background-white w-full rounded-2xl border p-5 shadow-sm">
+                    <div className="border-background-border mb-3 border-b pb-3">
+                      <p className="text-text-tertiary mb-1 text-xs font-medium">
                         可預約日期
                       </p>
-                      <h2 className="text-2xl font-semibold tracking-tight text-text-primary md:text-3xl 2xl:text-2xl">
+                      <h2 className="text-text-primary text-2xl font-semibold tracking-tight md:text-3xl 2xl:text-2xl">
                         {formatSelectedDate(
                           selectedDate
                             ? new Date(selectedDate + 'T00:00:00')

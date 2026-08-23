@@ -102,7 +102,7 @@ export default function CancelReservationDialog({
             </DialogClose>
             <Button
               disabled={!canSubmit || disabled}
-              className="w-full bg-status-error-default text-text-white hover:bg-status-error-active sm:w-auto"
+              className="bg-status-error-default text-text-white hover:bg-status-error-active w-full sm:w-auto"
               onClick={handleConfirm}
             >
               {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" />}

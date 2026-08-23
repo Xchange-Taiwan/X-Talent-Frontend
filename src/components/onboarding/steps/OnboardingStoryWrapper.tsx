@@ -35,7 +35,7 @@ export const OnboardingStoryWrapper = <T extends z.ZodTypeAny>({
   return (
     <SessionProvider session={session}>
       <Form {...form}>
-        <div className="max-w-md rounded-lg border border-border bg-background-white p-6 shadow-sm">
+        <div className="border-border bg-background-white max-w-md rounded-lg border p-6 shadow-sm">
           {children(form)}
         </div>
       </Form>
@@ -70,7 +70,7 @@ export const OnboardingStepDemoWrapper = <T extends z.ZodTypeAny>({
           <div className="flex gap-4">
             <button
               type="submit"
-              className="rounded-lg bg-brand-500 px-4 py-2 text-text-white hover:bg-brand-600 focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:outline-none"
+              className="bg-brand-500 text-text-white hover:bg-brand-600 focus:ring-brand-500 rounded-lg px-4 py-2 focus:ring-2 focus:ring-offset-2 focus:outline-none"
             >
               提交表單
             </button>
@@ -80,14 +80,14 @@ export const OnboardingStepDemoWrapper = <T extends z.ZodTypeAny>({
                 form.reset(defaultValues);
                 setSubmittedData(null);
               }}
-              className="rounded-lg border border-background-border px-4 py-2 text-text-secondary hover:bg-background-bottom-secondary"
+              className="border-background-border text-text-secondary hover:bg-background-bottom-secondary rounded-lg border px-4 py-2"
             >
               重置
             </button>
           </div>
 
           {/* Real-time Form values */}
-          <div className="mt-6 border-t pt-4 text-sm text-text-tertiary">
+          <div className="text-text-tertiary mt-6 border-t pt-4 text-sm">
             <p>
               <strong>表單當前數值：</strong>
               {JSON.stringify(form.watch(fieldName as Path<z.infer<T>>))}
@@ -103,7 +103,7 @@ export const OnboardingStepDemoWrapper = <T extends z.ZodTypeAny>({
               )}
             </p>
             {submittedData !== null && (
-              <p className="mt-2 text-brand-600">
+              <p className="text-brand-600 mt-2">
                 <strong>提交成功數據：</strong>
                 {JSON.stringify(submittedData)}
               </p>

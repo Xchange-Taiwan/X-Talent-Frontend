@@ -10,7 +10,7 @@ const meta: Meta<typeof Information> = {
   tags: ['autodocs'],
   decorators: [
     (Story) => (
-      <div className="w-[413px] rounded-lg border border-background-border bg-background-white p-4">
+      <div className="border-background-border bg-background-white w-[413px] rounded-lg border p-4">
         <Story />
       </div>
     ),

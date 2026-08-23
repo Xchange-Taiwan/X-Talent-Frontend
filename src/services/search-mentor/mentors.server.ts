@@ -1,4 +1,4 @@
-import { BASE_URL, fetchServerJson } from '@/lib/apiClient';
+import { apiClient, BASE_URL } from '@/lib/apiClient';
 import type { components } from '@/types/api';
 import type { MentorRequest, MentorType } from '@/types/mentor';
 
@@ -28,7 +28,7 @@ export async function fetchMentorsServer(
     ? { cache: 'no-store' as const }
     : { next: { revalidate: REVALIDATE_SECONDS } };
 
-  const data = await fetchServerJson<
+  const data = await apiClient.getUnwrapped<
     components['schemas']['SearchMentorProfileListVO']
   >('/v1/mentors', {
     params: param as unknown as Record<

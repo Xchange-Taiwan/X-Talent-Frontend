@@ -92,11 +92,11 @@ export const GroupedSelections: React.FC<GroupedSelectionsProps> = ({
             >
               <span className="flex items-center gap-2">
                 {open ? (
-                  <ChevronDown className="size-5 text-text-secondary" />
+                  <ChevronDown className="text-text-secondary size-5" />
                 ) : (
-                  <ChevronRight className="size-5 text-text-secondary" />
+                  <ChevronRight className="text-text-secondary size-5" />
                 )}
-                <h3 className="text-base font-semibold text-text-primary">
+                <h3 className="text-text-primary text-base font-semibold">
                   {cat.label}
                 </h3>
               </span>

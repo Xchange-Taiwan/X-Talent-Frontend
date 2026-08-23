@@ -218,7 +218,7 @@ export const ComboboxField = <T extends FieldValues>({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="w-full justify-between px-3 py-2 text-base font-normal hover:bg-background-white hover:text-text-primary disabled:cursor-not-allowed md:text-sm"
+                    className="hover:bg-background-white hover:text-text-primary w-full justify-between px-3 py-2 text-base font-normal disabled:cursor-not-allowed md:text-sm"
                   >
                     <span className={cn(!selected && 'text-text-tertiary')}>
                       {selected ? selected.label : placeholder}

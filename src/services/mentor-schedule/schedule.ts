@@ -1,4 +1,4 @@
-import { apiClient, ApiError, FetchApiError } from '@/lib/apiClient';
+import { apiClient } from '@/lib/apiClient';
 import { components } from '@/types/api';
 
 export interface ScheduleRequest {
@@ -76,17 +76,10 @@ export async function saveMentorSchedule(params: {
     }),
   });
 
-  try {
-    await apiClient.putUnwrapped<null>(
-      `/v1/mentors/${params.userId}/schedule`,
-      body
-    );
-  } catch (error) {
-    if (error instanceof FetchApiError) {
-      throw new ApiError(200, error.msg || 'Save failed');
-    }
-    throw error;
-  }
+  await apiClient.putUnwrapped<null>(
+    `/v1/mentors/${params.userId}/schedule`,
+    body
+  );
 }
 
 /**

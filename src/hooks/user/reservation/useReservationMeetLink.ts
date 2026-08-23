@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
-import { FetchApiError, FetchHttpError } from '@/lib/apiClient';
+import { ApiError } from '@/lib/apiClient';
 import { fetchReservationMeetLink } from '@/services/reservations';
 
 export interface UseReservationMeetLinkProps {
@@ -76,11 +76,7 @@ export function useReservationMeetLink({
 
         let errMsg = '取得會議連結失敗，請稍後再試。';
         const codeOrStatus =
-          err instanceof FetchApiError
-            ? err.code
-            : err instanceof FetchHttpError
-              ? String(err.status)
-              : undefined;
+          err instanceof ApiError ? String(err.status) : undefined;
 
         if (codeOrStatus === '404') {
           errMsg = '連結尚未就緒或不存在（會議狀態需為已排程）。';

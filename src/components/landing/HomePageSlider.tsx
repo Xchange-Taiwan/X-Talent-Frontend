@@ -40,7 +40,7 @@ export const HomePageSlider: FC = () => {
                   className="object-cover"
                 />
               </div>
-              <p className="text-center text-xl font-bold text-logoBlue">
+              <p className="text-logoBlue text-center text-xl font-bold">
                 {name}
               </p>
             </div>

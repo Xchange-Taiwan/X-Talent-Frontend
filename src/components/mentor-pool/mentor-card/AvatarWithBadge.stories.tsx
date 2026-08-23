@@ -10,7 +10,7 @@ const meta: Meta<typeof AvatarWithBadge> = {
   tags: ['autodocs'],
   decorators: [
     (Story) => (
-      <div className="w-[413px] overflow-hidden rounded-lg border border-background-border">
+      <div className="border-background-border w-[413px] overflow-hidden rounded-lg border">
         <Story />
       </div>
     ),

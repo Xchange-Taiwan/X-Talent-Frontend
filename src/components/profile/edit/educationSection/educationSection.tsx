@@ -268,7 +268,7 @@ export const EducationSection = ({
             </div>
 
             {invalidPeriod && (
-              <p className="mb-4 text-sm font-medium text-status-error-default">
+              <p className="text-status-error-default mb-4 text-sm font-medium">
                 開始年份不可大於結束年份
               </p>
             )}
@@ -292,14 +292,14 @@ export const EducationSection = ({
 
       <Button
         variant="ghost"
-        className="rounded-full px-4 py-3 text-brand-500"
+        className="text-brand-500 rounded-full px-4 py-3"
         onClick={addEducation}
       >
         <PlusIcon className="mr-2 size-5" />
         新增
       </Button>
       {errors.educations?.message && (
-        <p className="mt-2 text-sm font-medium text-status-error-default">
+        <p className="text-status-error-default mt-2 text-sm font-medium">
           {errors.educations?.message as string}
         </p>
       )}

@@ -22,9 +22,9 @@ const MentorFilterDropdownDemo = ({
     useState<SelectFilters>(initialFilters);
 
   return (
-    <div className="flex min-h-[150px] w-[360px] flex-col justify-between rounded-lg border border-background-border bg-background-bottom p-6">
+    <div className="border-background-border bg-background-bottom flex min-h-[150px] w-[360px] flex-col justify-between rounded-lg border p-6">
       <div>
-        <h4 className="mb-3 text-sm font-semibold text-text-primary">
+        <h4 className="text-text-primary mb-3 text-sm font-semibold">
           導師篩選下拉選單
         </h4>
         <MentorFilterDropdown
@@ -34,17 +34,17 @@ const MentorFilterDropdownDemo = ({
         />
       </div>
 
-      <div className="mt-6 rounded-md border border-background-border bg-background-white p-3 text-xs">
-        <p className="mb-1 font-bold text-text-secondary">
+      <div className="border-background-border bg-background-white mt-6 rounded-md border p-3 text-xs">
+        <p className="text-text-secondary mb-1 font-bold">
           當前已套用之篩選條件：
         </p>
         {Object.keys(selectedFilters).length === 0 ? (
           <span className="text-text-tertiary">無任何篩選條件</span>
         ) : (
-          <ul className="list-disc space-y-1 pl-4 text-text-secondary">
+          <ul className="text-text-secondary list-disc space-y-1 pl-4">
             {Object.entries(selectedFilters).map(([key, filter]) => (
               <li key={key}>
-                <span className="font-semibold text-logoBlue">
+                <span className="text-logoBlue font-semibold">
                   {filter.name}
                 </span>
                 : {filter.value}
