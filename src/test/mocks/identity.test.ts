@@ -86,6 +86,23 @@ describe('buildResolvedIdentity', () => {
     });
     expect(hintIdentity.state).toBe('hint-only');
     expect(hintIdentity.isLoggedIn).toBe(true);
+
+    // When isLoggedIn is true (without state or hasFullUser), state is inferred as confirmed-member (backward compatibility)
+    const legacyMemberIdentity = buildResolvedIdentity({
+      isLoggedIn: true,
+    });
+    expect(legacyMemberIdentity.state).toBe('confirmed-member');
+    expect(legacyMemberIdentity.isLoggedIn).toBe(true);
+    expect(legacyMemberIdentity.hasFullUser).toBe(true);
+
+    // When isResolvingUser is true (without state), state is inferred as hint-only (backward compatibility)
+    const legacyResolvingIdentity = buildResolvedIdentity({
+      isResolvingUser: true,
+    });
+    expect(legacyResolvingIdentity.state).toBe('hint-only');
+    expect(legacyResolvingIdentity.isResolvingUser).toBe(true);
+    expect(legacyResolvingIdentity.isLoggedIn).toBe(true);
+    expect(legacyResolvingIdentity.sessionSettled).toBe(false);
   });
 
   it('should verify export constants are defined correctly', () => {
