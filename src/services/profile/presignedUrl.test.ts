@@ -11,7 +11,7 @@ vi.mock('@/lib/apiClient', async (importActual) => {
   };
 });
 
-import { apiClient, FetchApiError } from '@/lib/apiClient';
+import { apiClient, ApiError } from '@/lib/apiClient';
 
 import { fetchPresignedUrl, fetchPresignedUrlByUserId } from './presignedUrl';
 
@@ -42,13 +42,9 @@ describe('presignedUrl service', () => {
       );
     });
 
-    it('returns null and catches FetchApiError without unhandled rejection', async () => {
+    it('returns null and catches ApiError without unhandled rejection', async () => {
       vi.mocked(apiClient.getUnwrapped).mockRejectedValue(
-        new FetchApiError(
-          'ERR',
-          'Failed presigned',
-          '/v1/storage/presigned-url/42'
-        )
+        new ApiError(400, 'Failed presigned')
       );
 
       const result = await fetchPresignedUrl(42);
