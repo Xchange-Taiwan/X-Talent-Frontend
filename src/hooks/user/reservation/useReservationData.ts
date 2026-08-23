@@ -102,6 +102,13 @@ export function useReservationData({
   const [loadingMoreStates, setLoadingMoreStates] =
     useState<LoadingMoreStates>(EMPTY_LOADING_MORE);
   const [historyActive, setHistoryActive] = useState(false);
+  const [removedIds, setRemovedIds] = useState<Record<ListKey, Set<string>>>(
+    () => ({
+      upcoming: new Set(),
+      pending: new Set(),
+      history: new Set(),
+    })
+  );
 
   const upcomingKey = getReservationCacheKey(myUserId, states.upcoming);
   const pendingKey = getReservationCacheKey(myUserId, states.pending);
@@ -195,16 +202,19 @@ export function useReservationData({
   const isHistoryLoaded = historyResult !== null && !isHistoryLoading;
 
   const upcomingSorted = useMemo(() => {
-    return upcomingResult ? sortByDtstartAsc(upcomingResult.items) : [];
-  }, [upcomingResult]);
+    const sorted = upcomingResult ? sortByDtstartAsc(upcomingResult.items) : [];
+    return sorted.filter((it) => !removedIds.upcoming.has(it.id));
+  }, [upcomingResult, removedIds.upcoming]);
 
   const pendingSorted = useMemo(() => {
-    return pendingResult ? sortByDtstartAsc(pendingResult.items) : [];
-  }, [pendingResult]);
+    const sorted = pendingResult ? sortByDtstartAsc(pendingResult.items) : [];
+    return sorted.filter((it) => !removedIds.pending.has(it.id));
+  }, [pendingResult, removedIds.pending]);
 
   const historyItems = useMemo(() => {
-    return historyResult ? historyResult.items : [];
-  }, [historyResult]);
+    const items = historyResult ? historyResult.items : [];
+    return items.filter((it) => !removedIds.history.has(it.id));
+  }, [historyResult, removedIds.history]);
 
   const data = useMemo<ReservationData | null>(() => {
     if (!myUserId) return null;
@@ -285,6 +295,16 @@ export function useReservationData({
 
   const onMutationSuccess = useCallback(
     (id: string, affectedTabs: ListKey[]) => {
+      setRemovedIds((prev) => {
+        const next = { ...prev };
+        affectedTabs.forEach((tab) => {
+          const s = new Set(next[tab]);
+          s.add(id);
+          next[tab] = s;
+        });
+        return next;
+      });
+
       affectedTabs.forEach((tab) => {
         const key = getReservationCacheKey(myUserId, states[tab]);
         if (!key) return;
