@@ -297,7 +297,7 @@ export default function ProfilePageUI({
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => schedule.reload()}
+                          onClick={() => schedule.reload?.()}
                         >
                           重新嘗試
                         </Button>
