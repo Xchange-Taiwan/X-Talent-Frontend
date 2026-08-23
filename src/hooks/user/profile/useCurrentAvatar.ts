@@ -4,6 +4,7 @@ import { useCallback, useSyncExternalStore } from 'react';
 
 import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import {
+  getLastPrimedTime,
   getUserProfileDtoFromCache,
   subscribeUserProfileDtoCache,
 } from '@/hooks/user/user-data/useUserProfileDto';
@@ -44,7 +45,8 @@ export function useCurrentAvatar(): string | null {
 
   // During the active transition period after an optimistic update, prioritize the optimistic avatar.
   // Otherwise, prioritize the session's identity avatar (authoritative).
-  if (optimisticAvatar) {
+  const isTransitioning = Date.now() - getLastPrimedTime() < 10000;
+  if (optimisticAvatar && isTransitioning) {
     return optimisticAvatar;
   }
 
