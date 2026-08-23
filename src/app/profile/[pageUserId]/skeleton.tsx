@@ -66,8 +66,12 @@ export function ScheduleSkeleton() {
 }
 
 export function ProfilePageSkeleton() {
+  // animate-delayed-fade-in stays invisible for the first ~150ms - a fast
+  // navigation (page ready before then) never flashes this skeleton at
+  // all, only a genuinely slow one fades it in. Used as both the route
+  // `loading.tsx` fallback and container.tsx's dynamic-import fallback.
   return (
-    <div>
+    <div className="animate-delayed-fade-in">
       <ProfileBanner />
 
       <div className="container mb-20 max-w-screen-lg 2xl:max-w-screen-xl">

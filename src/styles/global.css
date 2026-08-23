@@ -36,6 +36,19 @@
     --ring: var(--color-brand-500);
 
     --radius: 0.5rem;
+    --bg-auth-card: linear-gradient(
+      90deg,
+      hsl(var(--color-auth-gradient-1)) 0%,
+      hsl(var(--color-auth-gradient-2)) 45%,
+      hsl(var(--color-auth-gradient-3)) 100%
+    );
+    --bg-mentor-hero: linear-gradient(
+      90deg,
+      hsl(var(--color-mentor-hero-gradient-1)) 0%,
+      hsl(var(--color-mentor-hero-gradient-2)) 19%,
+      hsl(var(--color-mentor-hero-gradient-3)) 42%,
+      hsl(var(--color-mentor-hero-gradient-4)) 100%
+    );
   }
 }
 

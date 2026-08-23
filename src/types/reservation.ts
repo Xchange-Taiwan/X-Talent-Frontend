@@ -26,6 +26,12 @@ export type Reservation = {
   dtstart: number;
   dtend: number;
 
+  // Optimistic-lock version for the PUT status-transition endpoint (accept /
+  // reject / cancel). Sent back on every status update so the backend can
+  // detect a stale write and return 409 instead of silently overwriting.
+  // Defaults to 0 until the backend ships the field (X-Talent-Backend #44).
+  version: number;
+
   // Both user ids are kept so we can reliably determine which side the current user is on
   senderUserId: number | string;
   participantUserId: number | string;

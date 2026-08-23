@@ -6,7 +6,9 @@ import { signOut } from 'next-auth/react';
 import * as React from 'react';
 
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
+import { clearSessionHint } from '@/lib/auth/sessionHint';
 import { getMentorOnboardingUrl } from '@/lib/routes';
+import { postBackendLogout } from '@/services/auth/backendLogout';
 import type { PersonalLink } from '@/types/types';
 
 export interface UseAccountMenuOptions {
@@ -99,9 +101,16 @@ export function useAccountMenu({
     });
   }, [closeMenu]);
 
-  const handleLogout = React.useCallback((): void => {
+  const handleLogout = React.useCallback(async (): Promise<void> => {
     closeMenu();
-    signOut();
+    clearSessionHint();
+    try {
+      await postBackendLogout();
+    } catch {
+      // Backend session revocation is best-effort; local sign-out must still complete.
+    } finally {
+      await signOut();
+    }
   }, [closeMenu]);
 
   return {

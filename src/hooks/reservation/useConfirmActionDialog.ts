@@ -3,8 +3,13 @@
 import { useState } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
+import { getReservationErrorMessage } from '@/services/reservations';
 
 interface UseConfirmActionDialogOptions {
+  /** Fallback message shown for any error other than a reservation version
+   * conflict (409), which always gets the shared conflict-specific message
+   * via getReservationErrorMessage — kept here, not in each dialog, so
+   * every reservation confirm dialog resolves it the same way. */
   errorMessage: string;
   onOpen?: () => void;
 }
@@ -34,7 +39,7 @@ export function useConfirmActionDialog({
     } catch (error) {
       toast({
         variant: 'destructive',
-        description: errorMessage,
+        description: getReservationErrorMessage(error, errorMessage),
       });
       setIsSubmitting(false);
     }

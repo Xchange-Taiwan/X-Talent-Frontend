@@ -244,9 +244,12 @@ test('資料載入中 → Skeleton 顯示且不閃爍錯誤內容', async ({ pag
 
   await page.goto(PAGE_URL);
 
-  // Skeleton should be visible while responses are held
+  // Skeleton should be visible while responses are held. Uses the same
+  // 15s budget as other tests' first post-goto assertion — this is the
+  // first assertion after navigating to the real deployed BASE_URL, and a
+  // tighter timeout here was timing out on CI cold starts.
   await expect(page.locator('.animate-pulse').first()).toBeVisible({
-    timeout: 10_000,
+    timeout: 15_000,
   });
 
   // Note: ReservationTabs.tsx always renders the TabsList chrome immediately

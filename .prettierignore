@@ -6,6 +6,9 @@ pnpm-lock.yaml
 /out/
 /build/
 /dist/
+# regenerated verbatim by every `next dev`/`next build`; letting prettier
+# reformat it just makes it drift back on the next build
+next-env.d.ts
 
 # dependencies
 /node_modules/

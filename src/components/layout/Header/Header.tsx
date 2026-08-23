@@ -3,33 +3,44 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuthStatus } from '@/hooks/user/auth/useAuthStatus';
+import { useIdentity } from '@/hooks/user/auth/useIdentity';
+import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { trackEvent } from '@/lib/analytics';
 
-import { FEEDBACK_FORM_URL } from './constants';
+import { FEEDBACK_FORM_URL, FIND_MENTOR_HREF } from './constants';
 import { DisabledAwareLink } from './DisabledAwareLink';
+import { GuestActionButtons } from './GuestActionButtons';
 import { HamburgerMenu } from './HamburgerMenu';
 import { MobileUserMenu } from './MobileUserMenu';
 import { getBecomeMentorHref, getProfileHref } from './navHrefs';
+import { NotificationBell } from './NotificationBell';
 import { UserDropdown } from './UserDropdown';
 
 function HeaderComponent(): JSX.Element {
   const { data: session } = useSession();
-  const {
-    authKnown,
-    isLoggedIn,
-    isMentor,
-    userId,
-    hasFullUser,
-    isResolvingUser,
-  } = useAuthStatus();
+  const currentAvatar = useCurrentAvatar();
+  const { authKnown, isLoggedIn, isMentor, userId, isResolvingUser } =
+    useIdentity(null);
 
-  const findMentorHref = '/mentor-pool';
+  const virtualUser = useMemo(() => {
+    if (session?.user) {
+      return {
+        ...session.user,
+        avatar: currentAvatar ?? undefined,
+      };
+    }
+    return {
+      id: userId,
+      isMentor,
+      avatar: currentAvatar ?? undefined,
+      name: '',
+      email: '',
+    };
+  }, [session?.user, userId, isMentor, currentAvatar]);
 
   // `userId` only ever comes from the real session, never the hint — while
   // isResolvingUser is true these hrefs are unused (the link is disabled).
@@ -47,14 +58,30 @@ function HeaderComponent(): JSX.Element {
 
           <nav className="hidden items-center gap-7 lg:flex">
             <Link
-              href={findMentorHref}
+              href={FIND_MENTOR_HREF}
               className="font-['Open_Sans'] text-base text-text-primary"
             >
               尋找導師
             </Link>
 
             {!authKnown ? (
-              <Skeleton className="h-6 w-24" />
+              <>
+                <Skeleton className="h-6 w-24 group-data-[auth-state=guest]/auth-state:hidden group-data-[auth-state=mentee]/auth-state:hidden group-data-[auth-state=mentor]/auth-state:hidden" />
+                <DisabledAwareLink
+                  href={getProfileHref(userId)}
+                  disabled={isResolvingUser}
+                  className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentor]/auth-state:block"
+                >
+                  我的導師頁面
+                </DisabledAwareLink>
+                <DisabledAwareLink
+                  href={getBecomeMentorHref(userId)}
+                  disabled={isResolvingUser}
+                  className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=guest]/auth-state:block group-data-[auth-state=mentee]/auth-state:block"
+                >
+                  成為導師
+                </DisabledAwareLink>
+              </>
             ) : (
               <DisabledAwareLink
                 href={leftSecondNav.href}
@@ -86,41 +113,61 @@ function HeaderComponent(): JSX.Element {
         </div>
 
         <div className="flex items-center gap-3 lg:mr-20">
-          <div className="hidden items-center gap-3 lg:flex">
+          <div
+            className="hidden items-center gap-3 lg:flex"
+            data-testid="desktop-header-right"
+          >
             {!authKnown ? (
-              <Skeleton className="size-9 rounded-full" />
-            ) : !isLoggedIn ? (
               <>
-                <Link href="/auth/signup">
-                  <Button
-                    variant="outline"
-                    className="border-brand-500 text-brand-500 hover:text-brand-500"
-                  >
-                    註冊
-                  </Button>
-                </Link>
-
-                <Link href="/auth/signin">
-                  <Button className="bg-brand-500 hover:bg-brand-500">
-                    登入
-                  </Button>
-                </Link>
+                <div className="group-data-[auth-state=guest]/auth-state:hidden group-data-[auth-state=mentee]/auth-state:hidden group-data-[auth-state=mentor]/auth-state:hidden">
+                  <Skeleton className="size-9 rounded-full" />
+                </div>
+                <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block" />
+                <div className="hidden items-center gap-3 group-data-[auth-state=guest]/auth-state:flex">
+                  <GuestActionButtons />
+                </div>
               </>
-            ) : hasFullUser ? (
-              <UserDropdown user={session!.user} />
+            ) : !isLoggedIn ? (
+              <GuestActionButtons />
+            ) : isLoggedIn ? (
+              <>
+                <NotificationBell
+                  className="hidden lg:flex"
+                  userId={userId}
+                  key={userId ?? 'guest'}
+                />
+                <UserDropdown user={virtualUser} />
+              </>
             ) : (
               <Skeleton className="size-9 rounded-full" />
             )}
           </div>
 
-          <div className="flex items-center gap-3 lg:hidden">
-            {hasFullUser ? <MobileUserMenu user={session!.user} /> : null}
-            <HamburgerMenu
-              isLoggedIn={isLoggedIn}
-              isMentor={isMentor}
-              userId={userId}
-              isResolvingUser={isResolvingUser}
-            />
+          <div
+            className="flex items-center gap-3 lg:hidden"
+            data-testid="mobile-header-right"
+          >
+            {isLoggedIn ? (
+              <>
+                <NotificationBell userId={userId} key={userId ?? 'guest'} />
+                <MobileUserMenu user={virtualUser} />
+              </>
+            ) : (
+              !authKnown && (
+                <>
+                  <Skeleton className="hidden size-9 rounded-full group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block" />
+                  <div className="hidden size-8 rounded-full bg-[image:var(--auth-avatar)] bg-cover bg-center group-data-[auth-state=mentee]/auth-state:block group-data-[auth-state=mentor]/auth-state:block" />
+                </>
+              )
+            )}
+            <div className="group-data-[auth-state=mentee]/auth-state:hidden group-data-[auth-state=mentor]/auth-state:hidden">
+              <HamburgerMenu
+                isLoggedIn={isLoggedIn}
+                isMentor={isMentor}
+                userId={userId}
+                isResolvingUser={isResolvingUser}
+              />
+            </div>
           </div>
         </div>
       </div>

@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react';
 import { useEffect } from 'react';
 
+import { useIdentity } from '@/hooks/user/auth/useIdentity';
 import {
   clearAvatarOverride,
   useAvatarOverride,
@@ -12,9 +13,9 @@ import {
  * Returns the avatar URL to render for the currently signed-in user.
  *
  * Reads from a client-side override (set synchronously on a successful
- * profile submit) and falls back to the NextAuth session. Bridges the gap
- * left by NextAuth v4's `update()` round-trip — without it the header
- * shows the old avatar between submit and the session refetch landing.
+ * profile submit) and falls back to the NextAuth session or session hint.
+ * Bridges the gap left by NextAuth v4's `update()` round-trip — without it
+ * the header shows the old avatar between submit and the session refetch landing.
  */
 export function useCurrentAvatar(): string | null {
   const { data: session } = useSession();
@@ -33,8 +34,8 @@ export function useCurrentAvatar(): string | null {
     }
   }, [override, sessionUserId, sessionAvatar]);
 
-  if (override && override.userId === sessionUserId) {
-    return override.url;
-  }
-  return sessionAvatar;
+  // Derived completely via resolveIdentity for single source of truth correctness
+  const identity = useIdentity(override);
+
+  return identity.avatar ?? null;
 }

@@ -13,6 +13,7 @@ export const rawColors = {
   'background-bottom-secondary': '0 0% 98%', // #FAFAFA
   'background-white': '0 0% 100%', // #FFFFFF
   'background-border': '210 9% 91%', // #E6E8EA
+  'background-hover': '206 31% 96%', // #F2F6F9
   'brand-50': '180 62% 95%', // #EAFAFA
   'brand-100': '180 62% 90%', // #D5F5F5
   'brand-200': '180 60% 79%', // #ABEAEA
@@ -57,6 +58,17 @@ export const rawColors = {
   'avatar-background': '180 57% 97%', // #F4FCFC
   'avatar-border': '180 16% 76%', // #B7CBCB
   'avatar-overlay': '0 0% 44%', // #6F6F6F
+
+  // Auth page gradient tokens
+  'auth-gradient-1': '180 63% 95%', // #EAFBFB
+  'auth-gradient-2': '200 100% 91%', // #CFEFFF
+  'auth-gradient-3': '253 100% 95%', // #EAE4FF
+
+  // Mentor pool hero gradient tokens
+  'mentor-hero-gradient-1': '60 100% 97%', // #FFFFEF
+  'mentor-hero-gradient-2': '300 100% 98%', // #FFF6FF
+  'mentor-hero-gradient-3': '273 53% 97%', // #F7F2FB
+  'mentor-hero-gradient-4': '180 100% 95%', // #E4FFFF
 
   // Legacy / Landing page specific colors
   navy: '219 59% 22%', // #172E59

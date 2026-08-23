@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next';
 
 import CoverImgUrl from '@/assets/auth/signIn-cover.webp';
 import authOptions from '@/auth.config';
+import { hasUserProperties } from '@/lib/auth/userGuard';
 
 export default async function AuthOperationLayout({
   children,
@@ -12,7 +13,9 @@ export default async function AuthOperationLayout({
   const session = await getServerSession(authOptions);
   // Redirect logged-in users away from signin/signup, but let users with
   // incomplete onboarding (onBoarding === false) through to /auth/onboarding.
-  if (session?.user?.id && session.user.onBoarding !== false) redirect('/');
+  const user = session?.user;
+  if (hasUserProperties(user) && user.id && user.onBoarding !== false)
+    redirect('/');
 
   return (
     <div className="flex lg:min-h-screen">

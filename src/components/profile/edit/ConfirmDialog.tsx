@@ -1,6 +1,14 @@
-import * as Dialog from '@radix-ui/react-dialog';
-
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogClose,
+  DialogContentFrame,
+  DialogDescription,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 
 interface ConfirmDialogProps {
   title: string;
@@ -16,29 +24,29 @@ export function ConfirmDialog({
   trigger,
 }: ConfirmDialogProps) {
   return (
-    <Dialog.Root>
-      <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-background-white/50 backdrop-blur-sm data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 z-50 w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-background-white p-6 shadow-lg">
-          <Dialog.Title className="text-center text-xl font-bold text-text-primary">
+    <Dialog>
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogPortal>
+        <DialogOverlay className="bg-background-white/50 backdrop-blur-sm" />
+        <DialogContentFrame className="w-[90vw] max-w-md gap-0 rounded-2xl border-none sm:rounded-2xl">
+          <DialogTitle className="text-center text-xl font-bold text-text-primary">
             {title}
-          </Dialog.Title>
-          <Dialog.Description className="mt-2 text-center text-text-secondary">
+          </DialogTitle>
+          <DialogDescription className="mt-2 text-center text-text-secondary">
             {description}
-          </Dialog.Description>
+          </DialogDescription>
           <div className="mt-6 flex justify-center gap-4">
-            <Dialog.Close asChild>
+            <DialogClose asChild>
               <Button variant="outline">取消</Button>
-            </Dialog.Close>
-            <Dialog.Close asChild>
+            </DialogClose>
+            <DialogClose asChild>
               <Button variant="destructive" onClick={onConfirm}>
                 確認
               </Button>
-            </Dialog.Close>
+            </DialogClose>
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </DialogContentFrame>
+      </DialogPortal>
+    </Dialog>
   );
 }

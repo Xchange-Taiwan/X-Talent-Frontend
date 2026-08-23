@@ -1,8 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { revalidateProfilePath } from '@/app/profile/[pageUserId]/actions';
 import { trackEvent } from '@/lib/analytics';
+import { dispatchDeleteAccountRevalidate } from '@/lib/auth/dispatchDeleteAccountRevalidate';
 import {
   clearPendingDeleteAccountEmail,
   resolveOAuthOutcome,
@@ -51,12 +51,12 @@ vi.mock('next-auth/react', () => ({
 }));
 
 // Mock actions and services
-vi.mock('@/app/profile/[pageUserId]/actions', () => ({
-  revalidateProfilePath: vi.fn(),
-}));
-
 vi.mock('@/lib/analytics', () => ({
   trackEvent: vi.fn(),
+}));
+
+vi.mock('@/lib/auth/dispatchDeleteAccountRevalidate', () => ({
+  dispatchDeleteAccountRevalidate: vi.fn(),
 }));
 
 vi.mock('@/services/auth/deleteAccount', () => ({
@@ -75,12 +75,15 @@ const mockClearPendingDeleteEmail = vi.mocked(clearPendingDeleteAccountEmail);
 const mockResolveOAuthOutcome = vi.mocked(resolveOAuthOutcome);
 const mockSignInWithGoogleToken = vi.mocked(signInWithGoogleToken);
 const mockDeleteAccount = vi.mocked(deleteAccount);
-const mockRevalidateProfile = vi.mocked(revalidateProfilePath);
+const mockDispatchDeleteAccountRevalidate = vi.mocked(
+  dispatchDeleteAccountRevalidate
+);
 const mockTrackEvent = vi.mocked(trackEvent);
 
 describe('GoogleOAuthRedirectPage Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDispatchDeleteAccountRevalidate.mockResolvedValue(undefined);
 
     // Stub sessionStorage
     const store: Record<string, string> = {};
@@ -322,7 +325,7 @@ describe('GoogleOAuthRedirectPage Component', () => {
     const mockData = {
       auth_type: 'LOGIN' as const,
       auth: { token: 'tok_3', email: 'user@example.com' },
-      user: { user_id: 789 } as unknown as ProfileVO,
+      user: { user_id: 789, name: 'Delete Me' } as unknown as ProfileVO,
       id_token: 'id_token_123',
     };
 
@@ -347,7 +350,10 @@ describe('GoogleOAuthRedirectPage Component', () => {
         expect(mockSignInWithGoogleToken).toHaveBeenCalledWith(
           'tok_3',
           'user@example.com',
-          { user_id: 789 } as unknown as Record<string, unknown>
+          { user_id: 789, name: 'Delete Me' } as unknown as Record<
+            string,
+            unknown
+          >
         );
 
         // Calls delete account API
@@ -361,11 +367,23 @@ describe('GoogleOAuthRedirectPage Component', () => {
           name: 'delete_account_succeeded',
           feature: 'auth',
         });
-        expect(mockRevalidateProfile).toHaveBeenCalledWith('789');
+        // id/name are no longer passed from the client — the server action
+        // derives them from the caller's own session (see actions.ts).
+        expect(mockDispatchDeleteAccountRevalidate).toHaveBeenCalledWith();
 
         // Performs NextAuth signOut
         expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' });
       });
+
+      // Must resolve before signOut, but dispatchDeleteAccountRevalidate
+      // never throws and the underlying action returns immediately (the
+      // wait runs server-side, after the response), so this never delays
+      // sign-out, and can't fall through to the outer catch-all below
+      // (which would show a misleading "Login failed" toast instead).
+      const dispatchOrder =
+        mockDispatchDeleteAccountRevalidate.mock.invocationCallOrder[0];
+      const signOutOrder = mockSignOut.mock.invocationCallOrder[0];
+      expect(dispatchOrder).toBeLessThan(signOutOrder);
     });
 
     it('handles blocked by reservations deletion flow correctly', async () => {

@@ -12,30 +12,30 @@ Access the X-Talent testing website here: [X-Talent Testing Website](https://xta
 
 Ensure you have the following installed:
 
-- [Node.js](https://nodejs.org/) (version 20)
-- [pnpm](https://pnpm.io/) (version 9)
+- [Node.js](https://nodejs.org/) - version `24.18.1` recommended (Node 22.22.2-22.x or 24.15.0-24.x also work; Node 23.x, 25.x, and anything below 22.22.2 are not supported)
+- [pnpm](https://pnpm.io/) - version 9
 
 ### Installation
 
-1. Install Node.js (version 20):
-   - Visit [Node.js](https://nodejs.org/) and download the version 20 installer for your operating system.
+1. Install Node.js - we recommend version `24.18.1`:
+   - Visit [Node.js](https://nodejs.org/) and download the installer for your operating system, or if you use a version manager like [nvm](https://github.com/nvm-sh/nvm), run `nvm install 24.18.1 && nvm use 24.18.1`.
    - Follow the installation instructions provided for your system.
    - Verify the installation by running:
      ```bash
      node -v
      ```
-     You should see the version number `20.x.x`.
+     You should see `v24.18.1` (Node 22.22.2-22.x or 24.15.0-24.x also work, but 24.18.1 is what the rest of the team uses - note that Node 23.x and 25.x are not supported).
 
-2. Install PNPM (version 9.12.3):
+2. Install PNPM (version 9.15.9):
    - Run the following command to install PNPM globally:
      ```bash
-     npm install -g pnpm@9.12.3
+     npm install -g pnpm@9.15.9
      ```
    - Verify the installation by running:
      ```bash
      pnpm -v
      ```
-     You should see the version number `9.12.3`.
+     You should see the version number `9.15.9`.
 
 3. Clone the repository:
 
@@ -46,7 +46,7 @@ Ensure you have the following installed:
 4. Navigate to the project directory:
 
    ```bash
-   cd X-Talent_Frontend
+   cd X-Talent-Frontend
    ```
 
 5. Install project dependencies:
@@ -55,20 +55,9 @@ Ensure you have the following installed:
    pnpm install
    ```
 
-6. Copy `.env.development.local` to the `X-Talent_Frontend` folder:
+6. Copy `.env.development.local` to the `X-Talent-Frontend` folder:
    - This file contains secrets and tokens required for development.
    - Please request this file from other developers.
-
-### Troubleshooting
-
-This project requires Node `>=20.19.0` (declared in `package.json` `engines`) and enforces it via `.npmrc` (`engine-strict=true`). Any newer Node (20.19+, 22, 24) works — there is no upper bound. CI runs Node 20 LTS; `.nvmrc` pins `20.19.0` for tooling that reads it.
-
-- **`ERR_PNPM_UNSUPPORTED_ENGINE` / `Unsupported engine`** — Your Node version is below `20.19.0`. Upgrade before running `pnpm install`. To install/switch to a specific 20.x:
-  - With **nvm**: `nvm install 20.19.0 && nvm use 20.19.0`
-  - With **fnm**: `fnm use` (auto-reads `.nvmrc`)
-  - With **Volta**: `volta install node@20.19.0`
-- **Wrong package manager** — Always use `pnpm`, not `npm` or `yarn`. The lockfile and version enforcement are pnpm-specific.
-- **Why `>=20.19.0` and not just `>=20`?** — Node `20.19.0` was the first 20.x release where `require(ESM)` is enabled by default. Some test dependencies (jsdom → `html-encoding-sniffer` → `@exodus/bytes`) require this; on Node `<20.19.0`, `pnpm test` fails with `ERR_REQUIRE_ESM`.
 
 ### Running the Application
 
@@ -80,14 +69,31 @@ pnpm run dev
 
 The application will be available at `http://localhost:3000`.
 
-## Testing
+## Tech Stack
 
-X-Talent provides end-to-end testing with predefined accounts. Use the following testing accounts to explore the platform:
+- [Next.js](https://nextjs.org/) 16 (App Router) with React 18 and TypeScript
+- [Tailwind CSS](https://tailwindcss.com/) with [Radix UI](https://www.radix-ui.com/) primitives
+- [NextAuth.js](https://next-auth.js.org/) for authentication
+- [Vitest](https://vitest.dev/) + [Testing Library](https://testing-library.com/) for unit tests, [Playwright](https://playwright.dev/) for end-to-end tests
+- [Storybook](https://storybook.js.org/) for component development
+- [Sentry](https://sentry.io/) for error monitoring
+- [Google Analytics 4](https://analytics.google.com/) and [Microsoft Clarity](https://clarity.microsoft.com/) for usage analytics
 
-Password should be asked other developers
+## Available Scripts
 
-| Role    | Email                          |
-| ------- | ------------------------------ |
-| Visitor | testing_visitor@xchange.com.tw |
-| Mentee  | testing_mentee@xchange.com.tw  |
-| Mentor  | testing_mentor@xchange.com.tw  |
+| Command                | Description                          |
+| ---------------------- | ------------------------------------ |
+| `pnpm dev`             | Start the development server         |
+| `pnpm build`           | Build the app for production         |
+| `pnpm start`           | Start the production server          |
+| `pnpm lint`            | Lint the codebase with ESLint        |
+| `pnpm lint:fix`        | Lint and auto-fix issues             |
+| `pnpm format`          | Format the codebase with Prettier    |
+| `pnpm type-check`      | Run the TypeScript compiler checks   |
+| `pnpm test`            | Run unit tests with Vitest           |
+| `pnpm test:watch`      | Run unit tests in watch mode         |
+| `pnpm test:e2e`        | Run end-to-end tests with Playwright |
+| `pnpm storybook`       | Start Storybook locally              |
+| `pnpm build-storybook` | Build the static Storybook site      |
+
+> End-to-end tests require test account credentials in `.env.e2e.local`. Request these from the team; do not commit real credentials.

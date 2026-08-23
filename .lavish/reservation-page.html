@@ -1,0 +1,3217 @@
+<title>X-Talent 預約頁還原 — 即將到來／等待回復／歷史紀錄 + 互動對話框</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Open+Sans:wght@400;500;600;700&display=swap"
+  rel="stylesheet"
+/>
+
+<style>
+  :root {
+    --color-text-primary: #1e2026;
+    --color-text-secondary: #474d57;
+    --color-text-tertiary: #76808f;
+    --color-text-disable: #aeb4bc;
+    --color-text-white: #ffffff;
+    --color-background-bottom: #f5f5f5;
+    --color-background-bottom-secondary: #fafafa;
+    --color-background-white: #ffffff;
+    --color-background-border: #e6e8ea;
+    --color-brand-500: #2ccbcb;
+    --color-brand-900: #092929;
+    --color-status-success-default: #00ba34;
+    --color-status-success-active: #2ec659;
+    --color-status-error-default: #ee3911;
+    --color-status-error-active: #f15d3c;
+    --color-status-warning-default: #eebe11;
+    --color-status-warning-active: #f1ca3c;
+    --color-light: #ffffff;
+    --color-dark: #282828;
+    --radius: 8px;
+    --page-bg: #eef1f3;
+    --page-ink: #1e2026;
+    --page-muted: #6b7280;
+    --page-card: #ffffff;
+    --page-border: #e2e5e9;
+    --accent: #2ccbcb;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: var(--page-bg);
+    color: var(--page-ink);
+    font-family: 'Noto Sans TC', 'Open Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* ---------- intro ---------- */
+  .intro h1 {
+    font-size: 26px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  .intro p {
+    margin: 0;
+    color: var(--page-muted);
+    font-size: 14.5px;
+    line-height: 1.7;
+    max-width: 860px;
+  }
+  .intro .source-note {
+    margin-top: 14px;
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    font-size: 12.5px;
+    color: #2c7a7a;
+    background: #e9fbfb;
+    border: 1px solid #c9f1f1;
+    padding: 7px 12px;
+    border-radius: 999px;
+  }
+  .intro .source-note b {
+    font-weight: 700;
+  }
+  code.inline {
+    background: #f1f3f5;
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-family: ui-monospace, 'SFMono-Regular', monospace;
+    font-size: 12px;
+  }
+
+  /* ---------- control panel ---------- */
+  .panel {
+    margin-top: 28px;
+    background: var(--page-card);
+    border: 1px solid var(--page-border);
+    border-radius: 16px;
+    padding: 18px 22px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px 32px;
+    align-items: flex-start;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  }
+  .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .control-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #9aa1ac;
+  }
+  .segmented {
+    display: inline-flex;
+    background: #f1f3f5;
+    border-radius: 10px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .segmented button {
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 7px 14px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--page-muted);
+    border-radius: 8px;
+    cursor: pointer;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease,
+      box-shadow 0.15s ease;
+    white-space: nowrap;
+  }
+  .segmented button[aria-pressed='true'] {
+    background: #fff;
+    color: var(--page-ink);
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.12);
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--page-ink);
+    cursor: pointer;
+    user-select: none;
+    padding-top: 2px;
+  }
+  .toggle-row input {
+    accent-color: var(--accent);
+    width: 15px;
+    height: 15px;
+  }
+
+  .width-controls {
+    flex: 1 1 320px;
+    min-width: 280px;
+  }
+  .preset-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .preset-row button {
+    appearance: none;
+    border: 1px solid var(--page-border);
+    background: #fff;
+    padding: 6px 11px;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--page-ink);
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition:
+      border-color 0.15s ease,
+      color 0.15s ease;
+  }
+  .preset-row button:hover {
+    border-color: var(--accent);
+    color: #1a7a7a;
+  }
+  .preset-row button[aria-pressed='true'] {
+    border-color: var(--accent);
+    background: #eafafa;
+    color: #1a7a7a;
+  }
+
+  .slider-track {
+    position: relative;
+    padding-top: 14px;
+  }
+  .slider-track input[type='range'] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 5px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #dfe3e7, #dfe3e7);
+    outline: none;
+    margin: 0;
+  }
+  .slider-track input[type='range']::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 1px var(--accent);
+    cursor: grab;
+    margin-top: -6.5px;
+  }
+  .slider-track input[type='range']::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 1px var(--accent);
+    cursor: grab;
+  }
+  .bp-flag {
+    position: absolute;
+    top: -4px;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+  }
+  .bp-flag .line {
+    width: 1.5px;
+    height: 18px;
+    background: #ff7a45;
+    opacity: 0.8;
+  }
+  .bp-flag .tag {
+    position: absolute;
+    top: -18px;
+    font-size: 9.5px;
+    font-weight: 700;
+    color: #b14e1f;
+    background: #fff1e8;
+    border: 1px solid #ffd9be;
+    padding: 1px 5px;
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+  .width-readout {
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--page-muted);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .width-readout .num {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--page-ink);
+  }
+  .bp-pill {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #e9fbfb;
+    color: #1a7a7a;
+  }
+
+  /* ---------- device frame ---------- */
+  .frame-shell {
+    margin-top: 26px;
+    display: flex;
+    justify-content: center;
+  }
+  .frame-chrome {
+    background: #1c2027;
+    border-radius: 16px;
+    padding: 10px 10px 0;
+    box-shadow: 0 20px 45px -18px rgba(16, 24, 40, 0.35);
+    max-width: 100%;
+  }
+  .frame-chrome-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 6px 10px;
+  }
+  .frame-chrome-bar .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #3a4150;
+  }
+  .frame-chrome-bar .url {
+    margin-left: 10px;
+    background: #2a303b;
+    color: #8b93a1;
+    font-size: 11.5px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+  }
+
+  .frame {
+    position: relative;
+    width: 900px;
+    max-width: 100%;
+    height: 760px;
+    background: var(--color-background-bottom);
+    overflow: hidden;
+    border-radius: 8px 8px 0 0;
+    container-type: inline-size;
+    container-name: rv-demo;
+  }
+
+  .page-body {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    background: var(--color-background-white);
+  }
+
+  /* ---------- header replica (shared with .lavish/header_rwd.html) ---------- */
+  .xt-header {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 70px;
+    background: var(--color-light);
+    z-index: 50;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+  }
+  .xt-header-inner {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .xt-left {
+    display: flex;
+    align-items: center;
+    gap: 40px;
+    min-width: 0;
+  }
+  .xt-logo {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .xt-logo svg {
+    display: block;
+    height: 26px;
+    width: auto;
+  }
+  .xt-nav {
+    display: none;
+    align-items: center;
+    gap: 28px;
+  }
+  .xt-nav a {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 16px;
+    color: var(--color-text-primary);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .xt-nav a:hover {
+    color: #14807f;
+  }
+  .xt-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .xt-right-desktop {
+    display: none;
+    align-items: center;
+    gap: 12px;
+  }
+  .xt-right-mobile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  @container rv-demo (min-width: 1024px) {
+    .xt-nav {
+      display: flex;
+    }
+    .xt-right-desktop {
+      display: flex;
+    }
+    .xt-right-mobile {
+      display: none;
+    }
+    .xt-right {
+      margin-right: 80px;
+    }
+  }
+
+  .btn {
+    appearance: none;
+    border: none;
+    font: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 500;
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+  .btn-primary {
+    background: var(--color-brand-500);
+    color: var(--color-text-primary);
+  }
+  .btn-primary:hover {
+    background: #24b6b6;
+  }
+  .btn-outline {
+    background: var(--color-background-white);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-background-border);
+  }
+  .btn-outline:hover {
+    background: var(--color-background-bottom);
+  }
+
+  .icon-btn {
+    appearance: none;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    color: var(--color-text-primary);
+  }
+  .icon-btn:hover {
+    background: var(--color-background-bottom);
+  }
+
+  .avatar {
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: #06403f;
+    background: linear-gradient(135deg, #9bf1ef, #4fdad6);
+    flex-shrink: 0;
+  }
+  .avatar-32 {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+  .avatar-56 {
+    width: 56px;
+    height: 56px;
+    font-size: 20px;
+  }
+
+  .dropdown-trigger {
+    appearance: none;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px;
+  }
+  .dropdown-trigger .chev {
+    font-size: 19px;
+    line-height: 1;
+    color: var(--color-text-primary);
+    transition: transform 0.15s ease;
+  }
+  .dropdown-trigger[aria-expanded='true'] .chev {
+    transform: rotate(180deg);
+  }
+  .dropdown-anchor {
+    position: relative;
+  }
+  .dropdown-panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    width: 320px;
+    max-height: 440px;
+    overflow-y: auto;
+    background: var(--color-background-white);
+    border: 1px solid var(--color-background-border);
+    border-radius: 16px;
+    box-shadow: 0 12px 32px -8px rgba(16, 24, 40, 0.22);
+    z-index: 60;
+    transform-origin: top right;
+    opacity: 0;
+    transform: scale(0.96);
+    pointer-events: none;
+    transition:
+      opacity 0.12s ease,
+      transform 0.12s ease;
+  }
+  .dropdown-panel.is-open {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+  }
+  .dd-profile {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 24px 24px 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+  }
+  .dd-profile .name {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+  .dd-divider {
+    height: 1px;
+    background: var(--color-background-bottom);
+    margin: 0 24px;
+  }
+  .dd-items {
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+  }
+  .dd-item {
+    appearance: none;
+    border: none;
+    background: none;
+    text-align: left;
+    font: inherit;
+    font-size: 16px;
+    color: var(--color-text-primary);
+    padding: 12px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .dd-item:hover {
+    background: var(--color-background-bottom);
+  }
+  .dd-item.is-active {
+    background: var(--color-background-bottom);
+    font-weight: 600;
+  }
+
+  .sheet-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(2px);
+    z-index: 70;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .sheet-overlay.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .sheet-panel {
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: 84%;
+    max-width: 320px;
+    background: var(--color-background-white);
+    z-index: 71;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+    box-shadow: -8px 0 24px -12px rgba(16, 24, 40, 0.2);
+  }
+  .sheet-panel.is-open {
+    transform: translateX(0);
+  }
+  .sheet-close {
+    margin-left: auto;
+    appearance: none;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--color-brand-900);
+    padding: 4px;
+    display: inline-flex;
+  }
+  .sheet-nav-links {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+    font-size: 20px;
+    padding: 32px 0;
+  }
+  .sheet-nav-links a {
+    color: var(--color-text-primary);
+    text-decoration: none;
+  }
+  .sheet-user-profile {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 0 24px;
+    text-align: left;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+  }
+  .sheet-user-profile .name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+  .sheet-user-nav {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+  }
+  .sheet-user-nav button {
+    appearance: none;
+    border: none;
+    background: none;
+    text-align: left;
+    font: inherit;
+    padding: 13px 0;
+    font-size: 16px;
+    color: var(--color-text-primary);
+    cursor: pointer;
+  }
+  .sheet-user-nav button.is-active {
+    font-weight: 700;
+    color: var(--color-brand-900);
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+
+  /* ============================================================
+     RESERVATION DASHBOARD — src/components/reservation/*
+     ============================================================ */
+  .rv-main {
+    padding-top: 70px;
+  }
+  .rv-shell {
+    display: flex;
+    min-height: 560px;
+    justify-content: center;
+    padding-bottom: 48px;
+  }
+  .rv-card {
+    width: 90%;
+    max-width: 800px;
+    border-radius: 16px;
+    padding-top: 24px;
+  }
+  .rv-title {
+    margin: 0 auto 24px;
+    text-align: center;
+    font-size: 24px;
+    line-height: 1.25;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+  @container rv-demo (min-width: 768px) {
+    .rv-title {
+      font-size: 36px;
+    }
+  }
+
+  .rv-tabs {
+    margin: 0 auto;
+    width: 100%;
+    max-width: 768px;
+    padding: 0;
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-tabs {
+      padding: 0 16px;
+    }
+  }
+  @container rv-demo (min-width: 1024px) {
+    .rv-tabs {
+      padding: 0 24px;
+    }
+  }
+
+  .rv-tabs-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--color-background-white);
+    padding-bottom: 8px;
+  }
+  .rv-tabs-scroll {
+    margin: 0 -12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 4px 0 0;
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-tabs-scroll {
+      margin: 0;
+    }
+  }
+  .rv-tabs-scroll::-webkit-scrollbar {
+    display: none;
+  }
+  .rv-tabslist {
+    display: inline-flex;
+    width: max-content;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 0 auto;
+    padding: 0 12px;
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-tabslist {
+      padding: 0;
+    }
+  }
+  .rv-tabslist-outer {
+    display: flex;
+    justify-content: center;
+  }
+  .rv-tab {
+    appearance: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    border-radius: 999px;
+    border: 1px solid var(--color-background-border);
+    background: transparent;
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: 14px;
+    padding: 6px 12px;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease,
+      border-color 0.15s ease;
+  }
+  .rv-tab .rv-count {
+    margin-left: 4px;
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+  }
+  .rv-tab[aria-selected='true'] {
+    background: var(--color-dark);
+    color: var(--color-text-white);
+    border-color: var(--color-dark);
+  }
+  .rv-tab[aria-selected='true'] .rv-count {
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .rv-tabpanels {
+    padding: 8px 12px 0;
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-tabpanels {
+      padding: 8px 0 0;
+    }
+  }
+  .rv-tabpanel {
+    margin-top: 16px;
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-tabpanel {
+      margin-top: 24px;
+    }
+  }
+
+  .rv-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-list {
+      gap: 16px;
+    }
+  }
+
+  /* skeleton */
+  .rv-skel-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-radius: 16px;
+    border: 1px solid var(--color-background-border);
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .rv-skel {
+    background: var(--color-background-bottom);
+    border-radius: 8px;
+    animation: rv-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes rv-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+  .rv-skel-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .rv-skel-lines {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .rv-skel-lines .l1 {
+    height: 16px;
+    width: 128px;
+  }
+  .rv-skel-lines .l2 {
+    height: 12px;
+    width: 192px;
+  }
+  .rv-skel-pill {
+    height: 32px;
+    width: 80px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+
+  /* empty state */
+  .rv-empty {
+    border: 1px dashed var(--color-background-border);
+    border-radius: 12px;
+    padding: 32px;
+    text-align: center;
+    color: var(--color-text-tertiary);
+    background: var(--color-background-white);
+  }
+
+  .rv-loadmore-row {
+    display: flex;
+    justify-content: center;
+    padding-top: 8px;
+  }
+  .rv-loadmore-btn {
+    appearance: none;
+    cursor: pointer;
+    border: 1px solid var(--color-background-border);
+    background: var(--color-background-white);
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: 13px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 6px;
+  }
+  .rv-loadmore-btn:hover {
+    background: var(--color-background-bottom);
+  }
+  .rv-loadmore-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* card */
+  .rv-item {
+    border-radius: 8px;
+    border: 1px solid rgba(230, 232, 234, 0.4);
+    background: var(--color-background-white);
+    box-shadow: 0 1px 2px 0 rgba(16, 24, 40, 0.05);
+    transition: box-shadow 0.15s ease;
+  }
+  .rv-item:hover {
+    box-shadow: 0 2px 6px 0 rgba(16, 24, 40, 0.08);
+  }
+  .rv-item-body {
+    padding: 12px;
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-item-body {
+      padding: 16px;
+    }
+  }
+  .rv-item-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-item-row {
+      gap: 16px;
+    }
+  }
+  .rv-item-avatar {
+    flex-shrink: 0;
+  }
+  .rv-item-avatar a {
+    display: block;
+    border-radius: 999px;
+  }
+  .rv-avatar-img {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 999px;
+    width: 40px;
+    height: 40px;
+    background: var(--color-background-bottom);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-avatar-img {
+      width: 48px;
+      height: 48px;
+    }
+  }
+  .rv-avatar-img img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .rv-item-main {
+    min-width: 0;
+    flex: 1;
+  }
+  .rv-item-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .rv-item-name-link {
+    min-width: 0;
+    text-decoration: none;
+    color: inherit;
+  }
+  .rv-item-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-item-name {
+      font-size: 16px;
+    }
+  }
+  .rv-item-name-link:hover .rv-item-name {
+    text-decoration: underline;
+  }
+  .rv-item-roleline {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-item-roleline {
+      font-size: 14px;
+    }
+  }
+  .rv-item-actions {
+    flex-shrink: 0;
+    display: flex;
+    gap: 8px;
+  }
+
+  .rv-hr {
+    display: none;
+    margin: 12px 0;
+    height: 1px;
+    background: var(--color-background-border);
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-hr {
+      display: block;
+    }
+  }
+
+  .rv-meta-row {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-meta-row {
+      margin-top: 0;
+      font-size: 14px;
+    }
+  }
+  .rv-meta-left {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+  }
+  .rv-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .rv-meta svg {
+    flex-shrink: 0;
+  }
+
+  .rv-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-status {
+      font-size: 12px;
+    }
+  }
+  .rv-status.far {
+    background: var(--color-background-bottom);
+    color: var(--color-text-tertiary);
+  }
+  .rv-status.soon {
+    background: rgba(241, 202, 60, 0.2);
+    color: var(--color-status-warning-default);
+  }
+  .rv-status.imminent {
+    background: rgba(241, 93, 60, 0.2);
+    color: var(--color-status-error-default);
+  }
+  .rv-status.live {
+    background: rgba(46, 198, 89, 0.2);
+    color: var(--color-status-success-default);
+  }
+  .rv-status.ended {
+    background: var(--color-background-bottom);
+    color: rgba(118, 128, 143, 0.7);
+  }
+  .rv-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-status-success-default);
+    animation: rv-pulse 1.4s ease-in-out infinite;
+  }
+
+  .rv-messages {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .rv-message-block {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    border-radius: 8px;
+    background: rgba(245, 245, 245, 0.4);
+    padding: 10px;
+    font-size: 12px;
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-message-block {
+      font-size: 14px;
+    }
+  }
+  .rv-message-block svg {
+    margin-top: 2px;
+    flex-shrink: 0;
+    color: var(--color-text-tertiary);
+  }
+  .rv-message-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-text-tertiary);
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-message-label {
+      font-size: 12px;
+    }
+  }
+  .rv-message-content {
+    margin-top: 2px;
+    color: var(--color-text-primary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .rv-footer-slot {
+    margin-top: 12px;
+  }
+  .rv-conv-trigger {
+    appearance: none;
+    border: none;
+    background: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font: inherit;
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+    padding: 0;
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-conv-trigger {
+      font-size: 14px;
+    }
+  }
+  .rv-conv-trigger:hover {
+    color: var(--color-text-primary);
+  }
+
+  .rv-email-hint {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+  }
+
+  .rv-cancelled-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: var(--color-background-bottom);
+    color: var(--color-text-primary);
+    padding: 2px 10px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .rv-btn {
+    appearance: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 6px;
+    border: none;
+    white-space: nowrap;
+  }
+  .rv-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .rv-btn-primary {
+    background: var(--color-brand-500);
+    color: var(--color-text-primary);
+  }
+  .rv-btn-primary:hover:not(:disabled) {
+    background: rgba(44, 203, 203, 0.9);
+  }
+  .rv-btn-destructive {
+    background: var(--color-status-error-default);
+    color: var(--color-text-white);
+  }
+  .rv-btn-destructive:hover:not(:disabled) {
+    background: rgba(238, 57, 17, 0.9);
+  }
+  .rv-btn-outline {
+    background: var(--color-background-white);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-background-border);
+  }
+  .rv-btn-outline:hover:not(:disabled) {
+    background: var(--color-background-bottom);
+  }
+
+  /* ---------- dialogs (shared overlay/frame, content swapped per action) ---------- */
+  .rv-dialog-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 90;
+    background: rgba(40, 40, 40, 0.8);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .rv-dialog-overlay.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .rv-dialog {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 91;
+    width: 90%;
+    max-width: 420px;
+    max-height: 85%;
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    border: 1px solid var(--color-background-border);
+    background: var(--color-background-white);
+    box-shadow: 0 25px 60px -15px rgba(16, 24, 40, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -48%) scale(0.97);
+    transition:
+      opacity 0.16s ease,
+      transform 0.16s ease;
+  }
+  .rv-dialog.is-open {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  .rv-dialog-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    appearance: none;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--color-text-tertiary);
+    border-radius: 4px;
+    padding: 4px;
+    display: inline-flex;
+  }
+  .rv-dialog-close:hover {
+    background: var(--color-background-bottom);
+    color: var(--color-text-primary);
+  }
+  .rv-dialog-inner {
+    padding: 24px;
+    overflow-y: auto;
+  }
+  .rv-dialog-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    text-align: center;
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-dialog-title {
+      text-align: left;
+    }
+  }
+  .rv-dialog-desc {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: var(--color-text-tertiary);
+    text-align: center;
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-dialog-desc {
+      text-align: left;
+    }
+  }
+  .rv-dialog-summary {
+    margin-top: 16px;
+    border-radius: 16px;
+    border: 1px solid var(--color-background-border);
+    padding: 16px;
+  }
+  .rv-dialog-summary-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .rv-dialog-summary-name {
+    font-weight: 500;
+    color: var(--color-text-primary);
+  }
+  .rv-dialog-summary-role {
+    font-size: 13px;
+    color: var(--color-text-tertiary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rv-dialog-summary-grid {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    font-size: 14px;
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-dialog-summary-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  .rv-dialog-summary-grid > div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .rv-dialog-textblock-label {
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text-primary);
+  }
+  .rv-dialog-textblock {
+    border-radius: 16px;
+    border: 1px solid var(--color-background-border);
+    background: rgba(245, 245, 245, 0.4);
+    padding: 16px;
+    font-size: 14px;
+    color: var(--color-text-primary);
+    white-space: pre-wrap;
+  }
+
+  .rv-dialog-reply-toggle {
+    appearance: none;
+    border: none;
+    background: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: inherit;
+    font-size: 14px;
+    color: var(--color-text-tertiary);
+    padding: 0;
+  }
+  .rv-dialog-reply-toggle:hover {
+    color: var(--color-text-primary);
+  }
+
+  .rv-textarea {
+    display: block;
+    width: 100%;
+    resize: vertical;
+    border-radius: 6px;
+    border: 1px solid var(--color-background-border);
+    background: transparent;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 14px;
+    min-height: 100px;
+  }
+  .rv-textarea:focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 1px;
+  }
+  .rv-textarea-frame {
+    border-radius: 16px;
+    border: 1px solid var(--color-background-border);
+    padding: 4px;
+  }
+  .rv-textarea-frame .rv-textarea {
+    border: none;
+  }
+
+  .rv-dialog-footer {
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-dialog-footer {
+      flex-direction: row;
+      justify-content: flex-end;
+    }
+  }
+  .rv-dialog-footer .rv-btn {
+    width: 100%;
+    height: 40px;
+  }
+  @container rv-demo (min-width: 640px) {
+    .rv-dialog-footer .rv-btn {
+      width: auto;
+    }
+  }
+
+  /* conversation dialog */
+  .rv-conv-dialog {
+    max-width: 480px;
+  }
+  .rv-conv-header {
+    border-bottom: 1px solid var(--color-background-border);
+    padding: 20px 24px;
+  }
+  .rv-conv-header-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .rv-conv-header-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+  .rv-conv-header-sub {
+    font-size: 13px;
+    color: var(--color-text-tertiary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rv-conv-header-meta {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 13px;
+    color: var(--color-text-tertiary);
+  }
+  .rv-conv-header-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .rv-conv-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .rv-conv-bubble-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .rv-conv-bubble-wrap.is-mentor {
+    align-items: flex-end;
+  }
+  .rv-conv-bubble-wrap.is-mentee {
+    align-items: flex-start;
+  }
+  .rv-conv-role-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-text-tertiary);
+  }
+  .rv-conv-bubble {
+    max-width: 85%;
+    border-radius: 16px;
+    padding: 10px 14px;
+    font-size: 14px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--color-text-primary);
+  }
+  .rv-conv-bubble.is-mentor {
+    background: var(--color-brand-500);
+  }
+  .rv-conv-bubble.is-mentee {
+    background: var(--color-background-bottom);
+  }
+
+  /* ---------- footer (Footer.tsx, shared with .lavish/home-page.html) ---------- */
+  .xt-footer {
+    display: flex;
+    width: 100%;
+    background: var(--color-dark);
+    padding-bottom: 50px;
+  }
+  .xt-footer-inner {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+    padding: 50px 20px 0;
+  }
+  .xt-footer-logo img {
+    display: block;
+    height: 39px;
+    width: 146px;
+    object-fit: contain;
+  }
+  .xt-footer-cols {
+    margin-top: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+  .xt-footer-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .xt-footer-col p.col-title {
+    margin: 0 0 20px;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.085em;
+    color: var(--color-text-white);
+  }
+  .xt-footer-links {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .xt-footer-links a {
+    color: var(--color-text-white);
+    text-decoration: none;
+    font-weight: 400;
+  }
+  .xt-footer-links a:hover {
+    text-decoration: underline;
+  }
+  @container rv-demo (min-width: 768px) {
+    .xt-footer-inner {
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 50px 70px 0;
+    }
+    .xt-footer-cols {
+      margin-top: 0;
+      flex-direction: row;
+      gap: 0 64px;
+    }
+    .xt-footer-col,
+    .xt-footer-col p.col-title,
+    .xt-footer-links,
+    .xt-footer-logo {
+      align-items: flex-start;
+    }
+  }
+
+  /* ---------- source map ---------- */
+  .source-map {
+    margin-top: 26px;
+    background: var(--page-card);
+    border: 1px solid var(--page-border);
+    border-radius: 16px;
+    padding: 20px 22px;
+  }
+  .source-map h2 {
+    font-size: 14px;
+    margin: 0 0 12px;
+    font-weight: 700;
+  }
+  .source-map table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .source-map td {
+    padding: 7px 10px;
+    border-top: 1px solid var(--page-border);
+    vertical-align: top;
+  }
+  .source-map tr:first-child td {
+    border-top: none;
+  }
+  .source-map code {
+    font-family: ui-monospace, 'SFMono-Regular', monospace;
+    font-size: 12px;
+    background: #f1f3f5;
+    padding: 2px 6px;
+    border-radius: 5px;
+    color: #14807f;
+    white-space: nowrap;
+  }
+  .source-map .desc {
+    color: var(--page-muted);
+  }
+
+  @media (max-width: 640px) {
+    .panel {
+      flex-direction: column;
+    }
+    .width-controls {
+      width: 100%;
+    }
+  }
+</style>
+
+<div class="wrap">
+  <div class="intro">
+    <h1>預約頁還原預覽 — 即將到來 ／ 等待回復 ／ 歷史紀錄 ＋ 四個互動對話框</h1>
+    <p>
+      依專案現有原始碼精確還原
+      <code class="inline">src/app/reservation/mentee/page.tsx</code> 與
+      <code class="inline">src/app/reservation/mentor/page.tsx</code>
+      （兩者皆渲染同一個
+      <code class="inline">ReservationDashboard</code>，只差在
+      <code class="inline">userRole</code>
+      prop）：三個分頁（即將到來／待回復／歷史紀錄）、四個真實互動對話框（接受／拒絕／取消／查看完整對話）、狀態徽章（依
+      <code class="inline">dtstart/dtend</code> 即時計算
+      far/soon/imminent/live/ended）、歷史紀錄的延遲載入
+      Skeleton、載入更多、空清單狀態。並套用
+      <code class="inline">src/styles/tokens.css</code> 的實際顏色
+      token。下方裝置外框以 CSS container query 模擬
+      <code class="inline">sm/md/lg</code>（640 / 768 / 1024px）斷點。
+    </p>
+    <div class="source-note">
+      🎨 <b>設計來源：</b>本專案（X-Talent-Frontend）既有的 Tailwind 設計
+      token、shadcn/ui
+      元件（Tabs／Card／Badge／Avatar／Button／Dialog／Textarea）與預約頁元件原始碼，確保與正式環境視覺一致。示範資料取自專案自身的
+      <code class="inline"
+        >src/components/reservation/__mocks__/reservations.mock.ts</code
+      >。
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="control-group">
+      <div class="control-label">身份（userRole）</div>
+      <div class="segmented" id="role-toggle">
+        <button data-role="mentee" aria-pressed="true">學員 Mentee</button>
+        <button data-role="mentor" aria-pressed="false">導師 Mentor</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">資料狀態</div>
+      <label class="toggle-row">
+        <input type="checkbox" id="empty-toggle" />
+        模擬空清單（目前尚無資料）
+      </label>
+    </div>
+
+    <div class="width-controls">
+      <div class="control-label">裝置寬度（模擬 RWD 斷點）</div>
+      <div class="preset-row" id="preset-row">
+        <button data-w="900" aria-pressed="true">🖥️ Desktop 900</button>
+        <button data-w="640" aria-pressed="false">💻 Tablet 640</button>
+        <button data-w="375" aria-pressed="false">📱 Mobile 375</button>
+      </div>
+      <div class="slider-track">
+        <div class="bp-flag" style="left: 41%">
+          <span class="tag">sm 640</span><span class="line"></span>
+        </div>
+        <div class="bp-flag" style="left: 62%">
+          <span class="tag">md 768</span><span class="line"></span>
+        </div>
+        <input
+          type="range"
+          id="width-slider"
+          min="320"
+          max="1100"
+          value="900"
+          step="1"
+        />
+      </div>
+      <div class="width-readout">
+        容器寬度 <span class="num" id="width-num">900px</span>
+        <span class="bp-pill" id="bp-pill">md+ 版型</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame-shell">
+    <div class="frame-chrome">
+      <div class="frame-chrome-bar">
+        <span class="dot" style="background: #ff6159"></span>
+        <span class="dot" style="background: #ffbd2e"></span>
+        <span class="dot" style="background: #28ca41"></span>
+        <span class="url" id="url-bar"
+          >x-talent.example.com/reservation/mentee</span
+        >
+      </div>
+      <div class="frame" id="frame">
+        <!-- Header.tsx (simplified: this route requires login, so no guest state) -->
+        <header class="xt-header">
+          <div class="xt-header-inner">
+            <div class="xt-left">
+              <a
+                href="#"
+                class="xt-logo"
+                aria-label="Go to homepage"
+                onclick="return false;"
+              >
+                <svg
+                  width="120"
+                  height="24"
+                  viewBox="0 0 151 30"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M41.8876 16.4878C44.5017 16.4878 46.6209 14.4925 46.6209 12.0313C46.6209 9.56997 44.5017 7.57471 41.8876 7.57471C39.2735 7.57471 37.1543 9.56997 37.1543 12.0313C37.1543 14.4925 39.2735 16.4878 41.8876 16.4878Z"
+                    fill="#003C5A"
+                  />
+                  <path
+                    d="M41.9651 0C38.4686 0 35.2971 1.32445 32.9895 3.46929L32.7532 3.69177C31.7379 4.65122 31.7379 6.2051 32.7569 7.16454C33.7759 8.12399 35.43 8.12399 36.449 7.16107L36.6669 6.9525C38.1954 5.53766 40.2556 4.80765 42.4118 4.92584C46.2 5.13094 49.2792 8.02318 49.5081 11.5898C49.7739 15.7161 46.2849 19.1506 41.9614 19.1506C39.9676 19.1506 38.0883 18.4241 36.6632 17.1101L22.035 3.46929C19.7274 1.32445 16.5595 0 13.0594 0C5.81911 0 -0.0181448 5.66976 0.291994 12.5527C0.565212 18.6709 5.77481 23.6698 12.2656 24.0417C12.8563 24.0765 13.4397 24.0695 14.0083 24.0313C15.5626 23.9235 16.7035 22.6165 16.4414 21.1703C16.2125 19.9119 15.0125 19.0255 13.6944 19.1298C13.484 19.1472 13.2735 19.1541 13.0594 19.1541C8.7359 19.1541 5.24683 15.7161 5.51267 11.5933C5.74158 8.02666 8.82082 5.13789 12.6089 4.92932C14.7688 4.81113 16.8254 5.54114 18.3539 6.95597L32.9895 20.6002C35.3968 22.8389 38.7418 24.1808 42.4229 24.0626C49.1832 23.8401 54.6439 18.591 54.7435 12.2225C54.8506 5.48552 49.0872 0 41.9651 0Z"
+                    fill="#003C5A"
+                  />
+                  <path
+                    d="M27.514 21.0904C26.8826 21.0904 26.2845 21.2085 25.7344 21.4171L17.512 13.6755C17.7262 13.168 17.8443 12.6118 17.8443 12.0313C17.8443 9.57007 15.725 7.57471 13.111 7.57471C10.497 7.57471 8.37769 9.57007 8.37769 12.0313C8.37769 14.4924 10.497 16.4878 13.111 16.4878C13.7276 16.4878 14.3146 16.3766 14.8537 16.1749L23.0982 23.9374C22.8915 24.4345 22.7807 24.9768 22.7807 25.5434C22.7807 28.0046 24.9 30 27.514 30C30.128 30 32.2473 28.0046 32.2473 25.5434C32.2473 23.0857 30.128 21.0904 27.514 21.0904Z"
+                    fill="#003C5A"
+                  />
+                  <text
+                    x="63"
+                    y="21"
+                    font-family="Open Sans, sans-serif"
+                    font-size="17"
+                    font-weight="700"
+                    fill="#003C5A"
+                  >
+                    X-Talent
+                  </text>
+                </svg>
+              </a>
+              <nav class="xt-nav">
+                <a href="#" onclick="return false;">尋找導師</a>
+                <a href="#" class="role-label" onclick="return false;"
+                  >成為導師</a
+                >
+                <a href="#" onclick="return false;">關於 X-Talent</a>
+                <a href="#" onclick="return false;">提供回饋</a>
+              </nav>
+            </div>
+
+            <div class="xt-right">
+              <div class="xt-right-desktop">
+                <div class="dropdown-anchor" id="desktop-dropdown-anchor">
+                  <button
+                    type="button"
+                    class="dropdown-trigger"
+                    id="dropdown-trigger"
+                    aria-label="開啟用戶選單"
+                    aria-expanded="false"
+                  >
+                    <span class="avatar avatar-32" id="dd-avatar-32">王</span>
+                    <span class="chev" aria-hidden="true">▾</span>
+                  </button>
+                  <div class="dropdown-panel" id="dropdown-panel" role="menu">
+                    <button type="button" class="dd-profile">
+                      <span class="avatar avatar-56" id="dd-avatar-56">王</span>
+                      <span class="name" id="dd-name">王小明</span>
+                    </button>
+                    <div class="dd-divider"></div>
+                    <div class="dd-items">
+                      <button
+                        type="button"
+                        class="dd-item role-label"
+                        role="menuitem"
+                      >
+                        成為導師
+                      </button>
+                      <button
+                        type="button"
+                        class="dd-item is-active"
+                        role="menuitem"
+                      >
+                        我的預約
+                      </button>
+                      <button type="button" class="dd-item" role="menuitem">
+                        登出
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="xt-right-mobile">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  id="mobile-avatar-trigger"
+                  aria-label="開啟用戶選單"
+                >
+                  <span class="avatar avatar-32" id="mobile-avatar-32">王</span>
+                </button>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  id="hamburger-trigger"
+                  aria-label="開啟導航選單"
+                >
+                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                    <path
+                      d="M3 6H19M3 11H19M3 16H19"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div class="sheet-overlay" id="nav-sheet-overlay"></div>
+        <div
+          class="sheet-panel"
+          id="nav-sheet-panel"
+          role="dialog"
+          aria-label="導航選單"
+        >
+          <button
+            type="button"
+            class="sheet-close"
+            id="nav-sheet-close"
+            aria-label="關閉導航選單"
+          >
+            <svg width="24" height="24" viewBox="0 0 26 26" fill="none">
+              <path
+                d="M6 6L20 20M20 6L6 20"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+          <div class="sheet-nav-links">
+            <a href="#" onclick="return false;">尋找導師</a>
+            <a href="#" class="role-label" onclick="return false;">成為導師</a>
+            <a href="#" onclick="return false;">關於 X-Talent</a>
+            <a href="#" onclick="return false;">提供回饋</a>
+          </div>
+        </div>
+
+        <div class="sheet-overlay" id="user-sheet-overlay"></div>
+        <div
+          class="sheet-panel"
+          id="user-sheet-panel"
+          role="dialog"
+          aria-label="用戶選單"
+        >
+          <button
+            type="button"
+            class="sheet-close"
+            id="user-sheet-close"
+            aria-label="關閉用戶選單"
+          >
+            <svg width="24" height="24" viewBox="0 0 26 26" fill="none">
+              <path
+                d="M6 6L20 20M20 6L6 20"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+          <button type="button" class="sheet-user-profile">
+            <span class="avatar avatar-56" id="sheet-avatar-56">王</span>
+            <span>
+              <span class="name" id="sheet-user-name" style="display: block"
+                >王小明</span
+              >
+            </span>
+          </button>
+          <nav class="sheet-user-nav">
+            <button type="button" class="role-label">成為導師</button>
+            <button type="button" class="is-active">我的預約</button>
+            <button type="button">登出</button>
+          </nav>
+        </div>
+
+        <!-- ================= page content ================= -->
+        <div class="page-body">
+          <main class="rv-main">
+            <div class="rv-shell">
+              <div class="rv-card">
+                <div class="rv-title" id="rv-title">預約導師</div>
+
+                <div class="rv-tabs">
+                  <div class="rv-tabs-sticky">
+                    <div class="rv-tabs-scroll">
+                      <div class="rv-tabslist-outer">
+                        <div class="rv-tabslist" role="tablist">
+                          <button
+                            class="rv-tab"
+                            data-tab="upcoming"
+                            aria-selected="true"
+                            role="tab"
+                          >
+                            即將到來<span class="rv-count" id="count-upcoming"
+                              >4</span
+                            >
+                          </button>
+                          <button
+                            class="rv-tab"
+                            data-tab="pending"
+                            aria-selected="false"
+                            role="tab"
+                          >
+                            <span id="pending-label">等待回復</span
+                            ><span class="rv-count" id="count-pending">1</span>
+                          </button>
+                          <button
+                            class="rv-tab"
+                            data-tab="history"
+                            aria-selected="false"
+                            role="tab"
+                          >
+                            歷史紀錄<span
+                              class="rv-count"
+                              id="count-history"
+                              hidden
+                            ></span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="rv-tabpanels">
+                    <div class="rv-tabpanel" data-panel="upcoming">
+                      <div class="rv-list" id="list-upcoming"></div>
+                    </div>
+                    <div class="rv-tabpanel" data-panel="pending" hidden>
+                      <div class="rv-list" id="list-pending"></div>
+                    </div>
+                    <div class="rv-tabpanel" data-panel="history" hidden>
+                      <div class="rv-list" id="list-history"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+
+          <!-- Footer.tsx -->
+          <footer class="xt-footer">
+            <div class="xt-footer-inner">
+              <div class="xt-footer-logo">
+                <img src="reservation-page-assets/logo.png" alt="logo" />
+              </div>
+              <div class="xt-footer-cols">
+                <div class="xt-footer-col">
+                  <p class="col-title">關於</p>
+                  <div class="xt-footer-links">
+                    <a href="#" onclick="return false;">隱私權政策</a>
+                    <a href="#" onclick="return false;">服務條款</a>
+                  </div>
+                </div>
+                <div class="xt-footer-col">
+                  <p class="col-title">相關連結</p>
+                  <div class="xt-footer-links">
+                    <a href="#" onclick="return false;">XChange Website</a>
+                    <a href="#" onclick="return false;">X-IMPACT Podcast</a>
+                    <a href="#" onclick="return false;">XChange Medium</a>
+                  </div>
+                </div>
+                <div class="xt-footer-col">
+                  <p class="col-title">XChange 社群連結</p>
+                  <div class="xt-footer-links">
+                    <a href="#" onclick="return false;">Facebook 粉絲專頁</a>
+                    <a href="#" onclick="return false;">Instagram 商業檔案</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </footer>
+        </div>
+
+        <!-- ================= dialogs (portalled as siblings, single reused instance per type) ================= -->
+
+        <!-- AcceptReservationDialog.tsx -->
+        <div class="rv-dialog-overlay" id="accept-overlay"></div>
+        <div
+          class="rv-dialog"
+          id="accept-dialog"
+          role="dialog"
+          aria-label="接受學員預約"
+        >
+          <button
+            type="button"
+            class="rv-dialog-close"
+            id="accept-close"
+            aria-label="關閉"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M6 6l12 12M18 6 6 18"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+          <div class="rv-dialog-inner">
+            <div class="rv-dialog-title">接受學員預約</div>
+            <div class="rv-dialog-summary">
+              <div class="rv-dialog-summary-top">
+                <span
+                  class="rv-avatar-img"
+                  style="width: 40px; height: 40px"
+                  id="accept-avatar"
+                ></span>
+                <div style="min-width: 0">
+                  <div class="rv-dialog-summary-name" id="accept-name"></div>
+                  <div
+                    class="rv-dialog-summary-role"
+                    id="accept-roleline"
+                  ></div>
+                </div>
+              </div>
+              <div class="rv-dialog-summary-grid">
+                <div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M7 2v3M17 2v3M3.5 9h17M4 5h16a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    /></svg
+                  ><span id="accept-date"></span>
+                </div>
+                <div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="9"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                    />
+                    <path
+                      d="M12 7v5l3 3"
+                      stroke="currentColor"
+                      stroke-width="1.6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    /></svg
+                  ><span id="accept-time"></span>
+                </div>
+              </div>
+            </div>
+            <div id="accept-message-wrap" style="margin-top: 24px">
+              <div class="rv-dialog-textblock-label">學員所提出的問題</div>
+              <div class="rv-dialog-textblock" id="accept-message"></div>
+            </div>
+            <div style="margin-top: 24px">
+              <button
+                type="button"
+                class="rv-dialog-reply-toggle"
+                id="accept-reply-open"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M14 3h5a2 2 0 0 1 2 2v13a1 1 0 0 1-1.6.8L15 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3M12 3v6M9 6h6"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                附上回覆訊息（選填）
+              </button>
+              <div id="accept-reply-wrap" hidden>
+                <div class="rv-dialog-textblock-label">
+                  給學員的回覆（選填）
+                </div>
+                <div class="rv-textarea-frame">
+                  <textarea
+                    class="rv-textarea"
+                    id="accept-reply-textarea"
+                    placeholder="例如：屆時於 Google Meet 見,請先準備一份履歷。"
+                  ></textarea>
+                </div>
+              </div>
+            </div>
+            <div class="rv-dialog-footer">
+              <button
+                type="button"
+                class="rv-btn rv-btn-outline"
+                id="accept-cancel-btn"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                class="rv-btn rv-btn-primary"
+                id="accept-confirm-btn"
+              >
+                接受
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- RejectReservationDialog.tsx -->
+        <div class="rv-dialog-overlay" id="reject-overlay"></div>
+        <div
+          class="rv-dialog"
+          id="reject-dialog"
+          role="dialog"
+          aria-label="拒絕學員預約的原因"
+        >
+          <button
+            type="button"
+            class="rv-dialog-close"
+            id="reject-close"
+            aria-label="關閉"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M6 6l12 12M18 6 6 18"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+          <div class="rv-dialog-inner">
+            <div class="rv-dialog-title">拒絕學員預約的原因</div>
+            <div class="rv-dialog-desc">請說明無法接受此預約的原因。</div>
+            <div class="rv-textarea-frame" style="margin-top: 16px">
+              <textarea
+                class="rv-textarea"
+                id="reject-reason"
+                placeholder="請在此輸入原因..."
+                style="min-height: 120px"
+              ></textarea>
+            </div>
+            <div class="rv-dialog-footer">
+              <button
+                type="button"
+                class="rv-btn rv-btn-outline"
+                id="reject-cancel-btn"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                class="rv-btn rv-btn-destructive"
+                id="reject-confirm-btn"
+                disabled
+              >
+                拒絕
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- CancelReservationDialog.tsx -->
+        <div class="rv-dialog-overlay" id="cancel-overlay"></div>
+        <div
+          class="rv-dialog"
+          id="cancel-dialog"
+          role="dialog"
+          aria-label="取消預約"
+        >
+          <button
+            type="button"
+            class="rv-dialog-close"
+            id="cancel-close"
+            aria-label="關閉"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M6 6l12 12M18 6 6 18"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+          <div class="rv-dialog-inner">
+            <div class="rv-dialog-title" id="cancel-title">取消預約</div>
+            <div class="rv-dialog-desc">請說明取消預約的原因。</div>
+            <textarea
+              class="rv-textarea"
+              id="cancel-reason"
+              placeholder="您好，..."
+              style="margin-top: 16px; min-height: 140px"
+            ></textarea>
+            <div class="rv-dialog-footer">
+              <button
+                type="button"
+                class="rv-btn rv-btn-outline"
+                id="cancel-close-btn"
+              >
+                維持預約
+              </button>
+              <button
+                type="button"
+                class="rv-btn rv-btn-destructive"
+                id="cancel-confirm-btn"
+                disabled
+              >
+                取消預約
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ReservationConversationDialog.tsx -->
+        <div class="rv-dialog-overlay" id="conv-overlay"></div>
+        <div
+          class="rv-dialog rv-conv-dialog"
+          id="conv-dialog"
+          role="dialog"
+          aria-label="完整對話紀錄"
+        >
+          <button
+            type="button"
+            class="rv-dialog-close"
+            id="conv-close"
+            aria-label="關閉"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M6 6l12 12M18 6 6 18"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+          <div class="rv-conv-header">
+            <div class="rv-conv-header-top">
+              <span
+                class="rv-avatar-img"
+                style="width: 40px; height: 40px"
+                id="conv-avatar"
+              ></span>
+              <div style="min-width: 0">
+                <div class="rv-conv-header-name">完整對話紀錄</div>
+                <div class="rv-conv-header-sub" id="conv-sub"></div>
+              </div>
+            </div>
+            <div class="rv-conv-header-meta">
+              <span
+                ><svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M7 2v3M17 2v3M3.5 9h17M4 5h16a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  /></svg
+                ><span id="conv-date"></span
+              ></span>
+              <span
+                ><svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="9"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                  />
+                  <path
+                    d="M12 7v5l3 3"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  /></svg
+                ><span id="conv-time"></span
+              ></span>
+            </div>
+          </div>
+          <div class="rv-conv-body" id="conv-body"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="source-map">
+    <h2>元件對應（可回原始碼比對）</h2>
+    <table>
+      <tr>
+        <td>
+          <code>src/app/reservation/mentee/page.tsx</code><br /><code
+            >src/app/reservation/mentor/page.tsx</code
+          >
+        </td>
+        <td class="desc">
+          兩個路由皆只是把 <code>userRole</code> 傳給同一個
+          <code>ReservationDashboard</code
+          >；此還原用單一「身份」切換器同時驅動兩者。
+        </td>
+      </tr>
+      <tr>
+        <td><code>ReservationDashboard.tsx</code></td>
+        <td class="desc">
+          標題（預約導師／擔任導師）、三個 Tabs（即將到來／待回復 label
+          依角色不同／歷史紀錄）、history
+          分頁延遲載入（<code>isHistoryLoaded</code>）邏輯。
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <code>ReservationList.tsx</code> / <code>ReservationCard.tsx</code>
+        </td>
+        <td class="desc">
+          卡片版面（頭像／姓名／角色列／日期時間／狀態徽章／留言預覽／操作區），空清單與載入更多按鈕。
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <code>ReservationStatusBadge.tsx</code> /
+          <code>useReservationTimeStatus.ts</code>
+        </td>
+        <td class="desc">
+          依 <code>dtstart/dtend</code> 即時計算
+          far／soon／imminent／live／ended
+          五種狀態徽章樣式與文案，此還原採用相同演算法。
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <code>AcceptReservationDialog.tsx</code> /
+          <code>RejectReservationDialog.tsx</code>
+        </td>
+        <td class="desc">
+          僅
+          <code>pending-mentor</code>
+          卡片顯示；接受可選填回覆訊息，拒絕需填寫原因才能送出。
+        </td>
+      </tr>
+      <tr>
+        <td><code>CancelReservationDialog.tsx</code></td>
+        <td class="desc">
+          <code>upcoming</code> 與
+          <code>pending-mentee</code> 卡片皆顯示；需填寫原因才能送出。
+        </td>
+      </tr>
+      <tr>
+        <td><code>ReservationConversationDialog.tsx</code></td>
+        <td class="desc">
+          僅 history 且 <code>messages.length &gt; 0</code> 時顯示，訊息以
+          <code>[...messages].reverse()</code>
+          由新到舊排列，導師訊息靠右（brand-500 底色）。
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <code>src/components/reservation/__mocks__/reservations.mock.ts</code>
+        </td>
+        <td class="desc">
+          示範資料直接取自專案既有的 Storybook mock，涵蓋 far/soon/imminent/live
+          四種狀態徽章與已取消（導師／學員）兩種歷史紀錄。
+        </td>
+      </tr>
+      <tr>
+        <td><code>src/styles/tokens.css</code></td>
+        <td class="desc">
+          brand-500 <code>#2CCBCB</code>、status-success/warning/error、dark
+          <code>#282828</code>（作用中分頁底色）等實際 token 來源。
+        </td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<script>
+  /* ================= mock data (from reservations.mock.ts) ================= */
+  const now = Math.floor(Date.now() / 1000);
+  const minutesFromNow = (m) => now + m * 60;
+  const hoursFromNow = (h) => now + h * 3600;
+  const daysFromNow = (d) => now + d * 24 * 3600;
+
+  const UPCOMING = [
+    {
+      id: 'res-upcoming-far-3',
+      name: '王小華 (Grace Wang)',
+      avatar:
+        'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&auto=format&fit=crop&q=80',
+      roleLine: '國立台灣大學 資訊工程學系 / 碩士班二年級',
+      date: '2026年8月5日 (星期三)',
+      time: '14:00 – 15:00',
+      menteeMessage:
+        '導師您好！我目前的碩士論文方向是機器學習與邊緣運算優化。因為畢業在即，想向導師諮詢關於 AI 軟體工程師、演算法開發工程師的職涯定位，以及如何準備外商公司的白板面試與 behavior questions，謝謝！',
+      mentorMessage:
+        'Grace 你好！很高興收到你的諮詢。這個論文方向非常有潛力，我當天會針對外商 AI 工程師的面試準備要領提供詳細拆解。期待與你聊聊！',
+      dtstart: daysFromNow(3),
+      dtend: daysFromNow(3) + 3600,
+    },
+    {
+      id: 'res-upcoming-soon-4',
+      name: '李建國 (James Lee)',
+      avatar:
+        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+      roleLine: '蝦皮購物 Senior Data Analyst',
+      date: '今天 (2026年7月29日)',
+      time: '21:00 – 22:00',
+      menteeMessage:
+        '導師您好！我是 James。目前團隊正在規畫基於數據驅動的行銷自動化漏斗。希望跟導師請教在大規模 A/B 測試的指標設定，謝謝導師！',
+      mentorMessage:
+        'James 你好！非常硬核且實用的題目。我當天會分享幾個大型網路平台使用的技術，今晚見！',
+      dtstart: hoursFromNow(3),
+      dtend: hoursFromNow(4),
+    },
+    {
+      id: 'res-upcoming-imminent-5',
+      name: '葉書雅 (Sylvia Yeh)',
+      avatar:
+        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+      roleLine: 'Trend Micro Frontend Engineer / 工作 2 年',
+      date: '今天 (2026年7月29日)',
+      time: '18:40 – 19:40',
+      menteeMessage:
+        '導師您好，我是 Sylvia。目前工作上遇到了跨組協作的溝通瓶頸，希望想跟導師請教如何建立更有信任感的同步機制，謝謝！',
+      mentorMessage: 'Sylvia 妳好！這幾乎是所有工程師必經的痛點。等下見！',
+      dtstart: minutesFromNow(15),
+      dtend: minutesFromNow(75),
+    },
+    {
+      id: 'res-upcoming-live-6',
+      name: '徐偉傑 (Albert Hsu)',
+      avatar:
+        'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
+      roleLine: 'CyberLink Product Manager',
+      date: '今天 (2026年7月29日)',
+      time: '18:00 – 19:00',
+      menteeMessage:
+        '導師您好！我是 Albert。近期正推行敏捷開發 Scrum，希望能向導師請教如何塑造心理安全感並優化 Retrospective 流程，謝謝！',
+      mentorMessage:
+        'Albert 你好！Scrum 最難的是 Mindset 轉變而非流程。等會見！',
+      dtstart: minutesFromNow(-15),
+      dtend: minutesFromNow(45),
+    },
+  ];
+
+  const PENDING_MENTOR = [
+    {
+      id: 'res-pending-mentor-1',
+      name: '林小英 (Chloe Lin)',
+      avatar:
+        'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
+      roleLine: 'UIUX 新人 / 轉職探索中',
+      date: '2026年8月10日 (星期一)',
+      time: '19:00 – 20:00',
+      menteeMessage:
+        '導師您好！我目前正在自學 UIUX 設計，正在建立第一個作品集。想請教導師在設計 User Flow 與 Wireframe 時有沒有什麼實務上的秘訣？謝謝！',
+      dtstart: daysFromNow(5),
+      dtend: daysFromNow(5) + 3600,
+    },
+  ];
+
+  const PENDING_MENTEE = [
+    {
+      id: 'res-pending-mentee-2',
+      name: '張大同 (Harrison Chang)',
+      avatar:
+        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+      roleLine: 'LINE 台灣 Technical Lead / 雲端架構專家',
+      date: '2026年8月12日 (星期三)',
+      time: '21:00 – 22:00',
+      menteeMessage:
+        'Harrison 導師您好！我目前任職於中型企業，團隊正在評估將傳統伺服器架構遷移至 AWS 雲端，希望能跟導師探討最佳實踐，謝謝！',
+      dtstart: daysFromNow(7),
+      dtend: daysFromNow(7) + 3600,
+    },
+  ];
+
+  const HISTORY = [
+    {
+      id: 'res-history-ended-7',
+      name: '周杰倫 (Jay Chou)',
+      avatar:
+        'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
+      roleLine: '國立清華大學 資工系四年級 / 準備轉戰產品經理',
+      date: '2026年7月20日 (星期一)',
+      time: '20:00 – 21:00',
+      messages: [
+        {
+          content:
+            '導師您好！我是 Jay。我雖然是資工背景，但我更希望未來能成為跨領域的產品經理。想請教導師身為無經驗的畢業生，應如何展現自己的優勢？謝謝！',
+          role: 'MENTEE',
+        },
+        {
+          content:
+            'Jay 你好！資工背景在產品經理中其實非常搶手（尤其是 Technical PM 領域）。我會幫你剖析如何把系統性思考包裝成產品管理的優勢。期待交流！',
+          role: 'MENTOR',
+        },
+      ],
+      cancelledBy: null,
+    },
+    {
+      id: 'res-history-cancelled-mentor-8',
+      name: '林建華 (Arthur Lin)',
+      avatar:
+        'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+      roleLine: 'Microsoft 總部 Senior Azure Principal Consultant',
+      date: '2026年7月15日 (星期三)',
+      time: '10:00 – 11:00',
+      messages: [
+        {
+          content:
+            'Arthur 導師您好，非常感謝您撥空。我想向您請教關於微服務架構下的分散式交易處理的最佳決策路徑，謝謝您！',
+          role: 'MENTEE',
+        },
+      ],
+      cancelledBy: 'MENTOR',
+    },
+    {
+      id: 'res-history-cancelled-mentee-9',
+      name: '蔡依林 (Jolin Tsai)',
+      avatar:
+        'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&auto=format&fit=crop&q=80',
+      roleLine: '新創公司 UIUX 設計師 / 工作 1 年',
+      date: '2026年7月10日 (星期五)',
+      time: '15:00 – 16:00',
+      messages: [
+        {
+          content:
+            '導師您好，目前團隊剛開始推行 Design System，想向導師取經，了解在中大型專案中如何建立持久且彈性的 Token 系統。謝謝！',
+          role: 'MENTEE',
+        },
+      ],
+      cancelledBy: 'MENTEE',
+    },
+  ];
+
+  /* ================= icons ================= */
+  const ICON_CALENDAR =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M7 2v3M17 2v3M3.5 9h17M4 5h16a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICON_CLOCK =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICON_MAIL =
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="m4 7 8 6 8-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICON_MSG =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5 8.4 8.4 0 0 1-3.4-.7L3 21l1.7-4.6A8.4 8.4 0 0 1 3.5 12.5 8.5 8.5 0 0 1 12 4a8.5 8.5 0 0 1 9 7.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+
+  function initials(name) {
+    return (
+      name
+        .split(' ')
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join('') || 'U'
+    );
+  }
+
+  function avatarHtml(item, size) {
+    return (
+      `<img src="${item.avatar}" alt="${item.name}" onerror="this.remove()" />` +
+      `<span class="rv-avatar-fallback">${initials(item.name)}</span>`
+    );
+  }
+
+  /* ================= status badge (useReservationTimeStatus reproduction) ================= */
+  const ONE_MIN = 60000,
+    ONE_HOUR = 3.6e6,
+    ONE_DAY = 8.64e7;
+  function computeStatus(dtstart, dtend) {
+    const startMs = dtstart * 1000,
+      endMs = dtend * 1000,
+      nowMs = Date.now();
+    if (nowMs >= endMs) return { status: 'ended', label: '已結束' };
+    if (nowMs >= startMs) return { status: 'live', label: '進行中' };
+    const diff = startMs - nowMs;
+    if (diff >= ONE_DAY)
+      return { status: 'far', label: `${Math.floor(diff / ONE_DAY)} 天後` };
+    if (diff >= ONE_HOUR)
+      return {
+        status: 'soon',
+        label: `${Math.floor(diff / ONE_HOUR)} 小時後開始`,
+      };
+    if (diff >= ONE_MIN)
+      return {
+        status: 'imminent',
+        label: `${Math.floor(diff / ONE_MIN)} 分鐘後開始`,
+      };
+    return { status: 'imminent', label: '即將開始' };
+  }
+  function statusBadgeHtml(item) {
+    const { status, label } = computeStatus(item.dtstart, item.dtend);
+    const dot = status === 'live' ? '<span class="rv-status-dot"></span>' : '';
+    return `<span class="rv-status ${status}" role="status">${dot}${label}</span>`;
+  }
+
+  /* ================= state ================= */
+  const state = {
+    role: 'mentee',
+    activeTab: 'upcoming',
+    isHistoryLoaded: false,
+    isHistoryLoading: false,
+    emptyMode: false,
+    upcoming: UPCOMING.slice(),
+    pending: { mentee: PENDING_MENTEE.slice(), mentor: PENDING_MENTOR.slice() },
+    history: [],
+    upcomingHasMore: true,
+  };
+
+  /* ================= card renderer ================= */
+  function actionsHtml(item, variant) {
+    if (variant === 'history') {
+      if (item.cancelledBy) {
+        return `<span class="rv-cancelled-badge">已由${item.cancelledBy === 'MENTOR' ? '導師' : '學員'}取消</span>`;
+      }
+      return '';
+    }
+    if (variant === 'pending-mentor') {
+      return (
+        `<button type="button" class="rv-btn rv-btn-destructive" data-action="reject" data-id="${item.id}">拒絕</button>` +
+        `<button type="button" class="rv-btn rv-btn-primary" data-action="accept" data-id="${item.id}">接受</button>`
+      );
+    }
+    // upcoming + pending-mentee
+    const label = variant === 'pending-mentee' ? '取消' : '取消預約';
+    return `<button type="button" class="rv-btn rv-btn-destructive" data-action="cancel" data-id="${item.id}" data-cancel-label="${variant === 'pending-mentee' ? '取消預約' : '取消預約'}">${label}</button>`;
+  }
+
+  function footerHtml(item, variant) {
+    if (variant === 'history' && item.messages && item.messages.length > 0) {
+      return `<div class="rv-footer-slot"><button type="button" class="rv-conv-trigger" data-action="conversation" data-id="${item.id}">${ICON_MSG}查看完整對話</button></div>`;
+    }
+    return '';
+  }
+
+  function messagesHtml(item) {
+    const blocks = [];
+    if (item.menteeMessage) {
+      blocks.push(
+        `<div class="rv-message-block">${ICON_MSG}<div style="min-width:0;flex:1"><div class="rv-message-label">學員留言</div><div class="rv-message-content">${item.menteeMessage}</div></div></div>`
+      );
+    }
+    if (item.mentorMessage) {
+      blocks.push(
+        `<div class="rv-message-block">${ICON_MSG}<div style="min-width:0;flex:1"><div class="rv-message-label">導師回覆</div><div class="rv-message-content">${item.mentorMessage}</div></div></div>`
+      );
+    }
+    return blocks.length
+      ? `<div class="rv-messages">${blocks.join('')}</div>`
+      : '';
+  }
+
+  function cardHtml(item, variant) {
+    const isUpcoming = variant === 'upcoming';
+    return `
+    <div class="rv-item" data-testid="reservation-card" data-id="${item.id}">
+      <div class="rv-item-body">
+        <div class="rv-item-row">
+          <div class="rv-item-avatar"><a href="#" onclick="return false;"><span class="rv-avatar-img">${avatarHtml(item)}</span></a></div>
+          <div class="rv-item-main">
+            <div class="rv-item-head">
+              <a href="#" onclick="return false;" class="rv-item-name-link">
+                <div class="rv-item-name">${item.name}</div>
+                <div class="rv-item-roleline">${item.roleLine}</div>
+              </a>
+              <div class="rv-item-actions">${actionsHtml(item, variant)}</div>
+            </div>
+            <div class="rv-hr"></div>
+            <div class="rv-meta-row">
+              <div class="rv-meta-left">
+                <span class="rv-meta">${ICON_CALENDAR}<span>${item.date}</span></span>
+                <span class="rv-meta">${ICON_CLOCK}<span>${item.time}</span></span>
+              </div>
+              ${isUpcoming ? statusBadgeHtml(item) : ''}
+            </div>
+            ${messagesHtml(item)}
+            ${footerHtml(item, variant)}
+            ${isUpcoming ? `<div class="rv-email-hint">${ICON_MAIL}<span>會議連結已寄至您的信箱</span></div>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function emptyHtml() {
+    return `<div class="rv-empty">目前尚無資料</div>`;
+  }
+
+  function loadMoreHtml(id) {
+    return `<div class="rv-loadmore-row"><button type="button" class="rv-loadmore-btn" data-loadmore="${id}">載入更多</button></div>`;
+  }
+
+  function skeletonHtml(rows) {
+    let html = '';
+    for (let i = 0; i < rows; i++) {
+      html += `<div class="rv-skel-row"><div class="rv-skel rv-skel-avatar"></div><div class="rv-skel-lines"><div class="rv-skel l1"></div><div class="rv-skel l2"></div></div><div class="rv-skel rv-skel-pill"></div></div>`;
+    }
+    return html;
+  }
+
+  function renderUpcoming() {
+    const el = document.getElementById('list-upcoming');
+    const items = state.emptyMode ? [] : state.upcoming;
+    let html = items.map((it) => cardHtml(it, 'upcoming')).join('');
+    if (!items.length) html = emptyHtml();
+    if (items.length && state.upcomingHasMore) html += loadMoreHtml('upcoming');
+    el.innerHTML = html;
+    document.getElementById('count-upcoming').textContent = String(
+      items.length
+    );
+  }
+
+  function renderPending() {
+    const el = document.getElementById('list-pending');
+    const variant =
+      state.role === 'mentor' ? 'pending-mentor' : 'pending-mentee';
+    const items = state.emptyMode ? [] : state.pending[state.role];
+    let html = items.map((it) => cardHtml(it, variant)).join('');
+    if (!items.length) html = emptyHtml();
+    el.innerHTML = html;
+    document.getElementById('count-pending').textContent = String(items.length);
+  }
+
+  function renderHistory() {
+    const el = document.getElementById('list-history');
+    const items = state.emptyMode ? [] : state.history;
+    let html = items.map((it) => cardHtml(it, 'history')).join('');
+    if (state.isHistoryLoaded && !items.length) html = emptyHtml();
+    el.innerHTML = html;
+    const countEl = document.getElementById('count-history');
+    if (state.isHistoryLoaded) {
+      countEl.hidden = false;
+      countEl.textContent = String(items.length);
+    } else {
+      countEl.hidden = true;
+    }
+  }
+
+  function renderAll() {
+    renderUpcoming();
+    renderPending();
+    renderHistory();
+    updateRoleUI();
+  }
+
+  function updateRoleUI() {
+    const isMentee = state.role === 'mentee';
+    document.getElementById('rv-title').textContent = isMentee
+      ? '預約導師'
+      : '擔任導師';
+    document.getElementById('pending-label').textContent = isMentee
+      ? '等待回復'
+      : '待您回復';
+    document.getElementById('url-bar').textContent =
+      `x-talent.example.com/reservation/${state.role}`;
+  }
+
+  /* ================= tabs ================= */
+  const tabButtons = document.querySelectorAll('.rv-tab');
+  tabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      state.activeTab = tab;
+      tabButtons.forEach((b) =>
+        b.setAttribute('aria-selected', String(b === btn))
+      );
+      document.querySelectorAll('.rv-tabpanel').forEach((p) => {
+        p.hidden = p.dataset.panel !== tab;
+      });
+      if (
+        tab === 'history' &&
+        !state.isHistoryLoaded &&
+        !state.isHistoryLoading
+      ) {
+        state.isHistoryLoading = true;
+        document.getElementById('list-history').innerHTML = skeletonHtml(3);
+        setTimeout(() => {
+          state.history = state.emptyMode ? [] : HISTORY.slice();
+          state.isHistoryLoaded = true;
+          state.isHistoryLoading = false;
+          renderHistory();
+        }, 600);
+      }
+    });
+  });
+
+  /* ================= role toggle ================= */
+  document.getElementById('role-toggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-role]');
+    if (!btn) return;
+    state.role = btn.dataset.role;
+    document
+      .querySelectorAll('#role-toggle button')
+      .forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+    syncHeaderUser();
+    renderAll();
+  });
+
+  document.getElementById('empty-toggle').addEventListener('change', (e) => {
+    state.emptyMode = e.target.checked;
+    renderAll();
+  });
+
+  /* ================= load more (upcoming) ================= */
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-loadmore]');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = '載入中...';
+    setTimeout(() => {
+      state.upcoming.push({
+        id: 'res-upcoming-extra-' + Date.now(),
+        name: '陳冠宇 (Kevin Chen)',
+        avatar:
+          'https://images.unsplash.com/photo-1519345182560-3f2917c472ef?w=150&auto=format&fit=crop&q=80',
+        roleLine: 'Cathay Financial Holdings / 數據工程師',
+        date: '2026年8月18日 (星期二)',
+        time: '20:00 – 21:00',
+        menteeMessage: '',
+        mentorMessage: '',
+        dtstart: daysFromNow(9),
+        dtend: daysFromNow(9) + 3600,
+      });
+      state.upcomingHasMore = false;
+      renderUpcoming();
+    }, 500);
+  });
+
+  /* ================= mutation actions (accept / reject / cancel) ================= */
+  function findAndRemove(list, id) {
+    const idx = list.findIndex((it) => it.id === id);
+    if (idx !== -1) list.splice(idx, 1);
+  }
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    const id = btn.dataset.id;
+    if (action === 'accept') openAcceptDialog(id);
+    if (action === 'reject') openRejectDialog(id);
+    if (action === 'cancel') openCancelDialog(id);
+    if (action === 'conversation') openConversationDialog(id);
+  });
+
+  function findItem(id) {
+    return (
+      state.upcoming.find((i) => i.id === id) ||
+      state.pending.mentee.find((i) => i.id === id) ||
+      state.pending.mentor.find((i) => i.id === id) ||
+      state.history.find((i) => i.id === id)
+    );
+  }
+
+  /* ---- accept dialog ---- */
+  const acceptOverlay = document.getElementById('accept-overlay');
+  const acceptDialog = document.getElementById('accept-dialog');
+  let acceptTargetId = null;
+
+  function openAcceptDialog(id) {
+    const item = findItem(id);
+    if (!item) return;
+    acceptTargetId = id;
+    document.getElementById('accept-avatar').innerHTML = avatarHtml(item);
+    document.getElementById('accept-name').textContent = item.name;
+    document.getElementById('accept-roleline').textContent = item.roleLine;
+    document.getElementById('accept-date').textContent = item.date;
+    document.getElementById('accept-time').textContent = item.time;
+    const msgWrap = document.getElementById('accept-message-wrap');
+    if (item.menteeMessage) {
+      msgWrap.hidden = false;
+      document.getElementById('accept-message').textContent =
+        item.menteeMessage;
+    } else {
+      msgWrap.hidden = true;
+    }
+    document.getElementById('accept-reply-wrap').hidden = true;
+    document.getElementById('accept-reply-open').hidden = false;
+    document.getElementById('accept-reply-textarea').value = '';
+    acceptOverlay.classList.add('is-open');
+    acceptDialog.classList.add('is-open');
+  }
+  function closeAcceptDialog() {
+    acceptOverlay.classList.remove('is-open');
+    acceptDialog.classList.remove('is-open');
+    acceptTargetId = null;
+  }
+  document
+    .getElementById('accept-close')
+    .addEventListener('click', closeAcceptDialog);
+  document
+    .getElementById('accept-cancel-btn')
+    .addEventListener('click', closeAcceptDialog);
+  acceptOverlay.addEventListener('click', closeAcceptDialog);
+  document
+    .getElementById('accept-reply-open')
+    .addEventListener('click', (e) => {
+      document.getElementById('accept-reply-wrap').hidden = false;
+      e.currentTarget.hidden = true;
+    });
+  document
+    .getElementById('accept-confirm-btn')
+    .addEventListener('click', () => {
+      if (!acceptTargetId) return;
+      findAndRemove(state.pending.mentor, acceptTargetId);
+      closeAcceptDialog();
+      renderAll();
+    });
+
+  /* ---- reject dialog ---- */
+  const rejectOverlay = document.getElementById('reject-overlay');
+  const rejectDialog = document.getElementById('reject-dialog');
+  const rejectReason = document.getElementById('reject-reason');
+  const rejectConfirmBtn = document.getElementById('reject-confirm-btn');
+  let rejectTargetId = null;
+
+  function openRejectDialog(id) {
+    rejectTargetId = id;
+    rejectReason.value = '';
+    rejectConfirmBtn.disabled = true;
+    rejectOverlay.classList.add('is-open');
+    rejectDialog.classList.add('is-open');
+  }
+  function closeRejectDialog() {
+    rejectOverlay.classList.remove('is-open');
+    rejectDialog.classList.remove('is-open');
+    rejectTargetId = null;
+  }
+  rejectReason.addEventListener('input', () => {
+    rejectConfirmBtn.disabled = rejectReason.value.trim().length === 0;
+  });
+  document
+    .getElementById('reject-close')
+    .addEventListener('click', closeRejectDialog);
+  document
+    .getElementById('reject-cancel-btn')
+    .addEventListener('click', closeRejectDialog);
+  rejectOverlay.addEventListener('click', closeRejectDialog);
+  rejectConfirmBtn.addEventListener('click', () => {
+    if (!rejectTargetId || rejectReason.value.trim().length === 0) return;
+    findAndRemove(state.pending.mentor, rejectTargetId);
+    closeRejectDialog();
+    renderAll();
+  });
+
+  /* ---- cancel dialog ---- */
+  const cancelOverlay = document.getElementById('cancel-overlay');
+  const cancelDialog = document.getElementById('cancel-dialog');
+  const cancelReason = document.getElementById('cancel-reason');
+  const cancelConfirmBtn = document.getElementById('cancel-confirm-btn');
+  let cancelTargetId = null;
+
+  function openCancelDialog(id) {
+    const item = findItem(id);
+    cancelTargetId = id;
+    cancelReason.value = '';
+    cancelReason.placeholder = item
+      ? `您好 ${item.name.split(' ')[0]}，...`
+      : '您好，...';
+    cancelConfirmBtn.disabled = true;
+    cancelOverlay.classList.add('is-open');
+    cancelDialog.classList.add('is-open');
+  }
+  function closeCancelDialog() {
+    cancelOverlay.classList.remove('is-open');
+    cancelDialog.classList.remove('is-open');
+    cancelTargetId = null;
+  }
+  cancelReason.addEventListener('input', () => {
+    cancelConfirmBtn.disabled = cancelReason.value.trim().length === 0;
+  });
+  document
+    .getElementById('cancel-close')
+    .addEventListener('click', closeCancelDialog);
+  document
+    .getElementById('cancel-close-btn')
+    .addEventListener('click', closeCancelDialog);
+  cancelOverlay.addEventListener('click', closeCancelDialog);
+  cancelConfirmBtn.addEventListener('click', () => {
+    if (!cancelTargetId || cancelReason.value.trim().length === 0) return;
+    findAndRemove(state.upcoming, cancelTargetId);
+    findAndRemove(state.pending.mentee, cancelTargetId);
+    closeCancelDialog();
+    renderAll();
+  });
+
+  /* ---- conversation dialog ---- */
+  const convOverlay = document.getElementById('conv-overlay');
+  const convDialog = document.getElementById('conv-dialog');
+
+  function openConversationDialog(id) {
+    const item = findItem(id);
+    if (!item) return;
+    document.getElementById('conv-avatar').innerHTML = avatarHtml(item);
+    document.getElementById('conv-sub').textContent = item.roleLine
+      ? `${item.name} · ${item.roleLine}`
+      : item.name;
+    document.getElementById('conv-date').textContent = item.date;
+    document.getElementById('conv-time').textContent = item.time;
+    const body = document.getElementById('conv-body');
+    const messages = (item.messages || []).slice().reverse();
+    if (!messages.length) {
+      body.innerHTML =
+        '<p style="text-align:center;color:var(--color-text-tertiary);font-size:14px;padding:32px 0">尚無對話內容</p>';
+    } else {
+      body.innerHTML = messages
+        .map((m, i, arr) => {
+          const isMentor = m.role === 'MENTOR';
+          const roleLabel = m.role === 'MENTOR' ? '導師' : '學員';
+          const showLabel = !(i > 0 && arr[i - 1].role === m.role);
+          return `<div class="rv-conv-bubble-wrap ${isMentor ? 'is-mentor' : 'is-mentee'}">
+            ${showLabel ? `<div class="rv-conv-role-label">${roleLabel}</div>` : ''}
+            <div class="rv-conv-bubble ${isMentor ? 'is-mentor' : 'is-mentee'}">${m.content}</div>
+          </div>`;
+        })
+        .join('');
+    }
+    convOverlay.classList.add('is-open');
+    convDialog.classList.add('is-open');
+  }
+  function closeConversationDialog() {
+    convOverlay.classList.remove('is-open');
+    convDialog.classList.remove('is-open');
+  }
+  document
+    .getElementById('conv-close')
+    .addEventListener('click', closeConversationDialog);
+  convOverlay.addEventListener('click', closeConversationDialog);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (acceptDialog.classList.contains('is-open')) closeAcceptDialog();
+    else if (rejectDialog.classList.contains('is-open')) closeRejectDialog();
+    else if (cancelDialog.classList.contains('is-open')) closeCancelDialog();
+    else if (convDialog.classList.contains('is-open'))
+      closeConversationDialog();
+    else if (state.sheet) closeAnySheet();
+    else if (state.dropdownOpen) closeDropdown();
+  });
+
+  /* ================= header (shared pattern) ================= */
+  const USERS = {
+    mentee: { name: '王小明', initial: '王' },
+    mentor: { name: '陳雅婷', initial: '陳' },
+  };
+  state.sheet = null;
+  state.dropdownOpen = false;
+
+  const frame = document.getElementById('frame');
+  const dropdownAnchor = document.getElementById('desktop-dropdown-anchor');
+  const dropdownTrigger = document.getElementById('dropdown-trigger');
+  const dropdownPanel = document.getElementById('dropdown-panel');
+  const mobileAvatarTrigger = document.getElementById('mobile-avatar-trigger');
+  const hamburgerTrigger = document.getElementById('hamburger-trigger');
+  const navOverlay = document.getElementById('nav-sheet-overlay');
+  const navPanel = document.getElementById('nav-sheet-panel');
+  const userOverlay = document.getElementById('user-sheet-overlay');
+  const userPanel = document.getElementById('user-sheet-panel');
+
+  function syncHeaderUser() {
+    const user = USERS[state.role];
+    document
+      .querySelectorAll(
+        '#dd-avatar-32, #dd-avatar-56, #mobile-avatar-32, #sheet-avatar-56'
+      )
+      .forEach((el) => {
+        el.textContent = user.initial;
+      });
+    document.getElementById('dd-name').textContent = user.name;
+    document.getElementById('sheet-user-name').textContent = user.name;
+    document.querySelectorAll('.role-label').forEach((el) => {
+      el.textContent = state.role === 'mentor' ? '我的導師頁面' : '成為導師';
+    });
+  }
+
+  function openDropdown() {
+    state.dropdownOpen = true;
+    dropdownPanel.classList.add('is-open');
+    dropdownTrigger.setAttribute('aria-expanded', 'true');
+  }
+  function closeDropdown() {
+    state.dropdownOpen = false;
+    dropdownPanel.classList.remove('is-open');
+    dropdownTrigger.setAttribute('aria-expanded', 'false');
+  }
+  dropdownTrigger.addEventListener('click', () =>
+    state.dropdownOpen ? closeDropdown() : openDropdown()
+  );
+  dropdownPanel.addEventListener('click', (e) => {
+    if (e.target.closest('.dd-item, .dd-profile')) closeDropdown();
+  });
+  document.addEventListener('click', (e) => {
+    if (state.dropdownOpen && !dropdownAnchor.contains(e.target))
+      closeDropdown();
+  });
+
+  function openSheet(which) {
+    closeDropdown();
+    state.sheet = which;
+    const overlay = which === 'nav' ? navOverlay : userOverlay;
+    const panel = which === 'nav' ? navPanel : userPanel;
+    overlay.classList.add('is-open');
+    panel.classList.add('is-open');
+  }
+  function closeSheet(which) {
+    if (which && state.sheet !== which) return;
+    const overlay = (which || state.sheet) === 'nav' ? navOverlay : userOverlay;
+    const panel = (which || state.sheet) === 'nav' ? navPanel : userPanel;
+    overlay.classList.remove('is-open');
+    panel.classList.remove('is-open');
+    state.sheet = null;
+  }
+  function closeAnySheet() {
+    closeSheet('nav');
+    closeSheet('user');
+  }
+  hamburgerTrigger.addEventListener('click', () => openSheet('nav'));
+  mobileAvatarTrigger.addEventListener('click', () => openSheet('user'));
+  document
+    .getElementById('nav-sheet-close')
+    .addEventListener('click', () => closeSheet('nav'));
+  document
+    .getElementById('user-sheet-close')
+    .addEventListener('click', () => closeSheet('user'));
+  navOverlay.addEventListener('click', () => closeSheet('nav'));
+  userOverlay.addEventListener('click', () => closeSheet('user'));
+  navPanel
+    .querySelectorAll('a')
+    .forEach((el) => el.addEventListener('click', () => closeSheet('nav')));
+  userPanel
+    .querySelectorAll('button')
+    .forEach((el) => el.addEventListener('click', () => closeSheet('user')));
+
+  /* ================= width control ================= */
+  const slider = document.getElementById('width-slider');
+  const widthNum = document.getElementById('width-num');
+  const bpPill = document.getElementById('bp-pill');
+  const presetRow = document.getElementById('preset-row');
+  const MIN_W = 320,
+    MAX_W = 1100;
+
+  function bpLabel(px) {
+    if (px >= 768) return 'md+ 版型';
+    if (px >= 640) return 'sm 版型（640–767px）';
+    return '手機版型（&lt;640px）';
+  }
+
+  function setWidth(px, syncPresets) {
+    px = Math.max(MIN_W, Math.min(MAX_W, px));
+    frame.style.width = px + 'px';
+    slider.value = px;
+    widthNum.textContent = px + 'px';
+    bpPill.innerHTML = bpLabel(px);
+    if (syncPresets !== false) {
+      presetRow
+        .querySelectorAll('button')
+        .forEach((b) =>
+          b.setAttribute('aria-pressed', String(Number(b.dataset.w) === px))
+        );
+    }
+    closeAnySheet();
+    closeDropdown();
+  }
+  slider.addEventListener('input', () => setWidth(Number(slider.value)));
+  presetRow.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-w]');
+    if (!btn) return;
+    setWidth(Number(btn.dataset.w));
+  });
+
+  /* ================= avatar fallback styling ================= */
+  const style = document.createElement('style');
+  style.textContent = `
+    .rv-avatar-img img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+    .rv-avatar-fallback { display:flex; align-items:center; justify-content:center; width:100%; height:100%; }
+    .rv-avatar-img img ~ .rv-avatar-fallback { display: none; }
+  `;
+  document.head.appendChild(style);
+
+  /* ================= init ================= */
+  setWidth(900);
+  syncHeaderUser();
+  renderAll();
+</script>

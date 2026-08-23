@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useCallback, useEffect } from 'react';
 
 import { ReservationListSkeleton } from '@/app/reservation/skeleton';
 import { ReservationList } from '@/components/reservation/ReservationList';
@@ -27,6 +28,7 @@ export function ReservationDashboard({ userRole }: ReservationDashboardProps) {
     loadMore,
     loadHistory,
     onMutationSuccess,
+    refetchOnConflict,
   } = useReservationData({ role: userRole });
 
   const upcoming = data?.upcoming ?? [];
@@ -46,24 +48,35 @@ export function ReservationDashboard({ userRole }: ReservationDashboardProps) {
   const isLoadingPending = initialState.pending === 'loading';
 
   return (
-    <ReservationDashboardView
-      userRole={userRole}
-      myUserId={myUserId}
-      upcoming={upcoming}
-      pending={pending}
-      history={history}
-      isLoadingUpcoming={isLoadingUpcoming}
-      isLoadingPending={isLoadingPending}
-      isLoadingHistory={isLoadingHistory}
-      isHistoryLoaded={isHistoryLoaded}
-      nextTokens={nextTokens}
-      loadingMoreStates={loadingMoreStates}
-      onLoadMoreUpcoming={loadMoreUpcoming}
-      onLoadMorePending={loadMorePending}
-      onLoadMoreHistory={loadMoreHistory}
-      onLoadHistory={loadHistory}
-      onMutationSuccess={onMutationSuccess}
-    />
+    <Suspense
+      fallback={
+        <div className="flex min-h-[calc(100vh-70px)] justify-center pb-12">
+          <div className="w-full max-w-[90%] rounded-2xl md:max-w-[800px]">
+            <ReservationListSkeleton />
+          </div>
+        </div>
+      }
+    >
+      <ReservationDashboardView
+        userRole={userRole}
+        myUserId={myUserId}
+        upcoming={upcoming}
+        pending={pending}
+        history={history}
+        isLoadingUpcoming={isLoadingUpcoming}
+        isLoadingPending={isLoadingPending}
+        isLoadingHistory={isLoadingHistory}
+        isHistoryLoaded={isHistoryLoaded}
+        nextTokens={nextTokens}
+        loadingMoreStates={loadingMoreStates}
+        onLoadMoreUpcoming={loadMoreUpcoming}
+        onLoadMorePending={loadMorePending}
+        onLoadMoreHistory={loadMoreHistory}
+        onLoadHistory={loadHistory}
+        onMutationSuccess={onMutationSuccess}
+        onVersionConflict={refetchOnConflict}
+      />
+    </Suspense>
   );
 }
 
@@ -92,6 +105,7 @@ export interface ReservationDashboardViewProps {
   onLoadMoreHistory: () => void;
   onLoadHistory: () => void;
   onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
+  onVersionConflict?: (affectedTabs: ListKey[]) => void;
 }
 
 export function ReservationDashboardView({
@@ -111,10 +125,37 @@ export function ReservationDashboardView({
   onLoadMoreHistory,
   onLoadHistory,
   onMutationSuccess,
+  onVersionConflict,
 }: ReservationDashboardViewProps) {
   const isMentee = userRole === 'mentee';
   const upcomingTabValue = isMentee ? 'upcoming-mentee' : 'upcoming-mentor';
   const pendingTabValue = isMentee ? 'pending-mentee' : 'pending-mentor';
+
+  const TAB_MAPPING: Record<string, string> = {
+    upcoming: upcomingTabValue,
+    pending: pendingTabValue,
+    history: 'history',
+  };
+
+  const URL_PARAM_MAPPING: Record<string, string> = {
+    [upcomingTabValue]: 'upcoming',
+    [pendingTabValue]: 'pending',
+    history: 'history',
+  };
+
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const tabParam = searchParams.get('tab');
+  const activeTab = (tabParam && TAB_MAPPING[tabParam]) || upcomingTabValue;
+
+  // Load history automatically if activeTab starts as history and is not loaded
+  useEffect(() => {
+    if (activeTab === 'history' && !isHistoryLoaded && !isLoadingHistory) {
+      onLoadHistory();
+    }
+  }, [activeTab, isHistoryLoaded, isLoadingHistory, onLoadHistory]);
 
   const triggerClass =
     'group shrink-0 rounded-full border border-background-border px-3 py-1.5 text-sm ' +
@@ -128,6 +169,13 @@ export function ReservationDashboardView({
     if (value === 'history' && !isHistoryLoaded && !isLoadingHistory) {
       onLoadHistory();
     }
+
+    const params = new URLSearchParams(searchParams.toString());
+    const paramValue = URL_PARAM_MAPPING[value];
+    if (paramValue) {
+      params.set('tab', paramValue);
+    }
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   const title = isMentee ? '預約導師' : '擔任導師';
@@ -143,7 +191,7 @@ export function ReservationDashboardView({
 
         <div className="mx-auto w-full max-w-3xl px-0 sm:px-4 lg:px-6">
           <Tabs
-            defaultValue={upcomingTabValue}
+            value={activeTab}
             className="w-full"
             onValueChange={handleValueChange}
           >
@@ -197,6 +245,7 @@ export function ReservationDashboardView({
                     onLoadMore={onLoadMoreUpcoming}
                     isLoadingMore={loadingMoreStates.upcoming}
                     onMutationSuccess={onMutationSuccess}
+                    onVersionConflict={onVersionConflict}
                   />
                 )}
               </TabsContent>
@@ -214,6 +263,7 @@ export function ReservationDashboardView({
                     onLoadMore={onLoadMorePending}
                     isLoadingMore={loadingMoreStates.pending}
                     onMutationSuccess={onMutationSuccess}
+                    onVersionConflict={onVersionConflict}
                   />
                 )}
               </TabsContent>

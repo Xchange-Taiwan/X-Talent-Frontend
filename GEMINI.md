@@ -55,3 +55,5 @@
    - **軟性規則防禦 (AI Review Boundary Rules)**：**【已啟用】**。專案已在 `_shared/project-context.md` 中寫明文字規則，限制 `src/lib/**` 與 `src/services/**` 直接引用前端 React/Next UI 或狀態依賴。CI 的 AI Review 流程會對此進行嚴格自動化阻攔。
 4. **測試拒絕 `as` 斷言 (Shoehorn) 【已啟用】**：
    本專案已安裝並啟用 `@total-typescript/shoehorn` 局部 Mock 套件。在編寫測試（`*.test.ts` / `*.spec.ts`）時，**嚴格禁止**在測試資料中使用不安全的 `as any` 或 `as ComplexType` 雙重斷言。請優先採用 `@total-typescript/shoehorn` 提供之 `fromPartial()`（局部型別安全 Mock）與 `fromAny()`（故意傳遞錯誤型別之測試）函式，確保測試資料的型別安全性（已於 `src/lib/profile/pollUntilSynced.test.ts` 中完成範例落地與驗證）。
+5. **工具與自動化偏好 (Tool & Automation Preferences) 【已啟用】**：
+   GitHub 操作（Issue、PR、Workflows、Releases 等）一律使用標準 `gh` CLI；瀏覽器自動化（測試、截圖、UI 驗證等）一律直接使用 `playwright` 套件本身（見 `scripts/capture-ui-evidence.mjs`、`/penpot-sync`），不透過第三方 CLI wrapper。

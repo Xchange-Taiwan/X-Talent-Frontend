@@ -2,10 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import { FC, Fragment, ReactNode } from 'react';
 
-import aboutPage_1 from '@/assets/landing/aboutPage_1.webp';
-import aboutPage_icon_1 from '@/assets/landing/aboutPage_icon_1.svg';
-import aboutPage_icon_2 from '@/assets/landing/aboutPage_icon_2.svg';
-import aboutPage_icon_3 from '@/assets/landing/aboutPage_icon_3.svg';
+import { FeatureItem } from '@/components/landing/FeatureItem';
 
 import { featureData } from '../data';
 
@@ -28,22 +25,6 @@ const SectionTitle: FC<{ children: ReactNode }> = ({ children }) => (
   </h2>
 );
 
-const FeatureItem = ({ icon, text }: { icon: string; text: string }) => {
-  return (
-    <div className="mb-[50px] flex items-center md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto">
-      <Image
-        className="h-[70px] w-[70px]"
-        src={icon}
-        alt=""
-        role="presentation"
-      />
-      <p className="ml-[20px] text-base tracking-[0.085em] md:mt-8 md:text-xl">
-        {text}
-      </p>
-    </div>
-  );
-};
-
 export default function Page() {
   return (
     <Fragment>
@@ -60,11 +41,12 @@ export default function Page() {
           <Image
             width={500}
             height={320}
-            src={aboutPage_1}
+            src="/landing/aboutPage_1.webp"
             alt="X-Talent 起源 — XChange 社群成員交流情境"
             sizes="500px"
             priority={false}
             placeholder="blur"
+            blurDataURL="data:image/webp;base64,UklGRmgAAABXRUJQVlA4IFwAAAAwAgCdASoKAAYAAUAmJZQAEPN8bsW11HJORAD+4Nv7ydzvgf+ppALM/+CXSyN+wgP/5CcvuL+rtpayQ/47L7f6tIIsv1J0vQKcYlJL2kGx3aUh553HrmuM09DAAA=="
           />
           <p className="max-w-5xl px-8 text-center text-base md:text-xl lg:px-0">
             X-Talent 源自於台灣最大的互聯網工作者社群 XChange
@@ -78,15 +60,33 @@ export default function Page() {
 
         <div className="mx-auto mb-20 flex max-w-xl justify-between px-12 sm:px-0">
           <div>
-            <Image src={aboutPage_icon_1} alt="" role="presentation" />
+            <Image
+              src="/landing/aboutPage_icon_1.svg"
+              width={58}
+              height={57}
+              alt=""
+              role="presentation"
+            />
             <p className="mt-7 font-medium">交流</p>
           </div>
           <div>
-            <Image src={aboutPage_icon_2} alt="" role="presentation" />
+            <Image
+              src="/landing/aboutPage_icon_2.svg"
+              width={58}
+              height={58}
+              alt=""
+              role="presentation"
+            />
             <p className="mt-7 font-medium">改變</p>
           </div>
           <div>
-            <Image src={aboutPage_icon_3} alt="" role="presentation" />
+            <Image
+              src="/landing/aboutPage_icon_3.svg"
+              width={58}
+              height={49}
+              alt=""
+              role="presentation"
+            />
             <p className="mt-7 font-medium">成長</p>
           </div>
         </div>
@@ -108,7 +108,15 @@ export default function Page() {
         <div className="flex w-full flex-col items-center justify-center">
           <div className="flex flex-col flex-wrap justify-center font-bold text-text-primary md:flex-row">
             {featureData.map((item) => (
-              <FeatureItem key={item.text} icon={item.icon} text={item.text} />
+              <FeatureItem
+                key={item.text}
+                icon={item.icon}
+                width={item.width}
+                height={item.height}
+                text={item.text}
+                className="mb-[50px] flex items-center md:w-2/4 md:flex-col xl:mx-[60px] xl:w-auto"
+                imageClassName="h-[70px] w-[70px]"
+              />
             ))}
           </div>
         </div>

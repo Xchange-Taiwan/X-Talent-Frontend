@@ -8,7 +8,7 @@ test.use({ timezoneId: 'Asia/Taipei' });
 
 // Static, valid user IDs from the dev/staging BFF database
 const REAL_MENTOR_ID = '7468899508961767'; // Jonas Lo (Mentor)
-const REAL_MENTEE_ID = '7462904718734737'; // Visitor (Mentee)
+const REAL_MENTEE_ID = '7482008160728085'; // testing_visitor (Mentee)
 
 const timeFormat: Intl.DateTimeFormatOptions = {
   hour: '2-digit',
@@ -76,9 +76,27 @@ async function setupTestSession(page: Page, isMentor: boolean): Promise<void> {
 }
 
 /**
+ * The subset of TimeSlotDTO these mocks actually send. The server-side
+ * fields (user_id, dt_year, dt_month) are irrelevant to what the calendar
+ * renders, so the fixtures deliberately omit them rather than restate the
+ * whole DTO.
+ */
+interface ScheduleSegmentFixture {
+  id: number;
+  dt_type: string;
+  dtstart: number;
+  dtend: number;
+  rrule: string | null;
+  exdate: string[];
+}
+
+/**
  * Mock the GET schedule endpoint returning custom segments.
  */
-async function mockMentorSchedule(page: Page, segments: any[]): Promise<void> {
+async function mockMentorSchedule(
+  page: Page,
+  segments: ScheduleSegmentFixture[]
+): Promise<void> {
   await mockApiRoute(
     page,
     new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/2026/m/7`),

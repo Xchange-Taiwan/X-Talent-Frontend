@@ -4,9 +4,14 @@ import { match } from 'path-to-regexp';
 
 import {
   encodeSessionHint,
+  safeDecodeURIComponent,
   SESSION_HINT_COOKIE,
   SESSION_HINT_COOKIE_OPTIONS,
 } from '@/lib/auth/sessionHint';
+import {
+  getMaintenanceBypassToken,
+  getMaintenanceMode,
+} from '@/lib/globalConfig';
 import { apiAuthPrefix, DEFAULT_LOGIN, publicRoutes } from '@/routes';
 
 // Convert Next.js dynamic route → express style (:id)
@@ -18,11 +23,110 @@ export async function middleware(req: NextRequest) {
   const { nextUrl } = req;
   const pathname = nextUrl.pathname;
 
+  // -------- 0. Bypass Static Assets and Sentry Tunnel --------
   // Sentry tunnel route — bypass middleware so anonymous-user envelope POSTs
   // aren't redirected to /auth/signin (defined by withSentryConfig
   // tunnelRoute in next.config.js).
-  if (pathname === '/monitoring' || pathname.startsWith('/monitoring/')) {
+  const isAsset =
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/static/') ||
+    pathname.startsWith('/assets/') ||
+    pathname.startsWith('/landing/') ||
+    pathname === '/favicon.ico' ||
+    pathname === '/logo.svg' ||
+    /^\/profile\/(graphic-design|seo-writing|ui-design|ux-design)\.svg$/.test(
+      pathname
+    );
+
+  const isMonitoring =
+    pathname === '/monitoring' || pathname.startsWith('/monitoring/');
+
+  if (isAsset || isMonitoring) {
     return NextResponse.next();
+  }
+
+  // -------- 0.05 Check Maintenance Bypass --------
+  const bypassParam = nextUrl.searchParams.get('bypass');
+  const bypassCookie = req.cookies.get('maintenance_bypass')?.value;
+
+  // The env var is an override for local dev and emergency use (it requires
+  // a redeploy to change). Normal operation rotates the token in Global
+  // Config instead, which - like maintenance mode itself - takes effect
+  // immediately with no redeploy. Only fetched when actually needed, so
+  // ordinary requests with no bypass param/cookie don't pay for the read.
+  let bypassToken: string | undefined = process.env.MAINTENANCE_BYPASS_TOKEN;
+  if (!bypassToken && (bypassParam || bypassCookie)) {
+    const bypassResult = await getMaintenanceBypassToken(500);
+    bypassToken = bypassResult.value ?? undefined;
+  }
+
+  // If correct bypass token is in query param, set cookie and redirect to clear the URL query param
+  if (bypassToken && bypassParam === bypassToken) {
+    const nextUrlClean = new URL(req.url);
+    nextUrlClean.searchParams.delete('bypass');
+
+    const response = NextResponse.redirect(nextUrlClean);
+    response.cookies.set('maintenance_bypass', bypassToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7200, // 2 hours
+    });
+    return response;
+  }
+
+  const hasValidBypass = !!(bypassToken && bypassCookie === bypassToken);
+
+  const isMaintenancePage = pathname === '/maintenance';
+
+  // -------- 0.1 Check Maintenance Mode --------
+  let isInMaintenanceMode = false;
+  const isEnvMaintenance =
+    process.env.NEXT_PUBLIC_MAINTENANCE_MODE === 'true' ||
+    process.env.MAINTENANCE_MODE === 'true';
+
+  if (isEnvMaintenance) {
+    isInMaintenanceMode = true;
+  } else {
+    const result = await getMaintenanceMode(500);
+    if (!result.success) {
+      // If we timed out or encountered an error, use a safe fallback:
+      // If the user is already on the maintenance page, assume they should stay there.
+      // If they are on a normal page, let them continue (don't force maintenance).
+      isInMaintenanceMode = isMaintenancePage;
+    } else {
+      isInMaintenanceMode = result.value;
+    }
+  }
+
+  // Override maintenance mode if a valid bypass token is present
+  if (hasValidBypass) {
+    isInMaintenanceMode = false;
+  }
+
+  if (isInMaintenanceMode) {
+    if (isMaintenancePage) {
+      return NextResponse.next();
+    }
+
+    // For API routes under maintenance, return 503
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { error: 'Service Unavailable (Maintenance Mode)' },
+        { status: 503, headers: { 'X-Maintenance-Mode': '1' } }
+      );
+    }
+
+    // Redirect any other page requests to /maintenance
+    const redirectUrl = new URL('/maintenance', nextUrl);
+    return NextResponse.redirect(redirectUrl);
+  } else {
+    // If not in maintenance mode, redirect /maintenance to /
+    if (isMaintenancePage) {
+      const redirectUrl = new URL('/', nextUrl);
+      return NextResponse.redirect(redirectUrl);
+    }
   }
 
   // -------- 1. Verify session via NextAuth getToken (JWT signature + exp) --------
@@ -33,7 +137,14 @@ export async function middleware(req: NextRequest) {
 
   const hasRefreshError = token?.error === 'RefreshTokenError';
   const isLoggedIn = !!token && !hasRefreshError;
-  const currentHint = req.cookies.get(SESSION_HINT_COOKIE)?.value;
+  // `req.cookies.get()` returns the raw stored value, which `.cookies.set()`
+  // encodeURIComponent's on write — decode once so it's comparable to a
+  // freshly computed `encodeSessionHint()` result below.
+  const rawCurrentHint = req.cookies.get(SESSION_HINT_COOKIE)?.value;
+  const currentHint =
+    rawCurrentHint !== undefined
+      ? safeDecodeURIComponent(rawCurrentHint)
+      : undefined;
 
   // -------- 2. Allow NextAuth API routes through unconditionally --------
   const isApiAuthRoute = pathname.startsWith(apiAuthPrefix);
@@ -80,7 +191,12 @@ export async function middleware(req: NextRequest) {
   const response = NextResponse.next();
 
   if (isLoggedIn) {
-    const nextHint = encodeSessionHint({ isMentor: Boolean(token?.isMentor) });
+    const nextHint = encodeSessionHint({
+      isMentor: Boolean(token?.isMentor),
+      userId: (token?.id as string | undefined) ?? undefined,
+      avatar:
+        ((token?.avatar || token?.picture) as string | undefined) ?? undefined,
+    });
     if (currentHint !== nextHint) {
       response.cookies.set(
         SESSION_HINT_COOKIE,

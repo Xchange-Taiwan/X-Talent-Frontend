@@ -1,6 +1,7 @@
 'use client';
 
 import Image, { type StaticImageData } from 'next/image';
+import { useCallback } from 'react';
 
 import {
   EducationSection,
@@ -8,16 +9,15 @@ import {
 } from '@/components/profile/experience-section/ExperienceSection';
 import { ProfileBanner } from '@/components/profile/profile-banner';
 import { BookingForm } from '@/components/profile/reservation/BookingForm';
-import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
 import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalendar';
 import { platformLabelMap } from '@/components/profile/social-links/platformLabelMap';
 import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
 import { Button } from '@/components/ui/button';
-import {
-  BookingSlot,
-  UseMentorScheduleReturn,
-} from '@/hooks/useMentorSchedule';
 import { UserType } from '@/hooks/user/user-data/useUserData';
+import {
+  BookingCalendarReader,
+  BookingSlot,
+} from '@/lib/profile/bookingAvailability';
 import {
   formatSelectedDate,
   toDateKey,
@@ -33,15 +33,13 @@ import {
 interface Props {
   userData: UserType | null;
   userLoading: boolean;
-  pageUserId: string;
-  schedule: UseMentorScheduleReturn;
+  schedule: BookingCalendarReader;
   scheduleLoaded: boolean;
   loginUserId: string;
-  isLogging: boolean;
+  isIdentityResolved: boolean;
+  canShowOwnerControls: boolean;
   avatarSrc: string | StaticImageData;
   allowedDates: string[];
-  openReservationDialog: boolean;
-  setOpenReservationDialog: (open: boolean) => void;
   onScheduleMonthChange: (date: Date) => void;
   onReservation: () => void;
   onEditProfile: () => void;
@@ -50,20 +48,19 @@ interface Props {
   setSelectedSlot: (slot: BookingSlot | null) => void;
   isSubmitting: boolean;
   onConfirmReservation: (question?: string) => Promise<boolean>;
+  editorDialog?: React.ReactNode;
 }
 
 export default function ProfilePageUI({
   userData,
   userLoading,
-  pageUserId,
   schedule,
   scheduleLoaded,
   loginUserId,
-  isLogging,
+  isIdentityResolved,
+  canShowOwnerControls,
   avatarSrc,
   allowedDates,
-  openReservationDialog,
-  setOpenReservationDialog,
   onScheduleMonthChange,
   onReservation,
   onEditProfile,
@@ -72,17 +69,28 @@ export default function ProfilePageUI({
   setSelectedSlot,
   isSubmitting,
   onConfirmReservation,
+  editorDialog,
 }: Props) {
-  const { selectedDate, setSelectedDate, generateBookingSlots } = schedule;
+  const { selectedDate, setSelectedDate, getDayBookingStatus } = schedule;
 
   // Render the schedule region while user data loads (most profile views are
   // mentors) so the calendar can appear before user data resolves; collapse
   // it once the user is confirmed as a non-mentor.
   const showScheduleRegion = userLoading || userData?.is_mentor;
+  // Derived from canShowOwnerControls (the single ownership source of
+  // truth) rather than re-comparing loginUserId against userData.user_id -
+  // keeps this in lockstep with the owner-only UI gating above instead of
+  // being a second, independently-computed ownership check that could
+  // silently diverge from it.
   const isOwnMentorProfile =
-    !!userData &&
-    userData.is_mentor &&
-    loginUserId === userData.user_id.toString();
+    !!userData && userData.is_mentor && canShowOwnerControls;
+
+  // Only mentors viewing their own profile see booking status dots.
+  const getDateStatus = useCallback(
+    (date: Date) =>
+      isOwnMentorProfile ? getDayBookingStatus(toDateKey(date)) : null,
+    [isOwnMentorProfile, getDayBookingStatus]
+  );
 
   return (
     <div>
@@ -99,7 +107,7 @@ export default function ProfilePageUI({
                 alt={'Avatar of ' + userData.name}
                 fill
                 sizes="160px"
-                style={{ objectFit: 'contain' }}
+                className="object-contain"
                 priority
               />
             </div>
@@ -141,7 +149,11 @@ export default function ProfilePageUI({
                 </p>
               )}
               <div className="mt-4 flex items-center justify-center gap-4 sm:justify-start">
-                {isLogging && pageUserId === loginUserId && (
+                {/* canShowOwnerControls gates these: until useSession() settles,
+                    we don't yet know if this is the viewer's own profile, so
+                    withhold the buttons entirely rather than flash a guest
+                    view before correcting to the owner view (or vice versa). */}
+                {canShowOwnerControls && (
                   <Button
                     variant="outline"
                     className="grow rounded-full px-6 py-3 sm:grow-0"
@@ -151,17 +163,15 @@ export default function ProfilePageUI({
                   </Button>
                 )}
 
-                {isLogging &&
-                  !userData.is_mentor &&
-                  pageUserId === loginUserId && (
-                    <Button
-                      variant="default"
-                      className="grow rounded-full px-6 py-3 sm:grow-0"
-                      onClick={onBecomeMentor}
-                    >
-                      成為導師
-                    </Button>
-                  )}
+                {canShowOwnerControls && !userData.is_mentor && (
+                  <Button
+                    variant="default"
+                    className="grow rounded-full px-6 py-3 sm:grow-0"
+                    onClick={onBecomeMentor}
+                  >
+                    成為導師
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -291,31 +301,24 @@ export default function ProfilePageUI({
                       showTodayStyle={false}
                       disableEmptyDates={true}
                       isMonthLoading={!schedule.monthLoaded}
+                      getDateStatus={getDateStatus}
                     />
                   </div>
                   <BookingForm
                     isOwnMentorProfile={isOwnMentorProfile}
-                    isUserDataLoading={userLoading}
+                    isUserDataLoading={userLoading || !isIdentityResolved}
                     isAuthenticated={!!loginUserId}
-                    slots={
-                      selectedDate ? generateBookingSlots(selectedDate) : []
-                    }
-                    monthLoaded={schedule.monthLoaded}
+                    slotsSnapshot={schedule.slotsSnapshot}
                     selectedSlot={selectedSlot}
                     setSelectedSlot={setSelectedSlot}
                     isSubmitting={isSubmitting}
                     selectedDate={selectedDate}
                     onReservation={onReservation}
                     onConfirmReservation={onConfirmReservation}
+                    myUserId={loginUserId}
+                    onMutationSuccess={schedule.reload}
                   />
-                  {userData && loginUserId === pageUserId && (
-                    <MentorScheduleDialog
-                      open={openReservationDialog}
-                      onOpenChange={setOpenReservationDialog}
-                      schedule={schedule}
-                      onMonthChange={onScheduleMonthChange}
-                    />
-                  )}
+                  {editorDialog}
                 </div>
               )}
             </div>

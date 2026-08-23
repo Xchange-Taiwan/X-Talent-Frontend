@@ -37,9 +37,7 @@ export const AvatarCard: FC<Props> = ({
           alt={'Avatar of ' + name}
           fill
           sizes="120px"
-          style={{
-            objectFit: 'contain',
-          }}
+          className="object-contain"
         />
       </div>
 

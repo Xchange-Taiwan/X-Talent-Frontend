@@ -1,28 +1,24 @@
 'use client';
+
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+
+import { useIdentity } from './useIdentity';
 
 export function useProfileAuth(pageUserId: string) {
   const router = useRouter();
-  const { data: session, status } = useSession();
-  // Lazy-init from a cached session so client-side navigation does not flash
-  // a false isAuthorized for one frame before the effect catches up.
-  const [isAuthorized, setIsAuthorized] = useState(() => {
-    if (status === 'loading') return false;
-    const loginUserId = session?.user?.id ? String(session.user.id) : '';
-    return Boolean(loginUserId) && loginUserId === pageUserId;
-  });
+
+  const identity = useIdentity(null);
+  const isAuthorized = identity.userId === pageUserId;
 
   useEffect(() => {
-    if (status === 'loading') return;
-    const loginUserId = session?.user?.id ? String(session.user.id) : '';
-    if (!loginUserId || loginUserId !== pageUserId) {
+    if (!identity.authKnown) return;
+
+    // Redirect if identity is fully known and the user is un-authorized
+    if (!identity.isResolvingUser && !isAuthorized) {
       router.push('/');
-      return;
     }
-    setIsAuthorized(true);
-  }, [pageUserId, router, session?.user?.id, status]);
+  }, [isAuthorized, identity.authKnown, identity.isResolvingUser, router]);
 
   return { isAuthorized };
 }

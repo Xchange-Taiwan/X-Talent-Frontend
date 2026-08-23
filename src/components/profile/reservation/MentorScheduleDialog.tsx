@@ -24,11 +24,13 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
-import {
-  SlotDurationMinutes,
-  UseMentorScheduleReturn,
-} from '@/hooks/useMentorSchedule';
 import { trackEvent } from '@/lib/analytics';
+import {
+  DtType,
+  MentorScheduleEditor,
+  ParsedMentorTimeslot,
+  SlotDurationMinutes,
+} from '@/lib/profile/bookingAvailability';
 import {
   defaultFormForDate,
   DURATION_OPTIONS,
@@ -37,7 +39,10 @@ import {
   snapDuration,
   snapMinute,
 } from '@/lib/profile/scheduleFormatters';
-import { DtType, ParsedMentorTimeslot } from '@/lib/profile/scheduleHelpers';
+import {
+  findMatchedReservation,
+  isReadOnlyVirtualSlot,
+} from '@/lib/profile/scheduleHelpers';
 import { cn } from '@/lib/utils';
 
 import { ScheduleCalendar } from './ScheduleCalendar';
@@ -53,7 +58,11 @@ type ReservationPromptType = Exclude<DtType, 'ALLOW'> | null;
 type ActiveDialog =
   | { kind: 'add' }
   | { kind: 'edit'; id: number; occurrenceUnix: number }
-  | { kind: 'prompt'; prompt: Exclude<DtType, 'ALLOW'> }
+  | {
+      kind: 'prompt';
+      prompt: Exclude<DtType, 'ALLOW'>;
+      slot?: ParsedMentorTimeslot;
+    }
   | null;
 
 export default function MentorScheduleDialog({
@@ -64,7 +73,7 @@ export default function MentorScheduleDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  schedule: UseMentorScheduleReturn;
+  schedule: MentorScheduleEditor;
   onMonthChange?: (date: Date) => void;
 }) {
   const {
@@ -78,6 +87,7 @@ export default function MentorScheduleDialog({
     updateDraftSlot,
     allowedDates,
     monthLoaded,
+    reservations = [],
   } = schedule;
 
   const router = useRouter();
@@ -86,13 +96,24 @@ export default function MentorScheduleDialog({
   const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
   const [lastPrompt, setLastPrompt] =
     useState<Exclude<DtType, 'ALLOW'>>('BOOKED');
+  // Mirrors the slot of the most recent prompt dialog. activeDialog.slot
+  // drops to undefined the instant the dialog starts its close animation
+  // (onOpenChange fires before the fade-out finishes), so without this the
+  // mentee name would flicker back to the unmatched fallback text mid-close.
+  const [lastPromptSlot, setLastPromptSlot] = useState<
+    ParsedMentorTimeslot | undefined
+  >(undefined);
 
   const displayPrompt =
     activeDialog?.kind === 'prompt' ? activeDialog.prompt : lastPrompt;
 
-  const showPrompt = (prompt: Exclude<DtType, 'ALLOW'>) => {
+  const showPrompt = (
+    prompt: Exclude<DtType, 'ALLOW'>,
+    slot?: ParsedMentorTimeslot
+  ) => {
     setLastPrompt(prompt);
-    setActiveDialog({ kind: 'prompt', prompt });
+    setLastPromptSlot(slot);
+    setActiveDialog({ kind: 'prompt', prompt, slot });
   };
 
   const handleSlotAction = (
@@ -100,7 +121,7 @@ export default function MentorScheduleDialog({
     reservationBlock: ReservationPromptType
   ) => {
     if (reservationBlock) {
-      showPrompt(reservationBlock);
+      showPrompt(reservationBlock, slot);
       return;
     }
     setActiveDialog({
@@ -132,14 +153,17 @@ export default function MentorScheduleDialog({
     (s) => Math.floor(s.start.getTime() / 1000) > nowSec
   );
 
-  // Block deletion/edit when a BOOKED or PENDING reservation exists at this
-  // slot's start. With one row per slot, the start timestamp is the natural
-  // identity to match against reservation segments.
+  // Block deletion/edit when a read-only BOOKED or PENDING placeholder (a
+  // backend-synthesized virtual slot, id < 0 — not a real mentor_availability
+  // row) exists at this ALLOW slot's start. With one row per slot, the start
+  // timestamp is the natural identity to match against the placeholder.
   const bookedStarts = useMemo(
     () =>
       new Set(
         draftForSelectedDate
-          .filter((s) => s.type === 'BOOKED')
+          .filter(
+            (s) => s.type === 'BOOKED' && isReadOnlyVirtualSlot(s.type, s.id)
+          )
           .map((s) => Math.floor(s.start.getTime() / 1000))
       ),
     [draftForSelectedDate]
@@ -148,7 +172,9 @@ export default function MentorScheduleDialog({
     () =>
       new Set(
         draftForSelectedDate
-          .filter((s) => s.type === 'PENDING')
+          .filter(
+            (s) => isReadOnlyVirtualSlot(s.type, s.id) && s.type === 'PENDING'
+          )
           .map((s) => Math.floor(s.start.getTime() / 1000))
       ),
     [draftForSelectedDate]
@@ -172,13 +198,52 @@ export default function MentorScheduleDialog({
         variant: 'destructive',
         description:
           result.reason === 'conflict'
-            ? '此時段與既有預約衝突,請調整後再試'
+            ? '此時段與既有預約衝突,請新增新時段後再試'
             : '儲存失敗,請稍後再試',
       });
       return;
     }
     onOpenChange(false);
   };
+
+  const promptSlot =
+    activeDialog?.kind === 'prompt' ? activeDialog.slot : lastPromptSlot;
+  const matchedReservation = useMemo(() => {
+    if (!promptSlot) return undefined;
+    const slotStart = Math.floor(promptSlot.start.getTime() / 1000);
+    const slotEnd = Math.floor(promptSlot.end.getTime() / 1000);
+    return findMatchedReservation(reservations, slotStart, slotEnd);
+  }, [promptSlot, reservations]);
+
+  const menteeName = matchedReservation?.name;
+  // Keyed only by the two prompts getReservationBlock can actually produce
+  // (a slot is either open, BOOKED, or PENDING — FORBIDDEN never reaches the
+  // dialog even though displayPrompt's type is the wider Exclude<DtType,
+  // 'ALLOW'>), so any other value falls back to the PENDING copy below.
+  const promptCopy: Record<
+    'BOOKED' | 'PENDING',
+    { title: (name: string) => string; description: (name: string) => string }
+  > = {
+    BOOKED: {
+      title: (name) => (name ? `學員 ${name} 已預約此時段` : '此時段已有預約'),
+      description: (name) =>
+        name
+          ? `學員 ${name} 已預約成功，無法編輯或移除。如需調整時間，請新增新時段；如需取消原預約，請至「預約管理」頁面處理。`
+          : '此時段已有 mentee 預約成功，無法編輯或移除。如需調整時間，請新增新時段；如需取消原預約，請至「預約管理」頁面處理。',
+    },
+    PENDING: {
+      title: (name) =>
+        name ? `學員 ${name} 申請預約此時段` : '此時段有未處理的預約申請',
+      description: (name) =>
+        name
+          ? `學員 ${name} 的預約申請尚未處理。請至「預約管理」頁面接受或拒絕該申請，僅在拒絕後此時段才會重新釋出。若需提供其他時間，請直接新增新時段。`
+          : '請至「預約管理」頁面接受或拒絕該申請，僅在拒絕後此時段才會重新釋出。若需提供其他時間，請直接新增新時段。',
+    },
+  };
+  const activePromptCopy =
+    promptCopy[displayPrompt === 'BOOKED' ? 'BOOKED' : 'PENDING'];
+  const dialogTitle = activePromptCopy.title(menteeName ?? '');
+  const dialogDescription = activePromptCopy.description(menteeName ?? '');
 
   const editingSlot =
     activeDialog?.kind === 'edit'
@@ -367,7 +432,7 @@ export default function MentorScheduleDialog({
         onClose={() => setActiveDialog(null)}
         onSubmit={(form) => {
           if (activeDialog?.kind !== 'edit') return;
-          const ok = updateDraftSlot(
+          const result = updateDraftSlot(
             activeDialog.id,
             activeDialog.occurrenceUnix,
             {
@@ -375,11 +440,29 @@ export default function MentorScheduleDialog({
               durationMinutes: form.durationMinutes,
             }
           );
-          if (!ok) {
-            toast({
-              variant: 'destructive',
-              description: '此時段與其他時段重疊',
-            });
+          if (!result.success) {
+            if (result.reason === 'TARGET_MONTH_NOT_LOADED') {
+              toast({
+                variant: 'destructive',
+                description:
+                  '目標月份排程尚未載入，請先在行事曆中切換至目標月份。',
+              });
+            } else if (result.reason === 'OVERLAP') {
+              toast({
+                variant: 'destructive',
+                description: '此時段與其他時段重疊',
+              });
+            } else if (result.reason === 'READ_ONLY') {
+              toast({
+                variant: 'destructive',
+                description: '此時段已被預約引用，無法編輯，請改為新增新時段',
+              });
+            } else {
+              toast({
+                variant: 'destructive',
+                description: '更新時段失敗，發生未知的錯誤，請稍後再試。',
+              });
+            }
             return;
           }
           setActiveDialog(null);
@@ -392,16 +475,8 @@ export default function MentorScheduleDialog({
       >
         <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>
-              {displayPrompt === 'BOOKED'
-                ? '此時段已有預約'
-                : '此時段有未處理的預約申請'}
-            </DialogTitle>
-            <DialogDescription>
-              {displayPrompt === 'BOOKED'
-                ? '此時段已有 mentee 預約成功,無法編輯或移除。如需取消,請至「預約管理」頁面處理。'
-                : '請至「預約管理」頁面接受或拒絕該申請,僅在拒絕後此時段才會重新釋出。'}
-            </DialogDescription>
+            <DialogTitle>{dialogTitle}</DialogTitle>
+            <DialogDescription>{dialogDescription}</DialogDescription>
           </DialogHeader>
           <DialogFooter className="justify-center">
             <Button variant="outline" onClick={() => setActiveDialog(null)}>

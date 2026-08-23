@@ -2,9 +2,9 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import React, { useState } from 'react';
 
 import type {
+  MentorScheduleEditor,
   ParsedMentorTimeslot,
-  UseMentorScheduleReturn,
-} from '@/hooks/useMentorSchedule';
+} from '@/lib/profile/bookingAvailability';
 
 import MentorScheduleDialog from './MentorScheduleDialog';
 
@@ -90,25 +90,22 @@ const mockDraftSlots: ParsedMentorTimeslot[] = [
   }),
 ];
 
-const defaultScheduleMock: UseMentorScheduleReturn = {
-  loaded: true,
-  monthLoaded: true,
-  isFetching: false,
+const defaultScheduleMock: MentorScheduleEditor = {
   selectedDate: todayStr,
   setSelectedDate: () => {},
-  parsedDraft: mockDraftSlots,
   draftForSelectedDate: mockDraftSlots,
   allowedDates: [todayStr, '2026-08-04'],
-  generateBookingSlots: () => [],
+  monthLoaded: true,
   addSlotForSelectedDate: () => ({ added: 1, skipped: 0 }),
-  updateDraftSlot: () => true,
+  updateDraftSlot: () => ({ success: true }),
   deleteDraftSlot: () => {},
   confirmChanges: async () => ({ ok: true }),
   resetChanges: () => {},
+  reservations: [],
 };
 
 interface DialogWrapperProps {
-  schedule: UseMentorScheduleReturn;
+  schedule: MentorScheduleEditor;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   onMonthChange?: (date: Date) => void;
