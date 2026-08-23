@@ -1,41 +1,59 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
-import { useEffect } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
-import { useIdentity } from '@/hooks/user/auth/useIdentity';
+import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import {
-  clearAvatarOverride,
-  useAvatarOverride,
-} from '@/lib/avatar/avatarOverrideStore';
+  getUserProfileDtoFromCache,
+  isOptimisticTransitionActive,
+  subscribeTransition,
+  subscribeUserProfileDtoCache,
+} from '@/hooks/user/user-data/useUserProfileDto';
 
 /**
  * Returns the avatar URL to render for the currently signed-in user.
  *
- * Reads from a client-side override (set synchronously on a successful
- * profile submit) and falls back to the NextAuth session or session hint.
+ * Reads from the client-side user DTO cache layer (set synchronously on a successful
+ * profile submit via saveProfile) and falls back to the resolved identity avatar
+ * (which handles the session hint cookie).
  * Bridges the gap left by NextAuth v4's `update()` round-trip — without it
  * the header shows the old avatar between submit and the session refetch landing.
  */
 export function useCurrentAvatar(): string | null {
-  const { data: session } = useSession();
-  const override = useAvatarOverride();
-  const sessionUserId = session?.user?.id ?? null;
-  const sessionAvatar = session?.user?.avatar ?? null;
+  const identity = useResolvedIdentity();
+  const userIdStr = identity.userId;
+  const validUserId = Number(userIdStr) || 0;
 
-  useEffect(() => {
-    if (!override) return;
-    if (override.userId !== sessionUserId) {
-      clearAvatarOverride();
-      return;
-    }
-    if (sessionAvatar === override.url) {
-      clearAvatarOverride();
-    }
-  }, [override, sessionUserId, sessionAvatar]);
+  const getSnapshot = useCallback(() => {
+    if (!validUserId) return undefined;
+    const cachedDto = getUserProfileDtoFromCache(validUserId, 'zh_TW');
+    if (!cachedDto) return undefined;
+    return cachedDto.avatar ?? null;
+  }, [validUserId]);
 
-  // Derived completely via resolveIdentity for single source of truth correctness
-  const identity = useIdentity(override);
+  const optimisticAvatar = useSyncExternalStore(
+    useCallback(
+      (listener) => {
+        if (!validUserId) return () => {};
+        return subscribeUserProfileDtoCache(validUserId, 'zh_TW', listener);
+      },
+      [validUserId]
+    ),
+    getSnapshot,
+    () => null
+  );
+
+  const isTransitioning = useSyncExternalStore(
+    subscribeTransition,
+    isOptimisticTransitionActive,
+    () => false
+  );
+
+  // During the active transition period after an optimistic update, prioritize the optimistic avatar.
+  // Otherwise, prioritize the session's identity avatar (authoritative).
+  if (optimisticAvatar !== undefined && isTransitioning) {
+    return optimisticAvatar;
+  }
 
   return identity.avatar ?? null;
 }

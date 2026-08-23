@@ -8,7 +8,7 @@ import {
   DOM_AUTH_STATE_ATTR,
   encodeSessionHint,
   readCookie,
-  type ResolvedIdentity,
+  ResolvedIdentity,
   resolveIdentity,
   safeDecodeURIComponent,
   SESSION_HINT_COOKIE,
@@ -463,7 +463,6 @@ describe('sessionHint utilities', () => {
       expect(applyAvatarOverride(baseIdentity, undefined)).toBe(baseIdentity);
     });
   });
-
   describe('golden fixture for session hint decoding and inline script', () => {
     const runInlineScript = () => {
       // eslint-disable-next-line no-eval

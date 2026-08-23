@@ -36,6 +36,7 @@ import { captureFlowFailure } from '@/lib/monitoring';
 import { LoggedError, saveProfile } from '@/lib/profile/saveProfile';
 import { baseValues, mockSession } from '@/test/fixtures/profile';
 import { mockToast } from '@/test/mocks/useToast';
+import type { MentorProfileVO } from '@/types/user';
 
 import { useProfileSubmit } from './useProfileSubmit';
 
@@ -59,7 +60,9 @@ describe('useProfileSubmit (Hook Layer)', () => {
   });
 
   it('saveProfile resolves successfully → isSaving remains true (simulating in-flight navigation)', async () => {
-    mockSaveProfile.mockResolvedValueOnce(undefined);
+    mockSaveProfile.mockResolvedValueOnce(
+      undefined as unknown as MentorProfileVO
+    );
     const { result } = renderHook(() => useProfileSubmit(makeOptions()));
 
     await act(async () => {
@@ -130,6 +133,30 @@ describe('useProfileSubmit (Hook Layer)', () => {
       expect.objectContaining({
         variant: 'destructive',
         description: '儲存失敗，請稍後再試',
+      })
+    );
+  });
+
+  it('passes currentDto from options to saveProfile', async () => {
+    mockSaveProfile.mockResolvedValueOnce(
+      undefined as unknown as MentorProfileVO
+    );
+    const mockDto = {
+      user_id: 123,
+      name: 'Test',
+    } as unknown as MentorProfileVO;
+    const { result } = renderHook(() =>
+      useProfileSubmit(makeOptions({ currentDto: mockDto }))
+    );
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+    });
+
+    expect(mockSaveProfile).toHaveBeenCalledWith(
+      baseValues,
+      expect.objectContaining({
+        currentDto: mockDto,
       })
     );
   });

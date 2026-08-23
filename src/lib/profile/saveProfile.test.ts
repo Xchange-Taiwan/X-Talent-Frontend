@@ -18,11 +18,6 @@ vi.mock('@/lib/profile/pollUntilSynced', () => ({
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 
-vi.mock('@/lib/avatar/avatarOverrideStore', () => ({
-  setAvatarOverride: vi.fn(),
-}));
-
-import { setAvatarOverride } from '@/lib/avatar/avatarOverrideStore';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   confirmProfileSynced,
@@ -46,7 +41,6 @@ const mockUpdateProfile = vi.mocked(updateProfile);
 const mockPollUntilSynced = vi.mocked(pollUntilSynced);
 const mockFirstSyncedFetch = vi.mocked(firstSyncedFetch);
 const mockConfirmProfileSynced = vi.mocked(confirmProfileSynced);
-const mockSetAvatarOverride = vi.mocked(setAvatarOverride);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 const makeDeps = (
@@ -121,13 +115,13 @@ describe('saveProfile (Deep Module)', () => {
     await Promise.resolve();
   });
 
-  it('avatarFile present + upload succeeds → returned URL is used in profile payload and setAvatarOverride is called', async () => {
+  it('avatarFile present + upload succeeds → returned URL is used in profile payload and primeUserDataCache is called synchronously', async () => {
     const newAvatarUrl = 'https://example.com/new-avatar.jpg';
     mockUpdateAvatar.mockResolvedValueOnce(newAvatarUrl);
 
     const file = new File(['content'], 'avatar.jpg', { type: 'image/jpeg' });
     const deps = makeDeps();
-    await saveProfile(
+    const result = await saveProfile(
       { ...baseValues, avatarFile: file },
       deps.context,
       deps.adapters
@@ -138,7 +132,12 @@ describe('saveProfile (Deep Module)', () => {
       'test-user-id',
       expect.objectContaining({ avatar: newAvatarUrl })
     );
-    expect(mockSetAvatarOverride).toHaveBeenCalledWith('1', newAvatarUrl);
+    expect(deps.adapters.primeUserDataCache).toHaveBeenCalledWith(
+      1,
+      'zh_TW',
+      expect.objectContaining({ avatar: newAvatarUrl })
+    );
+    expect(result.avatar).toBe(newAvatarUrl);
 
     await Promise.resolve();
     await Promise.resolve();
@@ -583,7 +582,15 @@ describe('saveProfile (Deep Module)', () => {
       Number(mockSession.user!.id),
       'zh_TW'
     );
-    expect(mockPrimeUserDataCache).toHaveBeenCalledWith(
+    expect(mockPrimeUserDataCache).toHaveBeenCalledTimes(2);
+    expect(mockPrimeUserDataCache).toHaveBeenNthCalledWith(
+      1,
+      Number(mockSession.user!.id),
+      'zh_TW',
+      expect.objectContaining({ name: 'Test User' })
+    );
+    expect(mockPrimeUserDataCache).toHaveBeenNthCalledWith(
+      2,
       Number(mockSession.user!.id),
       'zh_TW',
       mockUserDTO
@@ -606,7 +613,13 @@ describe('saveProfile (Deep Module)', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(mockPrimeUserDataCache).not.toHaveBeenCalled();
+    expect(mockPrimeUserDataCache).toHaveBeenCalledTimes(1);
+    expect(mockPrimeUserDataCache).toHaveBeenNthCalledWith(
+      1,
+      Number(mockSession.user!.id),
+      'zh_TW',
+      expect.objectContaining({ name: 'Test User' })
+    );
     expect(mockClearUserDataCache).toHaveBeenCalledWith(
       Number(mockSession.user!.id),
       'zh_TW'
