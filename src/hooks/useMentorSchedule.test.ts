@@ -993,7 +993,8 @@ describe('useMentorSchedule', () => {
       });
 
       expect(result.current.hasError).toBe(false);
-
+    });
+  });
 
   describe('reservations integration (#601)', () => {
     // Cursor pagination, the stuck-cursor guard, the end-of-month guard, and
