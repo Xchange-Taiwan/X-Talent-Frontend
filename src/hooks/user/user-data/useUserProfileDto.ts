@@ -32,6 +32,23 @@ export function clearUserProfileDtoCache(
   userProfileDtoCache.delete(key);
 }
 
+export function subscribeUserProfileDtoCache(
+  userId: number,
+  language: string,
+  listener: () => void
+): () => void {
+  const key = `${userId}-${language}`;
+  return userProfileDtoCache.subscribe(key, listener);
+}
+
+export function getUserProfileDtoFromCache(
+  userId: number,
+  language: string
+): MentorProfileVO | null {
+  const cached = readFromDataCache(`${userId}-${language}`);
+  return cached ? cached.data : null;
+}
+
 let lastPrimedTime = 0;
 
 export function getLastPrimedTime(): number {
@@ -256,6 +273,20 @@ export function useUserProfileDto(
       cancelled = true;
     };
   }, [userId, language, retryTrigger, options?.enabled]);
+
+  useEffect(() => {
+    const isUserIdValid = Boolean(userId) && !Number.isNaN(userId);
+    const isLanguageValid = Boolean(language);
+    if (!isUserIdValid || !isLanguageValid) return;
+
+    return subscribeUserProfileDtoCache(userId, language, () => {
+      const cached = readFromDataCache(`${userId}-${language}`);
+      if (cached) {
+        setUserDto(cached.data);
+        setIsLoading(false);
+      }
+    });
+  }, [userId, language]);
 
   return { userDto, isLoading, error, refetch };
 }

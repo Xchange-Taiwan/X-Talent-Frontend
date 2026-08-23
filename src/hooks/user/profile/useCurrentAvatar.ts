@@ -1,13 +1,12 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
 import { useCallback, useSyncExternalStore } from 'react';
 
-import { useIdentity } from '@/hooks/user/auth/useIdentity';
+import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import {
-  getOptimisticAvatar,
-  subscribeToOptimisticAvatar,
-} from '@/lib/profile/optimisticAvatar';
+  getUserProfileDtoFromCache,
+  subscribeUserProfileDtoCache,
+} from '@/hooks/user/user-data/useUserProfileDto';
 
 /**
  * Returns the avatar URL to render for the currently signed-in user.
@@ -19,20 +18,26 @@ import {
  * the header shows the old avatar between submit and the session refetch landing.
  */
 export function useCurrentAvatar(): string | null {
-  const { data: session } = useSession();
-  const sessionUserId = session?.user?.id ?? null;
-  const pageUserIdNumber = sessionUserId ? Number(sessionUserId) : null;
+  const identity = useResolvedIdentity();
+  const userIdStr = identity.userId;
+  const pageUserIdNumber = userIdStr ? Number(userIdStr) : null;
   const validUserId =
     pageUserIdNumber && !Number.isNaN(pageUserIdNumber) ? pageUserIdNumber : 0;
 
-  const identity = useIdentity();
-
   const getSnapshot = useCallback(() => {
-    return getOptimisticAvatar(validUserId);
+    if (!validUserId) return null;
+    const cachedDto = getUserProfileDtoFromCache(validUserId, 'zh_TW');
+    return cachedDto?.avatar ?? null;
   }, [validUserId]);
 
   const optimisticAvatar = useSyncExternalStore(
-    subscribeToOptimisticAvatar,
+    useCallback(
+      (listener) => {
+        if (!validUserId) return () => {};
+        return subscribeUserProfileDtoCache(validUserId, 'zh_TW', listener);
+      },
+      [validUserId]
+    ),
     getSnapshot,
     () => null
   );

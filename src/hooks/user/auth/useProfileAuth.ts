@@ -3,12 +3,12 @@
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
-import { useIdentity } from './useIdentity';
+import { useResolvedIdentity } from './useResolvedIdentity';
 
 export function useProfileAuth(pageUserId: string) {
   const router = useRouter();
 
-  const identity = useIdentity();
+  const identity = useResolvedIdentity();
   const isAuthorized =
     identity.state === 'confirmed-member' && identity.userId === pageUserId;
   const isResolving =

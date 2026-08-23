@@ -1,28 +1,36 @@
 import { renderHook } from '@testing-library/react';
-import { useSession } from 'next-auth/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { registerOptimisticAvatar } from '@/lib/profile/optimisticAvatar';
+import {
+  clearUserProfileDtoCache,
+  primeUserProfileDtoCache,
+} from '@/hooks/user/user-data/useUserProfileDto';
 
 import { useCurrentAvatar } from './useCurrentAvatar';
 
-vi.mock('next-auth/react', () => ({
-  useSession: vi.fn(),
+const mockUseResolvedIdentity = vi.fn();
+vi.mock('@/hooks/user/auth/useResolvedIdentity', () => ({
+  useResolvedIdentity: () => mockUseResolvedIdentity(),
 }));
-
-const mockUseSession = vi.mocked(useSession);
 
 describe('useCurrentAvatar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    registerOptimisticAvatar(123, null);
+    clearUserProfileDtoCache(123, 'zh_TW');
   });
 
   it('returns session avatar when present', () => {
-    mockUseSession.mockReturnValue({
-      data: { user: { id: '123', avatar: 'session-avatar.png' } },
-      status: 'authenticated',
-    } as unknown as ReturnType<typeof useSession>);
+    mockUseResolvedIdentity.mockReturnValue({
+      state: 'confirmed-member',
+      userId: '123',
+      avatar: 'session-avatar.png',
+      isMentor: false,
+      isLoggedIn: true,
+      hasFullUser: true,
+      isResolvingUser: false,
+      authKnown: true,
+      sessionSettled: true,
+    });
 
     const { result } = renderHook(() => useCurrentAvatar());
 
@@ -30,10 +38,17 @@ describe('useCurrentAvatar', () => {
   });
 
   it('returns null when session has no avatar', () => {
-    mockUseSession.mockReturnValue({
-      data: undefined,
-      status: 'loading',
-    } as unknown as ReturnType<typeof useSession>);
+    mockUseResolvedIdentity.mockReturnValue({
+      state: 'confirmed-member',
+      userId: '123',
+      avatar: undefined,
+      isMentor: false,
+      isLoggedIn: true,
+      hasFullUser: true,
+      isResolvingUser: false,
+      authKnown: true,
+      sessionSettled: true,
+    });
 
     const { result } = renderHook(() => useCurrentAvatar());
 
@@ -41,13 +56,23 @@ describe('useCurrentAvatar', () => {
   });
 
   it('returns optimistic avatar during transition period, prioritizing it over session avatar', () => {
-    mockUseSession.mockReturnValue({
-      data: { user: { id: '123', avatar: 'session-avatar.png' } },
-      status: 'authenticated',
-    } as unknown as ReturnType<typeof useSession>);
+    mockUseResolvedIdentity.mockReturnValue({
+      state: 'confirmed-member',
+      userId: '123',
+      avatar: 'session-avatar.png',
+      isMentor: false,
+      isLoggedIn: true,
+      hasFullUser: true,
+      isResolvingUser: false,
+      authKnown: true,
+      sessionSettled: true,
+    });
 
-    // Register an optimistic avatar for user 123
-    registerOptimisticAvatar(123, 'optimistic-avatar.png');
+    // Prime the cache with an optimistic avatar for user 123
+    primeUserProfileDtoCache(123, 'zh_TW', {
+      user_id: 123,
+      avatar: 'optimistic-avatar.png',
+    } as any);
 
     const { result } = renderHook(() => useCurrentAvatar());
 

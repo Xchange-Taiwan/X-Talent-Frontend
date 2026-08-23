@@ -34,6 +34,9 @@ export interface KeyedCache<K, V> {
 
   // Read-only query for inflight promise (useful for testing or checking status)
   getInflight(key: K): Promise<V> | undefined;
+
+  // Subscribe to changes for a specific key
+  subscribe(key: K, listener: () => void): () => void;
 }
 
 interface CacheEntry<V> {
@@ -53,6 +56,20 @@ export function createKeyedCache<K, V>(
 ): KeyedCache<K, V> {
   const dataCache = new Map<K, CacheEntry<V>>();
   const inflightCache = new Map<K, Promise<V>>();
+  const listenersMap = new Map<K, Set<() => void>>();
+
+  function notify(key: K): void {
+    const listeners = listenersMap.get(key);
+    if (listeners) {
+      listeners.forEach((listener) => {
+        try {
+          listener();
+        } catch (e) {
+          console.error('Error notifying cache listener:', e);
+        }
+      });
+    }
+  }
 
   function isExpired(entry: CacheEntry<V>): boolean {
     if (entry.expiresAt === undefined) return false;
@@ -92,6 +109,7 @@ export function createKeyedCache<K, V>(
     // any active in-flight promises to prevent older unresolved fetches from
     // overwriting the newer/freshly-set cache value later.
     inflightCache.delete(key);
+    notify(key);
   }
 
   function has(key: K): boolean {
@@ -102,11 +120,22 @@ export function createKeyedCache<K, V>(
   function deleteKey(key: K): void {
     dataCache.delete(key);
     inflightCache.delete(key);
+    notify(key);
   }
 
   function clear(): void {
     dataCache.clear();
     inflightCache.clear();
+    listenersMap.forEach((listeners) => {
+      listeners.forEach((listener) => {
+        try {
+          listener();
+        } catch (e) {
+          console.error('Error notifying cache listener on clear:', e);
+        }
+      });
+    });
+    listenersMap.clear();
   }
 
   function prime(key: K, value: V, options?: PrimeOptions): void {
@@ -123,6 +152,24 @@ export function createKeyedCache<K, V>(
 
   function getInflight(key: K): Promise<V> | undefined {
     return inflightCache.get(key);
+  }
+
+  function subscribe(key: K, listener: () => void): () => void {
+    let listeners = listenersMap.get(key);
+    if (!listeners) {
+      listeners = new Set();
+      listenersMap.set(key, listeners);
+    }
+    listeners.add(listener);
+    return () => {
+      const currentListeners = listenersMap.get(key);
+      if (currentListeners) {
+        currentListeners.delete(listener);
+        if (currentListeners.size === 0) {
+          listenersMap.delete(key);
+        }
+      }
+    };
   }
 
   function fetch(
@@ -172,5 +219,6 @@ export function createKeyedCache<K, V>(
     prime,
     fetch,
     getInflight,
+    subscribe,
   };
 }
