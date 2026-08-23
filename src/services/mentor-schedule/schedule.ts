@@ -83,7 +83,7 @@ export async function saveMentorSchedule(params: {
     );
   } catch (error) {
     if (error instanceof FetchApiError) {
-      throw new ApiError(200, error.message);
+      throw new ApiError(200, error.msg || 'Save failed');
     }
     throw error;
   }

@@ -4,14 +4,17 @@ import { apiClient } from '@/lib/apiClient';
 
 import { saveMentorSchedule, utcYearMonth } from './schedule';
 
-vi.mock('@/lib/apiClient', () => ({
-  apiClient: {
-    putUnwrapped: vi.fn(),
-    getUnwrapped: vi.fn(),
-  },
-  ApiError: class ApiError extends Error {},
-  FetchApiError: class FetchApiError extends Error {},
-}));
+vi.mock('@/lib/apiClient', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/apiClient')>();
+  return {
+    ...actual,
+    apiClient: {
+      ...actual.apiClient,
+      putUnwrapped: vi.fn(),
+      getUnwrapped: vi.fn(),
+    },
+  };
+});
 
 describe('saveMentorSchedule', () => {
   beforeEach(() => {
