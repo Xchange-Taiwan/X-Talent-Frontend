@@ -11,16 +11,12 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
 import { useAsyncRead } from '@/hooks/useAsyncRead';
-import { AsyncReadManager } from '@/lib/asyncReadManager';
-import { createKeyedCache } from '@/lib/createKeyedCache';
+import { mentorPoolReadManager } from '@/lib/cache/mentorPoolCache';
 import { isAbortError } from '@/lib/errorUtils';
 import { fetchMentors } from '@/services/search-mentor/mentors';
 import type { MentorType } from '@/types/mentor';
 
-export const mentorPoolCache = createKeyedCache<string, MentorType[]>();
-export const mentorPoolReadManager = new AsyncReadManager<string, MentorType[]>(
-  mentorPoolCache
-);
+const FORCE_REFRESH_OPTIONS = { force: true };
 
 export interface MentorPoolPageState {
   mentors: MentorType[];
@@ -151,15 +147,8 @@ export function useMentorPool({
     latestFilterKeyRef.current = filterKey;
   }, [filterKey]);
 
-  // Let useAsyncRead handle the main data fetch, loading, error, and cancellation
-  const {
-    data: fetchedData,
-    isLoading: isFilterLoading,
-    error: filterError,
-  } = useAsyncRead(
-    mentorPoolReadManager,
-    filterKey,
-    (signal) => {
+  const fetcher = useCallback(
+    (signal: AbortSignal) => {
       const conditions = paramsToFetchConditions(params);
       return fetchMentors(
         { ...conditions, limit: PAGE_LIMIT, cursor: '' },
@@ -171,7 +160,19 @@ export function useMentorPool({
         throw err;
       });
     },
-    { force: true } // Always force refresh to query fresh results on filter change
+    [params, showErrorToast]
+  );
+
+  // Let useAsyncRead handle the main data fetch, loading, error, and cancellation
+  const {
+    data: fetchedData,
+    isLoading: isFilterLoading,
+    error: filterError,
+  } = useAsyncRead(
+    mentorPoolReadManager,
+    filterKey,
+    fetcher,
+    FORCE_REFRESH_OPTIONS
   );
 
   // Derived loading state combining local filter loading (Latest Wins) and pagination loading
