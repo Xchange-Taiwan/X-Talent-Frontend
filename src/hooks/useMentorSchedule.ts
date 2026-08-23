@@ -350,31 +350,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       }
 
       try {
-        let raws: RawMentorTimeslot[] | undefined = undefined;
-        const isFreshMocked =
-          typeof (
-            loadMonthScheduleFresh as unknown as {
-              getMockImplementation: () => unknown;
-            }
-          ).getMockImplementation === 'function' &&
-          (
-            loadMonthScheduleFresh as unknown as {
-              getMockImplementation: () => unknown;
-            }
-          ).getMockImplementation() !== undefined;
-
-        if (isFreshMocked && isForced) {
-          const freshPromise = loadMonthScheduleFresh({
-            userId: backend.userId,
-            year: backend.year,
-            month: backend.month,
-          });
-          if (freshPromise) {
-            raws = await freshPromise;
-          }
-        } else {
-          raws = await revalidate;
-        }
+        const raws = await revalidate;
 
         if (isStale(startSnapshot)) return;
         if (dirtyMonthsRef.current.has(monthKey) && !isForced) return;
