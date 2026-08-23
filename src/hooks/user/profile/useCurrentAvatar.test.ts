@@ -76,9 +76,8 @@ describe('useCurrentAvatar', () => {
     } as unknown as ReturnType<typeof useSession>);
     mockUseResolvedIdentity.mockReturnValue(
       buildResolvedIdentity({
-        isLoggedIn: true,
+        state: 'hint-only',
         isMentor: true,
-        isResolvingUser: true,
         avatar: 'hint-avatar.png',
       })
     );

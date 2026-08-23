@@ -84,7 +84,10 @@ export function useResolvedIdentity(): ResolvedIdentity {
   );
 
   useEffect(() => {
-    if (identity.isLoggedIn) {
+    if (
+      identity.state === 'confirmed-member' ||
+      identity.state === 'hint-only'
+    ) {
       document.documentElement.setAttribute(
         DOM_AUTH_STATE_ATTR,
         identity.isMentor ? 'mentor' : 'mentee'

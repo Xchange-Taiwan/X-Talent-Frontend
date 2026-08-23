@@ -130,44 +130,24 @@ export type ResolvedIdentity =
       userId: undefined;
       avatar: undefined;
       isMentor: false;
-      isLoggedIn: false;
-      hasFullUser: false;
-      isResolvingUser: false;
-      authKnown: false;
-      sessionSettled: false;
     }
   | {
       state: 'hint-only';
       userId: undefined;
       avatar: string | undefined;
       isMentor: boolean;
-      isLoggedIn: true;
-      hasFullUser: false;
-      isResolvingUser: true;
-      authKnown: true;
-      sessionSettled: false;
     }
   | {
       state: 'confirmed-guest';
       userId: undefined;
       avatar: undefined;
       isMentor: false;
-      isLoggedIn: false;
-      hasFullUser: false;
-      isResolvingUser: false;
-      authKnown: true;
-      sessionSettled: boolean;
     }
   | {
       state: 'confirmed-member';
       userId: string;
       avatar: string | undefined;
       isMentor: boolean;
-      isLoggedIn: true;
-      hasFullUser: true;
-      isResolvingUser: false;
-      authKnown: true;
-      sessionSettled: true;
     };
 
 export function resolveIdentity(
@@ -210,11 +190,6 @@ export function resolveIdentity(
       userId: undefined,
       avatar: undefined,
       isMentor: false,
-      isLoggedIn: false,
-      hasFullUser: false,
-      isResolvingUser: false,
-      authKnown: false,
-      sessionSettled: false,
     };
   }
 
@@ -227,11 +202,6 @@ export function resolveIdentity(
       userId,
       avatar,
       isMentor,
-      isLoggedIn: true,
-      hasFullUser: true,
-      isResolvingUser: false,
-      authKnown: true,
-      sessionSettled: true,
     };
   }
 
@@ -241,11 +211,6 @@ export function resolveIdentity(
       userId: undefined,
       avatar: undefined,
       isMentor: false,
-      isLoggedIn: false,
-      hasFullUser: false,
-      isResolvingUser: false,
-      authKnown: true,
-      sessionSettled,
     };
   }
 
@@ -256,11 +221,6 @@ export function resolveIdentity(
     userId: undefined,
     avatar,
     isMentor,
-    isLoggedIn: true,
-    hasFullUser: false,
-    isResolvingUser: true,
-    authKnown: true,
-    sessionSettled: false,
   };
 }
 
