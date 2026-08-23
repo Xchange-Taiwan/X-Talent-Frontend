@@ -7,7 +7,7 @@ import { memo, useMemo } from 'react';
 
 import LogoImgUrl from '@/assets/logo.svg';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useIdentity } from '@/hooks/user/auth/useIdentity';
+import { useResolvedIdentity } from '@/hooks/user/auth/useResolvedIdentity';
 import { useCurrentAvatar } from '@/hooks/user/profile/useCurrentAvatar';
 import { trackEvent } from '@/lib/analytics';
 
@@ -23,7 +23,7 @@ import { UserDropdown } from './UserDropdown';
 function HeaderComponent(): JSX.Element {
   const { data: session } = useSession();
   const currentAvatar = useCurrentAvatar();
-  const identity = useIdentity(null);
+  const identity = useResolvedIdentity();
 
   const isHintOnly = identity.state === 'hint-only';
 

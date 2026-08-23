@@ -174,6 +174,7 @@ export default function EditProfileContainer({
     session,
     updateSession,
     consumeAvatarUpload: avatarUpload.consume,
+    currentDto: userDto,
   });
 
   // Suppress the prompt while a submit is in flight so onSubmit's own

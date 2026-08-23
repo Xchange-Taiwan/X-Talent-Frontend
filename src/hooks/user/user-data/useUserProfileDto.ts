@@ -1,82 +1,38 @@
 import { useMemo } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
-import { AsyncReadManager } from '@/lib/asyncReadManager';
-import { createKeyedCache } from '@/lib/createKeyedCache';
 import { fetchUserById } from '@/services/profile/user';
 import type { MentorProfileVO } from '@/types/user';
 
-export const USER_PROFILE_DTO_CACHE_TTL_MS = 60_000;
+import {
+  clearUserProfileDtoCache,
+  getLastPrimedTime,
+  getUserProfileDtoFromCache,
+  isOptimisticTransitionActive,
+  OPTIMISTIC_TRANSITION_WINDOW_MS,
+  primeUserProfileDtoCache,
+  primeUserProfileDtoCacheIfEmpty,
+  subscribeTransition,
+  subscribeUserProfileDtoCache,
+  USER_PROFILE_DTO_CACHE_TTL_MS,
+  userProfileDtoCache,
+  userProfileDtoReadManager,
+} from './userProfileDtoCache';
 
-const baseCache = createKeyedCache<string, MentorProfileVO | null>({
-  ttlMs: USER_PROFILE_DTO_CACHE_TTL_MS,
-});
-
-// Wrap the cache to preserve expired/stale entries for Stale-While-Revalidate support.
-export const userProfileDtoCache: typeof baseCache = {
-  ...baseCache,
-  get(key) {
-    return baseCache.getWithStatus(key)?.value;
-  },
-  getWithStatus(key) {
-    return baseCache.getWithStatus(key);
-  },
-  has(key) {
-    return baseCache.getWithStatus(key) !== undefined;
-  },
+export {
+  clearUserProfileDtoCache,
+  getLastPrimedTime,
+  getUserProfileDtoFromCache,
+  isOptimisticTransitionActive,
+  OPTIMISTIC_TRANSITION_WINDOW_MS,
+  primeUserProfileDtoCache,
+  primeUserProfileDtoCacheIfEmpty,
+  subscribeTransition,
+  subscribeUserProfileDtoCache,
+  USER_PROFILE_DTO_CACHE_TTL_MS,
+  userProfileDtoCache,
+  userProfileDtoReadManager,
 };
-
-export const userProfileDtoReadManager = new AsyncReadManager<
-  string,
-  MentorProfileVO | null
->(userProfileDtoCache);
-
-/**
- * Removes a user's entry from the in-memory cache so the next call to
- * useUserProfileDto for that user triggers a fresh API fetch. Call this after
- * a successful profile update to prevent any concurrent mount from receiving
- * stale data.
- */
-export function clearUserProfileDtoCache(
-  userId: number,
-  language: string
-): void {
-  const key = `${userId}-${language}`;
-  userProfileDtoCache.delete(key);
-}
-
-/**
- * Writes a known-fresh dto into the in-memory cache so the next consumer of
- * useUserProfileDto for this user renders from cache without an API call.
- * Call this after the caller has already retrieved authoritative data (e.g.
- * pollUntilSynced result post profile-submit) to prime the cache before
- * navigating to a page that reads the same dto.
- */
-export function primeUserProfileDtoCache(
-  userId: number,
-  language: string,
-  data: MentorProfileVO
-): void {
-  const key = `${userId}-${language}`;
-  userProfileDtoCache.prime(key, data);
-}
-
-/**
- * Prime the cache only when no fresh entry exists. Used by SSR pages that
- * pass an `initialDto` down to a client container — we want to seed the
- * client cache for first paint, but never overwrite a more authoritative
- * client-side prime (e.g. `useProfileSubmit`'s post-write `firstSyncedFetch`)
- * that landed during the same render cycle. Stale entries (past TTL) are
- * overwritten because the SSR initialDto is by definition fresh.
- */
-export function primeUserProfileDtoCacheIfEmpty(
-  userId: number,
-  language: string,
-  data: MentorProfileVO
-): void {
-  const key = `${userId}-${language}`;
-  userProfileDtoCache.prime(key, data, { ifEmpty: true });
-}
 
 export type ProfileFetchError = 'USER_NOT_FOUND' | 'FETCH_FAILED' | null;
 
@@ -95,18 +51,26 @@ export interface UseUserProfileDtoResult {
 export function useUserProfileDto(
   userId: number,
   language: string,
-  initialData?: MentorProfileVO | null
+  initialData?: MentorProfileVO | null,
+  options?: { enabled?: boolean }
 ): UseUserProfileDtoResult {
   const key = userId && language ? `${userId}-${language}` : null;
 
+  // If we already have a client-side primed cache entry, do NOT pass initialData to useAsyncRead
+  // to prevent it from being overwritten by the stale/older SSR initialData.
+  const hasCache = key ? userProfileDtoCache.has(key) : false;
+  const effectiveInitialData = hasCache ? undefined : initialData;
+
+  const bypassKey = options?.enabled === false ? null : key;
+
   const {
-    data: userDto,
+    data: asyncReadData,
     isLoading,
     error,
     refetch,
   } = useAsyncRead(
     userProfileDtoReadManager,
-    key,
+    bypassKey,
     async (signal, context) => {
       const isManualRefetch = !!context?.force;
       try {
@@ -131,11 +95,15 @@ export function useUserProfileDto(
       }
     },
     {
-      initialData,
+      initialData: effectiveInitialData,
       shouldCache: (res) =>
         res !== null && (!key || res !== userProfileDtoCache.get(key)),
     }
   );
+
+  const cachedData = key ? userProfileDtoCache.get(key) : null;
+  const userDto =
+    options?.enabled === false ? (cachedData ?? null) : asyncReadData;
 
   // Map errors and handle "USER_NOT_FOUND" distinction
   let resolvedError: ProfileFetchError = null;
