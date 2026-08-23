@@ -134,9 +134,9 @@ export function useUserProfileDto(
     userProfileDtoReadManager,
     key,
     async (signal) => {
-      const res = await fetchUserById(userId, language, signal);
       const isManualRefetch = isManualRefetchRef.current;
       isManualRefetchRef.current = false;
+      const res = await fetchUserById(userId, language, signal);
 
       if (res === null && key) {
         if (isManualRefetch) {
