@@ -1,5 +1,3 @@
-import { getSession } from 'next-auth/react';
-
 import { apiClient } from '@/lib/apiClient';
 
 export interface PresignedUrlFields {
@@ -22,34 +20,18 @@ export interface PresignedUrlResponse {
   data?: PresignedUrlData;
 }
 
-export async function fetchPresignedUrl(): Promise<PresignedUrlData | null> {
-  const session = await getSession();
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    console.error('No user id in session');
-    return null;
-  }
-
-  return fetchPresignedUrlByUserId(Number(userId));
-}
-
-export async function fetchPresignedUrlByUserId(
+export async function fetchPresignedUrl(
   userId: number
 ): Promise<PresignedUrlData | null> {
   try {
-    const result = await apiClient.get<PresignedUrlResponse>(
+    const data = await apiClient.getUnwrapped<PresignedUrlData>(
       `/v1/storage/presigned-url/${userId}`
     );
-
-    if (result.code !== '0') {
-      console.error(`API Error: ${result.msg}`);
-      return null;
-    }
-
-    return result.data ?? null;
+    return data ?? null;
   } catch (error) {
     console.error('Fetch Presigned Url Error:', error);
     return null;
   }
 }
+
+export const fetchPresignedUrlByUserId = fetchPresignedUrl;

@@ -314,6 +314,84 @@ describe('apiClient', () => {
   });
 
   /* ================================
+   * postUnwrapped / putUnwrapped / patchUnwrapped / deleteUnwrapped
+   * ================================ */
+
+  describe('other unwrapped methods (post, put, patch, delete)', () => {
+    it('postUnwrapped unwraps data successfully', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({ code: '0', msg: 'success', data: { ok: true } }),
+          { status: 200 }
+        )
+      );
+      const res = await apiClient.postUnwrapped<{ ok: boolean }>(
+        '/v1/test',
+        { foo: 'bar' },
+        { auth: false }
+      );
+      expect(res).toEqual({ ok: true });
+    });
+
+    it('putUnwrapped unwraps data successfully', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({ code: '0', msg: 'success', data: { ok: true } }),
+          { status: 200 }
+        )
+      );
+      const res = await apiClient.putUnwrapped<{ ok: boolean }>(
+        '/v1/test',
+        { foo: 'bar' },
+        { auth: false }
+      );
+      expect(res).toEqual({ ok: true });
+    });
+
+    it('patchUnwrapped unwraps data successfully', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({ code: '0', msg: 'success', data: { ok: true } }),
+          { status: 200 }
+        )
+      );
+      const res = await apiClient.patchUnwrapped<{ ok: boolean }>(
+        '/v1/test',
+        { foo: 'bar' },
+        { auth: false }
+      );
+      expect(res).toEqual({ ok: true });
+    });
+
+    it('deleteUnwrapped unwraps data successfully', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({ code: '0', msg: 'success', data: { ok: true } }),
+          { status: 200 }
+        )
+      );
+      const res = await apiClient.deleteUnwrapped<{ ok: boolean }>(
+        '/v1/test',
+        { foo: 'bar' },
+        { auth: false }
+      );
+      expect(res).toEqual({ ok: true });
+    });
+
+    it('postUnwrapped throws FetchApiError when code is not "0"', async () => {
+      mockFetch.mockResolvedValue(
+        new Response(
+          JSON.stringify({ code: 'ERR_123', msg: 'error', data: null }),
+          { status: 200 }
+        )
+      );
+      await expect(
+        apiClient.postUnwrapped('/v1/test', {}, { auth: false })
+      ).rejects.toThrow(FetchApiError);
+    });
+  });
+
+  /* ================================
    * requestUnwrapped
    * ================================ */
 
