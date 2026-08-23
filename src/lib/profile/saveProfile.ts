@@ -2,6 +2,7 @@ import { Session } from 'next-auth';
 
 import { trackEvent } from '@/lib/analytics';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { registerOptimisticAvatar } from '@/lib/profile/optimisticAvatar';
 import {
   confirmProfileSynced as defaultConfirmProfileSynced,
   firstSyncedFetch as defaultFirstSyncedFetch,
@@ -236,6 +237,7 @@ export async function saveProfile(
 
     const resolvedUserId = sessionUserId ?? Number(pageUserId);
     primeUserDataCache(resolvedUserId, 'zh_TW', optimisticDto);
+    registerOptimisticAvatar(resolvedUserId, optimisticDto.avatar);
     return optimisticDto;
   }
 

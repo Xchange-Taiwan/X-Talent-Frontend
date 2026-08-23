@@ -2,10 +2,8 @@ import { renderHook } from '@testing-library/react';
 import { useSession } from 'next-auth/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  getLastPrimedTime,
-  useUserProfileDto,
-} from '@/hooks/user/user-data/useUserProfileDto';
+import { useUserProfileDto } from '@/hooks/user/user-data/useUserProfileDto';
+import { registerOptimisticAvatar } from '@/lib/profile/optimisticAvatar';
 
 import { useCurrentAvatar } from './useCurrentAvatar';
 
@@ -15,21 +13,20 @@ vi.mock('next-auth/react', () => ({
 
 vi.mock('@/hooks/user/user-data/useUserProfileDto', () => ({
   useUserProfileDto: vi.fn(),
-  getLastPrimedTime: vi.fn(() => 0),
 }));
 
 const mockUseSession = vi.mocked(useSession);
 const mockUseUserProfileDto = vi.mocked(useUserProfileDto);
-const mockGetLastPrimedTime = vi.mocked(getLastPrimedTime);
 
 describe('useCurrentAvatar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    registerOptimisticAvatar(123, null);
   });
 
-  it('returns avatar from cached userDto when present and in transition window', () => {
+  it('returns avatar from cached userDto when present and session has no avatar', () => {
     mockUseSession.mockReturnValue({
-      data: { user: { id: '123', avatar: 'session-avatar.png' } },
+      data: { user: { id: '123', avatar: undefined } },
       status: 'authenticated',
     } as unknown as ReturnType<typeof useSession>);
     mockUseUserProfileDto.mockReturnValue({
@@ -37,8 +34,6 @@ describe('useCurrentAvatar', () => {
       isLoading: false,
       error: null,
     } as unknown as ReturnType<typeof useUserProfileDto>);
-    // Active transition window (primed just now)
-    mockGetLastPrimedTime.mockReturnValue(Date.now());
 
     const { result } = renderHook(() => useCurrentAvatar());
 
@@ -51,18 +46,16 @@ describe('useCurrentAvatar', () => {
     );
   });
 
-  it('returns session avatar when outside transition window even if cached userDto is present', () => {
+  it('prioritizes session avatar over cached userDto when both are present and no optimistic transition is active', () => {
     mockUseSession.mockReturnValue({
       data: { user: { id: '123', avatar: 'session-avatar.png' } },
       status: 'authenticated',
     } as unknown as ReturnType<typeof useSession>);
     mockUseUserProfileDto.mockReturnValue({
-      userDto: { avatar: 'cached-avatar.png' },
+      userDto: { avatar: 'stale-cached-avatar.png' },
       isLoading: false,
       error: null,
     } as unknown as ReturnType<typeof useUserProfileDto>);
-    // Outside transition window (primed 15s ago)
-    mockGetLastPrimedTime.mockReturnValue(Date.now() - 15000);
 
     const { result } = renderHook(() => useCurrentAvatar());
 
@@ -85,7 +78,6 @@ describe('useCurrentAvatar', () => {
       isLoading: false,
       error: null,
     } as unknown as ReturnType<typeof useUserProfileDto>);
-    mockGetLastPrimedTime.mockReturnValue(0);
 
     const { result } = renderHook(() => useCurrentAvatar());
 
@@ -102,10 +94,28 @@ describe('useCurrentAvatar', () => {
       isLoading: true,
       error: null,
     } as unknown as ReturnType<typeof useUserProfileDto>);
-    mockGetLastPrimedTime.mockReturnValue(0);
 
     const { result } = renderHook(() => useCurrentAvatar());
 
     expect(result.current).toBeNull();
+  });
+
+  it('returns optimistic avatar during transition period, prioritizing it over both session and cached userDto', () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { id: '123', avatar: 'session-avatar.png' } },
+      status: 'authenticated',
+    } as unknown as ReturnType<typeof useSession>);
+    mockUseUserProfileDto.mockReturnValue({
+      userDto: { avatar: 'cached-avatar.png' },
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof useUserProfileDto>);
+
+    // Register an optimistic avatar for user 123
+    registerOptimisticAvatar(123, 'optimistic-avatar.png');
+
+    const { result } = renderHook(() => useCurrentAvatar());
+
+    expect(result.current).toBe('optimistic-avatar.png');
   });
 });
