@@ -21,6 +21,11 @@ export default defineConfig({
     },
     setupFiles: ['./src/test/setup.ts'],
     maxWorkers: process.env.CI ? 1 : undefined,
+    poolOptions: {
+      forks: {
+        singleFork: process.env.CI ? false : undefined,
+      },
+    },
     server: {
       deps: {
         inline: [/@storybook\/nextjs/],
