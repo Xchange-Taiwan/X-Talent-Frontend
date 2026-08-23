@@ -2,15 +2,18 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
+import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
 import type { Reservation } from '@/types/reservation';
 
 import { ConfirmedReservationDialog } from './ConfirmedReservationDialog';
 
+const mockAccept = vi.fn();
 const mockRejectOrCancel = vi.fn();
 const mockJoinMeet = vi.fn();
 
 vi.mock('@/hooks/user/reservation/useReservationActions', () => ({
   useReservationActions: vi.fn(() => ({
+    accept: mockAccept,
     rejectOrCancel: mockRejectOrCancel,
     isMutating: false,
   })),
@@ -65,6 +68,15 @@ describe('ConfirmedReservationDialog', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useReservationActions).mockReturnValue({
+      accept: mockAccept,
+      rejectOrCancel: mockRejectOrCancel,
+      isMutating: false,
+    });
+    vi.mocked(useReservationMeetLink).mockReturnValue({
+      joinMeet: mockJoinMeet,
+      isPending: false,
+    });
   });
 
   it('renders nothing when reservation is null or open is false', () => {
@@ -154,5 +166,62 @@ describe('ConfirmedReservationDialog', () => {
 
     expect(defaultProps.onMutationSuccess).toHaveBeenCalled();
     expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('blocks Escape-key dismissal while a mutation is in progress', () => {
+    vi.mocked(useReservationActions).mockReturnValue({
+      accept: mockAccept,
+      rejectOrCancel: mockRejectOrCancel,
+      isMutating: true,
+    });
+    const onOpenChange = vi.fn();
+
+    render(
+      <ConfirmedReservationDialog
+        {...defaultProps}
+        onOpenChange={onOpenChange}
+      />
+    );
+
+    const dialog = screen.getByRole('dialog');
+    fireEvent.keyDown(dialog, { key: 'Escape', code: 'Escape' });
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('blocks Escape-key dismissal while joining meet is in progress', () => {
+    vi.mocked(useReservationMeetLink).mockReturnValue({
+      joinMeet: mockJoinMeet,
+      isPending: true,
+    });
+    const onOpenChange = vi.fn();
+
+    render(
+      <ConfirmedReservationDialog
+        {...defaultProps}
+        onOpenChange={onOpenChange}
+      />
+    );
+
+    const dialog = screen.getByRole('dialog');
+    fireEvent.keyDown(dialog, { key: 'Escape', code: 'Escape' });
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('allows Escape-key dismissal when not mutating and not joining', () => {
+    const onOpenChange = vi.fn();
+
+    render(
+      <ConfirmedReservationDialog
+        {...defaultProps}
+        onOpenChange={onOpenChange}
+      />
+    );
+
+    const dialog = screen.getByRole('dialog');
+    fireEvent.keyDown(dialog, { key: 'Escape', code: 'Escape' });
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

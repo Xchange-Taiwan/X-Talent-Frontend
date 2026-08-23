@@ -16,6 +16,7 @@ import {
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
+import { getInitials } from '@/lib/avatar/getInitials';
 import type { Reservation } from '@/types/reservation';
 
 interface ConfirmedReservationDialogProps {
@@ -48,12 +49,7 @@ export function ConfirmedReservationDialog({
 
   if (!reservation) return null;
 
-  const initials =
-    reservation.name
-      .split(' ')
-      .map((s) => s[0])
-      .join('')
-      .slice(0, 2) || 'U';
+  const initials = getInitials(reservation.name);
 
   const handleOpenChange = (next: boolean) => {
     if (isMutating || isJoiningMeet) return;

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { BookingSlot } from '@/lib/profile/bookingAvailability';
@@ -356,5 +356,67 @@ describe('MentorScheduleConfig', () => {
 
     expect(screen.getByText('目前無已預約時段')).toBeInTheDocument();
     expect(screen.getByText('無可預約的時段')).toBeInTheDocument();
+  });
+
+  it('closes ConfirmedReservationDialog and clears activeDialogType when onOpenChange(false) is triggered', () => {
+    const mockConfirmedReservation: Reservation = {
+      id: 'res-102',
+      name: 'Alice',
+      roleLine: 'Mentee',
+      date: '2026-07-26',
+      time: '11:00 AM – 11:30 AM',
+      dtstart: Math.floor(new Date('2026-07-26T11:00:00Z').getTime() / 1000),
+      dtend: Math.floor(new Date('2026-07-26T11:30:00Z').getTime() / 1000),
+      messages: [],
+      scheduleId: 102,
+      version: 1,
+      senderUserId: 'user-alice',
+      participantUserId: 'user-mentor',
+    };
+    const slotsWithConfirmedReservation = mockSlots.map((slot) =>
+      slot.scheduleId === 102
+        ? { ...slot, reservation: mockConfirmedReservation }
+        : slot
+    );
+
+    render(
+      <MentorScheduleConfig
+        {...defaultProps}
+        slotsSnapshot={{
+          ...defaultProps.slotsSnapshot,
+          slots: slotsWithConfirmedReservation,
+        }}
+      />
+    );
+
+    const confirmedRow = screen.getByText('學員 Alice').closest('button');
+    expect(confirmedRow).not.toBeNull();
+    fireEvent.click(confirmedRow!);
+
+    const mockDialog = screen.getByTestId('mock-confirmed-dialog');
+    expect(mockDialog).toBeInTheDocument();
+
+    const closeBtn = within(mockDialog).getByRole('button', { name: 'Close' });
+    fireEvent.click(closeBtn);
+
+    expect(
+      screen.queryByTestId('mock-confirmed-dialog')
+    ).not.toBeInTheDocument();
+  });
+
+  it('closes QuickReplyDialog and clears activeDialogType when onOpenChange(false) is triggered', () => {
+    render(<MentorScheduleConfig {...defaultProps} />);
+
+    const pendingRow = screen.getByText('學員 Bob').closest('button');
+    expect(pendingRow).not.toBeNull();
+    fireEvent.click(pendingRow!);
+
+    const mockDialog = screen.getByTestId('mock-quick-reply');
+    expect(mockDialog).toBeInTheDocument();
+
+    const closeBtn = within(mockDialog).getByRole('button', { name: 'Close' });
+    fireEvent.click(closeBtn);
+
+    expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
   });
 });
