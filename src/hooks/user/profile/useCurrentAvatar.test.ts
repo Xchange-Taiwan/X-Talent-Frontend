@@ -60,6 +60,12 @@ describe('useCurrentAvatar', () => {
     const { result } = renderHook(() => useCurrentAvatar());
 
     expect(result.current).toBe('session-avatar.png');
+    expect(mockUseUserProfileDto).toHaveBeenCalledWith(
+      123,
+      'zh_TW',
+      undefined,
+      { enabled: false }
+    );
   });
 
   it('returns session avatar when userDto is not present', () => {

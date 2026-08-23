@@ -32,6 +32,12 @@ export function clearUserProfileDtoCache(
   userProfileDtoCache.delete(key);
 }
 
+let lastPrimedTime = 0;
+
+export function getLastPrimedTime(): number {
+  return lastPrimedTime;
+}
+
 /**
  * Writes a known-fresh dto into the in-memory cache so the next consumer of
  * useUserProfileDto for this user renders from cache without an API call.
@@ -46,6 +52,7 @@ export function primeUserProfileDtoCache(
 ): void {
   const key = `${userId}-${language}`;
   userProfileDtoCache.prime(key, data);
+  lastPrimedTime = Date.now();
 }
 
 /**
