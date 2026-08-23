@@ -309,6 +309,18 @@ describe('apiClient', () => {
         apiClient.getUnwrapped('/v1/test', { auth: false })
       ).rejects.toThrow(ApiError);
     });
+
+    it('returns undefined on empty 204 No Content response without throwing TypeError', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 204,
+        text: vi.fn().mockResolvedValue(''),
+      });
+
+      const result = await apiClient.getUnwrapped('/v1/test', { auth: false });
+
+      expect(result).toBeUndefined();
+    });
   });
 
   /* ================================
