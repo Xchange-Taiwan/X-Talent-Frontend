@@ -233,7 +233,10 @@ export default function ProfilePageUI({
                   </>
                 )}
 
-                {userData.is_mentor === false && (
+                {(userData.is_mentor === false ||
+                  !!userData.want_position?.length ||
+                  !!userData.want_skill?.length ||
+                  !!userData.want_topic?.length) && (
                   <>
                     <ProfileBadgeSection
                       title="有興趣多了解的職位"

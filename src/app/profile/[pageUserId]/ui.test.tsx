@@ -281,7 +281,7 @@ describe('ProfilePageUI - mentee-specific sections gating for mentor profiles (#
     expect(screen.getByText('想多了解的主題')).toBeInTheDocument();
   });
 
-  it('hides the mentee sections on a mentor profile', () => {
+  it('displays the mentee sections on a mentor profile if populated', () => {
     render(
       <ProfilePageUI
         {...baseProps({
@@ -290,6 +290,25 @@ describe('ProfilePageUI - mentee-specific sections gating for mentor profiles (#
             want_position: [{ subject_group: 'role', subject: 'PM' }],
             want_skill: [{ subject_group: 'skill', subject: 'Figma' }],
             want_topic: [{ subject_group: 'topic', subject: 'Career' }],
+          }),
+        })}
+      />
+    );
+
+    expect(screen.getByText('有興趣多了解的職位')).toBeInTheDocument();
+    expect(screen.getByText('想多了解、加強的技能')).toBeInTheDocument();
+    expect(screen.getByText('想多了解的主題')).toBeInTheDocument();
+  });
+
+  it('hides the mentee sections on a mentor profile if not populated', () => {
+    render(
+      <ProfilePageUI
+        {...baseProps({
+          userData: buildUserData({
+            is_mentor: true,
+            want_position: [],
+            want_skill: [],
+            want_topic: [],
           }),
         })}
       />
