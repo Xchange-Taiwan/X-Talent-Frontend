@@ -54,8 +54,8 @@ describe('HamburgerMenu', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('returns null and does not render when state is hint-only', () => {
-    const { container } = render(
+  it('does not render login/signup buttons when state is hint-only', () => {
+    render(
       <HamburgerMenu
         identity={{
           state: 'hint-only',
@@ -65,11 +65,16 @@ describe('HamburgerMenu', () => {
         }}
       />
     );
-    expect(container).toBeEmptyDOMElement();
+    expect(
+      screen.queryByRole('link', { name: '登入' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: '註冊' })
+    ).not.toBeInTheDocument();
   });
 
-  it('returns null and does not render when state is confirmed-member', () => {
-    const { container } = render(
+  it('does not render login/signup buttons when state is confirmed-member', () => {
+    render(
       <HamburgerMenu
         identity={{
           state: 'confirmed-member',
@@ -79,6 +84,11 @@ describe('HamburgerMenu', () => {
         }}
       />
     );
-    expect(container).toBeEmptyDOMElement();
+    expect(
+      screen.queryByRole('link', { name: '登入' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: '註冊' })
+    ).not.toBeInTheDocument();
   });
 });
