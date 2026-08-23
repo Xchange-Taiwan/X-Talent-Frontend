@@ -68,12 +68,16 @@ export function useAsyncRead<K, V>(
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
+  const lastRetryRef = useRef(0);
+
   useEffect(() => {
     if (key === null || key === undefined) {
       return;
     }
 
-    const isForced = retryTrigger > 0;
+    const isForced = retryTrigger > lastRetryRef.current;
+    lastRetryRef.current = retryTrigger;
+
     const currentOptions = isForced
       ? { ...optionsRef.current, force: true }
       : optionsRef.current;
