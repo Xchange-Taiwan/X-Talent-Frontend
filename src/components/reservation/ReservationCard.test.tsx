@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { FetchApiError } from '@/lib/apiClient';
 import { fetchReservationMeetLink } from '@/services/reservations';
 import { mockToast } from '@/test/mocks/useToast';
 import type { Reservation } from '@/types/reservation';
@@ -126,7 +127,7 @@ describe('ReservationCard', () => {
     const mockOpenedWindow = { location: { href: '' }, close: mockClose };
     mockWindowOpen.mockReturnValue(mockOpenedWindow);
 
-    const mockError = { code: '404', msg: 'not found' };
+    const mockError = new FetchApiError('404', 'not found', '/google-meet');
     vi.mocked(fetchReservationMeetLink).mockRejectedValue(mockError);
 
     render(
@@ -157,7 +158,7 @@ describe('ReservationCard', () => {
     const mockOpenedWindow = { location: { href: '' }, close: mockClose };
     mockWindowOpen.mockReturnValue(mockOpenedWindow);
 
-    const mockError = { code: '403', msg: 'forbidden' };
+    const mockError = new FetchApiError('403', 'forbidden', '/google-meet');
     vi.mocked(fetchReservationMeetLink).mockRejectedValue(mockError);
 
     render(
