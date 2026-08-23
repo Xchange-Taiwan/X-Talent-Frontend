@@ -45,7 +45,11 @@ export function buildResolvedIdentity(
     state = base.state;
   } else if (!base.authKnown) {
     state = 'unknown';
-  } else if (base.hasFullUser || (base.isLoggedIn && base.sessionSettled)) {
+  } else if (
+    base.hasFullUser ||
+    (base.isLoggedIn && base.sessionSettled) ||
+    base.userId !== undefined
+  ) {
     state = 'confirmed-member';
   } else if (
     base.isResolvingUser ||

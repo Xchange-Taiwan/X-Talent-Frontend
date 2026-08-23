@@ -103,6 +103,15 @@ describe('buildResolvedIdentity', () => {
     expect(legacyResolvingIdentity.isResolvingUser).toBe(true);
     expect(legacyResolvingIdentity.isLoggedIn).toBe(true);
     expect(legacyResolvingIdentity.sessionSettled).toBe(false);
+
+    // When userId is provided (without state or hasFullUser), state is inferred as confirmed-member (backward compatibility)
+    const legacyUserIdIdentity = buildResolvedIdentity({
+      userId: 'user-999',
+    });
+    expect(legacyUserIdIdentity.state).toBe('confirmed-member');
+    expect(legacyUserIdIdentity.userId).toBe('user-999');
+    expect(legacyUserIdIdentity.isLoggedIn).toBe(true);
+    expect(legacyUserIdIdentity.hasFullUser).toBe(true);
   });
 
   it('should verify export constants are defined correctly', () => {
