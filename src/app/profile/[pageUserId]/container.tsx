@@ -80,7 +80,7 @@ export default function ProfilePageContainer({
     isLoading: userLoading,
     error,
     refetch,
-  } = useUserData(pageUserIdNumber, 'zh_TW');
+  } = useUserData(pageUserIdNumber, 'zh_TW', _initialDto);
 
   // Single source of truth for "should owner-only controls (edit button,
   // become-mentor button, schedule-management dialog) render" so ui.tsx

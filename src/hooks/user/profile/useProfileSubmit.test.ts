@@ -136,4 +136,28 @@ describe('useProfileSubmit (Hook Layer)', () => {
       })
     );
   });
+
+  it('passes currentDto from options to saveProfile', async () => {
+    mockSaveProfile.mockResolvedValueOnce(
+      undefined as unknown as MentorProfileVO
+    );
+    const mockDto = {
+      user_id: 123,
+      name: 'Test',
+    } as unknown as MentorProfileVO;
+    const { result } = renderHook(() =>
+      useProfileSubmit(makeOptions({ currentDto: mockDto }))
+    );
+
+    await act(async () => {
+      await result.current.onSubmit(baseValues);
+    });
+
+    expect(mockSaveProfile).toHaveBeenCalledWith(
+      baseValues,
+      expect.objectContaining({
+        currentDto: mockDto,
+      })
+    );
+  });
 });
