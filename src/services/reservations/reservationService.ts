@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 
-import { apiClient, FetchApiError } from '@/lib/apiClient';
+import { apiClient } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { resolveCounterpartyProfile } from '@/lib/reservation/resolveCounterparty';
 import { components } from '@/types/api';
@@ -141,21 +141,19 @@ export async function fetchReservations(
     console.debug('[reservations] GET', { userId, state, batch, nextDtend });
 
   const path = `/v1/users/${userId}/reservations`;
-  const json = await apiClient.get<
-    components['schemas']['ApiResponse_ReservationInfoListVO_']
+  const data = await apiClient.getUnwrapped<
+    components['schemas']['ReservationInfoListVO']
   >(path, {
     params: { state, batch, next_dtend: nextDtend },
     signal,
   });
 
-  if (debug) console.debug('[reservations] GET parsed', json);
+  if (debug) console.debug('[reservations] GET parsed', data);
 
-  if (json.code !== '0') throw new FetchApiError(json.code, json.msg, path);
-
-  const items = (json.data?.reservations ?? []).map((reservation) =>
+  const items = (data?.reservations ?? []).map((reservation) =>
     mapToReservation(reservation, userId)
   );
-  return { items, next_dtend: json.data?.next_dtend ?? 0 };
+  return { items, next_dtend: data?.next_dtend ?? 0 };
 }
 
 // Hard ceiling on pages fetched per state (batch=20 → up to 1,000
@@ -241,17 +239,15 @@ export async function updateReservationStatus(opts: {
     });
 
   const path = `/v1/users/${userId}/reservations/${reservationId}`;
-  const json = await apiClient.put<
-    components['schemas']['ApiResponse_ReservationVO_']
+  const data = await apiClient.putUnwrapped<
+    components['schemas']['ReservationVO']
   >(path, body);
 
-  if (debug) console.debug('[reservations] PUT parsed', json);
+  if (debug) console.debug('[reservations] PUT parsed', data);
 
-  if (json.code !== '0') throw new FetchApiError(json.code, json.msg, path);
+  if (!data) throw new Error('API error: missing data in response');
 
-  if (!json.data) throw new Error('API error: missing data in response');
-
-  return json.data;
+  return data;
 }
 
 /* ================================
@@ -274,17 +270,15 @@ export async function createReservation(opts: {
   if (debug) console.debug('[reservations] POST request', { userId, body });
 
   const path = `/v1/users/${userId}/reservations`;
-  const json = await apiClient.post<
-    components['schemas']['ApiResponse_ReservationVO_']
+  const data = await apiClient.postUnwrapped<
+    components['schemas']['ReservationVO']
   >(path, body);
 
-  if (debug) console.debug('[reservations] POST parsed', json);
+  if (debug) console.debug('[reservations] POST parsed', data);
 
-  if (json.code !== '0') throw new FetchApiError(json.code, json.msg, path);
+  if (!data) throw new Error('API error: missing data in response');
 
-  if (!json.data) throw new Error('API error: missing data in response');
-
-  return json.data;
+  return data;
 }
 
 /* ================================
@@ -306,20 +300,16 @@ export async function fetchReservationMeetLink(opts: {
   }
 
   const path = `/v1/users/${encodeURIComponent(userId)}/reservations/${encodeURIComponent(reservationId)}/google-meet`;
-  const json =
-    await apiClient.get<components['schemas']['ApiResponse_MeetLinkVO_']>(path);
+  const data =
+    await apiClient.getUnwrapped<components['schemas']['MeetLinkVO']>(path);
 
   if (debug) {
-    console.debug('[reservations] GET Meet Link parsed', json);
+    console.debug('[reservations] GET Meet Link parsed', data);
   }
 
-  if (json.code !== '0') {
-    throw new FetchApiError(json.code, json.msg, path);
-  }
-
-  if (!json.data) {
+  if (!data) {
     throw new Error('API error: missing data in response');
   }
 
-  return json.data;
+  return data;
 }

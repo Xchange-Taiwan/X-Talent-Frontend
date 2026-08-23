@@ -1,25 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/apiClient', () => ({
-  apiClient: {
-    get: vi.fn(),
-    put: vi.fn(),
-    post: vi.fn(),
-  },
-  FetchApiError: class FetchApiError extends Error {
-    constructor(
-      public readonly code: string,
-      message: string,
-      public readonly path: string
-    ) {
-      super(`fetch ${path} API error (${code}): ${message}`);
-      this.name = 'FetchApiError';
-    }
-  },
-}));
+vi.mock('@/lib/apiClient', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/apiClient')>();
+  return {
+    ...actual,
+    apiClient: {
+      getUnwrapped: vi.fn(),
+      putUnwrapped: vi.fn(),
+      postUnwrapped: vi.fn(),
+    },
+  };
+});
 
 vi.mock('@/lib/monitoring', () => ({
   captureFlowFailure: vi.fn(),
+  captureApiFailure: vi.fn(),
 }));
 
 import { apiClient, FetchApiError } from '@/lib/apiClient';
@@ -34,9 +29,9 @@ import {
   updateReservationStatus,
 } from './reservationService';
 
-const mockGet = vi.mocked(apiClient.get);
-const mockPut = vi.mocked(apiClient.put);
-const mockPost = vi.mocked(apiClient.post);
+const mockGet = vi.mocked(apiClient.getUnwrapped);
+const mockPut = vi.mocked(apiClient.putUnwrapped);
+const mockPost = vi.mocked(apiClient.postUnwrapped);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
 function makeApiReservation(
@@ -78,11 +73,13 @@ describe('reservationService API Error Handling', () => {
 
   describe('createReservation', () => {
     it('should throw FetchApiError with correct code, message and path if API returns non-0 code', async () => {
-      mockPost.mockResolvedValue({
-        code: '409',
-        msg: 'Conflict booking',
-        data: null,
-      });
+      mockPost.mockRejectedValue(
+        new FetchApiError(
+          '409',
+          'Conflict booking',
+          '/v1/users/123/reservations'
+        )
+      );
 
       await expect(
         createReservation({
@@ -106,12 +103,10 @@ describe('reservationService API Error Handling', () => {
     });
 
     it('should return data successfully if code is 0', async () => {
-      const mockResult = { id: 789 };
-      mockPost.mockResolvedValue({
-        code: '0',
-        msg: 'success',
-        data: mockResult,
-      });
+      const mockResult = {
+        id: 789,
+      } as unknown as components['schemas']['ReservationVO'];
+      mockPost.mockResolvedValue(mockResult);
 
       const res = await createReservation({
         userId: 123,
@@ -124,11 +119,13 @@ describe('reservationService API Error Handling', () => {
 
   describe('updateReservationStatus', () => {
     it('should throw FetchApiError with correct code, message and path if API returns non-0 code', async () => {
-      mockPut.mockResolvedValue({
-        code: '500',
-        msg: 'Internal Server Error',
-        data: null,
-      });
+      mockPut.mockRejectedValue(
+        new FetchApiError(
+          '500',
+          'Internal Server Error',
+          '/v1/users/123/reservations/456'
+        )
+      );
 
       await expect(
         updateReservationStatus({
@@ -156,11 +153,9 @@ describe('reservationService API Error Handling', () => {
 
   describe('fetchReservations', () => {
     it('should throw FetchApiError with correct code, message and path if API returns non-0 code', async () => {
-      mockGet.mockResolvedValue({
-        code: '400',
-        msg: 'Bad Request',
-        data: null,
-      });
+      mockGet.mockRejectedValue(
+        new FetchApiError('400', 'Bad Request', '/v1/users/123/reservations')
+      );
 
       await expect(
         fetchReservations({
@@ -186,11 +181,13 @@ describe('reservationService API Error Handling', () => {
 
   describe('fetchReservationMeetLink', () => {
     it('should throw FetchApiError with correct code, message and path if API returns non-0 code', async () => {
-      mockGet.mockResolvedValue({
-        code: '404',
-        msg: 'meet link not found',
-        data: null,
-      });
+      mockGet.mockRejectedValue(
+        new FetchApiError(
+          '404',
+          'meet link not found',
+          '/v1/users/123/reservations/456/google-meet'
+        )
+      );
 
       await expect(
         fetchReservationMeetLink({
@@ -217,11 +214,7 @@ describe('reservationService API Error Handling', () => {
 
     it('should return meet_url successfully if code is 0', async () => {
       const mockResult = { meet_url: 'https://meet.google.com/xxx-yyyy-zzz' };
-      mockGet.mockResolvedValue({
-        code: '0',
-        msg: 'success',
-        data: mockResult,
-      });
+      mockGet.mockResolvedValue(mockResult);
 
       const res = await fetchReservationMeetLink({
         userId: 123,
@@ -235,14 +228,8 @@ describe('reservationService API Error Handling', () => {
   describe('fetchAllReservationsForState', () => {
     it('returns the single page when next_dtend is 0', async () => {
       mockGet.mockResolvedValue({
-        code: '0',
-        msg: 'ok',
-        data: {
-          reservations: [
-            makeApiReservation({ id: 1, dtstart: 100, dtend: 200 }),
-          ],
-          next_dtend: 0,
-        },
+        reservations: [makeApiReservation({ id: 1, dtstart: 100, dtend: 200 })],
+        next_dtend: 0,
       });
 
       const result = await fetchAllReservationsForState(
@@ -258,24 +245,16 @@ describe('reservationService API Error Handling', () => {
     it('pages via next_dtend until the backend signals no more pages', async () => {
       mockGet
         .mockResolvedValueOnce({
-          code: '0',
-          msg: 'ok',
-          data: {
-            reservations: [
-              makeApiReservation({ id: 1, dtstart: 100, dtend: 200 }),
-            ],
-            next_dtend: 300,
-          },
+          reservations: [
+            makeApiReservation({ id: 1, dtstart: 100, dtend: 200 }),
+          ],
+          next_dtend: 300,
         })
         .mockResolvedValueOnce({
-          code: '0',
-          msg: 'ok',
-          data: {
-            reservations: [
-              makeApiReservation({ id: 2, dtstart: 300, dtend: 400 }),
-            ],
-            next_dtend: 0,
-          },
+          reservations: [
+            makeApiReservation({ id: 2, dtstart: 300, dtend: 400 }),
+          ],
+          next_dtend: 0,
         });
 
       const result = await fetchAllReservationsForState(
@@ -298,20 +277,12 @@ describe('reservationService API Error Handling', () => {
     it('stops when next_dtend repeats the same cursor (stuck-cursor guard)', async () => {
       mockGet
         .mockResolvedValueOnce({
-          code: '0',
-          msg: 'ok',
-          data: {
-            reservations: [
-              makeApiReservation({ id: 1, dtstart: 100, dtend: 200 }),
-            ],
-            next_dtend: 300,
-          },
+          reservations: [
+            makeApiReservation({ id: 1, dtstart: 100, dtend: 200 }),
+          ],
+          next_dtend: 300,
         })
-        .mockResolvedValue({
-          code: '0',
-          msg: 'ok',
-          data: { reservations: [], next_dtend: 300 },
-        });
+        .mockResolvedValue({ reservations: [], next_dtend: 300 });
 
       const result = await fetchAllReservationsForState(
         '123',
@@ -327,14 +298,8 @@ describe('reservationService API Error Handling', () => {
 
     it('stops when next_dtend moves past the end of the target month', async () => {
       mockGet.mockResolvedValue({
-        code: '0',
-        msg: 'ok',
-        data: {
-          reservations: [
-            makeApiReservation({ id: 1, dtstart: 100, dtend: 200 }),
-          ],
-          next_dtend: 99999,
-        },
+        reservations: [makeApiReservation({ id: 1, dtstart: 100, dtend: 200 })],
+        next_dtend: 99999,
       });
 
       const result = await fetchAllReservationsForState(
@@ -373,18 +338,14 @@ describe('reservationService API Error Handling', () => {
           (options as { params: { next_dtend?: number } }).params.next_dtend ??
           0;
         return {
-          code: '0',
-          msg: 'ok',
-          data: {
-            reservations: [
-              makeApiReservation({
-                id: nextDtend + 1,
-                dtstart: 100,
-                dtend: 200,
-              }),
-            ],
-            next_dtend: nextDtend + 1,
-          },
+          reservations: [
+            makeApiReservation({
+              id: nextDtend + 1,
+              dtstart: 100,
+              dtend: 200,
+            }),
+          ],
+          next_dtend: nextDtend + 1,
         };
       });
 
