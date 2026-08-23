@@ -135,4 +135,24 @@ describe('ConfirmedReservationDialog', () => {
     expect(joinBtn).toBeDisabled();
     expect(cancelTrigger).toBeDisabled();
   });
+
+  it('calls onMutationSuccess and closes the dialog when cancellation is successful', async () => {
+    render(<ConfirmedReservationDialog {...defaultProps} />);
+
+    const lastCallArgs = vi.mocked(useReservationActions).mock.calls[0][0];
+    expect(lastCallArgs).toBeDefined();
+    expect(lastCallArgs.onMutationSuccess).toBeDefined();
+
+    await act(async () => {
+      if (lastCallArgs.onMutationSuccess) {
+        await lastCallArgs.onMutationSuccess('res-102', [
+          'upcoming',
+          'history',
+        ]);
+      }
+    });
+
+    expect(defaultProps.onMutationSuccess).toHaveBeenCalled();
+    expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
+  });
 });
