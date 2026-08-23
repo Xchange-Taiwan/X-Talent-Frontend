@@ -84,13 +84,13 @@ export function ConfirmedReservationDialog({
                 <div className="truncate font-medium sm:text-base">
                   {reservation.name}
                 </div>
-                <div className="text-text-tertiary truncate text-xs sm:text-sm">
+                <div className="truncate text-xs text-text-tertiary sm:text-sm">
                   {reservation.roleLine}
                 </div>
               </div>
             </div>
 
-            <div className="text-text-tertiary mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 sm:text-sm">
+            <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-text-tertiary sm:grid-cols-2 sm:text-sm">
               <div className="flex items-center gap-2">
                 <CalendarDays className="size-4 shrink-0" aria-hidden />
                 <span className="truncate">{reservation.date}</span>
