@@ -11,6 +11,7 @@ import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 import { isSlotTaken } from '@/lib/profile/scheduleHelpers';
 import type { Reservation } from '@/types/reservation';
 
+import { ConfirmedReservationDialog } from './ConfirmedReservationDialog';
 import { QuickReplyDialog } from './QuickReplyDialog';
 
 interface MentorScheduleConfigProps {
@@ -45,9 +46,11 @@ export function MentorScheduleConfig({
   // profile page root: toggling this would otherwise re-render the entire
   // profile tree (banner, calendar, experience/education sections, ...) on
   // every quick-reply open/close.
-  const [quickReplyReservation, setQuickReplyReservation] =
+  const [activeDialogType, setActiveDialogType] = useState<
+    'quickReply' | 'confirmed' | null
+  >(null);
+  const [selectedReservation, setSelectedReservation] =
     useState<Reservation | null>(null);
-  const [quickReplyOpen, setQuickReplyOpen] = useState(false);
 
   const isSlotBooked = isSlotTaken;
 
@@ -56,8 +59,13 @@ export function MentorScheduleConfig({
 
   const handleBookedSlotClick = (slot: BookingSlot) => {
     if (slot.status === 'PENDING' && slot.reservation) {
-      setQuickReplyReservation(slot.reservation);
-      setQuickReplyOpen(true);
+      setSelectedReservation(slot.reservation);
+      setActiveDialogType('quickReply');
+      return;
+    }
+    if (slot.status === 'BOOKED' && slot.reservation) {
+      setSelectedReservation(slot.reservation);
+      setActiveDialogType('confirmed');
       return;
     }
     onBookedSlotClick();
@@ -158,9 +166,17 @@ export function MentorScheduleConfig({
       </Button>
 
       <QuickReplyDialog
-        reservation={quickReplyReservation}
-        open={quickReplyOpen}
-        onOpenChange={setQuickReplyOpen}
+        reservation={selectedReservation}
+        open={activeDialogType === 'quickReply'}
+        onOpenChange={(open) => !open && setActiveDialogType(null)}
+        myUserId={myUserId}
+        onMutationSuccess={onMutationSuccess}
+      />
+
+      <ConfirmedReservationDialog
+        reservation={selectedReservation}
+        open={activeDialogType === 'confirmed'}
+        onOpenChange={(open) => !open && setActiveDialogType(null)}
         myUserId={myUserId}
         onMutationSuccess={onMutationSuccess}
       />
