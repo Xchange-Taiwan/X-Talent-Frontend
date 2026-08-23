@@ -217,7 +217,7 @@ export const ScheduleCalendar = ({
     variant ?? (size === 'profile' ? 'profile' : 'default');
 
   const handleSelect = (d: Date | undefined) => {
-    if (readOnly || !d) return;
+    if (readOnly || hasError || !d) return;
     onSelect?.(d);
   };
 
@@ -277,6 +277,10 @@ export const ScheduleCalendar = ({
                 available: 'rdp-day-available',
               }}
               disabled={(day) => {
+                if (hasError) {
+                  return true;
+                }
+
                 if (disablePastDates) {
                   const today = new Date();
                   today.setHours(0, 0, 0, 0);

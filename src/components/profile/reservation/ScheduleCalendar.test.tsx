@@ -175,4 +175,23 @@ describe('ScheduleCalendar', () => {
     const retryBtn = screen.queryByRole('button', { name: '重新嘗試' });
     expect(retryBtn).not.toBeInTheDocument();
   });
+
+  it('disables all calendar dates when hasError is true', () => {
+    render(<ScheduleCalendar {...defaultProps} hasError={true} />);
+
+    const todayBtn = screen.getByTestId('day-' + formattedTodayStr);
+    expect(todayBtn).toBeDisabled();
+  });
+
+  it('does not trigger onSelect when hasError is true and day is clicked', () => {
+    const onSelect = vi.fn();
+    render(
+      <ScheduleCalendar {...defaultProps} hasError={true} onSelect={onSelect} />
+    );
+
+    const todayBtn = screen.getByTestId('day-' + formattedTodayStr);
+    todayBtn.click();
+
+    expect(onSelect).not.toHaveBeenCalled();
+  });
 });
