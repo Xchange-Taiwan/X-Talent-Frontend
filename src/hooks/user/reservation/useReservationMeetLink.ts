@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { FetchApiError, FetchHttpError } from '@/lib/apiClient';
 import { fetchReservationMeetLink } from '@/services/reservations';
 
 export interface UseReservationMeetLinkProps {
@@ -74,19 +75,21 @@ export function useReservationMeetLink({
         }
 
         let errMsg = '取得會議連結失敗，請稍後再試。';
-        const codeOrStatus =
-          err && typeof err === 'object'
-            ? 'code' in err
-              ? String((err as { code?: unknown }).code)
-              : 'status' in err
-                ? String((err as { status?: unknown }).status)
-                : undefined
-            : undefined;
 
-        if (codeOrStatus === '404') {
-          errMsg = '連結尚未就緒或不存在（會議狀態需為已排程）。';
-        } else if (codeOrStatus === '403') {
-          errMsg = '您並非此預約的導師或學員，無法加入。';
+        if (err instanceof FetchApiError) {
+          const code = err.code;
+          if (code === '404') {
+            errMsg = '連結尚未就緒或不存在（會議狀態需為已排程）。';
+          } else if (code === '403') {
+            errMsg = '您並非此預約的導師或學員，無法加入。';
+          }
+        } else if (err instanceof FetchHttpError) {
+          const status = String(err.status);
+          if (status === '404') {
+            errMsg = '連結尚未就緒或不存在（會議狀態需為已排程）。';
+          } else if (status === '403') {
+            errMsg = '您並非此預約的導師或學員，無法加入。';
+          }
         }
 
         toast({
