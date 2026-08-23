@@ -40,6 +40,10 @@ export class AsyncReadManager<K, V> {
     return this.cache?.has(key) ?? false;
   }
 
+  public set(key: K, value: V, ttlMs?: number): void {
+    this.cache?.set(key, value, ttlMs);
+  }
+
   public getInflightCount(): number {
     return this.inflight.size;
   }

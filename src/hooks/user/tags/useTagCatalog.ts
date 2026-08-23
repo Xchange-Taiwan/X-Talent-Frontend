@@ -1,5 +1,3 @@
-import { useEffect, useRef } from 'react';
-
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { AsyncReadManager } from '@/lib/asyncReadManager';
 import { createKeyedCache } from '@/lib/createKeyedCache';
@@ -51,24 +49,12 @@ export default function useTagCatalog(
   language: string,
   initialData?: TagCatalogsByBucket
 ): UseTagCatalogResult {
-  const initialDataRef = useRef(initialData);
-  const initialKeyRef = useRef(language);
-  const activeInitialData =
-    language === initialKeyRef.current ? initialDataRef.current : undefined;
-
-  useEffect(() => {
-    if (activeInitialData !== undefined && language) {
-      tagCatalogCache.set(language, activeInitialData);
-      initialDataRef.current = undefined;
-    }
-  }, [language, activeInitialData]);
-
   const { data, isLoading, error } = useAsyncRead(
     tagCatalogReadManager,
     language || null,
     (signal) => fetchTagCatalog(language, signal),
     {
-      initialData: activeInitialData,
+      initialData,
     }
   );
 

@@ -44,9 +44,15 @@ export function useAsyncRead<K, V>(
   fetcher: (signal: AbortSignal, context?: { force?: boolean }) => Promise<V>,
   options?: AsyncReadOptions<K, V>
 ): AsyncReadResult<V> & { refetch: () => void } {
+  const initialDataRef = useRef<V | undefined>(options?.initialData);
+  const initialKeyRef = useRef<K | null | undefined>(key);
+
+  const activeInitialData =
+    key === initialKeyRef.current ? initialDataRef.current : undefined;
+
   const [retryTrigger, setRetryTrigger] = useState(0);
   const [result, setResult] = useState<AsyncReadResult<V>>(() =>
-    getInitialResultState(key, manager, options?.initialData)
+    getInitialResultState(key, manager, activeInitialData)
   );
 
   const [prevKey, setPrevKey] = useState<K | null | undefined>(key);
@@ -58,7 +64,7 @@ export function useAsyncRead<K, V>(
   // that the correct reference is returned immediately during the active render cycle.
   if (prevKey !== key) {
     setPrevKey(key);
-    currentResult = getInitialResultState(key, manager, options?.initialData);
+    currentResult = getInitialResultState(key, manager, activeInitialData);
     setResult(currentResult);
   }
 
@@ -69,6 +75,14 @@ export function useAsyncRead<K, V>(
   optionsRef.current = options;
 
   const lastRetryRef = useRef(0);
+
+  // Sync cache with initialData on mount or key changes in useEffect to avoid SSR pollution
+  useEffect(() => {
+    if (activeInitialData !== undefined && key !== null && key !== undefined) {
+      manager.set(key, activeInitialData);
+      initialDataRef.current = undefined;
+    }
+  }, [manager, key, activeInitialData]);
 
   useEffect(() => {
     if (key === null || key === undefined) {

@@ -1,5 +1,3 @@
-import { useEffect, useRef } from 'react';
-
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { AsyncReadManager } from '@/lib/asyncReadManager';
 import { createKeyedCache } from '@/lib/createKeyedCache';
@@ -12,8 +10,7 @@ const baseCache = createKeyedCache<string, MentorProfileVO | null>({
   ttlMs: USER_PROFILE_DTO_CACHE_TTL_MS,
 });
 
-// Wrap the cache to preserve expired/stale entries for Stale-While-Revalidate support
-// and prevent caching null values on normal fetches.
+// Wrap the cache to preserve expired/stale entries for Stale-While-Revalidate support.
 export const userProfileDtoCache: typeof baseCache = {
   ...baseCache,
   get(key) {
@@ -24,16 +21,6 @@ export const userProfileDtoCache: typeof baseCache = {
   },
   has(key) {
     return baseCache.getWithStatus(key) !== undefined;
-  },
-  set(key, value, ttlMs) {
-    if (value !== null) {
-      baseCache.set(key, value, ttlMs);
-    }
-  },
-  prime(key, value, options) {
-    if (value !== null) {
-      baseCache.prime(key, value, options);
-    }
   },
 };
 
@@ -108,25 +95,7 @@ export function useUserProfileDto(
   language: string,
   initialData?: MentorProfileVO | null
 ): UseUserProfileDtoResult {
-  const initialDataRef = useRef<MentorProfileVO | null | undefined>(
-    initialData
-  );
-  const initialKeyRef = useRef(
-    userId && language ? `${userId}-${language}` : null
-  );
-
   const key = userId && language ? `${userId}-${language}` : null;
-  const activeInitialData =
-    key === initialKeyRef.current ? initialDataRef.current : undefined;
-
-  // Sync cache with initialData on mount or key changes in useEffect to avoid SSR pollution
-  useEffect(() => {
-    if (activeInitialData !== undefined && key) {
-      // Use raw baseCache to allow null initialData (user not found) to be seeded!
-      baseCache.set(key, activeInitialData);
-      initialDataRef.current = undefined;
-    }
-  }, [key, activeInitialData]);
 
   const {
     data: userDto,
@@ -152,6 +121,12 @@ export function useUserProfileDto(
           if (existing) {
             return existing;
           }
+          // If it's a first-time fetch that returned null (USER_NOT_FOUND),
+          // we schedule a delete to ensure that a failed fetch is NOT cached
+          // for future mounts, while letting the current mount render the null state.
+          setTimeout(() => {
+            userProfileDtoCache.delete(key);
+          }, 0);
         }
         return res;
       } catch (err) {
@@ -162,7 +137,7 @@ export function useUserProfileDto(
       }
     },
     {
-      initialData: activeInitialData,
+      initialData,
     }
   );
 
