@@ -146,4 +146,28 @@ describe('useCurrentAvatar', () => {
 
     vi.useRealTimers();
   });
+
+  it('returns null (deletion) during transition period when optimistic avatar is explicitly null', () => {
+    mockUseResolvedIdentity.mockReturnValue({
+      state: 'confirmed-member',
+      userId: '123',
+      avatar: 'session-avatar.png',
+      isMentor: false,
+      isLoggedIn: true,
+      hasFullUser: true,
+      isResolvingUser: false,
+      authKnown: true,
+      sessionSettled: true,
+    });
+
+    // Prime the cache with an optimistic avatar set to null (deletion)
+    primeUserProfileDtoCache(123, 'zh_TW', {
+      user_id: 123,
+      avatar: null,
+    } as unknown as MentorProfileVO);
+
+    const { result } = renderHook(() => useCurrentAvatar());
+
+    expect(result.current).toBeNull();
+  });
 });
