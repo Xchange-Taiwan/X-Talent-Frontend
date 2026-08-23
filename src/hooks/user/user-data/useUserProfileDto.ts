@@ -132,7 +132,8 @@ export function useUserProfileDto(
     },
     {
       initialData,
-      shouldCache: (res) => res !== null,
+      shouldCache: (res) =>
+        res !== null && (!key || res !== userProfileDtoCache.get(key)),
     }
   );
 
