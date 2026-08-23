@@ -1,7 +1,12 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
+
 import { Skeleton } from '@/components/ui/skeleton';
-import type { BookingSlot } from '@/hooks/useMentorSchedule';
+import type {
+  BookingSlot,
+  SlotsSnapshot,
+} from '@/lib/profile/bookingAvailability';
 
 import { MenteeBookingForm } from './MenteeBookingForm';
 import { MentorScheduleConfig } from './MentorScheduleConfig';
@@ -10,29 +15,34 @@ interface BookingFormProps {
   isOwnMentorProfile: boolean;
   isUserDataLoading: boolean;
   isAuthenticated: boolean;
-  slots: BookingSlot[];
-  monthLoaded: boolean;
+  slotsSnapshot: SlotsSnapshot;
   selectedSlot: BookingSlot | null;
   setSelectedSlot: (slot: BookingSlot | null) => void;
   isSubmitting: boolean;
   selectedDate: string | null;
   onReservation: () => void;
   onConfirmReservation: (question?: string) => Promise<boolean>;
+  myUserId?: string;
+  onMutationSuccess?: () => void | Promise<void>;
 }
 
 export function BookingForm({
   isOwnMentorProfile,
   isUserDataLoading,
   isAuthenticated,
-  slots,
-  monthLoaded,
+  slotsSnapshot,
   selectedSlot,
   setSelectedSlot,
   isSubmitting,
   selectedDate,
   onReservation,
   onConfirmReservation,
+  myUserId,
+  onMutationSuccess,
 }: BookingFormProps) {
+  const router = useRouter();
+  const { slots, monthLoaded } = slotsSnapshot;
+
   // Prevent view flash: if userData is loading/unresolved, render a loading skeleton
   if (isUserDataLoading) {
     return (
@@ -60,9 +70,11 @@ export function BookingForm({
     <div className="flex w-full max-w-[335px] flex-col gap-4 md:max-w-[695px] 2xl:max-w-[414px]">
       {isOwnMentorProfile ? (
         <MentorScheduleConfig
-          slots={slots}
-          monthLoaded={monthLoaded}
+          slotsSnapshot={slotsSnapshot}
           onReservation={onReservation}
+          onBookedSlotClick={() => router.push('/reservation/mentor')}
+          myUserId={myUserId}
+          onMutationSuccess={onMutationSuccess}
         />
       ) : (
         <MenteeBookingForm

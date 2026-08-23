@@ -1,6 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
+import {
+  authenticatedIdentity,
+  GUEST_IDENTITY,
+  UNKNOWN_IDENTITY,
+} from '@/test/mocks/identity';
+
 import { HamburgerMenu } from './HamburgerMenu';
 
 function openMenu(): void {
@@ -8,69 +14,95 @@ function openMenu(): void {
 }
 
 describe('HamburgerMenu', () => {
-  it('disables "成為導師" while resolving a mentee user and does not close the sheet on click', () => {
-    render(
-      <HamburgerMenu
-        isLoggedIn
-        isMentor={false}
-        userId={undefined}
-        isResolvingUser
-      />
-    );
+  it('renders guest navigation options when state is confirmed-guest', () => {
+    render(<HamburgerMenu identity={GUEST_IDENTITY} />);
     openMenu();
 
     const link = screen.getByRole('link', { name: '成為導師' });
-    expect(link).toHaveAttribute('href', '#');
-    expect(link).toHaveAttribute('aria-disabled', 'true');
+    expect(link).toHaveAttribute('href', '/auth/signup');
+    expect(link).toHaveAttribute('aria-disabled', 'false');
 
-    fireEvent.click(link);
-
-    // A disabled link must not run the `close` handler — the sheet stays open.
-    expect(screen.getByRole('link', { name: '成為導師' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '登入' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '註冊' })).toBeInTheDocument();
   });
 
-  it('disables "我的導師頁面" while resolving a mentor user, never falling back to "/"', () => {
-    render(
-      <HamburgerMenu isLoggedIn isMentor userId={undefined} isResolvingUser />
-    );
+  it('renders pre-hydration state when unknown and wraps in CSS toggles', () => {
+    render(<HamburgerMenu identity={UNKNOWN_IDENTITY} />);
     openMenu();
 
-    const link = screen.getByRole('link', { name: '我的導師頁面' });
-    expect(link).toHaveAttribute('href', '#');
-    expect(link).toHaveAttribute('aria-disabled', 'true');
-  });
-
-  it('links to the real profile once userId has landed and isResolvingUser is false', () => {
-    render(
-      <HamburgerMenu
-        isLoggedIn
-        isMentor
-        userId="user-123"
-        isResolvingUser={false}
-      />
-    );
-    openMenu();
-
-    const link = screen.getByRole('link', { name: '我的導師頁面' });
-    expect(link).toHaveAttribute('href', '/profile/user-123');
+    const link = screen.getByRole('link', { name: '成為導師' });
+    // In unknown state, isResolvingUser is false, so disabled is false
+    expect(link).toHaveAttribute('href', '/auth/signup');
     expect(link).toHaveAttribute('aria-disabled', 'false');
   });
 
-  it('closes the sheet when a normal (non-disabled) link is clicked', () => {
-    render(
-      <HamburgerMenu
-        isLoggedIn
-        isMentor
-        userId="user-123"
-        isResolvingUser={false}
-      />
-    );
+  it('closes the sheet when a normal link is clicked', () => {
+    render(<HamburgerMenu identity={GUEST_IDENTITY} />);
     openMenu();
 
-    fireEvent.click(screen.getByRole('link', { name: '我的導師頁面' }));
+    fireEvent.click(screen.getByRole('link', { name: '成為導師' }));
 
     expect(
-      screen.queryByRole('link', { name: '我的導師頁面' })
+      screen.queryByRole('link', { name: '成為導師' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('returns null and does not render when identity is logged in', () => {
+    const { container } = render(
+      <HamburgerMenu identity={authenticatedIdentity('user-123')} />
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('does not render login/signup buttons when state is hint-only', () => {
+    render(
+      <HamburgerMenu
+        identity={{
+          state: 'hint-only',
+          userId: undefined,
+          avatar: undefined,
+          isMentor: false,
+        }}
+      />
+    );
+    expect(
+      screen.queryByRole('link', { name: '登入' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: '註冊' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not render the menu at all (returns null) when state is hint-only', () => {
+    const { container } = render(
+      <HamburgerMenu
+        identity={{
+          state: 'hint-only',
+          userId: undefined,
+          avatar: undefined,
+          isMentor: false,
+        }}
+      />
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('does not render login/signup buttons when state is confirmed-member', () => {
+    render(
+      <HamburgerMenu
+        identity={{
+          state: 'confirmed-member',
+          userId: 'user-123',
+          avatar: undefined,
+          isMentor: false,
+        }}
+      />
+    );
+    expect(
+      screen.queryByRole('link', { name: '登入' })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: '註冊' })
     ).not.toBeInTheDocument();
   });
 });

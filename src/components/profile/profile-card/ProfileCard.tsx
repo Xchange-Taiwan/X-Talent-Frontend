@@ -75,7 +75,7 @@ export const ProfileCard: FC<Props> = ({
     <div className="overflow-hidden rounded-2xl shadow-xl">
       <ProfileBanner>
         <AvatarCard
-          className="absolute -bottom-56 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:-bottom-40 sm:left-[180px]"
+          className="absolute -bottom-56 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:-bottom-40 sm:left-10 sm:translate-x-0"
           name={name}
           avatarImgUrl={avatarImgUrl}
           jobTitle={jobTitle}

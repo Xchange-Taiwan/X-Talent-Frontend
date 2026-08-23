@@ -1,35 +1,70 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/apiClient', () => ({
-  apiClient: {
-    get: vi.fn(),
-    put: vi.fn(),
-    post: vi.fn(),
-  },
-  FetchApiError: class FetchApiError extends Error {
-    constructor(
-      public readonly code: string,
-      message: string,
-      public readonly path: string
-    ) {
-      super(`fetch ${path} API error (${code}): ${message}`);
-      this.name = 'FetchApiError';
-    }
-  },
+vi.mock('@/lib/apiClient', async (importActual) => {
+  const actual = await importActual<typeof import('@/lib/apiClient')>();
+  return {
+    ...actual,
+    apiClient: {
+      getUnwrapped: vi.fn(),
+      putUnwrapped: vi.fn(),
+      postUnwrapped: vi.fn(),
+    },
+  };
+});
+
+vi.mock('@/lib/monitoring', () => ({
+  captureFlowFailure: vi.fn(),
+  captureApiFailure: vi.fn(),
 }));
 
 import { apiClient, FetchApiError } from '@/lib/apiClient';
+import { captureFlowFailure } from '@/lib/monitoring';
 import { components } from '@/types/api';
 
 import {
   createReservation,
+  fetchAllReservationsForState,
+  fetchReservationMeetLink,
   fetchReservations,
   updateReservationStatus,
 } from './reservationService';
 
-const mockGet = vi.mocked(apiClient.get);
-const mockPut = vi.mocked(apiClient.put);
-const mockPost = vi.mocked(apiClient.post);
+const mockGet = vi.mocked(apiClient.getUnwrapped);
+const mockPut = vi.mocked(apiClient.putUnwrapped);
+const mockPost = vi.mocked(apiClient.postUnwrapped);
+const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
+
+function makeApiReservation(
+  overrides: Partial<components['schemas']['ReservationInfoVO']> = {}
+): components['schemas']['ReservationInfoVO'] {
+  return {
+    id: 1,
+    sender: {
+      user_id: 1,
+      role: 'MENTEE',
+      status: 'ACCEPT',
+      name: 'Mentee',
+      avatar: '',
+      job_title: '',
+      years_of_experience: '',
+    },
+    participant: {
+      user_id: 2,
+      role: 'MENTOR',
+      status: 'ACCEPT',
+      name: 'Mentor',
+      avatar: '',
+      job_title: '',
+      years_of_experience: '',
+    },
+    schedule_id: 1,
+    dtstart: 100,
+    dtend: 200,
+    previous_reserve: null,
+    messages: [],
+    ...overrides,
+  };
+}
 
 describe('reservationService API Error Handling', () => {
   beforeEach(() => {
@@ -38,11 +73,13 @@ describe('reservationService API Error Handling', () => {
 
   describe('createReservation', () => {
     it('should throw FetchApiError with correct code, message and path if API returns non-0 code', async () => {
-      mockPost.mockResolvedValue({
-        code: '409',
-        msg: 'Conflict booking',
-        data: null,
-      });
+      mockPost.mockRejectedValue(
+        new FetchApiError(
+          '409',
+          'Conflict booking',
+          '/v1/users/123/reservations'
+        )
+      );
 
       await expect(
         createReservation({
@@ -66,12 +103,10 @@ describe('reservationService API Error Handling', () => {
     });
 
     it('should return data successfully if code is 0', async () => {
-      const mockResult = { id: 789 };
-      mockPost.mockResolvedValue({
-        code: '0',
-        msg: 'success',
-        data: mockResult,
-      });
+      const mockResult = {
+        id: 789,
+      } as unknown as components['schemas']['ReservationVO'];
+      mockPost.mockResolvedValue(mockResult);
 
       const res = await createReservation({
         userId: 123,
@@ -84,11 +119,13 @@ describe('reservationService API Error Handling', () => {
 
   describe('updateReservationStatus', () => {
     it('should throw FetchApiError with correct code, message and path if API returns non-0 code', async () => {
-      mockPut.mockResolvedValue({
-        code: '500',
-        msg: 'Internal Server Error',
-        data: null,
-      });
+      mockPut.mockRejectedValue(
+        new FetchApiError(
+          '500',
+          'Internal Server Error',
+          '/v1/users/123/reservations/456'
+        )
+      );
 
       await expect(
         updateReservationStatus({
@@ -116,11 +153,9 @@ describe('reservationService API Error Handling', () => {
 
   describe('fetchReservations', () => {
     it('should throw FetchApiError with correct code, message and path if API returns non-0 code', async () => {
-      mockGet.mockResolvedValue({
-        code: '400',
-        msg: 'Bad Request',
-        data: null,
-      });
+      mockGet.mockRejectedValue(
+        new FetchApiError('400', 'Bad Request', '/v1/users/123/reservations')
+      );
 
       await expect(
         fetchReservations({
@@ -141,6 +176,193 @@ describe('reservationService API Error Handling', () => {
         expect(apiError.message).toContain('Bad Request');
         expect(apiError.path).toBe('/v1/users/123/reservations');
       }
+    });
+  });
+
+  describe('fetchReservationMeetLink', () => {
+    it('should throw FetchApiError with correct code, message and path if API returns non-0 code', async () => {
+      mockGet.mockRejectedValue(
+        new FetchApiError(
+          '404',
+          'meet link not found',
+          '/v1/users/123/reservations/456/google-meet'
+        )
+      );
+
+      await expect(
+        fetchReservationMeetLink({
+          userId: 123,
+          reservationId: 456,
+        })
+      ).rejects.toThrow(FetchApiError);
+
+      try {
+        await fetchReservationMeetLink({
+          userId: 123,
+          reservationId: 456,
+        });
+      } catch (err) {
+        expect(err).toBeInstanceOf(FetchApiError);
+        const apiError = err as FetchApiError;
+        expect(apiError.code).toBe('404');
+        expect(apiError.message).toContain('meet link not found');
+        expect(apiError.path).toBe(
+          '/v1/users/123/reservations/456/google-meet'
+        );
+      }
+    });
+
+    it('should return meet_url successfully if code is 0', async () => {
+      const mockResult = { meet_url: 'https://meet.google.com/xxx-yyyy-zzz' };
+      mockGet.mockResolvedValue(mockResult);
+
+      const res = await fetchReservationMeetLink({
+        userId: 123,
+        reservationId: 456,
+      });
+
+      expect(res).toEqual(mockResult);
+    });
+  });
+
+  describe('fetchAllReservationsForState', () => {
+    it('returns the single page when next_dtend is 0', async () => {
+      mockGet.mockResolvedValue({
+        reservations: [makeApiReservation({ id: 1, dtstart: 100, dtend: 200 })],
+        next_dtend: 0,
+      });
+
+      const result = await fetchAllReservationsForState(
+        '123',
+        'MENTOR_UPCOMING',
+        1000
+      );
+
+      expect(result).toHaveLength(1);
+      expect(mockGet).toHaveBeenCalledTimes(1);
+    });
+
+    it('pages via next_dtend until the backend signals no more pages', async () => {
+      mockGet
+        .mockResolvedValueOnce({
+          reservations: [
+            makeApiReservation({ id: 1, dtstart: 100, dtend: 200 }),
+          ],
+          next_dtend: 300,
+        })
+        .mockResolvedValueOnce({
+          reservations: [
+            makeApiReservation({ id: 2, dtstart: 300, dtend: 400 }),
+          ],
+          next_dtend: 0,
+        });
+
+      const result = await fetchAllReservationsForState(
+        '123',
+        'MENTOR_UPCOMING',
+        100000
+      );
+
+      expect(result).toHaveLength(2);
+      expect(mockGet).toHaveBeenCalledTimes(2);
+      expect(mockGet).toHaveBeenNthCalledWith(
+        2,
+        expect.any(String),
+        expect.objectContaining({
+          params: expect.objectContaining({ next_dtend: 300 }),
+        })
+      );
+    });
+
+    it('stops when next_dtend repeats the same cursor (stuck-cursor guard)', async () => {
+      mockGet
+        .mockResolvedValueOnce({
+          reservations: [
+            makeApiReservation({ id: 1, dtstart: 100, dtend: 200 }),
+          ],
+          next_dtend: 300,
+        })
+        .mockResolvedValue({ reservations: [], next_dtend: 300 });
+
+      const result = await fetchAllReservationsForState(
+        '123',
+        'MENTOR_UPCOMING',
+        100000
+      );
+
+      expect(result).toHaveLength(1);
+      // Initial call plus one follow-up that received the repeated cursor
+      // and stopped — never a third call.
+      expect(mockGet).toHaveBeenCalledTimes(2);
+    });
+
+    it('stops when next_dtend moves past the end of the target month', async () => {
+      mockGet.mockResolvedValue({
+        reservations: [makeApiReservation({ id: 1, dtstart: 100, dtend: 200 })],
+        next_dtend: 99999,
+      });
+
+      const result = await fetchAllReservationsForState(
+        '123',
+        'MENTOR_UPCOMING',
+        1000
+      );
+
+      expect(result).toHaveLength(1);
+      expect(mockGet).toHaveBeenCalledTimes(1);
+    });
+
+    it('swallows a fetch failure, returns items already collected, and reports via captureFlowFailure', async () => {
+      mockGet.mockRejectedValue(new Error('network down'));
+
+      const result = await fetchAllReservationsForState(
+        '123',
+        'MENTOR_UPCOMING',
+        1000
+      );
+
+      expect(result).toEqual([]);
+      expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'mentor_schedule_reservations_fetch',
+          step: 'fetch_MENTOR_UPCOMING',
+        })
+      );
+    });
+
+    it('stops after MAX_PAGES when the cursor keeps advancing without repeating or crossing the month boundary, and reports it', async () => {
+      // Cursor inches forward by 1 every page, never repeats, and never
+      // reaches endOfMonthUnix — only the page-count ceiling can end this.
+      mockGet.mockImplementation(async (_path, options) => {
+        const nextDtend =
+          (options as { params: { next_dtend?: number } }).params.next_dtend ??
+          0;
+        return {
+          reservations: [
+            makeApiReservation({
+              id: nextDtend + 1,
+              dtstart: 100,
+              dtend: 200,
+            }),
+          ],
+          next_dtend: nextDtend + 1,
+        };
+      });
+
+      const result = await fetchAllReservationsForState(
+        '123',
+        'MENTOR_UPCOMING',
+        Number.MAX_SAFE_INTEGER
+      );
+
+      expect(result).toHaveLength(50);
+      expect(mockGet).toHaveBeenCalledTimes(50);
+      expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          flow: 'mentor_schedule_reservations_fetch',
+          step: 'fetch_MENTOR_UPCOMING_max_pages_exceeded',
+        })
+      );
     });
   });
 });

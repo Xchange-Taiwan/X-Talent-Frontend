@@ -7,7 +7,13 @@ async function loadTable(language: string): Promise<Record<string, string>> {
   return (await import('@/data/countries.zh_TW.json')).default;
 }
 
-export async function getCountries(language: string): Promise<LocationType[]> {
+export async function getCountries(
+  language: string,
+  signal?: AbortSignal
+): Promise<LocationType[]> {
+  if (signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
+  }
   const table = await loadTable(language);
   const collator = new Intl.Collator(language.replace('_', '-'));
   const list = Object.entries(table)

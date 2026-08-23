@@ -1,9 +1,15 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { BookingSlot } from '@/hooks/useMentorSchedule';
+import type { BookingSlot } from '@/lib/profile/bookingAvailability';
+import { mockRouter } from '@/test/mocks/navigation';
 
 import { BookingForm } from './BookingForm';
+
+vi.mock('next/navigation', async () => {
+  const { navigationMockFactory } = await import('@/test/mocks/navigation');
+  return navigationMockFactory();
+});
 
 describe('BookingForm', () => {
   const mockSlots: BookingSlot[] = [
@@ -12,12 +18,21 @@ describe('BookingForm', () => {
       start: new Date('2026-07-26T10:00:00Z'),
       end: new Date('2026-07-26T10:30:00Z'),
       isBooked: false,
+      status: null,
     },
     {
       scheduleId: 102,
       start: new Date('2026-07-26T11:00:00Z'),
       end: new Date('2026-07-26T11:30:00Z'),
       isBooked: true,
+      status: 'BOOKED',
+    },
+    {
+      scheduleId: 103,
+      start: new Date('2026-07-26T12:00:00Z'),
+      end: new Date('2026-07-26T12:30:00Z'),
+      isBooked: false,
+      status: 'PENDING',
     },
   ];
 
@@ -25,8 +40,11 @@ describe('BookingForm', () => {
     isOwnMentorProfile: false,
     isUserDataLoading: false,
     isAuthenticated: true,
-    slots: mockSlots,
-    monthLoaded: true,
+    slotsSnapshot: {
+      slots: mockSlots,
+      monthLoaded: true,
+      reservationsLoaded: true,
+    },
     selectedSlot: null,
     setSelectedSlot: vi.fn(),
     isSubmitting: false,
@@ -34,6 +52,10 @@ describe('BookingForm', () => {
     onReservation: vi.fn(),
     onConfirmReservation: vi.fn().mockResolvedValue(true),
   };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('renders a loading skeleton when isUserDataLoading is true to prevent view flash', () => {
     render(<BookingForm {...defaultProps} isUserDataLoading={true} />);
@@ -78,12 +100,22 @@ describe('BookingForm', () => {
   });
 
   it('renders Loading state when monthLoaded is false', () => {
-    render(<BookingForm {...defaultProps} monthLoaded={false} />);
+    render(
+      <BookingForm
+        {...defaultProps}
+        slotsSnapshot={{ ...defaultProps.slotsSnapshot, monthLoaded: false }}
+      />
+    );
     expect(screen.getByText('讀取中…')).toBeInTheDocument();
   });
 
   it('renders No Slots state when slots are empty', () => {
-    render(<BookingForm {...defaultProps} slots={[]} />);
+    render(
+      <BookingForm
+        {...defaultProps}
+        slotsSnapshot={{ ...defaultProps.slotsSnapshot, slots: [] }}
+      />
+    );
     expect(screen.getByText('無可預約的時段')).toBeInTheDocument();
   });
 
@@ -172,8 +204,36 @@ describe('BookingForm', () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText(/10:00/i)).toBeInTheDocument();
 
+    // Shows split headers and status
+    expect(screen.getByText('已預約')).toBeInTheDocument();
+    expect(screen.getByText('當日可預約時段')).toBeInTheDocument();
+    expect(screen.getByText('已確認')).toBeInTheDocument();
+
     // Button text is "預約設定"
     const btn = screen.getByRole('button', { name: '預約設定' });
     expect(btn).toBeInTheDocument();
+  });
+
+  it('triggers router.push to /reservation/mentor when a booked slot row is clicked in own profile mode', () => {
+    render(<BookingForm {...defaultProps} isOwnMentorProfile={true} />);
+
+    const confirmedRow = screen.getByText('已確認').closest('button');
+    expect(confirmedRow).not.toBeNull();
+    fireEvent.click(confirmedRow!);
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/reservation/mentor');
+  });
+
+  it('renders a PENDING slot as disabled/unavailable to a mentee and disables submit button if selected', () => {
+    const { rerender } = render(<BookingForm {...defaultProps} />);
+
+    // PENDING slot button is disabled
+    const pendingSlotBtn = screen.getByRole('button', { name: /12:00/i });
+    expect(pendingSlotBtn).toBeDisabled();
+
+    // If selectedSlot is a PENDING slot, submit button is disabled
+    rerender(<BookingForm {...defaultProps} selectedSlot={mockSlots[2]} />);
+    const submitBtn = screen.getByRole('button', { name: '預約時間' });
+    expect(submitBtn).toBeDisabled();
   });
 });

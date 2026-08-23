@@ -42,6 +42,7 @@ vi.mock('@/hooks/user/auth/useResolvedIdentity', () => ({
 
 import {
   authenticatedIdentity,
+  buildResolvedIdentity,
   GUEST_IDENTITY,
   UNKNOWN_IDENTITY,
 } from '@/test/mocks/identity';
@@ -74,12 +75,12 @@ describe('Header', () => {
 
   it('disables the second nav link while resolving a logged-in user, instead of falling back to /auth/signup or /', () => {
     mockUseSession.mockReturnValue({ data: null, status: 'loading' });
-    // Hint confirms mentee, but has no userId yet - isResolvingUser stays true.
-    mockUseResolvedIdentity.mockReturnValue({
-      ...GUEST_IDENTITY,
-      isLoggedIn: true,
-      isResolvingUser: true,
-    });
+    // Hint confirms mentee, but has no userId yet - state is hint-only.
+    mockUseResolvedIdentity.mockReturnValue(
+      buildResolvedIdentity({
+        state: 'hint-only',
+      })
+    );
 
     render(<Header />);
 
@@ -177,13 +178,13 @@ describe('Header', () => {
       data: null,
       status: 'loading',
     });
-    mockUseResolvedIdentity.mockReturnValue({
-      ...GUEST_IDENTITY,
-      isLoggedIn: true,
-      isMentor: true,
-      isResolvingUser: true,
-      avatar: 'hint-avatar.png',
-    });
+    mockUseResolvedIdentity.mockReturnValue(
+      buildResolvedIdentity({
+        state: 'hint-only',
+        isMentor: true,
+        avatar: 'hint-avatar.png',
+      })
+    );
 
     render(<Header />);
 
@@ -193,7 +194,7 @@ describe('Header', () => {
     expect(avatarImgs[1]).toHaveAttribute('src', 'hint-avatar.png');
   });
 
-  it('keeps 尋找導師/關於 X-Talent/提供回饋/漢堡選單 mounted for logged-in users too, with navigation links always visible on desktop (avoids a flash before authKnown settles)', () => {
+  it('keeps 尋找導師/關於 X-Talent/提供回饋 mounted for logged-in users too, with navigation links always visible on desktop (avoids a flash before authKnown settles)', () => {
     mockUseSession.mockReturnValue({
       data: { ...mockSession, user: { ...mockSession.user, id: 'user-123' } },
       status: 'authenticated',
@@ -206,9 +207,6 @@ describe('Header', () => {
     const feedbackLink = screen.getByRole('link', {
       name: '提供回饋（另開新分頁）',
     });
-    const hamburgerTrigger = screen.getByRole('button', {
-      name: '開啟導航選單',
-    });
 
     expect(findMentorLink).not.toHaveClass(
       'group-data-[auth-state=mentee]/auth-state:hidden'
@@ -226,10 +224,6 @@ describe('Header', () => {
       'group-data-[auth-state=mentee]/auth-state:hidden'
     );
     expect(feedbackLink).not.toHaveClass(
-      'group-data-[auth-state=mentor]/auth-state:hidden'
-    );
-    expect(hamburgerTrigger.parentElement).toHaveClass(
-      'group-data-[auth-state=mentee]/auth-state:hidden',
       'group-data-[auth-state=mentor]/auth-state:hidden'
     );
   });

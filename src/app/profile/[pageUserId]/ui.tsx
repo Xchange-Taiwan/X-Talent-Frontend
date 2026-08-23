@@ -1,6 +1,7 @@
 'use client';
 
 import Image, { type StaticImageData } from 'next/image';
+import { useCallback } from 'react';
 
 import {
   EducationSection,
@@ -8,16 +9,15 @@ import {
 } from '@/components/profile/experience-section/ExperienceSection';
 import { ProfileBanner } from '@/components/profile/profile-banner';
 import { BookingForm } from '@/components/profile/reservation/BookingForm';
-import MentorScheduleDialog from '@/components/profile/reservation/MentorScheduleDialog';
 import { ScheduleCalendar } from '@/components/profile/reservation/ScheduleCalendar';
 import { platformLabelMap } from '@/components/profile/social-links/platformLabelMap';
 import { ProfileBadgeSection } from '@/components/profile/view/ProfileBadgeSection';
 import { Button } from '@/components/ui/button';
-import {
-  BookingSlot,
-  UseMentorScheduleReturn,
-} from '@/hooks/useMentorSchedule';
 import { UserType } from '@/hooks/user/user-data/useUserData';
+import {
+  BookingCalendarReader,
+  BookingSlot,
+} from '@/lib/profile/bookingAvailability';
 import {
   formatSelectedDate,
   toDateKey,
@@ -33,15 +33,13 @@ import {
 interface Props {
   userData: UserType | null;
   userLoading: boolean;
-  schedule: UseMentorScheduleReturn;
+  schedule: BookingCalendarReader;
   scheduleLoaded: boolean;
   loginUserId: string;
   isIdentityResolved: boolean;
   canShowOwnerControls: boolean;
   avatarSrc: string | StaticImageData;
   allowedDates: string[];
-  openReservationDialog: boolean;
-  setOpenReservationDialog: (open: boolean) => void;
   onScheduleMonthChange: (date: Date) => void;
   onReservation: () => void;
   onEditProfile: () => void;
@@ -50,6 +48,7 @@ interface Props {
   setSelectedSlot: (slot: BookingSlot | null) => void;
   isSubmitting: boolean;
   onConfirmReservation: (question?: string) => Promise<boolean>;
+  editorDialog?: React.ReactNode;
 }
 
 export default function ProfilePageUI({
@@ -62,8 +61,6 @@ export default function ProfilePageUI({
   canShowOwnerControls,
   avatarSrc,
   allowedDates,
-  openReservationDialog,
-  setOpenReservationDialog,
   onScheduleMonthChange,
   onReservation,
   onEditProfile,
@@ -72,8 +69,9 @@ export default function ProfilePageUI({
   setSelectedSlot,
   isSubmitting,
   onConfirmReservation,
+  editorDialog,
 }: Props) {
-  const { selectedDate, setSelectedDate, generateBookingSlots } = schedule;
+  const { selectedDate, setSelectedDate, getDayBookingStatus } = schedule;
 
   // Render the schedule region while user data loads (most profile views are
   // mentors) so the calendar can appear before user data resolves; collapse
@@ -86,6 +84,13 @@ export default function ProfilePageUI({
   // silently diverge from it.
   const isOwnMentorProfile =
     !!userData && userData.is_mentor && canShowOwnerControls;
+
+  // Only mentors viewing their own profile see booking status dots.
+  const getDateStatus = useCallback(
+    (date: Date) =>
+      isOwnMentorProfile ? getDayBookingStatus(toDateKey(date)) : null,
+    [isOwnMentorProfile, getDayBookingStatus]
+  );
 
   return (
     <div>
@@ -216,33 +221,34 @@ export default function ProfilePageUI({
                 />
 
                 {userData.is_mentor && (
-                  <ProfileBadgeSection
-                    title="專業能力"
-                    items={userData.have_skill}
-                  />
+                  <>
+                    <ProfileBadgeSection
+                      title="專業能力"
+                      items={userData.have_skill}
+                    />
+                    <ProfileBadgeSection
+                      title="我能提供的服務"
+                      items={userData.have_topic}
+                    />
+                  </>
                 )}
 
-                {userData.is_mentor && (
-                  <ProfileBadgeSection
-                    title="我能提供的服務"
-                    items={userData.have_topic}
-                  />
+                {userData.is_mentor === false && (
+                  <>
+                    <ProfileBadgeSection
+                      title="有興趣多了解的職位"
+                      items={userData.want_position}
+                    />
+                    <ProfileBadgeSection
+                      title="想多了解、加強的技能"
+                      items={userData.want_skill}
+                    />
+                    <ProfileBadgeSection
+                      title="想多了解的主題"
+                      items={userData.want_topic}
+                    />
+                  </>
                 )}
-
-                <ProfileBadgeSection
-                  title="有興趣多了解的職位"
-                  items={userData.want_position}
-                />
-
-                <ProfileBadgeSection
-                  title="想多了解、加強的技能"
-                  items={userData.want_skill}
-                />
-
-                <ProfileBadgeSection
-                  title="想多了解的主題"
-                  items={userData.want_topic}
-                />
 
                 {!!userData.workExperiences?.length && (
                   <div className="mt-10">
@@ -312,6 +318,7 @@ export default function ProfilePageUI({
                         showTodayStyle={false}
                         disableEmptyDates={true}
                         isMonthLoading={!schedule.monthLoaded}
+                        getDateStatus={getDateStatus}
                       />
                     )}
                   </div>
@@ -319,25 +326,17 @@ export default function ProfilePageUI({
                     isOwnMentorProfile={isOwnMentorProfile}
                     isUserDataLoading={userLoading || !isIdentityResolved}
                     isAuthenticated={!!loginUserId}
-                    slots={
-                      selectedDate ? generateBookingSlots(selectedDate) : []
-                    }
-                    monthLoaded={schedule.monthLoaded}
+                    slotsSnapshot={schedule.slotsSnapshot}
                     selectedSlot={selectedSlot}
                     setSelectedSlot={setSelectedSlot}
                     isSubmitting={isSubmitting}
                     selectedDate={selectedDate}
                     onReservation={onReservation}
                     onConfirmReservation={onConfirmReservation}
+                    myUserId={loginUserId}
+                    onMutationSuccess={schedule.reload}
                   />
-                  {userData && canShowOwnerControls && (
-                    <MentorScheduleDialog
-                      open={openReservationDialog}
-                      onOpenChange={setOpenReservationDialog}
-                      schedule={schedule}
-                      onMonthChange={onScheduleMonthChange}
-                    />
-                  )}
+                  {editorDialog}
                 </div>
               )}
             </div>
