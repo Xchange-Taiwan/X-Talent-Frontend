@@ -513,4 +513,27 @@ describe('MentorScheduleDialog', () => {
     expect(screen.queryByText('此時段已有預約')).not.toBeInTheDocument();
     expect(screen.getByText('編輯時段')).toBeInTheDocument();
   });
+
+  it('hides the slot list, hides the save button, and changes cancel button text to 關閉 when schedule has an error', () => {
+    const mockScheduleWithError: MentorScheduleEditor = {
+      ...mockSchedule,
+      hasError: true,
+    };
+    render(
+      <MentorScheduleDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        schedule={mockScheduleWithError}
+      />
+    );
+    expect(screen.queryByText('可預約時段')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '儲存' })
+    ).not.toBeInTheDocument();
+
+    const closeButton = screen
+      .getAllByRole('button', { name: '關閉' })
+      .find((el) => !el.classList.contains('absolute'));
+    expect(closeButton).toBeInTheDocument();
+  });
 });
