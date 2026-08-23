@@ -25,6 +25,8 @@ function HeaderComponent(): JSX.Element {
   const currentAvatar = useCurrentAvatar();
   const identity = useIdentity(null);
 
+  const isHintOnly = identity.state === 'hint-only';
+
   const virtualUser = useMemo(() => {
     if (session?.user) {
       return {
@@ -68,14 +70,14 @@ function HeaderComponent(): JSX.Element {
                 <Skeleton className="h-6 w-24 group-data-[auth-state=guest]/auth-state:hidden group-data-[auth-state=mentee]/auth-state:hidden group-data-[auth-state=mentor]/auth-state:hidden" />
                 <DisabledAwareLink
                   href={getProfileHref(identity.userId)}
-                  disabled={false}
+                  disabled={isHintOnly}
                   className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=mentor]/auth-state:block"
                 >
                   我的導師頁面
                 </DisabledAwareLink>
                 <DisabledAwareLink
                   href={getBecomeMentorHref(identity.userId)}
-                  disabled={false}
+                  disabled={isHintOnly}
                   className="hidden font-['Open_Sans'] text-base text-text-primary group-data-[auth-state=guest]/auth-state:block group-data-[auth-state=mentee]/auth-state:block"
                 >
                   成為導師
@@ -84,7 +86,7 @@ function HeaderComponent(): JSX.Element {
             ) : (
               <DisabledAwareLink
                 href={leftSecondNav.href}
-                disabled={identity.state === 'hint-only'}
+                disabled={isHintOnly}
                 className="font-['Open_Sans'] text-base text-text-primary"
               >
                 {leftSecondNav.label}
