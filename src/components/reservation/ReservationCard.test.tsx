@@ -31,6 +31,7 @@ const mockReservation: Reservation = {
   dtstart: 0,
   dtend: 0,
   scheduleId: 0,
+  version: 0,
 };
 
 describe('ReservationCard', () => {
