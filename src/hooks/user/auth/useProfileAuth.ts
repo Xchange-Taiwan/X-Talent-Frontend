@@ -8,7 +8,7 @@ import { useIdentity } from './useIdentity';
 export function useProfileAuth(pageUserId: string) {
   const router = useRouter();
 
-  const identity = useIdentity(null);
+  const identity = useIdentity();
   const isAuthorized = identity.userId === pageUserId;
 
   useEffect(() => {

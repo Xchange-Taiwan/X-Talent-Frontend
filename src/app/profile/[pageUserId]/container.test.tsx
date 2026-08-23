@@ -48,10 +48,6 @@ vi.mock('@/hooks/useMentorSchedule', () => ({
   }),
 }));
 
-vi.mock('@/hooks/user/profile/useCurrentAvatar', () => ({
-  useCurrentAvatar: () => null,
-}));
-
 vi.mock('@/hooks/user/reservation/useReservationDateClamp', () => ({
   useReservationDateClamp: () => ({
     handleScheduleMonthChange: vi.fn(),

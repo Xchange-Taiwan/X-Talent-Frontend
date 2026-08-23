@@ -112,22 +112,33 @@ export function useUserProfileDto(
     initialData ?? undefined
   );
 
-  // Lazy-init from initialData, then cache, so SSR-primed data lands in
-  // state on the first render — avoids a one-frame loading flash before
-  // useEffect's cache read/initialData-consume catches up. When neither is
-  // available the hook still defaults to loading=true so consumers' "user
-  // not found" guard does not flash.
+  // Lazy-init from cache first, then fall back to initialData, so SSR-primed
+  // data lands in state on the first render — avoids a one-frame loading flash
+  // before useEffect's cache read/initialData-consume catches up. If there is a
+  // fresh/authoritative client-side prime (e.g. from saveProfile), we prefer
+  // that over initialData.
   const [userDto, setUserDto] = useState<MentorProfileVO | null>(() => {
-    if (initialDataRef.current !== undefined) return initialDataRef.current;
     const isUserIdValid = Boolean(userId) && !Number.isNaN(userId);
-    if (!isUserIdValid || !language) return null;
-    return readFromDataCache(`${userId}-${language}`)?.data ?? null;
+    if (isUserIdValid && language) {
+      const cached = readFromDataCache(`${userId}-${language}`);
+      if (cached) {
+        return cached.data;
+      }
+    }
+    if (initialDataRef.current !== undefined) return initialDataRef.current;
+    return null;
   });
   const [isLoading, setIsLoading] = useState(() => {
-    if (initialDataRef.current !== undefined) return false;
     const isUserIdValid = Boolean(userId) && !Number.isNaN(userId);
+    if (isUserIdValid && language) {
+      const cached = readFromDataCache(`${userId}-${language}`);
+      if (cached) {
+        return false;
+      }
+    }
+    if (initialDataRef.current !== undefined) return false;
     if (!isUserIdValid || !language) return false;
-    return !readFromDataCache(`${userId}-${language}`);
+    return true;
   });
   const [error, setError] = useState<ProfileFetchError>(null);
 

@@ -6,10 +6,7 @@ vi.mock('./useResolvedIdentity', () => ({
   useResolvedIdentity: () => mockUseResolvedIdentity(),
 }));
 
-import {
-  authenticatedIdentity,
-  buildResolvedIdentity,
-} from '@/test/mocks/identity';
+import { authenticatedIdentity } from '@/test/mocks/identity';
 
 import { useIdentity } from './useIdentity';
 
@@ -18,64 +15,15 @@ describe('useIdentity', () => {
     vi.clearAllMocks();
   });
 
-  it('passes through the already-resolved identity from useResolvedIdentity unchanged when there is no override', () => {
+  it('passes through the already-resolved identity from useResolvedIdentity unchanged', () => {
     const resolved = authenticatedIdentity('user-123', {
       isMentor: true,
       avatar: 'https://example.com/session.png',
     });
     mockUseResolvedIdentity.mockReturnValue(resolved);
 
-    const { result } = renderHook(() => useIdentity(null));
+    const { result } = renderHook(() => useIdentity());
 
     expect(result.current).toEqual(resolved);
-  });
-
-  it('layers the avatar override on top when its userId matches the resolved identity', () => {
-    mockUseResolvedIdentity.mockReturnValue(
-      authenticatedIdentity('user-123', {
-        isMentor: true,
-        avatar: 'https://example.com/session.png',
-      })
-    );
-
-    const { result } = renderHook(() =>
-      useIdentity({ userId: 'user-123', url: 'https://example.com/new.png' })
-    );
-
-    expect(result.current.avatar).toBe('https://example.com/new.png');
-  });
-
-  it('ignores the override when its userId does not match the resolved identity', () => {
-    mockUseResolvedIdentity.mockReturnValue(
-      authenticatedIdentity('user-123', {
-        isMentor: true,
-        avatar: 'https://example.com/session.png',
-      })
-    );
-
-    const { result } = renderHook(() =>
-      useIdentity({
-        userId: 'different-user',
-        url: 'https://example.com/new.png',
-      })
-    );
-
-    expect(result.current.avatar).toBe('https://example.com/session.png');
-  });
-
-  it('ignores the override while the userId has not resolved yet', () => {
-    mockUseResolvedIdentity.mockReturnValue(
-      buildResolvedIdentity({
-        isLoggedIn: true,
-        isMentor: true,
-        isResolvingUser: true,
-      })
-    );
-
-    const { result } = renderHook(() =>
-      useIdentity({ userId: 'user-123', url: 'https://example.com/new.png' })
-    );
-
-    expect(result.current.avatar).toBeUndefined();
   });
 });

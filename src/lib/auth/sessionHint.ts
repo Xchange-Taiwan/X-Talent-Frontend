@@ -264,28 +264,6 @@ export function resolveIdentity(
   };
 }
 
-/**
- * Layers a client-only avatar override (set synchronously on a successful
- * profile submit, see `avatarOverrideStore`) on top of an identity already
- * produced by `resolveIdentity`. Kept as a separate step - rather than a
- * parameter on `resolveIdentity` - so `useResolvedIdentity` (the one place that
- * calls `resolveIdentity`) never has to know about the override, and
- * `useIdentity` never has to re-run identity resolution just to apply it.
- */
-export function applyAvatarOverride(
-  identity: ResolvedIdentity,
-  override: { userId: string; url: string } | null | undefined
-): ResolvedIdentity {
-  if (
-    override &&
-    identity.state === 'confirmed-member' &&
-    override.userId === identity.userId
-  ) {
-    return { ...identity, avatar: override.url };
-  }
-  return identity;
-}
-
 export const DOM_AUTH_STATE_ATTR = 'data-auth-state';
 export const DOM_AUTH_AVATAR_ATTR = 'data-auth-avatar';
 
