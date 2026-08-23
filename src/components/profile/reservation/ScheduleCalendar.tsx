@@ -310,7 +310,7 @@ export const ScheduleCalendar = ({
               <Loader2 className="size-6 animate-spin text-text-tertiary" />
             </div>
           )}
-          {hasError && (
+          {!isMonthLoading && hasError && (
             <div className="absolute inset-x-0 top-[60px] bottom-0 z-10 flex flex-col items-center justify-center bg-background-white/95 p-4 text-center">
               <p className="mb-3 text-sm text-text-secondary">
                 無法載入導師時段，請檢查網路連線

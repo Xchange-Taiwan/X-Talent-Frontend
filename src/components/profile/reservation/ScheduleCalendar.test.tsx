@@ -156,7 +156,7 @@ describe('ScheduleCalendar', () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it('disables the retry button when isMonthLoading is true', () => {
+  it('hides the error overlay when isMonthLoading is true to avoid overlap', () => {
     const onRetry = vi.fn();
     render(
       <ScheduleCalendar
@@ -167,10 +167,12 @@ describe('ScheduleCalendar', () => {
       />
     );
 
-    const retryBtn = screen.getByRole('button', { name: '重新嘗試' });
-    expect(retryBtn).toBeDisabled();
+    // The error overlay should NOT be in the document
+    expect(
+      screen.queryByText('無法載入導師時段，請檢查網路連線')
+    ).not.toBeInTheDocument();
 
-    retryBtn.click();
-    expect(onRetry).not.toHaveBeenCalled();
+    const retryBtn = screen.queryByRole('button', { name: '重新嘗試' });
+    expect(retryBtn).not.toBeInTheDocument();
   });
 });
