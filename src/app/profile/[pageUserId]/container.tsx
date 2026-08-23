@@ -43,29 +43,6 @@ export default function ProfilePageContainer({
   // codes to Chinese labels on first paint instead of flashing raw codes.
   primeTagCatalogCacheIfEmpty('zh_TW', initialCatalogs);
 
-  // The page is now ISR-cached (no SSR session read), so identity is
-  // resolved entirely client-side via useIdentity - the same single source
-  // of truth Header/useProfileAuth use. Deliberately read `identity.
-  // sessionSettled`/`hasFullUser`/`userId` here, not the faster `authKnown`/
-  // `isLoggedIn`/hint-derived `userId` fields: those can go true/populated
-  // from the middleware-written session-hint cookie alone (an unsigned,
-  // client-writable, UI-only hint - see sessionHint.ts) before the real
-  // `useSession()` round trip settles.
-  //
-  // Two distinct gates are needed, not one:
-  // - `isIdentityResolved` (`sessionSettled`) answers "has the real session
-  //   check finished, for ANY viewer" - true for a confirmed guest just as
-  //   much as a confirmed member (unlike `hasFullUser`, which a guest can
-  //   never satisfy). This is what BookingForm's loading skeleton must gate
-  //   on, or guests would be stuck loading forever.
-  // - `loginUserId` (and everything derived from it: isOwnProfile,
-  //   canShowOwnerControls, useBookingConfirmation's menteeId) requires the
-  //   stronger `hasFullUser`, since it either renders owner-only UI or
-  //   feeds a real mutation - unlike the header's optimistic hint-based
-  //   rendering, nothing here may act on an unauthoritative value.
-  //
-  // Per CLAUDE.md's "Role-based UI" rule: never render role-specific UI
-  // before the role is resolved.
   const identity = useIdentity();
   const isIdentityResolved = identity.sessionSettled;
   const loginUserId = identity.hasFullUser ? (identity.userId ?? '') : '';
@@ -73,14 +50,6 @@ export default function ProfilePageContainer({
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [month, setMonth] = useState(() => new Date().getMonth() + 1);
 
-  // loginUserId is '' unless identity.hasFullUser, so isOwnProfile can only
-  // be true for a real, verified session - it already carries that
-  // guarantee, no separate resolution check needed here. Computed before
-  // useMentorSchedule so it can gate includeBookedDates below; the whole
-  // schedule region only renders once userData.is_mentor is confirmed true
-  // (see ui.tsx's showScheduleRegion), so ownership alone is enough here to
-  // distinguish "the mentor managing their own calendar" from "a mentee/
-  // visitor browsing it" - no need to also wait on userData.is_mentor.
   const isOwnProfile = loginUserId === pageUserId;
 
   const schedule = useMentorSchedule({
