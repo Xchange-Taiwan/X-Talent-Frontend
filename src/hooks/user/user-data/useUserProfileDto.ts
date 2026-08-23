@@ -111,17 +111,14 @@ export function useUserProfileDto(
         const res = await fetchUserById(userId, language, signal);
 
         if (res === null && key) {
+          if (isManualRefetch) {
+            userProfileDtoCache.delete(key);
+            return null;
+          }
           const existing = userProfileDtoCache.get(key);
-          if (!isManualRefetch && existing) {
+          if (existing) {
             return existing;
           }
-          // Schedule deleting from cache to ensure that null/failed fetch is NOT cached
-          // for subsequent mounts, while allowing the current mount to receive null.
-          // This covers both manual refetch and first-time failed fetches.
-          setTimeout(() => {
-            userProfileDtoCache.delete(key);
-          }, 0);
-          return null;
         }
         return res;
       } catch (err) {
@@ -133,6 +130,7 @@ export function useUserProfileDto(
     },
     {
       initialData,
+      shouldCache: (res) => res !== null,
     }
   );
 
