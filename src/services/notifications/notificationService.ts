@@ -1,4 +1,4 @@
-import { apiClient, FetchApiError } from '@/lib/apiClient';
+import { apiClient } from '@/lib/apiClient';
 import { components } from '@/types/api';
 
 import { mapNotificationVOToItem } from './notificationMapper';
@@ -48,32 +48,16 @@ export async function markOneRead(
   userId: string | number,
   notificationId: string | number
 ) {
-  const path = `/v1/users/${userId}/notifications/${notificationId}`;
-  const res = await apiClient.put<{
-    code: string;
-    msg: string;
-    data?: components['schemas']['NotificationVO'] | null;
-  }>(path);
-
-  if (res.code !== '0') {
-    throw new FetchApiError(res.code, res.msg, path);
-  }
-  return res.data;
+  return apiClient.putUnwrapped<components['schemas']['NotificationVO']>(
+    `/v1/users/${userId}/notifications/${notificationId}`
+  );
 }
 
 /**
  * Marks all notifications as read.
  */
 export async function markAllRead(userId: string | number) {
-  const path = `/v1/users/${userId}/notifications/read-all`;
-  const res = await apiClient.put<{
-    code: string;
-    msg: string;
-    data?: components['schemas']['MarkAllNotificationsReadVO'] | null;
-  }>(path);
-
-  if (res.code !== '0') {
-    throw new FetchApiError(res.code, res.msg, path);
-  }
-  return res.data;
+  return apiClient.putUnwrapped<
+    components['schemas']['MarkAllNotificationsReadVO']
+  >(`/v1/users/${userId}/notifications/read-all`);
 }
