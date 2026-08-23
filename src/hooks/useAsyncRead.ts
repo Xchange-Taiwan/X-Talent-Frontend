@@ -28,20 +28,24 @@ export function useAsyncRead<K, V>(
 
   const [prevKey, setPrevKey] = useState<K | null | undefined>(key);
 
+  let currentResult = result;
+
   // Derived State Pattern: Synchronize state synchronously during render phase
-  // on key changes, preventing stale state visual flicker/flashing
+  // on key changes, preventing stale state visual flicker/flashing and ensuring
+  // that the correct reference is returned immediately during the active render cycle.
   if (prevKey !== key) {
     setPrevKey(key);
     if (key === null || key === undefined) {
-      setResult({ data: null, isLoading: false, error: null });
+      currentResult = { data: null, isLoading: false, error: null };
     } else {
       const cached = manager.get(key);
-      setResult({
+      currentResult = {
         data: cached ?? null,
         isLoading: cached === undefined,
         error: null,
-      });
+      };
     }
+    setResult(currentResult);
   }
 
   const fetcherRef = useRef(fetcher);
@@ -52,7 +56,6 @@ export function useAsyncRead<K, V>(
 
   useEffect(() => {
     if (key === null || key === undefined) {
-      setResult({ data: null, isLoading: false, error: null });
       return;
     }
 
@@ -67,5 +70,5 @@ export function useAsyncRead<K, V>(
     };
   }, [manager, key]);
 
-  return result;
+  return currentResult;
 }
