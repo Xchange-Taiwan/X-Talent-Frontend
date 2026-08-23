@@ -13,6 +13,7 @@ vi.mock('./useResolvedIdentity', () => ({
 
 import {
   authenticatedIdentity,
+  buildResolvedIdentity,
   GUEST_IDENTITY as GUEST,
   UNKNOWN_IDENTITY as UNKNOWN,
 } from '@/test/mocks/identity';
@@ -55,11 +56,12 @@ describe('useProfileAuth', () => {
   });
 
   it('status: loading and hint: authenticated with mismatched userId → triggers immediate redirect to "/"', async () => {
-    mockUseResolvedIdentity.mockReturnValue({
-      ...GUEST,
-      isLoggedIn: true,
-      userId: 'different-user-id',
-    });
+    mockUseResolvedIdentity.mockReturnValue(
+      buildResolvedIdentity({
+        isLoggedIn: true,
+        userId: 'different-user-id',
+      })
+    );
 
     const { result } = await act(async () =>
       renderHook(() => useProfileAuth(PAGE_USER_ID))
@@ -70,11 +72,12 @@ describe('useProfileAuth', () => {
   });
 
   it('status: loading and hint: authenticated with matching userId → authorizes immediately without redirect', async () => {
-    mockUseResolvedIdentity.mockReturnValue({
-      ...GUEST,
-      isLoggedIn: true,
-      userId: PAGE_USER_ID,
-    });
+    mockUseResolvedIdentity.mockReturnValue(
+      buildResolvedIdentity({
+        isLoggedIn: true,
+        userId: PAGE_USER_ID,
+      })
+    );
 
     const { result } = await act(async () =>
       renderHook(() => useProfileAuth(PAGE_USER_ID))
@@ -133,11 +136,12 @@ describe('useProfileAuth', () => {
     // First render returns unknown (isAuthorized is false)
     mockUseResolvedIdentity.mockReturnValueOnce(UNKNOWN);
     // Second render returns authenticated matching userId
-    mockUseResolvedIdentity.mockReturnValue({
-      ...GUEST,
-      isLoggedIn: true,
-      userId: PAGE_USER_ID,
-    });
+    mockUseResolvedIdentity.mockReturnValue(
+      buildResolvedIdentity({
+        isLoggedIn: true,
+        userId: PAGE_USER_ID,
+      })
+    );
 
     const { result, rerender } = renderHook(() => useProfileAuth(PAGE_USER_ID));
     // Verify it was false on initial render
@@ -158,11 +162,12 @@ describe('useProfileAuth', () => {
   });
 
   it('does not trigger redirect in useProfileAuth during loading when isResolvingUser is true', async () => {
-    mockUseResolvedIdentity.mockReturnValue({
-      ...GUEST,
-      isLoggedIn: true,
-      isResolvingUser: true,
-    });
+    mockUseResolvedIdentity.mockReturnValue(
+      buildResolvedIdentity({
+        isLoggedIn: true,
+        isResolvingUser: true,
+      })
+    );
 
     const { result } = await act(async () =>
       renderHook(() => useProfileAuth(PAGE_USER_ID))
