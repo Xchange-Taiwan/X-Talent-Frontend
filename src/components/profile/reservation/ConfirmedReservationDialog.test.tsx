@@ -224,4 +224,16 @@ describe('ConfirmedReservationDialog', () => {
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+
+  it('renders both Google Meet and Cancel buttons within the footer for Option B', () => {
+    render(<ConfirmedReservationDialog {...defaultProps} />);
+
+    const joinBtn = screen.getByRole('button', { name: '加入 Google Meet' });
+    const footer = joinBtn.closest('div');
+    expect(footer).toBeInTheDocument();
+
+    const cancelTrigger = screen.getByTestId('mock-cancel-dialog-trigger');
+    expect(footer).toContainElement(cancelTrigger);
+    expect(footer).toContainElement(joinBtn);
+  });
 });
