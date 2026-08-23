@@ -137,6 +137,24 @@ describe('useAccountMenu', () => {
       expect(result.current.avatarSrc).toBe('https://example.com/avatar.png');
     });
 
+    it('falls back to identity.avatar when useCurrentAvatar returns null', () => {
+      mockUseCurrentAvatar.mockReturnValue(null);
+      const { result } = renderHook(() =>
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', {
+            isMentor: false,
+            avatar: 'https://example.com/hint-avatar.png',
+          }),
+          user: buildUser(),
+          closeMenu,
+        })
+      );
+
+      expect(result.current.avatarSrc).toBe(
+        'https://example.com/hint-avatar.png'
+      );
+    });
+
     it('defaults personalLinks to an empty array', () => {
       const { result } = renderHook(() =>
         useAccountMenu({
