@@ -6,6 +6,7 @@ import { createContext, useContext, useMemo, useState } from 'react';
 import { DayButton } from 'react-day-picker';
 import { useSwipeable } from 'react-swipeable';
 
+import { Button } from '@/components/ui/button';
 import {
   Calendar,
   CalendarDayButton,
@@ -109,6 +110,8 @@ interface ScheduleCalendarProps {
    * works; this only adds a visual cue.
    */
   isMonthLoading?: boolean;
+  hasError?: boolean;
+  onRetry?: () => void;
   size?: ScheduleCalendarSize;
   variant?: CalendarVariant;
   className?: string;
@@ -201,6 +204,8 @@ export const ScheduleCalendar = ({
   disablePastDates = false,
   highlightAvailableDates = false,
   isMonthLoading = false,
+  hasError = false,
+  onRetry,
   size = 'compact',
   variant,
   className,
@@ -253,7 +258,7 @@ export const ScheduleCalendar = ({
         <div
           className={cn(
             'relative transition-opacity',
-            isMonthLoading && 'opacity-60'
+            (isMonthLoading || hasError) && 'opacity-60'
           )}
           aria-busy={isMonthLoading}
         >
@@ -302,6 +307,16 @@ export const ScheduleCalendar = ({
               className="pointer-events-none absolute inset-0 flex items-center justify-center"
             >
               <Loader2 className="size-6 animate-spin text-text-tertiary" />
+            </div>
+          )}
+          {hasError && (
+            <div className="absolute inset-x-0 top-[60px] bottom-0 z-10 flex flex-col items-center justify-center bg-background-white/95 p-4 text-center">
+              <p className="mb-3 text-sm text-text-secondary">
+                無法載入導師時段，請檢查網路連線
+              </p>
+              <Button variant="outline" size="sm" onClick={onRetry}>
+                重新嘗試
+              </Button>
             </div>
           )}
         </div>

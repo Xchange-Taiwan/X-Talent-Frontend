@@ -34,7 +34,7 @@ import {
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
 import {
-  cacheKey,
+  clearScheduleCache,
   scheduleCache,
 } from '@/services/mentor-schedule/scheduleCache';
 import {
@@ -652,12 +652,11 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   const reload = useCallback(async () => {
     if (!backend.userId || !backend.year || !backend.month) return;
-    const key = cacheKey({
+    clearScheduleCache({
       userId: backend.userId,
       year: backend.year,
       month: backend.month,
     });
-    scheduleCache.delete(key);
     setRetryTrigger((prev) => prev + 1);
     await Promise.all([reloadReservations(), reloadSchedule()]);
   }, [
