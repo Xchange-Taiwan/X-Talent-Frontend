@@ -77,28 +77,14 @@ export function ConfirmedReservationDialog({
 
           {/* User Details Block */}
           <div className="rounded-2xl border p-4 sm:p-5">
-            <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex w-full min-w-0 flex-1 items-center gap-3">
-                {profileHref ? (
-                  <Link
-                    href={profileHref}
-                    onClick={handleProfileLinkClick}
-                    className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
-                    aria-label={`查看 ${reservation.name} 的個人資料`}
-                  >
-                    <Avatar className="size-10 sm:size-12">
-                      <AvatarImage
-                        src={
-                          reservation.avatar
-                            ? getAvatarThumbUrl(reservation.avatar)
-                            : undefined
-                        }
-                        alt={reservation.name}
-                      />
-                      <AvatarFallback>{initials}</AvatarFallback>
-                    </Avatar>
-                  </Link>
-                ) : (
+            <div className="flex items-center gap-3">
+              {profileHref ? (
+                <Link
+                  href={profileHref}
+                  onClick={handleProfileLinkClick}
+                  className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  aria-label={`查看 ${reservation.name} 的個人資料`}
+                >
                   <Avatar className="size-10 sm:size-12">
                     <AvatarImage
                       src={
@@ -110,34 +96,47 @@ export function ConfirmedReservationDialog({
                     />
                     <AvatarFallback>{initials}</AvatarFallback>
                   </Avatar>
-                )}
-                <div className="min-w-0 flex-1">
+                </Link>
+              ) : (
+                <Avatar className="size-10 sm:size-12">
+                  <AvatarImage
+                    src={
+                      reservation.avatar
+                        ? getAvatarThumbUrl(reservation.avatar)
+                        : undefined
+                    }
+                    alt={reservation.name}
+                  />
+                  <AvatarFallback>{initials}</AvatarFallback>
+                </Avatar>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-2">
                   {profileHref ? (
                     <Link
                       href={profileHref}
                       onClick={handleProfileLinkClick}
-                      className="group block w-full min-w-0 rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                      className="group block min-w-0 flex-1 rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                     >
                       <div className="truncate font-medium hover:underline sm:text-base">
                         {reservation.name}
                       </div>
                     </Link>
                   ) : (
-                    <div className="truncate font-medium sm:text-base">
+                    <div className="flex-1 truncate font-medium sm:text-base">
                       {reservation.name}
                     </div>
                   )}
-                  <div className="truncate text-xs text-text-tertiary sm:text-sm">
-                    {reservation.roleLine}
-                  </div>
+                  <ReservationStatusBadge
+                    dtstart={reservation.dtstart}
+                    dtend={reservation.dtend}
+                    className="shrink-0 px-1.5 text-11 font-normal"
+                  />
+                </div>
+                <div className="truncate text-xs text-text-tertiary sm:text-sm">
+                  {reservation.roleLine}
                 </div>
               </div>
-
-              <ReservationStatusBadge
-                dtstart={reservation.dtstart}
-                dtend={reservation.dtend}
-                className="shrink-0 px-1.5 text-11 font-normal"
-              />
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-text-tertiary sm:grid-cols-2 sm:text-sm">
