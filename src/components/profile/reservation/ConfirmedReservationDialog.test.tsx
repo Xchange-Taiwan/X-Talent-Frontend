@@ -248,4 +248,26 @@ describe('ConfirmedReservationDialog', () => {
 
     vi.useRealTimers();
   });
+
+  it('renders mentee message block when reservation.menteeMessage is present', () => {
+    const reservationWithMsg: Reservation = {
+      ...mockReservation,
+      menteeMessage: {
+        id: 'msg-1',
+        content: '這是學員的測試留言。',
+        createdAt: '2026-07-26T10:00:00Z',
+        senderUserId: 'user-alice',
+      },
+    };
+
+    render(
+      <ConfirmedReservationDialog
+        {...defaultProps}
+        reservation={reservationWithMsg}
+      />
+    );
+
+    expect(screen.getByText('學員留言')).toBeInTheDocument();
+    expect(screen.getByText('這是學員的測試留言。')).toBeInTheDocument();
+  });
 });
