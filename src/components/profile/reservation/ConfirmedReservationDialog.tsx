@@ -111,21 +111,21 @@ export function ConfirmedReservationDialog({
                 </Avatar>
               )}
               <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-2">
+                <div className="flex min-w-0 items-center justify-between gap-2">
                   {profileHref ? (
                     <Link
                       href={profileHref}
                       onClick={handleProfileLinkClick}
-                      className="group block min-w-0 flex-1 rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                      className="group min-w-0 flex-1 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                     >
-                      <div className="truncate font-medium hover:underline sm:text-base">
+                      <span className="truncate font-medium hover:underline sm:text-base">
                         {reservation.name}
-                      </div>
+                      </span>
                     </Link>
                   ) : (
-                    <div className="flex-1 truncate font-medium sm:text-base">
+                    <span className="min-w-0 flex-1 truncate font-medium sm:text-base">
                       {reservation.name}
-                    </div>
+                    </span>
                   )}
                   <ReservationStatusBadge
                     dtstart={reservation.dtstart}
