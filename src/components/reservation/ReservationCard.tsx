@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
+import { cn } from '@/lib/utils';
 import type { Reservation } from '@/types/reservation';
 
 export type ReservationCardVariant = 'upcoming' | 'pending' | 'history';
@@ -44,6 +45,23 @@ export function ReservationCard({
     .join('');
 
   const [imageFailed, setImageFailed] = React.useState(false);
+
+  // Helper to render user name and role line, eliminating duplicate code smell
+  const renderUserInfo = (isLink: boolean) => (
+    <>
+      <div
+        className={cn(
+          'truncate text-sm font-medium sm:text-base',
+          isLink && 'group-hover:underline'
+        )}
+      >
+        {item.name}
+      </div>
+      <div className="truncate text-xs text-text-tertiary sm:text-sm">
+        {item.roleLine}
+      </div>
+    </>
+  );
 
   const avatar = (
     <Avatar className="size-10 sm:size-12">
@@ -94,22 +112,10 @@ export function ReservationCard({
                   onClick={onProfileClick}
                   className="group min-w-0 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                 >
-                  <div className="truncate text-sm font-medium group-hover:underline sm:text-base">
-                    {item.name}
-                  </div>
-                  <div className="truncate text-xs text-text-tertiary sm:text-sm">
-                    {item.roleLine}
-                  </div>
+                  {renderUserInfo(true)}
                 </Link>
               ) : (
-                <div className="min-w-0 truncate">
-                  <div className="truncate text-sm font-medium sm:text-base">
-                    {item.name}
-                  </div>
-                  <div className="truncate text-xs text-text-tertiary sm:text-sm">
-                    {item.roleLine}
-                  </div>
-                </div>
+                <div className="min-w-0 truncate">{renderUserInfo(false)}</div>
               )}
               {/* Show status badge in top-right ALWAYS on all screen sizes */}
               <div className="flex shrink-0 items-center gap-2">
