@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -12,6 +13,7 @@ import type {
 } from '@/lib/profile/bookingAvailability';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 import { isSlotTaken } from '@/lib/profile/scheduleHelpers';
+import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
 
 import { ConfirmedReservationDialog } from './ConfirmedReservationDialog';
@@ -118,19 +120,25 @@ export function MentorScheduleConfig({
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     {hasReservation && slot.reservation ? (
-                      <Avatar className="size-8 shrink-0">
-                        <AvatarImage
-                          src={
-                            slot.reservation.avatar
-                              ? getAvatarThumbUrl(slot.reservation.avatar)
-                              : undefined
-                          }
-                          alt={slot.reservation.name}
-                        />
-                        <AvatarFallback className="text-xs font-medium">
-                          {initials}
-                        </AvatarFallback>
-                      </Avatar>
+                      <Link
+                        href={`/profile/${resolveCounterpartyId(slot.reservation, myUserId || '')}`}
+                        className="shrink-0 transition-opacity hover:opacity-80"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Avatar className="size-8 shrink-0">
+                          <AvatarImage
+                            src={
+                              slot.reservation.avatar
+                                ? getAvatarThumbUrl(slot.reservation.avatar)
+                                : undefined
+                            }
+                            alt={slot.reservation.name}
+                          />
+                          <AvatarFallback className="text-xs font-medium">
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
+                      </Link>
                     ) : null}
 
                     <div className="flex min-w-0 flex-col gap-1">
@@ -138,9 +146,13 @@ export function MentorScheduleConfig({
                         {formatBookingSlotTime(slot)}
                       </span>
                       {hasReservation && slot.reservation ? (
-                        <span className="truncate text-xs font-normal text-text-secondary">
+                        <Link
+                          href={`/profile/${resolveCounterpartyId(slot.reservation, myUserId || '')}`}
+                          className="truncate text-xs font-normal text-text-secondary transition-colors hover:text-brand-500 hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           學員 {slot.reservation.name}
-                        </span>
+                        </Link>
                       ) : (
                         <span className="truncate text-xs font-normal text-text-secondary">
                           {slot.status === null

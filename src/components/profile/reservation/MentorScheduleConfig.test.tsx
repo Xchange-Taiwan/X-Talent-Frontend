@@ -428,7 +428,7 @@ describe('MentorScheduleConfig', () => {
     expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
   });
 
-  it('renders avatar and text for both PENDING and BOOKED slots without nested links', () => {
+  it('renders avatar and text for both PENDING and BOOKED slots with nested links to profile, and click stopPropagation works', () => {
     const mockConfirmedReservation: Reservation = {
       id: 'res-102',
       name: 'Alice',
@@ -459,14 +459,60 @@ describe('MentorScheduleConfig', () => {
       />
     );
 
-    // Booked slot row (Alice) shouldn't contain a link
-    const aliceRow = screen.getByText('學員 Alice').closest('[role="button"]');
+    // Booked slot row (Alice) should contain links to profile
+    const aliceRow = screen
+      .getByText('學員 Alice')
+      .closest('[role="button"]') as HTMLElement;
     expect(aliceRow).toBeInTheDocument();
-    expect(within(aliceRow!).queryByRole('link')).toBeNull();
 
-    // Pending slot row (Bob) also shouldn't have links in the row
-    const bobRow = screen.getByText('學員 Bob').closest('[role="button"]');
+    const aliceLinks = within(aliceRow).getAllByRole('link');
+    expect(aliceLinks.length).toBeGreaterThan(0);
+    aliceLinks.forEach((link) => {
+      expect(link).toHaveAttribute('href', '/profile/user-alice');
+    });
+
+    // Clicking the link shouldn't open the dialog (stopPropagation)
+    fireEvent.click(aliceLinks[0]);
+    expect(
+      screen.queryByTestId('mock-confirmed-dialog')
+    ).not.toBeInTheDocument();
+
+    // Pending slot row (Bob) should contain links to profile
+    const bobRow = screen
+      .getByText('學員 Bob')
+      .closest('[role="button"]') as HTMLElement;
     expect(bobRow).toBeInTheDocument();
-    expect(within(bobRow!).queryByRole('link')).toBeNull();
+
+    const bobLinks = within(bobRow).getAllByRole('link');
+    expect(bobLinks.length).toBeGreaterThan(0);
+    bobLinks.forEach((link) => {
+      expect(link).toHaveAttribute('href', '/profile/user-bob');
+    });
+
+    // Clicking the link shouldn't open the dialog (stopPropagation)
+    fireEvent.click(bobLinks[0]);
+    expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
+  });
+
+  it('triggers dialog on keydown (Enter/Space) on booked slot rows', () => {
+    render(<MentorScheduleConfig {...defaultProps} />);
+
+    const pendingRow = screen
+      .getByText('學員 Bob')
+      .closest('[role="button"]') as HTMLElement;
+    expect(pendingRow).toBeInTheDocument();
+
+    // Trigger Enter keydown
+    fireEvent.keyDown(pendingRow, { key: 'Enter', code: 'Enter' });
+    expect(screen.getByTestId('mock-quick-reply')).toBeInTheDocument();
+
+    // Close the dialog
+    const closeBtn = screen.getByRole('button', { name: 'Close' });
+    fireEvent.click(closeBtn);
+    expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
+
+    // Trigger Space keydown
+    fireEvent.keyDown(pendingRow, { key: ' ', code: 'Space' });
+    expect(screen.getByTestId('mock-quick-reply')).toBeInTheDocument();
   });
 });
