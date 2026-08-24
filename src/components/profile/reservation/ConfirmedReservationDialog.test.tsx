@@ -236,4 +236,16 @@ describe('ConfirmedReservationDialog', () => {
     expect(footer).toContainElement(cancelTrigger);
     expect(footer).toContainElement(joinBtn);
   });
+
+  it('renders remaining time countdown badge correctly when reservation is in the future', () => {
+    vi.useFakeTimers();
+    // Set system time to 2026-07-26 at 10:00:00 UTC (1 hour before reservation start at 11:00:00 UTC)
+    vi.setSystemTime(new Date('2026-07-26T10:00:00Z'));
+
+    render(<ConfirmedReservationDialog {...defaultProps} />);
+
+    expect(screen.getByText('剩下 1 小時 0 分鐘')).toBeInTheDocument();
+
+    vi.useRealTimers();
+  });
 });
