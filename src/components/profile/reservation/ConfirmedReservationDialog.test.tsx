@@ -253,10 +253,7 @@ describe('ConfirmedReservationDialog', () => {
     const reservationWithMsg: Reservation = {
       ...mockReservation,
       menteeMessage: {
-        id: 'msg-1',
         content: '這是學員的測試留言。',
-        createdAt: '2026-07-26T10:00:00Z',
-        senderUserId: 'user-alice',
       },
     };
 
