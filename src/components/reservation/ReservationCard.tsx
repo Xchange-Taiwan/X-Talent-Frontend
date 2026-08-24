@@ -117,7 +117,6 @@ export function ReservationCard({
                   <ReservationStatusBadge
                     dtstart={item.dtstart}
                     dtend={item.dtend}
-                    className="sm:text-11"
                   />
                 )}
               </div>
