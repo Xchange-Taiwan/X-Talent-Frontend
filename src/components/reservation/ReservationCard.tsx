@@ -177,7 +177,7 @@ export function ReservationCard({
               </div>
             ) : /* If not upcoming (e.g. pending), show actions at the bottom on all screen sizes */
             actions ? (
-              <div className="mt-3 flex w-full items-center gap-2 sm:justify-end">
+              <div className="mt-3 flex w-full items-center justify-end gap-2">
                 {actions}
               </div>
             ) : null}
