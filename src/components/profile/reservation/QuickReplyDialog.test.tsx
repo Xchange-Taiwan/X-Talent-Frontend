@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
@@ -315,11 +316,13 @@ describe('QuickReplyDialog', () => {
   });
 
   it('does NOT call onOpenChange(false) and prevents navigation when clicking the profile link under mutating state', () => {
-    vi.mocked(useReservationActions).mockReturnValueOnce({
-      accept: vi.fn(),
-      rejectOrCancel: vi.fn(),
-      isMutating: true,
-    } as any);
+    vi.mocked(useReservationActions).mockReturnValueOnce(
+      fromPartial({
+        accept: vi.fn(),
+        rejectOrCancel: vi.fn(),
+        isMutating: true,
+      })
+    );
 
     const mockOnOpenChange = vi.fn();
     render(

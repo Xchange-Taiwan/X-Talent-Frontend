@@ -492,6 +492,10 @@ describe('MentorScheduleConfig', () => {
     // Clicking the link shouldn't open the dialog (stopPropagation)
     fireEvent.click(bobLinks[0]);
     expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
+
+    // Keydown on the link shouldn't open the dialog (onKeyDown stopPropagation)
+    fireEvent.keyDown(bobLinks[0], { key: 'Enter', code: 'Enter' });
+    expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
   });
 
   it('triggers dialog on keydown (Enter/Space) on booked slot rows', () => {
