@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarDays, Clock, Mail } from 'lucide-react';
+import { CalendarDays, Clock, Mail, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import * as React from 'react';
 
@@ -54,6 +54,7 @@ export function ConfirmedReservationDialog({
   const initials = getInitials(reservation.name);
   const menteeId = resolveCounterpartyId(reservation, myUserId || '');
   const profileHref = menteeId ? `/profile/${menteeId}` : undefined;
+  const menteeMessage = reservation.menteeMessage?.content;
 
   const handleProfileLinkClick = () => {
     onOpenChange(false);
@@ -150,6 +151,24 @@ export function ConfirmedReservationDialog({
               </div>
             </div>
           </div>
+
+          {/* Mentee Message block */}
+          {menteeMessage ? (
+            <div className="mt-6">
+              <div className="mb-2 text-sm font-medium text-text-primary">
+                學員留言
+              </div>
+              <div className="flex items-start gap-2 rounded-2xl border bg-background-bottom/40 p-4 text-xs sm:text-sm">
+                <MessageSquare
+                  className="mt-0.5 size-4 shrink-0 text-text-tertiary"
+                  aria-hidden
+                />
+                <p className="break-words whitespace-pre-wrap text-text-primary">
+                  {menteeMessage}
+                </p>
+              </div>
+            </div>
+          ) : null}
 
           {/* Meeting Info Block */}
           <div className="mt-6 flex items-center gap-1.5 text-11 text-text-tertiary sm:text-xs">
