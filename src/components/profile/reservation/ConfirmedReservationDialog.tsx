@@ -135,7 +135,7 @@ export function ConfirmedReservationDialog({
               <ReservationStatusBadge
                 dtstart={reservation.dtstart}
                 dtend={reservation.dtend}
-                className="shrink-0"
+                className="shrink-0 px-1.5 text-11 font-normal"
               />
             </div>
 
