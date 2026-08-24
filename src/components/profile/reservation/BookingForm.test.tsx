@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { BookingSlot } from '@/lib/profile/bookingAvailability';
@@ -217,9 +223,10 @@ describe('BookingForm', () => {
   it('triggers router.push to /reservation/mentor when a booked slot row is clicked in own profile mode', () => {
     render(<BookingForm {...defaultProps} isOwnMentorProfile={true} />);
 
-    const confirmedRow = screen.getByText('已確認').closest('[role="button"]');
-    expect(confirmedRow).not.toBeNull();
-    fireEvent.click(confirmedRow!);
+    const confirmedText = screen.getByText('已確認');
+    const row = confirmedText.closest('.border') as HTMLElement;
+    const rowButton = within(row).getByRole('button', { name: '查看預約詳情' });
+    fireEvent.click(rowButton);
 
     expect(mockRouter.push).toHaveBeenCalledWith('/reservation/mentor');
   });

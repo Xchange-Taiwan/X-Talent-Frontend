@@ -104,42 +104,61 @@ export function MentorScheduleConfig({
                   ? getInitials(slot.reservation.name)
                   : '';
 
+              const menteeId =
+                hasReservation && slot.reservation
+                  ? resolveCounterpartyId(slot.reservation, myUserId || '')
+                  : undefined;
+              const profileHref = menteeId ? `/profile/${menteeId}` : undefined;
+
+              const avatarContent =
+                hasReservation && slot.reservation ? (
+                  <Avatar className="size-8 shrink-0">
+                    <AvatarImage
+                      src={
+                        slot.reservation.avatar
+                          ? getAvatarThumbUrl(slot.reservation.avatar)
+                          : undefined
+                      }
+                      alt={slot.reservation.name}
+                    />
+                    <AvatarFallback className="text-xs font-medium">
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                ) : null;
+
               return (
                 <div
                   key={`${slot.scheduleId}_${slot.start.getTime()}`}
-                  role="button"
-                  tabIndex={0}
-                  className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-background-border px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-background-bottom/50 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
-                  onClick={() => handleBookedSlotClick(slot)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      handleBookedSlotClick(slot);
-                    }
-                  }}
+                  className="relative flex w-full items-center justify-between rounded-lg border border-background-border px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-background-bottom/50"
                 >
-                  <div className="flex min-w-0 items-center gap-3">
-                    {hasReservation && slot.reservation ? (
-                      <Link
-                        href={`/profile/${resolveCounterpartyId(slot.reservation, myUserId || '')}`}
-                        className="shrink-0 transition-opacity hover:opacity-80"
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => e.stopPropagation()}
-                      >
-                        <Avatar className="size-8 shrink-0">
-                          <AvatarImage
-                            src={
-                              slot.reservation.avatar
-                                ? getAvatarThumbUrl(slot.reservation.avatar)
-                                : undefined
-                            }
-                            alt={slot.reservation.name}
-                          />
-                          <AvatarFallback className="text-xs font-medium">
-                            {initials}
-                          </AvatarFallback>
-                        </Avatar>
-                      </Link>
+                  {/* Invisible absolute button covering the entire row to handle row click/keydown without nesting issues */}
+                  <button
+                    className="absolute inset-0 rounded-lg focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                    onClick={() => handleBookedSlotClick(slot)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleBookedSlotClick(slot);
+                      }
+                    }}
+                    aria-label="查看預約詳情"
+                  />
+
+                  <div className="pointer-events-none relative z-10 flex min-w-0 items-center gap-3">
+                    {hasReservation && slot.reservation && avatarContent ? (
+                      profileHref ? (
+                        <Link
+                          href={profileHref}
+                          className="pointer-events-auto shrink-0 transition-opacity hover:opacity-80"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          {avatarContent}
+                        </Link>
+                      ) : (
+                        avatarContent
+                      )
                     ) : null}
 
                     <div className="flex min-w-0 flex-col gap-1">
@@ -147,14 +166,20 @@ export function MentorScheduleConfig({
                         {formatBookingSlotTime(slot)}
                       </span>
                       {hasReservation && slot.reservation ? (
-                        <Link
-                          href={`/profile/${resolveCounterpartyId(slot.reservation, myUserId || '')}`}
-                          className="truncate text-xs font-normal text-text-secondary transition-colors hover:text-brand-500 hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => e.stopPropagation()}
-                        >
-                          學員 {slot.reservation.name}
-                        </Link>
+                        profileHref ? (
+                          <Link
+                            href={profileHref}
+                            className="pointer-events-auto truncate text-xs font-normal text-text-secondary transition-colors hover:text-brand-500 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            學員 {slot.reservation.name}
+                          </Link>
+                        ) : (
+                          <span className="truncate text-xs font-normal text-text-secondary">
+                            學員 {slot.reservation.name}
+                          </span>
+                        )
                       ) : (
                         <span className="truncate text-xs font-normal text-text-secondary">
                           {slot.status === null
@@ -167,7 +192,7 @@ export function MentorScheduleConfig({
                     </div>
                   </div>
                   <span
-                    className={`shrink-0 text-xs font-semibold ${
+                    className={`relative z-10 shrink-0 text-xs font-semibold ${
                       slot.status === 'PENDING'
                         ? 'text-status-warning-default'
                         : slot.status === 'BOOKED'
