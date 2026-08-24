@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
+import { getInitials } from '@/lib/avatar/getInitials';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
 
@@ -49,20 +50,31 @@ export function QuickReplyDialog({
 
   if (!reservation) return null;
 
-  const initials =
-    reservation.name
-      .split(' ')
-      .map((s) => s[0])
-      .join('')
-      .slice(0, 2) || 'U';
+  const initials = getInitials(reservation.name);
 
   const menteeMessage = reservation.menteeMessage?.content;
   const menteeId = resolveCounterpartyId(reservation, myUserId || '');
   const profileHref = menteeId ? `/profile/${menteeId}` : undefined;
 
-  const handleProfileLinkClick = () => {
+  const handleProfileLinkClick = (e: React.MouseEvent) => {
+    if (isMutating) {
+      e.preventDefault();
+      return;
+    }
     onOpenChange(false);
   };
+
+  const avatarContent = (
+    <Avatar className="size-10 sm:size-12">
+      <AvatarImage
+        src={
+          reservation.avatar ? getAvatarThumbUrl(reservation.avatar) : undefined
+        }
+        alt={reservation.name}
+      />
+      <AvatarFallback>{initials}</AvatarFallback>
+    </Avatar>
+  );
 
   // Block outside-click/Esc dismissal while a mutation is in flight: this
   // dialog is a single shared instance re-used across reservations, so an
@@ -94,30 +106,10 @@ export function QuickReplyDialog({
                   className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                   aria-label={`查看 ${reservation.name} 的個人資料`}
                 >
-                  <Avatar className="size-10 sm:size-12">
-                    <AvatarImage
-                      src={
-                        reservation.avatar
-                          ? getAvatarThumbUrl(reservation.avatar)
-                          : undefined
-                      }
-                      alt={reservation.name}
-                    />
-                    <AvatarFallback>{initials}</AvatarFallback>
-                  </Avatar>
+                  {avatarContent}
                 </Link>
               ) : (
-                <Avatar className="size-10 sm:size-12">
-                  <AvatarImage
-                    src={
-                      reservation.avatar
-                        ? getAvatarThumbUrl(reservation.avatar)
-                        : undefined
-                    }
-                    alt={reservation.name}
-                  />
-                  <AvatarFallback>{initials}</AvatarFallback>
-                </Avatar>
+                avatarContent
               )}
               <div className="min-w-0 flex-1">
                 {profileHref ? (
