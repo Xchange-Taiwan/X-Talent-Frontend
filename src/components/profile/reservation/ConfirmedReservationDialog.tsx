@@ -149,6 +149,12 @@ export function ConfirmedReservationDialog({
                 <span className="truncate">{reservation.time}</span>
               </div>
             </div>
+
+            {/* Meeting Info Block */}
+            <div className="mt-3 flex items-center gap-1.5 text-11 text-text-tertiary sm:text-xs">
+              <Mail className="size-3.5 shrink-0" aria-hidden />
+              <span>會議連結已寄至您的信箱</span>
+            </div>
           </div>
 
           {/* Mentee Message block */}
@@ -168,12 +174,6 @@ export function ConfirmedReservationDialog({
               </div>
             </div>
           ) : null}
-
-          {/* Meeting Info Block */}
-          <div className="mt-6 flex items-center gap-1.5 text-11 text-text-tertiary sm:text-xs">
-            <Mail className="size-3.5 shrink-0" aria-hidden />
-            <span>會議連結已寄至您的信箱</span>
-          </div>
 
           {/* Footer action buttons */}
           <div className="mt-6 flex w-full items-center gap-2 sm:justify-end">
