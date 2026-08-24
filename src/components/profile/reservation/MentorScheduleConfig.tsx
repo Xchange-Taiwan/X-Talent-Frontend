@@ -141,11 +141,11 @@ export function MentorScheduleConfig({
                         {formatBookingSlotTime(slot)}
                       </span>
                       {hasReservation && slot.reservation ? (
-                        <span className="text-xs font-normal text-text-secondary">
+                        <span className="truncate text-xs font-normal text-text-secondary">
                           學員 {slot.reservation.name}
                         </span>
                       ) : (
-                        <span className="text-xs font-normal text-text-secondary">
+                        <span className="truncate text-xs font-normal text-text-secondary">
                           {slot.status === null
                             ? '時段已保留'
                             : slot.menteeName
