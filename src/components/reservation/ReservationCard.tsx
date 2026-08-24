@@ -119,11 +119,6 @@ export function ReservationCard({
                     dtend={item.dtend}
                   />
                 )}
-                {variant === 'pending' && (
-                  <span className="inline-flex items-center rounded-md border border-status-warning-active/30 bg-status-warning-active/10 px-2 py-0.5 text-11 font-bold whitespace-nowrap text-status-warning-default">
-                    等待回覆
-                  </span>
-                )}
               </div>
             </div>
 
@@ -182,7 +177,7 @@ export function ReservationCard({
               </div>
             ) : /* If not upcoming (e.g. pending), show actions at the bottom on all screen sizes */
             actions ? (
-              <div className="mt-3 flex w-full items-center gap-2">
+              <div className="mt-3 flex w-full items-center gap-2 sm:justify-end">
                 {actions}
               </div>
             ) : null}
@@ -209,7 +204,14 @@ function JoinMeetButton({
       size="sm"
       className="h-9 w-full rounded-lg bg-brand-500 px-4 text-xs font-medium text-text-primary hover:bg-brand-500/90 sm:w-auto sm:text-sm"
     >
-      {isPending ? '載入中...' : '加入 Google Meet'}
+      {isPending ? (
+        '載入中...'
+      ) : (
+        <>
+          <span className="hidden sm:inline">加入 Google Meet</span>
+          <span className="sm:hidden">加入會議</span>
+        </>
+      )}
     </Button>
   );
 }
