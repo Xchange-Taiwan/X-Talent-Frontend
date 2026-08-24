@@ -68,7 +68,7 @@ export function ConfirmedReservationDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="w-[90vw] max-w-[420px] p-0 sm:max-w-lg">
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           <DialogHeader className="mb-4">
             <DialogTitle className="text-center sm:text-left">
               已確認預約詳情
@@ -76,7 +76,7 @@ export function ConfirmedReservationDialog({
           </DialogHeader>
 
           {/* User Details Block */}
-          <div className="rounded-2xl border p-4 sm:p-5">
+          <div className="rounded-2xl border p-3.5 sm:p-5">
             <div className="flex w-full min-w-0 items-center gap-3">
               {profileHref ? (
                 <Link
@@ -111,19 +111,19 @@ export function ConfirmedReservationDialog({
                 </Avatar>
               )}
               <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center justify-between gap-2">
+                <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2">
                   {profileHref ? (
                     <Link
                       href={profileHref}
                       onClick={handleProfileLinkClick}
-                      className="group min-w-0 flex-1 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                      className="group block min-w-0 flex-1 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                     >
-                      <span className="truncate font-medium hover:underline sm:text-base">
+                      <span className="block truncate font-medium hover:underline sm:text-base">
                         {reservation.name}
                       </span>
                     </Link>
                   ) : (
-                    <span className="min-w-0 flex-1 truncate font-medium sm:text-base">
+                    <span className="block min-w-0 flex-1 truncate font-medium sm:text-base">
                       {reservation.name}
                     </span>
                   )}
