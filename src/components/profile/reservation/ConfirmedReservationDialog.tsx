@@ -115,7 +115,7 @@ export function ConfirmedReservationDialog({
                     <Link
                       href={profileHref}
                       onClick={handleProfileLinkClick}
-                      className="group inline-block max-w-full rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                      className="group block w-full min-w-0 rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                     >
                       <div className="truncate font-medium hover:underline sm:text-base">
                         {reservation.name}
@@ -152,11 +152,9 @@ export function ConfirmedReservationDialog({
           </div>
 
           {/* Meeting Info Block */}
-          <div className="mt-6 flex items-center gap-2 rounded-2xl border bg-background-bottom/40 p-4">
-            <Mail className="size-4 shrink-0 text-text-tertiary" aria-hidden />
-            <span className="text-xs text-text-secondary sm:text-sm">
-              會議連結已寄至您的信箱
-            </span>
+          <div className="mt-6 flex items-center gap-1.5 text-11 text-text-tertiary sm:text-xs">
+            <Mail className="size-3.5 shrink-0" aria-hidden />
+            <span>會議連結已寄至您的信箱</span>
           </div>
 
           {/* Footer action buttons */}
