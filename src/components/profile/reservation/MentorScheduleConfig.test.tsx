@@ -428,7 +428,7 @@ describe('MentorScheduleConfig', () => {
     expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
   });
 
-  it('renders avatar and link for both PENDING and BOOKED slots when reservation is present', () => {
+  it('renders avatar and text for both PENDING and BOOKED slots without nested links', () => {
     const mockConfirmedReservation: Reservation = {
       id: 'res-102',
       name: 'Alice',
@@ -459,16 +459,14 @@ describe('MentorScheduleConfig', () => {
       />
     );
 
-    // Booked slot (Alice) should have an avatar link
-    const aliceAvatarLink = screen.getByRole('link', {
-      name: '查看 Alice 的個人資料',
-    });
-    expect(aliceAvatarLink).toBeInTheDocument();
+    // Booked slot row (Alice) shouldn't contain a link
+    const aliceRow = screen.getByText('學員 Alice').closest('[role="button"]');
+    expect(aliceRow).toBeInTheDocument();
+    expect(within(aliceRow!).queryByRole('link')).toBeNull();
 
-    // Pending slot (Bob) should also have an avatar link
-    const bobAvatarLink = screen.getByRole('link', {
-      name: '查看 Bob 的個人資料',
-    });
-    expect(bobAvatarLink).toBeInTheDocument();
+    // Pending slot row (Bob) also shouldn't have links in the row
+    const bobRow = screen.getByText('學員 Bob').closest('[role="button"]');
+    expect(bobRow).toBeInTheDocument();
+    expect(within(bobRow!).queryByRole('link')).toBeNull();
   });
 });

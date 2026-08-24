@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -12,7 +11,6 @@ import type {
 } from '@/lib/profile/bookingAvailability';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 import { isSlotTaken } from '@/lib/profile/scheduleHelpers';
-import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
 
 import { ConfirmedReservationDialog } from './ConfirmedReservationDialog';
@@ -98,11 +96,6 @@ export function MentorScheduleConfig({
           <div className="flex w-full flex-col gap-2">
             {bookedSlots.map((slot) => {
               const hasReservation = !!slot.reservation;
-              const menteeId =
-                hasReservation && slot.reservation
-                  ? resolveCounterpartyId(slot.reservation, myUserId || '')
-                  : '';
-              const profileHref = menteeId ? `/profile/${menteeId}` : undefined;
               const initials =
                 hasReservation && slot.reservation
                   ? slot.reservation.name
@@ -127,47 +120,30 @@ export function MentorScheduleConfig({
                   }}
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    {hasReservation && slot.reservation && profileHref ? (
-                      <Link
-                        href={profileHref}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                        }}
-                        className="group shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
-                        aria-label={`查看 ${slot.reservation.name} 的個人資料`}
-                      >
-                        <Avatar className="size-8">
-                          <AvatarImage
-                            src={
-                              slot.reservation.avatar
-                                ? getAvatarThumbUrl(slot.reservation.avatar)
-                                : undefined
-                            }
-                            alt={slot.reservation.name}
-                          />
-                          <AvatarFallback className="text-xs font-medium">
-                            {initials}
-                          </AvatarFallback>
-                        </Avatar>
-                      </Link>
+                    {hasReservation && slot.reservation ? (
+                      <Avatar className="size-8 shrink-0">
+                        <AvatarImage
+                          src={
+                            slot.reservation.avatar
+                              ? getAvatarThumbUrl(slot.reservation.avatar)
+                              : undefined
+                          }
+                          alt={slot.reservation.name}
+                        />
+                        <AvatarFallback className="text-xs font-medium">
+                          {initials}
+                        </AvatarFallback>
+                      </Avatar>
                     ) : null}
 
                     <div className="flex min-w-0 flex-col gap-1">
                       <span className="font-medium text-text-primary">
                         {formatBookingSlotTime(slot)}
                       </span>
-                      {hasReservation && slot.reservation && profileHref ? (
-                        <Link
-                          href={profileHref}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                          }}
-                          className="group rounded-sm focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
-                        >
-                          <span className="text-xs font-normal text-text-secondary group-hover:underline">
-                            學員 {slot.reservation.name}
-                          </span>
-                        </Link>
+                      {hasReservation && slot.reservation ? (
+                        <span className="text-xs font-normal text-text-secondary">
+                          學員 {slot.reservation.name}
+                        </span>
                       ) : (
                         <span className="text-xs font-normal text-text-secondary">
                           {slot.status === null
