@@ -86,10 +86,11 @@ function ReservationItem({
             </Badge>
           ) : null
         ) : variant === 'pending-mentor' ? (
-          <div className="flex gap-2">
+          <div className="flex w-full gap-2">
             <RejectReservationDialog
               reservation={reservation}
               disabled={isMutating}
+              className="flex-1 sm:flex-none"
               onReject={async ({ reason }) =>
                 rejectOrCancel(reservation, reason, 'reject')
               }
@@ -97,6 +98,7 @@ function ReservationItem({
             <AcceptReservationDialog
               reservation={reservation}
               disabled={isMutating}
+              className="flex-1 sm:flex-none"
               onAccept={async ({ message }) => accept(reservation, message)}
             />
           </div>
@@ -104,6 +106,7 @@ function ReservationItem({
           <CancelReservationDialog
             reservation={reservation}
             disabled={isMutating}
+            className="w-full sm:w-auto"
             onConfirmCancel={async ({ reason }) =>
               rejectOrCancel(reservation, reason, 'cancel')
             }
@@ -164,7 +167,7 @@ export function ReservationList({
 
       {items.length === 0 && (
         <Card className="border-dashed">
-          <CardContent className="text-text-tertiary p-8 text-center">
+          <CardContent className="p-8 text-center text-text-tertiary">
             目前尚無資料
           </CardContent>
         </Card>
