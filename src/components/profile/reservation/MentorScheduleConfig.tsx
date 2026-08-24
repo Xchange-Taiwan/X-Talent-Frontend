@@ -124,6 +124,7 @@ export function MentorScheduleConfig({
                         href={`/profile/${resolveCounterpartyId(slot.reservation, myUserId || '')}`}
                         className="shrink-0 transition-opacity hover:opacity-80"
                         onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
                       >
                         <Avatar className="size-8 shrink-0">
                           <AvatarImage
@@ -150,6 +151,7 @@ export function MentorScheduleConfig({
                           href={`/profile/${resolveCounterpartyId(slot.reservation, myUserId || '')}`}
                           className="truncate text-xs font-normal text-text-secondary transition-colors hover:text-brand-500 hover:underline"
                           onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
                         >
                           學員 {slot.reservation.name}
                         </Link>
