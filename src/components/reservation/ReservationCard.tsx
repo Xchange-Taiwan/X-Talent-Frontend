@@ -111,22 +111,19 @@ export function ReservationCard({
                   </div>
                 </div>
               )}
-              {/* Show actions in top-right ONLY on >=sm, and show status badge in top-right on mobile */}
+              {/* Show status badge in top-right ALWAYS on all screen sizes */}
               <div className="flex shrink-0 items-center gap-2">
                 {isUpcoming && (
-                  <div className="block sm:hidden">
-                    <ReservationStatusBadge
-                      dtstart={item.dtstart}
-                      dtend={item.dtend}
-                    />
-                  </div>
+                  <ReservationStatusBadge
+                    dtstart={item.dtstart}
+                    dtend={item.dtend}
+                  />
                 )}
                 {variant === 'pending' && (
-                  <span className="inline-flex items-center rounded-md border border-status-warning-active/30 bg-status-warning-active/10 px-2 py-0.5 text-11 font-bold whitespace-nowrap text-status-warning-default sm:hidden">
+                  <span className="inline-flex items-center rounded-md border border-status-warning-active/30 bg-status-warning-active/10 px-2 py-0.5 text-11 font-bold whitespace-nowrap text-status-warning-default">
                     等待回覆
                   </span>
                 )}
-                <div className="hidden shrink-0 sm:block">{actions}</div>
               </div>
             </div>
 
@@ -145,14 +142,6 @@ export function ReservationCard({
                   <span className="truncate">{item.time}</span>
                 </div>
               </div>
-              {isUpcoming ? (
-                <div className="hidden sm:block">
-                  <ReservationStatusBadge
-                    dtstart={item.dtstart}
-                    dtend={item.dtend}
-                  />
-                </div>
-              ) : null}
             </div>
 
             {hasAnyMessage ? (
@@ -181,8 +170,8 @@ export function ReservationCard({
                   <span>會議連結已寄至您的信箱</span>
                 </div>
                 <div className="flex w-full items-center gap-2 sm:w-auto">
-                  {/* Mobile-only actions (such as cancel button) grouped with Meet button */}
-                  <div className="flex-1 sm:hidden">{actions}</div>
+                  {/* Actions (such as cancel button) grouped with Meet button on all screen sizes */}
+                  <div className="flex-1 sm:flex-none">{actions}</div>
                   <div className="flex-1 sm:flex-none">
                     <JoinMeetButton
                       reservationId={item.id}
@@ -191,9 +180,9 @@ export function ReservationCard({
                   </div>
                 </div>
               </div>
-            ) : /* If not upcoming (e.g. pending), show actions at the bottom on mobile */
+            ) : /* If not upcoming (e.g. pending), show actions at the bottom on all screen sizes */
             actions ? (
-              <div className="mt-3 flex w-full items-center gap-2 sm:hidden">
+              <div className="mt-3 flex w-full items-center gap-2">
                 {actions}
               </div>
             ) : null}
