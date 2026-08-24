@@ -270,4 +270,48 @@ describe('ConfirmedReservationDialog', () => {
     expect(screen.getByText('學員留言')).toBeInTheDocument();
     expect(screen.getByText('這是學員的測試留言。')).toBeInTheDocument();
   });
+
+  it('calls onOpenChange(false) when clicking the profile link under non-mutating state', () => {
+    const mockOnOpenChange = vi.fn();
+    render(
+      <ConfirmedReservationDialog
+        {...defaultProps}
+        onOpenChange={mockOnOpenChange}
+      />
+    );
+
+    const nameLink = screen.getByRole('link', { name: 'Alice User' });
+    fireEvent.click(nameLink);
+
+    expect(mockOnOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('does NOT call onOpenChange(false) and prevents navigation when clicking the profile link under mutating state', () => {
+    vi.mocked(useReservationActions).mockReturnValueOnce({
+      accept: vi.fn(),
+      rejectOrCancel: vi.fn(),
+      isMutating: true,
+    } as any);
+
+    const mockOnOpenChange = vi.fn();
+    render(
+      <ConfirmedReservationDialog
+        {...defaultProps}
+        onOpenChange={mockOnOpenChange}
+      />
+    );
+
+    const nameLink = screen.getByRole('link', { name: 'Alice User' });
+
+    const clickEvent = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+    });
+    const preventDefaultSpy = vi.spyOn(clickEvent, 'preventDefault');
+
+    fireEvent(nameLink, clickEvent);
+
+    expect(preventDefaultSpy).toHaveBeenCalled();
+    expect(mockOnOpenChange).not.toHaveBeenCalled();
+  });
 });

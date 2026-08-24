@@ -56,9 +56,25 @@ export function ConfirmedReservationDialog({
   const profileHref = menteeId ? `/profile/${menteeId}` : undefined;
   const menteeMessage = reservation.menteeMessage?.content;
 
-  const handleProfileLinkClick = () => {
+  const handleProfileLinkClick = (e: React.MouseEvent) => {
+    if (isMutating || isJoiningMeet) {
+      e.preventDefault();
+      return;
+    }
     onOpenChange(false);
   };
+
+  const avatarContent = (
+    <Avatar className="size-10 sm:size-12">
+      <AvatarImage
+        src={
+          reservation.avatar ? getAvatarThumbUrl(reservation.avatar) : undefined
+        }
+        alt={reservation.name}
+      />
+      <AvatarFallback>{initials}</AvatarFallback>
+    </Avatar>
+  );
 
   const handleOpenChange = (next: boolean) => {
     if (isMutating || isJoiningMeet) return;
@@ -85,30 +101,10 @@ export function ConfirmedReservationDialog({
                   className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                   aria-label={`查看 ${reservation.name} 的個人資料`}
                 >
-                  <Avatar className="size-10 sm:size-12">
-                    <AvatarImage
-                      src={
-                        reservation.avatar
-                          ? getAvatarThumbUrl(reservation.avatar)
-                          : undefined
-                      }
-                      alt={reservation.name}
-                    />
-                    <AvatarFallback>{initials}</AvatarFallback>
-                  </Avatar>
+                  {avatarContent}
                 </Link>
               ) : (
-                <Avatar className="size-10 sm:size-12">
-                  <AvatarImage
-                    src={
-                      reservation.avatar
-                        ? getAvatarThumbUrl(reservation.avatar)
-                        : undefined
-                    }
-                    alt={reservation.name}
-                  />
-                  <AvatarFallback>{initials}</AvatarFallback>
-                </Avatar>
+                avatarContent
               )}
               <div className="min-w-0 flex-1">
                 <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2">

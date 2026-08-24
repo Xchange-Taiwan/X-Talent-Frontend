@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
+import { getInitials } from '@/lib/avatar/getInitials';
 import type {
   BookingSlot,
   SlotsSnapshot,
@@ -98,11 +99,7 @@ export function MentorScheduleConfig({
               const hasReservation = !!slot.reservation;
               const initials =
                 hasReservation && slot.reservation
-                  ? slot.reservation.name
-                      .split(' ')
-                      .map((n) => n[0])
-                      .slice(0, 2)
-                      .join('')
+                  ? getInitials(slot.reservation.name)
                   : '';
 
               return (
