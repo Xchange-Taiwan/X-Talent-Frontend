@@ -218,7 +218,7 @@ function JoinMeetButton({
       onClick={() => joinMeet(reservationId)}
       disabled={isPending}
       size="sm"
-      className="h-8 rounded-lg bg-brand-500 px-4 text-xs font-medium text-text-primary hover:bg-brand-500/90 sm:text-sm"
+      className="h-9 w-full rounded-lg bg-brand-500 px-4 text-xs font-medium text-text-primary hover:bg-brand-500/90 sm:w-auto sm:text-sm"
     >
       {isPending ? '載入中...' : '加入 Google Meet'}
     </Button>
