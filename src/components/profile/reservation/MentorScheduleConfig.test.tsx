@@ -427,4 +427,48 @@ describe('MentorScheduleConfig', () => {
 
     expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
   });
+
+  it('renders avatar and link for both PENDING and BOOKED slots when reservation is present', () => {
+    const mockConfirmedReservation: Reservation = {
+      id: 'res-102',
+      name: 'Alice',
+      roleLine: 'Mentee',
+      date: '2026-07-26',
+      time: '11:00 AM – 11:30 AM',
+      dtstart: Math.floor(new Date('2026-07-26T11:00:00Z').getTime() / 1000),
+      dtend: Math.floor(new Date('2026-07-26T11:30:00Z').getTime() / 1000),
+      messages: [],
+      scheduleId: 102,
+      version: 1,
+      senderUserId: 'user-alice',
+      participantUserId: 'user-mentor',
+    };
+    const slotsWithConfirmedReservation = mockSlots.map((slot) =>
+      slot.scheduleId === 102
+        ? { ...slot, reservation: mockConfirmedReservation }
+        : slot
+    );
+
+    render(
+      <MentorScheduleConfig
+        {...defaultProps}
+        slotsSnapshot={{
+          ...defaultProps.slotsSnapshot,
+          slots: slotsWithConfirmedReservation,
+        }}
+      />
+    );
+
+    // Booked slot (Alice) should have an avatar link
+    const aliceAvatarLink = screen.getByRole('link', {
+      name: '查看 Alice 的個人資料',
+    });
+    expect(aliceAvatarLink).toBeInTheDocument();
+
+    // Pending slot (Bob) should also have an avatar link
+    const bobAvatarLink = screen.getByRole('link', {
+      name: '查看 Bob 的個人資料',
+    });
+    expect(bobAvatarLink).toBeInTheDocument();
+  });
 });

@@ -97,15 +97,14 @@ export function MentorScheduleConfig({
         ) : (
           <div className="flex w-full flex-col gap-2">
             {bookedSlots.map((slot) => {
-              const isPendingWithRes =
-                slot.status === 'PENDING' && slot.reservation;
+              const hasReservation = !!slot.reservation;
               const menteeId =
-                isPendingWithRes && slot.reservation
+                hasReservation && slot.reservation
                   ? resolveCounterpartyId(slot.reservation, myUserId || '')
                   : '';
               const profileHref = menteeId ? `/profile/${menteeId}` : undefined;
               const initials =
-                isPendingWithRes && slot.reservation
+                hasReservation && slot.reservation
                   ? slot.reservation.name
                       .split(' ')
                       .map((n) => n[0])
@@ -128,7 +127,7 @@ export function MentorScheduleConfig({
                   }}
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    {isPendingWithRes && slot.reservation && profileHref ? (
+                    {hasReservation && slot.reservation && profileHref ? (
                       <Link
                         href={profileHref}
                         onClick={(e) => {
@@ -157,7 +156,7 @@ export function MentorScheduleConfig({
                       <span className="font-medium text-text-primary">
                         {formatBookingSlotTime(slot)}
                       </span>
-                      {isPendingWithRes && slot.reservation && profileHref ? (
+                      {hasReservation && slot.reservation && profileHref ? (
                         <Link
                           href={profileHref}
                           onClick={(e) => {
