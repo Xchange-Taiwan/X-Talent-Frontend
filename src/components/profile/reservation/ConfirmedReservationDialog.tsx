@@ -1,5 +1,6 @@
 'use client';
 
+import dayjs from 'dayjs';
 import { CalendarDays, Clock, Mail } from 'lucide-react';
 import Link from 'next/link';
 import * as React from 'react';
@@ -54,6 +55,29 @@ export function ConfirmedReservationDialog({
   const menteeId = resolveCounterpartyId(reservation, myUserId || '');
   const profileHref = menteeId ? `/profile/${menteeId}` : undefined;
 
+  const getRemainingTime = (dtstart: number) => {
+    const now = dayjs();
+    const target = dayjs.unix(dtstart);
+    const diffMs = target.diff(now);
+    if (diffMs <= 0) return null;
+
+    const totalMinutes = Math.floor(diffMs / 1000 / 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    const days = Math.floor(hours / 24);
+    const remainingHours = hours % 24;
+
+    if (days > 0) {
+      return `剩下 ${days} 天 ${remainingHours} 小時`;
+    } else if (hours > 0) {
+      return `剩下 ${hours} 小時 ${minutes} 分鐘`;
+    } else {
+      return `剩下 ${minutes} 分鐘`;
+    }
+  };
+
+  const remainingTime = getRemainingTime(reservation.dtstart);
+
   const handleProfileLinkClick = () => {
     onOpenChange(false);
   };
@@ -75,14 +99,28 @@ export function ConfirmedReservationDialog({
 
           {/* User Details Block */}
           <div className="rounded-2xl border p-4 sm:p-5">
-            <div className="flex items-center gap-3">
-              {profileHref ? (
-                <Link
-                  href={profileHref}
-                  onClick={handleProfileLinkClick}
-                  className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
-                  aria-label={`查看 ${reservation.name} 的個人資料`}
-                >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                {profileHref ? (
+                  <Link
+                    href={profileHref}
+                    onClick={handleProfileLinkClick}
+                    className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                    aria-label={`查看 ${reservation.name} 的個人資料`}
+                  >
+                    <Avatar className="size-10 sm:size-12">
+                      <AvatarImage
+                        src={
+                          reservation.avatar
+                            ? getAvatarThumbUrl(reservation.avatar)
+                            : undefined
+                        }
+                        alt={reservation.name}
+                      />
+                      <AvatarFallback>{initials}</AvatarFallback>
+                    </Avatar>
+                  </Link>
+                ) : (
                   <Avatar className="size-10 sm:size-12">
                     <AvatarImage
                       src={
@@ -94,40 +132,34 @@ export function ConfirmedReservationDialog({
                     />
                     <AvatarFallback>{initials}</AvatarFallback>
                   </Avatar>
-                </Link>
-              ) : (
-                <Avatar className="size-10 sm:size-12">
-                  <AvatarImage
-                    src={
-                      reservation.avatar
-                        ? getAvatarThumbUrl(reservation.avatar)
-                        : undefined
-                    }
-                    alt={reservation.name}
-                  />
-                  <AvatarFallback>{initials}</AvatarFallback>
-                </Avatar>
-              )}
-              <div className="min-w-0 flex-1">
-                {profileHref ? (
-                  <Link
-                    href={profileHref}
-                    onClick={handleProfileLinkClick}
-                    className="group inline-block max-w-full rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
-                  >
-                    <div className="truncate font-medium hover:underline sm:text-base">
+                )}
+                <div className="min-w-0 flex-1">
+                  {profileHref ? (
+                    <Link
+                      href={profileHref}
+                      onClick={handleProfileLinkClick}
+                      className="group inline-block max-w-full rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                    >
+                      <div className="truncate font-medium hover:underline sm:text-base">
+                        {reservation.name}
+                      </div>
+                    </Link>
+                  ) : (
+                    <div className="truncate font-medium sm:text-base">
                       {reservation.name}
                     </div>
-                  </Link>
-                ) : (
-                  <div className="truncate font-medium sm:text-base">
-                    {reservation.name}
+                  )}
+                  <div className="truncate text-xs text-text-tertiary sm:text-sm">
+                    {reservation.roleLine}
                   </div>
-                )}
-                <div className="truncate text-xs text-text-tertiary sm:text-sm">
-                  {reservation.roleLine}
                 </div>
               </div>
+
+              {remainingTime && (
+                <span className="shrink-0 rounded-full bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-500 sm:text-sm">
+                  {remainingTime}
+                </span>
+              )}
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-text-tertiary sm:grid-cols-2 sm:text-sm">
