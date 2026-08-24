@@ -24,6 +24,7 @@ export async function fetchUserByIdServer(
     const data = await apiClient.getUnwrapped<
       components['schemas']['MentorProfileVO']
     >(`/v1/mentors/${userId}/${language}/profile`, {
+      auth: false,
       next: { revalidate: REVALIDATE_SECONDS },
     });
     return data ?? null;

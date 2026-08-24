@@ -14,6 +14,7 @@ export async function fetchTagCatalogServer(
     const data = await apiClient.getUnwrapped<
       components['schemas']['TagCatalogsVO']
     >(`/v1/users/${language}/tags/catalog`, {
+      auth: false,
       next: { revalidate: REVALIDATE_SECONDS },
     });
     return splitCatalogsByBucket(data);

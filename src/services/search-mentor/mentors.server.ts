@@ -31,6 +31,7 @@ export async function fetchMentorsServer(
   const data = await apiClient.getUnwrapped<
     components['schemas']['SearchMentorProfileListVO']
   >('/v1/mentors', {
+    auth: false,
     params: param as unknown as Record<
       string,
       string | number | boolean | undefined | null
