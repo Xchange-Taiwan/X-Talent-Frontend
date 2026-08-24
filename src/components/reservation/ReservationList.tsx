@@ -86,7 +86,7 @@ function ReservationItem({
             </Badge>
           ) : null
         ) : variant === 'pending-mentor' ? (
-          <div className="flex gap-2">
+          <div className="flex justify-end gap-2">
             <RejectReservationDialog
               reservation={reservation}
               disabled={isMutating}
