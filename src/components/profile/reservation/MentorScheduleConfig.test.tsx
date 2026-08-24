@@ -142,7 +142,9 @@ describe('MentorScheduleConfig', () => {
       />
     );
 
-    const confirmedRow = screen.getByText('學員 Alice').closest('button');
+    const confirmedRow = screen
+      .getByText('學員 Alice')
+      .closest('[role="button"]');
     expect(confirmedRow).not.toBeNull();
     fireEvent.click(confirmedRow!);
 
@@ -182,7 +184,9 @@ describe('MentorScheduleConfig', () => {
       />
     );
 
-    const confirmedRow = screen.getByText('學員 Alice').closest('button');
+    const confirmedRow = screen
+      .getByText('學員 Alice')
+      .closest('[role="button"]');
     expect(confirmedRow).not.toBeNull();
     fireEvent.click(confirmedRow!);
 
@@ -248,7 +252,7 @@ describe('MentorScheduleConfig', () => {
       />
     );
 
-    const aliceRow = screen.getByText('學員 Alice').closest('button');
+    const aliceRow = screen.getByText('學員 Alice').closest('[role="button"]');
     expect(aliceRow).not.toBeNull();
     fireEvent.click(aliceRow!);
 
@@ -256,7 +260,9 @@ describe('MentorScheduleConfig', () => {
     expect(mockDialog).toBeInTheDocument();
     expect(mockDialog).toHaveAttribute('data-reservation-id', 'res-102');
 
-    const charlieRow = screen.getByText('學員 Charlie').closest('button');
+    const charlieRow = screen
+      .getByText('學員 Charlie')
+      .closest('[role="button"]');
     expect(charlieRow).not.toBeNull();
     fireEvent.click(charlieRow!);
 
@@ -275,7 +281,7 @@ describe('MentorScheduleConfig', () => {
       />
     );
 
-    const pendingRow = screen.getByText('學員 Bob').closest('button');
+    const pendingRow = screen.getByText('學員 Bob').closest('[role="button"]');
     expect(pendingRow).not.toBeNull();
     fireEvent.click(pendingRow!);
 
@@ -301,7 +307,7 @@ describe('MentorScheduleConfig', () => {
       />
     );
 
-    const pendingRow = screen.getByText('學員 Bob').closest('button');
+    const pendingRow = screen.getByText('學員 Bob').closest('[role="button"]');
     expect(pendingRow).not.toBeNull();
     fireEvent.click(pendingRow!);
 
@@ -389,7 +395,9 @@ describe('MentorScheduleConfig', () => {
       />
     );
 
-    const confirmedRow = screen.getByText('學員 Alice').closest('button');
+    const confirmedRow = screen
+      .getByText('學員 Alice')
+      .closest('[role="button"]');
     expect(confirmedRow).not.toBeNull();
     fireEvent.click(confirmedRow!);
 
@@ -407,7 +415,7 @@ describe('MentorScheduleConfig', () => {
   it('closes QuickReplyDialog and clears activeDialogType when onOpenChange(false) is triggered', () => {
     render(<MentorScheduleConfig {...defaultProps} />);
 
-    const pendingRow = screen.getByText('學員 Bob').closest('button');
+    const pendingRow = screen.getByText('學員 Bob').closest('[role="button"]');
     expect(pendingRow).not.toBeNull();
     fireEvent.click(pendingRow!);
 

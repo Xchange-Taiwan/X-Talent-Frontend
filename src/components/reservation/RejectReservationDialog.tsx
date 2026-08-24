@@ -3,7 +3,7 @@
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { Button, type ButtonProps } from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -24,6 +24,7 @@ interface Props {
   reservation: Reservation;
   className?: string;
   disabled?: boolean;
+  size?: ButtonProps['size'];
   onReject?: (payload: { id: string; reason: string }) => Promise<void> | void;
 }
 
@@ -31,6 +32,7 @@ export default function RejectReservationDialog({
   reservation,
   className,
   disabled = false,
+  size = 'sm',
   onReject,
 }: Props) {
   const [reason, setReason] = useState('');
@@ -60,9 +62,9 @@ export default function RejectReservationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button
-          size="sm"
+          size={size}
           variant="destructive"
-          className={cn('min-h-9 px-3', className)}
+          className={cn(size === 'sm' && 'min-h-9 px-3', className)}
           disabled={disabled}
         >
           拒絕
@@ -103,7 +105,7 @@ export default function RejectReservationDialog({
 
             <Button
               type="button"
-              className="bg-status-error-default text-text-white hover:bg-status-error-active w-full sm:w-auto"
+              className="w-full bg-status-error-default text-text-white hover:bg-status-error-active sm:w-auto"
               disabled={!canSubmit || disabled}
               onClick={handleReject}
             >

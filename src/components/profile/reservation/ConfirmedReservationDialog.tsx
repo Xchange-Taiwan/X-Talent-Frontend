@@ -1,6 +1,7 @@
 'use client';
 
 import { CalendarDays, Clock, Mail } from 'lucide-react';
+import Link from 'next/link';
 import * as React from 'react';
 
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
@@ -9,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -17,6 +17,7 @@ import { useReservationActions } from '@/hooks/user/reservation/useReservationAc
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { getInitials } from '@/lib/avatar/getInitials';
+import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
 
 interface ConfirmedReservationDialogProps {
@@ -50,6 +51,12 @@ export function ConfirmedReservationDialog({
   if (!reservation) return null;
 
   const initials = getInitials(reservation.name);
+  const menteeId = resolveCounterpartyId(reservation, myUserId || '');
+  const profileHref = menteeId ? `/profile/${menteeId}` : undefined;
+
+  const handleProfileLinkClick = () => {
+    onOpenChange(false);
+  };
 
   const handleOpenChange = (next: boolean) => {
     if (isMutating || isJoiningMeet) return;
@@ -69,21 +76,54 @@ export function ConfirmedReservationDialog({
           {/* User Details Block */}
           <div className="rounded-2xl border p-4 sm:p-5">
             <div className="flex items-center gap-3">
-              <Avatar className="size-10 sm:size-12">
-                <AvatarImage
-                  src={
-                    reservation.avatar
-                      ? getAvatarThumbUrl(reservation.avatar)
-                      : undefined
-                  }
-                  alt={reservation.name}
-                />
-                <AvatarFallback>{initials}</AvatarFallback>
-              </Avatar>
+              {profileHref ? (
+                <Link
+                  href={profileHref}
+                  onClick={handleProfileLinkClick}
+                  className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  aria-label={`查看 ${reservation.name} 的個人資料`}
+                >
+                  <Avatar className="size-10 sm:size-12">
+                    <AvatarImage
+                      src={
+                        reservation.avatar
+                          ? getAvatarThumbUrl(reservation.avatar)
+                          : undefined
+                      }
+                      alt={reservation.name}
+                    />
+                    <AvatarFallback>{initials}</AvatarFallback>
+                  </Avatar>
+                </Link>
+              ) : (
+                <Avatar className="size-10 sm:size-12">
+                  <AvatarImage
+                    src={
+                      reservation.avatar
+                        ? getAvatarThumbUrl(reservation.avatar)
+                        : undefined
+                    }
+                    alt={reservation.name}
+                  />
+                  <AvatarFallback>{initials}</AvatarFallback>
+                </Avatar>
+              )}
               <div className="min-w-0 flex-1">
-                <div className="truncate font-medium sm:text-base">
-                  {reservation.name}
-                </div>
+                {profileHref ? (
+                  <Link
+                    href={profileHref}
+                    onClick={handleProfileLinkClick}
+                    className="group inline-block max-w-full rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  >
+                    <div className="truncate font-medium transition-colors hover:text-brand-500 hover:underline sm:text-base">
+                      {reservation.name}
+                    </div>
+                  </Link>
+                ) : (
+                  <div className="truncate font-medium sm:text-base">
+                    {reservation.name}
+                  </div>
+                )}
                 <div className="truncate text-xs text-text-tertiary sm:text-sm">
                   {reservation.roleLine}
                 </div>
@@ -111,11 +151,12 @@ export function ConfirmedReservationDialog({
           </div>
 
           {/* Footer action buttons */}
-          <DialogFooter className="mt-6">
+          <div className="mt-6 flex w-full items-center gap-2 sm:justify-end">
             <CancelReservationDialog
               reservation={reservation}
               disabled={isMutating || isJoiningMeet}
-              className="w-full sm:w-auto"
+              size="default"
+              className="flex-1 sm:flex-none"
               onConfirmCancel={async ({ reason }) =>
                 rejectOrCancel(reservation, reason, 'cancel')
               }
@@ -123,11 +164,19 @@ export function ConfirmedReservationDialog({
             <Button
               onClick={() => joinMeet(reservation.id)}
               disabled={isJoiningMeet || isMutating}
-              className="w-full bg-brand-500 font-semibold text-text-primary hover:bg-brand-500/90 sm:w-auto"
+              aria-label="加入 Google Meet"
+              className="flex-1 bg-brand-500 font-semibold text-text-primary hover:bg-brand-500/90 sm:flex-none"
             >
-              {isJoiningMeet ? '載入中...' : '加入 Google Meet'}
+              {isJoiningMeet ? (
+                '載入中...'
+              ) : (
+                <>
+                  <span className="sm:hidden">加入會議</span>
+                  <span className="hidden sm:inline">加入 Google Meet</span>
+                </>
+              )}
             </Button>
-          </DialogFooter>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
