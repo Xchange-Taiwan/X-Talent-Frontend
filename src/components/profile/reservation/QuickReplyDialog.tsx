@@ -124,7 +124,7 @@ export function QuickReplyDialog({
                   <Link
                     href={profileHref}
                     onClick={handleProfileLinkClick}
-                    className="group inline-block max-w-full rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                    className="group block w-full min-w-0 rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                   >
                     <div className="truncate font-medium hover:underline sm:text-base">
                       {reservation.name}
