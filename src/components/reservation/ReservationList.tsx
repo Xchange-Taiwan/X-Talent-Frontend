@@ -90,6 +90,7 @@ function ReservationItem({
             <RejectReservationDialog
               reservation={reservation}
               disabled={isMutating}
+              className="text-xs sm:text-sm"
               onReject={async ({ reason }) =>
                 rejectOrCancel(reservation, reason, 'reject')
               }
@@ -97,6 +98,7 @@ function ReservationItem({
             <AcceptReservationDialog
               reservation={reservation}
               disabled={isMutating}
+              className="text-xs sm:text-sm"
               onAccept={async ({ message }) => accept(reservation, message)}
             />
           </div>
@@ -104,7 +106,7 @@ function ReservationItem({
           <CancelReservationDialog
             reservation={reservation}
             disabled={isMutating}
-            className="w-full sm:w-auto"
+            className="w-full text-xs sm:w-auto sm:text-sm"
             onConfirmCancel={async ({ reason }) =>
               rejectOrCancel(reservation, reason, 'cancel')
             }
