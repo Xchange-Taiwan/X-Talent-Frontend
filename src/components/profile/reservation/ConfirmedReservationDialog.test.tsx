@@ -244,7 +244,7 @@ describe('ConfirmedReservationDialog', () => {
 
     render(<ConfirmedReservationDialog {...defaultProps} />);
 
-    expect(screen.getByText('剩下 1 小時 0 分鐘')).toBeInTheDocument();
+    expect(screen.getByText('1 小時後開始')).toBeInTheDocument();
 
     vi.useRealTimers();
   });
