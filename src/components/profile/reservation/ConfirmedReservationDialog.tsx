@@ -76,8 +76,8 @@ export function ConfirmedReservationDialog({
 
           {/* User Details Block */}
           <div className="rounded-2xl border p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="flex min-w-0 flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex w-full min-w-0 flex-1 items-center gap-3">
                 {profileHref ? (
                   <Link
                     href={profileHref}
