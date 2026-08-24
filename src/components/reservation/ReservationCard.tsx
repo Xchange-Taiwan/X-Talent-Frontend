@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
+import { cn } from '@/lib/utils';
 import type { Reservation } from '@/types/reservation';
 
 export type ReservationCardVariant = 'upcoming' | 'pending' | 'history';
@@ -45,6 +46,23 @@ export function ReservationCard({
 
   const [imageFailed, setImageFailed] = React.useState(false);
 
+  // Helper to render user name and role line, eliminating duplicate code smell
+  const renderUserInfo = (isLink: boolean) => (
+    <>
+      <div
+        className={cn(
+          'truncate text-sm font-medium sm:text-base',
+          isLink && 'group-hover:underline'
+        )}
+      >
+        {item.name}
+      </div>
+      <div className="truncate text-xs text-text-tertiary sm:text-sm">
+        {item.roleLine}
+      </div>
+    </>
+  );
+
   const avatar = (
     <Avatar className="size-10 sm:size-12">
       {item.avatar && !imageFailed ? (
@@ -76,7 +94,7 @@ export function ReservationCard({
               href={profileHref}
               aria-label={profileAriaLabel}
               onClick={onProfileClick}
-              className="focus-visible:ring-brand-500 shrink-0 rounded-full focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+              className="shrink-0 rounded-full focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
             >
               {avatar}
             </Link>
@@ -86,39 +104,36 @@ export function ReservationCard({
 
           {/* Main content */}
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center justify-between gap-2">
+            <div className="flex min-w-0 items-start justify-between gap-2">
               {profileHref ? (
                 <Link
                   href={profileHref}
                   aria-label={profileAriaLabel}
                   onClick={onProfileClick}
-                  className="group focus-visible:ring-brand-500 min-w-0 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  className="group min-w-0 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                 >
-                  <div className="truncate text-sm font-medium group-hover:underline sm:text-base">
-                    {item.name}
-                  </div>
-                  <div className="text-text-tertiary truncate text-xs sm:text-sm">
-                    {item.roleLine}
-                  </div>
+                  {renderUserInfo(true)}
                 </Link>
               ) : (
-                <div className="min-w-0 truncate">
-                  <div className="truncate text-sm font-medium sm:text-base">
-                    {item.name}
-                  </div>
-                  <div className="text-text-tertiary truncate text-xs sm:text-sm">
-                    {item.roleLine}
-                  </div>
-                </div>
+                <div className="min-w-0 truncate">{renderUserInfo(false)}</div>
               )}
-              <div className="shrink-0">{actions}</div>
+              {/* Show status badge in top-right ALWAYS on all screen sizes */}
+              <div className="flex shrink-0 items-center gap-2">
+                {isUpcoming && (
+                  <ReservationStatusBadge
+                    dtstart={item.dtstart}
+                    dtend={item.dtend}
+                    className="px-1.5 text-11"
+                  />
+                )}
+              </div>
             </div>
 
             {/* Divider only on >=sm to match Figma feel */}
-            <div className="bg-background-border my-3 hidden h-px sm:block" />
+            <div className="my-3 hidden h-px bg-background-border sm:block" />
 
             {/* Date & time row */}
-            <div className="text-text-tertiary mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs sm:mt-0 sm:text-sm">
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-text-tertiary sm:mt-0 sm:text-sm">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <div className="flex items-center gap-1.5">
                   <CalendarDays className="size-4" aria-hidden />
@@ -129,12 +144,6 @@ export function ReservationCard({
                   <span className="truncate">{item.time}</span>
                 </div>
               </div>
-              {isUpcoming ? (
-                <ReservationStatusBadge
-                  dtstart={item.dtstart}
-                  dtend={item.dtend}
-                />
-              ) : null}
             </div>
 
             {hasAnyMessage ? (
@@ -157,12 +166,28 @@ export function ReservationCard({
             {footer ? <div className="mt-3">{footer}</div> : null}
 
             {isUpcoming ? (
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <div className="text-11 text-text-tertiary flex items-center gap-1.5 sm:text-xs">
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-1.5 text-11 text-text-tertiary sm:text-xs">
                   <Mail className="size-3.5 shrink-0" aria-hidden />
                   <span>會議連結已寄至您的信箱</span>
                 </div>
-                <JoinMeetButton reservationId={item.id} myUserId={myUserId} />
+                <div className="flex w-full items-center gap-2 sm:w-auto">
+                  {/* Actions (such as cancel button) grouped with Meet button on all screen sizes */}
+                  {actions ? (
+                    <div className="flex-1 sm:flex-none">{actions}</div>
+                  ) : null}
+                  <div className="flex-1 sm:flex-none">
+                    <JoinMeetButton
+                      reservationId={item.id}
+                      myUserId={myUserId}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : /* If not upcoming (e.g. pending), show actions at the bottom on all screen sizes */
+            actions ? (
+              <div className="mt-3 flex w-full items-center justify-end gap-2">
+                {actions}
               </div>
             ) : null}
           </div>
@@ -186,25 +211,32 @@ function JoinMeetButton({
       onClick={() => joinMeet(reservationId)}
       disabled={isPending}
       size="sm"
-      className="bg-brand-500 text-text-primary hover:bg-brand-500/90 h-8 rounded-lg px-4 text-xs font-medium sm:text-sm"
+      className="h-9 w-full rounded-lg bg-brand-500 px-4 text-xs font-medium text-text-primary hover:bg-brand-500/90 sm:w-auto sm:text-sm"
     >
-      {isPending ? '載入中...' : '加入 Google Meet'}
+      {isPending ? (
+        '載入中...'
+      ) : (
+        <>
+          <span className="hidden sm:inline">加入 Google Meet</span>
+          <span className="sm:hidden">加入會議</span>
+        </>
+      )}
     </Button>
   );
 }
 
 function MessageBlock({ label, content }: { label: string; content: string }) {
   return (
-    <div className="bg-background-bottom/40 flex items-start gap-2 rounded-lg p-2.5 text-xs sm:text-sm">
+    <div className="flex items-start gap-2 rounded-lg bg-background-bottom/40 p-2.5 text-xs sm:text-sm">
       <MessageSquare
-        className="text-text-tertiary mt-0.5 size-3.5 shrink-0 sm:size-4"
+        className="mt-0.5 size-3.5 shrink-0 text-text-tertiary sm:size-4"
         aria-hidden
       />
       <div className="min-w-0 flex-1">
-        <div className="text-11 text-text-tertiary font-medium sm:text-xs">
+        <div className="text-11 font-medium text-text-tertiary sm:text-xs">
           {label}
         </div>
-        <p className="text-text-primary mt-0.5 line-clamp-2 break-words whitespace-pre-wrap">
+        <p className="mt-0.5 line-clamp-2 break-words whitespace-pre-wrap text-text-primary">
           {content}
         </p>
       </div>

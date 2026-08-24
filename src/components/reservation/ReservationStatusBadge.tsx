@@ -7,7 +7,7 @@ import { useReservationTimeStatus } from '@/hooks/reservation/useReservationTime
 import { cn } from '@/lib/utils';
 
 const statusBadgeVariants = cva(
-  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-11 leading-none font-medium sm:text-xs',
+  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-11 leading-none font-medium',
   {
     variants: {
       status: {
@@ -43,7 +43,7 @@ export function ReservationStatusBadge({
     >
       {status === 'live' ? (
         <span
-          className="bg-status-success-default size-1.5 rounded-full motion-safe:animate-pulse"
+          className="size-1.5 rounded-full bg-status-success-default motion-safe:animate-pulse"
           aria-hidden
         />
       ) : null}
