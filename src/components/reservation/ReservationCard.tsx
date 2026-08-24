@@ -167,7 +167,9 @@ export function ReservationCard({
                 </div>
                 <div className="flex w-full items-center gap-2 sm:w-auto">
                   {/* Actions (such as cancel button) grouped with Meet button on all screen sizes */}
-                  <div className="flex-1 sm:flex-none">{actions}</div>
+                  {actions ? (
+                    <div className="flex-1 sm:flex-none">{actions}</div>
+                  ) : null}
                   <div className="flex-1 sm:flex-none">
                     <JoinMeetButton
                       reservationId={item.id}

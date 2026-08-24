@@ -287,4 +287,39 @@ describe('ReservationCard', () => {
 
     (window as unknown as { location: unknown }).location = originalLocation;
   });
+
+  it('renders ReservationStatusBadge in the header container rather than the date/time row', () => {
+    const { container } = render(
+      <ReservationCard item={mockReservation} variant="upcoming" />
+    );
+    // Find the header flex container (min-w-0 flex-1 > div)
+    const headerContainer = container.querySelector('.min-w-0.flex-1 > div');
+    expect(headerContainer).toBeInTheDocument();
+
+    // Use within to assert that ReservationStatusBadge is inside the headerContainer
+    const badge = headerContainer?.querySelector('[role="status"]');
+    expect(badge).toBeInTheDocument();
+
+    // Confirm it is NOT inside the date/time row
+    const dateTimeRow = container.querySelector('.text-text-tertiary.mt-2');
+    const badgeInDateTime = dateTimeRow?.querySelector('[role="status"]');
+    expect(badgeInDateTime).not.toBeInTheDocument();
+  });
+
+  it('renders JoinMeetButton with responsive text spans to avoid layout breaking', () => {
+    render(<ReservationCard item={mockReservation} variant="upcoming" />);
+    const joinButton = screen.getByRole('button', {
+      name: /加入 Google Meet/i,
+    });
+    expect(joinButton).toBeInTheDocument();
+
+    // Check that the button contains both responsive spans
+    const desktopSpan = joinButton.querySelector('.hidden.sm\\:inline');
+    const mobileSpan = joinButton.querySelector('.sm\\:hidden');
+
+    expect(desktopSpan).toBeInTheDocument();
+    expect(desktopSpan?.textContent).toBe('加入 Google Meet');
+    expect(mobileSpan).toBeInTheDocument();
+    expect(mobileSpan?.textContent).toBe('加入會議');
+  });
 });
