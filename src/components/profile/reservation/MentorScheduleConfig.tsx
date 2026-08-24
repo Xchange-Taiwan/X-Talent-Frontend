@@ -165,7 +165,7 @@ export function MentorScheduleConfig({
                           }}
                           className="group rounded-sm focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
                         >
-                          <span className="text-xs font-normal text-text-secondary group-hover:text-brand-500 group-hover:underline">
+                          <span className="text-xs font-normal text-text-secondary group-hover:underline">
                             學員 {slot.reservation.name}
                           </span>
                         </Link>
