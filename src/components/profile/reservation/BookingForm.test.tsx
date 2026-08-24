@@ -217,7 +217,7 @@ describe('BookingForm', () => {
   it('triggers router.push to /reservation/mentor when a booked slot row is clicked in own profile mode', () => {
     render(<BookingForm {...defaultProps} isOwnMentorProfile={true} />);
 
-    const confirmedRow = screen.getByText('已確認').closest('button');
+    const confirmedRow = screen.getByText('已確認').closest('[role="button"]');
     expect(confirmedRow).not.toBeNull();
     fireEvent.click(confirmedRow!);
 
