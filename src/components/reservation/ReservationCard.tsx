@@ -117,6 +117,7 @@ export function ReservationCard({
                   <ReservationStatusBadge
                     dtstart={item.dtstart}
                     dtend={item.dtend}
+                    className="px-1.5 text-11"
                   />
                 )}
               </div>
