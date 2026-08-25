@@ -4,7 +4,7 @@ import { CalendarDays, Clock, Loader2, MessageSquarePlus } from 'lucide-react';
 import { useState } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
+import { Button, type ButtonProps } from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -25,6 +25,7 @@ interface Props {
   reservation: Reservation;
   className?: string;
   disabled?: boolean;
+  size?: ButtonProps['size'];
   onAccept?: (payload: { id: string; message: string }) => Promise<void> | void;
 }
 
@@ -32,6 +33,7 @@ export default function AcceptReservationDialog({
   reservation,
   className,
   disabled = false,
+  size = 'sm',
   onAccept,
 }: Props) {
   const [replyOpen, setReplyOpen] = useState(false);
@@ -74,8 +76,8 @@ export default function AcceptReservationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button
-          size="sm"
-          className={cn('min-h-9 px-3', className)}
+          size={size}
+          className={cn(size === 'sm' && 'min-h-9 px-3', className)}
           disabled={disabled}
         >
           接受
@@ -105,7 +107,7 @@ export default function AcceptReservationDialog({
               </Avatar>
               <div className="min-w-0">
                 <div className="truncate font-medium">{reservation.name}</div>
-                <div className="text-text-tertiary truncate text-sm">
+                <div className="truncate text-sm text-text-tertiary">
                   {reservation.roleLine}
                 </div>
               </div>
@@ -126,8 +128,8 @@ export default function AcceptReservationDialog({
           {menteeMessage ? (
             <div className="mt-6">
               <div className="mb-2 text-sm font-medium">學員所提出的問題</div>
-              <div className="bg-background-bottom/40 rounded-2xl border p-4 text-sm">
-                <p className="text-text-primary whitespace-pre-wrap">
+              <div className="rounded-2xl border bg-background-bottom/40 p-4 text-sm">
+                <p className="whitespace-pre-wrap text-text-primary">
                   {menteeMessage}
                 </p>
               </div>
@@ -154,7 +156,7 @@ export default function AcceptReservationDialog({
               <button
                 type="button"
                 onClick={() => setReplyOpen(true)}
-                className="text-text-tertiary hover:text-text-primary flex items-center gap-1.5 text-sm"
+                className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-text-primary"
                 disabled={isSubmitting}
               >
                 <MessageSquarePlus className="size-4" aria-hidden />

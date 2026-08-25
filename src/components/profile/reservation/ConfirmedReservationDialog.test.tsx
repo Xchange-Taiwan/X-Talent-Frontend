@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
@@ -235,5 +236,82 @@ describe('ConfirmedReservationDialog', () => {
     const cancelTrigger = screen.getByTestId('mock-cancel-dialog-trigger');
     expect(footer).toContainElement(cancelTrigger);
     expect(footer).toContainElement(joinBtn);
+  });
+
+  it('renders remaining time countdown badge correctly when reservation is in the future', () => {
+    vi.useFakeTimers();
+    // Set system time to 2026-07-26 at 10:00:00 UTC (1 hour before reservation start at 11:00:00 UTC)
+    vi.setSystemTime(new Date('2026-07-26T10:00:00Z'));
+
+    render(<ConfirmedReservationDialog {...defaultProps} />);
+
+    expect(screen.getByText('1 小時後開始')).toBeInTheDocument();
+
+    vi.useRealTimers();
+  });
+
+  it('renders mentee message block when reservation.menteeMessage is present', () => {
+    const reservationWithMsg: Reservation = {
+      ...mockReservation,
+      menteeMessage: {
+        content: '這是學員的測試留言。',
+      },
+    };
+
+    render(
+      <ConfirmedReservationDialog
+        {...defaultProps}
+        reservation={reservationWithMsg}
+      />
+    );
+
+    expect(screen.getByText('學員留言')).toBeInTheDocument();
+    expect(screen.getByText('這是學員的測試留言。')).toBeInTheDocument();
+  });
+
+  it('calls onOpenChange(false) when clicking the profile link under non-mutating state', () => {
+    const mockOnOpenChange = vi.fn();
+    render(
+      <ConfirmedReservationDialog
+        {...defaultProps}
+        onOpenChange={mockOnOpenChange}
+      />
+    );
+
+    const nameLink = screen.getByRole('link', { name: 'Alice User' });
+    fireEvent.click(nameLink);
+
+    expect(mockOnOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('does NOT call onOpenChange(false) and prevents navigation when clicking the profile link under mutating state', () => {
+    vi.mocked(useReservationActions).mockReturnValueOnce(
+      fromPartial({
+        accept: vi.fn(),
+        rejectOrCancel: vi.fn(),
+        isMutating: true,
+      })
+    );
+
+    const mockOnOpenChange = vi.fn();
+    render(
+      <ConfirmedReservationDialog
+        {...defaultProps}
+        onOpenChange={mockOnOpenChange}
+      />
+    );
+
+    const nameLink = screen.getByRole('link', { name: 'Alice User' });
+
+    const clickEvent = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+    });
+    const preventDefaultSpy = vi.spyOn(clickEvent, 'preventDefault');
+
+    fireEvent(nameLink, clickEvent);
+
+    expect(preventDefaultSpy).toHaveBeenCalled();
+    expect(mockOnOpenChange).not.toHaveBeenCalled();
   });
 });

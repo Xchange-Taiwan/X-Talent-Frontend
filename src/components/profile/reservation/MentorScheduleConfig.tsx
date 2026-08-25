@@ -2,16 +2,21 @@
 
 import { useState } from 'react';
 
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
+import { getInitials } from '@/lib/avatar/getInitials';
 import type {
   BookingSlot,
   SlotsSnapshot,
 } from '@/lib/profile/bookingAvailability';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 import { isSlotTaken } from '@/lib/profile/scheduleHelpers';
+import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
 
 import { ConfirmedReservationDialog } from './ConfirmedReservationDialog';
+import { ProfileLinkWrapper } from './ProfileLinkWrapper';
 import { QuickReplyDialog } from './QuickReplyDialog';
 
 interface MentorScheduleConfigProps {
@@ -28,7 +33,7 @@ const LoadingIndicator = () => (
   <div
     aria-busy="true"
     aria-live="polite"
-    className="text-text-disable flex min-h-10 items-center text-sm"
+    className="flex min-h-10 items-center text-sm text-text-disable"
   >
     讀取中…
   </div>
@@ -75,7 +80,7 @@ export function MentorScheduleConfig({
     <div className="flex w-full flex-col gap-6">
       {/* 1. 已預約區塊 */}
       <div className="flex w-full flex-col items-start gap-3">
-        <p className="text-text-primary text-sm font-semibold">已預約</p>
+        <p className="text-sm font-semibold text-text-primary">已預約</p>
         {/* Also wait on reservationsLoaded: a slot's `status` (schedule
             fetch) can resolve before its `.reservation` (reservations
             fetch) does — most visibly right after this component remounts,
@@ -87,60 +92,121 @@ export function MentorScheduleConfig({
         {!monthLoaded || !reservationsLoaded ? (
           <LoadingIndicator />
         ) : bookedSlots.length === 0 ? (
-          <div className="text-text-disable flex min-h-10 items-center text-sm">
+          <div className="flex min-h-10 items-center text-sm text-text-disable">
             目前無已預約時段
           </div>
         ) : (
           <div className="flex w-full flex-col gap-2">
-            {bookedSlots.map((slot) => (
-              <button
-                key={`${slot.scheduleId}_${slot.start.getTime()}`}
-                type="button"
-                className="border-background-border hover:bg-background-bottom/50 flex w-full cursor-pointer items-center justify-between rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors"
-                onClick={() => handleBookedSlotClick(slot)}
-              >
-                <div className="flex flex-col gap-1">
-                  <span className="text-text-primary font-medium">
-                    {formatBookingSlotTime(slot)}
-                  </span>
-                  <span className="text-text-secondary text-xs font-normal">
-                    {slot.status === null
-                      ? '時段已保留'
-                      : slot.menteeName
-                        ? `學員 ${slot.menteeName}`
-                        : '學員'}
+            {bookedSlots.map((slot) => {
+              const hasReservation = !!slot.reservation;
+              const initials =
+                hasReservation && slot.reservation
+                  ? getInitials(slot.reservation.name)
+                  : '';
+
+              const menteeId =
+                hasReservation && slot.reservation
+                  ? resolveCounterpartyId(slot.reservation, myUserId || '')
+                  : undefined;
+              const profileHref = menteeId ? `/profile/${menteeId}` : undefined;
+
+              const avatarContent =
+                hasReservation && slot.reservation ? (
+                  <Avatar className="size-8 shrink-0">
+                    <AvatarImage
+                      src={
+                        slot.reservation.avatar
+                          ? getAvatarThumbUrl(slot.reservation.avatar)
+                          : undefined
+                      }
+                      alt={slot.reservation.name}
+                    />
+                    <AvatarFallback className="text-xs font-medium">
+                      {initials}
+                    </AvatarFallback>
+                  </Avatar>
+                ) : null;
+
+              return (
+                <div
+                  key={`${slot.scheduleId}_${slot.start.getTime()}`}
+                  className="relative flex w-full items-center justify-between rounded-lg border border-background-border px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-background-bottom/50"
+                >
+                  {/* Invisible absolute button covering the entire row to handle row click/keydown without nesting issues */}
+                  <button
+                    type="button"
+                    className="absolute inset-0 rounded-lg focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                    onClick={() => handleBookedSlotClick(slot)}
+                    aria-label={`查看 ${formatBookingSlotTime(slot)} ${slot.reservation?.name ?? ''} 預約詳情`}
+                  />
+
+                  <div className="pointer-events-none relative z-10 flex min-w-0 items-center gap-3">
+                    {hasReservation && slot.reservation && avatarContent ? (
+                      <ProfileLinkWrapper
+                        href={profileHref}
+                        className="pointer-events-auto shrink-0 transition-opacity hover:opacity-80"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        {avatarContent}
+                      </ProfileLinkWrapper>
+                    ) : null}
+
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <span className="font-medium text-text-primary">
+                        {formatBookingSlotTime(slot)}
+                      </span>
+                      {hasReservation && slot.reservation ? (
+                        <ProfileLinkWrapper
+                          href={profileHref}
+                          className="pointer-events-auto truncate text-xs font-normal text-text-secondary transition-colors hover:text-brand-500 hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          學員 {slot.reservation.name}
+                        </ProfileLinkWrapper>
+                      ) : (
+                        <span className="truncate text-xs font-normal text-text-secondary">
+                          {slot.status === null
+                            ? '時段已保留'
+                            : slot.menteeName
+                              ? `學員 ${slot.menteeName}`
+                              : '學員'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <span
+                    className={`pointer-events-none relative z-10 shrink-0 text-xs font-semibold ${
+                      slot.status === 'PENDING'
+                        ? 'text-status-warning-default'
+                        : slot.status === 'BOOKED'
+                          ? 'text-status-success-default'
+                          : 'text-text-secondary'
+                    }`}
+                  >
+                    {slot.status === 'PENDING'
+                      ? '待您回復'
+                      : slot.status === 'BOOKED'
+                        ? '已確認'
+                        : '已保留'}
                   </span>
                 </div>
-                <span
-                  className={`text-xs font-semibold ${
-                    slot.status === 'PENDING'
-                      ? 'text-status-warning-default'
-                      : slot.status === 'BOOKED'
-                        ? 'text-status-success-default'
-                        : 'text-text-secondary'
-                  }`}
-                >
-                  {slot.status === 'PENDING'
-                    ? '待您回復'
-                    : slot.status === 'BOOKED'
-                      ? '已確認'
-                      : '已保留'}
-                </span>
-              </button>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
       {/* 2. 可預約時段區塊 */}
       <div className="flex w-full flex-col items-start gap-3">
-        <p className="text-text-primary text-sm font-semibold">
+        <p className="text-sm font-semibold text-text-primary">
           當日可預約時段
         </p>
         {!monthLoaded ? (
           <LoadingIndicator />
         ) : availableSlots.length === 0 ? (
-          <div className="text-text-disable flex min-h-10 items-center text-sm">
+          <div className="flex min-h-10 items-center text-sm text-text-disable">
             無可預約的時段
           </div>
         ) : (
@@ -148,7 +214,7 @@ export function MentorScheduleConfig({
             {availableSlots.map((slot) => (
               <div
                 key={`${slot.scheduleId}_${slot.start.getTime()}`}
-                className="border-background-border flex h-10 items-center justify-center rounded-lg border text-sm font-medium select-none"
+                className="flex h-10 items-center justify-center rounded-lg border border-background-border text-sm font-medium select-none"
               >
                 {formatBookingSlotTime(slot)}
               </div>
@@ -159,7 +225,7 @@ export function MentorScheduleConfig({
 
       <Button
         variant="default"
-        className="disabled:bg-background-border disabled:text-text-disable w-full rounded-full px-6 py-3 disabled:opacity-100"
+        className="w-full rounded-full px-6 py-3 disabled:bg-background-border disabled:text-text-disable disabled:opacity-100"
         onClick={onReservation}
       >
         預約設定

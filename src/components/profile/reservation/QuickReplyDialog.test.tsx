@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
@@ -79,6 +80,11 @@ describe('QuickReplyDialog', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useReservationActions).mockReturnValue({
+      accept: mockAccept,
+      rejectOrCancel: mockRejectOrCancel,
+      isMutating: false,
+    });
   });
 
   it('renders nothing when reservation is null or open is false', () => {
@@ -295,5 +301,45 @@ describe('QuickReplyDialog', () => {
 
     expect(acceptBtn).toBeDisabled();
     expect(rejectBtn).toBeDisabled();
+  });
+
+  it('calls onOpenChange(false) when clicking the profile link under non-mutating state', () => {
+    const mockOnOpenChange = vi.fn();
+    render(
+      <QuickReplyDialog {...defaultProps} onOpenChange={mockOnOpenChange} />
+    );
+
+    const nameLink = screen.getByRole('link', { name: 'Bob User' });
+    fireEvent.click(nameLink);
+
+    expect(mockOnOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('does NOT call onOpenChange(false) and prevents navigation when clicking the profile link under mutating state', () => {
+    vi.mocked(useReservationActions).mockReturnValueOnce(
+      fromPartial({
+        accept: vi.fn(),
+        rejectOrCancel: vi.fn(),
+        isMutating: true,
+      })
+    );
+
+    const mockOnOpenChange = vi.fn();
+    render(
+      <QuickReplyDialog {...defaultProps} onOpenChange={mockOnOpenChange} />
+    );
+
+    const nameLink = screen.getByRole('link', { name: 'Bob User' });
+
+    const clickEvent = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+    });
+    const preventDefaultSpy = vi.spyOn(clickEvent, 'preventDefault');
+
+    fireEvent(nameLink, clickEvent);
+
+    expect(preventDefaultSpy).toHaveBeenCalled();
+    expect(mockOnOpenChange).not.toHaveBeenCalled();
   });
 });
