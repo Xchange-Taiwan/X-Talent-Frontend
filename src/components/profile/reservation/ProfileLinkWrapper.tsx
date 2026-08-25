@@ -21,8 +21,17 @@ export function ProfileLinkWrapper({
   children,
 }: ProfileLinkWrapperProps) {
   if (!href) {
+    const cleanClassName = className
+      ? className
+          .split(' ')
+          .filter(
+            (c) => !c.includes('pointer-events-') && !c.includes('hover:')
+          )
+          .join(' ')
+      : undefined;
+
     return (
-      <span className={className} aria-label={ariaLabel}>
+      <span className={cleanClassName} aria-label={ariaLabel}>
         {children}
       </span>
     );
