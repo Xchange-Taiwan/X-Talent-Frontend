@@ -62,6 +62,8 @@ export function ConfirmedReservationDialog({
       e.preventDefault();
       return;
     }
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)
+      return;
     onOpenChange(false);
   };
 
