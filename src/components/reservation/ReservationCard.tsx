@@ -94,7 +94,7 @@ export function ReservationCard({
               href={profileHref}
               aria-label={profileAriaLabel}
               onClick={onProfileClick}
-              className="shrink-0 rounded-full focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+              className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
             >
               {avatar}
             </Link>

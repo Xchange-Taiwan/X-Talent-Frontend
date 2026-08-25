@@ -419,7 +419,7 @@ describe('MentorScheduleConfig', () => {
     expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
   });
 
-  it('renders avatar and text for both PENDING and BOOKED slots with nested links to profile, and click stopPropagation works', () => {
+  it('renders avatar and text for both PENDING and BOOKED slots without profile links', () => {
     const mockConfirmedReservation: Reservation = {
       id: 'res-102',
       name: 'Alice',
@@ -450,43 +450,20 @@ describe('MentorScheduleConfig', () => {
       />
     );
 
-    // Booked slot row (Alice) should contain links to profile
+    // Booked slot row (Alice) should not contain any links to profile —
+    // avatar/name are only clickable via the row's dialog-opening button.
     const aliceRow = screen
       .getByText('學員 Alice')
       .closest('.border') as HTMLElement;
     expect(aliceRow).toBeInTheDocument();
+    expect(within(aliceRow).queryAllByRole('link')).toHaveLength(0);
 
-    const aliceLinks = within(aliceRow).getAllByRole('link');
-    expect(aliceLinks.length).toBeGreaterThan(0);
-    aliceLinks.forEach((link) => {
-      expect(link).toHaveAttribute('href', '/profile/user-alice');
-    });
-
-    // Clicking the link shouldn't open the dialog (stopPropagation)
-    fireEvent.click(aliceLinks[0]);
-    expect(
-      screen.queryByTestId('mock-confirmed-dialog')
-    ).not.toBeInTheDocument();
-
-    // Pending slot row (Bob) should contain links to profile
+    // Pending slot row (Bob) should not contain any links to profile either
     const bobRow = screen
       .getByText('學員 Bob')
       .closest('.border') as HTMLElement;
     expect(bobRow).toBeInTheDocument();
-
-    const bobLinks = within(bobRow).getAllByRole('link');
-    expect(bobLinks.length).toBeGreaterThan(0);
-    bobLinks.forEach((link) => {
-      expect(link).toHaveAttribute('href', '/profile/user-bob');
-    });
-
-    // Clicking the link shouldn't open the dialog (stopPropagation)
-    fireEvent.click(bobLinks[0]);
-    expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
-
-    // Keydown on the link shouldn't open the dialog (onKeyDown stopPropagation)
-    fireEvent.keyDown(bobLinks[0], { key: 'Enter', code: 'Enter' });
-    expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
+    expect(within(bobRow).queryAllByRole('link')).toHaveLength(0);
   });
 
   it('triggers dialog on keydown (Enter/Space) on booked slot rows', async () => {
