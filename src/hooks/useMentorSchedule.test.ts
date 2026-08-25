@@ -1300,11 +1300,52 @@ describe('useMentorSchedule', () => {
         expect.any(Number),
         []
       );
-      // Order matters: the wipe must happen before the re-prime, or the
-      // fresh values written for this month would themselves get erased.
+      // Order matters: the wipe must happen before the re-prime (or the
+      // fresh values written for this month would themselves get erased)
+      // and before the fetch even starts (so a failed/abandoned fetch still
+      // leaves the cache cleared rather than stale).
       const clearOrder = mockClearReservationsCache.mock.invocationCallOrder[0];
+      const firstFetchOrder =
+        mockFetchAllReservationsForState.mock.invocationCallOrder[0];
       const firstCacheOrder = mockCacheReservations.mock.invocationCallOrder[0];
+      expect(clearOrder).toBeLessThan(firstFetchOrder);
       expect(clearOrder).toBeLessThan(firstCacheOrder);
+    });
+
+    it('reload() clears the reservations cache even when the refetch fails', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+      mockFetchAllReservationsForState.mockResolvedValue([]);
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 7 },
+          loginUserId: 'mentor-1',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.reservationsLoaded).toBe(true);
+      });
+
+      mockClearReservationsCache.mockClear();
+      mockCacheReservations.mockClear();
+      // A mutation (e.g. accept/reject) is what would normally trigger this
+      // reload; the network fetch it kicks off then fails.
+      mockFetchAllReservationsForState.mockRejectedValue(
+        new Error('network down')
+      );
+
+      await act(async () => {
+        await result.current.reload();
+      });
+
+      // The cache must still be wiped - a failed reload leaves stale
+      // pre-mutation data in the cache otherwise, for up to the TTL.
+      expect(mockClearReservationsCache).toHaveBeenCalled();
+      expect(mockCacheReservations).not.toHaveBeenCalled();
     });
 
     it('clears the reservations cache when the backend user switches', async () => {

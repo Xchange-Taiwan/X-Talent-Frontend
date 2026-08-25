@@ -629,6 +629,19 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       .endOf('month')
       .unix();
 
+    // Clear unconditionally, before the fetch even starts: whatever
+    // triggered this reload (a mutation like accept/reject, or a manual
+    // retry) means every cached entry is potentially stale the moment
+    // reload() is called - regardless of whether the fetch below succeeds,
+    // throws, or gets abandoned via the isStale checks. Each cached entry
+    // covers "now through that month's end" (see
+    // fetchAllReservationsForState), so a mutated reservation can be
+    // embedded in every OTHER cached month whose end is on or after it, not
+    // just the currently-viewed one. Clearing only on the success path
+    // would leave all of that stale for up to the TTL if the fetch failed
+    // or was abandoned.
+    clearReservationsCache();
+
     try {
       const [upcoming, pending] = await Promise.all([
         fetchAllReservationsForState(
@@ -643,16 +656,8 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         ),
       ]);
       if (isStale(startSnapshot)) return;
-      // Always bypass the cache above (fresh network fetch, matching a
-      // manual reload / post-mutation refresh's intent). Each cached entry
-      // covers "now through that month's end" (see
-      // fetchAllReservationsForState), so a mutated reservation can be
-      // embedded in every OTHER cached month whose end is on or after it,
-      // not just the currently-viewed one - a per-key re-prime would leave
-      // those stale. Wipe the whole cache first, then re-prime just this
-      // month so a subsequent swipe back to it within the TTL still avoids
-      // one extra fetch.
-      clearReservationsCache();
+      // Re-prime just this month so a subsequent swipe back to it within
+      // the TTL still avoids one extra fetch.
       cacheReservations(
         loginUserId,
         'MENTOR_UPCOMING',
