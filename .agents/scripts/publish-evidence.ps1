@@ -21,7 +21,11 @@ foreach ($f in $Files) {
 $EvidenceBranch = if ($env:EVIDENCE_BRANCH) { $env:EVIDENCE_BRANCH } else { "pr-evidence" }
 
 $RemoteUrl = (git remote get-url origin)
-$RepoSlug = $RemoteUrl -replace '^git@github\.com:', '' -replace '^https://github\.com/', '' -replace '\.git$', ''
+# origin may be an https URL with embedded credentials (e.g. `gh auth
+# setup-git` writes `https://oauth2:<token>@github.com/...`) - strip any
+# `user:pass@` userinfo segment before the host so it never leaks into the
+# printed raw.githubusercontent.com URLs below.
+$RepoSlug = $RemoteUrl -replace '^git@github\.com:', '' -replace '^https://([^@/]+@)?github\.com/', '' -replace '\.git$', ''
 if (-not $RepoSlug) {
   Write-Error "could not resolve owner/repo from origin remote ($RemoteUrl)"
   exit 1
