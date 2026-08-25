@@ -25,7 +25,11 @@ done
 EVIDENCE_BRANCH="${EVIDENCE_BRANCH:-pr-evidence}"
 
 REMOTE_URL=$(git remote get-url origin)
-REPO_SLUG=$(echo "$REMOTE_URL" | sed -E 's#^git@github\.com:##; s#^https://github\.com/##; s#\.git$##')
+# origin may be an https URL with embedded credentials (e.g. `gh auth
+# setup-git` writes `https://oauth2:<token>@github.com/...`) - strip any
+# `user:pass@` userinfo segment before the host so it never leaks into the
+# printed raw.githubusercontent.com URLs below.
+REPO_SLUG=$(echo "$REMOTE_URL" | sed -E 's#^git@github\.com:##; s#^https://([^@/]+@)?github\.com/##; s#\.git$##')
 if [ -z "$REPO_SLUG" ]; then
   echo "ERROR: could not resolve owner/repo from origin remote ($REMOTE_URL)" >&2
   exit 1

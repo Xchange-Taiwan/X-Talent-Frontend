@@ -92,6 +92,13 @@ describe('ReservationCard', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('does not render "會議連結已寄至您的信箱" when variant is upcoming and Join Google Meet is shown', () => {
+    render(<ReservationCard item={mockReservation} variant="upcoming" />);
+    expect(
+      screen.queryByText('會議連結已寄至您的信箱')
+    ).not.toBeInTheDocument();
+  });
+
   it('shows error toast when myUserId is missing', () => {
     render(<ReservationCard item={mockReservation} variant="upcoming" />);
 
