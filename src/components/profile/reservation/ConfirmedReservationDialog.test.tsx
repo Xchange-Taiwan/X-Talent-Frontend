@@ -100,13 +100,19 @@ describe('ConfirmedReservationDialog', () => {
     expect(screen.getByText('Mentee')).toBeInTheDocument();
     expect(screen.getByText('2026-07-26')).toBeInTheDocument();
     expect(screen.getByText('11:00 AM – 11:30 AM')).toBeInTheDocument();
-    expect(screen.getByText('會議連結已寄至您的信箱')).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: '加入 Google Meet' })
     ).toBeInTheDocument();
     expect(
       screen.getByTestId('mock-cancel-dialog-trigger')
     ).toBeInTheDocument();
+  });
+
+  it('does not render "會議連結已寄至您的信箱"', () => {
+    render(<ConfirmedReservationDialog {...defaultProps} />);
+    expect(
+      screen.queryByText('會議連結已寄至您的信箱')
+    ).not.toBeInTheDocument();
   });
 
   it('triggers joinMeet when Join Google Meet button is clicked', () => {

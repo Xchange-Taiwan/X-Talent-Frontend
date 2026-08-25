@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarDays, Clock, Mail, MessageSquare } from 'lucide-react';
+import { CalendarDays, Clock, MessageSquare } from 'lucide-react';
 import * as React from 'react';
 
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
@@ -139,12 +139,6 @@ export function ConfirmedReservationDialog({
                 <Clock className="size-4 shrink-0" aria-hidden />
                 <span className="truncate">{reservation.time}</span>
               </div>
-            </div>
-
-            {/* Meeting Info Block */}
-            <div className="mt-3 flex items-center gap-1.5 text-11 text-text-tertiary sm:text-xs">
-              <Mail className="size-3.5 shrink-0" aria-hidden />
-              <span>會議連結已寄至您的信箱</span>
             </div>
           </div>
 

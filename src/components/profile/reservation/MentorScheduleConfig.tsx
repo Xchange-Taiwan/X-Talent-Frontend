@@ -12,11 +12,9 @@ import type {
 } from '@/lib/profile/bookingAvailability';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 import { isSlotTaken } from '@/lib/profile/scheduleHelpers';
-import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
 
 import { ConfirmedReservationDialog } from './ConfirmedReservationDialog';
-import { ProfileLinkWrapper } from './ProfileLinkWrapper';
 import { QuickReplyDialog } from './QuickReplyDialog';
 
 interface MentorScheduleConfigProps {
@@ -104,12 +102,6 @@ export function MentorScheduleConfig({
                   ? getInitials(slot.reservation.name)
                   : '';
 
-              const menteeId =
-                hasReservation && slot.reservation
-                  ? resolveCounterpartyId(slot.reservation, myUserId || '')
-                  : undefined;
-              const profileHref = menteeId ? `/profile/${menteeId}` : undefined;
-
               const avatarContent =
                 hasReservation && slot.reservation ? (
                   <Avatar className="size-8 shrink-0">
@@ -141,30 +133,16 @@ export function MentorScheduleConfig({
                   />
 
                   <div className="pointer-events-none relative z-10 flex min-w-0 items-center gap-3">
-                    {hasReservation && slot.reservation && avatarContent ? (
-                      <ProfileLinkWrapper
-                        href={profileHref}
-                        className="pointer-events-auto shrink-0 transition-opacity hover:opacity-80"
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => e.stopPropagation()}
-                      >
-                        {avatarContent}
-                      </ProfileLinkWrapper>
-                    ) : null}
+                    {avatarContent}
 
                     <div className="flex min-w-0 flex-col gap-1">
                       <span className="font-medium text-text-primary">
                         {formatBookingSlotTime(slot)}
                       </span>
                       {hasReservation && slot.reservation ? (
-                        <ProfileLinkWrapper
-                          href={profileHref}
-                          className="pointer-events-auto truncate text-xs font-normal text-text-secondary transition-colors hover:text-brand-500 hover:underline"
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => e.stopPropagation()}
-                        >
+                        <span className="truncate text-xs font-normal text-text-secondary">
                           學員 {slot.reservation.name}
-                        </ProfileLinkWrapper>
+                        </span>
                       ) : (
                         <span className="truncate text-xs font-normal text-text-secondary">
                           {slot.status === null
