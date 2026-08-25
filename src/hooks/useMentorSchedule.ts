@@ -644,9 +644,15 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       ]);
       if (isStale(startSnapshot)) return;
       // Always bypass the cache above (fresh network fetch, matching a
-      // manual reload / post-mutation refresh's intent) but re-prime it so a
-      // subsequent swipe back to this month within the TTL sees this fresh
-      // result instead of stale pre-reload data.
+      // manual reload / post-mutation refresh's intent). Each cached entry
+      // covers "now through that month's end" (see
+      // fetchAllReservationsForState), so a mutated reservation can be
+      // embedded in every OTHER cached month whose end is on or after it,
+      // not just the currently-viewed one - a per-key re-prime would leave
+      // those stale. Wipe the whole cache first, then re-prime just this
+      // month so a subsequent swipe back to it within the TTL still avoids
+      // one extra fetch.
+      clearReservationsCache();
       cacheReservations(
         loginUserId,
         'MENTOR_UPCOMING',
