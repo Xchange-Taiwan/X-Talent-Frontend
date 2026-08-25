@@ -1,4 +1,4 @@
-import { CalendarDays, Clock, Mail, MessageSquare } from 'lucide-react';
+import { CalendarDays, Clock, MessageSquare } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import * as React from 'react';
@@ -94,7 +94,7 @@ export function ReservationCard({
               href={profileHref}
               aria-label={profileAriaLabel}
               onClick={onProfileClick}
-              className="shrink-0 rounded-full focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+              className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
             >
               {avatar}
             </Link>
@@ -166,11 +166,7 @@ export function ReservationCard({
             {footer ? <div className="mt-3">{footer}</div> : null}
 
             {isUpcoming ? (
-              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-1.5 text-11 text-text-tertiary sm:text-xs">
-                  <Mail className="size-3.5 shrink-0" aria-hidden />
-                  <span>會議連結已寄至您的信箱</span>
-                </div>
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
                 <div className="flex w-full items-center gap-2 sm:w-auto">
                   {/* Actions (such as cancel button) grouped with Meet button on all screen sizes */}
                   {actions ? (
