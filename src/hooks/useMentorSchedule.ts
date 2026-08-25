@@ -34,6 +34,11 @@ import {
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
 import {
+  cacheReservations,
+  clearReservationsCache,
+  getCachedReservations,
+} from '@/services/mentor-schedule/reservationsCache';
+import {
   clearScheduleCache,
   scheduleCache,
 } from '@/services/mentor-schedule/scheduleCache';
@@ -45,6 +50,7 @@ import {
   syncMonths,
   SyncResult,
 } from '@/services/mentor-schedule/sync';
+import type { ReservationState } from '@/services/reservations';
 import { fetchAllReservationsForState } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
@@ -211,19 +217,29 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       .endOf('month')
       .unix();
 
+    // Serve an unexpired cache hit instantly (e.g. swiping A -> B -> A within
+    // the TTL window) instead of re-running the paginated fetch; a miss falls
+    // through to the network and primes the cache for next time. See
+    // reservationsCache's RESERVATIONS_TTL_MS for why this window is short.
+    const fetchReservationsForState = async (
+      state: ReservationState
+    ): Promise<Reservation[]> => {
+      const cached = getCachedReservations(loginUserId, state, endOfMonthUnix);
+      if (cached !== undefined) return cached;
+      const items = await fetchAllReservationsForState(
+        loginUserId,
+        state,
+        endOfMonthUnix
+      );
+      cacheReservations(loginUserId, state, endOfMonthUnix, items);
+      return items;
+    };
+
     const fetchAll = async () => {
       try {
         const [upcoming, pending] = await Promise.all([
-          fetchAllReservationsForState(
-            loginUserId,
-            'MENTOR_UPCOMING',
-            endOfMonthUnix
-          ),
-          fetchAllReservationsForState(
-            loginUserId,
-            'MENTOR_PENDING',
-            endOfMonthUnix
-          ),
+          fetchReservationsForState('MENTOR_UPCOMING'),
+          fetchReservationsForState('MENTOR_PENDING'),
         ]);
         if (ignore) return;
         setReservations((prev) =>
@@ -287,6 +303,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       prevUserIdRef.current !== backend.userId
     ) {
       scheduleCache.clear();
+      clearReservationsCache();
       store.clearAll();
       setLoaded(false);
     }
@@ -612,6 +629,19 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       .endOf('month')
       .unix();
 
+    // Clear unconditionally, before the fetch even starts: whatever
+    // triggered this reload (a mutation like accept/reject, or a manual
+    // retry) means every cached entry is potentially stale the moment
+    // reload() is called - regardless of whether the fetch below succeeds,
+    // throws, or gets abandoned via the isStale checks. Each cached entry
+    // covers "now through that month's end" (see
+    // fetchAllReservationsForState), so a mutated reservation can be
+    // embedded in every OTHER cached month whose end is on or after it, not
+    // just the currently-viewed one. Clearing only on the success path
+    // would leave all of that stale for up to the TTL if the fetch failed
+    // or was abandoned.
+    clearReservationsCache();
+
     try {
       const [upcoming, pending] = await Promise.all([
         fetchAllReservationsForState(
@@ -626,6 +656,15 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         ),
       ]);
       if (isStale(startSnapshot)) return;
+      // Re-prime just this month so a subsequent swipe back to it within
+      // the TTL still avoids one extra fetch.
+      cacheReservations(
+        loginUserId,
+        'MENTOR_UPCOMING',
+        endOfMonthUnix,
+        upcoming
+      );
+      cacheReservations(loginUserId, 'MENTOR_PENDING', endOfMonthUnix, pending);
       setReservations([...upcoming, ...pending]);
     } catch (err) {
       if (isStale(startSnapshot)) return;

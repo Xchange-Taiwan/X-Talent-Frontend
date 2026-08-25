@@ -27,12 +27,26 @@ vi.mock('@/services/mentor-schedule/scheduleCache', () => ({
   },
 }));
 
+// get() defaults to returning undefined (a cache miss) so every existing
+// test's mount-effect call pattern to fetchAllReservationsForState is
+// unaffected unless a test explicitly configures a cache hit.
+vi.mock('@/services/mentor-schedule/reservationsCache', () => ({
+  getCachedReservations: vi.fn(),
+  cacheReservations: vi.fn(),
+  clearReservationsCache: vi.fn(),
+}));
+
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   buildDateTime,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
+import {
+  cacheReservations,
+  clearReservationsCache,
+  getCachedReservations,
+} from '@/services/mentor-schedule/reservationsCache';
 import { clearScheduleCache } from '@/services/mentor-schedule/scheduleCache';
 import {
   loadMonthScheduleCached,
@@ -46,6 +60,9 @@ const mockLoadMonthScheduleCached = vi.mocked(loadMonthScheduleCached);
 const mockFetchAllReservationsForState = vi.mocked(
   fetchAllReservationsForState
 );
+const mockGetCachedReservations = vi.mocked(getCachedReservations);
+const mockCacheReservations = vi.mocked(cacheReservations);
+const mockClearReservationsCache = vi.mocked(clearReservationsCache);
 const mockLoadMonthScheduleFresh = vi.mocked(loadMonthScheduleFresh);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
 
@@ -1125,6 +1142,239 @@ describe('useMentorSchedule', () => {
       );
       expect(resUpcoming).toBeDefined();
       expect(resPending).toBeDefined();
+    });
+
+    it('serves reservations from cache without calling fetchAllReservationsForState on a cache hit', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+
+      const cachedUpcoming = [
+        {
+          id: 'res-cached-upcoming',
+          name: 'Mentee A',
+          scheduleId: 101,
+          dtstart: 1785070000,
+          dtend: 1785071800,
+          messages: [],
+          roleLine: '',
+          date: '',
+          time: '',
+          senderUserId: 'mentee-1',
+          participantUserId: 'mentor-1',
+          version: 0,
+        },
+      ];
+      const cachedPending = [
+        {
+          id: 'res-cached-pending',
+          name: 'Mentee B',
+          scheduleId: 102,
+          dtstart: 1785080000,
+          dtend: 1785081800,
+          messages: [],
+          roleLine: '',
+          date: '',
+          time: '',
+          senderUserId: 'mentee-2',
+          participantUserId: 'mentor-1',
+          version: 0,
+        },
+      ];
+
+      // *Once (rather than a lasting mockImplementation) so this cache hit
+      // applies only to this test's two calls and the mock reverts to its
+      // default "cache miss" (undefined) for every later test.
+      mockGetCachedReservations
+        .mockReturnValueOnce(cachedUpcoming)
+        .mockReturnValueOnce(cachedPending);
+      // Earlier tests' calls to fetchAllReservationsForState linger in its
+      // mock call history (vi.restoreAllMocks() in beforeEach clears
+      // implementations but not call history) - clear it so ".not
+      // .toHaveBeenCalled()" below reflects only this test's render.
+      mockFetchAllReservationsForState.mockClear();
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 7 },
+          loginUserId: 'mentor-1',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.reservations).toHaveLength(2);
+      });
+
+      expect(mockFetchAllReservationsForState).not.toHaveBeenCalled();
+      expect(
+        result.current.reservations.find((r) => r.id === 'res-cached-upcoming')
+      ).toBeDefined();
+      expect(
+        result.current.reservations.find((r) => r.id === 'res-cached-pending')
+      ).toBeDefined();
+    });
+
+    it('primes the reservations cache after a network fetch on a cache miss', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+      mockFetchAllReservationsForState.mockResolvedValue([]);
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 7 },
+          loginUserId: 'mentor-1',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.reservationsLoaded).toBe(true);
+      });
+
+      expect(mockCacheReservations).toHaveBeenCalledWith(
+        'mentor-1',
+        'MENTOR_UPCOMING',
+        expect.any(Number),
+        []
+      );
+      expect(mockCacheReservations).toHaveBeenCalledWith(
+        'mentor-1',
+        'MENTOR_PENDING',
+        expect.any(Number),
+        []
+      );
+    });
+
+    it('reload() bypasses the reservations cache, wipes it, then re-primes it with the fresh result', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+      mockFetchAllReservationsForState.mockResolvedValue([]);
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 7 },
+          loginUserId: 'mentor-1',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.reservationsLoaded).toBe(true);
+      });
+
+      mockFetchAllReservationsForState.mockClear();
+      mockCacheReservations.mockClear();
+      mockClearReservationsCache.mockClear();
+
+      await act(async () => {
+        await result.current.reload();
+      });
+
+      expect(mockFetchAllReservationsForState).toHaveBeenCalledWith(
+        'mentor-1',
+        'MENTOR_UPCOMING',
+        expect.any(Number)
+      );
+      expect(mockFetchAllReservationsForState).toHaveBeenCalledWith(
+        'mentor-1',
+        'MENTOR_PENDING',
+        expect.any(Number)
+      );
+      // A mutated reservation can be embedded in every OTHER cached month's
+      // entry too (each covers "now through that month's end"), not just
+      // the currently-viewed one, so reload must wipe everything rather
+      // than re-prime only the current month's two keys.
+      expect(mockClearReservationsCache).toHaveBeenCalled();
+      expect(mockCacheReservations).toHaveBeenCalledWith(
+        'mentor-1',
+        'MENTOR_UPCOMING',
+        expect.any(Number),
+        []
+      );
+      expect(mockCacheReservations).toHaveBeenCalledWith(
+        'mentor-1',
+        'MENTOR_PENDING',
+        expect.any(Number),
+        []
+      );
+      // Order matters: the wipe must happen before the re-prime (or the
+      // fresh values written for this month would themselves get erased)
+      // and before the fetch even starts (so a failed/abandoned fetch still
+      // leaves the cache cleared rather than stale).
+      const clearOrder = mockClearReservationsCache.mock.invocationCallOrder[0];
+      const firstFetchOrder =
+        mockFetchAllReservationsForState.mock.invocationCallOrder[0];
+      const firstCacheOrder = mockCacheReservations.mock.invocationCallOrder[0];
+      expect(clearOrder).toBeLessThan(firstFetchOrder);
+      expect(clearOrder).toBeLessThan(firstCacheOrder);
+    });
+
+    it('reload() clears the reservations cache even when the refetch fails', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+      mockFetchAllReservationsForState.mockResolvedValue([]);
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 7 },
+          loginUserId: 'mentor-1',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.reservationsLoaded).toBe(true);
+      });
+
+      mockClearReservationsCache.mockClear();
+      mockCacheReservations.mockClear();
+      // A mutation (e.g. accept/reject) is what would normally trigger this
+      // reload; the network fetch it kicks off then fails.
+      mockFetchAllReservationsForState.mockRejectedValue(
+        new Error('network down')
+      );
+
+      await act(async () => {
+        await result.current.reload();
+      });
+
+      // The cache must still be wiped - a failed reload leaves stale
+      // pre-mutation data in the cache otherwise, for up to the TTL.
+      expect(mockClearReservationsCache).toHaveBeenCalled();
+      expect(mockCacheReservations).not.toHaveBeenCalled();
+    });
+
+    it('clears the reservations cache when the backend user switches', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+      mockFetchAllReservationsForState.mockResolvedValue([]);
+
+      const { result, rerender } = renderHook(
+        (props: { backend: { userId: string; year: number; month: number } }) =>
+          useMentorSchedule({ ...props, loginUserId: props.backend.userId }),
+        { initialProps: { backend: { userId: 'userA', year: 2026, month: 7 } } }
+      );
+
+      await waitFor(() => {
+        expect(result.current.reservationsLoaded).toBe(true);
+      });
+
+      // Earlier tests' account-switch calls linger in this mock's call
+      // history (vi.restoreAllMocks() clears implementations, not history).
+      mockClearReservationsCache.mockClear();
+      expect(mockClearReservationsCache).not.toHaveBeenCalled();
+
+      rerender({ backend: { userId: 'userB', year: 2026, month: 7 } });
+
+      await waitFor(() => {
+        expect(mockClearReservationsCache).toHaveBeenCalled();
+      });
     });
 
     it('correctly matches reservations to booking slots and populates menteeName', async () => {
