@@ -177,7 +177,7 @@ export function MentorScheduleConfig({
                     </div>
                   </div>
                   <span
-                    className={`relative z-10 shrink-0 text-xs font-semibold ${
+                    className={`pointer-events-none relative z-10 shrink-0 text-xs font-semibold ${
                       slot.status === 'PENDING'
                         ? 'text-status-warning-default'
                         : slot.status === 'BOOKED'

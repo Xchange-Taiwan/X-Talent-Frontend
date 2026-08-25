@@ -21,7 +21,11 @@ export function ProfileLinkWrapper({
   children,
 }: ProfileLinkWrapperProps) {
   if (!href) {
-    return <>{children}</>;
+    return (
+      <span className={className} aria-label={ariaLabel}>
+        {children}
+      </span>
+    );
   }
 
   const handleClick = (e: React.MouseEvent) => {
