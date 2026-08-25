@@ -1247,7 +1247,7 @@ describe('useMentorSchedule', () => {
       );
     });
 
-    it('reload() bypasses the reservations cache and re-primes it with the fresh result', async () => {
+    it('reload() bypasses the reservations cache, wipes it, then re-primes it with the fresh result', async () => {
       mockLoadMonthScheduleCached.mockReturnValue({
         cached: [],
         revalidate: Promise.resolve([]),
@@ -1267,6 +1267,7 @@ describe('useMentorSchedule', () => {
 
       mockFetchAllReservationsForState.mockClear();
       mockCacheReservations.mockClear();
+      mockClearReservationsCache.mockClear();
 
       await act(async () => {
         await result.current.reload();
@@ -1282,6 +1283,11 @@ describe('useMentorSchedule', () => {
         'MENTOR_PENDING',
         expect.any(Number)
       );
+      // A mutated reservation can be embedded in every OTHER cached month's
+      // entry too (each covers "now through that month's end"), not just
+      // the currently-viewed one, so reload must wipe everything rather
+      // than re-prime only the current month's two keys.
+      expect(mockClearReservationsCache).toHaveBeenCalled();
       expect(mockCacheReservations).toHaveBeenCalledWith(
         'mentor-1',
         'MENTOR_UPCOMING',
@@ -1294,6 +1300,11 @@ describe('useMentorSchedule', () => {
         expect.any(Number),
         []
       );
+      // Order matters: the wipe must happen before the re-prime, or the
+      // fresh values written for this month would themselves get erased.
+      const clearOrder = mockClearReservationsCache.mock.invocationCallOrder[0];
+      const firstCacheOrder = mockCacheReservations.mock.invocationCallOrder[0];
+      expect(clearOrder).toBeLessThan(firstCacheOrder);
     });
 
     it('clears the reservations cache when the backend user switches', async () => {
