@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { BookingSlot } from '@/lib/profile/bookingAvailability';
@@ -9,7 +10,7 @@ import { MentorScheduleConfig } from './MentorScheduleConfig';
 const getRowButtonForMentee = (name: string) => {
   const textNode = screen.getByText(name);
   const row = textNode.closest('.border') as HTMLElement;
-  return within(row).getByRole('button', { name: '查看預約詳情' });
+  return within(row).getByRole('button', { name: /查看.*預約詳情/ });
 };
 
 vi.mock('./QuickReplyDialog', () => ({
@@ -488,23 +489,28 @@ describe('MentorScheduleConfig', () => {
     expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
   });
 
-  it('triggers dialog on keydown (Enter/Space) on booked slot rows', () => {
+  it('triggers dialog on keydown (Enter/Space) on booked slot rows', async () => {
+    const user = userEvent.setup();
     render(<MentorScheduleConfig {...defaultProps} />);
 
     const pendingRowButton = getRowButtonForMentee('學員 Bob');
     expect(pendingRowButton).toBeInTheDocument();
 
+    pendingRowButton.focus();
+
     // Trigger Enter keydown
-    fireEvent.keyDown(pendingRowButton, { key: 'Enter', code: 'Enter' });
+    await user.keyboard('{Enter}');
     expect(screen.getByTestId('mock-quick-reply')).toBeInTheDocument();
 
     // Close the dialog
     const closeBtn = screen.getByRole('button', { name: 'Close' });
-    fireEvent.click(closeBtn);
+    await user.click(closeBtn);
     expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
 
+    pendingRowButton.focus();
+
     // Trigger Space keydown
-    fireEvent.keyDown(pendingRowButton, { key: ' ', code: 'Space' });
+    await user.keyboard(' ');
     expect(screen.getByTestId('mock-quick-reply')).toBeInTheDocument();
   });
 });

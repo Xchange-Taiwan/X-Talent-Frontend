@@ -225,7 +225,9 @@ describe('BookingForm', () => {
 
     const confirmedText = screen.getByText('已確認');
     const row = confirmedText.closest('.border') as HTMLElement;
-    const rowButton = within(row).getByRole('button', { name: '查看預約詳情' });
+    const rowButton = within(row).getByRole('button', {
+      name: /查看.*預約詳情/,
+    });
     fireEvent.click(rowButton);
 
     expect(mockRouter.push).toHaveBeenCalledWith('/reservation/mentor');
