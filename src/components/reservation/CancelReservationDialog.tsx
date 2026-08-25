@@ -3,7 +3,7 @@
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { Button, type ButtonProps } from '@/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -24,6 +24,7 @@ interface Props {
   reservation: Reservation;
   className?: string;
   disabled?: boolean;
+  size?: ButtonProps['size'];
   onConfirmCancel?: (payload: {
     id: string;
     reason: string;
@@ -34,6 +35,7 @@ export default function CancelReservationDialog({
   reservation,
   className,
   disabled = false,
+  size = 'sm',
   onConfirmCancel,
 }: Props) {
   const [reason, setReason] = useState('');
@@ -62,9 +64,9 @@ export default function CancelReservationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button
-          size="sm"
+          size={size}
           variant="destructive"
-          className={cn('min-h-9 px-3', className)}
+          className={cn(size === 'sm' && 'min-h-9 px-3', className)}
           disabled={disabled}
         >
           取消預約
@@ -102,7 +104,7 @@ export default function CancelReservationDialog({
             </DialogClose>
             <Button
               disabled={!canSubmit || disabled}
-              className="bg-status-error-default text-text-white hover:bg-status-error-active w-full sm:w-auto"
+              className="w-full bg-status-error-default text-text-white hover:bg-status-error-active sm:w-auto"
               onClick={handleConfirm}
             >
               {isSubmitting && <Loader2 className="mr-2 size-4 animate-spin" />}

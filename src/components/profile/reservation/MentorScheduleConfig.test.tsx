@@ -1,10 +1,17 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { BookingSlot } from '@/lib/profile/bookingAvailability';
 import type { Reservation } from '@/types/reservation';
 
 import { MentorScheduleConfig } from './MentorScheduleConfig';
+
+const getRowButtonForMentee = (name: string) => {
+  const textNode = screen.getByText(name);
+  const row = textNode.closest('.border') as HTMLElement;
+  return within(row).getByRole('button', { name: /查看.*預約詳情/ });
+};
 
 vi.mock('./QuickReplyDialog', () => ({
   QuickReplyDialog: vi.fn(({ reservation, open, onOpenChange }) =>
@@ -142,9 +149,8 @@ describe('MentorScheduleConfig', () => {
       />
     );
 
-    const confirmedRow = screen.getByText('學員 Alice').closest('button');
-    expect(confirmedRow).not.toBeNull();
-    fireEvent.click(confirmedRow!);
+    const confirmedRowButton = getRowButtonForMentee('學員 Alice');
+    fireEvent.click(confirmedRowButton);
 
     expect(onBookedSlotClick).toHaveBeenCalledOnce();
   });
@@ -182,9 +188,8 @@ describe('MentorScheduleConfig', () => {
       />
     );
 
-    const confirmedRow = screen.getByText('學員 Alice').closest('button');
-    expect(confirmedRow).not.toBeNull();
-    fireEvent.click(confirmedRow!);
+    const confirmedRowButton = getRowButtonForMentee('學員 Alice');
+    fireEvent.click(confirmedRowButton);
 
     const mockDialog = screen.getByTestId('mock-confirmed-dialog');
     expect(mockDialog).toBeInTheDocument();
@@ -248,17 +253,15 @@ describe('MentorScheduleConfig', () => {
       />
     );
 
-    const aliceRow = screen.getByText('學員 Alice').closest('button');
-    expect(aliceRow).not.toBeNull();
-    fireEvent.click(aliceRow!);
+    const aliceRowButton = getRowButtonForMentee('學員 Alice');
+    fireEvent.click(aliceRowButton);
 
     let mockDialog = screen.getByTestId('mock-confirmed-dialog');
     expect(mockDialog).toBeInTheDocument();
     expect(mockDialog).toHaveAttribute('data-reservation-id', 'res-102');
 
-    const charlieRow = screen.getByText('學員 Charlie').closest('button');
-    expect(charlieRow).not.toBeNull();
-    fireEvent.click(charlieRow!);
+    const charlieRowButton = getRowButtonForMentee('學員 Charlie');
+    fireEvent.click(charlieRowButton);
 
     mockDialog = screen.getByTestId('mock-confirmed-dialog');
     expect(mockDialog).toBeInTheDocument();
@@ -275,9 +278,8 @@ describe('MentorScheduleConfig', () => {
       />
     );
 
-    const pendingRow = screen.getByText('學員 Bob').closest('button');
-    expect(pendingRow).not.toBeNull();
-    fireEvent.click(pendingRow!);
+    const pendingRowButton = getRowButtonForMentee('學員 Bob');
+    fireEvent.click(pendingRowButton);
 
     const mockDialog = screen.getByTestId('mock-quick-reply');
     expect(mockDialog).toBeInTheDocument();
@@ -301,9 +303,8 @@ describe('MentorScheduleConfig', () => {
       />
     );
 
-    const pendingRow = screen.getByText('學員 Bob').closest('button');
-    expect(pendingRow).not.toBeNull();
-    fireEvent.click(pendingRow!);
+    const pendingRowButton = getRowButtonForMentee('學員 Bob');
+    fireEvent.click(pendingRowButton);
 
     expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
     expect(onBookedSlotClick).toHaveBeenCalledOnce();
@@ -389,9 +390,8 @@ describe('MentorScheduleConfig', () => {
       />
     );
 
-    const confirmedRow = screen.getByText('學員 Alice').closest('button');
-    expect(confirmedRow).not.toBeNull();
-    fireEvent.click(confirmedRow!);
+    const confirmedRowButton = getRowButtonForMentee('學員 Alice');
+    fireEvent.click(confirmedRowButton);
 
     const mockDialog = screen.getByTestId('mock-confirmed-dialog');
     expect(mockDialog).toBeInTheDocument();
@@ -407,9 +407,8 @@ describe('MentorScheduleConfig', () => {
   it('closes QuickReplyDialog and clears activeDialogType when onOpenChange(false) is triggered', () => {
     render(<MentorScheduleConfig {...defaultProps} />);
 
-    const pendingRow = screen.getByText('學員 Bob').closest('button');
-    expect(pendingRow).not.toBeNull();
-    fireEvent.click(pendingRow!);
+    const pendingRowButton = getRowButtonForMentee('學員 Bob');
+    fireEvent.click(pendingRowButton);
 
     const mockDialog = screen.getByTestId('mock-quick-reply');
     expect(mockDialog).toBeInTheDocument();
@@ -418,5 +417,100 @@ describe('MentorScheduleConfig', () => {
     fireEvent.click(closeBtn);
 
     expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
+  });
+
+  it('renders avatar and text for both PENDING and BOOKED slots with nested links to profile, and click stopPropagation works', () => {
+    const mockConfirmedReservation: Reservation = {
+      id: 'res-102',
+      name: 'Alice',
+      roleLine: 'Mentee',
+      date: '2026-07-26',
+      time: '11:00 AM – 11:30 AM',
+      dtstart: Math.floor(new Date('2026-07-26T11:00:00Z').getTime() / 1000),
+      dtend: Math.floor(new Date('2026-07-26T11:30:00Z').getTime() / 1000),
+      messages: [],
+      scheduleId: 102,
+      version: 1,
+      senderUserId: 'user-alice',
+      participantUserId: 'user-mentor',
+    };
+    const slotsWithConfirmedReservation = mockSlots.map((slot) =>
+      slot.scheduleId === 102
+        ? { ...slot, reservation: mockConfirmedReservation }
+        : slot
+    );
+
+    render(
+      <MentorScheduleConfig
+        {...defaultProps}
+        slotsSnapshot={{
+          ...defaultProps.slotsSnapshot,
+          slots: slotsWithConfirmedReservation,
+        }}
+      />
+    );
+
+    // Booked slot row (Alice) should contain links to profile
+    const aliceRow = screen
+      .getByText('學員 Alice')
+      .closest('.border') as HTMLElement;
+    expect(aliceRow).toBeInTheDocument();
+
+    const aliceLinks = within(aliceRow).getAllByRole('link');
+    expect(aliceLinks.length).toBeGreaterThan(0);
+    aliceLinks.forEach((link) => {
+      expect(link).toHaveAttribute('href', '/profile/user-alice');
+    });
+
+    // Clicking the link shouldn't open the dialog (stopPropagation)
+    fireEvent.click(aliceLinks[0]);
+    expect(
+      screen.queryByTestId('mock-confirmed-dialog')
+    ).not.toBeInTheDocument();
+
+    // Pending slot row (Bob) should contain links to profile
+    const bobRow = screen
+      .getByText('學員 Bob')
+      .closest('.border') as HTMLElement;
+    expect(bobRow).toBeInTheDocument();
+
+    const bobLinks = within(bobRow).getAllByRole('link');
+    expect(bobLinks.length).toBeGreaterThan(0);
+    bobLinks.forEach((link) => {
+      expect(link).toHaveAttribute('href', '/profile/user-bob');
+    });
+
+    // Clicking the link shouldn't open the dialog (stopPropagation)
+    fireEvent.click(bobLinks[0]);
+    expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
+
+    // Keydown on the link shouldn't open the dialog (onKeyDown stopPropagation)
+    fireEvent.keyDown(bobLinks[0], { key: 'Enter', code: 'Enter' });
+    expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
+  });
+
+  it('triggers dialog on keydown (Enter/Space) on booked slot rows', async () => {
+    const user = userEvent.setup();
+    render(<MentorScheduleConfig {...defaultProps} />);
+
+    const pendingRowButton = getRowButtonForMentee('學員 Bob');
+    expect(pendingRowButton).toBeInTheDocument();
+
+    pendingRowButton.focus();
+
+    // Trigger Enter keydown
+    await user.keyboard('{Enter}');
+    expect(screen.getByTestId('mock-quick-reply')).toBeInTheDocument();
+
+    // Close the dialog
+    const closeBtn = screen.getByRole('button', { name: 'Close' });
+    await user.click(closeBtn);
+    expect(screen.queryByTestId('mock-quick-reply')).not.toBeInTheDocument();
+
+    pendingRowButton.focus();
+
+    // Trigger Space keydown
+    await user.keyboard(' ');
+    expect(screen.getByTestId('mock-quick-reply')).toBeInTheDocument();
   });
 });

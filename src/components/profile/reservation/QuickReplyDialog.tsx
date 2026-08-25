@@ -15,7 +15,11 @@ import {
 } from '@/components/ui/dialog';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
+import { getInitials } from '@/lib/avatar/getInitials';
+import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
+
+import { ProfileLinkWrapper } from './ProfileLinkWrapper';
 
 interface QuickReplyDialogProps {
   reservation: Reservation | null;
@@ -47,14 +51,33 @@ export function QuickReplyDialog({
 
   if (!reservation) return null;
 
-  const initials =
-    reservation.name
-      .split(' ')
-      .map((s) => s[0])
-      .join('')
-      .slice(0, 2) || 'U';
+  const initials = getInitials(reservation.name);
 
   const menteeMessage = reservation.menteeMessage?.content;
+  const menteeId = resolveCounterpartyId(reservation, myUserId || '');
+  const profileHref = menteeId ? `/profile/${menteeId}` : undefined;
+
+  const handleProfileLinkClick = (e: React.MouseEvent) => {
+    if (isMutating) {
+      e.preventDefault();
+      return;
+    }
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)
+      return;
+    onOpenChange(false);
+  };
+
+  const avatarContent = (
+    <Avatar className="size-10 sm:size-12">
+      <AvatarImage
+        src={
+          reservation.avatar ? getAvatarThumbUrl(reservation.avatar) : undefined
+        }
+        alt={reservation.name}
+      />
+      <AvatarFallback>{initials}</AvatarFallback>
+    </Avatar>
+  );
 
   // Block outside-click/Esc dismissal while a mutation is in flight: this
   // dialog is a single shared instance re-used across reservations, so an
@@ -79,28 +102,33 @@ export function QuickReplyDialog({
           {/* User Details Block */}
           <div className="rounded-2xl border p-4 sm:p-5">
             <div className="flex items-center gap-3">
-              <Avatar className="size-10 sm:size-12">
-                <AvatarImage
-                  src={
-                    reservation.avatar
-                      ? getAvatarThumbUrl(reservation.avatar)
-                      : undefined
-                  }
-                  alt={reservation.name}
-                />
-                <AvatarFallback>{initials}</AvatarFallback>
-              </Avatar>
+              <ProfileLinkWrapper
+                href={profileHref}
+                onClick={handleProfileLinkClick}
+                disabled={isMutating}
+                className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                ariaLabel={`查看 ${reservation.name} 的個人資料`}
+              >
+                {avatarContent}
+              </ProfileLinkWrapper>
               <div className="min-w-0 flex-1">
-                <div className="truncate font-medium sm:text-base">
-                  {reservation.name}
-                </div>
-                <div className="text-text-tertiary truncate text-xs sm:text-sm">
+                <ProfileLinkWrapper
+                  href={profileHref}
+                  onClick={handleProfileLinkClick}
+                  disabled={isMutating}
+                  className="group block w-full min-w-0 rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                >
+                  <div className="truncate font-medium hover:underline sm:text-base">
+                    {reservation.name}
+                  </div>
+                </ProfileLinkWrapper>
+                <div className="truncate text-xs text-text-tertiary sm:text-sm">
                   {reservation.roleLine}
                 </div>
               </div>
             </div>
 
-            <div className="text-text-tertiary mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 sm:text-sm">
+            <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-text-tertiary sm:grid-cols-2 sm:text-sm">
               <div className="flex items-center gap-2">
                 <CalendarDays className="size-4 shrink-0" aria-hidden />
                 <span className="truncate">{reservation.date}</span>
@@ -115,15 +143,15 @@ export function QuickReplyDialog({
           {/* Mentee Message block */}
           {menteeMessage ? (
             <div className="mt-6">
-              <div className="text-text-primary mb-2 text-sm font-medium">
+              <div className="mb-2 text-sm font-medium text-text-primary">
                 學員留言
               </div>
-              <div className="bg-background-bottom/40 flex items-start gap-2 rounded-2xl border p-4 text-xs sm:text-sm">
+              <div className="flex items-start gap-2 rounded-2xl border bg-background-bottom/40 p-4 text-xs sm:text-sm">
                 <MessageSquare
-                  className="text-text-tertiary mt-0.5 size-4 shrink-0"
+                  className="mt-0.5 size-4 shrink-0 text-text-tertiary"
                   aria-hidden
                 />
-                <p className="text-text-primary break-words whitespace-pre-wrap">
+                <p className="break-words whitespace-pre-wrap text-text-primary">
                   {menteeMessage}
                 </p>
               </div>
@@ -136,6 +164,7 @@ export function QuickReplyDialog({
               <RejectReservationDialog
                 reservation={reservation}
                 disabled={isMutating}
+                size="default"
                 className="w-full sm:w-auto"
                 onReject={async ({ reason }) =>
                   rejectOrCancel(reservation, reason, 'reject')
@@ -144,6 +173,7 @@ export function QuickReplyDialog({
               <AcceptReservationDialog
                 reservation={reservation}
                 disabled={isMutating}
+                size="default"
                 className="w-full sm:w-auto"
                 onAccept={async ({ message }) => accept(reservation, message)}
               />
