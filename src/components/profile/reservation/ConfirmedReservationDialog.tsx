@@ -1,7 +1,6 @@
 'use client';
 
 import { CalendarDays, Clock, Mail, MessageSquare } from 'lucide-react';
-import Link from 'next/link';
 import * as React from 'react';
 
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
@@ -20,6 +19,8 @@ import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { getInitials } from '@/lib/avatar/getInitials';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
+
+import { ProfileLinkWrapper } from './ProfileLinkWrapper';
 
 interface ConfirmedReservationDialogProps {
   reservation: Reservation | null;
@@ -94,35 +95,27 @@ export function ConfirmedReservationDialog({
           {/* User Details Block */}
           <div className="rounded-2xl border p-3.5 sm:p-5">
             <div className="flex w-full min-w-0 items-center gap-3">
-              {profileHref ? (
-                <Link
-                  href={profileHref}
-                  onClick={handleProfileLinkClick}
-                  className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
-                  aria-label={`查看 ${reservation.name} 的個人資料`}
-                >
-                  {avatarContent}
-                </Link>
-              ) : (
-                avatarContent
-              )}
+              <ProfileLinkWrapper
+                href={profileHref}
+                onClick={handleProfileLinkClick}
+                disabled={isMutating || isJoiningMeet}
+                className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                ariaLabel={`查看 ${reservation.name} 的個人資料`}
+              >
+                {avatarContent}
+              </ProfileLinkWrapper>
               <div className="min-w-0 flex-1">
                 <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2">
-                  {profileHref ? (
-                    <Link
-                      href={profileHref}
-                      onClick={handleProfileLinkClick}
-                      className="group block min-w-0 flex-1 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
-                    >
-                      <span className="block truncate font-medium hover:underline sm:text-base">
-                        {reservation.name}
-                      </span>
-                    </Link>
-                  ) : (
-                    <span className="block min-w-0 flex-1 truncate font-medium sm:text-base">
+                  <ProfileLinkWrapper
+                    href={profileHref}
+                    onClick={handleProfileLinkClick}
+                    disabled={isMutating || isJoiningMeet}
+                    className="group block min-w-0 flex-1 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  >
+                    <span className="block truncate font-medium hover:underline sm:text-base">
                       {reservation.name}
                     </span>
-                  )}
+                  </ProfileLinkWrapper>
                   <ReservationStatusBadge
                     dtstart={reservation.dtstart}
                     dtend={reservation.dtend}

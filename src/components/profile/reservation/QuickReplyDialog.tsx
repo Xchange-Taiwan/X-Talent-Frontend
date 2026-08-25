@@ -1,7 +1,6 @@
 'use client';
 
 import { CalendarDays, Clock, MessageSquare } from 'lucide-react';
-import Link from 'next/link';
 import * as React from 'react';
 
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
@@ -19,6 +18,8 @@ import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { getInitials } from '@/lib/avatar/getInitials';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
+
+import { ProfileLinkWrapper } from './ProfileLinkWrapper';
 
 interface QuickReplyDialogProps {
   reservation: Reservation | null;
@@ -99,34 +100,26 @@ export function QuickReplyDialog({
           {/* User Details Block */}
           <div className="rounded-2xl border p-4 sm:p-5">
             <div className="flex items-center gap-3">
-              {profileHref ? (
-                <Link
+              <ProfileLinkWrapper
+                href={profileHref}
+                onClick={handleProfileLinkClick}
+                disabled={isMutating}
+                className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                ariaLabel={`查看 ${reservation.name} 的個人資料`}
+              >
+                {avatarContent}
+              </ProfileLinkWrapper>
+              <div className="min-w-0 flex-1">
+                <ProfileLinkWrapper
                   href={profileHref}
                   onClick={handleProfileLinkClick}
-                  className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
-                  aria-label={`查看 ${reservation.name} 的個人資料`}
+                  disabled={isMutating}
+                  className="group block w-full min-w-0 rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                 >
-                  {avatarContent}
-                </Link>
-              ) : (
-                avatarContent
-              )}
-              <div className="min-w-0 flex-1">
-                {profileHref ? (
-                  <Link
-                    href={profileHref}
-                    onClick={handleProfileLinkClick}
-                    className="group block w-full min-w-0 rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
-                  >
-                    <div className="truncate font-medium hover:underline sm:text-base">
-                      {reservation.name}
-                    </div>
-                  </Link>
-                ) : (
-                  <div className="truncate font-medium sm:text-base">
+                  <div className="truncate font-medium hover:underline sm:text-base">
                     {reservation.name}
                   </div>
-                )}
+                </ProfileLinkWrapper>
                 <div className="truncate text-xs text-text-tertiary sm:text-sm">
                   {reservation.roleLine}
                 </div>

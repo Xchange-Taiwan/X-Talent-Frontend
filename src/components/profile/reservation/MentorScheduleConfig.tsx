@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -17,6 +16,7 @@ import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
 
 import { ConfirmedReservationDialog } from './ConfirmedReservationDialog';
+import { ProfileLinkWrapper } from './ProfileLinkWrapper';
 import { QuickReplyDialog } from './QuickReplyDialog';
 
 interface MentorScheduleConfigProps {
@@ -134,31 +134,22 @@ export function MentorScheduleConfig({
                 >
                   {/* Invisible absolute button covering the entire row to handle row click/keydown without nesting issues */}
                   <button
+                    type="button"
                     className="absolute inset-0 rounded-lg focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                     onClick={() => handleBookedSlotClick(slot)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        handleBookedSlotClick(slot);
-                      }
-                    }}
-                    aria-label="查看預約詳情"
+                    aria-label={`查看 ${formatBookingSlotTime(slot)} ${slot.reservation?.name ?? ''} 預約詳情`}
                   />
 
                   <div className="pointer-events-none relative z-10 flex min-w-0 items-center gap-3">
                     {hasReservation && slot.reservation && avatarContent ? (
-                      profileHref ? (
-                        <Link
-                          href={profileHref}
-                          className="pointer-events-auto shrink-0 transition-opacity hover:opacity-80"
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => e.stopPropagation()}
-                        >
-                          {avatarContent}
-                        </Link>
-                      ) : (
-                        avatarContent
-                      )
+                      <ProfileLinkWrapper
+                        href={profileHref}
+                        className="pointer-events-auto shrink-0 transition-opacity hover:opacity-80"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        {avatarContent}
+                      </ProfileLinkWrapper>
                     ) : null}
 
                     <div className="flex min-w-0 flex-col gap-1">
@@ -166,20 +157,14 @@ export function MentorScheduleConfig({
                         {formatBookingSlotTime(slot)}
                       </span>
                       {hasReservation && slot.reservation ? (
-                        profileHref ? (
-                          <Link
-                            href={profileHref}
-                            className="pointer-events-auto truncate text-xs font-normal text-text-secondary transition-colors hover:text-brand-500 hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                            onKeyDown={(e) => e.stopPropagation()}
-                          >
-                            學員 {slot.reservation.name}
-                          </Link>
-                        ) : (
-                          <span className="truncate text-xs font-normal text-text-secondary">
-                            學員 {slot.reservation.name}
-                          </span>
-                        )
+                        <ProfileLinkWrapper
+                          href={profileHref}
+                          className="pointer-events-auto truncate text-xs font-normal text-text-secondary transition-colors hover:text-brand-500 hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          學員 {slot.reservation.name}
+                        </ProfileLinkWrapper>
                       ) : (
                         <span className="truncate text-xs font-normal text-text-secondary">
                           {slot.status === null
