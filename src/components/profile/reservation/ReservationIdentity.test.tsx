@@ -95,6 +95,50 @@ describe('ReservationIdentity', () => {
     expect(screen.getByText('這是學員的測試留言。')).toBeInTheDocument();
   });
 
+  it('does not render a mentor reply block when there is no mentor message', () => {
+    render(
+      <ReservationIdentity
+        reservation={mockReservation}
+        profileHref="/profile/user-alice"
+      />
+    );
+
+    expect(screen.queryByText('導師回覆')).not.toBeInTheDocument();
+  });
+
+  it('renders the mentor reply block when present', () => {
+    render(
+      <ReservationIdentity
+        reservation={{
+          ...mockReservation,
+          mentorMessage: { content: '這是導師的測試回覆。' },
+        }}
+        profileHref="/profile/user-alice"
+      />
+    );
+
+    expect(screen.getByText('導師回覆')).toBeInTheDocument();
+    expect(screen.getByText('這是導師的測試回覆。')).toBeInTheDocument();
+  });
+
+  it('renders both the mentee message and mentor reply when both are present', () => {
+    render(
+      <ReservationIdentity
+        reservation={{
+          ...mockReservation,
+          menteeMessage: { content: '學員的問題。' },
+          mentorMessage: { content: '導師的回覆。' },
+        }}
+        profileHref="/profile/user-alice"
+      />
+    );
+
+    expect(screen.getByText('學員留言')).toBeInTheDocument();
+    expect(screen.getByText('學員的問題。')).toBeInTheDocument();
+    expect(screen.getByText('導師回覆')).toBeInTheDocument();
+    expect(screen.getByText('導師的回覆。')).toBeInTheDocument();
+  });
+
   it('renders the name and avatar as links when a profileHref is provided', () => {
     render(
       <ReservationIdentity
