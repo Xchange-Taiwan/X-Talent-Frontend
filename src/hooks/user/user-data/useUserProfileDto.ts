@@ -78,7 +78,7 @@ export function useUserProfileDto(
 
         if (res === null && key) {
           if (isManualRefetch) {
-            userProfileDtoReadManager.invalidate(key);
+            userProfileDtoReadManager.evict(key);
             return null;
           }
           const existing = userProfileDtoReadManager.get(key);
@@ -89,10 +89,7 @@ export function useUserProfileDto(
         return res;
       } catch (err) {
         if (isManualRefetch && key) {
-          userProfileDtoReadManager.invalidate(
-            key,
-            err instanceof Error ? err.message : String(err)
-          );
+          userProfileDtoReadManager.evict(key);
         }
         throw err;
       }

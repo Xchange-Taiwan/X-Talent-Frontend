@@ -78,22 +78,28 @@ export class AsyncReadManager<K, V> {
     this.set(key, next, ttlMs);
   }
 
-  /**
-   * Drop the cached value at `key` and cancel any fetch in flight for it.
-   *
-   * Pass `error` when invalidating from inside that same in-flight fetch's
-   * own fetcher (e.g. a manual refetch that failed and wants to drop the
-   * stale entry rather than serve it): cancelling the fetch here aborts its
-   * controller, so the manager's own success/failure handler will see
-   * `signal.aborted` and skip its usual notify, which would otherwise
-   * silently swallow the failure reason.
-   */
-  public invalidate(key: K, error: string | null = null): void {
+  /** Drop the cached value at `key` and cancel any fetch in flight for it. */
+  public invalidate(key: K): void {
     this.cancelInflight(key);
     if (this.cache) {
       this.cache.delete(key);
     }
-    this.notifyListeners(key, { data: null, isLoading: false, error });
+    this.notifyListeners(key, { data: null, isLoading: false, error: null });
+  }
+
+  /**
+   * Drop the cached value at `key` without touching any fetch in flight for
+   * it. Use this from inside that very fetch's own fetcher (e.g. a manual
+   * refetch that resolved to "not found" or failed, and wants to evict the
+   * now-stale entry): unlike `invalidate`/`set`/`update`, this does not
+   * cancel the in-flight fetch, so its own success/failure handler still
+   * runs normally afterward and reports the real outcome. Calling a
+   * cancelling write from inside the fetch it would cancel makes the
+   * manager see its own `AbortSignal` as aborted and skip that handler,
+   * silently swallowing the real result.
+   */
+  public evict(key: K): void {
+    this.cache?.delete(key);
   }
 
   public has(key: K): boolean {

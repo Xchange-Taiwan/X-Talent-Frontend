@@ -507,6 +507,69 @@ describe('AsyncReadManager unit tests', () => {
       unsubscribe();
     });
 
+    it('evict() removes the cached value without cancelling an in-flight fetch or notifying subscribers', () => {
+      const cache = createKeyedCache<string, string>();
+      cache.set('key', 'stale-cached-data');
+      const manager = new AsyncReadManager<string, string>(cache);
+      let aborted = false;
+      const fetcher = (signal: AbortSignal) => {
+        signal.addEventListener('abort', () => {
+          aborted = true;
+        });
+        return new Promise<string>(() => {});
+      };
+
+      const updates: AsyncReadResult<string>[] = [];
+      const unsubscribe = manager.subscribe(
+        'key',
+        fetcher,
+        (res) => updates.push(res),
+        { force: true }
+      );
+      const updateCountBeforeEvict = updates.length;
+
+      manager.evict('key');
+
+      expect(cache.get('key')).toBeUndefined();
+      expect(manager.getInflightCount()).toBe(1);
+      expect(aborted).toBe(false);
+      expect(updates.length).toBe(updateCountBeforeEvict);
+
+      unsubscribe();
+    });
+
+    it('evict() called from inside a fetcher still lets that fetch report its own real failure afterward', async () => {
+      const cache = createKeyedCache<string, string>();
+      cache.set('key', 'stale-cached-data');
+      const manager = new AsyncReadManager<string, string>(cache);
+      const updates: AsyncReadResult<string>[] = [];
+
+      const fetcher = () => {
+        manager.evict('key');
+        return Promise.reject(new Error('real failure'));
+      };
+
+      const unsubscribe = manager.subscribe(
+        'key',
+        fetcher,
+        (res) => updates.push(res),
+        { force: true }
+      );
+
+      await vi.waitFor(() => {
+        expect(updates.at(-1)?.isLoading).toBe(false);
+      });
+
+      expect(updates.at(-1)).toEqual({
+        data: null,
+        isLoading: false,
+        error: 'real failure',
+      });
+      expect(cache.get('key')).toBeUndefined();
+
+      unsubscribe();
+    });
+
     it('a write through update() supersedes an in-flight fetch, so a late response cannot overwrite it', async () => {
       const cache = createKeyedCache<string, string>();
       const manager = new AsyncReadManager<string, string>(cache);
