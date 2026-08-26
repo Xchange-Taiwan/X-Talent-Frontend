@@ -1,11 +1,9 @@
 'use client';
 
-import { CalendarDays, Clock, MessageSquare } from 'lucide-react';
 import * as React from 'react';
 
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import RejectReservationDialog from '@/components/reservation/RejectReservationDialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Dialog,
   DialogContent,
@@ -14,12 +12,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
-import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
-import { getInitials } from '@/lib/avatar/getInitials';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
 
-import { ProfileLinkWrapper } from './ProfileLinkWrapper';
+import { ReservationIdentity } from './ReservationIdentity';
 
 interface QuickReplyDialogProps {
   reservation: Reservation | null;
@@ -51,9 +47,6 @@ export function QuickReplyDialog({
 
   if (!reservation) return null;
 
-  const initials = getInitials(reservation.name);
-
-  const menteeMessage = reservation.menteeMessage?.content;
   const menteeId = resolveCounterpartyId(reservation, myUserId || '');
   const profileHref = menteeId ? `/profile/${menteeId}` : undefined;
 
@@ -66,18 +59,6 @@ export function QuickReplyDialog({
       return;
     onOpenChange(false);
   };
-
-  const avatarContent = (
-    <Avatar className="size-10 sm:size-12">
-      <AvatarImage
-        src={
-          reservation.avatar ? getAvatarThumbUrl(reservation.avatar) : undefined
-        }
-        alt={reservation.name}
-      />
-      <AvatarFallback>{initials}</AvatarFallback>
-    </Avatar>
-  );
 
   // Block outside-click/Esc dismissal while a mutation is in flight: this
   // dialog is a single shared instance re-used across reservations, so an
@@ -99,64 +80,12 @@ export function QuickReplyDialog({
             </DialogTitle>
           </DialogHeader>
 
-          {/* User Details Block */}
-          <div className="rounded-2xl border p-4 sm:p-5">
-            <div className="flex items-center gap-3">
-              <ProfileLinkWrapper
-                href={profileHref}
-                onClick={handleProfileLinkClick}
-                disabled={isMutating}
-                className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
-                ariaLabel={`查看 ${reservation.name} 的個人資料`}
-              >
-                {avatarContent}
-              </ProfileLinkWrapper>
-              <div className="min-w-0 flex-1">
-                <ProfileLinkWrapper
-                  href={profileHref}
-                  onClick={handleProfileLinkClick}
-                  disabled={isMutating}
-                  className="group block w-full min-w-0 rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
-                >
-                  <div className="truncate font-medium hover:underline sm:text-base">
-                    {reservation.name}
-                  </div>
-                </ProfileLinkWrapper>
-                <div className="truncate text-xs text-text-tertiary sm:text-sm">
-                  {reservation.roleLine}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 gap-2 text-xs text-text-tertiary sm:grid-cols-2 sm:text-sm">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="size-4 shrink-0" aria-hidden />
-                <span className="truncate">{reservation.date}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock className="size-4 shrink-0" aria-hidden />
-                <span className="truncate">{reservation.time}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Mentee Message block */}
-          {menteeMessage ? (
-            <div className="mt-6">
-              <div className="mb-2 text-sm font-medium text-text-primary">
-                學員留言
-              </div>
-              <div className="flex items-start gap-2 rounded-2xl border bg-background-bottom/40 p-4 text-xs sm:text-sm">
-                <MessageSquare
-                  className="mt-0.5 size-4 shrink-0 text-text-tertiary"
-                  aria-hidden
-                />
-                <p className="break-words whitespace-pre-wrap text-text-primary">
-                  {menteeMessage}
-                </p>
-              </div>
-            </div>
-          ) : null}
+          <ReservationIdentity
+            reservation={reservation}
+            profileHref={profileHref}
+            onProfileLinkClick={handleProfileLinkClick}
+            disabled={isMutating}
+          />
 
           {/* Footer action buttons */}
           <DialogFooter className="mt-6 flex-row justify-end gap-2 sm:gap-2">

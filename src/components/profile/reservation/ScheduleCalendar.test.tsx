@@ -20,8 +20,11 @@ describe('ScheduleCalendar', () => {
   it('renders calendar days successfully', () => {
     render(<ScheduleCalendar {...defaultProps} />);
 
-    // Check that we can see calendar cells (the day number should be visible)
-    expect(screen.getByText(today.date().toString())).toBeInTheDocument();
+    // Check that we can see calendar cells. Queried by test id (not by day
+    // number text) because a leading padding day from the previous month can
+    // share the same day-of-month number as today, which would otherwise
+    // match multiple elements.
+    expect(screen.getByTestId('day-' + formattedTodayStr)).toBeInTheDocument();
   });
 
   it('does not render status dots when getDateStatus is not provided', () => {
