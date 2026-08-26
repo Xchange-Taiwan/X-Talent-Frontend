@@ -14,17 +14,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
+import { useQuickReplyAccept } from '@/hooks/user/reservation/useQuickReplyAccept';
+import { useQuickReplyForm } from '@/hooks/user/reservation/useQuickReplyForm';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { trackEvent } from '@/lib/analytics';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
+import type { QuickReplyFormValues } from '@/schemas/quickReplySchema';
 import type { Reservation } from '@/types/reservation';
-
-// Mirrors AcceptReservationDialog's Textarea: no Zod schema/react-hook-form
-// for this one optional field, consistent with its sibling reply/reason
-// inputs (AcceptReservationDialog, RejectReservationDialog) elsewhere in the
-// reservation flow - just a client-side cap to bound the payload.
-const REPLY_MAX_LENGTH = 500;
 
 interface QuickReplyDialogProps {
   reservation: Reservation | null;
@@ -54,38 +50,50 @@ export function QuickReplyDialog({
     },
   });
   const [replyOpen, setReplyOpen] = React.useState(false);
-  const [reply, setReply] = React.useState('');
-  // Reused for its error-toast handling (resolves the message via the
-  // service layer itself, including the shared version-conflict copy) so
-  // this component never imports from src/services directly - it only
-  // reads isSubmitting/execute, not this hook's own open/onOpenChange
-  // (the dialog's open state is owned by the `open` prop instead).
+  const {
+    register,
+    handleSubmit,
+    reset: resetReplyForm,
+    formState: { errors: replyErrors, isDirty: isReplyDirty },
+  } = useQuickReplyForm();
+  // Resolves the error message via the service layer itself (including the
+  // shared version-conflict copy) so this component never imports from
+  // src/services directly.
   const { isSubmitting: isAccepting, execute: executeAccept } =
-    useConfirmActionDialog({ errorMessage: '接受預約失敗,請稍後再試' });
+    useQuickReplyAccept();
 
   // This dialog instance is shared/re-used across reservations (see the
   // handleOpenChange comment below), so the reply draft must reset whenever
   // it opens for a (possibly different) reservation - otherwise a leftover
-  // draft from the previous one would carry over.
+  // draft from the previous one would carry over. Only call the RHF reset
+  // when there is actually a dirty draft to clear: unlike useState,
+  // react-hook-form's reset() always forces a re-render of formState
+  // subscribers even when resetting to identical values, so calling it
+  // unconditionally on every mount/reopen would re-render for no reason.
   React.useEffect(() => {
-    if (open) {
-      setReplyOpen(false);
-      setReply('');
+    if (!open) return;
+    setReplyOpen(false);
+    if (isReplyDirty) {
+      resetReplyForm();
     }
-  }, [open, reservation?.id]);
+  }, [open, reservation?.id, isReplyDirty, resetReplyForm]);
 
   if (!reservation) return null;
 
-  const handleAccept = () => {
+  // No <form> wrapper: the footer also holds RejectReservationDialog's
+  // trigger button, which has no explicit `type` and would default to
+  // "submit" (firing this accept flow) if nested inside one. handleSubmit
+  // is invoked directly from the accept button's onClick instead.
+  const handleAccept = handleSubmit((data: QuickReplyFormValues) => {
     executeAccept(async () => {
-      await accept(reservation, reply.trim());
+      await accept(reservation, (data.reply ?? '').trim());
       trackEvent({
         name: 'reservation_accepted',
         feature: 'reservation',
-        metadata: { has_reply: reply.trim().length > 0 },
+        metadata: { has_reply: Boolean(data.reply?.trim()) },
       });
     });
-  };
+  });
 
   const menteeId = resolveCounterpartyId(reservation, myUserId || '');
   const profileHref = menteeId ? `/profile/${menteeId}` : undefined;
@@ -137,12 +145,15 @@ export function QuickReplyDialog({
                   <Textarea
                     placeholder="例如：屆時於 Google Meet 見,請先準備一份履歷。"
                     className="min-h-[96px] resize-y border-0 shadow-none focus-visible:ring-0"
-                    value={reply}
-                    onChange={(e) => setReply(e.target.value)}
                     disabled={isMutating}
-                    maxLength={REPLY_MAX_LENGTH}
+                    {...register('reply')}
                   />
                 </div>
+                {replyErrors.reply ? (
+                  <p className="mt-1 text-sm text-status-error-default">
+                    {replyErrors.reply.message}
+                  </p>
+                ) : null}
               </div>
             ) : (
               <button
@@ -174,7 +185,11 @@ export function QuickReplyDialog({
                 size="default"
                 className="w-full sm:w-auto"
                 onClick={handleAccept}
-                disabled={isMutating || isAccepting}
+                disabled={
+                  isMutating ||
+                  isAccepting ||
+                  Object.keys(replyErrors).length > 0
+                }
               >
                 {isAccepting && (
                   <Loader2 className="mr-2 size-4 animate-spin" />

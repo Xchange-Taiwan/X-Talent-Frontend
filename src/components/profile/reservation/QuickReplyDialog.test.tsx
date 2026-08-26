@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { ListKey } from '@/hooks/user/reservation/useReservationData';
+import { trackEvent } from '@/lib/analytics';
 import { mockToast } from '@/test/mocks/useToast';
 import type { Reservation } from '@/types/reservation';
 
@@ -24,6 +25,14 @@ vi.mock('@/hooks/user/reservation/useReservationActions', () => ({
     isMutating: false,
   })),
 }));
+
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    trackEvent: vi.fn(),
+  };
+});
 
 vi.mock('@/components/reservation/RejectReservationDialog', () => ({
   default: vi.fn(({ onReject, disabled }) => (
@@ -174,6 +183,38 @@ describe('QuickReplyDialog', () => {
     expect(accept).toHaveBeenCalledWith(mockReservation, '見面時見！');
   });
 
+  it('tracks reservation_accepted with has_reply reflecting whether a reply was written', async () => {
+    render(<QuickReplyDialog {...defaultProps} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '接受' }));
+    });
+
+    expect(trackEvent).toHaveBeenCalledWith({
+      name: 'reservation_accepted',
+      feature: 'reservation',
+      metadata: { has_reply: false },
+    });
+
+    vi.mocked(trackEvent).mockClear();
+    fireEvent.click(screen.getByText('附上回覆訊息（選填）'));
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        '例如：屆時於 Google Meet 見,請先準備一份履歷。'
+      ),
+      { target: { value: '見面時見！' } }
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '接受' }));
+    });
+
+    expect(trackEvent).toHaveBeenCalledWith({
+      name: 'reservation_accepted',
+      feature: 'reservation',
+      metadata: { has_reply: true },
+    });
+  });
+
   it('calls reject action and handles success correctly', async () => {
     const onMutationSuccess = vi.fn();
     const onOpenChange = vi.fn();
@@ -237,10 +278,12 @@ describe('QuickReplyDialog', () => {
 
     expect(onMutationSuccess).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
-    expect(mockToast).toHaveBeenCalledWith({
-      variant: 'destructive',
-      description: '接受預約失敗,請稍後再試',
-    });
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        description: '接受預約失敗,請稍後再試',
+      })
+    );
   });
 
   it('clears the reply draft when the shared dialog is reused for a different reservation', () => {
@@ -356,7 +399,10 @@ describe('QuickReplyDialog', () => {
   });
 
   it('does NOT call onOpenChange(false) and prevents navigation when clicking the profile link under mutating state', () => {
-    vi.mocked(useReservationActions).mockReturnValueOnce(
+    // mockReturnValue (not ...Once): the mounted form hook's own internal
+    // re-render(s) mean more than one render can happen before the click
+    // below, and every one of them must still see isMutating: true.
+    vi.mocked(useReservationActions).mockReturnValue(
       fromPartial({
         accept: vi.fn(),
         rejectOrCancel: vi.fn(),
