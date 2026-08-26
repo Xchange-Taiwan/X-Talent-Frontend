@@ -159,6 +159,11 @@ export class AsyncReadManager<K, V> {
         const promise = Promise.resolve(fetcher(controller.signal, { force }))
           .then(
             (value) => {
+              // Guards against a fetcher that ignores the AbortSignal and
+              // resolves anyway: abort() flags the signal synchronously, and
+              // any write (set/update/invalidate) that superseded this fetch
+              // already ran to completion before this callback was queued,
+              // so the flag is guaranteed visible here.
               if (controller.signal.aborted) {
                 return value;
               }
@@ -186,7 +191,12 @@ export class AsyncReadManager<K, V> {
                 controller.signal.aborted ||
                 (err instanceof Error && err.name === 'AbortError')
               ) {
-                throw err;
+                // Routine cancellation (superseded by a write or a newer
+                // fetch): resolve quietly rather than rejecting. Nothing
+                // downstream awaits this promise, and update()/invalidate()
+                // abort in-flight fetches as part of normal operation now,
+                // so this is no longer a rare edge case.
+                return;
               }
               const currentCacheStatus = this.cache?.getWithStatus(key);
               const fallbackData =
