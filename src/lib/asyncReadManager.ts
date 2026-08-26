@@ -33,40 +33,58 @@ export class AsyncReadManager<K, V> {
     this.cache = cache;
   }
 
+  private cancelInflight(key: K): void {
+    const entry = this.inflight.get(key);
+    if (entry) {
+      entry.controller.abort();
+      this.inflight.delete(key);
+    }
+  }
+
+  private notifyListeners(key: K, result: AsyncReadResult<V>): void {
+    const activeListeners = this.listeners.get(key);
+    if (activeListeners) {
+      activeListeners.forEach((listener) => listener.onUpdate(result));
+    }
+  }
+
   public get(key: K): V | undefined {
     return this.cache?.get(key);
   }
 
   public set(key: K, value: V, ttlMs?: number): void {
+    // A write always wins over whatever fetch is in flight for this key,
+    // otherwise a late response can resolve after the write and clobber it.
+    this.cancelInflight(key);
     if (this.cache) {
       this.cache.set(key, value, ttlMs);
     }
-    const activeListeners = this.listeners.get(key);
-    if (activeListeners) {
-      activeListeners.forEach((listener) => {
-        listener.onUpdate({
-          data: value,
-          isLoading: false,
-          error: null,
-        });
-      });
-    }
+    this.notifyListeners(key, { data: value, isLoading: false, error: null });
   }
 
-  public delete(key: K): void {
+  /**
+   * Update the value at `key` derived from its current cached value.
+   * Returning `undefined` from `updater` is a no-op (nothing to update from).
+   */
+  public update(
+    key: K,
+    updater: (current: V | undefined) => V | undefined,
+    ttlMs?: number
+  ): void {
+    const next = updater(this.cache?.get(key));
+    if (next === undefined) {
+      return;
+    }
+    this.set(key, next, ttlMs);
+  }
+
+  /** Drop the cached value at `key` and cancel any fetch in flight for it. */
+  public invalidate(key: K): void {
+    this.cancelInflight(key);
     if (this.cache) {
       this.cache.delete(key);
     }
-    const activeListeners = this.listeners.get(key);
-    if (activeListeners) {
-      activeListeners.forEach((listener) => {
-        listener.onUpdate({
-          data: null,
-          isLoading: false,
-          error: null,
-        });
-      });
-    }
+    this.notifyListeners(key, { data: null, isLoading: false, error: null });
   }
 
   public has(key: K): boolean {
@@ -131,8 +149,7 @@ export class AsyncReadManager<K, V> {
       let inflightEntry = this.inflight.get(key);
       if (options?.force && inflightEntry) {
         // Force refresh: abort current in-flight fetch and start fresh
-        inflightEntry.controller.abort();
-        this.inflight.delete(key);
+        this.cancelInflight(key);
         inflightEntry = undefined;
       }
 
@@ -154,16 +171,11 @@ export class AsyncReadManager<K, V> {
                 this.inflight.delete(key);
               }
 
-              const activeListeners = this.listeners.get(key);
-              if (activeListeners) {
-                activeListeners.forEach((listener) => {
-                  listener.onUpdate({
-                    data: value,
-                    isLoading: false,
-                    error: null,
-                  });
-                });
-              }
+              this.notifyListeners(key, {
+                data: value,
+                isLoading: false,
+                error: null,
+              });
               return value;
             },
             (err) => {
@@ -176,24 +188,19 @@ export class AsyncReadManager<K, V> {
               ) {
                 throw err;
               }
-              const activeListeners = this.listeners.get(key);
-              if (activeListeners) {
-                const currentCacheStatus = this.cache?.getWithStatus(key);
-                const fallbackData =
-                  currentCacheStatus !== undefined
-                    ? currentCacheStatus.value
-                    : options?.initialData !== undefined
-                      ? options.initialData
-                      : null;
+              const currentCacheStatus = this.cache?.getWithStatus(key);
+              const fallbackData =
+                currentCacheStatus !== undefined
+                  ? currentCacheStatus.value
+                  : options?.initialData !== undefined
+                    ? options.initialData
+                    : null;
 
-                activeListeners.forEach((listener) => {
-                  listener.onUpdate({
-                    data: fallbackData,
-                    isLoading: false,
-                    error: err instanceof Error ? err.message : String(err),
-                  });
-                });
-              }
+              this.notifyListeners(key, {
+                data: fallbackData,
+                isLoading: false,
+                error: err instanceof Error ? err.message : String(err),
+              });
               throw err;
             }
           )
