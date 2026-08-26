@@ -34,10 +34,10 @@ import {
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
 import {
-  cacheReservations,
-  clearReservationsCache,
-  getCachedReservations,
-} from '@/services/mentor-schedule/reservationsCache';
+  MENTOR_SCHEDULE_RESERVATIONS_TTL_MS,
+  type ReservationReadKey,
+  reservationReadModel,
+} from '@/lib/reservation/reservationReadModel';
 import {
   clearScheduleCache,
   scheduleCache,
@@ -195,6 +195,42 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   // whatever fallback that caller has for "no reservation".
   const [reservationsLoaded, setReservationsLoaded] = useState(false);
 
+  const isStale = useCallback(
+    (start: { userId: string; year: number; month: number }) => {
+      return (
+        backendRef.current.userId !== start.userId ||
+        backendRef.current.year !== start.year ||
+        backendRef.current.month !== start.month ||
+        !isMountedRef.current
+      );
+    },
+    []
+  );
+
+  // The mount-effect fetch below and reloadReservations() are two
+  // independent async flows that both resolve to "the reservations for the
+  // current (userId, year, month)" - isStale() alone can't tell them apart,
+  // since a mutation-triggered reload() can start and finish entirely while
+  // an in-flight mount-effect fetch (same identity, just slower) is still
+  // pending. Without a generation counter, that slower fetch's eventual
+  // resolution would look "not stale" to isStale() and overwrite both
+  // `reservations` and the shared cache with pre-mutation data. Each flow
+  // claims the next id before starting; isReservationFetchStale() rejects
+  // any flow whose id was superseded by a later one, regardless of which
+  // resolves first.
+  const reservationFetchIdRef = useRef(0);
+  const isReservationFetchStale = useCallback(
+    (start: {
+      userId: string;
+      year: number;
+      month: number;
+      fetchId: number;
+    }) => {
+      return isStale(start) || reservationFetchIdRef.current !== start.fetchId;
+    },
+    [isStale]
+  );
+
   useEffect(() => {
     if (
       !loginUserId ||
@@ -207,7 +243,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       return;
     }
 
-    let ignore = false;
+    const startSnapshot = {
+      userId: backend.userId,
+      year: backend.year,
+      month: backend.month,
+      fetchId: ++reservationFetchIdRef.current,
+    };
     setReservationsLoaded(false);
     // Native Date(year, monthIndex, day) rather than dayjs's string parser:
     // Safari's Date.parse rejects unpadded YYYY-M-DD strings (e.g. '2026-7-01')
@@ -220,18 +261,32 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     // Serve an unexpired cache hit instantly (e.g. swiping A -> B -> A within
     // the TTL window) instead of re-running the paginated fetch; a miss falls
     // through to the network and primes the cache for next time. See
-    // reservationsCache's RESERVATIONS_TTL_MS for why this window is short.
+    // MENTOR_SCHEDULE_RESERVATIONS_TTL_MS for why this window is short.
     const fetchReservationsForState = async (
       state: ReservationState
     ): Promise<Reservation[]> => {
-      const cached = getCachedReservations(loginUserId, state, endOfMonthUnix);
-      if (cached !== undefined) return cached;
+      const key: ReservationReadKey = {
+        userId: loginUserId,
+        state,
+        endOfMonthUnix,
+      };
+      const cached = reservationReadModel.get(key);
+      if (cached !== undefined) return cached.items;
       const items = await fetchAllReservationsForState(
         loginUserId,
         state,
         endOfMonthUnix
       );
-      cacheReservations(loginUserId, state, endOfMonthUnix, items);
+      // A concurrent reload() (e.g. from an accept/reject mutation) can
+      // clear and re-prime this same key while this fetch was in flight -
+      // writing this now-superseded response back would clobber the
+      // reload's fresher data in the shared cache, not just in local state.
+      if (isReservationFetchStale(startSnapshot)) return items;
+      reservationReadModel.set(
+        key,
+        { items, next_dtend: 0 },
+        MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
+      );
       return items;
     };
 
@@ -241,7 +296,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           fetchReservationsForState('MENTOR_UPCOMING'),
           fetchReservationsForState('MENTOR_PENDING'),
         ]);
-        if (ignore) return;
+        if (isReservationFetchStale(startSnapshot)) return;
         setReservations((prev) =>
           prev.length === 0 && upcoming.length === 0 && pending.length === 0
             ? prev
@@ -262,7 +317,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         // failing, never rejecting), so this only fires for something
         // unexpected elsewhere in the try block — defense-in-depth,
         // matching reloadReservations' handling below.
-        if (ignore) return;
+        if (isReservationFetchStale(startSnapshot)) return;
         captureFlowFailure({
           flow: 'mentor_schedule_fetch_reservations',
           step: 'fetch_all_reservations',
@@ -273,11 +328,13 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     };
 
     fetchAll();
-
-    return () => {
-      ignore = true;
-    };
-  }, [loginUserId, backend.userId, backend.year, backend.month]);
+  }, [
+    loginUserId,
+    backend.userId,
+    backend.year,
+    backend.month,
+    isReservationFetchStale,
+  ]);
 
   const currentMonthKey = monthKeyFromYearMonth(backend.year, backend.month);
 
@@ -303,24 +360,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       prevUserIdRef.current !== backend.userId
     ) {
       scheduleCache.clear();
-      clearReservationsCache();
+      reservationReadModel.clear();
       store.clearAll();
       setLoaded(false);
     }
     prevUserIdRef.current = backend.userId;
   }, [backend.userId, store]);
-
-  const isStale = useCallback(
-    (start: { userId: string; year: number; month: number }) => {
-      return (
-        backendRef.current.userId !== start.userId ||
-        backendRef.current.year !== start.year ||
-        backendRef.current.month !== start.month ||
-        !isMountedRef.current
-      );
-    },
-    []
-  );
 
   const fetchMonthSchedule = useCallback(
     async (isForced = false) => {
@@ -624,23 +669,25 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       userId: backend.userId,
       year: backend.year,
       month: backend.month,
+      fetchId: ++reservationFetchIdRef.current,
     };
     const endOfMonthUnix = dayjs(new Date(backend.year, backend.month - 1, 1))
       .endOf('month')
       .unix();
 
-    // Clear unconditionally, before the fetch even starts: whatever
-    // triggered this reload (a mutation like accept/reject, or a manual
-    // retry) means every cached entry is potentially stale the moment
-    // reload() is called - regardless of whether the fetch below succeeds,
-    // throws, or gets abandoned via the isStale checks. Each cached entry
-    // covers "now through that month's end" (see
-    // fetchAllReservationsForState), so a mutated reservation can be
-    // embedded in every OTHER cached month whose end is on or after it, not
-    // just the currently-viewed one. Clearing only on the success path
-    // would leave all of that stale for up to the TTL if the fetch failed
-    // or was abandoned.
-    clearReservationsCache();
+    // Clear the whole shared model unconditionally, before the fetch even
+    // starts: whatever triggered this reload (a mutation like accept/reject,
+    // or a manual retry) means every cached entry is potentially stale the
+    // moment reload() is called - regardless of whether the fetch below
+    // succeeds, throws, or gets abandoned via the isStale checks. A mutated
+    // reservation can be embedded in every OTHER cached calendar month
+    // (each is keyed by its own end-of-month boundary) and in the
+    // reservation dashboard's own unscoped slot for this same state, not
+    // just the currently-viewed month - clearing only on the success path,
+    // or only this month's two keys, would leave the rest stale for up to
+    // the TTL (or indefinitely, for the dashboard's invalidate-driven slot)
+    // if the fetch failed or was abandoned.
+    reservationReadModel.clear();
 
     try {
       const [upcoming, pending] = await Promise.all([
@@ -655,19 +702,22 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           endOfMonthUnix
         ),
       ]);
-      if (isStale(startSnapshot)) return;
+      if (isReservationFetchStale(startSnapshot)) return;
       // Re-prime just this month so a subsequent swipe back to it within
       // the TTL still avoids one extra fetch.
-      cacheReservations(
-        loginUserId,
-        'MENTOR_UPCOMING',
-        endOfMonthUnix,
-        upcoming
+      reservationReadModel.set(
+        { userId: loginUserId, state: 'MENTOR_UPCOMING', endOfMonthUnix },
+        { items: upcoming, next_dtend: 0 },
+        MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
       );
-      cacheReservations(loginUserId, 'MENTOR_PENDING', endOfMonthUnix, pending);
+      reservationReadModel.set(
+        { userId: loginUserId, state: 'MENTOR_PENDING', endOfMonthUnix },
+        { items: pending, next_dtend: 0 },
+        MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
+      );
       setReservations([...upcoming, ...pending]);
     } catch (err) {
-      if (isStale(startSnapshot)) return;
+      if (isReservationFetchStale(startSnapshot)) return;
       captureFlowFailure({
         flow: 'mentor_schedule_reload_reservations',
         step: 'reload_reservations_for_state',
@@ -675,7 +725,13 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         level: 'warning',
       });
     }
-  }, [loginUserId, backend.userId, backend.year, backend.month, isStale]);
+  }, [
+    loginUserId,
+    backend.userId,
+    backend.year,
+    backend.month,
+    isReservationFetchStale,
+  ]);
 
   const reloadSchedule = useCallback(async () => {
     await fetchMonthSchedule(true);
