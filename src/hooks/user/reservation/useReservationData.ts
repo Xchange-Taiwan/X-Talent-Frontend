@@ -5,9 +5,12 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { useAsyncRead } from '@/hooks/useAsyncRead';
 import { trackEvent } from '@/lib/analytics';
-import { reservationReadManager } from '@/lib/cache/reservationCache';
 import { isAbortError } from '@/lib/errorUtils';
 import { captureFlowFailure } from '@/lib/monitoring';
+import {
+  type ReservationReadKey,
+  reservationReadModel,
+} from '@/lib/reservation/reservationReadModel';
 import { fetchReservations, ReservationState } from '@/services/reservations';
 import { Reservation } from '@/types/reservation';
 
@@ -83,11 +86,11 @@ export interface UseReservationDataReturn {
   refetchOnConflict: (affectedTabs: ListKey[]) => void;
 }
 
-function getReservationCacheKey(
+function toReservationReadKey(
   userId: string | number | null | undefined,
-  state: string
-): string | null {
-  return userId ? `${userId}_${state}` : null;
+  state: ReservationState
+): ReservationReadKey | null {
+  return userId ? { userId: String(userId), state } : null;
 }
 
 export function useReservationData({
@@ -110,11 +113,23 @@ export function useReservationData({
     })
   );
 
-  const upcomingKey = getReservationCacheKey(myUserId, states.upcoming);
-  const pendingKey = getReservationCacheKey(myUserId, states.pending);
-  const historyKey = historyActive
-    ? getReservationCacheKey(myUserId, states.history)
-    : null;
+  // useAsyncRead compares keys by reference to detect a "key changed" edge
+  // during render, so these must stay referentially stable across renders
+  // when (userId, state) hasn't actually changed - hence useMemo rather than
+  // a fresh object literal per render.
+  const upcomingKey = useMemo(
+    () => toReservationReadKey(myUserId, states.upcoming),
+    [myUserId, states.upcoming]
+  );
+  const pendingKey = useMemo(
+    () => toReservationReadKey(myUserId, states.pending),
+    [myUserId, states.pending]
+  );
+  const historyKey = useMemo(
+    () =>
+      historyActive ? toReservationReadKey(myUserId, states.history) : null,
+    [historyActive, myUserId, states.history]
+  );
 
   const createReservationFetcher = useCallback(
     (
@@ -182,19 +197,19 @@ export function useReservationData({
   );
 
   const { data: upcomingResult, isLoading: isUpcomingLoading } = useAsyncRead(
-    reservationReadManager,
+    reservationReadModel,
     upcomingKey,
     fetchUpcoming
   );
 
   const { data: pendingResult, isLoading: isPendingLoading } = useAsyncRead(
-    reservationReadManager,
+    reservationReadModel,
     pendingKey,
     fetchPending
   );
 
   const { data: historyResult, isLoading: isHistoryLoading } = useAsyncRead(
-    reservationReadManager,
+    reservationReadModel,
     historyKey,
     fetchHistory
   );
@@ -258,9 +273,9 @@ export function useReservationData({
       // Clear cache for skipped target states to prevent stale cache under cross-mount cycles
       targets.forEach((state) => {
         if (ownStates.has(state) && !filtered.includes(state)) {
-          const key = getReservationCacheKey(myUserId, state);
+          const key = toReservationReadKey(myUserId, state);
           if (key) {
-            reservationReadManager.invalidate(key);
+            reservationReadModel.invalidate(key);
           }
         }
       });
@@ -275,8 +290,8 @@ export function useReservationData({
         );
 
         filtered.forEach((state, idx) => {
-          const key = getReservationCacheKey(myUserId, state)!;
-          reservationReadManager.update(key, () => results[idx]);
+          const key = toReservationReadKey(myUserId, state)!;
+          reservationReadModel.update(key, () => results[idx]);
         });
       } catch (err) {
         captureFlowFailure({
@@ -306,9 +321,9 @@ export function useReservationData({
       });
 
       affectedTabs.forEach((tab) => {
-        const key = getReservationCacheKey(myUserId, states[tab]);
+        const key = toReservationReadKey(myUserId, states[tab]);
         if (!key) return;
-        reservationReadManager.update(key, (current) =>
+        reservationReadModel.update(key, (current) =>
           current
             ? {
                 ...current,
@@ -345,8 +360,8 @@ export function useReservationData({
   const loadMore = useCallback(
     async (tab: ListKey): Promise<void> => {
       if (!myUserId) return;
-      const key = getReservationCacheKey(myUserId, states[tab])!;
-      const currentData = reservationReadManager.get(key);
+      const key = toReservationReadKey(myUserId, states[tab])!;
+      const currentData = reservationReadModel.get(key);
       if (!currentData) return;
       const cursor = currentData.next_dtend;
       if (cursor === 0) return;
@@ -359,7 +374,7 @@ export function useReservationData({
           nextDtend: cursor,
         });
 
-        reservationReadManager.update(key, (current) => {
+        reservationReadModel.update(key, (current) => {
           const base = current ?? currentData;
           return {
             items: [...base.items, ...result.items],

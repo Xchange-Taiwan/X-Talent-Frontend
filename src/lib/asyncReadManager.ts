@@ -24,7 +24,25 @@ interface InflightEntry<V> {
   controller: AbortController;
 }
 
-export class AsyncReadManager<K, V> {
+/**
+ * The subset of `AsyncReadManager`'s public surface that `useAsyncRead`
+ * actually depends on. Consumers that want a domain-shaped key (e.g.
+ * `ReservationReadModel`, keyed by `{ userId, state }` instead of a raw
+ * string) can wrap a private `AsyncReadManager` instance and hand this
+ * structural shape to `useAsyncRead` without exposing the manager itself.
+ */
+export interface AsyncReadSource<K, V> {
+  get(key: K): V | undefined;
+  set(key: K, value: V, ttlMs?: number): void;
+  subscribe(
+    key: K,
+    fetcher: (signal: AbortSignal, context?: { force?: boolean }) => Promise<V>,
+    onUpdate: (result: AsyncReadResult<V>) => void,
+    options?: AsyncReadOptions<K, V>
+  ): () => void;
+}
+
+export class AsyncReadManager<K, V> implements AsyncReadSource<K, V> {
   private cache?: KeyedCache<K, V>;
   private listeners = new Map<K, Set<Subscription<V>>>();
   private inflight = new Map<K, InflightEntry<V>>();
