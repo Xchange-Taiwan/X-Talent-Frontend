@@ -1,10 +1,11 @@
 'use client';
 
+import { Loader2, MessageSquarePlus } from 'lucide-react';
 import * as React from 'react';
 
-import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import RejectReservationDialog from '@/components/reservation/RejectReservationDialog';
 import { ReservationIdentity } from '@/components/reservation/ReservationIdentity';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -12,8 +13,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/components/ui/use-toast';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
+import { trackEvent } from '@/lib/analytics';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
+import { getReservationErrorMessage } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
 
 interface QuickReplyDialogProps {
@@ -43,8 +48,41 @@ export function QuickReplyDialog({
       onOpenChange(false);
     },
   });
+  const { toast } = useToast();
+  const [replyOpen, setReplyOpen] = React.useState(false);
+  const [reply, setReply] = React.useState('');
+
+  // This dialog instance is shared/re-used across reservations (see the
+  // handleOpenChange comment below), so the reply draft must reset whenever
+  // it opens for a (possibly different) reservation - otherwise a leftover
+  // draft from the previous one would carry over.
+  React.useEffect(() => {
+    if (open) {
+      setReplyOpen(false);
+      setReply('');
+    }
+  }, [open, reservation?.id]);
 
   if (!reservation) return null;
+
+  const handleAccept = async () => {
+    try {
+      await accept(reservation, reply.trim());
+      trackEvent({
+        name: 'reservation_accepted',
+        feature: 'reservation',
+        metadata: { has_reply: reply.trim().length > 0 },
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        description: getReservationErrorMessage(
+          error,
+          '接受預約失敗,請稍後再試'
+        ),
+      });
+    }
+  };
 
   const menteeId = resolveCounterpartyId(reservation, myUserId || '');
   const profileHref = menteeId ? `/profile/${menteeId}` : undefined;
@@ -86,6 +124,35 @@ export function QuickReplyDialog({
             disabled={isMutating}
           />
 
+          <div className="mt-6">
+            {replyOpen ? (
+              <div>
+                <div className="mb-2 text-sm font-medium">
+                  給學員的回覆（選填）
+                </div>
+                <div className="rounded-2xl border p-2">
+                  <Textarea
+                    placeholder="例如：屆時於 Google Meet 見,請先準備一份履歷。"
+                    className="min-h-[96px] resize-y border-0 shadow-none focus-visible:ring-0"
+                    value={reply}
+                    onChange={(e) => setReply(e.target.value)}
+                    disabled={isMutating}
+                  />
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setReplyOpen(true)}
+                className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-text-primary"
+                disabled={isMutating}
+              >
+                <MessageSquarePlus className="size-4" aria-hidden />
+                附上回覆訊息（選填）
+              </button>
+            )}
+          </div>
+
           {/* Footer action buttons */}
           <DialogFooter className="mt-6 flex-row justify-end gap-2 sm:gap-2">
             <div className="flex w-full gap-2 sm:w-auto">
@@ -98,13 +165,16 @@ export function QuickReplyDialog({
                   rejectOrCancel(reservation, reason, 'reject')
                 }
               />
-              <AcceptReservationDialog
-                reservation={reservation}
-                disabled={isMutating}
+              <Button
+                type="button"
                 size="default"
                 className="w-full sm:w-auto"
-                onAccept={async ({ message }) => accept(reservation, message)}
-              />
+                onClick={handleAccept}
+                disabled={isMutating}
+              >
+                {isMutating && <Loader2 className="mr-2 size-4 animate-spin" />}
+                接受
+              </Button>
             </div>
           </DialogFooter>
         </div>

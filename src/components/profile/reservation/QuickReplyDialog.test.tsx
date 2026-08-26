@@ -19,24 +19,6 @@ vi.mock('@/hooks/user/reservation/useReservationActions', () => ({
   })),
 }));
 
-vi.mock('@/components/reservation/AcceptReservationDialog', () => ({
-  // The real component's useConfirmActionDialog#execute swallows a failed
-  // mutation into an error toast rather than letting it reject up to the
-  // caller; mirror that here so a rejected onAccept in a test doesn't
-  // surface as an unhandled rejection.
-  default: vi.fn(({ onAccept, disabled }) => (
-    <button
-      data-testid="mock-accept-dialog-trigger"
-      disabled={disabled}
-      onClick={() => {
-        onAccept({ message: 'Accept Message' })?.catch(() => {});
-      }}
-    >
-      Mock Accept
-    </button>
-  )),
-}));
-
 vi.mock('@/components/reservation/RejectReservationDialog', () => ({
   default: vi.fn(({ onReject, disabled }) => (
     <button
@@ -112,13 +94,13 @@ describe('QuickReplyDialog', () => {
       )
     ).toBeInTheDocument();
 
-    // Renders custom mock dialog trigger buttons
-    expect(
-      screen.getByTestId('mock-accept-dialog-trigger')
-    ).toBeInTheDocument();
+    // Renders a single accept button and the mock reject dialog trigger -
+    // there is no second, nested confirmation dialog for accept.
+    expect(screen.getByRole('button', { name: '接受' })).toBeInTheDocument();
     expect(
       screen.getByTestId('mock-reject-dialog-trigger')
     ).toBeInTheDocument();
+    expect(screen.queryByText('接受學員預約')).not.toBeInTheDocument();
   });
 
   it('calls accept action and handles success correctly', async () => {
@@ -150,7 +132,7 @@ describe('QuickReplyDialog', () => {
     const hookConfig = vi.mocked(useReservationActions).mock.calls[0][0];
     state.successCallback = hookConfig.onMutationSuccess;
 
-    const acceptBtn = screen.getByTestId('mock-accept-dialog-trigger');
+    const acceptBtn = screen.getByRole('button', { name: '接受' });
     await act(async () => {
       fireEvent.click(acceptBtn);
       // The dialog now awaits onMutationSuccess (schedule.reload) before
@@ -160,6 +142,30 @@ describe('QuickReplyDialog', () => {
 
     expect(onMutationSuccess).toHaveBeenCalledOnce();
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('sends the optional reply message trimmed when accepting', async () => {
+    const accept = vi.fn();
+    vi.mocked(useReservationActions).mockReturnValue({
+      accept,
+      rejectOrCancel: mockRejectOrCancel,
+      isMutating: false,
+    });
+
+    render(<QuickReplyDialog {...defaultProps} />);
+
+    fireEvent.click(screen.getByText('附上回覆訊息（選填）'));
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        '例如：屆時於 Google Meet 見,請先準備一份履歷。'
+      ),
+      { target: { value: '  見面時見！  ' } }
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '接受' }));
+    });
+
+    expect(accept).toHaveBeenCalledWith(mockReservation, '見面時見！');
   });
 
   it('calls reject action and handles success correctly', async () => {
@@ -217,7 +223,7 @@ describe('QuickReplyDialog', () => {
       />
     );
 
-    const acceptBtn = screen.getByTestId('mock-accept-dialog-trigger');
+    const acceptBtn = screen.getByRole('button', { name: '接受' });
     await act(async () => {
       fireEvent.click(acceptBtn);
       await Promise.resolve();
@@ -296,7 +302,7 @@ describe('QuickReplyDialog', () => {
 
     render(<QuickReplyDialog {...defaultProps} />);
 
-    const acceptBtn = screen.getByTestId('mock-accept-dialog-trigger');
+    const acceptBtn = screen.getByRole('button', { name: '接受' });
     const rejectBtn = screen.getByTestId('mock-reject-dialog-trigger');
 
     expect(acceptBtn).toBeDisabled();
