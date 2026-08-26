@@ -2,29 +2,40 @@
 
 import { useCallback } from 'react';
 
-import { useAsyncAction } from '@/hooks/useAsyncAction';
+import { useToast } from '@/components/ui/use-toast';
 import { getReservationErrorMessage } from '@/services/reservations';
 
 /**
  * Wraps QuickReplyDialog's accept action with the shared error-toast
- * behavior, via the generic `useAsyncAction` rather than
- * `useConfirmActionDialog` - this dialog's open state is already owned by
- * its `open` prop, so a hook whose contract centers on owning open/onOpenChange
- * would be a mismatched fit here.
+ * behavior, calling `getReservationErrorMessage` (service layer) from here
+ * rather than the component so the component never imports src/services
+ * directly.
+ *
+ * Intentionally has no pending/loading state of its own: `accept` (from
+ * `useReservationActions`) already tracks its own in-flight state via
+ * `isMutating`, which the caller already reads for disabling/spinners -
+ * a second, separately-tracked `isSubmitting` here for the exact same
+ * underlying call would just be duplicated state to keep in sync.
  */
 export function useQuickReplyAccept() {
-  const { run, isPending } = useAsyncAction({
-    throwError: false,
-    toastOnError: {
-      description: (error) =>
-        getReservationErrorMessage(error, '接受預約失敗,請稍後再試'),
-    },
-  });
+  const { toast } = useToast();
 
   const execute = useCallback(
-    (action: () => Promise<void>) => run(action),
-    [run]
+    async (action: () => Promise<void>) => {
+      try {
+        await action();
+      } catch (error) {
+        toast({
+          variant: 'destructive',
+          description: getReservationErrorMessage(
+            error,
+            '接受預約失敗,請稍後再試'
+          ),
+        });
+      }
+    },
+    [toast]
   );
 
-  return { isSubmitting: isPending, execute };
+  return { execute };
 }

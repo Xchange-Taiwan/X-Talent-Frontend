@@ -58,9 +58,20 @@ export function QuickReplyDialog({
   } = useQuickReplyForm();
   // Resolves the error message via the service layer itself (including the
   // shared version-conflict copy) so this component never imports from
-  // src/services directly.
-  const { isSubmitting: isAccepting, execute: executeAccept } =
-    useQuickReplyAccept();
+  // src/services directly. No pending state of its own - `isMutating` below
+  // already tracks this same `accept` call in flight.
+  const { execute: executeAccept } = useQuickReplyAccept();
+
+  // Read via a ref (not a dependency) inside the reset effect below: isDirty
+  // flips true on the user's very first keystroke, and if it were a
+  // dependency, that flip alone would re-run the effect mid-typing and
+  // collapse/clear the field the user is actively filling in. The effect
+  // must only fire on open/reservation changes, checking whatever isDirty
+  // happens to be *at that moment*.
+  const isReplyDirtyRef = React.useRef(isReplyDirty);
+  React.useEffect(() => {
+    isReplyDirtyRef.current = isReplyDirty;
+  });
 
   // This dialog instance is shared/re-used across reservations (see the
   // handleOpenChange comment below), so the reply draft must reset whenever
@@ -73,10 +84,10 @@ export function QuickReplyDialog({
   React.useEffect(() => {
     if (!open) return;
     setReplyOpen(false);
-    if (isReplyDirty) {
+    if (isReplyDirtyRef.current) {
       resetReplyForm();
     }
-  }, [open, reservation?.id, isReplyDirty, resetReplyForm]);
+  }, [open, reservation?.id, resetReplyForm]);
 
   if (!reservation) return null;
 
@@ -185,15 +196,9 @@ export function QuickReplyDialog({
                 size="default"
                 className="w-full sm:w-auto"
                 onClick={handleAccept}
-                disabled={
-                  isMutating ||
-                  isAccepting ||
-                  Object.keys(replyErrors).length > 0
-                }
+                disabled={isMutating || Object.keys(replyErrors).length > 0}
               >
-                {isAccepting && (
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                )}
+                {isMutating && <Loader2 className="mr-2 size-4 animate-spin" />}
                 接受
               </Button>
             </div>

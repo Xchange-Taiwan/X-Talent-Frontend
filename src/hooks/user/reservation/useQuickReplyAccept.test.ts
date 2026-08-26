@@ -24,7 +24,6 @@ describe('useQuickReplyAccept', () => {
     });
 
     expect(action).toHaveBeenCalledTimes(1);
-    expect(result.current.isSubmitting).toBe(false);
     expect(mockToast).not.toHaveBeenCalled();
   });
 
@@ -36,34 +35,11 @@ describe('useQuickReplyAccept', () => {
       await result.current.execute(action);
     });
 
-    expect(result.current.isSubmitting).toBe(false);
     expect(mockToast).toHaveBeenCalledWith(
       expect.objectContaining({
         variant: 'destructive',
         description: '接受預約失敗,請稍後再試',
       })
     );
-  });
-
-  it('sets isSubmitting while the action is in flight', async () => {
-    const { result } = renderHook(() => useQuickReplyAccept());
-    let resolveAction!: () => void;
-    const action = vi.fn(
-      () => new Promise<void>((resolve) => (resolveAction = resolve))
-    );
-
-    let executePromise: Promise<unknown>;
-    act(() => {
-      executePromise = result.current.execute(action);
-    });
-
-    expect(result.current.isSubmitting).toBe(true);
-
-    await act(async () => {
-      resolveAction();
-      await executePromise;
-    });
-
-    expect(result.current.isSubmitting).toBe(false);
   });
 });

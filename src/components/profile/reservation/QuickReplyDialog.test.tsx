@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -181,6 +182,29 @@ describe('QuickReplyDialog', () => {
     });
 
     expect(accept).toHaveBeenCalledWith(mockReservation, '見面時見！');
+  });
+
+  // Regression test: the reset-on-reopen effect previously listed
+  // formState.isDirty as a dependency, so react-hook-form flipping it to
+  // true on the very first keystroke re-ran the effect and immediately
+  // collapsed/cleared the field the user was typing into.
+  it('keeps the reply box open and the draft intact while typing character by character', async () => {
+    render(<QuickReplyDialog {...defaultProps} />);
+
+    fireEvent.click(screen.getByText('附上回覆訊息（選填）'));
+    const textarea = screen.getByPlaceholderText(
+      '例如：屆時於 Google Meet 見,請先準備一份履歷。'
+    );
+
+    const user = userEvent.setup();
+    await user.type(textarea, 'Hi');
+
+    expect(
+      screen.queryByPlaceholderText(
+        '例如：屆時於 Google Meet 見,請先準備一份履歷。'
+      )
+    ).toBeInTheDocument();
+    expect(textarea).toHaveValue('Hi');
   });
 
   it('tracks reservation_accepted with has_reply reflecting whether a reply was written', async () => {
