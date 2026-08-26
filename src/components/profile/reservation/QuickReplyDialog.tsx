@@ -14,12 +14,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/components/ui/use-toast';
+import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { trackEvent } from '@/lib/analytics';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
-import { getReservationErrorMessage } from '@/services/reservations';
 import type { Reservation } from '@/types/reservation';
+
+// Mirrors AcceptReservationDialog's Textarea: no Zod schema/react-hook-form
+// for this one optional field, consistent with its sibling reply/reason
+// inputs (AcceptReservationDialog, RejectReservationDialog) elsewhere in the
+// reservation flow - just a client-side cap to bound the payload.
+const REPLY_MAX_LENGTH = 500;
 
 interface QuickReplyDialogProps {
   reservation: Reservation | null;
@@ -48,9 +53,15 @@ export function QuickReplyDialog({
       onOpenChange(false);
     },
   });
-  const { toast } = useToast();
   const [replyOpen, setReplyOpen] = React.useState(false);
   const [reply, setReply] = React.useState('');
+  // Reused for its error-toast handling (resolves the message via the
+  // service layer itself, including the shared version-conflict copy) so
+  // this component never imports from src/services directly - it only
+  // reads isSubmitting/execute, not this hook's own open/onOpenChange
+  // (the dialog's open state is owned by the `open` prop instead).
+  const { isSubmitting: isAccepting, execute: executeAccept } =
+    useConfirmActionDialog({ errorMessage: '接受預約失敗,請稍後再試' });
 
   // This dialog instance is shared/re-used across reservations (see the
   // handleOpenChange comment below), so the reply draft must reset whenever
@@ -65,23 +76,15 @@ export function QuickReplyDialog({
 
   if (!reservation) return null;
 
-  const handleAccept = async () => {
-    try {
+  const handleAccept = () => {
+    executeAccept(async () => {
       await accept(reservation, reply.trim());
       trackEvent({
         name: 'reservation_accepted',
         feature: 'reservation',
         metadata: { has_reply: reply.trim().length > 0 },
       });
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        description: getReservationErrorMessage(
-          error,
-          '接受預約失敗,請稍後再試'
-        ),
-      });
-    }
+    });
   };
 
   const menteeId = resolveCounterpartyId(reservation, myUserId || '');
@@ -137,6 +140,7 @@ export function QuickReplyDialog({
                     value={reply}
                     onChange={(e) => setReply(e.target.value)}
                     disabled={isMutating}
+                    maxLength={REPLY_MAX_LENGTH}
                   />
                 </div>
               </div>
@@ -170,9 +174,11 @@ export function QuickReplyDialog({
                 size="default"
                 className="w-full sm:w-auto"
                 onClick={handleAccept}
-                disabled={isMutating}
+                disabled={isMutating || isAccepting}
               >
-                {isMutating && <Loader2 className="mr-2 size-4 animate-spin" />}
+                {isAccepting && (
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                )}
                 接受
               </Button>
             </div>

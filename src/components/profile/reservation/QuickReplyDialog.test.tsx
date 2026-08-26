@@ -4,9 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { ListKey } from '@/hooks/user/reservation/useReservationData';
+import { mockToast } from '@/test/mocks/useToast';
 import type { Reservation } from '@/types/reservation';
 
 import { QuickReplyDialog } from './QuickReplyDialog';
+
+vi.mock('@/components/ui/use-toast', async () => {
+  const { useToastMockFactory } = await import('@/test/mocks/useToast');
+  return useToastMockFactory();
+});
 
 const mockAccept = vi.fn();
 const mockRejectOrCancel = vi.fn();
@@ -231,6 +237,34 @@ describe('QuickReplyDialog', () => {
 
     expect(onMutationSuccess).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith({
+      variant: 'destructive',
+      description: '接受預約失敗,請稍後再試',
+    });
+  });
+
+  it('clears the reply draft when the shared dialog is reused for a different reservation', () => {
+    const { rerender } = render(<QuickReplyDialog {...defaultProps} />);
+
+    fireEvent.click(screen.getByText('附上回覆訊息（選填）'));
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        '例如：屆時於 Google Meet 見,請先準備一份履歷。'
+      ),
+      { target: { value: '不好意思，我要遲到了' } }
+    );
+
+    const otherReservation: Reservation = {
+      ...mockReservation,
+      id: 'res-999',
+      name: 'Carol User',
+    };
+    rerender(
+      <QuickReplyDialog {...defaultProps} reservation={otherReservation} />
+    );
+
+    expect(screen.queryByText('給學員的回覆（選填）')).not.toBeInTheDocument();
+    expect(screen.getByText('附上回覆訊息（選填）')).toBeInTheDocument();
   });
 
   it('keeps the dialog open when reject fails (onMutationSuccess is never invoked)', async () => {
