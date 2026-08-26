@@ -1,9 +1,9 @@
 'use client';
 
-import { CalendarDays, Clock, Loader2, MessageSquarePlus } from 'lucide-react';
+import { Loader2, MessageSquarePlus } from 'lucide-react';
 import { useState } from 'react';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ReservationIdentity } from '@/components/reservation/ReservationIdentity';
 import { Button, type ButtonProps } from '@/components/ui/button';
 import {
   Dialog,
@@ -17,7 +17,6 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
 import { trackEvent } from '@/lib/analytics';
-import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
 import { cn } from '@/lib/utils';
 import type { Reservation } from '@/types/reservation';
 
@@ -65,13 +64,6 @@ export default function AcceptReservationDialog({
 
   const menteeMessage = reservation.menteeMessage?.content;
 
-  const initials =
-    reservation.name
-      .split(' ')
-      .map((s) => s[0])
-      .join('')
-      .slice(0, 2) || 'U';
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
@@ -92,38 +84,14 @@ export default function AcceptReservationDialog({
             </DialogTitle>
           </DialogHeader>
 
-          <div className="rounded-2xl border p-4 sm:p-5">
-            <div className="flex items-center gap-3">
-              <Avatar className="size-10">
-                <AvatarImage
-                  src={
-                    reservation.avatar
-                      ? getAvatarThumbUrl(reservation.avatar)
-                      : undefined
-                  }
-                  alt={reservation.name}
-                />
-                <AvatarFallback>{initials}</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <div className="truncate font-medium">{reservation.name}</div>
-                <div className="truncate text-sm text-text-tertiary">
-                  {reservation.roleLine}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="size-4" />
-                <span>{reservation.date}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock className="size-4" />
-                <span>{reservation.time}</span>
-              </div>
-            </div>
-          </div>
+          <ReservationIdentity
+            reservation={reservation}
+            showMessages={false}
+            avatarClassName="size-10"
+            nameClassName="truncate font-medium"
+            roleLineClassName="truncate text-sm text-text-tertiary"
+            dateTimeClassName="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2"
+          />
 
           {menteeMessage ? (
             <div className="mt-6">

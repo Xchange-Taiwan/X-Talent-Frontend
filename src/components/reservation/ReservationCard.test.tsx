@@ -58,6 +58,23 @@ describe('ReservationCard', () => {
     expect(screen.getByText('10:00 am – 11:00 am')).toBeInTheDocument();
   });
 
+  it('derives initials from the shared getInitials helper', () => {
+    render(<ReservationCard item={mockReservation} variant="upcoming" />);
+
+    expect(screen.getByText('JD')).toBeInTheDocument();
+  });
+
+  it('falls back to U when the name is empty', () => {
+    render(
+      <ReservationCard
+        item={{ ...mockReservation, name: '' }}
+        variant="upcoming"
+      />
+    );
+
+    expect(screen.getByText('U')).toBeInTheDocument();
+  });
+
   it('uses flex-nowrap to avoid deforming when long names are rendered', () => {
     const { container } = render(
       <ReservationCard item={mockReservation} variant="upcoming" />

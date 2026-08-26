@@ -37,7 +37,7 @@ const reservationWithBothMessages: Reservation = {
 };
 
 const meta: Meta<typeof ReservationIdentity> = {
-  title: '業務模組元件/個人檔案(Profile)/Reservation/ReservationIdentity',
+  title: '業務模組元件/預約管理(Reservation)/ReservationIdentity',
   component: ReservationIdentity,
   tags: ['autodocs'],
   decorators: [
@@ -114,5 +114,28 @@ export const LinkingDisabled: Story = {
     reservation: baseReservation,
     profileHref: '/profile/user-alice',
     linkToProfile: false,
+  },
+};
+
+// showMessages=false, as used by AcceptReservationDialog: the mentee message
+// is rendered by the caller instead, under its own label and styling
+export const WithoutMessages: Story = {
+  args: {
+    reservation: reservationWithMessage,
+    profileHref: '/profile/user-alice',
+    showMessages: false,
+  },
+};
+
+// The className overrides AcceptReservationDialog needs to stay visually
+// unchanged: a smaller, non-responsive avatar and a plainer date/time row
+export const AcceptDialogStyle: Story = {
+  args: {
+    reservation: baseReservation,
+    avatarClassName: 'size-10',
+    nameClassName: 'truncate font-medium',
+    roleLineClassName: 'truncate text-sm text-text-tertiary',
+    dateTimeClassName: 'mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2',
+    showMessages: false,
   },
 };
