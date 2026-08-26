@@ -19,8 +19,8 @@ vi.mock('@/services/reservations', async () => {
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 
-import { reservationReadManager } from '@/lib/cache/reservationCache';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import {
   fetchReservations,
   type ReservationState,
@@ -55,7 +55,7 @@ const stubFor = (state: ReservationState) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  reservationReadManager.clear();
+  reservationReadModel.clear();
   mockUseSession.mockReturnValue({
     data: mockSession,
     status: 'authenticated',
