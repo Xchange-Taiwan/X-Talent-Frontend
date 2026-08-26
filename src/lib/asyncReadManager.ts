@@ -78,13 +78,22 @@ export class AsyncReadManager<K, V> {
     this.set(key, next, ttlMs);
   }
 
-  /** Drop the cached value at `key` and cancel any fetch in flight for it. */
-  public invalidate(key: K): void {
+  /**
+   * Drop the cached value at `key` and cancel any fetch in flight for it.
+   *
+   * Pass `error` when invalidating from inside that same in-flight fetch's
+   * own fetcher (e.g. a manual refetch that failed and wants to drop the
+   * stale entry rather than serve it): cancelling the fetch here aborts its
+   * controller, so the manager's own success/failure handler will see
+   * `signal.aborted` and skip its usual notify, which would otherwise
+   * silently swallow the failure reason.
+   */
+  public invalidate(key: K, error: string | null = null): void {
     this.cancelInflight(key);
     if (this.cache) {
       this.cache.delete(key);
     }
-    this.notifyListeners(key, { data: null, isLoading: false, error: null });
+    this.notifyListeners(key, { data: null, isLoading: false, error });
   }
 
   public has(key: K): boolean {
