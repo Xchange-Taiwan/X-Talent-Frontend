@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import * as React from 'react';
 
+import ReservationConversationDialog from '@/components/reservation/ReservationConversationDialog';
 import { ReservationStatusBadge } from '@/components/reservation/ReservationStatusBadge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,7 @@ export function ReservationCard({
   onProfileClick,
   variant,
   myUserId,
+  sourceRole = 'mentee',
 }: {
   item: Reservation;
   actions?: React.ReactNode;
@@ -33,6 +35,9 @@ export function ReservationCard({
   // Drives upcoming-only affordances (status badge and email hint).
   variant?: ReservationCardVariant;
   myUserId?: string | number;
+  // Which role the current user is browsing as. Only used for analytics when
+  // opening the full-conversation dialog from the message preview.
+  sourceRole?: 'mentor' | 'mentee';
 }) {
   const isUpcoming = variant === 'upcoming';
   const { menteeMessage, mentorMessage } = item;
@@ -147,20 +152,30 @@ export function ReservationCard({
             </div>
 
             {hasAnyMessage ? (
-              <div className="mt-3 space-y-2">
-                {menteeMessage ? (
-                  <MessageBlock
-                    label="學員留言"
-                    content={menteeMessage.content}
-                  />
-                ) : null}
-                {mentorMessage ? (
-                  <MessageBlock
-                    label="導師回覆"
-                    content={mentorMessage.content}
-                  />
-                ) : null}
-              </div>
+              <ReservationConversationDialog
+                reservation={item}
+                sourceRole={sourceRole}
+                trigger={
+                  <button
+                    type="button"
+                    aria-label="查看完整訊息"
+                    className="mt-3 block w-full space-y-2 rounded-lg text-left focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  >
+                    {menteeMessage ? (
+                      <MessageBlock
+                        label="學員留言"
+                        content={menteeMessage.content}
+                      />
+                    ) : null}
+                    {mentorMessage ? (
+                      <MessageBlock
+                        label="導師回覆"
+                        content={mentorMessage.content}
+                      />
+                    ) : null}
+                  </button>
+                }
+              />
             ) : null}
 
             {footer ? <div className="mt-3">{footer}</div> : null}
@@ -223,7 +238,7 @@ function JoinMeetButton({
 
 function MessageBlock({ label, content }: { label: string; content: string }) {
   return (
-    <div className="flex items-start gap-2 rounded-lg bg-background-bottom/40 p-2.5 text-xs sm:text-sm">
+    <div className="flex items-start gap-2 rounded-lg bg-background-bottom/40 p-2.5 text-xs transition-colors hover:bg-background-bottom/60 sm:text-sm">
       <MessageSquare
         className="mt-0.5 size-3.5 shrink-0 text-text-tertiary sm:size-4"
         aria-hidden
