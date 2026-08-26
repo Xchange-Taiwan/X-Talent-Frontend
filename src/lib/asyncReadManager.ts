@@ -105,6 +105,21 @@ export class AsyncReadManager<K, V> implements AsyncReadSource<K, V> {
     this.notifyListeners(key, { data: null, isLoading: false, error: null });
   }
 
+  /**
+   * Drop the cached value at `key` without touching any fetch in flight for
+   * it. Use this from inside that very fetch's own fetcher (e.g. a manual
+   * refetch that resolved to "not found" or failed, and wants to evict the
+   * now-stale entry): unlike `invalidate`/`set`/`update`, this does not
+   * cancel the in-flight fetch, so its own success/failure handler still
+   * runs normally afterward and reports the real outcome. Calling a
+   * cancelling write from inside the fetch it would cancel makes the
+   * manager see its own `AbortSignal` as aborted and skip that handler,
+   * silently swallowing the real result.
+   */
+  public evict(key: K): void {
+    this.cache?.delete(key);
+  }
+
   public has(key: K): boolean {
     return this.cache?.has(key) ?? false;
   }
