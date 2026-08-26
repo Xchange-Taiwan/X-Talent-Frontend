@@ -26,6 +26,16 @@ const reservationWithMessage: Reservation = {
   },
 };
 
+const reservationWithBothMessages: Reservation = {
+  ...baseReservation,
+  menteeMessage: {
+    content: '您好，想請教一下關於前端職涯發展的建議，謝謝！',
+  },
+  mentorMessage: {
+    content: '沒問題，到時候見面聊聊您目前的規劃！',
+  },
+};
+
 const meta: Meta<typeof ReservationIdentity> = {
   title: '業務模組元件/個人檔案(Profile)/Reservation/ReservationIdentity',
   component: ReservationIdentity,
@@ -65,6 +75,17 @@ export const WithMenteeMessage: Story = {
   args: {
     reservation: reservationWithMessage,
     profileHref: '/profile/user-alice',
+  },
+};
+
+// With both the mentee's message and the mentor's reply, as seen in
+// ConfirmedReservationDialog once the mentor has accepted with a reply
+export const WithMenteeAndMentorMessages: Story = {
+  args: {
+    reservation: reservationWithBothMessages,
+    profileHref: '/profile/user-alice',
+    density: 'compact',
+    showStatusBadge: true,
   },
 };
 

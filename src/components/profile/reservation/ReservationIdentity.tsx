@@ -48,6 +48,7 @@ export function ReservationIdentity({
   const initials = getInitials(reservation.name);
   const href = linkToProfile ? profileHref : undefined;
   const menteeMessage = reservation.menteeMessage?.content;
+  const mentorMessage = reservation.mentorMessage?.content;
 
   return (
     <>
@@ -117,21 +118,28 @@ export function ReservationIdentity({
       </div>
 
       {menteeMessage ? (
-        <div className="mt-6">
-          <div className="mb-2 text-sm font-medium text-text-primary">
-            學員留言
-          </div>
-          <div className="flex items-start gap-2 rounded-2xl border bg-background-bottom/40 p-4 text-xs sm:text-sm">
-            <MessageSquare
-              className="mt-0.5 size-4 shrink-0 text-text-tertiary"
-              aria-hidden
-            />
-            <p className="break-words whitespace-pre-wrap text-text-primary">
-              {menteeMessage}
-            </p>
-          </div>
-        </div>
+        <MessageBlock label="學員留言" content={menteeMessage} />
+      ) : null}
+      {mentorMessage ? (
+        <MessageBlock label="導師回覆" content={mentorMessage} />
       ) : null}
     </>
+  );
+}
+
+function MessageBlock({ label, content }: { label: string; content: string }) {
+  return (
+    <div className="mt-6">
+      <div className="mb-2 text-sm font-medium text-text-primary">{label}</div>
+      <div className="flex items-start gap-2 rounded-2xl border bg-background-bottom/40 p-4 text-xs sm:text-sm">
+        <MessageSquare
+          className="mt-0.5 size-4 shrink-0 text-text-tertiary"
+          aria-hidden
+        />
+        <p className="break-words whitespace-pre-wrap text-text-primary">
+          {content}
+        </p>
+      </div>
+    </div>
   );
 }
