@@ -260,7 +260,7 @@ export function useReservationData({
         if (ownStates.has(state) && !filtered.includes(state)) {
           const key = getReservationCacheKey(myUserId, state);
           if (key) {
-            reservationReadManager.delete(key);
+            reservationReadManager.invalidate(key);
           }
         }
       });
@@ -276,7 +276,7 @@ export function useReservationData({
 
         filtered.forEach((state, idx) => {
           const key = getReservationCacheKey(myUserId, state)!;
-          reservationReadManager.set(key, results[idx]);
+          reservationReadManager.update(key, () => results[idx]);
         });
       } catch (err) {
         captureFlowFailure({
@@ -308,14 +308,14 @@ export function useReservationData({
       affectedTabs.forEach((tab) => {
         const key = getReservationCacheKey(myUserId, states[tab]);
         if (!key) return;
-        const cached = reservationReadManager.get(key);
-        if (cached) {
-          const updated = {
-            ...cached,
-            items: cached.items.filter((it) => it.id !== id),
-          };
-          reservationReadManager.set(key, updated);
-        }
+        reservationReadManager.update(key, (current) =>
+          current
+            ? {
+                ...current,
+                items: current.items.filter((it) => it.id !== id),
+              }
+            : undefined
+        );
       });
 
       const affectedStates = affectedTabs.map((tab) => states[tab]);
@@ -359,10 +359,12 @@ export function useReservationData({
           nextDtend: cursor,
         });
 
-        const merged = [...currentData.items, ...result.items];
-        reservationReadManager.set(key, {
-          items: merged,
-          next_dtend: result.next_dtend,
+        reservationReadManager.update(key, (current) => {
+          const base = current ?? currentData;
+          return {
+            items: [...base.items, ...result.items],
+            next_dtend: result.next_dtend,
+          };
         });
 
         trackEvent({ name: 'reservation_load_more', feature: 'reservation' });

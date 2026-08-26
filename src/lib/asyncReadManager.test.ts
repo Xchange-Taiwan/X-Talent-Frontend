@@ -426,4 +426,221 @@ describe('AsyncReadManager unit tests', () => {
 
     unsubscribe();
   });
+
+  describe('write vocabulary: update() and invalidate()', () => {
+    it('update() derives the next value from the current cached value and notifies subscribers', () => {
+      const cache = createKeyedCache<string, string[]>();
+      cache.set('key', ['a', 'b']);
+      const manager = new AsyncReadManager<string, string[]>(cache);
+      const updates: AsyncReadResult<string[]>[] = [];
+
+      const unsubscribe = manager.subscribe(
+        'key',
+        vi.fn().mockResolvedValue(['a', 'b']),
+        (res) => updates.push(res)
+      );
+
+      manager.update('key', (current) => [...(current ?? []), 'c']);
+
+      expect(cache.get('key')).toEqual(['a', 'b', 'c']);
+      expect(updates.at(-1)).toEqual({
+        data: ['a', 'b', 'c'],
+        isLoading: false,
+        error: null,
+      });
+
+      unsubscribe();
+    });
+
+    it('update() is a no-op when the updater returns undefined (nothing to derive from)', () => {
+      const cache = createKeyedCache<string, string[]>();
+      const manager = new AsyncReadManager<string, string[]>(cache);
+      const updates: AsyncReadResult<string[]>[] = [];
+
+      const unsubscribe = manager.subscribe(
+        'key',
+        vi.fn().mockReturnValue(new Promise(() => {})),
+        (res) => updates.push(res)
+      );
+
+      manager.update('key', (current) =>
+        current ? [...current, 'c'] : undefined
+      );
+
+      expect(cache.get('key')).toBeUndefined();
+      expect(updates).toHaveLength(1); // Only the initial loading update, no write happened
+
+      unsubscribe();
+    });
+
+    it('invalidate() removes the cached value, cancels the in-flight fetch, and notifies subscribers', () => {
+      const cache = createKeyedCache<string, string>();
+      cache.set('key', 'cached-data');
+      const manager = new AsyncReadManager<string, string>(cache);
+      let aborted = false;
+      const fetcher = (signal: AbortSignal) => {
+        signal.addEventListener('abort', () => {
+          aborted = true;
+        });
+        return new Promise<string>(() => {});
+      };
+
+      const updates: AsyncReadResult<string>[] = [];
+      const unsubscribe = manager.subscribe(
+        'key',
+        fetcher,
+        (res) => updates.push(res),
+        { force: true }
+      );
+
+      manager.invalidate('key');
+
+      expect(cache.get('key')).toBeUndefined();
+      expect(manager.getInflightCount()).toBe(0);
+      expect(aborted).toBe(true);
+      expect(updates.at(-1)).toEqual({
+        data: null,
+        isLoading: false,
+        error: null,
+      });
+
+      unsubscribe();
+    });
+
+    it('a write through update() supersedes an in-flight fetch, so a late response cannot overwrite it', async () => {
+      const cache = createKeyedCache<string, string>();
+      const manager = new AsyncReadManager<string, string>(cache);
+      let resolveFetcher: (v: string) => void = () => {};
+      const fetcherPromise = new Promise<string>((resolve) => {
+        resolveFetcher = resolve;
+      });
+      const fetcher = vi.fn().mockReturnValue(fetcherPromise);
+      const updates: AsyncReadResult<string>[] = [];
+
+      const unsubscribe = manager.subscribe('key', fetcher, (res) =>
+        updates.push(res)
+      );
+      expect(updates[0]).toEqual({ data: null, isLoading: true, error: null });
+      expect(manager.getInflightCount()).toBe(1);
+
+      // A write happens before the fetch resolves.
+      manager.update('key', () => 'written-value');
+      expect(manager.getInflightCount()).toBe(0);
+      expect(updates[1]).toEqual({
+        data: 'written-value',
+        isLoading: false,
+        error: null,
+      });
+
+      // The stale fetch now resolves late, it must not clobber the write.
+      resolveFetcher('late-response');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(manager.get('key')).toBe('written-value');
+      expect(updates).toHaveLength(2);
+
+      unsubscribe();
+    });
+
+    it('a write through invalidate() supersedes an in-flight fetch, so a late response cannot repopulate it', async () => {
+      const cache = createKeyedCache<string, string>();
+      cache.set('key', 'stale-cached-data');
+      const manager = new AsyncReadManager<string, string>(cache);
+      let resolveFetcher: (v: string) => void = () => {};
+      const fetcherPromise = new Promise<string>((resolve) => {
+        resolveFetcher = resolve;
+      });
+      const fetcher = vi.fn().mockReturnValue(fetcherPromise);
+      const updates: AsyncReadResult<string>[] = [];
+
+      const unsubscribe = manager.subscribe(
+        'key',
+        fetcher,
+        (res) => updates.push(res),
+        { force: true }
+      );
+      expect(manager.getInflightCount()).toBe(1);
+
+      manager.invalidate('key');
+      expect(manager.getInflightCount()).toBe(0);
+      expect(cache.get('key')).toBeUndefined();
+
+      resolveFetcher('late-response');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(cache.get('key')).toBeUndefined();
+
+      unsubscribe();
+    });
+  });
+
+  describe('AbortError handling in the fetch resolution path', () => {
+    it('silently absorbs a genuine AbortError from a fetcher that rejects after our own controller aborted it (real fetch behavior)', async () => {
+      const cache = createKeyedCache<string, string>();
+      const manager = new AsyncReadManager<string, string>(cache);
+      let rejectFetcher: (err: Error) => void = () => {};
+      const fetcherPromise = new Promise<string>((_, reject) => {
+        rejectFetcher = reject;
+      });
+      const fetcher = vi.fn().mockReturnValue(fetcherPromise);
+      const updates: AsyncReadResult<string>[] = [];
+
+      const unsubscribe = manager.subscribe('key', fetcher, (res) =>
+        updates.push(res)
+      );
+      expect(manager.getInflightCount()).toBe(1);
+
+      // A write cancels the fetch, as any real fetch() would react to
+      // AbortController.abort() by rejecting with a DOMException/Error
+      // named 'AbortError'.
+      manager.update('key', () => 'written-value');
+      expect(manager.getInflightCount()).toBe(0);
+
+      const abortError = new Error('The operation was aborted.');
+      abortError.name = 'AbortError';
+      rejectFetcher(abortError);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Only the initial loading update and the write update, no error
+      // notification for the routine, self-caused cancellation.
+      expect(updates).toHaveLength(2);
+      expect(updates[1]).toEqual({
+        data: 'written-value',
+        isLoading: false,
+        error: null,
+      });
+      expect(manager.get('key')).toBe('written-value');
+
+      unsubscribe();
+    });
+
+    it('treats an AbortError NOT caused by our own controller as a real failure, not a routine cancellation', async () => {
+      const manager = new AsyncReadManager<string, string>();
+      // e.g. the fetcher's own internal timeout signal, unrelated to the
+      // controller AsyncReadManager passed it.
+      const abortError = new Error('signal timed out');
+      abortError.name = 'AbortError';
+      const fetcher = vi.fn().mockRejectedValue(abortError);
+      const updates: AsyncReadResult<string>[] = [];
+
+      const unsubscribe = manager.subscribe('key', fetcher, (res) =>
+        updates.push(res)
+      );
+      expect(updates[0]).toEqual({ data: null, isLoading: true, error: null });
+
+      await vi.waitFor(() => {
+        expect(updates.length).toBe(2);
+      });
+
+      // Must be reported as an error, not silently dropped, otherwise the
+      // subscriber is stuck on isLoading: true forever.
+      expect(updates[1]).toEqual({
+        data: null,
+        isLoading: false,
+        error: 'signal timed out',
+      });
+
+      unsubscribe();
+    });
+  });
 });
