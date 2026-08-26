@@ -156,67 +156,68 @@ export class AsyncReadManager<K, V> {
       if (!inflightEntry) {
         const controller = new AbortController();
         const force = !!options?.force;
-        const promise = Promise.resolve(fetcher(controller.signal, { force }))
-          .then(
-            (value) => {
-              // Guards against a fetcher that ignores the AbortSignal and
-              // resolves anyway: abort() flags the signal synchronously, and
-              // any write (set/update/invalidate) that superseded this fetch
-              // already ran to completion before this callback was queued,
-              // so the flag is guaranteed visible here.
-              if (controller.signal.aborted) {
-                return value;
-              }
-              if (this.cache) {
-                if (!options?.shouldCache || options.shouldCache(value)) {
-                  this.cache.set(key, value, options?.ttlMs);
-                }
-              }
-              if (this.inflight.get(key)?.controller === controller) {
-                this.inflight.delete(key);
-              }
-
-              this.notifyListeners(key, {
-                data: value,
-                isLoading: false,
-                error: null,
-              });
+        // Never rejects: callers only ever read `controller`/`promise` for
+        // bookkeeping (nothing awaits this promise), so both branches below
+        // resolve rather than throw once they've done their notifying. That
+        // also means there's no throw-then-catch to trace through to see
+        // this doesn't produce an unhandled rejection.
+        const promise = Promise.resolve(
+          fetcher(controller.signal, { force })
+        ).then(
+          (value) => {
+            // Guards against a fetcher that ignores the AbortSignal and
+            // resolves anyway: abort() flags the signal synchronously, and
+            // any write (set/update/invalidate) that superseded this fetch
+            // already ran to completion before this callback was queued,
+            // so the flag is guaranteed visible here.
+            if (controller.signal.aborted) {
               return value;
-            },
-            (err) => {
-              if (this.inflight.get(key)?.controller === controller) {
-                this.inflight.delete(key);
-              }
-              if (
-                controller.signal.aborted ||
-                (err instanceof Error && err.name === 'AbortError')
-              ) {
-                // Routine cancellation (superseded by a write or a newer
-                // fetch): resolve quietly rather than rejecting. Nothing
-                // downstream awaits this promise, and update()/invalidate()
-                // abort in-flight fetches as part of normal operation now,
-                // so this is no longer a rare edge case.
-                return;
-              }
-              const currentCacheStatus = this.cache?.getWithStatus(key);
-              const fallbackData =
-                currentCacheStatus !== undefined
-                  ? currentCacheStatus.value
-                  : options?.initialData !== undefined
-                    ? options.initialData
-                    : null;
-
-              this.notifyListeners(key, {
-                data: fallbackData,
-                isLoading: false,
-                error: err instanceof Error ? err.message : String(err),
-              });
-              throw err;
             }
-          )
-          .catch(() => {
-            // Swallow handled rejection locally to prevent Unhandled Promise Rejection warnings
-          });
+            if (this.cache) {
+              if (!options?.shouldCache || options.shouldCache(value)) {
+                this.cache.set(key, value, options?.ttlMs);
+              }
+            }
+            if (this.inflight.get(key)?.controller === controller) {
+              this.inflight.delete(key);
+            }
+
+            this.notifyListeners(key, {
+              data: value,
+              isLoading: false,
+              error: null,
+            });
+            return value;
+          },
+          (err) => {
+            if (this.inflight.get(key)?.controller === controller) {
+              this.inflight.delete(key);
+            }
+            // Only *our own* abort counts as routine cancellation. Do not
+            // also match on `err.name === 'AbortError'`: a fetcher can
+            // reject with that name for a reason unrelated to us (e.g. its
+            // own internal timeout signal), and treating that as routine
+            // would swallow a real failure, leaving subscribers stuck on
+            // isLoading: true forever since notifyListeners below would
+            // never run for it.
+            if (controller.signal.aborted) {
+              return;
+            }
+            const currentCacheStatus = this.cache?.getWithStatus(key);
+            const fallbackData =
+              currentCacheStatus !== undefined
+                ? currentCacheStatus.value
+                : options?.initialData !== undefined
+                  ? options.initialData
+                  : null;
+
+            this.notifyListeners(key, {
+              data: fallbackData,
+              isLoading: false,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        );
 
         const entry: InflightEntry<V> = { promise, controller };
         inflightEntry = entry;

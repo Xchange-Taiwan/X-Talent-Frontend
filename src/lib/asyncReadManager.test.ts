@@ -573,4 +573,74 @@ describe('AsyncReadManager unit tests', () => {
       unsubscribe();
     });
   });
+
+  describe('AbortError handling in the fetch resolution path', () => {
+    it('silently absorbs a genuine AbortError from a fetcher that rejects after our own controller aborted it (real fetch behavior)', async () => {
+      const cache = createKeyedCache<string, string>();
+      const manager = new AsyncReadManager<string, string>(cache);
+      let rejectFetcher: (err: Error) => void = () => {};
+      const fetcherPromise = new Promise<string>((_, reject) => {
+        rejectFetcher = reject;
+      });
+      const fetcher = vi.fn().mockReturnValue(fetcherPromise);
+      const updates: AsyncReadResult<string>[] = [];
+
+      const unsubscribe = manager.subscribe('key', fetcher, (res) =>
+        updates.push(res)
+      );
+      expect(manager.getInflightCount()).toBe(1);
+
+      // A write cancels the fetch, as any real fetch() would react to
+      // AbortController.abort() by rejecting with a DOMException/Error
+      // named 'AbortError'.
+      manager.update('key', () => 'written-value');
+      expect(manager.getInflightCount()).toBe(0);
+
+      const abortError = new Error('The operation was aborted.');
+      abortError.name = 'AbortError';
+      rejectFetcher(abortError);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Only the initial loading update and the write update, no error
+      // notification for the routine, self-caused cancellation.
+      expect(updates).toHaveLength(2);
+      expect(updates[1]).toEqual({
+        data: 'written-value',
+        isLoading: false,
+        error: null,
+      });
+      expect(manager.get('key')).toBe('written-value');
+
+      unsubscribe();
+    });
+
+    it('treats an AbortError NOT caused by our own controller as a real failure, not a routine cancellation', async () => {
+      const manager = new AsyncReadManager<string, string>();
+      // e.g. the fetcher's own internal timeout signal, unrelated to the
+      // controller AsyncReadManager passed it.
+      const abortError = new Error('signal timed out');
+      abortError.name = 'AbortError';
+      const fetcher = vi.fn().mockRejectedValue(abortError);
+      const updates: AsyncReadResult<string>[] = [];
+
+      const unsubscribe = manager.subscribe('key', fetcher, (res) =>
+        updates.push(res)
+      );
+      expect(updates[0]).toEqual({ data: null, isLoading: true, error: null });
+
+      await vi.waitFor(() => {
+        expect(updates.length).toBe(2);
+      });
+
+      // Must be reported as an error, not silently dropped, otherwise the
+      // subscriber is stuck on isLoading: true forever.
+      expect(updates[1]).toEqual({
+        data: null,
+        isLoading: false,
+        error: 'signal timed out',
+      });
+
+      unsubscribe();
+    });
+  });
 });
