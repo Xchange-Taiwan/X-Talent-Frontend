@@ -34,9 +34,6 @@ export function ReservationCard({
   const hasAnyMessage = Boolean(menteeMessage || mentorMessage);
 
   const handleProfileLinkClick = () => onProfileClick?.();
-  const nameClassName = profileHref
-    ? 'truncate text-sm font-medium sm:text-base group-hover:underline'
-    : 'truncate text-sm font-medium sm:text-base';
 
   return (
     <Card
@@ -49,12 +46,7 @@ export function ReservationCard({
           profileHref={profileHref}
           onProfileLinkClick={handleProfileLinkClick}
           showStatusBadge={isUpcoming}
-          containerClassName="flex items-start gap-3 sm:gap-4"
-          nameRowClassName="flex min-w-0 items-start justify-between gap-2"
-          nameClassName={nameClassName}
-          avatarFallbackClassName="font-medium"
-          badgeClassName="px-1.5 text-11"
-          badgeWrapperClassName="flex shrink-0 items-center gap-2"
+          variant="card"
         >
           {/* Divider only on >=sm to match Figma feel */}
           <div className="my-3 hidden h-px bg-background-border sm:block" />

@@ -127,15 +127,12 @@ export const WithoutMessages: Story = {
   },
 };
 
-// The className overrides AcceptReservationDialog needs to stay visually
-// unchanged: a smaller, non-responsive avatar and a plainer date/time row
+// variant="accept", as used by AcceptReservationDialog: a smaller,
+// non-responsive avatar, a plainer date/time row, and no auto-rendered
+// messages (showMessages defaults to false for this variant)
 export const AcceptDialogStyle: Story = {
   args: {
     reservation: baseReservation,
-    avatarClassName: 'size-10',
-    nameClassName: 'truncate font-medium',
-    roleLineClassName: 'truncate text-sm text-text-tertiary',
-    dateTimeClassName: 'mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2',
-    showMessages: false,
+    variant: 'accept',
   },
 };

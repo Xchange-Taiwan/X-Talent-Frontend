@@ -19,18 +19,62 @@ const containerPaddingByDensity: Record<ReservationIdentityDensity, string> = {
   compact: 'p-3.5 sm:p-5',
 };
 
-const DEFAULT_AVATAR_CLASSNAME = 'size-10 sm:size-12';
-const DEFAULT_HEADER_CONTAINER_CLASSNAME =
-  'flex w-full min-w-0 items-center gap-3';
-const DEFAULT_NAME_ROW_CLASSNAME =
-  'flex w-full min-w-0 flex-wrap items-center justify-between gap-2';
-const DEFAULT_NAME_CLASSNAME =
-  'block truncate font-medium hover:underline sm:text-base';
-const DEFAULT_ROLE_LINE_CLASSNAME =
-  'truncate text-xs text-text-tertiary sm:text-sm';
-const DEFAULT_BADGE_CLASSNAME = 'shrink-0 px-1.5 text-11 font-normal';
-const DEFAULT_DATE_TIME_CLASSNAME =
-  'mt-4 grid grid-cols-1 gap-2 text-xs text-text-tertiary sm:grid-cols-2 sm:text-sm';
+/**
+ * `dialog` - ConfirmedReservationDialog / QuickReplyDialog's identity block.
+ * `compact` - AcceptReservationDialog's smaller, non-responsive avatar and plainer text.
+ * `card` - ReservationCard's top-aligned layout with a wrapped, shrink-0 badge slot.
+ */
+export type ReservationIdentityHeaderVariant = 'dialog' | 'compact' | 'card';
+
+interface HeaderVariantStyle {
+  avatarClassName: string;
+  avatarFallbackClassName?: string;
+  containerClassName: string;
+  nameRowClassName: string;
+  roleLineClassName: string;
+  badgeClassName: string;
+  badgeWrapperClassName?: string;
+  nameClassName: (isLink: boolean) => string;
+}
+
+const headerVariantStyles: Record<
+  ReservationIdentityHeaderVariant,
+  HeaderVariantStyle
+> = {
+  dialog: {
+    avatarClassName: 'size-10 sm:size-12',
+    containerClassName: 'flex w-full min-w-0 items-center gap-3',
+    nameRowClassName:
+      'flex w-full min-w-0 flex-wrap items-center justify-between gap-2',
+    roleLineClassName: 'truncate text-xs text-text-tertiary sm:text-sm',
+    badgeClassName: 'shrink-0 px-1.5 text-11 font-normal',
+    nameClassName: () =>
+      'block truncate font-medium hover:underline sm:text-base',
+  },
+  compact: {
+    avatarClassName: 'size-10',
+    containerClassName: 'flex w-full min-w-0 items-center gap-3',
+    nameRowClassName:
+      'flex w-full min-w-0 flex-wrap items-center justify-between gap-2',
+    roleLineClassName: 'truncate text-sm text-text-tertiary',
+    badgeClassName: 'shrink-0 px-1.5 text-11 font-normal',
+    nameClassName: () => 'truncate font-medium',
+  },
+  card: {
+    avatarClassName: 'size-10 sm:size-12',
+    avatarFallbackClassName: 'font-medium',
+    containerClassName: 'flex items-start gap-3 sm:gap-4',
+    nameRowClassName: 'flex min-w-0 items-start justify-between gap-2',
+    roleLineClassName: 'truncate text-xs text-text-tertiary sm:text-sm',
+    badgeClassName: 'px-1.5 text-11',
+    badgeWrapperClassName: 'flex shrink-0 items-center gap-2',
+    nameClassName: (isLink) =>
+      cn(
+        'truncate text-sm font-medium sm:text-base',
+        isLink && 'group-hover:underline'
+      ),
+  },
+};
 
 export interface ReservationIdentityHeaderProps {
   reservation: Reservation;
@@ -43,15 +87,8 @@ export interface ReservationIdentityHeaderProps {
   showStatusBadge?: boolean;
   /** Makes the profile link inert (e.g. while a mutation is in flight). */
   disabled?: boolean;
-  avatarClassName?: string;
-  avatarFallbackClassName?: string;
-  containerClassName?: string;
-  nameRowClassName?: string;
-  nameClassName?: string;
-  roleLineClassName?: string;
-  badgeClassName?: string;
-  /** Wraps the badge in an extra element (e.g. for a dedicated shrink-0 slot). Badge renders unwrapped when omitted. */
-  badgeWrapperClassName?: string;
+  /** Which surface's layout/styling to render. Defaults to 'dialog'. */
+  variant?: ReservationIdentityHeaderVariant;
   /** Extra content rendered in the same content column, below the role line (e.g. ReservationCard's date/time row and actions). */
   children?: React.ReactNode;
 }
@@ -60,7 +97,7 @@ export interface ReservationIdentityHeaderProps {
  * Avatar + name + role line (+ optional status badge) block shared by every
  * reservation surface. Split out from ReservationIdentity so surfaces whose
  * date/time and message layout diverges too far to share (e.g. ReservationCard)
- * can still render an identical identity block via className overrides.
+ * can still render an identical identity block.
  */
 export function ReservationIdentityHeader({
   reservation,
@@ -69,29 +106,23 @@ export function ReservationIdentityHeader({
   linkToProfile = true,
   showStatusBadge = false,
   disabled = false,
-  avatarClassName = DEFAULT_AVATAR_CLASSNAME,
-  avatarFallbackClassName,
-  containerClassName = DEFAULT_HEADER_CONTAINER_CLASSNAME,
-  nameRowClassName = DEFAULT_NAME_ROW_CLASSNAME,
-  nameClassName = DEFAULT_NAME_CLASSNAME,
-  roleLineClassName = DEFAULT_ROLE_LINE_CLASSNAME,
-  badgeClassName = DEFAULT_BADGE_CLASSNAME,
-  badgeWrapperClassName,
+  variant = 'dialog',
   children,
 }: ReservationIdentityHeaderProps) {
   const initials = getInitials(reservation.name);
   const href = linkToProfile ? profileHref : undefined;
+  const style = headerVariantStyles[variant];
 
   const badge = showStatusBadge ? (
     <ReservationStatusBadge
       dtstart={reservation.dtstart}
       dtend={reservation.dtend}
-      className={badgeClassName}
+      className={style.badgeClassName}
     />
   ) : null;
 
   return (
-    <div className={containerClassName}>
+    <div className={style.containerClassName}>
       <ProfileLinkWrapper
         href={href}
         onClick={onProfileLinkClick}
@@ -99,7 +130,7 @@ export function ReservationIdentityHeader({
         className="shrink-0 rounded-full transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
         ariaLabel={`查看 ${reservation.name} 的個人資料`}
       >
-        <Avatar className={avatarClassName}>
+        <Avatar className={style.avatarClassName}>
           <AvatarImage
             src={
               reservation.avatar
@@ -108,33 +139,64 @@ export function ReservationIdentityHeader({
             }
             alt={reservation.name}
           />
-          <AvatarFallback className={avatarFallbackClassName}>
+          <AvatarFallback className={style.avatarFallbackClassName}>
             {initials}
           </AvatarFallback>
         </Avatar>
       </ProfileLinkWrapper>
       <div className="min-w-0 flex-1">
-        <div className={nameRowClassName}>
+        <div className={style.nameRowClassName}>
           <ProfileLinkWrapper
             href={href}
             onClick={onProfileLinkClick}
             disabled={disabled}
             className="group block min-w-0 flex-1 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
           >
-            <span className={nameClassName}>{reservation.name}</span>
+            <span className={style.nameClassName(Boolean(href))}>
+              {reservation.name}
+            </span>
           </ProfileLinkWrapper>
-          {badge && badgeWrapperClassName ? (
-            <div className={badgeWrapperClassName}>{badge}</div>
+          {badge && style.badgeWrapperClassName ? (
+            <div className={style.badgeWrapperClassName}>{badge}</div>
           ) : (
             badge
           )}
         </div>
-        <div className={roleLineClassName}>{reservation.roleLine}</div>
+        <div className={style.roleLineClassName}>{reservation.roleLine}</div>
         {children}
       </div>
     </div>
   );
 }
+
+/**
+ * `dialog` - shared by ConfirmedReservationDialog / QuickReplyDialog.
+ * `accept` - AcceptReservationDialog's smaller avatar, plainer date/time row,
+ * and no auto-rendered message blocks (it renders its own, differently labeled).
+ */
+export type ReservationIdentityVariant = 'dialog' | 'accept';
+
+const headerVariantByIdentityVariant: Record<
+  ReservationIdentityVariant,
+  ReservationIdentityHeaderVariant
+> = {
+  dialog: 'dialog',
+  accept: 'compact',
+};
+
+const dateTimeClassNameByVariant: Record<ReservationIdentityVariant, string> = {
+  dialog:
+    'mt-4 grid grid-cols-1 gap-2 text-xs text-text-tertiary sm:grid-cols-2 sm:text-sm',
+  accept: 'mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2',
+};
+
+const defaultShowMessagesByVariant: Record<
+  ReservationIdentityVariant,
+  boolean
+> = {
+  dialog: true,
+  accept: false,
+};
 
 export interface ReservationIdentityProps {
   reservation: Reservation;
@@ -149,12 +211,10 @@ export interface ReservationIdentityProps {
   density?: ReservationIdentityDensity;
   /** Makes the profile link inert (e.g. while a mutation is in flight). */
   disabled?: boolean;
-  /** Whether to render the mentee/mentor message blocks below the card. Defaults to true. */
+  /** Which surface's layout/styling to render. Defaults to 'dialog'. */
+  variant?: ReservationIdentityVariant;
+  /** Whether to render the mentee/mentor message blocks below the card. Defaults to true for 'dialog', false for 'accept'. */
   showMessages?: boolean;
-  avatarClassName?: string;
-  nameClassName?: string;
-  roleLineClassName?: string;
-  dateTimeClassName?: string;
   className?: string;
 }
 
@@ -166,13 +226,12 @@ export function ReservationIdentity({
   showStatusBadge = false,
   density = 'default',
   disabled = false,
-  showMessages = true,
-  avatarClassName,
-  nameClassName,
-  roleLineClassName,
-  dateTimeClassName = DEFAULT_DATE_TIME_CLASSNAME,
+  variant = 'dialog',
+  showMessages,
   className,
 }: ReservationIdentityProps) {
+  const resolvedShowMessages =
+    showMessages ?? defaultShowMessagesByVariant[variant];
   const menteeMessage = reservation.menteeMessage?.content;
   const mentorMessage = reservation.mentorMessage?.content;
 
@@ -192,12 +251,10 @@ export function ReservationIdentity({
           linkToProfile={linkToProfile}
           showStatusBadge={showStatusBadge}
           disabled={disabled}
-          avatarClassName={avatarClassName}
-          nameClassName={nameClassName}
-          roleLineClassName={roleLineClassName}
+          variant={headerVariantByIdentityVariant[variant]}
         />
 
-        <div className={dateTimeClassName}>
+        <div className={dateTimeClassNameByVariant[variant]}>
           <div className="flex items-center gap-2">
             <CalendarDays className="size-4 shrink-0" aria-hidden />
             <span className="truncate">{reservation.date}</span>
@@ -209,10 +266,10 @@ export function ReservationIdentity({
         </div>
       </div>
 
-      {showMessages && menteeMessage ? (
+      {resolvedShowMessages && menteeMessage ? (
         <MessageBlock label="學員留言" content={menteeMessage} />
       ) : null}
-      {showMessages && mentorMessage ? (
+      {resolvedShowMessages && mentorMessage ? (
         <MessageBlock label="導師回覆" content={mentorMessage} />
       ) : null}
     </>

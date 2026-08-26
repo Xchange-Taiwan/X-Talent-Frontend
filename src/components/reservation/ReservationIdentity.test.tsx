@@ -229,6 +229,35 @@ describe('ReservationIdentity', () => {
     expect(screen.queryByText('導師回覆')).not.toBeInTheDocument();
     expect(screen.queryByText('導師的回覆。')).not.toBeInTheDocument();
   });
+
+  it('defaults showMessages to false for variant="accept", as used by AcceptReservationDialog', () => {
+    render(
+      <ReservationIdentity
+        reservation={{
+          ...mockReservation,
+          menteeMessage: { content: '學員的問題。' },
+        }}
+        variant="accept"
+      />
+    );
+
+    expect(screen.queryByText('學員留言')).not.toBeInTheDocument();
+  });
+
+  it('an explicit showMessages overrides the variant default', () => {
+    render(
+      <ReservationIdentity
+        reservation={{
+          ...mockReservation,
+          menteeMessage: { content: '學員的問題。' },
+        }}
+        variant="accept"
+        showMessages
+      />
+    );
+
+    expect(screen.getByText('學員留言')).toBeInTheDocument();
+  });
 });
 
 describe('ReservationIdentityHeader', () => {
@@ -281,5 +310,25 @@ describe('ReservationIdentityHeader', () => {
     expect(
       screen.getByText('2026-07-26 · 11:00 AM – 11:30 AM')
     ).toBeInTheDocument();
+  });
+
+  it('only adds the hover-underline class to the name in variant="card" when there is a profile link', () => {
+    const { rerender } = render(
+      <ReservationIdentityHeader
+        reservation={mockReservation}
+        profileHref="/profile/user-alice"
+        variant="card"
+      />
+    );
+
+    expect(screen.getByText('Alice User')).toHaveClass('group-hover:underline');
+
+    rerender(
+      <ReservationIdentityHeader reservation={mockReservation} variant="card" />
+    );
+
+    expect(screen.getByText('Alice User')).not.toHaveClass(
+      'group-hover:underline'
+    );
   });
 });

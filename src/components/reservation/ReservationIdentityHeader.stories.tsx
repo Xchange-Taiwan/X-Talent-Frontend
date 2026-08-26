@@ -44,21 +44,15 @@ export const Default: Story = {
   },
 };
 
-// The className overrides ReservationCard needs to stay visually unchanged:
-// top-aligned avatar, a wrapped/shrink-0 badge slot, and a children slot for
-// the card's own date/time row, message previews, and actions
+// variant="card", as used by ReservationCard: top-aligned avatar, a
+// wrapped/shrink-0 badge slot, and a children slot for the card's own
+// date/time row, message previews, and actions
 export const CardStyle: Story = {
   args: {
     reservation: baseReservation,
     profileHref: '/profile/user-alice',
     showStatusBadge: true,
-    containerClassName: 'flex items-start gap-3 sm:gap-4',
-    nameRowClassName: 'flex min-w-0 items-start justify-between gap-2',
-    nameClassName:
-      'truncate text-sm font-medium sm:text-base group-hover:underline',
-    avatarFallbackClassName: 'font-medium',
-    badgeClassName: 'px-1.5 text-11',
-    badgeWrapperClassName: 'flex shrink-0 items-center gap-2',
+    variant: 'card',
     children: (
       <div className="mt-2 text-xs text-text-tertiary sm:text-sm">
         2026-07-26 · 11:00 AM – 11:30 AM
