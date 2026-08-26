@@ -58,7 +58,7 @@ export function useUserProfileDto(
 
   // If we already have a client-side primed cache entry, do NOT pass initialData to useAsyncRead
   // to prevent it from being overwritten by the stale/older SSR initialData.
-  const hasCache = key ? userProfileDtoCache.has(key) : false;
+  const hasCache = key ? userProfileDtoReadManager.has(key) : false;
   const effectiveInitialData = hasCache ? undefined : initialData;
 
   const bypassKey = options?.enabled === false ? null : key;
@@ -78,10 +78,10 @@ export function useUserProfileDto(
 
         if (res === null && key) {
           if (isManualRefetch) {
-            userProfileDtoCache.delete(key);
+            userProfileDtoReadManager.evict(key);
             return null;
           }
-          const existing = userProfileDtoCache.get(key);
+          const existing = userProfileDtoReadManager.get(key);
           if (existing) {
             return existing;
           }
@@ -89,7 +89,7 @@ export function useUserProfileDto(
         return res;
       } catch (err) {
         if (isManualRefetch && key) {
-          userProfileDtoCache.delete(key);
+          userProfileDtoReadManager.evict(key);
         }
         throw err;
       }
@@ -97,11 +97,11 @@ export function useUserProfileDto(
     {
       initialData: effectiveInitialData,
       shouldCache: (res) =>
-        res !== null && (!key || res !== userProfileDtoCache.get(key)),
+        res !== null && (!key || res !== userProfileDtoReadManager.get(key)),
     }
   );
 
-  const cachedData = key ? userProfileDtoCache.get(key) : null;
+  const cachedData = key ? userProfileDtoReadManager.get(key) : null;
   const userDto =
     options?.enabled === false ? (cachedData ?? null) : asyncReadData;
 
