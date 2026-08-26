@@ -33,8 +33,6 @@ export function ReservationCard({
   const { menteeMessage, mentorMessage } = item;
   const hasAnyMessage = Boolean(menteeMessage || mentorMessage);
 
-  const handleProfileLinkClick = () => onProfileClick?.();
-
   return (
     <Card
       className="border-background-border/40 transition-shadow hover:shadow-sm"
@@ -44,7 +42,7 @@ export function ReservationCard({
         <ReservationIdentityHeader
           reservation={item}
           profileHref={profileHref}
-          onProfileLinkClick={handleProfileLinkClick}
+          onProfileLinkClick={onProfileClick}
           showStatusBadge={isUpcoming}
           variant="card"
         >

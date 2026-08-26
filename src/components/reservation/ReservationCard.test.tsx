@@ -75,6 +75,55 @@ describe('ReservationCard', () => {
     expect(screen.getByText('U')).toBeInTheDocument();
   });
 
+  it('renders the name and role line as block elements so truncate takes effect', () => {
+    render(
+      <ReservationCard
+        item={mockReservation}
+        variant="upcoming"
+        profileHref="/profile/1"
+      />
+    );
+
+    expect(screen.getByText('John Doe')).toHaveClass('truncate');
+    expect(screen.getByText('John Doe').tagName).toBe('DIV');
+    expect(screen.getByText('UIUX Designer')).toHaveClass('truncate');
+    expect(screen.getByText('UIUX Designer').tagName).toBe('DIV');
+  });
+
+  it('wraps the role line inside the profile link alongside the name, so it stays width-constrained by the status badge', () => {
+    render(
+      <ReservationCard
+        item={mockReservation}
+        variant="upcoming"
+        profileHref="/profile/1"
+      />
+    );
+
+    const link = screen.getByRole('link', { name: 'John Doe UIUX Designer' });
+    expect(link).toContainElement(screen.getByText('UIUX Designer'));
+  });
+
+  it('forwards the native click event to onProfileClick', () => {
+    const onProfileClick = vi.fn();
+    render(
+      <ReservationCard
+        item={mockReservation}
+        variant="upcoming"
+        profileHref="/profile/1"
+        onProfileClick={onProfileClick}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole('link', { name: 'John Doe UIUX Designer' })
+    );
+
+    expect(onProfileClick).toHaveBeenCalledTimes(1);
+    expect(onProfileClick.mock.calls[0][0]).toMatchObject({
+      type: 'click',
+    });
+  });
+
   it('uses flex-nowrap to avoid deforming when long names are rendered', () => {
     const { container } = render(
       <ReservationCard item={mockReservation} variant="upcoming" />

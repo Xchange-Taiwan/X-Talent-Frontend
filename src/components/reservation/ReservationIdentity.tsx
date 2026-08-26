@@ -31,11 +31,23 @@ interface HeaderVariantStyle {
   avatarFallbackClassName?: string;
   containerClassName: string;
   nameRowClassName: string;
+  /** className for the ProfileLinkWrapper around the name (and, when roleLineInsideLink, the role line too). */
+  nameLinkClassName: string;
   roleLineClassName: string;
+  /**
+   * Whether the role line renders inside the name's link, sharing its
+   * width constraint with the badge (card - matches ReservationCard's
+   * original nesting so a badge still squeezes a long role line the same
+   * way), or as a separate full-width row below (dialog/compact).
+   */
+  roleLineInsideLink: boolean;
   badgeClassName: string;
   badgeWrapperClassName?: string;
   nameClassName: (isLink: boolean) => string;
 }
+
+const DIALOG_NAME_LINK_CLASSNAME =
+  'group block min-w-0 flex-1 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none';
 
 const headerVariantStyles: Record<
   ReservationIdentityHeaderVariant,
@@ -46,17 +58,20 @@ const headerVariantStyles: Record<
     containerClassName: 'flex w-full min-w-0 items-center gap-3',
     nameRowClassName:
       'flex w-full min-w-0 flex-wrap items-center justify-between gap-2',
+    nameLinkClassName: DIALOG_NAME_LINK_CLASSNAME,
     roleLineClassName: 'truncate text-xs text-text-tertiary sm:text-sm',
+    roleLineInsideLink: false,
     badgeClassName: 'shrink-0 px-1.5 text-11 font-normal',
-    nameClassName: () =>
-      'block truncate font-medium hover:underline sm:text-base',
+    nameClassName: () => 'truncate font-medium hover:underline sm:text-base',
   },
   compact: {
     avatarClassName: 'size-10',
     containerClassName: 'flex w-full min-w-0 items-center gap-3',
     nameRowClassName:
       'flex w-full min-w-0 flex-wrap items-center justify-between gap-2',
+    nameLinkClassName: DIALOG_NAME_LINK_CLASSNAME,
     roleLineClassName: 'truncate text-sm text-text-tertiary',
+    roleLineInsideLink: false,
     badgeClassName: 'shrink-0 px-1.5 text-11 font-normal',
     nameClassName: () => 'truncate font-medium',
   },
@@ -65,7 +80,10 @@ const headerVariantStyles: Record<
     avatarFallbackClassName: 'font-medium',
     containerClassName: 'flex items-start gap-3 sm:gap-4',
     nameRowClassName: 'flex min-w-0 items-start justify-between gap-2',
+    nameLinkClassName:
+      'group min-w-0 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none',
     roleLineClassName: 'truncate text-xs text-text-tertiary sm:text-sm',
+    roleLineInsideLink: true,
     badgeClassName: 'px-1.5 text-11',
     badgeWrapperClassName: 'flex shrink-0 items-center gap-2',
     nameClassName: (isLink) =>
@@ -150,11 +168,16 @@ export function ReservationIdentityHeader({
             href={href}
             onClick={onProfileLinkClick}
             disabled={disabled}
-            className="group block min-w-0 flex-1 truncate rounded-sm no-underline focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+            className={style.nameLinkClassName}
           >
-            <span className={style.nameClassName(Boolean(href))}>
+            <div className={style.nameClassName(Boolean(href))}>
               {reservation.name}
-            </span>
+            </div>
+            {style.roleLineInsideLink ? (
+              <div className={style.roleLineClassName}>
+                {reservation.roleLine}
+              </div>
+            ) : null}
           </ProfileLinkWrapper>
           {badge && style.badgeWrapperClassName ? (
             <div className={style.badgeWrapperClassName}>{badge}</div>
@@ -162,7 +185,9 @@ export function ReservationIdentityHeader({
             badge
           )}
         </div>
-        <div className={style.roleLineClassName}>{reservation.roleLine}</div>
+        {!style.roleLineInsideLink ? (
+          <div className={style.roleLineClassName}>{reservation.roleLine}</div>
+        ) : null}
         {children}
       </div>
     </div>
