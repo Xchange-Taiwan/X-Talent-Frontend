@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Reservation } from '@/types/reservation';
 
-import { ReservationIdentity } from './ReservationIdentity';
+import {
+  ReservationIdentity,
+  ReservationIdentityHeader,
+} from './ReservationIdentity';
 
 describe('ReservationIdentity', () => {
   const mockReservation: Reservation = {
@@ -198,5 +201,134 @@ describe('ReservationIdentity', () => {
 
     expect(preventDefaultSpy).toHaveBeenCalled();
     expect(onProfileLinkClick).not.toHaveBeenCalled();
+  });
+
+  it('falls back to U when the name is empty', () => {
+    render(
+      <ReservationIdentity reservation={{ ...mockReservation, name: '' }} />
+    );
+
+    expect(screen.getByText('U')).toBeInTheDocument();
+  });
+
+  it('hides the mentee and mentor message blocks when showMessages is false', () => {
+    render(
+      <ReservationIdentity
+        reservation={{
+          ...mockReservation,
+          menteeMessage: { content: '學員的問題。' },
+          mentorMessage: { content: '導師的回覆。' },
+        }}
+        profileHref="/profile/user-alice"
+        showMessages={false}
+      />
+    );
+
+    expect(screen.queryByText('學員留言')).not.toBeInTheDocument();
+    expect(screen.queryByText('學員的問題。')).not.toBeInTheDocument();
+    expect(screen.queryByText('導師回覆')).not.toBeInTheDocument();
+    expect(screen.queryByText('導師的回覆。')).not.toBeInTheDocument();
+  });
+
+  it('defaults showMessages to false for variant="accept", as used by AcceptReservationDialog', () => {
+    render(
+      <ReservationIdentity
+        reservation={{
+          ...mockReservation,
+          menteeMessage: { content: '學員的問題。' },
+        }}
+        variant="accept"
+      />
+    );
+
+    expect(screen.queryByText('學員留言')).not.toBeInTheDocument();
+  });
+
+  it('an explicit showMessages overrides the variant default', () => {
+    render(
+      <ReservationIdentity
+        reservation={{
+          ...mockReservation,
+          menteeMessage: { content: '學員的問題。' },
+        }}
+        variant="accept"
+        showMessages
+      />
+    );
+
+    expect(screen.getByText('學員留言')).toBeInTheDocument();
+  });
+});
+
+describe('ReservationIdentityHeader', () => {
+  const mockReservation: Reservation = {
+    id: 'res-1',
+    name: 'Alice User',
+    roleLine: 'Mentee',
+    date: '2026-07-26',
+    time: '11:00 AM – 11:30 AM',
+    dtstart: Math.floor(new Date('2026-07-26T11:00:00Z').getTime() / 1000),
+    dtend: Math.floor(new Date('2026-07-26T11:30:00Z').getTime() / 1000),
+    messages: [],
+    scheduleId: 1,
+    version: 1,
+    senderUserId: 'user-alice',
+    participantUserId: 'user-mentor',
+  };
+
+  it('renders name, role line and initials', () => {
+    render(
+      <ReservationIdentityHeader
+        reservation={mockReservation}
+        profileHref="/profile/user-alice"
+      />
+    );
+
+    expect(screen.getByText('Alice User')).toBeInTheDocument();
+    expect(screen.getByText('Mentee')).toBeInTheDocument();
+    expect(screen.getByText('AU')).toBeInTheDocument();
+  });
+
+  it('renders the status badge when showStatusBadge is true', () => {
+    render(
+      <ReservationIdentityHeader
+        reservation={mockReservation}
+        showStatusBadge
+      />
+    );
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  it('renders children in the same content column, below the role line', () => {
+    render(
+      <ReservationIdentityHeader reservation={mockReservation}>
+        <div>2026-07-26 · 11:00 AM – 11:30 AM</div>
+      </ReservationIdentityHeader>
+    );
+
+    expect(
+      screen.getByText('2026-07-26 · 11:00 AM – 11:30 AM')
+    ).toBeInTheDocument();
+  });
+
+  it('only adds the hover-underline class to the name in variant="card" when there is a profile link', () => {
+    const { rerender } = render(
+      <ReservationIdentityHeader
+        reservation={mockReservation}
+        profileHref="/profile/user-alice"
+        variant="card"
+      />
+    );
+
+    expect(screen.getByText('Alice User')).toHaveClass('group-hover:underline');
+
+    rerender(
+      <ReservationIdentityHeader reservation={mockReservation} variant="card" />
+    );
+
+    expect(screen.getByText('Alice User')).not.toHaveClass(
+      'group-hover:underline'
+    );
   });
 });

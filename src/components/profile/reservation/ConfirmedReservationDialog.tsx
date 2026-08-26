@@ -3,6 +3,7 @@
 import * as React from 'react';
 
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
+import { ReservationIdentity } from '@/components/reservation/ReservationIdentity';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -14,8 +15,6 @@ import { useReservationActions } from '@/hooks/user/reservation/useReservationAc
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
-
-import { ReservationIdentity } from './ReservationIdentity';
 
 interface ConfirmedReservationDialogProps {
   reservation: Reservation | null;

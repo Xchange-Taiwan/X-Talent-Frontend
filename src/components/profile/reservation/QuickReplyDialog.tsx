@@ -4,6 +4,7 @@ import * as React from 'react';
 
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import RejectReservationDialog from '@/components/reservation/RejectReservationDialog';
+import { ReservationIdentity } from '@/components/reservation/ReservationIdentity';
 import {
   Dialog,
   DialogContent,
@@ -14,8 +15,6 @@ import {
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
-
-import { ReservationIdentity } from './ReservationIdentity';
 
 interface QuickReplyDialogProps {
   reservation: Reservation | null;
