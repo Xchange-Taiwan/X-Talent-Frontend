@@ -1,9 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AsyncReadResult } from '@/lib/asyncReadManager';
 
 import {
   type FetchReservationsResult,
+  MENTOR_SCHEDULE_RESERVATIONS_TTL_MS,
   reservationReadModel,
 } from './reservationReadModel';
 
@@ -129,5 +130,100 @@ describe('ReservationReadModel', () => {
     reservationReadModel.clear();
 
     expect(reservationReadModel.get(key)).toBeUndefined();
+  });
+
+  describe('endOfMonthUnix-scoped keys (mentor-schedule calendar)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      reservationReadModel.clear();
+      vi.useRealTimers();
+    });
+
+    it('isolates cache slots by endOfMonthUnix - same user and state, different month', () => {
+      const monthA = {
+        userId: 'mentor-1',
+        state: 'MENTOR_UPCOMING',
+        endOfMonthUnix: 1000,
+      } as const;
+      const monthB = {
+        userId: 'mentor-1',
+        state: 'MENTOR_UPCOMING',
+        endOfMonthUnix: 2000,
+      } as const;
+
+      reservationReadModel.set(monthA, page('a'));
+      reservationReadModel.set(monthB, page('b'));
+
+      expect(reservationReadModel.get(monthA)).toEqual(page('a'));
+      expect(reservationReadModel.get(monthB)).toEqual(page('b'));
+    });
+
+    it('does not collide with the default unscoped slot for the same user and state', () => {
+      const unscoped = {
+        userId: 'mentor-1',
+        state: 'MENTOR_UPCOMING',
+      } as const;
+      const scoped = {
+        userId: 'mentor-1',
+        state: 'MENTOR_UPCOMING',
+        endOfMonthUnix: 1000,
+      } as const;
+
+      reservationReadModel.set(unscoped, page('unscoped'));
+      reservationReadModel.set(scoped, page('scoped'));
+
+      expect(reservationReadModel.get(unscoped)).toEqual(page('unscoped'));
+      expect(reservationReadModel.get(scoped)).toEqual(page('scoped'));
+    });
+
+    it('a value written with ttlMs is served as a hit before the TTL elapses', () => {
+      const key = {
+        userId: 'mentor-1',
+        state: 'MENTOR_PENDING',
+        endOfMonthUnix: 1000,
+      } as const;
+      reservationReadModel.set(
+        key,
+        page('a'),
+        MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
+      );
+
+      vi.advanceTimersByTime(MENTOR_SCHEDULE_RESERVATIONS_TTL_MS - 1);
+
+      expect(reservationReadModel.get(key)).toEqual(page('a'));
+    });
+
+    it('a value written with ttlMs expires at the TTL, unlike the default permanent slot', () => {
+      const key = {
+        userId: 'mentor-1',
+        state: 'MENTOR_PENDING',
+        endOfMonthUnix: 1000,
+      } as const;
+      reservationReadModel.set(
+        key,
+        page('a'),
+        MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
+      );
+
+      vi.advanceTimersByTime(MENTOR_SCHEDULE_RESERVATIONS_TTL_MS);
+
+      expect(reservationReadModel.get(key)).toBeUndefined();
+    });
+
+    it('omitting ttlMs on a scoped key still yields a permanent slot', () => {
+      const key = {
+        userId: 'mentor-1',
+        state: 'MENTOR_PENDING',
+        endOfMonthUnix: 1000,
+      } as const;
+      reservationReadModel.set(key, page('a'));
+
+      vi.advanceTimersByTime(MENTOR_SCHEDULE_RESERVATIONS_TTL_MS * 10);
+
+      expect(reservationReadModel.get(key)).toEqual(page('a'));
+    });
   });
 });
