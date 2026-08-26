@@ -2129,5 +2129,101 @@ describe('useMentorSchedule', () => {
       );
       expect(hasAugustSlots).toBe(false);
     });
+
+    it('a slower mount-effect reservations fetch cannot clobber a faster reload() with stale data', async () => {
+      // Regression test for a race the AI review pipeline flagged on PR
+      // #1083 (X-Tracker #650): the mount effect and reload() both resolve
+      // to "the reservations for the current (userId, year, month)", and
+      // identity alone (isStale's userId/year/month check) can't tell two
+      // competing fetches for that SAME identity apart. If a mutation
+      // (accept/reject) triggers reload() while the mount effect's own
+      // fetch is still in flight, the mount effect's slower, now-stale
+      // response must not win - neither in local state nor in the shared
+      // cache it writes back to.
+      const makeRes = (id: string) => ({
+        id,
+        name: id,
+        roleLine: '',
+        date: '',
+        time: '',
+        messages: [],
+        scheduleId: 1,
+        dtstart: 1785070000,
+        dtend: 1785071800,
+        senderUserId: 'mentee-1',
+        participantUserId: 'mentor-1',
+        version: 0,
+      });
+
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: [],
+        revalidate: Promise.resolve([]),
+      });
+
+      const resolvers: Array<
+        (val: Awaited<ReturnType<typeof fetchAllReservationsForState>>) => void
+      > = [];
+      mockFetchAllReservationsForState.mockImplementation(
+        () => new Promise((resolve) => resolvers.push(resolve))
+      );
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: 'mentor-1', year: 2026, month: 7 },
+          loginUserId: 'mentor-1',
+        })
+      );
+
+      // The mount effect has issued its two (slow) fetches: [0]=UPCOMING, [1]=PENDING.
+      await waitFor(() => expect(resolvers).toHaveLength(2));
+
+      let reloadSettled = false;
+      const reloadPromise = result.current.reload().then(() => {
+        reloadSettled = true;
+      });
+
+      // reload() issues its own two fetches on top of the still-pending
+      // mount ones: [2]=UPCOMING, [3]=PENDING.
+      await waitFor(() => expect(resolvers).toHaveLength(4));
+
+      // reload()'s fetches resolve first and should win.
+      resolvers[2]([makeRes('fresh-upcoming')]);
+      resolvers[3]([makeRes('fresh-pending')]);
+      await act(async () => {
+        await reloadPromise;
+      });
+      expect(reloadSettled).toBe(true);
+      expect(result.current.reservations.map((r) => r.id).sort()).toEqual([
+        'fresh-pending',
+        'fresh-upcoming',
+      ]);
+
+      // The mount effect's slower fetch finally resolves with stale,
+      // pre-mutation data.
+      await act(async () => {
+        resolvers[0]([makeRes('stale-upcoming')]);
+        resolvers[1]([makeRes('stale-pending')]);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // The stale response must not have overwritten reload()'s fresher
+      // result, in local state or in the shared cache.
+      expect(result.current.reservations.map((r) => r.id).sort()).toEqual([
+        'fresh-pending',
+        'fresh-upcoming',
+      ]);
+      const eom = computeEndOfMonthUnix(2026, 7);
+      expect(
+        reservationReadModel
+          .get(reservationKey('MENTOR_UPCOMING', eom, 'mentor-1'))
+          ?.items.map((r) => r.id)
+      ).toEqual(['fresh-upcoming']);
+      expect(
+        reservationReadModel
+          .get(reservationKey('MENTOR_PENDING', eom, 'mentor-1'))
+          ?.items.map((r) => r.id)
+      ).toEqual(['fresh-pending']);
+    });
   });
 });

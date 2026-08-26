@@ -207,6 +207,30 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     []
   );
 
+  // The mount-effect fetch below and reloadReservations() are two
+  // independent async flows that both resolve to "the reservations for the
+  // current (userId, year, month)" - isStale() alone can't tell them apart,
+  // since a mutation-triggered reload() can start and finish entirely while
+  // an in-flight mount-effect fetch (same identity, just slower) is still
+  // pending. Without a generation counter, that slower fetch's eventual
+  // resolution would look "not stale" to isStale() and overwrite both
+  // `reservations` and the shared cache with pre-mutation data. Each flow
+  // claims the next id before starting; isReservationFetchStale() rejects
+  // any flow whose id was superseded by a later one, regardless of which
+  // resolves first.
+  const reservationFetchIdRef = useRef(0);
+  const isReservationFetchStale = useCallback(
+    (start: {
+      userId: string;
+      year: number;
+      month: number;
+      fetchId: number;
+    }) => {
+      return isStale(start) || reservationFetchIdRef.current !== start.fetchId;
+    },
+    [isStale]
+  );
+
   useEffect(() => {
     if (
       !loginUserId ||
@@ -223,6 +247,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       userId: backend.userId,
       year: backend.year,
       month: backend.month,
+      fetchId: ++reservationFetchIdRef.current,
     };
     setReservationsLoaded(false);
     // Native Date(year, monthIndex, day) rather than dayjs's string parser:
@@ -252,6 +277,11 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         state,
         endOfMonthUnix
       );
+      // A concurrent reload() (e.g. from an accept/reject mutation) can
+      // clear and re-prime this same key while this fetch was in flight -
+      // writing this now-superseded response back would clobber the
+      // reload's fresher data in the shared cache, not just in local state.
+      if (isReservationFetchStale(startSnapshot)) return items;
       reservationReadModel.set(
         key,
         { items, next_dtend: 0 },
@@ -266,7 +296,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           fetchReservationsForState('MENTOR_UPCOMING'),
           fetchReservationsForState('MENTOR_PENDING'),
         ]);
-        if (isStale(startSnapshot)) return;
+        if (isReservationFetchStale(startSnapshot)) return;
         setReservations((prev) =>
           prev.length === 0 && upcoming.length === 0 && pending.length === 0
             ? prev
@@ -287,7 +317,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         // failing, never rejecting), so this only fires for something
         // unexpected elsewhere in the try block — defense-in-depth,
         // matching reloadReservations' handling below.
-        if (isStale(startSnapshot)) return;
+        if (isReservationFetchStale(startSnapshot)) return;
         captureFlowFailure({
           flow: 'mentor_schedule_fetch_reservations',
           step: 'fetch_all_reservations',
@@ -298,7 +328,13 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     };
 
     fetchAll();
-  }, [loginUserId, backend.userId, backend.year, backend.month, isStale]);
+  }, [
+    loginUserId,
+    backend.userId,
+    backend.year,
+    backend.month,
+    isReservationFetchStale,
+  ]);
 
   const currentMonthKey = monthKeyFromYearMonth(backend.year, backend.month);
 
@@ -633,6 +669,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       userId: backend.userId,
       year: backend.year,
       month: backend.month,
+      fetchId: ++reservationFetchIdRef.current,
     };
     const endOfMonthUnix = dayjs(new Date(backend.year, backend.month - 1, 1))
       .endOf('month')
@@ -665,7 +702,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           endOfMonthUnix
         ),
       ]);
-      if (isStale(startSnapshot)) return;
+      if (isReservationFetchStale(startSnapshot)) return;
       // Re-prime just this month so a subsequent swipe back to it within
       // the TTL still avoids one extra fetch.
       reservationReadModel.set(
@@ -680,7 +717,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       );
       setReservations([...upcoming, ...pending]);
     } catch (err) {
-      if (isStale(startSnapshot)) return;
+      if (isReservationFetchStale(startSnapshot)) return;
       captureFlowFailure({
         flow: 'mentor_schedule_reload_reservations',
         step: 'reload_reservations_for_state',
@@ -688,7 +725,13 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         level: 'warning',
       });
     }
-  }, [loginUserId, backend.userId, backend.year, backend.month, isStale]);
+  }, [
+    loginUserId,
+    backend.userId,
+    backend.year,
+    backend.month,
+    isReservationFetchStale,
+  ]);
 
   const reloadSchedule = useCallback(async () => {
     await fetchMonthSchedule(true);
