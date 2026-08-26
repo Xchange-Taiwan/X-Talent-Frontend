@@ -73,10 +73,17 @@ export function ReservationCard({
               reservation={item}
               sourceRole={sourceRole}
               trigger={
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   aria-label="查看完整訊息"
-                  className="mt-3 block w-full space-y-2 rounded-lg text-left focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.currentTarget.click();
+                    }
+                  }}
+                  className="mt-3 block w-full cursor-pointer space-y-2 rounded-lg text-left focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
                 >
                   {menteeMessage ? (
                     <MessageBlock
@@ -90,7 +97,7 @@ export function ReservationCard({
                       content={mentorMessage.content}
                     />
                   ) : null}
-                </button>
+                </div>
               }
             />
           ) : null}
