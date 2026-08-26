@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type {
-  AsyncReadManager,
   AsyncReadOptions,
   AsyncReadResult,
+  AsyncReadSource,
 } from '@/lib/asyncReadManager';
 
 function getInitialResultState<K, V>(
   key: K | null | undefined,
-  manager: AsyncReadManager<K, V>,
+  manager: AsyncReadSource<K, V>,
   initialData?: V
 ): AsyncReadResult<V> {
   if (key === null || key === undefined) {
@@ -39,7 +39,7 @@ function getInitialResultState<K, V>(
 }
 
 export function useAsyncRead<K, V>(
-  manager: AsyncReadManager<K, V>,
+  manager: AsyncReadSource<K, V>,
   key: K | null | undefined,
   fetcher: (signal: AbortSignal, context?: { force?: boolean }) => Promise<V>,
   options?: AsyncReadOptions<K, V>
