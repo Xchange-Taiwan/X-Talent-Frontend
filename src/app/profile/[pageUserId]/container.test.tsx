@@ -40,11 +40,17 @@ vi.mock('@/hooks/user/tags/useTagCatalog', () => ({
 vi.mock('@/hooks/useMentorSchedule', () => ({
   useMentorSchedule: () => ({
     loaded: true,
-    selectedDate: '2026-08-20',
-    setSelectedDate: vi.fn(),
     parsedDraft: [],
-    allowedDates: [],
-    reload: vi.fn(),
+    reader: {
+      selectedDate: '2026-08-20',
+      setSelectedDate: vi.fn(),
+      allowedDates: [],
+      reload: vi.fn(),
+    },
+    // Always non-null here: the container additionally gates rendering the
+    // dialog on canShowOwnerControls (driven by the identity mocks below),
+    // so this stub's own truthiness never has to vary per test case.
+    editor: {},
   }),
 }));
 
