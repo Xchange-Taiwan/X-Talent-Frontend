@@ -78,6 +78,7 @@ function ReservationItem({
       variant={cardVariantOf(variant)}
       profileHref={buildProfileHref(reservation)}
       onProfileClick={handleProfileClick}
+      sourceRole={sourceRole}
       actions={
         variant === 'history' ? (
           reservation.cancelledBy ? (
