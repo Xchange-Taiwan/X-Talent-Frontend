@@ -92,6 +92,17 @@ export interface ReservationReadModel {
   /** Drop the cached value at `key` and cancel any fetch in flight for it. */
   invalidate(key: ReservationReadKey): void;
   /**
+   * Whether a component is actively subscribed to `key` right now (i.e.
+   * mounted and reading it via `subscribe()`). The write path
+   * (accept/reject/cancel/create, see `reservationMutations.ts` /
+   * `reservationService.ts`) uses this to decide whether an affected key
+   * needs a live in-place refresh - something is watching, so dropping to
+   * `invalidate()`'s `data: null` would blank a tab the mutation never
+   * touched - or can simply be invalidated, since nothing is watching and
+   * the next `subscribe()` will fetch fresh on its own.
+   */
+  hasSubscribers(key: ReservationReadKey): boolean;
+  /**
    * Reset every cached entry, listener, and in-flight fetch - used in tests,
    * and in production for an account switch or a reservation mutation
    * (accept/reject/cancel) whose effects can be embedded in slots this
@@ -116,6 +127,9 @@ export const reservationReadModel: ReservationReadModel = {
   },
   invalidate(key) {
     manager.invalidate(toCacheKey(key));
+  },
+  hasSubscribers(key) {
+    return manager.getListenerCount(toCacheKey(key)) > 0;
   },
   clear() {
     manager.clear();

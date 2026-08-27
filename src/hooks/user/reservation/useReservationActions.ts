@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 
 import { useToast } from '@/components/ui/use-toast';
 import { useAsyncAction } from '@/hooks/useAsyncAction';
-import { ListKey } from '@/hooks/user/reservation/useReservationData';
+import type { MutationAffectedTabs } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
 import {
   acceptReservation,
@@ -14,31 +14,38 @@ import { Reservation } from '@/types/reservation';
 export type Variant =
   'upcoming' | 'pending-mentee' | 'pending-mentor' | 'history';
 
-export const ACCEPT_AFFECTED_TABS: ListKey[] = ['pending', 'upcoming'];
+export const ACCEPT_AFFECTED_TABS: MutationAffectedTabs = {
+  source: 'pending',
+  destinations: ['upcoming'],
+};
 
 export const buildRejectOrCancelAffectedTabs = (
   variant: Variant
-): ListKey[] => {
-  const sourceTab: ListKey | null =
+): MutationAffectedTabs | null => {
+  const sourceTab =
     variant === 'upcoming'
       ? 'upcoming'
       : variant === 'pending-mentor' || variant === 'pending-mentee'
         ? 'pending'
         : null;
-  return sourceTab ? [sourceTab, 'history'] : [];
+  return sourceTab ? { source: sourceTab, destinations: ['history'] } : null;
 };
 
 interface UseReservationActionsProps {
   myUserId: string | undefined;
   variant: Variant;
+  /** Which side `myUserId` is acting as for these reservations - forwarded
+   * to the mutation service so it knows which parties' cache slots to
+   * invalidate after a successful write. */
+  myRole: 'mentee' | 'mentor';
   onMutationSuccess?: (
     id: string,
-    affectedTabs: ListKey[]
+    affected: MutationAffectedTabs | null
   ) => void | Promise<void>;
   /** Called once (no auto-retry of the action itself) when the backend
    * rejects the status update with a 409 version conflict, so the caller can
    * refetch the affected tabs and show the user fresh data. */
-  onVersionConflict?: (affectedTabs: ListKey[]) => void;
+  onVersionConflict?: (affected: MutationAffectedTabs | null) => void;
 }
 
 interface UseReservationActionsReturn {
@@ -54,6 +61,7 @@ interface UseReservationActionsReturn {
 export function useReservationActions({
   myUserId,
   variant,
+  myRole,
   onMutationSuccess,
   onVersionConflict,
 }: UseReservationActionsProps): UseReservationActionsReturn {
@@ -74,6 +82,7 @@ export function useReservationActions({
             message,
             reservation,
             myUserId,
+            myRole,
           });
           toast({
             title: '已接受預約',
@@ -88,7 +97,7 @@ export function useReservationActions({
         throw err;
       }
     },
-    [run, myUserId, toast, onMutationSuccess, onVersionConflict]
+    [run, myUserId, myRole, toast, onMutationSuccess, onVersionConflict]
   );
 
   const rejectOrCancel = useCallback(
@@ -103,6 +112,7 @@ export function useReservationActions({
             text,
             reservation,
             myUserId,
+            myRole,
           });
           trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
           const successMessage =
@@ -120,7 +130,15 @@ export function useReservationActions({
         throw err;
       }
     },
-    [run, myUserId, variant, toast, onMutationSuccess, onVersionConflict]
+    [
+      run,
+      myUserId,
+      myRole,
+      variant,
+      toast,
+      onMutationSuccess,
+      onVersionConflict,
+    ]
   );
 
   return {

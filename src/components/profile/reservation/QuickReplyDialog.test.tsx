@@ -4,7 +4,7 @@ import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
-import { ListKey } from '@/hooks/user/reservation/useReservationData';
+import type { MutationAffectedTabs } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
 import { mockToast } from '@/test/mocks/useToast';
 import type { Reservation } from '@/types/reservation';
@@ -126,11 +126,12 @@ describe('QuickReplyDialog', () => {
     // Simulate successful accept action (calls onMutationSuccess callback in useReservationActions)
     const state = {
       successCallback: undefined as
-        ((id: string, affectedTabs: ListKey[]) => void) | undefined,
+        | ((id: string, affected: MutationAffectedTabs | null) => void)
+        | undefined,
     };
     vi.mocked(useReservationActions).mockReturnValue({
       accept: vi.fn().mockImplementation(() => {
-        state.successCallback?.('res-103', []);
+        state.successCallback?.('res-103', null);
       }),
       rejectOrCancel: mockRejectOrCancel,
       isMutating: false,
@@ -245,12 +246,13 @@ describe('QuickReplyDialog', () => {
 
     const state = {
       successCallback: undefined as
-        ((id: string, affectedTabs: ListKey[]) => void) | undefined,
+        | ((id: string, affected: MutationAffectedTabs | null) => void)
+        | undefined,
     };
     vi.mocked(useReservationActions).mockReturnValue({
       accept: mockAccept,
       rejectOrCancel: vi.fn().mockImplementation(() => {
-        state.successCallback?.('res-103', []);
+        state.successCallback?.('res-103', null);
       }),
       isMutating: false,
     });

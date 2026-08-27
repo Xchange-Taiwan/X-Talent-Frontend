@@ -34,6 +34,11 @@ export function ConfirmedReservationDialog({
   const { rejectOrCancel, isMutating } = useReservationActions({
     myUserId,
     variant: 'upcoming',
+    // This dialog only ever renders on the mentor's own calendar
+    // (MentorScheduleConfig, reachable only via a mentor viewing their own
+    // profile) - myRole is always 'mentor' here, by the platform's own
+    // access rules, not something worth re-deriving defensively.
+    myRole: 'mentor',
     onMutationSuccess: async () => {
       await onMutationSuccess?.();
       onOpenChange(false);
