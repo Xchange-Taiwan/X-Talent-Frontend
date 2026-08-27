@@ -44,6 +44,27 @@ describe('ReservationMessagePreview', () => {
     expect(screen.getByText('導師的回覆。')).toBeInTheDocument();
   });
 
+  it('renders the mentee and mentor messages when variant="card"', () => {
+    const reservation: Reservation = {
+      ...mockReservation,
+      menteeMessage: { content: '學員的問題。' },
+      mentorMessage: { content: '導師的回覆。' },
+    };
+
+    render(
+      <ReservationMessagePreview
+        reservation={reservation}
+        sourceRole="mentor"
+        variant="card"
+      />
+    );
+
+    expect(screen.getByText('學員留言')).toBeInTheDocument();
+    expect(screen.getByText('學員的問題。')).toBeInTheDocument();
+    expect(screen.getByText('導師回覆')).toBeInTheDocument();
+    expect(screen.getByText('導師的回覆。')).toBeInTheDocument();
+  });
+
   it('opens the full conversation dialog on click', () => {
     const reservation: Reservation = {
       ...mockReservation,
