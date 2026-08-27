@@ -53,8 +53,8 @@ export function ReplyMessageField({
         <Textarea
           placeholder={placeholder}
           className="min-h-[96px] resize-y border-0 shadow-none focus-visible:ring-0"
-          disabled={disabled}
           {...textareaProps}
+          disabled={disabled || textareaProps.disabled}
         />
       </div>
       {error ? (
