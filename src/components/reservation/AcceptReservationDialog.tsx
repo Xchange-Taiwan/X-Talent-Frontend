@@ -1,8 +1,9 @@
 'use client';
 
-import { Loader2, MessageSquarePlus } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
+import { ReplyMessageField } from '@/components/reservation/ReplyMessageField';
 import { ReservationIdentity } from '@/components/reservation/ReservationIdentity';
 import { Button, type ButtonProps } from '@/components/ui/button';
 import {
@@ -14,7 +15,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
 import { trackEvent } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
@@ -98,32 +98,15 @@ export default function AcceptReservationDialog({
           ) : null}
 
           <div className="mt-6">
-            {replyOpen ? (
-              <div>
-                <div className="mb-2 text-sm font-medium">
-                  給學員的回覆（選填）
-                </div>
-                <div className="rounded-2xl border p-2">
-                  <Textarea
-                    placeholder="例如：屆時於 Google Meet 見,請先準備一份履歷。"
-                    className="min-h-[96px] resize-y border-0 shadow-none focus-visible:ring-0"
-                    value={reply}
-                    onChange={(e) => setReply(e.target.value)}
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setReplyOpen(true)}
-                className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-text-primary"
-                disabled={isSubmitting}
-              >
-                <MessageSquarePlus className="size-4" aria-hidden />
-                附上回覆訊息（選填）
-              </button>
-            )}
+            <ReplyMessageField
+              open={replyOpen}
+              onOpen={() => setReplyOpen(true)}
+              disabled={isSubmitting}
+              textareaProps={{
+                value: reply,
+                onChange: (e) => setReply(e.target.value),
+              }}
+            />
           </div>
 
           <DialogFooter className="mt-6 gap-2">
