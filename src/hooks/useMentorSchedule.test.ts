@@ -1276,7 +1276,7 @@ describe('useMentorSchedule', () => {
       );
     });
 
-    it('reload() bypasses the reservations cache, wipes it, then re-primes it with the fresh result', async () => {
+    it("reload() bypasses the reservations cache, evicts this month's own two keys, then re-primes them with the fresh result", async () => {
       mockLoadMonthScheduleCached.mockReturnValue({
         cached: [],
         revalidate: Promise.resolve([]),
@@ -1295,7 +1295,22 @@ describe('useMentorSchedule', () => {
       });
 
       mockFetchAllReservationsForState.mockClear();
-      const clearSpy = vi.spyOn(reservationReadModel, 'clear');
+      // A month unrelated to the one being reloaded, and the dashboard's own
+      // unscoped slot for this same state - reload() must leave both alone.
+      // The write path itself (acceptReservation / rejectOrCancelReservation
+      // / createReservation) now owns invalidating whatever those mutations
+      // actually affect (X-Tracker #651), instead of reload() wiping the
+      // entire shared model as a blunt substitute.
+      const otherMonthEom = computeEndOfMonthUnix(2026, 8);
+      reservationReadModel.set(
+        reservationKey('MENTOR_UPCOMING', otherMonthEom, 'mentor-1'),
+        { items: [], next_dtend: 0 }
+      );
+      reservationReadModel.set(
+        { userId: 'mentor-1', state: 'MENTOR_UPCOMING' },
+        { items: [], next_dtend: 0 }
+      );
+      const invalidateSpy = vi.spyOn(reservationReadModel, 'invalidate');
       const setSpy = vi.spyOn(reservationReadModel, 'set');
 
       await act(async () => {
@@ -1312,14 +1327,13 @@ describe('useMentorSchedule', () => {
         'MENTOR_PENDING',
         expect.any(Number)
       );
-      // A mutated reservation can be embedded in every OTHER cached
-      // calendar month's slot too (each keyed by its own end-of-month
-      // boundary), plus the reservation dashboard's own unscoped slot for
-      // this state, not just the currently-viewed month - reload must wipe
-      // the whole shared model rather than re-prime only the current
-      // month's two keys.
-      expect(clearSpy).toHaveBeenCalled();
       const eom = computeEndOfMonthUnix(2026, 7);
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        reservationKey('MENTOR_UPCOMING', eom, 'mentor-1')
+      );
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        reservationKey('MENTOR_PENDING', eom, 'mentor-1')
+      );
       expect(
         reservationReadModel.get(
           reservationKey('MENTOR_UPCOMING', eom, 'mentor-1')
@@ -1330,19 +1344,31 @@ describe('useMentorSchedule', () => {
           reservationKey('MENTOR_PENDING', eom, 'mentor-1')
         )
       ).toEqual({ items: [], next_dtend: 0 });
-      // Order matters: the wipe must happen before the re-prime (or the
+      // Other months and the dashboard's unscoped slot are untouched.
+      expect(
+        reservationReadModel.get(
+          reservationKey('MENTOR_UPCOMING', otherMonthEom, 'mentor-1')
+        )
+      ).toEqual({ items: [], next_dtend: 0 });
+      expect(
+        reservationReadModel.get({
+          userId: 'mentor-1',
+          state: 'MENTOR_UPCOMING',
+        })
+      ).toEqual({ items: [], next_dtend: 0 });
+      // Order matters: the eviction must happen before the re-prime (or the
       // fresh values written for this month would themselves get erased)
       // and before the fetch even starts (so a failed/abandoned fetch still
-      // leaves the cache cleared rather than stale).
-      const clearOrder = clearSpy.mock.invocationCallOrder[0];
+      // leaves this month's own keys evicted rather than stale).
+      const invalidateOrder = invalidateSpy.mock.invocationCallOrder[0];
       const firstFetchOrder =
         mockFetchAllReservationsForState.mock.invocationCallOrder[0];
       const firstSetOrder = setSpy.mock.invocationCallOrder[0];
-      expect(clearOrder).toBeLessThan(firstFetchOrder);
-      expect(clearOrder).toBeLessThan(firstSetOrder);
+      expect(invalidateOrder).toBeLessThan(firstFetchOrder);
+      expect(invalidateOrder).toBeLessThan(firstSetOrder);
     });
 
-    it('reload() clears the reservations cache even when the refetch fails', async () => {
+    it("reload() evicts this month's own reservation keys even when the refetch fails", async () => {
       mockLoadMonthScheduleCached.mockReturnValue({
         cached: [],
         revalidate: Promise.resolve([]),
@@ -1360,7 +1386,6 @@ describe('useMentorSchedule', () => {
         expect(result.current.reservationsLoaded).toBe(true);
       });
 
-      const clearSpy = vi.spyOn(reservationReadModel, 'clear');
       const setSpy = vi.spyOn(reservationReadModel, 'set');
       // A mutation (e.g. accept/reject) is what would normally trigger this
       // reload; the network fetch it kicks off then fails.
@@ -1372,9 +1397,19 @@ describe('useMentorSchedule', () => {
         await result.current.reload();
       });
 
-      // The cache must still be wiped - a failed reload leaves stale
-      // pre-mutation data in the cache otherwise, for up to the TTL.
-      expect(clearSpy).toHaveBeenCalled();
+      // This month's own two keys must still be evicted - a failed reload
+      // leaves stale pre-mutation data in them otherwise, for up to the TTL.
+      const eom = computeEndOfMonthUnix(2026, 7);
+      expect(
+        reservationReadModel.get(
+          reservationKey('MENTOR_UPCOMING', eom, 'mentor-1')
+        )
+      ).toBeUndefined();
+      expect(
+        reservationReadModel.get(
+          reservationKey('MENTOR_PENDING', eom, 'mentor-1')
+        )
+      ).toBeUndefined();
       expect(setSpy).not.toHaveBeenCalled();
     });
 

@@ -49,6 +49,7 @@ function ReservationItem({
   const { accept, rejectOrCancel, isMutating } = useReservationActions({
     myUserId,
     variant,
+    myRole: sourceRole,
     onMutationSuccess,
     onVersionConflict,
   });

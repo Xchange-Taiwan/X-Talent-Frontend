@@ -675,19 +675,29 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       .endOf('month')
       .unix();
 
-    // Clear the whole shared model unconditionally, before the fetch even
+    // This month's own two keys, evicted below before the fetch even
     // starts: whatever triggered this reload (a mutation like accept/reject,
-    // or a manual retry) means every cached entry is potentially stale the
-    // moment reload() is called - regardless of whether the fetch below
-    // succeeds, throws, or gets abandoned via the isStale checks. A mutated
-    // reservation can be embedded in every OTHER cached calendar month
-    // (each is keyed by its own end-of-month boundary) and in the
-    // reservation dashboard's own unscoped slot for this same state, not
-    // just the currently-viewed month - clearing only on the success path,
-    // or only this month's two keys, would leave the rest stale for up to
-    // the TTL (or indefinitely, for the dashboard's invalidate-driven slot)
-    // if the fetch failed or was abandoned.
-    reservationReadModel.clear();
+    // or a manual retry) means they're potentially stale the moment
+    // reload() is called - regardless of whether the fetch below succeeds,
+    // throws, or gets abandoned via the isStale checks. Every OTHER cached
+    // calendar month and the reservation dashboard's own unscoped slot for
+    // this same state are no longer wiped from here - the write path itself
+    // (acceptReservation / rejectOrCancelReservation / createReservation,
+    // see invalidateReservationRead) now invalidates the reads its own
+    // mutation actually affects; other calendar months fall back to
+    // MENTOR_SCHEDULE_RESERVATIONS_TTL_MS's self-expiry (X-Tracker #651).
+    const upcomingKey = {
+      userId: loginUserId,
+      state: 'MENTOR_UPCOMING' as const,
+      endOfMonthUnix,
+    };
+    const pendingKey = {
+      userId: loginUserId,
+      state: 'MENTOR_PENDING' as const,
+      endOfMonthUnix,
+    };
+    reservationReadModel.invalidate(upcomingKey);
+    reservationReadModel.invalidate(pendingKey);
 
     try {
       const [upcoming, pending] = await Promise.all([
@@ -706,12 +716,12 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       // Re-prime just this month so a subsequent swipe back to it within
       // the TTL still avoids one extra fetch.
       reservationReadModel.set(
-        { userId: loginUserId, state: 'MENTOR_UPCOMING', endOfMonthUnix },
+        upcomingKey,
         { items: upcoming, next_dtend: 0 },
         MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
       );
       reservationReadModel.set(
-        { userId: loginUserId, state: 'MENTOR_PENDING', endOfMonthUnix },
+        pendingKey,
         { items: pending, next_dtend: 0 },
         MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
       );

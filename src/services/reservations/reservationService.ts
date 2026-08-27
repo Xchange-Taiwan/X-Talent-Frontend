@@ -2,6 +2,10 @@ import dayjs from 'dayjs';
 
 import { apiClient } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
+import {
+  type ReservationReadKey,
+  reservationReadModel,
+} from '@/lib/reservation/reservationReadModel';
 import { resolveCounterpartyProfile } from '@/lib/reservation/resolveCounterparty';
 import { components } from '@/types/api';
 import { Reservation, ReservationMessage } from '@/types/reservation';
@@ -220,6 +224,45 @@ export async function fetchAllReservationsForState(
 }
 
 /* ================================
+ * Read-model invalidation (write path)
+ * ================================ */
+
+/**
+ * Invalidate the cached reservation page at `key` after a write
+ * (accept/reject/cancel/create - see `reservationMutations.ts` and
+ * `createReservation` below) whose effect may have landed there, so the
+ * write path owns its own cache freshness instead of every caller
+ * re-deriving what to invalidate (X-Tracker #651).
+ *
+ * A key with an active subscriber (most commonly the reservation
+ * dashboard, which subscribes to every tab for as long as it's mounted) is
+ * refreshed in place with a fresh fetch instead of being dropped via
+ * `invalidate()` - that would notify the subscriber with `data: null` and
+ * blank a tab the mutation never touched. A key with no active subscriber
+ * is simply invalidated: nothing is watching it, so the next `subscribe()`
+ * (e.g. navigating back to a route that reads it) fetches fresh on its own
+ * instead of paying for a background fetch nobody is watching.
+ */
+export function invalidateReservationRead(key: ReservationReadKey): void {
+  if (!reservationReadModel.hasSubscribers(key)) {
+    reservationReadModel.invalidate(key);
+    return;
+  }
+  fetchReservations({ userId: key.userId, state: key.state })
+    .then((result) => {
+      reservationReadModel.set(key, result);
+    })
+    .catch((err) => {
+      captureFlowFailure({
+        flow: 'reservation_mutation_invalidate',
+        step: `refresh_${key.state}`,
+        message: err instanceof Error ? err.message : String(err),
+        level: 'warning',
+      });
+    });
+}
+
+/* ================================
  * PUT: Update reservation status
  * ================================ */
 
@@ -277,6 +320,18 @@ export async function createReservation(opts: {
   if (debug) console.debug('[reservations] POST parsed', data);
 
   if (!data) throw new Error('API error: missing data in response');
+
+  // A new booking lands in PENDING for both sides: the mentee who just
+  // booked (`userId`) and the mentor being booked (`body.user_id`) - see
+  // invalidateReservationRead above.
+  invalidateReservationRead({
+    userId: String(userId),
+    state: 'MENTEE_PENDING',
+  });
+  invalidateReservationRead({
+    userId: String(body.user_id),
+    state: 'MENTOR_PENDING',
+  });
 
   return data;
 }

@@ -108,6 +108,7 @@ describe('useReservationActions', () => {
         useReservationActions({
           myUserId: 'user-123',
           variant: 'pending-mentor',
+          myRole: 'mentor',
           onMutationSuccess: mockOnMutationSuccess,
         })
       );
@@ -126,6 +127,7 @@ describe('useReservationActions', () => {
         message: 'hello message',
         reservation: mockReservation,
         myUserId: 'user-123',
+        myRole: 'mentor',
       });
 
       expect(mockToast).toHaveBeenCalledWith({
@@ -151,6 +153,7 @@ describe('useReservationActions', () => {
         useReservationActions({
           myUserId: 'user-123',
           variant: 'pending-mentor',
+          myRole: 'mentor',
           onMutationSuccess: mockOnMutationSuccess,
         })
       );
@@ -180,6 +183,7 @@ describe('useReservationActions', () => {
         useReservationActions({
           myUserId: 'user-123',
           variant: 'pending-mentor',
+          myRole: 'mentor',
           onMutationSuccess: mockOnMutationSuccess,
         })
       );
@@ -200,6 +204,7 @@ describe('useReservationActions', () => {
         useReservationActions({
           myUserId: undefined,
           variant: 'pending-mentor',
+          myRole: 'mentor',
         })
       );
 
@@ -220,6 +225,7 @@ describe('useReservationActions', () => {
         useReservationActions({
           myUserId: 'user-123',
           variant: 'pending-mentor',
+          myRole: 'mentor',
           onMutationSuccess: mockOnMutationSuccess,
           onVersionConflict: mockOnVersionConflict,
         })
@@ -249,6 +255,7 @@ describe('useReservationActions', () => {
         useReservationActions({
           myUserId: 'user-123',
           variant: 'pending-mentor',
+          myRole: 'mentor',
           onMutationSuccess: mockOnMutationSuccess,
         })
       );
@@ -269,6 +276,7 @@ describe('useReservationActions', () => {
         text: 'Reject reason text',
         reservation: mockReservation,
         myUserId: 'user-123',
+        myRole: 'mentor',
       });
 
       expect(mockTrackEvent).toHaveBeenCalledWith({
@@ -294,6 +302,7 @@ describe('useReservationActions', () => {
         useReservationActions({
           myUserId: 'user-123',
           variant: 'pending-mentor',
+          myRole: 'mentor',
           onMutationSuccess: mockOnMutationSuccess,
         })
       );
@@ -325,6 +334,7 @@ describe('useReservationActions', () => {
         useReservationActions({
           myUserId: 'user-123',
           variant: 'pending-mentor',
+          myRole: 'mentor',
           onMutationSuccess: mockOnMutationSuccess,
         })
       );
@@ -358,6 +368,7 @@ describe('useReservationActions', () => {
         useReservationActions({
           myUserId: 'user-123',
           variant: 'pending-mentor',
+          myRole: 'mentor',
           onMutationSuccess: mockOnMutationSuccess,
         })
       );
@@ -382,6 +393,7 @@ describe('useReservationActions', () => {
         useReservationActions({
           myUserId: undefined,
           variant: 'pending-mentor',
+          myRole: 'mentor',
         })
       );
 
@@ -406,6 +418,7 @@ describe('useReservationActions', () => {
         useReservationActions({
           myUserId: 'user-123',
           variant: 'pending-mentor',
+          myRole: 'mentor',
           onMutationSuccess: mockOnMutationSuccess,
           onVersionConflict: mockOnVersionConflict,
         })

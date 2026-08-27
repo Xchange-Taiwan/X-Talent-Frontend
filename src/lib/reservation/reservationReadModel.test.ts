@@ -122,6 +122,54 @@ describe('ReservationReadModel', () => {
     unsubscribe();
   });
 
+  describe('hasSubscribers()', () => {
+    it('is false when nothing has ever subscribed to the key', () => {
+      reservationReadModel.clear();
+      expect(
+        reservationReadModel.hasSubscribers({
+          userId: 'u1',
+          state: 'MENTEE_UPCOMING',
+        })
+      ).toBe(false);
+    });
+
+    it('is true while a subscriber is actively mounted for the key', async () => {
+      reservationReadModel.clear();
+      const key = { userId: 'u1', state: 'MENTEE_UPCOMING' } as const;
+      const fetcher = vi.fn().mockResolvedValue(page('a'));
+
+      const unsubscribe = reservationReadModel.subscribe(
+        key,
+        fetcher,
+        () => {}
+      );
+
+      expect(reservationReadModel.hasSubscribers(key)).toBe(true);
+
+      unsubscribe();
+
+      expect(reservationReadModel.hasSubscribers(key)).toBe(false);
+    });
+
+    it('is isolated per key - subscribing to one state does not flag another', async () => {
+      reservationReadModel.clear();
+      const upcoming = { userId: 'u1', state: 'MENTEE_UPCOMING' } as const;
+      const pending = { userId: 'u1', state: 'MENTEE_PENDING' } as const;
+      const fetcher = vi.fn().mockResolvedValue(page('a'));
+
+      const unsubscribe = reservationReadModel.subscribe(
+        upcoming,
+        fetcher,
+        () => {}
+      );
+
+      expect(reservationReadModel.hasSubscribers(upcoming)).toBe(true);
+      expect(reservationReadModel.hasSubscribers(pending)).toBe(false);
+
+      unsubscribe();
+    });
+  });
+
   it('clear() resets every cached entry', () => {
     const key = { userId: 'u1', state: 'MENTOR_UPCOMING' } as const;
     reservationReadModel.set(key, page('a'));

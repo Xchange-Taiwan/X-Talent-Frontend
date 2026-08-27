@@ -40,6 +40,7 @@ export function QuickReplyDialog({
   const { accept, rejectOrCancel, isMutating } = useReservationActions({
     myUserId,
     variant: 'pending-mentor',
+    myRole: 'mentor',
     onMutationSuccess: async () => {
       // Await the reload before closing so the underlying page's calendar
       // and reservation list have already settled to the new state by the

@@ -31,6 +31,10 @@ export const buildRejectOrCancelAffectedTabs = (
 interface UseReservationActionsProps {
   myUserId: string | undefined;
   variant: Variant;
+  /** Which side `myUserId` is acting as for these reservations - forwarded
+   * to the mutation service so it knows which parties' cache slots to
+   * invalidate after a successful write. */
+  myRole: 'mentee' | 'mentor';
   onMutationSuccess?: (
     id: string,
     affectedTabs: ListKey[]
@@ -54,6 +58,7 @@ interface UseReservationActionsReturn {
 export function useReservationActions({
   myUserId,
   variant,
+  myRole,
   onMutationSuccess,
   onVersionConflict,
 }: UseReservationActionsProps): UseReservationActionsReturn {
@@ -74,6 +79,7 @@ export function useReservationActions({
             message,
             reservation,
             myUserId,
+            myRole,
           });
           toast({
             title: '已接受預約',
@@ -88,7 +94,7 @@ export function useReservationActions({
         throw err;
       }
     },
-    [run, myUserId, toast, onMutationSuccess, onVersionConflict]
+    [run, myUserId, myRole, toast, onMutationSuccess, onVersionConflict]
   );
 
   const rejectOrCancel = useCallback(
@@ -103,6 +109,7 @@ export function useReservationActions({
             text,
             reservation,
             myUserId,
+            myRole,
           });
           trackEvent({ name: 'reservation_rejected', feature: 'reservation' });
           const successMessage =
@@ -120,7 +127,15 @@ export function useReservationActions({
         throw err;
       }
     },
-    [run, myUserId, variant, toast, onMutationSuccess, onVersionConflict]
+    [
+      run,
+      myUserId,
+      myRole,
+      variant,
+      toast,
+      onMutationSuccess,
+      onVersionConflict,
+    ]
   );
 
   return {

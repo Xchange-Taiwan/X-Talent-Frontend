@@ -309,34 +309,26 @@ export function useReservationData({
   );
 
   const onMutationSuccess = useCallback(
+    // `affectedTabs[0]` is always the tab the item currently lives in
+    // (ACCEPT_AFFECTED_TABS / buildRejectOrCancelAffectedTabs both put the
+    // source tab first, e.g. 'pending' for an accept whose destination is
+    // 'upcoming') - only that tab has anything to optimistically hide.
+    // Marking a destination tab too would hide the item there forever once
+    // it legitimately shows up, since removedIds only ever grows. Cache
+    // freshness itself (getting the item out of the source's cached page
+    // and into the destination's) is now owned by the write path
+    // (acceptReservation / rejectOrCancelReservation, see
+    // invalidateReservationRead) instead of being refetched by hand here -
+    // X-Tracker #651.
     (id: string, affectedTabs: ListKey[]) => {
-      setRemovedIds((prev) => {
-        const next = { ...prev };
-        affectedTabs.forEach((tab) => {
-          const s = new Set(next[tab]);
-          s.add(id);
-          next[tab] = s;
-        });
-        return next;
-      });
-
-      affectedTabs.forEach((tab) => {
-        const key = toReservationReadKey(myUserId, states[tab]);
-        if (!key) return;
-        reservationReadModel.update(key, (current) =>
-          current
-            ? {
-                ...current,
-                items: current.items.filter((it) => it.id !== id),
-              }
-            : undefined
-        );
-      });
-
-      const affectedStates = affectedTabs.map((tab) => states[tab]);
-      void refetchStates(affectedStates);
+      const sourceTab = affectedTabs[0];
+      if (!sourceTab) return;
+      setRemovedIds((prev) => ({
+        ...prev,
+        [sourceTab]: new Set(prev[sourceTab]).add(id),
+      }));
     },
-    [myUserId, states, refetchStates]
+    []
   );
 
   const refetchOnConflict = useCallback(

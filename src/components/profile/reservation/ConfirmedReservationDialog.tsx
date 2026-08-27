@@ -34,6 +34,7 @@ export function ConfirmedReservationDialog({
   const { rejectOrCancel, isMutating } = useReservationActions({
     myUserId,
     variant: 'upcoming',
+    myRole: 'mentor',
     onMutationSuccess: async () => {
       await onMutationSuccess?.();
       onOpenChange(false);

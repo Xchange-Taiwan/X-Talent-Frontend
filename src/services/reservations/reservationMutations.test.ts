@@ -34,6 +34,7 @@ vi.mock('@/lib/analytics', async (importActual) => {
 
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import {
   acceptReservation,
@@ -46,6 +47,8 @@ import type { Reservation } from '@/types/reservation';
 
 const mockPut = vi.mocked(apiClient.putUnwrapped);
 const mockCaptureFailure = vi.mocked(captureFlowFailure);
+
+const emptyPage = { items: [], next_dtend: 0 };
 
 const makeMockReservation = (
   overrides: Partial<Reservation> = {}
@@ -67,6 +70,7 @@ const makeMockReservation = (
 
 beforeEach(() => {
   vi.clearAllMocks();
+  reservationReadModel.clear();
 });
 
 describe('getReservationErrorMessage', () => {
@@ -132,6 +136,7 @@ describe('acceptReservation', () => {
       message: 'Looking forward to meeting you!',
       reservation,
       myUserId: '10',
+      myRole: 'mentor',
     });
 
     expect(mockPut).toHaveBeenCalledTimes(1);
@@ -163,6 +168,7 @@ describe('acceptReservation', () => {
       message: '  ',
       reservation,
       myUserId: '10',
+      myRole: 'mentor',
     });
 
     expect(mockPut).toHaveBeenCalledWith(
@@ -183,6 +189,7 @@ describe('acceptReservation', () => {
         message: 'hello',
         reservation,
         myUserId: '10',
+        myRole: 'mentor',
       })
     ).rejects.toThrow('API failed');
 
@@ -201,6 +208,7 @@ describe('acceptReservation', () => {
         message: 'hello',
         reservation,
         myUserId: '',
+        myRole: 'mentor',
       })
     ).rejects.toThrow('[reservationMutations] missing current user id');
   });
@@ -214,10 +222,103 @@ describe('acceptReservation', () => {
         message: 'hello',
         reservation,
         myUserId: '10',
+        myRole: 'mentor',
       })
     ).rejects.toBeInstanceOf(ReservationVersionConflictError);
 
     expect(mockCaptureFailure).not.toHaveBeenCalled();
+  });
+
+  it('invalidates both parties PENDING + UPCOMING reads on success (X-Tracker #651)', async () => {
+    const reservation = makeMockReservation({
+      senderUserId: '10',
+      participantUserId: '20',
+    });
+    mockPut.mockResolvedValue({ code: '0', msg: 'success', data: {} });
+
+    const keys = [
+      { userId: '10', state: 'MENTOR_PENDING' },
+      { userId: '10', state: 'MENTOR_UPCOMING' },
+      { userId: '20', state: 'MENTEE_PENDING' },
+      { userId: '20', state: 'MENTEE_UPCOMING' },
+    ] as const;
+    keys.forEach((key) => reservationReadModel.set(key, emptyPage));
+    // A state neither party's role occupies for this reservation must
+    // survive untouched.
+    reservationReadModel.set(
+      { userId: '10', state: 'MENTOR_HISTORY' },
+      emptyPage
+    );
+
+    await acceptReservation({
+      message: 'hello',
+      reservation,
+      myUserId: '10',
+      myRole: 'mentor',
+    });
+
+    keys.forEach((key) => {
+      expect(reservationReadModel.get(key)).toBeUndefined();
+    });
+    expect(
+      reservationReadModel.get({ userId: '10', state: 'MENTOR_HISTORY' })
+    ).toEqual(emptyPage);
+  });
+
+  it('invalidates the counterparty as MENTOR when myRole is mentee', async () => {
+    const reservation = makeMockReservation({
+      senderUserId: '10',
+      participantUserId: '20',
+    });
+    mockPut.mockResolvedValue({ code: '0', msg: 'success', data: {} });
+
+    reservationReadModel.set(
+      { userId: '10', state: 'MENTEE_PENDING' },
+      emptyPage
+    );
+    reservationReadModel.set(
+      { userId: '20', state: 'MENTOR_UPCOMING' },
+      emptyPage
+    );
+
+    await acceptReservation({
+      message: 'hello',
+      reservation,
+      myUserId: '10',
+      myRole: 'mentee',
+    });
+
+    expect(
+      reservationReadModel.get({ userId: '10', state: 'MENTEE_PENDING' })
+    ).toBeUndefined();
+    expect(
+      reservationReadModel.get({ userId: '20', state: 'MENTOR_UPCOMING' })
+    ).toBeUndefined();
+  });
+
+  it('does not invalidate anything when the API call fails', async () => {
+    const reservation = makeMockReservation({
+      senderUserId: '10',
+      participantUserId: '20',
+    });
+    mockPut.mockRejectedValue(new Error('API failed'));
+    reservationReadModel.set(
+      { userId: '10', state: 'MENTOR_PENDING' },
+      emptyPage
+    );
+
+    await expect(
+      acceptReservation({
+        message: 'hello',
+        reservation,
+        myUserId: '10',
+        myRole: 'mentor',
+      })
+    ).rejects.toThrow('API failed');
+
+    expect(
+      reservationReadModel.get({ userId: '10', state: 'MENTOR_PENDING' })
+    ).toEqual(emptyPage);
   });
 });
 
@@ -241,6 +342,7 @@ describe('rejectOrCancelReservation', () => {
       text: 'Sorry, I am busy',
       reservation,
       myUserId: '10',
+      myRole: 'mentor',
     });
 
     expect(mockPut).toHaveBeenCalledTimes(1);
@@ -266,6 +368,7 @@ describe('rejectOrCancelReservation', () => {
         text: 'reason',
         reservation,
         myUserId: '10',
+        myRole: 'mentor',
       })
     ).rejects.toThrow('Reject failed');
 
@@ -284,6 +387,7 @@ describe('rejectOrCancelReservation', () => {
         text: 'cancel',
         reservation,
         myUserId: '',
+        myRole: 'mentor',
       })
     ).rejects.toThrow('[reservationMutations] missing current user id');
   });
@@ -297,9 +401,64 @@ describe('rejectOrCancelReservation', () => {
         text: 'reason',
         reservation,
         myUserId: '10',
+        myRole: 'mentor',
       })
     ).rejects.toBeInstanceOf(ReservationVersionConflictError);
 
     expect(mockCaptureFailure).not.toHaveBeenCalled();
+  });
+
+  it('invalidates both parties PENDING + UPCOMING + HISTORY reads on success (X-Tracker #651)', async () => {
+    const reservation = makeMockReservation({
+      senderUserId: '10',
+      participantUserId: '20',
+    });
+    mockPut.mockResolvedValue({ code: '0', msg: 'success', data: {} });
+
+    const keys = [
+      { userId: '10', state: 'MENTOR_PENDING' },
+      { userId: '10', state: 'MENTOR_UPCOMING' },
+      { userId: '10', state: 'MENTOR_HISTORY' },
+      { userId: '20', state: 'MENTEE_PENDING' },
+      { userId: '20', state: 'MENTEE_UPCOMING' },
+      { userId: '20', state: 'MENTEE_HISTORY' },
+    ] as const;
+    keys.forEach((key) => reservationReadModel.set(key, emptyPage));
+
+    await rejectOrCancelReservation({
+      text: 'reason',
+      reservation,
+      myUserId: '10',
+      myRole: 'mentor',
+    });
+
+    keys.forEach((key) => {
+      expect(reservationReadModel.get(key)).toBeUndefined();
+    });
+  });
+
+  it('does not invalidate anything when the API call fails', async () => {
+    const reservation = makeMockReservation({
+      senderUserId: '10',
+      participantUserId: '20',
+    });
+    mockPut.mockRejectedValue(new Error('Reject failed'));
+    reservationReadModel.set(
+      { userId: '10', state: 'MENTOR_PENDING' },
+      emptyPage
+    );
+
+    await expect(
+      rejectOrCancelReservation({
+        text: 'reason',
+        reservation,
+        myUserId: '10',
+        myRole: 'mentor',
+      })
+    ).rejects.toThrow('Reject failed');
+
+    expect(
+      reservationReadModel.get({ userId: '10', state: 'MENTOR_PENDING' })
+    ).toEqual(emptyPage);
   });
 });
