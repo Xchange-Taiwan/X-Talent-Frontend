@@ -1,9 +1,10 @@
 'use client';
 
-import { Loader2, MessageSquarePlus } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import * as React from 'react';
 
 import RejectReservationDialog from '@/components/reservation/RejectReservationDialog';
+import { ReplyMessageField } from '@/components/reservation/ReplyMessageField';
 import { ReservationIdentity } from '@/components/reservation/ReservationIdentity';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,7 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { useQuickReplyAccept } from '@/hooks/user/reservation/useQuickReplyAccept';
 import { useQuickReplyForm } from '@/hooks/user/reservation/useQuickReplyForm';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
@@ -153,36 +153,13 @@ export function QuickReplyDialog({
           />
 
           <div className="mt-6">
-            {replyOpen ? (
-              <div>
-                <div className="mb-2 text-sm font-medium">
-                  給學員的回覆（選填）
-                </div>
-                <div className="rounded-2xl border p-2">
-                  <Textarea
-                    placeholder="例如：屆時於 Google Meet 見,請先準備一份履歷。"
-                    className="min-h-[96px] resize-y border-0 shadow-none focus-visible:ring-0"
-                    disabled={isMutating}
-                    {...register('reply')}
-                  />
-                </div>
-                {replyErrors.reply ? (
-                  <p className="mt-1 text-sm text-status-error-default">
-                    {replyErrors.reply.message}
-                  </p>
-                ) : null}
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setReplyOpen(true)}
-                className="flex items-center gap-1.5 text-sm text-text-tertiary hover:text-text-primary"
-                disabled={isMutating}
-              >
-                <MessageSquarePlus className="size-4" aria-hidden />
-                附上回覆訊息（選填）
-              </button>
-            )}
+            <ReplyMessageField
+              open={replyOpen}
+              onOpen={() => setReplyOpen(true)}
+              disabled={isMutating}
+              error={replyErrors.reply?.message}
+              textareaProps={register('reply')}
+            />
           </div>
 
           {/* Footer action buttons */}
