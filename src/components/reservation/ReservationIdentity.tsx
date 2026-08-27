@@ -243,11 +243,14 @@ export interface ReservationIdentityProps {
   showMessages?: boolean;
   /**
    * Which role the current user is browsing as, for the message preview's
-   * "view full conversation" analytics. Defaults to 'mentor' since every
-   * current 'dialog'-variant caller (ConfirmedReservationDialog,
-   * QuickReplyDialog) only ever renders on a mentor's own calendar.
+   * "view full conversation" analytics. Required (no default) so a caller
+   * that reuses the 'dialog' variant for a mentee-facing surface can't
+   * silently inherit the wrong role - every current caller
+   * (ConfirmedReservationDialog, QuickReplyDialog, AcceptReservationDialog)
+   * only ever renders on a mentor's own calendar, so they all pass 'mentor'
+   * explicitly.
    */
-  sourceRole?: 'mentor' | 'mentee';
+  sourceRole: 'mentor' | 'mentee';
   className?: string;
 }
 
@@ -261,7 +264,7 @@ export function ReservationIdentity({
   disabled = false,
   variant = 'dialog',
   showMessages,
-  sourceRole = 'mentor',
+  sourceRole,
   className,
 }: ReservationIdentityProps) {
   const resolvedShowMessages =
