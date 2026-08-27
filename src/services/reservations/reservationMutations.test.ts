@@ -35,7 +35,10 @@ vi.mock('@/lib/analytics', async (importActual) => {
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
 import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
-import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
+import {
+  resolveCounterpartyId,
+  resolveMyRole,
+} from '@/lib/reservation/resolveCounterparty';
 import {
   acceptReservation,
   getReservationErrorMessage,
@@ -113,6 +116,33 @@ describe('resolveCounterpartyId', () => {
     });
     const result = resolveCounterpartyId(res, 'user-participant');
     expect(result).toBe('user-sender');
+  });
+});
+
+describe('resolveMyRole', () => {
+  it('resolves to mentee when myUserId is the sender', () => {
+    const res = makeMockReservation({
+      senderUserId: 'user-sender',
+      participantUserId: 'user-participant',
+    });
+    expect(resolveMyRole(res, 'user-sender')).toBe('mentee');
+  });
+
+  it('resolves to mentor when myUserId is the participant', () => {
+    const res = makeMockReservation({
+      senderUserId: 'user-sender',
+      participantUserId: 'user-participant',
+    });
+    expect(resolveMyRole(res, 'user-participant')).toBe('mentor');
+  });
+
+  it('compares ids as strings, tolerating a number/string mismatch', () => {
+    const res = makeMockReservation({
+      senderUserId: '10',
+      participantUserId: '20',
+    });
+    expect(resolveMyRole(res, 10)).toBe('mentee');
+    expect(resolveMyRole(res, 20)).toBe('mentor');
   });
 });
 

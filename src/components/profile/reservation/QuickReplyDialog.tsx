@@ -18,7 +18,10 @@ import { useQuickReplyAccept } from '@/hooks/user/reservation/useQuickReplyAccep
 import { useQuickReplyForm } from '@/hooks/user/reservation/useQuickReplyForm';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { trackEvent } from '@/lib/analytics';
-import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
+import {
+  resolveCounterpartyId,
+  resolveMyRole,
+} from '@/lib/reservation/resolveCounterparty';
 import type { QuickReplyFormValues } from '@/schemas/quickReplySchema';
 import type { Reservation } from '@/types/reservation';
 
@@ -37,10 +40,20 @@ export function QuickReplyDialog({
   myUserId,
   onMutationSuccess,
 }: QuickReplyDialogProps) {
+  // This dialog only ever renders on the mentor's own calendar
+  // (MentorScheduleConfig), so myRole is always 'mentor' in practice - but
+  // derive it from the reservation itself rather than hardcoding it, so a
+  // future reachability change can't silently invalidate the wrong party's
+  // cache. Falls back to 'mentor' while `reservation` is still null (this
+  // dialog instance is shared/reused - see the null check below); nothing
+  // reads `myRole` before a real reservation is set.
+  const myRole =
+    reservation && myUserId ? resolveMyRole(reservation, myUserId) : 'mentor';
+
   const { accept, rejectOrCancel, isMutating } = useReservationActions({
     myUserId,
     variant: 'pending-mentor',
-    myRole: 'mentor',
+    myRole,
     onMutationSuccess: async () => {
       // Await the reload before closing so the underlying page's calendar
       // and reservation list have already settled to the new state by the
