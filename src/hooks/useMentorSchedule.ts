@@ -18,11 +18,9 @@ import { captureFlowFailure } from '@/lib/monitoring';
 import {
   BookingCalendarReader,
   BookingSlot,
-  BookingStatus,
   computeBookingAvailability,
   MentorScheduleEditor,
   ParsedMentorTimeslot,
-  SlotDurationMinutes,
   SlotsSnapshot,
 } from '@/lib/profile/bookingAvailability';
 import { MonthDraftStore } from '@/lib/profile/MonthDraftStore';
@@ -88,62 +86,26 @@ export type UpdateDraftSlotResult = {
 export type UseMentorScheduleReturn = {
   /** Sticky: true once any month has resolved. Use this for first-paint skeletons. */
   loaded: boolean;
-  /** Per-month: false while the *current* (year, month) is being fetched after a cache miss. */
-  monthLoaded: boolean;
-  reservationsLoaded: boolean;
-  isFetching: boolean;
-  selectedDate: string | null;
-  setSelectedDate: (dateStr: string | null) => void;
-
+  /**
+   * Full, unfiltered draft occurrences across all types (ALLOW/BOOKED/
+   * PENDING/FORBIDDEN), sorted chronologically. Page-level orchestration
+   * only (e.g. auto-selecting the calendar's first available date on load)
+   * — not part of either narrow domain interface below, since neither the
+   * reader nor the editor needs the *unfiltered* draft.
+   */
   parsedDraft: ParsedMentorTimeslot[];
-  draftForSelectedDate: ParsedMentorTimeslot[];
-  /** All local dates (YYYY-MM-DD) that have at least one ALLOW occurrence after expanding rrules. */
-  allowedDates: string[];
-
-  slotsSnapshot: SlotsSnapshot;
-  getDayBookingStatus: (dateKey: string) => BookingStatus | null;
-  reservations: Reservation[];
-
   /**
-   * Add one ALLOW entry at `startTime` for `durationMinutes`. If
-   * `weeklyWithinMonth` is true, the entry is a single row with a weekly
-   * `FREQ=WEEKLY;COUNT=N` rrule covering every same-weekday date remaining in
-   * the selected date's month; otherwise it's a non-recurring row. Returns
-   * counts of created occurrences so callers can show "added N, skipped M".
+   * The read-only view a mentee or visitor uses to view a mentor's booking
+   * schedule. Always present.
    */
-  addSlotForSelectedDate: (opts: {
-    startTime: string; // HH:mm
-    durationMinutes: SlotDurationMinutes;
-    weeklyWithinMonth?: boolean;
-  }) => { added: number; skipped: number };
-
+  reader: BookingCalendarReader;
   /**
-   * Edit a single occurrence. For non-recurring rows this updates the row
-   * directly. For recurring rows the targeted occurrence is detached: it is
-   * added to the parent's exdate and a new non-recurring row is created with
-   * the patch applied — leaving sibling occurrences untouched.
+   * The stateful view a mentor uses to manage and sync their own available
+   * slots. Only non-null when `loginUserId` matches `backend.userId` (the
+   * viewer is managing their own schedule) — a mentee or visitor never
+   * receives this.
    */
-  updateDraftSlot: (
-    id: number,
-    occurrenceUnix: number,
-    patch: {
-      startTime?: string; // HH:mm
-      durationMinutes?: SlotDurationMinutes;
-    }
-  ) => UpdateDraftSlotResult;
-
-  /**
-   * Delete a single occurrence. Non-recurring rows are removed entirely; on
-   * recurring rows the occurrence is added to exdate, and the row is removed
-   * only when no active occurrences remain.
-   */
-  deleteDraftSlot: (id: number, occurrenceUnix: number) => void;
-
-  confirmChanges: () => Promise<SyncResult>;
-  resetChanges: () => void;
-
-  hasError: boolean;
-  reload: () => Promise<void>;
+  editor: MentorScheduleEditor | null;
 };
 
 export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
@@ -753,25 +715,74 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     reloadSchedule,
   ]);
 
-  return {
-    loaded,
-    monthLoaded,
-    reservationsLoaded,
-    isFetching,
+  const reader: BookingCalendarReader = useMemo(
+    () => ({
+      selectedDate,
+      setSelectedDate,
+      allowedDates,
+      slotsSnapshot,
+      getDayBookingStatus,
+      monthLoaded,
+      reservationsLoaded,
+      isFetching,
+      reload,
+      hasError,
+    }),
+    [
+      selectedDate,
+      allowedDates,
+      slotsSnapshot,
+      getDayBookingStatus,
+      monthLoaded,
+      reservationsLoaded,
+      isFetching,
+      reload,
+      hasError,
+    ]
+  );
+
+  // The viewer only manages their own schedule when they're logged in as the
+  // profile being viewed — a mentee/visitor (loginUserId unset or pointing
+  // at someone else) must never receive the editor below.
+  const isOwner = !!loginUserId && loginUserId === backend.userId;
+
+  const editor: MentorScheduleEditor | null = useMemo(() => {
+    if (!isOwner) return null;
+    return {
+      selectedDate,
+      setSelectedDate,
+      draftForSelectedDate,
+      addSlotForSelectedDate,
+      updateDraftSlot,
+      deleteDraftSlot,
+      confirmChanges,
+      resetChanges,
+      allowedDates,
+      monthLoaded,
+      reservations,
+      hasError,
+      reload,
+    };
+  }, [
+    isOwner,
     selectedDate,
-    setSelectedDate,
-    parsedDraft,
     draftForSelectedDate,
-    allowedDates,
-    slotsSnapshot,
-    getDayBookingStatus,
     addSlotForSelectedDate,
     updateDraftSlot,
     deleteDraftSlot,
     confirmChanges,
     resetChanges,
-    hasError,
+    allowedDates,
+    monthLoaded,
     reservations,
+    hasError,
     reload,
+  ]);
+
+  return {
+    loaded,
+    parsedDraft,
+    reader,
+    editor,
   };
 }

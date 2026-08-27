@@ -17,16 +17,6 @@ vi.mock('@/services/reservations', () => ({
 
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 
-vi.mock('@/services/mentor-schedule/scheduleCache', () => ({
-  clearScheduleCache: vi.fn(),
-  scheduleCache: {
-    get: vi.fn(),
-    set: vi.fn(),
-    delete: vi.fn(),
-    clear: vi.fn(),
-  },
-}));
-
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
@@ -38,7 +28,10 @@ import {
   type ReservationReadKey,
   reservationReadModel,
 } from '@/lib/reservation/reservationReadModel';
-import { clearScheduleCache } from '@/services/mentor-schedule/scheduleCache';
+import {
+  cacheKey,
+  scheduleCache,
+} from '@/services/mentor-schedule/scheduleCache';
 import {
   loadMonthScheduleCached,
   loadMonthScheduleFresh,
@@ -46,7 +39,6 @@ import {
 } from '@/services/mentor-schedule/sync';
 import { fetchAllReservationsForState } from '@/services/reservations';
 
-const mockClearScheduleCache = vi.mocked(clearScheduleCache);
 const mockLoadMonthScheduleCached = vi.mocked(loadMonthScheduleCached);
 const mockFetchAllReservationsForState = vi.mocked(
   fetchAllReservationsForState
@@ -77,6 +69,13 @@ describe('useMentorSchedule', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     reservationReadModel.clear();
+    scheduleCache.clear();
+    // vi.restoreAllMocks() does not reset call history for a vi.fn() created
+    // inside a vi.mock() factory (only for vi.spyOn() spies) - now that the
+    // reader/editor gating tests above also grant an editor (loginUserId
+    // matching backend.userId), their mount-effect reservation fetches would
+    // otherwise leak into every later test's call-count assertions.
+    mockFetchAllReservationsForState.mockClear();
     vi.mocked(syncMonths).mockResolvedValue([
       { monthKey: '2026-07', outcome: { ok: true, raws: [] } },
       { monthKey: '2026-08', outcome: { ok: true, raws: [] } },
@@ -103,13 +102,63 @@ describe('useMentorSchedule', () => {
       revalidate: Promise.resolve(mockRaws),
     });
 
+    // loginUserId matches backend.userId so the hook grants `editor` - most
+    // of this file's tests exercise the mentor's own draft-mutation flow.
     return renderHook(() =>
       useMentorSchedule({
         backend: { userId: '123', year: 2026, month: 7 },
+        loginUserId: '123',
         includeBookedDates,
       })
     );
   }
+
+  describe('reader/editor gating', () => {
+    it('grants only a reader, with editor null, when loginUserId does not match backend.userId (mentee/visitor)', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: 'someone-else',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      expect(result.current.editor).toBeNull();
+      expect(result.current.reader.slotsSnapshot).toBeDefined();
+      expect(result.current.reader.allowedDates).toBeDefined();
+    });
+
+    it('grants both a reader and an editor when loginUserId matches backend.userId (the mentor managing their own schedule)', async () => {
+      mockLoadMonthScheduleCached.mockReturnValue({
+        cached: defaultMockRaws,
+        revalidate: Promise.resolve(defaultMockRaws),
+      });
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.loaded).toBe(true);
+      });
+
+      expect(result.current.editor).not.toBeNull();
+      expect(result.current.editor?.addSlotForSelectedDate).toBeInstanceOf(
+        Function
+      );
+    });
+  });
 
   it('correctly maps occurrenceId in parsedDraft on load', async () => {
     const { result } = setupSchedule();
@@ -134,7 +183,7 @@ describe('useMentorSchedule', () => {
     });
 
     act(() => {
-      const res = result.current.updateDraftSlot(101, 1785070000, {
+      const res = result.current.editor!.updateDraftSlot(101, 1785070000, {
         startTime: '13:00',
         durationMinutes: 45,
       });
@@ -161,7 +210,7 @@ describe('useMentorSchedule', () => {
     expect(result.current.parsedDraft).toHaveLength(1);
 
     act(() => {
-      result.current.deleteDraftSlot(101, 1785070000);
+      result.current.editor!.deleteDraftSlot(101, 1785070000);
     });
 
     expect(result.current.parsedDraft).toHaveLength(0);
@@ -203,7 +252,7 @@ describe('useMentorSchedule', () => {
       // Slot 101 starts at 13:30, ends at 14:15 (45 mins duration).
       // Slot 102 starts at 13:45, ends at 14:15.
       // This is a direct overlap conflict!
-      const res = result.current.updateDraftSlot(101, 1785070000, {
+      const res = result.current.editor!.updateDraftSlot(101, 1785070000, {
         startTime: '13:30',
         durationMinutes: 45,
       });
@@ -239,7 +288,7 @@ describe('useMentorSchedule', () => {
 
     act(() => {
       // Update occurrence 1 (1785070000)
-      const res = result.current.updateDraftSlot(101, 1785070000, {
+      const res = result.current.editor!.updateDraftSlot(101, 1785070000, {
         startTime: '13:00', // Move to 13:00
         durationMinutes: 45,
       });
@@ -273,13 +322,13 @@ describe('useMentorSchedule', () => {
     });
 
     act(() => {
-      result.current.setSelectedDate('2026-03-24');
+      result.current.reader.setSelectedDate('2026-03-24');
     });
 
     act(() => {
       // March 24 2026 is a Tuesday; within March this produces exactly two
       // weekly occurrences (24th and 31st) before crossing into April.
-      result.current.addSlotForSelectedDate({
+      result.current.editor!.addSlotForSelectedDate({
         startTime: '22:06',
         durationMinutes: 30,
         weeklyWithinMonth: true,
@@ -291,7 +340,7 @@ describe('useMentorSchedule', () => {
     const secondOccurrence = result.current.parsedDraft[1];
 
     act(() => {
-      result.current.deleteDraftSlot(
+      result.current.editor!.deleteDraftSlot(
         recurringRowId,
         secondOccurrence.occurrenceUnix
       );
@@ -300,12 +349,12 @@ describe('useMentorSchedule', () => {
     expect(result.current.parsedDraft).toHaveLength(1);
 
     act(() => {
-      result.current.setSelectedDate(secondOccurrence.dateKey);
+      result.current.reader.setSelectedDate(secondOccurrence.dateKey);
     });
 
     act(() => {
       // Re-add the exact same time/duration that was just deleted.
-      result.current.addSlotForSelectedDate({
+      result.current.editor!.addSlotForSelectedDate({
         startTime: '22:06',
         durationMinutes: 30,
       });
@@ -328,11 +377,11 @@ describe('useMentorSchedule', () => {
     });
 
     act(() => {
-      result.current.setSelectedDate('2026-03-24');
+      result.current.reader.setSelectedDate('2026-03-24');
     });
 
     act(() => {
-      result.current.addSlotForSelectedDate({
+      result.current.editor!.addSlotForSelectedDate({
         startTime: '22:06',
         durationMinutes: 30,
         weeklyWithinMonth: true,
@@ -344,20 +393,20 @@ describe('useMentorSchedule', () => {
     const secondOccurrence = result.current.parsedDraft[1];
 
     act(() => {
-      result.current.deleteDraftSlot(
+      result.current.editor!.deleteDraftSlot(
         recurringRowId,
         secondOccurrence.occurrenceUnix
       );
     });
 
     act(() => {
-      result.current.setSelectedDate(secondOccurrence.dateKey);
+      result.current.reader.setSelectedDate(secondOccurrence.dateKey);
     });
 
     act(() => {
       // Same start time, but a different duration than the deleted
       // occurrence — should NOT be treated as a restore.
-      result.current.addSlotForSelectedDate({
+      result.current.editor!.addSlotForSelectedDate({
         startTime: '22:06',
         durationMinutes: 45,
       });
@@ -390,7 +439,7 @@ describe('useMentorSchedule', () => {
 
     act(() => {
       // Delete occurrence 1 (1785070000)
-      result.current.deleteDraftSlot(101, 1785070000);
+      result.current.editor!.deleteDraftSlot(101, 1785070000);
     });
 
     // Parent should exdate 1785070000, leaving only the second weekly occurrence (1785674800) active.
@@ -430,6 +479,7 @@ describe('useMentorSchedule', () => {
     const { result } = renderHook(() =>
       useMentorSchedule({
         backend: { userId: '123', year: 2026, month: 7 },
+        loginUserId: '123',
       })
     );
 
@@ -443,7 +493,7 @@ describe('useMentorSchedule', () => {
     act(() => {
       // Edit the August 2 occurrence (1785674800 - Month 8)
       // Since it is edited, it should detach from the parent in July and be stored in August's buffer
-      const res = result.current.updateDraftSlot(101, 1785674800, {
+      const res = result.current.editor!.updateDraftSlot(101, 1785674800, {
         startTime: '13:00', // Move to 13:00
         durationMinutes: 45,
       });
@@ -468,7 +518,7 @@ describe('useMentorSchedule', () => {
 
     // Verify both months are marked dirty by ensuring confirmChanges requests syncing for both (Testing Finding 1)
     const mockSyncMonths = vi.mocked(syncMonths);
-    await result.current.confirmChanges();
+    await result.current.editor!.confirmChanges();
     expect(mockSyncMonths).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({ ref: expect.objectContaining({ month: 7 }) }),
@@ -507,6 +557,7 @@ describe('useMentorSchedule', () => {
     const { result } = renderHook(() =>
       useMentorSchedule({
         backend: { userId: '123', year: 2026, month: 7 },
+        loginUserId: '123',
       })
     );
 
@@ -519,7 +570,7 @@ describe('useMentorSchedule', () => {
     // Edit occurrence of slot 101, but the base Date is set to August 2, 2026 (1785674800)
     // Under the new code, this non-recurring slot is correctly removed from July and added to August buffer.
     act(() => {
-      const res = result.current.updateDraftSlot(101, 1785674800, {
+      const res = result.current.editor!.updateDraftSlot(101, 1785674800, {
         startTime: '13:00',
         durationMinutes: 45,
       });
@@ -534,7 +585,7 @@ describe('useMentorSchedule', () => {
 
     // Verify both months are marked dirty by ensuring confirmChanges requests syncing for both (Testing Finding 1)
     const mockSyncMonths = vi.mocked(syncMonths);
-    await result.current.confirmChanges();
+    await result.current.editor!.confirmChanges();
     expect(mockSyncMonths).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({ ref: expect.objectContaining({ month: 7 }) }),
@@ -573,6 +624,7 @@ describe('useMentorSchedule', () => {
     const { result } = renderHook(() =>
       useMentorSchedule({
         backend: { userId: '123', year: 2026, month: 7 },
+        loginUserId: '123',
       })
     );
 
@@ -585,7 +637,7 @@ describe('useMentorSchedule', () => {
     // Edit the slot to August 2, 2026 (1785674800)
     // Since August has a cache miss, updateDraftSlot should return TARGET_MONTH_NOT_LOADED, blocking the edit
     act(() => {
-      const res = result.current.updateDraftSlot(101, 1785674800, {
+      const res = result.current.editor!.updateDraftSlot(101, 1785674800, {
         startTime: '13:00',
         durationMinutes: 45,
       });
@@ -647,6 +699,7 @@ describe('useMentorSchedule', () => {
     const { result } = renderHook(() =>
       useMentorSchedule({
         backend: { userId: '123', year: 2026, month: 7 },
+        loginUserId: '123',
       })
     );
 
@@ -657,7 +710,7 @@ describe('useMentorSchedule', () => {
     // Edit slot 101 to August 2 at 13:00 (1785674800 with patch 13:00 results in 1785675600)
     // This overlaps with August slot 202, so it should be blocked and return OVERLAP!
     act(() => {
-      const res = result.current.updateDraftSlot(101, 1785674800, {
+      const res = result.current.editor!.updateDraftSlot(101, 1785674800, {
         startTime: '13:00',
         durationMinutes: 45, // overlaps with 13:00 - 13:30 of slot 202
       });
@@ -702,6 +755,7 @@ describe('useMentorSchedule', () => {
     const { result } = renderHook(() =>
       useMentorSchedule({
         backend: { userId: '123', year: 2026, month: 7 },
+        loginUserId: '123',
       })
     );
 
@@ -715,7 +769,7 @@ describe('useMentorSchedule', () => {
     act(() => {
       // Delete the August 2 occurrence (1785674800 - Month 8)
       // Since it is deleted, it should add 1785674800 to the exdate of row 101 in BOTH July and August buffers!
-      result.current.deleteDraftSlot(101, 1785674800);
+      result.current.editor!.deleteDraftSlot(101, 1785674800);
     });
 
     // Total active occurrences should now be 1:
@@ -728,7 +782,7 @@ describe('useMentorSchedule', () => {
 
     // Verify both months are marked dirty by ensuring confirmChanges requests syncing for both (Testing Finding 1)
     const mockSyncMonths = vi.mocked(syncMonths);
-    await result.current.confirmChanges();
+    await result.current.editor!.confirmChanges();
     expect(mockSyncMonths).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({ ref: expect.objectContaining({ month: 7 }) }),
@@ -745,7 +799,7 @@ describe('useMentorSchedule', () => {
     });
 
     act(() => {
-      const res = result.current.updateDraftSlot(101, 1785070000, {
+      const res = result.current.editor!.updateDraftSlot(101, 1785070000, {
         startTime: '13:00',
         durationMinutes: 45,
       });
@@ -760,7 +814,7 @@ describe('useMentorSchedule', () => {
     );
 
     act(() => {
-      result.current.resetChanges();
+      result.current.editor!.resetChanges();
     });
 
     // Falls back to savedByMonth (the original, pre-edit data) instead of
@@ -831,9 +885,16 @@ describe('useMentorSchedule', () => {
     });
 
     const { result, rerender } = renderHook(
-      (props: { backend: { userId: string; year: number; month: number } }) =>
-        useMentorSchedule(props),
-      { initialProps: { backend: { userId: 'userA', year: 2026, month: 7 } } }
+      (props: {
+        backend: { userId: string; year: number; month: number };
+        loginUserId?: string;
+      }) => useMentorSchedule(props),
+      {
+        initialProps: {
+          backend: { userId: 'userA', year: 2026, month: 7 },
+          loginUserId: 'userA',
+        },
+      }
     );
 
     await waitFor(() => {
@@ -841,7 +902,7 @@ describe('useMentorSchedule', () => {
     });
 
     act(() => {
-      result.current.updateDraftSlot(101, 1785070000, {
+      result.current.editor!.updateDraftSlot(101, 1785070000, {
         startTime: '13:00',
         durationMinutes: 45,
       });
@@ -855,13 +916,18 @@ describe('useMentorSchedule', () => {
         })
     );
 
-    let confirmPromise!: ReturnType<typeof result.current.confirmChanges>;
+    let confirmPromise!: ReturnType<
+      NonNullable<typeof result.current.editor>['confirmChanges']
+    >;
     act(() => {
-      confirmPromise = result.current.confirmChanges();
+      confirmPromise = result.current.editor!.confirmChanges();
     });
 
     // Account switches away while the save is still in flight.
-    rerender({ backend: { userId: 'userB', year: 2026, month: 7 } });
+    rerender({
+      backend: { userId: 'userB', year: 2026, month: 7 },
+      loginUserId: 'userB',
+    });
 
     resolveSync([
       {
@@ -907,9 +973,16 @@ describe('useMentorSchedule', () => {
     );
 
     const { result, rerender } = renderHook(
-      (props: { backend: { userId: string; year: number; month: number } }) =>
-        useMentorSchedule(props),
-      { initialProps: { backend: { userId: 'userA', year: 2026, month: 7 } } }
+      (props: {
+        backend: { userId: string; year: number; month: number };
+        loginUserId?: string;
+      }) => useMentorSchedule(props),
+      {
+        initialProps: {
+          backend: { userId: 'userA', year: 2026, month: 7 },
+          loginUserId: 'userA',
+        },
+      }
     );
 
     await waitFor(() => {
@@ -918,7 +991,7 @@ describe('useMentorSchedule', () => {
     expect(result.current.parsedDraft).toHaveLength(1);
 
     act(() => {
-      result.current.updateDraftSlot(101, 1785070000, {
+      result.current.editor!.updateDraftSlot(101, 1785070000, {
         startTime: '13:00',
         durationMinutes: 45,
       });
@@ -928,16 +1001,22 @@ describe('useMentorSchedule', () => {
     // synchronously, before the refetch (and the account switches below)
     // have any chance to run.
     act(() => {
-      result.current.resetChanges();
+      result.current.editor!.resetChanges();
     });
 
     // Switch away and back to the same user while the refetch is still
     // pending — each switch clears the store via store.clearAll().
-    rerender({ backend: { userId: 'userB', year: 2026, month: 7 } });
+    rerender({
+      backend: { userId: 'userB', year: 2026, month: 7 },
+      loginUserId: 'userB',
+    });
     await waitFor(() => {
       expect(result.current.loaded).toBe(true);
     });
-    rerender({ backend: { userId: 'userA', year: 2026, month: 7 } });
+    rerender({
+      backend: { userId: 'userA', year: 2026, month: 7 },
+      loginUserId: 'userA',
+    });
 
     // The pending refetch now fails.
     act(() => {
@@ -967,10 +1046,10 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.monthLoaded).toBe(true);
+        expect(result.current.reader.monthLoaded).toBe(true);
       });
 
-      expect(result.current.hasError).toBe(false);
+      expect(result.current.reader.hasError).toBe(false);
       expect(result.current.parsedDraft).toHaveLength(0);
     });
 
@@ -987,10 +1066,10 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.monthLoaded).toBe(true);
+        expect(result.current.reader.monthLoaded).toBe(true);
       });
 
-      expect(result.current.hasError).toBe(true);
+      expect(result.current.reader.hasError).toBe(true);
       expect(result.current.parsedDraft).toHaveLength(0);
     });
 
@@ -1009,10 +1088,18 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.monthLoaded).toBe(true);
+        expect(result.current.reader.monthLoaded).toBe(true);
       });
 
-      expect(result.current.hasError).toBe(true);
+      expect(result.current.reader.hasError).toBe(true);
+
+      // Prime the real schedule cache for this month so we can observe
+      // reload() actually clearing it - `sync.ts` (and therefore its own
+      // writes to this cache) stays mocked below, so nothing else re-primes
+      // this key once reload() deletes it.
+      const key = cacheKey({ userId: '123', year: 2026, month: 7 });
+      scheduleCache.set(key, defaultMockRaws);
+      expect(scheduleCache.get(key)).toBeDefined();
 
       // Setup next fetch to succeed with empty array
       mockLoadMonthScheduleCached.mockReturnValue({
@@ -1022,18 +1109,16 @@ describe('useMentorSchedule', () => {
 
       // Call reload
       act(() => {
-        result.current.reload();
+        result.current.reader.reload?.();
       });
 
-      expect(mockClearScheduleCache).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: '123', year: 2026, month: 7 })
-      );
+      expect(scheduleCache.get(key)).toBeUndefined();
 
       await waitFor(() => {
-        expect(result.current.monthLoaded).toBe(true);
+        expect(result.current.reader.monthLoaded).toBe(true);
       });
 
-      expect(result.current.hasError).toBe(false);
+      expect(result.current.reader.hasError).toBe(false);
     });
   });
 
@@ -1128,7 +1213,7 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reservations).toHaveLength(2);
+        expect(result.current.editor!.reservations).toHaveLength(2);
       });
 
       expect(mockFetchAllReservationsForState).toHaveBeenCalledWith(
@@ -1142,10 +1227,10 @@ describe('useMentorSchedule', () => {
         expect.any(Number)
       );
 
-      const resUpcoming = result.current.reservations.find(
+      const resUpcoming = result.current.editor!.reservations.find(
         (r) => r.id === 'res-upcoming'
       );
-      const resPending = result.current.reservations.find(
+      const resPending = result.current.editor!.reservations.find(
         (r) => r.id === 'res-pending'
       );
       expect(resUpcoming).toBeDefined();
@@ -1220,15 +1305,19 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reservations).toHaveLength(2);
+        expect(result.current.editor!.reservations).toHaveLength(2);
       });
 
       expect(mockFetchAllReservationsForState).not.toHaveBeenCalled();
       expect(
-        result.current.reservations.find((r) => r.id === 'res-cached-upcoming')
+        result.current.editor!.reservations.find(
+          (r) => r.id === 'res-cached-upcoming'
+        )
       ).toBeDefined();
       expect(
-        result.current.reservations.find((r) => r.id === 'res-cached-pending')
+        result.current.editor!.reservations.find(
+          (r) => r.id === 'res-cached-pending'
+        )
       ).toBeDefined();
     });
 
@@ -1248,7 +1337,7 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reservationsLoaded).toBe(true);
+        expect(result.current.reader.reservationsLoaded).toBe(true);
       });
 
       const eom = computeEndOfMonthUnix(2026, 7);
@@ -1291,7 +1380,7 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reservationsLoaded).toBe(true);
+        expect(result.current.reader.reservationsLoaded).toBe(true);
       });
 
       mockFetchAllReservationsForState.mockClear();
@@ -1299,7 +1388,7 @@ describe('useMentorSchedule', () => {
       const setSpy = vi.spyOn(reservationReadModel, 'set');
 
       await act(async () => {
-        await result.current.reload();
+        await result.current.reader.reload?.();
       });
 
       expect(mockFetchAllReservationsForState).toHaveBeenCalledWith(
@@ -1357,7 +1446,7 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reservationsLoaded).toBe(true);
+        expect(result.current.reader.reservationsLoaded).toBe(true);
       });
 
       const clearSpy = vi.spyOn(reservationReadModel, 'clear');
@@ -1369,7 +1458,7 @@ describe('useMentorSchedule', () => {
       );
 
       await act(async () => {
-        await result.current.reload();
+        await result.current.reader.reload?.();
       });
 
       // The cache must still be wiped - a failed reload leaves stale
@@ -1392,7 +1481,7 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reservationsLoaded).toBe(true);
+        expect(result.current.reader.reservationsLoaded).toBe(true);
       });
 
       const clearSpy = vi.spyOn(reservationReadModel, 'clear');
@@ -1456,9 +1545,9 @@ describe('useMentorSchedule', () => {
       });
 
       act(() => {
-        result.current.setSelectedDate('2026-09-26');
+        result.current.reader.setSelectedDate('2026-09-26');
       });
-      const slots = result.current.slotsSnapshot.slots;
+      const slots = result.current.reader.slotsSnapshot.slots;
       expect(slots).toHaveLength(1);
       expect(slots[0].menteeName).toBe('Alice');
     });
@@ -1494,9 +1583,9 @@ describe('useMentorSchedule', () => {
       // Schedule fetch is cached and resolves synchronously, but the
       // reservations fetch is still pending.
       await waitFor(() => {
-        expect(result.current.monthLoaded).toBe(true);
+        expect(result.current.reader.monthLoaded).toBe(true);
       });
-      expect(result.current.reservationsLoaded).toBe(false);
+      expect(result.current.reader.reservationsLoaded).toBe(false);
 
       await waitFor(() => {
         expect(resolveFetchers).toHaveLength(2);
@@ -1508,7 +1597,7 @@ describe('useMentorSchedule', () => {
       });
 
       await waitFor(() => {
-        expect(result.current.reservationsLoaded).toBe(true);
+        expect(result.current.reader.reservationsLoaded).toBe(true);
       });
     });
 
@@ -1543,7 +1632,7 @@ describe('useMentorSchedule', () => {
         );
       });
 
-      expect(result.current.reservationsLoaded).toBe(false);
+      expect(result.current.reader.reservationsLoaded).toBe(false);
     });
   });
 
@@ -1626,12 +1715,12 @@ describe('useMentorSchedule', () => {
 
       // Trigger reload
       await act(async () => {
-        await result.current.reload?.();
+        await result.current.reader.reload?.();
       });
 
       // Verify reservations are refreshed
-      expect(result.current.reservations).toHaveLength(1);
-      expect(result.current.reservations[0].id).toBe('res-reload');
+      expect(result.current.editor!.reservations).toHaveLength(1);
+      expect(result.current.editor!.reservations[0].id).toBe('res-reload');
 
       // Verify loadMonthScheduleCached was called
       expect(mockLoadMonthScheduleCached).toHaveBeenCalledTimes(2);
@@ -1643,9 +1732,9 @@ describe('useMentorSchedule', () => {
 
       // Verify calendar slots are updated with new mentee name
       act(() => {
-        result.current.setSelectedDate('2026-07-26');
+        result.current.reader.setSelectedDate('2026-07-26');
       });
-      const slots = result.current.slotsSnapshot.slots;
+      const slots = result.current.reader.slotsSnapshot.slots;
       expect(slots).toHaveLength(1);
       expect(slots[0].isBooked).toBe(true);
       expect(slots[0].status).toBe('BOOKED');
@@ -1697,12 +1786,12 @@ describe('useMentorSchedule', () => {
       // resolve cleanly rather than reject or crash the caller.
       await expect(
         act(async () => {
-          await result.current.reload?.();
+          await result.current.reader.reload?.();
         })
       ).resolves.toBeUndefined();
 
       // State is left as-is (pre-failure) rather than cleared or corrupted.
-      expect(result.current.reservations).toEqual([]);
+      expect(result.current.editor!.reservations).toEqual([]);
       expect(result.current.parsedDraft).toHaveLength(1);
     });
 
@@ -1765,7 +1854,7 @@ describe('useMentorSchedule', () => {
         expect(result.current.loaded).toBe(true);
       });
 
-      const reloadPromise = result.current.reload?.();
+      const reloadPromise = result.current.reader.reload?.();
 
       // Change user mid-flight (account switch)
       act(() => {
@@ -1780,7 +1869,7 @@ describe('useMentorSchedule', () => {
       });
 
       // Ensure the old user's reloaded data is NOT applied
-      expect(result.current.reservations).toEqual([]);
+      expect(result.current.editor!.reservations).toEqual([]);
       // Should not contain 1785075000 (old user's reloaded schedule)
       const hasOldReloaded = result.current.parsedDraft.some(
         (d) => d.start.getTime() === 1785075000 * 1000
@@ -1834,14 +1923,16 @@ describe('useMentorSchedule', () => {
 
       // Trigger an edit to make the month dirty
       act(() => {
-        result.current.updateDraftSlot(101, 1785070000, { startTime: '13:00' });
+        result.current.editor!.updateDraftSlot(101, 1785070000, {
+          startTime: '13:00',
+        });
       });
 
       const draftBeforeReload = result.current.parsedDraft;
 
       // Trigger reload
       await act(async () => {
-        await result.current.reload?.();
+        await result.current.reader.reload?.();
       });
 
       // Verify the dirty draft is preserved and not discarded or overwritten
@@ -1897,7 +1988,7 @@ describe('useMentorSchedule', () => {
       });
 
       const reloadPromise = act(async () => {
-        await result.current.reload?.();
+        await result.current.reader.reload?.();
       });
 
       // Unmount the component while reload is in-flight
@@ -1910,7 +2001,7 @@ describe('useMentorSchedule', () => {
       await reloadPromise;
 
       // Ensure no state update warning occurred and state is stable
-      expect(result.current.reservations).toEqual([]);
+      expect(result.current.editor!.reservations).toEqual([]);
     });
 
     it('does not capture flow failure if reload schedule fails after account has already switched or component unmounted', async () => {
@@ -1961,7 +2052,7 @@ describe('useMentorSchedule', () => {
         expect(result.current.loaded).toBe(true);
       });
 
-      const reloadPromise = result.current.reload?.();
+      const reloadPromise = result.current.reader.reload?.();
 
       // Switch user mid-flight
       act(() => {
@@ -2021,7 +2112,7 @@ describe('useMentorSchedule', () => {
         }
       );
 
-      const reloadPromise = result.current.reload?.();
+      const reloadPromise = result.current.reader.reload?.();
 
       // Switch month mid-flight (from 7 to 8)
       act(() => {
@@ -2051,7 +2142,7 @@ describe('useMentorSchedule', () => {
       });
 
       // Verify that the stale month's reservations were NOT applied
-      expect(result.current.reservations).toEqual([]);
+      expect(result.current.editor!.reservations).toEqual([]);
     });
 
     it('prevents race conditions with isStale when backend.month changes mid-flight during fetch', async () => {
@@ -2098,7 +2189,7 @@ describe('useMentorSchedule', () => {
       });
 
       // Start reload (or fetch) for month 7
-      const reloadPromise = result.current.reload?.();
+      const reloadPromise = result.current.reader.reload?.();
 
       // Change month to 8 mid-flight
       act(() => {
@@ -2178,7 +2269,7 @@ describe('useMentorSchedule', () => {
       await waitFor(() => expect(resolvers).toHaveLength(2));
 
       let reloadSettled = false;
-      const reloadPromise = result.current.reload().then(() => {
+      const reloadPromise = result.current.reader.reload!().then(() => {
         reloadSettled = true;
       });
 
@@ -2193,10 +2284,9 @@ describe('useMentorSchedule', () => {
         await reloadPromise;
       });
       expect(reloadSettled).toBe(true);
-      expect(result.current.reservations.map((r) => r.id).sort()).toEqual([
-        'fresh-pending',
-        'fresh-upcoming',
-      ]);
+      expect(
+        result.current.editor!.reservations.map((r) => r.id).sort()
+      ).toEqual(['fresh-pending', 'fresh-upcoming']);
 
       // The mount effect's slower fetch finally resolves with stale,
       // pre-mutation data.
@@ -2209,10 +2299,9 @@ describe('useMentorSchedule', () => {
 
       // The stale response must not have overwritten reload()'s fresher
       // result, in local state or in the shared cache.
-      expect(result.current.reservations.map((r) => r.id).sort()).toEqual([
-        'fresh-pending',
-        'fresh-upcoming',
-      ]);
+      expect(
+        result.current.editor!.reservations.map((r) => r.id).sort()
+      ).toEqual(['fresh-pending', 'fresh-upcoming']);
       const eom = computeEndOfMonthUnix(2026, 7);
       expect(
         reservationReadModel
