@@ -170,22 +170,19 @@ describe('useReservationData (mentee)', () => {
     });
   });
 
-  it('onMutationSuccess refetches only the affected states (history skipped when not loaded)', async () => {
+  it('onMutationSuccess never calls fetchReservations - cache freshness is now owned by the write path (X-Tracker #651)', async () => {
     const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     mockFetch.mockClear();
 
     await act(async () => {
-      result.current.onMutationSuccess('any-id', ['pending', 'history']);
+      result.current.onMutationSuccess('any-id', {
+        source: 'pending',
+        destinations: ['history'],
+      });
     });
 
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: mockSession.user.id,
-        state: 'MENTEE_PENDING',
-      })
-    );
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it('onMutationSuccess filters out (removes) the operated item from active lists in local state', async () => {
@@ -196,14 +193,44 @@ describe('useReservationData (mentee)', () => {
     expect(result.current.data?.pending).toHaveLength(1);
     expect(result.current.data?.pending[0].id).toBe('MENTEE_PENDING');
 
-    // Mock next fetch to return empty list so refetch doesn't add it back
-    mockFetch.mockResolvedValue({ items: [], next_dtend: 0 });
-
     await act(async () => {
-      result.current.onMutationSuccess('MENTEE_PENDING', ['pending']);
+      result.current.onMutationSuccess('MENTEE_PENDING', {
+        source: 'pending',
+        destinations: [],
+      });
     });
 
     expect(result.current.data?.pending).toHaveLength(0);
+  });
+
+  it('onMutationSuccess only hides the item from the source (first) tab, never a destination tab it has not actually appeared in yet', async () => {
+    const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    // Accept-shaped call: 'pending' is the source (item currently lives
+    // there), 'upcoming' is the destination it's moving to.
+    await act(async () => {
+      result.current.onMutationSuccess('MENTEE_PENDING', {
+        source: 'pending',
+        destinations: ['upcoming'],
+      });
+    });
+
+    expect(result.current.data?.pending).toHaveLength(0);
+
+    // The write path (not this hook) is what makes the item show up in the
+    // destination tab's cache - simulate that here. It must render, not be
+    // hidden by a stray removedIds entry from the call above.
+    await act(async () => {
+      reservationReadModel.set(
+        { userId: String(mockSession.user.id), state: 'MENTEE_UPCOMING' },
+        { items: [makeReservation('MENTEE_PENDING')], next_dtend: 0 }
+      );
+    });
+
+    expect(result.current.data?.upcoming.map((it) => it.id)).toEqual([
+      'MENTEE_PENDING',
+    ]);
   });
 
   it('refetchOnConflict refetches the affected states without removing the item first', async () => {
@@ -218,7 +245,7 @@ describe('useReservationData (mentee)', () => {
     mockFetch.mockClear();
 
     await act(async () => {
-      result.current.refetchOnConflict(['pending']);
+      result.current.refetchOnConflict({ source: 'pending', destinations: [] });
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -231,7 +258,7 @@ describe('useReservationData (mentee)', () => {
     expect(result.current.data?.pending).toHaveLength(1);
   });
 
-  it('onMutationSuccess refetches history when it has been loaded', async () => {
+  it('refetchOnConflict refetches history too when it has been loaded', async () => {
     const { result } = renderHook(() => useReservationData({ role: 'mentee' }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     await act(async () => {
@@ -240,7 +267,10 @@ describe('useReservationData (mentee)', () => {
     mockFetch.mockClear();
 
     await act(async () => {
-      result.current.onMutationSuccess('any-id', ['pending', 'history']);
+      result.current.refetchOnConflict({
+        source: 'pending',
+        destinations: ['history'],
+      });
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
@@ -477,37 +507,29 @@ describe('useReservationData (mentor)', () => {
     expect(result.current.isLoading).toBe(false);
   });
 
-  it('accept-flow refetch only triggers MENTOR_PENDING + MENTOR_UPCOMING', async () => {
+  it('accept-flow onMutationSuccess only hides the source tab locally - no refetch (X-Tracker #651)', async () => {
     const { result } = renderHook(() => useReservationData({ role: 'mentor' }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     mockFetch.mockClear();
 
     await act(async () => {
-      result.current.onMutationSuccess('any-id', ['pending', 'upcoming']);
+      result.current.onMutationSuccess('MENTOR_PENDING', {
+        source: 'pending',
+        destinations: ['upcoming'],
+      });
     });
 
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: mockSession.user.id,
-        state: 'MENTOR_PENDING',
-      })
-    );
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: mockSession.user.id,
-        state: 'MENTOR_UPCOMING',
-      })
-    );
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(result.current.data?.pending).toHaveLength(0);
   });
 
-  it('refetch never sends batch param so backend uses default page size', async () => {
+  it('refetchOnConflict never sends batch param so backend uses default page size', async () => {
     const { result } = renderHook(() => useReservationData({ role: 'mentor' }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     mockFetch.mockClear();
 
     await act(async () => {
-      result.current.onMutationSuccess('any-id', ['pending']);
+      result.current.refetchOnConflict({ source: 'pending', destinations: [] });
     });
 
     expect(mockFetch).toHaveBeenCalledWith(

@@ -1,9 +1,61 @@
 import { ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
+import type { ReservationReadKey } from '@/lib/reservation/reservationReadModel';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import { Reservation } from '@/types/reservation';
 
-import { updateReservationStatus } from './reservationService';
+import {
+  invalidateReservationRead,
+  type ReservationState,
+  updateReservationStatus,
+} from './reservationService';
+
+type ReservationRole = 'mentee' | 'mentor';
+
+const otherRoleOf = (role: ReservationRole): ReservationRole =>
+  role === 'mentee' ? 'mentor' : 'mentee';
+
+/** The three (or, for accept, two) `{ userId, state }` reads a role's own
+ * tabs can hold - the read-model keys the write path invalidates below. */
+function statesForRole(role: ReservationRole): {
+  pending: ReservationState;
+  upcoming: ReservationState;
+  history: ReservationState;
+} {
+  return role === 'mentee'
+    ? {
+        pending: 'MENTEE_PENDING',
+        upcoming: 'MENTEE_UPCOMING',
+        history: 'MENTEE_HISTORY',
+      }
+    : {
+        pending: 'MENTOR_PENDING',
+        upcoming: 'MENTOR_UPCOMING',
+        history: 'MENTOR_HISTORY',
+      };
+}
+
+/**
+ * Every affected `{ userId, state }` key for both parties to `reservation`,
+ * given which role `myUserId` occupies in it - the counterparty always
+ * occupies the opposite role. `phases` picks which of that role's states
+ * actually changed (accept only touches pending/upcoming; reject/cancel
+ * also touches history).
+ */
+function affectedKeys(
+  reservation: Reservation,
+  myUserId: string,
+  myRole: ReservationRole,
+  phases: Array<'pending' | 'upcoming' | 'history'>
+): ReservationReadKey[] {
+  const otherUserId = String(resolveCounterpartyId(reservation, myUserId));
+  const mine = statesForRole(myRole);
+  const theirs = statesForRole(otherRoleOf(myRole));
+  return phases.flatMap((phase) => [
+    { userId: myUserId, state: mine[phase] },
+    { userId: otherUserId, state: theirs[phase] },
+  ]);
+}
 
 export const RESERVATION_CONFLICT_MESSAGE =
   '資料已被更新，請重新確認後再試一次';
@@ -102,6 +154,10 @@ export interface AcceptParams {
   message: string;
   reservation: Reservation;
   myUserId: string | undefined;
+  /** Which side `myUserId` is acting as for this reservation - determines
+   * which of the two parties' cache slots get invalidated after a
+   * successful accept. */
+  myRole: 'mentee' | 'mentor';
 }
 
 /**
@@ -111,6 +167,7 @@ export async function acceptReservation({
   message,
   reservation,
   myUserId,
+  myRole,
 }: AcceptParams): Promise<void> {
   await performStatusUpdate({
     text: message,
@@ -119,12 +176,26 @@ export async function acceptReservation({
     flowName: 'reservation_accept',
     reservation,
   });
+
+  // myUserId is guaranteed defined here: performStatusUpdate above already
+  // throws when it's missing.
+  if (!myUserId) return;
+
+  // Accept moves the reservation out of PENDING and into UPCOMING for both
+  // parties - see invalidateReservationRead.
+  affectedKeys(reservation, myUserId, myRole, ['pending', 'upcoming']).forEach(
+    invalidateReservationRead
+  );
 }
 
 export interface RejectOrCancelParams {
   text: string;
   reservation: Reservation;
   myUserId: string | undefined;
+  /** Which side `myUserId` is acting as for this reservation - determines
+   * which of the two parties' cache slots get invalidated after a
+   * successful reject/cancel. */
+  myRole: 'mentee' | 'mentor';
 }
 
 /**
@@ -134,6 +205,7 @@ export async function rejectOrCancelReservation({
   text,
   reservation,
   myUserId,
+  myRole,
 }: RejectOrCancelParams): Promise<void> {
   await performStatusUpdate({
     text,
@@ -142,4 +214,18 @@ export async function rejectOrCancelReservation({
     flowName: 'reservation_reject',
     reservation,
   });
+
+  // myUserId is guaranteed defined here: performStatusUpdate above already
+  // throws when it's missing.
+  if (!myUserId) return;
+
+  // A reject moves it from PENDING to HISTORY; a cancel moves it from
+  // UPCOMING to HISTORY - invalidating all three covers either source
+  // without needing to know which one this call was, for both parties. See
+  // invalidateReservationRead.
+  affectedKeys(reservation, myUserId, myRole, [
+    'pending',
+    'upcoming',
+    'history',
+  ]).forEach(invalidateReservationRead);
 }

@@ -40,6 +40,12 @@ export function QuickReplyDialog({
   const { accept, rejectOrCancel, isMutating } = useReservationActions({
     myUserId,
     variant: 'pending-mentor',
+    // This dialog only ever renders on the mentor's own calendar
+    // (MentorScheduleConfig, reachable only via a mentor viewing their own
+    // profile) - myRole is always 'mentor' here, by the platform's own
+    // access rules (only a mentor can accept/reject a pending request), not
+    // something worth re-deriving defensively.
+    myRole: 'mentor',
     onMutationSuccess: async () => {
       // Await the reload before closing so the underlying page's calendar
       // and reservation list have already settled to the new state by the

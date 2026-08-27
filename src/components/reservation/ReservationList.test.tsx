@@ -189,7 +189,7 @@ describe('ReservationList', () => {
     vi.clearAllMocks();
   });
 
-  it('triggers onMutationSuccess with ["pending", "upcoming"] when accepting in pending-mentor variant', async () => {
+  it('triggers onMutationSuccess with source pending / destinations [upcoming] when accepting in pending-mentor variant', async () => {
     render(
       <ReservationList
         items={[mockReservation]}
@@ -207,13 +207,13 @@ describe('ReservationList', () => {
       expect(updateReservationStatus).toHaveBeenCalledTimes(1);
     });
 
-    expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', [
-      'pending',
-      'upcoming',
-    ]);
+    expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', {
+      source: 'pending',
+      destinations: ['upcoming'],
+    });
   });
 
-  it('triggers onMutationSuccess with ["pending", "history"] when rejecting in pending-mentor variant', async () => {
+  it('triggers onMutationSuccess with source pending / destinations [history] when rejecting in pending-mentor variant', async () => {
     render(
       <ReservationList
         items={[mockReservation]}
@@ -231,13 +231,13 @@ describe('ReservationList', () => {
       expect(updateReservationStatus).toHaveBeenCalledTimes(1);
     });
 
-    expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', [
-      'pending',
-      'history',
-    ]);
+    expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', {
+      source: 'pending',
+      destinations: ['history'],
+    });
   });
 
-  it('triggers onMutationSuccess with ["pending", "history"] when cancelling in pending-mentee variant', async () => {
+  it('triggers onMutationSuccess with source pending / destinations [history] when cancelling in pending-mentee variant', async () => {
     render(
       <ReservationList
         items={[mockReservation]}
@@ -255,13 +255,13 @@ describe('ReservationList', () => {
       expect(updateReservationStatus).toHaveBeenCalledTimes(1);
     });
 
-    expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', [
-      'pending',
-      'history',
-    ]);
+    expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', {
+      source: 'pending',
+      destinations: ['history'],
+    });
   });
 
-  it('triggers onMutationSuccess with ["upcoming", "history"] when cancelling in upcoming variant', async () => {
+  it('triggers onMutationSuccess with source upcoming / destinations [history] when cancelling in upcoming variant', async () => {
     render(
       <ReservationList
         items={[mockReservation]}
@@ -279,10 +279,10 @@ describe('ReservationList', () => {
       expect(updateReservationStatus).toHaveBeenCalledTimes(1);
     });
 
-    expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', [
-      'upcoming',
-      'history',
-    ]);
+    expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', {
+      source: 'upcoming',
+      destinations: ['history'],
+    });
   });
 
   it('disables dialog buttons while the mutation request is in-flight to prevent double submission', async () => {

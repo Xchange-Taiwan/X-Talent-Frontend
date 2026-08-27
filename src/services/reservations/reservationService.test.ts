@@ -19,6 +19,7 @@ vi.mock('@/lib/monitoring', () => ({
 
 import { apiClient, ApiError } from '@/lib/apiClient';
 import { captureFlowFailure } from '@/lib/monitoring';
+import { reservationReadModel } from '@/lib/reservation/reservationReadModel';
 import { components } from '@/types/api';
 
 import {
@@ -26,6 +27,7 @@ import {
   fetchAllReservationsForState,
   fetchReservationMeetLink,
   fetchReservations,
+  invalidateReservationRead,
   updateReservationStatus,
 } from './reservationService';
 
@@ -69,6 +71,7 @@ function makeApiReservation(
 describe('reservationService API Error Handling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    reservationReadModel.clear();
   });
 
   describe('createReservation', () => {
@@ -107,6 +110,92 @@ describe('reservationService API Error Handling', () => {
       });
 
       expect(res).toEqual(mockResult);
+    });
+
+    it('invalidates the booking mentee and target mentor PENDING reads on success (X-Tracker #651)', async () => {
+      mockPost.mockResolvedValue({
+        id: 789,
+      } as unknown as components['schemas']['ReservationVO']);
+      reservationReadModel.set(
+        { userId: '123', state: 'MENTEE_PENDING' },
+        { items: [], next_dtend: 0 }
+      );
+      reservationReadModel.set(
+        { userId: '456', state: 'MENTOR_PENDING' },
+        { items: [], next_dtend: 0 }
+      );
+
+      await createReservation({
+        userId: 123,
+        body: {
+          user_id: 456,
+        } as unknown as components['schemas']['ReservationDTO'],
+      });
+
+      expect(
+        reservationReadModel.get({ userId: '123', state: 'MENTEE_PENDING' })
+      ).toBeUndefined();
+      expect(
+        reservationReadModel.get({ userId: '456', state: 'MENTOR_PENDING' })
+      ).toBeUndefined();
+    });
+  });
+
+  describe('invalidateReservationRead', () => {
+    it('drops the cache entry directly when nothing is subscribed to it', () => {
+      const key = { userId: '1', state: 'MENTEE_PENDING' } as const;
+      reservationReadModel.set(key, { items: [], next_dtend: 0 });
+
+      invalidateReservationRead(key);
+
+      expect(reservationReadModel.get(key)).toBeUndefined();
+      expect(mockGet).not.toHaveBeenCalled();
+    });
+
+    it('refreshes the key in place with a fresh fetch when a component is actively subscribed', async () => {
+      const key = { userId: '1', state: 'MENTEE_PENDING' } as const;
+      reservationReadModel.set(key, { items: [], next_dtend: 0 });
+      const unsubscribe = reservationReadModel.subscribe(
+        key,
+        () => new Promise(() => {}),
+        () => {}
+      );
+      mockGet.mockResolvedValue({
+        reservations: [makeApiReservation({ id: 42 })],
+        next_dtend: 0,
+      });
+
+      invalidateReservationRead(key);
+
+      await vi.waitFor(() => {
+        expect(reservationReadModel.get(key)?.items).toHaveLength(1);
+      });
+      expect(reservationReadModel.get(key)?.items[0].id).toBe('42');
+
+      unsubscribe();
+    });
+
+    it('reports (and swallows) a failed background refresh via captureFlowFailure', async () => {
+      const key = { userId: '1', state: 'MENTEE_PENDING' } as const;
+      const unsubscribe = reservationReadModel.subscribe(
+        key,
+        () => new Promise(() => {}),
+        () => {}
+      );
+      mockGet.mockRejectedValue(new Error('network down'));
+
+      invalidateReservationRead(key);
+
+      await vi.waitFor(() => {
+        expect(mockCaptureFlowFailure).toHaveBeenCalledWith(
+          expect.objectContaining({
+            flow: 'reservation_mutation_invalidate',
+            step: 'refresh_MENTEE_PENDING',
+          })
+        );
+      });
+
+      unsubscribe();
     });
   });
 
