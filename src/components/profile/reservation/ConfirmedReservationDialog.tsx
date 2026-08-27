@@ -3,8 +3,8 @@
 import * as React from 'react';
 
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
+import { JoinMeetButton } from '@/components/reservation/JoinMeetButton';
 import { ReservationIdentity } from '@/components/reservation/ReservationIdentity';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -99,21 +99,12 @@ export function ConfirmedReservationDialog({
                 rejectOrCancel(reservation, reason, 'cancel')
               }
             />
-            <Button
+            <JoinMeetButton
               onClick={() => joinMeet(reservation.id)}
-              disabled={isJoiningMeet || isMutating}
-              aria-label="加入 Google Meet"
-              className="flex-1 bg-brand-500 font-semibold text-text-primary hover:bg-brand-500/90 sm:flex-none"
-            >
-              {isJoiningMeet ? (
-                '載入中...'
-              ) : (
-                <>
-                  <span className="sm:hidden">加入會議</span>
-                  <span className="hidden sm:inline">加入 Google Meet</span>
-                </>
-              )}
-            </Button>
+              isPending={isJoiningMeet}
+              disabled={isMutating}
+              className="flex-1 font-semibold sm:flex-none"
+            />
           </div>
         </div>
       </DialogContent>

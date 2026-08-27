@@ -1,9 +1,9 @@
 import { CalendarDays, Clock, MessageSquare } from 'lucide-react';
 import * as React from 'react';
 
+import { JoinMeetButton } from '@/components/reservation/JoinMeetButton';
 import ReservationConversationDialog from '@/components/reservation/ReservationConversationDialog';
 import { ReservationIdentityHeader } from '@/components/reservation/ReservationIdentity';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
 import type { Reservation } from '@/types/reservation';
@@ -112,7 +112,10 @@ export function ReservationCard({
                   <div className="flex-1 sm:flex-none">{actions}</div>
                 ) : null}
                 <div className="flex-1 sm:flex-none">
-                  <JoinMeetButton reservationId={item.id} myUserId={myUserId} />
+                  <UpcomingJoinMeetButton
+                    reservationId={item.id}
+                    myUserId={myUserId}
+                  />
                 </div>
               </div>
             </div>
@@ -128,7 +131,7 @@ export function ReservationCard({
   );
 }
 
-function JoinMeetButton({
+function UpcomingJoinMeetButton({
   reservationId,
   myUserId,
 }: {
@@ -138,21 +141,12 @@ function JoinMeetButton({
   const { joinMeet, isPending } = useReservationMeetLink({ myUserId });
 
   return (
-    <Button
+    <JoinMeetButton
       onClick={() => joinMeet(reservationId)}
-      disabled={isPending}
+      isPending={isPending}
       size="sm"
-      className="h-9 w-full rounded-lg bg-brand-500 px-4 text-xs font-medium text-text-primary hover:bg-brand-500/90 sm:w-auto sm:text-sm"
-    >
-      {isPending ? (
-        '載入中...'
-      ) : (
-        <>
-          <span className="hidden sm:inline">加入 Google Meet</span>
-          <span className="sm:hidden">加入會議</span>
-        </>
-      )}
-    </Button>
+      className="h-9 w-full rounded-lg px-4 text-xs font-medium sm:w-auto sm:text-sm"
+    />
   );
 }
 
