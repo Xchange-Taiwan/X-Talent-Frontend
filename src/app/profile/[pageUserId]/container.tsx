@@ -60,8 +60,8 @@ export default function ProfilePageContainer({
     loginUserId,
     includeBookedDates: isOwnProfile,
   });
-  const { loaded, selectedDate, setSelectedDate, parsedDraft, allowedDates } =
-    schedule;
+  const { loaded, parsedDraft, reader, editor } = schedule;
+  const { selectedDate, setSelectedDate, allowedDates } = reader;
 
   const [openReservationDialog, setOpenReservationDialog] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<BookingSlot | null>(null);
@@ -113,7 +113,7 @@ export default function ProfilePageContainer({
   if (error === 'FETCH_FAILED') {
     return (
       <div className="flex h-[50vh] flex-col items-center justify-center gap-4 text-center">
-        <p className="text-text-tertiary font-medium">
+        <p className="font-medium text-text-tertiary">
           載入個人檔案資料時發生連線錯誤
         </p>
         <Button onClick={refetch} variant="default" size="default">
@@ -125,7 +125,7 @@ export default function ProfilePageContainer({
 
   if (error === 'USER_NOT_FOUND' || (!userLoading && !userData)) {
     return (
-      <div className="text-text-tertiary flex h-[50vh] items-center justify-center">
+      <div className="flex h-[50vh] items-center justify-center text-text-tertiary">
         沒有該位使用者
       </div>
     );
@@ -152,7 +152,7 @@ export default function ProfilePageContainer({
     <ProfilePageUI
       userData={userData}
       userLoading={userLoading}
-      schedule={schedule}
+      schedule={reader}
       scheduleLoaded={loaded}
       loginUserId={loginUserId}
       isIdentityResolved={isIdentityResolved}
@@ -168,11 +168,14 @@ export default function ProfilePageContainer({
       onEditProfile={() => router.push(`/profile/${pageUserId}/edit`)}
       onBecomeMentor={() => router.push(getMentorOnboardingUrl(pageUserId))}
       editorDialog={
-        userData && canShowOwnerControls ? (
+        // canShowOwnerControls and the hook's own editor gating are both
+        // driven by the same loginUserId === pageUserId check, so editor is
+        // guaranteed non-null here.
+        userData && canShowOwnerControls && editor ? (
           <MentorScheduleDialog
             open={openReservationDialog}
             onOpenChange={setOpenReservationDialog}
-            schedule={schedule}
+            schedule={editor}
             onMonthChange={handleScheduleMonthChange}
           />
         ) : undefined
