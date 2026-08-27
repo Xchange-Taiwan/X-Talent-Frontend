@@ -145,7 +145,7 @@ function UpcomingJoinMeetButton({
       onClick={() => joinMeet(reservationId)}
       isPending={isPending}
       size="sm"
-      className="h-9 w-full rounded-lg bg-brand-500 px-4 text-xs font-medium text-text-primary hover:bg-brand-500/90 sm:w-auto sm:text-sm"
+      className="h-9 w-full rounded-lg px-4 text-xs font-medium sm:w-auto sm:text-sm"
     />
   );
 }

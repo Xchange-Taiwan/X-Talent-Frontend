@@ -103,7 +103,7 @@ export function ConfirmedReservationDialog({
               onClick={() => joinMeet(reservation.id)}
               isPending={isJoiningMeet}
               disabled={isMutating}
-              className="flex-1 bg-brand-500 font-semibold text-text-primary hover:bg-brand-500/90 sm:flex-none"
+              className="flex-1 font-semibold sm:flex-none"
             />
           </div>
         </div>
