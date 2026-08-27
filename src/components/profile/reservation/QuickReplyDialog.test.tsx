@@ -1,12 +1,20 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { ListKey } from '@/hooks/user/reservation/useReservationData';
+import { trackEvent } from '@/lib/analytics';
+import { mockToast } from '@/test/mocks/useToast';
 import type { Reservation } from '@/types/reservation';
 
 import { QuickReplyDialog } from './QuickReplyDialog';
+
+vi.mock('@/components/ui/use-toast', async () => {
+  const { useToastMockFactory } = await import('@/test/mocks/useToast');
+  return useToastMockFactory();
+});
 
 const mockAccept = vi.fn();
 const mockRejectOrCancel = vi.fn();
@@ -19,23 +27,13 @@ vi.mock('@/hooks/user/reservation/useReservationActions', () => ({
   })),
 }));
 
-vi.mock('@/components/reservation/AcceptReservationDialog', () => ({
-  // The real component's useConfirmActionDialog#execute swallows a failed
-  // mutation into an error toast rather than letting it reject up to the
-  // caller; mirror that here so a rejected onAccept in a test doesn't
-  // surface as an unhandled rejection.
-  default: vi.fn(({ onAccept, disabled }) => (
-    <button
-      data-testid="mock-accept-dialog-trigger"
-      disabled={disabled}
-      onClick={() => {
-        onAccept({ message: 'Accept Message' })?.catch(() => {});
-      }}
-    >
-      Mock Accept
-    </button>
-  )),
-}));
+vi.mock('@/lib/analytics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/analytics')>();
+  return {
+    ...actual,
+    trackEvent: vi.fn(),
+  };
+});
 
 vi.mock('@/components/reservation/RejectReservationDialog', () => ({
   default: vi.fn(({ onReject, disabled }) => (
@@ -112,13 +110,13 @@ describe('QuickReplyDialog', () => {
       )
     ).toBeInTheDocument();
 
-    // Renders custom mock dialog trigger buttons
-    expect(
-      screen.getByTestId('mock-accept-dialog-trigger')
-    ).toBeInTheDocument();
+    // Renders a single accept button and the mock reject dialog trigger -
+    // there is no second, nested confirmation dialog for accept.
+    expect(screen.getByRole('button', { name: '接受' })).toBeInTheDocument();
     expect(
       screen.getByTestId('mock-reject-dialog-trigger')
     ).toBeInTheDocument();
+    expect(screen.queryByText('接受學員預約')).not.toBeInTheDocument();
   });
 
   it('calls accept action and handles success correctly', async () => {
@@ -150,7 +148,7 @@ describe('QuickReplyDialog', () => {
     const hookConfig = vi.mocked(useReservationActions).mock.calls[0][0];
     state.successCallback = hookConfig.onMutationSuccess;
 
-    const acceptBtn = screen.getByTestId('mock-accept-dialog-trigger');
+    const acceptBtn = screen.getByRole('button', { name: '接受' });
     await act(async () => {
       fireEvent.click(acceptBtn);
       // The dialog now awaits onMutationSuccess (schedule.reload) before
@@ -160,6 +158,85 @@ describe('QuickReplyDialog', () => {
 
     expect(onMutationSuccess).toHaveBeenCalledOnce();
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('sends the optional reply message trimmed when accepting', async () => {
+    const accept = vi.fn();
+    vi.mocked(useReservationActions).mockReturnValue({
+      accept,
+      rejectOrCancel: mockRejectOrCancel,
+      isMutating: false,
+    });
+
+    render(<QuickReplyDialog {...defaultProps} />);
+
+    fireEvent.click(screen.getByText('附上回覆訊息（選填）'));
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        '例如：屆時於 Google Meet 見,請先準備一份履歷。'
+      ),
+      { target: { value: '  見面時見！  ' } }
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '接受' }));
+    });
+
+    expect(accept).toHaveBeenCalledWith(mockReservation, '見面時見！');
+  });
+
+  // Regression test: the reset-on-reopen effect previously listed
+  // formState.isDirty as a dependency, so react-hook-form flipping it to
+  // true on the very first keystroke re-ran the effect and immediately
+  // collapsed/cleared the field the user was typing into.
+  it('keeps the reply box open and the draft intact while typing character by character', async () => {
+    render(<QuickReplyDialog {...defaultProps} />);
+
+    fireEvent.click(screen.getByText('附上回覆訊息（選填）'));
+    const textarea = screen.getByPlaceholderText(
+      '例如：屆時於 Google Meet 見,請先準備一份履歷。'
+    );
+
+    const user = userEvent.setup();
+    await user.type(textarea, 'Hi');
+
+    expect(
+      screen.queryByPlaceholderText(
+        '例如：屆時於 Google Meet 見,請先準備一份履歷。'
+      )
+    ).toBeInTheDocument();
+    expect(textarea).toHaveValue('Hi');
+  });
+
+  it('tracks reservation_accepted with has_reply reflecting whether a reply was written', async () => {
+    render(<QuickReplyDialog {...defaultProps} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '接受' }));
+    });
+
+    expect(trackEvent).toHaveBeenCalledWith({
+      name: 'reservation_accepted',
+      feature: 'reservation',
+      metadata: { has_reply: false },
+    });
+
+    vi.mocked(trackEvent).mockClear();
+    fireEvent.click(screen.getByText('附上回覆訊息（選填）'));
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        '例如：屆時於 Google Meet 見,請先準備一份履歷。'
+      ),
+      { target: { value: '見面時見！' } }
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '接受' }));
+    });
+
+    expect(trackEvent).toHaveBeenCalledWith({
+      name: 'reservation_accepted',
+      feature: 'reservation',
+      metadata: { has_reply: true },
+    });
   });
 
   it('calls reject action and handles success correctly', async () => {
@@ -217,7 +294,7 @@ describe('QuickReplyDialog', () => {
       />
     );
 
-    const acceptBtn = screen.getByTestId('mock-accept-dialog-trigger');
+    const acceptBtn = screen.getByRole('button', { name: '接受' });
     await act(async () => {
       fireEvent.click(acceptBtn);
       await Promise.resolve();
@@ -225,6 +302,36 @@ describe('QuickReplyDialog', () => {
 
     expect(onMutationSuccess).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: 'destructive',
+        description: '接受預約失敗,請稍後再試',
+      })
+    );
+  });
+
+  it('clears the reply draft when the shared dialog is reused for a different reservation', () => {
+    const { rerender } = render(<QuickReplyDialog {...defaultProps} />);
+
+    fireEvent.click(screen.getByText('附上回覆訊息（選填）'));
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        '例如：屆時於 Google Meet 見,請先準備一份履歷。'
+      ),
+      { target: { value: '不好意思，我要遲到了' } }
+    );
+
+    const otherReservation: Reservation = {
+      ...mockReservation,
+      id: 'res-999',
+      name: 'Carol User',
+    };
+    rerender(
+      <QuickReplyDialog {...defaultProps} reservation={otherReservation} />
+    );
+
+    expect(screen.queryByText('給學員的回覆（選填）')).not.toBeInTheDocument();
+    expect(screen.getByText('附上回覆訊息（選填）')).toBeInTheDocument();
   });
 
   it('keeps the dialog open when reject fails (onMutationSuccess is never invoked)', async () => {
@@ -296,7 +403,7 @@ describe('QuickReplyDialog', () => {
 
     render(<QuickReplyDialog {...defaultProps} />);
 
-    const acceptBtn = screen.getByTestId('mock-accept-dialog-trigger');
+    const acceptBtn = screen.getByRole('button', { name: '接受' });
     const rejectBtn = screen.getByTestId('mock-reject-dialog-trigger');
 
     expect(acceptBtn).toBeDisabled();
@@ -316,7 +423,10 @@ describe('QuickReplyDialog', () => {
   });
 
   it('does NOT call onOpenChange(false) and prevents navigation when clicking the profile link under mutating state', () => {
-    vi.mocked(useReservationActions).mockReturnValueOnce(
+    // mockReturnValue (not ...Once): the mounted form hook's own internal
+    // re-render(s) mean more than one render can happen before the click
+    // below, and every one of them must still see isMutating: true.
+    vi.mocked(useReservationActions).mockReturnValue(
       fromPartial({
         accept: vi.fn(),
         rejectOrCancel: vi.fn(),
