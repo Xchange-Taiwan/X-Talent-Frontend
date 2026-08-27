@@ -31,6 +31,21 @@ export interface ReservationData {
 
 export type ListKey = 'upcoming' | 'pending' | 'history';
 
+/**
+ * Which tabs a mutation affects, split into a mandatory `source` (the tab
+ * the item currently lives in - the only one eligible for the immediate
+ * local optimistic hide) and `destinations` (tabs the item is moving into,
+ * or is otherwise affected for refetch purposes, but has not visibly
+ * appeared in yet). Modeled as named fields rather than a plain `ListKey[]`
+ * with an implicit "index 0 is the source" convention, so a caller
+ * constructing one can't accidentally swap the order and have TypeScript
+ * miss it.
+ */
+export interface MutationAffectedTabs {
+  source: ListKey;
+  destinations: ListKey[];
+}
+
 const ROLE_STATES: Record<
   ReservationRole,
   Record<ListKey, ReservationState>
@@ -76,14 +91,17 @@ export interface UseReservationDataReturn {
   myUserId: string;
   loadMore: (tab: ListKey) => Promise<void>;
   loadHistory: () => Promise<void>;
-  onMutationSuccess: (id: string, affectedTabs: ListKey[]) => void;
+  onMutationSuccess: (
+    id: string,
+    affected: MutationAffectedTabs | null
+  ) => void;
   /**
    * Refetch the affected tabs without removing the item first — for a failed
    * mutation (e.g. a 409 version conflict) where the item is still present
    * but its data (including `version`) is now stale, unlike
    * `onMutationSuccess` which assumes the item moved out of the tab.
    */
-  refetchOnConflict: (affectedTabs: ListKey[]) => void;
+  refetchOnConflict: (affected: MutationAffectedTabs | null) => void;
 }
 
 function toReservationReadKey(
@@ -309,31 +327,31 @@ export function useReservationData({
   );
 
   const onMutationSuccess = useCallback(
-    // `affectedTabs[0]` is always the tab the item currently lives in
-    // (ACCEPT_AFFECTED_TABS / buildRejectOrCancelAffectedTabs both put the
-    // source tab first, e.g. 'pending' for an accept whose destination is
-    // 'upcoming') - only that tab has anything to optimistically hide.
-    // Marking a destination tab too would hide the item there forever once
-    // it legitimately shows up, since removedIds only ever grows. Cache
-    // freshness itself (getting the item out of the source's cached page
-    // and into the destination's) is now owned by the write path
-    // (acceptReservation / rejectOrCancelReservation, see
+    // Only the source tab (the one the item currently lives in) has
+    // anything to optimistically hide. Hiding a destination tab too would
+    // hide the item there forever once it legitimately shows up, since
+    // removedIds only ever grows. Cache freshness itself (getting the item
+    // out of the source's cached page and into the destination's) is owned
+    // by the write path (acceptReservation / rejectOrCancelReservation, see
     // invalidateReservationRead) instead of being refetched by hand here -
     // X-Tracker #651.
-    (id: string, affectedTabs: ListKey[]) => {
-      const sourceTab = affectedTabs[0];
-      if (!sourceTab) return;
+    (id: string, affected: MutationAffectedTabs | null) => {
+      if (!affected) return;
+      const { source } = affected;
       setRemovedIds((prev) => ({
         ...prev,
-        [sourceTab]: new Set(prev[sourceTab]).add(id),
+        [source]: new Set(prev[source]).add(id),
       }));
     },
     []
   );
 
   const refetchOnConflict = useCallback(
-    (affectedTabs: ListKey[]) => {
-      const affectedStates = affectedTabs.map((tab) => states[tab]);
+    (affected: MutationAffectedTabs | null) => {
+      if (!affected) return;
+      const affectedStates = [affected.source, ...affected.destinations].map(
+        (tab) => states[tab]
+      );
       void refetchStates(affectedStates);
     },
     [states, refetchStates]

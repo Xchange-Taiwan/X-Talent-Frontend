@@ -164,10 +164,10 @@ describe('ConfirmedReservationDialog', () => {
 
     await act(async () => {
       if (lastCallArgs.onMutationSuccess) {
-        await lastCallArgs.onMutationSuccess('res-102', [
-          'upcoming',
-          'history',
-        ]);
+        await lastCallArgs.onMutationSuccess('res-102', {
+          source: 'upcoming',
+          destinations: ['history'],
+        });
       }
     });
 

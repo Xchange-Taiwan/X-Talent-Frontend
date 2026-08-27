@@ -71,29 +71,29 @@ beforeEach(() => {
 });
 
 describe('buildRejectOrCancelAffectedTabs', () => {
-  it('should return upcoming and history for upcoming variant', () => {
-    expect(buildRejectOrCancelAffectedTabs('upcoming')).toEqual([
-      'upcoming',
-      'history',
-    ]);
+  it('should return upcoming as source and history as destination for upcoming variant', () => {
+    expect(buildRejectOrCancelAffectedTabs('upcoming')).toEqual({
+      source: 'upcoming',
+      destinations: ['history'],
+    });
   });
 
-  it('should return pending and history for pending-mentor variant', () => {
-    expect(buildRejectOrCancelAffectedTabs('pending-mentor')).toEqual([
-      'pending',
-      'history',
-    ]);
+  it('should return pending as source and history as destination for pending-mentor variant', () => {
+    expect(buildRejectOrCancelAffectedTabs('pending-mentor')).toEqual({
+      source: 'pending',
+      destinations: ['history'],
+    });
   });
 
-  it('should return pending and history for pending-mentee variant', () => {
-    expect(buildRejectOrCancelAffectedTabs('pending-mentee')).toEqual([
-      'pending',
-      'history',
-    ]);
+  it('should return pending as source and history as destination for pending-mentee variant', () => {
+    expect(buildRejectOrCancelAffectedTabs('pending-mentee')).toEqual({
+      source: 'pending',
+      destinations: ['history'],
+    });
   });
 
-  it('should return empty list for history variant', () => {
-    expect(buildRejectOrCancelAffectedTabs('history')).toEqual([]);
+  it('should return null for history variant', () => {
+    expect(buildRejectOrCancelAffectedTabs('history')).toBeNull();
   });
 });
 
@@ -135,10 +135,10 @@ describe('useReservationActions', () => {
         description: '會議連結將於數分鐘內寄至雙方信箱',
       });
 
-      expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', [
-        'pending',
-        'upcoming',
-      ]);
+      expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', {
+        source: 'pending',
+        destinations: ['upcoming'],
+      });
       expect(result.current.isMutating).toBe(false);
     });
 
@@ -238,10 +238,10 @@ describe('useReservationActions', () => {
       ).rejects.toBeInstanceOf(ReservationVersionConflictError);
 
       expect(mockOnVersionConflict).toHaveBeenCalledTimes(1);
-      expect(mockOnVersionConflict).toHaveBeenCalledWith([
-        'pending',
-        'upcoming',
-      ]);
+      expect(mockOnVersionConflict).toHaveBeenCalledWith({
+        source: 'pending',
+        destinations: ['upcoming'],
+      });
       expect(mockToast).not.toHaveBeenCalled();
       expect(mockOnMutationSuccess).not.toHaveBeenCalled();
     });
@@ -288,10 +288,10 @@ describe('useReservationActions', () => {
         description: '已拒絕預約',
       });
 
-      expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', [
-        'pending',
-        'history',
-      ]);
+      expect(mockOnMutationSuccess).toHaveBeenCalledWith('res-abc', {
+        source: 'pending',
+        destinations: ['history'],
+      });
       expect(result.current.isMutating).toBe(false);
     });
 
@@ -435,10 +435,10 @@ describe('useReservationActions', () => {
       ).rejects.toBeInstanceOf(ReservationVersionConflictError);
 
       expect(mockOnVersionConflict).toHaveBeenCalledTimes(1);
-      expect(mockOnVersionConflict).toHaveBeenCalledWith([
-        'pending',
-        'history',
-      ]);
+      expect(mockOnVersionConflict).toHaveBeenCalledWith({
+        source: 'pending',
+        destinations: ['history'],
+      });
       expect(mockToast).not.toHaveBeenCalled();
       expect(mockOnMutationSuccess).not.toHaveBeenCalled();
     });

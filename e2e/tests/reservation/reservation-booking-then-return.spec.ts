@@ -190,6 +190,31 @@ async function selectCalendarDate(page: Page, dateKey: string): Promise<void> {
   await dayButton.click();
 }
 
+type WindowWithSessionMarker = Window & { __e2eSessionMarker?: string };
+
+/**
+ * Tags the current JS realm so every later hop can confirm it's still the
+ * same one. The whole point of this test is that the bug (and the fix) only
+ * exist across client-side navigation, so a hidden fallback to a hard
+ * reload anywhere below must fail loudly via `expectClientSessionAlive`
+ * instead of silently passing for the wrong reason.
+ */
+async function markClientSession(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    (window as unknown as WindowWithSessionMarker).__e2eSessionMarker = 'alive';
+  });
+}
+
+async function expectClientSessionAlive(page: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as unknown as WindowWithSessionMarker).__e2eSessionMarker
+      )
+    )
+    .toBe('alive');
+}
+
 test.describe('預約流程：從個人檔案頁預約後返回「我的預約」', () => {
   test.beforeEach(async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-07-15T10:00:00+08:00'));
@@ -203,32 +228,15 @@ test.describe('預約流程：從個人檔案頁預約後返回「我的預約�
     await mockMenteeReservations(page);
 
     // Land on the mentor's profile first - a hard navigation, but nothing is
-    // cached yet at this point so it can't mask anything. Tag the JS realm so
-    // every subsequent hop can assert it's still the same one: the whole
-    // point of this test is that the bug (and the fix) only exist across
-    // client-side navigation, so a hidden fallback to a hard reload anywhere
-    // below must fail loudly here instead of silently passing for the wrong
-    // reason.
+    // cached yet at this point so it can't mask anything.
     await page.goto(`/profile/${REAL_MENTOR_ID}`);
-    await page.evaluate(() => {
-      (
-        window as unknown as { __e2eSessionMarker?: string }
-      ).__e2eSessionMarker = 'alive';
-    });
+    await markClientSession(page);
     await selectCalendarDate(page, DATE_KEY);
 
     // Client-side navigate to the dashboard: this is what actually primes
     // the in-memory MENTEE_PENDING cache with the pre-booking (empty) page.
     await goToMyReservations(page);
-    await expect
-      .poll(() =>
-        page.evaluate(
-          () =>
-            (window as unknown as { __e2eSessionMarker?: string })
-              .__e2eSessionMarker
-        )
-      )
-      .toBe('alive');
+    await expectClientSessionAlive(page);
     await expect(page.getByRole('tab', { name: /等待回復/ })).toBeVisible({
       timeout: 15_000,
     });
@@ -242,15 +250,7 @@ test.describe('預約流程：從個人檔案頁預約後返回「我的預約�
     // primed above survives this hop too.
     await page.goBack();
     await expect(page).toHaveURL(new RegExp(`/profile/${REAL_MENTOR_ID}`));
-    await expect
-      .poll(() =>
-        page.evaluate(
-          () =>
-            (window as unknown as { __e2eSessionMarker?: string })
-              .__e2eSessionMarker
-        )
-      )
-      .toBe('alive');
+    await expectClientSessionAlive(page);
     await selectCalendarDate(page, DATE_KEY);
 
     const startStr = new Date(DTSTART * 1000).toLocaleTimeString(
@@ -283,15 +283,7 @@ test.describe('預約流程：從個人檔案頁預約後返回「我的預約�
     // header, not a fresh page load - and the previously-empty pending tab
     // must now reflect the booking without a manual reload.
     await goToMyReservations(page);
-    await expect
-      .poll(() =>
-        page.evaluate(
-          () =>
-            (window as unknown as { __e2eSessionMarker?: string })
-              .__e2eSessionMarker
-        )
-      )
-      .toBe('alive');
+    await expectClientSessionAlive(page);
     await page.getByRole('tab', { name: /等待回復/ }).click();
     await expect(page.getByText('Jonas Lo')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('目前尚無資料')).not.toBeVisible();

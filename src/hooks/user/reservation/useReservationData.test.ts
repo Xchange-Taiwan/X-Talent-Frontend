@@ -176,7 +176,10 @@ describe('useReservationData (mentee)', () => {
     mockFetch.mockClear();
 
     await act(async () => {
-      result.current.onMutationSuccess('any-id', ['pending', 'history']);
+      result.current.onMutationSuccess('any-id', {
+        source: 'pending',
+        destinations: ['history'],
+      });
     });
 
     expect(mockFetch).not.toHaveBeenCalled();
@@ -191,7 +194,10 @@ describe('useReservationData (mentee)', () => {
     expect(result.current.data?.pending[0].id).toBe('MENTEE_PENDING');
 
     await act(async () => {
-      result.current.onMutationSuccess('MENTEE_PENDING', ['pending']);
+      result.current.onMutationSuccess('MENTEE_PENDING', {
+        source: 'pending',
+        destinations: [],
+      });
     });
 
     expect(result.current.data?.pending).toHaveLength(0);
@@ -204,10 +210,10 @@ describe('useReservationData (mentee)', () => {
     // Accept-shaped call: 'pending' is the source (item currently lives
     // there), 'upcoming' is the destination it's moving to.
     await act(async () => {
-      result.current.onMutationSuccess('MENTEE_PENDING', [
-        'pending',
-        'upcoming',
-      ]);
+      result.current.onMutationSuccess('MENTEE_PENDING', {
+        source: 'pending',
+        destinations: ['upcoming'],
+      });
     });
 
     expect(result.current.data?.pending).toHaveLength(0);
@@ -239,7 +245,7 @@ describe('useReservationData (mentee)', () => {
     mockFetch.mockClear();
 
     await act(async () => {
-      result.current.refetchOnConflict(['pending']);
+      result.current.refetchOnConflict({ source: 'pending', destinations: [] });
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -261,7 +267,10 @@ describe('useReservationData (mentee)', () => {
     mockFetch.mockClear();
 
     await act(async () => {
-      result.current.refetchOnConflict(['pending', 'history']);
+      result.current.refetchOnConflict({
+        source: 'pending',
+        destinations: ['history'],
+      });
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
@@ -504,10 +513,10 @@ describe('useReservationData (mentor)', () => {
     mockFetch.mockClear();
 
     await act(async () => {
-      result.current.onMutationSuccess('MENTOR_PENDING', [
-        'pending',
-        'upcoming',
-      ]);
+      result.current.onMutationSuccess('MENTOR_PENDING', {
+        source: 'pending',
+        destinations: ['upcoming'],
+      });
     });
 
     expect(mockFetch).not.toHaveBeenCalled();
@@ -520,7 +529,7 @@ describe('useReservationData (mentor)', () => {
     mockFetch.mockClear();
 
     await act(async () => {
-      result.current.refetchOnConflict(['pending']);
+      result.current.refetchOnConflict({ source: 'pending', destinations: [] });
     });
 
     expect(mockFetch).toHaveBeenCalledWith(

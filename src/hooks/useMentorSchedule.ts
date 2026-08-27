@@ -675,17 +675,17 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       .endOf('month')
       .unix();
 
-    // This month's own two keys, evicted below before the fetch even
-    // starts: whatever triggered this reload (a mutation like accept/reject,
-    // or a manual retry) means they're potentially stale the moment
-    // reload() is called - regardless of whether the fetch below succeeds,
-    // throws, or gets abandoned via the isStale checks. Every OTHER cached
-    // calendar month and the reservation dashboard's own unscoped slot for
-    // this same state are no longer wiped from here - the write path itself
+    // Neither this month's cache entry nor any other surface's is touched
+    // by hand here any more (X-Tracker #651): the write path itself
     // (acceptReservation / rejectOrCancelReservation / createReservation,
-    // see invalidateReservationRead) now invalidates the reads its own
-    // mutation actually affects; other calendar months fall back to
-    // MENTOR_SCHEDULE_RESERVATIONS_TTL_MS's self-expiry (X-Tracker #651).
+    // see invalidateReservationRead) is what invalidates the reads its own
+    // mutation actually affects. This reload just re-fetches this hook's
+    // own current month unconditionally (fetchAllReservationsForState never
+    // reads the cache) and re-primes it on success below - a plain write,
+    // not an invalidation - so this view reflects its own mutation
+    // immediately instead of waiting out MENTOR_SCHEDULE_RESERVATIONS_TTL_MS.
+    // A failed fetch simply leaves whatever was cached before untouched,
+    // bounded by that same TTL rather than evicted outright.
     const upcomingKey = {
       userId: loginUserId,
       state: 'MENTOR_UPCOMING' as const,
@@ -696,8 +696,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       state: 'MENTOR_PENDING' as const,
       endOfMonthUnix,
     };
-    reservationReadModel.invalidate(upcomingKey);
-    reservationReadModel.invalidate(pendingKey);
 
     try {
       const [upcoming, pending] = await Promise.all([

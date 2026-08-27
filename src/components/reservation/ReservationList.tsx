@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
-import { ListKey } from '@/hooks/user/reservation/useReservationData';
+import type { MutationAffectedTabs } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
@@ -43,8 +43,11 @@ function ReservationItem({
   variant: Variant;
   sourceRole: SourceRole;
   myUserId: string | undefined;
-  onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
-  onVersionConflict?: (affectedTabs: ListKey[]) => void;
+  onMutationSuccess?: (
+    id: string,
+    affected: MutationAffectedTabs | null
+  ) => void;
+  onVersionConflict?: (affected: MutationAffectedTabs | null) => void;
 }) {
   const { accept, rejectOrCancel, isMutating } = useReservationActions({
     myUserId,
@@ -148,10 +151,13 @@ export function ReservationList({
   // Called after a successful accept / reject / cancel so the parent hook can
   // optimistically remove the operated item and refetch only the affected
   // states in the background.
-  onMutationSuccess?: (id: string, affectedTabs: ListKey[]) => void;
+  onMutationSuccess?: (
+    id: string,
+    affected: MutationAffectedTabs | null
+  ) => void;
   // Called once when a status update is rejected with a 409 version
   // conflict, so the parent hook can refetch the affected tabs in place.
-  onVersionConflict?: (affectedTabs: ListKey[]) => void;
+  onVersionConflict?: (affected: MutationAffectedTabs | null) => void;
 }) {
   return (
     <div className="space-y-3 sm:space-y-4">
