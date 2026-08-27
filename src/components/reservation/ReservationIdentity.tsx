@@ -1,8 +1,9 @@
 'use client';
 
-import { CalendarDays, Clock, MessageSquare } from 'lucide-react';
+import { CalendarDays, Clock } from 'lucide-react';
 import * as React from 'react';
 
+import { ReservationMessagePreview } from '@/components/reservation/ReservationMessagePreview';
 import { ReservationStatusBadge } from '@/components/reservation/ReservationStatusBadge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
@@ -240,6 +241,13 @@ export interface ReservationIdentityProps {
   variant?: ReservationIdentityVariant;
   /** Whether to render the mentee/mentor message blocks below the card. Defaults to true for 'dialog', false for 'accept'. */
   showMessages?: boolean;
+  /**
+   * Which role the current user is browsing as, for the message preview's
+   * "view full conversation" analytics. Defaults to 'mentor' since every
+   * current 'dialog'-variant caller (ConfirmedReservationDialog,
+   * QuickReplyDialog) only ever renders on a mentor's own calendar.
+   */
+  sourceRole?: 'mentor' | 'mentee';
   className?: string;
 }
 
@@ -253,12 +261,11 @@ export function ReservationIdentity({
   disabled = false,
   variant = 'dialog',
   showMessages,
+  sourceRole = 'mentor',
   className,
 }: ReservationIdentityProps) {
   const resolvedShowMessages =
     showMessages ?? defaultShowMessagesByVariant[variant];
-  const menteeMessage = reservation.menteeMessage?.content;
-  const mentorMessage = reservation.mentorMessage?.content;
 
   return (
     <>
@@ -291,29 +298,13 @@ export function ReservationIdentity({
         </div>
       </div>
 
-      {resolvedShowMessages && menteeMessage ? (
-        <MessageBlock label="學員留言" content={menteeMessage} />
-      ) : null}
-      {resolvedShowMessages && mentorMessage ? (
-        <MessageBlock label="導師回覆" content={mentorMessage} />
+      {resolvedShowMessages ? (
+        <ReservationMessagePreview
+          reservation={reservation}
+          sourceRole={sourceRole}
+          variant="dialog"
+        />
       ) : null}
     </>
-  );
-}
-
-function MessageBlock({ label, content }: { label: string; content: string }) {
-  return (
-    <div className="mt-6">
-      <div className="mb-2 text-sm font-medium text-text-primary">{label}</div>
-      <div className="flex items-start gap-2 rounded-2xl border bg-background-bottom/40 p-4 text-xs sm:text-sm">
-        <MessageSquare
-          className="mt-0.5 size-4 shrink-0 text-text-tertiary"
-          aria-hidden
-        />
-        <p className="break-words whitespace-pre-wrap text-text-primary">
-          {content}
-        </p>
-      </div>
-    </div>
   );
 }

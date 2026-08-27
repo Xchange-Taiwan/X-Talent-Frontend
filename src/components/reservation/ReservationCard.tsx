@@ -1,9 +1,9 @@
-import { CalendarDays, Clock, MessageSquare } from 'lucide-react';
+import { CalendarDays, Clock } from 'lucide-react';
 import * as React from 'react';
 
 import { JoinMeetButton } from '@/components/reservation/JoinMeetButton';
-import ReservationConversationDialog from '@/components/reservation/ReservationConversationDialog';
 import { ReservationIdentityHeader } from '@/components/reservation/ReservationIdentity';
+import { ReservationMessagePreview } from '@/components/reservation/ReservationMessagePreview';
 import { Card, CardContent } from '@/components/ui/card';
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
 import type { Reservation } from '@/types/reservation';
@@ -35,8 +35,6 @@ export function ReservationCard({
   sourceRole?: 'mentor' | 'mentee';
 }) {
   const isUpcoming = variant === 'upcoming';
-  const { menteeMessage, mentorMessage } = item;
-  const hasAnyMessage = Boolean(menteeMessage || mentorMessage);
 
   return (
     <Card
@@ -68,39 +66,11 @@ export function ReservationCard({
             </div>
           </div>
 
-          {hasAnyMessage ? (
-            <ReservationConversationDialog
-              reservation={item}
-              sourceRole={sourceRole}
-              trigger={
-                <div
-                  role="button"
-                  tabIndex={0}
-                  aria-label="查看完整訊息"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      e.currentTarget.click();
-                    }
-                  }}
-                  className="mt-3 block w-full cursor-pointer space-y-2 rounded-lg text-left focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none"
-                >
-                  {menteeMessage ? (
-                    <MessageBlock
-                      label="學員留言"
-                      content={menteeMessage.content}
-                    />
-                  ) : null}
-                  {mentorMessage ? (
-                    <MessageBlock
-                      label="導師回覆"
-                      content={mentorMessage.content}
-                    />
-                  ) : null}
-                </div>
-              }
-            />
-          ) : null}
+          <ReservationMessagePreview
+            reservation={item}
+            sourceRole={sourceRole}
+            variant="card"
+          />
 
           {footer ? <div className="mt-3">{footer}</div> : null}
 
@@ -147,24 +117,5 @@ function UpcomingJoinMeetButton({
       size="sm"
       className="h-9 w-full rounded-lg px-4 text-xs font-medium sm:w-auto sm:text-sm"
     />
-  );
-}
-
-function MessageBlock({ label, content }: { label: string; content: string }) {
-  return (
-    <div className="flex items-start gap-2 rounded-lg bg-background-bottom/40 p-2.5 text-xs transition-colors hover:bg-background-bottom/60 sm:text-sm">
-      <MessageSquare
-        className="mt-0.5 size-3.5 shrink-0 text-text-tertiary sm:size-4"
-        aria-hidden
-      />
-      <div className="min-w-0 flex-1">
-        <div className="text-11 font-medium text-text-tertiary sm:text-xs">
-          {label}
-        </div>
-        <p className="mt-0.5 line-clamp-2 break-words whitespace-pre-wrap text-text-primary">
-          {content}
-        </p>
-      </div>
-    </div>
   );
 }
