@@ -13,24 +13,6 @@ export interface CounterpartyResolvable {
 }
 
 /**
- * Resolves which side `myUserId` occupies in `reservation`: 'mentee' if
- * they're the sender, 'mentor' if they're the participant. A reservation is
- * always created by the mentee toward a mentor (see e.g.
- * `useBookingConfirmation.ts`'s POST body, and every reservation fixture in
- * this codebase) - `senderUserId` is always the mentee's id regardless of
- * who is currently viewing, so this never needs to know which specific
- * component/page is calling it.
- */
-export function resolveMyRole(
-  reservation: CounterpartyResolvable,
-  myUserId: string | number
-): 'mentee' | 'mentor' {
-  return String(myUserId) === String(reservation.senderUserId)
-    ? 'mentee'
-    : 'mentor';
-}
-
-/**
  * Resolves the counterparty's user ID from a mapped Reservation based on who is currently logged in.
  */
 export function resolveCounterpartyId(

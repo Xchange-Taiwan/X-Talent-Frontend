@@ -13,10 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
-import {
-  resolveCounterpartyId,
-  resolveMyRole,
-} from '@/lib/reservation/resolveCounterparty';
+import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
 
 interface ConfirmedReservationDialogProps {
@@ -34,20 +31,14 @@ export function ConfirmedReservationDialog({
   myUserId,
   onMutationSuccess,
 }: ConfirmedReservationDialogProps) {
-  // This dialog only ever renders on the mentor's own calendar
-  // (MentorScheduleConfig), so myRole is always 'mentor' in practice - but
-  // derive it from the reservation itself rather than hardcoding it, so a
-  // future reachability change can't silently invalidate the wrong party's
-  // cache. Falls back to 'mentor' while `reservation` is still null (this
-  // dialog instance is shared/reused - see the null check below); nothing
-  // reads `myRole` before a real reservation is set.
-  const myRole =
-    reservation && myUserId ? resolveMyRole(reservation, myUserId) : 'mentor';
-
   const { rejectOrCancel, isMutating } = useReservationActions({
     myUserId,
     variant: 'upcoming',
-    myRole,
+    // This dialog only ever renders on the mentor's own calendar
+    // (MentorScheduleConfig, reachable only via a mentor viewing their own
+    // profile) - myRole is always 'mentor' here, by the platform's own
+    // access rules, not something worth re-deriving defensively.
+    myRole: 'mentor',
     onMutationSuccess: async () => {
       await onMutationSuccess?.();
       onOpenChange(false);
