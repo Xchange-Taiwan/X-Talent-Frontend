@@ -29,6 +29,7 @@ describe('ReservationIdentity', () => {
       <ReservationIdentity
         reservation={mockReservation}
         profileHref="/profile/user-alice"
+        sourceRole="mentor"
       />
     );
 
@@ -43,6 +44,7 @@ describe('ReservationIdentity', () => {
       <ReservationIdentity
         reservation={mockReservation}
         profileHref="/profile/user-alice"
+        sourceRole="mentor"
       />
     );
 
@@ -54,6 +56,7 @@ describe('ReservationIdentity', () => {
       <ReservationIdentity
         reservation={mockReservation}
         profileHref="/profile/user-alice"
+        sourceRole="mentor"
       />
     );
 
@@ -66,6 +69,7 @@ describe('ReservationIdentity', () => {
         reservation={mockReservation}
         profileHref="/profile/user-alice"
         showStatusBadge
+        sourceRole="mentor"
       />
     );
 
@@ -77,6 +81,7 @@ describe('ReservationIdentity', () => {
       <ReservationIdentity
         reservation={mockReservation}
         profileHref="/profile/user-alice"
+        sourceRole="mentor"
       />
     );
 
@@ -91,6 +96,7 @@ describe('ReservationIdentity', () => {
           menteeMessage: { content: '這是學員的測試留言。' },
         }}
         profileHref="/profile/user-alice"
+        sourceRole="mentor"
       />
     );
 
@@ -103,6 +109,7 @@ describe('ReservationIdentity', () => {
       <ReservationIdentity
         reservation={mockReservation}
         profileHref="/profile/user-alice"
+        sourceRole="mentor"
       />
     );
 
@@ -117,6 +124,7 @@ describe('ReservationIdentity', () => {
           mentorMessage: { content: '這是導師的測試回覆。' },
         }}
         profileHref="/profile/user-alice"
+        sourceRole="mentor"
       />
     );
 
@@ -133,6 +141,7 @@ describe('ReservationIdentity', () => {
           mentorMessage: { content: '導師的回覆。' },
         }}
         profileHref="/profile/user-alice"
+        sourceRole="mentor"
       />
     );
 
@@ -147,6 +156,7 @@ describe('ReservationIdentity', () => {
       <ReservationIdentity
         reservation={mockReservation}
         profileHref="/profile/user-alice"
+        sourceRole="mentor"
       />
     );
 
@@ -158,7 +168,9 @@ describe('ReservationIdentity', () => {
   });
 
   it('renders plain, non-interactive elements when no profileHref is provided', () => {
-    render(<ReservationIdentity reservation={mockReservation} />);
+    render(
+      <ReservationIdentity reservation={mockReservation} sourceRole="mentor" />
+    );
 
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
     expect(screen.getByText('Alice User')).toBeInTheDocument();
@@ -170,6 +182,7 @@ describe('ReservationIdentity', () => {
         reservation={mockReservation}
         profileHref="/profile/user-alice"
         linkToProfile={false}
+        sourceRole="mentor"
       />
     );
 
@@ -187,6 +200,7 @@ describe('ReservationIdentity', () => {
         profileHref="/profile/user-alice"
         onProfileLinkClick={onProfileLinkClick}
         disabled
+        sourceRole="mentor"
       />
     );
 
@@ -205,7 +219,10 @@ describe('ReservationIdentity', () => {
 
   it('falls back to U when the name is empty', () => {
     render(
-      <ReservationIdentity reservation={{ ...mockReservation, name: '' }} />
+      <ReservationIdentity
+        reservation={{ ...mockReservation, name: '' }}
+        sourceRole="mentor"
+      />
     );
 
     expect(screen.getByText('U')).toBeInTheDocument();
@@ -221,6 +238,7 @@ describe('ReservationIdentity', () => {
         }}
         profileHref="/profile/user-alice"
         showMessages={false}
+        sourceRole="mentor"
       />
     );
 
@@ -238,6 +256,7 @@ describe('ReservationIdentity', () => {
           menteeMessage: { content: '學員的問題。' },
         }}
         variant="accept"
+        sourceRole="mentor"
       />
     );
 
@@ -253,6 +272,7 @@ describe('ReservationIdentity', () => {
         }}
         variant="accept"
         showMessages
+        sourceRole="mentor"
       />
     );
 

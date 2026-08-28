@@ -150,6 +150,7 @@ export function QuickReplyDialog({
             profileHref={profileHref}
             onProfileLinkClick={handleProfileLinkClick}
             disabled={isMutating}
+            sourceRole="mentor"
           />
 
           <div className="mt-6">
