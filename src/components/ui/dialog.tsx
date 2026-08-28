@@ -55,7 +55,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'bg-dark/80 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 fixed inset-0 z-50',
+      'fixed inset-0 z-50 bg-dark/80 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0',
       className
     )}
     {...props}
@@ -75,7 +75,7 @@ const DialogContentFrame = React.forwardRef<
   <DialogPrimitive.Content
     ref={ref}
     className={cn(
-      'bg-background-white data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 shadow-lg duration-200 sm:rounded-lg',
+      'fixed top-[50%] left-[50%] z-50 grid max-h-[90dvh] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border bg-background-white p-6 shadow-lg duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:rounded-lg',
       className
     )}
     {...props}
@@ -101,7 +101,7 @@ const DialogContent = React.forwardRef<
     <DialogOverlay />
     <DialogContentFrame ref={ref} className={className} {...props}>
       {children}
-      <DialogPrimitive.Close className="ring-offset-background-white focus-visible:ring-ring data-[state=open]:bg-background-bottom data-[state=open]:text-text-tertiary absolute top-4 right-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none">
+      <DialogPrimitive.Close className="absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background-white transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none data-[state=open]:bg-background-bottom data-[state=open]:text-text-tertiary">
         <X className="size-4" aria-hidden="true" />
         <span className="sr-only">關閉</span>
       </DialogPrimitive.Close>
@@ -179,7 +179,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn('text-text-tertiary text-sm', className)}
+    className={cn('text-sm text-text-tertiary', className)}
     {...props}
   />
 ));
