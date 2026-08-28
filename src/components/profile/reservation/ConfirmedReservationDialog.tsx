@@ -86,6 +86,7 @@ export function ConfirmedReservationDialog({
             disabled={isMutating || isJoiningMeet}
             showStatusBadge
             density="compact"
+            sourceRole="mentor"
           />
 
           {/* Footer action buttons */}

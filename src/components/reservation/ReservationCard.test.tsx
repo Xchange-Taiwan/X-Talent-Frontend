@@ -50,7 +50,13 @@ describe('ReservationCard', () => {
   });
 
   it('renders standard card details', () => {
-    render(<ReservationCard item={mockReservation} variant="upcoming" />);
+    render(
+      <ReservationCard
+        item={mockReservation}
+        variant="upcoming"
+        sourceRole="mentor"
+      />
+    );
 
     expect(screen.getByText('John Doe')).toBeInTheDocument();
     expect(screen.getByText('UIUX Designer')).toBeInTheDocument();
@@ -59,7 +65,13 @@ describe('ReservationCard', () => {
   });
 
   it('derives initials from the shared getInitials helper', () => {
-    render(<ReservationCard item={mockReservation} variant="upcoming" />);
+    render(
+      <ReservationCard
+        item={mockReservation}
+        variant="upcoming"
+        sourceRole="mentor"
+      />
+    );
 
     expect(screen.getByText('JD')).toBeInTheDocument();
   });
@@ -69,6 +81,7 @@ describe('ReservationCard', () => {
       <ReservationCard
         item={{ ...mockReservation, name: '' }}
         variant="upcoming"
+        sourceRole="mentor"
       />
     );
 
@@ -81,6 +94,7 @@ describe('ReservationCard', () => {
         item={mockReservation}
         variant="upcoming"
         profileHref="/profile/1"
+        sourceRole="mentor"
       />
     );
 
@@ -96,6 +110,7 @@ describe('ReservationCard', () => {
         item={mockReservation}
         variant="upcoming"
         profileHref="/profile/1"
+        sourceRole="mentor"
       />
     );
 
@@ -111,6 +126,7 @@ describe('ReservationCard', () => {
         variant="upcoming"
         profileHref="/profile/1"
         onProfileClick={onProfileClick}
+        sourceRole="mentor"
       />
     );
 
@@ -126,7 +142,11 @@ describe('ReservationCard', () => {
 
   it('uses flex-nowrap to avoid deforming when long names are rendered', () => {
     const { container } = render(
-      <ReservationCard item={mockReservation} variant="upcoming" />
+      <ReservationCard
+        item={mockReservation}
+        variant="upcoming"
+        sourceRole="mentor"
+      />
     );
     // Find the name container flex element
     const flexContainer = container.querySelector('.min-w-0.flex-1 > div');
@@ -141,32 +161,60 @@ describe('ReservationCard', () => {
 
   it('renders "Join Google Meet" button only when variant is upcoming', () => {
     const { rerender } = render(
-      <ReservationCard item={mockReservation} variant="upcoming" />
+      <ReservationCard
+        item={mockReservation}
+        variant="upcoming"
+        sourceRole="mentor"
+      />
     );
     expect(
       screen.getByRole('button', { name: /加入 Google Meet/i })
     ).toBeInTheDocument();
 
-    rerender(<ReservationCard item={mockReservation} variant="pending" />);
+    rerender(
+      <ReservationCard
+        item={mockReservation}
+        variant="pending"
+        sourceRole="mentor"
+      />
+    );
     expect(
       screen.queryByRole('button', { name: /加入 Google Meet/i })
     ).not.toBeInTheDocument();
 
-    rerender(<ReservationCard item={mockReservation} variant="history" />);
+    rerender(
+      <ReservationCard
+        item={mockReservation}
+        variant="history"
+        sourceRole="mentor"
+      />
+    );
     expect(
       screen.queryByRole('button', { name: /加入 Google Meet/i })
     ).not.toBeInTheDocument();
   });
 
   it('does not render "會議連結已寄至您的信箱" when variant is upcoming and Join Google Meet is shown', () => {
-    render(<ReservationCard item={mockReservation} variant="upcoming" />);
+    render(
+      <ReservationCard
+        item={mockReservation}
+        variant="upcoming"
+        sourceRole="mentor"
+      />
+    );
     expect(
       screen.queryByText('會議連結已寄至您的信箱')
     ).not.toBeInTheDocument();
   });
 
   it('shows error toast when myUserId is missing', () => {
-    render(<ReservationCard item={mockReservation} variant="upcoming" />);
+    render(
+      <ReservationCard
+        item={mockReservation}
+        variant="upcoming"
+        sourceRole="mentor"
+      />
+    );
 
     const button = screen.getByRole('button', { name: /加入 Google Meet/i });
     fireEvent.click(button);
@@ -193,6 +241,7 @@ describe('ReservationCard', () => {
         item={mockReservation}
         variant="upcoming"
         myUserId="user-456"
+        sourceRole="mentor"
       />
     );
 
@@ -223,6 +272,7 @@ describe('ReservationCard', () => {
         item={mockReservation}
         variant="upcoming"
         myUserId="user-456"
+        sourceRole="mentor"
       />
     );
 
@@ -254,6 +304,7 @@ describe('ReservationCard', () => {
         item={mockReservation}
         variant="upcoming"
         myUserId="user-456"
+        sourceRole="mentor"
       />
     );
 
@@ -283,6 +334,7 @@ describe('ReservationCard', () => {
         item={mockReservation}
         variant="upcoming"
         myUserId="user-456"
+        sourceRole="mentor"
       />
     );
 
@@ -313,6 +365,7 @@ describe('ReservationCard', () => {
         item={mockReservation}
         variant="upcoming"
         myUserId="user-456"
+        sourceRole="mentor"
       />
     );
 
@@ -346,6 +399,7 @@ describe('ReservationCard', () => {
         item={mockReservation}
         variant="upcoming"
         myUserId="user-456"
+        sourceRole="mentor"
       />
     );
 
@@ -363,7 +417,11 @@ describe('ReservationCard', () => {
 
   it('renders ReservationStatusBadge in the header container rather than the date/time row', () => {
     const { container } = render(
-      <ReservationCard item={mockReservation} variant="upcoming" />
+      <ReservationCard
+        item={mockReservation}
+        variant="upcoming"
+        sourceRole="mentor"
+      />
     );
     // Find the header flex container (min-w-0 flex-1 > div)
     const headerContainer = container.querySelector('.min-w-0.flex-1 > div');
@@ -380,7 +438,13 @@ describe('ReservationCard', () => {
   });
 
   it('renders JoinMeetButton with responsive text spans to avoid layout breaking', () => {
-    render(<ReservationCard item={mockReservation} variant="upcoming" />);
+    render(
+      <ReservationCard
+        item={mockReservation}
+        variant="upcoming"
+        sourceRole="mentor"
+      />
+    );
     const joinButton = screen.getByRole('button', {
       name: /加入 Google Meet/i,
     });

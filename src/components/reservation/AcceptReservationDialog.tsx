@@ -84,7 +84,11 @@ export default function AcceptReservationDialog({
             </DialogTitle>
           </DialogHeader>
 
-          <ReservationIdentity reservation={reservation} variant="accept" />
+          <ReservationIdentity
+            reservation={reservation}
+            variant="accept"
+            sourceRole="mentor"
+          />
 
           {menteeMessage ? (
             <div className="mt-6">
