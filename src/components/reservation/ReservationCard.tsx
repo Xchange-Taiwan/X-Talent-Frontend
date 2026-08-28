@@ -18,7 +18,7 @@ export function ReservationCard({
   onProfileClick,
   variant,
   myUserId,
-  sourceRole = 'mentee',
+  sourceRole,
 }: {
   item: Reservation;
   actions?: React.ReactNode;
@@ -30,9 +30,11 @@ export function ReservationCard({
   // Drives upcoming-only affordances (status badge and email hint).
   variant?: ReservationCardVariant;
   myUserId?: string | number;
-  // Which role the current user is browsing as. Only used for analytics when
-  // opening the full-conversation dialog from the message preview.
-  sourceRole?: 'mentor' | 'mentee';
+  // Which role the current user is browsing as. Required (no default) so a
+  // caller can't silently misattribute the message preview's "view full
+  // conversation" analytics - ReservationList always passes this explicitly
+  // for both its mentor and mentee surfaces.
+  sourceRole: 'mentor' | 'mentee';
 }) {
   const isUpcoming = variant === 'upcoming';
 
