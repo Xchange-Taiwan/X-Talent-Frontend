@@ -6,6 +6,7 @@ import {
   extractLatestYearSchools,
   generateSchoolDataTS,
   normalizeTS,
+  pruneRawDataToLatestYear,
 } from './generate-school-list.mjs';
 
 describe('School List Generator - Helpers', () => {
@@ -62,6 +63,59 @@ describe('School List Generator - Helpers', () => {
       const { schools } = extractLatestYearSchools(records);
 
       expect(schools).toEqual(['國立臺灣大學']);
+    });
+
+    it('dedupes same-named rows under different codes within the latest year', () => {
+      // A school can have more than one row for the same year (e.g. a
+      // branch campus recorded under its own 代碼) but under the identical
+      // 學校名稱 — the combobox only cares about the name, so this must
+      // still collapse to one entry.
+      const records = [
+        { 學年度: '114', 代碼: '0001', 學校名稱: '國立臺灣大學' },
+        { 學年度: '114', 代碼: '0099', 學校名稱: '國立臺灣大學' },
+      ];
+
+      const { schools } = extractLatestYearSchools(records);
+
+      expect(schools).toEqual(['國立臺灣大學']);
+    });
+
+    it('finds the latest year regardless of the records array order', () => {
+      const records = [
+        { 學年度: '114', 學校名稱: '國立臺灣大學' },
+        { 學年度: '103', 學校名稱: '某舊制學校' },
+        { 學年度: '110', 學校名稱: '國立清華大學' },
+      ];
+
+      const { latestYear, schools } = extractLatestYearSchools(records);
+
+      expect(latestYear).toBe(114);
+      expect(schools).toEqual(['國立臺灣大學']);
+    });
+  });
+
+  describe('pruneRawDataToLatestYear()', () => {
+    it('keeps only rows from the latest academic year, dropping older ones', () => {
+      const records = [
+        { 學年度: '113', 學校名稱: '大漢技術學院' },
+        { 學年度: '114', 學校名稱: '國立臺灣大學' },
+        { 學年度: '114', 學校名稱: '馬偕醫學大學' },
+      ];
+
+      const pruned = pruneRawDataToLatestYear(records);
+
+      expect(pruned).toHaveLength(2);
+      expect(pruned.every((r) => r['學年度'] === '114')).toBe(true);
+    });
+
+    it('preserves the full row shape, not just the school name', () => {
+      const records = [
+        { 學年度: '114', 代碼: '0003', 學校名稱: '國立臺灣大學', 網址: 'http://www.ntu.edu.tw' },
+      ];
+
+      const pruned = pruneRawDataToLatestYear(records);
+
+      expect(pruned).toEqual(records);
     });
   });
 
@@ -124,5 +178,19 @@ describe('School List Generator - Integration', () => {
     expect(schools).not.toContain('馬偕醫學院');
     expect(schools).not.toContain('大漢技術學院');
     expect(schools).not.toContain('其他');
+  });
+
+  it('keeps the committed source data pruned to a single academic year', () => {
+    // Guards against the raw MOE feed's ~13 years of history creeping back
+    // into the repo the next time someone re-downloads and forgets to prune.
+    const records = JSON.parse(
+      fs.readFileSync(
+        path.resolve('scripts/data/moe-university-directory.json'),
+        'utf8'
+      )
+    );
+    const years = new Set(records.map((r) => r['學年度']));
+
+    expect(years.size).toBe(1);
   });
 });

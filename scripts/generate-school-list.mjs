@@ -5,6 +5,9 @@ import path from 'path';
 // License v1). Re-download from
 // https://stats.moe.gov.tw/files/opendata/u1_new.json and overwrite this file
 // whenever MOE publishes a new academic year, then re-run `pnpm generate:schools`.
+// The upstream feed spans many years of history; this file is pruned down to
+// just the latest year by generate:schools itself (see pruneRawDataToLatestYear
+// below) so the repo doesn't re-accumulate years of unused rows on refresh.
 const RAW_DATA_PATH = path.resolve(
   'scripts/data/moe-university-directory.json'
 );
@@ -64,6 +67,15 @@ function loadRecords() {
   return JSON.parse(fs.readFileSync(RAW_DATA_PATH, 'utf8'));
 }
 
+// The upstream feed carries ~13 academic years of history (1900+ rows) even
+// though only the latest year ever feeds schoolData.ts. Trimming the
+// committed source down to that one year keeps the repo from re-accumulating
+// years of dead weight every time someone re-downloads and regenerates.
+export function pruneRawDataToLatestYear(records) {
+  const latestYear = Math.max(...records.map((r) => Number(r['學年度'])));
+  return records.filter((r) => Number(r['學年度']) === latestYear);
+}
+
 function main() {
   const isCheckMode = process.argv.includes('--check');
   const records = loadRecords();
@@ -103,6 +115,19 @@ function main() {
   } else {
     fs.writeFileSync(OUTPUT_PATH, generatedTS, 'utf8');
     console.log(`Successfully generated school list at ${OUTPUT_PATH}`);
+
+    const prunedRecords = pruneRawDataToLatestYear(records);
+    if (prunedRecords.length !== records.length) {
+      fs.writeFileSync(
+        RAW_DATA_PATH,
+        JSON.stringify(prunedRecords, null, 2) + '\n',
+        'utf8'
+      );
+      console.log(
+        `Trimmed ${RAW_DATA_PATH} from ${records.length} to ${prunedRecords.length} rows (latest academic year only).`
+      );
+    }
+
     process.exit(0);
   }
 }
