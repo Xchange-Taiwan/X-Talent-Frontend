@@ -37,7 +37,9 @@ describe('School List Generator - Helpers', () => {
       );
       // Order must be stable and reproducible across runs, whatever the
       // underlying collation happens to pick.
-      expect(schools).toEqual([...schools].sort((a, b) => a.localeCompare(b, 'zh-Hant')));
+      expect(schools).toEqual(
+        [...schools].sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+      );
     });
 
     it('drops a school that no longer appears in the latest year', () => {
