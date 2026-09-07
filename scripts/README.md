@@ -19,3 +19,22 @@ pnpm generate:types
 ```
 
 Commit the updated `src/types/api.ts` whenever the BFF schema changes.
+
+## generate-school-list.mjs
+
+Reads `scripts/data/moe-university-directory.json` (Ministry of Education 大專校院名錄 open data) and generates `src/components/profile/edit/educationSection/schoolData.ts` — the school list behind the education section's "學校名稱" combobox.
+
+Only the latest academic year in the dataset is used: a school is included if and only if it appears in that year's rows, under whatever name it's listed under that year (a rename shows up automatically; a closed school drops out automatically).
+
+### How to update the school list
+
+1. Re-download the source data and overwrite `scripts/data/moe-university-directory.json`:
+   ```bash
+   curl -o scripts/data/moe-university-directory.json https://stats.moe.gov.tw/files/opendata/u1_new.json
+   ```
+2. Regenerate and commit the result:
+   ```bash
+   pnpm generate:schools
+   ```
+
+`pnpm generate:schools:check` fails if the committed `schoolData.ts` has drifted from the committed source data (e.g. someone hand-edited it).
