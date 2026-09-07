@@ -37,6 +37,10 @@ export function extractLatestYearSchools(records) {
   return { latestYear, schools: uniqueNames };
 }
 
+export function escapeSingleQuotedString(str) {
+  return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
 export function generateSchoolDataTS(records) {
   const { latestYear, schools } = extractLatestYearSchools(records);
 
@@ -51,7 +55,11 @@ export function generateSchoolDataTS(records) {
     'export const taiwanSchools = [',
     // Single-quoted to match this repo's Prettier config (singleQuote: true)
     // so the committed output is stable under the pre-commit formatter.
-    ...schools.map((school) => `  '${school.replace(/'/g, "\\'")}',`),
+    // Backslashes must be escaped before quotes — escaping quotes first
+    // would let a backslash already adjacent to one neutralize the escape
+    // (e.g. a trailing "\" swallowing the "'" that follows it) and break
+    // out of the string literal into the generated TS source.
+    ...schools.map((school) => `  '${escapeSingleQuotedString(school)}',`),
     '];',
     '',
   ];

@@ -3,6 +3,7 @@ import path from 'path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  escapeSingleQuotedString,
   extractLatestYearSchools,
   generateSchoolDataTS,
   normalizeTS,
@@ -132,6 +133,28 @@ describe('School List Generator - Helpers', () => {
       ];
 
       expect(pruneRawDataToLatestYear(records)).toEqual(records);
+    });
+  });
+
+  describe('escapeSingleQuotedString()', () => {
+    it('escapes a single quote in the name', () => {
+      expect(escapeSingleQuotedString("O'Brien College")).toBe(
+        "O\\'Brien College"
+      );
+    });
+
+    it('escapes backslashes before quotes, so a trailing backslash cannot swallow the closing quote', () => {
+      // Escaping quotes first would turn `Name\'` into `Name\\'` — i.e. an
+      // escaped backslash followed by an *unescaped* quote, which closes
+      // the string literal early (CodeQL: "incomplete string escaping").
+      const malicious = "Name\\'; process.exit(1); //";
+
+      const escaped = escapeSingleQuotedString(malicious);
+
+      // eslint-disable-next-line no-new-func -- deliberately parsing the
+      // escaped output as a JS string literal to prove it can't break out.
+      const roundTripped = new Function(`return '${escaped}';`)();
+      expect(roundTripped).toBe(malicious);
     });
   });
 
