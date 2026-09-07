@@ -20,7 +20,9 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "prepare": "husky install",
-    "generate:types": "node scripts/generate-types.mjs"
+    "generate:types": "node scripts/generate-types.mjs",
+    "generate:schools": "node scripts/generate-school-list.mjs",
+    "generate:schools:check": "node scripts/generate-school-list.mjs --check"
   },
   "dependencies": {
     "@emotion/react": "^11.11.3",
