@@ -110,7 +110,12 @@ describe('School List Generator - Helpers', () => {
 
     it('preserves the full row shape, not just the school name', () => {
       const records = [
-        { 學年度: '114', 代碼: '0003', 學校名稱: '國立臺灣大學', 網址: 'http://www.ntu.edu.tw' },
+        {
+          學年度: '114',
+          代碼: '0003',
+          學校名稱: '國立臺灣大學',
+          網址: 'http://www.ntu.edu.tw',
+        },
       ];
 
       const pruned = pruneRawDataToLatestYear(records);
