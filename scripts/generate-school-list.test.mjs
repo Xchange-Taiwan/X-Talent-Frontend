@@ -110,12 +110,28 @@ describe('School List Generator - Helpers', () => {
 
     it('preserves the full row shape, not just the school name', () => {
       const records = [
-        { 學年度: '114', 代碼: '0003', 學校名稱: '國立臺灣大學', 網址: 'http://www.ntu.edu.tw' },
+        {
+          學年度: '114',
+          代碼: '0003',
+          學校名稱: '國立臺灣大學',
+          網址: 'http://www.ntu.edu.tw',
+        },
       ];
 
       const pruned = pruneRawDataToLatestYear(records);
 
       expect(pruned).toEqual(records);
+    });
+
+    it('is a no-op on data that is already a single academic year', () => {
+      // Running `pnpm generate:schools` again on an already-pruned file
+      // (the normal case after the first run) must not lose rows.
+      const records = [
+        { 學年度: '114', 學校名稱: '國立臺灣大學' },
+        { 學年度: '114', 學校名稱: '國立清華大學' },
+      ];
+
+      expect(pruneRawDataToLatestYear(records)).toEqual(records);
     });
   });
 
