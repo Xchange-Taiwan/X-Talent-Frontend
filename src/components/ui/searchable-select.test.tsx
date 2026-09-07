@@ -16,21 +16,40 @@ const SCHOOLS = ['臺灣大學', '政治大學', '成功大學'];
  * jsdom 的 matchMedia 由 src/test/setup.ts 補上，預設一律回報不成立（桌機分支）。
  * 這裡改成只讓傳進來的 query 成立，用來把元件推到手機分支。
  */
-function stubViewport({ mobile }: { mobile: boolean }): void {
+function stubViewport({ mobile }: { mobile: boolean }) {
+  const listeners = new Set<() => void>();
+  let matches = mobile;
+
+  const list = {
+    get matches() {
+      return matches;
+    },
+    onchange: null,
+    addEventListener(_type: string, listener: () => void) {
+      listeners.add(listener);
+    },
+    removeEventListener(_type: string, listener: () => void) {
+      listeners.delete(listener);
+    },
+    addListener() {},
+    removeListener() {},
+    dispatchEvent: () => false,
+  };
+
   vi.stubGlobal(
     'matchMedia',
-    (query: string) =>
-      ({
-        matches: mobile,
-        media: query,
-        onchange: null,
-        addEventListener() {},
-        removeEventListener() {},
-        addListener() {},
-        removeListener() {},
-        dispatchEvent: () => false,
-      }) as unknown as MediaQueryList
+    (query: string) => ({ ...list, media: query }) as unknown as MediaQueryList
   );
+
+  return {
+    /** 模擬視窗跨過 sm 斷點，例如手機版在 hydration 之後才解析出真實寬度。 */
+    setMobile(next: boolean): void {
+      matches = next;
+      act(() => {
+        listeners.forEach((listener) => listener());
+      });
+    },
+  };
 }
 
 const LAYOUT_HEIGHT = 800;
@@ -199,6 +218,21 @@ describe('SearchableSelect', () => {
     // 過濾掉兩筆選項之後，面板高度與位置都沒有跟著變。
     expect(sheet).toHaveStyle({ height: '425px' });
     expect(sheet).toHaveStyle({ bottom: '300px' });
+  });
+
+  // 斷點要等 hydration 之後才解析得出來。如果 trigger 掛在哪個 Radix Trigger 底下
+  // 是由斷點決定的，行動裝置每次載入都會把它卸載重掛一次，焦點與 form ref 都會斷。
+  it('keeps the same trigger element when the breakpoint resolves after hydration', () => {
+    const viewport = stubViewport({ mobile: false });
+    render(<Harness open={false} />);
+
+    const triggerBefore = screen.getByRole('button', { name: '請選擇學校' });
+
+    viewport.setMobile(true);
+
+    expect(screen.getByRole('button', { name: '請選擇學校' })).toBe(
+      triggerBefore
+    );
   });
 
   it('keeps the search box outside the scrolling list in both branches', () => {

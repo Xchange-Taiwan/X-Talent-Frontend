@@ -14,7 +14,6 @@ import {
   SheetClose,
   SheetContent,
   SheetTitle,
-  SheetTrigger,
 } from '@/components/ui/sheet';
 import { useKeyboardInset } from '@/hooks/useKeyboardInset';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -116,59 +115,65 @@ export function SearchableSelect({
     </Command>
   );
 
-  if (isMobile) {
-    return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetTrigger asChild>{trigger}</SheetTrigger>
-        <SheetContent
-          side="bottom"
-          // 選項列在手機上要撐到可以用手指點：加高列高、放大字級，並讓左緣對齊
-          // 標題與搜尋框。沿用 CommandDialog 既有的 cmdk 屬性選取器寫法。
-          className="flex flex-col gap-0 overflow-hidden rounded-t-2xl p-0 pb-[env(safe-area-inset-bottom)] [&_[cmdk-group]]:p-0 [&_[cmdk-input-wrapper]]:px-4 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:rounded-none [&_[cmdk-item]]:px-4 [&_[cmdk-item]]:py-3 [&_[cmdk-item]]:text-base [&_[cmdk-item]_svg]:size-5"
-          style={{
-            // 把面板抬到鍵盤上方，高度固定在鍵盤剩下的可視空間的一個比例。
-            // 用固定高度而不是 max-height，是為了讓搜尋結果多寡不會改變面板大小 ——
-            // 否則使用者一邊打字，搜尋框就一邊往下移。
-            bottom: inset,
-            height: viewportHeight
-              ? `${Math.round(viewportHeight * SHEET_VIEWPORT_RATIO)}px`
-              : undefined,
-          }}
-          // 開啟時不自動聚焦搜尋框，否則鍵盤會立刻蓋掉半個畫面；
-          // 使用者要搜尋時自己點搜尋框即可。
-          onOpenAutoFocus={(event) => event.preventDefault()}
-          // 這個面板只是一份選項清單，標題已經說完它是什麼，沒有額外描述可放。
-          aria-describedby={undefined}
-        >
-          <div className="flex shrink-0 flex-col">
-            <div
-              className="mx-auto mt-3 h-1 w-10 rounded-full bg-background-border"
-              aria-hidden="true"
-            />
-            <div className="flex items-center justify-between px-4 py-3">
-              <SheetTitle className="text-base">{title}</SheetTitle>
-              <SheetClose className="rounded-sm p-1 text-text-tertiary hover:text-text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-                <X className="size-5" aria-hidden="true" />
-                <span className="sr-only">關閉</span>
-              </SheetClose>
-            </div>
-          </div>
-          {commandBody}
-        </SheetContent>
-      </Sheet>
-    );
-  }
-
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent
-        // 高度綁在 Radix 量到的可用空間上，空間不足時讓選單縮短而不是整個翻面。
-        className="flex max-h-[min(20rem,calc(var(--radix-popover-content-available-height)-1rem))] w-[var(--radix-popover-trigger-width)] flex-col overflow-hidden p-0"
-        collisionPadding={8}
-      >
-        {commandBody}
-      </PopoverContent>
-    </Popover>
+    <>
+      {/*
+        Popover 這一層永遠掛著，手機版只是不讓它展開。斷點要等 hydration 之後才
+        解析得出來，如果讓它決定 trigger 掛在 PopoverTrigger 還是 SheetTrigger 底下，
+        行動裝置每次載入都會把 trigger 卸載重掛一次，連帶斷掉焦點與 form 的 ref。
+      */}
+      <Popover open={open && !isMobile} onOpenChange={onOpenChange}>
+        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+        <PopoverContent
+          // 高度綁在 Radix 量到的可用空間上，空間不足時讓選單縮短而不是整個翻面。
+          className="flex max-h-[min(20rem,calc(var(--radix-popover-content-available-height)-1rem))] w-[var(--radix-popover-trigger-width)] flex-col overflow-hidden p-0"
+          collisionPadding={8}
+        >
+          {commandBody}
+        </PopoverContent>
+      </Popover>
+
+      {isMobile && (
+        <Sheet open={open} onOpenChange={onOpenChange}>
+          <SheetContent
+            side="bottom"
+            // 選項列在手機上要撐到可以用手指點：加高列高、放大字級，並讓左緣對齊
+            // 標題與搜尋框。沿用 CommandDialog 既有的 cmdk 屬性選取器寫法。
+            className="flex flex-col gap-0 overflow-hidden rounded-t-2xl p-0 pb-[env(safe-area-inset-bottom)] [&_[cmdk-group]]:p-0 [&_[cmdk-input-wrapper]]:px-4 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:rounded-none [&_[cmdk-item]]:px-4 [&_[cmdk-item]]:py-3 [&_[cmdk-item]]:text-base [&_[cmdk-item]_svg]:size-5"
+            // 這兩個值是量到的鍵盤高度即時算出來的，沒有對應的靜態 Tailwind 類別。
+            // 同 NotificationBell 的捲軸拇指，屬於動態數值才走 inline style 的既有做法。
+            style={{
+              // 把面板抬到鍵盤上方，高度固定在鍵盤剩下的可視空間的一個比例。
+              // 用固定高度而不是 max-height，是為了讓搜尋結果多寡不會改變面板大小 ——
+              // 否則使用者一邊打字，搜尋框就一邊往下移。
+              bottom: inset,
+              height: viewportHeight
+                ? `${Math.round(viewportHeight * SHEET_VIEWPORT_RATIO)}px`
+                : undefined,
+            }}
+            // 開啟時不自動聚焦搜尋框，否則鍵盤會立刻蓋掉半個畫面；
+            // 使用者要搜尋時自己點搜尋框即可。
+            onOpenAutoFocus={(event) => event.preventDefault()}
+            // 這個面板只是一份選項清單，標題已經說完它是什麼，沒有額外描述可放。
+            aria-describedby={undefined}
+          >
+            <div className="flex shrink-0 flex-col">
+              <div
+                className="mx-auto mt-3 h-1 w-10 rounded-full bg-background-border"
+                aria-hidden="true"
+              />
+              <div className="flex items-center justify-between px-4 py-3">
+                <SheetTitle className="text-base">{title}</SheetTitle>
+                <SheetClose className="rounded-sm p-1 text-text-tertiary hover:text-text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                  <X className="size-5" aria-hidden="true" />
+                  <span className="sr-only">關閉</span>
+                </SheetClose>
+              </div>
+            </div>
+            {commandBody}
+          </SheetContent>
+        </Sheet>
+      )}
+    </>
   );
 }

@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+
+import { useIsomorphicLayoutEffect } from '@/hooks/useIsomorphicLayoutEffect';
 
 /**
  * 軟鍵盤造成的視窗遮蔽量測結果。
@@ -32,7 +34,10 @@ const EMPTY: KeyboardInset = { inset: 0, viewportHeight: 0 };
 export function useKeyboardInset(enabled: boolean): KeyboardInset {
   const [metrics, setMetrics] = useState<KeyboardInset>(EMPTY);
 
-  useEffect(() => {
+  // 用 layout effect 而不是 useEffect：量測結果必須在瀏覽器繪製之前就寫回去。
+  // 用 useEffect 的話，面板初次開啟會先以 viewportHeight=0（沒有固定高度）畫一幀，
+  // 重新開啟則會先用上一次凍結的 inset 畫一幀，兩者都是肉眼看得到的跳動。
+  useIsomorphicLayoutEffect(() => {
     const viewport =
       typeof window === 'undefined' ? null : window.visualViewport;
 
