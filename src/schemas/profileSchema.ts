@@ -7,7 +7,11 @@ import * as z from 'zod';
 export const educationSchema = z.object({
   id: z.number().int(),
   subject: z.string().min(1, '請輸入主修'),
-  school: z.string().min(1, '請選擇學校'),
+  school: z
+    .string()
+    .trim()
+    .min(1, '請選擇學校')
+    .max(100, '學校名稱不可超過 100 字'),
   education_period_start: z.string().min(1, '請選擇開始年份'),
   education_period_end: z.string().min(1, '請選擇結束年份'),
 });
