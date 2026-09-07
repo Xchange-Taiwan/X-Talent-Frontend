@@ -20,7 +20,9 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "prepare": "husky install",
-    "generate:types": "node scripts/generate-types.mjs"
+    "generate:types": "node scripts/generate-types.mjs",
+    "generate:schools": "node scripts/generate-school-list.mjs",
+    "generate:schools:check": "node scripts/generate-school-list.mjs --check"
   },
   "dependencies": {
     "@emotion/react": "^11.11.3",
@@ -48,7 +50,7 @@
     "dayjs": "^1.11.13",
     "lucide-react": "^0.316.0",
     "next": "14.2.35",
-    "next-auth": "4.24.13",
+    "next-auth": "4.24.15",
     "path-to-regexp": "^8.2.0",
     "react": "18.2.0",
     "react-avatar-editor": "^13.0.2",
