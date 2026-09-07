@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -33,20 +33,49 @@ function stubViewport({ mobile }: { mobile: boolean }): void {
   );
 }
 
+const LAYOUT_HEIGHT = 800;
+
 /**
- * 模擬軟鍵盤：layout viewport 維持 800px，visual viewport 縮到 500px，
- * 也就是底部有 300px 被鍵盤蓋住。
+ * 模擬軟鍵盤。layout viewport 固定為 800px，visual viewport 則縮掉鍵盤高度 ——
+ * 這正是 Android Chrome 與 iOS Safari 在鍵盤升起時的行為。
+ *
+ * 這個 stub 會真的保存註冊進來的 listener，讓測試可以在渲染之後改變鍵盤高度並
+ * 派送事件，藉此覆蓋 useKeyboardInset 的動態更新路徑。
  */
-function stubKeyboard({ keyboardHeight }: { keyboardHeight: number }): void {
-  const layoutHeight = 800;
-  vi.stubGlobal('innerHeight', layoutHeight);
-  vi.stubGlobal('visualViewport', {
-    height: layoutHeight - keyboardHeight,
+function stubKeyboard({ keyboardHeight }: { keyboardHeight: number }) {
+  const listeners = new Set<() => void>();
+  const viewport = {
+    height: LAYOUT_HEIGHT - keyboardHeight,
     offsetTop: 0,
-    addEventListener() {},
-    removeEventListener() {},
-  });
+    addEventListener(_type: string, listener: () => void) {
+      listeners.add(listener);
+    },
+    removeEventListener(_type: string, listener: () => void) {
+      listeners.delete(listener);
+    },
+  };
+
+  vi.stubGlobal('innerHeight', LAYOUT_HEIGHT);
+  vi.stubGlobal('visualViewport', viewport);
+
+  return {
+    /**
+     * 改變鍵盤高度並派送 visualViewport 事件，模擬鍵盤升起或收起。
+     */
+    setKeyboardHeight(next: number): void {
+      viewport.height = LAYOUT_HEIGHT - next;
+      act(() => {
+        listeners.forEach((listener) => listener());
+      });
+    },
+  };
 }
+
+/**
+ * 面板高度 = 剩餘可視高度的 SHEET_VIEWPORT_RATIO（0.85）。
+ */
+const sheetHeightFor = (keyboardHeight: number): string =>
+  `${Math.round((LAYOUT_HEIGHT - keyboardHeight) * 0.85)}px`;
 
 function Harness({ open = true }: { open?: boolean }) {
   return (
@@ -125,6 +154,30 @@ describe('SearchableSelect', () => {
       expect(sheet).toHaveStyle({ bottom: '300px' });
       // 剩下 500px 可視高度，取 85% = 425px
       expect(sheet).toHaveStyle({ height: '425px' });
+    });
+  });
+
+  it('follows the keyboard up and back down as it opens and closes', async () => {
+    stubViewport({ mobile: true });
+    const keyboard = stubKeyboard({ keyboardHeight: 0 });
+    render(<Harness />);
+
+    const sheet = screen.getByRole('dialog');
+    await waitFor(() => {
+      expect(sheet).toHaveStyle({ bottom: '0px' });
+      expect(sheet).toHaveStyle({ height: sheetHeightFor(0) });
+    });
+
+    keyboard.setKeyboardHeight(300);
+    await waitFor(() => {
+      expect(sheet).toHaveStyle({ bottom: '300px' });
+      expect(sheet).toHaveStyle({ height: sheetHeightFor(300) });
+    });
+
+    keyboard.setKeyboardHeight(0);
+    await waitFor(() => {
+      expect(sheet).toHaveStyle({ bottom: '0px' });
+      expect(sheet).toHaveStyle({ height: sheetHeightFor(0) });
     });
   });
 

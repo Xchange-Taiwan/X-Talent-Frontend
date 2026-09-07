@@ -36,19 +36,23 @@ export function useKeyboardInset(enabled: boolean): KeyboardInset {
     const viewport =
       typeof window === 'undefined' ? null : window.visualViewport;
 
-    if (!enabled || !viewport) {
-      setMetrics(EMPTY);
-      return;
-    }
+    // 停用時保留最後一次量測值，不重設回 EMPTY：面板關閉的當下 Radix 還在播退出
+    // 動畫，這時把 inset 與高度歸零會讓面板先掉到畫面底部、縮成原尺寸再消失。
+    if (!enabled || !viewport) return;
 
     const read = (): void => {
-      setMetrics({
-        inset: Math.max(
-          0,
-          window.innerHeight - viewport.height - viewport.offsetTop
-        ),
-        viewportHeight: viewport.height,
-      });
+      const inset = Math.max(
+        0,
+        window.innerHeight - viewport.height - viewport.offsetTop
+      );
+
+      // visualViewport 的 scroll 觸發得很密集，而其中絕大多數並沒有真的改變量測
+      // 結果。沿用前一個物件參考，讓 React 在數值沒變時直接略過重新渲染。
+      setMetrics((prev) =>
+        prev.inset === inset && prev.viewportHeight === viewport.height
+          ? prev
+          : { inset, viewportHeight: viewport.height }
+      );
     };
 
     read();
