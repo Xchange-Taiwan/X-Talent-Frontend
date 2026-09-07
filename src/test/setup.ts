@@ -16,6 +16,24 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   };
 }
 
+// jsdom doesn't implement matchMedia, which useMediaQuery (and through it
+// SearchableSelect's popover-vs-sheet switch) reads at mount. Reports "no
+// match" so responsive components render their desktop branch under test;
+// suites that need the mobile branch stub window.matchMedia themselves.
+if (typeof window !== 'undefined' && typeof window.matchMedia === 'undefined') {
+  window.matchMedia = (query: string) =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+      dispatchEvent: () => false,
+    }) as unknown as MediaQueryList;
+}
+
 // jsdom doesn't implement the Pointer Capture APIs, which Radix's own
 // swipe-to-dismiss (and our custom left-swipe handling) both rely on.
 // Guarded on HTMLElement itself first: some suites (e.g. scripts/ai-review's

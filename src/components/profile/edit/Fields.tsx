@@ -11,12 +11,9 @@ import {
 
 import { Button } from '@/components/ui/button';
 import {
-  Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
-  CommandList,
 } from '@/components/ui/command';
 import {
   FormControl,
@@ -25,11 +22,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   Select,
   SelectContent,
@@ -172,6 +165,10 @@ export interface ComboboxFieldProps<T extends FieldValues> {
   placeholder?: string;
   searchPlaceholder?: string;
   emptyText?: string;
+  /**
+   * 手機版底部面板的標題。省略時沿用 `placeholder`。
+   */
+  title?: string;
   options: Array<{ label: string; value: string }>;
 }
 
@@ -182,6 +179,9 @@ export interface ComboboxFieldProps<T extends FieldValues> {
  * support), so a several-hundred-option Select forces that many DOM nodes on
  * mount regardless of open state. Popover+Command has no such mirror — its
  * option list only mounts once opened.
+ *
+ * Presentation is delegated to SearchableSelect, which renders a popover on
+ * desktop and a bottom sheet on mobile.
  */
 export const ComboboxField = <T extends FieldValues>({
   form,
@@ -189,6 +189,7 @@ export const ComboboxField = <T extends FieldValues>({
   placeholder = '請選擇',
   searchPlaceholder = '搜尋...',
   emptyText = '沒有符合的選項',
+  title,
   options,
 }: ComboboxFieldProps<T>) => {
   const [open, setOpen] = useState(false);
@@ -201,14 +202,15 @@ export const ComboboxField = <T extends FieldValues>({
         const selected = options.find((opt) => opt.value === field.value);
         return (
           <FormItem>
-            <Popover
+            <SearchableSelect
               open={open}
               onOpenChange={(next) => {
                 setOpen(next);
                 if (!next) field.onBlur();
               }}
-            >
-              <PopoverTrigger asChild>
+              title={title ?? placeholder}
+              searchPlaceholder={searchPlaceholder}
+              trigger={
                 <FormControl>
                   <Button
                     ref={field.ref}
@@ -218,7 +220,7 @@ export const ComboboxField = <T extends FieldValues>({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="hover:bg-background-white hover:text-text-primary w-full justify-between px-3 py-2 text-base font-normal disabled:cursor-not-allowed md:text-sm"
+                    className="w-full justify-between px-3 py-2 text-base font-normal hover:bg-background-white hover:text-text-primary disabled:cursor-not-allowed md:text-sm"
                   >
                     <span className={cn(!selected && 'text-text-tertiary')}>
                       {selected ? selected.label : placeholder}
@@ -226,39 +228,31 @@ export const ComboboxField = <T extends FieldValues>({
                     <ChevronDown className="size-4 shrink-0 opacity-50" />
                   </Button>
                 </FormControl>
-              </PopoverTrigger>
-              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
-                <Command>
-                  <CommandInput placeholder={searchPlaceholder} />
-                  <CommandList>
-                    <CommandEmpty>{emptyText}</CommandEmpty>
-                    <CommandGroup>
-                      {options.map((opt) => (
-                        <CommandItem
-                          key={opt.value}
-                          value={opt.label}
-                          onSelect={() => {
-                            field.onChange(opt.value);
-                            field.onBlur();
-                            setOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              'mr-2 size-4',
-                              opt.value === field.value
-                                ? 'opacity-100'
-                                : 'opacity-0'
-                            )}
-                          />
-                          {opt.label}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+              }
+            >
+              <CommandEmpty>{emptyText}</CommandEmpty>
+              <CommandGroup>
+                {options.map((opt) => (
+                  <CommandItem
+                    key={opt.value}
+                    value={opt.label}
+                    onSelect={() => {
+                      field.onChange(opt.value);
+                      field.onBlur();
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        'mr-2 size-4',
+                        opt.value === field.value ? 'opacity-100' : 'opacity-0'
+                      )}
+                    />
+                    {opt.label}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </SearchableSelect>
             <FormMessage />
           </FormItem>
         );
