@@ -49,16 +49,40 @@ import { cn } from '@/lib/utils';
 import { Section } from '../Section';
 import { taiwanSchools } from './schoolData';
 
-function SchoolComboboxField({
+export function SchoolComboboxField({
   field,
 }: {
   field: { value: string; onChange: (value: string) => void };
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const trimmedSearch = search.trim();
+  const filteredSchools = trimmedSearch
+    ? taiwanSchools.filter((school) => school.includes(trimmedSearch))
+    : taiwanSchools;
+  const isExactMatch = taiwanSchools.some((school) => school === trimmedSearch);
+  const showCreateOption = trimmedSearch.length > 0 && !isExactMatch;
+
+  const selectSchool = (value: string) => {
+    field.onChange(value);
+    setSearch('');
+    setOpen(false);
+  };
+
   return (
     <FormItem className="grow">
       <FormLabel>學校名稱</FormLabel>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          // Closing without an explicit pick (outside click / Escape) discards
+          // whatever was typed rather than silently adopting it as the school
+          // name — avoids turning a search-in-progress into stored data.
+          setSearch('');
+          setOpen(next);
+        }}
+      >
         <PopoverTrigger asChild>
           <FormControl>
             <Button
@@ -75,19 +99,20 @@ function SchoolComboboxField({
           </FormControl>
         </PopoverTrigger>
         <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-          <Command>
-            <CommandInput placeholder="搜尋學校..." />
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="搜尋學校..."
+              value={search}
+              onValueChange={setSearch}
+            />
             <CommandList>
               <CommandEmpty>找不到相符的學校</CommandEmpty>
               <CommandGroup>
-                {taiwanSchools.map((school) => (
+                {filteredSchools.map((school) => (
                   <CommandItem
                     key={school}
                     value={school}
-                    onSelect={(value) => {
-                      field.onChange(value);
-                      setOpen(false);
-                    }}
+                    onSelect={selectSchool}
                   >
                     <Check
                       className={cn(
@@ -98,6 +123,16 @@ function SchoolComboboxField({
                     {school}
                   </CommandItem>
                 ))}
+                {showCreateOption && (
+                  <CommandItem
+                    key="__create_school__"
+                    value={trimmedSearch}
+                    onSelect={() => selectSchool(trimmedSearch)}
+                  >
+                    <PlusIcon className="mr-2 size-4" />
+                    新增「{trimmedSearch}」
+                  </CommandItem>
+                )}
               </CommandGroup>
             </CommandList>
           </Command>
@@ -268,7 +303,7 @@ export const EducationSection = ({
             </div>
 
             {invalidPeriod && (
-              <p className="text-status-error-default mb-4 text-sm font-medium">
+              <p className="mb-4 text-sm font-medium text-status-error-default">
                 開始年份不可大於結束年份
               </p>
             )}
@@ -292,14 +327,14 @@ export const EducationSection = ({
 
       <Button
         variant="ghost"
-        className="text-brand-500 rounded-full px-4 py-3"
+        className="rounded-full px-4 py-3 text-brand-500"
         onClick={addEducation}
       >
         <PlusIcon className="mr-2 size-5" />
         新增
       </Button>
       {errors.educations?.message && (
-        <p className="text-status-error-default mt-2 text-sm font-medium">
+        <p className="mt-2 text-sm font-medium text-status-error-default">
           {errors.educations?.message as string}
         </p>
       )}
