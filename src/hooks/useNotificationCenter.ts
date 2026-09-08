@@ -103,10 +103,14 @@ export function useNotificationCenter({
     return httpNotificationSource;
   }, [notificationSource, initialNotifications]);
 
-  const sourceRef = React.useRef(actualSource);
+  // The model (notificationStoreManager) owns the NotificationSource for
+  // this store key - hand it off on mount and whenever it changes, instead
+  // of threading it through every operation. useIsomorphicLayoutEffect
+  // (rather than a plain effect) keeps this write ordered before any
+  // same-commit passive effect (e.g. loadUnreadCount below) reads it.
   useIsomorphicLayoutEffect(() => {
-    sourceRef.current = actualSource;
-  }, [actualSource]);
+    notificationStoreManager.setSource(userId, actualSource);
+  }, [userId, actualSource]);
 
   // Semantic variables to avoid duplication and clarify intents.
   // Environment-specific behavior is asked of the installed source rather
@@ -205,7 +209,7 @@ export function useNotificationCenter({
       notificationStoreManager.startLoadMore(userId);
 
       try {
-        const res = await sourceRef.current.listNotifications(
+        const res = await actualSource.listNotifications(
           effectiveUserId,
           state.nextCursor,
           20
@@ -228,7 +232,7 @@ export function useNotificationCenter({
         notificationStoreManager.completeLoadMore(userId);
       }
     },
-    [userId, effectiveUserId, shouldSkipFetch, toast]
+    [userId, effectiveUserId, shouldSkipFetch, toast, actualSource]
   );
 
   // Load just the unread badge count - cheap, and safe to fire on every
@@ -248,7 +252,7 @@ export function useNotificationCenter({
       userId,
       async () => {
         try {
-          const res = await sourceRef.current.getUnreadCount(effectiveUserId);
+          const res = await actualSource.getUnreadCount(effectiveUserId);
           return res.unread_count;
         } catch (error) {
           reportFailure(
@@ -260,7 +264,7 @@ export function useNotificationCenter({
         }
       }
     );
-  }, [userId, effectiveUserId, shouldSkipFetch]);
+  }, [userId, effectiveUserId, shouldSkipFetch, actualSource]);
 
   // Load initial notifications and unread count from service
   const loadInitialData = React.useCallback(
@@ -272,8 +276,8 @@ export function useNotificationCenter({
         showLoading,
         async () => {
           const [unreadRes, notificationsRes] = await Promise.all([
-            sourceRef.current.getUnreadCount(effectiveUserId),
-            sourceRef.current.listNotifications(effectiveUserId, undefined, 20),
+            actualSource.getUnreadCount(effectiveUserId),
+            actualSource.listNotifications(effectiveUserId, undefined, 20),
           ]);
           return {
             unreadCount: unreadRes.unread_count,
@@ -298,7 +302,7 @@ export function useNotificationCenter({
         }
       );
     },
-    [userId, effectiveUserId, shouldSkipFetch, toast]
+    [userId, effectiveUserId, shouldSkipFetch, toast, actualSource]
   );
 
   React.useEffect(() => {
@@ -396,7 +400,7 @@ export function useNotificationCenter({
         onMarkRead ||
         (canMutate
           ? (notifId: string) =>
-              sourceRef.current.markOneRead(effectiveUserId, notifId)
+              actualSource.markOneRead(effectiveUserId, notifId)
           : null);
       if (!action) {
         notificationStoreManager.completeMarkRead(userId, id);
@@ -418,7 +422,7 @@ export function useNotificationCenter({
         });
       }
     },
-    [userId, effectiveUserId, canMutate, onMarkRead, toast]
+    [userId, effectiveUserId, canMutate, onMarkRead, toast, actualSource]
   );
 
   const markAllReadAction = React.useCallback(async () => {
@@ -454,7 +458,7 @@ export function useNotificationCenter({
           });
         }
       } else if (canMutate) {
-        await sourceRef.current.markAllRead(effectiveUserId);
+        await actualSource.markAllRead(effectiveUserId);
       }
     } catch (error) {
       reportMarkAsReadFailure('mark_all_read', error);
@@ -469,20 +473,27 @@ export function useNotificationCenter({
     } finally {
       notificationStoreManager.completeMarkAllRead(userId);
     }
-  }, [userId, effectiveUserId, canMutate, onMarkRead, onMarkAllRead, toast]);
+  }, [
+    userId,
+    effectiveUserId,
+    canMutate,
+    onMarkRead,
+    onMarkAllRead,
+    toast,
+    actualSource,
+  ]);
 
   const handleRetry = React.useCallback(() => {
     notificationStoreManager.startRetry(userId);
 
-    const source = sourceRef.current;
-    if (!source.retry) {
+    if (!actualSource.retry) {
       loadInitialData(true);
       return;
     }
 
     retryTokenRef.current += 1;
     const token = retryTokenRef.current;
-    void source
+    void actualSource
       .retry(effectiveUserId)
       .then((notifications) => {
         if (retryTokenRef.current !== token) return;
@@ -501,7 +512,7 @@ export function useNotificationCenter({
         reportFailure('notification_retry', 'source_retry', error);
         notificationStoreManager.failRetry(userId);
       });
-  }, [userId, effectiveUserId, loadInitialData]);
+  }, [userId, effectiveUserId, loadInitialData, actualSource]);
 
   const showBadge = isMounted && badgeCount > storeState.seenUnreadCount;
   const formattedCount = badgeCount > 99 ? '99+' : String(badgeCount);
