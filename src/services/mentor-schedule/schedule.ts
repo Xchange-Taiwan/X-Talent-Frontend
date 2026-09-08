@@ -11,13 +11,20 @@ export type TimeSlotDTO = components['schemas']['TimeSlotDTO'];
 export type SegmentVO = TimeSlotDTO;
 export type ScheduleData = components['schemas']['MentorScheduleQueryVO'];
 
+/**
+ * `signal` lets a caller cancel the request when the month it belongs to is
+ * no longer the one being viewed. A cancelled request lands in the same
+ * catch as any other failure and resolves to an empty schedule; callers that
+ * need to tell cancellation apart must check the signal themselves.
+ */
 export async function fetchMentorSchedule(
-  param: ScheduleRequest
+  param: ScheduleRequest,
+  signal?: AbortSignal
 ): Promise<ScheduleData> {
   try {
     const data = await apiClient.getUnwrapped<ScheduleData>(
       `/v1/mentors/${param.userId}/schedule/y/${param.year}/m/${param.month}`,
-      { auth: false }
+      { auth: false, ...(signal ? { signal } : {}) }
     );
     return data ?? ({} as ScheduleData);
   } catch {

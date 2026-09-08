@@ -14,6 +14,12 @@ import {
   useSyncExternalStore,
 } from 'react';
 
+import { useAsyncRead } from '@/hooks/useAsyncRead';
+import type { AsyncReadOptions } from '@/lib/asyncReadManager';
+import {
+  type ScheduleReadKey,
+  scheduleReadModel,
+} from '@/lib/mentor-schedule/scheduleReadModel';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   BookingCalendarReader,
@@ -26,25 +32,20 @@ import {
 import { MonthDraftStore } from '@/lib/profile/MonthDraftStore';
 import {
   formatTimeslot,
-  MonthKey,
   monthKeyFromYearMonth,
   parseMonthKey,
   RawMentorTimeslot,
 } from '@/lib/profile/scheduleHelpers';
 import {
+  type FetchReservationsResult,
   MENTOR_SCHEDULE_RESERVATIONS_TTL_MS,
   type ReservationReadKey,
   reservationReadModel,
 } from '@/lib/reservation/reservationReadModel';
 import {
-  clearScheduleCache,
-  scheduleCache,
-} from '@/services/mentor-schedule/scheduleCache';
-import {
-  loadMonthScheduleCached,
+  loadMonthSchedule,
   loadMonthScheduleFresh,
   prefetchMonthSchedule,
-  ScheduleMonthRef,
   syncMonths,
   SyncResult,
 } from '@/services/mentor-schedule/sync';
@@ -59,6 +60,16 @@ import type { Reservation } from '@/types/reservation';
 // mutate before), so fall back to useEffect there to avoid React's dev warning.
 const useIsomorphicLayoutEffect =
   typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
+// See MENTOR_SCHEDULE_RESERVATIONS_TTL_MS: this calendar's reservation slots
+// can go stale from the other party's action with no local write to catch
+// it, so they expire on their own. Hoisted to module scope because
+// `useAsyncRead` keeps the options object in a ref - a fresh literal per
+// render would be pointless churn.
+const RESERVATIONS_READ_OPTIONS: AsyncReadOptions<
+  ReservationReadKey,
+  FetchReservationsResult
+> = { ttlMs: MENTOR_SCHEDULE_RESERVATIONS_TTL_MS };
 
 type Options = {
   backend: {
@@ -90,7 +101,7 @@ export type UseMentorScheduleReturn = {
    * Full, unfiltered draft occurrences across all types (ALLOW/BOOKED/
    * PENDING/FORBIDDEN), sorted chronologically. Page-level orchestration
    * only (e.g. auto-selecting the calendar's first available date on load)
-   * — not part of either narrow domain interface below, since neither the
+   * - not part of either narrow domain interface below, since neither the
    * reader nor the editor needs the *unfiltered* draft.
    */
   parsedDraft: ParsedMentorTimeslot[];
@@ -102,7 +113,7 @@ export type UseMentorScheduleReturn = {
   /**
    * The stateful view a mentor uses to manage and sync their own available
    * slots. Only non-null when `loginUserId` matches `backend.userId` (the
-   * viewer is managing their own schedule) — a mentee or visitor never
+   * viewer is managing their own schedule) - a mentee or visitor never
    * receives this.
    */
   editor: MentorScheduleEditor | null;
@@ -110,14 +121,16 @@ export type UseMentorScheduleReturn = {
 
 export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   const { backend, loginUserId, includeBookedDates = false } = opts;
-  const backendRef = useRef(backend);
-  useIsomorphicLayoutEffect(() => {
-    backendRef.current = backend;
-  }, [backend]);
 
-  // External standalone MonthDraftStore for cross-month states and synchronization logic
+  // External standalone MonthDraftStore for cross-month states and
+  // synchronization logic. It reads already-cached months straight off the
+  // read model (a cross-month edit needs the target month's rows, and can
+  // only proceed if they are already there) - never a fetch of its own.
   const [store] = useState(
-    () => new MonthDraftStore(undefined, { loadMonthScheduleCached })
+    () =>
+      new MonthDraftStore(undefined, {
+        getCachedMonthSchedule: (ref) => scheduleReadModel.get(ref),
+      })
   );
 
   const storeState = useSyncExternalStore(
@@ -128,310 +141,230 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
   const { dirtyMonths, allDraftSlots: allDraftRaws } = storeState;
 
-  const isMountedRef = useRef(true);
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
-
   const [loaded, setLoaded] = useState(false);
-  const [monthLoaded, setMonthLoaded] = useState(false);
-  const [isFetching, setIsFetching] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(
     dayjs().format('YYYY-MM-DD')
   );
-  const [hasError, setHasError] = useState(false);
+  // Purely a presentation flag for a *user-triggered* reload (the calendar's
+  // retry button, or a quick-reply accept/reject). The read model only reports
+  // `isLoading` to the reader that asked for the refresh, and here that is
+  // `reloadSchedule` rather than this render - so without this the retry
+  // button would leave the error state on screen with no feedback at all
+  // until the response landed. It says nothing about staleness or mounting:
+  // whose response is allowed to win is entirely the read model's business.
+  const [isReloadingSchedule, setIsReloadingSchedule] = useState(false);
 
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  // Tracks the reservations fetch specifically (separate from monthLoaded,
-  // which only reflects the schedule/draft fetch). A booked slot's `status`
-  // comes from the schedule fetch and can resolve before this one, so a
-  // dot/label can show PENDING while `slot.reservation` (matched from
-  // `reservations`) is still unset — most visibly right after this hook
-  // remounts (e.g. navigating back to the profile page), which restarts both
-  // fetches from scratch. Callers must gate any "click a booked slot" UI on
-  // this flag too, not just monthLoaded, or a fast click in that window can
-  // read a PENDING slot with no `reservation` attached yet and misfire
-  // whatever fallback that caller has for "no reservation".
-  const [reservationsLoaded, setReservationsLoaded] = useState(false);
+  const currentMonthKey = monthKeyFromYearMonth(backend.year, backend.month);
 
-  const isStale = useCallback(
-    (start: { userId: string; year: number; month: number }) => {
-      return (
-        backendRef.current.userId !== start.userId ||
-        backendRef.current.year !== start.year ||
-        backendRef.current.month !== start.month ||
-        !isMountedRef.current
-      );
-    },
-    []
+  // The viewer only manages their own schedule when they're logged in as the
+  // profile being viewed - a mentee/visitor (loginUserId unset or pointing
+  // at someone else) must never receive the editor below.
+  const isOwner = !!loginUserId && loginUserId === backend.userId;
+
+  // --------------------------------------------------------------------
+  // Month schedule
+  // --------------------------------------------------------------------
+
+  // useAsyncRead compares keys by reference to detect a "key changed" edge
+  // during render, so this must stay referentially stable across renders
+  // when (userId, year, month) hasn't actually changed - hence useMemo
+  // rather than a fresh object literal per render.
+  const scheduleKey = useMemo<ScheduleReadKey | null>(
+    () =>
+      backend.userId && backend.year && backend.month
+        ? { userId: backend.userId, year: backend.year, month: backend.month }
+        : null,
+    [backend.userId, backend.year, backend.month]
   );
 
-  // The mount-effect fetch below and reloadReservations() are two
-  // independent async flows that both resolve to "the reservations for the
-  // current (userId, year, month)" - isStale() alone can't tell them apart,
-  // since a mutation-triggered reload() can start and finish entirely while
-  // an in-flight mount-effect fetch (same identity, just slower) is still
-  // pending. Without a generation counter, that slower fetch's eventual
-  // resolution would look "not stale" to isStale() and overwrite both
-  // `reservations` and the shared cache with pre-mutation data. Each flow
-  // claims the next id before starting; isReservationFetchStale() rejects
-  // any flow whose id was superseded by a later one, regardless of which
-  // resolves first.
-  const reservationFetchIdRef = useRef(0);
-  const isReservationFetchStale = useCallback(
-    (start: {
-      userId: string;
-      year: number;
-      month: number;
-      fetchId: number;
-    }) => {
-      return isStale(start) || reservationFetchIdRef.current !== start.fetchId;
+  const fetchMonthRaws = useCallback(
+    async (signal: AbortSignal): Promise<RawMentorTimeslot[]> => {
+      // Unreachable in practice: the read model only ever runs this for a
+      // key it was subscribed with, and a null key is never subscribed.
+      if (!scheduleKey) return [];
+      return loadMonthSchedule(scheduleKey, signal);
     },
-    [isStale]
+    [scheduleKey]
   );
 
+  // Cache hits, in-flight de-duplication, cancelling the previous month's
+  // request on a swipe, and discarding a response whose account/month is no
+  // longer on screen are all MentorScheduleReadModel's job - this hook holds
+  // no staleness bookkeeping of its own.
+  const scheduleRead = useAsyncRead(
+    scheduleReadModel,
+    scheduleKey,
+    fetchMonthRaws
+  );
+  const monthRaws = scheduleRead.data;
+
+  const monthLoaded =
+    scheduleKey !== null && !scheduleRead.isLoading && !isReloadingSchedule;
+  const isFetching = scheduleRead.isLoading || isReloadingSchedule;
+  const hasError = !isReloadingSchedule && scheduleRead.error !== null;
+
+  // Mirror whatever the read model published for the viewed month into the
+  // draft store. `reloadMonth` (rather than `ensureMonthLoaded`) is correct
+  // for both entry points here: for a clean month the two are identical, and
+  // for a dirty one the published rows are always genuinely newer than what
+  // the draft was based on - the read model only republishes a month after a
+  // save, a discard, or an explicit reload - so rebasing the unsaved edits on
+  // top of them is exactly what's wanted. The reference check skips the
+  // no-op case where the store is already sitting on these very rows (e.g.
+  // swiping back to an already-loaded month), which would otherwise churn
+  // every downstream memo for nothing.
   useEffect(() => {
-    if (
-      !loginUserId ||
-      loginUserId !== backend.userId ||
-      !backend.year ||
-      !backend.month
-    ) {
-      setReservations((prev) => (prev.length === 0 ? prev : []));
-      setReservationsLoaded(true);
+    if (monthRaws === null) return;
+    if (store.snapshot().savedByMonth.get(currentMonthKey) === monthRaws) {
       return;
     }
+    store.reloadMonth(currentMonthKey, monthRaws);
+  }, [monthRaws, currentMonthKey, store]);
 
-    const startSnapshot = {
-      userId: backend.userId,
-      year: backend.year,
-      month: backend.month,
-      fetchId: ++reservationFetchIdRef.current,
-    };
-    setReservationsLoaded(false);
-    // Native Date(year, monthIndex, day) rather than dayjs's string parser:
-    // Safari's Date.parse rejects unpadded YYYY-M-DD strings (e.g. '2026-7-01')
-    // as Invalid Date, which would make endOfMonthUnix NaN and defeat the
-    // `res.next_dtend >= endOfMonthUnix` pagination-loop guard below.
-    const endOfMonthUnix = dayjs(new Date(backend.year, backend.month - 1, 1))
-      .endOf('month')
-      .unix();
+  // Sticky across month changes: once anything has resolved, first-paint
+  // skeletons are done for good (until an account switch resets it below).
+  useEffect(() => {
+    if (scheduleRead.data !== null || scheduleRead.error !== null) {
+      setLoaded(true);
+    }
+  }, [scheduleRead.data, scheduleRead.error]);
 
-    // Serve an unexpired cache hit instantly (e.g. swiping A -> B -> A within
-    // the TTL window) instead of re-running the paginated fetch; a miss falls
-    // through to the network and primes the cache for next time. See
-    // MENTOR_SCHEDULE_RESERVATIONS_TTL_MS for why this window is short.
-    const fetchReservationsForState = async (
-      state: ReservationState
-    ): Promise<Reservation[]> => {
-      const key: ReservationReadKey = {
-        userId: loginUserId,
-        state,
-        endOfMonthUnix,
-      };
-      const cached = reservationReadModel.get(key);
-      if (cached !== undefined) return cached.items;
-      const items = await fetchAllReservationsForState(
-        loginUserId,
-        state,
-        endOfMonthUnix
-      );
-      // A concurrent reload() (e.g. from an accept/reject mutation) can
-      // clear and re-prime this same key while this fetch was in flight -
-      // writing this now-superseded response back would clobber the
-      // reload's fresher data in the shared cache, not just in local state.
-      if (isReservationFetchStale(startSnapshot)) return items;
-      reservationReadModel.set(
-        key,
-        { items, next_dtend: 0 },
-        MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
-      );
-      return items;
-    };
+  // --------------------------------------------------------------------
+  // Reservations for the viewed month
+  // --------------------------------------------------------------------
 
-    const fetchAll = async () => {
+  // Native Date(year, monthIndex, day) rather than dayjs's string parser:
+  // Safari's Date.parse rejects unpadded YYYY-M-DD strings (e.g. '2026-7-01')
+  // as Invalid Date, which would make endOfMonthUnix NaN and defeat the
+  // `res.next_dtend >= endOfMonthUnix` pagination-loop guard downstream.
+  const endOfMonthUnix = useMemo(
+    () =>
+      backend.year && backend.month
+        ? dayjs(new Date(backend.year, backend.month - 1, 1))
+            .endOf('month')
+            .unix()
+        : 0,
+    [backend.year, backend.month]
+  );
+
+  const reservationsActive = isOwner && !!backend.year && !!backend.month;
+
+  const upcomingKey = useMemo<ReservationReadKey | null>(
+    () =>
+      reservationsActive && loginUserId
+        ? { userId: loginUserId, state: 'MENTOR_UPCOMING', endOfMonthUnix }
+        : null,
+    [reservationsActive, loginUserId, endOfMonthUnix]
+  );
+  const pendingKey = useMemo<ReservationReadKey | null>(
+    () =>
+      reservationsActive && loginUserId
+        ? { userId: loginUserId, state: 'MENTOR_PENDING', endOfMonthUnix }
+        : null,
+    [reservationsActive, loginUserId, endOfMonthUnix]
+  );
+
+  const createReservationsFetcher = useCallback(
+    (state: ReservationState) => async (): Promise<FetchReservationsResult> => {
+      if (!loginUserId) return { items: [], next_dtend: 0 };
       try {
-        const [upcoming, pending] = await Promise.all([
-          fetchReservationsForState('MENTOR_UPCOMING'),
-          fetchReservationsForState('MENTOR_PENDING'),
-        ]);
-        if (isReservationFetchStale(startSnapshot)) return;
-        setReservations((prev) =>
-          prev.length === 0 && upcoming.length === 0 && pending.length === 0
-            ? prev
-            : [...upcoming, ...pending]
+        const items = await fetchAllReservationsForState(
+          loginUserId,
+          state,
+          endOfMonthUnix
         );
-        // Deliberately set only on this success path, not in a `finally`
-        // (finally always runs, catch or no catch, so putting it there
-        // would mark reservationsLoaded true even after the catch below —
-        // exactly the "loaded but incomplete" state this flag exists to
-        // prevent callers from acting on). If this effect never resolves
-        // successfully, reservationsLoaded correctly stays false, keeping
-        // the "已預約" section on its loading state rather than rendering
-        // slots whose `.reservation` was never actually fetched.
-        setReservationsLoaded(true);
+        return { items, next_dtend: 0 };
       } catch (err) {
-        // fetchAllReservationsForState already swallows its own fetch
-        // errors internally (returning whatever it collected before
-        // failing, never rejecting), so this only fires for something
-        // unexpected elsewhere in the try block — defense-in-depth,
-        // matching reloadReservations' handling below.
-        if (isReservationFetchStale(startSnapshot)) return;
+        // fetchAllReservationsForState already swallows its own fetch errors
+        // internally (returning whatever it collected before failing, never
+        // rejecting), so this only fires for something unexpected -
+        // defense-in-depth. Rethrowing keeps the read model's result in the
+        // error state, which is what holds `reservationsLoaded` false.
         captureFlowFailure({
           flow: 'mentor_schedule_fetch_reservations',
           step: 'fetch_all_reservations',
           message: err instanceof Error ? err.message : String(err),
           level: 'warning',
         });
+        throw err;
       }
-    };
+    },
+    [loginUserId, endOfMonthUnix]
+  );
 
-    fetchAll();
-  }, [
-    loginUserId,
-    backend.userId,
-    backend.year,
-    backend.month,
-    isReservationFetchStale,
-  ]);
+  const fetchUpcoming = useMemo(
+    () => createReservationsFetcher('MENTOR_UPCOMING'),
+    [createReservationsFetcher]
+  );
+  const fetchPending = useMemo(
+    () => createReservationsFetcher('MENTOR_PENDING'),
+    [createReservationsFetcher]
+  );
 
-  const currentMonthKey = monthKeyFromYearMonth(backend.year, backend.month);
+  const upcomingRead = useAsyncRead(
+    reservationReadModel,
+    upcomingKey,
+    fetchUpcoming,
+    RESERVATIONS_READ_OPTIONS
+  );
+  const pendingRead = useAsyncRead(
+    reservationReadModel,
+    pendingKey,
+    fetchPending,
+    RESERVATIONS_READ_OPTIONS
+  );
 
-  // Mirror dirtyMonths into a ref so the load effect's per-month dirty guard
-  // sees the latest value without re-subscribing.
-  const dirtyMonthsRef = useRef<Set<MonthKey>>(dirtyMonths);
-  useEffect(() => {
-    dirtyMonthsRef.current = dirtyMonths;
-  }, [dirtyMonths]);
+  const reservations = useMemo<Reservation[]>(
+    () => [
+      ...(upcomingRead.data?.items ?? []),
+      ...(pendingRead.data?.items ?? []),
+    ],
+    [upcomingRead.data, pendingRead.data]
+  );
 
-  // Drop everything when the backend user changes — buffers belong to a
+  // Tracks the reservations read specifically (separate from monthLoaded,
+  // which only reflects the schedule/draft read). A booked slot's `status`
+  // comes from the schedule read and can resolve before this one, so a
+  // dot/label can show PENDING while `slot.reservation` (matched from
+  // `reservations`) is still unset - most visibly right after this hook
+  // remounts (e.g. navigating back to the profile page), which restarts both
+  // reads from scratch. Callers must gate any "click a booked slot" UI on
+  // this flag too, not just monthLoaded, or a fast click in that window can
+  // read a PENDING slot with no `reservation` attached yet and misfire
+  // whatever fallback that caller has for "no reservation". A failed read
+  // deliberately leaves this false rather than "loaded but incomplete".
+  const reservationsLoaded =
+    upcomingKey === null || pendingKey === null
+      ? true
+      : upcomingRead.data !== null && pendingRead.data !== null;
+
+  // --------------------------------------------------------------------
+  // Account switch
+  // --------------------------------------------------------------------
+
+  // Drop everything when the backend user changes - buffers belong to a
   // specific user. prevUserIdRef is only ever written post-commit (inside
-  // the layout effect below), never during render — writing a ref during
+  // the layout effect below), never during render - writing a ref during
   // render is unsafe under Concurrent Mode, since a render React later
   // discards would still have mutated it. In-flight async work in
   // confirmChanges/resetChanges reads this ref after its await to detect an
   // account switch that happened mid-flight, so a stale response for the
-  // old user never overwrites the store the new user is looking at.
+  // old user never overwrites the draft store the new user is looking at.
+  // (The *read* paths need no such check: their keys carry the userId, so a
+  // late response can only ever land on the account it belongs to.)
   const prevUserIdRef = useRef<string | null>(null);
   useIsomorphicLayoutEffect(() => {
     if (
       prevUserIdRef.current !== null &&
       prevUserIdRef.current !== backend.userId
     ) {
-      scheduleCache.clear();
+      scheduleReadModel.clear();
       reservationReadModel.clear();
       store.clearAll();
       setLoaded(false);
     }
     prevUserIdRef.current = backend.userId;
   }, [backend.userId, store]);
-
-  const fetchMonthSchedule = useCallback(
-    async (isForced = false) => {
-      if (!backend.userId || !backend.year || !backend.month) return;
-      const startSnapshot = {
-        userId: backend.userId,
-        year: backend.year,
-        month: backend.month,
-      };
-      const monthKey = currentMonthKey;
-      const ref: ScheduleMonthRef = {
-        userId: backend.userId,
-        year: backend.year,
-        month: backend.month,
-      };
-
-      const apply = (raws: RawMentorTimeslot[]) => {
-        if (isForced) {
-          store.reloadMonth(monthKey, raws);
-        } else {
-          store.ensureMonthLoaded(monthKey, raws);
-        }
-      };
-
-      const hasBuffer = store.snapshot().draftByMonth.has(monthKey);
-      const { cached, revalidate } = loadMonthScheduleCached(ref);
-
-      if (hasBuffer && !isForced) {
-        setLoaded(true);
-        setMonthLoaded(true);
-        setHasError(false);
-        return;
-      }
-
-      if (cached && !isForced) {
-        apply(cached);
-        setLoaded(true);
-        setMonthLoaded(true);
-        setHasError(false);
-      } else {
-        setMonthLoaded(false);
-        setIsFetching(true);
-        setHasError(false);
-      }
-
-      try {
-        const raws = await revalidate;
-
-        if (isStale(startSnapshot)) return;
-        if (dirtyMonthsRef.current.has(monthKey) && !isForced) return;
-
-        if (
-          cached &&
-          !isForced &&
-          JSON.stringify(cached) === JSON.stringify(raws)
-        ) {
-          setLoaded(true);
-          setMonthLoaded(true);
-          setHasError(false);
-          return;
-        }
-
-        apply(raws ?? []);
-        setLoaded(true);
-        setMonthLoaded(true);
-        setHasError(false);
-      } catch (err) {
-        if (isStale(startSnapshot)) return;
-        if (!cached || isForced) {
-          setHasError(true);
-          setLoaded(true);
-          setMonthLoaded(true);
-        }
-        if (isForced) {
-          captureFlowFailure({
-            flow: 'mentor_schedule_reload_schedule',
-            step: 'reload_month_schedule_fresh',
-            message: err instanceof Error ? err.message : String(err),
-            level: 'warning',
-          });
-        }
-      } finally {
-        if (!isStale(startSnapshot)) {
-          setIsFetching(false);
-        }
-      }
-    },
-    [
-      backend.userId,
-      backend.year,
-      backend.month,
-      currentMonthKey,
-      store,
-      isStale,
-    ]
-  );
-
-  // Load the currently-viewed month into the buffer lazily. Months that are
-  // already buffered (clean OR dirty) are not re-applied: the per-month dirty
-  // guard inside `apply` protects unsaved edits even if a stale revalidate
-  // resolves later. Background revalidate still updates clean months silently.
-  useEffect(() => {
-    fetchMonthSchedule();
-  }, [fetchMonthSchedule]);
 
   // Prefetch the next month after the current month finishes loading, so
   // forward navigation hits cache. Past months are intentionally skipped.
@@ -450,6 +383,10 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     }, 0);
     return () => clearTimeout(handle);
   }, [loaded, backend.userId, backend.year, backend.month]);
+
+  // --------------------------------------------------------------------
+  // Derived view models
+  // --------------------------------------------------------------------
 
   const parsedDraft = useMemo(() => {
     const formatted = allDraftRaws.flatMap(formatTimeslot);
@@ -494,7 +431,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
   // Bundles the selected date's slots with the two flags that gate whether
   // it's safe to render/interact with them, so callers (e.g. the profile
   // page UI) don't need to know how to call generateBookingSlots
-  // themselves or which flags travel with its result — see SlotsSnapshot.
+  // themselves or which flags travel with its result - see SlotsSnapshot.
   const slotsSnapshot = useMemo<SlotsSnapshot>(
     () => ({
       slots: selectedDate ? generateBookingSlots(selectedDate) : [],
@@ -509,6 +446,10 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       (dateKey: string) => bookingStatusByDate.get(dateKey) ?? null,
       [bookingStatusByDate]
     );
+
+  // --------------------------------------------------------------------
+  // Draft mutations
+  // --------------------------------------------------------------------
 
   const addSlotForSelectedDate: MentorScheduleEditor['addSlotForSelectedDate'] =
     useCallback(
@@ -552,8 +493,8 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
 
     // The user may have switched accounts while syncMonths was in flight
     // (which resets the store to the new user's empty buffers). Skip only
-    // the commit in that case — writing the old user's results into that
-    // store would corrupt it — but still report the real outcome below so a
+    // the commit in that case - writing the old user's results into that
+    // store would corrupt it - but still report the real outcome below so a
     // genuine save failure isn't swallowed as a false success.
     if (prevUserIdRef.current === userIdAtStart) {
       store.commit(results);
@@ -576,7 +517,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     const userIdAtStart = backend.userId;
     // Captured synchronously, before the await below, so a fast
     // A -> B -> A account switch during the refetch can't read this back
-    // as B's (or an intervening clearAll's empty) savedByMonth — only to
+    // as B's (or an intervening clearAll's empty) savedByMonth - only to
     // find prevUserIdRef back at A and wrongly treat that empty state as
     // "A has no saved data" once the catch fallback runs.
     const originalSaved = new Map(store.snapshot().savedByMonth);
@@ -618,47 +559,28 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backend.userId, dirtyMonths, store]);
 
-  const reloadReservations = useCallback(async () => {
-    if (
-      !loginUserId ||
-      loginUserId !== backend.userId ||
-      !backend.year ||
-      !backend.month
-    ) {
-      return;
-    }
-    const startSnapshot = {
-      userId: backend.userId,
-      year: backend.year,
-      month: backend.month,
-      fetchId: ++reservationFetchIdRef.current,
-    };
-    const endOfMonthUnix = dayjs(new Date(backend.year, backend.month - 1, 1))
-      .endOf('month')
-      .unix();
+  // --------------------------------------------------------------------
+  // Reload
+  // --------------------------------------------------------------------
 
-    // Neither this month's cache entry nor any other surface's is touched
-    // by hand here any more (X-Tracker #651): the write path itself
-    // (acceptReservation / rejectOrCancelReservation / createReservation,
-    // see invalidateReservationRead) is what invalidates the reads its own
-    // mutation actually affects. This reload just re-fetches this hook's
-    // own current month unconditionally (fetchAllReservationsForState never
-    // reads the cache) and re-primes it on success below - a plain write,
+  const reloadReservations = useCallback(async () => {
+    if (!upcomingKey || !pendingKey || !loginUserId) return;
+
+    // Neither this month's cache entry nor any other surface's is touched by
+    // hand here (X-Tracker #651): the write path itself (acceptReservation /
+    // rejectOrCancelReservation / createReservation, see
+    // invalidateReservationRead) is what invalidates the reads its own
+    // mutation actually affects. This reload just re-fetches this hook's own
+    // current month unconditionally and re-primes it below - a plain write,
     // not an invalidation - so this view reflects its own mutation
     // immediately instead of waiting out MENTOR_SCHEDULE_RESERVATIONS_TTL_MS.
     // A failed fetch simply leaves whatever was cached before untouched,
     // bounded by that same TTL rather than evicted outright.
-    const upcomingKey = {
-      userId: loginUserId,
-      state: 'MENTOR_UPCOMING' as const,
-      endOfMonthUnix,
-    };
-    const pendingKey = {
-      userId: loginUserId,
-      state: 'MENTOR_PENDING' as const,
-      endOfMonthUnix,
-    };
-
+    //
+    // Each write is addressed by its own (user, state, month) key and cancels
+    // whatever fetch was in flight for it, so a slower competing read - the
+    // mount read for this very month, say - can neither win the race nor
+    // leak into a month or an account the user has since moved on to.
     try {
       const [upcoming, pending] = await Promise.all([
         fetchAllReservationsForState(
@@ -672,9 +594,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
           endOfMonthUnix
         ),
       ]);
-      if (isReservationFetchStale(startSnapshot)) return;
-      // Re-prime just this month so a subsequent swipe back to it within
-      // the TTL still avoids one extra fetch.
       reservationReadModel.set(
         upcomingKey,
         { items: upcoming, next_dtend: 0 },
@@ -685,9 +604,7 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         { items: pending, next_dtend: 0 },
         MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
       );
-      setReservations([...upcoming, ...pending]);
     } catch (err) {
-      if (isReservationFetchStale(startSnapshot)) return;
       captureFlowFailure({
         flow: 'mentor_schedule_reload_reservations',
         step: 'reload_reservations_for_state',
@@ -695,33 +612,40 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
         level: 'warning',
       });
     }
-  }, [
-    loginUserId,
-    backend.userId,
-    backend.year,
-    backend.month,
-    isReservationFetchStale,
-  ]);
+  }, [upcomingKey, pendingKey, loginUserId, endOfMonthUnix]);
 
   const reloadSchedule = useCallback(async () => {
-    await fetchMonthSchedule(true);
-  }, [fetchMonthSchedule]);
+    if (!scheduleKey) return;
+    setIsReloadingSchedule(true);
+    try {
+      const published = await scheduleReadModel.refresh(
+        scheduleKey,
+        fetchMonthRaws
+      );
+      // `null` means the refresh never published - its month was cleared or
+      // overwritten mid-flight (an account switch), so there is no failure to
+      // report and nothing the user can act on.
+      if (published?.error) {
+        captureFlowFailure({
+          flow: 'mentor_schedule_reload_schedule',
+          step: 'reload_month_schedule_fresh',
+          message: published.error,
+          level: 'warning',
+        });
+      }
+    } finally {
+      setIsReloadingSchedule(false);
+    }
+  }, [scheduleKey, fetchMonthRaws]);
 
   const reload = useCallback(async () => {
-    if (!backend.userId || !backend.year || !backend.month) return;
-    clearScheduleCache({
-      userId: backend.userId,
-      year: backend.year,
-      month: backend.month,
-    });
+    if (!scheduleKey) return;
     await Promise.all([reloadReservations(), reloadSchedule()]);
-  }, [
-    backend.userId,
-    backend.year,
-    backend.month,
-    reloadReservations,
-    reloadSchedule,
-  ]);
+  }, [scheduleKey, reloadReservations, reloadSchedule]);
+
+  // --------------------------------------------------------------------
+  // Public interfaces
+  // --------------------------------------------------------------------
 
   const reader: BookingCalendarReader = useMemo(
     () => ({
@@ -748,11 +672,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       hasError,
     ]
   );
-
-  // The viewer only manages their own schedule when they're logged in as the
-  // profile being viewed — a mentee/visitor (loginUserId unset or pointing
-  // at someone else) must never receive the editor below.
-  const isOwner = !!loginUserId && loginUserId === backend.userId;
 
   const editor: MentorScheduleEditor | null = useMemo(() => {
     if (!isOwner) return null;
