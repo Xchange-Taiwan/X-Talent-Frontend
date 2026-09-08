@@ -198,7 +198,7 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reader.monthLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
       });
 
       act(() => {
@@ -211,7 +211,7 @@ describe('useMentorSchedule', () => {
       // No reservations read is issued for someone else's calendar, so this
       // side of the hook never blocks on one.
       expect(mockFetchAllReservationsForState).not.toHaveBeenCalled();
-      expect(result.current.reader.reservationsLoaded).toBe(true);
+      expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(true);
     });
   });
 
@@ -240,7 +240,9 @@ describe('useMentorSchedule', () => {
       );
 
       rerender({ month: 7 });
-      await waitFor(() => expect(result.current.reader.monthLoaded).toBe(true));
+      await waitFor(() =>
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true)
+      );
 
       expect(mockLoadMonthSchedule).toHaveBeenCalledTimes(2);
       expect(result.current.parsedDraft).toHaveLength(1);
@@ -257,7 +259,7 @@ describe('useMentorSchedule', () => {
         })
       );
 
-      expect(result.current.reader.monthLoaded).toBe(false);
+      expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(false);
 
       unmount();
       inFlight.reject(new Error('component already gone'));
@@ -1144,7 +1146,7 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reader.monthLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
       });
 
       expect(result.current.reader.hasError).toBe(false);
@@ -1161,7 +1163,7 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reader.monthLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
       });
 
       expect(result.current.reader.hasError).toBe(true);
@@ -1180,7 +1182,7 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reader.monthLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
       });
 
       expect(result.current.reader.hasError).toBe(true);
@@ -1192,7 +1194,7 @@ describe('useMentorSchedule', () => {
         await result.current.reader.reload?.();
       });
 
-      expect(result.current.reader.monthLoaded).toBe(true);
+      expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
       expect(result.current.reader.hasError).toBe(false);
       expect(scheduleReadModel.get(scheduleKey(7))).toEqual([]);
     });
@@ -1219,7 +1221,7 @@ describe('useMentorSchedule', () => {
       });
 
       expect(result.current.reader.hasError).toBe(false);
-      expect(result.current.reader.monthLoaded).toBe(false);
+      expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(false);
       expect(result.current.reader.isFetching).toBe(true);
 
       await act(async () => {
@@ -1227,7 +1229,7 @@ describe('useMentorSchedule', () => {
         await reloadPromise;
       });
 
-      expect(result.current.reader.monthLoaded).toBe(true);
+      expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
       expect(result.current.reader.hasError).toBe(false);
     });
   });
@@ -1431,7 +1433,9 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reader.reservationsLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+          true
+        );
       });
 
       const eom = computeEndOfMonthUnix(2026, 7);
@@ -1472,7 +1476,9 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reader.reservationsLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+          true
+        );
       });
 
       mockFetchAllReservationsForState.mockClear();
@@ -1548,7 +1554,9 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reader.reservationsLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+          true
+        );
       });
 
       const eom = computeEndOfMonthUnix(2026, 7);
@@ -1602,7 +1610,9 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reader.reservationsLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+          true
+        );
       });
 
       const clearSpy = vi.spyOn(reservationReadModel, 'clear');
@@ -1698,9 +1708,11 @@ describe('useMentorSchedule', () => {
       // Schedule fetch is cached and resolves synchronously, but the
       // reservations fetch is still pending.
       await waitFor(() => {
-        expect(result.current.reader.monthLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
       });
-      expect(result.current.reader.reservationsLoaded).toBe(false);
+      expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+        false
+      );
 
       await waitFor(() => {
         expect(resolveFetchers).toHaveLength(2);
@@ -1712,7 +1724,9 @@ describe('useMentorSchedule', () => {
       });
 
       await waitFor(() => {
-        expect(result.current.reader.reservationsLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+          true
+        );
       });
     });
 
@@ -1744,7 +1758,9 @@ describe('useMentorSchedule', () => {
         );
       });
 
-      expect(result.current.reader.reservationsLoaded).toBe(false);
+      expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+        false
+      );
     });
   });
 

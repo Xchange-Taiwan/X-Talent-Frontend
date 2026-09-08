@@ -654,8 +654,6 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       allowedDates,
       slotsSnapshot,
       getDayBookingStatus,
-      monthLoaded,
-      reservationsLoaded,
       isFetching,
       reload,
       hasError,
@@ -665,45 +663,37 @@ export function useMentorSchedule(opts: Options): UseMentorScheduleReturn {
       allowedDates,
       slotsSnapshot,
       getDayBookingStatus,
-      monthLoaded,
-      reservationsLoaded,
       isFetching,
       reload,
       hasError,
     ]
   );
 
+  // Calendar navigation, month-loaded gating, and reload/error all live on
+  // `reader` (always present, above). The mentor managing their own schedule
+  // always receives both from this hook, so the editor only adds what's
+  // genuinely specific to draft mutation - it never re-declares a member
+  // `reader` already owns.
   const editor: MentorScheduleEditor | null = useMemo(() => {
     if (!isOwner) return null;
     return {
-      selectedDate,
-      setSelectedDate,
       draftForSelectedDate,
       addSlotForSelectedDate,
       updateDraftSlot,
       deleteDraftSlot,
       confirmChanges,
       resetChanges,
-      allowedDates,
-      monthLoaded,
       reservations,
-      hasError,
-      reload,
     };
   }, [
     isOwner,
-    selectedDate,
     draftForSelectedDate,
     addSlotForSelectedDate,
     updateDraftSlot,
     deleteDraftSlot,
     confirmChanges,
     resetChanges,
-    allowedDates,
-    monthLoaded,
     reservations,
-    hasError,
-    reload,
   ]);
 
   return {

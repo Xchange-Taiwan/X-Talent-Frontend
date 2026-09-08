@@ -40,8 +40,8 @@ Key types exported from this module (`src/lib/profile/bookingAvailability/`):
 - **`ParsedMentorTimeslot`**: An expanded, formatted representation of a raw timeslot occurrence. Used directly in the schedule editor (`MentorScheduleEditor.draftForSelectedDate`), and also exposed unfiltered at the top level of `useMentorSchedule`'s return value as `parsedDraft` - so a reader-side consumer of the hook can reach it too, not only the editor.
 - **`SlotsSnapshot`**: A snapshot structure grouping the selected date's booking slots with their loading flags (`monthLoaded`, `reservationsLoaded`).
 - **`SlotDurationMinutes`**: Valid slot durations (`30 | 45 | 60`).
-- **`BookingCalendarReader`**: A narrow read-only interface used by mentees and visitors to view a mentor's booking schedule.
-- **`MentorScheduleEditor`**: A narrow stateful interface used by the mentor to manage and sync their available slots.
+- **`BookingCalendarReader`**: A narrow read-only interface used by mentees and visitors to view a mentor's booking schedule. Owns every member shared with `MentorScheduleEditor` below - selected date, allowed dates, month-loaded/error gating, reload - so those concepts each have exactly one name and one location (X-Tracker #673).
+- **`MentorScheduleEditor`**: A narrow stateful interface used by the mentor to manage and sync their available slots. Holds only what's genuinely specific to draft mutation (add/update/delete/confirm/reset, the draft rows, and reservations); a mentor managing their own schedule always receives a `BookingCalendarReader` alongside it and reads the shared calendar-navigation members from there instead of a duplicate on the editor (X-Tracker #673).
 
 ## Elapsed Time Behavior (Page Open)
 
