@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import React, { useState } from 'react';
 
 import type {
+  BookingCalendarReader,
   MentorScheduleEditor,
   ParsedMentorTimeslot,
 } from '@/lib/profile/bookingAvailability';
@@ -90,41 +91,51 @@ const mockDraftSlots: ParsedMentorTimeslot[] = [
   }),
 ];
 
-const defaultScheduleMock: MentorScheduleEditor = {
+// Calendar navigation (selectedDate/allowedDates/monthLoaded/hasError/reload)
+// lives on the reader, shared with the mentee/visitor view - not re-declared
+// on the editor. See BookingCalendarReader / MentorScheduleEditor.
+const defaultReaderMock: BookingCalendarReader = {
   selectedDate: todayStr,
   setSelectedDate: () => {},
-  draftForSelectedDate: mockDraftSlots,
   allowedDates: [todayStr, '2026-08-04'],
-  monthLoaded: true,
+  slotsSnapshot: { slots: [], monthLoaded: true, reservationsLoaded: true },
+  getDayBookingStatus: () => null,
+  isFetching: false,
+  hasError: false,
+  reload: async () => {},
+};
+
+const defaultScheduleMock: MentorScheduleEditor = {
+  draftForSelectedDate: mockDraftSlots,
   addSlotForSelectedDate: () => ({ added: 1, skipped: 0 }),
   updateDraftSlot: () => ({ success: true }),
   deleteDraftSlot: () => {},
   confirmChanges: async () => ({ ok: true }),
   resetChanges: () => {},
-  hasError: false,
-  reload: () => {},
   reservations: [],
 };
 
 interface DialogWrapperProps {
+  reader: BookingCalendarReader;
   schedule: MentorScheduleEditor;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   onMonthChange?: (date: Date) => void;
 }
 
-const DialogWrapper = ({ schedule }: DialogWrapperProps) => {
+const DialogWrapper = ({ reader, schedule }: DialogWrapperProps) => {
   const [open, setOpen] = useState(true);
   return (
     <div>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="bg-brand-500 text-text-white hover:bg-brand-600 rounded px-4 py-2 font-medium transition-colors"
+        className="rounded bg-brand-500 px-4 py-2 font-medium text-text-white transition-colors hover:bg-brand-600"
       >
         開啟預約設定 (Open Dialog)
       </button>
       <MentorScheduleDialog
+        reader={reader}
         schedule={schedule}
         open={open}
         onOpenChange={setOpen}
@@ -134,22 +145,33 @@ const DialogWrapper = ({ schedule }: DialogWrapperProps) => {
 };
 
 export const Default: Story = {
-  render: (args) => <DialogWrapper schedule={args.schedule} />,
+  render: (args) => (
+    <DialogWrapper reader={args.reader} schedule={args.schedule} />
+  ),
   args: {
     open: true,
     onOpenChange: () => {},
+    reader: defaultReaderMock,
     schedule: defaultScheduleMock,
   },
 };
 
 export const Loading: Story = {
-  render: (args) => <DialogWrapper schedule={args.schedule} />,
+  render: (args) => (
+    <DialogWrapper reader={args.reader} schedule={args.schedule} />
+  ),
   args: {
     open: true,
     onOpenChange: () => {},
+    reader: {
+      ...defaultReaderMock,
+      slotsSnapshot: {
+        ...defaultReaderMock.slotsSnapshot,
+        monthLoaded: false,
+      },
+    },
     schedule: {
       ...defaultScheduleMock,
-      monthLoaded: false,
       draftForSelectedDate: [],
     },
   },

@@ -26,6 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
 import { trackEvent } from '@/lib/analytics';
 import {
+  BookingCalendarReader,
   DtType,
   MentorScheduleEditor,
   ParsedMentorTimeslot,
@@ -68,25 +69,31 @@ type ActiveDialog =
 export default function MentorScheduleDialog({
   open,
   onOpenChange,
+  reader,
   schedule,
   onMonthChange,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Calendar navigation (selected date, allowed dates, month-loaded gating,
+   * reload/error) - shared with the mentee/visitor view rather than
+   * re-declared on `schedule` below. See `BookingCalendarReader` /
+   * `MentorScheduleEditor` in src/lib/profile/bookingAvailability/types.ts.
+   */
+  reader: BookingCalendarReader;
   schedule: MentorScheduleEditor;
   onMonthChange?: (date: Date) => void;
 }) {
+  const { selectedDate, setSelectedDate, allowedDates } = reader;
+  const { monthLoaded } = reader.slotsSnapshot;
   const {
-    selectedDate,
-    setSelectedDate,
     draftForSelectedDate,
     addSlotForSelectedDate,
     deleteDraftSlot,
     confirmChanges,
     resetChanges,
     updateDraftSlot,
-    allowedDates,
-    monthLoaded,
     reservations = [],
   } = schedule;
 
@@ -287,11 +294,11 @@ export default function MentorScheduleDialog({
               disablePastDates={true}
               highlightAvailableDates={true}
               isMonthLoading={!monthLoaded}
-              hasError={schedule.hasError}
-              onRetry={schedule.reload}
+              hasError={reader.hasError}
+              onRetry={reader.reload}
             />
 
-            {!schedule.hasError && (
+            {!reader.hasError && (
               <div>
                 <p className="font-semibold lg:text-lg">可預約時段</p>
 
@@ -334,19 +341,19 @@ export default function MentorScheduleDialog({
                                 },
                               })}
                           className={cn(
-                            'bg-background-white flex flex-col gap-2 rounded-lg border p-3 transition-colors lg:p-4',
+                            'flex flex-col gap-2 rounded-lg border bg-background-white p-3 transition-colors lg:p-4',
                             isPast
                               ? 'cursor-not-allowed opacity-50'
-                              : 'hover:bg-background-bottom/50 focus-visible:ring-brand-500 cursor-pointer focus-visible:ring-2 focus-visible:outline-none'
+                              : 'cursor-pointer hover:bg-background-bottom/50 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none'
                           )}
                         >
                           <div className="flex flex-row flex-nowrap items-center justify-between gap-2 lg:gap-3">
                             <div className="flex items-center gap-2">
-                              <Clock className="text-text-tertiary size-4" />
+                              <Clock className="size-4 text-text-tertiary" />
                               <span className="text-base font-medium tabular-nums">
                                 {startLabel} – {endLabel}
                               </span>
-                              <span className="text-text-tertiary text-sm">
+                              <span className="text-sm text-text-tertiary">
                                 ({slot.durationMinutes} 分)
                                 {isPast ? ' · 已過' : ''}
                               </span>
@@ -395,9 +402,9 @@ export default function MentorScheduleDialog({
                 onOpenChange(false);
               }}
             >
-              {!schedule.hasError ? '取消' : '關閉'}
+              {!reader.hasError ? '取消' : '關閉'}
             </Button>
-            {!schedule.hasError && (
+            {!reader.hasError && (
               <Button onClick={handleSave} disabled={isSaving || !monthLoaded}>
                 {isSaving ? '儲存中...' : '儲存'}
               </Button>
@@ -530,7 +537,7 @@ function TimeSelectPair({
           ))}
         </SelectContent>
       </Select>
-      <span className="text-text-tertiary text-base">:</span>
+      <span className="text-base text-text-tertiary">:</span>
       <Select value={minuteValue} onValueChange={onMinuteChange}>
         <SelectTrigger className="h-12 w-24 text-base lg:w-28">
           <SelectValue />
@@ -659,7 +666,7 @@ function AddSlotModal({
           </label>
 
           {weekly && previewDates.length > 0 && (
-            <p className="text-text-tertiary text-sm">
+            <p className="text-sm text-text-tertiary">
               將建立 {previewDates.length} 個時段:{previewDates.join('、')}
             </p>
           )}
