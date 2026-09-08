@@ -10,6 +10,10 @@ export const mockSession: Session = {
     email: 'test@example.com',
     onBoarding: true,
     isMentor: true,
+    // Matches mockUserDTO.avatar below so tests that don't exercise an
+    // avatar change don't spuriously trip identity reconciliation
+    // (X-Tracker #670 widened reconciliation to cover avatar/name too).
+    avatar: 'https://example.com/avatar.jpg',
   },
   accessToken: 'mock-token',
   expires: '2099-01-01T00:00:00.000Z',
@@ -24,6 +28,11 @@ export const baseValues: ProfileFormValues = {
   want_position: ['engineer'],
   want_skill: ['TypeScript'],
   want_topic: ['frontend'],
+  // Mirrors how a real edit form is pre-populated (mapVoToFormValues sets
+  // this from the current userDto.avatar) and matches mockSession/
+  // mockUserDTO's avatar, so a save that doesn't touch the avatar doesn't
+  // spuriously disagree with backend truth during identity reconciliation.
+  avatar: 'https://example.com/avatar.jpg',
 };
 
 export const mockUserDTO: MentorProfileVO = {
