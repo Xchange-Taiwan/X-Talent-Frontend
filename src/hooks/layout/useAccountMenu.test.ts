@@ -155,6 +155,19 @@ describe('useAccountMenu', () => {
       );
     });
 
+    it('falls back to an empty string when both useCurrentAvatar and identity.avatar are absent', () => {
+      mockUseCurrentAvatar.mockReturnValue(null);
+      const { result } = renderHook(() =>
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
+          user: buildUser(),
+          closeMenu,
+        })
+      );
+
+      expect(result.current.avatarSrc).toBe('');
+    });
+
     it('defaults personalLinks to an empty array', () => {
       const { result } = renderHook(() =>
         useAccountMenu({

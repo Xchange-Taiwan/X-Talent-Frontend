@@ -78,11 +78,6 @@ type Options = {
   includeBookedDates?: boolean;
 };
 
-export type UpdateDraftSlotResult = {
-  success: boolean;
-  reason?: 'OVERLAP' | 'TARGET_MONTH_NOT_LOADED' | 'READ_ONLY';
-};
-
 export type UseMentorScheduleReturn = {
   /** Sticky: true once any month has resolved. Use this for first-paint skeletons. */
   loaded: boolean;
