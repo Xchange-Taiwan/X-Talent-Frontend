@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
+import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { trackEvent } from '@/lib/analytics';
 import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
 import { cn } from '@/lib/utils';
@@ -55,11 +56,11 @@ export default function AcceptReservationDialog({
       },
     });
 
+  const viewer = resolveReservationViewer({ reservation, myUserId });
+
   // Close the dialog before following the profile link, matching
   // ConfirmedReservationDialog / QuickReplyDialog's behavior.
-  const viewer = resolveReservationViewer({
-    reservation,
-    myUserId,
+  const handleProfileLinkClick = useProfileLinkClick({
     disabled: isSubmitting || disabled,
     onNavigate: () => setOpen(false),
   });
@@ -100,7 +101,7 @@ export default function AcceptReservationDialog({
           <ReservationIdentity
             reservation={reservation}
             profileHref={viewer.profileHref}
-            onProfileLinkClick={viewer.handleProfileLinkClick}
+            onProfileLinkClick={handleProfileLinkClick}
             disabled={isSubmitting || disabled}
             variant="accept"
             sourceRole="mentor"

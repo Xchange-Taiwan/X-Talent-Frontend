@@ -1,5 +1,7 @@
 'use client';
 
+import type * as React from 'react';
+
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
 import RejectReservationDialog from '@/components/reservation/RejectReservationDialog';
@@ -7,6 +9,7 @@ import ReservationConversationDialog from '@/components/reservation/ReservationC
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import type { MutationAffectedTabs } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
@@ -60,14 +63,27 @@ function ReservationItem({
   const viewer = resolveReservationViewer({
     reservation,
     myUserId,
+  });
+
+  const handleProfileLinkInvalidation = useProfileLinkClick({
     disabled: isMutating,
-    onNavigate: () =>
+  });
+
+  // Tracked unconditionally on every non-disabled click, including a
+  // modifier-key/middle click that opens a new tab - the click-invalidation
+  // above only governs whether the link navigates in this render, not
+  // whether the view was attempted. Matches this list's pre-model behavior,
+  // which tracked every click with no modifier check at all.
+  const handleProfileClick = (e: React.MouseEvent): void => {
+    if (!isMutating) {
       trackEvent({
         name: 'reservation_profile_viewed',
         feature: 'reservation',
         metadata: { source_role: sourceRole },
-      }),
-  });
+      });
+    }
+    handleProfileLinkInvalidation(e);
+  };
 
   return (
     <ReservationCard
@@ -75,7 +91,7 @@ function ReservationItem({
       myUserId={myUserId}
       variant={cardVariantOf(variant)}
       profileHref={viewer.profileHref}
-      onProfileClick={viewer.handleProfileLinkClick}
+      onProfileClick={handleProfileClick}
       disabled={isMutating}
       sourceRole={sourceRole}
       actions={

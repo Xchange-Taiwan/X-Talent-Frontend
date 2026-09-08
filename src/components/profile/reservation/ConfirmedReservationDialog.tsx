@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
 import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
@@ -29,11 +30,12 @@ export function ConfirmedReservationDialog({
   myUserId,
   onMutationSuccess,
 }: ConfirmedReservationDialogProps) {
-  // Only `viewerRole` is needed at this point (reservation may still be null
-  // here, before the early-return guard below) - the full model (profile
-  // link, click handler) is recomputed further down once `isMutating` /
-  // `isJoiningMeet` are known, so it reflects their latest value.
-  const { viewerRole } = resolveReservationViewer({ reservation, myUserId });
+  // Pure data derivation - safe to call before the early-return guard below,
+  // since every field comes back undefined when `reservation` is null.
+  const { viewerRole, profileHref } = resolveReservationViewer({
+    reservation,
+    myUserId,
+  });
 
   const { rejectOrCancel, isMutating } = useReservationActions({
     myUserId,
@@ -55,14 +57,12 @@ export function ConfirmedReservationDialog({
     myUserId,
   });
 
-  if (!reservation) return null;
-
-  const viewer = resolveReservationViewer({
-    reservation,
-    myUserId,
+  const handleProfileLinkClick = useProfileLinkClick({
     disabled: isMutating || isJoiningMeet,
     onNavigate: () => onOpenChange(false),
   });
+
+  if (!reservation) return null;
 
   const handleOpenChange = (next: boolean) => {
     if (isMutating || isJoiningMeet) return;
@@ -81,8 +81,8 @@ export function ConfirmedReservationDialog({
 
           <ReservationIdentity
             reservation={reservation}
-            profileHref={viewer.profileHref}
-            onProfileLinkClick={viewer.handleProfileLinkClick}
+            profileHref={profileHref}
+            onProfileLinkClick={handleProfileLinkClick}
             disabled={isMutating || isJoiningMeet}
             showStatusBadge
             density="compact"

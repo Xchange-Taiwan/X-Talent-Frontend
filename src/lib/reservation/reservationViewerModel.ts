@@ -1,5 +1,3 @@
-import type * as React from 'react';
-
 import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
 import type { Reservation } from '@/types/reservation';
 
@@ -29,18 +27,13 @@ export interface ReservationViewerModel {
    * Profile URL for the counterparty. Undefined when there is no signed-in
    * viewer (`myUserId` missing), the counterparty couldn't be resolved, or
    * the counterparty would resolve to the viewer themself (self-guard).
+   * Click-invalidation for this link (disabled state, modifier-key/new-tab
+   * passthrough) is a separate concern - see `useProfileLinkClick` in
+   * `src/hooks/reservation/` - since this module must not depend on React
+   * or its event types (deep-module boundary: `src/lib/**` takes no UI
+   * dependency).
    */
   profileHref: string | undefined;
-  /**
-   * Click handler for the counterparty's avatar/name link. A disabled model
-   * (e.g. while a mutation or another blocking async action is in flight)
-   * swallows the click outright. Otherwise, a modifier-key click or a
-   * non-primary-button click is left untouched so the browser's native
-   * "open in a new tab" behavior still applies; a plain left click calls
-   * `onNavigate` (e.g. to close the hosting dialog before the route
-   * changes).
-   */
-  handleProfileLinkClick: (e: React.MouseEvent) => void;
   /**
    * Localized label describing which side cancelled the reservation, or
    * undefined when it wasn't cancelled.
@@ -57,14 +50,6 @@ export interface ResolveReservationViewerOptions {
    * string) means no signed-in viewer - `profileHref` will always be
    * undefined in that case. */
   myUserId: string | number | undefined | null;
-  /** Makes the profile link inert - e.g. while a mutation (accept / reject /
-   * cancel) or another blocking async action (joining a meet) is in flight.
-   * Defaults to false. */
-  disabled?: boolean;
-  /** Called once a plain, unmodified left click on the profile link is
-   * confirmed to navigate - e.g. to close the hosting dialog before the
-   * route changes, or to fire profile-view analytics. */
-  onNavigate?: () => void;
 }
 
 function toViewerRole(
@@ -90,11 +75,11 @@ function resolveProfileHref(
 }
 
 /**
- * Given a reservation and the current viewer, answers what that viewer sees
- * and can do: which side they're on, the counterparty's profile link (with
- * the self-guard baked in), the click semantics that make that link inert
- * under a disabled state while still letting modified/new-tab clicks fall
- * through to the browser, and the localized cancellation status label.
+ * Given a reservation and the current viewer, answers what that viewer sees:
+ * which side they're on, the counterparty's profile link (with the
+ * self-guard baked in), and the localized cancellation status label. Pure
+ * data derivation only - no React, no click handling (see
+ * `useProfileLinkClick` in `src/hooks/reservation/` for that).
  *
  * Every reservation surface (ConfirmedReservationDialog, QuickReplyDialog,
  * ReservationList, AcceptReservationDialog) derives these facts through this
@@ -103,8 +88,6 @@ function resolveProfileHref(
 export function resolveReservationViewer({
   reservation,
   myUserId,
-  disabled = false,
-  onNavigate,
 }: ResolveReservationViewerOptions): ReservationViewerModel {
   const viewerRole = reservation
     ? toViewerRole(reservation.viewerRole)
@@ -113,17 +96,6 @@ export function resolveReservationViewer({
     ? resolveProfileHref(reservation, myUserId)
     : undefined;
 
-  const handleProfileLinkClick = (e: React.MouseEvent): void => {
-    if (disabled) {
-      e.preventDefault();
-      return;
-    }
-    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) {
-      return;
-    }
-    onNavigate?.();
-  };
-
   const cancelledByLabel = reservation?.cancelledBy
     ? CANCELLED_BY_LABEL[reservation.cancelledBy]
     : undefined;
@@ -131,7 +103,6 @@ export function resolveReservationViewer({
   return {
     viewerRole,
     profileHref,
-    handleProfileLinkClick,
     cancelledByLabel,
   };
 }
