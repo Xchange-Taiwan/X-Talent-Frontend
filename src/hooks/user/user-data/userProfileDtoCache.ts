@@ -1,6 +1,5 @@
 import { AsyncReadManager } from '@/lib/asyncReadManager';
 import { createKeyedCache } from '@/lib/createKeyedCache';
-import { fetchUserById } from '@/services/profile/user';
 import type { MentorProfileVO } from '@/types/user';
 
 export const USER_PROFILE_DTO_CACHE_TTL_MS = 60_000;
@@ -146,17 +145,4 @@ export function primeUserProfileDtoCacheIfEmpty(
 ): void {
   const key = `${userId}-${language}`;
   userProfileDtoCache.prime(key, data, { ifEmpty: true });
-}
-
-// Promise-deduped fetch: writes to the data cache on success so subsequent
-// readers (including a parallel-mounted hook) see the fresh entry. Concurrent
-// callers share the same in-flight promise to avoid duplicate network calls.
-export function startFetchUserById(
-  userId: number,
-  language: string
-): Promise<MentorProfileVO | null> {
-  const key = `${userId}-${language}`;
-  return userProfileDtoCache.fetch(key, () => fetchUserById(userId, language), {
-    shouldCache: (data) => data !== null,
-  });
 }

@@ -33,10 +33,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/assets/') ||
     pathname.startsWith('/landing/') ||
     pathname === '/favicon.ico' ||
-    pathname === '/logo.svg' ||
-    /^\/profile\/(graphic-design|seo-writing|ui-design|ux-design)\.svg$/.test(
-      pathname
-    );
+    pathname === '/logo.svg';
 
   const isMonitoring =
     pathname === '/monitoring' || pathname.startsWith('/monitoring/');
