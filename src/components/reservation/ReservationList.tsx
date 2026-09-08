@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import type { MutationAffectedTabs } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
-import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
+import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
 import type { Reservation } from '@/types/reservation';
 
 import {
@@ -57,37 +57,32 @@ function ReservationItem({
     onVersionConflict,
   });
 
-  const handleProfileClick = (): void => {
-    trackEvent({
-      name: 'reservation_profile_viewed',
-      feature: 'reservation',
-      metadata: { source_role: sourceRole },
-    });
-  };
-
-  // Build a profile link to the *other* party. Skip when we don't have
-  // a logged-in user (link would be ambiguous) or when the other id would
-  // resolve to the current user (defensive — shouldn't happen in practice).
-  const buildProfileHref = (item: Reservation): string | undefined => {
-    if (!myUserId) return undefined;
-    const otherId = resolveCounterpartyId(item, myUserId);
-    if (!otherId || String(otherId) === myUserId) return undefined;
-    return `/profile/${otherId}`;
-  };
+  const viewer = resolveReservationViewer({
+    reservation,
+    myUserId,
+    disabled: isMutating,
+    onNavigate: () =>
+      trackEvent({
+        name: 'reservation_profile_viewed',
+        feature: 'reservation',
+        metadata: { source_role: sourceRole },
+      }),
+  });
 
   return (
     <ReservationCard
       item={reservation}
       myUserId={myUserId}
       variant={cardVariantOf(variant)}
-      profileHref={buildProfileHref(reservation)}
-      onProfileClick={handleProfileClick}
+      profileHref={viewer.profileHref}
+      onProfileClick={viewer.handleProfileLinkClick}
+      disabled={isMutating}
       sourceRole={sourceRole}
       actions={
         variant === 'history' ? (
-          reservation.cancelledBy ? (
+          viewer.cancelledByLabel ? (
             <Badge variant="secondary" role="status">
-              已由{reservation.cancelledBy === 'MENTOR' ? '導師' : '學員'}取消
+              {viewer.cancelledByLabel}
             </Badge>
           ) : null
         ) : variant === 'pending-mentor' ? (
@@ -102,6 +97,7 @@ function ReservationItem({
             />
             <AcceptReservationDialog
               reservation={reservation}
+              myUserId={myUserId}
               disabled={isMutating}
               className="text-xs sm:text-sm"
               onAccept={async ({ message }) => accept(reservation, message)}
