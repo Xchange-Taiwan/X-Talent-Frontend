@@ -582,6 +582,17 @@ describe('mapToReservation', () => {
       expect(result.name).toBe('Bob (Mentee)');
     });
 
+    it('carries viewerRole through onto the mapped Reservation', () => {
+      const reservation = makeReservation({
+        sender: baseSender, // MENTEE
+        participant: baseParticipant, // MENTOR
+      });
+
+      expect(mapToReservation(reservation, 10).viewerRole).toBe('MENTEE');
+      expect(mapToReservation(reservation, 20).viewerRole).toBe('MENTOR');
+      expect(mapToReservation(reservation).viewerRole).toBeUndefined();
+    });
+
     describe('cancelledBy precedence rules with dynamic counterparty', () => {
       it('myUserId is sender (MENTEE) and participant (MENTOR) is REJECT → cancelledBy is MENTOR (other party takes precedence)', () => {
         const reservation = makeReservation({
@@ -744,6 +755,35 @@ describe('resolveCounterpartyProfile', () => {
       // myUserId is 10 (sender), counterparty is participant (MENTOR)
       const result = resolveCounterpartyProfile(reservation, 10);
       expect(result.cancelledBy).toBe('MENTOR');
+    });
+  });
+
+  describe('viewerRole', () => {
+    it('myUserId matches sender.user_id → viewerRole is the sender role (MENTEE)', () => {
+      const reservation = makeReservation({
+        sender: baseSender,
+        participant: baseParticipant,
+      });
+      const result = resolveCounterpartyProfile(reservation, 10);
+      expect(result.viewerRole).toBe('MENTEE');
+    });
+
+    it('myUserId matches participant.user_id → viewerRole is the participant role (MENTOR)', () => {
+      const reservation = makeReservation({
+        sender: baseSender,
+        participant: baseParticipant,
+      });
+      const result = resolveCounterpartyProfile(reservation, 20);
+      expect(result.viewerRole).toBe('MENTOR');
+    });
+
+    it('myUserId is omitted (no signed-in viewer) → viewerRole is undefined', () => {
+      const reservation = makeReservation({
+        sender: baseSender,
+        participant: baseParticipant,
+      });
+      const result = resolveCounterpartyProfile(reservation);
+      expect(result.viewerRole).toBeUndefined();
     });
   });
 });

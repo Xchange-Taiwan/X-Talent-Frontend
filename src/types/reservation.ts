@@ -40,4 +40,11 @@ export type Reservation = {
   // the UI can render "已由導師/學員取消" on both mentor and mentee pages.
   // Participant (other side) takes precedence when both are REJECT.
   cancelledBy?: 'MENTEE' | 'MENTOR';
+
+  // Which side the viewer this reservation was mapped for (mapToReservation's
+  // myUserId) occupies - MENTEE or MENTOR. Undefined when the reservation was
+  // mapped with no signed-in viewer. Consumed by resolveReservationViewer
+  // (src/lib/reservation/reservationViewerModel.ts) so a caller never has to
+  // hardcode which role it's rendering for.
+  viewerRole?: 'MENTEE' | 'MENTOR';
 };

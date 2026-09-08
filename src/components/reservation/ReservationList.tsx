@@ -1,5 +1,7 @@
 'use client';
 
+import type * as React from 'react';
+
 import AcceptReservationDialog from '@/components/reservation/AcceptReservationDialog';
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
 import RejectReservationDialog from '@/components/reservation/RejectReservationDialog';
@@ -7,10 +9,11 @@ import ReservationConversationDialog from '@/components/reservation/ReservationC
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import type { MutationAffectedTabs } from '@/hooks/user/reservation/useReservationData';
 import { trackEvent } from '@/lib/analytics';
-import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
+import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
 import type { Reservation } from '@/types/reservation';
 
 import {
@@ -57,22 +60,29 @@ function ReservationItem({
     onVersionConflict,
   });
 
-  const handleProfileClick = (): void => {
-    trackEvent({
-      name: 'reservation_profile_viewed',
-      feature: 'reservation',
-      metadata: { source_role: sourceRole },
-    });
-  };
+  const viewer = resolveReservationViewer({
+    reservation,
+    myUserId,
+  });
 
-  // Build a profile link to the *other* party. Skip when we don't have
-  // a logged-in user (link would be ambiguous) or when the other id would
-  // resolve to the current user (defensive — shouldn't happen in practice).
-  const buildProfileHref = (item: Reservation): string | undefined => {
-    if (!myUserId) return undefined;
-    const otherId = resolveCounterpartyId(item, myUserId);
-    if (!otherId || String(otherId) === myUserId) return undefined;
-    return `/profile/${otherId}`;
+  const handleProfileLinkInvalidation = useProfileLinkClick({
+    disabled: isMutating,
+  });
+
+  // Tracked unconditionally on every non-disabled click, including a
+  // modifier-key/middle click that opens a new tab - the click-invalidation
+  // above only governs whether the link navigates in this render, not
+  // whether the view was attempted. Matches this list's pre-model behavior,
+  // which tracked every click with no modifier check at all.
+  const handleProfileClick = (e: React.MouseEvent): void => {
+    if (!isMutating) {
+      trackEvent({
+        name: 'reservation_profile_viewed',
+        feature: 'reservation',
+        metadata: { source_role: sourceRole },
+      });
+    }
+    handleProfileLinkInvalidation(e);
   };
 
   return (
@@ -80,14 +90,15 @@ function ReservationItem({
       item={reservation}
       myUserId={myUserId}
       variant={cardVariantOf(variant)}
-      profileHref={buildProfileHref(reservation)}
+      profileHref={viewer.profileHref}
       onProfileClick={handleProfileClick}
+      disabled={isMutating}
       sourceRole={sourceRole}
       actions={
         variant === 'history' ? (
-          reservation.cancelledBy ? (
+          viewer.cancelledByLabel ? (
             <Badge variant="secondary" role="status">
-              已由{reservation.cancelledBy === 'MENTOR' ? '導師' : '學員'}取消
+              {viewer.cancelledByLabel}
             </Badge>
           ) : null
         ) : variant === 'pending-mentor' ? (
@@ -102,6 +113,7 @@ function ReservationItem({
             />
             <AcceptReservationDialog
               reservation={reservation}
+              myUserId={myUserId}
               disabled={isMutating}
               className="text-xs sm:text-sm"
               onAccept={async ({ message }) => accept(reservation, message)}

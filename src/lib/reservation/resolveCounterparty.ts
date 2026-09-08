@@ -44,6 +44,10 @@ export function resolveCounterpartyProfile(
   avatar?: string;
   roleLine: string;
   cancelledBy?: 'MENTEE' | 'MENTOR';
+  /** Which side `myUserId` occupies for this reservation - undefined when
+   * there is no signed-in viewer (myUserId is null/undefined) to resolve a
+   * side for. */
+  viewerRole?: 'MENTEE' | 'MENTOR';
 } {
   if (!reservation) {
     return {
@@ -51,6 +55,7 @@ export function resolveCounterpartyProfile(
       avatar: undefined,
       roleLine: '',
       cancelledBy: undefined,
+      viewerRole: undefined,
     };
   }
 
@@ -87,10 +92,18 @@ export function resolveCounterpartyProfile(
         ? toRole(currentUserSide?.role)
         : undefined;
 
+  // The viewer's own side is only meaningful when someone is actually
+  // signed in - with no myUserId, `counterparty` was picked arbitrarily
+  // above (participant-first fallback), so `currentUserSide` wouldn't
+  // represent a real viewer.
+  const viewerRole =
+    myUserId == null ? undefined : toRole(currentUserSide?.role);
+
   return {
     name,
     avatar,
     roleLine,
     cancelledBy,
+    viewerRole,
   };
 }

@@ -16,12 +16,15 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { useConfirmActionDialog } from '@/hooks/reservation/useConfirmActionDialog';
+import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { trackEvent } from '@/lib/analytics';
+import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
 import { cn } from '@/lib/utils';
 import type { Reservation } from '@/types/reservation';
 
 interface Props {
   reservation: Reservation;
+  myUserId?: string | number;
   className?: string;
   disabled?: boolean;
   size?: ButtonProps['size'];
@@ -30,6 +33,7 @@ interface Props {
 
 export default function AcceptReservationDialog({
   reservation,
+  myUserId,
   className,
   disabled = false,
   size = 'sm',
@@ -38,17 +42,27 @@ export default function AcceptReservationDialog({
   const [replyOpen, setReplyOpen] = useState(false);
   const [reply, setReply] = useState('');
 
-  const { open, isSubmitting, onOpenChange, execute } = useConfirmActionDialog({
-    errorMessage: '接受預約失敗,請稍後再試',
-    onOpen: () => {
-      setReply('');
-      setReplyOpen(false);
-      trackEvent({
-        name: 'feature_opened',
-        feature: 'reservation',
-        metadata: { dialog: 'accept_reservation' },
-      });
-    },
+  const { open, isSubmitting, onOpenChange, setOpen, execute } =
+    useConfirmActionDialog({
+      errorMessage: '接受預約失敗,請稍後再試',
+      onOpen: () => {
+        setReply('');
+        setReplyOpen(false);
+        trackEvent({
+          name: 'feature_opened',
+          feature: 'reservation',
+          metadata: { dialog: 'accept_reservation' },
+        });
+      },
+    });
+
+  const viewer = resolveReservationViewer({ reservation, myUserId });
+
+  // Close the dialog before following the profile link, matching
+  // ConfirmedReservationDialog / QuickReplyDialog's behavior.
+  const handleProfileLinkClick = useProfileLinkClick({
+    disabled: isSubmitting || disabled,
+    onNavigate: () => setOpen(false),
   });
 
   const handleAccept = () => {
@@ -86,6 +100,9 @@ export default function AcceptReservationDialog({
 
           <ReservationIdentity
             reservation={reservation}
+            profileHref={viewer.profileHref}
+            onProfileLinkClick={handleProfileLinkClick}
+            disabled={isSubmitting || disabled}
             variant="accept"
             sourceRole="mentor"
           />

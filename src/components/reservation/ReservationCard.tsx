@@ -16,6 +16,7 @@ export function ReservationCard({
   footer,
   profileHref,
   onProfileClick,
+  disabled,
   variant,
   myUserId,
   sourceRole,
@@ -26,7 +27,9 @@ export function ReservationCard({
   // mount the "view full conversation" entry without coupling the card to it.
   footer?: React.ReactNode;
   profileHref?: string;
-  onProfileClick?: () => void;
+  onProfileClick?: (e: React.MouseEvent) => void;
+  // Makes the profile link inert (e.g. while a mutation is in flight).
+  disabled?: boolean;
   // Drives upcoming-only affordances (status badge and email hint).
   variant?: ReservationCardVariant;
   myUserId?: string | number;
@@ -48,6 +51,7 @@ export function ReservationCard({
           reservation={item}
           profileHref={profileHref}
           onProfileLinkClick={onProfileClick}
+          disabled={disabled}
           showStatusBadge={isUpcoming}
           variant="card"
         >
