@@ -22,64 +22,14 @@ const EMPTY_CONFIG = {};
 /**
  * Helper to resolve configuration properties which can be static values or dynamic functions.
  */
-function resolveValue<TResult>(
-  nested: unknown,
-  flat: unknown,
-  error: unknown
-): TResult {
-  const val = nested !== undefined ? nested : flat;
-  if (typeof val === 'function') {
-    return val(error) as TResult;
+function resolveValue<TResult>(nested: unknown, error: unknown): TResult {
+  if (typeof nested === 'function') {
+    return nested(error) as TResult;
   }
-  return val as TResult;
+  return nested as TResult;
 }
 
 export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
-  /**
-   * Sentry 錯誤記錄的 Flow 名稱 (例如 'profile_update', 'sign_in')
-   * @deprecated 建議改用 `captureFailure.flow` 結構進行設定
-   */
-  flow?: string;
-  /**
-   * Sentry 錯誤記錄的 Step 步驟 (例如 'unexpected', 'submit')
-   * @deprecated 建議改用 `captureFailure.step` 結構進行設定
-   */
-  step?: string | ((error: unknown) => string);
-  /**
-   * Sentry 錯誤記錄的 Level 層級
-   * @deprecated 建議改用 `captureFailure.level` 結構進行設定
-   */
-  level?:
-    | 'info'
-    | 'warning'
-    | 'error'
-    | ((error: unknown) => 'info' | 'warning' | 'error' | undefined);
-  /**
-   * Sentry 錯誤記錄的自訂 Message
-   * @deprecated 建議改用 `captureFailure.message` 結構進行設定
-   */
-  message?: string | ((error: unknown) => string);
-  /**
-   * Sentry 錯誤記錄的 Error Code
-   * @deprecated 建議改用 `captureFailure.errorCode` 結構進行設定
-   */
-  errorCode?: string | ((error: unknown) => string | undefined);
-  /**
-   * 發生錯誤時顯示的 Toast 標題
-   * @deprecated 建議改用 `toastOnError.title` 結構進行設定
-   */
-  errorTitle?: string | ((error: unknown) => string | undefined);
-  /**
-   * 發生錯誤時顯示的 Toast 文案。如不提供則不彈出 Toast
-   * @deprecated 建議改用 `toastOnError.description` 結構進行設定
-   */
-  errorMessage?: string | ((error: unknown) => string | undefined);
-  /**
-   * Toast 顯示持續時間（微秒），預設 5000 毫秒
-   * @deprecated 建議改用 `toastOnError.duration` 結構進行設定
-   */
-  duration?: number | ((error: unknown) => number | undefined);
-
   /**
    * Pluggable 錯誤回撥，提供額外的自訂處理邏輯
    */
@@ -240,25 +190,21 @@ export default function useAsyncAction<TDefaultThrow extends boolean = true>(
         // Sentry 錯誤記錄去重：由外部傳遞的 shouldSkipLogging 回撥決定
         const isAlreadyLogged = config.shouldSkipLogging?.(err) ?? false;
 
-        const flow = config.captureFailure?.flow ?? config.flow;
+        const flow = config.captureFailure?.flow;
         const step = resolveValue<string | undefined>(
           config.captureFailure?.step,
-          config.step,
           err
         );
         const level = resolveValue<'info' | 'warning' | 'error' | undefined>(
           config.captureFailure?.level,
-          config.level,
           err
         );
         const rawMsg = resolveValue<string | undefined>(
           config.captureFailure?.message,
-          config.message,
           err
         );
         const errorCode = resolveValue<string | undefined>(
           config.captureFailure?.errorCode,
-          config.errorCode,
           err
         );
 
@@ -300,17 +246,14 @@ export default function useAsyncAction<TDefaultThrow extends boolean = true>(
         // 觸發 Toast
         const errorMessage = resolveValue<string | undefined>(
           config.toastOnError?.description,
-          config.errorMessage,
           err
         );
         const errorTitle = resolveValue<string | undefined>(
           config.toastOnError?.title,
-          config.errorTitle,
           err
         );
         let duration = resolveValue<number | undefined>(
           config.toastOnError?.duration,
-          config.duration,
           err
         );
 
