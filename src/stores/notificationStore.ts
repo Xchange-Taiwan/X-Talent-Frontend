@@ -1,4 +1,5 @@
 import { safeGetStorage, safeSetStorage } from '@/lib/storage';
+import type { NotificationSource } from '@/services/notifications/notificationSource';
 import type { NotificationItem } from '@/services/notifications/types';
 
 export type { NotificationItem } from '@/services/notifications/types';
@@ -83,6 +84,11 @@ class NotificationStoreManager {
   private fetchPromises = new Map<string, Promise<void> | null>();
   private unreadCountFetchPromises = new Map<string, Promise<void> | null>();
   private unreadCountVersions = new Map<string, number>();
+  // The NotificationSource is a per-store-key concern (which adapter a given
+  // user's state talks to), not part of the rendered SharedNotificationState
+  // - callers hand it off once (mount + on change) via setSource, instead of
+  // threading it through every domain-action call.
+  private sources = new Map<string, NotificationSource>();
 
   constructor() {
     // Single, store-owned listener for cross-tab sync (instead of one per Hook instance).
@@ -194,6 +200,27 @@ class NotificationStoreManager {
     this.fetchPromises.clear();
     this.unreadCountFetchPromises.clear();
     this.unreadCountVersions.clear();
+    this.sources.clear();
+  }
+
+  /**
+   * Domain Action: Record which NotificationSource a store key's operations
+   * should be routed through. Callers (the hook) hand the source off here
+   * once on mount and again whenever it changes, rather than passing it into
+   * every operation.
+   */
+  setSource(userId: string | undefined, source: NotificationSource): void {
+    const key = getStoreKey(userId);
+    this.sources.set(key, source);
+  }
+
+  /**
+   * Domain Action: Retrieve the NotificationSource previously handed off via
+   * setSource for this store key, if any.
+   */
+  getSource(userId: string | undefined): NotificationSource | undefined {
+    const key = getStoreKey(userId);
+    return this.sources.get(key);
   }
 
   /**
