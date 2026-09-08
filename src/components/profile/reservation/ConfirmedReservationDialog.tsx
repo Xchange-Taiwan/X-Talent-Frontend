@@ -1,7 +1,5 @@
 'use client';
 
-import * as React from 'react';
-
 import CancelReservationDialog from '@/components/reservation/CancelReservationDialog';
 import { JoinMeetButton } from '@/components/reservation/JoinMeetButton';
 import { ReservationIdentity } from '@/components/reservation/ReservationIdentity';
@@ -13,7 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { useReservationMeetLink } from '@/hooks/user/reservation/useReservationMeetLink';
-import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
+import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
 import type { Reservation } from '@/types/reservation';
 
 interface ConfirmedReservationDialogProps {
@@ -31,14 +29,22 @@ export function ConfirmedReservationDialog({
   myUserId,
   onMutationSuccess,
 }: ConfirmedReservationDialogProps) {
+  // Only `viewerRole` is needed at this point (reservation may still be null
+  // here, before the early-return guard below) - the full model (profile
+  // link, click handler) is recomputed further down once `isMutating` /
+  // `isJoiningMeet` are known, so it reflects their latest value.
+  const { viewerRole } = resolveReservationViewer({ reservation, myUserId });
+
   const { rejectOrCancel, isMutating } = useReservationActions({
     myUserId,
     variant: 'upcoming',
-    // This dialog only ever renders on the mentor's own calendar
-    // (MentorScheduleConfig, reachable only via a mentor viewing their own
-    // profile) - myRole is always 'mentor' here, by the platform's own
-    // access rules, not something worth re-deriving defensively.
-    myRole: 'mentor',
+    // Derived from the reservation's own sender/participant role data via
+    // resolveReservationViewer - not hardcoded. The 'mentor' fallback only
+    // matters if that data were ever missing: this dialog only ever renders
+    // on the mentor's own calendar (MentorScheduleConfig, reachable only via
+    // a mentor viewing their own profile), so it can never actually change
+    // which party myUserId is.
+    myRole: viewerRole ?? 'mentor',
     onMutationSuccess: async () => {
       await onMutationSuccess?.();
       onOpenChange(false);
@@ -51,18 +57,12 @@ export function ConfirmedReservationDialog({
 
   if (!reservation) return null;
 
-  const menteeId = resolveCounterpartyId(reservation, myUserId || '');
-  const profileHref = menteeId ? `/profile/${menteeId}` : undefined;
-
-  const handleProfileLinkClick = (e: React.MouseEvent) => {
-    if (isMutating || isJoiningMeet) {
-      e.preventDefault();
-      return;
-    }
-    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)
-      return;
-    onOpenChange(false);
-  };
+  const viewer = resolveReservationViewer({
+    reservation,
+    myUserId,
+    disabled: isMutating || isJoiningMeet,
+    onNavigate: () => onOpenChange(false),
+  });
 
   const handleOpenChange = (next: boolean) => {
     if (isMutating || isJoiningMeet) return;
@@ -81,8 +81,8 @@ export function ConfirmedReservationDialog({
 
           <ReservationIdentity
             reservation={reservation}
-            profileHref={profileHref}
-            onProfileLinkClick={handleProfileLinkClick}
+            profileHref={viewer.profileHref}
+            onProfileLinkClick={viewer.handleProfileLinkClick}
             disabled={isMutating || isJoiningMeet}
             showStatusBadge
             density="compact"

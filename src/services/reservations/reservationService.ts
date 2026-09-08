@@ -78,10 +78,8 @@ export function mapToReservation(
   reservation: ReservationInfoVOWithVersion,
   myUserId?: string | number | null
 ): Reservation {
-  const { name, avatar, roleLine, cancelledBy } = resolveCounterpartyProfile(
-    reservation,
-    myUserId
-  );
+  const { name, avatar, roleLine, cancelledBy, viewerRole } =
+    resolveCounterpartyProfile(reservation, myUserId);
   const { date, time } = formatDateTime(reservation.dtstart, reservation.dtend);
 
   // Preserve the full conversation in API order so the detail view can render
@@ -128,6 +126,7 @@ export function mapToReservation(
     senderUserId: reservation.sender?.user_id ?? 0,
     participantUserId: reservation.participant?.user_id ?? 0,
     cancelledBy,
+    viewerRole,
     version: reservation.version ?? 0,
   };
 }

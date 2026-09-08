@@ -18,7 +18,7 @@ import { useQuickReplyAccept } from '@/hooks/user/reservation/useQuickReplyAccep
 import { useQuickReplyForm } from '@/hooks/user/reservation/useQuickReplyForm';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
 import { trackEvent } from '@/lib/analytics';
-import { resolveCounterpartyId } from '@/lib/reservation/resolveCounterparty';
+import { resolveReservationViewer } from '@/lib/reservation/reservationViewerModel';
 import type { QuickReplyFormValues } from '@/schemas/quickReplySchema';
 import type { Reservation } from '@/types/reservation';
 
@@ -37,15 +37,23 @@ export function QuickReplyDialog({
   myUserId,
   onMutationSuccess,
 }: QuickReplyDialogProps) {
+  // Only `viewerRole` is needed at this point (reservation may still be null
+  // here, before the early-return guard below) - the full model (profile
+  // link, click handler) is recomputed further down once `isMutating` is
+  // known, so it reflects its latest value.
+  const { viewerRole } = resolveReservationViewer({ reservation, myUserId });
+
   const { accept, rejectOrCancel, isMutating } = useReservationActions({
     myUserId,
     variant: 'pending-mentor',
-    // This dialog only ever renders on the mentor's own calendar
-    // (MentorScheduleConfig, reachable only via a mentor viewing their own
-    // profile) - myRole is always 'mentor' here, by the platform's own
-    // access rules (only a mentor can accept/reject a pending request), not
-    // something worth re-deriving defensively.
-    myRole: 'mentor',
+    // Derived from the reservation's own sender/participant role data via
+    // resolveReservationViewer - not hardcoded. The 'mentor' fallback only
+    // matters if that data were ever missing: this dialog only ever renders
+    // on the mentor's own calendar (MentorScheduleConfig, reachable only via
+    // a mentor viewing their own profile, and only a mentor can accept/reject
+    // a pending request), so it can never actually change which party
+    // myUserId is.
+    myRole: viewerRole ?? 'mentor',
     onMutationSuccess: async () => {
       // Await the reload before closing so the underlying page's calendar
       // and reservation list have already settled to the new state by the
@@ -112,18 +120,12 @@ export function QuickReplyDialog({
     });
   });
 
-  const menteeId = resolveCounterpartyId(reservation, myUserId || '');
-  const profileHref = menteeId ? `/profile/${menteeId}` : undefined;
-
-  const handleProfileLinkClick = (e: React.MouseEvent) => {
-    if (isMutating) {
-      e.preventDefault();
-      return;
-    }
-    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)
-      return;
-    onOpenChange(false);
-  };
+  const viewer = resolveReservationViewer({
+    reservation,
+    myUserId,
+    disabled: isMutating,
+    onNavigate: () => onOpenChange(false),
+  });
 
   // Block outside-click/Esc dismissal while a mutation is in flight: this
   // dialog is a single shared instance re-used across reservations, so an
@@ -147,8 +149,8 @@ export function QuickReplyDialog({
 
           <ReservationIdentity
             reservation={reservation}
-            profileHref={profileHref}
-            onProfileLinkClick={handleProfileLinkClick}
+            profileHref={viewer.profileHref}
+            onProfileLinkClick={viewer.handleProfileLinkClick}
             disabled={isMutating}
             sourceRole="mentor"
           />

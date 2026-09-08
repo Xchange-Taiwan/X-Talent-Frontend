@@ -1,6 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { fromPartial } from '@total-typescript/shoehorn';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
@@ -412,6 +411,11 @@ describe('QuickReplyDialog', () => {
     expect(rejectBtn).toBeDisabled();
   });
 
+  // Counterparty resolution and the profile link's click-invalidation
+  // conditions (mutation in flight, modifier-key / non-left click) are owned
+  // and tested by resolveReservationViewer
+  // (src/lib/reservation/reservationViewerModel.test.ts). This is a single
+  // thin rendering-level check that the dialog is actually wired to it.
   it('calls onOpenChange(false) when clicking the profile link under non-mutating state', () => {
     const mockOnOpenChange = vi.fn();
     render(
@@ -422,36 +426,5 @@ describe('QuickReplyDialog', () => {
     fireEvent.click(nameLink);
 
     expect(mockOnOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it('does NOT call onOpenChange(false) and prevents navigation when clicking the profile link under mutating state', () => {
-    // mockReturnValue (not ...Once): the mounted form hook's own internal
-    // re-render(s) mean more than one render can happen before the click
-    // below, and every one of them must still see isMutating: true.
-    vi.mocked(useReservationActions).mockReturnValue(
-      fromPartial({
-        accept: vi.fn(),
-        rejectOrCancel: vi.fn(),
-        isMutating: true,
-      })
-    );
-
-    const mockOnOpenChange = vi.fn();
-    render(
-      <QuickReplyDialog {...defaultProps} onOpenChange={mockOnOpenChange} />
-    );
-
-    const nameLink = screen.getByRole('link', { name: 'Bob User' });
-
-    const clickEvent = new MouseEvent('click', {
-      bubbles: true,
-      cancelable: true,
-    });
-    const preventDefaultSpy = vi.spyOn(clickEvent, 'preventDefault');
-
-    fireEvent(nameLink, clickEvent);
-
-    expect(preventDefaultSpy).toHaveBeenCalled();
-    expect(mockOnOpenChange).not.toHaveBeenCalled();
   });
 });

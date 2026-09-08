@@ -7,6 +7,11 @@ const meta: Meta<typeof AcceptReservationDialog> = {
   title: '業務模組元件/預約管理(Reservation)/AcceptReservationDialog',
   component: AcceptReservationDialog,
   tags: ['autodocs'],
+  args: {
+    // The mentor viewing this dialog - lets the identity block's profile
+    // link resolve to the mentee (mockReservation.senderUserId).
+    myUserId: mockReservation.participantUserId,
+  },
   argTypes: {
     disabled: {
       control: 'boolean',
