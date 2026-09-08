@@ -208,21 +208,6 @@ describe('useAsyncAction', () => {
     });
   });
 
-  it('calls onSuccess on successful execution', async () => {
-    const { result } = renderHook(() => useAsyncAction());
-
-    const actionFn = vi.fn().mockResolvedValue('ok');
-    const onSuccessMock = vi.fn();
-
-    let res: string | undefined;
-    await act(async () => {
-      res = await result.current.run(actionFn, { onSuccess: onSuccessMock });
-    });
-
-    expect(res).toBe('ok');
-    expect(onSuccessMock).toHaveBeenCalledWith('ok');
-  });
-
   it('should reset isPending even when the action throws', async () => {
     let rejectAction!: (reason: Error) => void;
     const actionPromise = new Promise<never>((_, reject) => {

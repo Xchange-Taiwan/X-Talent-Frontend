@@ -49,25 +49,19 @@ function clearAuthDOMState(): void {
  * live NextAuth session - this is the only place `resolveIdentity` is
  * called. Both the pre-hydration DOM attributes this hook writes (so the
  * header can render the right shape before `useSession()` resolves) and
- * every other identity consumer in the app (via `useIdentity`) read the
- * same resolved value, so there is nothing left for them to disagree on.
+ * every other identity consumer in the app read the same resolved value,
+ * so there is nothing left for them to disagree on.
  *
  * Named for what it returns, not for the cookie it reads: despite the
  * "hint" in the cookie's own name (it's an unsigned, non-authoritative UI
  * signal - see `SESSION_HINT_COOKIE`), this hook's result is the app's
- * authoritative resolved identity, not a tentative guess. `useIdentity` is
- * the thin public wrapper that layers an optional avatar override on top.
+ * authoritative resolved identity, not a tentative guess.
  *
  * The cookie read stays in an effect - reading `document.cookie` during
  * render would differ between the server and first client render - while
  * combining it with `session`/`status` happens synchronously in a `useMemo`
  * so the resolved identity tracks live session changes without waiting on
  * an extra effect/render cycle.
- *
- * Deliberately never applies the client-only avatar override: this hook's
- * DOM writes only matter during the pre-`authKnown` skeleton window, before
- * a profile edit (the only source of an override) could ever have happened.
- * `useIdentity` layers the override on top of the identity returned here.
  */
 export function useResolvedIdentity(): ResolvedIdentity {
   const { data: session, status } = useSession();

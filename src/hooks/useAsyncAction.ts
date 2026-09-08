@@ -35,10 +35,6 @@ export interface AsyncActionConfig<TThrowError extends boolean = boolean> {
    */
   onError?: (error: unknown) => void;
   /**
-   * 成功執行後的回撥
-   */
-  onSuccess?: (data: unknown) => void;
-  /**
    * 是否在非同步操作失敗時重新拋出錯誤，讓呼叫端做額外處理。預設為 true。
    * 設定為 false 時將吞沒錯誤並 resolve 成 undefined。
    */
@@ -166,7 +162,6 @@ export default function useAsyncAction<TDefaultThrow extends boolean = true>(
       try {
         const result = await fn();
         success = true;
-        config.onSuccess?.(result);
         return result as unknown as RunReturnType<TRunThrow, T>;
       } catch (err) {
         const shouldRethrow = isThrowError;

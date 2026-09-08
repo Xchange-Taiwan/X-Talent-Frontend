@@ -2,6 +2,7 @@ import dayjs from 'dayjs';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 dayjs.extend(isSameOrBefore);
 
+import type { UpdateDraftSlotResult } from '@/lib/profile/bookingAvailability/types';
 import {
   activeOccurrences,
   buildDateTime,
@@ -23,11 +24,6 @@ import {
 } from '@/services/mentor-schedule/sync';
 
 export type SlotDurationMinutes = 30 | 45 | 60;
-
-export type UpdateDraftSlotResult = {
-  success: boolean;
-  reason?: 'OVERLAP' | 'TARGET_MONTH_NOT_LOADED' | 'READ_ONLY';
-};
 
 export interface MonthDraftStoreSnapshot {
   savedByMonth: Map<MonthKey, RawMentorTimeslot[]>;
