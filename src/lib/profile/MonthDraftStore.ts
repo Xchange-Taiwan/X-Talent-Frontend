@@ -38,13 +38,17 @@ export interface MonthDraftStoreSnapshot {
 
 export type StoreListener = (snapshot: MonthDraftStoreSnapshot) => void;
 
-export type LoadMonthScheduleCachedFn = (ref: {
+/**
+ * Synchronous cached-snapshot read for one month, injected rather than
+ * imported so the store stays a pure, non-React unit under test. In the app
+ * this is `MentorScheduleReadModel.get` - it never triggers a fetch, so a
+ * month that has not been read yet simply comes back `undefined`.
+ */
+export type GetCachedMonthScheduleFn = (ref: {
   userId: string;
   year: number;
   month: number;
-}) => {
-  cached: RawMentorTimeslot[] | undefined;
-};
+}) => RawMentorTimeslot[] | undefined;
 
 const appendExdate = (exdates: number[], unix: number): number[] =>
   exdates.includes(unix) ? exdates : [...exdates, unix];
@@ -55,14 +59,14 @@ export class MonthDraftStore {
   private pendingDeleteByMonth = new Map<MonthKey, number[]>();
   private dirtyMonths = new Set<MonthKey>();
   private listeners = new Set<StoreListener>();
-  private loadMonthScheduleCached?: LoadMonthScheduleCachedFn;
+  private getCachedMonthSchedule?: GetCachedMonthScheduleFn;
   private currentSnapshot: MonthDraftStoreSnapshot | null = null;
 
   constructor(
     initialData?: Partial<MonthDraftStoreSnapshot>,
-    options?: { loadMonthScheduleCached?: LoadMonthScheduleCachedFn }
+    options?: { getCachedMonthSchedule?: GetCachedMonthScheduleFn }
   ) {
-    this.loadMonthScheduleCached = options?.loadMonthScheduleCached;
+    this.getCachedMonthSchedule = options?.getCachedMonthSchedule;
     if (initialData) {
       this.savedByMonth = initialData.savedByMonth ?? new Map();
       this.draftByMonth = initialData.draftByMonth ?? new Map();
@@ -210,11 +214,11 @@ export class MonthDraftStore {
   }): RawMentorTimeslot[] | null {
     let targetDraft = currentDraftsMap.get(targetMonthKey);
     if (!targetDraft) {
-      if (!this.loadMonthScheduleCached) {
+      if (!this.getCachedMonthSchedule) {
         return null;
       }
       const { year, month } = parseMonthKey(targetMonthKey);
-      const { cached } = this.loadMonthScheduleCached({
+      const cached = this.getCachedMonthSchedule({
         userId,
         year,
         month,

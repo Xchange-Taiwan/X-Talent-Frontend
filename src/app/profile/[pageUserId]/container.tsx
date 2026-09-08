@@ -175,6 +175,7 @@ export default function ProfilePageContainer({
           <MentorScheduleDialog
             open={openReservationDialog}
             onOpenChange={setOpenReservationDialog}
+            reader={reader}
             schedule={editor}
             onMonthChange={handleScheduleMonthChange}
           />

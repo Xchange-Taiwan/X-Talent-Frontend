@@ -3,6 +3,7 @@ import { fromPartial } from '@total-typescript/shoehorn';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  BookingCalendarReader,
   MentorScheduleEditor,
   ParsedMentorTimeslot,
 } from '@/lib/profile/bookingAvailability';
@@ -84,12 +85,22 @@ const mockDraftForSelectedDate: ParsedMentorTimeslot[] = [
   }),
 ];
 
-const mockSchedule: MentorScheduleEditor = {
-  monthLoaded: true,
+// Calendar navigation (selectedDate/allowedDates/monthLoaded/hasError/reload)
+// lives on the reader, shared with the mentee/visitor view - not re-declared
+// on the editor. See BookingCalendarReader / MentorScheduleEditor.
+const mockReader: BookingCalendarReader = {
   selectedDate: '2026-07-26',
   setSelectedDate: vi.fn(),
-  draftForSelectedDate: mockDraftForSelectedDate,
   allowedDates: ['2026-07-26'],
+  slotsSnapshot: { slots: [], monthLoaded: true, reservationsLoaded: true },
+  getDayBookingStatus: vi.fn().mockReturnValue(null),
+  isFetching: false,
+  reload: vi.fn().mockResolvedValue(undefined),
+  hasError: false,
+};
+
+const mockSchedule: MentorScheduleEditor = {
+  draftForSelectedDate: mockDraftForSelectedDate,
   addSlotForSelectedDate: vi.fn().mockReturnValue({ added: 1, skipped: 0 }),
   updateDraftSlot: vi.fn().mockReturnValue({ success: true }),
   deleteDraftSlot: vi.fn(),
@@ -122,6 +133,7 @@ describe('MentorScheduleDialog', () => {
       <MentorScheduleDialog
         open={true}
         onOpenChange={vi.fn()}
+        reader={mockReader}
         schedule={mockSchedule}
       />
     );
@@ -135,6 +147,7 @@ describe('MentorScheduleDialog', () => {
       <MentorScheduleDialog
         open={true}
         onOpenChange={vi.fn()}
+        reader={mockReader}
         schedule={mockSchedule}
       />
     );
@@ -160,6 +173,7 @@ describe('MentorScheduleDialog', () => {
       <MentorScheduleDialog
         open={true}
         onOpenChange={vi.fn()}
+        reader={mockReader}
         schedule={mockSchedule}
       />
     );
@@ -180,6 +194,7 @@ describe('MentorScheduleDialog', () => {
       <MentorScheduleDialog
         open={true}
         onOpenChange={vi.fn()}
+        reader={mockReader}
         schedule={mockSchedule}
       />
     );
@@ -203,6 +218,7 @@ describe('MentorScheduleDialog', () => {
       <MentorScheduleDialog
         open={true}
         onOpenChange={vi.fn()}
+        reader={mockReader}
         schedule={mockSchedule}
       />
     );
@@ -228,6 +244,7 @@ describe('MentorScheduleDialog', () => {
       <MentorScheduleDialog
         open={true}
         onOpenChange={vi.fn()}
+        reader={mockReader}
         schedule={mockSchedule}
       />
     );
@@ -244,6 +261,7 @@ describe('MentorScheduleDialog', () => {
       <MentorScheduleDialog
         open={true}
         onOpenChange={vi.fn()}
+        reader={mockReader}
         schedule={mockSchedule}
       />
     );
@@ -261,6 +279,7 @@ describe('MentorScheduleDialog', () => {
       <MentorScheduleDialog
         open={true}
         onOpenChange={vi.fn()}
+        reader={mockReader}
         schedule={mockSchedule}
       />
     );
@@ -280,6 +299,7 @@ describe('MentorScheduleDialog', () => {
       <MentorScheduleDialog
         open={true}
         onOpenChange={vi.fn()}
+        reader={mockReader}
         schedule={mockSchedule}
       />
     );
@@ -339,6 +359,7 @@ describe('MentorScheduleDialog', () => {
       <MentorScheduleDialog
         open={true}
         onOpenChange={vi.fn()}
+        reader={mockReader}
         schedule={mockScheduleWithError}
       />
     );
@@ -373,6 +394,7 @@ describe('MentorScheduleDialog', () => {
       <MentorScheduleDialog
         open={true}
         onOpenChange={vi.fn()}
+        reader={mockReader}
         schedule={mockScheduleWithError}
       />
     );
@@ -407,6 +429,7 @@ describe('MentorScheduleDialog', () => {
       <MentorScheduleDialog
         open={true}
         onOpenChange={vi.fn()}
+        reader={mockReader}
         schedule={mockScheduleWithError}
       />
     );
@@ -453,6 +476,7 @@ describe('MentorScheduleDialog', () => {
       <MentorScheduleDialog
         open={true}
         onOpenChange={vi.fn()}
+        reader={mockReader}
         schedule={mockScheduleWithReservation}
       />
     );
@@ -500,6 +524,7 @@ describe('MentorScheduleDialog', () => {
       <MentorScheduleDialog
         open={true}
         onOpenChange={vi.fn()}
+        reader={mockReader}
         schedule={mockScheduleWithPositiveId}
       />
     );
@@ -515,15 +540,16 @@ describe('MentorScheduleDialog', () => {
   });
 
   it('hides the slot list, hides the save button, and changes cancel button text to 關閉 when schedule has an error', () => {
-    const mockScheduleWithError: MentorScheduleEditor = {
-      ...mockSchedule,
+    const mockReaderWithError: BookingCalendarReader = {
+      ...mockReader,
       hasError: true,
     };
     render(
       <MentorScheduleDialog
         open={true}
         onOpenChange={vi.fn()}
-        schedule={mockScheduleWithError}
+        reader={mockReaderWithError}
+        schedule={mockSchedule}
       />
     );
     expect(screen.queryByText('可預約時段')).not.toBeInTheDocument();

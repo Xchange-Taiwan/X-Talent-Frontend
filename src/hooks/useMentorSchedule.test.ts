@@ -1,11 +1,15 @@
-process.env.TZ = 'UTC';
+﻿process.env.TZ = 'UTC';
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 import dayjs from 'dayjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// Only the raw network read is mocked. Caching, in-flight de-duplication,
+// cancellation and "whose response is allowed to win" all run for real
+// through MentorScheduleReadModel, so these tests exercise the hook's public
+// contract instead of its internal call order.
 vi.mock('@/services/mentor-schedule/sync', () => ({
-  loadMonthScheduleCached: vi.fn(),
+  loadMonthSchedule: vi.fn(),
   loadMonthScheduleFresh: vi.fn(),
   prefetchMonthSchedule: vi.fn(),
   syncMonths: vi.fn(),
@@ -18,6 +22,10 @@ vi.mock('@/services/reservations', () => ({
 vi.mock('@/lib/monitoring', () => ({ captureFlowFailure: vi.fn() }));
 
 import { useMentorSchedule } from '@/hooks/useMentorSchedule';
+import {
+  type ScheduleReadKey,
+  scheduleReadModel,
+} from '@/lib/mentor-schedule/scheduleReadModel';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   buildDateTime,
@@ -29,22 +37,45 @@ import {
   reservationReadModel,
 } from '@/lib/reservation/reservationReadModel';
 import {
-  cacheKey,
-  scheduleCache,
-} from '@/services/mentor-schedule/scheduleCache';
-import {
-  loadMonthScheduleCached,
+  loadMonthSchedule,
   loadMonthScheduleFresh,
   syncMonths,
 } from '@/services/mentor-schedule/sync';
 import { fetchAllReservationsForState } from '@/services/reservations';
 
-const mockLoadMonthScheduleCached = vi.mocked(loadMonthScheduleCached);
+const mockLoadMonthSchedule = vi.mocked(loadMonthSchedule);
 const mockFetchAllReservationsForState = vi.mocked(
   fetchAllReservationsForState
 );
 const mockLoadMonthScheduleFresh = vi.mocked(loadMonthScheduleFresh);
 const mockCaptureFlowFailure = vi.mocked(captureFlowFailure);
+
+function scheduleKey(
+  month: number,
+  userId = '123',
+  year = 2026
+): ScheduleReadKey {
+  return { userId, year, month };
+}
+
+/** A month request the test resolves or rejects by hand. */
+function deferredMonth(): {
+  promise: Promise<RawMentorTimeslot[]>;
+  resolve: (raws: RawMentorTimeslot[]) => void;
+  reject: (err: Error) => void;
+} {
+  let resolve: (raws: RawMentorTimeslot[]) => void = () => {};
+  let reject: (err: Error) => void = () => {};
+  const promise = new Promise<RawMentorTimeslot[]>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return {
+    promise,
+    resolve: (raws) => resolve(raws),
+    reject: (err) => reject(err),
+  };
+}
 
 // The reservation-fetching tests below exercise the real
 // reservationReadModel (not a mock) so they verify actual cache/TTL
@@ -69,13 +100,14 @@ describe('useMentorSchedule', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     reservationReadModel.clear();
-    scheduleCache.clear();
+    scheduleReadModel.clear();
     // vi.restoreAllMocks() does not reset call history for a vi.fn() created
     // inside a vi.mock() factory (only for vi.spyOn() spies) - now that the
     // reader/editor gating tests above also grant an editor (loginUserId
     // matching backend.userId), their mount-effect reservation fetches would
     // otherwise leak into every later test's call-count assertions.
     mockFetchAllReservationsForState.mockClear();
+    mockLoadMonthSchedule.mockClear();
     vi.mocked(syncMonths).mockResolvedValue([
       { monthKey: '2026-07', outcome: { ok: true, raws: [] } },
       { monthKey: '2026-08', outcome: { ok: true, raws: [] } },
@@ -97,10 +129,7 @@ describe('useMentorSchedule', () => {
     mockRaws: RawMentorTimeslot[] = defaultMockRaws,
     { includeBookedDates }: { includeBookedDates?: boolean } = {}
   ) {
-    mockLoadMonthScheduleCached.mockReturnValue({
-      cached: mockRaws,
-      revalidate: Promise.resolve(mockRaws),
-    });
+    mockLoadMonthSchedule.mockResolvedValue(mockRaws);
 
     // loginUserId matches backend.userId so the hook grants `editor` - most
     // of this file's tests exercise the mentor's own draft-mutation flow.
@@ -115,10 +144,7 @@ describe('useMentorSchedule', () => {
 
   describe('reader/editor gating', () => {
     it('grants only a reader, with editor null, when loginUserId does not match backend.userId (mentee/visitor)', async () => {
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: defaultMockRaws,
-        revalidate: Promise.resolve(defaultMockRaws),
-      });
+      mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
 
       const { result } = renderHook(() =>
         useMentorSchedule({
@@ -137,10 +163,7 @@ describe('useMentorSchedule', () => {
     });
 
     it('grants both a reader and an editor when loginUserId matches backend.userId (the mentor managing their own schedule)', async () => {
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: defaultMockRaws,
-        revalidate: Promise.resolve(defaultMockRaws),
-      });
+      mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
 
       const { result } = renderHook(() =>
         useMentorSchedule({
@@ -156,6 +179,153 @@ describe('useMentorSchedule', () => {
       expect(result.current.editor).not.toBeNull();
       expect(result.current.editor?.addSlotForSelectedDate).toBeInstanceOf(
         Function
+      );
+    });
+
+    it('a mentee/visitor still gets the mentor’s bookable slots through the reader alone', async () => {
+      // defaultMockRaws sits on 2026-07-26; freeze "now" before it so the
+      // occurrence isn't filtered out as already past.
+      vi.spyOn(Date, 'now').mockReturnValue(
+        new Date('2026-07-01T00:00:00Z').getTime()
+      );
+      mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: 'mentee-9',
+        })
+      );
+
+      await waitFor(() => {
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
+      });
+
+      act(() => {
+        result.current.reader.setSelectedDate('2026-07-26');
+      });
+
+      expect(result.current.reader.slotsSnapshot.slots).toHaveLength(1);
+      expect(result.current.reader.allowedDates).toContain('2026-07-26');
+      expect(result.current.reader.hasError).toBe(false);
+      // No reservations read is issued for someone else's calendar, so this
+      // side of the hook never blocks on one.
+      expect(mockFetchAllReservationsForState).not.toHaveBeenCalled();
+      expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(true);
+    });
+  });
+
+  describe('month reads (X-Tracker #669)', () => {
+    it('serves a month it has already loaded from cache instead of re-requesting it', async () => {
+      mockLoadMonthSchedule.mockImplementation(async (ref) =>
+        ref.month === 7 ? defaultMockRaws : []
+      );
+
+      const { result, rerender } = renderHook(
+        ({ month }) =>
+          useMentorSchedule({
+            backend: { userId: '123', year: 2026, month },
+            loginUserId: '123',
+          }),
+        { initialProps: { month: 7 } }
+      );
+
+      await waitFor(() => expect(result.current.loaded).toBe(true));
+      expect(mockLoadMonthSchedule).toHaveBeenCalledTimes(1);
+
+      // Swipe forward, then back to the month already read.
+      rerender({ month: 8 });
+      await waitFor(() =>
+        expect(mockLoadMonthSchedule).toHaveBeenCalledTimes(2)
+      );
+
+      rerender({ month: 7 });
+      await waitFor(() =>
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true)
+      );
+
+      expect(mockLoadMonthSchedule).toHaveBeenCalledTimes(2);
+      expect(result.current.parsedDraft).toHaveLength(1);
+    });
+
+    it('unmounting mid-request neither updates state nor leaves a rejection unhandled', async () => {
+      const inFlight = deferredMonth();
+      mockLoadMonthSchedule.mockReturnValue(inFlight.promise);
+
+      const { result, unmount } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(false);
+
+      unmount();
+      inFlight.reject(new Error('component already gone'));
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // The abandoned response is neither applied nor cached.
+      expect(result.current.loaded).toBe(false);
+      expect(scheduleReadModel.get(scheduleKey(7))).toBeUndefined();
+    });
+
+    it('shows what the backend returned after a save followed by a reload', async () => {
+      mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+          loginUserId: '123',
+        })
+      );
+
+      await waitFor(() => expect(result.current.loaded).toBe(true));
+
+      act(() => {
+        result.current.editor!.updateDraftSlot(101, 1785070000, {
+          startTime: '13:00',
+          durationMinutes: 45,
+        });
+      });
+
+      // The backend accepted the save and now reports the slot at 13:00.
+      const savedRaws: RawMentorTimeslot[] = [
+        {
+          id: 101,
+          type: 'ALLOW' as const,
+          dtstart: result.current.parsedDraft[0].occurrenceUnix,
+          dtend: result.current.parsedDraft[0].occurrenceUnix + 2700,
+          rrule: undefined,
+          exdate: [],
+        },
+      ];
+      vi.mocked(syncMonths).mockResolvedValue([
+        { monthKey: '2026-07', outcome: { ok: true, raws: savedRaws } },
+      ]);
+
+      await act(async () => {
+        const outcome = await result.current.editor!.confirmChanges();
+        expect(outcome.ok).toBe(true);
+      });
+
+      mockLoadMonthSchedule.mockResolvedValue(savedRaws);
+      await act(async () => {
+        await result.current.reader.reload?.();
+      });
+
+      expect(result.current.parsedDraft).toHaveLength(1);
+      expect(result.current.parsedDraft[0].occurrenceUnix).toBe(
+        savedRaws[0].dtstart
+      );
+      expect(result.current.editor!.draftForSelectedDate).toEqual(
+        result.current.parsedDraft.filter(
+          (p) => p.dateKey === result.current.reader.selectedDate
+        )
       );
     });
   });
@@ -405,7 +575,7 @@ describe('useMentorSchedule', () => {
 
     act(() => {
       // Same start time, but a different duration than the deleted
-      // occurrence — should NOT be treated as a restore.
+      // occurrence - should NOT be treated as a restore.
       result.current.editor!.addSlotForSelectedDate({
         startTime: '22:06',
         durationMinutes: 45,
@@ -462,19 +632,11 @@ describe('useMentorSchedule', () => {
       },
     ];
 
-    // Mock loadMonthScheduleCached for July and also August to return mockRawsJuly (simulating parent row loaded in both months)
-    mockLoadMonthScheduleCached.mockImplementation((ref) => {
-      if (ref.year === 2026 && (ref.month === 7 || ref.month === 8)) {
-        return {
-          cached: mockRawsJuly,
-          revalidate: Promise.resolve(mockRawsJuly),
-        };
-      }
-      return {
-        cached: [],
-        revalidate: Promise.resolve([]),
-      };
-    });
+    mockLoadMonthSchedule.mockResolvedValue(mockRawsJuly);
+    // The parent row is already loaded for August too - a cross-month edit
+    // reads the target month straight off the read model, and the calendar's
+    // own next-month prefetch is mocked out here.
+    scheduleReadModel.set(scheduleKey(8), mockRawsJuly);
 
     const { result } = renderHook(() =>
       useMentorSchedule({
@@ -540,19 +702,9 @@ describe('useMentorSchedule', () => {
       },
     ];
 
-    // Mock loadMonthScheduleCached for July to return mockRawsJuly, and for August to return []
-    mockLoadMonthScheduleCached.mockImplementation((ref) => {
-      if (ref.year === 2026 && ref.month === 7) {
-        return {
-          cached: mockRawsJuly,
-          revalidate: Promise.resolve(mockRawsJuly),
-        };
-      }
-      return {
-        cached: [],
-        revalidate: Promise.resolve([]),
-      };
-    });
+    mockLoadMonthSchedule.mockResolvedValue(mockRawsJuly);
+    // August is loaded and empty, so the slot has somewhere to move to.
+    scheduleReadModel.set(scheduleKey(8), []);
 
     const { result } = renderHook(() =>
       useMentorSchedule({
@@ -607,19 +759,9 @@ describe('useMentorSchedule', () => {
       },
     ];
 
-    // Mock loadMonthScheduleCached: July returns cached data, but August returns cached: undefined
-    mockLoadMonthScheduleCached.mockImplementation((ref) => {
-      if (ref.year === 2026 && ref.month === 7) {
-        return {
-          cached: mockRawsJuly,
-          revalidate: Promise.resolve(mockRawsJuly),
-        };
-      }
-      return {
-        cached: undefined, // Cache miss for August!
-        revalidate: Promise.resolve([]),
-      };
-    });
+    // July is loaded; August is deliberately left unread, so the read model
+    // has no rows for it to hand the store.
+    mockLoadMonthSchedule.mockResolvedValue(mockRawsJuly);
 
     const { result } = renderHook(() =>
       useMentorSchedule({
@@ -676,25 +818,8 @@ describe('useMentorSchedule', () => {
       },
     ];
 
-    // Mock loadMonthScheduleCached
-    mockLoadMonthScheduleCached.mockImplementation((ref) => {
-      if (ref.year === 2026 && ref.month === 7) {
-        return {
-          cached: mockRawsJuly,
-          revalidate: Promise.resolve(mockRawsJuly),
-        };
-      }
-      if (ref.year === 2026 && ref.month === 8) {
-        return {
-          cached: mockRawsAugust,
-          revalidate: Promise.resolve(mockRawsAugust),
-        };
-      }
-      return {
-        cached: [],
-        revalidate: Promise.resolve([]),
-      };
-    });
+    mockLoadMonthSchedule.mockResolvedValue(mockRawsJuly);
+    scheduleReadModel.set(scheduleKey(8), mockRawsAugust);
 
     const { result } = renderHook(() =>
       useMentorSchedule({
@@ -738,19 +863,10 @@ describe('useMentorSchedule', () => {
       },
     ];
 
-    // Mock loadMonthScheduleCached for both July and August to return mockRawsJuly (simulating parent row loaded in both months)
-    mockLoadMonthScheduleCached.mockImplementation((ref) => {
-      if (ref.year === 2026 && (ref.month === 7 || ref.month === 8)) {
-        return {
-          cached: mockRawsJuly,
-          revalidate: Promise.resolve(mockRawsJuly),
-        };
-      }
-      return {
-        cached: [],
-        revalidate: Promise.resolve([]),
-      };
-    });
+    mockLoadMonthSchedule.mockResolvedValue(mockRawsJuly);
+    // The parent row is loaded for August too, so the exdate has to reach
+    // both monthly buffers.
+    scheduleReadModel.set(scheduleKey(8), mockRawsJuly);
 
     const { result } = renderHook(() =>
       useMentorSchedule({
@@ -847,14 +963,10 @@ describe('useMentorSchedule', () => {
       },
     ];
 
-    mockLoadMonthScheduleCached.mockImplementation((ref) => {
-      if (ref.userId === 'userA') {
-        return { cached: userARaws, revalidate: Promise.resolve(userARaws) };
-      }
-      if (ref.userId === 'userB') {
-        return { cached: userBRaws, revalidate: Promise.resolve(userBRaws) };
-      }
-      return { cached: [], revalidate: Promise.resolve([]) };
+    mockLoadMonthSchedule.mockImplementation(async (ref) => {
+      if (ref.userId === 'userA') return userARaws;
+      if (ref.userId === 'userB') return userBRaws;
+      return [];
     });
 
     const { result, rerender } = renderHook(
@@ -868,7 +980,7 @@ describe('useMentorSchedule', () => {
     });
     expect(result.current.parsedDraft[0]?.id).toBe(101);
 
-    // Same calendar month key ('2026-07'), different user — the buffer must
+    // Same calendar month key ('2026-07'), different user - the buffer must
     // not be mistaken for already-loaded just because that month key was
     // seen before under a different account.
     rerender({ backend: { userId: 'userB', year: 2026, month: 7 } });
@@ -879,10 +991,7 @@ describe('useMentorSchedule', () => {
   });
 
   it('confirmChanges still reports a real save failure even if the account switches away before syncMonths resolves', async () => {
-    mockLoadMonthScheduleCached.mockReturnValue({
-      cached: defaultMockRaws,
-      revalidate: Promise.resolve(defaultMockRaws),
-    });
+    mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
 
     const { result, rerender } = renderHook(
       (props: {
@@ -937,31 +1046,25 @@ describe('useMentorSchedule', () => {
     ]);
 
     const outcome = await confirmPromise;
-    // The real failure must surface — not silently reported as success just
+    // The real failure must surface - not silently reported as success just
     // because the store it would have committed into has since moved on.
     expect(outcome.ok).toBe(false);
   });
 
   it('resetChanges fallback uses the snapshot captured before the refetch started, immune to an intervening account switch clearing the store', async () => {
     let sawUserA = false;
-    mockLoadMonthScheduleCached.mockImplementation((ref) => {
+    mockLoadMonthSchedule.mockImplementation((ref) => {
       if (ref.userId === 'userA') {
         if (sawUserA) {
-          // Viewing userA again after switching away: a cache miss whose
-          // revalidate never settles in this test, so the store isn't
-          // synchronously repopulated before resetChanges' fallback runs.
-          return {
-            cached: undefined,
-            revalidate: new Promise<RawMentorTimeslot[]>(() => {}),
-          };
+          // Viewing userA again after switching away: the account switch
+          // dropped userA's cached month, and this second read never settles,
+          // so the store isn't repopulated before resetChanges' fallback runs.
+          return new Promise<RawMentorTimeslot[]>(() => {});
         }
         sawUserA = true;
-        return {
-          cached: defaultMockRaws,
-          revalidate: Promise.resolve(defaultMockRaws),
-        };
+        return Promise.resolve(defaultMockRaws);
       }
-      return { cached: [], revalidate: Promise.resolve([]) };
+      return Promise.resolve([]);
     });
 
     let rejectFresh!: (err: Error) => void;
@@ -997,7 +1100,7 @@ describe('useMentorSchedule', () => {
       });
     });
 
-    // Start the reset — this must capture a snapshot of userA's saved data
+    // Start the reset - this must capture a snapshot of userA's saved data
     // synchronously, before the refetch (and the account switches below)
     // have any chance to run.
     act(() => {
@@ -1005,7 +1108,7 @@ describe('useMentorSchedule', () => {
     });
 
     // Switch away and back to the same user while the refetch is still
-    // pending — each switch clears the store via store.clearAll().
+    // pending - each switch clears the store via store.clearAll().
     rerender({
       backend: { userId: 'userB', year: 2026, month: 7 },
       loginUserId: 'userB',
@@ -1024,7 +1127,7 @@ describe('useMentorSchedule', () => {
     });
 
     // Must fall back to the ORIGINAL saved slot (id 101), not an empty
-    // array — even though the store's live state for userA was still
+    // array - even though the store's live state for userA was still
     // empty (cache miss, stuck revalidate) at the moment the fallback ran.
     await waitFor(() => {
       expect(result.current.parsedDraft).toHaveLength(1);
@@ -1034,10 +1137,7 @@ describe('useMentorSchedule', () => {
 
   describe('failed fetch vs empty schedule distinction (issue 620)', () => {
     it('sets hasError to false when fetch succeeds with empty array (genuinely no availability)', async () => {
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: undefined,
-        revalidate: Promise.resolve([]),
-      });
+      mockLoadMonthSchedule.mockResolvedValue([]);
 
       const { result } = renderHook(() =>
         useMentorSchedule({
@@ -1046,7 +1146,7 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reader.monthLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
       });
 
       expect(result.current.reader.hasError).toBe(false);
@@ -1054,10 +1154,7 @@ describe('useMentorSchedule', () => {
     });
 
     it('sets hasError to true when fetch fails and there is no cache/buffer', async () => {
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: undefined,
-        revalidate: Promise.reject(new Error('Network error')),
-      });
+      mockLoadMonthSchedule.mockRejectedValue(new Error('Network error'));
 
       const { result } = renderHook(() =>
         useMentorSchedule({
@@ -1066,7 +1163,7 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reader.monthLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
       });
 
       expect(result.current.reader.hasError).toBe(true);
@@ -1075,11 +1172,8 @@ describe('useMentorSchedule', () => {
 
     it('clears error and retries successfully when reload is called', async () => {
       mockLoadMonthScheduleFresh.mockReset();
-      // First attempt fails
-      mockLoadMonthScheduleCached.mockReturnValueOnce({
-        cached: undefined,
-        revalidate: Promise.reject(new Error('Network error')),
-      });
+      // First attempt fails.
+      mockLoadMonthSchedule.mockRejectedValueOnce(new Error('Network error'));
 
       const { result } = renderHook(() =>
         useMentorSchedule({
@@ -1088,36 +1182,54 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reader.monthLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
       });
 
       expect(result.current.reader.hasError).toBe(true);
 
-      // Prime the real schedule cache for this month so we can observe
-      // reload() actually clearing it - `sync.ts` (and therefore its own
-      // writes to this cache) stays mocked below, so nothing else re-primes
-      // this key once reload() deletes it.
-      const key = cacheKey({ userId: '123', year: 2026, month: 7 });
-      scheduleCache.set(key, defaultMockRaws);
-      expect(scheduleCache.get(key)).toBeDefined();
+      // The retry succeeds with a genuinely empty schedule.
+      mockLoadMonthSchedule.mockResolvedValue([]);
 
-      // Setup next fetch to succeed with empty array
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: undefined,
-        revalidate: Promise.resolve([]),
+      await act(async () => {
+        await result.current.reader.reload?.();
       });
 
-      // Call reload
-      act(() => {
-        result.current.reader.reload?.();
-      });
+      expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
+      expect(result.current.reader.hasError).toBe(false);
+      expect(scheduleReadModel.get(scheduleKey(7))).toEqual([]);
+    });
 
-      expect(scheduleCache.get(key)).toBeUndefined();
+    it('shows the month as loading (and drops the error) while a user-triggered retry is in flight', async () => {
+      mockLoadMonthSchedule.mockRejectedValueOnce(new Error('Network error'));
+
+      const { result } = renderHook(() =>
+        useMentorSchedule({
+          backend: { userId: '123', year: 2026, month: 7 },
+        })
+      );
 
       await waitFor(() => {
-        expect(result.current.reader.monthLoaded).toBe(true);
+        expect(result.current.reader.hasError).toBe(true);
       });
 
+      const retry = deferredMonth();
+      mockLoadMonthSchedule.mockReturnValue(retry.promise);
+
+      let reloadPromise!: Promise<void>;
+      act(() => {
+        reloadPromise = result.current.reader.reload!();
+      });
+
+      expect(result.current.reader.hasError).toBe(false);
+      expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(false);
+      expect(result.current.reader.isFetching).toBe(true);
+
+      await act(async () => {
+        retry.resolve([]);
+        await reloadPromise;
+      });
+
+      expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
       expect(result.current.reader.hasError).toBe(false);
     });
   });
@@ -1125,15 +1237,12 @@ describe('useMentorSchedule', () => {
   describe('reservations integration (#601)', () => {
     // Cursor pagination, the stuck-cursor guard, the end-of-month guard, and
     // fetch-failure handling live in fetchAllReservationsForState now (moved
-    // to src/services/reservations/reservationService.ts — see
+    // to src/services/reservations/reservationService.ts - see
     // reservationService.test.ts). These tests only cover the hook's own
     // responsibility: gating the fetch on loginUserId and wiring the
     // resolved reservations into state / generateBookingSlots.
     it('does not fetch reservations when loginUserId is not provided', async () => {
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: [],
-        revalidate: Promise.resolve([]),
-      });
+      mockLoadMonthSchedule.mockResolvedValue([]);
 
       renderHook(() =>
         useMentorSchedule({
@@ -1145,10 +1254,7 @@ describe('useMentorSchedule', () => {
     });
 
     it('does not fetch reservations when loginUserId is provided but does not match backend.userId', async () => {
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: [],
-        revalidate: Promise.resolve([]),
-      });
+      mockLoadMonthSchedule.mockResolvedValue([]);
 
       renderHook(() =>
         useMentorSchedule({
@@ -1161,10 +1267,7 @@ describe('useMentorSchedule', () => {
     });
 
     it('fetches MENTOR_UPCOMING and MENTOR_PENDING reservations when loginUserId is provided', async () => {
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: [],
-        revalidate: Promise.resolve([]),
-      });
+      mockLoadMonthSchedule.mockResolvedValue([]);
 
       const upcoming = [
         {
@@ -1238,10 +1341,7 @@ describe('useMentorSchedule', () => {
     });
 
     it('serves reservations from cache without calling fetchAllReservationsForState on a cache hit', async () => {
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: [],
-        revalidate: Promise.resolve([]),
-      });
+      mockLoadMonthSchedule.mockResolvedValue([]);
 
       const cachedUpcoming = [
         {
@@ -1322,12 +1422,8 @@ describe('useMentorSchedule', () => {
     });
 
     it('primes the reservations cache after a network fetch on a cache miss, bounded by the calendar TTL policy', async () => {
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: [],
-        revalidate: Promise.resolve([]),
-      });
+      mockLoadMonthSchedule.mockResolvedValue([]);
       mockFetchAllReservationsForState.mockResolvedValue([]);
-      const setSpy = vi.spyOn(reservationReadModel, 'set');
 
       const { result } = renderHook(() =>
         useMentorSchedule({
@@ -1337,39 +1433,39 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reader.reservationsLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+          true
+        );
       });
 
       const eom = computeEndOfMonthUnix(2026, 7);
-      expect(
-        reservationReadModel.get(
-          reservationKey('MENTOR_UPCOMING', eom, 'mentor-1')
-        )
-      ).toEqual({ items: [], next_dtend: 0 });
-      expect(
-        reservationReadModel.get(
-          reservationKey('MENTOR_PENDING', eom, 'mentor-1')
-        )
-      ).toEqual({ items: [], next_dtend: 0 });
-      // The TTL is a read-model policy (MENTOR_SCHEDULE_RESERVATIONS_TTL_MS),
-      // not a constant the calendar hook invents itself.
-      expect(setSpy).toHaveBeenCalledWith(
-        reservationKey('MENTOR_UPCOMING', eom, 'mentor-1'),
-        expect.anything(),
-        MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
-      );
-      expect(setSpy).toHaveBeenCalledWith(
-        reservationKey('MENTOR_PENDING', eom, 'mentor-1'),
-        expect.anything(),
-        MENTOR_SCHEDULE_RESERVATIONS_TTL_MS
-      );
+      const upcoming = reservationKey('MENTOR_UPCOMING', eom, 'mentor-1');
+      const pending = reservationKey('MENTOR_PENDING', eom, 'mentor-1');
+      expect(reservationReadModel.get(upcoming)).toEqual({
+        items: [],
+        next_dtend: 0,
+      });
+      expect(reservationReadModel.get(pending)).toEqual({
+        items: [],
+        next_dtend: 0,
+      });
+
+      // Both slots carry the calendar's TTL policy
+      // (MENTOR_SCHEDULE_RESERVATIONS_TTL_MS), rather than the read model's
+      // default permanent, invalidate-driven slot: jump past the window and
+      // they are gone. Asserted through the model's own read, not through a
+      // spy on the call the hook happened to make.
+      const now = Date.now();
+      const nowSpy = vi
+        .spyOn(Date, 'now')
+        .mockReturnValue(now + MENTOR_SCHEDULE_RESERVATIONS_TTL_MS);
+      expect(reservationReadModel.get(upcoming)).toBeUndefined();
+      expect(reservationReadModel.get(pending)).toBeUndefined();
+      nowSpy.mockRestore();
     });
 
     it('reload() re-fetches this month unconditionally and re-primes its own two keys with the fresh result, without invalidating anything by hand', async () => {
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: [],
-        revalidate: Promise.resolve([]),
-      });
+      mockLoadMonthSchedule.mockResolvedValue([]);
       mockFetchAllReservationsForState.mockResolvedValue([]);
 
       const { result } = renderHook(() =>
@@ -1380,7 +1476,9 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reader.reservationsLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+          true
+        );
       });
 
       mockFetchAllReservationsForState.mockClear();
@@ -1444,11 +1542,8 @@ describe('useMentorSchedule', () => {
       ).toEqual({ items: [], next_dtend: 0 });
     });
 
-    it('reload() leaves this month’s previously-cached keys untouched when the refetch fails', async () => {
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: [],
-        revalidate: Promise.resolve([]),
-      });
+    it('reload() leaves this month? previously-cached keys untouched when the refetch fails', async () => {
+      mockLoadMonthSchedule.mockResolvedValue([]);
       mockFetchAllReservationsForState.mockResolvedValue([]);
 
       const { result } = renderHook(() =>
@@ -1459,7 +1554,9 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reader.reservationsLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+          true
+        );
       });
 
       const eom = computeEndOfMonthUnix(2026, 7);
@@ -1503,10 +1600,7 @@ describe('useMentorSchedule', () => {
     });
 
     it('clears the reservations cache when the backend user switches', async () => {
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: [],
-        revalidate: Promise.resolve([]),
-      });
+      mockLoadMonthSchedule.mockResolvedValue([]);
       mockFetchAllReservationsForState.mockResolvedValue([]);
 
       const { result, rerender } = renderHook(
@@ -1516,7 +1610,9 @@ describe('useMentorSchedule', () => {
       );
 
       await waitFor(() => {
-        expect(result.current.reader.reservationsLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+          true
+        );
       });
 
       const clearSpy = vi.spyOn(reservationReadModel, 'clear');
@@ -1541,10 +1637,7 @@ describe('useMentorSchedule', () => {
         },
       ];
 
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: mockRaws,
-        revalidate: Promise.resolve(mockRaws),
-      });
+      mockLoadMonthSchedule.mockResolvedValue(mockRaws);
 
       mockFetchAllReservationsForState.mockImplementation(
         async (_userId, state) =>
@@ -1595,10 +1688,7 @@ describe('useMentorSchedule', () => {
       // before this reservations fetch (which drives slot.reservation)
       // does, so a caller must gate on reservationsLoaded specifically
       // rather than assuming monthLoaded covers both.
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: defaultMockRaws,
-        revalidate: Promise.resolve(defaultMockRaws),
-      });
+      mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
 
       const resolveFetchers: Array<(value: []) => void> = [];
       mockFetchAllReservationsForState.mockImplementation(
@@ -1618,9 +1708,11 @@ describe('useMentorSchedule', () => {
       // Schedule fetch is cached and resolves synchronously, but the
       // reservations fetch is still pending.
       await waitFor(() => {
-        expect(result.current.reader.monthLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.monthLoaded).toBe(true);
       });
-      expect(result.current.reader.reservationsLoaded).toBe(false);
+      expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+        false
+      );
 
       await waitFor(() => {
         expect(resolveFetchers).toHaveLength(2);
@@ -1632,7 +1724,9 @@ describe('useMentorSchedule', () => {
       });
 
       await waitFor(() => {
-        expect(result.current.reader.reservationsLoaded).toBe(true);
+        expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+          true
+        );
       });
     });
 
@@ -1640,14 +1734,11 @@ describe('useMentorSchedule', () => {
       // fetchAllReservationsForState itself never rejects in production (it
       // swallows its own errors, see reservationService.ts), but this
       // exercises the hook's own defense-in-depth catch for anything else
-      // that could throw. reservationsLoaded must stay false here — it's
+      // that could throw. reservationsLoaded must stay false here - it's
       // only ever set true on the success path, deliberately not in a
       // `finally` (which would run on this failure too and mark the flag
       // loaded despite `reservations` never actually being written).
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: defaultMockRaws,
-        revalidate: Promise.resolve(defaultMockRaws),
-      });
+      mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
       mockFetchAllReservationsForState.mockRejectedValue(new Error('boom'));
 
       const { result } = renderHook(() =>
@@ -1667,7 +1758,9 @@ describe('useMentorSchedule', () => {
         );
       });
 
-      expect(result.current.reader.reservationsLoaded).toBe(false);
+      expect(result.current.reader.slotsSnapshot.reservationsLoaded).toBe(
+        false
+      );
     });
   });
 
@@ -1677,9 +1770,9 @@ describe('useMentorSchedule', () => {
         new Date('2026-07-01T00:00:00Z').getTime()
       );
 
-      mockLoadMonthScheduleCached.mockReset();
+      mockLoadMonthSchedule.mockReset();
 
-      // Set up fresh mock values for reload
+      // What the backend returns once the schedule has been reloaded.
       const reloadedRaws: RawMentorTimeslot[] = [
         {
           id: 101,
@@ -1699,21 +1792,7 @@ describe('useMentorSchedule', () => {
         },
       ];
 
-      let cachedCalls = 0;
-      mockLoadMonthScheduleCached.mockImplementation(() => {
-        cachedCalls++;
-        if (cachedCalls === 1) {
-          return {
-            cached: defaultMockRaws,
-            revalidate: Promise.resolve(defaultMockRaws),
-          };
-        } else {
-          return {
-            cached: undefined,
-            revalidate: Promise.resolve(reloadedRaws),
-          };
-        }
-      });
+      mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
 
       const { result } = renderHook(() =>
         useMentorSchedule({
@@ -1747,6 +1826,7 @@ describe('useMentorSchedule', () => {
         async (_userId, state) =>
           state === 'MENTOR_UPCOMING' ? reloadedReservations : []
       );
+      mockLoadMonthSchedule.mockResolvedValue(reloadedRaws);
 
       // Trigger reload
       await act(async () => {
@@ -1757,13 +1837,15 @@ describe('useMentorSchedule', () => {
       expect(result.current.editor!.reservations).toHaveLength(1);
       expect(result.current.editor!.reservations[0].id).toBe('res-reload');
 
-      // Verify loadMonthScheduleCached was called
-      expect(mockLoadMonthScheduleCached).toHaveBeenCalledTimes(2);
-      expect(mockLoadMonthScheduleCached).toHaveBeenLastCalledWith({
-        userId: '123',
-        year: 2026,
-        month: 7,
-      });
+      // The month was re-read from the backend rather than served from the
+      // cache the mount read had just filled, and the read model now holds
+      // exactly what the backend returned.
+      expect(mockLoadMonthSchedule).toHaveBeenCalledTimes(2);
+      expect(mockLoadMonthSchedule).toHaveBeenLastCalledWith(
+        { userId: '123', year: 2026, month: 7 },
+        expect.anything()
+      );
+      expect(scheduleReadModel.get(scheduleKey(7))).toEqual(reloadedRaws);
 
       // Verify calendar slots are updated with new mentee name
       act(() => {
@@ -1784,23 +1866,7 @@ describe('useMentorSchedule', () => {
       // mount fetch isn't polluted by the previous test's resolved data.
       mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
       mockLoadMonthScheduleFresh.mockReset();
-      mockLoadMonthScheduleCached.mockReset();
-
-      let cachedCalls = 0;
-      mockLoadMonthScheduleCached.mockImplementation(() => {
-        cachedCalls++;
-        if (cachedCalls === 1) {
-          return {
-            cached: defaultMockRaws,
-            revalidate: Promise.resolve(defaultMockRaws),
-          };
-        } else {
-          return {
-            cached: defaultMockRaws,
-            revalidate: Promise.reject(new Error('schedule refetch failed')),
-          };
-        }
-      });
+      mockLoadMonthSchedule.mockReset().mockResolvedValue(defaultMockRaws);
 
       const { result } = renderHook(() =>
         useMentorSchedule({
@@ -1815,6 +1881,9 @@ describe('useMentorSchedule', () => {
 
       mockFetchAllReservationsForState.mockRejectedValue(
         new Error('reservations refetch failed')
+      );
+      mockLoadMonthSchedule.mockRejectedValue(
+        new Error('schedule refetch failed')
       );
 
       // Neither reloadReservations nor reloadSchedule rethrow: reload() must
@@ -1833,7 +1902,7 @@ describe('useMentorSchedule', () => {
     it('does not apply reloaded schedule or reservations if the active user changes mid-flight', async () => {
       mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
       mockLoadMonthScheduleFresh.mockReset();
-      mockLoadMonthScheduleCached.mockReset();
+      mockLoadMonthSchedule.mockReset();
 
       // Prepare fresh reload values
       const reloadedRaws: RawMentorTimeslot[] = [
@@ -1847,33 +1916,14 @@ describe('useMentorSchedule', () => {
         },
       ];
 
-      // Delay the fresh schedule refetch slightly so we can trigger an account switch
-      let resolveScheduleFetch: (raws: RawMentorTimeslot[]) => void = () => {};
-      const schedulePromise = new Promise<RawMentorTimeslot[]>((resolve) => {
-        resolveScheduleFetch = resolve;
-      });
-
-      let cachedCalls123 = 0;
-      mockLoadMonthScheduleCached.mockImplementation((ref) => {
-        if (ref.userId === '123') {
-          cachedCalls123++;
-          if (cachedCalls123 === 1) {
-            return {
-              cached: defaultMockRaws,
-              revalidate: Promise.resolve(defaultMockRaws),
-            };
-          } else {
-            return {
-              cached: undefined,
-              revalidate: schedulePromise,
-            };
-          }
-        } else {
-          return {
-            cached: undefined,
-            revalidate: Promise.resolve([]),
-          };
-        }
+      // The reload's own request hangs long enough for an account switch.
+      const oldUserRefetch = deferredMonth();
+      let sawUser123 = false;
+      mockLoadMonthSchedule.mockImplementation((ref) => {
+        if (ref.userId !== '123') return Promise.resolve([]);
+        if (sawUser123) return oldUserRefetch.promise;
+        sawUser123 = true;
+        return Promise.resolve(defaultMockRaws);
       });
 
       const { result, rerender } = renderHook(
@@ -1897,7 +1947,7 @@ describe('useMentorSchedule', () => {
       });
 
       // Resolve the fetch for the OLD user ('123')
-      resolveScheduleFetch(reloadedRaws);
+      oldUserRefetch.resolve(reloadedRaws);
 
       await act(async () => {
         await reloadPromise;
@@ -1910,14 +1960,17 @@ describe('useMentorSchedule', () => {
         (d) => d.start.getTime() === 1785075000 * 1000
       );
       expect(hasOldReloaded).toBe(false);
+      // ...nor cached under the new user's key, so it cannot resurface on a
+      // later swipe back to this month.
+      expect(scheduleReadModel.get(scheduleKey(7, '456'))).toEqual([]);
     });
 
     it('does not discard unsaved draft edits when reloading schedule', async () => {
       mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
       mockLoadMonthScheduleFresh.mockReset();
-      mockLoadMonthScheduleCached.mockReset();
+      mockLoadMonthSchedule.mockReset().mockResolvedValue(defaultMockRaws);
 
-      // Mock the loaded raws
+      // What the reload reads back from the backend.
       const reloadedRaws: RawMentorTimeslot[] = [
         {
           id: 101,
@@ -1928,22 +1981,6 @@ describe('useMentorSchedule', () => {
           exdate: [],
         },
       ];
-
-      let cachedCalls = 0;
-      mockLoadMonthScheduleCached.mockImplementation(() => {
-        cachedCalls++;
-        if (cachedCalls === 1) {
-          return {
-            cached: defaultMockRaws,
-            revalidate: Promise.resolve(defaultMockRaws),
-          };
-        } else {
-          return {
-            cached: undefined,
-            revalidate: Promise.resolve(reloadedRaws),
-          };
-        }
-      });
 
       const { result } = renderHook(() =>
         useMentorSchedule({
@@ -1966,6 +2003,7 @@ describe('useMentorSchedule', () => {
       const draftBeforeReload = result.current.parsedDraft;
 
       // Trigger reload
+      mockLoadMonthSchedule.mockResolvedValue(reloadedRaws);
       await act(async () => {
         await result.current.reader.reload?.();
       });
@@ -1977,7 +2015,6 @@ describe('useMentorSchedule', () => {
     it('does not apply state update or trigger errors if the component unmounts mid-flight of reload', async () => {
       mockFetchAllReservationsForState.mockReset();
       mockLoadMonthScheduleFresh.mockReset();
-      mockLoadMonthScheduleCached.mockReset();
 
       // We need a slow promise for reservations and schedule reload
       let resolveReservations: (
@@ -1990,25 +2027,12 @@ describe('useMentorSchedule', () => {
       });
       mockFetchAllReservationsForState.mockReturnValue(resPromise);
 
-      let resolveSchedule: (val: RawMentorTimeslot[]) => void = () => {};
-      const schedulePromise = new Promise<RawMentorTimeslot[]>((resolve) => {
-        resolveSchedule = resolve;
-      });
-
-      let cachedCalls = 0;
-      mockLoadMonthScheduleCached.mockImplementation(() => {
-        cachedCalls++;
-        if (cachedCalls === 1) {
-          return {
-            cached: defaultMockRaws,
-            revalidate: Promise.resolve(defaultMockRaws),
-          };
-        } else {
-          return {
-            cached: undefined,
-            revalidate: schedulePromise,
-          };
-        }
+      const refetch = deferredMonth();
+      let sawFirstRead = false;
+      mockLoadMonthSchedule.mockReset().mockImplementation(() => {
+        if (sawFirstRead) return refetch.promise;
+        sawFirstRead = true;
+        return Promise.resolve(defaultMockRaws);
       });
 
       const { result, unmount } = renderHook(() =>
@@ -2031,7 +2055,7 @@ describe('useMentorSchedule', () => {
 
       // Resolve the fetches
       resolveReservations([]);
-      resolveSchedule([]);
+      refetch.resolve([]);
 
       await reloadPromise;
 
@@ -2043,35 +2067,16 @@ describe('useMentorSchedule', () => {
       mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
       mockLoadMonthScheduleFresh.mockReset();
       mockCaptureFlowFailure.mockReset();
-      mockLoadMonthScheduleCached.mockReset();
 
-      // Slow rejected promise
-      let rejectSchedule: (err: Error) => void = () => {};
-      const schedulePromise = new Promise<RawMentorTimeslot[]>((_, reject) => {
-        rejectSchedule = reject;
-      });
-
-      let cachedCalls123 = 0;
-      mockLoadMonthScheduleCached.mockImplementation((ref) => {
-        if (ref.userId === '123') {
-          cachedCalls123++;
-          if (cachedCalls123 === 1) {
-            return {
-              cached: defaultMockRaws,
-              revalidate: Promise.resolve(defaultMockRaws),
-            };
-          } else {
-            return {
-              cached: undefined,
-              revalidate: schedulePromise,
-            };
-          }
-        } else {
-          return {
-            cached: undefined,
-            revalidate: Promise.resolve([]),
-          };
-        }
+      // The reload's request for the OLD user fails, but only after the
+      // account has already been switched away from it.
+      const oldUserRefetch = deferredMonth();
+      let sawUser123 = false;
+      mockLoadMonthSchedule.mockReset().mockImplementation((ref) => {
+        if (ref.userId !== '123') return Promise.resolve([]);
+        if (sawUser123) return oldUserRefetch.promise;
+        sawUser123 = true;
+        return Promise.resolve(defaultMockRaws);
       });
 
       const { result, rerender } = renderHook(
@@ -2095,7 +2100,7 @@ describe('useMentorSchedule', () => {
       });
 
       // Reject the schedule fetch for the OLD user
-      rejectSchedule(new Error('old user fetch failed'));
+      oldUserRefetch.reject(new Error('old user fetch failed'));
 
       await act(async () => {
         await reloadPromise;
@@ -2109,10 +2114,7 @@ describe('useMentorSchedule', () => {
       mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
       mockLoadMonthScheduleFresh.mockReset().mockResolvedValue([]);
 
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: defaultMockRaws,
-        revalidate: Promise.resolve(defaultMockRaws),
-      });
+      mockLoadMonthSchedule.mockResolvedValue(defaultMockRaws);
 
       const { result, rerender } = renderHook(
         ({ month }) =>
@@ -2180,15 +2182,10 @@ describe('useMentorSchedule', () => {
       expect(result.current.editor!.reservations).toEqual([]);
     });
 
-    it('prevents race conditions with isStale when backend.month changes mid-flight during fetch', async () => {
+    it('a month request still in flight when the calendar moves on never lands on the month now on screen', async () => {
       mockFetchAllReservationsForState.mockReset().mockResolvedValue([]);
       mockLoadMonthScheduleFresh.mockReset();
-      mockLoadMonthScheduleCached.mockReset();
-
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: defaultMockRaws,
-        revalidate: Promise.resolve(defaultMockRaws),
-      });
+      mockLoadMonthSchedule.mockReset().mockResolvedValue(defaultMockRaws);
 
       const { result, rerender } = renderHook(
         ({ month }) =>
@@ -2203,27 +2200,12 @@ describe('useMentorSchedule', () => {
         expect(result.current.loaded).toBe(true);
       });
 
-      // Set up a slow pending revalidate promise for the reload/refetch
-      let resolveSchedule: (raws: RawMentorTimeslot[]) => void = () => {};
-      const schedulePromise = new Promise<RawMentorTimeslot[]>((resolve) => {
-        resolveSchedule = resolve;
-      });
+      // July's reload hangs; August answers immediately.
+      const julyRefetch = deferredMonth();
+      mockLoadMonthSchedule.mockImplementation((ref) =>
+        ref.month === 7 ? julyRefetch.promise : Promise.resolve([])
+      );
 
-      mockLoadMonthScheduleCached.mockImplementation((ref) => {
-        if (ref.month === 7) {
-          return {
-            cached: undefined,
-            revalidate: schedulePromise,
-          };
-        } else {
-          return {
-            cached: undefined,
-            revalidate: Promise.resolve([]),
-          };
-        }
-      });
-
-      // Start reload (or fetch) for month 7
       const reloadPromise = result.current.reader.reload?.();
 
       // Change month to 8 mid-flight
@@ -2231,8 +2213,9 @@ describe('useMentorSchedule', () => {
         rerender({ month: 8 });
       });
 
-      // Now resolve the schedule promise for month 7
-      const month7Raws: RawMentorTimeslot[] = [
+      // July's rows finally arrive, keyed to July - not to the August the
+      // calendar is now showing.
+      const julyRaws: RawMentorTimeslot[] = [
         {
           id: 101,
           type: 'ALLOW',
@@ -2242,18 +2225,19 @@ describe('useMentorSchedule', () => {
           exdate: [],
         },
       ];
-      resolveSchedule(month7Raws);
+      julyRefetch.resolve(julyRaws);
 
       await act(async () => {
         await reloadPromise;
       });
 
-      // Since month changed to 8, the resolved month 7 raws should NOT be applied
-      // to month 8. There should be no slots for August in the draft.
       const hasAugustSlots = result.current.parsedDraft.some((slot) =>
         slot.dateKey.startsWith('2026-08')
       );
       expect(hasAugustSlots).toBe(false);
+      // July's own slot is where it belongs, and August's is untouched.
+      expect(scheduleReadModel.get(scheduleKey(7))).toEqual(julyRaws);
+      expect(scheduleReadModel.get(scheduleKey(8))).toEqual([]);
     });
 
     it('a slower mount-effect reservations fetch cannot clobber a faster reload() with stale data', async () => {
@@ -2281,10 +2265,7 @@ describe('useMentorSchedule', () => {
         version: 0,
       });
 
-      mockLoadMonthScheduleCached.mockReturnValue({
-        cached: [],
-        revalidate: Promise.resolve([]),
-      });
+      mockLoadMonthSchedule.mockResolvedValue([]);
 
       const resolvers: Array<
         (val: Awaited<ReturnType<typeof fetchAllReservationsForState>>) => void
