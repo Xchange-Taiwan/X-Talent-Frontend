@@ -1,15 +1,14 @@
 'use client';
 
-import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
-import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { useBookingForm } from '@/hooks/user/reservation/useBookingForm';
 import type { BookingSlot } from '@/lib/profile/bookingAvailability';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 import { isSlotTaken } from '@/lib/profile/scheduleHelpers';
-import { bookingFormSchema, BookingFormValues } from '@/schemas/bookingSchema';
+import type { BookingFormValues } from '@/schemas/bookingSchema';
 
 import { BOOKED_SLOT_CLASSES, ScheduleSlotList } from './ScheduleSlotList';
 
@@ -39,13 +38,7 @@ export function MenteeBookingForm({
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<BookingFormValues>({
-    resolver: zodResolver(bookingFormSchema),
-    defaultValues: {
-      bookingQuestion: '',
-    },
-    mode: 'onChange',
-  });
+  } = useBookingForm();
 
   const onSubmit = async (data: BookingFormValues) => {
     const success = await onConfirmReservation(data.bookingQuestion);
