@@ -12,12 +12,9 @@ import React, { useState } from 'react';
 import { ConfirmDialog } from '@/components/profile/edit/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import {
-  Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
-  CommandList,
 } from '@/components/ui/command';
 import {
   FormControl,
@@ -27,11 +24,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   Select,
   SelectContent,
@@ -73,7 +66,7 @@ export function SchoolComboboxField({
   return (
     <FormItem className="grow">
       <FormLabel>學校名稱</FormLabel>
-      <Popover
+      <SearchableSelect
         open={open}
         onOpenChange={(next) => {
           // Closing without an explicit pick (outside click / Escape) discards
@@ -82,8 +75,11 @@ export function SchoolComboboxField({
           setSearch('');
           setOpen(next);
         }}
-      >
-        <PopoverTrigger asChild>
+        title="選擇學校"
+        searchPlaceholder="搜尋學校..."
+        search={search}
+        onSearchChange={setSearch}
+        trigger={
           <FormControl>
             <Button
               variant="outline"
@@ -97,47 +93,33 @@ export function SchoolComboboxField({
               <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
             </Button>
           </FormControl>
-        </PopoverTrigger>
-        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-          <Command shouldFilter={false}>
-            <CommandInput
-              placeholder="搜尋學校..."
-              value={search}
-              onValueChange={setSearch}
-            />
-            <CommandList>
-              <CommandEmpty>找不到相符的學校</CommandEmpty>
-              <CommandGroup>
-                {filteredSchools.map((school) => (
-                  <CommandItem
-                    key={school}
-                    value={school}
-                    onSelect={selectSchool}
-                  >
-                    <Check
-                      className={cn(
-                        'mr-2 size-4',
-                        field.value === school ? 'opacity-100' : 'opacity-0'
-                      )}
-                    />
-                    {school}
-                  </CommandItem>
-                ))}
-                {showCreateOption && (
-                  <CommandItem
-                    key="__create_school__"
-                    value={trimmedSearch}
-                    onSelect={() => selectSchool(trimmedSearch)}
-                  >
-                    <PlusIcon className="mr-2 size-4" />
-                    新增「{trimmedSearch}」
-                  </CommandItem>
+        }
+      >
+        <CommandEmpty>找不到相符的學校</CommandEmpty>
+        <CommandGroup>
+          {filteredSchools.map((school) => (
+            <CommandItem key={school} value={school} onSelect={selectSchool}>
+              <Check
+                className={cn(
+                  'mr-2 size-4',
+                  field.value === school ? 'opacity-100' : 'opacity-0'
                 )}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+              />
+              {school}
+            </CommandItem>
+          ))}
+          {showCreateOption && (
+            <CommandItem
+              key="__create_school__"
+              value={trimmedSearch}
+              onSelect={() => selectSchool(trimmedSearch)}
+            >
+              <PlusIcon className="mr-2 size-4" />
+              新增「{trimmedSearch}」
+            </CommandItem>
+          )}
+        </CommandGroup>
+      </SearchableSelect>
       <FormMessage />
     </FormItem>
   );
