@@ -137,7 +137,7 @@ describe('useAccountMenu', () => {
       expect(result.current.avatarSrc).toBe('https://example.com/avatar.png');
     });
 
-    it('falls back to an empty string when useCurrentAvatar returns null', () => {
+    it('falls back to identity.avatar when useCurrentAvatar returns null', () => {
       mockUseCurrentAvatar.mockReturnValue(null);
       const { result } = renderHook(() =>
         useAccountMenu({
@@ -145,6 +145,21 @@ describe('useAccountMenu', () => {
             isMentor: false,
             avatar: 'https://example.com/hint-avatar.png',
           }),
+          user: buildUser(),
+          closeMenu,
+        })
+      );
+
+      expect(result.current.avatarSrc).toBe(
+        'https://example.com/hint-avatar.png'
+      );
+    });
+
+    it('falls back to an empty string when both useCurrentAvatar and identity.avatar are absent', () => {
+      mockUseCurrentAvatar.mockReturnValue(null);
+      const { result } = renderHook(() =>
+        useAccountMenu({
+          identity: authenticatedIdentity('user-1', { isMentor: false }),
           user: buildUser(),
           closeMenu,
         })
