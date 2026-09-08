@@ -116,6 +116,13 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
         }
       );
 
+      // If the user abandons the form without ever calling consume() (e.g.
+      // navigates away mid-crop), nothing else awaits job.promise. Attach a
+      // no-op catch so that rejection doesn't surface as an unhandled
+      // promise rejection — consume() still awaits the same job.promise and
+      // observes the original rejection independently.
+      job.promise.catch(() => {});
+
       jobRef.current = job;
     },
     []
