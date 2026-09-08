@@ -1,10 +1,10 @@
-# Context: BookingAvailabilityReadModel
+# Context: BookingAvailabilityModel
 
-This document establishes and defines the canonical domain term for the modular booking availability read model.
+This document establishes and defines the canonical domain terms for the modular booking availability computation.
 
-## Canonical Term
+## Canonical Terms
 
-**`BookingAvailabilityReadModel`** (or Booking Availability Read Model)
+**`computeBookingAvailability`** (the function, module's main entry point) and **`BookingAvailabilityModel`** (its return type)
 
 ## Context & Purpose
 
@@ -16,7 +16,7 @@ In the mentor scheduling domain, deriving the final calendar view is a multi-lay
 4. **Precedence Resolution**: Layering `BOOKED` or `PENDING` states on top of free `ALLOW` slots.
 5. **Deduplication**: Ensuring overlapping slots are consolidated safely into distinct selectable choices.
 
-To ensure this pure logic can be developed, optimized, and thoroughly unit-tested without relying on the React hook rendering lifecycle, we extracted this computation into a dedicated non-React module: **`BookingAvailabilityReadModel`**.
+To ensure this pure logic can be developed, optimized, and thoroughly unit-tested without relying on the React hook rendering lifecycle, we extracted this computation into a dedicated non-React module built around **`computeBookingAvailability`**.
 
 ## Module Details
 
@@ -24,9 +24,10 @@ To ensure this pure logic can be developed, optimized, and thoroughly unit-teste
 - **Main Entry Point**: `computeBookingAvailability`
 - **Contract Signature**:
   - **Inputs**: Raw draft rows (`RawMentorTimeslot[]`), current reservations (`Reservation[]`), a reference current timestamp (`nowSec`), and an optional mentor viewing intent (`includeBookedDates`).
-  - **Outputs**: Selected calendar view payload including `allowedDates` (selectable dates), `bookingStatusByDate` (performance-optimized per-date status dots lookup map), and a generator function `generateBookingSlots` for any given date.
+  - **Outputs**: A `BookingAvailabilityModel` payload including `allowedDates` (selectable dates), `bookingStatusByDate` (performance-optimized per-date status dots lookup map), and a generator function `generateBookingSlots` for any given date.
+- **Naming note**: this module predates the `ReservationReadModel` naming convention below, so its exports don't carry a `ReadModel` suffix - but the shape is the same: `computeBookingAvailability` is a pure function that derives a read-only, computed view (`BookingAvailabilityModel`) over draft rows and reservations, with no ties to the React rendering lifecycle.
 
-By formalizing the **`BookingAvailabilityReadModel`**, downstream features (such as dialogs, detail cards, and calendar status widgets) can reuse this precise logic with a unified, predictable vocabulary.
+By formalizing **`computeBookingAvailability`** and its **`BookingAvailabilityModel`** output type, downstream features (such as dialogs, detail cards, and calendar status widgets) can reuse this precise logic with a unified, predictable vocabulary.
 
 ## Domain Vocabulary & Types
 
@@ -36,7 +37,7 @@ Key types exported from this module (`src/lib/profile/bookingAvailability/`):
 
 - **`BookingSlot`**: Represents a single bookable timeslot occurrence (start, end, schedule ID, booking/status, mentee, reservation info).
 - **`BookingStatus`**: An enum defining the booking status (`'PENDING' | 'BOOKED'`).
-- **`ParsedMentorTimeslot`**: An expanded, formatted representation of a raw timeslot occurrence used directly in the schedule editor.
+- **`ParsedMentorTimeslot`**: An expanded, formatted representation of a raw timeslot occurrence. Used directly in the schedule editor (`MentorScheduleEditor.draftForSelectedDate`), and also exposed unfiltered at the top level of `useMentorSchedule`'s return value as `parsedDraft` - so a reader-side consumer of the hook can reach it too, not only the editor.
 - **`SlotsSnapshot`**: A snapshot structure grouping the selected date's booking slots with their loading flags (`monthLoaded`, `reservationsLoaded`).
 - **`SlotDurationMinutes`**: Valid slot durations (`30 | 45 | 60`).
 - **`BookingCalendarReader`**: A narrow read-only interface used by mentees and visitors to view a mentor's booking schedule.
@@ -44,7 +45,7 @@ Key types exported from this module (`src/lib/profile/bookingAvailability/`):
 
 ## Elapsed Time Behavior (Page Open)
 
-To ensure consistency and prevent race conditions, the **`BookingAvailabilityReadModel`** explicitly treats the reference current timestamp (`nowSec`) as a **frozen instant contract**.
+To ensure consistency and prevent race conditions, **`computeBookingAvailability`** explicitly treats the reference current timestamp (`nowSec`) as a **frozen instant contract**.
 
 - **No Clock Tick (Frozen Instant)**: Both `allowedDates` (selectable dates on the calendar) and `generateBookingSlots` (the slot generator) are derived against the exact same timestamp frozen when the read model was computed. As time passes with the page open, the view remains stable and self-consistent.
 - **Why this design**:
@@ -93,3 +94,40 @@ By construction, callers can only interact with reservation caching through thes
 
 - `useReservationData` (`src/hooks/user/reservation/useReservationData.ts`) subscribes once per tab (`upcoming` / `pending` / lazily-loaded `history`) and drives every mutation-triggered cache write through this model, using the default unscoped, permanent slot.
 - `useMentorSchedule` (`src/hooks/useMentorSchedule.ts`, X-Tracker #650) reads the mentor-schedule calendar's `MENTOR_UPCOMING` / `MENTOR_PENDING` reservations through this same model, scoped per viewed month via `endOfMonthUnix` and bounded by `MENTOR_SCHEDULE_RESERVATIONS_TTL_MS`. This replaced a separate, differently-shaped hand-rolled cache (`src/services/mentor-schedule/reservationsCache.ts`, now deleted) that duplicated this model's cache-first/TTL/full-wipe mechanics on its own.
+
+---
+
+# Context: ReservationIdentity
+
+This document establishes and defines the canonical domain term for the shared reservation-surface identity block.
+
+## Canonical Term
+
+**`ReservationIdentity`** (or Reservation Identity), together with its extracted sub-component **`ReservationIdentityHeader`**
+
+## Context & Purpose
+
+Every surface that shows a reservation to a mentor - `ConfirmedReservationDialog`, `QuickReplyDialog`, `AcceptReservationDialog`, and `ReservationCard` - needs the same avatar + name + role line (+ optional status badge) block for the counterparty, but each surface's padding, spacing, and surrounding layout (date/time row, message previews, actions) differs enough that they can't share one rigid component. `ReservationIdentity` (and its inner `ReservationIdentityHeader`) was extracted (commit `30846066`, "extract ReservationIdentity module, adopt in confirmed/quick-reply dialogs") to own that shared identity layout once, while leaving each caller free to control what surrounds it.
+
+## Module Details
+
+- **Location**: `src/components/reservation/ReservationIdentity.tsx`
+- **Main Exports**: `ReservationIdentity` (identity block + date/time row + optional message preview) and `ReservationIdentityHeader` (just the avatar/name/role/badge block, for a caller whose surrounding layout diverges too far to share, e.g. `ReservationCard`).
+- **Domain Vocabulary**:
+  - **`ReservationIdentityDensity`**: `'default' | 'compact'` - controls the identity card's padding.
+  - **`ReservationIdentityHeaderVariant`**: `'dialog' | 'compact' | 'card'` - controls the header block's layout/styling (avatar size, whether the role line sits inside or below the name link, badge placement).
+  - **`ReservationIdentityVariant`**: `'dialog' | 'accept'` - controls `ReservationIdentity`'s outer layout (date/time row styling, default `showMessages`), and maps onto one of the header variants above.
+
+## What It Owns vs. What Callers Supply
+
+`ReservationIdentity` / `ReservationIdentityHeader` own only the **layout** for these three variant axes - sizing, spacing, and which elements render where. They explicitly do **not** own, and always take as caller-supplied props instead:
+
+- **Viewer role**: `sourceRole` (`'mentor' | 'mentee'`) is a required prop with no default, so a caller reusing the `'dialog'` variant for a mentee-facing surface can't silently inherit the wrong role.
+- **Whether a profile link exists**: `profileHref` and `linkToProfile` are caller-supplied; when `profileHref` is absent (or `linkToProfile` is `false`), the avatar and name render as plain, non-link elements.
+- **Which actions are available**: `ReservationIdentityHeader`'s `children` slot (e.g. `ReservationCard`'s date/time row and action buttons) and `ReservationIdentity`'s `showMessages` / `showStatusBadge` flags are all caller-decided; the module itself renders no reservation actions.
+
+## Consumers
+
+- `ConfirmedReservationDialog` and `QuickReplyDialog` (`src/components/profile/reservation/`) use `ReservationIdentity` with the `'dialog'` variant.
+- `AcceptReservationDialog` (`src/components/reservation/AcceptReservationDialog.tsx`) uses `ReservationIdentity` with the `'accept'` variant.
+- `ReservationCard` (`src/components/reservation/ReservationCard.tsx`) uses `ReservationIdentityHeader` directly (the `'card'` header variant), since its date/time and message layout diverges too far from the dialogs to share the outer `ReservationIdentity` wrapper.
