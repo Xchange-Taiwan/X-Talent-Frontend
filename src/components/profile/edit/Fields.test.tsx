@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { useForm } from 'react-hook-form';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Form } from '@/components/ui/form';
 
@@ -123,5 +123,69 @@ describe('ComboboxField', () => {
     render(<Harness disabled />);
 
     expect(screen.getByRole('combobox')).toBeDisabled();
+  });
+});
+
+// 上面那些案例走的都是桌機 popover —— src/test/setup.ts 的 matchMedia 一律回報
+// 不成立。手機版改由底部面板轉譯，是這張票要修的主要路徑，表單綁定得分開驗證。
+describe('ComboboxField on mobile', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function useMobileViewport(): void {
+    vi.stubGlobal(
+      'matchMedia',
+      (query: string) =>
+        ({
+          matches: true,
+          media: query,
+          onchange: null,
+          addEventListener() {},
+          removeEventListener() {},
+          addListener() {},
+          removeListener() {},
+          dispatchEvent: () => false,
+        }) as unknown as MediaQueryList
+    );
+  }
+
+  it('writes the picked value back to the form from inside the sheet', async () => {
+    useMobileViewport();
+    render(<Harness />);
+
+    fireEvent.click(screen.getByRole('combobox'));
+
+    // 面板是 dialog，不是 popover
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole('heading', { name: '請選擇地區' })
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Country 3'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox')).toHaveTextContent('Country 3');
+    });
+  });
+
+  it('marks the field as touched when the sheet closes', async () => {
+    useMobileViewport();
+    render(<Harness />);
+
+    expect(screen.getByTestId('touched')).toHaveTextContent('false');
+
+    fireEvent.click(screen.getByRole('combobox'));
+    await waitFor(() => {
+      expect(screen.getByText('Country 0')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '關閉' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('touched')).toHaveTextContent('true');
+    });
   });
 });
