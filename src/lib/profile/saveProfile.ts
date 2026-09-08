@@ -1,6 +1,12 @@
 import { Session } from 'next-auth';
 
 import { trackEvent } from '@/lib/analytics';
+import {
+  applyIdentityPatch,
+  deriveOptimisticIdentityPatch,
+  type IdentityPatch,
+  reconcileIdentityWithBackend,
+} from '@/lib/identity/identityProjection';
 import { captureFlowFailure } from '@/lib/monitoring';
 import {
   confirmProfileSynced as defaultConfirmProfileSynced,
@@ -184,27 +190,68 @@ export async function saveProfile(
     });
   }
 
-  // Step 4: Optimistic Cache Priming (Ticket 631)
-  function step4OptimisticCachePriming(
-    avatarUrl: string | undefined,
+  // Step 4: Apply the optimistic identity patch (Ticket 670)
+  //
+  // The optimistic values for name/avatar/isMentor/onBoarding are derived
+  // exactly once (`deriveOptimisticIdentityPatch`) and then applied to both
+  // projection targets - the profile DTO cache and the NextAuth session -
+  // through `applyIdentityPatch`, instead of each target recomputing its own
+  // guess (Ticket 631 originally introduced the DTO cache half of this).
+  //
+  // `buildSessionIdentityUpdater` below is reused unchanged by step 6's
+  // background reconciliation, so both the optimistic write and the
+  // backend-confirmed correction go through the same session-merge code.
+  function buildSessionIdentityUpdater(
+    jobTitle: string | undefined,
+    company: string | undefined
+  ): (patch: IdentityPatch) => Promise<Session | null> {
+    const personalLinks = extractValidLinks(values).map((link) => ({
+      platform: link.platform,
+      url: link.url,
+    }));
+
+    // Computed once, outside the returned closure, so step4's optimistic
+    // apply and step6's background reconcile write the exact same value.
+    // WhoAreYou.tsx uses avatarUpdatedAt as a `?cb=` cache-busting query
+    // param on the avatar <img> src - if the two writes disagreed (e.g. a
+    // fresh Date.now() per call), the URL would change between them and
+    // force an unnecessary refetch/flicker even when the avatar itself
+    // didn't change.
+    const nextAvatarUpdatedAt = values.avatarFile
+      ? Date.now()
+      : sessionUser?.avatarUpdatedAt;
+
+    return (patch: IdentityPatch) =>
+      updateSession({
+        user: {
+          id: sessionUser?.id,
+          name: patch.name,
+          avatar: patch.avatar,
+          avatarUpdatedAt: nextAvatarUpdatedAt,
+          isMentor: patch.isMentor,
+          onBoarding: patch.onBoarding,
+          msg: sessionUser?.msg,
+          personalLinks,
+          jobTitle: jobTitle || sessionUser?.jobTitle,
+          company: company || sessionUser?.company,
+        },
+      });
+  }
+
+  async function step4ApplyOptimisticIdentity(
+    identityPatch: IdentityPatch,
+    updateSessionIdentity: (patch: IdentityPatch) => Promise<Session | null>,
     jobTitle?: string,
     company?: string,
     experiencesPayload?: unknown
-  ) {
-    const optimisticIsMentor = isMentorOnboarding
-      ? true
-      : (sessionUser?.isMentor ?? false);
-    const optimisticOnBoarding = isMentorOnboarding
-      ? true
-      : (sessionUser?.onBoarding ?? false);
-
+  ): Promise<MentorProfileVO> {
     const experiences = experiencesPayload ?? currentDto?.experiences ?? null;
 
     const optimisticDto: MentorProfileVO = {
       ...currentDto,
       user_id: sessionUserId ?? Number(pageUserId),
-      name: values.name,
-      avatar: avatarUrl ?? currentDto?.avatar ?? values.avatar ?? null,
+      name: identityPatch.name,
+      avatar: identityPatch.avatar,
       job_title: jobTitle || currentDto?.job_title || null,
       company: company || currentDto?.company || null,
       years_of_experience:
@@ -213,8 +260,8 @@ export async function saveProfile(
       personal_statement:
         values.statement || currentDto?.personal_statement || null,
       about: values.about || currentDto?.about || null,
-      onboarding: optimisticOnBoarding,
-      is_mentor: optimisticIsMentor,
+      onboarding: identityPatch.onBoarding,
+      is_mentor: identityPatch.isMentor,
       language: 'zh_TW',
       industry: values.industry
         ? {
@@ -235,53 +282,18 @@ export async function saveProfile(
     } as unknown as MentorProfileVO;
 
     const resolvedUserId = sessionUserId ?? Number(pageUserId);
-    primeUserDataCache(resolvedUserId, 'zh_TW', optimisticDto);
+
+    await applyIdentityPatch(identityPatch, {
+      primeProfileDto: () =>
+        primeUserDataCache(resolvedUserId, 'zh_TW', optimisticDto),
+      updateSession: updateSessionIdentity,
+    });
+
     return optimisticDto;
   }
 
-  // Step 5: Optimistic Session Update
-  async function step5OptimisticSessionUpdate(
-    avatarUrl: string | undefined,
-    jobTitle?: string,
-    company?: string
-  ) {
-    const personalLinks = extractValidLinks(values).map((link) => ({
-      platform: link.platform,
-      url: link.url,
-    }));
-
-    const optimisticIsMentor = isMentorOnboarding
-      ? true
-      : (sessionUser?.isMentor ?? false);
-    const optimisticOnBoarding = isMentorOnboarding
-      ? true
-      : (sessionUser?.onBoarding ?? false);
-
-    try {
-      await updateSession({
-        user: {
-          id: sessionUser?.id,
-          name: values.name ?? sessionUser?.name,
-          avatar: avatarUrl ?? sessionUser?.avatar,
-          avatarUpdatedAt: values.avatarFile
-            ? Date.now()
-            : sessionUser?.avatarUpdatedAt,
-          isMentor: optimisticIsMentor,
-          onBoarding: optimisticOnBoarding,
-          msg: sessionUser?.msg,
-          personalLinks,
-          jobTitle: jobTitle || sessionUser?.jobTitle,
-          company: company || sessionUser?.company,
-        },
-      });
-    } catch (e) {
-      console.error('updateSession failed:', e);
-    }
-    return { optimisticIsMentor, optimisticOnBoarding };
-  }
-
-  // Step 6: Immediate Navigation
-  function step6ImmediateNavigation() {
+  // Step 5: Immediate Navigation
+  function step5ImmediateNavigation() {
     trackEvent({ name: 'profile_update_submitted', feature: 'profile' });
     if (isMentorOnboarding) {
       navigate('/profile/card');
@@ -290,32 +302,14 @@ export async function saveProfile(
     }
   }
 
-  // Step 7: Background Prime & Reconcile
-  function step7BackgroundReconcile(
+  // Step 6: Background Prime & Reconcile
+  function step6BackgroundReconcile(
     avatarUrl: string | undefined,
-    jobTitle?: string,
-    company?: string,
-    optimisticIsMentor = false,
-    optimisticOnBoarding = false
+    jobTitle: string | undefined,
+    company: string | undefined,
+    identityPatch: IdentityPatch,
+    updateSessionIdentity: (patch: IdentityPatch) => Promise<Session | null>
   ) {
-    const reconcileSession = (latest: MentorProfileVO | null) => {
-      if (!latest) return;
-      const latestIsMentor = Boolean(latest.is_mentor);
-      const latestOnBoarding = Boolean(latest.onboarding);
-      if (
-        optimisticIsMentor === latestIsMentor &&
-        optimisticOnBoarding === latestOnBoarding
-      ) {
-        return;
-      }
-      void updateSession({
-        user: {
-          isMentor: latestIsMentor,
-          onBoarding: latestOnBoarding,
-        },
-      });
-    };
-
     void (async () => {
       try {
         let latest: MentorProfileVO | null = null;
@@ -336,7 +330,14 @@ export async function saveProfile(
             avatarUrl ?? ''
           );
         }
-        reconcileSession(latest);
+
+        // Reconcile the session against backend truth through the very same
+        // `updateSessionIdentity` path step 4 used to apply the optimistic
+        // patch, and covering every field that patch touched (not just
+        // isMentor/onBoarding).
+        await reconcileIdentityWithBackend(identityPatch, latest, {
+          updateSession: updateSessionIdentity,
+        });
 
         const isMentorRelevant =
           isMentorOnboarding ||
@@ -374,29 +375,38 @@ export async function saveProfile(
     })();
   }
 
-  // Enforce the execution order of the seven steps structurally
+  // Enforce the execution order of the six steps structurally
   const avatarUrl = await step1UploadAvatar();
   const { payload } = await step2WriteProfile(avatarUrl);
   await step3OptimisticCacheRevalidation();
-  const optimisticDto = step4OptimisticCachePriming(
+
+  const identityPatch = deriveOptimisticIdentityPatch({
+    name: values.name,
     avatarUrl,
+    isMentorOnboarding,
+    fallbackAvatar: sessionUser?.avatar ?? currentDto?.avatar ?? values.avatar,
+    fallbackIsMentor: sessionUser?.isMentor,
+    fallbackOnBoarding: sessionUser?.onBoarding,
+  });
+  const updateSessionIdentity = buildSessionIdentityUpdater(
+    payload.job_title,
+    payload.company
+  );
+
+  const optimisticDto = await step4ApplyOptimisticIdentity(
+    identityPatch,
+    updateSessionIdentity,
     payload.job_title,
     payload.company,
     payload.experiences
   );
-  const { optimisticIsMentor, optimisticOnBoarding } =
-    await step5OptimisticSessionUpdate(
-      avatarUrl,
-      payload.job_title,
-      payload.company
-    );
-  step6ImmediateNavigation();
-  step7BackgroundReconcile(
+  step5ImmediateNavigation();
+  step6BackgroundReconcile(
     avatarUrl,
     payload.job_title,
     payload.company,
-    optimisticIsMentor,
-    optimisticOnBoarding
+    identityPatch,
+    updateSessionIdentity
   );
 
   return optimisticDto;
