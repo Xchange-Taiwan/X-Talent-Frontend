@@ -48,10 +48,6 @@ export function prefetchPresignedUrl(userId: number): void {
   presignedCache = { userId, fetchedAt: Date.now(), promise };
 }
 
-export function clearPresignedUrlCache(): void {
-  presignedCache = null;
-}
-
 async function consumePresignedUrl(
   userId: number
 ): Promise<PresignedUrlData | null> {

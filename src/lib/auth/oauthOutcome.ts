@@ -5,9 +5,6 @@ import type { components } from '@/types/api';
 
 type GoogleCallbackVO = components['schemas']['GoogleCallbackVO'];
 
-export type OAuthOutcomeType =
-  'LOGIN' | 'SIGNUP' | 'RESUME_DELETE_ACCOUNT' | 'INVALID';
-
 export type OAuthOutcome =
   | { type: 'LOGIN'; data: GoogleCallbackVO }
   | { type: 'SIGNUP'; data: GoogleCallbackVO }

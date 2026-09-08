@@ -16,12 +16,6 @@ export const tagCatalogReadManager = new AsyncReadManager<
   TagCatalogsByBucket
 >(tagCatalogCache);
 
-export function getTagCatalogCachedSync(
-  language: string
-): TagCatalogsByBucket | undefined {
-  return tagCatalogReadManager.get(language);
-}
-
 /**
  * Seed the in-memory catalog cache from SSR-fetched catalogs so that the
  * first render of useTagCatalog reads localized labels synchronously — avoids

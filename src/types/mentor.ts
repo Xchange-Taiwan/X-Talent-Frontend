@@ -5,9 +5,6 @@ import type { components } from '@/types/api';
 
 export type RawMentor = components['schemas']['SearchMentorProfileVO'];
 
-export type MentorListResponse =
-  components['schemas']['ApiResponse_SearchMentorProfileListVO_'];
-
 export type { WorkExperienceMetadata };
 
 export interface MentorType {
@@ -29,8 +26,6 @@ export interface MentorType {
   have_topic: string[];
   updated_at: number | null;
 }
-
-export type MentorsType = components['schemas']['SearchMentorProfileListVO'];
 
 export interface MentorRequest {
   search_pattern?: string;

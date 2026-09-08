@@ -14,12 +14,6 @@ export interface PresignedUrlData {
   fields: PresignedUrlFields;
 }
 
-export interface PresignedUrlResponse {
-  code: string;
-  msg: string;
-  data?: PresignedUrlData;
-}
-
 export async function fetchPresignedUrl(
   userId: number
 ): Promise<PresignedUrlData | null> {
