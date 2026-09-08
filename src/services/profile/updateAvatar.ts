@@ -1,18 +1,10 @@
 import { getSession } from 'next-auth/react';
 
 import {
-  fetchPresignedUrlByUserId,
+  fetchPresignedUrl,
   PresignedUrlData,
+  PresignedUrlFields,
 } from '@/services/profile/presignedUrl';
-
-interface PresignedUrlFields {
-  key: string;
-  AWSAccessKeyId: string;
-  'x-amz-security-token': string;
-  policy: string;
-  signature: string;
-  [key: string]: string;
-}
 
 // S3 presigned POST URLs are valid for 15 minutes; cap our cache at 10 to
 // leave headroom for the actual upload to complete before expiry.
@@ -44,7 +36,7 @@ function isCacheUsable(
 export function prefetchPresignedUrl(userId: number): void {
   if (!Number.isFinite(userId) || userId <= 0) return;
   if (isCacheUsable(presignedCache, userId)) return;
-  const promise = fetchPresignedUrlByUserId(userId).catch(() => null);
+  const promise = fetchPresignedUrl(userId).catch(() => null);
   presignedCache = { userId, fetchedAt: Date.now(), promise };
 }
 
@@ -58,7 +50,7 @@ async function consumePresignedUrl(
     const result = await cached.promise;
     if (result) return result;
   }
-  return fetchPresignedUrlByUserId(userId);
+  return fetchPresignedUrl(userId);
 }
 
 // 你的後端 policy 有這條：["starts-with", "$Content-Type", "image/"]

@@ -27,5 +27,3 @@ export async function fetchPresignedUrl(
     return null;
   }
 }
-
-export const fetchPresignedUrlByUserId = fetchPresignedUrl;
