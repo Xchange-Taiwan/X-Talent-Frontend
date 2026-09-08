@@ -140,7 +140,7 @@ const FormDescription = React.forwardRef<
     <p
       ref={ref}
       id={formDescriptionId}
-      className={cn('text-text-tertiary text-sm', className)}
+      className={cn('text-sm text-text-tertiary', className)}
       {...props}
     />
   );
@@ -162,7 +162,7 @@ const FormMessage = React.forwardRef<
     <p
       ref={ref}
       id={formMessageId}
-      className={cn('text-status-error-default text-sm font-medium', className)}
+      className={cn('text-sm font-medium text-status-error-default', className)}
       {...props}
     >
       {body}
@@ -179,5 +179,4 @@ export {
   FormItem,
   FormLabel,
   FormMessage,
-  useFormField,
 };
