@@ -103,10 +103,14 @@ export function useNotificationCenter({
     return httpNotificationSource;
   }, [notificationSource, initialNotifications]);
 
-  const sourceRef = React.useRef(actualSource);
+  // The model (notificationStoreManager) owns the NotificationSource for
+  // this store key - hand it off on mount and whenever it changes, instead
+  // of threading it through every operation. useIsomorphicLayoutEffect
+  // (rather than a plain effect) keeps this write ordered before any
+  // same-commit passive effect (e.g. loadUnreadCount below) reads it.
   useIsomorphicLayoutEffect(() => {
-    sourceRef.current = actualSource;
-  }, [actualSource]);
+    notificationStoreManager.setSource(userId, actualSource);
+  }, [userId, actualSource]);
 
   // Semantic variables to avoid duplication and clarify intents.
   // Environment-specific behavior is asked of the installed source rather
@@ -205,7 +209,9 @@ export function useNotificationCenter({
       notificationStoreManager.startLoadMore(userId);
 
       try {
-        const res = await sourceRef.current.listNotifications(
+        const source =
+          notificationStoreManager.getSource(userId) ?? httpNotificationSource;
+        const res = await source.listNotifications(
           effectiveUserId,
           state.nextCursor,
           20
@@ -248,7 +254,10 @@ export function useNotificationCenter({
       userId,
       async () => {
         try {
-          const res = await sourceRef.current.getUnreadCount(effectiveUserId);
+          const source =
+            notificationStoreManager.getSource(userId) ??
+            httpNotificationSource;
+          const res = await source.getUnreadCount(effectiveUserId);
           return res.unread_count;
         } catch (error) {
           reportFailure(
@@ -271,9 +280,12 @@ export function useNotificationCenter({
         userId,
         showLoading,
         async () => {
+          const source =
+            notificationStoreManager.getSource(userId) ??
+            httpNotificationSource;
           const [unreadRes, notificationsRes] = await Promise.all([
-            sourceRef.current.getUnreadCount(effectiveUserId),
-            sourceRef.current.listNotifications(effectiveUserId, undefined, 20),
+            source.getUnreadCount(effectiveUserId),
+            source.listNotifications(effectiveUserId, undefined, 20),
           ]);
           return {
             unreadCount: unreadRes.unread_count,
@@ -396,7 +408,10 @@ export function useNotificationCenter({
         onMarkRead ||
         (canMutate
           ? (notifId: string) =>
-              sourceRef.current.markOneRead(effectiveUserId, notifId)
+              (
+                notificationStoreManager.getSource(userId) ??
+                httpNotificationSource
+              ).markOneRead(effectiveUserId, notifId)
           : null);
       if (!action) {
         notificationStoreManager.completeMarkRead(userId, id);
@@ -454,7 +469,9 @@ export function useNotificationCenter({
           });
         }
       } else if (canMutate) {
-        await sourceRef.current.markAllRead(effectiveUserId);
+        const source =
+          notificationStoreManager.getSource(userId) ?? httpNotificationSource;
+        await source.markAllRead(effectiveUserId);
       }
     } catch (error) {
       reportMarkAsReadFailure('mark_all_read', error);
@@ -474,7 +491,8 @@ export function useNotificationCenter({
   const handleRetry = React.useCallback(() => {
     notificationStoreManager.startRetry(userId);
 
-    const source = sourceRef.current;
+    const source =
+      notificationStoreManager.getSource(userId) ?? httpNotificationSource;
     if (!source.retry) {
       loadInitialData(true);
       return;
