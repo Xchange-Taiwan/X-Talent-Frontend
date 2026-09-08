@@ -1,14 +1,15 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
+import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { useBookingForm } from '@/hooks/user/reservation/useBookingForm';
 import type { BookingSlot } from '@/lib/profile/bookingAvailability';
 import { formatBookingSlotTime } from '@/lib/profile/scheduleFormatters';
 import { isSlotTaken } from '@/lib/profile/scheduleHelpers';
-import type { BookingFormValues } from '@/schemas/bookingSchema';
+import { bookingFormSchema, BookingFormValues } from '@/schemas/bookingSchema';
 
 import { BOOKED_SLOT_CLASSES, ScheduleSlotList } from './ScheduleSlotList';
 
@@ -38,7 +39,13 @@ export function MenteeBookingForm({
     handleSubmit,
     reset,
     formState: { errors },
-  } = useBookingForm();
+  } = useForm<BookingFormValues>({
+    resolver: zodResolver(bookingFormSchema),
+    defaultValues: {
+      bookingQuestion: '',
+    },
+    mode: 'onChange',
+  });
 
   const onSubmit = async (data: BookingFormValues) => {
     const success = await onConfirmReservation(data.bookingQuestion);
@@ -91,12 +98,12 @@ export function MenteeBookingForm({
         <Textarea
           id="booking-question"
           placeholder="請在此輸入你的問題..."
-          className="border-background-border focus-visible:ring-primary h-[156px] w-full rounded-lg focus-visible:ring-1 focus-visible:ring-offset-0"
+          className="h-[156px] w-full rounded-lg border-background-border focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
           disabled={isSubmitting}
           {...register('bookingQuestion')}
         />
         {errors.bookingQuestion && (
-          <p className="text-status-error-default mt-1 text-sm">
+          <p className="mt-1 text-sm text-status-error-default">
             {errors.bookingQuestion.message}
           </p>
         )}
@@ -105,7 +112,7 @@ export function MenteeBookingForm({
       <Button
         type="submit"
         variant="default"
-        className="disabled:bg-background-border disabled:text-text-disable w-full rounded-full px-6 py-3 disabled:opacity-100"
+        className="w-full rounded-full px-6 py-3 disabled:bg-background-border disabled:text-text-disable disabled:opacity-100"
         disabled={isButtonDisabled}
       >
         {isSubmitting ? (

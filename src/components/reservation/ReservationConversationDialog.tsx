@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { trackEvent } from '@/lib/analytics';
 import { getAvatarThumbUrl } from '@/lib/avatar/getAvatarThumbUrl';
+import { getInitials } from '@/lib/avatar/getInitials';
 import { cn } from '@/lib/utils';
 import type {
   MessageRole,
@@ -57,12 +58,7 @@ export default function ReservationConversationDialog({
     }
   }
 
-  const initials =
-    reservation.name
-      .split(' ')
-      .map((s) => s[0])
-      .join('')
-      .slice(0, 2) || 'U';
+  const initials = getInitials(reservation.name);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

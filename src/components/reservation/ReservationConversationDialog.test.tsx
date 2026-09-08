@@ -67,4 +67,15 @@ describe('ReservationConversationDialog', () => {
 
     expect(screen.getByText('尚無對話內容')).toBeInTheDocument();
   });
+
+  it('renders avatar initials via the shared getInitials helper (uppercased, whitespace-normalized)', () => {
+    const reservation: Reservation = {
+      ...mockReservation,
+      name: 'jack  chen',
+    };
+
+    openDialog(reservation);
+
+    expect(screen.getByText('JC')).toBeInTheDocument();
+  });
 });

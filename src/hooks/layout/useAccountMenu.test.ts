@@ -137,7 +137,7 @@ describe('useAccountMenu', () => {
       expect(result.current.avatarSrc).toBe('https://example.com/avatar.png');
     });
 
-    it('falls back to identity.avatar when useCurrentAvatar returns null', () => {
+    it('falls back to an empty string when useCurrentAvatar returns null', () => {
       mockUseCurrentAvatar.mockReturnValue(null);
       const { result } = renderHook(() =>
         useAccountMenu({
@@ -150,9 +150,7 @@ describe('useAccountMenu', () => {
         })
       );
 
-      expect(result.current.avatarSrc).toBe(
-        'https://example.com/hint-avatar.png'
-      );
+      expect(result.current.avatarSrc).toBe('');
     });
 
     it('defaults personalLinks to an empty array', () => {

@@ -59,7 +59,7 @@ export function useAccountMenu({
   const canDeleteAccount =
     process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT === 'true';
   const name = user?.name ?? '';
-  const avatarSrc = useCurrentAvatar() ?? identity.avatar ?? '';
+  const avatarSrc = useCurrentAvatar() ?? '';
   const jobTitle = user?.jobTitle ?? '';
   const company = user?.company ?? '';
   const personalLinks = user?.personalLinks ?? [];
