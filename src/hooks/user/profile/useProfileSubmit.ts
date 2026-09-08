@@ -38,9 +38,13 @@ export function useProfileSubmit({
   // 概念驗證 (PoC) 呼叫端：此處整合並呼叫統一管理非同步生命週期的 useAsyncAction Hook
   // 作為基礎建設的一部分，用於收斂載入狀態、防重複連擊與 Sentry 錯誤上報
   const { run, isPending: isSaving } = useAsyncAction({
-    flow: 'profile_update',
-    step: 'update_profile',
-    errorMessage: '儲存失敗，請稍後再試',
+    captureFailure: {
+      flow: 'profile_update',
+      step: 'update_profile',
+    },
+    toastOnError: {
+      description: '儲存失敗，請稍後再試',
+    },
     throwError: false,
     resetPendingOnSuccess: false, // 成功後保持 isSaving 為 true 以模擬轉址中的 UI
     shouldSkipLogging: (err) => err instanceof LoggedError,
