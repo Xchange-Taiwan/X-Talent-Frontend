@@ -1,9 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { scheduleReadModel } from '@/lib/mentor-schedule/scheduleReadModel';
 
 import { fetchMentorSchedule, type ScheduleData } from './schedule';
-import { scheduleCache } from './scheduleCache';
 import {
-  loadMonthScheduleCached,
+  loadMonthSchedule,
+  loadMonthScheduleFresh,
   prefetchMonthSchedule,
   type ScheduleMonthRef,
 } from './sync';
@@ -12,107 +14,146 @@ vi.mock('./schedule', () => ({
   fetchMentorSchedule: vi.fn(),
 }));
 
-describe('sync schedule caching integration', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.clearAllMocks();
-    scheduleCache.clear();
-  });
+const ref: ScheduleMonthRef = {
+  userId: 'mentor_1',
+  year: 2026,
+  month: 5,
+};
 
+// dtstart inside May 2026 and inside June 2026 respectively - loadMonthSchedule
+// keeps only the rows whose local month matches the requested one.
+const MAY_2026 = Date.UTC(2026, 4, 12, 9, 0, 0) / 1000;
+const JUNE_2026 = Date.UTC(2026, 5, 12, 9, 0, 0) / 1000;
+
+function segment(dtstart: number, id: number): ScheduleData['segments'] {
+  return [
+    {
+      id,
+      user_id: 1,
+      dt_type: 'ALLOW',
+      dt_year: 2026,
+      dt_month: 5,
+      dtstart,
+      dtend: dtstart + 1800,
+      timezone: 'UTC',
+    },
+  ];
+}
+
+describe('mentor-schedule sync', () => {
   afterEach(() => {
-    vi.useRealTimers();
+    scheduleReadModel.clear();
+    vi.clearAllMocks();
   });
 
-  const ref: ScheduleMonthRef = {
-    userId: 'mentor_1',
-    year: 2026,
-    month: 5,
-  };
+  describe('loadMonthSchedule', () => {
+    it('keeps only the rows whose dtstart falls in the requested month', async () => {
+      vi.mocked(fetchMentorSchedule).mockResolvedValue({
+        segments: [...segment(MAY_2026, 1)!, ...segment(JUNE_2026, 2)!],
+      });
 
-  it('loadMonthScheduleCached coalesces concurrent in-flight requests', async () => {
-    let resolveFetch: (val: ScheduleData) => void = () => {};
-    const fetchPromise = new Promise<ScheduleData>((resolve) => {
-      resolveFetch = resolve;
+      const raws = await loadMonthSchedule(ref);
+
+      expect(raws.map((r) => r.id)).toEqual([1]);
     });
 
-    vi.mocked(fetchMentorSchedule).mockImplementation(() => fetchPromise);
+    it('forwards the caller AbortSignal so the read model can cancel it', async () => {
+      vi.mocked(fetchMentorSchedule).mockResolvedValue({ segments: [] });
+      const controller = new AbortController();
 
-    // First call triggers a fetch
-    const res1 = loadMonthScheduleCached(ref);
-    expect(res1.cached).toBeUndefined();
+      await loadMonthSchedule(ref, controller.signal);
 
-    // Second call should return the exact same promise (coalesced) and no new fetch triggered
-    const res2 = loadMonthScheduleCached(ref);
-    expect(res2.cached).toBeUndefined();
-    expect(res2.revalidate).toBe(res1.revalidate);
-
-    expect(fetchMentorSchedule).toHaveBeenCalledTimes(1);
-
-    // Resolve the fetch with empty segments
-    resolveFetch({ segments: [] });
-
-    const raws = await res1.revalidate;
-    expect(raws).toEqual([]);
-
-    // After resolution, inflight should be cleared
-    expect(scheduleCache.getInflight(`${ref.userId}:2026-5`)).toBeUndefined();
-  });
-
-  it('loadMonthScheduleCached handles rejection and clears inflight status', async () => {
-    vi.mocked(fetchMentorSchedule).mockRejectedValueOnce(
-      new Error('Network error')
-    );
-
-    const res = loadMonthScheduleCached(ref);
-    await expect(res.revalidate).rejects.toThrow('Network error');
-
-    // In-flight should be cleared on rejection
-    expect(scheduleCache.getInflight(`${ref.userId}:2026-5`)).toBeUndefined();
-  });
-
-  it('loadMonthScheduleCached guards against race condition when cache is primed or cleared during fetch', async () => {
-    let resolveFetch: (val: ScheduleData) => void = () => {};
-    const fetchPromise = new Promise<ScheduleData>((resolve) => {
-      resolveFetch = resolve;
+      expect(fetchMentorSchedule).toHaveBeenCalledWith(ref, controller.signal);
     });
 
-    vi.mocked(fetchMentorSchedule).mockImplementation(() => fetchPromise);
+    it('does not touch the read model - caching is not this function’s job', async () => {
+      vi.mocked(fetchMentorSchedule).mockResolvedValue({
+        segments: segment(MAY_2026, 1),
+      });
 
-    const res = loadMonthScheduleCached(ref);
+      await loadMonthSchedule(ref);
 
-    // Synchronously prime the cache with a fresh slot
-    const freshSlot = {
-      id: 999,
-      type: 'ALLOW' as const,
-      dtstart: 123,
-      dtend: 456,
-      rrule: undefined,
-      exdate: [],
-    };
-    scheduleCache.prime(`${ref.userId}:2026-5`, [freshSlot]);
-
-    // Resolve original loadMonthSchedule request with empty segments (old stale result)
-    resolveFetch({ segments: [] });
-
-    await res.revalidate;
-
-    // The cache should NOT be overwritten by the old empty resolved fetch result
-    expect(scheduleCache.get(`${ref.userId}:2026-5`)).toEqual([freshSlot]);
+      expect(scheduleReadModel.get(ref)).toBeUndefined();
+    });
   });
 
-  it('prefetchMonthSchedule uses prefetch with fetch() and does not trigger double load', async () => {
-    vi.mocked(fetchMentorSchedule).mockResolvedValue({ segments: [] });
+  describe('loadMonthScheduleFresh', () => {
+    it('publishes the freshly fetched rows into the read model', async () => {
+      vi.mocked(fetchMentorSchedule).mockResolvedValue({
+        segments: segment(MAY_2026, 1),
+      });
 
-    prefetchMonthSchedule(ref);
+      const raws = await loadMonthScheduleFresh(ref);
 
-    // Await the async prefetch task to fully resolve and populate cache
-    await vi.runAllTimersAsync();
+      expect(scheduleReadModel.get(ref)).toEqual(raws);
+      expect(raws.map((r) => r.id)).toEqual([1]);
+    });
 
-    // Subsequent cached load should load synchronously from the prefetched cache
-    const res = loadMonthScheduleCached(ref);
-    expect(res.cached).toEqual([]);
+    it('bypasses a cache hit and overwrites it', async () => {
+      scheduleReadModel.set(ref, []);
+      vi.mocked(fetchMentorSchedule).mockResolvedValue({
+        segments: segment(MAY_2026, 1),
+      });
 
-    // Prefetch (1) + Subsequent SWR revalidation call (1) = 2 calls
-    expect(fetchMentorSchedule).toHaveBeenCalledTimes(2);
+      await loadMonthScheduleFresh(ref);
+
+      expect(fetchMentorSchedule).toHaveBeenCalledOnce();
+      expect(scheduleReadModel.get(ref)?.map((r) => r.id)).toEqual([1]);
+    });
+
+    it('notifies a live reader of the month it just rewrote', async () => {
+      const seen: (number[] | null)[] = [];
+      const leave = scheduleReadModel.subscribe(
+        ref,
+        () => Promise.resolve([]),
+        (result) => seen.push(result.data?.map((r) => r.id) ?? null)
+      );
+      await vi.waitFor(() => expect(scheduleReadModel.get(ref)).toBeDefined());
+      seen.length = 0;
+
+      vi.mocked(fetchMentorSchedule).mockResolvedValue({
+        segments: segment(MAY_2026, 1),
+      });
+      await loadMonthScheduleFresh(ref);
+
+      expect(seen).toEqual([[1]]);
+
+      leave();
+    });
+  });
+
+  describe('prefetchMonthSchedule', () => {
+    it('warms the read model for a month nothing is mounted on', async () => {
+      vi.mocked(fetchMentorSchedule).mockResolvedValue({
+        segments: segment(MAY_2026, 1),
+      });
+
+      prefetchMonthSchedule(ref);
+
+      await vi.waitFor(() =>
+        expect(scheduleReadModel.get(ref)?.map((r) => r.id)).toEqual([1])
+      );
+    });
+
+    it('does not re-request a month that is already cached', async () => {
+      scheduleReadModel.set(ref, []);
+
+      prefetchMonthSchedule(ref);
+      await Promise.resolve();
+
+      expect(fetchMentorSchedule).not.toHaveBeenCalled();
+    });
+
+    it('silences failures rather than surfacing them to the user', async () => {
+      vi.mocked(fetchMentorSchedule).mockRejectedValue(new Error('offline'));
+
+      expect(() => prefetchMonthSchedule(ref)).not.toThrow();
+
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(scheduleReadModel.get(ref)).toBeUndefined();
+    });
   });
 });

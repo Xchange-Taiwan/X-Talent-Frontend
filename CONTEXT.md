@@ -92,4 +92,47 @@ By construction, callers can only interact with reservation caching through thes
 ## Consumers
 
 - `useReservationData` (`src/hooks/user/reservation/useReservationData.ts`) subscribes once per tab (`upcoming` / `pending` / lazily-loaded `history`) and drives every mutation-triggered cache write through this model, using the default unscoped, permanent slot.
-- `useMentorSchedule` (`src/hooks/useMentorSchedule.ts`, X-Tracker #650) reads the mentor-schedule calendar's `MENTOR_UPCOMING` / `MENTOR_PENDING` reservations through this same model, scoped per viewed month via `endOfMonthUnix` and bounded by `MENTOR_SCHEDULE_RESERVATIONS_TTL_MS`. This replaced a separate, differently-shaped hand-rolled cache (`src/services/mentor-schedule/reservationsCache.ts`, now deleted) that duplicated this model's cache-first/TTL/full-wipe mechanics on its own.
+- `useMentorSchedule` (`src/hooks/useMentorSchedule.ts`, X-Tracker #650) reads the mentor-schedule calendar's `MENTOR_UPCOMING` / `MENTOR_PENDING` reservations through this same model, scoped per viewed month via `endOfMonthUnix` and bounded by `MENTOR_SCHEDULE_RESERVATIONS_TTL_MS`. This replaced a separate, differently-shaped hand-rolled cache (`src/services/mentor-schedule/reservationsCache.ts`, now deleted) that duplicated this model's cache-first/TTL/full-wipe mechanics on its own. Since X-Tracker #669 it binds through `useAsyncRead` (one subscription per state) rather than a mount effect writing into local state, so the hook holds no fetch-generation counter of its own.
+
+---
+
+# Context: MentorScheduleReadModel
+
+This document establishes and defines the canonical domain term for the mentor schedule's per-month async read model.
+
+## Canonical Term
+
+**`MentorScheduleReadModel`** (or Mentor Schedule Read Model)
+
+## Context & Purpose
+
+The mentor-schedule calendar reads one month of a mentor's timeslots at a time, and the user moves between months (and occasionally accounts) faster than the network answers. Before this module existed (X-Tracker #669), `useMentorSchedule` owned that problem itself: a `scheduleCache` module that was little more than a keyed cache plus a template-string key, wrapped in a hand-rolled set of refs in the hook - `isStale()`, `isMountedRef`, a reservation fetch-generation counter - that every async path had to remember to consult. Whether a late response was allowed to win was a rule spread across seventeen call sites instead of a property of the module that owned the data.
+
+`MentorScheduleReadModel` is that single place: one module, keyed by `{ userId, year, month }`, that owns the read path (cache-first, de-duplicated, cancellable, subscribable) on top of `AsyncReadManager`, and hides the underlying `AsyncReadManager` / `KeyedCache` instances as a private implementation detail. Because every read and write is addressed by that key, a response can only ever land on the month and account it was asked for - staleness stops being something a caller has to check for.
+
+## Module Details
+
+- **Location**: `src/lib/mentor-schedule/scheduleReadModel.ts`
+- **Main Export**: `scheduleReadModel`
+- **Key Shape**: `ScheduleReadKey = { userId: string; year: number; month: number }` (month is 1-12) - one cache entry per mentor _and_ calendar month. Callers never see or construct the underlying string cache key.
+- **Contract Signature**:
+  - `get(key)` — synchronous cached-snapshot read (`RawMentorTimeslot[] | undefined`); never triggers a fetch. Used where a caller needs an already-loaded month without subscribing (a cross-month draft edit needs the target month's rows, and is blocked when they aren't there).
+  - `set(key, value)` — direct write for a save/discard that already fetched the month itself. Cancels any fetch in flight for that key and publishes to every live subscriber.
+  - `subscribe(key, fetcher, onUpdate, options?)` — the live read path: serves a cache hit synchronously, de-dupes concurrent fetches for the same key, cancels the fetch when the last subscriber leaves (unmount, or a month/account switch), and notifies `onUpdate` with `{ data, isLoading, error }`.
+  - `refresh(key, fetcher)` — an awaitable forced re-read that publishes to every live subscriber. Resolves with the published `{ data, isLoading, error }`, or `null` when the refresh was superseded before publishing (its key was cleared or overwritten mid-flight), which is precisely the case where a caller should stay quiet rather than report a failure.
+  - `prefetch(key, fetcher)` — fire-and-forget warm-up for a month nothing is mounted on. A cache hit or an already in-flight fetch is a no-op, and failures are swallowed.
+  - `clear()` — full reset of every cached month, listener, and in-flight fetch. Used in tests, and in production on an account switch.
+
+The fetcher is passed in rather than owned by the model, so `src/services/mentor-schedule` stays the only place that knows the schedule endpoint. `subscribe` / `refresh` / `prefetch` are the only ways a fetch ever starts.
+
+## Staleness Contract
+
+- **No TTL — invalidate-driven.** A cached month never expires on its own. A mentor's schedule only changes through this app's own writes (save, discard, explicit reload), all of which come back through `set()` or `refresh()`, so swiping back to a month already viewed is a cache hit with no second request. This differs from the calendar's _reservation_ slots, which can change from the other party's action and therefore carry a TTL (see `MENTOR_SCHEDULE_RESERVATIONS_TTL_MS` above).
+- **Read-your-writes.** `set()` cancels any in-flight fetch for that key before applying (inherited `AsyncReadManager` guarantee), so a slower response can never clobber a more recent local write.
+- **Cancellation is ownership-driven.** A month's request lives exactly as long as something is reading it. When the calendar swipes away or the component unmounts, the last subscriber leaves and the request is aborted; its response is never cached and never notified. `prefetch` and `refresh` hold their own listener for the life of one request precisely so they are not cut short by that rule.
+- **Per-(user, month) isolation.** `{ userId, year, month }` is the whole key; there is no cross-key invalidation, so a response for the month or account the user has moved on from has nowhere to land. `clear()` is the escape hatch on an account switch, which additionally aborts the outgoing user's in-flight reads.
+
+## Consumers
+
+- `useMentorSchedule` (`src/hooks/useMentorSchedule.ts`) binds the viewed month through `useAsyncRead` and mirrors what the model publishes into `MonthDraftStore`. `MonthDraftStore` itself takes `get` as an injected `getCachedMonthScheduleFn` so it stays a pure, non-React unit under test.
+- `src/services/mentor-schedule/sync.ts` publishes through the model from `loadMonthScheduleFresh` (save / discard) and `prefetchMonthSchedule` (next-month warm-up); `loadMonthSchedule` is the raw network read and touches no cache at all.
