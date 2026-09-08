@@ -54,9 +54,16 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
   // Session resolution belongs here (a hook), not in the updateAvatar
   // service — kept in a ref so the stable useCallbacks below always read
   // the latest id without needing session in their dependency arrays.
+  // Assigned in an effect (commit phase), never during render, so this
+  // stays safe under Strict Mode / concurrent re-renders.
   const { data: session } = useSession();
-  const userIdRef = useRef<number | undefined>(undefined);
-  userIdRef.current = session?.user?.id ? Number(session.user.id) : undefined;
+  const resolvedUserId = session?.user?.id
+    ? Number(session.user.id)
+    : undefined;
+  const userIdRef = useRef<number | undefined>(resolvedUserId);
+  useEffect(() => {
+    userIdRef.current = resolvedUserId;
+  }, [resolvedUserId]);
 
   useEffect(() => {
     return () => {

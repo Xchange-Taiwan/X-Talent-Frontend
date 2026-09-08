@@ -364,6 +364,48 @@ describe('useBackgroundAvatarUpload', () => {
     });
   });
 
+  it('should pass undefined userId to updateAvatar when session has no user yet, and surface the resulting failure without crashing', async () => {
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: 'unauthenticated',
+    } as never);
+
+    const file = new File(['avatar-bytes'], 'avatar.png', {
+      type: 'image/png',
+    });
+    const authError = new Error('未獲取到有效的身份驗證信息，請重新登入。');
+
+    let rejectPromise: ((err: Error) => void) | undefined;
+    mockUpdateAvatar.mockImplementation(() => {
+      return new Promise((_, reject) => {
+        rejectPromise = reject;
+      });
+    });
+
+    const { result } = renderHook(() => useBackgroundAvatarUpload());
+
+    await act(async () => {
+      result.current.kickOff(file, 'https://old-avatar.com/old.png');
+    });
+
+    expect(mockUpdateAvatar).toHaveBeenCalledWith(
+      file,
+      undefined,
+      expect.any(AbortSignal)
+    );
+
+    // Attach the consumer before rejecting so the rejection is never
+    // observed as unhandled between kickOff and consume.
+    const consumePromise = result.current.consume(file);
+
+    await act(async () => {
+      rejectPromise?.(authError);
+      await expect(consumePromise).rejects.toThrow(
+        '未獲取到有效的身份驗證信息，請重新登入。'
+      );
+    });
+  });
+
   it('should bubble up general upload errors on consume', async () => {
     const file = new File(['avatar-bytes'], 'avatar.png', {
       type: 'image/png',
