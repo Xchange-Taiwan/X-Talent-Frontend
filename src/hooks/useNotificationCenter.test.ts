@@ -10,6 +10,7 @@ import {
   fetchUnreadCount,
   listNotifications,
 } from '@/services/notifications/notificationService';
+import type { NotificationSource } from '@/services/notifications/notificationSource';
 import {
   notificationStoreManager,
   resetNotificationStore,
@@ -1210,7 +1211,7 @@ describe('useNotificationCenter', () => {
       await p2;
     });
 
-    it('should restore previous state upon calling rollback closure from startMarkAllRead', () => {
+    it('rolls back to the previous state when markAllRead fails outright (direct model call)', async () => {
       const userId = 'rollback-user';
       const initialNotifications: NotificationItem[] = [
         {
@@ -1228,17 +1229,23 @@ describe('useNotificationCenter', () => {
         'success'
       );
 
-      // Start mark all read
-      const { rollback } = notificationStoreManager.startMarkAllRead(userId);
+      const deferred = createDeferred<void>();
+      const markAllReadPromise = notificationStoreManager.markAllRead(
+        userId,
+        () => deferred.promise
+      );
 
+      // The optimistic update applies synchronously, before the bulk action
+      // (still in flight) has settled.
       const stateAfterStart = notificationStoreManager.getOrCreateState(userId);
       expect(stateAfterStart.unreadCountState).toBe(0);
       expect(stateAfterStart.notifications[0].unread).toBe(false);
       expect(stateAfterStart.isMarkingAll).toBe(true);
 
-      // Perform rollback
-      rollback();
+      deferred.reject(new Error('boom'));
+      const result = await markAllReadPromise;
 
+      expect(result.status).toBe('failed');
       const stateAfterRollback =
         notificationStoreManager.getOrCreateState(userId);
       expect(stateAfterRollback.unreadCountState).toBe(1);
@@ -1333,7 +1340,7 @@ describe('useNotificationCenter', () => {
       expect(stateAfterResolve.unreadCountState).toBe(10);
     });
 
-    it('should restore previous state and clamp count upon failMarkRead', () => {
+    it('rolls back to unread and restores the count when markRead fails (direct model call)', async () => {
       const userId = 'fail-mark-user';
       const initialNotifications: NotificationItem[] = [
         {
@@ -1351,27 +1358,22 @@ describe('useNotificationCenter', () => {
         'success'
       );
 
-      // Start mark read
-      notificationStoreManager.startMarkRead(userId, 'n1');
+      const action = vi.fn().mockRejectedValue(new Error('boom'));
+      const result = await notificationStoreManager.markRead(
+        userId,
+        'n1',
+        action
+      );
 
-      const stateAfterStart = notificationStoreManager.getOrCreateState(userId);
-      expect(stateAfterStart.unreadCountState).toBe(0);
-      expect(stateAfterStart.notifications[0].unread).toBe(false);
-
-      // Perform failure rollback
-      notificationStoreManager.failMarkRead(userId, 'n1');
-
+      expect(result.status).toBe('failed');
       const stateAfterRollback =
         notificationStoreManager.getOrCreateState(userId);
       expect(stateAfterRollback.unreadCountState).toBe(1);
       expect(stateAfterRollback.notifications[0].unread).toBe(true);
-
-      // Run failMarkRead again - since unread is already true, countDiff should be 0 and badge count shouldn't increase
-      notificationStoreManager.failMarkRead(userId, 'n1');
-      expect(stateAfterRollback.unreadCountState).toBe(1);
+      expect(stateAfterRollback.markingReadIds.has('n1')).toBe(false);
     });
 
-    it('should correctly restore state and count upon startMarkAllRead rollback even when concurrent polling/sync updates the version', () => {
+    it('preserves a fresher concurrently-updated unread count when markAllRead rolls back (direct model call)', async () => {
       const userId = 'concurrent-rollback-user';
       const initialNotifications: NotificationItem[] = [
         {
@@ -1389,14 +1391,18 @@ describe('useNotificationCenter', () => {
         'success'
       );
 
-      // Start mark all read
-      const { rollback } = notificationStoreManager.startMarkAllRead(userId);
+      const deferred = createDeferred<void>();
+      const markAllReadPromise = notificationStoreManager.markAllRead(
+        userId,
+        () => deferred.promise
+      );
 
       const stateAfterStart = notificationStoreManager.getOrCreateState(userId);
       expect(stateAfterStart.unreadCountState).toBe(0);
       expect(stateAfterStart.notifications[0].unread).toBe(false);
 
       // Simulate concurrent polling/sync updating unreadCountState and version
+      // while the mark-all-read call above is still in flight.
       notificationStoreManager.setInitialData(
         userId,
         8,
@@ -1408,14 +1414,402 @@ describe('useNotificationCenter', () => {
         notificationStoreManager.getOrCreateState(userId);
       expect(stateAfterConcurrent.unreadCountState).toBe(8);
 
-      // Perform rollback -> Since version has advanced, it must retain the concurrent unread count of 8 rather than overwriting with 1!
-      rollback();
+      // Let the in-flight call fail -> since version has advanced, rollback
+      // must retain the concurrent unread count of 8 rather than
+      // overwriting with the pre-optimistic-update value of 1!
+      deferred.reject(new Error('boom'));
+      const result = await markAllReadPromise;
 
+      expect(result.status).toBe('failed');
       const stateAfterRollback =
         notificationStoreManager.getOrCreateState(userId);
       expect(stateAfterRollback.unreadCountState).toBe(8);
-      // But the notifications in the original list should still be rolled back to unread: true
+      // But the notification itself is still rolled back to unread: true
       expect(stateAfterRollback.notifications[0].unread).toBe(true);
+    });
+  });
+
+  describe('notificationStoreManager intent-level operations (direct model calls, no renderHook)', () => {
+    beforeEach(() => {
+      resetNotificationStore();
+    });
+
+    function installSource(
+      userId: string | undefined,
+      overrides: Partial<NotificationSource> = {}
+    ): NotificationSource {
+      const source: NotificationSource = {
+        requiresAuth: false,
+        isPreloaded: false,
+        getUnreadCount: vi.fn().mockResolvedValue({ unread_count: 0 }),
+        listNotifications: vi
+          .fn()
+          .mockResolvedValue({ notifications: [], next_cursor: null }),
+        markOneRead: vi.fn().mockResolvedValue(undefined),
+        markAllRead: vi.fn().mockResolvedValue(undefined),
+        ...overrides,
+      };
+      notificationStoreManager.setSource(userId, source);
+      return source;
+    }
+
+    describe('markRead', () => {
+      it('optimistically marks a notification read, then commits on success', async () => {
+        const userId = 'model-mark-read-user';
+        notificationStoreManager.syncInitialNotifications(
+          userId,
+          [
+            {
+              id: 'n1',
+              type: 'reservation_requested',
+              createdAt: 'date',
+              unread: true,
+            },
+          ],
+          'success'
+        );
+
+        const action = vi.fn().mockResolvedValue(undefined);
+        const result = await notificationStoreManager.markRead(
+          userId,
+          'n1',
+          action
+        );
+
+        expect(result).toEqual({ status: 'success' });
+        expect(action).toHaveBeenCalledWith('n1');
+        const state = notificationStoreManager.getOrCreateState(userId);
+        expect(state.notifications[0].unread).toBe(false);
+        expect(state.unreadCountState).toBe(0);
+      });
+
+      it('skips a second concurrent call for the same id while the first is still in flight', async () => {
+        const userId = 'model-mark-read-reentry-user';
+        notificationStoreManager.syncInitialNotifications(
+          userId,
+          [
+            {
+              id: 'n1',
+              type: 'reservation_requested',
+              createdAt: 'date',
+              unread: true,
+            },
+          ],
+          'success'
+        );
+
+        const deferred = createDeferred<void>();
+        const action = vi.fn().mockImplementation(() => deferred.promise);
+
+        const first = notificationStoreManager.markRead(userId, 'n1', action);
+        const second = await notificationStoreManager.markRead(
+          userId,
+          'n1',
+          action
+        );
+
+        expect(second).toEqual({ status: 'skipped' });
+        expect(action).toHaveBeenCalledTimes(1);
+
+        deferred.resolve();
+        await first;
+      });
+
+      it('skips when the notification is already read, missing, or mutation is not permitted', async () => {
+        const userId = 'model-mark-read-noop-user';
+        notificationStoreManager.syncInitialNotifications(
+          userId,
+          [
+            {
+              id: 'n1',
+              type: 'reservation_requested',
+              createdAt: 'date',
+              unread: false,
+            },
+          ],
+          'success'
+        );
+
+        const action = vi.fn();
+        expect(
+          await notificationStoreManager.markRead(userId, 'n1', action)
+        ).toEqual({ status: 'skipped' });
+        expect(
+          await notificationStoreManager.markRead(userId, 'missing', action)
+        ).toEqual({ status: 'skipped' });
+        expect(
+          await notificationStoreManager.markRead(undefined, 'n1', action)
+        ).toEqual({ status: 'skipped' });
+        expect(action).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('markAllRead', () => {
+      it('optimistically clears all unread items, then commits on success', async () => {
+        const userId = 'model-mark-all-user';
+        notificationStoreManager.syncInitialNotifications(
+          userId,
+          [
+            {
+              id: 'n1',
+              type: 'reservation_requested',
+              createdAt: 'date',
+              unread: true,
+            },
+            {
+              id: 'n2',
+              type: 'reservation_requested',
+              createdAt: 'date',
+              unread: true,
+            },
+          ],
+          'success'
+        );
+
+        const bulkAction = vi.fn().mockResolvedValue(undefined);
+        const result = await notificationStoreManager.markAllRead(
+          userId,
+          bulkAction
+        );
+
+        expect(result).toEqual({ status: 'success' });
+        expect(bulkAction).toHaveBeenCalledWith(['n1', 'n2']);
+        const state = notificationStoreManager.getOrCreateState(userId);
+        expect(state.notifications.every((n) => !n.unread)).toBe(true);
+        expect(state.unreadCountState).toBe(0);
+        expect(state.isMarkingAll).toBe(false);
+      });
+
+      it('rolls back only the ids a bulk action reports as failed, and reports a partial failure', async () => {
+        const userId = 'model-mark-all-partial-user';
+        notificationStoreManager.syncInitialNotifications(
+          userId,
+          [
+            {
+              id: 'n1',
+              type: 'reservation_requested',
+              createdAt: 'date',
+              unread: true,
+            },
+            {
+              id: 'n2',
+              type: 'reservation_requested',
+              createdAt: 'date',
+              unread: true,
+            },
+          ],
+          'success'
+        );
+
+        const bulkAction = vi.fn().mockResolvedValue(['n2']);
+        const result = await notificationStoreManager.markAllRead(
+          userId,
+          bulkAction
+        );
+
+        expect(result).toEqual({
+          status: 'partial-failed',
+          failedCount: 1,
+          totalCount: 2,
+        });
+        const state = notificationStoreManager.getOrCreateState(userId);
+        expect(state.notifications.find((n) => n.id === 'n1')?.unread).toBe(
+          false
+        );
+        expect(state.notifications.find((n) => n.id === 'n2')?.unread).toBe(
+          true
+        );
+      });
+
+      it('skips a second concurrent call while the first is still in flight', async () => {
+        const userId = 'model-mark-all-reentry-user';
+        notificationStoreManager.syncInitialNotifications(
+          userId,
+          [
+            {
+              id: 'n1',
+              type: 'reservation_requested',
+              createdAt: 'date',
+              unread: true,
+            },
+          ],
+          'success'
+        );
+
+        const deferred = createDeferred<void>();
+        const bulkAction = vi.fn().mockImplementation(() => deferred.promise);
+
+        const first = notificationStoreManager.markAllRead(userId, bulkAction);
+        const second = await notificationStoreManager.markAllRead(
+          userId,
+          bulkAction
+        );
+
+        expect(second).toEqual({ status: 'skipped' });
+        expect(bulkAction).toHaveBeenCalledTimes(1);
+
+        deferred.resolve();
+        await first;
+      });
+
+      it('skips when there is nothing unread to mark', async () => {
+        const userId = 'model-mark-all-noop-user';
+        const bulkAction = vi.fn();
+        const result = await notificationStoreManager.markAllRead(
+          userId,
+          bulkAction
+        );
+        expect(result).toEqual({ status: 'skipped' });
+        expect(bulkAction).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('loadMore', () => {
+      it('appends the next page on success', async () => {
+        const userId = 'model-load-more-user';
+        // Seed the lazily-created store entry before writing to it directly
+        // (mirrors what the hook's useSyncExternalStore snapshot always does
+        // on mount before any operation runs).
+        notificationStoreManager.getOrCreateState(userId);
+        notificationStoreManager.setInitialData(
+          userId,
+          0,
+          [
+            {
+              id: 'n1',
+              type: 'reservation_requested',
+              createdAt: 'date',
+              unread: false,
+            },
+          ],
+          'cursor-1'
+        );
+        installSource(userId, {
+          listNotifications: vi.fn().mockResolvedValue({
+            notifications: [
+              {
+                id: 'n2',
+                type: 'reservation_requested',
+                createdAt: 'date',
+                unread: false,
+              },
+            ],
+            next_cursor: null,
+          }),
+        });
+
+        const result = await notificationStoreManager.loadMore(userId);
+
+        expect(result).toEqual({ status: 'success' });
+        const state = notificationStoreManager.getOrCreateState(userId);
+        expect(state.notifications.map((n) => n.id)).toEqual(['n1', 'n2']);
+        expect(state.nextCursor).toBeNull();
+        expect(state.isLoadingMore).toBe(false);
+      });
+
+      it('reports a failure and sets hasLoadMoreError without touching the list', async () => {
+        const userId = 'model-load-more-fail-user';
+        notificationStoreManager.getOrCreateState(userId);
+        notificationStoreManager.setInitialData(userId, 0, [], 'cursor-1');
+        installSource(userId, {
+          listNotifications: vi.fn().mockRejectedValue(new Error('network')),
+        });
+
+        const result = await notificationStoreManager.loadMore(userId);
+
+        expect(result.status).toBe('failed');
+        const state = notificationStoreManager.getOrCreateState(userId);
+        expect(state.hasLoadMoreError).toBe(true);
+        expect(state.isLoadingMore).toBe(false);
+      });
+
+      it('skips when there is no next page', async () => {
+        const userId = 'model-load-more-skip-user';
+        notificationStoreManager.getOrCreateState(userId);
+        notificationStoreManager.setInitialData(userId, 0, [], null);
+        expect(await notificationStoreManager.loadMore(userId)).toEqual({
+          status: 'skipped',
+        });
+      });
+    });
+
+    describe('retry', () => {
+      it('reports unsupported when the source has no retry handling', async () => {
+        const userId = 'model-retry-unsupported-user';
+        notificationStoreManager.getOrCreateState(userId);
+        installSource(userId);
+
+        const result = await notificationStoreManager.retry(userId);
+        expect(result).toEqual({ status: 'unsupported' });
+        expect(notificationStoreManager.getOrCreateState(userId).status).toBe(
+          'loading'
+        );
+      });
+
+      it('applies the retried list on success', async () => {
+        const userId = 'model-retry-success-user';
+        notificationStoreManager.getOrCreateState(userId);
+        const notifications: NotificationItem[] = [
+          {
+            id: 'n1',
+            type: 'reservation_requested',
+            createdAt: 'date',
+            unread: true,
+          },
+        ];
+        installSource(userId, {
+          retry: vi.fn().mockResolvedValue(notifications),
+        });
+
+        const result = await notificationStoreManager.retry(userId);
+        expect(result).toEqual({ status: 'success' });
+        const state = notificationStoreManager.getOrCreateState(userId);
+        expect(state.notifications).toEqual(notifications);
+        expect(state.status).toBe('success');
+      });
+
+      it('sets the error status on failure', async () => {
+        const userId = 'model-retry-fail-user';
+        notificationStoreManager.getOrCreateState(userId);
+        installSource(userId, {
+          retry: vi.fn().mockRejectedValue(new Error('boom')),
+        });
+
+        const result = await notificationStoreManager.retry(userId);
+        expect(result.status).toBe('failed');
+        expect(notificationStoreManager.getOrCreateState(userId).status).toBe(
+          'error'
+        );
+      });
+
+      it('discards a resolution that arrives after every subscriber for the key has unsubscribed', async () => {
+        const userId = 'model-retry-stale-user';
+        const deferred = createDeferred<NotificationItem[]>();
+        installSource(userId, {
+          retry: vi.fn().mockImplementation(() => deferred.promise),
+        });
+
+        const unsubscribe = notificationStoreManager.subscribe(
+          userId,
+          () => {}
+        );
+        const retryPromise = notificationStoreManager.retry(userId);
+        unsubscribe();
+
+        deferred.resolve([
+          {
+            id: 'n1',
+            type: 'reservation_requested',
+            createdAt: 'date',
+            unread: true,
+          },
+        ]);
+        const result = await retryPromise;
+
+        expect(result).toEqual({ status: 'stale' });
+        const state = notificationStoreManager.getOrCreateState(userId);
+        expect(state.notifications).toEqual([]);
+      });
     });
   });
 });

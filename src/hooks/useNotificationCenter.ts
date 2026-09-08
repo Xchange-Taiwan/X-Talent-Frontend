@@ -34,6 +34,29 @@ function reportMarkAsReadFailure(step: string, error: unknown): void {
 }
 
 /**
+ * Builds the model's optional `markAllRead` bulk action from the hook's own
+ * `onMarkAllRead`/`onMarkRead` props, mirroring the priority the hook has
+ * always used: a caller-supplied `onMarkAllRead` wins outright, otherwise
+ * `onMarkRead` (if given) is used as a per-id fallback in batches.
+ * `undefined` means "use the installed NotificationSource's own
+ * `markAllRead`", which the model does on its own.
+ */
+function buildMarkAllReadBulkAction(
+  onMarkAllRead?: (ids: string[]) => void | Promise<void>,
+  onMarkRead?: (id: string) => void | Promise<void>
+): ((ids: string[]) => Promise<string[] | void>) | undefined {
+  if (onMarkAllRead) {
+    return async (ids: string[]) => {
+      await onMarkAllRead(ids);
+    };
+  }
+  if (onMarkRead) {
+    return (ids: string[]) => markReadInBatches(ids, onMarkRead);
+  }
+  return undefined;
+}
+
+/**
  * Marks IDs as read in fixed-size batches (instead of one unbounded
  * Promise.allSettled) to avoid exhausting the browser's per-origin
  * connection pool or tripping backend rate limits when there are many
@@ -121,7 +144,6 @@ export function useNotificationCenter({
   const shouldSkipFetch = Boolean(
     isPreloadedSource || (!userId && actualSource.requiresAuth)
   );
-  const canMutate = userId !== undefined || !actualSource.requiresAuth;
 
   // Cache the Server Snapshot locally inside hook state for stable referential equality
   const [serverSnapshot] = React.useState(() =>
@@ -164,11 +186,6 @@ export function useNotificationCenter({
 
   const [isMounted, setIsMounted] = React.useState(false);
 
-  // Bumped whenever an in-flight source retry must be abandoned (a newer
-  // retry superseded it, or the hook unmounted), so a late resolution can't
-  // write a stale list into the shared store.
-  const retryTokenRef = React.useRef(0);
-
   // Derive unread count from the actual notifications state list (for fallback/props usage)
   const unreadCount = React.useMemo(() => {
     return storeState.notifications.filter((item) => item.unread).length;
@@ -196,43 +213,22 @@ export function useNotificationCenter({
     [userId]
   );
 
-  // Infinite Scroll / Fetch more
+  // Infinite Scroll / Fetch more. All the reentry/error-gate/preloaded-source
+  // guards and the fetch itself live in the model (notificationStoreManager)
+  // - this is just the result -> toast conversion.
   const loadMore = React.useCallback(
     async (isRetry = false) => {
-      if (shouldSkipFetch) return;
-      const state = notificationStoreManager.getOrCreateState(userId);
-
-      if (state.isLoadingMore || !state.nextCursor) return;
-      if (state.hasLoadMoreError && !isRetry) return;
-      if (state.isFetching) return;
-
-      notificationStoreManager.startLoadMore(userId);
-
-      try {
-        const res = await actualSource.listNotifications(
-          effectiveUserId,
-          state.nextCursor,
-          20
-        );
-
-        notificationStoreManager.appendNotifications(
-          userId,
-          (res && res.notifications) || [],
-          (res && res.next_cursor) || null
-        );
-      } catch (error) {
-        console.error('[useNotificationCenter] loadMore failed:', error);
-        notificationStoreManager.failLoadMore(userId);
+      const result = await notificationStoreManager.loadMore(userId, isRetry);
+      if (result.status === 'failed') {
+        console.error('[useNotificationCenter] loadMore failed:', result.error);
         toast({
           variant: 'destructive',
           title: '載入失敗',
           description: '無法載入更多通知，請點擊重試',
         });
-      } finally {
-        notificationStoreManager.completeLoadMore(userId);
       }
     },
-    [userId, effectiveUserId, shouldSkipFetch, toast, actualSource]
+    [userId, toast]
   );
 
   // Load just the unread badge count - cheap, and safe to fire on every
@@ -343,13 +339,10 @@ export function useNotificationCenter({
   ]);
 
   // Cross-tab synchronization of seenUnreadCount is handled centrally by
-  // notificationStoreManager's own single 'storage' listener.
-
-  React.useEffect(() => {
-    return () => {
-      retryTokenRef.current += 1;
-    };
-  }, []);
+  // notificationStoreManager's own single 'storage' listener. Discarding a
+  // retry that resolves after this hook unmounts is likewise handled
+  // centrally, by the model's own per-key epoch (bumped when this key's
+  // last subscriber unsubscribes - see notificationStoreManager.subscribe).
 
   // Since mount only fetches the unread count (see loadUnreadCount above),
   // the list can now genuinely be loading for the *first* time on open, not
@@ -383,38 +376,19 @@ export function useNotificationCenter({
     [openCenter]
   );
 
+  // Single mark-read: the model owns the reentry guard, optimistic update,
+  // and rollback-on-failure end to end - this is just the result -> toast
+  // conversion. `onMarkRead`, when given, replaces the installed source's
+  // own markOneRead for this call (used by tests/Storybook DI).
   const markRead = React.useCallback(
     async (id: string) => {
-      if (!canMutate) return;
-      const state = notificationStoreManager.getOrCreateState(userId);
-
-      if (state.markingReadIds.has(id)) return;
-
-      const targetItem = state.notifications.find((n) => n.id === id);
-      if (!targetItem || !targetItem.unread) return;
-
-      // Perform optimistic single mark read on the store
-      notificationStoreManager.startMarkRead(userId, id);
-
-      const action =
-        onMarkRead ||
-        (canMutate
-          ? (notifId: string) =>
-              actualSource.markOneRead(effectiveUserId, notifId)
-          : null);
-      if (!action) {
-        notificationStoreManager.completeMarkRead(userId, id);
-        return;
-      }
-
-      try {
-        await action(id);
-        notificationStoreManager.completeMarkRead(userId, id);
-      } catch (error) {
-        reportMarkAsReadFailure(`mark_read_click:${id}`, error);
-
-        // Roll back and reset pending
-        notificationStoreManager.failMarkRead(userId, id);
+      const result = await notificationStoreManager.markRead(
+        userId,
+        id,
+        onMarkRead
+      );
+      if (result.status === 'failed') {
+        reportMarkAsReadFailure(`mark_read_click:${id}`, result.error);
         toast({
           variant: 'destructive',
           title: '操作失敗',
@@ -422,97 +396,50 @@ export function useNotificationCenter({
         });
       }
     },
-    [userId, effectiveUserId, canMutate, onMarkRead, toast, actualSource]
+    [userId, onMarkRead, toast]
   );
 
+  // Mark-all-read: same shape as markRead above, plus distinguishing a
+  // total failure from a partial one (only relevant for the onMarkRead
+  // batch fallback) so the right toast copy can be chosen.
   const markAllReadAction = React.useCallback(async () => {
-    if (!canMutate) return;
-    const state = notificationStoreManager.getOrCreateState(userId);
-    if (state.isMarkingAll) return;
+    const bulkAction = buildMarkAllReadBulkAction(onMarkAllRead, onMarkRead);
+    const result = await notificationStoreManager.markAllRead(
+      userId,
+      bulkAction
+    );
 
-    const unreadIds = state.notifications
-      .filter((item) => item.unread)
-      .map((item) => item.id);
-    if (unreadIds.length === 0 && state.unreadCountState === 0) return;
-
-    // Perform optimistic mark all read on the store
-    const { unreadIds: optimUnreadIds, rollback } =
-      notificationStoreManager.startMarkAllRead(userId);
-
-    try {
-      if (onMarkAllRead) {
-        await onMarkAllRead(optimUnreadIds);
-      } else if (onMarkRead) {
-        // Fallback: mark individually in bounded batches
-        const failedIds = await markReadInBatches(optimUnreadIds, onMarkRead);
-
-        if (failedIds.length > 0) {
-          notificationStoreManager.rollbackNotifications(userId, failedIds);
-          toast({
-            variant: 'destructive',
-            title: '操作失敗',
-            description:
-              failedIds.length === optimUnreadIds.length
-                ? '無法將通知標示為已讀，請稍後再試'
-                : '部分通知標示為已讀失敗，請稍後再試',
-          });
-        }
-      } else if (canMutate) {
-        await actualSource.markAllRead(effectiveUserId);
-      }
-    } catch (error) {
-      reportMarkAsReadFailure('mark_all_read', error);
-
-      // Rollback completely on error
-      rollback();
+    if (result.status === 'failed') {
+      reportMarkAsReadFailure('mark_all_read', result.error);
       toast({
         variant: 'destructive',
         title: '操作失敗',
         description: '無法將全部通知標示為已讀，請稍後再試',
       });
-    } finally {
-      notificationStoreManager.completeMarkAllRead(userId);
-    }
-  }, [
-    userId,
-    effectiveUserId,
-    canMutate,
-    onMarkRead,
-    onMarkAllRead,
-    toast,
-    actualSource,
-  ]);
-
-  const handleRetry = React.useCallback(() => {
-    notificationStoreManager.startRetry(userId);
-
-    if (!actualSource.retry) {
-      loadInitialData(true);
-      return;
-    }
-
-    retryTokenRef.current += 1;
-    const token = retryTokenRef.current;
-    void actualSource
-      .retry(effectiveUserId)
-      .then((notifications) => {
-        if (retryTokenRef.current !== token) return;
-        // Reuse the same domain action the normal load path writes
-        // through, so a concurrent unread-count fetch can't clobber this
-        // with a stale value - see its unreadCountVersion guard.
-        notificationStoreManager.setInitialData(
-          userId,
-          notifications.filter((n) => n.unread).length,
-          notifications,
-          null
-        );
-      })
-      .catch((error) => {
-        if (retryTokenRef.current !== token) return;
-        reportFailure('notification_retry', 'source_retry', error);
-        notificationStoreManager.failRetry(userId);
+    } else if (result.status === 'partial-failed') {
+      toast({
+        variant: 'destructive',
+        title: '操作失敗',
+        description:
+          result.failedCount === result.totalCount
+            ? '無法將通知標示為已讀，請稍後再試'
+            : '部分通知標示為已讀失敗，請稍後再試',
       });
-  }, [userId, effectiveUserId, loadInitialData, actualSource]);
+    }
+  }, [userId, onMarkRead, onMarkAllRead, toast]);
+
+  // Retry after an error: delegates to the installed source's own `retry`
+  // when it has one (the model owns that dedup/staleness guard); falls back
+  // to a normal reload otherwise, since that path stays hook-owned.
+  const handleRetry = React.useCallback(() => {
+    void notificationStoreManager.retry(userId).then((result) => {
+      if (result.status === 'unsupported') {
+        loadInitialData(true);
+      } else if (result.status === 'failed') {
+        reportFailure('notification_retry', 'source_retry', result.error);
+      }
+    });
+  }, [userId, loadInitialData]);
 
   const showBadge = isMounted && badgeCount > storeState.seenUnreadCount;
   const formattedCount = badgeCount > 99 ? '99+' : String(badgeCount);
