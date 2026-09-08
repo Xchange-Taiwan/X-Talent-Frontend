@@ -1,5 +1,4 @@
-import type { MouseEvent as ReactMouseEvent } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import type { Reservation } from '@/types/reservation';
 
@@ -21,26 +20,6 @@ function makeReservation(overrides: Partial<Reservation> = {}): Reservation {
     participantUserId: 'user-participant',
     ...overrides,
   };
-}
-
-function makeMouseEvent(
-  overrides: Partial<{
-    button: number;
-    ctrlKey: boolean;
-    metaKey: boolean;
-    shiftKey: boolean;
-    altKey: boolean;
-  }> = {}
-) {
-  return {
-    button: 0,
-    ctrlKey: false,
-    metaKey: false,
-    shiftKey: false,
-    altKey: false,
-    preventDefault: vi.fn(),
-    ...overrides,
-  } as unknown as ReactMouseEvent;
 }
 
 describe('resolveReservationViewer - profileHref counterparty resolution', () => {
@@ -217,74 +196,5 @@ describe('resolveReservationViewer - null reservation', () => {
     expect(model.viewerRole).toBeUndefined();
     expect(model.profileHref).toBeUndefined();
     expect(model.cancelledByLabel).toBeUndefined();
-    expect(() => model.handleProfileLinkClick(makeMouseEvent())).not.toThrow();
-  });
-});
-
-describe('resolveReservationViewer - handleProfileLinkClick invalidation conditions', () => {
-  it('prevents default and does not call onNavigate when disabled', () => {
-    const onNavigate = vi.fn();
-    const { handleProfileLinkClick } = resolveReservationViewer({
-      reservation: makeReservation(),
-      myUserId: 'user-sender',
-      disabled: true,
-      onNavigate,
-    });
-
-    const event = makeMouseEvent();
-    handleProfileLinkClick(event);
-
-    expect(event.preventDefault).toHaveBeenCalled();
-    expect(onNavigate).not.toHaveBeenCalled();
-  });
-
-  it('calls onNavigate on a plain left click when not disabled', () => {
-    const onNavigate = vi.fn();
-    const { handleProfileLinkClick } = resolveReservationViewer({
-      reservation: makeReservation(),
-      myUserId: 'user-sender',
-      disabled: false,
-      onNavigate,
-    });
-
-    const event = makeMouseEvent();
-    handleProfileLinkClick(event);
-
-    expect(event.preventDefault).not.toHaveBeenCalled();
-    expect(onNavigate).toHaveBeenCalledTimes(1);
-  });
-
-  it.each([
-    ['ctrlKey', { ctrlKey: true }],
-    ['metaKey', { metaKey: true }],
-    ['shiftKey', { shiftKey: true }],
-    ['altKey', { altKey: true }],
-    ['middle click', { button: 1 }],
-  ])(
-    'lets the browser handle the native new-tab behavior for %s instead of calling onNavigate',
-    (_label, overrides) => {
-      const onNavigate = vi.fn();
-      const { handleProfileLinkClick } = resolveReservationViewer({
-        reservation: makeReservation(),
-        myUserId: 'user-sender',
-        disabled: false,
-        onNavigate,
-      });
-
-      const event = makeMouseEvent(overrides);
-      handleProfileLinkClick(event);
-
-      expect(event.preventDefault).not.toHaveBeenCalled();
-      expect(onNavigate).not.toHaveBeenCalled();
-    }
-  );
-
-  it('does nothing (no throw) when onNavigate is not provided', () => {
-    const { handleProfileLinkClick } = resolveReservationViewer({
-      reservation: makeReservation(),
-      myUserId: 'user-sender',
-    });
-
-    expect(() => handleProfileLinkClick(makeMouseEvent())).not.toThrow();
   });
 });

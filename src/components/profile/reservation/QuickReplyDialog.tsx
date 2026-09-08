@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useProfileLinkClick } from '@/hooks/reservation/useProfileLinkClick';
 import { useQuickReplyAccept } from '@/hooks/user/reservation/useQuickReplyAccept';
 import { useQuickReplyForm } from '@/hooks/user/reservation/useQuickReplyForm';
 import { useReservationActions } from '@/hooks/user/reservation/useReservationActions';
@@ -37,11 +38,12 @@ export function QuickReplyDialog({
   myUserId,
   onMutationSuccess,
 }: QuickReplyDialogProps) {
-  // Only `viewerRole` is needed at this point (reservation may still be null
-  // here, before the early-return guard below) - the full model (profile
-  // link, click handler) is recomputed further down once `isMutating` is
-  // known, so it reflects its latest value.
-  const { viewerRole } = resolveReservationViewer({ reservation, myUserId });
+  // Pure data derivation - safe to call before the early-return guard below,
+  // since every field comes back undefined when `reservation` is null.
+  const { viewerRole, profileHref } = resolveReservationViewer({
+    reservation,
+    myUserId,
+  });
 
   const { accept, rejectOrCancel, isMutating } = useReservationActions({
     myUserId,
@@ -103,6 +105,11 @@ export function QuickReplyDialog({
     }
   }, [open, reservation?.id, resetReplyForm]);
 
+  const handleProfileLinkClick = useProfileLinkClick({
+    disabled: isMutating,
+    onNavigate: () => onOpenChange(false),
+  });
+
   if (!reservation) return null;
 
   // No <form> wrapper: the footer also holds RejectReservationDialog's
@@ -118,13 +125,6 @@ export function QuickReplyDialog({
         metadata: { has_reply: Boolean(data.reply?.trim()) },
       });
     });
-  });
-
-  const viewer = resolveReservationViewer({
-    reservation,
-    myUserId,
-    disabled: isMutating,
-    onNavigate: () => onOpenChange(false),
   });
 
   // Block outside-click/Esc dismissal while a mutation is in flight: this
@@ -149,8 +149,8 @@ export function QuickReplyDialog({
 
           <ReservationIdentity
             reservation={reservation}
-            profileHref={viewer.profileHref}
-            onProfileLinkClick={viewer.handleProfileLinkClick}
+            profileHref={profileHref}
+            onProfileLinkClick={handleProfileLinkClick}
             disabled={isMutating}
             sourceRole="mentor"
           />
