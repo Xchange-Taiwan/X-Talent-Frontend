@@ -210,15 +210,24 @@ export async function saveProfile(
       url: link.url,
     }));
 
+    // Computed once, outside the returned closure, so step4's optimistic
+    // apply and step6's background reconcile write the exact same value.
+    // WhoAreYou.tsx uses avatarUpdatedAt as a `?cb=` cache-busting query
+    // param on the avatar <img> src - if the two writes disagreed (e.g. a
+    // fresh Date.now() per call), the URL would change between them and
+    // force an unnecessary refetch/flicker even when the avatar itself
+    // didn't change.
+    const nextAvatarUpdatedAt = values.avatarFile
+      ? Date.now()
+      : sessionUser?.avatarUpdatedAt;
+
     return (patch: IdentityPatch) =>
       updateSession({
         user: {
           id: sessionUser?.id,
           name: patch.name,
           avatar: patch.avatar,
-          avatarUpdatedAt: values.avatarFile
-            ? Date.now()
-            : sessionUser?.avatarUpdatedAt,
+          avatarUpdatedAt: nextAvatarUpdatedAt,
           isMentor: patch.isMentor,
           onBoarding: patch.onBoarding,
           msg: sessionUser?.msg,
