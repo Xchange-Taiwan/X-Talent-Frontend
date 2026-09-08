@@ -491,6 +491,19 @@ describe('middleware maintenance mode', () => {
     expect(response.headers.get('location')).toContain('/maintenance');
   });
 
+  it('does not bypass maintenance or authentication checks for /profile/<name>.svg files after removing profile SVG bypass (e.g., /profile/graphic-design.svg)', async () => {
+    process.env.GLOBAL_CONFIG = 'connection_string';
+    mockGet.mockResolvedValue(true);
+
+    const response = await middleware(
+      makeRequest('/profile/graphic-design.svg')
+    );
+
+    // Should redirect to /maintenance since it is under maintenance, and NOT bypassed as an asset
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toContain('/maintenance');
+  });
+
   it('redirects and sets bypass cookie when correct bypass query param is provided', async () => {
     process.env.MAINTENANCE_BYPASS_TOKEN = 'test-secret-bypass';
     process.env.MAINTENANCE_MODE = 'true';
