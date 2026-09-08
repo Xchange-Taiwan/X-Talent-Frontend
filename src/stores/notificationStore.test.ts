@@ -15,7 +15,7 @@ function fakeSource(): NotificationSource {
 
 describe('notificationStoreManager source ownership', () => {
   beforeEach(() => {
-    notificationStoreManager.reset();
+    notificationStoreManager.clear();
   });
 
   it('returns undefined for a store key with no source set yet', () => {
@@ -52,7 +52,7 @@ describe('notificationStoreManager source ownership', () => {
     notificationStoreManager.setSource('user-1', fakeSource());
     notificationStoreManager.setSource('user-2', fakeSource());
 
-    notificationStoreManager.reset();
+    notificationStoreManager.clear();
 
     expect(notificationStoreManager.getSource('user-1')).toBeUndefined();
     expect(notificationStoreManager.getSource('user-2')).toBeUndefined();
