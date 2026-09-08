@@ -1,5 +1,8 @@
 import { safeGetStorage, safeSetStorage } from '@/lib/storage';
-import type { NotificationSource } from '@/services/notifications/notificationSource';
+import {
+  httpNotificationSource,
+  type NotificationSource,
+} from '@/services/notifications/notificationSource';
 import type { NotificationItem } from '@/services/notifications/types';
 
 export type { NotificationItem } from '@/services/notifications/types';
@@ -28,6 +31,47 @@ export interface SharedNotificationState {
   markingReadIds: Set<string>;
   isMarkingAll: boolean;
 }
+
+/**
+ * Outcome of a single `markRead(id)` call, reported back to the caller
+ * instead of the caller having to inspect store state after the fact.
+ * `skipped` covers every reason the model declined to act (already
+ * marking, item missing/already read, or mutation not permitted for this
+ * source/userId combination) - none of these are failures worth a toast.
+ */
+export type MarkReadOutcome =
+  | { status: 'skipped' }
+  | { status: 'success' }
+  | { status: 'failed'; error: unknown };
+
+/**
+ * A caller-supplied bulk mark-all-read action. Resolving with an array of
+ * ids reports exactly which ones failed (empty/void means "all succeeded"),
+ * letting `markAllRead` distinguish a total failure from a partial one
+ * without the source having to throw a bespoke error type. Throwing is
+ * still how a total, no-detail failure (e.g. the plain HTTP endpoint, or a
+ * caller's own `onMarkAllRead` rejecting) is reported.
+ */
+export type MarkAllReadBulkAction = (ids: string[]) => Promise<string[] | void>;
+
+export type MarkAllReadOutcome =
+  | { status: 'skipped' }
+  | { status: 'success' }
+  | { status: 'partial-failed'; failedCount: number; totalCount: number }
+  | { status: 'failed'; error: unknown };
+
+export type LoadMoreOutcome =
+  | { status: 'skipped' }
+  | { status: 'success' }
+  | { status: 'failed'; error: unknown };
+
+export type RetryOutcome =
+  /** No `source.retry` installed - caller should fall back to a normal reload. */
+  | { status: 'unsupported' }
+  /** Resolved/rejected after being superseded (a newer retry, or every subscriber for this key unsubscribed) - already discarded, nothing for the caller to do. */
+  | { status: 'stale' }
+  | { status: 'success' }
+  | { status: 'failed'; error: unknown };
 
 export const getStoredSeenCount = (key: string): number => {
   if (typeof window === 'undefined') return 0;
@@ -89,6 +133,11 @@ class NotificationStoreManager {
   // - callers hand it off once (mount + on change) via setSource, instead of
   // threading it through every domain-action call.
   private sources = new Map<string, NotificationSource>();
+  // Bumped whenever an in-flight `retry()` for a key must be discarded (a
+  // newer retry superseded it, or every subscriber for the key unsubscribed
+  // - see `subscribe` below), so a late resolution can't write a stale list
+  // into the shared store.
+  private retryEpochs = new Map<string, number>();
 
   constructor() {
     // Single, store-owned listener for cross-tab sync (instead of one per Hook instance).
@@ -176,6 +225,10 @@ class NotificationStoreManager {
         set.delete(listener);
         if (set.size === 0) {
           this.listeners.delete(key);
+          // Nobody is watching this key anymore - discard any retry still
+          // in flight for it rather than let a late resolution write into
+          // an unobserved store entry (see `retry` below).
+          this.retryEpochs.set(key, (this.retryEpochs.get(key) ?? 0) + 1);
         }
       }
     };
@@ -194,13 +247,14 @@ class NotificationStoreManager {
     }
   }
 
-  reset() {
+  clear() {
     this.states.clear();
     this.listeners.clear();
     this.fetchPromises.clear();
     this.unreadCountFetchPromises.clear();
     this.unreadCountVersions.clear();
     this.sources.clear();
+    this.retryEpochs.clear();
   }
 
   /**
@@ -227,7 +281,7 @@ class NotificationStoreManager {
    * Domain Action: Start marking a single notification as read optimistically.
    * Sets isPending to true, adds the ID to markingReadIds, and marks the notification as read.
    */
-  startMarkRead(userId: string | undefined, id: string): void {
+  private startMarkRead(userId: string | undefined, id: string): void {
     const state = this.getOrCreateState(userId);
 
     const markingReadIdsCopy = new Set(state.markingReadIds);
@@ -247,7 +301,7 @@ class NotificationStoreManager {
    * Domain Action: Successfully complete a single mark read operation.
    * Removes the ID from markingReadIds and sets isPending to false.
    */
-  completeMarkRead(userId: string | undefined, id: string): void {
+  private completeMarkRead(userId: string | undefined, id: string): void {
     const state = this.getOrCreateState(userId);
     const markingReadIdsCopy = new Set(state.markingReadIds);
     markingReadIdsCopy.delete(id);
@@ -264,7 +318,7 @@ class NotificationStoreManager {
    * if the notification is currently marked as read (unread === false).
    * Also removes the ID from markingReadIds and sets isPending to false.
    */
-  failMarkRead(userId: string | undefined, id: string): void {
+  private failMarkRead(userId: string | undefined, id: string): void {
     const state = this.getOrCreateState(userId);
     const markingReadIdsCopy = new Set(state.markingReadIds);
     markingReadIdsCopy.delete(id);
@@ -291,13 +345,60 @@ class NotificationStoreManager {
   }
 
   /**
+   * Intent-level operation: mark a single notification as read.
+   *
+   * Owns the whole lifecycle end to end - reentry guard (skips if this id is
+   * already being marked, missing, or already read), the optimistic update,
+   * calling `action` (or, if omitted, this store key's installed
+   * NotificationSource via `getSource`), and rollback on failure. The
+   * caller never touches the start/complete/fail sequence directly, so
+   * there is no way to forget the failure branch and leave a notification
+   * stuck "marking" forever.
+   *
+   * `action` mirrors the hook's optional `onMarkRead` prop: when provided,
+   * it replaces the installed source's `markOneRead` for this one call
+   * (used by tests/Storybook DI), otherwise the source is used.
+   */
+  async markRead(
+    userId: string | undefined,
+    id: string,
+    action?: (id: string) => void | Promise<void>
+  ): Promise<MarkReadOutcome> {
+    const source = this.getSource(userId) ?? httpNotificationSource;
+    const canMutate = userId !== undefined || !source.requiresAuth;
+    if (!canMutate) return { status: 'skipped' };
+
+    const state = this.getOrCreateState(userId);
+    if (state.markingReadIds.has(id)) return { status: 'skipped' };
+
+    const targetItem = state.notifications.find((n) => n.id === id);
+    if (!targetItem || !targetItem.unread) return { status: 'skipped' };
+
+    this.startMarkRead(userId, id);
+
+    const effectiveUserId = userId || 'generic';
+    const doMark =
+      action ??
+      ((markId: string) => source.markOneRead(effectiveUserId, markId));
+
+    try {
+      await doMark(id);
+      this.completeMarkRead(userId, id);
+      return { status: 'success' };
+    } catch (error) {
+      this.failMarkRead(userId, id);
+      return { status: 'failed', error };
+    }
+  }
+
+  /**
    * Domain Action: Start marking all notifications as read optimistically.
    * Sets isPending and isMarkingAll to true, and marks all notifications as read.
    * Returns unread IDs and a self-contained rollback function, fully encapsulating rollback details.
    * The rollback closure dynamically updates the current notifications list rather than overwriting with an old snapshot,
    * protecting against loss of concurrent notifications added during the API request.
    */
-  startMarkAllRead(userId: string | undefined): {
+  private startMarkAllRead(userId: string | undefined): {
     unreadIds: string[];
     rollback: () => void;
   } {
@@ -352,30 +453,10 @@ class NotificationStoreManager {
    * Domain Action: Complete mark all read operation.
    * Clears isPending and isMarkingAll.
    */
-  completeMarkAllRead(userId: string | undefined) {
+  private completeMarkAllRead(userId: string | undefined) {
     this.updateState(userId, {
       isPending: false,
       isMarkingAll: false,
-    });
-  }
-
-  /**
-   * Domain Action: Start connection retry.
-   * Sets status to 'loading'.
-   */
-  startRetry(userId: string | undefined) {
-    this.updateState(userId, {
-      status: 'loading',
-    });
-  }
-
-  /**
-   * Domain Action: Fail connection retry.
-   * Sets status to 'error'.
-   */
-  failRetry(userId: string | undefined) {
-    this.updateState(userId, {
-      status: 'error',
     });
   }
 
@@ -385,7 +466,7 @@ class NotificationStoreManager {
    * each one rolled back. Callers just name which ids failed - the count
    * math lives here instead of being re-derived at each call site.
    */
-  rollbackNotifications(userId: string | undefined, ids: string[]) {
+  private rollbackNotifications(userId: string | undefined, ids: string[]) {
     const state = this.getOrCreateState(userId);
     const idSet = new Set(ids);
 
@@ -395,6 +476,220 @@ class NotificationStoreManager {
       ),
       unreadCountState: state.unreadCountState + ids.length,
     });
+  }
+
+  /**
+   * Intent-level operation: mark every unread notification as read.
+   *
+   * Owns reentry guard (`isMarkingAll`), the optimistic clear, and rollback
+   * on failure end to end. Without `bulkAction`, it calls this store key's
+   * installed NotificationSource's `markAllRead` once and rolls back
+   * everything on failure. With `bulkAction` (mirrors the hook's optional
+   * `onMarkAllRead`/`onMarkRead` props), the caller can instead resolve
+   * with the subset of ids that failed - `markAllRead` rolls back only
+   * those, and reports whether it was a total or partial failure so the
+   * caller can choose the right toast copy.
+   */
+  async markAllRead(
+    userId: string | undefined,
+    bulkAction?: MarkAllReadBulkAction
+  ): Promise<MarkAllReadOutcome> {
+    const source = this.getSource(userId) ?? httpNotificationSource;
+    const canMutate = userId !== undefined || !source.requiresAuth;
+    if (!canMutate) return { status: 'skipped' };
+
+    const state = this.getOrCreateState(userId);
+    if (state.isMarkingAll) return { status: 'skipped' };
+
+    const unreadIds = state.notifications
+      .filter((item) => item.unread)
+      .map((item) => item.id);
+    if (unreadIds.length === 0 && state.unreadCountState === 0) {
+      return { status: 'skipped' };
+    }
+
+    const { unreadIds: optimUnreadIds, rollback } =
+      this.startMarkAllRead(userId);
+    const effectiveUserId = userId || 'generic';
+
+    try {
+      if (bulkAction) {
+        const failedIds = (await bulkAction(optimUnreadIds)) ?? [];
+        if (failedIds.length > 0) {
+          this.rollbackNotifications(userId, failedIds);
+          this.completeMarkAllRead(userId);
+          return {
+            status: 'partial-failed',
+            failedCount: failedIds.length,
+            totalCount: optimUnreadIds.length,
+          };
+        }
+      } else {
+        await source.markAllRead(effectiveUserId);
+      }
+      this.completeMarkAllRead(userId);
+      return { status: 'success' };
+    } catch (error) {
+      rollback();
+      this.completeMarkAllRead(userId);
+      return { status: 'failed', error };
+    }
+  }
+
+  /**
+   * Domain Action: Prepare state for loading more notifications
+   */
+  private startLoadMore(userId: string | undefined) {
+    this.updateState(userId, {
+      isLoadingMore: true,
+      hasLoadMoreError: false,
+    });
+  }
+
+  /**
+   * Domain Action: Record an error during loading more notifications
+   */
+  private failLoadMore(userId: string | undefined) {
+    this.updateState(userId, {
+      hasLoadMoreError: true,
+    });
+  }
+
+  /**
+   * Domain Action: Complete the load more operation (clear loading flag)
+   */
+  private completeLoadMore(userId: string | undefined) {
+    this.updateState(userId, {
+      isLoadingMore: false,
+    });
+  }
+
+  /**
+   * Domain Action: Append a newly loaded page of notifications
+   */
+  private appendNotifications(
+    userId: string | undefined,
+    items: NotificationItem[],
+    nextCursor: string | null
+  ) {
+    const state = this.getOrCreateState(userId);
+    this.updateState(userId, {
+      notifications: [...state.notifications, ...items],
+      nextCursor,
+    });
+  }
+
+  /**
+   * Intent-level operation: load the next page of notifications.
+   *
+   * Owns the in-flight/error-gate reentry guard (`isLoadingMore`,
+   * `nextCursor`, `hasLoadMoreError`, `isFetching`) and the installed
+   * source's own preloaded/requires-auth skip conditions, so the caller
+   * just calls `loadMore(userId)` (optionally `isRetry: true` to bypass a
+   * previous load-more error) without re-deriving any of those guards
+   * itself.
+   */
+  async loadMore(
+    userId: string | undefined,
+    isRetry = false
+  ): Promise<LoadMoreOutcome> {
+    const source = this.getSource(userId) ?? httpNotificationSource;
+    const shouldSkip = Boolean(
+      source.isPreloaded || (!userId && source.requiresAuth)
+    );
+    if (shouldSkip) return { status: 'skipped' };
+
+    const state = this.getOrCreateState(userId);
+    if (state.isLoadingMore || !state.nextCursor) return { status: 'skipped' };
+    if (state.hasLoadMoreError && !isRetry) return { status: 'skipped' };
+    if (state.isFetching) return { status: 'skipped' };
+
+    this.startLoadMore(userId);
+    const effectiveUserId = userId || 'generic';
+
+    try {
+      const res = await source.listNotifications(
+        effectiveUserId,
+        state.nextCursor,
+        20
+      );
+      this.appendNotifications(
+        userId,
+        (res && res.notifications) || [],
+        (res && res.next_cursor) || null
+      );
+      return { status: 'success' };
+    } catch (error) {
+      this.failLoadMore(userId);
+      return { status: 'failed', error };
+    } finally {
+      this.completeLoadMore(userId);
+    }
+  }
+
+  /**
+   * Domain Action: Start connection retry.
+   * Sets status to 'loading'.
+   */
+  private startRetry(userId: string | undefined) {
+    this.updateState(userId, {
+      status: 'loading',
+    });
+  }
+
+  /**
+   * Domain Action: Fail connection retry.
+   * Sets status to 'error'.
+   */
+  private failRetry(userId: string | undefined) {
+    this.updateState(userId, {
+      status: 'error',
+    });
+  }
+
+  /**
+   * Intent-level operation: retry loading after an error, delegating to the
+   * installed source's own `retry` handling when it has one.
+   *
+   * Owns the in-flight dedup/staleness guard itself (a per-key epoch,
+   * bumped by a newer `retry()` call or by the last subscriber for this key
+   * unsubscribing - see `subscribe`), so a resolution that arrives after
+   * either can't clobber fresher state. Returns `{ status: 'unsupported' }`
+   * when the source has no `retry` - the caller is expected to fall back to
+   * its normal initial-load path in that case, since that path isn't part
+   * of this ticket's scope.
+   */
+  async retry(userId: string | undefined): Promise<RetryOutcome> {
+    this.startRetry(userId);
+
+    const source = this.getSource(userId) ?? httpNotificationSource;
+    if (!source.retry) {
+      return { status: 'unsupported' };
+    }
+
+    const key = getStoreKey(userId);
+    const epoch = (this.retryEpochs.get(key) ?? 0) + 1;
+    this.retryEpochs.set(key, epoch);
+    const effectiveUserId = userId || 'generic';
+
+    try {
+      const notifications = await source.retry(effectiveUserId);
+      if (this.retryEpochs.get(key) !== epoch) return { status: 'stale' };
+      // Reuse the same domain action the normal load path writes through,
+      // so a concurrent unread-count fetch can't clobber this with a stale
+      // value - see its unreadCountVersion guard.
+      this.setInitialData(
+        userId,
+        notifications.filter((n) => n.unread).length,
+        notifications,
+        null
+      );
+      return { status: 'success' };
+    } catch (error) {
+      if (this.retryEpochs.get(key) !== epoch) return { status: 'stale' };
+      this.failRetry(userId);
+      return { status: 'failed', error };
+    }
   }
 
   /**
@@ -494,49 +789,6 @@ class NotificationStoreManager {
   }
 
   /**
-   * Domain Action: Append a newly loaded page of notifications
-   */
-  appendNotifications(
-    userId: string | undefined,
-    items: NotificationItem[],
-    nextCursor: string | null
-  ) {
-    const state = this.getOrCreateState(userId);
-    this.updateState(userId, {
-      notifications: [...state.notifications, ...items],
-      nextCursor,
-    });
-  }
-
-  /**
-   * Domain Action: Prepare state for loading more notifications
-   */
-  startLoadMore(userId: string | undefined) {
-    this.updateState(userId, {
-      isLoadingMore: true,
-      hasLoadMoreError: false,
-    });
-  }
-
-  /**
-   * Domain Action: Record an error during loading more notifications
-   */
-  failLoadMore(userId: string | undefined) {
-    this.updateState(userId, {
-      hasLoadMoreError: true,
-    });
-  }
-
-  /**
-   * Domain Action: Complete the load more operation (clear loading flag)
-   */
-  completeLoadMore(userId: string | undefined) {
-    this.updateState(userId, {
-      isLoadingMore: false,
-    });
-  }
-
-  /**
    * Domain Action: Fetch initial notifications and unread count structurally with deduplication.
    * Correctly resets the status to 'success' or 'error' on error, avoiding the loading spinner hanging forever.
    */
@@ -626,5 +878,5 @@ class NotificationStoreManager {
 export const notificationStoreManager = new NotificationStoreManager();
 
 export function resetNotificationStore(): void {
-  notificationStoreManager.reset();
+  notificationStoreManager.clear();
 }
