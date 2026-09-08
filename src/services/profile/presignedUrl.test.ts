@@ -13,7 +13,7 @@ vi.mock('@/lib/apiClient', async (importActual) => {
 
 import { apiClient, ApiError } from '@/lib/apiClient';
 
-import { fetchPresignedUrl, fetchPresignedUrlByUserId } from './presignedUrl';
+import { fetchPresignedUrl } from './presignedUrl';
 
 describe('presignedUrl service', () => {
   beforeEach(() => {
@@ -49,12 +49,6 @@ describe('presignedUrl service', () => {
 
       const result = await fetchPresignedUrl(42);
       expect(result).toBeNull();
-    });
-  });
-
-  describe('fetchPresignedUrlByUserId backward compatibility alias', () => {
-    it('is an alias for fetchPresignedUrl', () => {
-      expect(fetchPresignedUrlByUserId).toBe(fetchPresignedUrl);
     });
   });
 });

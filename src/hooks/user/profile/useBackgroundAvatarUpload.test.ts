@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
+import { useSession } from 'next-auth/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getAvatarSnapshot } from '@/services/profile/getAvatarSnapshot';
@@ -14,13 +15,24 @@ vi.mock('@/services/profile/getAvatarSnapshot', () => ({
   getAvatarSnapshot: vi.fn(),
 }));
 
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(),
+}));
+
 const mockUpdateAvatar = vi.mocked(updateAvatar);
 const mockGetAvatarSnapshot = vi.mocked(getAvatarSnapshot);
+const mockUseSession = vi.mocked(useSession);
+
+const TEST_USER_ID = 42;
 
 describe('useBackgroundAvatarUpload', () => {
   beforeEach(() => {
     mockGetAvatarSnapshot.mockReset();
     mockUpdateAvatar.mockReset();
+    mockUseSession.mockReturnValue({
+      data: { user: { id: TEST_USER_ID } },
+      status: 'authenticated',
+    } as never);
   });
 
   it('should start S3 upload when kickOff is called with a file', async () => {
@@ -38,6 +50,7 @@ describe('useBackgroundAvatarUpload', () => {
 
     expect(mockUpdateAvatar).toHaveBeenCalledWith(
       file,
+      TEST_USER_ID,
       expect.any(AbortSignal)
     );
   });
@@ -51,7 +64,7 @@ describe('useBackgroundAvatarUpload', () => {
     });
 
     const signals: AbortSignal[] = [];
-    mockUpdateAvatar.mockImplementation((_file, signal) => {
+    mockUpdateAvatar.mockImplementation((_file, _userId, signal) => {
       if (signal) signals.push(signal);
       return new Promise((resolve, reject) => {
         if (signal?.aborted) {
@@ -87,7 +100,7 @@ describe('useBackgroundAvatarUpload', () => {
     });
 
     const signals: AbortSignal[] = [];
-    mockUpdateAvatar.mockImplementation((_file, signal) => {
+    mockUpdateAvatar.mockImplementation((_file, _userId, signal) => {
       if (signal) signals.push(signal);
       return new Promise((resolve, reject) => {
         if (signal?.aborted) {
@@ -152,7 +165,7 @@ describe('useBackgroundAvatarUpload', () => {
     });
 
     expect(returnedUrl).toBe(mockUrl);
-    expect(mockUpdateAvatar).toHaveBeenCalledWith(file);
+    expect(mockUpdateAvatar).toHaveBeenCalledWith(file, TEST_USER_ID);
   });
 
   it('should abort active upload on rollback', async () => {
@@ -161,7 +174,7 @@ describe('useBackgroundAvatarUpload', () => {
     });
 
     const signals: AbortSignal[] = [];
-    mockUpdateAvatar.mockImplementation((_file, signal) => {
+    mockUpdateAvatar.mockImplementation((_file, _userId, signal) => {
       if (signal) signals.push(signal);
       return new Promise((resolve, reject) => {
         if (signal?.aborted) {
@@ -294,7 +307,7 @@ describe('useBackgroundAvatarUpload', () => {
     });
 
     const signals: AbortSignal[] = [];
-    mockUpdateAvatar.mockImplementation((_file, signal) => {
+    mockUpdateAvatar.mockImplementation((_file, _userId, signal) => {
       if (signal) signals.push(signal);
       return new Promise((resolve, reject) => {
         if (signal?.aborted) {
@@ -325,7 +338,7 @@ describe('useBackgroundAvatarUpload', () => {
     });
 
     let abortCallback: (() => void) | undefined;
-    mockUpdateAvatar.mockImplementation((_file, signal) => {
+    mockUpdateAvatar.mockImplementation((_file, _userId, signal) => {
       return new Promise((resolve, reject) => {
         abortCallback = () => {
           reject(new DOMException('Aborted', 'AbortError'));
@@ -348,6 +361,48 @@ describe('useBackgroundAvatarUpload', () => {
     // Let the microtasks settle to ensure the internal catch/swallow block executes
     await act(async () => {
       await Promise.resolve();
+    });
+  });
+
+  it('should pass undefined userId to updateAvatar when session has no user yet, and surface the resulting failure without crashing', async () => {
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: 'unauthenticated',
+    } as never);
+
+    const file = new File(['avatar-bytes'], 'avatar.png', {
+      type: 'image/png',
+    });
+    const authError = new Error('未獲取到有效的身份驗證信息，請重新登入。');
+
+    let rejectPromise: ((err: Error) => void) | undefined;
+    mockUpdateAvatar.mockImplementation(() => {
+      return new Promise((_, reject) => {
+        rejectPromise = reject;
+      });
+    });
+
+    const { result } = renderHook(() => useBackgroundAvatarUpload());
+
+    await act(async () => {
+      result.current.kickOff(file, 'https://old-avatar.com/old.png');
+    });
+
+    expect(mockUpdateAvatar).toHaveBeenCalledWith(
+      file,
+      undefined,
+      expect.any(AbortSignal)
+    );
+
+    // Attach the consumer before rejecting so the rejection is never
+    // observed as unhandled between kickOff and consume.
+    const consumePromise = result.current.consume(file);
+
+    await act(async () => {
+      rejectPromise?.(authError);
+      await expect(consumePromise).rejects.toThrow(
+        '未獲取到有效的身份驗證信息，請重新登入。'
+      );
     });
   });
 

@@ -122,7 +122,7 @@ export async function saveProfile(
       try {
         const uploader = consumeAvatarUpload
           ? consumeAvatarUpload(values.avatarFile)
-          : updateAvatar(values.avatarFile);
+          : updateAvatar(values.avatarFile, sessionUserId ?? undefined);
         const newUrl = await uploader;
         avatarUrl = newUrl ?? avatarUrl;
       } catch (err) {
