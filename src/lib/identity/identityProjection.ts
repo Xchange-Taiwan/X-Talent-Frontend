@@ -1,3 +1,4 @@
+import { captureFlowFailure } from '@/lib/monitoring';
 import type { MentorProfileVO } from '@/types/user';
 
 /**
@@ -124,7 +125,12 @@ export async function applyIdentityPatch(
   try {
     await targets.updateSession(patch);
   } catch (e) {
-    console.error('updateSession failed:', e);
+    captureFlowFailure({
+      flow: 'profile_update',
+      step: 'apply_identity_patch',
+      message: e instanceof Error ? e.message : 'updateSession failed',
+      level: 'warning',
+    });
   }
 }
 
@@ -153,6 +159,11 @@ export async function reconcileIdentityWithBackend(
   try {
     await targets.updateSession(truth);
   } catch (e) {
-    console.error('updateSession failed:', e);
+    captureFlowFailure({
+      flow: 'profile_update',
+      step: 'reconcile_identity_with_backend',
+      message: e instanceof Error ? e.message : 'updateSession failed',
+      level: 'warning',
+    });
   }
 }
