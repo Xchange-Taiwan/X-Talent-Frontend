@@ -1,5 +1,6 @@
 'use client';
 
+import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useRef } from 'react';
 
 import { getAvatarSnapshot } from '@/services/profile/getAvatarSnapshot';
@@ -50,6 +51,13 @@ async function snapshotAvatarBytes(
 export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
   const jobRef = useRef<AvatarUploadJob | null>(null);
 
+  // Session resolution belongs here (a hook), not in the updateAvatar
+  // service — kept in a ref so the stable useCallbacks below always read
+  // the latest id without needing session in their dependency arrays.
+  const { data: session } = useSession();
+  const userIdRef = useRef<number | undefined>(undefined);
+  userIdRef.current = session?.user?.id ? Number(session.user.id) : undefined;
+
   useEffect(() => {
     return () => {
       jobRef.current?.controller.abort();
@@ -80,7 +88,11 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
         status: 'uploading',
       };
 
-      job.promise = updateAvatar(file, controller.signal).then(
+      job.promise = updateAvatar(
+        file,
+        userIdRef.current,
+        controller.signal
+      ).then(
         (url) => {
           job.status = 'completed';
           return url;
@@ -117,7 +129,7 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
       }
       // Fallback: kickOff hadn't fired (e.g. file picked outside the wired
       // component) — upload synchronously so the submit still completes.
-      return updateAvatar(file);
+      return updateAvatar(file, userIdRef.current);
     },
     []
   );
@@ -157,7 +169,7 @@ export function useBackgroundAvatarUpload(): UseBackgroundAvatarUpload {
       const restoreFile = new File([oldBytes], 'avatar', {
         type: oldBytes.type || 'image/jpeg',
       });
-      await updateAvatar(restoreFile);
+      await updateAvatar(restoreFile, userIdRef.current);
     } catch (err) {
       // Best-effort: the form is already navigating away on cancel, surfacing
       // a hard error here would be confusing. Log for monitoring instead.

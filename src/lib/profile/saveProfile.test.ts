@@ -127,7 +127,7 @@ describe('saveProfile (Deep Module)', () => {
       deps.adapters
     );
 
-    expect(mockUpdateAvatar).toHaveBeenCalledWith(file);
+    expect(mockUpdateAvatar).toHaveBeenCalledWith(file, 1);
     expect(mockUpdateProfile).toHaveBeenCalledWith(
       'test-user-id',
       expect.objectContaining({ avatar: newAvatarUrl })
