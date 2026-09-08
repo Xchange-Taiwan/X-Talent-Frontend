@@ -715,43 +715,7 @@ describe('useAsyncAction', () => {
     });
   });
 
-  describe('backward compatibility and deep nesting merging', () => {
-    it('supports backward compatibility for deprecated flat config parameters', async () => {
-      const { result } = renderHook(() =>
-        useAsyncAction({
-          flow: 'legacy_flow',
-          step: 'legacy_step',
-          level: 'warning',
-          message: 'legacy-custom-message',
-          errorTitle: 'Legacy Title',
-          errorMessage: 'Legacy Error Message',
-          duration: 4000,
-        })
-      );
-
-      const error = new Error('raw error');
-      const actionFn = vi.fn().mockRejectedValue(error);
-
-      await act(async () => {
-        await result.current.run(actionFn, { throwError: false });
-      });
-
-      expect(captureFlowFailure).toHaveBeenCalledWith({
-        flow: 'legacy_flow',
-        step: 'legacy_step',
-        message: 'legacy-custom-message',
-        level: 'warning',
-        errorCode: undefined,
-      });
-
-      expect(mockToast).toHaveBeenCalledWith({
-        variant: 'destructive',
-        title: 'Legacy Title',
-        description: 'Legacy Error Message',
-        duration: 4000,
-      });
-    });
-
+  describe('deep nesting merging', () => {
     it('correctly performs deep merge of nested configurations (captureFailure & toastOnError) between defaultConfig and runConfig', async () => {
       const { result } = renderHook(() =>
         useAsyncAction({
@@ -804,8 +768,10 @@ describe('useAsyncAction', () => {
   it('should sanitize query parameters and JSON-like strings in error message before calling captureFlowFailure to protect PII', async () => {
     const { result } = renderHook(() =>
       useAsyncAction({
-        flow: 'auth_flow',
-        step: 'password_reset',
+        captureFailure: {
+          flow: 'auth_flow',
+          step: 'password_reset',
+        },
       })
     );
 
