@@ -62,9 +62,16 @@ export type UpdateDraftSlotResult = {
   reason?: 'OVERLAP' | 'TARGET_MONTH_NOT_LOADED' | 'READ_ONLY';
 };
 
+/**
+ * The mentor's own draft-mutation surface. Deliberately narrow: everything a
+ * mutation needs to *address* an occurrence (selected date, month-loaded
+ * gating, calendar navigation, reload/error) already lives on
+ * `BookingCalendarReader` - the mentor viewing their own schedule always
+ * receives both, and a caller wires the two together rather than reading the
+ * same value under two names. See CONTEXT.md's `BookingAvailabilityModel`
+ * section for the full reader/editor split.
+ */
 export type MentorScheduleEditor = {
-  selectedDate: string | null;
-  setSelectedDate: (dateStr: string | null) => void;
   draftForSelectedDate: ParsedMentorTimeslot[];
   /**
    * Add one ALLOW entry at `startTime` for `durationMinutes`. If
@@ -100,33 +107,24 @@ export type MentorScheduleEditor = {
   deleteDraftSlot: (id: number, occurrenceUnix: number) => void;
   confirmChanges: () => Promise<SyncResult>;
   resetChanges: () => void;
-  /** All local dates (YYYY-MM-DD) that have at least one ALLOW occurrence after expanding rrules. */
-  allowedDates: string[];
-  /** Per-month: false while the *current* (year, month) is being fetched after a cache miss. */
-  monthLoaded: boolean;
   reservations: Reservation[];
-  hasError?: boolean;
-  reload?: () => Promise<void> | void;
 };
 
 export interface BookingCalendarReader {
   selectedDate: string | null;
   setSelectedDate: (dateKey: string | null) => void;
+  /** All local dates (YYYY-MM-DD) that have at least one ALLOW occurrence after expanding rrules. */
   allowedDates: string[];
+  /**
+   * The selected date's booking slots, bundled with the two loading flags
+   * that gate whether it's safe to render/interact with them
+   * (`slotsSnapshot.monthLoaded` for the schedule fetch,
+   * `slotsSnapshot.reservationsLoaded` for each slot's `.reservation`). This
+   * is the single read location for both flags - there is no top-level
+   * mirror, so a caller never has to guess which one to read.
+   */
   slotsSnapshot: SlotsSnapshot;
   getDayBookingStatus: (dateKey: string) => BookingStatus | null;
-  monthLoaded: boolean;
-  /**
-   * False while the reservations fetch (which populates each booked slot's
-   * `.reservation`) is in flight — separate from monthLoaded's schedule
-   * fetch. Gate any "click a booked slot" UI on this too: a slot can already
-   * report status PENDING/BOOKED from the schedule fetch while its
-   * `.reservation` is still unset here. Mirrors monthLoaded: exposed at the
-   * top level (in addition to slotsSnapshot.reservationsLoaded) so a
-   * read-only consumer that needs it directly doesn't have to reach into
-   * slotsSnapshot for one flag but not the other.
-   */
-  reservationsLoaded: boolean;
   isFetching: boolean;
   reload?: () => Promise<void>;
   hasError?: boolean;

@@ -41,8 +41,6 @@ function buildSchedule(): BookingCalendarReader {
     allowedDates: [],
     slotsSnapshot: { slots: [], monthLoaded: true, reservationsLoaded: true },
     getDayBookingStatus: vi.fn(() => null),
-    monthLoaded: true,
-    reservationsLoaded: true,
     isFetching: false,
     reload: vi.fn(),
   };
