@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from '@playwright/test';
 import path from 'path';
 
 // Canary (X-Tracker #687): mentor creates an available slot, mentee books it
@@ -103,8 +103,15 @@ async function computeTargetSlot(page: Page): Promise<TargetSlot> {
   });
 }
 
-async function selectCalendarDate(page: Page, dateKey: string): Promise<void> {
-  const dayButton = page.getByTestId(`day-${dateKey}`);
+// Scoped to `scope` rather than the whole page: the profile page behind the
+// dialog renders its own (disabled) calendar with the same data-testid for
+// today's date, so an unscoped page.getByTestId() hits a Playwright
+// strict-mode violation (2 matches) once "today" is the target date.
+async function selectCalendarDate(
+  scope: Page | Locator,
+  dateKey: string
+): Promise<void> {
+  const dayButton = scope.getByTestId(`day-${dateKey}`);
   await expect(dayButton).toBeVisible({ timeout: 20_000 });
   await dayButton.click();
 }
@@ -127,7 +134,7 @@ async function mentorAddAvailableSlot(
   const scheduleDialog = page.getByRole('dialog', { name: '設定可預約時段' });
   await expect(scheduleDialog).toBeVisible({ timeout: 10_000 });
 
-  await selectCalendarDate(page, target.dateKey);
+  await selectCalendarDate(scheduleDialog, target.dateKey);
 
   // The "+" add-slot trigger is icon-only (no accessible name) - same
   // selector strategy MentorScheduleDialog.test.tsx already uses for it.
