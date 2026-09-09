@@ -495,18 +495,13 @@ async function cleanupStaleMenteeReservations(page: Page): Promise<void> {
     await expect(tab).toBeVisible({ timeout: 20_000 });
     await tab.click();
 
+    const cancelButtons = page.getByRole('button', { name: '取消預約' });
     for (let i = 0; i < MAX_CARDS_PER_TAB; i++) {
-      const cancelButton = page
-        .getByRole('button', { name: '取消預約' })
-        .first();
-      const hasCancelButton = await cancelButton
-        .waitFor({ state: 'visible', timeout: 5_000 })
-        .then(() => true)
-        .catch(() => false);
-      if (!hasCancelButton) break;
+      const countBefore = await cancelButtons.count();
+      if (countBefore === 0) break;
 
       const cancelStart = Date.now(); // see the per-run mark() comment below
-      await cancelButton.click();
+      await cancelButtons.first().click();
       const cancelDialog = page.getByRole('dialog');
       await expect(
         cancelDialog.getByRole('heading', { name: '取消預約' })
@@ -516,6 +511,15 @@ async function cleanupStaleMenteeReservations(page: Page): Promise<void> {
         .fill('[canary #687] pre-test cleanup');
       await cancelDialog.getByRole('button', { name: '取消預約' }).click();
       await expect(cancelDialog).not.toBeVisible({ timeout: 15_000 });
+      // AI Review caught a real race: the dialog closing doesn't guarantee
+      // the list has re-fetched yet. Without waiting for the count to
+      // actually drop, the next loop's .first() can grab the same
+      // still-rendered card again, whose cancel button no longer opens a
+      // fresh dialog the way this loop expects, throwing and cutting the
+      // rest of this best-effort cleanup short.
+      await expect(cancelButtons).toHaveCount(countBefore - 1, {
+        timeout: 10_000,
+      });
       console.log(
         `[timing] cancelled 1 stale mentee card (tab ${tabName}): ${((Date.now() - cancelStart) / 1000).toFixed(1)}s`
       );
@@ -541,16 +545,13 @@ async function cleanupStaleMentorReservations(page: Page): Promise<void> {
   await expect(pendingTab).toBeVisible({ timeout: 20_000 });
   await pendingTab.click();
 
+  const rejectButtons = page.getByRole('button', { name: '拒絕' });
   for (let i = 0; i < MAX_CARDS_PER_TAB; i++) {
-    const rejectButton = page.getByRole('button', { name: '拒絕' }).first();
-    const hasRejectButton = await rejectButton
-      .waitFor({ state: 'visible', timeout: 5_000 })
-      .then(() => true)
-      .catch(() => false);
-    if (!hasRejectButton) break;
+    const countBefore = await rejectButtons.count();
+    if (countBefore === 0) break;
 
     const rejectStart = Date.now(); // see the per-run mark() comment below
-    await rejectButton.click();
+    await rejectButtons.first().click();
     const rejectDialog = page.getByRole('dialog', {
       name: '拒絕學員預約的原因',
     });
@@ -560,6 +561,12 @@ async function cleanupStaleMentorReservations(page: Page): Promise<void> {
       .fill('[canary #687] pre-test cleanup');
     await rejectDialog.getByRole('button', { name: '拒絕' }).click();
     await expect(rejectDialog).not.toBeVisible({ timeout: 15_000 });
+    // Same race AI Review caught in cleanupStaleMenteeReservations: wait for
+    // the count to actually drop before the next .first() can grab the
+    // same still-rendered card again.
+    await expect(rejectButtons).toHaveCount(countBefore - 1, {
+      timeout: 10_000,
+    });
     console.log(
       `[timing] rejected 1 stale mentor card: ${((Date.now() - rejectStart) / 1000).toFixed(1)}s`
     );
