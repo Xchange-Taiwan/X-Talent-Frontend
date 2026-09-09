@@ -374,3 +374,47 @@ test('編輯姓名並儲存 → 重導向至 /profile/:userId', async ({ page })
 
   await expect(page).toHaveURL(`/profile/${USER_ID}`, { timeout: 30_000 });
 });
+
+test('編輯欄位後點擊導航列 → 顯示未儲存變更確認框，取消後留在原頁且輸入內容保留', async ({
+  page,
+}) => {
+  await setSignedSessionCookie(page, {
+    ...makeSession(false).user,
+    token: 'mock-access-token',
+  });
+  await mockSessionGet(page, makeSession(false));
+  await mockApiRoute(page, /\/v1\/mentors\/1\/zh_TW\/profile/, {
+    body: makeProfile('Test User', false),
+  });
+  await mockDropdowns(page);
+
+  await page.goto(PAGE_URL);
+
+  await expect(page.locator('input[name="name"]')).toHaveValue('Test User', {
+    timeout: 15_000,
+  });
+
+  // Dirty the form
+  await page.fill('input[name="name"]', 'Unsaved Name');
+
+  // Click the header's cancel/back button - should be intercepted since the
+  // form is dirty.
+  await page.getByRole('button', { name: '取消' }).click();
+
+  const confirmDialog = page.getByText('尚未儲存的變更');
+  await expect(confirmDialog).toBeVisible({ timeout: 10_000 });
+  await expect(page).toHaveURL(PAGE_URL);
+
+  // Cancel leaving: dialog closes, stays on the edit page, input untouched
+  await page.getByRole('button', { name: '繼續編輯' }).click();
+  await expect(confirmDialog).not.toBeVisible();
+  await expect(page).toHaveURL(PAGE_URL);
+  await expect(page.locator('input[name="name"]')).toHaveValue('Unsaved Name');
+
+  // Trigger again and confirm leaving this time
+  await page.getByRole('button', { name: '取消' }).click();
+  await expect(confirmDialog).toBeVisible({ timeout: 10_000 });
+  await page.getByRole('button', { name: '離開頁面' }).click();
+
+  await expect(page).toHaveURL(`/profile/${USER_ID}`, { timeout: 15_000 });
+});
