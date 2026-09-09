@@ -1,5 +1,5 @@
 import { fromPartial } from '@total-typescript/shoehorn';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   fetchPresignedUrl,
@@ -16,6 +16,18 @@ const mockFetch = vi.fn();
 
 function makeImageFile(): File {
   return new File(['avatar-bytes'], 'avatar.png', { type: 'image/png' });
+}
+
+/**
+ * The presigned-URL success response shape reused by nearly every test
+ * below - a factory keeps each test focused on what it's actually
+ * asserting instead of restating this boilerplate.
+ */
+function mockPresignedUrlData(
+  key = 'avatar-42.png',
+  url = 'https://s3.amazonaws.com/bucket'
+): PresignedUrlData {
+  return fromPartial<PresignedUrlData>({ url, fields: { key } });
 }
 
 describe('updateAvatar service', () => {
@@ -35,6 +47,11 @@ describe('updateAvatar service', () => {
     const mod = await import('./updateAvatar');
     updateAvatar = mod.updateAvatar;
     prefetchPresignedUrl = mod.prefetchPresignedUrl;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   describe('updateAvatar core parameter validation', () => {
@@ -78,18 +95,7 @@ describe('updateAvatar service', () => {
     });
 
     it('caches presigned url on successful prefetch and consumes it', async () => {
-      const mockPresignedData = fromPartial<PresignedUrlData>({
-        url: 'https://s3.amazonaws.com/bucket',
-        fields: {
-          key: 'avatar-42.png',
-          AWSAccessKeyId: 'abc',
-          'x-amz-security-token': 'token',
-          policy: 'policy',
-          signature: 'sig',
-        },
-      });
-
-      mockFetchPresignedUrl.mockResolvedValue(mockPresignedData);
+      mockFetchPresignedUrl.mockResolvedValue(mockPresignedUrlData());
       mockFetch.mockResolvedValue(fromPartial<Response>({ ok: true }));
 
       // Trigger prefetch
@@ -109,14 +115,8 @@ describe('updateAvatar service', () => {
     });
 
     it('re-fetches if prefetch was for a different user', async () => {
-      const mockPresigned42 = fromPartial<PresignedUrlData>({
-        url: 'https://s3.amazonaws.com/bucket',
-        fields: { key: 'avatar-42.png' },
-      });
-      const mockPresigned99 = fromPartial<PresignedUrlData>({
-        url: 'https://s3.amazonaws.com/bucket',
-        fields: { key: 'avatar-99.png' },
-      });
+      const mockPresigned42 = mockPresignedUrlData('avatar-42.png');
+      const mockPresigned99 = mockPresignedUrlData('avatar-99.png');
 
       mockFetchPresignedUrl
         .mockResolvedValueOnce(mockPresigned42)
@@ -134,10 +134,7 @@ describe('updateAvatar service', () => {
     });
 
     it('re-fetches if the prefetched cache has expired (> 10 minutes)', async () => {
-      const mockPresigned = fromPartial<PresignedUrlData>({
-        url: 'https://s3.amazonaws.com/bucket',
-        fields: { key: 'avatar-42.png' },
-      });
+      const mockPresigned = mockPresignedUrlData();
 
       mockFetchPresignedUrl
         .mockResolvedValueOnce(mockPresigned) // For prefetch
@@ -158,10 +155,7 @@ describe('updateAvatar service', () => {
     });
 
     it('falls back to fetching again if the cached prefetch promise rejected/failed', async () => {
-      const mockPresigned = fromPartial<PresignedUrlData>({
-        url: 'https://s3.amazonaws.com/bucket',
-        fields: { key: 'avatar-42.png' },
-      });
+      const mockPresigned = mockPresignedUrlData();
 
       mockFetchPresignedUrl
         .mockRejectedValueOnce(new Error('Prefetch Network Error')) // Prefetch fails
@@ -179,10 +173,7 @@ describe('updateAvatar service', () => {
     });
 
     it('clears the cache on consumption so subsequent calls fetch again', async () => {
-      const mockPresigned = fromPartial<PresignedUrlData>({
-        url: 'https://s3.amazonaws.com/bucket',
-        fields: { key: 'avatar-42.png' },
-      });
+      const mockPresigned = mockPresignedUrlData();
 
       mockFetchPresignedUrl
         .mockResolvedValueOnce(mockPresigned)
@@ -234,12 +225,7 @@ describe('updateAvatar service', () => {
     });
 
     it('simulates S3 upload failure with error message from response', async () => {
-      mockFetchPresignedUrl.mockResolvedValue(
-        fromPartial<PresignedUrlData>({
-          url: 'https://s3.amazonaws.com/bucket',
-          fields: { key: 'avatar-42.png' },
-        })
-      );
+      mockFetchPresignedUrl.mockResolvedValue(mockPresignedUrlData());
       mockFetch.mockResolvedValue(
         fromPartial<Response>({
           ok: false,
@@ -254,12 +240,7 @@ describe('updateAvatar service', () => {
     });
 
     it('simulates S3 upload failure where response text is unreadable/empty', async () => {
-      mockFetchPresignedUrl.mockResolvedValue(
-        fromPartial<PresignedUrlData>({
-          url: 'https://s3.amazonaws.com/bucket',
-          fields: { key: 'avatar-42.png' },
-        })
-      );
+      mockFetchPresignedUrl.mockResolvedValue(mockPresignedUrlData());
       mockFetch.mockResolvedValue(
         fromPartial<Response>({
           ok: false,
@@ -274,12 +255,7 @@ describe('updateAvatar service', () => {
     });
 
     it('simulates S3 upload failure with a network/fetch error (TypeError)', async () => {
-      mockFetchPresignedUrl.mockResolvedValue(
-        fromPartial<PresignedUrlData>({
-          url: 'https://s3.amazonaws.com/bucket',
-          fields: { key: 'avatar-42.png' },
-        })
-      );
+      mockFetchPresignedUrl.mockResolvedValue(mockPresignedUrlData());
       mockFetch.mockRejectedValue(new TypeError('Failed to fetch'));
 
       await expect(updateAvatar(makeImageFile(), 42)).rejects.toThrow(
@@ -288,12 +264,7 @@ describe('updateAvatar service', () => {
     });
 
     it('handles unexpected errors (not instance of Error)', async () => {
-      mockFetchPresignedUrl.mockResolvedValue(
-        fromPartial<PresignedUrlData>({
-          url: 'https://s3.amazonaws.com/bucket',
-          fields: { key: 'avatar-42.png' },
-        })
-      );
+      mockFetchPresignedUrl.mockResolvedValue(mockPresignedUrlData());
       mockFetch.mockRejectedValue('Some string exception');
 
       await expect(updateAvatar(makeImageFile(), 42)).rejects.toThrow(
@@ -302,12 +273,7 @@ describe('updateAvatar service', () => {
     });
 
     it('handles pre-aborted signals', async () => {
-      mockFetchPresignedUrl.mockResolvedValue(
-        fromPartial<PresignedUrlData>({
-          url: 'https://s3.amazonaws.com/bucket',
-          fields: { key: 'avatar-42.png' },
-        })
-      );
+      mockFetchPresignedUrl.mockResolvedValue(mockPresignedUrlData());
 
       const controller = new AbortController();
       controller.abort();
@@ -318,12 +284,7 @@ describe('updateAvatar service', () => {
     });
 
     it('handles signals aborted during upload', async () => {
-      mockFetchPresignedUrl.mockResolvedValue(
-        fromPartial<PresignedUrlData>({
-          url: 'https://s3.amazonaws.com/bucket',
-          fields: { key: 'avatar-42.png' },
-        })
-      );
+      mockFetchPresignedUrl.mockResolvedValue(mockPresignedUrlData());
 
       const controller = new AbortController();
       mockFetch.mockImplementation((_url, options) => {
@@ -343,10 +304,10 @@ describe('updateAvatar service', () => {
   describe('buildS3ObjectUrl formatting', () => {
     it('appends key correctly when bucket URL ends with a slash', async () => {
       mockFetchPresignedUrl.mockResolvedValue(
-        fromPartial<PresignedUrlData>({
-          url: 'https://s3.amazonaws.com/bucket/',
-          fields: { key: 'avatar-42.png' },
-        })
+        mockPresignedUrlData(
+          'avatar-42.png',
+          'https://s3.amazonaws.com/bucket/'
+        )
       );
       mockFetch.mockResolvedValue(fromPartial<Response>({ ok: true }));
 
@@ -357,12 +318,7 @@ describe('updateAvatar service', () => {
     });
 
     it('appends key correctly when bucket URL does not end with a slash', async () => {
-      mockFetchPresignedUrl.mockResolvedValue(
-        fromPartial<PresignedUrlData>({
-          url: 'https://s3.amazonaws.com/bucket',
-          fields: { key: 'avatar-42.png' },
-        })
-      );
+      mockFetchPresignedUrl.mockResolvedValue(mockPresignedUrlData());
       mockFetch.mockResolvedValue(fromPartial<Response>({ ok: true }));
 
       const result = await updateAvatar(makeImageFile(), 42);
