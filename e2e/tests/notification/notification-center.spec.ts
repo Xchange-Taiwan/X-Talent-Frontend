@@ -181,7 +181,11 @@ test.describe('Notification Center E2E Tests', () => {
     const bell = page.getByRole('button', { name: '開啟通知選單' });
     await expect(bell).toBeVisible();
 
-    const badge = page.locator('[aria-label*="則未讀通知"]').first();
+    // Scoped inside the (visible) bell button, not page-wide with .first() -
+    // a page-wide match risks silently grabbing a hidden duplicate (e.g. a
+    // responsive mobile-menu badge), which would make not.toBeVisible()
+    // trivially pass regardless of whether the real badge disappeared.
+    const badge = bell.locator('[aria-label*="則未讀通知"]');
     await expect(badge).toHaveText('1');
 
     await bell.click();
@@ -233,7 +237,7 @@ test.describe('Notification Center E2E Tests', () => {
     ).toBeVisible();
 
     // Verify the unread badge rolled back and is visible again
-    const badge = page.locator('[aria-label*="則未讀通知"]').first();
+    const badge = bell.locator('[aria-label*="則未讀通知"]');
     await expect(badge).toHaveText('1');
   });
 
