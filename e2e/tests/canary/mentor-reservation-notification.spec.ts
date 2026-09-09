@@ -253,32 +253,81 @@ async function waitForAcceptedNotification(page: Page): Promise<void> {
 }
 
 /**
- * Mentee: cancel the (now-accepted) reservation this test just created, so
- * repeated real-backend canary runs don't accumulate stray ACCEPTED rows
- * (AI Review flagged this as a real data-pollution risk). Runs from the
- * test's `finally` block - swallow any error here rather than throwing, so a
- * cleanup failure never masks the actual assertions' pass/fail signal.
+ * Mentee: cancel the reservation this test just created, so repeated
+ * real-backend canary runs don't accumulate stray rows (AI Review flagged
+ * this as a real data-pollution risk). Runs from the test's `finally` block -
+ * swallow any error here rather than throwing, so a cleanup failure never
+ * masks the actual assertions' pass/fail signal.
+ *
+ * The reservation can be in either the mentee's 等待回復 (pending - mentor
+ * hasn't accepted yet, e.g. because an earlier step in this test threw) or
+ * 即將到來 (upcoming - already accepted) tab depending on exactly where the
+ * test failed; both tabs expose the same real 取消預約 button + dialog flow
+ * (see e2e/tests/reservation/reservation-mentee.spec.ts's mocked
+ * equivalents), so try both instead of assuming which one applies.
  */
 async function menteeCancelReservation(page: Page): Promise<void> {
   await page.goto('/reservation/mentee');
 
-  const upcomingTab = page.getByRole('tab', { name: /即將到來/ });
-  await expect(upcomingTab).toBeVisible({ timeout: 20_000 });
-  await upcomingTab.click();
+  for (const tabName of [/等待回復/, /即將到來/]) {
+    const tab = page.getByRole('tab', { name: tabName });
+    await expect(tab).toBeVisible({ timeout: 20_000 });
+    await tab.click();
 
-  const cancelButton = page.getByRole('button', { name: '取消預約' }).first();
-  await expect(cancelButton).toBeVisible({ timeout: 20_000 });
-  await cancelButton.click();
+    const cancelButton = page.getByRole('button', { name: '取消預約' }).first();
+    const hasCancelButton = await cancelButton
+      .isVisible({ timeout: 5_000 })
+      .catch(() => false);
+    if (!hasCancelButton) continue;
 
-  const cancelDialog = page.getByRole('dialog');
-  await expect(
-    cancelDialog.getByRole('heading', { name: '取消預約' })
-  ).toBeVisible({ timeout: 5_000 });
-  await cancelDialog
-    .locator('textarea')
-    .fill('[canary #687] automated cleanup');
-  await cancelDialog.getByRole('button', { name: '取消預約' }).click();
-  await expect(cancelDialog).not.toBeVisible({ timeout: 15_000 });
+    await cancelButton.click();
+    const cancelDialog = page.getByRole('dialog');
+    await expect(
+      cancelDialog.getByRole('heading', { name: '取消預約' })
+    ).toBeVisible({ timeout: 5_000 });
+    await cancelDialog
+      .locator('textarea')
+      .fill('[canary #687] automated cleanup');
+    await cancelDialog.getByRole('button', { name: '取消預約' }).click();
+    await expect(cancelDialog).not.toBeVisible({ timeout: 15_000 });
+    return;
+  }
+
+  throw new Error(
+    'menteeCancelReservation: no cancellable reservation found in 等待回復 or 即將到來'
+  );
+}
+
+/**
+ * Mentor: remove the ALLOW slot this test added. Must run *after*
+ * menteeCancelReservation - while a reservation is still PENDING/BOOKED
+ * against this slot, MentorScheduleDialog's delete button opens a
+ * confirmation prompt instead of deleting directly (see
+ * getReservationBlock/showPrompt in MentorScheduleDialog.tsx), which this
+ * cleanup doesn't drive. Once cancelled, the slot is a plain deletable draft
+ * again, same as right after mentorAddAvailableSlot created it.
+ */
+async function mentorDeleteAvailableSlot(
+  page: Page,
+  target: TargetSlot
+): Promise<void> {
+  const openButton = page.getByRole('button', { name: '預約設定' });
+  await expect(openButton).toBeVisible({ timeout: 20_000 });
+  await openButton.click();
+
+  const scheduleDialog = page.getByRole('dialog', { name: '設定可預約時段' });
+  await expect(scheduleDialog).toBeVisible({ timeout: 10_000 });
+
+  await selectCalendarDate(scheduleDialog, target.dateKey);
+
+  const slotRow = scheduleDialog
+    .getByRole('button')
+    .filter({ hasText: target.label });
+  await expect(slotRow).toBeVisible({ timeout: 10_000 });
+  await slotRow.locator('button:has(svg.lucide-x)').click();
+
+  await scheduleDialog.getByRole('button', { name: '儲存' }).click();
+  await expect(scheduleDialog).not.toBeVisible({ timeout: 15_000 });
 }
 
 test.describe('真實後端通知 canary：mentor 接受預約 → mentee 收到通知', () => {
@@ -291,6 +340,9 @@ test.describe('真實後端通知 canary：mentor 接受預約 → mentee 收到
     const mentorContext = await browser.newContext({
       storageState: MENTOR_AUTH_FILE,
     });
+    // Hoisted so the finally block's cleanup can reach it even if an
+    // assertion throws partway through the try block below.
+    let target: TargetSlot | undefined;
 
     try {
       const menteePage = await menteeContext.newPage();
@@ -303,7 +355,7 @@ test.describe('真實後端通知 canary：mentor 接受預約 → mentee 收到
       const menteeUser = await getSessionUser(menteePage);
 
       await mentorPage.goto(`/profile/${mentorUser.id}`);
-      const target = await computeTargetSlot(mentorPage);
+      target = await computeTargetSlot(mentorPage);
       await mentorAddAvailableSlot(mentorPage, target);
 
       const bookingNote = `[canary #687] ${new Date().toISOString()}`;
@@ -313,18 +365,32 @@ test.describe('真實後端通知 canary：mentor 接受預約 → mentee 收到
 
       await waitForAcceptedNotification(menteePage);
     } finally {
+      // Two independent best-effort cleanup steps - never let either failure
+      // mask the real test outcome above, and a failure in one shouldn't
+      // skip the other. Order matters: the slot can only be deleted directly
+      // once its reservation is no longer PENDING/BOOKED (see
+      // mentorDeleteAvailableSlot's doc comment).
       try {
-        const cleanupPage =
+        const menteeCleanupPage =
           menteeContext.pages()[0] ?? (await menteeContext.newPage());
-        await menteeCancelReservation(cleanupPage);
+        await menteeCancelReservation(menteeCleanupPage);
       } catch (err) {
-        // Best-effort cleanup - never let a cleanup failure mask the real
-        // test outcome above. Left as a manual cleanup for whoever notices
-        // the stray reservation on the shared test account.
         console.warn(
           '[canary #687] cleanup: failed to cancel test reservation:',
           err
         );
+      }
+      if (target) {
+        try {
+          const mentorCleanupPage =
+            mentorContext.pages()[0] ?? (await mentorContext.newPage());
+          await mentorDeleteAvailableSlot(mentorCleanupPage, target);
+        } catch (err) {
+          console.warn(
+            '[canary #687] cleanup: failed to delete mentor availability slot:',
+            err
+          );
+        }
       }
       await menteeContext.close();
       await mentorContext.close();
