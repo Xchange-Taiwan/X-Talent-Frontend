@@ -81,12 +81,13 @@ const SENSITIVE_KEYS = [
  * Replaces values of sensitive URL query parameters with [REDACTED].
  * e.g. ?token=abc123&password=secret ???token=[REDACTED]&password=[REDACTED]
  */
+const SENSITIVE_QUERY_PARAM_PATTERN = new RegExp(
+  `\\b(${SENSITIVE_KEYS.join('|')})=([^&\\s]*)`,
+  'gi'
+);
+
 function maskSensitiveQueryParams(text: string): string {
-  const pattern = new RegExp(
-    `\\b(${SENSITIVE_KEYS.join('|')})=([^&\\s"']*)`,
-    'gi'
-  );
-  return text.replace(pattern, (match, key, _value) => {
+  return text.replace(SENSITIVE_QUERY_PARAM_PATTERN, (match, key, _value) => {
     return `${key}=[REDACTED]`;
   });
 }

@@ -31,6 +31,16 @@ describe('PII Sanitization', () => {
     expect(sanitized).not.toContain('user@test.com');
   });
 
+  it('masks sensitive query parameters wrapped in quotes', () => {
+    const rawText =
+      'request failed for password="mysecret" and token=\'abc123\'';
+    const sanitized = sanitize(rawText);
+    expect(sanitized).toContain('password=[REDACTED]');
+    expect(sanitized).toContain('token=[REDACTED]');
+    expect(sanitized).not.toContain('mysecret');
+    expect(sanitized).not.toContain('abc123');
+  });
+
   it('masks sensitive keys in JSON structures', () => {
     const rawJson = JSON.stringify({
       password: 'password123',
