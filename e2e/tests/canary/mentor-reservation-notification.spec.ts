@@ -22,7 +22,11 @@ const MENTOR_AUTH_FILE = path.join(__dirname, '../../.auth/mentor.json');
 // A real multi-step booking round trip against a live, unmocked backend
 // legitimately takes longer than the suite's default 90s budget
 // (playwright.config.ts) - this is the only spec in the repo that needs it.
-test.setTimeout(180_000);
+// 300s (not 180s) to leave real headroom for menteeBookSlot's and
+// waitForAcceptedNotification's own multi-attempt eventual-consistency
+// retries below, on top of everything else in this flow - both were added
+// after 180s already proved too tight against the real deployed backend.
+test.setTimeout(300_000);
 
 interface SessionUser {
   id: string;
@@ -177,18 +181,45 @@ async function mentorAddAvailableSlot(
   await expect(scheduleDialog).not.toBeVisible({ timeout: 15_000 });
 }
 
-/** Mentee: book the slot the mentor just opened, from the mentor's public profile. */
+/**
+ * Mentee: book the slot the mentor just opened, from the mentor's public
+ * profile. Retries the initial navigation + slot lookup (not just the
+ * dialog interaction after it) because a real deployed backend can have a
+ * short propagation delay between the mentor's save completing and that
+ * same slot becoming visible on the mentee's public profile view - this
+ * genuinely wasn't visible testing locally, only surfaced once this ran
+ * against the real deployed BASE_URL - so treat it with the same
+ * eventual-consistency tolerance waitForAcceptedNotification already uses
+ * for the later notification-delivery step.
+ */
 async function menteeBookSlot(
   page: Page,
   mentorId: string,
   target: TargetSlot,
   bookingNote: string
 ): Promise<void> {
-  await page.goto(`/profile/${mentorId}`);
-  await selectCalendarDate(page, target.dateKey);
-
+  const MAX_ATTEMPTS = 5;
+  const POLL_INTERVAL_MS = 6_000;
   const slotButton = page.getByRole('button', { name: target.label });
-  await expect(slotButton).toBeVisible({ timeout: 20_000 });
+
+  let lastError: unknown;
+  let found = false;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      await page.goto(`/profile/${mentorId}`);
+      await selectCalendarDate(page, target.dateKey);
+      await expect(slotButton).toBeVisible({ timeout: 20_000 });
+      found = true;
+      break;
+    } catch (err) {
+      lastError = err;
+      if (attempt < MAX_ATTEMPTS) {
+        await page.waitForTimeout(POLL_INTERVAL_MS);
+      }
+    }
+  }
+  if (!found) throw lastError;
+
   await slotButton.click();
 
   const textarea = page.locator('textarea#booking-question');
