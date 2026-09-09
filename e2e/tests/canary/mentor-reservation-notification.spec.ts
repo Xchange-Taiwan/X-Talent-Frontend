@@ -316,9 +316,11 @@ async function waitForAcceptedNotification(
 /**
  * Mentee: cancel the reservation this test just created, so repeated
  * real-backend canary runs don't accumulate stray rows (AI Review flagged
- * this as a real data-pollution risk). Runs from the test's `finally` block -
- * swallow any error here rather than throwing, so a cleanup failure never
- * masks the actual assertions' pass/fail signal.
+ * this as a real data-pollution risk). Called from the test's `finally`
+ * block, wrapped in its own try/catch there - this function *does* throw on
+ * a genuine cleanup failure (nothing matching `bookingNote` in either tab);
+ * the caller is what swallows it (logging a warning instead), so a cleanup
+ * failure never masks the actual assertions' pass/fail signal above it.
  *
  * The reservation can be in either the mentee's 等待回復 (pending - mentor
  * hasn't accepted yet, e.g. because an earlier step in this test threw) or
