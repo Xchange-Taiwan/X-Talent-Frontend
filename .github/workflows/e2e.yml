@@ -18,15 +18,15 @@ jobs:
     # Let the run fail loudly so the result is unambiguous in the Actions UI.
     env:
       BASE_URL: ${{ inputs.base_url || 'https://xtalentdev.vercel.app' }}
+      # Single-account real login (setup/chromium) and dual-role real-backend
+      # canary (setup-canary/chromium-canary, X-Tracker #686/#687) both need
+      # real credentials, distinct from DESIGN_AUDIT_MENTOR_*/
+      # DESIGN_AUDIT_MENTEE_* (a different, unrelated script). NOTE FOR
+      # REVIEWER: the four E2E_MENTEE_*/E2E_MENTOR_* secrets must be added to
+      # this repo's GitHub Actions secrets manually - that's an operational
+      # step outside this PR's code changes.
       E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
       E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
-      # Dual-role real-backend canary accounts (X-Tracker #686/#687) - two
-      # dedicated mentee/mentor test accounts, distinct from E2E_EMAIL/
-      # E2E_PASSWORD above (single-role, mocked-API suite) and from
-      # DESIGN_AUDIT_MENTOR_*/DESIGN_AUDIT_MENTEE_* (a different, unrelated
-      # script). NOTE FOR REVIEWER: these four secrets must be added to this
-      # repo's GitHub Actions secrets manually - that's an operational step
-      # outside this PR's code changes.
       E2E_MENTEE_EMAIL: ${{ secrets.E2E_MENTEE_EMAIL }}
       E2E_MENTEE_PASSWORD: ${{ secrets.E2E_MENTEE_PASSWORD }}
       E2E_MENTOR_EMAIL: ${{ secrets.E2E_MENTOR_EMAIL }}
@@ -52,21 +52,25 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm playwright install --with-deps chromium
 
+      # Mocked, no-credentials-needed projects (chromium-onboarding/-anon/
+      # -profile/-reservation): pure frontend behavior, no real backend
+      # involved, so a failure here is always a real regression. Let it fail
+      # the job loudly.
       - name: Run Playwright tests
-        run: pnpm test:e2e --project=setup --project=chromium --project=chromium-onboarding --project=chromium-anon --project=chromium-profile --project=chromium-reservation
+        run: pnpm test:e2e:mock
         env:
           PLAYWRIGHT_HTML_REPORT: playwright-report
 
-      # Real-backend, dual-role canary project (X-Tracker #687) runs as its
-      # own step with continue-on-error so a real-backend flake there never
-      # reds the step above or the rest of this job's projects - and reports
-      # to its own HTML report output so the two are always separately
-      # judgeable, never merged into one report.
-      - name: Run Playwright canary tests
+      # Everything that hits the real backend (single-account login smoke
+      # test + dual-role canary, X-Tracker #686/#687): continue-on-error so a
+      # real-backend flake there never reds the mock step above, and reports
+      # to its own HTML output so the two are always separately judgeable,
+      # never merged into one report.
+      - name: Run Playwright backend tests
         continue-on-error: true
-        run: pnpm test:e2e --project=setup-canary --project=chromium-canary
+        run: pnpm test:e2e:backend
         env:
-          PLAYWRIGHT_HTML_REPORT: playwright-report-canary
+          PLAYWRIGHT_HTML_REPORT: playwright-report-backend
 
       - name: Upload Playwright report
         if: always()
@@ -76,10 +80,10 @@ jobs:
           path: playwright-report/
           retention-days: 14
 
-      - name: Upload Playwright canary report
+      - name: Upload Playwright backend report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report-canary
-          path: playwright-report-canary/
+          name: playwright-report-backend
+          path: playwright-report-backend/
           retention-days: 14
