@@ -10,6 +10,57 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
+/**
+ * Creates an anchor with the given attributes, appends it to the document,
+ * dispatches a click MouseEvent on it (or on `dispatchTarget` if provided,
+ * e.g. to test bubbling from a nested child), and returns spies on
+ * preventDefault/stopPropagation. Centralizes the "create anchor, set
+ * attributes, dispatch a click" steps shared by most click-interception
+ * tests below.
+ */
+function clickAnchor(
+  attributes: {
+    href?: string;
+    rawHref?: string;
+    target?: string;
+    download?: string;
+  } = {},
+  eventInit: MouseEventInit = {},
+  dispatchTarget?: (anchor: HTMLAnchorElement) => Element
+): {
+  anchor: HTMLAnchorElement;
+  event: MouseEvent;
+  preventDefaultSpy: ReturnType<typeof vi.spyOn>;
+  stopPropagationSpy: ReturnType<typeof vi.spyOn>;
+} {
+  const anchor = document.createElement('a');
+  if (attributes.rawHref !== undefined) {
+    anchor.setAttribute('href', attributes.rawHref);
+  } else if (attributes.href !== undefined) {
+    anchor.href = attributes.href;
+  }
+  if (attributes.target !== undefined) anchor.target = attributes.target;
+  if (attributes.download !== undefined) {
+    anchor.setAttribute('download', attributes.download);
+  }
+  document.body.appendChild(anchor);
+
+  const event = new MouseEvent('click', {
+    bubbles: true,
+    cancelable: true,
+    ...eventInit,
+  });
+  const preventDefaultSpy = vi.spyOn(event, 'preventDefault');
+  const stopPropagationSpy = vi.spyOn(event, 'stopPropagation');
+
+  const target = dispatchTarget ? dispatchTarget(anchor) : anchor;
+  act(() => {
+    target.dispatchEvent(event);
+  });
+
+  return { anchor, event, preventDefaultSpy, stopPropagationSpy };
+}
+
 describe('useUnsavedChangesPrompt', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -41,19 +92,7 @@ describe('useUnsavedChangesPrompt', () => {
     it('should not intercept link clicks', () => {
       const { result } = renderHook(() => useUnsavedChangesPrompt(false));
 
-      const anchor = document.createElement('a');
-      anchor.href = '/about';
-      document.body.appendChild(anchor);
-
-      const event = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-      });
-      const preventDefaultSpy = vi.spyOn(event, 'preventDefault');
-
-      act(() => {
-        anchor.dispatchEvent(event);
-      });
+      const { preventDefaultSpy } = clickAnchor({ href: '/about' });
 
       expect(preventDefaultSpy).not.toHaveBeenCalled();
       expect(result.current.isPromptOpen).toBe(false);
@@ -106,19 +145,8 @@ describe('useUnsavedChangesPrompt', () => {
     it('should intercept SPA clicks on matching anchors, open prompt, and navigate on confirm', () => {
       const { result } = renderHook(() => useUnsavedChangesPrompt(true));
 
-      const anchor = document.createElement('a');
-      anchor.href = '/dashboard';
-      document.body.appendChild(anchor);
-
-      const event = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-      });
-      const preventDefaultSpy = vi.spyOn(event, 'preventDefault');
-      const stopPropagationSpy = vi.spyOn(event, 'stopPropagation');
-
-      act(() => {
-        anchor.dispatchEvent(event);
+      const { preventDefaultSpy, stopPropagationSpy } = clickAnchor({
+        href: '/dashboard',
       });
 
       expect(preventDefaultSpy).toHaveBeenCalled();
@@ -133,13 +161,7 @@ describe('useUnsavedChangesPrompt', () => {
       expect(mockPush).not.toHaveBeenCalled();
 
       // Trigger click again to test confirm
-      const event2 = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-      });
-      act(() => {
-        anchor.dispatchEvent(event2);
-      });
+      clickAnchor({ href: '/dashboard' });
       expect(result.current.isPromptOpen).toBe(true);
 
       act(() => {
@@ -152,20 +174,11 @@ describe('useUnsavedChangesPrompt', () => {
     it('should support clicking nested child elements of an anchor', () => {
       const { result } = renderHook(() => useUnsavedChangesPrompt(true));
 
-      const anchor = document.createElement('a');
-      anchor.href = '/settings';
-      const child = document.createElement('span');
-      child.textContent = 'Nested Text';
-      anchor.appendChild(child);
-      document.body.appendChild(anchor);
-
-      const event = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-      });
-
-      act(() => {
-        child.dispatchEvent(event);
+      clickAnchor({ href: '/settings' }, {}, (anchor) => {
+        const child = document.createElement('span');
+        child.textContent = 'Nested Text';
+        anchor.appendChild(child);
+        return child;
       });
 
       expect(result.current.isPromptOpen).toBe(true);
@@ -174,19 +187,9 @@ describe('useUnsavedChangesPrompt', () => {
     it('should not intercept if target is not _self', () => {
       const { result } = renderHook(() => useUnsavedChangesPrompt(true));
 
-      const anchor = document.createElement('a');
-      anchor.href = '/settings';
-      anchor.target = '_blank';
-      document.body.appendChild(anchor);
-
-      const event = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-      });
-      const preventDefaultSpy = vi.spyOn(event, 'preventDefault');
-
-      act(() => {
-        anchor.dispatchEvent(event);
+      const { preventDefaultSpy } = clickAnchor({
+        href: '/settings',
+        target: '_blank',
       });
 
       expect(preventDefaultSpy).not.toHaveBeenCalled();
@@ -196,19 +199,9 @@ describe('useUnsavedChangesPrompt', () => {
     it('should not intercept if download attribute is present', () => {
       const { result } = renderHook(() => useUnsavedChangesPrompt(true));
 
-      const anchor = document.createElement('a');
-      anchor.href = '/report.pdf';
-      anchor.setAttribute('download', 'report.pdf');
-      document.body.appendChild(anchor);
-
-      const event = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-      });
-      const preventDefaultSpy = vi.spyOn(event, 'preventDefault');
-
-      act(() => {
-        anchor.dispatchEvent(event);
+      const { preventDefaultSpy } = clickAnchor({
+        href: '/report.pdf',
+        download: 'report.pdf',
       });
 
       expect(preventDefaultSpy).not.toHaveBeenCalled();
@@ -218,28 +211,10 @@ describe('useUnsavedChangesPrompt', () => {
     it('should not intercept if href starts with # or is missing', () => {
       const { result } = renderHook(() => useUnsavedChangesPrompt(true));
 
-      const anchor1 = document.createElement('a');
-      anchor1.href = '#anchor-section';
-      const anchor2 = document.createElement('a');
-      document.body.appendChild(anchor1);
-      document.body.appendChild(anchor2);
-
-      const event1 = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-      });
-      act(() => {
-        anchor1.dispatchEvent(event1);
-      });
+      clickAnchor({ href: '#anchor-section' });
       expect(result.current.isPromptOpen).toBe(false);
 
-      const event2 = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-      });
-      act(() => {
-        anchor2.dispatchEvent(event2);
-      });
+      clickAnchor();
       expect(result.current.isPromptOpen).toBe(false);
     });
 
@@ -265,27 +240,13 @@ describe('useUnsavedChangesPrompt', () => {
     it('should not intercept clicks that are not primary left-button click', () => {
       const { result } = renderHook(() => useUnsavedChangesPrompt(true));
 
-      const anchor = document.createElement('a');
-      anchor.href = '/some-path';
-      document.body.appendChild(anchor);
+      clickAnchor({ href: '/some-path' }, { button: 1 }); // middle click
 
-      const event = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-        button: 1,
-      }); // middle click
-      act(() => {
-        anchor.dispatchEvent(event);
-      });
       expect(result.current.isPromptOpen).toBe(false);
     });
 
     it('should not intercept clicks with modifier keys (meta, ctrl, shift, alt)', () => {
       const { result } = renderHook(() => useUnsavedChangesPrompt(true));
-
-      const anchor = document.createElement('a');
-      anchor.href = '/some-path';
-      document.body.appendChild(anchor);
 
       const modifiers = [
         { metaKey: true },
@@ -295,14 +256,7 @@ describe('useUnsavedChangesPrompt', () => {
       ];
 
       modifiers.forEach((mod) => {
-        const event = new MouseEvent('click', {
-          bubbles: true,
-          cancelable: true,
-          ...mod,
-        });
-        act(() => {
-          anchor.dispatchEvent(event);
-        });
+        clickAnchor({ href: '/some-path' }, mod);
         expect(result.current.isPromptOpen).toBe(false);
       });
     });
@@ -310,34 +264,16 @@ describe('useUnsavedChangesPrompt', () => {
     it('should not intercept cross-domain (external) links', () => {
       const { result } = renderHook(() => useUnsavedChangesPrompt(true));
 
-      const anchor = document.createElement('a');
-      anchor.href = 'https://external-domain.com/landing';
-      document.body.appendChild(anchor);
+      clickAnchor({ href: 'https://external-domain.com/landing' });
 
-      const event = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-      });
-      act(() => {
-        anchor.dispatchEvent(event);
-      });
       expect(result.current.isPromptOpen).toBe(false);
     });
 
     it('should handle malformed href gracefully and not intercept', () => {
       const { result } = renderHook(() => useUnsavedChangesPrompt(true));
 
-      const anchor = document.createElement('a');
-      anchor.setAttribute('href', 'http://:invalid-url');
-      document.body.appendChild(anchor);
+      clickAnchor({ rawHref: 'http://:invalid-url' });
 
-      const event = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-      });
-      act(() => {
-        anchor.dispatchEvent(event);
-      });
       expect(result.current.isPromptOpen).toBe(false);
     });
 
