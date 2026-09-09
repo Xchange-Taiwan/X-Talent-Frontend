@@ -1,0 +1,284 @@
+import { expect, type Page, test } from '@playwright/test';
+import path from 'path';
+
+// Canary (X-Tracker #687): mentor creates an available slot, mentee books it
+// for real, mentor really accepts it, and mentee sees the resulting
+// notification - all against the real backend, nothing mocked. Builds on the
+// dual-role real-login infrastructure from X-Tracker #686
+// (e2e/fixtures/auth.setup.ts + e2e/tests/canary/dual-role-login.spec.ts).
+//
+// Unlike e2e/tests/reservation/*.spec.ts (mocked API responses, forged
+// session cookies, a frozen clock), this test uses the real, unfrozen clock
+// and the two real E2E_MENTEE_*/E2E_MENTOR_* accounts end to end. It runs
+// only in the `chromium-canary` Playwright project (testDir:
+// e2e/tests/canary, see playwright.config.ts) against a real deployed
+// BASE_URL (default https://xtalentdev.vercel.app - see
+// .github/workflows/e2e.yml), which is why the assertions below tolerate
+// real network/backend latency instead of asserting instantly.
+
+const MENTEE_AUTH_FILE = path.join(__dirname, '../../.auth/mentee.json');
+const MENTOR_AUTH_FILE = path.join(__dirname, '../../.auth/mentor.json');
+
+// A real multi-step booking round trip against a live, unmocked backend
+// legitimately takes longer than the suite's default 90s budget
+// (playwright.config.ts) - this is the only spec in the repo that needs it.
+test.setTimeout(180_000);
+
+interface SessionUser {
+  id: string;
+  name: string;
+}
+
+/**
+ * Reads the NextAuth session directly from the browser (same-origin
+ * `fetch`, whatever backend URL the running app's bundle is actually
+ * configured with) rather than guessing the BFF's base URL from outside the
+ * page - the two dedicated canary accounts don't have a fixed, known user ID
+ * the way the mocked reservation specs' hardcoded dev-fixture IDs do.
+ */
+async function getSessionUser(page: Page): Promise<SessionUser> {
+  const session = await page.evaluate(async () => {
+    const res = await fetch('/api/auth/session');
+    return res.json();
+  });
+
+  if (!session?.user?.id) {
+    throw new Error(
+      'No authenticated session user found - the mentee/mentor storageState may have expired or failed to load.'
+    );
+  }
+
+  return { id: String(session.user.id), name: session.user.name ?? '' };
+}
+
+interface TargetSlot {
+  dateKey: string;
+  hour: string;
+  minute: string;
+  label: string;
+}
+
+/**
+ * Picks a real, ~2-hours-from-now slot for the mentor to open up. Computed
+ * entirely inside the mentor's browser (one `evaluate` call) so the date
+ * key, hour/minute picker values, and the human-readable button label the
+ * mentee will later search for are always mutually consistent, regardless
+ * of the test runner's own OS timezone. Because it's a real unfrozen clock,
+ * every run targets a different date/time slot, so repeated canary runs
+ * never collide with a previous run's leftover data.
+ */
+async function computeTargetSlot(page: Page): Promise<TargetSlot> {
+  return page.evaluate(() => {
+    const DURATION_MINUTES = 30;
+    const start = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    start.setSeconds(0, 0);
+
+    // Snap to the calendar's 15-minute picker options (00/15/30/45),
+    // rolling the hour (and, at the day boundary, the date) forward via
+    // native Date arithmetic when rounding reaches 60.
+    const snappedMinutes = Math.round(start.getMinutes() / 15) * 15;
+    if (snappedMinutes >= 60) {
+      start.setHours(start.getHours() + 1, 0);
+    } else {
+      start.setMinutes(snappedMinutes);
+    }
+
+    const end = new Date(start.getTime() + DURATION_MINUTES * 60 * 1000);
+
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const dateKey = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`;
+    const hour = pad(start.getHours());
+    const minute = pad(start.getMinutes());
+
+    // Same format MenteeBookingForm's slot buttons render via
+    // formatBookingSlotTime (src/lib/profile/scheduleFormatters.ts).
+    const timeFmt: Intl.DateTimeFormatOptions = {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    };
+    const label = `${start.toLocaleTimeString('en-US', timeFmt)} – ${end.toLocaleTimeString('en-US', timeFmt)}`;
+
+    return { dateKey, hour, minute, label };
+  });
+}
+
+async function selectCalendarDate(page: Page, dateKey: string): Promise<void> {
+  const dayButton = page.getByTestId(`day-${dateKey}`);
+  await expect(dayButton).toBeVisible({ timeout: 20_000 });
+  await dayButton.click();
+}
+
+/**
+ * Mentor: open "預約設定" on their own profile, add one new 30-minute ALLOW
+ * slot at `target`, and save. This is real setup for the scenario below (a
+ * mentee needs something real to book) rather than the behavior this ticket
+ * actually verifies, so it drives the real MentorScheduleDialog UI directly
+ * instead of adding any test-only shortcut.
+ */
+async function mentorAddAvailableSlot(
+  page: Page,
+  target: TargetSlot
+): Promise<void> {
+  const openButton = page.getByRole('button', { name: '預約設定' });
+  await expect(openButton).toBeVisible({ timeout: 20_000 });
+  await openButton.click();
+
+  const scheduleDialog = page.getByRole('dialog', { name: '設定可預約時段' });
+  await expect(scheduleDialog).toBeVisible({ timeout: 10_000 });
+
+  await selectCalendarDate(page, target.dateKey);
+
+  // The "+" add-slot trigger is icon-only (no accessible name) - same
+  // selector strategy MentorScheduleDialog.test.tsx already uses for it.
+  await scheduleDialog.locator('button:has(svg.lucide-plus)').click();
+
+  const addDialog = page.getByRole('dialog', { name: '新增可預約時段' });
+  await expect(addDialog).toBeVisible({ timeout: 10_000 });
+
+  // Two Radix comboboxes on this form: start hour, then start minute.
+  const comboboxes = addDialog.getByRole('combobox');
+  await comboboxes.nth(0).click();
+  await page.getByRole('option', { name: target.hour, exact: true }).click();
+  await comboboxes.nth(1).click();
+  await page.getByRole('option', { name: target.minute, exact: true }).click();
+
+  await addDialog.getByRole('button', { name: '30 分' }).click();
+  await addDialog.getByRole('button', { name: '建立' }).click();
+  await expect(addDialog).not.toBeVisible({ timeout: 5_000 });
+
+  await scheduleDialog.getByRole('button', { name: '儲存' }).click();
+  await expect(scheduleDialog).not.toBeVisible({ timeout: 15_000 });
+}
+
+/** Mentee: book the slot the mentor just opened, from the mentor's public profile. */
+async function menteeBookSlot(
+  page: Page,
+  mentorId: string,
+  target: TargetSlot,
+  bookingNote: string
+): Promise<void> {
+  await page.goto(`/profile/${mentorId}`);
+  await selectCalendarDate(page, target.dateKey);
+
+  const slotButton = page.getByRole('button', { name: target.label });
+  await expect(slotButton).toBeVisible({ timeout: 20_000 });
+  await slotButton.click();
+
+  const textarea = page.locator('textarea#booking-question');
+  await expect(textarea).toBeVisible();
+  await textarea.fill(bookingNote);
+
+  const submitButton = page.getByRole('button', { name: '預約時間' });
+  await expect(submitButton).toBeEnabled();
+  await submitButton.click();
+
+  await expect(page.getByText('預約已送出，等待導師回復').first()).toBeVisible({
+    timeout: 20_000,
+  });
+}
+
+/**
+ * Mentor: accept the mentee's pending reservation from /reservation/mentor.
+ * A real backend can carry a stray PENDING row from a previous failed
+ * canary run under the same two dedicated test accounts - accepting the
+ * first card matching the mentee's name still exercises exactly the
+ * accept -> notification path this test verifies, even if it isn't
+ * necessarily today's freshly-booked row.
+ */
+async function mentorAcceptPendingReservation(
+  page: Page,
+  menteeName: string
+): Promise<void> {
+  await page.goto('/reservation/mentor');
+
+  const pendingTab = page.getByRole('tab', { name: /待您回復/ });
+  await expect(pendingTab).toBeVisible({ timeout: 20_000 });
+  await pendingTab.click();
+
+  const card = page
+    .getByTestId('reservation-card')
+    .filter({ hasText: menteeName })
+    .first();
+  await expect(card).toBeVisible({ timeout: 20_000 });
+  await card.getByRole('button', { name: /接受/ }).click();
+
+  const confirmDialog = page.getByRole('dialog');
+  await expect(confirmDialog.getByRole('button', { name: '接受' })).toBeVisible(
+    { timeout: 5_000 }
+  );
+  await confirmDialog.getByRole('button', { name: '接受' }).click();
+
+  await expect(confirmDialog).not.toBeVisible({ timeout: 20_000 });
+}
+
+/**
+ * Mentee: poll for the real "mentor accepted your reservation" notification
+ * (reservation_success, see src/components/layout/Header/notificationUtils.ts).
+ * Acceptance -> notification delivery is not guaranteed to be synchronous on
+ * the real backend, so this retries with a reload + reopen instead of
+ * asserting once - the same cold-start/eventual-consistency tolerance
+ * e2e/fixtures/auth.setup.ts already applies to sign-in.
+ */
+async function waitForAcceptedNotification(page: Page): Promise<void> {
+  const MAX_ATTEMPTS = 5;
+  const POLL_INTERVAL_MS = 6_000;
+  const bellButton = page.getByRole('button', { name: '開啟通知選單' });
+  const notificationText = page.getByText(/已接受您的預約/);
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      await page.reload();
+      await expect(bellButton).toBeVisible({ timeout: 20_000 });
+      await bellButton.click();
+      await expect(notificationText.first()).toBeVisible({ timeout: 8_000 });
+      return;
+    } catch (err) {
+      lastError = err;
+      await page.keyboard.press('Escape').catch(() => {});
+      if (attempt < MAX_ATTEMPTS) {
+        await page.waitForTimeout(POLL_INTERVAL_MS);
+      }
+    }
+  }
+  throw lastError;
+}
+
+test.describe('真實後端通知 canary：mentor 接受預約 → mentee 收到通知', () => {
+  test('mentor 建立可預約時段並接受 mentee 的真實預約 → mentee 端出現對應通知', async ({
+    browser,
+  }) => {
+    const menteeContext = await browser.newContext({
+      storageState: MENTEE_AUTH_FILE,
+    });
+    const mentorContext = await browser.newContext({
+      storageState: MENTOR_AUTH_FILE,
+    });
+
+    try {
+      const menteePage = await menteeContext.newPage();
+      const mentorPage = await mentorContext.newPage();
+
+      await mentorPage.goto('/');
+      const mentorUser = await getSessionUser(mentorPage);
+
+      await menteePage.goto('/');
+      const menteeUser = await getSessionUser(menteePage);
+
+      await mentorPage.goto(`/profile/${mentorUser.id}`);
+      const target = await computeTargetSlot(mentorPage);
+      await mentorAddAvailableSlot(mentorPage, target);
+
+      const bookingNote = `[canary #687] ${new Date().toISOString()}`;
+      await menteeBookSlot(menteePage, mentorUser.id, target, bookingNote);
+
+      await mentorAcceptPendingReservation(mentorPage, menteeUser.name);
+
+      await waitForAcceptedNotification(menteePage);
+    } finally {
+      await menteeContext.close();
+      await mentorContext.close();
+    }
+  });
+});

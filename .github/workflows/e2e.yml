@@ -20,6 +20,17 @@ jobs:
       BASE_URL: ${{ inputs.base_url || 'https://xtalentdev.vercel.app' }}
       E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
       E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+      # Dual-role real-backend canary accounts (X-Tracker #686/#687) - two
+      # dedicated mentee/mentor test accounts, distinct from E2E_EMAIL/
+      # E2E_PASSWORD above (single-role, mocked-API suite) and from
+      # DESIGN_AUDIT_MENTOR_*/DESIGN_AUDIT_MENTEE_* (a different, unrelated
+      # script). NOTE FOR REVIEWER: these four secrets must be added to this
+      # repo's GitHub Actions secrets manually - that's an operational step
+      # outside this PR's code changes.
+      E2E_MENTEE_EMAIL: ${{ secrets.E2E_MENTEE_EMAIL }}
+      E2E_MENTEE_PASSWORD: ${{ secrets.E2E_MENTEE_PASSWORD }}
+      E2E_MENTOR_EMAIL: ${{ secrets.E2E_MENTOR_EMAIL }}
+      E2E_MENTOR_PASSWORD: ${{ secrets.E2E_MENTOR_PASSWORD }}
       NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET_DEV }}
 
     steps:
@@ -42,7 +53,20 @@ jobs:
         run: pnpm playwright install --with-deps chromium
 
       - name: Run Playwright tests
-        run: pnpm test:e2e
+        run: pnpm test:e2e --project=setup --project=chromium --project=chromium-onboarding --project=chromium-anon --project=chromium-profile --project=chromium-reservation
+        env:
+          PLAYWRIGHT_HTML_REPORT: playwright-report
+
+      # Real-backend, dual-role canary project (X-Tracker #687) runs as its
+      # own step with continue-on-error so a real-backend flake there never
+      # reds the step above or the rest of this job's projects - and reports
+      # to its own HTML report output so the two are always separately
+      # judgeable, never merged into one report.
+      - name: Run Playwright canary tests
+        continue-on-error: true
+        run: pnpm test:e2e --project=setup-canary --project=chromium-canary
+        env:
+          PLAYWRIGHT_HTML_REPORT: playwright-report-canary
 
       - name: Upload Playwright report
         if: always()
@@ -50,4 +74,12 @@ jobs:
         with:
           name: playwright-report
           path: playwright-report/
+          retention-days: 14
+
+      - name: Upload Playwright canary report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-canary
+          path: playwright-report-canary/
           retention-days: 14
