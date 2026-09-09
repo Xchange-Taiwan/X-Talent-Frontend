@@ -1,3 +1,5 @@
+process.env.TZ = 'UTC';
+
 import { fromPartial } from '@total-typescript/shoehorn';
 import dayjs from 'dayjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -267,6 +269,37 @@ describe('mentor-schedule sync', () => {
 
       expect(saveMentorSchedule).toHaveBeenCalled();
       expect(deleteMentorSchedule).not.toHaveBeenCalled();
+    });
+
+    it('should return a failed outcome and skip reload when delete fails after a successful save', async () => {
+      vi.mocked(saveMentorSchedule).mockResolvedValue(undefined);
+      const apiError = new ApiError(400, 'Conflict in schedule', 'CONFLICT');
+      vi.mocked(deleteMentorSchedule).mockRejectedValueOnce(apiError);
+
+      const upsertPayload = [
+        fromPartial<TimeSlotDTO>({
+          dt_type: 'ALLOW',
+          dtstart: MAY_2026,
+          dtend: MAY_2026 + 1800,
+        }),
+      ];
+      const deleteIds = [1];
+
+      const outcome = await syncMonthSchedule({
+        ref,
+        upsertPayload,
+        deleteIds,
+      });
+
+      expect(outcome.ok).toBe(false);
+      if (!outcome.ok) {
+        expect(outcome.reason).toBe('conflict');
+        expect(outcome.message).toBe('Conflict in schedule');
+      }
+
+      expect(saveMentorSchedule).toHaveBeenCalled();
+      expect(deleteMentorSchedule).toHaveBeenCalled();
+      expect(fetchMentorSchedule).not.toHaveBeenCalled();
     });
 
     it('should return unknown reason for general ApiError or other errors', async () => {

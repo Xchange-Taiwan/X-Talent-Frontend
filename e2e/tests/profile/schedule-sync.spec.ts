@@ -160,6 +160,33 @@ async function selectCalendarDate(
   await dayButton.click();
 }
 
+/**
+ * Open the "新增可預約時段" dialog from the schedule dialog, pick an
+ * hour/minute, and confirm creation. Shared by every test that needs to add
+ * a slot so the UI interaction steps aren't duplicated per test.
+ */
+async function createTimeSlot(
+  page: Page,
+  scheduleDialog: Locator,
+  hourLabel: string,
+  minuteLabel: string
+): Promise<void> {
+  await scheduleDialog.locator('button:has(svg.lucide-plus)').click();
+
+  const addDialog = page.getByRole('dialog', { name: '新增可預約時段' });
+  await expect(addDialog).toBeVisible({ timeout: 10_000 });
+
+  const comboboxes = addDialog.getByRole('combobox');
+  await comboboxes.nth(0).click();
+  await page.getByRole('option', { name: hourLabel, exact: true }).click();
+  await comboboxes.nth(1).click();
+  await page.getByRole('option', { name: minuteLabel, exact: true }).click();
+
+  await addDialog.getByRole('button', { name: '30 分' }).click();
+  await addDialog.getByRole('button', { name: '建立' }).click();
+  await expect(addDialog).not.toBeVisible({ timeout: 5_000 });
+}
+
 test.describe('導師時段儲存與衝突攔截 E2E 測試', () => {
   test.beforeEach(async ({ page }) => {
     // Freeze environment time to July 15, 2026
@@ -189,7 +216,7 @@ test.describe('導師時段儲存與衝突攔截 E2E 測試', () => {
     );
 
     // Mock successful save (PUT schedule)
-    let savedBody: any = null;
+    let savedBody: { timeslots: { dtstart: number }[] } | null = null;
     await page.route(
       new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule`),
       async (route) => {
@@ -221,20 +248,7 @@ test.describe('導師時段儲存與衝突攔截 E2E 測試', () => {
     await selectCalendarDate(scheduleDialog, '2026-07-17');
 
     // Add slot
-    await scheduleDialog.locator('button:has(svg.lucide-plus)').click();
-
-    const addDialog = page.getByRole('dialog', { name: '新增可預約時段' });
-    await expect(addDialog).toBeVisible({ timeout: 10_000 });
-
-    const comboboxes = addDialog.getByRole('combobox');
-    await comboboxes.nth(0).click();
-    await page.getByRole('option', { name: '15', exact: true }).click();
-    await comboboxes.nth(1).click();
-    await page.getByRole('option', { name: '00', exact: true }).click();
-
-    await addDialog.getByRole('button', { name: '30 分' }).click();
-    await addDialog.getByRole('button', { name: '建立' }).click();
-    await expect(addDialog).not.toBeVisible({ timeout: 5_000 });
+    await createTimeSlot(page, scheduleDialog, '15', '00');
 
     // Click "儲存"
     await scheduleDialog.getByRole('button', { name: '儲存' }).click();
@@ -244,8 +258,8 @@ test.describe('導師時段儲存與衝突攔截 E2E 測試', () => {
 
     // Verify that the payload contains the added slot
     expect(savedBody).not.toBeNull();
-    expect(savedBody.timeslots).toHaveLength(1);
-    expect(savedBody.timeslots[0].dtstart).toBe(1784271600); // 2026-07-17 15:00:00 Asia/Taipei
+    expect(savedBody!.timeslots).toHaveLength(1);
+    expect(savedBody!.timeslots[0].dtstart).toBe(1784271600); // 2026-07-17 15:00:00 Asia/Taipei
   });
 
   test('儲存時段遇到衝突時顯示衝突提示且時段不被清空', async ({ page }) => {
@@ -287,20 +301,7 @@ test.describe('導師時段儲存與衝突攔截 E2E 測試', () => {
 
     await selectCalendarDate(scheduleDialog, '2026-07-17');
 
-    await scheduleDialog.locator('button:has(svg.lucide-plus)').click();
-
-    const addDialog = page.getByRole('dialog', { name: '新增可預約時段' });
-    await expect(addDialog).toBeVisible({ timeout: 10_000 });
-
-    const comboboxes = addDialog.getByRole('combobox');
-    await comboboxes.nth(0).click();
-    await page.getByRole('option', { name: '15', exact: true }).click();
-    await comboboxes.nth(1).click();
-    await page.getByRole('option', { name: '00', exact: true }).click();
-
-    await addDialog.getByRole('button', { name: '30 分' }).click();
-    await addDialog.getByRole('button', { name: '建立' }).click();
-    await expect(addDialog).not.toBeVisible({ timeout: 5_000 });
+    await createTimeSlot(page, scheduleDialog, '15', '00');
 
     // Click "儲存" which will fail due to conflict
     await scheduleDialog.getByRole('button', { name: '儲存' }).click();
@@ -315,5 +316,102 @@ test.describe('導師時段儲存與衝突攔截 E2E 測試', () => {
     // Clean up
     await scheduleDialog.getByRole('button', { name: '取消' }).click();
     await expect(scheduleDialog).not.toBeVisible();
+  });
+
+  test('導師刪除既有時段並新增另一時段後儲存成功', async ({ page }) => {
+    await setupTestSession(page, true);
+
+    const EXISTING_SLOT_ID = 99;
+    const EXISTING_DTSTART = 1784253600; // 2026-07-17 10:00:00 Asia/Taipei
+    const EXISTING_DTEND = 1784255400; // 2026-07-17 10:30:00 Asia/Taipei
+
+    // Initial schedule already has one existing slot on 2026-07-17
+    await mockApiRoute(
+      page,
+      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule/y/2026/m/7`),
+      {
+        body: {
+          code: '0',
+          msg: 'ok',
+          data: {
+            segments: [
+              {
+                id: EXISTING_SLOT_ID,
+                user_id: Number(REAL_MENTOR_ID),
+                dt_type: 'ALLOW',
+                dt_year: 2026,
+                dt_month: 7,
+                dtstart: EXISTING_DTSTART,
+                dtend: EXISTING_DTEND,
+                timezone: 'UTC',
+              },
+            ],
+          },
+        },
+      }
+    );
+
+    let savedBody: { timeslots: { dtstart: number }[] } | null = null;
+    let deleteRequestUrl: string | null = null;
+    await page.route(
+      new RegExp(`/v1/mentors/${REAL_MENTOR_ID}/schedule`),
+      async (route) => {
+        const method = route.request().method();
+        if (method === 'PUT') {
+          savedBody = await route.request().postDataJSON();
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+          });
+        }
+        if (method === 'DELETE') {
+          deleteRequestUrl = route.request().url();
+          return route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ code: '0', msg: 'ok', data: null }),
+          });
+        }
+        return route.continue();
+      }
+    );
+
+    await page.goto(`/profile/${REAL_MENTOR_ID}`);
+
+    const openButton = page.getByRole('button', { name: '預約設定' });
+    await expect(openButton).toBeVisible({ timeout: 20_000 });
+    await openButton.click();
+
+    const scheduleDialog = page.getByRole('dialog', { name: '設定可預約時段' });
+    await expect(scheduleDialog).toBeVisible({ timeout: 10_000 });
+
+    await selectCalendarDate(scheduleDialog, '2026-07-17');
+
+    // Delete the existing 10:00 – 10:30 slot
+    const existingSlotContainer = scheduleDialog
+      .locator('[role="button"]')
+      .filter({ hasText: '10:00 – 10:30' });
+    await existingSlotContainer.locator('button:has(svg.lucide-x)').click();
+
+    // Add a new slot at 15:00
+    await createTimeSlot(page, scheduleDialog, '15', '00');
+
+    // Click "儲存"
+    await scheduleDialog.getByRole('button', { name: '儲存' }).click();
+
+    // Dialog should close on success
+    await expect(scheduleDialog).not.toBeVisible({ timeout: 15_000 });
+
+    // The new slot was saved
+    expect(savedBody).not.toBeNull();
+    expect(savedBody!.timeslots).toHaveLength(1);
+    expect(savedBody!.timeslots[0].dtstart).toBe(1784271600); // 2026-07-17 15:00:00 Asia/Taipei
+
+    // The existing slot was deleted
+    expect(deleteRequestUrl).not.toBeNull();
+    expect(deleteRequestUrl).toContain(
+      `/v1/mentors/${REAL_MENTOR_ID}/schedule/${EXISTING_SLOT_ID}`
+    );
   });
 });

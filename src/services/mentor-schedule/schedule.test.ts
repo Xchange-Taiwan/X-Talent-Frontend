@@ -101,7 +101,7 @@ describe('saveMentorSchedule', () => {
           dtend: 1767229800,
           timezone: 'UTC',
           rrule: null,
-          exdate: undefined as any,
+          exdate: undefined,
           user_id: 42,
         }),
       ],
