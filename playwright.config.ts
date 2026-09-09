@@ -41,6 +41,7 @@ export default defineConfig({
       name: 'setup',
       testDir: './e2e',
       testMatch: '**/fixtures/auth.setup.ts',
+      grepInvert: /@canary/,
       use: { actionTimeout: 60_000 },
     },
     {
@@ -51,6 +52,29 @@ export default defineConfig({
         storageState: 'e2e/.auth/user.json',
       },
       dependencies: ['setup'],
+    },
+    // Real-backend, dual-role setup for e2e/tests/canary/. Separate from
+    // `setup` above (via @canary tag + grep) so the plain `chromium` project
+    // never requires E2E_MENTEE_*/E2E_MENTOR_* to be set.
+    {
+      name: 'setup-canary',
+      testDir: './e2e',
+      testMatch: '**/fixtures/auth.setup.ts',
+      grep: /@canary/,
+      use: { actionTimeout: 60_000 },
+    },
+    // Canary tests hit the real backend with two real, independently
+    // authenticated accounts. No project-level storageState is set — each
+    // test builds its own mentee/mentor browser contexts from
+    // e2e/.auth/mentee.json and e2e/.auth/mentor.json so both roles can be
+    // logged in simultaneously within a single test.
+    {
+      name: 'chromium-canary',
+      testDir: './e2e/tests/canary',
+      use: {
+        ...devices['Desktop Chrome'],
+      },
+      dependencies: ['setup-canary'],
     },
     // Onboarding tests forge their own signed session cookie via next-auth/jwt
     // encode(), so no real user or storageState is needed.

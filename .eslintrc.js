@@ -23,6 +23,14 @@ const tailwindArbitraryFontSizeRule = {
 };
 
 module.exports = {
+  // Stop the legacy eslintrc ancestor-directory cascade at the repo root.
+  // Without this, running ESLint from a nested git worktree under
+  // .claude/worktrees/<id>/ (this repo's own agent worktree convention)
+  // also picks up the parent checkout's .eslintrc.js three levels up,
+  // which independently declares the same "plugins" and fails with
+  // "ESLint couldn't determine the plugin ... uniquely" because each
+  // config resolves the plugin from its own node_modules.
+  root: true,
   extends: [
     'next/core-web-vitals',
     'plugin:@typescript-eslint/recommended',
