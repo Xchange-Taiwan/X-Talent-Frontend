@@ -1,3 +1,4 @@
+import { fromPartial } from '@total-typescript/shoehorn';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@sentry/nextjs', () => ({
@@ -7,12 +8,185 @@ vi.mock('@sentry/nextjs', () => ({
 import * as Sentry from '@sentry/nextjs';
 
 import {
+  buildBaseEvent,
   captureApiFailure,
   captureError,
   captureFlowFailure,
+  sanitize,
 } from './monitoring';
 
 const mockCaptureEvent = vi.mocked(Sentry.captureEvent);
+
+describe('PII Sanitization', () => {
+  it('masks sensitive query parameters in URLs', () => {
+    const rawUrl =
+      'https://api.example.com/login?password=mysecret&token=abc123&email=user@test.com&safe=yes';
+    const sanitized = sanitize(rawUrl);
+    expect(sanitized).toContain('password=[REDACTED]');
+    expect(sanitized).toContain('token=[REDACTED]');
+    expect(sanitized).toContain('email=[REDACTED]');
+    expect(sanitized).toContain('safe=yes');
+    expect(sanitized).not.toContain('mysecret');
+    expect(sanitized).not.toContain('abc123');
+    expect(sanitized).not.toContain('user@test.com');
+  });
+
+  it('masks sensitive keys in JSON structures', () => {
+    const rawJson = JSON.stringify({
+      password: 'password123',
+      token: 'jwt-token-xyz',
+      email: 'john@doe.com',
+      phone: '123456789',
+      idnumber: 'A123456789',
+      unrelated: 'safe-value',
+    });
+    const sanitized = sanitize(rawJson);
+    expect(sanitized).toContain('"password":"[REDACTED]"');
+    expect(sanitized).toContain('"token":"[REDACTED]"');
+    expect(sanitized).toContain('"email":"[REDACTED]"');
+    expect(sanitized).toContain('"phone":"[REDACTED]"');
+    expect(sanitized).toContain('"idnumber":"[REDACTED]"');
+    expect(sanitized).toContain('"unrelated":"safe-value"');
+    expect(sanitized).not.toContain('password123');
+    expect(sanitized).not.toContain('jwt-token-xyz');
+    expect(sanitized).not.toContain('john@doe.com');
+  });
+
+  it('handles empty or undefined values gracefully', () => {
+    expect(sanitize(undefined)).toBeUndefined();
+    expect(sanitize('')).toBe('');
+  });
+});
+
+describe('buildBaseEvent', () => {
+  it('correctly builds event from Error object', () => {
+    const error = new Error('Test error message');
+    error.stack = 'Mocked stack trace';
+
+    const event = buildBaseEvent('runtime_error.unhandled_js', error);
+
+    expect(event.name).toBe('runtime_error.unhandled_js');
+    expect(event.message).toBe('Test error message');
+    expect(event.stack).toBe('Mocked stack trace');
+    expect(event.timestamp).toBeDefined();
+    expect(event.environment).toBeDefined();
+  });
+
+  it('correctly builds event from non-Error objects', () => {
+    const event = buildBaseEvent(
+      'runtime_error.unhandled_rejection',
+      'Some rejection string'
+    );
+
+    expect(event.name).toBe('runtime_error.unhandled_rejection');
+    expect(event.message).toBe('Some rejection string');
+    expect(event.stack).toBeUndefined();
+  });
+});
+
+describe('captureError', () => {
+  beforeEach(() => {
+    vi.stubEnv('NODE_ENV', 'production');
+    mockCaptureEvent.mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('sanitizes and forwards runtime errors to Sentry in production', async () => {
+    const event = fromPartial({
+      name: 'runtime_error.unhandled_js',
+      message: 'Failed to authenticate user password=secret123',
+      stack: 'Error stack containing email=user@test.com',
+      componentStack: 'React component tree with phone=987654321',
+      route: '/home',
+      environment: 'production',
+    });
+
+    await captureError(event);
+
+    expect(mockCaptureEvent).toHaveBeenCalledTimes(1);
+    expect(mockCaptureEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Failed to authenticate user password=[REDACTED]',
+        tags: expect.objectContaining({
+          event_name: 'runtime_error.unhandled_js',
+          route: '/home',
+        }),
+        extra: expect.objectContaining({
+          stack: 'Error stack containing email=[REDACTED]',
+          componentStack: 'React component tree with phone=[REDACTED]',
+        }),
+      })
+    );
+  });
+
+  it('does NOT call Sentry when NODE_ENV is not production', async () => {
+    vi.stubEnv('NODE_ENV', 'test');
+
+    const event = fromPartial({
+      name: 'runtime_error.unhandled_js',
+      message: 'Test error message',
+    });
+
+    await captureError(event);
+
+    expect(mockCaptureEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe('captureApiFailure', () => {
+  beforeEach(() => {
+    vi.stubEnv('NODE_ENV', 'production');
+    mockCaptureEvent.mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('sanitizes query parameters and message in api.failure events', async () => {
+    await captureApiFailure({
+      endpoint: '/api/v1/auth/callback?token=secrettoken&code=123',
+      method: 'POST',
+      status: 401,
+      message: 'Unauthorized access, invalid token=secrettoken',
+      duration: 150,
+      route: '/auth/signin',
+    });
+
+    expect(mockCaptureEvent).toHaveBeenCalledTimes(1);
+    expect(mockCaptureEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Unauthorized access, invalid token=[REDACTED]',
+        tags: expect.objectContaining({
+          event_name: 'api.failure',
+          route: '/auth/signin',
+          method: 'POST',
+          status: '401',
+        }),
+        extra: expect.objectContaining({
+          endpoint: '/api/v1/auth/callback?token=[REDACTED]&code=123',
+          duration: 150,
+        }),
+      })
+    );
+  });
+
+  it('does NOT call Sentry when NODE_ENV is not production', async () => {
+    vi.stubEnv('NODE_ENV', 'test');
+
+    await captureApiFailure({
+      endpoint: '/api/v1/data',
+      method: 'GET',
+      status: 500,
+      message: 'Server error',
+    });
+
+    expect(mockCaptureEvent).not.toHaveBeenCalled();
+  });
+});
 
 describe('captureFlowFailure', () => {
   beforeEach(() => {
