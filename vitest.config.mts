@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
   test: {
@@ -20,12 +20,10 @@ export default defineConfig({
       NEXT_PUBLIC_API_URL: '',
     },
     setupFiles: ['./src/test/setup.ts'],
+    // maxWorkers: 1 alone already serializes test files in CI (fileParallelism's
+    // effect); the previous poolOptions.forks.singleFork block was a no-op since
+    // singleFork's default is already false, so it added nothing and is dropped.
     maxWorkers: process.env.CI ? 1 : undefined,
-    poolOptions: {
-      forks: {
-        singleFork: process.env.CI ? false : undefined,
-      },
-    },
     server: {
       deps: {
         inline: [/@storybook\/nextjs/],
@@ -38,6 +36,19 @@ export default defineConfig({
     ],
     typecheck: {
       tsconfig: './tsconfig.test.json',
+    },
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'json', 'lcov'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/**/*.d.ts',
+        'src/**/*.{test,spec}.{ts,tsx}',
+        'src/**/*.stories.{ts,tsx}',
+        'src/test/**',
+        'src/mocks/**',
+        'src/**/__mocks__/**',
+      ],
     },
   },
 });
