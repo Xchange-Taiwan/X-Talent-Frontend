@@ -252,6 +252,35 @@ async function waitForAcceptedNotification(page: Page): Promise<void> {
   throw lastError;
 }
 
+/**
+ * Mentee: cancel the (now-accepted) reservation this test just created, so
+ * repeated real-backend canary runs don't accumulate stray ACCEPTED rows
+ * (AI Review flagged this as a real data-pollution risk). Runs from the
+ * test's `finally` block - swallow any error here rather than throwing, so a
+ * cleanup failure never masks the actual assertions' pass/fail signal.
+ */
+async function menteeCancelReservation(page: Page): Promise<void> {
+  await page.goto('/reservation/mentee');
+
+  const upcomingTab = page.getByRole('tab', { name: /即將到來/ });
+  await expect(upcomingTab).toBeVisible({ timeout: 20_000 });
+  await upcomingTab.click();
+
+  const cancelButton = page.getByRole('button', { name: '取消預約' }).first();
+  await expect(cancelButton).toBeVisible({ timeout: 20_000 });
+  await cancelButton.click();
+
+  const cancelDialog = page.getByRole('dialog');
+  await expect(
+    cancelDialog.getByRole('heading', { name: '取消預約' })
+  ).toBeVisible({ timeout: 5_000 });
+  await cancelDialog
+    .locator('textarea')
+    .fill('[canary #687] automated cleanup');
+  await cancelDialog.getByRole('button', { name: '取消預約' }).click();
+  await expect(cancelDialog).not.toBeVisible({ timeout: 15_000 });
+}
+
 test.describe('真實後端通知 canary：mentor 接受預約 → mentee 收到通知', () => {
   test('mentor 建立可預約時段並接受 mentee 的真實預約 → mentee 端出現對應通知', async ({
     browser,
@@ -284,6 +313,19 @@ test.describe('真實後端通知 canary：mentor 接受預約 → mentee 收到
 
       await waitForAcceptedNotification(menteePage);
     } finally {
+      try {
+        const cleanupPage =
+          menteeContext.pages()[0] ?? (await menteeContext.newPage());
+        await menteeCancelReservation(cleanupPage);
+      } catch (err) {
+        // Best-effort cleanup - never let a cleanup failure mask the real
+        // test outcome above. Left as a manual cleanup for whoever notices
+        // the stray reservation on the shared test account.
+        console.warn(
+          '[canary #687] cleanup: failed to cancel test reservation:',
+          err
+        );
+      }
       await menteeContext.close();
       await mentorContext.close();
     }

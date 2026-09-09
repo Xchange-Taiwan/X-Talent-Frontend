@@ -11,21 +11,72 @@ on:
         default: 'https://xtalentdev.vercel.app'
 
 jobs:
-  e2e:
+  # Mocked, no-credentials-needed projects (chromium-onboarding/-anon/
+  # -profile/-reservation) plus the single-account login smoke test (setup/
+  # chromium): both are meant to be a reliable regression signal, so a
+  # failure here is always treated as real and fails this job loudly.
+  e2e-mock:
     runs-on: ubuntu-latest
-    name: Playwright E2E
-    # Run scheduled or triggered runs against dev environment.
-    # Let the run fail loudly so the result is unambiguous in the Actions UI.
+    name: Playwright E2E (mock)
     env:
       BASE_URL: ${{ inputs.base_url || 'https://xtalentdev.vercel.app' }}
-      # Single-account real login (setup/chromium) and dual-role real-backend
-      # canary (setup-canary/chromium-canary, X-Tracker #686/#687) both need
-      # real credentials, distinct from DESIGN_AUDIT_MENTOR_*/
-      # DESIGN_AUDIT_MENTEE_* (a different, unrelated script). The single-
-      # account login reuses E2E_MENTEE_* - there was never a separate
-      # E2E_EMAIL account. NOTE FOR REVIEWER: these four secrets must be
-      # added to this repo's GitHub Actions secrets manually - that's an
-      # operational step outside this PR's code changes.
+      # The single-account login smoke test (setup/chromium) reuses the
+      # mentee canary credentials below - there was never a separate
+      # E2E_EMAIL account. NOTE FOR REVIEWER: E2E_MENTEE_* must be added to
+      # this repo's GitHub Actions secrets manually - that's an operational
+      # step outside this PR's code changes.
+      E2E_MENTEE_EMAIL: ${{ secrets.E2E_MENTEE_EMAIL }}
+      E2E_MENTEE_PASSWORD: ${{ secrets.E2E_MENTEE_PASSWORD }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET_DEV }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up PNPM
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: pnpm exec playwright test --project=setup --project=chromium --project=chromium-onboarding --project=chromium-anon --project=chromium-profile --project=chromium-reservation
+        env:
+          PLAYWRIGHT_HTML_REPORT: playwright-report
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+  # Dual-role real-backend canary only (X-Tracker #686/#687): a genuinely
+  # real, unmocked mentor<->mentee flow against a live deployed backend, so
+  # it's the one project prone to real network/timing flakiness. Runs as its
+  # own job (not just a step) with continue-on-error so it shows up as its
+  # own separately-judgeable check - a flake here can never be conflated with
+  # (or silently mask a regression in) the e2e-mock job above, which stays a
+  # hard, unconditional signal.
+  e2e-canary:
+    runs-on: ubuntu-latest
+    name: Playwright E2E (canary)
+    continue-on-error: true
+    env:
+      BASE_URL: ${{ inputs.base_url || 'https://xtalentdev.vercel.app' }}
+      # NOTE FOR REVIEWER: these four secrets must be added to this repo's
+      # GitHub Actions secrets manually - that's an operational step outside
+      # this PR's code changes.
       E2E_MENTEE_EMAIL: ${{ secrets.E2E_MENTEE_EMAIL }}
       E2E_MENTEE_PASSWORD: ${{ secrets.E2E_MENTEE_PASSWORD }}
       E2E_MENTOR_EMAIL: ${{ secrets.E2E_MENTOR_EMAIL }}
@@ -51,38 +102,10 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm playwright install --with-deps chromium
 
-      # Mocked, no-credentials-needed projects (chromium-onboarding/-anon/
-      # -profile/-reservation) plus the single-account login smoke test
-      # (setup/chromium): both are meant to be a reliable regression signal,
-      # so a failure here is always treated as real and fails the job loudly.
-      # NOTE: intentionally NOT using the local-dev test:e2e:backend script,
-      # which also includes the canary project below - that script is a
-      # local convenience only. CI needs the finer-grained split so a
-      # real-backend canary flake can never silently mask a genuine
-      # regression in the plain login smoke test (caught by AI Review on the
-      # first version of this workflow, which had grouped them together).
-      - name: Run Playwright tests
-        run: pnpm exec playwright test --project=setup --project=chromium --project=chromium-onboarding --project=chromium-anon --project=chromium-profile --project=chromium-reservation
-        env:
-          PLAYWRIGHT_HTML_REPORT: playwright-report
-
-      # Dual-role real-backend canary only (X-Tracker #686/#687): runs as its
-      # own step with continue-on-error so a real-backend flake there never
-      # reds the step above, and reports to its own HTML output so the two
-      # are always separately judgeable, never merged into one report.
       - name: Run Playwright canary tests
-        continue-on-error: true
         run: pnpm exec playwright test --project=setup-canary --project=chromium-canary
         env:
           PLAYWRIGHT_HTML_REPORT: playwright-report-canary
-
-      - name: Upload Playwright report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 14
 
       - name: Upload Playwright canary report
         if: always()
