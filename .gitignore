@@ -64,7 +64,7 @@ CLAUDE.md
 # Playwright E2E
 /playwright-report/
 /test-results/
-e2e/.auth/user.json
+e2e/.auth/*.json
 
 # RWD testing scripts and screenshots
 /rwd-testing/
