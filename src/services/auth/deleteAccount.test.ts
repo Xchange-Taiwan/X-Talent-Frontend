@@ -18,19 +18,17 @@ vi.mock('@/lib/apiClient', async (importActual) => {
 import { apiClient } from '@/lib/apiClient';
 
 describe('deleteAccount service', () => {
-  const originalEnv = process.env;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env = { ...originalEnv, NEXT_PUBLIC_CAN_DELETE_ACCOUNT: 'true' };
+    vi.stubEnv('NEXT_PUBLIC_CAN_DELETE_ACCOUNT', 'true');
   });
 
   afterEach(() => {
-    process.env = originalEnv;
+    vi.unstubAllEnvs();
   });
 
   it('should return error when NEXT_PUBLIC_CAN_DELETE_ACCOUNT is not true', async () => {
-    process.env.NEXT_PUBLIC_CAN_DELETE_ACCOUNT = 'false';
+    vi.stubEnv('NEXT_PUBLIC_CAN_DELETE_ACCOUNT', 'false');
 
     const payload = fromPartial<Parameters<typeof deleteAccount>[0]>({
       email: 'test@example.com',
