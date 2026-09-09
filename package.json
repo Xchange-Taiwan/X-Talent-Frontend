@@ -21,6 +21,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "test:e2e:mock": "playwright test --project=chromium-onboarding --project=chromium-anon --project=chromium-profile --project=chromium-reservation",
+    "test:e2e:backend": "playwright test --project=setup --project=chromium --project=setup-canary --project=chromium-canary",
     "prepare": "husky install",
     "gemini": "gemini",
     "gemini-yolo": "cross-env GEMINI_CLI_TRUST_WORKSPACE=true gemini --approval-mode=yolo --skip-trust",

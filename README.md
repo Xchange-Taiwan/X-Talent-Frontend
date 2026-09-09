@@ -98,6 +98,5 @@ The application will be available at `http://localhost:3000`.
 
 > End-to-end tests require test account credentials in `.env.e2e.local`. Request these from the team; do not commit real credentials.
 >
-> - `E2E_EMAIL`/`E2E_PASSWORD` — single account, single role. Feeds the `chromium` project (`e2e/tests/authenticated/`).
-> - `E2E_MENTEE_EMAIL`/`E2E_MENTEE_PASSWORD` and `E2E_MENTOR_EMAIL`/`E2E_MENTOR_PASSWORD` — one real mentee account and one real mentor account, both logged in against the real backend. Feeds the `chromium-canary` project (`e2e/tests/canary/`), which needs both roles at once. Not required unless you're running canary tests.
+> - `E2E_MENTEE_EMAIL`/`E2E_MENTEE_PASSWORD` and `E2E_MENTOR_EMAIL`/`E2E_MENTOR_PASSWORD` — one real mentee account and one real mentor account, both logged in against the real backend. The mentee credentials also feed the plain `chromium` project (`e2e/tests/authenticated/`) — there's no separate single-role account. `E2E_MENTOR_*` is only required for the `chromium-canary` project (`e2e/tests/canary/`), which needs both roles at once.
 > - These are **not** the same credentials as `DESIGN_AUDIT_MENTOR_*`/`DESIGN_AUDIT_MENTEE_*` in `.env.development.local`, which are only for `scripts/capture-ui-evidence.mjs` (UI screenshot capture). Keep the two sets separate.

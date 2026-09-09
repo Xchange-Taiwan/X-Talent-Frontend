@@ -10,8 +10,9 @@ const VIEWPORTS = {
   mobile: { width: 375, height: 812 },
 };
 
-// Kept separate from E2E_EMAIL/E2E_PASSWORD (the Playwright e2e suite's forged-session
-// credentials, see e2e/helpers/session.ts) — this script always logs in for real.
+// Kept separate from E2E_MENTEE_*/E2E_MENTOR_* (the Playwright e2e suite's own real-login
+// credentials, see e2e/fixtures/auth.setup.ts) — this script always logs in for real too, but
+// against a different account, so the two suites never interfere with each other's session.
 const ROLE_CREDENTIALS = {
   mentor: {
     email: 'DESIGN_AUDIT_MENTOR_EMAIL',

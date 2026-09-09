@@ -18,7 +18,7 @@ This is the page/flow counterpart to the one-time Components-library sync — th
 ## Prerequisites
 
 - Penpot MCP connected to the target file (same MCP server used by the Components sync).
-- `DESIGN_AUDIT_MENTOR_EMAIL` / `DESIGN_AUDIT_MENTOR_PASSWORD` / `DESIGN_AUDIT_MENTEE_EMAIL` / `DESIGN_AUDIT_MENTEE_PASSWORD` set (`.env.development.local`, gitignored — see `.env.example`). Real accounts on the deployed dev backend. Kept separate from `E2E_EMAIL`/`E2E_PASSWORD` (the Playwright e2e suite's own forged-session credentials) — never reuse or mix the two.
+- `DESIGN_AUDIT_MENTOR_EMAIL` / `DESIGN_AUDIT_MENTOR_PASSWORD` / `DESIGN_AUDIT_MENTEE_EMAIL` / `DESIGN_AUDIT_MENTEE_PASSWORD` set (`.env.development.local`, gitignored — see `.env.example`). Real accounts on the deployed dev backend. Kept separate from `E2E_MENTEE_*`/`E2E_MENTOR_*` (the Playwright e2e suite's own real-login credentials) — never reuse or mix the two.
 - `playwright` available in `node_modules` (already a project dependency via `@playwright/test`).
 - The Penpot Components page has real library components registered (not just plain boards) — true as of the last Components sync. If `component.instance()` can't find something expected, treat it as a gap (Step 10), don't block.
 
